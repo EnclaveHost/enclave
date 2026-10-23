@@ -1,0 +1,52 @@
+From 1d4920ca821c904e5a5610de4c22b2f9d3374081 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 08:25:09 -0700
+Subject: [PATCH] Record actual RPC receipt dependency and bundler acceptance
+ gaps
+
+---
+ review.json | 35 +++++++++++++++++++++++++++++++++++
+ 1 file changed, 35 insertions(+)
+ create mode 100644 review.json
+
+diff --git a/review.json b/review.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..3a24ac218b527354a6dcbb858b4c747eeaaf7edc
+--- /dev/null
++++ b/review.json
+@@ -0,0 +1,35 @@
++{
++  "at": "2026-10-23T15:25:09.011461+00:00",
++  "status": "Open integration findings; source review and existing test receipts, no production change",
++  "findings": [
++    {
++      "id": "hosted-rpc-receipt-inputs",
++      "evidence": "Pinned Helios core/src/execution/providers/rpc.rs get_receipt (390-416) requests transaction receipt, full block by hash, and block receipts. S4f763 public-rpc method list lacks eth_getBlockReceipts and refuses full blocks.",
++      "implication": "Proof/header-only success does not establish end-to-end receipt or authenticated log support through the hosted role.",
++      "owner": "S public-rpc-history-closure-20261023, active session39534",
++      "required": "Bounded actual method support, tested with real Helios receipt/log verification and tamper rejection.",
++      "limit": "B current receipt failures use an unrestricted proxy; this missing method has not been identified as their cause."
++    },
++    {
++      "id": "alto-diagnostic-success-exit",
++      "evidence": "rpc-bundler-service logs/batch-3.out reports it-reth rc0; it-reth.out has pagePinCheck false for five contracts and ENOENT runtime before launcher ready. integration.mjs catches errors without setting failing exit status; batch-4.sh exits0 unconditionally.",
++      "implication": "These exit codes are not evidence of successful bundler integration or Base tracer compatibility.",
++      "owner": "P rpc-bundler-service-20261023, active session22089",
++      "required": "Propagate required-case failures, verify exact account code pins without weakening validation, distinguish startup rejection from unsupported tracer; preserve failed receipts.",
++      "limit": "Root reviewed source and existing output; no new bundler test executed."
++    }
++  ],
++  "workersConfirmedLive": [
++    53026,
++    42691,
++    61232,
++    22089,
++    25641,
++    39534,
++    6099,
++    88773,
++    85777,
++    78282
++  ],
++  "goal": "Active, incomplete; administrator authority preserved; NucBox restart decision unanswered."
++}

@@ -1,0 +1,28 @@
+{
+  "step": "start-node",
+  "checkedAt": "2026-10-23T15:27:22.041557+00:00",
+  "result": {
+    "ok": true,
+    "action": "Node start requested",
+    "state": {
+      "tasks": [
+        {
+          "state": "Running",
+          "name": "Node"
+        },
+        {
+          "state": "Running",
+          "name": "Shield"
+        }
+      ],
+      "listeners": [
+        {
+          "LocalAddress": "127.0.0.1",
+          "LocalPort": 8091,
+          "OwningProcess": 2376
+        }
+      ],
+      "at": "2026-10-23T15:27:21.9293914Z"
+    }
+  }
+}

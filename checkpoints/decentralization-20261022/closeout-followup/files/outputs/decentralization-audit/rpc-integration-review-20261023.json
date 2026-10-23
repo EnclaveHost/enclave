@@ -1,0 +1,61 @@
+{
+  "at": "2026-10-23T15:53:33.011147+00:00",
+  "status": "Open integration findings; source review and existing test receipts, no production change",
+  "findings": [
+    {
+      "id": "hosted-rpc-receipt-inputs",
+      "evidence": "Pinned Helios core/src/execution/providers/rpc.rs get_receipt (390-416) requests transaction receipt, full block by hash, and block receipts. S4f763 public-rpc method list lacks eth_getBlockReceipts and refuses full blocks.",
+      "implication": "Proof/header-only success does not establish end-to-end receipt or authenticated log support through the hosted role.",
+      "owner": "S public-rpc-history-closure-20261023, active session39534",
+      "required": "Bounded actual method support, tested with real Helios receipt/log verification and tamper rejection.",
+      "limit": "B current receipt failures use an unrestricted proxy; this missing method has not been identified as their cause."
+    },
+    {
+      "id": "alto-diagnostic-success-exit",
+      "evidence": "rpc-bundler-service logs/batch-3.out reports it-reth rc0; it-reth.out has pagePinCheck false for five contracts and ENOENT runtime before launcher ready. integration.mjs catches errors without setting failing exit status; batch-4.sh exits0 unconditionally.",
+      "implication": "These exit codes are not evidence of successful bundler integration or Base tracer compatibility.",
+      "owner": "P rpc-bundler-service-20261023, active session22089",
+      "required": "Propagate required-case failures, verify exact account code pins without weakening validation, distinguish startup rejection from unsupported tracer; preserve failed receipts.",
+      "limit": "Root reviewed source and existing output; no new bundler test executed."
+    },
+    {
+      "id": "bundler-operator-hostname-prohibition",
+      "evidence": "E acceptedff13ebe site/js/core/account-providers.js242 rejects all explicitly selected bundlers if hosts.every(enclaveHost), and P handoff requires a non-Enclave bundler.",
+      "implication": "This excludes Enclave app-hosted service endpoints by hostname and conflicts with clarified platform business/admin requirements. Endpoint ownership alone is not proof of independent infrastructure.",
+      "owner": "P isolated page-compatibility branch from ff13ebe; ROOT-ACTUAL-WALLET-COMPATIBILITY.txt",
+      "required": "Remove blanket Enclave-hostname prohibition while preserving explicit selection, origin/TLS validation, chain/EntryPoint/code pins and admin/service admission. Test real Alto without fee shim."
+    },
+    {
+      "id": "nucbox-capacity-not-physical-free",
+      "evidence": "Native read2026-10-23T15:49:18Z: node budget96GiB, advertised ramGbFree79.8; physical free27358494720bytes (~25.48GiB), VMassigned80444653568bytes; installed manager only rule+pool, lacks reservation view.",
+      "implication": "The planned60GiB chain stack cannot be assumed to fit. Source candidate has manager reservation reporting but is not deployed.",
+      "owner": "F package integration and T placement handoff; ROOT-LIVE-CAPACITY-REVIEW.txt",
+      "required": "Preserve truthful reservation accounting; remeasure actual physical capacity before chain activation. Do not silently oversubscribe or move durable state to NVMe."
+    },
+    {
+      "id": "new-artifact-cold-retention",
+      "evidence": "NucBox96 restart required restoring publishedEnclaveDNS0.1.5 CID to existingproviderbootstrap: all4manifests lacked it; adapterCAR empty/truncated. RootartifactCID+SHAverified and9apps recovered.",
+      "implication": "Dynamic publication retention on distributed hosts is not established by old static bootstrap manifests or healthy warm apps.",
+      "owner": "E new artifact-retention-cold-recovery-20261023, Claude83283; C owns distinct Sia shardfix",
+      "required": "Actual lifecycle integration with packaged host role, durable newartifact retention and cold verifiedfetch afterprimaryindexer/adapter and firstreplica unavailable; tamper/truncation/crash negatives. No new providercentral service."
+    }
+  ],
+  "workersConfirmedLive": [
+    53026,
+    42691,
+    83283,
+    22089,
+    25641,
+    39534,
+    6099,
+    88773,
+    85777,
+    78282
+  ],
+  "goal": "Active, incomplete; administrator authority preserved; NucBox restart decision unanswered.",
+  "completedSourceReview": {
+    "siteGeneratedArtifacts": "ff13ebe089f3c18a064892269c55ddca2b4409e9",
+    "tree": "1cece8e6571631ab23ca8403c706ee5166c69c64",
+    "evidence": "Actual45/45compilerprovenance; executablecode andABIs/adminidentical, metadataonly. Clean offline productionbuild238files,17footerstamponlydistdifferences; actualpatchreconstruction/scanpass. No sourcecontract orproductionchange."
+  }
+}

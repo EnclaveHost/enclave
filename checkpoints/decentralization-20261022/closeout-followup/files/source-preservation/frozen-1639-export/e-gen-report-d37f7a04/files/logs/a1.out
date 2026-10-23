@@ -1,0 +1,73 @@
+[queue] START available=24150MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+repo HEAD ae00cd9659e46e3dffe5407bdf34442416a9e69a
+a7d54dd491b156c27bf9a40286870d36f5c048aeb85b63e5993cccc2a193fdc4  /home/steven/Documents/Codex/2026-10-18/wo/work/site-generated-artifacts-reconcile-20261023/outputs/generated/contract-artifacts.js
+solc-js 0.8.35+commit.47b9dedd.Emscripten.clang
+committed artifacts sha256 032da2c9dce99a6f4686a53ae4af627e42f7fe15e953942088c9ff771fc5f1a3 | fresh artifacts sha256 a7d54dd491b156c27bf9a40286870d36f5c048aeb85b63e5993cccc2a193fdc4
+
+== EnclaveRegistry (legacy codegen, runs 200)
+current source sha256 49dd631721c3c304b32881929d0c03e0e3204b5e101de280a15ff41b87063045 | old-history source sha256 8cb2b52b4bb82c53b146215e6782fcb23502b11fffa7e9e5423505b9ccf8d860
+PASS the old-history source becomes the current source under the authorized rewrite, byte for byte
+changed lines: 3 8,77,406
+PASS every changed line is comment text (line count equal)
+PASS old-history source compiles to the COMMITTED artifact bytecode exactly (8107 bytes)
+PASS current source compiles to the FRESH build's artifact bytecode exactly (8107 bytes)
+metadata: committed solc 0.8.35 ipfs-multihash 122098073c249fe2… | fresh solc 0.8.35 ipfs-multihash 1220da8b62f0cebc…
+PASS the same compiler version is embedded in both
+PASS creation bytecode: 32 differing bytes, all inside the trailing metadata (from byte 8054)
+PASS creation bytecode with the metadata removed: identical
+PASS deployed (runtime) code with the metadata removed: identical (8079 bytes)
+PASS runtimeBytes field unchanged
+PASS metadata JSON identical except the source keccak256/URLs and the NatSpec text (compiler, settings, optimizer, evmVersion, viaIR, ABI)
+NatSpec in metadata: differs
+PASS the NatSpec text in the metadata differs only by the same rewrite
+PASS each metadata names the keccak256 of its own source text
+settings: {"compiler":"0.8.35+commit.47b9dedd","evmVersion":"osaka","metadata":{"bytecodeHash":"ipfs"},"optimizer":{"enabled":true,"runs":200}}
+PASS ABI identical: old compile, current compile, tracked contracts/EnclaveRegistry.abi.json (30 entries)
+PASS the artifact's function selectors, event topics and constructor inputs are exactly those of the compiled ABI (22 fns, 8 events)
+PASS address-book key unchanged: registry
+PASS every other artifact field (selectors, events, constructor, book key, schema, link refs) identical
+owner/admin/migration functions (state-changing), identical in all four: 5 setCaps(bytes32,uint64,string) 0x4d13968b; setMeasurement(bytes32,string,bytes32) 0xc5542c2c; setPayoutWallet(bytes32) 0xd6a60cad; setPrices(bytes32,uint64,uint64) 0xb2fe462a; setProofKey(bytes32,address) 0xfcd69ffc
+
+== EnclaveProofOfTime (viaIR, runs 200)
+current source sha256 12d67d9aa5f1b0bd0d6b9df219a44630ca18faecfa4cdf54743883235f0829f0 | old-history source sha256 6ec89dc59bd58f7ff4f6b60d0477c3b5166066255c1b808f184213e5b866f019
+PASS the old-history source becomes the current source under the authorized rewrite, byte for byte
+changed lines: 1 465
+PASS every changed line is comment text (line count equal)
+PASS old-history source compiles to the COMMITTED artifact bytecode exactly (6940 bytes)
+PASS current source compiles to the FRESH build's artifact bytecode exactly (6940 bytes)
+metadata: committed solc 0.8.35 ipfs-multihash 1220b6f68d12e4ca… | fresh solc 0.8.35 ipfs-multihash 122037a91821a76f…
+PASS the same compiler version is embedded in both
+PASS creation bytecode: 32 differing bytes, all inside the trailing metadata (from byte 6887)
+PASS creation bytecode with the metadata removed: identical
+PASS deployed (runtime) code with the metadata removed: identical (6503 bytes)
+PASS runtimeBytes field unchanged
+PASS metadata JSON identical except the source keccak256/URLs and the NatSpec text (compiler, settings, optimizer, evmVersion, viaIR, ABI)
+NatSpec in metadata: unchanged
+PASS the NatSpec text in the metadata differs only by the same rewrite
+PASS each metadata names the keccak256 of its own source text
+settings: {"compiler":"0.8.35+commit.47b9dedd","evmVersion":"osaka","metadata":{"bytecodeHash":"ipfs"},"optimizer":{"enabled":true,"runs":200},"viaIR":true}
+PASS ABI identical: old compile, current compile, tracked contracts/EnclaveProofOfTime.abi.json (23 entries)
+PASS the artifact's function selectors, event topics and constructor inputs are exactly those of the compiled ABI (17 fns, 5 events)
+PASS address-book key unchanged: proofOfTime
+PASS every other artifact field (selectors, events, constructor, book key, schema, link refs) identical
+owner/admin/migration functions (state-changing), identical in all four: 3 acceptOwnership() 0x79ba5097; setProofWindow(uint64) 0x51fd1883; transferOwnership(address) 0xf2fde38b
+
+== every other contract entry
+PASS the same contract names, in the same order: EnclaveAddressBook, EnclaveRegistry, EnclaveAppCatalog, EnclavePay, EnclaveDeployments, EnclaveConnectivity, EnclaveProofOfTime, EnclaveAvailability, EnclaveVerificationFees, EnclaveFeatured, EnclaveReviews, EnclaveHostReviews, PaymentRouter, EnclaveCreditVaultFactory
+PASS EnclaveAddressBook unchanged
+PASS EnclaveAppCatalog unchanged
+PASS EnclavePay unchanged
+PASS EnclaveDeployments unchanged
+PASS EnclaveConnectivity unchanged
+PASS EnclaveAvailability unchanged
+PASS EnclaveVerificationFees unchanged
+PASS EnclaveFeatured unchanged
+PASS EnclaveReviews unchanged
+PASS EnclaveHostReviews unchanged
+PASS PaymentRouter unchanged
+PASS EnclaveCreditVaultFactory unchanged
+
+RESULT: all checks passed
+[memory-guard] exit=0 peakTreeRssMiB=315 minHostAvailableMiB=23692
+[memory-guard] at peak: node:310 timeout:4
+[queue] EXIT 0

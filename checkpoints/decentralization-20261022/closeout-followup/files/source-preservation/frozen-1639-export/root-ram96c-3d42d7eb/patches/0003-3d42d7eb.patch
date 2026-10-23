@@ -1,0 +1,382 @@
+From 3d42d7eb9e9828b735e9a48fd0e067f60c74002b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 09:08:34 -0700
+Subject: [PATCH] Record live NucBox CPU and RAM share accounting mismatch
+
+---
+ share-accounting-live.guard.log |   1 +
+ share-accounting-live.json      | 345 ++++++++++++++++++++++++++++++++
+ share-accounting-live.py        |   4 +
+ 3 files changed, 350 insertions(+)
+ create mode 100644 share-accounting-live.guard.log
+ create mode 100644 share-accounting-live.json
+ create mode 100644 share-accounting-live.py
+
+diff --git a/share-accounting-live.guard.log b/share-accounting-live.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..f4eb222cdea47c1caab16de28df762b32b2b3243
+--- /dev/null
++++ b/share-accounting-live.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=25009
+diff --git a/share-accounting-live.json b/share-accounting-live.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..4dd135d8d9c454467f97e969957c1b73f99392fe
+--- /dev/null
++++ b/share-accounting-live.json
+@@ -0,0 +1,345 @@
++{
++  "at": "2026-10-23T15:58:09.3954854Z",
++  "availability": {
++    "nodeRamGb": 96,
++    "ramGbFree": 79.8,
++    "ramMbFree": 81664,
++    "cpuShareFree": 0.16999999999999993,
++    "maxShare": 0.16999999999999993,
++    "nodeVcpus": 16
++  },
++  "deployments": [
++    {
++      "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
++      "status": "queued",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++      "status": "running",
++      "cpuShare": 0.02,
++      "memMb": 1024,
++      "gpuShare": 0,
++      "leaseUntil": 1792772827
++    },
++    {
++      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++      "status": "running",
++      "cpuShare": 0.01,
++      "memMb": 128,
++      "gpuShare": 0,
++      "leaseUntil": 1792772317
++    },
++    {
++      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++      "status": "running",
++      "cpuShare": 0.25,
++      "memMb": 12288,
++      "gpuShare": 0,
++      "leaseUntil": 1792772377
++    },
++    {
++      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++      "status": "running",
++      "cpuShare": 0.01,
++      "memMb": 128,
++      "gpuShare": 0,
++      "leaseUntil": 1792772467
++    },
++    {
++      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++      "status": "running",
++      "cpuShare": 0.01,
++      "memMb": 128,
++      "gpuShare": 0,
++      "leaseUntil": 1792772707
++    },
++    {
++      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++      "status": "running",
++      "cpuShare": 0.02,
++      "memMb": 512,
++      "gpuShare": 0,
++      "leaseUntil": 1792772719
++    },
++    {
++      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++      "status": "running",
++      "cpuShare": 0.04,
++      "memMb": 256,
++      "gpuShare": 0,
++      "leaseUntil": 1792771471
++    },
++    {
++      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++      "status": "running",
++      "cpuShare": 0.21,
++      "memMb": 2048,
++      "gpuShare": 0,
++      "leaseUntil": 1792771741
++    },
++    {
++      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++      "status": "running",
++      "cpuShare": 0.01,
++      "memMb": 128,
++      "gpuShare": 0,
++      "leaseUntil": 1792772887
++    },
++    {
++      "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
++      "status": "stopped",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
++      "status": "stopped",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    }
++  ],
++  "vms": [
++    {
++      "id": "hvc18d297da5a21bc3cbae5836531b00c2",
++      "name": "shield-readiness-v1",
++      "status": "running",
++      "memory": null,
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 256,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hvc6c4073c817dadf1d692f67b6f9222e3",
++      "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.01,
++        "appMiB": 983,
++        "vmMiB": 2048
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 128,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hvba429ebb1c40a95c27186168f7669f74",
++      "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.02,
++        "appMiB": 1966,
++        "vmMiB": 2606
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 1024,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hvdc425d67f2b0e16d83e393766f786d10",
++      "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.01,
++        "appMiB": 983,
++        "vmMiB": 2048
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 128,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d",
++      "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.25,
++        "appMiB": 24576,
++        "vmMiB": 25216
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 12288,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hv5e00a0f0dfae6122912103ad8361ce22",
++      "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.01,
++        "appMiB": 983,
++        "vmMiB": 2048
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 128,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c",
++      "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.01,
++        "appMiB": 983,
++        "vmMiB": 2048
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 128,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hv181ef1f570cd6b380d424310c995e920",
++      "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.01,
++        "appMiB": 983,
++        "vmMiB": 2048
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 512,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hv255b5ea98b99cf19c2e420f6a5a271ca",
++      "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.21,
++        "appMiB": 20643,
++        "vmMiB": 21284
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 2048,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hve60d223d27d01b8bcacb65a8e46f2e78",
++      "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.04,
++        "appMiB": 3932,
++        "vmMiB": 4572
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 256,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    }
++  ],
++  "managerMemory": {
++    "rule": "cpu-share",
++    "poolMiB": 98304
++  }
++}
+diff --git a/share-accounting-live.py b/share-accounting-live.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..df9df8246ba6464f8825aa35d958e6497056e78a
+--- /dev/null
++++ b/share-accounting-live.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''[Console]::OutputEncoding=[Text.UTF8Encoding]::new();$h=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:9600/v1/host/state;$a=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:9600/availability;$v=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:8091/vms;$m=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:8091/health;[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');availability=$a|Select-Object nodeRamGb,ramGbFree,ramMbFree,cpuShareFree,maxShare,nodeVcpus;deployments=@($h.deployments|Select-Object id,status,cpuShare,memMb,gpuShare,leaseUntil);vms=@($v.vms|Select-Object id,name,status,memory,policy,cpuShare);managerMemory=$m.memory}|ConvertTo-Json -Depth 8 -Compress'''
++r=m.ps(p,35);pathlib.Path('work/nucbox-ram96-20261023/share-accounting-live.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

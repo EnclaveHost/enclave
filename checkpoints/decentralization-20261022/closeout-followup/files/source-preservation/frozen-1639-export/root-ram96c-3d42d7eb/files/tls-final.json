@@ -1,0 +1,59 @@
+{
+  "at": "2026-10-23T15:44:59.859247+00:00",
+  "tls": [
+    {
+      "id": "c13d4b6a",
+      "verified": true,
+      "issuer": "ZeroSSL GmbH",
+      "notAfter": "Jan 21 23:59:59 2027 GMT"
+    },
+    {
+      "id": "ef514ed3",
+      "verified": true,
+      "issuer": "ZeroSSL GmbH",
+      "notAfter": "Jan 21 23:59:59 2027 GMT"
+    },
+    {
+      "id": "e64f7cba",
+      "verified": true,
+      "issuer": "ZeroSSL GmbH",
+      "notAfter": "Jan 21 23:59:59 2027 GMT"
+    },
+    {
+      "id": "59f1273d",
+      "verified": true,
+      "issuer": "ZeroSSL GmbH",
+      "notAfter": "Jan 21 23:59:59 2027 GMT"
+    },
+    {
+      "id": "a69dcbba",
+      "verified": true,
+      "issuer": "ZeroSSL GmbH",
+      "notAfter": "Jan 21 23:59:59 2027 GMT"
+    },
+    {
+      "id": "d9798e4c",
+      "verified": true,
+      "issuer": "ZeroSSL GmbH",
+      "notAfter": "Jan 21 23:59:59 2027 GMT"
+    },
+    {
+      "id": "a77d0c57",
+      "verified": true,
+      "issuer": "ZeroSSL GmbH",
+      "notAfter": "Jan 21 23:59:59 2027 GMT"
+    },
+    {
+      "id": "38f368d6",
+      "verified": true,
+      "issuer": "ZeroSSL GmbH",
+      "notAfter": "Jan 21 23:59:59 2027 GMT"
+    },
+    {
+      "id": "7ae476a3",
+      "verified": true,
+      "issuer": "ZeroSSL GmbH",
+      "notAfter": "Jan 21 23:59:59 2027 GMT"
+    }
+  ]
+}

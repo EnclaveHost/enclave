@@ -1,0 +1,37 @@
+{
+  "at": "2026-10-23T15:38:42.556931+00:00",
+  "results": [
+    {
+      "ip": "134.199.235.187",
+      "exit": 35,
+      "http": "000",
+      "bytes": 0,
+      "bodyIfError": "",
+      "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+    },
+    {
+      "ip": "134.209.248.172",
+      "exit": 18,
+      "http": "200",
+      "bytes": 0,
+      "bodyIfError": "",
+      "error": "curl: (18) transfer closed with outstanding read data remaining\n"
+    },
+    {
+      "ip": "165.245.191.129",
+      "exit": 35,
+      "http": "000",
+      "bytes": 0,
+      "bodyIfError": "",
+      "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+    },
+    {
+      "ip": "146.190.246.39",
+      "exit": 18,
+      "http": "200",
+      "bytes": 0,
+      "bodyIfError": "",
+      "error": "curl: (18) transfer closed with outstanding read data remaining\n"
+    }
+  ]
+}

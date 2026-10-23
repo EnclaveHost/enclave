@@ -1,0 +1,80 @@
+{
+  "at": "2026-10-23T15:32:42.9961638Z",
+  "node": {
+    "availability": {
+      "status": 200,
+      "nodeRamGb": 96,
+      "machineRamGb": 112,
+      "apps": {
+        "isolation": "hyperv-partition-per-app",
+        "tier": "enclave-shield",
+        "hostExcluded": false,
+        "hostOsExcluded": true,
+        "operatorExcluded": false,
+        "inTee": false,
+        "running": 3,
+        "capacity": 16,
+        "scope": "market",
+        "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
+      },
+      "ramGbFree": 79.8
+    },
+    "manager": {
+      "status": 200,
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304
+      },
+      "inventory": {
+        "state": "ready",
+        "recovered": 10,
+        "unattributed": 0,
+        "at": "2026-10-23T15:26:52.204Z"
+      }
+    }
+  },
+  "vms": [
+    {
+      "memory": 0,
+      "name": "enclave-app-hv3c8e73d2d9c235-322c5206",
+      "uptimeSeconds": 0,
+      "state": "Off"
+    },
+    {
+      "memory": 2732589056,
+      "name": "enclave-app-hvba429ebb1c40a9-10c44a8a",
+      "uptimeSeconds": 53.716,
+      "state": "Running"
+    },
+    {
+      "memory": 536870912,
+      "name": "enclave-app-hvc18d297da5a21b-a79db30f",
+      "uptimeSeconds": 305.83099999999996,
+      "state": "Running"
+    },
+    {
+      "memory": 2147483648,
+      "name": "enclave-app-hvc6c4073c817dad-ad0f596e",
+      "uptimeSeconds": 124.509,
+      "state": "Running"
+    },
+    {
+      "memory": 2147483648,
+      "name": "enclave-app-hvdc425d67f2b0e1-3f770400",
+      "uptimeSeconds": 29.43,
+      "state": "Running"
+    },
+    {
+      "memory": 8589934592,
+      "name": "enclave-control",
+      "uptimeSeconds": 25291.298,
+      "state": "Running"
+    },
+    {
+      "memory": 4294967296,
+      "name": "enclave-storage",
+      "uptimeSeconds": 25321.397999999997,
+      "state": "Running"
+    }
+  ]
+}

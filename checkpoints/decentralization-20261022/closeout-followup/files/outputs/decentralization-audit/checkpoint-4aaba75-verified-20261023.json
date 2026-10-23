@@ -1,0 +1,6 @@
+{
+  "at": "2026-10-23T15:19:53.761833+00:00",
+  "checkpoint": "4aaba75beee896bfd4a042d9f848f820d54925c7",
+  "main": "68b82926968c99503d38ae78dbcb04694cc2c56c",
+  "evidence": "Independent git ls-remote through256MiB queue, exit0; source checkpoint only, not production activation."
+}

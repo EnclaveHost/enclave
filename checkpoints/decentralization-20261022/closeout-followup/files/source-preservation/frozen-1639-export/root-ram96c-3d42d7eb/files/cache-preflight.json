@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-23T15:40:19.615290+00:00",
+  "exit": 0,
+  "result": {
+    "at": "2026-10-23T15:40:19.540490+00:00",
+    "manifestSha256": "7b83d66561c413c3655159ee4795d9a85c501f526d6e572690d7cc9a83981617",
+    "entriesBefore": 1018,
+    "cid": "bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau",
+    "apply": false
+  },
+  "error": ""
+}

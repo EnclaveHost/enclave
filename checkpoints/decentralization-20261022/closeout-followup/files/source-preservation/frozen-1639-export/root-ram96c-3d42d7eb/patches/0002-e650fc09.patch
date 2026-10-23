@@ -1,0 +1,64 @@
+From e650fc09aa7966ed4b8fc9746980d10352a7c888 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 08:50:25 -0700
+Subject: [PATCH] Record actual NucBox physical headroom for RPC placement
+ planning
+
+---
+ capacity-live.guard.log |  1 +
+ capacity-live.json      | 26 ++++++++++++++++++++++++++
+ capacity-live.py        |  4 ++++
+ 3 files changed, 31 insertions(+)
+ create mode 100644 capacity-live.guard.log
+ create mode 100644 capacity-live.json
+ create mode 100644 capacity-live.py
+
+diff --git a/capacity-live.guard.log b/capacity-live.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..0de23b3406adcf0b0e106e9879ff6528cc0ae7e9
+--- /dev/null
++++ b/capacity-live.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=24767
+diff --git a/capacity-live.json b/capacity-live.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..34b8ea387dd156fea3b5bf87eaec713bfc9262b6
+--- /dev/null
++++ b/capacity-live.json
+@@ -0,0 +1,26 @@
++{
++  "at": "2026-10-23T15:49:18.3387329Z",
++  "physicalTotalBytes": 120070115328,
++  "physicalFreeBytes": 27358494720,
++  "vmAssignedBytes": 80444653568,
++  "node": {
++    "nodeRamGb": 96,
++    "ramGbFree": 79.8,
++    "apps": {
++      "isolation": "hyperv-partition-per-app",
++      "tier": "enclave-shield",
++      "hostExcluded": false,
++      "hostOsExcluded": true,
++      "operatorExcluded": false,
++      "inTee": false,
++      "running": 9,
++      "capacity": 16,
++      "scope": "market",
++      "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
++    }
++  },
++  "managerMemory": {
++    "rule": "cpu-share",
++    "poolMiB": 98304
++  }
++}
+diff --git a/capacity-live.py b/capacity-live.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..65c79457a033a5562a271b01592f16941f02e958
+--- /dev/null
++++ b/capacity-live.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib,datetime
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''$os=Get-CimInstance Win32_OperatingSystem;$h=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:9600/availability;$m=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:8091/health;[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');physicalTotalBytes=[long]$os.TotalVisibleMemorySize*1024;physicalFreeBytes=[long]$os.FreePhysicalMemory*1024;vmAssignedBytes=[long]((Get-VM|Measure-Object MemoryAssigned -Sum).Sum);node=$h|Select-Object nodeRamGb,ramGbFree,apps;managerMemory=$m.memory}|ConvertTo-Json -Depth 6 -Compress'''
++r=m.ps(p,20);pathlib.Path('work/nucbox-ram96-20261023/capacity-live.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

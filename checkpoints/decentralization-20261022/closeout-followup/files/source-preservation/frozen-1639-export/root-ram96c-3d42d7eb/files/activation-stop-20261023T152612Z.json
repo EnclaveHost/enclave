@@ -1,0 +1,22 @@
+{
+  "step": "stop",
+  "checkedAt": "2026-10-23T15:26:12.719153+00:00",
+  "result": {
+    "ok": true,
+    "action": "stop requested",
+    "state": {
+      "tasks": [
+        {
+          "state": "Ready",
+          "name": "Node"
+        },
+        {
+          "state": "Ready",
+          "name": "Shield"
+        }
+      ],
+      "listeners": [],
+      "at": "2026-10-23T15:26:12.5816099Z"
+    }
+  }
+}

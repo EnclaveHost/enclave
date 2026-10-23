@@ -1,0 +1,130 @@
+CLAUDE-REVIEW — api-mcp-adapter 0xa69dcbba… on NucBox: readiness timeout -> stays failed indefinitely
+2026-10-23, source-only. No SSH, no probes, no production action, no edits to any source tree, no tests run.
+
+STATUS AT WRITE TIME (root's evidence, not mine)
+  Root's single forced /v1/claim-hint was accepted at 15:06:54Z (retry.json). The log shows unblock, claim tx 0x0237b963…,
+  "isolation spawned hvbbab6d5ca75ab0fbde41465bcc4b2089 status=running" at 15:07:29, and sealed secrets delivered at 15:07:23
+  (diagnostic-after.json). state-final.json at 15:12:10Z shows the deployment running. public.json shows /ping and
+  /api/status returning 200 over TLS on two ingress IPs. Nothing in this review needs a second request.
+
+SOURCES COMPARED
+  candidate  work/windows-final-runtime-integration-20261023/candidate/windows/node  host.mjs de8b48d1, agent.mjs 3abaf559
+  deployed   work/root-control-final-20261022/control-package/files/windows/node     host.mjs 9634cb40, agent.mjs 76cac355
+             (9634cb40/76cac355 are the live hashes root read at 2026-10-22T21:27Z in
+             resume-after-checkpoint-20261022/public-health/admission-source-hashes.json. I have not re-checked them today.)
+  isolation-lifecycle.mjs: the deployed hash 5ae5f457 in the control-package manifest equals the candidate file.
+  Diffs of the relevant blocks:
+    #isolationReconcile  deployed host.mjs 1117-1366 == candidate 1218-1467 (byte-identical)
+    consider()           deployed 644-740 == candidate 744-840 (byte-identical)
+    #giveUpOnce          the only difference is that the candidate also voids renewals and waits for an in-flight renewal
+                         before releasing. That does not change the behaviour below.
+  Conclusion: the deployed and candidate code behave the same for this incident. Line numbers below are CANDIDATE lines
+  unless marked "deployed".
+
+1. ACTUAL EVIDENCE (logs/state; quoted, not inferred)
+  nucbox-tls-recovery-20261023/retry-recovery/evidence/nucbox-tls-api-startup-20261023T092606Z.json:
+    08:49:41  secrets: "whether … has staged secrets is not known (fetch failed)"; the isolation plan for hasSecrets is unknown
+              (this is the plan.unknown -> provisioning hold, host.mjs:1245-1248)
+    08:50:48 … 08:55:18  "sealed secrets for 0xa69dcbba pending: relay HTTP 403", every 15 s (19 lines)
+    08:55:32, 08:55:47   "… pending: fetch failed"
+    08:55:48  "isolated domain retired (… did not become ready within 300000 ms (last status starting))"
+    08:55:48  "giving up on 0xa69dcbba: isolation: … did not become ready within 300000 ms"
+    08:55:53  "released 0xa69dcbba back to the fleet (tx 0xfa85dfa6…)"
+  state-before.json / diagnostic.json at 15:05Z: host record status=failed with that exact reason; no VM for that name.
+  15:07:03 "claimed 0xa69dcbba" during the forced retry. That proves the lease had been released: the row had no runner.
+
+2. MECHANISM (source; each step is the line that runs)
+  a. A dependency outage used up the readiness window.
+     shield-secrets.mjs:43-51: the host-side courier retries secret delivery every 15 s, only while the VM's status is
+     'starting', and only logs failures. The guest waits for its secrets and stays 'starting'.
+     The courier keeps this state in memory only (done/retry, :7). host.mjs never consults it.
+  b. The deadline treats "not ready" as the app having ended.
+     isolation-lifecycle.mjs:51: the deadline is 300 s for enclave-catalog-bundle/6|7 derivations. The 300000 in the reason
+     shows this app uses one of those derivations.
+     isolation-lifecycle.mjs:126-135: at the deadline it retires the VM, confirms it is gone, and returns
+     {action:"failed", leaseFree:true, ended:true}. It cannot tell "the app is broken" from "an external input never arrived".
+  c. Respawn was off for this id.
+     host.mjs:1328-1330: respawn applies only if cfg.isolationRespawn or this id is in cfg.isolationRespawnIds
+     (env ENCLAVE_ISOLATION_RESPAWN / _IDS / _DELAY_MS, agent.mjs:183-187). The recorded reason has neither the respawn
+     suffix (:1347) nor a "provisioning" respawn reason (:1344, :1361, :1377). So that branch did not run.
+     This is evidence from the exact reason string; I did not read the NucBox environment.
+     It was not the reboot-recovery path either: #rebootHold's wording (host.mjs:2709) is absent from the reason.
+  d. The give-up is persistent.
+     host.mjs:1403-1404 -> #giveUp -> #giveUpOnce (2601-2645):
+       :2625 records status failed; :2626 blocked.set(id, why); :2627 stops tracking the id and saves it to disk;
+       :2634-2638 releases the lease on chain (one transaction, matching the 08:55:53 log).
+     host.mjs:254-258: the blocked map is persisted and reloaded across restarts by design.
+     host.mjs:2063: the ledger scan skips blocked ids. host.mjs:753-757: any non-forced consider() re-records
+     "failed" with the stored reason. host.mjs:759-761: only a forced claim-hint clears the entry.
+     The comment at host.mjs:1322-1324 already says this is "effectively permanent" for an owner-only NucBox deployment.
+  e. The pin means no other host can take it.
+     chain.mjs placementRefusal (deployed chain.mjs:481-486) returns "Pinned to host <NucBox>; fallback is disabled." on
+     every other Windows host. Linux hosts return the same text (supervisor.js:2125). NucBox has it blocked, and every other
+     host refuses it by pin. Result: failed indefinitely, with no automatic exit and no gas spent.
+  f. Why the dashboard shows another host's pin refusal.
+     Actual: after the release, the ledger row has no runner, so the dashboard row reads "queued".
+     site/components/deployments/deployments.js:1704-1722 (_probeWhy) sends a non-forced POST /v1/claim-hint for queued
+     rows and displays a returned reason.
+     Inference (I did not read the relay's fan-out/merge code): the displayed reason is a non-NucBox host's
+     placementRefusal, not NucBox's own blocked reason. WHY_TERMINAL (deployments.js:318) does not match "Pinned to host",
+     so the dashboard shows it as an ordinary dim "fleet: …" line, which hides the actionable cause.
+
+3. NOT ESTABLISHED (inference / unknown)
+  - Why the relay answered 403 to /v1/secrets/shield-release from 08:50 to 08:55. It overlapped the NucBox TLS/relay
+    incident window, but I have not traced the relay side.
+  - Whether the relay's claim-hint fan-out picks one host's reply or merges them (affects 2f only).
+
+4. ALREADY-SAFE PROPERTIES (keep)
+  The VM is confirmed gone before any release (lifecycle:129-133, host.mjs:2609-2615). There was exactly one release
+  (the #givingUp single-flight, host.mjs:2593-2600). The block prevents claim/release gas loops (host.mjs:254-257,
+  2063). The pin, admission, owner-only scope and admin policy are untouched by this path.
+
+5. OPERATIONAL NOTE FOR ROOT (no action needed now)
+  agent.mjs:650-658 (deployed 647-656) and the loopback route agent.mjs:816-817 (deployed 813-815) wait for
+  consider() -> ensureApp -> reconcile, which can include the full 300 s readiness wait plus claim and spawn time.
+  retry.py used -TimeoutSec 180 and exits 1 whenever accepted is not true. A client timeout there would have meant UNKNOWN
+  (the launch keeps running on the node), not failure, and must never trigger a second forced request. This time the VM
+  served about 26 s after the spawn, so the timeout did not fire.
+
+6. MINIMAL WARRANTED FOLLOW-UP (proposal only; needs root/user decision; nothing implemented)
+  P1 (recommended, small, source). At the readiness deadline, separate "the host's own courier still has this exact VM's
+  sealed secrets undelivered" from "the app ended":
+    - shield-secrets.mjs: keep the last delivery error per VM id (the retry map already holds the timing). Expose a
+      read-only pendingFor(vmId) -> {since, lastError} | null.
+    - host.mjs, at the giveUp point (:1403-1404): if r.ended came from the readiness deadline AND pendingFor(r.instance.id)
+      is non-null, do NOT call #giveUp. The VM has already been retired and confirmed gone. Keep the lease (no release
+      transaction), record status "provisioning" with the reason "isolation: startup waited for sealed secrets
+      (<lastError>)", and set #respawnAfter so the existing cooldown gate (host.mjs:1261-1263) delays the next spawn.
+      Count each attempt against the existing RESPAWN_BUDGET/RESPAWN_WINDOW_MS (host.mjs:140-141). When the budget is
+      used up, fall through to today's #giveUp unchanged.
+    - Gas: no claims or releases inside the budget. OPEN QUESTION to verify before adopting: whether the tick renews a
+      "provisioning" record that has no serving instance (the comment at host.mjs:1258-1260 says normal lease policy stops
+      billing while held; I did not verify that in the tick). If it does renew, the hold must also mark the record
+      no-renew (the planHeld/capHeld pattern), so a lease that is not serving lapses instead of being renewed.
+    - Explicitly REJECTED: #giveUp(..., {retry:true}) for this cause. It releases without blocking, so the next ledger
+      scan reclaims, then times out and releases again: a claim/release gas loop.
+  P1-alt (config only, existing code). Add this id to ENCLAVE_ISOLATION_RESPAWN_IDS with a non-zero
+    ENCLAVE_ISOLATION_RESPAWN_DELAY_MS (agent.mjs:186-187; host.mjs:1328-1346). This is a node-config change, not a
+    pin/deployment change, but: (i) it covers every way the app can end, not just a secrets dependency; (ii) the same
+    renew-while-not-serving question applies; (iii) NO existing test covers isolationRespawnIds or the service cooldown
+    (grep of candidate test/ finds none). Not recommended without a test.
+  P2 (optional, display). For a pinned deployment, surface the pinned host's own blocked reason in place of other hosts'
+    "Pinned to host …" text (deployments.js:318, 1715-1732; relay merge not read). Low priority; no security effect.
+
+7. EXISTING RELEVANT TESTS (candidate tree; not run)
+  test/windows-node-respawn.test.mjs:46   OFF default: a domain that ended is released and blocked (today's behaviour; P1 must keep it for non-secret causes)
+  test/windows-node-respawn.test.mjs:55,67,80,91   respawn ON: one fresh domain / budget / unconfirmed retire / refusals never respawned
+  test/windows-node-reboot-recovery.test.mjs:97,119   failure on the recovery path is held until a forced relaunch
+  test/windows-node-isolation-host.test.mjs:84-150   forced relaunch H1-H4, give-up when the DELETE fails (H6)
+  windows/node/isolation-client.test.mjs:186 (fast-deadline harness), :202 (a domain recovered during the wait is held, not retired at the deadline)
+  Gaps: no test asserts the isolation readiness-deadline -> giveUp -> blocked chain end to end with a secrets dependency,
+  and none covers isolationRespawnIds / the cooldown branch.
+
+8. TEST PROPOSAL (only if P1 is approved; do not run before approval)
+  Add a focused case or two next to windows-node-respawn.test.mjs:46, using its servingThenEnded fixture plus a stub
+  courier:
+    (1) deadline with secrets pending -> provisioning, not blocked, no release, VM gone, cooldown set;
+    (2) budget used up -> today's give-up and block;
+    (3) deadline with secrets delivered -> today's give-up (regression guard for the :46 default).
+  Run only those plus the four files listed in section 7. Use the unchanged work/claude-test-queue.py with the existing
+  memory reserve/limits, as one queued job.

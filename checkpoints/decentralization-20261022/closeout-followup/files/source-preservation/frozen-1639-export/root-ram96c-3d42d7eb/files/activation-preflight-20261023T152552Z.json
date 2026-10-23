@@ -1,0 +1,96 @@
+{
+  "step": "preflight",
+  "checkedAt": "2026-10-23T15:25:52.005868+00:00",
+  "result": {
+    "vms": [
+      {
+        "memory": 2147483648,
+        "name": "enclave-app-hv3146bdf712f171-3f770400",
+        "state": "Running"
+      },
+      {
+        "memory": 2147483648,
+        "name": "enclave-app-hv637cbe35075047-10c44a8a",
+        "state": "Running"
+      },
+      {
+        "memory": 15101591552,
+        "name": "enclave-app-hv8babaf3c0991fa-ea9d4773",
+        "state": "Running"
+      },
+      {
+        "memory": 3420454912,
+        "name": "enclave-app-hv94a003c5b947f6-9e2053bc",
+        "state": "Running"
+      },
+      {
+        "memory": 2147483648,
+        "name": "enclave-app-hvbbab6d5ca75ab0-ad0f596e",
+        "state": "Running"
+      },
+      {
+        "memory": 2147483648,
+        "name": "enclave-app-hvbf6c56812c25e8-46de1836",
+        "state": "Running"
+      },
+      {
+        "memory": 2147483648,
+        "name": "enclave-app-hvc68a5c73043598-3dfcbff8",
+        "state": "Running"
+      },
+      {
+        "memory": 17850957824,
+        "name": "enclave-app-hvce6a027904d978-322c5206",
+        "state": "Running"
+      },
+      {
+        "memory": 536870912,
+        "name": "enclave-app-hvd28ea469111245-a79db30f",
+        "state": "Running"
+      },
+      {
+        "memory": 2147483648,
+        "name": "enclave-app-hvefa9ce2a7bc0ea-f4322953",
+        "state": "Running"
+      },
+      {
+        "memory": 8589934592,
+        "name": "enclave-control",
+        "state": "Running"
+      },
+      {
+        "memory": 4294967296,
+        "name": "enclave-storage",
+        "state": "Running"
+      }
+    ],
+    "ok": true,
+    "estimatedGrowthUpperBoundBytes": 21609054208,
+    "freeBytes": 45213593600,
+    "state": {
+      "tasks": [
+        {
+          "state": "Running",
+          "name": "Node"
+        },
+        {
+          "state": "Running",
+          "name": "Shield"
+        }
+      ],
+      "listeners": [
+        {
+          "LocalAddress": "127.0.0.1",
+          "LocalPort": 9600,
+          "OwningProcess": 2384
+        },
+        {
+          "LocalAddress": "127.0.0.1",
+          "LocalPort": 8091,
+          "OwningProcess": 7880
+        }
+      ],
+      "at": "2026-10-23T15:25:51.8639084Z"
+    }
+  }
+}

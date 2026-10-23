@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-23T15:45:53.650678+00:00",
+  "result": "96 GiB host allocation active; nine previously running tenant apps recovered",
+  "nodeRamGb": 96,
+  "shieldPoolMiB": 98304,
+  "runningApps": 9,
+  "publicTlsVerified": 9,
+  "controlAndStorageVmRestarted": false,
+  "windowsRebooted": false,
+  "activation": "User-approved restart of Node and Shield scheduled wrappers",
+  "recovery": "Restored existing published EnclaveDNS0.1.5 CID to the existing us-west bootstrap cache after live adapter CAR retrieval returned truncated/empty data. Normal policy-checked node recovery then restored the app.",
+  "artifactCid": "bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau",
+  "limits": [
+    "Allocation is a host budget, not96GiB free physical memory. Final assigned VM memory74.92GiB on112GiB physical.",
+    "This incident repair retains the existing provider cache; distributed artifact cold recovery remains unfinished.",
+    "No whole-platform decentralization completion claim or end-to-end app feature test.",
+    "Existing unrelated rate-cap and catalog-policy refusals preserved."
+  ],
+  "sourceCommit": "6b756f8489fbecc5166d7337c90405f0c3b34494"
+}

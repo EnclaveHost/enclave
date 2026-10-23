@@ -1,0 +1,22 @@
+{
+  "step": "start-shield",
+  "checkedAt": "2026-10-23T15:26:48.457283+00:00",
+  "result": {
+    "ok": true,
+    "action": "Shield start requested",
+    "state": {
+      "tasks": [
+        {
+          "state": "Ready",
+          "name": "Node"
+        },
+        {
+          "state": "Running",
+          "name": "Shield"
+        }
+      ],
+      "listeners": [],
+      "at": "2026-10-23T15:26:48.3080152Z"
+    }
+  }
+}

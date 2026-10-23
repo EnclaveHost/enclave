@@ -30475,6 +30475,790 @@
       "stored": "files/source-preservation/make-frozen-1517-snapshots.py",
       "sha256": "0e0f069786e4e4cabe677a1d62c9dbe2f63b70d25ebb7cd91d0682bea34340ea",
       "bytes": 834
+    },
+    {
+      "label": "FROZEN 1639 batch exported from Git objects (never worktrees); every base rebuilt from pushed b995a73b material and every recorded tree reproduced (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY, candidates not production completion: not merged into the normal tree, not imaged, not deployed by this capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/INVENTORY.json",
+      "stored": "files/source-preservation/frozen-1639-export/INVENTORY.json",
+      "sha256": "d06aab661e90b42e37672b5cf8322c77e3a28225d6a55931920fccc7347a387d",
+      "bytes": 40160
+    },
+    {
+      "label": "FROZEN 1639 batch exported from Git objects (never worktrees); every base rebuilt from pushed b995a73b material and every recorded tree reproduced (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY, candidates not production completion: not merged into the normal tree, not imaged, not deployed by this capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/REBUILD.md",
+      "stored": "files/source-preservation/frozen-1639-export/REBUILD.md",
+      "sha256": "c224f227eacf471c10a50f860c64b32470f3ea85342583ebfc38c6431df37c15",
+      "bytes": 2590
+    },
+    {
+      "label": "FROZEN 1639 batch exported from Git objects (never worktrees); every base rebuilt from pushed b995a73b material and every recorded tree reproduced (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY, candidates not production completion: not merged into the normal tree, not imaged, not deployed by this capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/REPRODUCE-CHECK.txt",
+      "stored": "files/source-preservation/frozen-1639-export/REPRODUCE-CHECK.txt",
+      "sha256": "081f81ee4883d6515d0c62dec7826ba35a69c9d1adfaa551ed38c06bdc4d816b",
+      "bytes": 1991
+    },
+    {
+      "label": "E site generated-artifacts reconcile on ae00cd96: ff13ebe0 (tree 1cece8e6) regenerates the two stale generated site files (contract-artifacts.js, site.css) and records their provenance. Root: 45/45 compiler provenance, executable bytecode/ABIs/admin identical (metadata only), clean offline build 238 files. Not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-ff13ebe0/patches/0001-ff13ebe0.patch",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-ff13ebe0/patches/0001-ff13ebe0.patch",
+      "sha256": "8282f66d96c59934187157e669a21ffb88704d85ce9edbd990646de9e8956e81",
+      "bytes": 372009
+    },
+    {
+      "label": "E site generated-artifacts reconcile on ae00cd96: ff13ebe0 (tree 1cece8e6) regenerates the two stale generated site files (contract-artifacts.js, site.css) and records their provenance. Root: 45/45 compiler provenance, executable bytecode/ABIs/admin identical (metadata only), clean offline build 238 files. Not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-ff13ebe0/files/docs/generated-artifacts-provenance.md",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-ff13ebe0/files/docs/generated-artifacts-provenance.md",
+      "sha256": "5f6e9e6a24426563afe3afc0225f48552fea6828e56c8fde9479706ad6f4c208",
+      "bytes": 3838
+    },
+    {
+      "label": "E site generated-artifacts reconcile on ae00cd96: ff13ebe0 (tree 1cece8e6) regenerates the two stale generated site files (contract-artifacts.js, site.css) and records their provenance. Root: 45/45 compiler provenance, executable bytecode/ABIs/admin identical (metadata only), clean offline build 238 files. Not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-ff13ebe0/files/site/css/site.css",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-ff13ebe0/files/site/css/site.css",
+      "sha256": "ff2fef202094b87d8b0325614460e1d605d90dd689f740d4d8446c9f0e251bb7",
+      "bytes": 152685
+    },
+    {
+      "label": "E site generated-artifacts reconcile on ae00cd96: ff13ebe0 (tree 1cece8e6) regenerates the two stale generated site files (contract-artifacts.js, site.css) and records their provenance. Root: 45/45 compiler provenance, executable bytecode/ABIs/admin identical (metadata only), clean offline build 238 files. Not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-ff13ebe0/files/site/js/gen/contract-artifacts.js",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-ff13ebe0/files/site/js/gen/contract-artifacts.js",
+      "sha256": "a7d54dd491b156c27bf9a40286870d36f5c048aeb85b63e5993cccc2a193fdc4",
+      "bytes": 326917
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/patches/0001-6b756f84.patch",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/patches/0001-6b756f84.patch",
+      "sha256": "eec296387cbf3e2a545ababda59ff40fc4d29343207c45901d6f944ff4697182",
+      "bytes": 64738
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/patches/0002-e650fc09.patch",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/patches/0002-e650fc09.patch",
+      "sha256": "8f19aa6e16522bf9f74df437495bc4cfddccc4a7e17b475606a9fc7327efba70",
+      "bytes": 2923
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/patches/0003-3d42d7eb.patch",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/patches/0003-3d42d7eb.patch",
+      "sha256": "2846db6ce567666982c22d40849a4139ba0f287dd521f7412ca0cffcb8ce254f",
+      "bytes": 11539
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/.gitignore",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/.gitignore",
+      "sha256": "fb2956a2c84355186c0067173d72180091fd400dc13f4fa0e9899f744ac6af78",
+      "bytes": 14
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/RESULT.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/RESULT.json",
+      "sha256": "f246ef84f2c3dcd779e9520056104f1f880ac0613ea443be04282278b4f98a3d",
+      "bytes": 1108
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/RESULT.md",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/RESULT.md",
+      "sha256": "68ae24d89ed47402bd8cf89ce7fcfe3d8c30a159b6f8c4a18a41f53534cc5dbf",
+      "bytes": 6044
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/activation-preflight-20261023T152552Z.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/activation-preflight-20261023T152552Z.json",
+      "sha256": "cf7e76de67e8b2cde08edad9770fc1fd7fb1d2587f3be9fece3f7e8083c95ecd",
+      "bytes": 2255
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/activation-readiness.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/activation-readiness.json",
+      "sha256": "a7e83e19e8c65bd28936ef3b0680e20c91c158e81aee50a6670d0f3de76eabb7",
+      "bytes": 3595
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/activation-start-node-20261023T152722Z.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/activation-start-node-20261023T152722Z.json",
+      "sha256": "185ce1457fdef5aae532be81357692f793856e50775e07e83d6c8b984f73dbcd",
+      "bytes": 544
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/activation-start-shield-20261023T152648Z.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/activation-start-shield-20261023T152648Z.json",
+      "sha256": "f347d9fc5b2e218891bb6afa353684abaf681102da3e705546a30ee79318c154",
+      "bytes": 419
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/activation-stop-20261023T152612Z.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/activation-stop-20261023T152612Z.json",
+      "sha256": "f9f15462c11d72a38cffd6a785ad66f68a31c4134e8a39a105d111db92237c58",
+      "bytes": 401
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/apps-final.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/apps-final.json",
+      "sha256": "de6a3bf7700ad2ea090ca677be6b21ce722d8c7cc74c3e41c61712236e460bed",
+      "bytes": 6120
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/apps.py",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/apps.py",
+      "sha256": "0f86489237ddc5574f856af585dc7d759f6f9c14a2555dd5a27f57c7d8446057",
+      "bytes": 735
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/artifact-adapter-probe.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/artifact-adapter-probe.json",
+      "sha256": "2b4478c12c3a6a127b1cd05f1886b03f3ec487eb61d3ecc500e6d7fd7fcea9c3",
+      "bytes": 948
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/artifact-adapter-probe.py",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/artifact-adapter-probe.py",
+      "sha256": "9b47dd7340aafafbc87336d1cf23a5863c70784676eab2b6703db6318cee48e7",
+      "bytes": 991
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/artifact-probe.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/artifact-probe.json",
+      "sha256": "3ba8771cff34ee63ba8da0071b7047d485fd1cddc8866a38ef07c87019470840",
+      "bytes": 636
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/artifact-probe.py",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/artifact-probe.py",
+      "sha256": "b1d5e943a006a308c79dda0819ffa0da0e2d370bb12bdff34d840b1d2dabf62f",
+      "bytes": 906
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/cache-applied.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/cache-applied.json",
+      "sha256": "141c06385ba96f6b94dc3f388985433effc8b5ca4294d5b3d9f49fe87bd43014",
+      "bytes": 601
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/cache-preflight.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/cache-preflight.json",
+      "sha256": "8ae6202d51056c2d4fdd33f6cb74dc079ebacf53757181b0fdbf1e49134c7356",
+      "bytes": 350
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/cache-readback.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/cache-readback.json",
+      "sha256": "44cfeb4e85edea7a22aa634dac2cc9744ca410e92205915de4027d07b4282dc7",
+      "bytes": 283
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/capacity-live.guard.log",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/capacity-live.guard.log",
+      "sha256": "87bc06258b486d9369c0789e3c072c00ed5d07272513571823b8e5886d4cbf4b",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/capacity-live.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/capacity-live.json",
+      "sha256": "9a71a9e8b9f679ba4ae0ff6111eaf0b2e355ec877d8f3cfe646e5ce5ffb1d1e9",
+      "bytes": 745
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/capacity-live.py",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/capacity-live.py",
+      "sha256": "252721b39f2ad97ab31743e0ae6a7a305c0bb2a837a5d30e7442cf6a18de2f0f",
+      "bytes": 874
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/commit-scan.guard.log",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/commit-scan.guard.log",
+      "sha256": "d33d1950f330262d537a1ea3bb94147773565c1690b1800f2287c69dd5877968",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/dns-artifact-proof.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/dns-artifact-proof.json",
+      "sha256": "22fedf9642f04dde8bde12b8c04c14a7729a0063b0ab0bdb7030afd771f5c9c8",
+      "bytes": 465
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/prepare-dns-cache.mjs",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/prepare-dns-cache.mjs",
+      "sha256": "e40f37de9466555463a68ee7624fab6bf846292321eab2b0df981848a3169492",
+      "bytes": 1163
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/queue-cache-apply-3.log",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/queue-cache-apply-3.log",
+      "sha256": "b363703d41e4a26d426c382c2613f166c39075d64505914fe9c5d0eec5f5637b",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/queue-cache-verify-3.log",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/queue-cache-verify-3.log",
+      "sha256": "24a10d38da63004d54505c2b7227782063c3441d4f0972397be2714e89201e77",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/queue-status-final.log",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/queue-status-final.log",
+      "sha256": "fcba776dd247c99b4c3d5f77ee487c83a4a64e34461d2a5a7ef154d07be16782",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/queue-tls-final.log",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/queue-tls-final.log",
+      "sha256": "6d0ff95046b4c6cff55dadd167566d5e3a43f79279a522afe87d03ff907edb9a",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/recovery-logs.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/recovery-logs.json",
+      "sha256": "afd4ce8ce23d439452a2e8fb1af9846c20f796da293fd397745c7000ce69d708",
+      "bytes": 10235
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/recovery-logs.py",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/recovery-logs.py",
+      "sha256": "61feb24aad4249957b2939e2a9327e5fad48979deec1fa8553892f4cae5e3351",
+      "bytes": 1049
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/relay-logs.py",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/relay-logs.py",
+      "sha256": "93f2696d6d0acc2776b8891eccdbd6af49915e90bf58c9ef6e98d4b75a693718",
+      "bytes": 1234
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/repair-dns-cache.py",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/repair-dns-cache.py",
+      "sha256": "4f9265700821c2f6a584e7bfa6864e1ea7b7725741f0b8a22083f876d65116ec",
+      "bytes": 3290
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/share-accounting-live.guard.log",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/share-accounting-live.guard.log",
+      "sha256": "fc16d9569f3a335968e5a675fb37cfe1e4e85f43c6ca10464bbc33da99a05eb3",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/share-accounting-live.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/share-accounting-live.json",
+      "sha256": "ce769f6a2e0fd512bb8bebe9209b8453b46c97c6550403cfedc14847f444f18d",
+      "bytes": 8763
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/share-accounting-live.py",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/share-accounting-live.py",
+      "sha256": "ad917ee48458f607fc6ab9d38c81336c419bd905e00a8089db22335f027bc516",
+      "bytes": 1035
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/status-active96-1.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/status-active96-1.json",
+      "sha256": "eb31e3bf67319f97dd4f48648a831e830ada454657186832397721ac93605b18",
+      "bytes": 2599
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/status-active96-2.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/status-active96-2.json",
+      "sha256": "679a05ea2a25589a75320fb09498df73faad9d073770f83d187a157bbd1f12cb",
+      "bytes": 1985
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/status-final.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/status-final.json",
+      "sha256": "20e0a3693e4e3aa75abde14d8a0693bde8a782b6d93b9494a01f48c1cc48a743",
+      "bytes": 2794
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/tls-final.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/tls-final.json",
+      "sha256": "f430f89875fdfdaab49e6a93a76a377a0a42ff921c6433c1a1c7f915c776e8e3",
+      "bytes": 1304
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/verify-dns-cache.py",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/verify-dns-cache.py",
+      "sha256": "51f78711c0ca5d827f2d0518c26d87d9764394e97592d64ecc910bd611b51d4d",
+      "bytes": 804
+    },
+    {
+      "label": "ROOT nucbox-ram96 on 2ed6ba61: 6b756f84 user-approved 96 GiB activation and app/TLS recovery (node 96 GiB, Shield 98304 MiB, 9 apps), e650fc09 actual physical headroom for RPC placement, 3d42d7eb live CPU/RAM share accounting mismatch. Root's operation; tracked files only, no private config",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/verify-public.py",
+      "stored": "files/source-preservation/frozen-1639-export/root-ram96c-3d42d7eb/files/verify-public.py",
+      "sha256": "a0cc130a7af0114e7d3d4f6304f8fa251efc7bfa8f789ed3c644a5970ac64012",
+      "bytes": 1080
+    },
+    {
+      "label": "ROOT RPC integration review 1d4920ca + 803c6975: reviewed actual S receipt-method and P false-zero acceptance gaps; audit receipt",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-rpc-review-803c6975/patches/0001-1d4920ca.patch",
+      "stored": "files/source-preservation/frozen-1639-export/root-rpc-review-803c6975/patches/0001-1d4920ca.patch",
+      "sha256": "19f56010c1b9488d02eace87897f523562f23ff7b6d07cb5035f0655990985f6",
+      "bytes": 2620
+    },
+    {
+      "label": "ROOT RPC integration review 1d4920ca + 803c6975: reviewed actual S receipt-method and P false-zero acceptance gaps; audit receipt",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-rpc-review-803c6975/patches/0002-803c6975.patch",
+      "stored": "files/source-preservation/frozen-1639-export/root-rpc-review-803c6975/patches/0002-803c6975.patch",
+      "sha256": "431ddfe73b997da33b1cfafa9f568a6f9337aa53e61c6e45ea39fdb7f08709cd",
+      "bytes": 4304
+    },
+    {
+      "label": "ROOT RPC integration review 1d4920ca + 803c6975: reviewed actual S receipt-method and P false-zero acceptance gaps; audit receipt",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-rpc-review-803c6975/files/review.json",
+      "stored": "files/source-preservation/frozen-1639-export/root-rpc-review-803c6975/files/review.json",
+      "sha256": "4d86708d4d7adbf50e97d242d60522535f7e0152beee9445d1da939097abfcd8",
+      "bytes": 4716
+    },
+    {
+      "label": "ROOT api-mcp recovery successor 844edbf2 on 95ee73dc",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-api-mcp2-844edbf2/patches/0001-844edbf2.patch",
+      "stored": "files/source-preservation/frozen-1639-export/root-api-mcp2-844edbf2/patches/0001-844edbf2.patch",
+      "sha256": "45a8863b60c2795cade4bc08988a0fe3b37c70300e16a7385bd28b62e0a475a5",
+      "bytes": 12245
+    },
+    {
+      "label": "ROOT api-mcp recovery successor 844edbf2 on 95ee73dc",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/root-api-mcp2-844edbf2/files/CLAUDE-REVIEW.txt",
+      "stored": "files/source-preservation/frozen-1639-export/root-api-mcp2-844edbf2/files/CLAUDE-REVIEW.txt",
+      "sha256": "b1e22ce6508d09296f27d5afe53a18a6906d18757a7119c5eee2ed582e7237ad",
+      "bytes": 11476
+    },
+    {
+      "label": "A credit-vault submitter verifier on eab4cfac (tree d8e0ab06): loopback state verifier + optional locally validated receipt source, packaged role (bundle 4c25cde6 committed and exported; its manifest fa7403b5 omitted and published converted with an asserted exact rebuild - scanner false positive), config and e2e tests; root read t1 50/50 incl. packaged role 6/6. Mainnet readiness not established; all minted receipts use labelled local fixtures. SOURCE-ONLY DERIVATIVE: the frozen-1517 MCP bundle + manifest stay held, and the role manifest is converted",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/a-cv-fd8d5806/patches/0001-788bc438.patch",
+      "stored": "files/source-preservation/frozen-1639-export/a-cv-fd8d5806/patches/0001-788bc438.patch",
+      "sha256": "5a71f2941002ffbe9d7c4179252087a0fc32881245c0ac4872150f3779316dcf",
+      "bytes": 59990
+    },
+    {
+      "label": "A credit-vault submitter verifier on eab4cfac (tree d8e0ab06): loopback state verifier + optional locally validated receipt source, packaged role (bundle 4c25cde6 committed and exported; its manifest fa7403b5 omitted and published converted with an asserted exact rebuild - scanner false positive), config and e2e tests; root read t1 50/50 incl. packaged role 6/6. Mainnet readiness not established; all minted receipts use labelled local fixtures. SOURCE-ONLY DERIVATIVE: the frozen-1517 MCP bundle + manifest stay held, and the role manifest is converted",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/a-cv-fd8d5806/patches/0002-fd8d5806.patch",
+      "stored": "files/source-preservation/frozen-1639-export/a-cv-fd8d5806/patches/0002-fd8d5806.patch",
+      "sha256": "3a606605c6a109c38951ae772b9c0796614ec0cdc185e36d0dea0d700173cf03",
+      "bytes": 707961
+    },
+    {
+      "label": "A credit-vault submitter verifier on eab4cfac (tree d8e0ab06): loopback state verifier + optional locally validated receipt source, packaged role (bundle 4c25cde6 committed and exported; its manifest fa7403b5 omitted and published converted with an asserted exact rebuild - scanner false positive), config and e2e tests; root read t1 50/50 incl. packaged role 6/6. Mainnet readiness not established; all minted receipts use labelled local fixtures. SOURCE-ONLY DERIVATIVE: the frozen-1517 MCP bundle + manifest stay held, and the role manifest is converted",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/a-cv-fd8d5806/files/cli/credit-vault.mjs",
+      "stored": "files/source-preservation/frozen-1639-export/a-cv-fd8d5806/files/cli/credit-vault.mjs",
+      "sha256": "180901e9f5f122e2136e2d267f223d206d9e997a39a5817c96ae93ec2df12e71",
+      "bytes": 34641
+    },
+    {
+      "label": "A credit-vault submitter verifier on eab4cfac (tree d8e0ab06): loopback state verifier + optional locally validated receipt source, packaged role (bundle 4c25cde6 committed and exported; its manifest fa7403b5 omitted and published converted with an asserted exact rebuild - scanner false positive), config and e2e tests; root read t1 50/50 incl. packaged role 6/6. Mainnet readiness not established; all minted receipts use labelled local fixtures. SOURCE-ONLY DERIVATIVE: the frozen-1517 MCP bundle + manifest stay held, and the role manifest is converted",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/a-cv-fd8d5806/files/network/credit-vault-submitter.mjs",
+      "stored": "files/source-preservation/frozen-1639-export/a-cv-fd8d5806/files/network/credit-vault-submitter.mjs",
+      "sha256": "3af121f11878f97937df555037a82cefcfae5a23f070ec0628db453ab3c404f0",
+      "bytes": 5208
+    },
+    {
+      "label": "A credit-vault submitter verifier on eab4cfac (tree d8e0ab06): loopback state verifier + optional locally validated receipt source, packaged role (bundle 4c25cde6 committed and exported; its manifest fa7403b5 omitted and published converted with an asserted exact rebuild - scanner false positive), config and e2e tests; root read t1 50/50 incl. packaged role 6/6. Mainnet readiness not established; all minted receipts use labelled local fixtures. SOURCE-ONLY DERIVATIVE: the frozen-1517 MCP bundle + manifest stay held, and the role manifest is converted",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/a-cv-fd8d5806/files/network/host-services/credit-vault-submitter.mjs",
+      "stored": "files/source-preservation/frozen-1639-export/a-cv-fd8d5806/files/network/host-services/credit-vault-submitter.mjs",
+      "sha256": "9d58f4242ab9c48dfd92a2edcc7d80cd948e6c98b8b28bf8a28bcb08999c5269",
+      "bytes": 10621
+    },
+    {
+      "label": "A credit-vault submitter verifier on eab4cfac (tree d8e0ab06): loopback state verifier + optional locally validated receipt source, packaged role (bundle 4c25cde6 committed and exported; its manifest fa7403b5 omitted and published converted with an asserted exact rebuild - scanner false positive), config and e2e tests; root read t1 50/50 incl. packaged role 6/6. Mainnet readiness not established; all minted receipts use labelled local fixtures. SOURCE-ONLY DERIVATIVE: the frozen-1517 MCP bundle + manifest stay held, and the role manifest is converted",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/a-cv-fd8d5806/files/network/host-services/packages/credit-vault-submitter.mjs",
+      "stored": "files/source-preservation/frozen-1639-export/a-cv-fd8d5806/files/network/host-services/packages/credit-vault-submitter.mjs",
+      "sha256": "4c25cde6d7f8c726dc2d57f92cf47630f067a6086ee6893d8e57d50f9fb619f6",
+      "bytes": 1374197
+    },
+    {
+      "label": "A credit-vault submitter verifier on eab4cfac (tree d8e0ab06): loopback state verifier + optional locally validated receipt source, packaged role (bundle 4c25cde6 committed and exported; its manifest fa7403b5 omitted and published converted with an asserted exact rebuild - scanner false positive), config and e2e tests; root read t1 50/50 incl. packaged role 6/6. Mainnet readiness not established; all minted receipts use labelled local fixtures. SOURCE-ONLY DERIVATIVE: the frozen-1517 MCP bundle + manifest stay held, and the role manifest is converted",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/a-cv-fd8d5806/files/test/credit-vault-submitter-config.test.mjs",
+      "stored": "files/source-preservation/frozen-1639-export/a-cv-fd8d5806/files/test/credit-vault-submitter-config.test.mjs",
+      "sha256": "c302c768f4889916ffab4d7f91e8f84c2204e784a54a911c41c4da5c02f946c6",
+      "bytes": 6957
+    },
+    {
+      "label": "A credit-vault submitter verifier on eab4cfac (tree d8e0ab06): loopback state verifier + optional locally validated receipt source, packaged role (bundle 4c25cde6 committed and exported; its manifest fa7403b5 omitted and published converted with an asserted exact rebuild - scanner false positive), config and e2e tests; root read t1 50/50 incl. packaged role 6/6. Mainnet readiness not established; all minted receipts use labelled local fixtures. SOURCE-ONLY DERIVATIVE: the frozen-1517 MCP bundle + manifest stay held, and the role manifest is converted",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/a-cv-fd8d5806/files/test/credit-vault-submitter-verifier.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-1639-export/a-cv-fd8d5806/files/test/credit-vault-submitter-verifier.e2e.test.mjs",
+      "sha256": "db8cab2cd3c5691607aa8600a65769f88189fdd02f9261055fc9ddb81a91f40f",
+      "bytes": 28573
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/patches/0001-d37f7a04.patch",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/patches/0001-d37f7a04.patch",
+      "sha256": "d21c7377615c7458d821d5b1e4c4fd860451a06a1ce3e24b18f76f31338b44af",
+      "bytes": 589422
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/.gitignore",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/.gitignore",
+      "sha256": "7637254a4f9c955fc491d2f56d3ce6fcc9d291babaec5abe9764cf3fe5937099",
+      "bytes": 33
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/RESULT-GENERATED-ARTIFACTS.md",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/RESULT-GENERATED-ARTIFACTS.md",
+      "sha256": "8e27caff87b3ff63224b03a33ec78456c374948cacec234587f966fccde0eb9b",
+      "bytes": 9146
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/analysis.sh",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/analysis.sh",
+      "sha256": "ede8900f26a07e799b78653f626f75ef8b14e3f0cd492ed70ebb4cc3b1026243",
+      "bytes": 549
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/bytecode-provenance.mjs",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/bytecode-provenance.mjs",
+      "sha256": "96839823911538c986b4d98641efe573fef4e2625b159b3475c793d6b8182004",
+      "bytes": 10992
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/css-check.py",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/css-check.py",
+      "sha256": "3b13fc59f8a51bf37b97829468471aebde0f3f2fb3807a797b6b1c67f30ab27b",
+      "bytes": 1057
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/gen.sh",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/gen.sh",
+      "sha256": "a7e34900da5841858a6011d30198691be159ba226f819e34f5729947c418ca21",
+      "bytes": 2071
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/q.sh",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/q.sh",
+      "sha256": "70c9c8adc6e2a4f2c7db38831b1e08add2708c295446151988acbd7d9f03ae23",
+      "bytes": 397
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/scan.sh",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/scan.sh",
+      "sha256": "300c447b4f45071bd28073f4070d893e763872897a6428226dce2de3582d49a6",
+      "bytes": 1552
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/verify.sh",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/jobs/verify.sh",
+      "sha256": "8cc60d7e7d44823e3abf6ad9d9a18c5b0f5a902d87d030efdabadc3482793e88",
+      "bytes": 3023
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/a1.guard.log",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/a1.guard.log",
+      "sha256": "5b74cc5bc26eadfe37355eff4b0081bde73486d6de47aacc69cd655ee4fac4d4",
+      "bytes": 67
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/a1.out",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/a1.out",
+      "sha256": "9d25a79d7f4b92b632265e0bfc51ed362c4dab4dbc36269f1784f2e7ac53ad38",
+      "bytes": 5676
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/a1.rc",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/a1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/dist-manifest.sha256",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/dist-manifest.sha256",
+      "sha256": "c8d289bb085b1edf9c2502c26e0a23295fef4bb7bfeaf39c5572bfee09c89669",
+      "bytes": 22979
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/gen-build.log",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/gen-build.log",
+      "sha256": "0f941de3f213951f68579d27e7ac0a9a4b34a3eb45497af0b8c81a0b4302154d",
+      "bytes": 5095
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/gen1-attempt1-no-node_modules.out",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/gen1-attempt1-no-node_modules.out",
+      "sha256": "c23513be6b78f74b1ec937a6c6bcecd11426ee87d105a696afb12cdd99a35484",
+      "bytes": 382
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/gen1-attempt2-script-checks.out",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/gen1-attempt2-script-checks.out",
+      "sha256": "b757fb8ae5163973e9efddac8c3eeaa43bad4e789b3fd1df79f1211fe46d352d",
+      "bytes": 6355
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/gen1-attempt2.rc",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/gen1-attempt2.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/gen1.guard.log",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/gen1.guard.log",
+      "sha256": "db191a927eb01b65e15b568d93e0001d0eb14e1015d514a1728b2d9824ea5ea4",
+      "bytes": 134
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/verify-build.log",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/verify-build.log",
+      "sha256": "dfbf270d12cfcf4e39c8b9a7602c6e3934092e577b9e489de985cf6a1685155d",
+      "bytes": 5095
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/verify1.guard.log",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/verify1.guard.log",
+      "sha256": "55dcf49f4f021bf26010cc1b0d1842fbceeea92e3aa30c7bdac01854efac46a7",
+      "bytes": 67
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/verify1.out",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/verify1.out",
+      "sha256": "982f788f55ff4e7a2ec338c16d056368e9c95cb9301f9522281434087182ac52",
+      "bytes": 1753
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/verify1.rc",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/logs/verify1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/outputs/dist-manifest-ff13ebe0.sha256",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/outputs/dist-manifest-ff13ebe0.sha256",
+      "sha256": "c8d289bb085b1edf9c2502c26e0a23295fef4bb7bfeaf39c5572bfee09c89669",
+      "bytes": 22979
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/outputs/generated/contract-artifacts.js",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/outputs/generated/contract-artifacts.js",
+      "sha256": "a7d54dd491b156c27bf9a40286870d36f5c048aeb85b63e5993cccc2a193fdc4",
+      "bytes": 326917
+    },
+    {
+      "label": "E generated-artifacts report repo at the root-accepted d37f7a04 (RESULT, jobs, logs, outputs incl. dist manifest) as a SOURCE-ONLY DERIVATIVE: exports/ (git bundle + duplicate patch) omitted; later report commits not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/outputs/generated/site.css",
+      "stored": "files/source-preservation/frozen-1639-export/e-gen-report-d37f7a04/files/outputs/generated/site.css",
+      "sha256": "ff2fef202094b87d8b0325614460e1d605d90dd689f740d4d8446c9f0e251bb7",
+      "bytes": 152685
+    },
+    {
+      "label": "A credit-vault submitter verifier on eab4cfac (tree d8e0ab06): loopback state verifier + optional locally validated receipt source, packaged role (bundle 4c25cde6 committed and exported; its manifest fa7403b5 omitted and published converted with an asserted exact rebuild - scanner false positive), config and e2e tests; root read t1 50/50 incl. packaged role 6/6. Mainnet readiness not established; all minted receipts use labelled local fixtures. SOURCE-ONLY DERIVATIVE: the frozen-1517 MCP bundle + manifest stay held, and the role manifest is converted",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/a-cv-fd8d5806/converted/credit-vault-submitter.package.inputs.sha256sums",
+      "stored": "files/source-preservation/frozen-1639-export/a-cv-fd8d5806/converted/credit-vault-submitter.package.inputs.sha256sums",
+      "sha256": "f23c7295e5a2977ea261e25e5a11e48340f00944522d51f6737c1368a717a8a6",
+      "bytes": 163603
+    },
+    {
+      "label": "A credit-vault submitter verifier on eab4cfac (tree d8e0ab06): loopback state verifier + optional locally validated receipt source, packaged role (bundle 4c25cde6 committed and exported; its manifest fa7403b5 omitted and published converted with an asserted exact rebuild - scanner false positive), config and e2e tests; root read t1 50/50 incl. packaged role 6/6. Mainnet readiness not established; all minted receipts use labelled local fixtures. SOURCE-ONLY DERIVATIVE: the frozen-1517 MCP bundle + manifest stay held, and the role manifest is converted",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export/a-cv-fd8d5806/converted/credit-vault-submitter.package.meta.json",
+      "stored": "files/source-preservation/frozen-1639-export/a-cv-fd8d5806/converted/credit-vault-submitter.package.meta.json",
+      "sha256": "779deafa67fafc29e2d3be729ba397f1bde9a96247f2e7ec95be4b61aa1c3ba3",
+      "bytes": 1744
+    },
+    {
+      "label": "A credit-vault submitter outer files: RESULT, HANDOFF, job scripts",
+      "source": "work/credit-vault-submitter-verifier-20261023/RESULT-CREDIT-VAULT-SUBMITTER.md",
+      "stored": "files/work/credit-vault-submitter-verifier-20261023/RESULT-CREDIT-VAULT-SUBMITTER.md",
+      "sha256": "04e4c2f180522c3da3afb2fec5be4fbe8d38b90b3cfc433cb74e226dfa275e5d",
+      "bytes": 10823
+    },
+    {
+      "label": "A credit-vault submitter outer files: RESULT, HANDOFF, job scripts",
+      "source": "work/credit-vault-submitter-verifier-20261023/HANDOFF-CREDIT-VAULT-SUBMITTER.md",
+      "stored": "files/work/credit-vault-submitter-verifier-20261023/HANDOFF-CREDIT-VAULT-SUBMITTER.md",
+      "sha256": "3b00f31424acffdcd356f45d9a12c40f8ac51aa0d1427cba385728d743c4e0a2",
+      "bytes": 2938
+    },
+    {
+      "label": "A credit-vault submitter outer files: RESULT, HANDOFF, job scripts",
+      "source": "work/credit-vault-submitter-verifier-20261023/jobs/base-check.sh",
+      "stored": "files/work/credit-vault-submitter-verifier-20261023/jobs/base-check.sh",
+      "sha256": "ad9424d2d64504b79b2af05a89bc5560b1bd3488a00a71bd2b33afe1f6ede0e2",
+      "bytes": 786
+    },
+    {
+      "label": "A credit-vault submitter outer files: RESULT, HANDOFF, job scripts",
+      "source": "work/credit-vault-submitter-verifier-20261023/jobs/build1.sh",
+      "stored": "files/work/credit-vault-submitter-verifier-20261023/jobs/build1.sh",
+      "sha256": "9a82c9600dc20317f98bd002c5e960b03b665ecd52a4389b92673717bb1ac27b",
+      "bytes": 2599
+    },
+    {
+      "label": "A credit-vault submitter outer files: RESULT, HANDOFF, job scripts",
+      "source": "work/credit-vault-submitter-verifier-20261023/jobs/t1.sh",
+      "stored": "files/work/credit-vault-submitter-verifier-20261023/jobs/t1.sh",
+      "sha256": "3410c0ee39feb17da1b48ae71b23b49c25dbde8b14227034271f0aff635c04f4",
+      "bytes": 2107
+    },
+    {
+      "label": "A credit-vault submitter outer files: RESULT, HANDOFF, job scripts",
+      "source": "work/credit-vault-submitter-verifier-20261023/jobs/q.sh",
+      "stored": "files/work/credit-vault-submitter-verifier-20261023/jobs/q.sh",
+      "sha256": "12e3928aa64ffd7e276df7057d61ea28795c9889b1aa35b64c9f9eec6c2a4ef3",
+      "bytes": 458
+    },
+    {
+      "label": "D receipt of the 1517 batch (b995a73b, committed 16:29:07Z, pushed 16:30:42Z after one GitHub 500; root verified remote): sides, omissions with recipes, failed attempts incl. the pre-commit key-scanner refusal",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/RESULT-frozen-1517-checkpoint.md",
+      "stored": "files/source-preservation/RESULT-frozen-1517-checkpoint.md",
+      "sha256": "f971c0aed815dcfffb0a0d43718957c2f73c1b040d0e431dde9499178bba5cd2",
+      "bytes": 9052
+    },
+    {
+      "label": "Dated SNAPSHOTS (taken 2026-10-23T16:41Z) of root's journal ROOT-PENDING-LATEST.txt and effective-goal-requirements.txt (incl. the direct human 96 GiB restart authorization, the activation record, and the priority: coupled CPU/RAM share fix, then Custody v2 production SNP verification) as coordination evidence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-1639/ROOT-PENDING-LATEST.snapshot-1639.txt",
+      "stored": "files/source-preservation/snapshots-1639/ROOT-PENDING-LATEST.snapshot-1639.txt",
+      "sha256": "00c93958fe66ec88e49fde1de442cede5742e5984623a9f916b601240f5cfde9",
+      "bytes": 36088
+    },
+    {
+      "label": "Dated SNAPSHOTS (taken 2026-10-23T16:41Z) of root's journal ROOT-PENDING-LATEST.txt and effective-goal-requirements.txt (incl. the direct human 96 GiB restart authorization, the activation record, and the priority: coupled CPU/RAM share fix, then Custody v2 production SNP verification) as coordination evidence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-1639/effective-goal-requirements.snapshot-1639.txt",
+      "stored": "files/source-preservation/snapshots-1639/effective-goal-requirements.snapshot-1639.txt",
+      "sha256": "344bfcfe1d48a8af5d6b8dab2416dd5fc51cd78eb4616f37eb2a668a5ad4e8d2",
+      "bytes": 20300
+    },
+    {
+      "label": "ROOT read-only verification of checkpoint 4aaba75b",
+      "source": "outputs/decentralization-audit/checkpoint-4aaba75-verified-20261023.json",
+      "stored": "files/outputs/decentralization-audit/checkpoint-4aaba75-verified-20261023.json",
+      "sha256": "504b3617030b43aa9af186c0a4c44793bfbafcb57ef14c7520d92ca1c8eb9954",
+      "bytes": 283
+    },
+    {
+      "label": "ROOT receipt: approved NucBox 96 GiB activation verified (node 96 GiB, Shield 98304 MiB, apps restored, public TLS)",
+      "source": "outputs/decentralization-audit/nucbox-96gb-active-20261023.json",
+      "stored": "files/outputs/decentralization-audit/nucbox-96gb-active-20261023.json",
+      "sha256": "f0b2a9e17b8cfadef4c872e40f95c725ceb40fb491f443074005bf9d150a59b0",
+      "bytes": 1170
+    },
+    {
+      "label": "ROOT RPC integration review receipt (803c6975)",
+      "source": "outputs/decentralization-audit/rpc-integration-review-20261023.json",
+      "stored": "files/outputs/decentralization-audit/rpc-integration-review-20261023.json",
+      "sha256": "4d86708d4d7adbf50e97d242d60522535f7e0152beee9445d1da939097abfcd8",
+      "bytes": 4716
+    },
+    {
+      "label": "frozen-1639 checkpoint tooling (\"1639\" = batch start 2026-10-23T16:39Z, an identifier): first-parent Git-object export, source-only derivatives, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-frozen-1639.py",
+      "stored": "files/source-preservation/export-frozen-1639.py",
+      "sha256": "0b9b72e2cc222e94160c00b9d79a0c9246e183c1679f4a59d47028c311589156",
+      "bytes": 20727
+    },
+    {
+      "label": "frozen-1639 checkpoint tooling (\"1639\" = batch start 2026-10-23T16:39Z, an identifier): first-parent Git-object export, source-only derivatives, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-frozen-1639-export.py",
+      "stored": "files/source-preservation/verify-frozen-1639-export.py",
+      "sha256": "5c6cc0148ccf35dd828d8dded73a76f4127b78aded3947321248fbb719c20407",
+      "bytes": 5414
+    },
+    {
+      "label": "frozen-1639 checkpoint tooling (\"1639\" = batch start 2026-10-23T16:39Z, an identifier): first-parent Git-object export, source-only derivatives, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-frozen-1639.py",
+      "stored": "files/source-preservation/capture-frozen-1639.py",
+      "sha256": "6363b7ab3a42bb5f2da08e4b41a4b5a6f034b8bda1c9ff9fe6ae1bc0bb6c3bab",
+      "bytes": 7524
+    },
+    {
+      "label": "frozen-1639 checkpoint tooling (\"1639\" = batch start 2026-10-23T16:39Z, an identifier): first-parent Git-object export, source-only derivatives, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-pins.json",
+      "stored": "files/source-preservation/frozen-1639-pins.json",
+      "sha256": "2a3e993797fbc3fc0fba6bcd318a4f39c02cbaea4eddb1640eeae7cb2e568f8b",
+      "bytes": 265
+    },
+    {
+      "label": "frozen-1639 checkpoint tooling (\"1639\" = batch start 2026-10-23T16:39Z, an identifier): first-parent Git-object export, source-only derivatives, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-q.sh",
+      "stored": "files/source-preservation/frozen-1639-q.sh",
+      "sha256": "06f3c9b4e262a9f0242d3ee059a2111703851abc669d0666c987899e36158014",
+      "bytes": 742
+    },
+    {
+      "label": "frozen-1639 checkpoint tooling (\"1639\" = batch start 2026-10-23T16:39Z, an identifier): first-parent Git-object export, source-only derivatives, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-export.sh",
+      "stored": "files/source-preservation/frozen-1639-export.sh",
+      "sha256": "edab3e3a28ebb929ae5d194e5ecae1bb928cdec9f1bb610ecfc6bd76d4e3adea",
+      "bytes": 2770
+    },
+    {
+      "label": "frozen-1639 checkpoint tooling (\"1639\" = batch start 2026-10-23T16:39Z, an identifier): first-parent Git-object export, source-only derivatives, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-capture.sh",
+      "stored": "files/source-preservation/frozen-1639-capture.sh",
+      "sha256": "d34497bec9b4d4f78d446b94b95ab59530beab7de94c4589a591a448bba80d28",
+      "bytes": 2427
+    },
+    {
+      "label": "frozen-1639 checkpoint tooling (\"1639\" = batch start 2026-10-23T16:39Z, an identifier): first-parent Git-object export, source-only derivatives, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1639-labels.json",
+      "stored": "files/source-preservation/frozen-1639-labels.json",
+      "sha256": "acf8f9dc720e78c9e9bd1c68bf586da4c7ada2a3b782b26827ef62f13102ef8c",
+      "bytes": 3735
+    },
+    {
+      "label": "frozen-1639 checkpoint tooling (\"1639\" = batch start 2026-10-23T16:39Z, an identifier): first-parent Git-object export, source-only derivatives, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/make-frozen-1639-snapshots.py",
+      "stored": "files/source-preservation/make-frozen-1639-snapshots.py",
+      "sha256": "4f9a5154f8a3aebb424b44cf17a3aef4c2dbaf418662f817197f4086a3eece23",
+      "bytes": 834
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -30611,6 +31395,15 @@
       "added": 529,
       "bytes": 12076921,
       "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"1517\" is a batch identifier (start 15:17Z), not this time"
+    },
+    {
+      "at": "2026-10-23T17:19:44.927713+00:00",
+      "by": "source-preservation/capture-frozen-1639.py",
+      "onCheckpoint": "b995a73b6b3ae51d1812607da0e4d8ea6fd32f6e",
+      "entriesBefore": 4439,
+      "added": 112,
+      "bytes": 4778267,
+      "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"1639\" is a batch identifier (start 16:39Z), not this time"
     }
   ]
 }

@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-23T15:49:18.3387329Z",
+  "physicalTotalBytes": 120070115328,
+  "physicalFreeBytes": 27358494720,
+  "vmAssignedBytes": 80444653568,
+  "node": {
+    "nodeRamGb": 96,
+    "ramGbFree": 79.8,
+    "apps": {
+      "isolation": "hyperv-partition-per-app",
+      "tier": "enclave-shield",
+      "hostExcluded": false,
+      "hostOsExcluded": true,
+      "operatorExcluded": false,
+      "inTee": false,
+      "running": 9,
+      "capacity": 16,
+      "scope": "market",
+      "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
+    }
+  },
+  "managerMemory": {
+    "rule": "cpu-share",
+    "poolMiB": 98304
+  }
+}

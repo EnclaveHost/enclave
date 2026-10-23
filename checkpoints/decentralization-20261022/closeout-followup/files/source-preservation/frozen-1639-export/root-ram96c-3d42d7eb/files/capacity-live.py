@@ -1,0 +1,4 @@
+import importlib.util,json,pathlib,datetime
+s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+p=r'''$os=Get-CimInstance Win32_OperatingSystem;$h=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:9600/availability;$m=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:8091/health;[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');physicalTotalBytes=[long]$os.TotalVisibleMemorySize*1024;physicalFreeBytes=[long]$os.FreePhysicalMemory*1024;vmAssignedBytes=[long]((Get-VM|Measure-Object MemoryAssigned -Sum).Sum);node=$h|Select-Object nodeRamGb,ramGbFree,apps;managerMemory=$m.memory}|ConvertTo-Json -Depth 6 -Compress'''
+r=m.ps(p,20);pathlib.Path('work/nucbox-ram96-20261023/capacity-live.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

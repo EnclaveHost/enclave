@@ -35,6 +35,8 @@ Frozen 1339 append (2026-10-23; "1339" = the batch start 13:39Z, an identifier):
 
 Frozen 1517 append (2026-10-23; "1517" = the batch start 15:17Z, an identifier): root-designated terminal heads A receipts eab4cfac (SOURCE-ONLY: compiled MCP bundle + manifest held, manifest converted, rebuild validated), E production build ae00cd96 (incl. merge of published main 68b82926) + report 4beedc5b, F runtime 0de09415/dda47a35 + gap repair 0ed6b6d9, M startup cancellation 3746e4fc, S consumer interface 4f7632d7 + report a32d209e, C shard recovery 5c317531, T storage compose t 4bb72315 / s fb9ce4a7 / p ed814e58 (SOURCE-ONLY) + report be3392d2, ROOT api-mcp recovery 95ee73dc; root notes, receipts and journal snapshots. Source/test candidates, not production completion. See `MANIFEST.json` `appends`.
 
+Frozen 1639 append (2026-10-23; "1639" = the batch start 16:39Z, an identifier): root-accepted terminal heads A credit-vault submitter fd8d5806 (SOURCE-ONLY: the held MCP bundle as before), E generated-artifact reconcile ff13ebe0 + report d37f7a04 (exports/ omitted), ROOT nucbox-ram96 3d42d7eb (96 GiB activation, headroom, share mismatch), ROOT RPC integration review 803c6975, ROOT api-mcp 844edbf2; root receipts and journal/requirements snapshots. The coupled resource-share fix is active WIP and not captured. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

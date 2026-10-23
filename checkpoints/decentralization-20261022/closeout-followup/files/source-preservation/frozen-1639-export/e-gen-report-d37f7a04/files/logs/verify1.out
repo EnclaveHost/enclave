@@ -1,0 +1,39 @@
+[queue] START available=17551MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+source HEAD ff13ebe089f3c18a064892269c55ddca2b4409e9 tree 1cece8e6571631ab23ca8403c706ee5166c69c64
+[build] csp-script-src.txt: 6 inline-script hashes (server CSP can now drop 'unsafe-inline' + esm.sh)
+[build] dist/: 238 files · 28.6 MB
+== tracked files after the build (must be none)
+(clean)
+a7d54dd491b156c27bf9a40286870d36f5c048aeb85b63e5993cccc2a193fdc4  site/js/gen/contract-artifacts.js
+ff2fef202094b87d8b0325614460e1d605d90dd689f740d4d8446c9f0e251bb7  site/css/site.css
+f7019cfa78326729d99eff41f99a4539957978f69b01b48a54829cd81cf842db  contracts/EnclaveRegistry.abi.json
+03d0e63524cde8002a81d4006a6eded244206869539e5318264755bc2385db21  contracts/EnclaveProofOfTime.abi.json
+dist files 238  manifest sha256 c8d289bb085b1edf9c2502c26e0a23295fef4bb7bfeaf39c5572bfee09c89669
+profile-broadcast-3WV7XJKR.js
+<span data-build>ff13ebe0 · 2026-10-23</span>
+pre-rewrite literal in dist: 0
+== against the reviewed ae00cd965 dist
+files only in old: [] | only in new: []
+changed: 17
+  stamp-only ./404.html
+  stamp-only ./admin.html
+  stamp-only ./apps.html
+  stamp-only ./apps/index.html
+  stamp-only ./apps/publish.html
+  stamp-only ./authorize.html
+  stamp-only ./checkout.html
+  stamp-only ./dashboard.html
+  stamp-only ./develop.html
+  stamp-only ./grant.html
+  stamp-only ./host.html
+  stamp-only ./index.html
+  stamp-only ./link.html
+  stamp-only ./privacy.html
+  stamp-only ./sessions.html
+  stamp-only ./sso/authorize.html
+  stamp-only ./terms.html
+PASS dist differs only in the footer commit stamp
+verify rc=0
+[memory-guard] exit=0 peakTreeRssMiB=412 minHostAvailableMiB=17203
+[memory-guard] at peak: node:339 node:63 bash:6 timeout:4
+[queue] EXIT 0

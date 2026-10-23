@@ -1,0 +1,713 @@
+From 788bc438a07178b1233d34c658d7a98d38e2746d Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 08:49:56 -0700
+Subject: [PATCH] Credit-vault submitter role: opt-in local verifier state and
+ validated receipt source
+
+The hosted credit-vault submitter (network/credit-vault-submitter.mjs, role
+network/host-services/credit-vault-submitter.mjs) hardcoded a provider
+QuorumChain and RPC reader. It now builds both through the CLI's own creation
+path (cli/credit-vault.mjs readerFor/chainFor, chainFor now exported) and
+accepts two state authorities:
+
+- provider quorum (unchanged, compatible): rpc = 2-8 providers that must agree;
+  /health and the log now say so plainly ("agreement between providers, not
+  proof");
+- chainVerifier (opt-in): the operator's local proof-backed verifier answers
+  every state read and simulation; rpc is then only the explicit transaction
+  transport (1-8 endpoints, e.g. the operator's own node), never state, so no
+  public provider list is required. Optional receiptSource: the inline
+  enclave-receipt-source/v1 config of the local L1 pair + Base node, parsed and
+  built (no I/O; E's adapters enforce loopback) at the runner's intake by the
+  same glue as the CLI (network/receipt-source.mjs). Its test-fixture identities
+  are refused unless ENCLAVE_TEST_RECEIPT_FIXTURE=1 is in the validating
+  process's environment; the host-service runner passes none to the role.
+  outcomeTimeoutSec (10-600, default 180) bounds how long a send waits before it
+  is held as unknown.
+
+The relay keeps exact bytes, one flight per digest, the operator's external
+signer (its journal now settles on minted receipts bound to the signed bytes
+when a receipt source is set), and unknown outcomes held, never re-signed. Its
+success answer adds the verified outcome text under the verifier; /health adds
+`authority` (state, transactions, receipts) via cli/credit-vault.mjs
+relayAuthority, also used by `enclave credit-vault relay`.
+
+Tests: test/credit-vault-submitter-config.test.mjs (intake, labels, runner
+validator) and test/credit-vault-submitter-verifier.e2e.test.mjs (the PACKAGED
+role on reth --dev + Helios + anvil L1 + E's labelled beacon/rollup fixtures:
+exact success, idempotent bytes, a real on-chain revert, tampered proofs, admin
+book migration, unknown held and recovered by rebroadcasting the same bytes,
+and through the runner: no environment, a not-ready production source ending
+unknown, the platform host policy gate).
+---
+ cli/credit-vault.mjs                          |  31 +-
+ network/credit-vault-submitter.mjs            |  28 +-
+ .../host-services/credit-vault-submitter.mjs  |  45 ++-
+ test/credit-vault-submitter-config.test.mjs   |  68 ++++
+ ...edit-vault-submitter-verifier.e2e.test.mjs | 358 ++++++++++++++++++
+ 5 files changed, 509 insertions(+), 21 deletions(-)
+ create mode 100644 test/credit-vault-submitter-config.test.mjs
+ create mode 100644 test/credit-vault-submitter-verifier.e2e.test.mjs
+
+diff --git a/cli/credit-vault.mjs b/cli/credit-vault.mjs
+index 8d5cde97054164e26235a0c3fb5bd4d5fb48cdf0..f86ebb4580ee55db2fc17f7a0f0c30a1b36bd39a 100644
+--- a/cli/credit-vault.mjs
++++ b/cli/credit-vault.mjs
+@@ -68,7 +68,10 @@
+ const verifierOf = (o) => (o["chain-verifier"] ? chainVerifierOf({ chainAuthority: "verifier", chainVerifier: o["chain-verifier"] }, "--chain-verifier") : null);
+ const transportOf = (o) => (o.rpc.length ? validateRpcOrigins(o.rpc, { min: 1 }) : []);
+ // --receipt-source FILE (network/receipt-source.mjs, E's adapters): one source per run, only with --chain-verifier
++// (a caller that already built one from an inline, validated config - the hosted submitter role - passes o._receiptSource)
+ function receiptSourceOf(o){
++  if (o._receiptSource && !o["chain-verifier"]) throw new Error("a receipt source needs the local chain verifier");
++  if (o._receiptSource) return o._receiptSource;
+   if (!o["receipt-source"]) return null;
+   if (!o["chain-verifier"]) throw new Error("--receipt-source needs --chain-verifier");
+   if (!o._receiptSource) o._receiptSource = createReceiptSource(loadReceiptSourceConfig(o["receipt-source"]));
+@@ -154,7 +157,7 @@
+   const r = createQuorumReader({ rpcs, quorum, confirmations: intOpt(o.confirmations, 2, 0, 64, "confirmations"), maxBlockAgeSeconds: intOpt(o["max-block-age"], 600, 30, 86400, "max-block-age"), chainId: pins.chainId });
+   return CV.withTxReads(r, jsonRpc());
+ }
+-function chainFor(o, pins){
++export function chainFor(o, pins){
+   const verifier = verifierOf(o);
+   if (verifier) return independentChain({ chainVerifier: verifier, rpcs: transportOf(o), chainId: pins.chainId, confirmations: intOpt(o.confirmations, 2, 0, 64, "confirmations"),
+     maxBlockAgeMs: intOpt(o["max-block-age"], 600, 30, 600, "max-block-age") * 1000, receiptSource: receiptSourceOf(o) });
+@@ -223,7 +226,22 @@
+ // error came before the payer signed (the external signer attaches its intent to any error after it signed)
+ const nothingPending = (e, signed) => /^refusing to send|nothing is pending|nothing was sent/.test(String(e && e.message || ""))
+   || (!signed && !(e && (e.outcomeUnknown || e.mined || e.intent)));
+-export function createRelay({ reader, chain, account, pins, reserveRecord = null, maxFeeGwei = 5, log = () => {} }){
++/** What a relay's state reads, sends and receipts rest on, said plainly (its /health shows this). Endpoint URLs other than
++ *  the loopback verifier are counted, not printed (an RPC path can carry a provider key). */
++export function relayAuthority(o){
++  const n = o.rpc.length, conf = intOpt(o.confirmations, 2, 0, 64, "confirmations");
++  if (!o["chain-verifier"]) return { mode: "provider-quorum",
++    state: `${intOpt(o.quorum, 2, 2, Math.max(2, n), "quorum")} of ${n} RPC providers agreeing at a block ${conf} deep (agreement between providers, not proof)`,
++    transactions: "the same RPC providers", receipts: "the RPC providers' agreement (not proof)" };
++  const src = receiptSourceOf(o);
++  return { mode: "local-verifier", state: `the local proof-backed verifier ${o["chain-verifier"]} (unsafe tier), ${conf} confirmation(s)`,
++    transactions: n ? `explicit transaction transport: ${n} endpoint(s), never a state authority` : "none configured: sends are refused",
++    receipts: src ? `receipt source: ${src.label}; trust '${src.trust}'${src.trust === "local-validated-pair" ? " (local full-node validation, not a portable proof)" : ""}`
++      : "transport-reported and UNVERIFIED; the sender's nonce is checked consumed in verified state" };
++}
++// authority: what this relay's state reads, sends and receipts rest on (shown on /health verbatim); timeoutMs: how long a
++// send waits for its outcome before it is held as unknown
++export function createRelay({ reader, chain, account, pins, reserveRecord = null, maxFeeGwei = 5, log = () => {}, authority = null, timeoutMs = 180000 }){
+   const byDigest = new Map();
+   let payerTurn = Promise.resolve();
+   const record = reserveRecord ? R.validateReserveRecord(reserveRecord, pins) : null;
+@@ -259,9 +277,10 @@
+     const payer = typeof account.sendQuorumTx === "function" ? account
+       : { address: account.address, signTransaction: async (tx) => { const raw = await account.signTransaction(tx); signed = true; return raw; } };
+     // sendQuorumTx simulates again at a fresh agreed block when the turn comes, so waiting cannot make a stale send
+-    const turn = payerTurn.then(() => sendQuorumTx(chain, { account: payer, to: req.to, data: req.data, maxFeeGwei, log }));
++    const turn = payerTurn.then(() => sendQuorumTx(chain, { account: payer, to: req.to, data: req.data, maxFeeGwei, log, timeoutMs }));
+     payerTurn = turn.then(() => {}, () => {});
+-    try { return { txHash: (await turn).transactionHash }; }
++    // the answer stays a hint for the client (it reconciles from the chain); under the verifier it says what was verified
++    try { const r = await turn; return { txHash: r.transactionHash, ...(r.evidence ? { outcome: receiptLine(r) } : {}) }; }
+     catch (e){
+       if (e && e.mined) throw Object.assign(new Error(`${String(e.message).slice(0, 200)}; this relay sends no second transaction for these bytes`), { status: 409 });
+       if (nothingPending(e, signed)){ byDigest.delete(req.digest); throw e; }
+@@ -270,7 +289,7 @@
+     }
+   }
+   submit.health = () => ({ ok: true, chainId: pins.chainId, payer: account.address, factories: pins.factories.map((f) => f.address),
+-    reserve: record ? record.reserve : null, ...counts });
++    reserve: record ? record.reserve : null, ...(authority ? { authority } : {}), ...counts });
+   return submit;
+ }
+ export function relayServer(submit, { maxBody = 65536, perMinute = 30 } = {}){
+@@ -362,7 +381,7 @@
+     }
+     case "relay": {
+       const [host, port] = String(o.listen || "127.0.0.1:8788").split(":");
+-      const account = payerAccount(o, env), submit = createRelay({ reader: readerFor(o, pins), chain: chainFor(o, pins), account, pins, reserveRecord: reserveRecordOf(o, pins) });
++      const account = payerAccount(o, env), submit = createRelay({ reader: readerFor(o, pins), chain: chainFor(o, pins), account, pins, reserveRecord: reserveRecordOf(o, pins), authority: relayAuthority(o) });
+       const srv = relayServer(submit);
+       await new Promise((r) => srv.listen(Number(port), host, r));
+       out(JSON.stringify({ relay: `http://${host}:${srv.address().port}`, payer: account.address }));
+diff --git a/network/credit-vault-submitter.mjs b/network/credit-vault-submitter.mjs
+index 78aeead773bea3300adc2608f187d3b330d7d8e9..f6ef9a3f36228159a4b60f99518df5daea34ce1d 100644
+--- a/network/credit-vault-submitter.mjs
++++ b/network/credit-vault-submitter.mjs
+@@ -4,6 +4,11 @@
+ // The configuration is validated by the role (no secret, loopback signer only); the process refuses a DigitalOcean machine,
+ // verifies the optional reserve record against its pinned sha256, and serves cli/credit-vault.mjs's relay: exact bytes,
+ // agreed simulation, the operator's external signer pays gas, idempotent by digest. Prints one JSON line when listening.
++// State authority (the role's config): the operator's RPC provider quorum (legacy: agreement between providers, not proof),
++// or `chainVerifier` - the local proof-backed verifier for every state read and simulation, the `rpc` list then only the
++// explicit transaction transport - optionally with `receiptSource` (the local L1 pair + Base node, worker E's adapters via
++// network/receipt-source.mjs): sends then end confirmed or reverted only on a minted receipt bound to their signed bytes,
++// and otherwise stay UNKNOWN and held. /health states each authority.
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import crypto from 'node:crypto';
+@@ -11,7 +16,7 @@
+ import { validateSubmitterConfig, digitalOceanRefusal } from './host-services/credit-vault-submitter.mjs';
+ 
+ export async function startSubmitter(rawConfig, { log = (m) => console.error(m), env = process.env, readFile = (f) => fs.readFileSync(f, 'utf8') } = {}) {
+-  const c = validateSubmitterConfig(rawConfig);
++  const c = validateSubmitterConfig(rawConfig, { env });
+   const refusal = digitalOceanRefusal({ readFile, ...(env.CVS_TEST_DMI ? { dmiDir: env.CVS_TEST_DMI, cloudCfg: path.join(env.CVS_TEST_DMI, 'cloud.cfg') } : {}) });
+   if (refusal) throw new Error(`credit-vault-submitter: refusing to start: ${refusal}`);
+   const CLI = await import('../cli/credit-vault.mjs');
+@@ -24,17 +29,28 @@
+     if (digest !== c.reserveRecordSha256) throw new Error(`credit-vault-submitter: the reserve record is ${digest}, not the reviewed ${c.reserveRecordSha256}`);
+   }
+   fs.mkdirSync(c.stateDir, { recursive: true, mode: 0o700 });
+-  const opts = { rpc: c.rpc, quorum: String(c.quorum), confirmations: String(c.confirmations), 'max-block-age': '600' };
++  // the CLI's own creation path (cli/credit-vault.mjs readerFor/chainFor): the provider quorum (legacy), or the local
++  // verifier for every state read with the rpc list as the explicit transaction transport only, and optionally the
++  // validated receipt source built from the inline config the role validated
++  const opts = { rpc: c.rpc, confirmations: String(c.confirmations), 'max-block-age': '600',
++    ...(c.chainVerifier ? { 'chain-verifier': c.chainVerifier } : { quorum: String(c.quorum) }) };
++  if (c.receiptSource !== undefined) {
++    const RS = await import('./receipt-source.mjs');
++    opts._receiptSource = RS.createReceiptSource(RS.parseReceiptSourceConfig(c.receiptSource, { env }));
++  }
+   const reader = CLI.readerFor(opts, pins);
+-  const { QuorumChain } = await import('../cli/independent.mjs');
+-  const chain = new QuorumChain({ rpcs: c.rpc, quorum: c.quorum, confirmations: c.confirmations, chainId: c.chainId, maxBlockAgeMs: 600000 });
++  const chain = CLI.chainFor(opts, pins);
++  const authority = CLI.relayAuthority(opts);
++  // the operator's external signer journals every send against the SAME chain: under a receipt source its intents settle
++  // only on minted receipts bound to their signed bytes (cli/independent-signer.mjs)
+   const account = createExternalSigner({ url: c.signer, from: c.from, chainId: c.chainId, mode: 'sign', journalDir: path.join(c.stateDir, 'signer') });
+-  const submit = CLI.createRelay({ reader, chain, account, pins, reserveRecord: c.reserveRecord || null, maxFeeGwei: c.maxFeeGwei, log });
++  const submit = CLI.createRelay({ reader, chain, account, pins, reserveRecord: c.reserveRecord || null, maxFeeGwei: c.maxFeeGwei, log, authority, timeoutMs: c.outcomeTimeoutSec * 1000 });
+   const server = CLI.relayServer(submit, { perMinute: c.perMinute });
+   await new Promise((ok, no) => { server.once('error', no); server.listen(c.port, c.bind, ok); });
+   const url = `http://${c.bind.includes(':') ? `[${c.bind}]` : c.bind}:${server.address().port}`;
+   log(`[credit-vault-submitter] listening on ${url}; gas paid by ${c.from} through the operator's signer; reserve requests ${c.reserveRecord ? 'enabled for ' + c.reserveRecord.reserve : 'off'}`);
+-  return { url, server, submit, stop: () => new Promise((ok) => server.close(() => ok())) };
++  log(`[credit-vault-submitter] state: ${authority.state}; transactions: ${authority.transactions}; receipts: ${authority.receipts}`);
++  return { url, server, submit, chain, account, authority, stop: () => new Promise((ok) => server.close(() => ok())) };
+ }
+ 
+ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+diff --git a/network/host-services/credit-vault-submitter.mjs b/network/host-services/credit-vault-submitter.mjs
+index 7e4882c2aff0dc47587bdf84c60ae77d9e4d7a8f..048bc08ba1402fcc1b02b46a8e3a9a1bacca1712 100644
+--- a/network/host-services/credit-vault-submitter.mjs
++++ b/network/host-services/credit-vault-submitter.mjs
+@@ -13,27 +13,52 @@
+ // the role's V8 heap cap; the role adds no memory field of its own.
+ import path from 'node:path';
+ import { rpcEndpoint } from '../rpc-identity.mjs';
++import { chainVerifierOf } from '../verified-chain.mjs';
++import { parseReceiptSourceConfig, createReceiptSource } from '../receipt-source.mjs';
+ 
+ const ADDR = /^0x[0-9a-fA-F]{40}$/;
+ const fail = (m) => { throw new Error(`credit-vault-submitter: ${m}`); };
+ const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
+ // the same credential-name refusal the host-service roles apply (a field that looks like a secret is refused outright)
+ const SECRETISH = /(secret|token|password|passwd|private|mnemonic|seed|apikey|api_key|auth|hmac|credential|key$|keyfile)/i;
+-const FIELDS = ['port', 'bind', 'stateDir', 'rpc', 'quorum', 'confirmations', 'signer', 'from', 'chainId', 'pins', 'maxFeeGwei', 'perMinute', 'reserveRecord', 'reserveRecordSha256'];
++const FIELDS = ['port', 'bind', 'stateDir', 'rpc', 'quorum', 'confirmations', 'signer', 'from', 'chainId', 'pins', 'maxFeeGwei', 'perMinute', 'reserveRecord', 'reserveRecordSha256',
++  'chainVerifier', 'receiptSource', 'outcomeTimeoutSec'];
+ 
+-/** -> the normalized configuration; throws on anything else. No field may hold a secret. */
+-export function validateSubmitterConfig(c) {
++/**
++ * -> the normalized configuration; throws on anything else. No field may hold a secret. Two state authorities:
++ *   * provider quorum (legacy, compatible): rpc = 2 to 8 Base RPC providers that must AGREE at a block (agreement, not
++ *     proof); state, sends and receipts all come from them;
++ *   * chainVerifier: the operator's LOCAL proof-backed verifier (loopback) answers every state read and simulation; rpc is
++ *     then only the explicit transaction transport (1 to 8 endpoints, e.g. the operator's own node), never state, and no
++ *     public provider list is required. Optional receiptSource (with chainVerifier only): the inline
++ *     enclave-receipt-source/v1 config of the local L1 pair + Base node (network/receipt-source.mjs, worker E's adapters);
++ *     its test-fixture identities are refused unless a test harness set ENCLAVE_TEST_RECEIPT_FIXTURE=1 (the host-service
++ *     runner passes no environment, so never through it).
++ */
++export function validateSubmitterConfig(c, { env = process.env } = {}) {
+   if (!plain(c)) fail('config must be an object');
+   for (const k of Object.keys(c)) if (!FIELDS.includes(k)) fail(`unknown config field ${JSON.stringify(k)}${SECRETISH.test(k) ? ' (the role holds no secret)' : ''}`);
+   for (const k of ['port', 'bind', 'stateDir', 'rpc', 'signer', 'from', 'chainId']) if (c[k] === undefined || c[k] === null || c[k] === '') fail(`${k} is required`);
+   if (!Number.isInteger(c.port) || c.port < 1 || c.port > 65535) fail('port must be a port');
+   if (typeof c.bind !== 'string' || !/^(127\.0\.0\.1|0\.0\.0\.0|::|::1|(\d{1,3}\.){3}\d{1,3})$/.test(c.bind)) fail('bind must be an IP literal');
+   if (typeof c.stateDir !== 'string' || !path.isAbsolute(c.stateDir)) fail('stateDir must be an absolute path');
+-  if (!Array.isArray(c.rpc) || c.rpc.length < 2 || c.rpc.length > 8) fail('rpc: 2 to 8 Base RPC URLs of distinct providers (the operator\'s quorum)');
++  let chainVerifier = null;
++  if (c.chainVerifier !== undefined) {
++    try { chainVerifier = chainVerifierOf({ chainAuthority: 'verifier', chainVerifier: c.chainVerifier }, 'chainVerifier'); } catch (x) { fail(x.message); }
++    if (!Array.isArray(c.rpc) || c.rpc.length < 1 || c.rpc.length > 8) fail('rpc: under chainVerifier, 1 to 8 transaction-transport endpoints (sends and receipt/transaction lookups only, never state)');
++    if (c.quorum !== undefined) fail('quorum applies to the provider-quorum mode; under chainVerifier the rpc list is only the transaction transport');
++  } else {
++    if (!Array.isArray(c.rpc) || c.rpc.length < 2 || c.rpc.length > 8) fail('rpc: 2 to 8 Base RPC URLs of distinct providers (the operator\'s quorum), or set chainVerifier');
++    if (c.receiptSource !== undefined) fail('receiptSource needs chainVerifier: the receipt source is wired for the local verifier\'s sends');
++  }
+   const seen = new Set();
+   for (const [i, r] of c.rpc.entries()) { let e; try { e = rpcEndpoint(r); } catch (x) { fail(`rpc[${i}]: ${x.message}`); } if (seen.has(e.identity)) fail(`rpc[${i}] repeats a provider`); seen.add(e.identity); }
+-  const quorum = c.quorum ?? 2;
+-  if (!Number.isInteger(quorum) || quorum < 2 || quorum > c.rpc.length) fail('quorum: 2 to the number of RPCs');
++  const quorum = chainVerifier ? null : c.quorum ?? 2;
++  if (!chainVerifier && (!Number.isInteger(quorum) || quorum < 2 || quorum > c.rpc.length)) fail('quorum: 2 to the number of RPCs');
++  // parsed AND built (no I/O: E's adapters check their endpoints are loopback when constructed), so a remote endpoint or a
++  // fixture identity is refused here, at the runner's intake, not at the first request
++  if (c.receiptSource !== undefined) { try { createReceiptSource(parseReceiptSourceConfig(c.receiptSource, { env })); } catch (x) { fail(`receiptSource: ${x.message}`); } }
++  if (c.outcomeTimeoutSec !== undefined && (!Number.isInteger(c.outcomeTimeoutSec) || c.outcomeTimeoutSec < 10 || c.outcomeTimeoutSec > 600)) fail('outcomeTimeoutSec: 10 to 600');
+   const confirmations = c.confirmations ?? 2;
+   if (!Number.isInteger(confirmations) || confirmations < 0 || confirmations > 64) fail('confirmations: 0 to 64');
+   // the operator's own wallet, on this machine only: the role never holds or reaches a remote key
+@@ -47,9 +72,10 @@
+   if (c.perMinute !== undefined && (!Number.isInteger(c.perMinute) || c.perMinute < 1 || c.perMinute > 600)) fail('perMinute: 1 to 600');
+   if ((c.reserveRecord === undefined) !== (c.reserveRecordSha256 === undefined)) fail('reserveRecord and reserveRecordSha256 come together (the operator\'s reviewed pin)');
+   if (c.reserveRecord !== undefined && (!plain(c.reserveRecord) || !/^sha256:[0-9a-f]{64}$/.test(String(c.reserveRecordSha256)))) fail('reserveRecord: the reviewed lease-gas record object, reserveRecordSha256: sha256:<hex> of its canonical JSON');
+-  return { port: c.port, bind: c.bind, stateDir: c.stateDir, rpc: [...c.rpc], quorum, confirmations, signer: u.origin + (u.pathname === '/' ? '' : u.pathname),
++  return { port: c.port, bind: c.bind, stateDir: c.stateDir, rpc: [...c.rpc], ...(chainVerifier ? { chainVerifier } : { quorum }), confirmations, signer: u.origin + (u.pathname === '/' ? '' : u.pathname),
+     from: c.from, chainId: c.chainId, ...(c.pins ? { pins: c.pins } : {}), maxFeeGwei: c.maxFeeGwei ?? 5, perMinute: c.perMinute ?? 30,
+-    ...(c.reserveRecord ? { reserveRecord: c.reserveRecord, reserveRecordSha256: c.reserveRecordSha256 } : {}) };
++    ...(c.reserveRecord ? { reserveRecord: c.reserveRecord, reserveRecordSha256: c.reserveRecordSha256 } : {}),
++    ...(c.receiptSource !== undefined ? { receiptSource: c.receiptSource } : {}), outcomeTimeoutSec: c.outcomeTimeoutSec ?? 180 };
+ }
+ 
+ /** The role, in the hosted-service role shape (network/host-services/roles.mjs in work/hosted-service-placement). */
+@@ -59,7 +85,8 @@
+   serves: 'POST /v1/credit-vault/submit: a passkey-signed credit-vault (or proposed parallel-reserve) request is re-derived from its bytes, simulated at an agreed block and sent unchanged, gas paid by the operator; GET /health',
+   state: { durable: true, what: 'the external signer\'s intent journal (cli/independent-signer.mjs): a broadcast whose outcome is unknown is never re-signed', rebuild: 'none needed: a lost journal only loses idempotency for requests still in flight (each request has one nonce, so it executes at most once)' },
+   secrets: 'none in the role: the operator\'s own loopback external signer signs the gas transactions (the role holds no key)',
+-  cold: ['two or more Base RPC providers (the operator\'s quorum)', 'the operator\'s loopback signer', 'the pinned credit-vault factories (built in, or pins)'],
++  cold: ['Base state: two or more RPC providers that must agree (legacy), OR the operator\'s local proof-backed verifier plus one transaction transport (chainVerifier)',
++    'receipts (optional, with chainVerifier): the local Ethereum L1 pair and Base node (receiptSource)', 'the operator\'s loopback signer', 'the pinned credit-vault factories (built in, or pins)'],
+   notCold: ['api.enclave.host or any Enclave API', 'discovery', 'directories', 'storage adapters', 'lease relays', 'any app'],
+   validate: validateSubmitterConfig,
+   launch(c) { return { configFile: c, env: {} }; },
+diff --git a/test/credit-vault-submitter-config.test.mjs b/test/credit-vault-submitter-config.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..3b62bb87747c02e5151eaa1c610246f19c847e60
+--- /dev/null
++++ b/test/credit-vault-submitter-config.test.mjs
+@@ -0,0 +1,68 @@
++// The credit-vault submitter role's configuration intake, offline: the legacy provider quorum (unchanged, labelled as
++// provider agreement), the opt-in local verifier (no public provider list; the rpc list is only the transaction transport),
++// the inline receipt source (worker E's adapters through network/receipt-source.mjs) whose test-fixture identities are
++// refused outside a test harness - and therefore always through the host-service runner, which passes no environment.
++// The real-chain counterpart is test/credit-vault-submitter-verifier.e2e.test.mjs.
++import test from "node:test";
++import assert from "node:assert/strict";
++import { validateSubmitterConfig, CREDIT_VAULT_SUBMITTER_ROLE } from "../network/host-services/credit-vault-submitter.mjs";
++import { relayAuthority, parseArgs } from "../cli/credit-vault.mjs";
++import { validateHostServicesConfig } from "../network/host-services/runner.mjs";
++import { FIXTURE_ENV } from "../network/receipt-source.mjs";
++
++const base = { port: 8788, bind: "127.0.0.1", stateDir: "/var/lib/enclave/cvs", signer: "http://127.0.0.1:8550", from: "0x" + "11".repeat(20), chainId: 8453 };
++const legacy = { ...base, rpc: ["https://a.example", "https://b.example"] };
++const verifier = { ...base, chainVerifier: "http://127.0.0.1:8545/", rpc: ["http://127.0.0.1:9545"] };
++const source = { format: "enclave-receipt-source/v1", l1: { execution: { url: "http://127.0.0.1:18645" }, consensus: { url: "http://127.0.0.1:15052" } },
++  base: { execution: { url: "http://127.0.0.1:8547" }, rollup: { url: "http://127.0.0.1:9545" } } };
++const fixture = { ...source, testFixture: { label: "TEST FIXTURE x", l1Identity: { chainIdHex: "0x1", elGenesisHash: "0x" + "01".repeat(32), clGenesisValidatorsRoot: "0x" + "02".repeat(32) },
++  l2Identity: { chainIdHex: "0x2105", genesisHash: "0x" + "03".repeat(32) } } };
++
++test("legacy provider quorum: accepted as before (2 to 8 distinct providers, quorum), and labelled as agreement, not proof", () => {
++  const c = validateSubmitterConfig(legacy, { env: {} });
++  assert.equal(c.quorum, 2); assert.equal(c.chainVerifier, undefined); assert.equal(c.outcomeTimeoutSec, 180);
++  assert.deepEqual(validateSubmitterConfig(c, { env: {} }), c, "the normalized config the runner writes validates again unchanged");
++  assert.throws(() => validateSubmitterConfig({ ...legacy, rpc: ["https://a.example"] }, { env: {} }), /2 to 8 Base RPC URLs .* or set chainVerifier/);
++  assert.throws(() => validateSubmitterConfig({ ...legacy, receiptSource: source }, { env: {} }), /receiptSource needs chainVerifier/);
++  const a = relayAuthority(parseArgs(["--rpc", legacy.rpc.join(","), "--quorum", "2", "--confirmations", "2"]));
++  assert.equal(a.mode, "provider-quorum"); assert.match(a.state, /2 of 2 RPC providers agreeing .*\(agreement between providers, not proof\)/);
++  assert.match(a.receipts, /agreement \(not proof\)/);
++});
++
++test("chainVerifier: no public provider list; the rpc list is only the transaction transport (1 to 8); local verifier only", () => {
++  const c = validateSubmitterConfig(verifier, { env: {} });
++  assert.equal(c.chainVerifier, "http://127.0.0.1:8545/"); assert.equal(c.quorum, undefined); assert.deepEqual(c.rpc, ["http://127.0.0.1:9545"]);
++  assert.deepEqual(validateSubmitterConfig(c, { env: {} }), c);
++  assert.throws(() => validateSubmitterConfig({ ...verifier, chainVerifier: "https://verifier.example.org/" }, { env: {} }), /local endpoint|loopback|local/);
++  assert.throws(() => validateSubmitterConfig({ ...verifier, rpc: [] }, { env: {} }), /1 to 8 transaction-transport endpoints/);
++  assert.throws(() => validateSubmitterConfig({ ...verifier, quorum: 2 }, { env: {} }), /quorum applies to the provider-quorum mode/);
++  assert.throws(() => validateSubmitterConfig({ ...verifier, outcomeTimeoutSec: 5 }, { env: {} }), /outcomeTimeoutSec: 10 to 600/);
++  const a = relayAuthority(parseArgs(["--rpc", verifier.rpc[0], "--chain-verifier", verifier.chainVerifier, "--confirmations", "1"]));
++  assert.equal(a.mode, "local-verifier"); assert.match(a.state, /local proof-backed verifier http:\/\/127\.0\.0\.1:8545\//);
++  assert.match(a.transactions, /explicit transaction transport: 1 endpoint\(s\), never a state authority/);
++  assert.match(a.receipts, /transport-reported and UNVERIFIED/);
++});
++
++test("receiptSource: the inline config is checked by the same glue; test-fixture identities only inside a test harness", () => {
++  const c = validateSubmitterConfig({ ...verifier, receiptSource: source }, { env: {} });
++  assert.deepEqual(c.receiptSource, source, "the operator's own object is kept verbatim (and written to the role's 0600 config)");
++  assert.throws(() => validateSubmitterConfig({ ...verifier, receiptSource: { ...source, l1: { ...source.l1, execution: { url: "https://eth.example.org" } } } }, { env: {} }),
++    /receiptSource: .*not-local|receiptSource: .*loopback/, "E's adapters refuse a remote node at the runner's intake");
++  assert.throws(() => validateSubmitterConfig({ ...verifier, receiptSource: { ...source, base: { ...source.base, rollup: { url: "https://base.example.org" } } } }, { env: {} }), /receiptSource: /);
++  assert.throws(() => validateSubmitterConfig({ ...verifier, receiptSource: { ...source, extra: 1 } }, { env: {} }), /unknown key config\.extra/);
++  assert.throws(() => validateSubmitterConfig({ ...verifier, receiptSource: fixture }, { env: {} }), /refused outside a test harness/);
++  assert.ok(validateSubmitterConfig({ ...verifier, receiptSource: fixture }, { env: { [FIXTURE_ENV]: "1" } }).receiptSource.testFixture);
++  assert.equal(CREDIT_VAULT_SUBMITTER_ROLE.validate, validateSubmitterConfig);
++  assert.deepEqual(CREDIT_VAULT_SUBMITTER_ROLE.launch({ x: 1 }).env, {}, "the runner launches the role with no environment of its own");
++});
++
++test("through the host-service runner's validator: the verifier config needs no provider list; a fixture source is refused (the runner process has no harness switch)", () => {
++  assert.equal(process.env[FIXTURE_ENV], undefined, "this suite runs without the harness switch");
++  const cfg = (config) => ({ format: "enclave-host-services/v1", host: { endpoint: "https://host.example.net" }, platformHostPolicy: "production",
++    packagesDir: "/opt/enclave/packages", stateRoot: "/var/lib/enclave/hs", services: [{ role: "credit-vault-submitter", package: "sha256:" + "a".repeat(64), heapMiB: 128, config }] });
++  const ok = validateHostServicesConfig(cfg({ ...verifier, receiptSource: source }));
++  assert.equal(ok.services[0].config.chainVerifier, verifier.chainVerifier); assert.deepEqual(ok.services[0].config.receiptSource, source);
++  assert.equal(ok.platformHostPolicy, "production", "the platform host policy gate still governs the role");
++  assert.throws(() => validateHostServicesConfig(cfg({ ...verifier, receiptSource: fixture })), /refused outside a test harness/);
++  assert.throws(() => validateHostServicesConfig(cfg({ ...verifier, privateKey: "0x01" })), /holds no secret/);
++});
+diff --git a/test/credit-vault-submitter-verifier.e2e.test.mjs b/test/credit-vault-submitter-verifier.e2e.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..071bcce4995c27749b6d4f74eef146df2d2f53a6
+--- /dev/null
++++ b/test/credit-vault-submitter-verifier.e2e.test.mjs
+@@ -0,0 +1,358 @@
++// END-TO-END: the PACKAGED credit-vault submitter host role (network/host-services/packages/credit-vault-submitter.mjs,
++// launched exactly as network/host-services/runner.mjs launches it: `node --max-old-space-size=N <bundle> <config.json>`)
++// in its opt-in verifier mode - state from the local proof-backed verifier, the rpc list only the explicit transaction
++// transport, receipts from the locally validated receipt source - against REAL credit-vault requests on the cli-independent
++// rig (pinned reth --dev, chain 8453) read through the patched Helios.
++//
++// WHAT VALIDATES WHAT (labelled): reth --dev is the Base EXECUTION node; the L1 is an anvil (chain 1); the beacon and Base
++// rollup nodes are worker E's LABELLED fixtures (test/fixtures/tx-evidence/pair-stubs.mjs). Their identities are not
++// mainnet, so every minted receipt is trust 'test-fixture'. A role given a fixture source is spawned with the harness
++// switch ENCLAVE_TEST_RECEIPT_FIXTURE=1 in ITS environment only; the host-service runner passes no environment, and this
++// test process never sets the switch - so through the runner a fixture source is refused, and a production source
++// (mainnet identities) against this rig is NOT READY. Nothing here is mainnet, a synchronized node, or a portable proof.
++//
++// Covered: exact success (minted receipt, exact funds, journal "confirmed"), idempotent same bytes, a REAL on-chain revert
++// (journal "reverted" from the minted receipt), an unknown outcome held and recovered by rebroadcasting the SAME bytes,
++// tampered verifier proofs refused before anything is signed, the admin's book migration followed, and through the
++// runner: no environment, a not-ready production source ending UNKNOWN (never confirmed), the platform host policy gate.
++//   env: RIG_CHAIN_NODE=reth (+ RIG_RETH_*), HELIOS_BASE_BIN, TEST_TMP. Run inside `unshare -r -n`.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { spawn, execFileSync } from 'node:child_process';
++import fs from 'node:fs';
++import path from 'node:path';
++import http from 'node:http';
++import { createHash } from 'node:crypto';
++import { fileURLToPath } from 'node:url';
++import { toHex, keccak256, decodeEventLog, parseAbi, createWalletClient, http as viemHttp } from 'viem';
++import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
++import { startRig, haveTools, KEYS, freePort, chain as rigChain } from './helpers/cli-independent-rig.mjs';
++import { createWitnessGateway } from '../network/witness-gateway.mjs';
++import { makeCommitment, blockFields } from './fixtures/op-commitment.mjs';
++import { startBeaconFixture, startRollupFixture, jrpc } from './fixtures/tx-evidence/pair-stubs.mjs';
++import { independentChain } from '../cli/independent.mjs';
++import { intentJournal, rebroadcast, resolveIntent } from '../cli/independent-signer.mjs';
++import { parseReceiptSourceConfig, createReceiptSource, FIXTURE_ENV } from '../network/receipt-source.mjs';
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const PKG = path.join(REPO, 'network/host-services/packages');
++const ROLE = 'credit-vault-submitter';
++const { HELIOS_BASE_BIN } = process.env;
++const haveAnvil = (() => { try { execFileSync('anvil', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
++const skip = haveTools() || (!HELIOS_BASE_BIN && 'HELIOS_BASE_BIN not set') || (process.env.RIG_CHAIN_NODE !== 'reth' && 'needs the canonical-trie rig (RIG_CHAIN_NODE=reth)')
++  || (!haveAnvil && 'needs anvil for the L1 fixture') || (!fs.existsSync(path.join(PKG, `${ROLE}.package.json`)) && 'needs the built packages');
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'cvs-verifier-e2e-'));
++const SEQ_KEY = '0x' + '5e'.repeat(32), seqSigner = privateKeyToAccount(SEQ_KEY).address;
++const GVR = '0x' + '7e'.repeat(32);
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const lc = (a) => String(a).toLowerCase();
++const T = { skip, timeout: 1200000 };
++const HARNESS = { [FIXTURE_ENV]: '1' };
++let rig, helios, heliosUrl, feed, proxy, gateway, l1proc, l1, beacon, rollup, fixtureCfg, prodCfg, source;
++const proxyMode = { value: 'ok' };
++const servers = [], children = [];
++
++// ---- the verifier rig ----------------------------------------------------------------------------------------------------
++async function rpc(url, method, params = []) {
++  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(30000) });
++  const j = await r.json(); if (j.error) throw new Error(j.error.message); return j.result;
++}
++async function untilHelios(n, ms = 120000) {
++  const end = Date.now() + ms;
++  while (Date.now() < end) { try { if (BigInt(await rpc(heliosUrl, 'eth_blockNumber')) >= BigInt(n)) return; } catch {} await sleep(300); }
++  throw new Error(`helios did not reach block ${n}`);
++}
++const settled = (rc) => untilHelios(BigInt(rc.blockNumber) + 2n);
++function startFeed() {
++  let served = 0n, current = null;
++  const srv = http.createServer(async (q, res) => {
++    if (q.url === '/chain_id') return res.end('8453');
++    try {
++      const latest = BigInt(await rig.rpcCall('eth_blockNumber'));
++      if (served === 0n && latest > 3n) served = latest - 3n;
++      if (served < latest) {
++        const n = served + 1n, b = await rig.rpcCall('eth_getBlockByNumber', [toHex(n), false]);
++        const txs = await Promise.all(b.transactions.map((h) => rig.rpcCall('eth_getRawTransactionByHash', [h])));
++        current = await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs }); served = n;
++      }
++    } catch {}
++    res.end(JSON.stringify(current));
++  });
++  return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, url: `http://127.0.0.1:${srv.address().port}/` })));
++}
++// Helios's witness source: 'tamper' rewrites every storage proof value (a forged proof the verifier must refuse)
++function startProxy() {
++  const srv = http.createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', async () => {
++    const j = await (await fetch(rig.rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: b })).json();
++    if (proxyMode.value === 'tamper') for (const x of [j].flat()) if (x?.result?.storageProof) for (const s of x.result.storageProof) s.value = '0x' + 'beef'.padStart(40, '1');
++    res.end(JSON.stringify(j));
++  }); });
++  return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, url: `http://127.0.0.1:${srv.address().port}/` })));
++}
++/** a transaction transport that answers eth_sendRawTransaction with the right hash but never forwards the bytes */
++async function swallowingTransport() {
++  const srv = http.createServer(async (req, res) => {
++    let b = ''; for await (const c of req) b += c;
++    const q = JSON.parse(b);
++    const one = async (m) => (m.method === 'eth_sendRawTransaction' ? { jsonrpc: '2.0', id: m.id, result: keccak256(m.params[0]) }
++      : (await fetch(rig.rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(m) })).json());
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(Array.isArray(q) ? await Promise.all(q.map(one)) : await one(q)));
++  });
++  servers.push(srv); await new Promise((r) => srv.listen(0, '127.0.0.1', r));
++  return `http://127.0.0.1:${srv.address().port}`;
++}
++
++test.before(async () => {
++  if (skip) return;
++  assert.equal(process.env[FIXTURE_ENV], undefined, 'this test process never carries the harness switch');
++  rig = await startRig();
++  const last = await rig.create(KEYS.owner);
++  feed = await startFeed(); proxy = await startProxy();
++  gateway = createWitnessGateway({ upstreams: [proxy.url] }); const gUrl = await gateway.listen(0);
++  const home = path.join(TMP, 'home'); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
++  fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${seqSigner}"\n`);
++  const port = await freePort();
++  helios = spawn(HELIOS_BASE_BIN, ['opstack', '--network', 'base', '--consensus-rpc', feed.url, '--execution-rpc', gUrl, '--rpc-port', String(port)], { env: { HOME: home, PATH: process.env.PATH }, stdio: 'ignore' });
++  heliosUrl = `http://127.0.0.1:${port}/`;
++  // the L1 fixture: a STATIC anvil (chain 1; finalized 64 blocks back; head hours ahead so lag checks hold) + E's beacon
++  const l1port = await freePort();
++  l1proc = spawn('anvil', ['--port', String(l1port), '--chain-id', '1', '--silent'], { stdio: 'ignore' });
++  l1 = `http://127.0.0.1:${l1port}`;
++  for (let i = 0; i < 150; i++) { try { await jrpc(l1, 'eth_chainId'); break; } catch { await sleep(100); } }
++  await jrpc(l1, 'evm_setNextBlockTimestamp', ['0x' + (Math.floor(Date.now() / 1000) + 3 * 3600).toString(16)]);
++  await jrpc(l1, 'anvil_mine', ['0x50']);
++  beacon = await startBeaconFixture({ el: l1, gvr: GVR });
++  rollup = await startRollupFixture({ l2: rig.rpc, l1 });
++  prodCfg = { format: 'enclave-receipt-source/v1', l1: { execution: { url: l1 }, consensus: { url: beacon.url } }, base: { execution: { url: rig.rpc }, rollup: { url: rollup.url } } };
++  fixtureCfg = { ...prodCfg, testFixture: { label: 'TEST FIXTURE reth --dev Base execution + anvil L1 + scripted beacon/rollup',
++    l1Identity: { chainIdHex: '0x1', elGenesisHash: (await jrpc(l1, 'eth_getBlockByNumber', ['0x0', false])).hash, clGenesisValidatorsRoot: GVR },
++    l2Identity: { chainIdHex: '0x2105', genesisHash: (await jrpc(rig.rpc, 'eth_getBlockByNumber', ['0x0', false])).hash } } };
++  source = createReceiptSource(parseReceiptSourceConfig(fixtureCfg, { env: HARNESS }));   // the client's / operator's own
++  await settled(last);
++});
++test.after(async () => {
++  for (const c of children) try { c.kill('SIGKILL'); } catch {}
++  for (const s of servers) try { s.closeAllConnections?.(); s.close(); } catch {}
++  helios?.kill('SIGKILL'); l1proc?.kill('SIGKILL'); beacon?.close(); rollup?.close();
++  await gateway?.close(); feed?.srv.close(); proxy?.srv.close();
++  await rig?.stop();
++  fs.rmSync(TMP, { recursive: true, force: true });
++});
++const walletOf = (account) => createWalletClient({ account, chain: rigChain, transport: viemHttp(rig.rpc) });
++let funding = Promise.resolve();
++const fundEth = (address, wei = 10n ** 19n) => (funding = funding.then(async () => {
++  const rc = await rig.pc.waitForTransactionReceipt({ hash: await rig.wc(KEYS.deployer).sendTransaction({ to: address, value: wei }) });
++  if (rc.status !== 'success') throw new Error('funding failed'); return rc;
++}));
++const newAcct = async () => { const a = privateKeyToAccount(generatePrivateKey()); await settled(await fundEth(a.address)); return a; };
++const goodChain = () => independentChain({ chainVerifier: heliosUrl, rpcs: [rig.rpcs[2]], confirmations: 1, maxBlockAgeMs: 600000, receiptSource: source });
++const STATE_METHODS = ['eth_call', 'eth_getCode', 'eth_getStorageAt', 'eth_getBalance', 'eth_getProof'];
++
++/** the operator's loopback wallet: signs (eth_signTransaction) with `account`; `hooks.beforeSign` runs once if set */
++async function operatorWallet(account) {
++  const st = { signs: 0, beforeSign: null };
++  const srv = http.createServer(async (req, res) => {
++    let b = ''; for await (const c of req) b += c;
++    const m = JSON.parse(b);
++    const answer = async () => {
++      if (m.method === 'eth_accounts') return { result: [account.address] };
++      if (m.method === 'eth_chainId') return { result: '0x2105' };
++      if (m.method === 'eth_signTransaction') { const p = m.params[0]; st.signs++;
++        if (st.beforeSign) { const f = st.beforeSign; st.beforeSign = null; await f(); }
++        return { result: await account.signTransaction({ type: 'eip1559', chainId: Number(p.chainId), nonce: Number(p.nonce), to: p.to, value: BigInt(p.value), data: p.data,
++          gas: BigInt(p.gas), maxFeePerGas: BigInt(p.maxFeePerGas), maxPriorityFeePerGas: BigInt(p.maxPriorityFeePerGas) }) }; }
++      return { error: { code: -32601, message: `the method ${m.method} does not exist/is not available` } };
++    };
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: m.id, ...(await answer()) }));
++  });
++  servers.push(srv); await new Promise((r) => srv.listen(0, '127.0.0.1', r));
++  return { url: `http://127.0.0.1:${srv.address().port}`, st };
++}
++/** the packaged role, launched as the runner launches it (argv), with the given environment (the runner passes PATH only) */
++async function spawnRole(config, env) {
++  const dir = fs.mkdtempSync(path.join(TMP, 'role-')); const file = path.join(dir, 'config.json');
++  fs.writeFileSync(file, JSON.stringify(config), { mode: 0o600 });
++  const p = spawn(process.execPath, ['--max-old-space-size=128', path.join(PKG, `${ROLE}.mjs`), file], { cwd: dir, env: { PATH: process.env.PATH, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
++  children.push(p);
++  const log = [];
++  p.stderr.on('data', (d) => log.push(...String(d).split('\n').filter(Boolean)));
++  const url = await new Promise((ok, no) => {
++    let out = ''; p.stdout.on('data', (d) => { out += d; const m = /\{"submitter":"([^"]+)"\}/.exec(out); if (m) ok(m[1]); });
++    p.on('exit', (code) => no(new Error(`role exited ${code}: ${log.join('\n')}`))); setTimeout(() => no(new Error('role did not start: ' + log.join('\n'))), 60000);
++  });
++  return { url, log, proc: p, journalDir: path.join(config.stateDir, 'signer') };
++}
++const post = async (url, req) => { const r = await fetch(url + '/v1/credit-vault/submit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req), signal: AbortSignal.timeout(300000) });
++  return { status: r.status, body: await r.json() }; };
++const VERIFIED = /TEST FIXTURE - success in block \d+: receipt minted by the local Base node source \(verifiedBy 'base-derivation', trust 'test-fixture', level 'unsafe'\); hash, sender and nonce bound to the signed transaction/;
++
++// ---- the credit-vault world (the production factory bytecode, a real P-256 passkey) -----------------------------------------
++const F = await import('./credit-vault-fixture.mjs');
++const CV = await import('../site/js/core/credit-vault-independent.js');
++const CLI = await import('../cli/credit-vault.mjs');
++let W;
++async function world() {
++  if (W) return W;
++  const c = { pub: rig.pc, wallet: (k) => walletOf(F.ACCT[k]) };
++  const S = await F.deployStack(c);
++  const PINS = CV.validatePins({ chainId: 8453, origin: F.ORIGIN, rpId: F.RPID, usdc: S.usdc, factories: [S.older, S.current] });
++  const K = F.passkey();
++  await F.send(c, 'admin', S.current.address, CV.ABI.factory, 'createVault', [BigInt(K.x), BigInt(K.y)]);
++  const vault = CV.deriveVault(CLI.lib, K.x, K.y, S.current);
++  await settled(await F.send(c, 'admin', S.usdc, F.CHAIN_FX.MockUSDC.abi, 'mint', [vault, 100_000000n]));
++  const profile = CV.makeProfile({ factory: S.current.address, vault, key: { x: K.x, y: K.y } }, { credentialId: K.credentialId }, PINS);
++  // the client's own verified reader (its own transport front 1, its own receipt source): it reconciles from the chain
++  const reader = CLI.verifiedCreditReader({ verifier: heliosUrl, chainId: 8453, confirmations: 1, transport: [rig.rpcs[1]], receiptSource: source });
++  const sign = async (op, params) => CV.signPrepared(CLI.lib, await CV.prepareVaultOp(CLI.lib, profile, op, params, { reader, pins: PINS, journal: F.memJournal() }), profile,
++    { pins: PINS, origin: F.ORIGIN, getFn: K.getFn(), intent: { op, params } });
++  const reconcile = (req, hashes) => CV.reconcile(CLI.lib, { request: req, txHashes: hashes }, { reader });
++  W = { c, S, PINS, K, vault, profile, reader, sign, reconcile };
++  return W;
++}
++const spec = { appRef: 'catalog://app/0', gpuMilli: 0, cpuMilli: 500, appPort: 8080, ports: '', isPublic: true, configCid: '', maxRate6: '1000' };
++const roleConfig = async (payer, wallet, extra) => ({ port: await freePort(), bind: '127.0.0.1', perMinute: 600, stateDir: fs.mkdtempSync(path.join(TMP, 'state-')), signer: wallet.url, from: payer.address, chainId: 8453,
++  pins: W.PINS, confirmations: 1, chainVerifier: heliosUrl, outcomeTimeoutSec: 30, ...extra });
++const journalOf = (dir) => intentJournal(dir);
++let A;                                                              // the verifier-mode role with the fixture receipt source
++
++test('packaged role, verifier mode + receipt source: /health states each authority; an exact request succeeds once from a MINTED receipt; the same bytes are idempotent; the transport never answers state', T, async () => {
++  await world();
++  const payer = await newAcct(), wallet = await operatorWallet(payer);
++  const cfg = await roleConfig(payer, wallet, { rpc: [rig.rpcs[0]], receiptSource: fixtureCfg });
++  await assert.rejects(spawnRole(cfg, {}), /refused outside a test harness/, 'without the harness switch the packaged role refuses a fixture source');
++  A = { ...(await spawnRole(cfg, HARNESS)), payer, wallet, cfg };
++  const h = await (await fetch(A.url + '/health')).json();
++  assert.equal(h.authority.mode, 'local-verifier'); assert.match(h.authority.state, /local proof-backed verifier http:\/\/127\.0\.0\.1:\d+\/ \(unsafe tier\)/);
++  assert.equal(h.authority.transactions, 'explicit transaction transport: 1 endpoint(s), never a state authority');
++  assert.match(h.authority.receipts, /^receipt source: TEST FIXTURE .*trust 'test-fixture'$/);
++  assert.ok(A.log.some((l) => /state: the local proof-backed verifier/.test(l)), A.log.join('\n'));
++  // a deploy through the role: verified simulation, one send through the transport, inclusion from the minted receipt
++  const u0 = await F.usdcOf(W.c, W.S, W.vault), f0 = rig.rpcLog.length;
++  const req = await W.sign('deploy', { spec, fundUsd: '30' });
++  const r = await post(A.url, req);
++  assert.equal(r.status, 200, JSON.stringify(r.body)); assert.match(r.body.outcome, VERIFIED);
++  const used = rig.rpcLog.slice(f0).filter((x) => x.i === 0);
++  assert.ok(used.some((x) => x.method === 'eth_sendRawTransaction'));
++  assert.deepEqual(used.filter((x) => STATE_METHODS.includes(x.method)).map((x) => x.method), [], 'the transport never answered a state read or the simulation');
++  const rc = await rig.pc.getTransactionReceipt({ hash: r.body.txHash });
++  const ev = rc.logs.filter((l) => lc(l.address) === W.profile.vault).map((l) => { try { return decodeEventLog({ abi: parseAbi(['event Deployed(bytes32 indexed id, uint256 funded6)']), ...l }); } catch { return null; } }).find(Boolean);
++  W.id = ev.args.id;
++  assert.equal((await F.recordOf(W.c, W.S.ledger, W.id)).balance6, 30_000000n); assert.equal(await F.usdcOf(W.c, W.S, W.vault), u0 - 30_000000n, 'exact funds');
++  const rec = await W.reconcile(req, [r.body.txHash]);
++  assert.equal(rec.status, 'executed'); assert.equal(rec.txHash, lc(r.body.txHash));
++  assert.match(CLI.outcomeEvidence(rec, W.reader).evidence.execution, /^TEST FIXTURE - success in block \d+: receipt minted .*its signed bytes call this vault with exactly the signed request$/);
++  const j = journalOf(A.journalDir).list();
++  assert.equal(j.length, 1); assert.equal(j[0].state, 'confirmed'); assert.equal(j[0].evidence.receiptVerified, true); assert.equal(j[0].evidence.trust, 'test-fixture');
++  // the same bytes again: the held flight answers; nothing is signed or sent again
++  const s0 = wallet.st.signs, b0 = rig.rpcLog.filter((x) => x.method === 'eth_sendRawTransaction').length;
++  const again = await post(A.url, req);
++  assert.equal(again.body.txHash, r.body.txHash);
++  assert.equal(wallet.st.signs, s0); assert.equal(rig.rpcLog.filter((x) => x.method === 'eth_sendRawTransaction').length, b0);
++});
++
++test('a REAL on-chain revert: the vault nonce is used between the role\'s verified simulation and inclusion; "reverted" comes from the minted receipt; the client decides "superseded"', T, async () => {
++  // two requests signed for the SAME vault nonce; the owner's own wallet lands the other one while the operator's wallet signs
++  const r1 = await W.sign('fund', { id: W.id, amountUsd: '1' }), r2 = await W.sign('fund', { id: W.id, amountUsd: '2' });
++  assert.equal(r1.nonce, r2.nonce);
++  const u0 = await F.usdcOf(W.c, W.S, W.vault);
++  A.wallet.st.beforeSign = async () => {
++    const h = await walletOf(F.ACCT.payer).sendTransaction({ to: r2.to, data: r2.data });
++    await settled(await rig.pc.waitForTransactionReceipt({ hash: h }));
++  };
++  const n0 = await rig.pc.getTransactionCount({ address: A.payer.address });
++  const r = await post(A.url, r1);
++  assert.equal(r.status, 409, JSON.stringify(r.body));
++  assert.match(r.body.error, /transaction reverted: 0x[0-9a-f]{64} .*TEST FIXTURE - reverted in block \d+: receipt minted by the local Base node source/);
++  assert.equal(await rig.pc.getTransactionCount({ address: A.payer.address }), n0 + 1, 'the operator\'s nonce was used once');
++  const rev = journalOf(A.journalDir).list().find((x) => x.state === 'reverted');
++  assert.ok(rev, 'the journal holds the reverted intent'); assert.equal(rev.evidence.receiptVerified, true); assert.equal(rev.note, undefined, 'no transport caveat: the revert is minted');
++  assert.equal((await rig.pc.getTransactionReceipt({ hash: rev.hash })).status, 'reverted', 'the chain agrees');
++  assert.equal(await F.usdcOf(W.c, W.S, W.vault), u0 - 2_000000n, 'only the request that landed moved funds');
++  assert.equal((await W.reconcile(r1, [rev.hash])).status, 'superseded');
++});
++
++test('tampered verifier proofs: the role refuses before anything is signed; the same bytes execute once the proofs are honest', T, async () => {
++  const req = await W.sign('fund', { id: W.id, amountUsd: '3' });
++  const s0 = A.wallet.st.signs, u0 = await F.usdcOf(W.c, W.S, W.vault);
++  proxyMode.value = 'tamper';
++  try {
++    await untilHelios(BigInt(await rpc(heliosUrl, 'eth_blockNumber')) + 2n);
++    const r = await post(A.url, req);
++    assert.ok(r.status >= 400, JSON.stringify(r)); assert.equal(A.wallet.st.signs, s0, 'nothing was signed'); assert.equal(await F.usdcOf(W.c, W.S, W.vault), u0);
++  } finally { proxyMode.value = 'ok'; }
++  await untilHelios(BigInt(await rig.rpcCall('eth_blockNumber')) - 2n, 300000);
++  let r;
++  for (let i = 0; i < 30; i++) { r = await post(A.url, req); if (r.status === 200) break; await sleep(2000); }
++  assert.equal(r.status, 200, JSON.stringify(r)); assert.match(r.body.outcome, VERIFIED);
++  assert.equal(await F.usdcOf(W.c, W.S, W.vault), u0 - 3_000000n, 'exactly once');
++});
++
++test('admin migration: the book\'s "deployments" repointed by the admin is followed by the role\'s verified reads (a new deployment lands on the ledger the book names)', T, async () => {
++  const ledger2 = await F.deployLedger(W.c, [W.S.usdc, F.PAYOUT, W.S.registry, W.S.feed]);
++  await settled(await F.send(W.c, 'admin', W.S.book, F.CHAIN_FX.EnclaveAddressBook.abi, 'set', [F.bookKey('deployments'), ledger2]));
++  try {
++    const req = await W.sign('deploy', { spec, fundUsd: '4' });
++    const r = await post(A.url, req);
++    assert.equal(r.status, 200, JSON.stringify(r.body)); assert.match(r.body.outcome, VERIFIED);
++    const rc = await rig.pc.getTransactionReceipt({ hash: r.body.txHash });
++    assert.ok(rc.logs.some((l) => lc(l.address) === lc(ledger2)), 'created on the ledger the admin\'s book names');
++  } finally { await settled(await F.send(W.c, 'admin', W.S.book, F.CHAIN_FX.EnclaveAddressBook.abi, 'set', [F.bookKey('deployments'), W.S.ledger])); }
++});
++
++test('an unknown outcome is held (the transport swallowed the send): repeats answer the same transaction, nothing re-signed; the operator rebroadcasts the SAME bytes and it confirms from a minted receipt', T, async () => {
++  const payer = await newAcct(), wallet = await operatorWallet(payer);
++  const B = await spawnRole(await roleConfig(payer, wallet, { rpc: [await swallowingTransport()], receiptSource: fixtureCfg, outcomeTimeoutSec: 12 }), HARNESS);
++  const req = await W.sign('fund', { id: W.id, amountUsd: '5' });
++  const u0 = await F.usdcOf(W.c, W.S, W.vault);
++  const r = await post(B.url, req);
++  assert.equal(r.status, 200); assert.equal(r.body.unknown, true, JSON.stringify(r.body)); const H = r.body.txHash;
++  const signs = wallet.st.signs;
++  assert.deepEqual((await post(B.url, req)).body, { txHash: H, unknown: true }, 'held: the same answer, no new flight');
++  assert.equal(wallet.st.signs, signs, 'never re-signed');
++  assert.equal(await F.usdcOf(W.c, W.S, W.vault), u0, 'nothing moved');
++  const journal = journalOf(B.journalDir), rec = journal.list()[0];
++  assert.equal(rec.state, 'unknown'); assert.equal(lc(rec.hash), lc(H));
++  // the operator's resolution (`enclave … signer rebroadcast` with the same receipt source): the SAME signed bytes
++  const out = await rebroadcast(goodChain(), journal, rec.id, { timeoutMs: 120000, pollMs: 1000 });
++  assert.equal(out.evidence.receiptVerified, true); assert.equal(journal.get(rec.id).state, 'confirmed'); assert.equal(lc(journal.get(rec.id).hash), lc(H));
++  assert.equal(await F.usdcOf(W.c, W.S, W.vault), u0 - 5_000000n, 'exactly once');
++  assert.equal((await W.reconcile(req, [H])).status, 'executed');
++});
++
++test('through the host-service RUNNER (no environment): a fixture source is refused; a PRODUCTION source against this rig is not ready, so the send ends UNKNOWN, never confirmed; the platform host policy gate still stops and restarts the role', T, async () => {
++  const { runHostServices, validateHostServicesConfig } = await import('../network/host-services/runner.mjs');
++  const payer = await newAcct(), wallet = await operatorWallet(payer);
++  const pin = 'sha256:' + createHash('sha256').update(fs.readFileSync(path.join(PKG, `${ROLE}.package.json`))).digest('hex');
++  const port = await freePort();
++  const config = { ...(await roleConfig(payer, wallet, { rpc: [rig.rpcs[0]], receiptSource: prodCfg, outcomeTimeoutSec: 15 })), port };
++  const hs = (c) => ({ format: 'enclave-host-services/v1', host: { endpoint: 'https://host-v.credit-test.net' }, platformHostPolicy: 'production', packagesDir: PKG,
++    stateRoot: fs.mkdtempSync(path.join(TMP, 'hs-')), services: [{ role: ROLE, package: pin, heapMiB: 128, config: c }] });
++  assert.throws(() => validateHostServicesConfig(hs({ ...config, receiptSource: fixtureCfg })), /refused outside a test harness/);
++  const logs = [], gate = { refusal: null };
++  const gateOf = { check: async () => {}, start() {}, stop() {}, serviceRefusal: () => gate.refusal, status: () => ({ platformHostPolicy: 'test', refusal: gate.refusal }) };
++  const running = await runHostServices(hs(config), { gate: gateOf, log: (m) => logs.push(m), intervalMs: 200, backoffMs: 200 });
++  try {
++    const url = `http://127.0.0.1:${port}`;
++    const healthy = () => fetch(url + '/health', { signal: AbortSignal.timeout(1000) }).then((r) => r.ok, () => false);
++    const wait = async (f, ms, what) => { const end = Date.now() + ms; for (;;) { if (await f()) return; if (Date.now() > end) throw new Error(`timed out: ${what}\n${logs.slice(-20).join('\n')}`); await sleep(200); } };
++    await wait(healthy, 60000, 'the runner-launched role');
++    const st = running.status().services[0];
++    assert.deepEqual(fs.readFileSync(`/proc/${st.pid}/environ`, 'utf8').split('\0').filter(Boolean).map((e) => e.split('=')[0]), ['PATH'], 'no harness switch, no environment');
++    const h = await (await fetch(url + '/health')).json();
++    assert.match(h.authority.receipts, /trust 'local-validated-pair' \(local full-node validation, not a portable proof\)/);
++    const req = await W.sign('fund', { id: W.id, amountUsd: '6' });
++    const u0 = await F.usdcOf(W.c, W.S, W.vault);
++    const r = await post(url, req);
++    assert.equal(r.body.unknown, true, JSON.stringify(r.body));
++    const rec = journalOf(path.join(config.stateDir, 'signer')).list()[0];
++    assert.equal(rec.state, 'unknown'); assert.match(rec.note, /l2-source-not-ready|has not shown it included/);
++    // the transaction did land; a working source then decides it - the role never claimed it
++    const fin = await resolveIntent(goodChain(), journalOf(path.join(config.stateDir, 'signer')), rec.id);
++    assert.equal(fin.state, 'confirmed'); assert.equal(await F.usdcOf(W.c, W.S, W.vault), u0 - 6_000000n);
++    // the platform host policy gate still governs the role
++    gate.refusal = 'platform host policy: banned by platform policy #9 (host)';
++    await wait(async () => !running.status().services[0].running && !(await healthy()), 20000, 'the role stopped on refusal');
++    gate.refusal = null;
++    await wait(healthy, 60000, 'the role restarted after admission');
++  } finally { await running.stop(); }
++});

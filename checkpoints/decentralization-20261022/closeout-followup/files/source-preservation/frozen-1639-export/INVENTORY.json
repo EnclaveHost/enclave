@@ -1,0 +1,1060 @@
+{
+ "format": "enclave-frozen-1639-export/v1",
+ "checkpointHeadAtExport": "b995a73b6b3ae51d1812607da0e4d8ea6fd32f6e",
+ "batch": "1639 = the batch start 2026-10-23T16:39Z (date -u): an identifier, not a publication time",
+ "label": "SOURCE + OFFLINE TESTS ONLY; candidates, not production completion. Root-accepted terminal heads since b995a73b: A credit-vault submitter fd8d5806 (state verifier + optional locally validated receipts; mainnet readiness not established), E generated-artifact reconcile ff13ebe0 + report d37f7a04, ROOT RAM activation/headroom/share-mismatch evidence 3d42d7eb, ROOT RPC integration review 803c6975, ROOT api-mcp 844edbf2. The coupled resource-share fix is ACTIVE WIP and is NOT here.",
+ "sides": {
+  "e-gen": {
+   "repo": "work/site-generated-artifacts-reconcile-20261023/repo",
+   "branch": "site-generated-artifacts-reconcile",
+   "headReachableFromBranch": true,
+   "base": "ae00cd9659e46e3dffe5407bdf34442416a9e69a",
+   "baseProvenance": "ae00cd96 preserved in b995a73b (frozen-1517 e-prod head)",
+   "head": "ff13ebe089f3c18a064892269c55ddca2b4409e9",
+   "headTree": "1cece8e6571631ab23ca8403c706ee5166c69c64",
+   "commits": [
+    {
+     "commit": "ff13ebe089f3c18a064892269c55ddca2b4409e9",
+     "tree": "1cece8e6571631ab23ca8403c706ee5166c69c64",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T08:22:37-07:00",
+     "subject": "Regenerate the stale site artifacts from the reviewed source (metadata-only bytecode; two pool-badge rules)",
+     "parent": "ae00cd9659e46e3dffe5407bdf34442416a9e69a",
+     "emptyAfterExclusion": false,
+     "patch": "e-gen-ff13ebe0/patches/0001-ff13ebe0.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "docs/generated-artifacts-provenance.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8b208f49f4bbcd9601ae7d5963b15d3822e2c657",
+     "sha256": "5f6e9e6a24426563afe3afc0225f48552fea6828e56c8fde9479706ad6f4c208",
+     "bytes": 3838,
+     "baseBlob": null
+    },
+    {
+     "path": "site/css/site.css",
+     "status": "M",
+     "mode": "100644",
+     "blob": "0098445741116d5042214a25307636a1f943f85a",
+     "sha256": "ff2fef202094b87d8b0325614460e1d605d90dd689f740d4d8446c9f0e251bb7",
+     "bytes": 152685,
+     "baseBlob": "2e28ddb1425ab34478a2af0c79af9ae0c18d03ec"
+    },
+    {
+     "path": "site/js/gen/contract-artifacts.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "20ee196d790138d2f1b1a4a4157fb17738508547",
+     "sha256": "a7d54dd491b156c27bf9a40286870d36f5c048aeb85b63e5993cccc2a193fdc4",
+     "bytes": 326917,
+     "baseBlob": "396b972ec606a8f0b3835a3e71e71d8576a4753d"
+    }
+   ],
+   "patches": [
+    {
+     "file": "e-gen-ff13ebe0/patches/0001-ff13ebe0.patch",
+     "sha256": "8282f66d96c59934187157e669a21ffb88704d85ce9edbd990646de9e8956e81"
+    }
+   ],
+   "note": "root: 45/45 compiler provenance; executable bytecode, ABIs and admin identical (metadata-only differences); clean offline production build 238 files; prior built JS/CSS identical, 17 HTML footer stamps only. Not deployed"
+  },
+  "root-ram96c": {
+   "repo": "work/nucbox-ram96-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "2ed6ba6115c4db7d49e2ce0fce78dbdd0d786c46",
+   "baseProvenance": "2ed6ba61 preserved in b995a73b (frozen-1339 root-ram96b head)",
+   "head": "3d42d7eb9e9828b735e9a48fd0e067f60c74002b",
+   "headTree": "3c4698b43acb7fec2e3b813764a264bc29fb5652",
+   "commits": [
+    {
+     "commit": "6b756f8489fbecc5166d7337c90405f0c3b34494",
+     "tree": "5b45a710c7897f1c0fe9bb4d9ed5d9ce667c27da",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T08:45:58-07:00",
+     "subject": "Activate approved 96 GiB NucBox allocation and verify app recovery",
+     "parent": "2ed6ba6115c4db7d49e2ce0fce78dbdd0d786c46",
+     "emptyAfterExclusion": false,
+     "patch": "root-ram96c-3d42d7eb/patches/0001-6b756f84.patch"
+    },
+    {
+     "commit": "e650fc09aa7966ed4b8fc9746980d10352a7c888",
+     "tree": "3a5119fdf54a7be70e4c93bf57cd9453e253bcf2",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T08:50:25-07:00",
+     "subject": "Record actual NucBox physical headroom for RPC placement planning",
+     "parent": "6b756f8489fbecc5166d7337c90405f0c3b34494",
+     "emptyAfterExclusion": false,
+     "patch": "root-ram96c-3d42d7eb/patches/0002-e650fc09.patch"
+    },
+    {
+     "commit": "3d42d7eb9e9828b735e9a48fd0e067f60c74002b",
+     "tree": "3c4698b43acb7fec2e3b813764a264bc29fb5652",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T09:08:34-07:00",
+     "subject": "Record live NucBox CPU and RAM share accounting mismatch",
+     "parent": "e650fc09aa7966ed4b8fc9746980d10352a7c888",
+     "emptyAfterExclusion": false,
+     "patch": "root-ram96c-3d42d7eb/patches/0003-3d42d7eb.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7362f9d482395090c7c2ae1cd7925f38cf334ec6",
+     "sha256": "fb2956a2c84355186c0067173d72180091fd400dc13f4fa0e9899f744ac6af78",
+     "bytes": 14,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e9d78302e9096435de3061f248e18531bf25a837",
+     "sha256": "f246ef84f2c3dcd779e9520056104f1f880ac0613ea443be04282278b4f98a3d",
+     "bytes": 1108,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d17b5fb17870ac3ce5e46700a678dd226dadf35f",
+     "sha256": "68ae24d89ed47402bd8cf89ce7fcfe3d8c30a159b6f8c4a18a41f53534cc5dbf",
+     "bytes": 6044,
+     "baseBlob": "7d6a95abe03528aa8ff314b5cb64bb601359ab8e"
+    },
+    {
+     "path": "activation-preflight-20261023T152552Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2e9fa4fcad3bfb3c81856dd4cec420d71b46a9ea",
+     "sha256": "cf7e76de67e8b2cde08edad9770fc1fd7fb1d2587f3be9fece3f7e8083c95ecd",
+     "bytes": 2255,
+     "baseBlob": null
+    },
+    {
+     "path": "activation-readiness.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "eec8a7e57a3e6a0f98f748b8964a2c6c60ab2b8b",
+     "sha256": "a7e83e19e8c65bd28936ef3b0680e20c91c158e81aee50a6670d0f3de76eabb7",
+     "bytes": 3595,
+     "baseBlob": null
+    },
+    {
+     "path": "activation-start-node-20261023T152722Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b9a804855f240ce3823fdeafb9d8c9e16e339619",
+     "sha256": "185ce1457fdef5aae532be81357692f793856e50775e07e83d6c8b984f73dbcd",
+     "bytes": 544,
+     "baseBlob": null
+    },
+    {
+     "path": "activation-start-shield-20261023T152648Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "341e68fd45150300f8fd3396e80aa7573c1528b1",
+     "sha256": "f347d9fc5b2e218891bb6afa353684abaf681102da3e705546a30ee79318c154",
+     "bytes": 419,
+     "baseBlob": null
+    },
+    {
+     "path": "activation-stop-20261023T152612Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b7c9d02242dfaa32b3f4e39b96ccb5771cf7b429",
+     "sha256": "f9f15462c11d72a38cffd6a785ad66f68a31c4134e8a39a105d111db92237c58",
+     "bytes": 401,
+     "baseBlob": null
+    },
+    {
+     "path": "apps-final.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5684fcf7aa62fc6f3d3a723091a1c7d2de644806",
+     "sha256": "de6a3bf7700ad2ea090ca677be6b21ce722d8c7cc74c3e41c61712236e460bed",
+     "bytes": 6120,
+     "baseBlob": null
+    },
+    {
+     "path": "apps.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "82218a116368be876d7ac485c0ce6bb3c380b4f0",
+     "sha256": "0f86489237ddc5574f856af585dc7d759f6f9c14a2555dd5a27f57c7d8446057",
+     "bytes": 735,
+     "baseBlob": null
+    },
+    {
+     "path": "artifact-adapter-probe.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bdc365c793b12e4a67cbaf209562b33c7f8f3397",
+     "sha256": "2b4478c12c3a6a127b1cd05f1886b03f3ec487eb61d3ecc500e6d7fd7fcea9c3",
+     "bytes": 948,
+     "baseBlob": null
+    },
+    {
+     "path": "artifact-adapter-probe.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a3d7e3c8a90bc53eca4483b4caac7073dc11c3b9",
+     "sha256": "9b47dd7340aafafbc87336d1cf23a5863c70784676eab2b6703db6318cee48e7",
+     "bytes": 991,
+     "baseBlob": null
+    },
+    {
+     "path": "artifact-probe.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "45bb9a5934af54423b84c197b752730f0211e535",
+     "sha256": "3ba8771cff34ee63ba8da0071b7047d485fd1cddc8866a38ef07c87019470840",
+     "bytes": 636,
+     "baseBlob": null
+    },
+    {
+     "path": "artifact-probe.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cd42d27f54a17526c37ba0c8c3ebd9229a13ba76",
+     "sha256": "b1d5e943a006a308c79dda0819ffa0da0e2d370bb12bdff34d840b1d2dabf62f",
+     "bytes": 906,
+     "baseBlob": null
+    },
+    {
+     "path": "cache-applied.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0dff7ac17d9a9db0a1ce76c678678576afd65fb8",
+     "sha256": "141c06385ba96f6b94dc3f388985433effc8b5ca4294d5b3d9f49fe87bd43014",
+     "bytes": 601,
+     "baseBlob": null
+    },
+    {
+     "path": "cache-preflight.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "475de070cd63cc287139417727c135729a5c4209",
+     "sha256": "8ae6202d51056c2d4fdd33f6cb74dc079ebacf53757181b0fdbf1e49134c7356",
+     "bytes": 350,
+     "baseBlob": null
+    },
+    {
+     "path": "cache-readback.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6af8758d0102e2f7d743388e5369d29bbef10b4c",
+     "sha256": "44cfeb4e85edea7a22aa634dac2cc9744ca410e92205915de4027d07b4282dc7",
+     "bytes": 283,
+     "baseBlob": null
+    },
+    {
+     "path": "capacity-live.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0de23b3406adcf0b0e106e9879ff6528cc0ae7e9",
+     "sha256": "87bc06258b486d9369c0789e3c072c00ed5d07272513571823b8e5886d4cbf4b",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "capacity-live.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "34b8ea387dd156fea3b5bf87eaec713bfc9262b6",
+     "sha256": "9a71a9e8b9f679ba4ae0ff6111eaf0b2e355ec877d8f3cfe646e5ce5ffb1d1e9",
+     "bytes": 745,
+     "baseBlob": null
+    },
+    {
+     "path": "capacity-live.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "65c79457a033a5562a271b01592f16941f02e958",
+     "sha256": "252721b39f2ad97ab31743e0ae6a7a305c0bb2a837a5d30e7442cf6a18de2f0f",
+     "bytes": 874,
+     "baseBlob": null
+    },
+    {
+     "path": "commit-scan.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fc51b3ead629110248a765c22239f8f31bcd7025",
+     "sha256": "d33d1950f330262d537a1ea3bb94147773565c1690b1800f2287c69dd5877968",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "dns-artifact-proof.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "912c987d9d819e2e07fb6cbdb1326bd16488806a",
+     "sha256": "22fedf9642f04dde8bde12b8c04c14a7729a0063b0ab0bdb7030afd771f5c9c8",
+     "bytes": 465,
+     "baseBlob": null
+    },
+    {
+     "path": "prepare-dns-cache.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cd2caad164429cfd42a18063e7a0946c6f4becea",
+     "sha256": "e40f37de9466555463a68ee7624fab6bf846292321eab2b0df981848a3169492",
+     "bytes": 1163,
+     "baseBlob": null
+    },
+    {
+     "path": "queue-cache-apply-3.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "02b550c5da8b56c08d2ef8133997907fce4c3787",
+     "sha256": "b363703d41e4a26d426c382c2613f166c39075d64505914fe9c5d0eec5f5637b",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "queue-cache-verify-3.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f667a96cc28c41df587e8aa3f81887f8e8a45654",
+     "sha256": "24a10d38da63004d54505c2b7227782063c3441d4f0972397be2714e89201e77",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "queue-status-final.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f169febebbbc2540971bd50eb8bf0e22809f8d43",
+     "sha256": "fcba776dd247c99b4c3d5f77ee487c83a4a64e34461d2a5a7ef154d07be16782",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "queue-tls-final.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ca0caa68da72f057c831b9ca1a42d14f19b96505",
+     "sha256": "6d0ff95046b4c6cff55dadd167566d5e3a43f79279a522afe87d03ff907edb9a",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "recovery-logs.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "da6a740758d356681bdda4908baa30fbde58ce08",
+     "sha256": "afd4ce8ce23d439452a2e8fb1af9846c20f796da293fd397745c7000ce69d708",
+     "bytes": 10235,
+     "baseBlob": null
+    },
+    {
+     "path": "recovery-logs.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "10af9cf98a190379b07d1cba0497740b5dcf2abc",
+     "sha256": "61feb24aad4249957b2939e2a9327e5fad48979deec1fa8553892f4cae5e3351",
+     "bytes": 1049,
+     "baseBlob": null
+    },
+    {
+     "path": "relay-logs.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "19ee068da25de89434ead428787ad909dc41771b",
+     "sha256": "93f2696d6d0acc2776b8891eccdbd6af49915e90bf58c9ef6e98d4b75a693718",
+     "bytes": 1234,
+     "baseBlob": null
+    },
+    {
+     "path": "repair-dns-cache.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c1bf8bd8d3c35b0b86506fd8752e73147afba3c9",
+     "sha256": "4f9265700821c2f6a584e7bfa6864e1ea7b7725741f0b8a22083f876d65116ec",
+     "bytes": 3290,
+     "baseBlob": null
+    },
+    {
+     "path": "share-accounting-live.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f4eb222cdea47c1caab16de28df762b32b2b3243",
+     "sha256": "fc16d9569f3a335968e5a675fb37cfe1e4e85f43c6ca10464bbc33da99a05eb3",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "share-accounting-live.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4dd135d8d9c454467f97e969957c1b73f99392fe",
+     "sha256": "ce769f6a2e0fd512bb8bebe9209b8453b46c97c6550403cfedc14847f444f18d",
+     "bytes": 8763,
+     "baseBlob": null
+    },
+    {
+     "path": "share-accounting-live.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "df9df8246ba6464f8825aa35d958e6497056e78a",
+     "sha256": "ad917ee48458f607fc6ab9d38c81336c419bd905e00a8089db22335f027bc516",
+     "bytes": 1035,
+     "baseBlob": null
+    },
+    {
+     "path": "status-active96-1.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "eef22031085bcfb6ff5225de05d8112c5c191c33",
+     "sha256": "eb31e3bf67319f97dd4f48648a831e830ada454657186832397721ac93605b18",
+     "bytes": 2599,
+     "baseBlob": null
+    },
+    {
+     "path": "status-active96-2.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "33be125f554eb9e83891843a8750bd27af0d149a",
+     "sha256": "679a05ea2a25589a75320fb09498df73faad9d073770f83d187a157bbd1f12cb",
+     "bytes": 1985,
+     "baseBlob": null
+    },
+    {
+     "path": "status-final.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c70971bd360e1ef010cc0670d1c41dd9ad56a70e",
+     "sha256": "20e0a3693e4e3aa75abde14d8a0693bde8a782b6d93b9494a01f48c1cc48a743",
+     "bytes": 2794,
+     "baseBlob": null
+    },
+    {
+     "path": "tls-final.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f5cecaee0a44d702d309434f1a1ed12a2eaf2f08",
+     "sha256": "f430f89875fdfdaab49e6a93a76a377a0a42ff921c6433c1a1c7f915c776e8e3",
+     "bytes": 1304,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-dns-cache.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a6a49ab0231d72e385bee0b6b9831a6deb7db55b",
+     "sha256": "51f78711c0ca5d827f2d0518c26d87d9764394e97592d64ecc910bd611b51d4d",
+     "bytes": 804,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-public.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1d1c2a5767ff3eb1005bf4f87fa74173e662522a",
+     "sha256": "a0cc130a7af0114e7d3d4f6304f8fa251efc7bfa8f789ed3c644a5970ac64012",
+     "bytes": 1080,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "root-ram96c-3d42d7eb/patches/0001-6b756f84.patch",
+     "sha256": "eec296387cbf3e2a545ababda59ff40fc4d29343207c45901d6f944ff4697182"
+    },
+    {
+     "file": "root-ram96c-3d42d7eb/patches/0002-e650fc09.patch",
+     "sha256": "8f19aa6e16522bf9f74df437495bc4cfddccc4a7e17b475606a9fc7327efba70"
+    },
+    {
+     "file": "root-ram96c-3d42d7eb/patches/0003-3d42d7eb.patch",
+     "sha256": "2846db6ce567666982c22d40849a4139ba0f287dd521f7412ca0cffcb8ce254f"
+    }
+   ],
+   "note": "root RAM activation (user-approved 15:25Z), headroom and share-mismatch evidence; tracked files only (untracked activation logs/readiness not captured)"
+  },
+  "root-rpc-review": {
+   "repo": "work/root-rpc-integration-review-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (ROOT repo)",
+   "head": "803c69757520e484a2ee0c690a76ba974a6534ea",
+   "headTree": "5e995556963a79cb3ccf724cdfde96f1767cc2e8",
+   "commits": [
+    {
+     "commit": "1d4920ca821c904e5a5610de4c22b2f9d3374081",
+     "tree": "0c38c2d81ea311bb341c1fa66c0f03cc5bd6bfaa",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T08:25:09-07:00",
+     "subject": "Record actual RPC receipt dependency and bundler acceptance gaps",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "root-rpc-review-803c6975/patches/0001-1d4920ca.patch"
+    },
+    {
+     "commit": "803c69757520e484a2ee0c690a76ba974a6534ea",
+     "tree": "5e995556963a79cb3ccf724cdfde96f1767cc2e8",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T08:53:33-07:00",
+     "subject": "Record artifact cold recovery, actual capacity, and operator-neutral wallet requirements",
+     "parent": "1d4920ca821c904e5a5610de4c22b2f9d3374081",
+     "emptyAfterExclusion": false,
+     "patch": "root-rpc-review-803c6975/patches/0002-803c6975.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "review.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "63ce2f7d432de856882b89e09e4d198167fa2a31",
+     "sha256": "4d86708d4d7adbf50e97d242d60522535f7e0152beee9445d1da939097abfcd8",
+     "bytes": 4716,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "root-rpc-review-803c6975/patches/0001-1d4920ca.patch",
+     "sha256": "19f56010c1b9488d02eace87897f523562f23ff7b6d07cb5035f0655990985f6"
+    },
+    {
+     "file": "root-rpc-review-803c6975/patches/0002-803c6975.patch",
+     "sha256": "431ddfe73b997da33b1cfafa9f568a6f9337aa53e61c6e45ea39fdb7f08709cd"
+    }
+   ]
+  },
+  "root-api-mcp2": {
+   "repo": "work/api-mcp-recovery-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "95ee73dcd936fc9d0243c65c2f933e2ac277b3ac",
+   "baseProvenance": "95ee73dc preserved in b995a73b (frozen-1517 root-api-mcp head)",
+   "head": "844edbf2227086eae2f85bed05214a60508feb8d",
+   "headTree": "de56753ad82459e7e902907cd45da262d6a3eb97",
+   "commits": [
+    {
+     "commit": "844edbf2227086eae2f85bed05214a60508feb8d",
+     "tree": "de56753ad82459e7e902907cd45da262d6a3eb97",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T08:19:11-07:00",
+     "subject": "Record source diagnosis of dependency timeout and persistent deployment hold",
+     "parent": "95ee73dcd936fc9d0243c65c2f933e2ac277b3ac",
+     "emptyAfterExclusion": false,
+     "patch": "root-api-mcp2-844edbf2/patches/0001-844edbf2.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "CLAUDE-REVIEW.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "426434def1f1e893c9b16c01634807ebd217e658",
+     "sha256": "b1e22ce6508d09296f27d5afe53a18a6906d18757a7119c5eee2ed582e7237ad",
+     "bytes": 11476,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "root-api-mcp2-844edbf2/patches/0001-844edbf2.patch",
+     "sha256": "45a8863b60c2795cade4bc08988a0fe3b37c70300e16a7385bd28b62e0a475a5"
+    }
+   ]
+  }
+ },
+ "derivatives": {
+  "a-cv": {
+   "repo": "work/credit-vault-submitter-verifier-20261023/repo",
+   "branch": "cv-submitter-verifier",
+   "headReachableFromBranch": true,
+   "base": "eab4cfac47a00dcbc0161918a2624eed6761bbfb",
+   "baseProvenance": "eab4cfac preserved in b995a73b as the frozen-1517 a-receipts DERIVATIVE (MCP bundle + manifest held at e32dd607)",
+   "head": "fd8d58061196c6d089ca21fb7948c6ba640d5c39",
+   "headTree": "eef1d2f3d8337789b4f95dd87c290768be991edb",
+   "commits": [
+    {
+     "commit": "788bc438a07178b1233d34c658d7a98d38e2746d",
+     "tree": "b17d4db04347b4f537837e041412c08e0e2a05c3",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T08:49:56-07:00",
+     "subject": "Credit-vault submitter role: opt-in local verifier state and validated receipt source",
+     "parent": "eab4cfac47a00dcbc0161918a2624eed6761bbfb",
+     "emptyAfterExclusion": false,
+     "patch": "a-cv-fd8d5806/patches/0001-788bc438.patch",
+     "originalTree": "5c69f91e126c932a7ab096ba890887b246b09b05"
+    },
+    {
+     "commit": "fd8d58061196c6d089ca21fb7948c6ba640d5c39",
+     "tree": "eef1d2f3d8337789b4f95dd87c290768be991edb",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T08:49:56-07:00",
+     "subject": "Rebuild the credit-vault-submitter host-service package from the composed sources",
+     "parent": "788bc438a07178b1233d34c658d7a98d38e2746d",
+     "emptyAfterExclusion": false,
+     "patch": "a-cv-fd8d5806/patches/0002-fd8d5806.patch",
+     "originalTree": "d8e0ab0656646a1fecbd13a4a2ddd2e19f649b57"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "cli/credit-vault.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f86ebb4580ee55db2fc17f7a0f0c30a1b36bd39a",
+     "sha256": "180901e9f5f122e2136e2d267f223d206d9e997a39a5817c96ae93ec2df12e71",
+     "bytes": 34641,
+     "baseBlob": "8d5cde97054164e26235a0c3fb5bd4d5fb48cdf0"
+    },
+    {
+     "path": "network/credit-vault-submitter.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f6ef9a3f36228159a4b60f99518df5daea34ce1d",
+     "sha256": "3af121f11878f97937df555037a82cefcfae5a23f070ec0628db453ab3c404f0",
+     "bytes": 5208,
+     "baseBlob": "78aeead773bea3300adc2608f187d3b330d7d8e9"
+    },
+    {
+     "path": "network/host-services/credit-vault-submitter.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "048bc08ba1402fcc1b02b46a8e3a9a1bacca1712",
+     "sha256": "9d58f4242ab9c48dfd92a2edcc7d80cd948e6c98b8b28bf8a28bcb08999c5269",
+     "bytes": 10621,
+     "baseBlob": "7e4882c2aff0dc47587bdf84c60ae77d9e4d7a8f"
+    },
+    {
+     "path": "network/host-services/packages/credit-vault-submitter.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "3e723e9eadd3e385f8e571077cdc616195c379f8",
+     "sha256": "4c25cde6d7f8c726dc2d57f92cf47630f067a6086ee6893d8e57d50f9fb619f6",
+     "bytes": 1374197,
+     "baseBlob": "15c2dc8018a998d8bb2f5309c51c43c3e1e62958"
+    },
+    {
+     "path": "test/credit-vault-submitter-config.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3b62bb87747c02e5151eaa1c610246f19c847e60",
+     "sha256": "c302c768f4889916ffab4d7f91e8f84c2204e784a54a911c41c4da5c02f946c6",
+     "bytes": 6957,
+     "baseBlob": null
+    },
+    {
+     "path": "test/credit-vault-submitter-verifier.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "071bcce4995c27749b6d4f74eef146df2d2f53a6",
+     "sha256": "db8cab2cd3c5691607aa8600a65769f88189fdd02f9261055fc9ddb81a91f40f",
+     "bytes": 28573,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "a-cv-fd8d5806/patches/0001-788bc438.patch",
+     "sha256": "5a71f2941002ffbe9d7c4179252087a0fc32881245c0ac4872150f3779316dcf"
+    },
+    {
+     "file": "a-cv-fd8d5806/patches/0002-fd8d5806.patch",
+     "sha256": "3a606605c6a109c38951ae772b9c0796614ec0cdc185e36d0dea0d700173cf03"
+    }
+   ],
+   "originalHeadTree": "d8e0ab0656646a1fecbd13a4a2ddd2e19f649b57",
+   "omittedAtHead": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "d7bc66893ab94f66422311d5861aeecc892138a1",
+     "bytes": "5064161",
+     "path": "metal/guest/mcp-server.bundle.mjs",
+     "sha256": "17cfb64f1388607ff0043f7dab8b024802efbca915e1e211b2e7d15dc93225fe"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "3ea4102a939ac853e4e2b47f9d90ef3ca1807f14",
+     "bytes": "399424",
+     "path": "metal/guest/mcp-server.bundle.mjs.manifest.json",
+     "sha256": "1e55bf34c8a5df3606e5584be8c4e2919230c7fb4b509ec2974f645c6b78cb95"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "36b124f47984d866a3dba92413d644f2c7127451",
+     "bytes": "177794",
+     "path": "network/host-services/packages/credit-vault-submitter.package.json",
+     "sha256": "fa7403b5ef2d2872a40f33b0d42510a9d20dee0d851b665223fb93efaa77ef98"
+    }
+   ],
+   "excluded": [
+    "metal/guest/mcp-server.bundle.mjs",
+    "metal/guest/mcp-server.bundle.mjs.manifest.json",
+    "network/host-services/packages/credit-vault-submitter.package.json"
+   ],
+   "omittedRecipe": "unchanged since frozen-1517 a-receipts (identical blobs): its omittedRecipe, convertedManifest and the validated rebuild (frozen-1517-a-bundle-check, --check rc 0) apply; no new rebuild was run",
+   "convertedManifest": {
+    "path": "network/host-services/packages/credit-vault-submitter.package.json",
+    "files": [
+     {
+      "file": "a-cv-fd8d5806/converted/credit-vault-submitter.package.inputs.sha256sums",
+      "sha256": "f23c7295e5a2977ea261e25e5a11e48340f00944522d51f6737c1368a717a8a6"
+     },
+     {
+      "file": "a-cv-fd8d5806/converted/credit-vault-submitter.package.meta.json",
+      "sha256": "779deafa67fafc29e2d3be729ba397f1bde9a96247f2e7ec95be4b61aa1c3ba3"
+     }
+    ],
+    "rebuild": "json.dumps({k: meta[k] for k in ['format', 'role', 'entry', 'bundleEntry', 'bundle', 'bundleSha256', 'bytes', 'runtime', 'kind', 'serves', 'state', 'secrets', 'cold', 'notCold', 'builder', 'inputs']} with inputs = dict((p, h) for each line 'h  p' in order), indent=2) + '\\n' (Python) == the committed manifest (asserted)"
+   },
+   "rolePackage": {
+    "bundle": "network/host-services/packages/credit-vault-submitter.mjs",
+    "bundleSha256": "4c25cde6d7f8c726dc2d57f92cf47630f067a6086ee6893d8e57d50f9fb619f6",
+    "manifest": "network/host-services/packages/credit-vault-submitter.package.json",
+    "manifestSha256": "fa7403b5ef2d2872a40f33b0d42510a9d20dee0d851b665223fb93efaa77ef98",
+    "note": "TRACKED in A's commit; the bundle is exported as committed text (as earlier committed bundles); the manifest is published converted (exact rebuild asserted); its rebuild was not re-run by D (A t1 50/50 per root)"
+   },
+   "label": "SOURCE-ONLY DERIVATIVE continuing frozen-1517 a-receipts: the compiled MCP guest bundle + manifest stay held at e32dd607 bytes (untouched in this range); everything A changed, incl. its committed credit-vault-submitter role package, is exported. Mainnet readiness not established; minted receipts use labelled local fixtures (root)"
+  },
+  "e-gen-report": {
+   "repo": "work/site-generated-artifacts-reconcile-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (E generated-artifacts report repo); SOURCE-ONLY DERIVATIVE (exports/ omitted)",
+   "head": "d37f7a0467eacc6a5ea155e322de89aef6aa64d2",
+   "headTree": "06cc5988ed60470f6e7c1caee0458f98cd750db6",
+   "commits": [
+    {
+     "commit": "d37f7a0467eacc6a5ea155e322de89aef6aa64d2",
+     "tree": "06cc5988ed60470f6e7c1caee0458f98cd750db6",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T08:45:15-07:00",
+     "subject": "RESULT, provenance analysis, builds, D export for site-generated-artifacts-reconcile ff13ebe08",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "e-gen-report-d37f7a04/patches/0001-d37f7a04.patch",
+     "originalTree": "4fe6a9cb4fd45ba69d897614b375b0e3b73a0826"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "79670a138a93ba7e71389b5d7c144c4867783573",
+     "sha256": "7637254a4f9c955fc491d2f56d3ce6fcc9d291babaec5abe9764cf3fe5937099",
+     "bytes": 33,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT-GENERATED-ARTIFACTS.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "59295cd1f7adec7fed50c03101456ecc73884e93",
+     "sha256": "8e27caff87b3ff63224b03a33ec78456c374948cacec234587f966fccde0eb9b",
+     "bytes": 9146,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/analysis.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "ac6001da668c092c987aba458f9642dd89eb0661",
+     "sha256": "ede8900f26a07e799b78653f626f75ef8b14e3f0cd492ed70ebb4cc3b1026243",
+     "bytes": 549,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/bytecode-provenance.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3a0e078b6650b9d8dc605b76a64058f1ecd1e52c",
+     "sha256": "96839823911538c986b4d98641efe573fef4e2625b159b3475c793d6b8182004",
+     "bytes": 10992,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/css-check.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "829baa532325ffa636471c97994f1f05f2763783",
+     "sha256": "3b13fc59f8a51bf37b97829468471aebde0f3f2fb3807a797b6b1c67f30ab27b",
+     "bytes": 1057,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/gen.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "65ec69eb6d4477a7e3312011173461553305b81f",
+     "sha256": "a7e34900da5841858a6011d30198691be159ba226f819e34f5729947c418ca21",
+     "bytes": 2071,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "3e272ae2802f11e18516bc45d5c0f8f81fb3e8a3",
+     "sha256": "70c9c8adc6e2a4f2c7db38831b1e08add2708c295446151988acbd7d9f03ae23",
+     "bytes": 397,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/scan.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "3a6c35dbdea53c9fbc537f73d50b7a94060644aa",
+     "sha256": "300c447b4f45071bd28073f4070d893e763872897a6428226dce2de3582d49a6",
+     "bytes": 1552,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/verify.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "c7d5d231eb0600367177646b5b652642478bf2fd",
+     "sha256": "8cc60d7e7d44823e3abf6ad9d9a18c5b0f5a902d87d030efdabadc3482793e88",
+     "bytes": 3023,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/a1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c0eee265d52c50395c4e5e5aedb5baa292c3b224",
+     "sha256": "5b74cc5bc26eadfe37355eff4b0081bde73486d6de47aacc69cd655ee4fac4d4",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/a1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d4517c299cd36f5fefdb41b08309351c79699198",
+     "sha256": "9d25a79d7f4b92b632265e0bfc51ed362c4dab4dbc36269f1784f2e7ac53ad38",
+     "bytes": 5676,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/a1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/dist-manifest.sha256",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bccdd1c7fe573f238d98baf77eb681056e146739",
+     "sha256": "c8d289bb085b1edf9c2502c26e0a23295fef4bb7bfeaf39c5572bfee09c89669",
+     "bytes": 22979,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/gen-build.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0d1f21715ae15eae527783b2956f4d9ddd8f2f57",
+     "sha256": "0f941de3f213951f68579d27e7ac0a9a4b34a3eb45497af0b8c81a0b4302154d",
+     "bytes": 5095,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/gen1-attempt1-no-node_modules.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "38b06962854388a07c485c5fafda29535b94c586",
+     "sha256": "c23513be6b78f74b1ec937a6c6bcecd11426ee87d105a696afb12cdd99a35484",
+     "bytes": 382,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/gen1-attempt2-script-checks.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cfa006c74d95c2f4f96660088fe21bd5f93ff4a3",
+     "sha256": "b757fb8ae5163973e9efddac8c3eeaa43bad4e789b3fd1df79f1211fe46d352d",
+     "bytes": 6355,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/gen1-attempt2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/gen1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "78fc40ded13a3fedaa19cf3729a280c495eb4e29",
+     "sha256": "db191a927eb01b65e15b568d93e0001d0eb14e1015d514a1728b2d9824ea5ea4",
+     "bytes": 134,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/verify-build.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2d1f35b4c7839d03799077d4a002eb1defe12726",
+     "sha256": "dfbf270d12cfcf4e39c8b9a7602c6e3934092e577b9e489de985cf6a1685155d",
+     "bytes": 5095,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/verify1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d0ffa649c92545ec7c699bef1263b908c1c3ed02",
+     "sha256": "55dcf49f4f021bf26010cc1b0d1842fbceeea92e3aa30c7bdac01854efac46a7",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/verify1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "883d5d628b44d7e30e76ae43624d0f83aa63843c",
+     "sha256": "982f788f55ff4e7a2ec338c16d056368e9c95cb9301f9522281434087182ac52",
+     "bytes": 1753,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/verify1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "outputs/dist-manifest-ff13ebe0.sha256",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bccdd1c7fe573f238d98baf77eb681056e146739",
+     "sha256": "c8d289bb085b1edf9c2502c26e0a23295fef4bb7bfeaf39c5572bfee09c89669",
+     "bytes": 22979,
+     "baseBlob": null
+    },
+    {
+     "path": "outputs/generated/contract-artifacts.js",
+     "status": "A",
+     "mode": "100644",
+     "blob": "20ee196d790138d2f1b1a4a4157fb17738508547",
+     "sha256": "a7d54dd491b156c27bf9a40286870d36f5c048aeb85b63e5993cccc2a193fdc4",
+     "bytes": 326917,
+     "baseBlob": null
+    },
+    {
+     "path": "outputs/generated/site.css",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0098445741116d5042214a25307636a1f943f85a",
+     "sha256": "ff2fef202094b87d8b0325614460e1d605d90dd689f740d4d8446c9f0e251bb7",
+     "bytes": 152685,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "e-gen-report-d37f7a04/patches/0001-d37f7a04.patch",
+     "sha256": "d21c7377615c7458d821d5b1e4c4fd860451a06a1ce3e24b18f76f31338b44af"
+    }
+   ],
+   "originalHeadTree": "4fe6a9cb4fd45ba69d897614b375b0e3b73a0826",
+   "omittedAtHead": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "cfa4502172ffb2736b750c1be7c0a100a1c3f53a",
+     "bytes": "1216",
+     "path": "exports/NOTE-FOR-D.txt",
+     "sha256": "52bedfc9f6920988c4fcaf40916ea2e431ef45568147f11040c06af1bed2be81"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "66ebf32cd7f2fc5ca309a0b181cfcf96164f0674",
+     "bytes": "335",
+     "path": "exports/SHA256SUMS",
+     "sha256": "c88e947e46edb8a1f310dbcccc4bb79b93e28cd882c8cba979e8bb32f2cfb460"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "af7acf73152cf549b813d8ed916c51da6e6972bf",
+     "bytes": "371889",
+     "path": "exports/patches/0001-Regenerate-the-stale-site-artifacts-from-the-reviewe.patch",
+     "sha256": "129c2fada709f0eb5c831903d7f481872fd3e79ee0cf0d8fc97760d3ca80f256"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "9060abf090d85e82ad07496f3ef5361c21f8dab6",
+     "bytes": "3544",
+     "path": "exports/site-generated-artifacts-reconcile-ff13ebe.bundle",
+     "sha256": "e67aa39883cd7e052dbba1ac080cef32b0646db1a27831d77dbc85b1e35ab0b5"
+    }
+   ],
+   "excluded": [
+    "exports/"
+   ],
+   "label": "SOURCE-ONLY DERIVATIVE: E report repo at the root-accepted d37f7a04 minus exports/ (git bundle - binary - and a patch duplicating e-gen)",
+   "laterCommitsNotCaptured": [
+    "59ec6b4b098487e7d646acbff65344ae57b058c3 scan: clean, patch-apply tree match, bundle verified"
+   ]
+  }
+ },
+ "lowercaseRewrittenLiteral": {},
+ "frozenSources": {
+  "../credit-vault-submitter-verifier-20261023/RESULT-CREDIT-VAULT-SUBMITTER.md": "04e4c2f180522c3da3afb2fec5be4fbe8d38b90b3cfc433cb74e226dfa275e5d",
+  "../credit-vault-submitter-verifier-20261023/HANDOFF-CREDIT-VAULT-SUBMITTER.md": "3b00f31424acffdcd356f45d9a12c40f8ac51aa0d1427cba385728d743c4e0a2",
+  "../credit-vault-submitter-verifier-20261023/jobs/base-check.sh": "ad9424d2d64504b79b2af05a89bc5560b1bd3488a00a71bd2b33afe1f6ede0e2",
+  "../credit-vault-submitter-verifier-20261023/jobs/build1.sh": "9a82c9600dc20317f98bd002c5e960b03b665ecd52a4389b92673717bb1ac27b",
+  "../credit-vault-submitter-verifier-20261023/jobs/t1.sh": "3410c0ee39feb17da1b48ae71b23b49c25dbde8b14227034271f0aff635c04f4",
+  "../credit-vault-submitter-verifier-20261023/jobs/q.sh": "12e3928aa64ffd7e276df7057d61ea28795c9889b1aa35b64c9f9eec6c2a4ef3",
+  "source-preservation/RESULT-frozen-1517-checkpoint.md": "f971c0aed815dcfffb0a0d43718957c2f73c1b040d0e431dde9499178bba5cd2",
+  "source-preservation/snapshots-1639/ROOT-PENDING-LATEST.snapshot-1639.txt": "00c93958fe66ec88e49fde1de442cede5742e5984623a9f916b601240f5cfde9",
+  "source-preservation/snapshots-1639/effective-goal-requirements.snapshot-1639.txt": "344bfcfe1d48a8af5d6b8dab2416dd5fc51cd78eb4616f37eb2a668a5ad4e8d2"
+ },
+ "rootEvidence": {
+  "../../outputs/decentralization-audit/checkpoint-4aaba75-verified-20261023.json": "504b3617030b43aa9af186c0a4c44793bfbafcb57ef14c7520d92ca1c8eb9954",
+  "../../outputs/decentralization-audit/nucbox-96gb-active-20261023.json": "f0b2a9e17b8cfadef4c872e40f95c725ceb40fb491f443074005bf9d150a59b0",
+  "../../outputs/decentralization-audit/rpc-integration-review-20261023.json": "4d86708d4d7adbf50e97d242d60522535f7e0152beee9445d1da939097abfcd8"
+ },
+ "evidenceVsSource": "Committed logs, receipts, run outputs and RESULT files inside these repositories are EVIDENCE; the rest is source.",
+ "notPreserved": [
+  "A MCP guest bundle + manifest (held, as frozen-1517); E report exports/; E report commits after d37f7a04 (not root-accepted)",
+  "untracked/ignored files in every repo (node_modules, foundry out, relay network-runtime bundle, RAM activation logs/readiness, E gen-tree/verify-tree)",
+  "ACTIVE WIP: work/coupled-resource-shares-20261023, work/coupled-cpu-enforcement-20261023, baseline 0f1ef848b (provenance aid only), A host-role-verifier-cold-closure, E bootstrap-replica publication, and every other active tree",
+  "other outputs receipts not designated for this batch (nucbox-tls-* operational receipts)"
+ ]
+}

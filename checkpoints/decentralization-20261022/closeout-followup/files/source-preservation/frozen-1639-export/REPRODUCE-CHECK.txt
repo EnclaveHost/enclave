@@ -1,0 +1,19 @@
+e-gen base rebuilt from dfe020abf + 19 stored patch(es) in b995a73b6: tree 5159185616aa0600be92cb9d3308645ad59b4cf3 OK
+e-gen ff13ebe08: tree 1cece8e6571631ab23ca8403c706ee5166c69c64 OK
+root-ram96c base rebuilt from empty + 6 stored patch(es) in b995a73b6: tree 27b76e70f87c462909154eb6e83365a15df7d0bf OK
+root-ram96c 6b756f848: tree 5b45a710c7897f1c0fe9bb4d9ed5d9ce667c27da OK
+root-ram96c e650fc09a: tree 3a5119fdf54a7be70e4c93bf57cd9453e253bcf2 OK
+root-ram96c 3d42d7eb9: tree 3c4698b43acb7fec2e3b813764a264bc29fb5652 OK
+root-rpc-review base rebuilt from empty + 0 stored patch(es) in b995a73b6: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-rpc-review 1d4920ca8: tree 0c38c2d81ea311bb341c1fa66c0f03cc5bd6bfaa OK
+root-rpc-review 803c69757: tree 5e995556963a79cb3ccf724cdfde96f1767cc2e8 OK
+root-api-mcp2 base rebuilt from empty + 1 stored patch(es) in b995a73b6: tree 5d4c8269bdc48adbc8f73750f194bb454a54ffed OK
+root-api-mcp2 844edbf22: tree de56753ad82459e7e902907cd45da262d6a3eb97 OK
+a-cv base rebuilt from dfe020abf + 20 stored patch(es) in b995a73b6: tree 29a70f5dc6db39794394b6618960f3e87800f44e OK
+a-cv 788bc438a: tree b17d4db04347b4f537837e041412c08e0e2a05c3 OK
+a-cv fd8d58061: tree eef1d2f3d8337789b4f95dd87c290768be991edb OK
+e-gen-report base rebuilt from empty + 0 stored patch(es) in b995a73b6: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+e-gen-report d37f7a046: tree 06cc5988ed60470f6e7c1caee0458f98cd750db6 OK
+a-cv trees are the ORIGINAL trees minus ['metal/guest/mcp-server.bundle.mjs', 'metal/guest/mcp-server.bundle.mjs.manifest.json', 'network/host-services/packages/credit-vault-submitter.package.json'] (head original d8e0ab065); exact originals NOT reproduced
+e-gen-report trees are the ORIGINAL trees minus ['exports/'] (head original 4fe6a9cb4); exact originals NOT reproduced
+RESULT e-gen reproduced: True, root-ram96c reproduced: True, root-rpc-review reproduced: True, root-api-mcp2 reproduced: True, a-cv reproduced: True, e-gen-report reproduced: True

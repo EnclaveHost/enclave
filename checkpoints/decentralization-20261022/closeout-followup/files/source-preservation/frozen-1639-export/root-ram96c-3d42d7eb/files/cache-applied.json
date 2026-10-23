@@ -1,0 +1,16 @@
+{
+  "at": "2026-10-23T15:41:46.979554+00:00",
+  "exit": 0,
+  "result": {
+    "at": "2026-10-23T15:41:46.669851+00:00",
+    "manifestSha256": "7b83d66561c413c3655159ee4795d9a85c501f526d6e572690d7cc9a83981617",
+    "entriesBefore": 1018,
+    "cid": "bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau",
+    "apply": true,
+    "manifestAfterSha256": "f4b747a41443fcde1918dc0d9e40b056c0a3fd9e20edc72dc3c7d9c4be76ba61",
+    "entriesAfter": 1019,
+    "restart": "requested and service active",
+    "backup": "/opt/enclave-retained/cc96aad/manifest.pre-ram96-dns-recovery.json"
+  },
+  "error": ""
+}

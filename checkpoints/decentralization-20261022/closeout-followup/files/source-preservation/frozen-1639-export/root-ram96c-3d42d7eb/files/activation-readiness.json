@@ -1,0 +1,133 @@
+{
+  "tasks": [
+    {
+      "actions": [
+        {
+          "execute": "cmd.exe",
+          "arguments": "/c \"C:\\ProgramData\\Enclave\\run-card.cmd\""
+        }
+      ],
+      "path": "\\Enclave\\",
+      "name": "Card",
+      "state": "Running"
+    },
+    {
+      "actions": [
+        {
+          "execute": "C:\\Program Files\\Enclave\\host-services\\hs2\\bin\\hostsvc-supervisor.exe",
+          "arguments": "run \"C:\\ProgramData\\Enclave\\host-services\\hs2\\config\\supervisor.json\""
+        }
+      ],
+      "path": "\\Enclave\\",
+      "name": "enclave-host-services-hs2",
+      "state": "Ready"
+    },
+    {
+      "actions": [
+        {
+          "execute": "cmd.exe",
+          "arguments": "/c \"C:\\ProgramData\\Enclave\\run-network.cmd\""
+        }
+      ],
+      "path": "\\Enclave\\",
+      "name": "Network",
+      "state": "Running"
+    },
+    {
+      "actions": [
+        {
+          "execute": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+          "arguments": "\"C:\\ProgramData\\Enclave\\network-checker\\run-checker.mjs\""
+        }
+      ],
+      "path": "\\Enclave\\",
+      "name": "NetworkChecker",
+      "state": "Running"
+    },
+    {
+      "actions": [
+        {
+          "execute": "cmd.exe",
+          "arguments": "/c \"C:\\ProgramData\\Enclave\\run-node.cmd\""
+        }
+      ],
+      "path": "\\Enclave\\",
+      "name": "Node",
+      "state": "Running"
+    },
+    {
+      "actions": [
+        {
+          "execute": "cmd.exe",
+          "arguments": "/c \"C:\\ProgramData\\Enclave\\run-relay.cmd\""
+        }
+      ],
+      "path": "\\Enclave\\",
+      "name": "Relay",
+      "state": "Running"
+    },
+    {
+      "actions": [
+        {
+          "execute": "cmd.exe",
+          "arguments": "/c \"C:\\ProgramData\\Enclave\\run-shield.cmd\""
+        }
+      ],
+      "path": "\\Enclave\\",
+      "name": "Shield",
+      "state": "Running"
+    },
+    {
+      "actions": [
+        {
+          "execute": "powershell.exe",
+          "arguments": "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \"C:\\Program Files\\Enclave\\update-host.ps1\""
+        }
+      ],
+      "path": "\\Enclave\\",
+      "name": "Update",
+      "state": "Ready"
+    },
+    {
+      "actions": [
+        {
+          "execute": "\"C:\\Program Files\\EnclaveDNS\\enclavedns.exe\"",
+          "arguments": "watchdog"
+        }
+      ],
+      "path": "\\EnclaveDNS\\",
+      "name": "Watchdog",
+      "state": "Ready"
+    }
+  ],
+  "processes": [
+    {
+      "parent": 2752,
+      "pid": 9700,
+      "exe": "C:\\WINDOWS\\system32\\cmd.exe",
+      "created": "2026-10-23T08:30:01.0229140Z",
+      "command": "\"cmd.exe\" /c \"C:\\ProgramData\\Enclave\\run-shield.cmd\""
+    },
+    {
+      "parent": 9700,
+      "pid": 7880,
+      "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+      "created": "2026-10-23T08:30:01.0781920Z",
+      "command": "\"C:\\Program Files\\Enclave\\runtime\\node\\node.exe\"  \"C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\main.mjs\" "
+    },
+    {
+      "parent": 2752,
+      "pid": 10180,
+      "exe": "C:\\WINDOWS\\system32\\cmd.exe",
+      "created": "2026-10-23T08:31:01.0124780Z",
+      "command": "\"cmd.exe\" /c \"C:\\ProgramData\\Enclave\\run-node.cmd\""
+    },
+    {
+      "parent": 10180,
+      "pid": 2384,
+      "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+      "created": "2026-10-23T08:31:01.2615090Z",
+      "command": "\"C:\\Program Files\\Enclave\\runtime\\node\\node.exe\"  \"C:\\Program Files\\Enclave\\control\\windows\\node\\agent.mjs\" "
+    }
+  ]
+}

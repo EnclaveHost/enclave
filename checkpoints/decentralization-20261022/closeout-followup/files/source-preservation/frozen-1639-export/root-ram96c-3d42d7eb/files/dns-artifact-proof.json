@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-23T15:39:41.675Z",
+  "cid": "bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau",
+  "sha256": "e3780187ebaff9e0f4f1440d8292f7e161f764825e5e2f56880150d6605ef5e9",
+  "bytes": 2588705,
+  "carBytes": 2589701,
+  "carSha256": "db5b1fb72da97fec89fe6bcdf0d0f1348feb7921de927a3dc78f1a756e3d4b37",
+  "blocks": 11,
+  "source": "Already-published frozen EnclaveDNS0.1.5 release. Reconstructed exact UnixFS DAG, verified every CAR block and root."
+}

@@ -1,0 +1,1478 @@
+From 6b756f8489fbecc5166d7337c90405f0c3b34494 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 08:45:58 -0700
+Subject: [PATCH] Activate approved 96 GiB NucBox allocation and verify app
+ recovery
+
+---
+ .gitignore                                    |   1 +
+ RESULT.json                                   |  19 ++
+ RESULT.md                                     |  16 +-
+ activation-preflight-20261023T152552Z.json    |  96 +++++++++
+ activation-readiness.json                     | 133 +++++++++++++
+ activation-start-node-20261023T152722Z.json   |  28 +++
+ activation-start-shield-20261023T152648Z.json |  22 +++
+ activation-stop-20261023T152612Z.json         |  22 +++
+ apps-final.json                               | 182 ++++++++++++++++++
+ apps.py                                       |  10 +
+ artifact-adapter-probe.json                   |  37 ++++
+ artifact-adapter-probe.py                     |   7 +
+ artifact-probe.json                           |  37 ++++
+ artifact-probe.py                             |   7 +
+ cache-applied.json                            |  16 ++
+ cache-preflight.json                          |  12 ++
+ cache-readback.json                           |   8 +
+ commit-scan.guard.log                         |   1 +
+ dns-artifact-proof.json                       |  10 +
+ prepare-dns-cache.mjs                         |  11 ++
+ queue-cache-apply-3.log                       |   1 +
+ queue-cache-verify-3.log                      |   1 +
+ queue-status-final.log                        |   1 +
+ queue-tls-final.log                           |   1 +
+ recovery-logs.json                            |  76 ++++++++
+ recovery-logs.py                              |   4 +
+ relay-logs.py                                 |  14 ++
+ repair-dns-cache.py                           |  43 +++++
+ status-active96-1.json                        | 104 ++++++++++
+ status-active96-2.json                        |  80 ++++++++
+ status-final.json                             | 110 +++++++++++
+ tls-final.json                                |  59 ++++++
+ verify-dns-cache.py                           |   6 +
+ verify-public.py                              |  10 +
+ 34 files changed, 1184 insertions(+), 1 deletion(-)
+ create mode 100644 .gitignore
+ create mode 100644 RESULT.json
+ create mode 100644 activation-preflight-20261023T152552Z.json
+ create mode 100644 activation-readiness.json
+ create mode 100644 activation-start-node-20261023T152722Z.json
+ create mode 100644 activation-start-shield-20261023T152648Z.json
+ create mode 100644 activation-stop-20261023T152612Z.json
+ create mode 100644 apps-final.json
+ create mode 100644 apps.py
+ create mode 100644 artifact-adapter-probe.json
+ create mode 100644 artifact-adapter-probe.py
+ create mode 100644 artifact-probe.json
+ create mode 100644 artifact-probe.py
+ create mode 100644 cache-applied.json
+ create mode 100644 cache-preflight.json
+ create mode 100644 cache-readback.json
+ create mode 100644 commit-scan.guard.log
+ create mode 100644 dns-artifact-proof.json
+ create mode 100644 prepare-dns-cache.mjs
+ create mode 100644 queue-cache-apply-3.log
+ create mode 100644 queue-cache-verify-3.log
+ create mode 100644 queue-status-final.log
+ create mode 100644 queue-tls-final.log
+ create mode 100644 recovery-logs.json
+ create mode 100644 recovery-logs.py
+ create mode 100644 relay-logs.py
+ create mode 100644 repair-dns-cache.py
+ create mode 100644 status-active96-1.json
+ create mode 100644 status-active96-2.json
+ create mode 100644 status-final.json
+ create mode 100644 tls-final.json
+ create mode 100644 verify-dns-cache.py
+ create mode 100644 verify-public.py
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..7362f9d482395090c7c2ae1cd7925f38cf334ec6
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1 @@
++dns-artifact/
+diff --git a/RESULT.json b/RESULT.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..e9d78302e9096435de3061f248e18531bf25a837
+--- /dev/null
++++ b/RESULT.json
+@@ -0,0 +1,19 @@
++{
++  "at": "2026-10-23T15:45:53.650678+00:00",
++  "result": "96 GiB host allocation active; nine previously running tenant apps recovered",
++  "nodeRamGb": 96,
++  "shieldPoolMiB": 98304,
++  "runningApps": 9,
++  "publicTlsVerified": 9,
++  "controlAndStorageVmRestarted": false,
++  "windowsRebooted": false,
++  "activation": "User-approved restart of Node and Shield scheduled wrappers",
++  "recovery": "Restored existing published EnclaveDNS0.1.5 CID to the existing us-west bootstrap cache after live adapter CAR retrieval returned truncated/empty data. Normal policy-checked node recovery then restored the app.",
++  "artifactCid": "bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau",
++  "limits": [
++    "Allocation is a host budget, not96GiB free physical memory. Final assigned VM memory74.92GiB on112GiB physical.",
++    "This incident repair retains the existing provider cache; distributed artifact cold recovery remains unfinished.",
++    "No whole-platform decentralization completion claim or end-to-end app feature test.",
++    "Existing unrelated rate-cap and catalog-policy refusals preserved."
++  ]
++}
+diff --git a/RESULT.md b/RESULT.md
+index 7d6a95abe03528aa8ff314b5cb64bb601359ab8e..d17b5fb17870ac3ce5e46700a678dd226dadf35f 100644
+--- a/RESULT.md
++++ b/RESULT.md
+@@ -1,4 +1,4 @@
+-# NucBox host RAM allocation: configured 96 GiB, activation pending
++# NucBox host RAM allocation: 96 GiB active; nine apps recovered
+ 
+ Direct user instruction: increase the current 64 GB allocation to 96 GB.
+ 
+@@ -17,3 +17,17 @@
+ Read-only verification at2026-10-23T11:07:35Z still reports node64GiB and manager65536MiB, both HTTP200, eight running tenant apps and eleven running VMs. No restart was executed; the human restart/experiment question remains unanswered. Receipt: status-current-check.json.
+ 
+ Offline activation-command transport check: all four generated PowerShell steps, including the helper watchdog/hash header, fit the helper limit of 7,900 encoded characters (preflight7,116; stop5,672; start-Shield6,104; start-Node6,944). This verifies transport size only, not native syntax or behavior; no SSH or restart occurred. Exact source hashes are in encoded-size-check.json.
++
++## User-authorized activation on 2026-10-23
++
++The user explicitly approved the restart. Native preflight passed at15:25:52Z, with45.2GB free physical memory and a conservative21.6GB app-growth estimate plus8GiB headroom. The Node and Shield scheduled wrappers were stopped and restarted in order. Both active APIs confirmed96GiB (node96; Shield98304MiB) at15:27:33Z. No full Windows reboot was needed; the control/storage VMs retained their uptime. No code or private config changed during activation.
++
++Fresh admission initially held the host owner-only, then passed and restored market scope. Automatic recovery retired the recovered app partitions through the manager before starting fresh measured partitions. At15:33:36Z four apps were running, with the others still progressing through recovery. This is an intermediate state, not a completed recovery claim. API-MCP's fresh certificate was installed at15:33:06Z. Local workstation DNS temporarily failed; direct-ingress TLS checks are tracked separately.
++
++At15:41:46Z, restored the already-published EnclaveDNS0.1.5 artifact to the EXISTING us-west recovery replica. All four retained replicas returned404 for this CID, while the running adapter returned an empty/truncated CAR. Reconstructed the frozen release DAG (11blocks), verified CID and artifact SHA256 e3780187ebaff9e0f4f1440d8292f7e161f764825e5e2f56880150d6605ef5e9, and added one immutable entry after checking the old manifest hash. Original1018entries preserved; backup retained on host. Only that existing cache service restarted. This repairs availability, not decentralization: the retained provider replica and distributed storage cold recovery remain architecture work. No new app version, chain transaction, signature or admission bypass. Readback/app recovery still pending at this intermediate checkpoint.
++
++## Final verification
++
++At15:43:47Z all nine previously running tenant apps were Running, with one fresh readiness VM. At15:44:19Z node96GiB and Shield98304MiB both returnedHTTP200; control/storage VM uptime increased without a restart. At15:44:59Z all nine normal public app hostnames passed system-CA and hostname TLS verification, including EnclaveDNS and API-MCP. Cache readback verified the entire CAR and recovered WASM against its published CID and release hash. No app version, contract, admin policy or deployment placement changed.
++
++The allocation is not free physical RAM. Observed VM assignments total74.92GiB on112GiB physical; the future chain backend deployment must remeasure capacity. The provider recovery cache remains an existing architecture dependency and this incident does not complete decentralization. Bulk artifact copies are not committed; the frozen release provenance, deterministic CAR reconstruction recipe and digests are committed.
+diff --git a/activation-preflight-20261023T152552Z.json b/activation-preflight-20261023T152552Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..2e9fa4fcad3bfb3c81856dd4cec420d71b46a9ea
+--- /dev/null
++++ b/activation-preflight-20261023T152552Z.json
+@@ -0,0 +1,96 @@
++{
++  "step": "preflight",
++  "checkedAt": "2026-10-23T15:25:52.005868+00:00",
++  "result": {
++    "vms": [
++      {
++        "memory": 2147483648,
++        "name": "enclave-app-hv3146bdf712f171-3f770400",
++        "state": "Running"
++      },
++      {
++        "memory": 2147483648,
++        "name": "enclave-app-hv637cbe35075047-10c44a8a",
++        "state": "Running"
++      },
++      {
++        "memory": 15101591552,
++        "name": "enclave-app-hv8babaf3c0991fa-ea9d4773",
++        "state": "Running"
++      },
++      {
++        "memory": 3420454912,
++        "name": "enclave-app-hv94a003c5b947f6-9e2053bc",
++        "state": "Running"
++      },
++      {
++        "memory": 2147483648,
++        "name": "enclave-app-hvbbab6d5ca75ab0-ad0f596e",
++        "state": "Running"
++      },
++      {
++        "memory": 2147483648,
++        "name": "enclave-app-hvbf6c56812c25e8-46de1836",
++        "state": "Running"
++      },
++      {
++        "memory": 2147483648,
++        "name": "enclave-app-hvc68a5c73043598-3dfcbff8",
++        "state": "Running"
++      },
++      {
++        "memory": 17850957824,
++        "name": "enclave-app-hvce6a027904d978-322c5206",
++        "state": "Running"
++      },
++      {
++        "memory": 536870912,
++        "name": "enclave-app-hvd28ea469111245-a79db30f",
++        "state": "Running"
++      },
++      {
++        "memory": 2147483648,
++        "name": "enclave-app-hvefa9ce2a7bc0ea-f4322953",
++        "state": "Running"
++      },
++      {
++        "memory": 8589934592,
++        "name": "enclave-control",
++        "state": "Running"
++      },
++      {
++        "memory": 4294967296,
++        "name": "enclave-storage",
++        "state": "Running"
++      }
++    ],
++    "ok": true,
++    "estimatedGrowthUpperBoundBytes": 21609054208,
++    "freeBytes": 45213593600,
++    "state": {
++      "tasks": [
++        {
++          "state": "Running",
++          "name": "Node"
++        },
++        {
++          "state": "Running",
++          "name": "Shield"
++        }
++      ],
++      "listeners": [
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 9600,
++          "OwningProcess": 2384
++        },
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 8091,
++          "OwningProcess": 7880
++        }
++      ],
++      "at": "2026-10-23T15:25:51.8639084Z"
++    }
++  }
++}
+diff --git a/activation-readiness.json b/activation-readiness.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..eec8a7e57a3e6a0f98f748b8964a2c6c60ab2b8b
+--- /dev/null
++++ b/activation-readiness.json
+@@ -0,0 +1,133 @@
++{
++  "tasks": [
++    {
++      "actions": [
++        {
++          "execute": "cmd.exe",
++          "arguments": "/c \"C:\\ProgramData\\Enclave\\run-card.cmd\""
++        }
++      ],
++      "path": "\\Enclave\\",
++      "name": "Card",
++      "state": "Running"
++    },
++    {
++      "actions": [
++        {
++          "execute": "C:\\Program Files\\Enclave\\host-services\\hs2\\bin\\hostsvc-supervisor.exe",
++          "arguments": "run \"C:\\ProgramData\\Enclave\\host-services\\hs2\\config\\supervisor.json\""
++        }
++      ],
++      "path": "\\Enclave\\",
++      "name": "enclave-host-services-hs2",
++      "state": "Ready"
++    },
++    {
++      "actions": [
++        {
++          "execute": "cmd.exe",
++          "arguments": "/c \"C:\\ProgramData\\Enclave\\run-network.cmd\""
++        }
++      ],
++      "path": "\\Enclave\\",
++      "name": "Network",
++      "state": "Running"
++    },
++    {
++      "actions": [
++        {
++          "execute": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
++          "arguments": "\"C:\\ProgramData\\Enclave\\network-checker\\run-checker.mjs\""
++        }
++      ],
++      "path": "\\Enclave\\",
++      "name": "NetworkChecker",
++      "state": "Running"
++    },
++    {
++      "actions": [
++        {
++          "execute": "cmd.exe",
++          "arguments": "/c \"C:\\ProgramData\\Enclave\\run-node.cmd\""
++        }
++      ],
++      "path": "\\Enclave\\",
++      "name": "Node",
++      "state": "Running"
++    },
++    {
++      "actions": [
++        {
++          "execute": "cmd.exe",
++          "arguments": "/c \"C:\\ProgramData\\Enclave\\run-relay.cmd\""
++        }
++      ],
++      "path": "\\Enclave\\",
++      "name": "Relay",
++      "state": "Running"
++    },
++    {
++      "actions": [
++        {
++          "execute": "cmd.exe",
++          "arguments": "/c \"C:\\ProgramData\\Enclave\\run-shield.cmd\""
++        }
++      ],
++      "path": "\\Enclave\\",
++      "name": "Shield",
++      "state": "Running"
++    },
++    {
++      "actions": [
++        {
++          "execute": "powershell.exe",
++          "arguments": "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \"C:\\Program Files\\Enclave\\update-host.ps1\""
++        }
++      ],
++      "path": "\\Enclave\\",
++      "name": "Update",
++      "state": "Ready"
++    },
++    {
++      "actions": [
++        {
++          "execute": "\"C:\\Program Files\\EnclaveDNS\\enclavedns.exe\"",
++          "arguments": "watchdog"
++        }
++      ],
++      "path": "\\EnclaveDNS\\",
++      "name": "Watchdog",
++      "state": "Ready"
++    }
++  ],
++  "processes": [
++    {
++      "parent": 2752,
++      "pid": 9700,
++      "exe": "C:\\WINDOWS\\system32\\cmd.exe",
++      "created": "2026-10-23T08:30:01.0229140Z",
++      "command": "\"cmd.exe\" /c \"C:\\ProgramData\\Enclave\\run-shield.cmd\""
++    },
++    {
++      "parent": 9700,
++      "pid": 7880,
++      "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
++      "created": "2026-10-23T08:30:01.0781920Z",
++      "command": "\"C:\\Program Files\\Enclave\\runtime\\node\\node.exe\"  \"C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\main.mjs\" "
++    },
++    {
++      "parent": 2752,
++      "pid": 10180,
++      "exe": "C:\\WINDOWS\\system32\\cmd.exe",
++      "created": "2026-10-23T08:31:01.0124780Z",
++      "command": "\"cmd.exe\" /c \"C:\\ProgramData\\Enclave\\run-node.cmd\""
++    },
++    {
++      "parent": 10180,
++      "pid": 2384,
++      "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
++      "created": "2026-10-23T08:31:01.2615090Z",
++      "command": "\"C:\\Program Files\\Enclave\\runtime\\node\\node.exe\"  \"C:\\Program Files\\Enclave\\control\\windows\\node\\agent.mjs\" "
++    }
++  ]
++}
+\ No newline at end of file
+diff --git a/activation-start-node-20261023T152722Z.json b/activation-start-node-20261023T152722Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..b9a804855f240ce3823fdeafb9d8c9e16e339619
+--- /dev/null
++++ b/activation-start-node-20261023T152722Z.json
+@@ -0,0 +1,28 @@
++{
++  "step": "start-node",
++  "checkedAt": "2026-10-23T15:27:22.041557+00:00",
++  "result": {
++    "ok": true,
++    "action": "Node start requested",
++    "state": {
++      "tasks": [
++        {
++          "state": "Running",
++          "name": "Node"
++        },
++        {
++          "state": "Running",
++          "name": "Shield"
++        }
++      ],
++      "listeners": [
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 8091,
++          "OwningProcess": 2376
++        }
++      ],
++      "at": "2026-10-23T15:27:21.9293914Z"
++    }
++  }
++}
+diff --git a/activation-start-shield-20261023T152648Z.json b/activation-start-shield-20261023T152648Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..341e68fd45150300f8fd3396e80aa7573c1528b1
+--- /dev/null
++++ b/activation-start-shield-20261023T152648Z.json
+@@ -0,0 +1,22 @@
++{
++  "step": "start-shield",
++  "checkedAt": "2026-10-23T15:26:48.457283+00:00",
++  "result": {
++    "ok": true,
++    "action": "Shield start requested",
++    "state": {
++      "tasks": [
++        {
++          "state": "Ready",
++          "name": "Node"
++        },
++        {
++          "state": "Running",
++          "name": "Shield"
++        }
++      ],
++      "listeners": [],
++      "at": "2026-10-23T15:26:48.3080152Z"
++    }
++  }
++}
+diff --git a/activation-stop-20261023T152612Z.json b/activation-stop-20261023T152612Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..b7c9d02242dfaa32b3f4e39b96ccb5771cf7b429
+--- /dev/null
++++ b/activation-stop-20261023T152612Z.json
+@@ -0,0 +1,22 @@
++{
++  "step": "stop",
++  "checkedAt": "2026-10-23T15:26:12.719153+00:00",
++  "result": {
++    "ok": true,
++    "action": "stop requested",
++    "state": {
++      "tasks": [
++        {
++          "state": "Ready",
++          "name": "Node"
++        },
++        {
++          "state": "Ready",
++          "name": "Shield"
++        }
++      ],
++      "listeners": [],
++      "at": "2026-10-23T15:26:12.5816099Z"
++    }
++  }
++}
+diff --git a/apps-final.json b/apps-final.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..5684fcf7aa62fc6f3d3a723091a1c7d2de644806
+--- /dev/null
++++ b/apps-final.json
+@@ -0,0 +1,182 @@
++{
++  "at": "2026-10-23T15:43:47.0128952Z",
++  "deployments": [
++    {
++      "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
++      "status": "queued",
++      "reason": "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no (this box charges 95/sec per whole node, 1% of it here)"
++    },
++    {
++      "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
++      "status": "refused",
++      "reason": "This version requires catalog approval; pending versions may only be deployed PRIVATE for testing."
++    },
++    {
++      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++      "status": "running",
++      "reason": null
++    },
++    {
++      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++      "status": "running",
++      "reason": null
++    },
++    {
++      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++      "status": "running",
++      "reason": null
++    },
++    {
++      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++      "status": "running",
++      "reason": null
++    },
++    {
++      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++      "status": "running",
++      "reason": null
++    },
++    {
++      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++      "status": "running",
++      "reason": null
++    },
++    {
++      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++      "status": "running",
++      "reason": null
++    },
++    {
++      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++      "status": "running",
++      "reason": null
++    },
++    {
++      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++      "status": "running",
++      "reason": null
++    },
++    {
++      "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
++      "status": "stopped",
++      "reason": "the lease expired; a new claim must pass the current funding and hosting policy"
++    },
++    {
++      "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
++      "status": "stopped",
++      "reason": "the lease expired; a new claim must pass the current funding and hosting policy"
++    },
++    {
++      "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
++      "status": "refused",
++      "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer"
++    },
++    {
++      "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
++      "status": "refused",
++      "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer"
++    },
++    {
++      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++      "status": "refused",
++      "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app"
++    },
++    {
++      "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
++      "status": "refused",
++      "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app"
++    },
++    {
++      "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
++      "status": "refused",
++      "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app"
++    },
++    {
++      "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
++      "status": "refused",
++      "reason": "Pinned to host 0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658; fallback is disabled."
++    }
++  ],
++  "vms": [
++    {
++      "id": "hvc18d297da5a21bc3cbae5836531b00c2",
++      "name": "shield-readiness-v1",
++      "status": "running",
++      "recovered": null,
++      "vmState": null,
++      "reason": null
++    },
++    {
++      "id": "hvc6c4073c817dadf1d692f67b6f9222e3",
++      "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++      "status": "running",
++      "recovered": null,
++      "vmState": null,
++      "reason": null
++    },
++    {
++      "id": "hvba429ebb1c40a95c27186168f7669f74",
++      "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++      "status": "running",
++      "recovered": null,
++      "vmState": null,
++      "reason": null
++    },
++    {
++      "id": "hvdc425d67f2b0e16d83e393766f786d10",
++      "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++      "status": "running",
++      "recovered": null,
++      "vmState": null,
++      "reason": null
++    },
++    {
++      "id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d",
++      "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++      "status": "running",
++      "recovered": null,
++      "vmState": null,
++      "reason": null
++    },
++    {
++      "id": "hv5e00a0f0dfae6122912103ad8361ce22",
++      "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++      "status": "running",
++      "recovered": null,
++      "vmState": null,
++      "reason": null
++    },
++    {
++      "id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c",
++      "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++      "status": "running",
++      "recovered": null,
++      "vmState": null,
++      "reason": null
++    },
++    {
++      "id": "hv181ef1f570cd6b380d424310c995e920",
++      "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++      "status": "running",
++      "recovered": null,
++      "vmState": null,
++      "reason": null
++    },
++    {
++      "id": "hv255b5ea98b99cf19c2e420f6a5a271ca",
++      "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++      "status": "running",
++      "recovered": null,
++      "vmState": null,
++      "reason": null
++    },
++    {
++      "id": "hve60d223d27d01b8bcacb65a8e46f2e78",
++      "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++      "status": "running",
++      "recovered": null,
++      "vmState": null,
++      "reason": null
++    }
++  ]
++}
+diff --git a/apps.py b/apps.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..82218a116368be876d7ac485c0ce6bb3c380b4f0
+--- /dev/null
++++ b/apps.py
+@@ -0,0 +1,10 @@
++import importlib.util,json,pathlib
++p=pathlib.Path('work/nucbox-tls-20261021/root-activate-reviewed.py')
++s=importlib.util.spec_from_file_location('activation',p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++r=m.ps(r"""$o=[ordered]@{at=[DateTime]::UtcNow.ToString('o')};
++$s=Invoke-RestMethod -TimeoutSec 10 'http://127.0.0.1:9600/v1/host/state';
++$o.deployments=@($s.deployments|Select-Object id,status,reason);
++$v=Invoke-RestMethod -TimeoutSec 10 'http://127.0.0.1:8091/vms';
++$o.vms=@($v.vms|Select-Object id,name,status,recovered,vmState,reason);
++$o|ConvertTo-Json -Depth 5 -Compress""")
++pathlib.Path('work/nucbox-ram96-20261023/apps-recovery.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))
+diff --git a/artifact-adapter-probe.json b/artifact-adapter-probe.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..bdc365c793b12e4a67cbaf209562b33c7f8f3397
+--- /dev/null
++++ b/artifact-adapter-probe.json
+@@ -0,0 +1,37 @@
++{
++  "at": "2026-10-23T15:38:42.556931+00:00",
++  "results": [
++    {
++      "ip": "134.199.235.187",
++      "exit": 35,
++      "http": "000",
++      "bytes": 0,
++      "bodyIfError": "",
++      "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
++    },
++    {
++      "ip": "134.209.248.172",
++      "exit": 18,
++      "http": "200",
++      "bytes": 0,
++      "bodyIfError": "",
++      "error": "curl: (18) transfer closed with outstanding read data remaining\n"
++    },
++    {
++      "ip": "165.245.191.129",
++      "exit": 35,
++      "http": "000",
++      "bytes": 0,
++      "bodyIfError": "",
++      "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
++    },
++    {
++      "ip": "146.190.246.39",
++      "exit": 18,
++      "http": "200",
++      "bytes": 0,
++      "bodyIfError": "",
++      "error": "curl: (18) transfer closed with outstanding read data remaining\n"
++    }
++  ]
++}
+\ No newline at end of file
+diff --git a/artifact-adapter-probe.py b/artifact-adapter-probe.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..a3d7e3c8a90bc53eca4483b4caac7073dc11c3b9
+--- /dev/null
++++ b/artifact-adapter-probe.py
+@@ -0,0 +1,7 @@
++import concurrent.futures,subprocess,json,datetime,pathlib
++cid='bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau'
++def check(ip):
++ r=subprocess.run(['curl','-sS','--max-time','8','--max-filesize','5000000','-w','\n%{http_code}','--resolve','7ae476a3.app.enclave.host:443:'+ip,'https://7ae476a3.app.enclave.host/ipfs/'+cid+'?format=car&dag-scope=all'],capture_output=True,timeout=10)
++ body,_,status=r.stdout.rpartition(b'\n');return {'ip':ip,'exit':r.returncode,'http':status.decode(),'bytes':len(body),'bodyIfError':body[:500].decode(errors='replace') if status!=b'200' else '', 'error':r.stderr.decode()[:150]}
++with concurrent.futures.ThreadPoolExecutor(max_workers=4)as ex:rows=list(ex.map(check,['134.199.235.187','134.209.248.172','165.245.191.129','146.190.246.39']))
++o={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'results':rows};pathlib.Path('work/nucbox-ram96-20261023/artifact-adapter-probe.json').write_text(json.dumps(o,indent=2));print(json.dumps(o))
+diff --git a/artifact-probe.json b/artifact-probe.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..45bb9a5934af54423b84c197b752730f0211e535
+--- /dev/null
++++ b/artifact-probe.json
+@@ -0,0 +1,37 @@
++{
++  "at": "2026-10-23T15:36:48.251576+00:00",
++  "results": [
++    {
++      "ip": "134.199.235.187",
++      "exit": 0,
++      "http": "404",
++      "bytes": 0,
++      "bodyIfError": "",
++      "error": ""
++    },
++    {
++      "ip": "134.209.248.172",
++      "exit": 0,
++      "http": "404",
++      "bytes": 0,
++      "bodyIfError": "",
++      "error": ""
++    },
++    {
++      "ip": "165.245.191.129",
++      "exit": 0,
++      "http": "404",
++      "bytes": 0,
++      "bodyIfError": "",
++      "error": ""
++    },
++    {
++      "ip": "146.190.246.39",
++      "exit": 0,
++      "http": "404",
++      "bytes": 0,
++      "bodyIfError": "",
++      "error": ""
++    }
++  ]
++}
+\ No newline at end of file
+diff --git a/artifact-probe.py b/artifact-probe.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..cd42d27f54a17526c37ba0c8c3ebd9229a13ba76
+--- /dev/null
++++ b/artifact-probe.py
+@@ -0,0 +1,7 @@
++import concurrent.futures,subprocess,json,datetime,pathlib
++cid='bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau'
++def check(ip):
++ r=subprocess.run(['curl','-sS','--max-time','8','--max-filesize','5000000','-w','\n%{http_code}','http://'+ip+':8189/ipfs/'+cid+'?format=car'],capture_output=True,timeout=10)
++ body,_,status=r.stdout.rpartition(b'\n');return {'ip':ip,'exit':r.returncode,'http':status.decode(),'bytes':len(body),'bodyIfError':body[:500].decode(errors='replace') if status!=b'200' else '', 'error':r.stderr.decode()[:150]}
++with concurrent.futures.ThreadPoolExecutor(max_workers=4)as ex:rows=list(ex.map(check,['134.199.235.187','134.209.248.172','165.245.191.129','146.190.246.39']))
++o={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'results':rows};pathlib.Path('work/nucbox-ram96-20261023/artifact-probe.json').write_text(json.dumps(o,indent=2));print(json.dumps(o))
+diff --git a/cache-applied.json b/cache-applied.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..0dff7ac17d9a9db0a1ce76c678678576afd65fb8
+--- /dev/null
++++ b/cache-applied.json
+@@ -0,0 +1,16 @@
++{
++  "at": "2026-10-23T15:41:46.979554+00:00",
++  "exit": 0,
++  "result": {
++    "at": "2026-10-23T15:41:46.669851+00:00",
++    "manifestSha256": "7b83d66561c413c3655159ee4795d9a85c501f526d6e572690d7cc9a83981617",
++    "entriesBefore": 1018,
++    "cid": "bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau",
++    "apply": true,
++    "manifestAfterSha256": "f4b747a41443fcde1918dc0d9e40b056c0a3fd9e20edc72dc3c7d9c4be76ba61",
++    "entriesAfter": 1019,
++    "restart": "requested and service active",
++    "backup": "/opt/enclave-retained/cc96aad/manifest.pre-ram96-dns-recovery.json"
++  },
++  "error": ""
++}
+diff --git a/cache-preflight.json b/cache-preflight.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..475de070cd63cc287139417727c135729a5c4209
+--- /dev/null
++++ b/cache-preflight.json
+@@ -0,0 +1,12 @@
++{
++  "at": "2026-10-23T15:40:19.615290+00:00",
++  "exit": 0,
++  "result": {
++    "at": "2026-10-23T15:40:19.540490+00:00",
++    "manifestSha256": "7b83d66561c413c3655159ee4795d9a85c501f526d6e572690d7cc9a83981617",
++    "entriesBefore": 1018,
++    "cid": "bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau",
++    "apply": false
++  },
++  "error": ""
++}
+diff --git a/cache-readback.json b/cache-readback.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..6af8758d0102e2f7d743388e5369d29bbef10b4c
+--- /dev/null
++++ b/cache-readback.json
+@@ -0,0 +1,8 @@
++{
++  "at": "2026-10-23T15:43:38.507484+00:00",
++  "gateway": "http://134.199.235.187:8189",
++  "cid": "bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau",
++  "sha256": "e3780187ebaff9e0f4f1440d8292f7e161f764825e5e2f56880150d6605ef5e9",
++  "bytes": 2588705,
++  "verified": true
++}
+diff --git a/commit-scan.guard.log b/commit-scan.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..fc51b3ead629110248a765c22239f8f31bcd7025
+--- /dev/null
++++ b/commit-scan.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=37 minHostAvailableMiB=24956
+diff --git a/dns-artifact-proof.json b/dns-artifact-proof.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..912c987d9d819e2e07fb6cbdb1326bd16488806a
+--- /dev/null
++++ b/dns-artifact-proof.json
+@@ -0,0 +1,10 @@
++{
++  "at": "2026-10-23T15:39:41.675Z",
++  "cid": "bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau",
++  "sha256": "e3780187ebaff9e0f4f1440d8292f7e161f764825e5e2f56880150d6605ef5e9",
++  "bytes": 2588705,
++  "carBytes": 2589701,
++  "carSha256": "db5b1fb72da97fec89fe6bcdf0d0f1348feb7921de927a3dc78f1a756e3d4b37",
++  "blocks": 11,
++  "source": "Already-published frozen EnclaveDNS0.1.5 release. Reconstructed exact UnixFS DAG, verified every CAR block and root."
++}
+diff --git a/prepare-dns-cache.mjs b/prepare-dns-cache.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..cd2caad164429cfd42a18063e7a0946c6f4becea
+--- /dev/null
++++ b/prepare-dns-cache.mjs
+@@ -0,0 +1,11 @@
++import fs from 'node:fs';
++import {DNS} from '../enclavedns-stale-20261021/wallet-handoff/trust.mjs';
++import {frozenWasm,carHeaderOf,verifyCar} from '../site-host-live-publish/handoff/site-upload.mjs';
++const {bytes,dag}=frozenWasm(DNS);
++function vi(n){let a=[];do{let b=n%128;n=Math.floor(n/128);a.push(b|(n?128:0));}while(n);return Buffer.from(a);}
++const header=carHeaderOf(DNS.expectedCid),parts=[vi(header.length),header];
++for(const[c,b]of dag.blocks){parts.push(vi(c.length+b.length),c,b);}
++const car=Buffer.concat(parts),proof=verifyCar(DNS,car,dag),dir=new URL('./dns-artifact/',import.meta.url);fs.mkdirSync(dir,{recursive:true});
++fs.writeFileSync(new URL(DNS.expectedCid+'.bin',dir),bytes);fs.writeFileSync(new URL(DNS.expectedCid+'.car',dir),car);
++const receipt={at:new Date().toISOString(),cid:DNS.expectedCid,sha256:DNS.wasm.sha256,bytes:bytes.length,carBytes:car.length,...proof,source:'Already-published frozen EnclaveDNS0.1.5 release. Reconstructed exact UnixFS DAG, verified every CAR block and root.'};
++fs.writeFileSync(new URL('./dns-artifact-proof.json',import.meta.url),JSON.stringify(receipt,null,2)+'\n');console.log(JSON.stringify(receipt));
+diff --git a/queue-cache-apply-3.log b/queue-cache-apply-3.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..02b550c5da8b56c08d2ef8133997907fce4c3787
+--- /dev/null
++++ b/queue-cache-apply-3.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=31 minHostAvailableMiB=23618
+diff --git a/queue-cache-verify-3.log b/queue-cache-verify-3.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..f667a96cc28c41df587e8aa3f81887f8e8a45654
+--- /dev/null
++++ b/queue-cache-verify-3.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=29 minHostAvailableMiB=30081
+diff --git a/queue-status-final.log b/queue-status-final.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..f169febebbbc2540971bd50eb8bf0e22809f8d43
+--- /dev/null
++++ b/queue-status-final.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=29807
+diff --git a/queue-tls-final.log b/queue-tls-final.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca0caa68da72f057c831b9ca1a42d14f19b96505
+--- /dev/null
++++ b/queue-tls-final.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=29 minHostAvailableMiB=25064
+diff --git a/recovery-logs.json b/recovery-logs.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..da6a740758d356681bdda4908baa30fbde58ce08
+--- /dev/null
++++ b/recovery-logs.json
+@@ -0,0 +1,76 @@
++{
++  "at": "2026-10-23T15:44:40.7603884Z",
++  "node": [
++    "15:42:08 [node] [host] 0xe64f7cba isolation adopted: hv3c8e73d2d9c235d0e91dcfcccdbee49d status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:42:10 [node] [host] 0xd9798e4c isolation adopted: hv5e00a0f0dfae6122912103ad8361ce22 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:42:12 [node] [host] 0xa77d0c57 isolation adopted: hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:42:15 [node] [host] 0xc13d4b6a isolation adopted: hv181ef1f570cd6b380d424310c995e920 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:42:18 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:42:21 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:42:24 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:42:31 [node] [host] checkpoint 0x59f1273d failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
++    "15:42:46 [node] 0x59f1273d certificate: none for 59f1273d.app.enclave.host (the order for 59f1273d.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
++    "15:43:06 [node] [host] 0x7ae476a3 isolation adopted: hvba429ebb1c40a95c27186168f7669f74 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:43:09 [node] [host] 0x38f368d6 isolation adopted: hvdc425d67f2b0e16d83e393766f786d10 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:43:12 [node] [host] 0xe64f7cba isolation adopted: hv3c8e73d2d9c235d0e91dcfcccdbee49d status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:43:15 [node] [host] 0xd9798e4c isolation adopted: hv5e00a0f0dfae6122912103ad8361ce22 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:43:19 [node] [host] 0xa77d0c57 isolation adopted: hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:43:21 [node] [host] 0xc13d4b6a isolation adopted: hv181ef1f570cd6b380d424310c995e920 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:43:25 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:43:29 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:43:32 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:43:37 [node] 0x59f1273d certificate: 59f1273d.app.enclave.host installed in partition hve60d223d27d01b8bcacb65a8e46f2e78 (key 810954735b3b923b\u00e2\u20ac\u00a6, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-21T23:59:59.000Z; domain monitor-signed)",
++    "15:44:06 [node] [host] 0x7ae476a3 isolation adopted: hvba429ebb1c40a95c27186168f7669f74 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:44:10 [node] [host] 0x38f368d6 isolation adopted: hvdc425d67f2b0e16d83e393766f786d10 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:44:13 [node] [host] 0xe64f7cba isolation adopted: hv3c8e73d2d9c235d0e91dcfcccdbee49d status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:44:16 [node] [host] 0xd9798e4c isolation adopted: hv5e00a0f0dfae6122912103ad8361ce22 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:44:20 [node] [host] 0xa77d0c57 isolation adopted: hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:44:23 [node] [host] 0xc13d4b6a isolation adopted: hv181ef1f570cd6b380d424310c995e920 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:44:27 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:44:31 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "15:44:34 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d"
++  ],
++  "network": [
++    "15:32:01 [privacy] local guest proof 0xa69dcbba: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "15:32:06 [privacy] local guest proof 0x7ae476a3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "15:32:31 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "15:33:01 [privacy] local guest proof 0xa69dcbba: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "15:33:06 [privacy] local guest proof 0x7ae476a3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "15:33:27 [privacy] local guest proof 0xe64f7cba: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "15:33:31 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "15:33:57 [privacy] local guest proof 0xd9798e4c: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "15:34:06 [privacy] local guest proof 0x7ae476a3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
++    "15:34:16 [privacy] local guest proof 0xa77d0c57: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "15:34:27 [privacy] local guest proof 0xe64f7cba: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
++    "15:34:35 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
++    "15:34:41 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "15:35:01 [privacy] local guest proof 0xd9798e4c: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
++    "15:35:06 [privacy] local guest proof 0x7ae476a3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
++    "15:35:11 [privacy] local guest proof 0xef514ed3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "15:35:16 [privacy] local guest proof 0xa77d0c57: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
++    "15:35:31 [privacy] local guest proof 0xe64f7cba: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "15:35:36 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "15:35:41 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "15:36:11 [privacy] local guest proof 0xef514ed3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "15:37:11 [privacy] local guest proof 0xef514ed3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
++    "15:41:27 [privacy] local guest proof 0x59f1273d: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "15:42:27 [privacy] local guest proof 0x59f1273d: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "15:43:32 [privacy] local guest proof 0x59f1273d: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (11 more since the last line)"
++  ],
++  "availability": {
++    "nodeRamGb": 96,
++    "ramGbFree": 79.8,
++    "apps": {
++      "isolation": "hyperv-partition-per-app",
++      "tier": "enclave-shield",
++      "hostExcluded": false,
++      "hostOsExcluded": true,
++      "operatorExcluded": false,
++      "inTee": false,
++      "running": 9,
++      "capacity": 16,
++      "scope": "market",
++      "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/recovery-logs.py b/recovery-logs.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..10af9cf98a190379b07d1cba0497740b5dcf2abc
+--- /dev/null
++++ b/recovery-logs.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''[Console]::OutputEncoding=[Text.UTF8Encoding]::new();$o=[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o')};foreach($n in @('node','network')){$o[$n]=@(Get-Content ('C:\ProgramData\Enclave\logs\'+$n+'.log') -Tail 500|Where-Object {$_ -match 'market|attach|readiness|recover|delegat|certificate|error|failed|isolat|held|refused'}|Select-Object -Last 28|ForEach-Object {$l=[string]$_;$l=$l -replace '(?i)(token|signature|authorization|password|secret)([=: ]+)[^ ,;]+','$1=[redacted]';$l.Substring(0,[Math]::Min(1000,$l.Length))})};$h=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:9600/availability;$o.availability=$h|Select-Object nodeRamGb,ramGbFree,apps;$o|ConvertTo-Json -Depth 7 -Compress'''
++r=m.ps(p,35);pathlib.Path('work/nucbox-ram96-20261023/recovery-logs.json').write_text(json.dumps(r,indent=2));print(json.dumps(r,indent=2))
+diff --git a/relay-logs.py b/relay-logs.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..19ee068da25de89434ead428787ad909dc41771b
+--- /dev/null
++++ b/relay-logs.py
+@@ -0,0 +1,14 @@
++import subprocess,json,pathlib,datetime
++remote=r"""sudo python3 - <<'REMOTE'
++import subprocess,json,re
++r=subprocess.run(['journalctl','-u','enclave-api-relay','--since','2026-10-23 15:30:00 UTC','-n','8000','--no-pager','-o','short-iso'],capture_output=True,text=True,timeout=15)
++lines=[]
++for l in r.stdout.splitlines():
++ if any(x in l.lower() for x in ['7ae476a3','59f1273d','acme','certificate']):
++  l=re.sub(r'(?i)(token|signature|authorization|secret|password)[=: ]+[^ ,;]+',r'\1=[redacted]',l);lines.append(l[:700])
++print(json.dumps({'exit':r.returncode,'logs':lines[-60:]}))
++REMOTE"""
++cmd=['ssh','-J','minipc','-o','HostKeyAlias=[127.0.0.1]:32423','-o','BatchMode=yes','-o','ConnectTimeout=6','-o','UserKnownHostsFile=work/control-vm/known_hosts','-i','/home/steven/.ssh/minipc','controladmin@172.17.28.159',remote]
++r=subprocess.run(cmd,capture_output=True,text=True,timeout=30)
++o={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'exit':r.returncode,'out':r.stdout,'error':r.stderr[:300]}
++f=pathlib.Path('work/nucbox-ram96-20261023')/('relay-recovery-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'.json');f.write_text(json.dumps(o,indent=2)+'\n');print(json.dumps(o));print('Saved',f)
+diff --git a/repair-dns-cache.py b/repair-dns-cache.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c1bf8bd8d3c35b0b86506fd8752e73147afba3c9
+--- /dev/null
++++ b/repair-dns-cache.py
+@@ -0,0 +1,43 @@
++import pathlib,json,subprocess,datetime,sys
++p=pathlib.Path(__file__).resolve().parent
++proof=json.loads((p/'dns-artifact-proof.json').read_text());apply='--apply' in sys.argv
++expected=json.loads((p/'cache-preflight.json').read_text())['result']['manifestSha256'] if apply else None
++remote=r'''
++import pathlib,json,hashlib,sys,os,subprocess,datetime,urllib.request
++P=__PROOF__;apply=__APPLY__;expected=__EXPECTED__
++def sha(b):return hashlib.sha256(b).hexdigest()
++cfg=json.loads(pathlib.Path('/etc/enclave-bootstrap/config.json').read_text())
++assert cfg['directory']=='/opt/enclave-retained/cc96aad' and cfg['manifest']==cfg['directory']+'/manifest.json' and cfg['port']==8189
++root=pathlib.Path(cfg['directory']);mp=pathlib.Path(cfg['manifest']);old=mp.read_bytes();m=json.loads(old)
++assert len(m['verifiedObjects'])<4096 and not any(x['cid']==P['cid'] for x in m['verifiedObjects'])
++assert not (root/(P['cid']+'.bin')).exists() and not (root/(P['cid']+'.car')).exists()
++o={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'manifestSha256':sha(old),'entriesBefore':len(m['verifiedObjects']),'cid':P['cid'],'apply':apply}
++if not apply:print(json.dumps(o));sys.exit(0)
++assert sha(old)==expected,'manifest changed'
++for ext,h in [('bin',P['sha256']),('car',P['carSha256'])]:
++ src=root/(P['cid']+'.'+ext+'.ram96-recovery-part');assert sha(src.read_bytes())==h
++for ext in ('bin','car'):os.rename(root/(P['cid']+'.'+ext+'.ram96-recovery-part'),root/(P['cid']+'.'+ext))
++backup=mp.with_name('manifest.pre-ram96-dns-recovery.json')
++with backup.open('xb')as f:f.write(old);f.flush();os.fsync(f.fileno())
++m['verifiedObjects'].append({k:P[k] for k in ['cid','sha256','carSha256','bytes','carBytes']})
++new=json.dumps(m,indent=2).encode()+b'\n';temp=mp.with_name('manifest.ram96-dns-recovery.tmp')
++try:
++ with temp.open('xb')as f:f.write(new);f.flush();os.fsync(f.fileno())
++ os.replace(temp,mp)
++ subprocess.run(['systemctl','restart','enclave-bootstrap-gateway.service'],check=True,timeout=45)
++ subprocess.run(['systemctl','is-active','--quiet','enclave-bootstrap-gateway.service'],check=True,timeout=5)
++ # Startup verifies all retained files before the listener opens. Root checks HTTP separately.
++ o.update(manifestAfterSha256=sha(new),entriesAfter=len(m['verifiedObjects']),restart='requested and service active',backup=str(backup))
++ print(json.dumps(o))
++except Exception:
++ mp.write_bytes(old);subprocess.run(['systemctl','restart','enclave-bootstrap-gateway.service'],timeout=45)
++ raise
++'''.replace('__PROOF__',repr(proof)).replace('__APPLY__',repr(apply)).replace('__EXPECTED__',repr(expected))
++ssh=['ssh','-o','BatchMode=yes','-o','ConnectTimeout=6','us-west']
++if apply:
++ for ext in ['bin','car']:
++  src=p/'dns-artifact'/(proof['cid']+'.'+ext)
++  subprocess.run(['scp','-q',str(src),'us-west:/opt/enclave-retained/cc96aad/'+src.name+'.ram96-recovery-part'],check=True,timeout=40)
++r=subprocess.run(ssh+['python3 -'],input=remote,text=True,capture_output=True,timeout=100)
++o={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'exit':r.returncode,'result':json.loads(r.stdout) if r.returncode==0 else r.stdout,'error':r.stderr[-1500:]}
++(p/('cache-applied.json'if apply else'cache-preflight.json')).write_text(json.dumps(o,indent=2)+'\n');print(json.dumps(o));sys.exit(r.returncode)
+diff --git a/status-active96-1.json b/status-active96-1.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..eef22031085bcfb6ff5225de05d8112c5c191c33
+--- /dev/null
++++ b/status-active96-1.json
+@@ -0,0 +1,104 @@
++{
++  "at": "2026-10-23T15:27:33.2791041Z",
++  "node": {
++    "availability": {
++      "status": 200,
++      "nodeRamGb": 96,
++      "machineRamGb": 112,
++      "apps": {
++        "isolation": "hyperv-partition-per-app",
++        "tier": "T0-hv",
++        "hostExcluded": false,
++        "hostOsExcluded": false,
++        "operatorExcluded": false,
++        "inTee": false,
++        "running": 0,
++        "capacity": 16,
++        "scope": "owner-only",
++        "note": "each deployment runs in its own Hyper-V partition; marketplace admission awaits the relay\u2019s app-evidence check"
++      },
++      "ramGbFree": 96
++    },
++    "manager": {
++      "status": 200,
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304
++      },
++      "inventory": {
++        "state": "ready",
++        "recovered": 10,
++        "unattributed": 0,
++        "at": "2026-10-23T15:26:52.204Z"
++      }
++    }
++  },
++  "vms": [
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv3146bdf712f171-3f770400",
++      "uptimeSeconds": 23201.565,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv637cbe35075047-10c44a8a",
++      "uptimeSeconds": 24575.896999999997,
++      "state": "Running"
++    },
++    {
++      "memory": 15101591552,
++      "name": "enclave-app-hv8babaf3c0991fa-ea9d4773",
++      "uptimeSeconds": 22263.939,
++      "state": "Running"
++    },
++    {
++      "memory": 3420454912,
++      "name": "enclave-app-hv94a003c5b947f6-9e2053bc",
++      "uptimeSeconds": 21986.094999999998,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvbbab6d5ca75ab0-ad0f596e",
++      "uptimeSeconds": 1218.514,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvbf6c56812c25e8-46de1836",
++      "uptimeSeconds": 23008.756999999998,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvc68a5c73043598-3dfcbff8",
++      "uptimeSeconds": 23076.266,
++      "state": "Running"
++    },
++    {
++      "memory": 17850957824,
++      "name": "enclave-app-hvce6a027904d978-322c5206",
++      "uptimeSeconds": 23135.978,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvefa9ce2a7bc0ea-f4322953",
++      "uptimeSeconds": 23043.18,
++      "state": "Running"
++    },
++    {
++      "memory": 8589934592,
++      "name": "enclave-control",
++      "uptimeSeconds": 24981.833,
++      "state": "Running"
++    },
++    {
++      "memory": 4294967296,
++      "name": "enclave-storage",
++      "uptimeSeconds": 25011.932999999997,
++      "state": "Running"
++    }
++  ]
++}
+\ No newline at end of file
+diff --git a/status-active96-2.json b/status-active96-2.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..33be125f554eb9e83891843a8750bd27af0d149a
+--- /dev/null
++++ b/status-active96-2.json
+@@ -0,0 +1,80 @@
++{
++  "at": "2026-10-23T15:32:42.9961638Z",
++  "node": {
++    "availability": {
++      "status": 200,
++      "nodeRamGb": 96,
++      "machineRamGb": 112,
++      "apps": {
++        "isolation": "hyperv-partition-per-app",
++        "tier": "enclave-shield",
++        "hostExcluded": false,
++        "hostOsExcluded": true,
++        "operatorExcluded": false,
++        "inTee": false,
++        "running": 3,
++        "capacity": 16,
++        "scope": "market",
++        "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
++      },
++      "ramGbFree": 79.8
++    },
++    "manager": {
++      "status": 200,
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304
++      },
++      "inventory": {
++        "state": "ready",
++        "recovered": 10,
++        "unattributed": 0,
++        "at": "2026-10-23T15:26:52.204Z"
++      }
++    }
++  },
++  "vms": [
++    {
++      "memory": 0,
++      "name": "enclave-app-hv3c8e73d2d9c235-322c5206",
++      "uptimeSeconds": 0,
++      "state": "Off"
++    },
++    {
++      "memory": 2732589056,
++      "name": "enclave-app-hvba429ebb1c40a9-10c44a8a",
++      "uptimeSeconds": 53.716,
++      "state": "Running"
++    },
++    {
++      "memory": 536870912,
++      "name": "enclave-app-hvc18d297da5a21b-a79db30f",
++      "uptimeSeconds": 305.83099999999996,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvc6c4073c817dad-ad0f596e",
++      "uptimeSeconds": 124.509,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvdc425d67f2b0e1-3f770400",
++      "uptimeSeconds": 29.43,
++      "state": "Running"
++    },
++    {
++      "memory": 8589934592,
++      "name": "enclave-control",
++      "uptimeSeconds": 25291.298,
++      "state": "Running"
++    },
++    {
++      "memory": 4294967296,
++      "name": "enclave-storage",
++      "uptimeSeconds": 25321.397999999997,
++      "state": "Running"
++    }
++  ]
++}
+\ No newline at end of file
+diff --git a/status-final.json b/status-final.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..c70971bd360e1ef010cc0670d1c41dd9ad56a70e
+--- /dev/null
++++ b/status-final.json
+@@ -0,0 +1,110 @@
++{
++  "at": "2026-10-23T15:44:19.7919861Z",
++  "node": {
++    "availability": {
++      "status": 200,
++      "nodeRamGb": 96,
++      "machineRamGb": 112,
++      "apps": {
++        "isolation": "hyperv-partition-per-app",
++        "tier": "enclave-shield",
++        "hostExcluded": false,
++        "hostOsExcluded": true,
++        "operatorExcluded": false,
++        "inTee": false,
++        "running": 9,
++        "capacity": 16,
++        "scope": "market",
++        "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
++      },
++      "ramGbFree": 79.8
++    },
++    "manager": {
++      "status": 200,
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304
++      },
++      "inventory": {
++        "state": "ready",
++        "recovered": 10,
++        "unattributed": 0,
++        "at": "2026-10-23T15:26:52.204Z"
++      }
++    }
++  },
++  "vms": [
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv181ef1f570cd6b-46de1836",
++      "uptimeSeconds": 595.29,
++      "state": "Running"
++    },
++    {
++      "memory": 22317891584,
++      "name": "enclave-app-hv255b5ea98b99cf-ea9d4773",
++      "uptimeSeconds": 564.843,
++      "state": "Running"
++    },
++    {
++      "memory": 26440892416,
++      "name": "enclave-app-hv3c8e73d2d9c235-322c5206",
++      "uptimeSeconds": 694.2139999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv5e00a0f0dfae61-3dfcbff8",
++      "uptimeSeconds": 646.4839999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 2732589056,
++      "name": "enclave-app-hvba429ebb1c40a9-10c44a8a",
++      "uptimeSeconds": 750.829,
++      "state": "Running"
++    },
++    {
++      "memory": 536870912,
++      "name": "enclave-app-hvc18d297da5a21b-a79db30f",
++      "uptimeSeconds": 1002.954,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvc6c4073c817dad-ad0f596e",
++      "uptimeSeconds": 821.6479999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvdc425d67f2b0e1-3f770400",
++      "uptimeSeconds": 726.567,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvdd8cb84cf13a4e-f4322953",
++      "uptimeSeconds": 621.1669999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 4794089472,
++      "name": "enclave-app-hve60d223d27d01b-9e2053bc",
++      "uptimeSeconds": 192.278,
++      "state": "Running"
++    },
++    {
++      "memory": 8589934592,
++      "name": "enclave-control",
++      "uptimeSeconds": 25988.588,
++      "state": "Running"
++    },
++    {
++      "memory": 4294967296,
++      "name": "enclave-storage",
++      "uptimeSeconds": 26018.693,
++      "state": "Running"
++    }
++  ]
++}
+\ No newline at end of file
+diff --git a/tls-final.json b/tls-final.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..f5cecaee0a44d702d309434f1a1ed12a2eaf2f08
+--- /dev/null
++++ b/tls-final.json
+@@ -0,0 +1,59 @@
++{
++  "at": "2026-10-23T15:44:59.859247+00:00",
++  "tls": [
++    {
++      "id": "c13d4b6a",
++      "verified": true,
++      "issuer": "ZeroSSL GmbH",
++      "notAfter": "Jan 21 23:59:59 2027 GMT"
++    },
++    {
++      "id": "ef514ed3",
++      "verified": true,
++      "issuer": "ZeroSSL GmbH",
++      "notAfter": "Jan 21 23:59:59 2027 GMT"
++    },
++    {
++      "id": "e64f7cba",
++      "verified": true,
++      "issuer": "ZeroSSL GmbH",
++      "notAfter": "Jan 21 23:59:59 2027 GMT"
++    },
++    {
++      "id": "59f1273d",
++      "verified": true,
++      "issuer": "ZeroSSL GmbH",
++      "notAfter": "Jan 21 23:59:59 2027 GMT"
++    },
++    {
++      "id": "a69dcbba",
++      "verified": true,
++      "issuer": "ZeroSSL GmbH",
++      "notAfter": "Jan 21 23:59:59 2027 GMT"
++    },
++    {
++      "id": "d9798e4c",
++      "verified": true,
++      "issuer": "ZeroSSL GmbH",
++      "notAfter": "Jan 21 23:59:59 2027 GMT"
++    },
++    {
++      "id": "a77d0c57",
++      "verified": true,
++      "issuer": "ZeroSSL GmbH",
++      "notAfter": "Jan 21 23:59:59 2027 GMT"
++    },
++    {
++      "id": "38f368d6",
++      "verified": true,
++      "issuer": "ZeroSSL GmbH",
++      "notAfter": "Jan 21 23:59:59 2027 GMT"
++    },
++    {
++      "id": "7ae476a3",
++      "verified": true,
++      "issuer": "ZeroSSL GmbH",
++      "notAfter": "Jan 21 23:59:59 2027 GMT"
++    }
++  ]
++}
+diff --git a/verify-dns-cache.py b/verify-dns-cache.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..a6a49ab0231d72e385bee0b6b9831a6deb7db55b
+--- /dev/null
++++ b/verify-dns-cache.py
+@@ -0,0 +1,6 @@
++import importlib.util,pathlib,json,hashlib,datetime
++s=importlib.util.spec_from_file_location('ipfs_fetch','work/windows-final-runtime-integration-20261023/candidate/wasm/ipfs_fetch.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=pathlib.Path('work/nucbox-ram96-20261023');proof=json.loads((p/'dns-artifact-proof.json').read_text());data=m.fetch_verified(proof['cid'],'http://134.199.235.187:8189',5000000,20)
++assert len(data)==proof['bytes'] and hashlib.sha256(data).hexdigest()==proof['sha256']
++o={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'gateway':'http://134.199.235.187:8189','cid':proof['cid'],'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data),'verified':True}
++(p/'cache-readback.json').write_text(json.dumps(o,indent=2)+'\n');print(json.dumps(o))
+diff --git a/verify-public.py b/verify-public.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..1d1c2a5767ff3eb1005bf4f87fa74173e662522a
+--- /dev/null
++++ b/verify-public.py
+@@ -0,0 +1,10 @@
++import concurrent.futures,datetime,json,pathlib,subprocess
++ids=['c13d4b6a','ef514ed3','e64f7cba','59f1273d','a69dcbba','d9798e4c','a77d0c57','38f368d6','7ae476a3']
++ips=['146.190.246.39','165.245.191.129']
++def check(pair):
++ i,ip=pair;host=i+'.app.enclave.host'
++ r=subprocess.run(['curl','-sS','--max-time','10','--resolve',host+':443:'+ip,'-o','/dev/null','-w','%{http_code}','https://'+host+'/ping'],capture_output=True,text=True,timeout=12)
++ return {'app':i,'ip':ip,'curlExit':r.returncode,'http':r.stdout,'error':r.stderr[:200]}
++with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex: rows=list(ex.map(check,[(i,ip)for i in ids for ip in ips]))
++o={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'note':'Existing ingress addresses explicitly selected; hostname/CA verification enabled. Does not test DNS resolution. /ping status may vary by app.','results':rows}
++p=pathlib.Path('work/nucbox-ram96-20261023')/('public-'+datetime.datetime.now(datetime.timezone.utc).strftime('%H%M%S')+'.json');p.write_text(json.dumps(o,indent=2)+'\n');print(json.dumps(o))

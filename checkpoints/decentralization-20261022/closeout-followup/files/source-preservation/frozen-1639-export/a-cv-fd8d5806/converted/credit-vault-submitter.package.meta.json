@@ -1,0 +1,33 @@
+{
+  "format": "enclave-host-service-package/v1",
+  "role": "credit-vault-submitter",
+  "entry": "network/credit-vault-submitter.mjs",
+  "bundleEntry": "network/host-services/entries/credit-vault-submitter.mjs",
+  "bundle": "credit-vault-submitter.mjs",
+  "bundleSha256": "4c25cde6d7f8c726dc2d57f92cf47630f067a6086ee6893d8e57d50f9fb619f6",
+  "bytes": 1374197,
+  "runtime": "node>=22 (host role; not a wasm component)",
+  "kind": "credit-vault-submitter",
+  "serves": "POST /v1/credit-vault/submit: a passkey-signed credit-vault (or proposed parallel-reserve) request is re-derived from its bytes, simulated at an agreed block and sent unchanged, gas paid by the operator; GET /health",
+  "state": {
+    "durable": true,
+    "what": "the external signer's intent journal (cli/independent-signer.mjs): a broadcast whose outcome is unknown is never re-signed",
+    "rebuild": "none needed: a lost journal only loses idempotency for requests still in flight (each request has one nonce, so it executes at most once)"
+  },
+  "secrets": "none in the role: the operator's own loopback external signer signs the gas transactions (the role holds no key)",
+  "cold": [
+    "Base state: two or more RPC providers that must agree (legacy), OR the operator's local proof-backed verifier plus one transaction transport (chainVerifier)",
+    "receipts (optional, with chainVerifier): the local Ethereum L1 pair and Base node (receiptSource)",
+    "the operator's loopback signer",
+    "the pinned credit-vault factories (built in, or pins)"
+  ],
+  "notCold": [
+    "api.enclave.host or any Enclave API",
+    "discovery",
+    "directories",
+    "storage adapters",
+    "lease relays",
+    "any app"
+  ],
+  "builder": "scripts/build-host-service-packages.mjs"
+}
