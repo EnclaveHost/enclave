@@ -23,6 +23,7 @@ import { measureGflops } from './compute-measure.mjs';
 import {prepareMetalHostPolicy} from './guest/host-policy.bundle.mjs';
 import { leaseGasTransit } from './guest/lease-gas-conduit.bundle.mjs';
 import { checkOwnerNomination } from './guest/owner-nomination.mjs';
+import { checkChainVerifier } from './guest/chain-verifier.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 function arg(name, dflt) { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : dflt; }
@@ -253,6 +254,15 @@ if (DIRECT && cfg.platformPolicyCarriers !== undefined && cfg.platformPolicyCarr
 const POLICY_CARRIERS = DIRECT || cfg.platformPolicyCarriers === undefined || cfg.platformPolicyCarriers === null ? null
   : (await import('./guest/measured-control.mjs')).checkPolicyCarriers(cfg.platformPolicyCarriers, { publicUrl: String(cfg.publicUrl || '') });
 if (POLICY_CARRIERS) console.log(`[enclave-metal] platform policy carriers: ${(await import('./guest/measured-control.mjs')).policyCarriersLaunchSummary(POLICY_CARRIERS)}`);
+// The host operator's explicit opt-in to the LOCAL chain verifier inside the guest (metal/guest/chain-verifier.mjs): the
+// administrator's sequencer pin, 1..16 explicit proof sources and its loopback port. Public, the host controller's own
+// config; checked here (written to fw_cfg in its checked form) and again in the guest against the image's pinned runtime.
+// Absent: nothing changes (the guest's readers keep the provider quorum). Invalid: REFUSES the launch. A direct control
+// guest does not launch the verifier (not in its bound config yet): a host-level setting refuses rather than being ignored.
+if (DIRECT && cfg.chainVerifier !== undefined && cfg.chainVerifier !== null)
+  throw new Error('control: "direct" does not launch the local chain verifier (relay mode only for now); remove chainVerifier');
+const CHAIN_VERIFIER = DIRECT || cfg.chainVerifier === undefined || cfg.chainVerifier === null ? null : checkChainVerifier(cfg.chainVerifier);
+if (CHAIN_VERIFIER) console.log(`[enclave-metal] local chain verifier: ${CHAIN_VERIFIER.proofSources.length} proof source(s), guest loopback port ${CHAIN_VERIFIER.port}`);
 const cmdline = [
   'console=ttyS0', 'root=/dev/ram0', 'rootfstype=ramfs', 'quiet',
   `metal.mode=${MODE}`,
@@ -281,6 +291,8 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: DIRECT ? DIRECT.config.i
   ...(OWNER_NOMINATION ? { ownerNomination: OWNER_NOMINATION } : {}),
   // the platform host policy carriers (POLICY_CARRIERS above): public, untrusted transport, checked again in the guest
   ...(POLICY_CARRIERS ? { platformPolicyCarriers: POLICY_CARRIERS } : {}),
+  // the local chain verifier opt-in (CHAIN_VERIFIER above): public, checked again in the guest against the image's runtime
+  ...(CHAIN_VERIFIER ? { chainVerifier: CHAIN_VERIFIER } : {}),
   // the referral code this machine was set up with (`enclave host init --referral`): attribution only; the guest agent
   // says it when it attaches (x-metal-referral, relay/referrals.mjs). fw_cfg, so it never changes the measurement
   referral: cfg.referral || '',

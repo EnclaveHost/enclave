@@ -263,4 +263,42 @@ class ControlOverlay(unittest.TestCase):
             named=("'./"+f+"'") in gsup or any(("'./"+f+"'") in subprocess.check_output(['git','show',COMMIT+':metal/guest/'+g],cwd=REPO).decode() for g in files if g!=f)
             self.assertEqual(f in files,named,f)
 
+
+import os, shutil
+VERIFIER_INPUTS=os.environ.get('CHAIN_VERIFIER_INPUTS')
+class ChainVerifierOverlay(ControlOverlay):
+    """The local chain verifier's image inputs (metal/chain-verifier-image.json): JavaScript closure always, native files only
+    from --chain-verifier-dir and only at their pinned digests, with executable/read-only modes."""
+    def pins(self):return json.loads(mod.committed(COMMIT,REPO,mod.CHAIN_VERIFIER_PINS))
+    def test_without_inputs_the_javascript_ships_and_the_native_runtime_is_recorded_absent(self):
+        self.base_image();out=self.root/'out';m=mod.overlay(self.base,out,COMMIT,REPO);after=self.read(out)
+        self.assertIn('opt/metal/chain-verifier.mjs',after)
+        for f in ['rpc-runtime-main.mjs','rpc-runtime.mjs','runtime-lock.mjs','witness-gateway.mjs','gossip-head-source.mjs']:
+            self.assertEqual(after['app/network/'+f][1],mod.committed(COMMIT,REPO,'network/'+f))
+        self.assertFalse(any(k.startswith('opt/rpc-runtime') for k in after),'no IMAGE.json, no native file')
+        self.assertEqual(m['controlOverlay']['chainVerifier']['installed'],False)
+    @unittest.skipUnless(VERIFIER_INPUTS,'CHAIN_VERIFIER_INPUTS not set')
+    def test_with_inputs_every_pinned_file_is_installed_with_its_mode_and_digest(self):
+        self.base_image();out=self.root/'out';m=mod.overlay(self.base,out,COMMIT,REPO,chain_verifier_dir=VERIFIER_INPUTS);after=self.read(out)
+        p=self.pins()
+        for b in p['binaries'].values():
+            f=after[b['path'].lstrip('/')];self.assertEqual(f[0][1],0o100555);self.assertEqual(mod.sha(f[1]),b['sha256']);self.assertEqual(f[0][2:4],[0,0])
+        for n,d in p['glibcRuntime']['files'].items():
+            f=after[(p['glibcRuntime']['dir']+'/'+n).lstrip('/')];self.assertEqual(mod.sha(f[1]),d)
+            self.assertEqual(f[0][1],0o100555 if n.startswith('ld-linux') else 0o100444)
+        self.assertEqual(after['opt/rpc-runtime/IMAGE.json'][1],mod.committed(COMMIT,REPO,mod.CHAIN_VERIFIER_PINS))
+        self.assertTrue(stat.S_ISDIR(after['opt/rpc-runtime/glibc'][0][1]))
+        rec=m['controlOverlay']['chainVerifier'];self.assertTrue(rec['installed']);self.assertEqual(rec['pinsSha256'],mod.sha(mod.committed(COMMIT,REPO,mod.CHAIN_VERIFIER_PINS)))
+        self.assertEqual(len(rec['files']),len(p['binaries'])+len(p['glibcRuntime']['files'])+1)
+    @unittest.skipUnless(VERIFIER_INPUTS,'CHAIN_VERIFIER_INPUTS not set')
+    def test_a_native_file_that_is_not_the_pinned_one_refuses_and_writes_nothing(self):
+        self.base_image();bad=self.root/'inputs';shutil.copytree(VERIFIER_INPUTS,bad)
+        os.chmod(bad/'witness-check',0o644);(bad/'witness-check').write_bytes((bad/'witness-check').read_bytes()+b'x')
+        out=self.root/'out'
+        with self.assertRaisesRegex(ValueError,'not the pinned'):mod.overlay(self.base,out,COMMIT,REPO,chain_verifier_dir=str(bad))
+        self.assertFalse(out.exists())
+# reuse ControlOverlay's fixtures without running its tests a second time
+for _n in [n for n in vars(ControlOverlay) if n.startswith('test_')]:
+    setattr(ChainVerifierOverlay, _n, None)
+
 if __name__=='__main__':unittest.main()

@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """Stage a measured control runtime from committed files over a verified base image.
-Usage: overlay-control-image.py [--control direct] BASE OUT COMMIT. Never modifies BASE or starts a VM.
+Usage: overlay-control-image.py [--control direct] [--chain-verifier-dir DIR] BASE OUT COMMIT. Never modifies BASE or starts a VM.
 Preserves untouched cpio entries, adds missing directories, and records exact inputs.
 --control direct makes the MEASURED independent control image (docs/network/measured-control-guest.md) over a verified
 snp-guest-per-app base, as build-image.mjs --control direct does, keeping the base's kernel and modules: it installs the
 committed platform API bundle with its sidecars and the hosted MCP bundle with its runtime files (each checked against its
 committed bundle manifest; no file may replace another) and appends metal.control=direct to the measured cmdline. Without it
 the output is exactly what this tool always produced.
+When the commit's gsup.mjs launches the local chain verifier (metal/guest/chain-verifier.mjs), the image also carries its
+runtime: network/rpc-runtime-main.mjs's whole import closure under /app, the committed pin record
+metal/chain-verifier-image.json as /opt/rpc-runtime/IMAGE.json, and the native files that record pins (the listener, Helios,
+the witness helper and the glibc runtime two of them run through), taken from --chain-verifier-dir by name and refused
+unless each one's sha256 is the pinned one. Without --chain-verifier-dir such a commit's image carries the JavaScript but
+no IMAGE.json and no native file (recorded as chainVerifier.installed false): an operator's opt-in then REFUSES in the guest
+(every verified read refuses), never runs an unpinned verifier and never falls back to providers.
 """
 import gzip, hashlib, io, json, posixpath, re, shutil, stat, subprocess, sys
 from pathlib import Path
@@ -30,7 +37,11 @@ GUEST_FILES = ['gsup.mjs', 'agent.mjs', 'host-policy.bundle.mjs', 'shielded.mjs'
                'shielded-probe.mjs', 'shielded-shm.mjs']
 # Guest modules a committed gsup.mjs may import: installed exactly when that commit's gsup imports them (its closure),
 # so an overlay of an older commit is unchanged and a newer one never ships a gsup without its helper.
-OPTIONAL_GUEST_FILES = ['measured-control.mjs', 'lease-gas-conduit.bundle.mjs', 'owner-nomination.mjs']
+OPTIONAL_GUEST_FILES = ['measured-control.mjs', 'lease-gas-conduit.bundle.mjs', 'owner-nomination.mjs', 'chain-verifier.mjs']
+# the chain verifier's runtime entry (its whole local import closure is installed with it) and its committed pin record
+CHAIN_VERIFIER_ROOTS = ['network/rpc-runtime-main.mjs']
+CHAIN_VERIFIER_PINS = 'metal/chain-verifier-image.json'
+
 _MODES = {}
 def committed(commit, repo, rel):
     """The bytes the image installs for rel at commit, or None when absent. A git symlink (mode 120000) is followed
@@ -265,7 +276,34 @@ def encode(name, fields, data=b''):
     prefix = b'070701' + b''.join(f'{n:08x}'.encode() for n in fields) + nm
     return prefix + b'\0' * (-len(prefix) % 4) + data + b'\0' * (-len(data) % 4)
 
-def overlay(base, out, commit, repo, control=''):
+def chain_verifier_files(commit, repo, vdir):
+    """-> ({image path: bytes}, {image path: mode}, record) for the pinned native files; refuses any digest mismatch."""
+    pins_bytes = committed(commit, repo, CHAIN_VERIFIER_PINS)
+    if pins_bytes is None:
+        raise ValueError('the commit launches the chain verifier but has no '+CHAIN_VERIFIER_PINS)
+    pins = json.loads(pins_bytes)
+    if pins.get('format') != 'enclave-chain-verifier-image/v1':
+        raise ValueError(CHAIN_VERIFIER_PINS+' has an unknown format')
+    wanted = [(b['path'], b['sha256'], 0o100555) for b in pins['binaries'].values()]
+    g = pins.get('glibcRuntime')
+    if g:
+        for n, digest in g['files'].items():
+            wanted.append((g['dir'].rstrip('/')+'/'+n, digest, 0o100555 if n.startswith('ld-linux') else 0o100444))
+    files, modes, record = {}, {}, []
+    for target, digest, mode in wanted:
+        if not target.startswith('/opt/rpc-runtime/'):
+            raise ValueError('a pinned chain verifier file must live under /opt/rpc-runtime: '+target)
+        source = Path(vdir)/posixpath.basename(target)
+        data = source.read_bytes()
+        if sha(data) != digest:
+            raise ValueError('chain verifier input '+str(source)+' has sha256 '+sha(data)+', not the pinned '+digest)
+        files[target.lstrip('/')], modes[target.lstrip('/')] = data, mode
+        record.append({'path': target, 'sha256': digest, 'bytes': len(data), 'mode': oct(mode & 0o777)})
+    files['opt/rpc-runtime/IMAGE.json'] = pins_bytes
+    record.append({'path': '/opt/rpc-runtime/IMAGE.json', 'sha256': sha(pins_bytes), 'source': CHAIN_VERIFIER_PINS})
+    return files, modes, {'pins': CHAIN_VERIFIER_PINS, 'pinsSha256': sha(pins_bytes), 'files': record}
+
+def overlay(base, out, commit, repo, control='', chain_verifier_dir=None):
     if control not in ('', 'direct'):
         raise ValueError('--control must be direct')
     if out.exists():
@@ -285,6 +323,23 @@ def overlay(base, out, commit, repo, control=''):
     commit = subprocess.check_output(['git', 'rev-parse', commit+'^{commit}'], cwd=repo, text=True).strip()
     installed_app, packages = app_files(commit, repo)
     paths = {**{'app/'+p: p for p in installed_app}, **{'opt/metal/'+p: 'metal/guest/'+p for p in guest_files(commit, repo)}}
+    native, modes, verifier_record = {}, {}, None
+    if 'opt/metal/chain-verifier.mjs' in paths:
+        def read(rel):
+            data = committed(commit, repo, rel)
+            return data.decode() if data is not None else None
+        rt_files, rt_packages = supervisor_closure(read, CHAIN_VERIFIER_ROOTS)
+        for p in rt_files:
+            paths.setdefault('app/'+p, p)
+        for n, subs in rt_packages.items():
+            packages[n] = sorted(set(packages.get(n, [])) | set(subs))
+        if chain_verifier_dir:
+            native, modes, verifier_record = chain_verifier_files(commit, repo, chain_verifier_dir)
+            verifier_record['installed'] = True
+        else:
+            verifier_record = {'installed': False, 'reason': 'no --chain-verifier-dir: JavaScript only; an opt-in refuses in the guest'}
+    elif chain_verifier_dir:
+        raise ValueError('--chain-verifier-dir given, but the commit\'s gsup.mjs does not launch the chain verifier')
     if control:
         if 'opt/metal/measured-control.mjs' not in paths:
             raise ValueError('the commit\'s gsup.mjs runs no measured control (metal/guest/measured-control.mjs)')
@@ -294,6 +349,10 @@ def overlay(base, out, commit, repo, control=''):
         mcp_add, mcp_record = mcp_files(commit, repo, paths)
         paths.update(mcp_add)
     replacements = {k: committed(commit, repo, v) for k,v in paths.items()}
+    for k, v in native.items():
+        if k in replacements:
+            raise ValueError('a chain verifier file would replace a committed one: '+k)
+        replacements[k] = v
     m.pop('expectedMeasurement', None)
     m.pop('initramfs', None)
     previous = m.pop('controlOverlay', None)
@@ -301,7 +360,9 @@ def overlay(base, out, commit, repo, control=''):
         m.setdefault('controlOverlayHistory', []).append(previous)
     m['controlOverlay'] = {'baseInitramfsSha256': base_sha, 'commit': commit,
         'builder': 'metal/overlay-control-image.py', 'builderSha256': file_sha(Path(__file__)),
-        'files': [{'path': '/'+k, 'source': paths[k], 'sha256': sha(v)} for k,v in replacements.items()]}
+        'files': [{'path': '/'+k, 'source': paths.get(k, 'chain-verifier pin'), 'sha256': sha(v)} for k,v in replacements.items()]}
+    if verifier_record:
+        m['controlOverlay']['chainVerifier'] = verifier_record
     if control:
         # the same records build-image.mjs --control direct writes; the kernel and modules stay the base's (m['kernel'])
         m['control'], m['platformApiBundle'], m['mcpBundle'], m['cmdlineTemplate'] = control, pa_record, mcp_record, cmdline[0]
@@ -370,7 +431,7 @@ def overlay(base, out, commit, repo, control=''):
                             if k in metadata:
                                 continue
                             maxino += 1
-                            z.write(encode(prefix+k, [maxino, 0o100644, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0], v))
+                            z.write(encode(prefix+k, [maxino, modes.get(k, 0o100644), 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0], v))
                     if key in replacements:
                         body(f, fields[6])
                         z.write(encode(name, fields, replacements[key]))
@@ -391,15 +452,17 @@ def overlay(base, out, commit, repo, control=''):
     return m
 
 if __name__ == '__main__':
-    args, control = sys.argv[1:], ''
+    args, control, verifier_dir = sys.argv[1:], '', None
     if args[:1] == ['--control']:
         control, args = (args[1] if len(args) > 1 else ''), args[2:]
         if control != 'direct':
             raise SystemExit('--control must be direct')
+    if args[:1] == ['--chain-verifier-dir']:
+        verifier_dir, args = (args[1] if len(args) > 1 else ''), args[2:]
     if len(args) != 3:
         raise SystemExit(__doc__)
     try:
-        result = overlay(Path(args[0]), Path(args[1]), args[2], Path(__file__).resolve().parent.parent, control)
+        result = overlay(Path(args[0]), Path(args[1]), args[2], Path(__file__).resolve().parent.parent, control, verifier_dir)
         print(json.dumps(result['initramfs']))
     except (ValueError, OSError, subprocess.CalledProcessError) as e:
         raise SystemExit(str(e))

@@ -19,6 +19,7 @@ import { prepareShieldedShm } from './shielded-shm.mjs';
 import {installMetalHostPolicy} from './host-policy.bundle.mjs';
 import { leaseGasGuest, withLeaseGasEnv } from './lease-gas-conduit.bundle.mjs';
 import { guestOwnerNomination, withOwnerNominationEnv } from './owner-nomination.mjs';
+import { guestChainVerifier, withChainVerifierEnv, writeChainVerifierConfig } from './chain-verifier.mjs';
 
 const log = (...a) => { try { fs.writeSync(1, `[gsup] ${a.join(' ')}\n`); } catch {} };
 const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return d; } };
@@ -502,6 +503,20 @@ const MC_LEGACY = CONTROL ? null : await import('./measured-control.mjs');
 const POLICY_CARRIERS = CONTROL ? null : await MC_LEGACY.guestPolicyCarriers(fw.platformPolicyCarriers, { publicUrl: PUBLIC_URL });
 if (POLICY_CARRIERS?.message) log(POLICY_CARRIERS.message);
 
+// --- chain verifier (opt-in; metal/guest/chain-verifier.mjs) -----------------------------------------------------------------
+// fw_cfg `chainVerifier`, from the host controller's own config (metal/enclave-metal.mjs checked it), checked again here
+// against THIS image's pinned verifier (/opt/rpc-runtime/IMAGE.json). Started BEFORE the supervisor, as its own supervised
+// child (restarted with backoff like the others; the runtime reaps its own orphans and holds a kernel lock on its state
+// directory). The supervisor is not held back for it: its verified readers refuse until the verifier is ready, so adoption
+// and serving of running apps start as before while new verified decisions wait. Absent: no runtime, no names, unchanged.
+const CHAIN_VERIFIER = CONTROL ? null : guestChainVerifier(fw.chainVerifier);
+if (CHAIN_VERIFIER?.message) log(CHAIN_VERIFIER.message);
+if (CHAIN_VERIFIER?.ok) {
+  try { start('chain-verifier', CHAIN_VERIFIER.argv(writeChainVerifierConfig(CHAIN_VERIFIER)), CHAIN_VERIFIER.env, { cwd: '/app' }); }
+  catch (e) { log(`chain verifier could not be started (${e.code || e.message}): every verified chain read refuses; no provider fallback`); }
+}
+// --- end chain verifier -----------------------------------------------------------------------------------------------------
+
 // --- supervisor (base root) --------------------------------------------------
 if (!CONTROL) {
 const supEnv = {
@@ -591,7 +606,7 @@ const supEnv = {
   ADMIN_TOKEN,
   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
 };
-start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], MC_LEGACY.withPolicyCarriersEnv(withOwnerNominationEnv(withLeaseGasEnv(supEnv, LEASE_GAS), OWNER_NOMINATION.nomination), POLICY_CARRIERS), { cwd: '/app' });
+start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], withChainVerifierEnv(MC_LEGACY.withPolicyCarriersEnv(withOwnerNominationEnv(withLeaseGasEnv(supEnv, LEASE_GAS), OWNER_NOMINATION.nomination), POLICY_CARRIERS), CHAIN_VERIFIER), { cwd: '/app' });
 
 // --- metal-agent -------------------------------------------------------------
 start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
