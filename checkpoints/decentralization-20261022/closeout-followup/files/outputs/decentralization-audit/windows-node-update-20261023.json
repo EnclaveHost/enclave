@@ -47,20 +47,35 @@
     "startedAt": 1792718362117,
     "completedAt": 1792718401698
   },
-  "pending": "Observe the remaining three renewals and longer-term wallet/route stability. RPC independence and full architecture completion remain unproven.",
+  "pending": "Longer-term route stability and updater persistence remain to verify. RPC independence and full architecture completion are incomplete.",
   "renewalFollowup": {
-    "at": "2026-10-23T01:34:39.859Z",
-    "renewals": 6,
+    "at": "2026-10-23T01:43:32.291Z",
+    "renewals": 9,
+    "distinctApps": 9,
     "ids": [
-      "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
-      "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
       "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
       "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
-      "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
-      "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371"
+      "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238"
     ],
-    "chargedWeiTotal": "7578515675624",
-    "evidence": "New agent owns9600 before/after; fresh readiness; native renewal logs at01:30-01:32; matching ledgerRenewed and reserveLeaseGasPaid events from twoRPCproviders",
-    "limitation": "Two-provider corroboration is not independent proof verification. Logs do not distinguish renewal timer from the regular pass."
+    "chargedWeiTotal": "11440638202044",
+    "evidence": "Same nine deployments running under agent28460; all nine leaseUntil values advanced; matching ledger Renewed and reserve LeaseGasPaid events from two RPC providers after the new process start.",
+    "limitation": "Two-provider corroboration, not independent witness proof verification. Events do not identify whether keeper timer or regular pass initiated a renewal."
+  },
+  "routeFollowup": {
+    "at": "2026-10-23T01:44:57.7838161Z",
+    "from": "2026-10-23T01:19:00.0000000Z",
+    "recentLines": 746,
+    "coveredStart": true,
+    "egressOff": 0,
+    "walletWithheld": 0,
+    "chainQuorumUnavailable": 3,
+    "method": "Dates reconstructed backwards from file LastWriteTimeUtc and time-only log lines, decrementing date at midnight. Counts cover this file tail only; clock changes or missing/rotated logs limit inference. Zero matching lines is NOT evidence of stability.",
+    "usable": true
   }
 }

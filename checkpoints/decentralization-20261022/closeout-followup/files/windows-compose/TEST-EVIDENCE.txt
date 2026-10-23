@@ -1,0 +1,531 @@
+# windows-compose terminal test evidence digest (generated from logs/; the full logs stay local)
+# Per log: sha256 and size of the full log, then only its queue/job/summary/failure/skip/guard lines (file hashes as printed by job.sh).
+# KILLED- and GUARDSTOP- runs do NOT count (see RESULT.md section 5).
+
+## GUARDSTOP-wc5-bundle-512.log  sha256 9b9b624fa8570b37462b72ffae6a28b17b5b81f8a8b559e9232f52b13ba1066a  bytes 7654
+    [queue] START available=25401MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    === (1) composed: new test + regression
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate mode test
+    ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de  windows/node/host.mjs
+    3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938  windows/node/chain.mjs
+    76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1  windows/node/agent.mjs
+    65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68  windows/node/appzone.mjs
+    bdc6019cd82d35860670ba69debe853c22c1ef0b1261a56fe73a3ffff56211de  windows/node/network-enroll.mjs
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    d5885d2caa8f5e40439b69bfa847d4e85b6fb95df1af2a8da0c1b2bee9c6a688  network/privacy-agent.mjs
+    cb42269dad71148d2efc20a1167847472e9e94e9a915c3a50f564179c53739e2  network/host-admission-runtime.mjs
+    bea43b21998f24798f5da7175fa982f68cbe76ce0df3ac8dbc1e4d7a859880af  test/windows-node-wallet-channel-bundle.test.mjs
+    038bb6b2f266c044da45dc45ccd7023263470b9c9ab99a91e3f5247a6a0f27c8  test/catalog-platform-enforcement.test.mjs
+    109e1f7b8c2c2523006c2493b84ead82366b22fe304bb2f8ab47679f2381a878  test/host-admission-retry.test.mjs
+    afb389941dbaac3db694a1d3c30d1e7ff981a408c0b16839bd85955a11008996  test/host-contract-pins.test.mjs
+    b21672c451cfe1c21437e562e90144df5b53dd977033a8ebbac8bcb0f4504c87  test/host-egress.test.mjs
+    cfd929f7a91a4074262dae837fbc57c56e53e680f4fab27c8a1964d5fd4dcafb  test/host-policy-callsites.test.mjs
+    58079c957e3849912b24c2c825a8495b00e1e79be092fb2f59d0d7c8f7eb75c5  test/host-policy-mirrors.test.mjs
+    8071a53e81ff478debd960059728560d231a89661c8932b132470f52204fd832  test/metal-launcher-isolation.test.mjs
+    ffdd9e1496fb8b87556de512b13d8a37d3b84b43f5ddfec57c1946122933754e  test/network-consumer-bundle.test.mjs
+    1f1c71b47d19582a6184f7af6f36cbe9521351d28c292fab36026035fc1130a9  test/offchain-heartbeat-writers.test.mjs
+    22bb65153079cdcd1b3e8ee9ed8262ca3869c3683063f09c280ebb1e9536c2f4  test/paid-network.test.mjs
+    f2282f2831a0e651d90ce235dd49f10ecc1b91257d7bbc11cc5777417d04d422  test/registry-reconcile.test.mjs
+    d65a9b05ccfa2a90b37f24ffa8e1a958e9335c297eb1773265f434a66ec890b1  test/session-api-auth.test.mjs
+    0a1969b7178a6a2e94c17d5cd3d8cfdc81f5ca105f9115dc50697c1f67a3e7f9  test/session-authority-pins.test.mjs
+    56edee4bae9dd9aed1b2453d3b1206a34677f65af67e3e3c2d1fda45ce39344e  test/tenant-compute-eligibility.test.mjs
+    1f46b24a6ffa61049c096815f2f997b407ef3bcd11f2e9632e690aaef567fc92  test/verifier-nucbox-legacy-refused.test.mjs
+    a2588312b40e740cf6ff40789e07046fa57e189353a76715e55cb65da9123d7a  test/supervisor-wallet-policy.test.mjs
+    a8c08530d20645d4a7b75e263c8c8f96e2ab9496252533018072140ae29e04af  test/platform-host-policy-process.test.mjs
+    ✖ actual Windows wallet gate passes only ledger-authoritative private visibility (2.386163ms)
+    [memory-guard] STOPPING own job: process tree RSS 663 MiB > 512 MiB
+    [memory-guard] exit=SIGTERM peakTreeRssMiB=663 minHostAvailableMiB=25095 STOPPED: process tree RSS 663 MiB > 512 MiB
+    [memory-guard] at peak: node:67 node:61 node:61 wasmtime:14 wasmtime:14 wasmtime:14 wasmtime:14 wasmtime:14
+    [queue] EXIT 99
+
+## GUARDSTOP-wc6-768.log  sha256 0498e49d45f648fe6734923a7e93cdd707292c1f345d7d5dd9bb05f4ae39fa61  bytes 2443
+    [queue] START available=25397MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    === (a) composed: offchain-heartbeat-writers + session-api-auth with anvil
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate mode test
+    ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de  windows/node/host.mjs
+    3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938  windows/node/chain.mjs
+    76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1  windows/node/agent.mjs
+    65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68  windows/node/appzone.mjs
+    bdc6019cd82d35860670ba69debe853c22c1ef0b1261a56fe73a3ffff56211de  windows/node/network-enroll.mjs
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    d5885d2caa8f5e40439b69bfa847d4e85b6fb95df1af2a8da0c1b2bee9c6a688  network/privacy-agent.mjs
+    cb42269dad71148d2efc20a1167847472e9e94e9a915c3a50f564179c53739e2  network/host-admission-runtime.mjs
+    1f1c71b47d19582a6184f7af6f36cbe9521351d28c292fab36026035fc1130a9  test/offchain-heartbeat-writers.test.mjs
+    d65a9b05ccfa2a90b37f24ffa8e1a958e9335c297eb1773265f434a66ec890b1  test/session-api-auth.test.mjs
+    ﹣ the REAL supervisor sends no periodic registry transaction; real drift is corrected once; a deregistration is not undone (0.536666ms) # needs the Foundry build (forge build)
+    ﹣ negative control: the base supervisor DOES heartbeat on the same rig (the counter sees it) (0.09424ms) # needs the Foundry build (forge build)
+    ﹣ the REAL Windows node sends no transaction from its timers, dialed or tunnelled; its tick does not undo a deregistration; deliberate status and price writes still go out (0.065059ms) # needs the Foundry build (forge build)
+    [memory-guard] STOPPING own job: process tree RSS 905 MiB > 768 MiB
+    [memory-guard] exit=SIGTERM peakTreeRssMiB=905 minHostAvailableMiB=24621 STOPPED: process tree RSS 905 MiB > 768 MiB
+    [memory-guard] at peak: solc-0.8.35:265 node:238 solc-0.8.35:234 forge:68 node:55 anvil:26 bash:6 bash:6
+    [queue] EXIT 99
+
+## GUARDSTOP-wc6b-1536.log  sha256 6fd20e415b660a16ee7a60cfb704ffa51b5f679338b8c90dc72846ad642fc03d  bytes 2356
+    [queue] START available=25278MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    === (a) composed: offchain-heartbeat-writers + session-api-auth with anvil
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate mode test
+    ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de  windows/node/host.mjs
+    3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938  windows/node/chain.mjs
+    76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1  windows/node/agent.mjs
+    65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68  windows/node/appzone.mjs
+    bdc6019cd82d35860670ba69debe853c22c1ef0b1261a56fe73a3ffff56211de  windows/node/network-enroll.mjs
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    d5885d2caa8f5e40439b69bfa847d4e85b6fb95df1af2a8da0c1b2bee9c6a688  network/privacy-agent.mjs
+    cb42269dad71148d2efc20a1167847472e9e94e9a915c3a50f564179c53739e2  network/host-admission-runtime.mjs
+    1f1c71b47d19582a6184f7af6f36cbe9521351d28c292fab36026035fc1130a9  test/offchain-heartbeat-writers.test.mjs
+    d65a9b05ccfa2a90b37f24ffa8e1a958e9335c297eb1773265f434a66ec890b1  test/session-api-auth.test.mjs
+    ﹣ the REAL supervisor sends no periodic registry transaction; real drift is corrected once; a deregistration is not undone (0.540396ms) # needs the Foundry build (forge build)
+    ﹣ negative control: the base supervisor DOES heartbeat on the same rig (the counter sees it) (0.09682ms) # needs the Foundry build (forge build)
+    ﹣ the REAL Windows node sends no transaction from its timers, dialed or tunnelled; its tick does not undo a deregistration; deliberate status and price writes still go out (0.067089ms) # needs the Foundry build (forge build)
+    [memory-guard] STOPPING own job: process tree RSS 1536 MiB > 1536 MiB
+    [memory-guard] exit=SIGTERM peakTreeRssMiB=1536 minHostAvailableMiB=23938 STOPPED: process tree RSS 1536 MiB > 1536 MiB
+    [memory-guard] at peak: solc-0.8.35:586 solc-0.8.35:538 node:245 forge:68 node:54 anvil:25 bash:6 bash:6
+    [queue] EXIT 99
+
+## KILLED-wc3-focus-512.log  sha256 17cfa575d9a0bb600b3ea34fcc4df75da315314ab05ec1a659b20e94ccf8f219  bytes 15256
+    [queue] START available=25331MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate mode test
+    ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de  windows/node/host.mjs
+    3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938  windows/node/chain.mjs
+    76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1  windows/node/agent.mjs
+    65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68  windows/node/appzone.mjs
+    bdc6019cd82d35860670ba69debe853c22c1ef0b1261a56fe73a3ffff56211de  windows/node/network-enroll.mjs
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    d5885d2caa8f5e40439b69bfa847d4e85b6fb95df1af2a8da0c1b2bee9c6a688  network/privacy-agent.mjs
+    cb42269dad71148d2efc20a1167847472e9e94e9a915c3a50f564179c53739e2  network/host-admission-runtime.mjs
+    648a4236bc4eddb186b0fadb9932bbe6289d5fb7078812d276984bee35a7b283  test/host-admission-runtime.test.mjs
+    abaa681164f9a9d907b64b802275105acde9b365e07fffc378ad43b87ea819cd  test/windows-node-appzone-wallet-hold.test.mjs
+    88e42af545822c9018c2c1510e867a5d7c6ecd6a8b4198e6b982769dab72c3a6  test/windows-node-lease-readiness.test.mjs
+    519c431cec67fda2d8d2a84085760470f74517a66e74efdaa86a71ebe230f267  test/windows-node-lease-renewal-keeper.test.mjs
+    5270bef33e77301f9ef896aa3c254d7c05e6d9bc14528839879edf766d2a6573  test/windows-node-wallet-enroll.test.mjs
+    903de4163ea715ed3ecf3b7179fcd52235e50b24f35f5f88598da262bec2851b  test/windows-node-wallet-grant-refresh.test.mjs
+    d12d1aa8f44bc8944a4c994e86904ed4fc4820f9fe0b320cc14de49c4ef5ddc2  test/windows-node-wallet-network-hold.test.mjs
+    63df6e39049ac53203f187e54635d760356e6095678f3ee47dc3f37b6377805c  test/privacy-agent-config.test.mjs
+    c5cad0289a352e72f509d5d3e5d10bb45e8b0bcff94c85967184f2fd4bc6456c  test/privacy-agent-lifecycle.test.mjs
+    62461469ea71441f4a8a148b55d26aeb4f4cfafe266e3c9cedd2d48c889dc9e7  test/privacy-agent-proofs.test.mjs
+    2077cdff9f4d4f4755dd866e8e5e7fe62e4481550e82986b36154e7d739d3bf8  test/wg-manager.test.mjs
+    c4658c86743cf3664f82a637fd5de67b270ca4db2d0aab4df75b7fda3fcdb8b7  test/local-app-router.test.mjs
+    0de57d29308d8a8b84cdd80a8e00f0184e93591d59d6158a5bbedfb49c27653a  test/windows-node-network-enroll.test.mjs
+
+## wc1-build-check-512.log  sha256 023f7da65e16dcf63b7cf51caaa45ab418fc3ce8b294bae052d1ea375c789000  bytes 1517
+    [queue] START available=25491MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate mode build-check
+    e41122d7a547635821d7d237e69460fcda33f7aa7f77e35afbde0754ae310a1a  windows/node/host.mjs
+    86c81124cca6f6e1c06c25c075c03c6811bb46e9344291df080245ffdf3d6580  windows/node/chain.mjs
+    c2fe0fff853b563cf9c498aadc4178ae6171731dd58172264d6c3e8709895064  windows/node/agent.mjs
+    ba9d9bb13f2ea19cdcbdcdbc021ddbabbd201618ff1e834b733cc220fc8c26c6  windows/node/appzone.mjs
+    2d97a0e10e40ceaa0be897708dc3cfa48742619450605efc107b22674caae2ac  windows/node/network-enroll.mjs
+    7aeb5de953f1faaef0bfaa0e5f0d8138c3726a04ca3614225aa1159694bbfcd4  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    3a2508680df2eb63673064cad9f99f2147d440580ef8bf2e1f5a9026ced27cc1  network/privacy-agent.mjs
+    f9e009dadf3bb3a7d6f6823153f06864a9a58c0b3f2e2df1f35c3a606b2d83ec  network/host-admission-runtime.mjs
+    [job] exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=195 minHostAvailableMiB=25394
+    [memory-guard] at peak: esbuild:116 node:65 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## wc2-build-512.log  sha256 834662637e485a134469d77342e734ae45d089140134206f8577ad17ee19cd86  bytes 1598
+    [queue] START available=25571MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate mode build
+    e41122d7a547635821d7d237e69460fcda33f7aa7f77e35afbde0754ae310a1a  windows/node/host.mjs
+    86c81124cca6f6e1c06c25c075c03c6811bb46e9344291df080245ffdf3d6580  windows/node/chain.mjs
+    c2fe0fff853b563cf9c498aadc4178ae6171731dd58172264d6c3e8709895064  windows/node/agent.mjs
+    ba9d9bb13f2ea19cdcbdcdbc021ddbabbd201618ff1e834b733cc220fc8c26c6  windows/node/appzone.mjs
+    2d97a0e10e40ceaa0be897708dc3cfa48742619450605efc107b22674caae2ac  windows/node/network-enroll.mjs
+    7aeb5de953f1faaef0bfaa0e5f0d8138c3726a04ca3614225aa1159694bbfcd4  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    d5885d2caa8f5e40439b69bfa847d4e85b6fb95df1af2a8da0c1b2bee9c6a688  network/privacy-agent.mjs
+    cb42269dad71148d2efc20a1167847472e9e94e9a915c3a50f564179c53739e2  network/host-admission-runtime.mjs
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    [job] exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=195 minHostAvailableMiB=25439
+    [memory-guard] at peak: esbuild:117 node:64 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## wc3b-focus-512.log  sha256 4b7dd47d3fe3f76f3549d25fa8962c21b15a9ec84f3afcb8fdb1d1070ebec457  bytes 14169
+    [queue] START available=25296MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate mode test
+    ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de  windows/node/host.mjs
+    3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938  windows/node/chain.mjs
+    76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1  windows/node/agent.mjs
+    65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68  windows/node/appzone.mjs
+    bdc6019cd82d35860670ba69debe853c22c1ef0b1261a56fe73a3ffff56211de  windows/node/network-enroll.mjs
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    d5885d2caa8f5e40439b69bfa847d4e85b6fb95df1af2a8da0c1b2bee9c6a688  network/privacy-agent.mjs
+    cb42269dad71148d2efc20a1167847472e9e94e9a915c3a50f564179c53739e2  network/host-admission-runtime.mjs
+    648a4236bc4eddb186b0fadb9932bbe6289d5fb7078812d276984bee35a7b283  test/host-admission-runtime.test.mjs
+    abaa681164f9a9d907b64b802275105acde9b365e07fffc378ad43b87ea819cd  test/windows-node-appzone-wallet-hold.test.mjs
+    88e42af545822c9018c2c1510e867a5d7c6ecd6a8b4198e6b982769dab72c3a6  test/windows-node-lease-readiness.test.mjs
+    519c431cec67fda2d8d2a84085760470f74517a66e74efdaa86a71ebe230f267  test/windows-node-lease-renewal-keeper.test.mjs
+    5270bef33e77301f9ef896aa3c254d7c05e6d9bc14528839879edf766d2a6573  test/windows-node-wallet-enroll.test.mjs
+    903de4163ea715ed3ecf3b7179fcd52235e50b24f35f5f88598da262bec2851b  test/windows-node-wallet-grant-refresh.test.mjs
+    d12d1aa8f44bc8944a4c994e86904ed4fc4820f9fe0b320cc14de49c4ef5ddc2  test/windows-node-wallet-network-hold.test.mjs
+    63df6e39049ac53203f187e54635d760356e6095678f3ee47dc3f37b6377805c  test/privacy-agent-config.test.mjs
+    c5cad0289a352e72f509d5d3e5d10bb45e8b0bcff94c85967184f2fd4bc6456c  test/privacy-agent-lifecycle.test.mjs
+    62461469ea71441f4a8a148b55d26aeb4f4cfafe266e3c9cedd2d48c889dc9e7  test/privacy-agent-proofs.test.mjs
+    2077cdff9f4d4f4755dd866e8e5e7fe62e4481550e82986b36154e7d739d3bf8  test/wg-manager.test.mjs
+    c4658c86743cf3664f82a637fd5de67b270ca4db2d0aab4df75b7fda3fcdb8b7  test/local-app-router.test.mjs
+    0de57d29308d8a8b84cdd80a8e00f0184e93591d59d6158a5bbedfb49c27653a  test/windows-node-network-enroll.test.mjs
+    ℹ tests 91
+    ℹ pass 91
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [job] exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=289 minHostAvailableMiB=25046
+    [memory-guard] at peak: pwsh:120 node:95 node:61 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## wc4a-reg-512.log  sha256 3d2b9a3c8598eb42ab85d050acfa6a3a256a283406325b90495e53b51069b90b  bytes 47115
+    [queue] START available=25519MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate mode test
+    ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de  windows/node/host.mjs
+    3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938  windows/node/chain.mjs
+    76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1  windows/node/agent.mjs
+    65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68  windows/node/appzone.mjs
+    bdc6019cd82d35860670ba69debe853c22c1ef0b1261a56fe73a3ffff56211de  windows/node/network-enroll.mjs
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    d5885d2caa8f5e40439b69bfa847d4e85b6fb95df1af2a8da0c1b2bee9c6a688  network/privacy-agent.mjs
+    cb42269dad71148d2efc20a1167847472e9e94e9a915c3a50f564179c53739e2  network/host-admission-runtime.mjs
+    923d1e5bc5045bc62cb0761e8e220df2b7ff78a37521c07daed79cb285cba56c  test/windows-control-activation.test.mjs
+    ceb70d2b26562ab64f561c4b63cbe00aeb1bba7db56f0233bd6ef377b8e04a43  test/windows-current-runtime.test.mjs
+    de54216ebac4924bbb4e2e002319621481d9328077041efbba21ea47a25fdfdf  test/windows-host-app-funded.test.mjs
+    6653f11b054d5bc03a50f86d2c52f209af5cbee068a7af84ad6af496af9758b6  test/windows-node-abi-handshake.test.mjs
+    dd88ab22064abdb97644d745d20dcf96a3b4d46940a699d51255554fdd9babbf  test/windows-node-appzone-abort.test.mjs
+    bae9cdd7629297ccc337eb7529088e280bec2d41d960a3cbc2fd7fa0d212530b  test/windows-node-appzone-tls.test.mjs
+    48c1eccd2266bbd0915f7249dd8585fd4ee193ee5915aede60db6b0a87f61555  test/windows-node-artifact-override.test.mjs
+    f52c5da9a72943f06621aa6fa87bf27fe64fd24ee5b10a3212a22eb496a4e7a1  test/windows-node-audit-owner-only.test.mjs
+    069a2cafd7d836fb01930d965708e0f8177731416523c1b87cac95ffd6eb4198  test/windows-node-availability-flags.test.mjs
+    614d271279b13c8f11000b4aefb777bbb41c3f90e5d4ce60d0ed5061bf138b20  test/windows-node-availability-labels.test.mjs
+    dde1067f558163616e44227e46b9947798dfce89c0f5352ba84dc8af71f2ce86  test/windows-node-capacity-boundary.test.mjs
+    15e0561159bfb3f81496cc477d58367727ac1cf091c6447876a5cf6900f976fe  test/windows-node-claim-policy.test.mjs
+    3d0733319c2a30385d009539cdf5a6a92b3008bafa0dbff17a8b5245788461be  test/windows-node-config-secrets.test.mjs
+    89f1caad79e692fb1b63b8e9f710c5c1e65313db11d9dfa78b4ba351f0bbc36f  test/windows-node-deploy-files.test.mjs
+    9519a016b9a1ac8fdc1d2f70de95f4a935270af2bfcd9499ee393ac4b669d6ba  test/windows-node-domain-carryover.test.mjs
+    94059d57d20f17d013b1e9fbaff353a0dd2770d26dab80d6fcd7684b33316708  test/windows-node-domain-lifecycle.test.mjs
+    60f229f8aa4178b64abd246c9c7a359e0467c6a99657fb8eb125a20c8702e11c  test/windows-node-enclave-budget.test.mjs
+    504330f40410ddba82f501a82654778b083442f5bc7263d79e076c8213d3b682  test/windows-node-gas-runway.test.mjs
+    ea4e6456043fc868722b0ff3ef8953da0892809367e1e04130812807f3993f6e  test/windows-node-gflops-floor.test.mjs
+    9c7999cb6bd370e7c7ead5bec334d22598bff1cd1af0f07eeb237b635bd3d79b  test/windows-node-giveup-once.test.mjs
+    782957e628e231241aefa4f18ce61a967368088e5be3db555f64b1699c86c725  test/windows-node-host-wide-loss.test.mjs
+    5f4606ff806a67dd587e8ced7f54a5b8a1b3c9cebdeab8a58c88b226ebda76dd  test/windows-node-hosting-caps.test.mjs
+    655b56ea91543bebdd831b74e2fdfb9eb4727eeb489f51235f1d68c7b0331239  test/windows-node-hv-attach.test.mjs
+    8e8526c50e7c8ea6aa6358c45363bd4c6e32a105304d64fabe99b45b7c856a0d  test/windows-node-hvcert.test.mjs
+    2b8ce23ddb35ff92111f88714087ed2a971f61ecd1fbd1a2a9fd252c0a0b0158  test/windows-node-isolation-host.test.mjs
+    70388d8d91140c3e0be308001cf28af4c071bf49ad7e8782f175b7cdc26329dd  test/windows-node-live-edit.test.mjs
+    a0d69127ad4b24ede884008ea12fa32330740bd059ddb2948e9889536e36937c  test/windows-node-norenew.test.mjs
+    7f7420ca830345d161090e4abc8e5a243e5866088685362bfdc959353cd223b2  test/windows-node-owner-set.test.mjs
+    272b85d40026c527c610f9fc9ab3e18cd45a346b22c543097e3cd82e4671ea97  test/windows-node-platform-policy.test.mjs
+    20584e5e7fe23344256c74050b36c8d60c40c685c5bcf38214f4f73b8f72a027  test/windows-node-preclaim.test.mjs
+    05e413c594a5bcb512e82d532ebda49fd4653c0f3171ef284e54b3cf6acdc024  test/windows-node-price-once.test.mjs
+    dd4afaa1a9b3735dbdea3639a43101859eafb896fc00846a01753ad4f12c7472  test/windows-node-pricing.test.mjs
+    b37621201a45d6a17b8ea7a03cd3f22e947b8352daf0ad44d4d02252c7a5b3a3  test/windows-node-private-paths.test.mjs
+    267a6e01c253b9e071d660beb05d0c9d823db92685f05d10a4697e11b42e0c36  test/windows-node-private.test.mjs
+    755008c8fb116633a18257fb731db5467af9ffb011b514eb43b0108dfa1f826b  test/windows-node-prove-isolated.test.mjs
+    f6a53bd9c95bdb327e9de3e10be8c6655fa74304958cdd499283e4f8bce33e57  test/windows-node-reboot-recovery.test.mjs
+    fe62636c516f37b5160df10b634f5440533886d8881fd63de7b8ca8c4c37719a  test/windows-node-respawn.test.mjs
+    065d81e957d2d16c798c49d7ac6bc178dfb19667961fefe07af706356358521b  test/windows-node-restart-gate.test.mjs
+    a2edebb2641c7d172f530cabadfccc29ee9983bbefe05c50212f98780888aa38  test/windows-node-retired-engine-agent.test.mjs
+    9c15572cdf525ca2e2af595c49a5243d71c649e62b32a8d2a63ad4c87cdb68db  test/windows-node-retired-engine.test.mjs
+    6eac3c55c5e1eeaaa91c4dbd7c601b5ce6a4f46e6075cc8b43589af2b82d9eee  test/windows-node-scan-slot.test.mjs
+    83703fdfbee2d1caa78ee5860322d372552c2497a7a64af633f4c3ffb131f5b0  test/windows-node-secrets-unknown.test.mjs
+    3f9e6e7c64e0283d6ff1a08ce4e63c50161b920240b016255bf502174a90d82c  test/windows-node-sni.test.mjs
+    499ca08c9c3b4e1b82eb14b4e0482cac2f8a5429e2241a5d04990e221ec18ecc  test/windows-node-sponsor-retry.test.mjs
+    47b5383f50100dd1f7cb6beaa24618b43cabc0716fe987615f74815fb7c4e84a  test/windows-node-stopapp-tick.test.mjs
+    d8ceb1af3c517d144c84a9d46e73c94956e5f0c0713b3c8f2a20d72744745f49  test/windows-node-tick-single-flight.test.mjs
+    1e874137b71d40fdcf0030fc05b63415c2d224f1bc09ccf568138483fc36ad2a  test/windows-node-vanished-domain.test.mjs
+    e1fe51e8b12e2697930587c360cc32b5a3ecca1f7206d8ce49ce62de795e665c  test/windows-node-waf-body.test.mjs
+    b7285d8fe48a12f6edf2dcff06518d426f5140c347224d2b61e78281b1605d9a  test/windows-node-wallet-policy.test.mjs
+    31217277232a1f26ff8a7a55ebeec30158734caba1742f1ab0a9f5c026e2a2db  test/windows-release-journal.test.mjs
+    09f7fff98c9af72114a4d5f3a981255211c0dbdc64c04adf2b9b312bdadc32db  test/windows-shield-startup.test.mjs
+    5ffeb8a3e0a56a8aca81cee3d313b5a9912f4c921e8a97537213d803b655e95a  test/windows-shield-verifier.test.mjs
+    ﹣ Windows actual chain module claims, renews and releases a self-hosted app using its reserve and zero operator ETH (0.843463ms) # needs anvil
+    ﹣ partial Windows sponsorship configuration refuses even when the host wallet could pay (0.162459ms) # needs anvil
+    ﹣ Windows respects an admin contract migration and refuses stale gas configuration without spending (0.107029ms) # needs anvil
+    ﹣ app-funded Windows host with a zero-ETH key: still in the market, honest status, no 'apps stop renewing' advice (0.807223ms) # needs anvil
+    ﹣ CONTROL: the same Host with app-funded leases unconfigured and the same zero-ETH key refuses claims and tells the operator to top up (0.170258ms) # needs anvil
+    ﹣ the startup line for a zero-ETH key says what THIS configuration pays from it (0.153248ms) # needs anvil
+    ﹣ 1. lost release answer + restart: the id stays HELD (chain module and the real Host), then the delayed landing settles RELEASED (0.611115ms) # needs anvil
+    ﹣ 2/3. fences are not success: a never-landing release settles 'expired'; one whose nonce another operation consumed settles 'consumed' (0.109899ms) # needs anvil
+    ﹣ 4. the journal cannot be written: nothing is signed and no relay sees a release (0.07353ms) # needs anvil
+    ﹣ 5. a corrupt journal: every lease operation is refused and the file is never overwritten (0.124189ms) # needs anvil
+    ﹣ 6. operator rotation: another key's higher nonce never settles a pending release; rotating back stays HELD; the late landing settles it (0.08666ms) # needs anvil
+    ﹣ 7. record rotation: a pending release signed under another reserve is not fenced by its nonce here; only its deadline settles it (0.11318ms) # needs anvil
+    ﹣ 8. an entry whose identity was never recorded (an older journal) is HELD, never guessed from the current key (0.06124ms) # needs anvil
+    ℹ tests 337
+    ℹ pass 324
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 13
+    [job] exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=396 minHostAvailableMiB=24107
+    [memory-guard] at peak: node:80 node:61 node:60 node:60 node:60 node:60 bash:6 timeout:4
+    [queue] EXIT 0
+
+## wc4b-relay-768.log  sha256 5d2b4519fa3004b2a4e1103c027bd0fa46346d211e42bef24d7031e682d2cb3d  bytes 12650
+    [queue] START available=25301MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate mode test
+    ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de  windows/node/host.mjs
+    3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938  windows/node/chain.mjs
+    76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1  windows/node/agent.mjs
+    65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68  windows/node/appzone.mjs
+    bdc6019cd82d35860670ba69debe853c22c1ef0b1261a56fe73a3ffff56211de  windows/node/network-enroll.mjs
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    d5885d2caa8f5e40439b69bfa847d4e85b6fb95df1af2a8da0c1b2bee9c6a688  network/privacy-agent.mjs
+    cb42269dad71148d2efc20a1167847472e9e94e9a915c3a50f564179c53739e2  network/host-admission-runtime.mjs
+    95ef5e3c7d171fd3f202ec381d59f298e0ecbf384f9b9c19722f4e793f5cdb9d  test/lease-designated-relays.test.mjs
+    9398935aa71061c9855b88cad517a186660083df19f9d09e9ccc9a5d5a11e7ba  test/lease-host-relay.test.mjs
+    2636805669b9fd805d68fa689af85f50a91813dee28c845be87dda81a4415676  test/lease-pinned-relay.test.mjs
+    a9a7feb04d78e92faa41320c1892000ef4f567b82432e297c06b902890deac6f  test/lease-relay-migration.test.mjs
+    e1b10604974ee9baf6e2822b7449e977cbc2dbc9faa4e80d6de32d0d1407fdca  test/provider-canary-independent.test.mjs
+    fe10c99101c51c254002f4965f677db3c518dc85afc32cd573f6db23f702b831  test/relay-fresh-attestation-shield.test.mjs
+    de54216ebac4924bbb4e2e002319621481d9328077041efbba21ea47a25fdfdf  test/windows-host-app-funded.test.mjs
+    31217277232a1f26ff8a7a55ebeec30158734caba1742f1ab0a9f5c026e2a2db  test/windows-release-journal.test.mjs
+    ✖ relay: a client verifies a live Enclave Shield host itself - the relay forwards its nonce and its own credential and returns the TPM evidence verbatim; the attach is untouched, checks are spaced, a refusal reaches only the check (975.8088
+    ✖ test/relay-fresh-attestation-shield.test.mjs (200101.227273ms)
+    ✖ 4. the journal cannot be written: nothing is signed and no relay sees a release (136.865703ms)
+    ℹ tests 37
+    ℹ pass 34
+    ℹ fail 2
+    ℹ cancelled 1
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ relay: a client verifies a live Enclave Shield host itself - the relay forwards its nonce and its own credential and returns the TPM evidence verbatim; the attach is untouched, checks are spaced, a refusal reaches only the check (975.8088
+    ✖ test/relay-fresh-attestation-shield.test.mjs (200101.227273ms)
+    ✖ 4. the journal cannot be written: nothing is signed and no relay sees a release (136.865703ms)
+    [job] exit=1
+    [memory-guard] exit=1 peakTreeRssMiB=693 minHostAvailableMiB=23669
+    [memory-guard] at peak: solc-0.8.35:460 node:85 node:59 forge:51 anvil:25 bash:6 timeout:4 unshare:4
+    [queue] EXIT 1
+
+## wc5b-bundle-768.log  sha256 cb951f6ea64b6dda32d330a97ad79b8827f31082465645c23d600d2d47f5251f  bytes 47988
+    [queue] START available=25305MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    === (1) composed: new test + regression
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate mode test
+    ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de  windows/node/host.mjs
+    3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938  windows/node/chain.mjs
+    76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1  windows/node/agent.mjs
+    65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68  windows/node/appzone.mjs
+    bdc6019cd82d35860670ba69debe853c22c1ef0b1261a56fe73a3ffff56211de  windows/node/network-enroll.mjs
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    d5885d2caa8f5e40439b69bfa847d4e85b6fb95df1af2a8da0c1b2bee9c6a688  network/privacy-agent.mjs
+    cb42269dad71148d2efc20a1167847472e9e94e9a915c3a50f564179c53739e2  network/host-admission-runtime.mjs
+    bea43b21998f24798f5da7175fa982f68cbe76ce0df3ac8dbc1e4d7a859880af  test/windows-node-wallet-channel-bundle.test.mjs
+    038bb6b2f266c044da45dc45ccd7023263470b9c9ab99a91e3f5247a6a0f27c8  test/catalog-platform-enforcement.test.mjs
+    109e1f7b8c2c2523006c2493b84ead82366b22fe304bb2f8ab47679f2381a878  test/host-admission-retry.test.mjs
+    afb389941dbaac3db694a1d3c30d1e7ff981a408c0b16839bd85955a11008996  test/host-contract-pins.test.mjs
+    b21672c451cfe1c21437e562e90144df5b53dd977033a8ebbac8bcb0f4504c87  test/host-egress.test.mjs
+    cfd929f7a91a4074262dae837fbc57c56e53e680f4fab27c8a1964d5fd4dcafb  test/host-policy-callsites.test.mjs
+    58079c957e3849912b24c2c825a8495b00e1e79be092fb2f59d0d7c8f7eb75c5  test/host-policy-mirrors.test.mjs
+    8071a53e81ff478debd960059728560d231a89661c8932b132470f52204fd832  test/metal-launcher-isolation.test.mjs
+    ffdd9e1496fb8b87556de512b13d8a37d3b84b43f5ddfec57c1946122933754e  test/network-consumer-bundle.test.mjs
+    1f1c71b47d19582a6184f7af6f36cbe9521351d28c292fab36026035fc1130a9  test/offchain-heartbeat-writers.test.mjs
+    22bb65153079cdcd1b3e8ee9ed8262ca3869c3683063f09c280ebb1e9536c2f4  test/paid-network.test.mjs
+    f2282f2831a0e651d90ce235dd49f10ecc1b91257d7bbc11cc5777417d04d422  test/registry-reconcile.test.mjs
+    d65a9b05ccfa2a90b37f24ffa8e1a958e9335c297eb1773265f434a66ec890b1  test/session-api-auth.test.mjs
+    0a1969b7178a6a2e94c17d5cd3d8cfdc81f5ca105f9115dc50697c1f67a3e7f9  test/session-authority-pins.test.mjs
+    56edee4bae9dd9aed1b2453d3b1206a34677f65af67e3e3c2d1fda45ce39344e  test/tenant-compute-eligibility.test.mjs
+    1f46b24a6ffa61049c096815f2f997b407ef3bcd11f2e9632e690aaef567fc92  test/verifier-nucbox-legacy-refused.test.mjs
+    a2588312b40e740cf6ff40789e07046fa57e189353a76715e55cb65da9123d7a  test/supervisor-wallet-policy.test.mjs
+    a8c08530d20645d4a7b75e263c8c8f96e2ab9496252533018072140ae29e04af  test/platform-host-policy-process.test.mjs
+    ✖ actual Windows wallet gate passes only ledger-authoritative private visibility (2.153098ms)
+    ✖ standalone network bundles load outside the repository without npm dependencies (464.584363ms)
+    ﹣ the REAL supervisor sends no periodic registry transaction; real drift is corrected once; a deregistration is not undone (0.605016ms) # needs Foundry's anvil and openssl
+    ﹣ negative control: the base supervisor DOES heartbeat on the same rig (the counter sees it) (0.0867ms) # needs Foundry's anvil and openssl
+    ﹣ the REAL Windows node sends no transaction from its timers, dialed or tunnelled; its tick does not undo a deregistration; deliberate status and price writes still go out (0.05796ms) # needs Foundry's anvil and openssl
+    ✖ PACKAGED relay: starts from the deploy closure with the policy off and on; attach refused, admitted, hot-banned (1.850769ms)
+    ✖ both platforms load the same rule; the supervisor image and the Windows deploy closure ship it (3.241652ms)
+    ﹣ pinned factory and ledger verify real sessions with the book forbidden, and zero never restores legacy factories (0.075109ms) # needs Foundry (anvil + forge)
+    ﹣ a good signature verifies, names the vault, the session and the owner's wallet, and reports what it was signed for (0.126749ms) # needs Foundry (anvil + forge)
+    ﹣ /t/<name> and the host's own URL: verified exactly when this host has that name (0.203939ms) # needs Foundry (anvil + forge)
+    ﹣ tampered method, path, query, body or host: the signature does not verify (0.257718ms) # needs Foundry (anvil + forge)
+    ﹣ stale or future timestamps, and a replayed nonce (single use PER HOST) (0.174339ms) # needs Foundry (anvil + forge)
+    ﹣ a key that is not the session's, an ended session, a missing scope, a vault no known factory made (0.050639ms) # needs Foundry (anvil + forge)
+    ﹣ the record rule: vault-held by environment, wallet-held only with production AND the ledger delegation (0.04063ms) # needs Foundry (anvil + forge)
+    ﹣ Windows Host: a restart and a private app take a wallet session; the box's own sign-in still works (0.03193ms) # needs Foundry (anvil + forge)
+    ﹣ supervisor: logs, restart, app-token, list, get, cpu-profile and create, with wallet sessions over its real routes (0.03123ms) # needs Foundry (anvil + forge)
+    ✖ Linux audit and renewal stop before releasing a denied deployment, and do not renew it (3.287061ms)
+    ℹ tests 90
+    ℹ pass 73
+    ℹ fail 5
+    ℹ cancelled 0
+    ℹ skipped 12
+    ✖ failing tests:
+    ✖ actual Windows wallet gate passes only ledger-authoritative private visibility (2.153098ms)
+    ✖ standalone network bundles load outside the repository without npm dependencies (464.584363ms)
+    ✖ PACKAGED relay: starts from the deploy closure with the policy off and on; attach refused, admitted, hot-banned (1.850769ms)
+    ✖ both platforms load the same rule; the supervisor image and the Windows deploy closure ship it (3.241652ms)
+    ✖ Linux audit and renewal stop before releasing a denied deployment, and do not renew it (3.287061ms)
+    [job] exit=1
+    === (2) composed: host-admission-runtime on the shipped bundle
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate mode test
+    ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de  windows/node/host.mjs
+    3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938  windows/node/chain.mjs
+    76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1  windows/node/agent.mjs
+    65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68  windows/node/appzone.mjs
+    bdc6019cd82d35860670ba69debe853c22c1ef0b1261a56fe73a3ffff56211de  windows/node/network-enroll.mjs
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    d5885d2caa8f5e40439b69bfa847d4e85b6fb95df1af2a8da0c1b2bee9c6a688  network/privacy-agent.mjs
+    cb42269dad71148d2efc20a1167847472e9e94e9a915c3a50f564179c53739e2  network/host-admission-runtime.mjs
+    648a4236bc4eddb186b0fadb9932bbe6289d5fb7078812d276984bee35a7b283  test/host-admission-runtime.test.mjs
+    ℹ tests 7
+    ℹ pass 7
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [job] exit=0
+    === (3a) CONTROL normal tree: new test (must fail)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/tmp/norm mode test
+    e41122d7a547635821d7d237e69460fcda33f7aa7f77e35afbde0754ae310a1a  windows/node/host.mjs
+    86c81124cca6f6e1c06c25c075c03c6811bb46e9344291df080245ffdf3d6580  windows/node/chain.mjs
+    c2fe0fff853b563cf9c498aadc4178ae6171731dd58172264d6c3e8709895064  windows/node/agent.mjs
+    ba9d9bb13f2ea19cdcbdcdbc021ddbabbd201618ff1e834b733cc220fc8c26c6  windows/node/appzone.mjs
+    2d97a0e10e40ceaa0be897708dc3cfa48742619450605efc107b22674caae2ac  windows/node/network-enroll.mjs
+    7aeb5de953f1faaef0bfaa0e5f0d8138c3726a04ca3614225aa1159694bbfcd4  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    3a2508680df2eb63673064cad9f99f2147d440580ef8bf2e1f5a9026ced27cc1  network/privacy-agent.mjs
+    f9e009dadf3bb3a7d6f6823153f06864a9a58c0b3f2e2df1f35c3a606b2d83ec  network/host-admission-runtime.mjs
+    bea43b21998f24798f5da7175fa982f68cbe76ce0df3ac8dbc1e4d7a859880af  test/windows-node-wallet-channel-bundle.test.mjs
+    ✖ the shipped admission bundle has decision(): the channel starts EMPTY and a definite allow carries the original chain deadline (3.53032ms)
+    ✖ platform moderation through the same bundle: an administrator yank refuses the deployment and withdraws its published allow (0.571296ms)
+    ℹ tests 2
+    ℹ pass 0
+    ℹ fail 2
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ the shipped admission bundle has decision(): the channel starts EMPTY and a definite allow carries the original chain deadline (3.53032ms)
+    ✖ platform moderation through the same bundle: an administrator yank refuses the deployment and withdraws its published allow (0.571296ms)
+    [job] exit=1
+    === (3b) CONTROL normal tree: host-admission-runtime (composed test file) on bundle 7aeb5de9 (decision cases must fail)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/tmp/norm mode test
+    e41122d7a547635821d7d237e69460fcda33f7aa7f77e35afbde0754ae310a1a  windows/node/host.mjs
+    86c81124cca6f6e1c06c25c075c03c6811bb46e9344291df080245ffdf3d6580  windows/node/chain.mjs
+    c2fe0fff853b563cf9c498aadc4178ae6171731dd58172264d6c3e8709895064  windows/node/agent.mjs
+    ba9d9bb13f2ea19cdcbdcdbc021ddbabbd201618ff1e834b733cc220fc8c26c6  windows/node/appzone.mjs
+    2d97a0e10e40ceaa0be897708dc3cfa48742619450605efc107b22674caae2ac  windows/node/network-enroll.mjs
+    7aeb5de953f1faaef0bfaa0e5f0d8138c3726a04ca3614225aa1159694bbfcd4  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    3a2508680df2eb63673064cad9f99f2147d440580ef8bf2e1f5a9026ced27cc1  network/privacy-agent.mjs
+    f9e009dadf3bb3a7d6f6823153f06864a9a58c0b3f2e2df1f35c3a606b2d83ec  network/host-admission-runtime.mjs
+    648a4236bc4eddb186b0fadb9932bbe6289d5fb7078812d276984bee35a7b283  test/host-admission-runtime.test.mjs
+    ✖ decision lifetime is bounded by BOTH original agreeing snapshots; cached authority is never renewed locally (0.529027ms)
+    ✖ decision refuses stale or future catalog data and never adds a fresh grace period (0.400128ms)
+    ℹ tests 7
+    ℹ pass 5
+    ℹ fail 2
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ decision lifetime is bounded by BOTH original agreeing snapshots; cached authority is never renewed locally (0.529027ms)
+    ✖ decision refuses stale or future catalog data and never adds a fresh grace period (0.400128ms)
+    [job] exit=1
+    === (3c) CONTROL normal tree: windows-release-journal with anvil (case 4 expected to fail as on the composed tree: mapped root ignores chmod 0500)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/tmp/norm mode test
+    e41122d7a547635821d7d237e69460fcda33f7aa7f77e35afbde0754ae310a1a  windows/node/host.mjs
+    86c81124cca6f6e1c06c25c075c03c6811bb46e9344291df080245ffdf3d6580  windows/node/chain.mjs
+    c2fe0fff853b563cf9c498aadc4178ae6171731dd58172264d6c3e8709895064  windows/node/agent.mjs
+    ba9d9bb13f2ea19cdcbdcdbc021ddbabbd201618ff1e834b733cc220fc8c26c6  windows/node/appzone.mjs
+    2d97a0e10e40ceaa0be897708dc3cfa48742619450605efc107b22674caae2ac  windows/node/network-enroll.mjs
+    7aeb5de953f1faaef0bfaa0e5f0d8138c3726a04ca3614225aa1159694bbfcd4  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    3a2508680df2eb63673064cad9f99f2147d440580ef8bf2e1f5a9026ced27cc1  network/privacy-agent.mjs
+    f9e009dadf3bb3a7d6f6823153f06864a9a58c0b3f2e2df1f35c3a606b2d83ec  network/host-admission-runtime.mjs
+    31217277232a1f26ff8a7a55ebeec30158734caba1742f1ab0a9f5c026e2a2db  test/windows-release-journal.test.mjs
+    ✖ 4. the journal cannot be written: nothing is signed and no relay sees a release (137.702968ms)
+    ℹ tests 7
+    ℹ pass 6
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ 4. the journal cannot be written: nothing is signed and no relay sees a release (137.702968ms)
+    [job] exit=1
+    [job5] composed=1/0 control=1/1 release-journal-normal=1 (controls must be non-zero)
+    [memory-guard] exit=1 peakTreeRssMiB=670 minHostAvailableMiB=23744
+    [memory-guard] at peak: node:70 node:61 node:61 wasmtime:16 wasmtime:16 wasmtime:14 wasmtime:14 wasmtime:14
+    [queue] EXIT 1
+
+## wc7-1536.log  sha256 9a5e4a175577bb67fa081dc867a14728896714e3745b2313e18bfa9000311932  bytes 23710
+    [queue] START available=25193MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+    === (b) CONTROL normal tree: the five J5b failures
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/tmp/norm mode test
+    e41122d7a547635821d7d237e69460fcda33f7aa7f77e35afbde0754ae310a1a  windows/node/host.mjs
+    86c81124cca6f6e1c06c25c075c03c6811bb46e9344291df080245ffdf3d6580  windows/node/chain.mjs
+    c2fe0fff853b563cf9c498aadc4178ae6171731dd58172264d6c3e8709895064  windows/node/agent.mjs
+    ba9d9bb13f2ea19cdcbdcdbc021ddbabbd201618ff1e834b733cc220fc8c26c6  windows/node/appzone.mjs
+    2d97a0e10e40ceaa0be897708dc3cfa48742619450605efc107b22674caae2ac  windows/node/network-enroll.mjs
+    7aeb5de953f1faaef0bfaa0e5f0d8138c3726a04ca3614225aa1159694bbfcd4  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    3a2508680df2eb63673064cad9f99f2147d440580ef8bf2e1f5a9026ced27cc1  network/privacy-agent.mjs
+    f9e009dadf3bb3a7d6f6823153f06864a9a58c0b3f2e2df1f35c3a606b2d83ec  network/host-admission-runtime.mjs
+    038bb6b2f266c044da45dc45ccd7023263470b9c9ab99a91e3f5247a6a0f27c8  test/catalog-platform-enforcement.test.mjs
+    ffdd9e1496fb8b87556de512b13d8a37d3b84b43f5ddfec57c1946122933754e  test/network-consumer-bundle.test.mjs
+    a8c08530d20645d4a7b75e263c8c8f96e2ab9496252533018072140ae29e04af  test/platform-host-policy-process.test.mjs
+    f2282f2831a0e651d90ce235dd49f10ecc1b91257d7bbc11cc5777417d04d422  test/registry-reconcile.test.mjs
+    a2588312b40e740cf6ff40789e07046fa57e189353a76715e55cb65da9123d7a  test/supervisor-wallet-policy.test.mjs
+    ✖ actual Windows wallet gate passes only ledger-authoritative private visibility (2.229756ms)
+    ✖ standalone network bundles load outside the repository without npm dependencies (461.979569ms)
+    ✖ PACKAGED relay: starts from the deploy closure with the policy off and on; attach refused, admitted, hot-banned (4.857539ms)
+    ✖ both platforms load the same rule; the supervisor image and the Windows deploy closure ship it (3.22377ms)
+    ✖ Linux audit and renewal stop before releasing a denied deployment, and do not renew it (3.414918ms)
+    ℹ tests 11
+    ℹ pass 6
+    ℹ fail 5
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ actual Windows wallet gate passes only ledger-authoritative private visibility (2.229756ms)
+    ✖ standalone network bundles load outside the repository without npm dependencies (461.979569ms)
+    ✖ PACKAGED relay: starts from the deploy closure with the policy off and on; attach refused, admitted, hot-banned (4.857539ms)
+    ✖ both platforms load the same rule; the supervisor image and the Windows deploy closure ship it (3.22377ms)
+    ✖ Linux audit and renewal stop before releasing a denied deployment, and do not renew it (3.414918ms)
+    [job] exit=1
+    === (c) forge build -j 1 --offline (composed tree)
+    [memory-guard] STOPPING own job: process tree RSS 1536 MiB > 1536 MiB
+    [memory-guard] exit=SIGTERM peakTreeRssMiB=1536 minHostAvailableMiB=23870 STOPPED: process tree RSS 1536 MiB > 1536 MiB
+    [memory-guard] at peak: solc-0.8.35:736 solc-0.8.35:727 forge:59 bash:6 timeout:4 unshare:4
+    [queue] EXIT 99
+
+## wc8-scan-256.log  sha256 7f45f7a2fd894ac1b4d6e4cc24849fec0df76a89c5ee15b8dc844e8d3deb0331  bytes 1820
+    [queue] START available=24671MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    6:43PM INF 7 commits scanned.
+    6:43PM INF no leaks found
+    [job8] scan-crypto-keys=0 gitleaks=0
+    [memory-guard] exit=0 peakTreeRssMiB=52 minHostAvailableMiB=24630
+    [memory-guard] at peak: gitleaks:43 bash:6 timeout:4
+    [queue] EXIT 0
+
+## wc9-768.log  sha256 70246f1e674cb622133a07fbdd8e938454ce0e8a75ac4ac88abe688a3016d503  bytes 2078
+    [queue] START available=24172MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate mode test
+    ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de  windows/node/host.mjs
+    3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938  windows/node/chain.mjs
+    76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1  windows/node/agent.mjs
+    65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68  windows/node/appzone.mjs
+    bdc6019cd82d35860670ba69debe853c22c1ef0b1261a56fe73a3ffff56211de  windows/node/network-enroll.mjs
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21  metal/guest/host-policy.bundle.mjs
+    d5885d2caa8f5e40439b69bfa847d4e85b6fb95df1af2a8da0c1b2bee9c6a688  network/privacy-agent.mjs
+    cb42269dad71148d2efc20a1167847472e9e94e9a915c3a50f564179c53739e2  network/host-admission-runtime.mjs
+    ceb70d2b26562ab64f561c4b63cbe00aeb1bba7db56f0233bd6ef377b8e04a43  test/windows-current-runtime.test.mjs
+    ℹ tests 3
+    ℹ pass 3
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [job] exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=223 minHostAvailableMiB=24024
+    [memory-guard] at peak: node:118 node:55 anvil:36 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0
+

@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-23T01:34:39.859Z",
+  "at": "2026-10-23T01:43:32.291Z",
   "readOnly": true,
   "authority": "Two-provider corroboration, not independent proof verification",
   "rpc": [
@@ -7,8 +7,8 @@
     "https://base.gateway.tenderly.co"
   ],
   "verified": true,
-  "fromBlock": "52964364",
-  "toBlock": "52964964",
+  "fromBlock": "52964630",
+  "toBlock": "52965230",
   "renewals": [
     {
       "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
@@ -69,6 +69,36 @@
       "kind": 2,
       "operator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
       "chargedWei": "1396202668479"
+    },
+    {
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "tx": "0xbe1134cc875e968288e480c03f8875c75e5633f242e24d41f9f6bd163dca2ef3",
+      "block": "52965112",
+      "timestamp": "1792719571",
+      "leaseUntil": "1792721371",
+      "kind": 2,
+      "operator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+      "chargedWei": "1196237881252"
+    },
+    {
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "tx": "0xe6b0eff7d75d2209b4577240ebe9d99ccb20cf54c11526d6dfc2b8fcb4bdaa45",
+      "block": "52965160",
+      "timestamp": "1792719667",
+      "leaseUntil": "1792721467",
+      "kind": 2,
+      "operator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+      "chargedWei": "1462194300539"
+    },
+    {
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "tx": "0xdaa5c7213c5553d5c5048e2cfc847300c9409e7db34f6ffbab7be0a5dc6a0e8b",
+      "block": "52965217",
+      "timestamp": "1792719781",
+      "leaseUntil": "1792721835",
+      "kind": 2,
+      "operator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+      "chargedWei": "1203690344629"
     }
   ]
 }

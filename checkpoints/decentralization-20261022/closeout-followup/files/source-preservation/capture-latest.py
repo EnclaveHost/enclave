@@ -344,20 +344,76 @@ outputs.append(root / 'outputs/decentralization-audit/windows-node-update-202610
 # reviewed bytes (hashes, public ids, tx hashes, public RPC hosts, counts, timestamps only; no keys, snapshot, seed or private
 # handle). The read-only observation/verification sources sit under production-run/.
 FROZEN_RENEWAL = {
-    'work/resume-after-checkpoint-20261022/production-run/observe-node-renewal.py': '94b32780433491867c291379d0128f7763d8c1540e9d637770001ae8ec56730a',
+    'work/resume-after-checkpoint-20261022/production-run/observe-node-renewal.py': 'ac2c08d7163c53f33148de28cc11311aec2d8c89934145901868a4abb55b7d86',   # root 01:44Z update (was 94b32780)
     'work/resume-after-checkpoint-20261022/production-run/verify-node-renewal-chain.mjs': '2c6b976222c5052ff06d65dbd40652e95cf637f5cbc3e9489be9237c4f6df90a',
     'work/resume-after-checkpoint-20261022/dns-routing-investigation/RESULT.md': '2a04ed51c6ca551fcf5b2a96ac01c34aafb6a11a34f7ecd9e58bd6a38419058c',
     'work/resume-after-checkpoint-20261022/dns-routing-investigation/EVIDENCE-INVENTORY.json': '36760da10b74b3c914f01f31cf3033da6306124aa4296f8fe2501d41086c3f46',
-    'outputs/decentralization-audit/windows-node-update-20261023.json': '32cad8a3f5a9904614ae811c8f5609b7d84527faaa6c8879fa1a3969107a1e74',
-    'outputs/decentralization-audit/windows-node-renewal-observation-20261023.json': 'de7be8e14fb1f13e191b4365808fca568d2cce78bc8f8b788423327c52a33893',
+    'outputs/decentralization-audit/windows-node-update-20261023.json': '9f8d2f8a9c8e66398497ea649767aaa9379d1b9bac011c327336b558d6e9f0fc',   # root 01:45Z update (was 32cad8a3)
+    'outputs/decentralization-audit/windows-node-renewal-observation-20261023.json': 'a813e744436ba5bd5f393cc45ddd0a4773e4f8c607f1959c937dbeb6b62fe068',   # root 01:44Z update (was de7be8e1)
     'outputs/decentralization-audit/windows-node-renewal-log-20261023.json': '28bca996beba7451b04d30864c25ce5a1f1b34011fdc9a8d8a8c242685f637c0',
-    'outputs/decentralization-audit/windows-node-renewal-chain-20261023.json': '261477b6d464965875659a774a6fd62331c90362c514152bbb7e30f66bfdda00',
+    'outputs/decentralization-audit/windows-node-renewal-chain-20261023.json': '09ff59c9548514bdaa83aa71ad9e6fe191e10583d042205ebee1bcb17374cac2',   # root 01:43Z update (was 261477b6)
+    'work/resume-after-checkpoint-20261022/production-run/observe-route-stability.py': '6556b63bfc495bb349fe31ca954346cab20dbdad60c059a36ea991c7c0d9cc11',
+    'outputs/decentralization-audit/windows-route-stability-20261023.json': '6ffd478e5d384da2db054f4d85f0fd07038d9f8c63c3443b131ea4121a88fdba',
     'outputs/decentralization-audit/storage-whole-recovery-live-20261023.json': 'c6bfa9e5a835d4d7fa1e0d89bc4b766d0cd9bed5389f8884c40c6ed3ef1ad57a',
 }
 for name, want in FROZEN_RENEWAL.items():
     p = root / name
     assert hashlib.sha256(p.read_bytes()).hexdigest() == want, f'NOT CAPTURED: {name} changed after review'
     (outputs.append(p) if name.startswith('outputs/') else paths.add(p))
+# The Windows runtime composition a6fb7aab (accepted by root for the checkpoint branch, integrated there as normal history):
+# its frozen RESULT, the exact combined patch and per-commit series, the two composition scripts, the bounded job runners,
+# ssh/scp/sftp deny stubs and a digest of the terminal test logs (summary/failure/guard lines + each full log's sha256; the
+# full logs stay local). Never its candidate clone, node_modules, tmp/ (base copies), cutover/ copy or raw logs/.
+FROZEN_COMPOSE = {
+    'RESULT.md': '8b8ca620731b96d7003d224ae3be8b03a7c3bd4a8e61e74dfc91da7305f5811c',
+    'TEST-EVIDENCE.txt': 'b9f453b5dcf5a27327dd48a452d6a6ec30dcc05f5197017089972ccf0b61e095',
+    'windows-compose.patch': '6fc1e5d2668feac559015b34f4a3daf9f83f3ca2c49c4e4109b3df05e45871d4',
+    'job.sh': '101ab48301c94236e3f125964740490793f3cc4ccd678ee7d57dcf6b18e2bd44',
+    'job5.sh': 'dcf91038d0478f8a30307187640d1c09fe3c380fda1db6f4c580c77cee3b2c65',
+    'job6.sh': 'e6f958ed23a8390c3e4e01650544cd60fae053a480b60d9206ea4d908b0a357d',
+    'job7.sh': '8e7f81c5face98c5313976da1ffe9de832837c5c5bfee649a4de5773fdc48f8f',
+    'job8.sh': '8b0595d3c41dc5a2c57b60865428f7b42c399dae84f7ea59fad1a332ef5a6aba',
+    'q.sh': 'eebd5f173350590f2ed2446b11521831f36b59a79e0e38ec486ee867cf3cf07a',
+    'stubs/ssh': '71ee646db6c488a8cba2640a22ab284e8e6f0ce99265ff21fae7323d38bbded7',
+    'stubs/scp': '5f2ddbb8d3cabf11921faf8c9abe8266fa9f41578140c376b0f3f18a900c404e',
+    'stubs/sftp': 'c459fc1eeca4cf48b06279dbfbc5e94d2431b3fceea8eefe58298ec31887de30',
+    'tools/compose-privacy-agent.py': 'b3e5de0bf17aeb5545556570e6b33595a269bbd6c51460b15d81c3bc2e9f7331',
+    'tools/compose-network-enroll.py': '9b58515e6c831a303ac4b1191d2f5efc5186d3d1b8fd3a067ce5dffb127abca2',
+    'patches/0001-Compose-the-network-side-of-the-non-destructive-wall.patch': '5ba874886a5c39b8709bfd89f4b131c8a0f269666869fa0bee08160be0d0af34',
+    'patches/0002-Compose-the-Windows-node-s-wallet-hold-channel-and-l.patch': '81af3aaae55b7afa0932493738f50e99c09fcaefdad463a748ee173265a7630c',
+    'patches/0003-Refresh-wallet-grants-between-slow-host-passes.patch': '9f0b6fdd55114fe96c2bfc3282114d38e6ce960c94a9bd8e22c51826945021e3',
+    'patches/0004-Renew-leases-on-their-own-clock-outside-the-slow-hos.patch': '788d8b7303f4debaf0ac04b841f944ba6fbb75696b7caa7dd96ca29daca80bee',
+    'patches/0005-Reconcile-served-deployments-before-the-queued-claim.patch': 'ddd8060161507b45238152b9a80c6a4ea3601c1f99e159a08725ff465d2d9258',
+    'patches/0006-Serving-first-reconcile-same-pass-re-claims-and-cont.patch': 'f8fce01a746cfb4f9e37c27427580f4fec02c62da28104d185de2ef132a9579b',
+    'patches/0007-Test-the-wallet-hold-channel-on-the-shipped-admissio.patch': '0711426c547466a9c15f0fa3b7ee279e05c0ed0cbaadb39f12b175f79911ecfc',
+}
+for name, want in FROZEN_COMPOSE.items():
+    p = base / 'windows-compose' / name
+    assert hashlib.sha256(p.read_bytes()).hexdigest() == want, f'NOT CAPTURED: windows-compose/{name} changed after its final hash'
+    paths.add(p)
+paths.add(base / 'windows-source-composition-task.txt')
+# The FINISHED Base unsafe-head gossip listener (worker B, local commit f3159ea, no remote): every Git-tracked file at its exact
+# committed blob (inventory below lists blob ids + sha256), the reports, the vendoring provenance, and two small public
+# evidence files. Never target/ (binaries), upstream/base-5476069f (vendored crate copy: regenerated by
+# tools/prepare-upstream.py from the pinned tarball), runs/ raw logs, heads.jsonl, cargo metadata or ~/.cargo caches.
+hl = base / 'rpc-peer-audit/head-listener'
+inventory = json.loads((base / 'source-preservation/head-listener-f3159ea-inventory.json').read_text())
+assert inventory['commit'] == 'f3159ea73786eeda344f2ffa1dc82d59de46a6db'
+assert hashlib.sha256((base / 'source-preservation/head-listener-f3159ea-inventory.json').read_bytes()).hexdigest() == 'a3fa9aac07b540bd71c487a19179aedf55feb6fe224369b04ee0c05e03feb713'
+assert subprocess.check_output(['git', '-C', str(hl), 'rev-parse', 'HEAD'], text=True).strip() == inventory['commit'], 'NOT CAPTURED: head-listener moved'
+for f in inventory['trackedFiles']:
+    p = hl / f['path']
+    assert hashlib.sha256(p.read_bytes()).hexdigest() == f['sha256'], f'NOT CAPTURED: head-listener/{f["path"]} differs from f3159ea'
+    paths.add(p)
+paths.add(base / 'source-preservation/head-listener-f3159ea-inventory.json')
+for name, want in {'rpc-peer-audit/RESULT.md': '77df7063da9e128cf10383a698334af1addf149222994c2c2b0aa02442f1bd72',
+                   'rpc-peer-audit/INITIAL.md': '3948f8436149347baf90acc03edab7aaa052a5f1e230983be30cebe94695293e',
+                   'rpc-peer-audit/head-listener/upstream/PROVENANCE.json': 'f802da9444bef0db160e5ed52ddae40444de23d1dbd94a13d62f5c32dac5cc36',
+                   'rpc-peer-audit/head-listener/runs/post.out': '65cdd9243f8669f69514224cb0137aaa2ad177d4a159c151bb5369c0921215aa',
+                   'rpc-peer-audit/head-listener/runs/live-20261023T013719Z/crosscheck.json': 'bd01d5d3a15fcd98c51f199bb7786f465c732efa8569e48df0e451d2509740d0'}.items():
+    p = base / name
+    assert hashlib.sha256(p.read_bytes()).hexdigest() == want, f'NOT CAPTURED: {name} changed after review'
+    paths.add(p)
 # Root's public receipts: the EnclaveDNS TLS recovery observation and the 00:40Z progress snapshot.
 outputs += [root / 'outputs/decentralization-audit/enclavedns-tls-20261023.json',
             root / 'outputs/decentralization-audit/progress-20261023T0040.json']
@@ -394,17 +450,19 @@ LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; n
                                     'passed activation. Root\'s independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 '
                                     'post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes '
                                     'unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion',
-          'outputs/decentralization-audit/windows-node-update-20261023': 'ROOT public receipt: APPLIED and independently verified serving '
+          'outputs/decentralization-audit/windows-node-update-20261023': 'ROOT public receipt (updated 01:45Z): APPLIED and independently verified serving '
                                                                          'after the bounded startup check timed out (helper NOT_READY, not '
-                                                                         'passed). 01:34Z followup: six apps renewed 01:30-01:32 under the '
+                                                                         'passed). Renewal followup: 9 renewals of 9 distinct apps under the '
                                                                          'new runtime (two-provider corroboration, NOT independent witness '
-                                                                         'verification; logs cannot tell the keeper timer from the regular '
-                                                                         'pass); 3 leases not yet due; not full decentralization',
-          'outputs/decentralization-audit/windows-node-renewal': 'ROOT receipts (01:31-01:34Z): same agent 28460 before/after, all 9 fresh '
-                                                                 'ready; six renewals 01:30-01:32 with matching ledger Renewed + reserve '
-                                                                 'LeaseGasPaid events from TWO RPC providers = two-provider corroboration, '
-                                                                 'NOT independent witness verification. Logs cannot tell the keeper timer '
-                                                                 'from the regular pass. 3 leases not yet due; no full goal completion',
+                                                                         'verification; events cannot tell the keeper timer from the regular '
+                                                                         'pass); route followup tail-limited; not full decentralization',
+          'outputs/decentralization-audit/windows-node-renewal': 'ROOT receipts (updated 01:43-01:44Z): same agent 28460 before/after, all nine '
+                                                                 'running with advanced leases; 9 distinct app-paid renewals with matching '
+                                                                 'ledger Renewed + reserve LeaseGasPaid events from TWO RPC providers = '
+                                                                 'two-provider corroboration, NOT independent witness verification. The '
+                                                                 'mid-pass observation has allNineFreshReady=false (3 rows pending in an '
+                                                                 'in-flight pass): incomplete observation, not a failure and not proof of '
+                                                                 'readiness. The renewal-log receipt is unchanged (01:32Z). No full goal completion',
           'outputs/decentralization-audit/storage-whole-recovery-live': 'ROOT receipt: RUNNING, NOT COMPLETE (unit sia-whole-restore-efe2c21b-001; '
                                                                         'the file holds the INITIAL progress, 19 files). Root reported 425 files '
                                                                         '/ 950 MB committed + 327 MB in flight at 01:35. Isolation verified 31/31 '
@@ -438,6 +496,25 @@ LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; n
           'outputs/decentralization-audit/storage-cold-recovery-second-device':'ROOT receipt: encrypted archive copy verified on a second '
                                                                                'attached device, same workstation/site; NOT offsite or a '
                                                                                'complete cold recovery',
+          'windows-compose/': 'SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint '
+                              'branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices '
+                              '(host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). '
+                              'Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile '
+                              'heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle '
+                              'environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). '
+                              'No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim',
+          'windows-source-composition-task.txt': 'root task text for the windows-compose composition',
+          'rpc-peer-audit/': 'FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: '
+                             '52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT '
+                             'proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local',
+          'source-preservation/head-listener-f3159ea-inventory.json': 'Git tracked-file inventory of head-listener f3159ea (blob ids + '
+                                                                      'sha256) and what was deliberately not preserved',
+          'production-run/observe-route-stability.py': 'ROOT source: read-only aggregate of the native network.log tail (one remote '
+                                                       'status query); emits counts only, no config, keys or raw logs',
+          'outputs/decentralization-audit/windows-route-stability': 'ROOT receipt (01:44:57Z): corrected route script, usable: 746 tail '
+                                                                    'lines since 01:19:00Z (start covered), 0 egress OFF / 0 wallet '
+                                                                    'withheld up to 01:44:49Z, 3 chain-quorum-unavailable lines. '
+                                                                    'Tail-limited; zero matches alone is never evidence of stability',
           'cron-placement/': 'Cron moved to nucbox by the existing dashboard wallet flow; native running 23:58:37Z, 3 RPCs agree at block '
                              '52962071. NOT a durable on-chain pin: the ledger configCid has no placement field. RESULT.md = '
                              'source-only analysis (its setConfig placement option was not executed)'}

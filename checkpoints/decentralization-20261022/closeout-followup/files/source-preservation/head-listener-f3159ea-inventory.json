@@ -1,0 +1,168 @@
+{
+  "repo": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener",
+  "commit": "f3159ea73786eeda344f2ffa1dc82d59de46a6db",
+  "tree": "298e1ef5f532ad5aef3c9cdc23ec8d3ee2d0938d",
+  "log": [
+    "f3159ea73786eeda344f2ffa1dc82d59de46a6db SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Document output contract v1, trust inputs and build",
+    "e388d17ca2617be759933c7058f360f880f8c863 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Real Base mainnet fixture tests; commit scoped workspace manifest",
+    "59433a4253b039ff385ee3724ab1386ac192491a SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Pace and dedup dials, prune pending dials, staged gossip diagnostics",
+    "54b0866353237418a593815f20a26b3c6ca4cc2e SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Vendor base crates as non-member path deps; resolution identical to upstream lock",
+    "975a77cd822bf11e90ae6d5687e1acaab1953790 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Add Base unsafe-head gossip listener on base-consensus-gossip 5476069f"
+  ],
+  "trackedFiles": [
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "blob": "5a5443d2af369233807cef3d7d58d2170b69b18b",
+      "sha256": "4c8acac5ba17ca40295678564dfdd1ed6063fde7a81c52476a443f6a34d606c1",
+      "bytes": 36
+    },
+    {
+      "path": "Cargo.lock",
+      "mode": "100644",
+      "blob": "8683ede3fd64629cc4997a2f3c3f8efa7cc56970",
+      "sha256": "267fcb518f890e571b753bf17dc6f8c5d76319e3a83def27c6cb2babd0572e97",
+      "bytes": 164111
+    },
+    {
+      "path": "Cargo.toml",
+      "mode": "100644",
+      "blob": "5f355f101af95b6be0c0a87318be30609209b503",
+      "sha256": "b642870cb95a4a74fedce278708a73282a085211f1c4ce85c4a574285ea368aa",
+      "bytes": 17599
+    },
+    {
+      "path": "INTEGRATION.md",
+      "mode": "100644",
+      "blob": "9178aa68fe1c3a1a480815b7a7ca8c30550eaf09",
+      "sha256": "f2df51ca3697e4b886856c750f8c44749d11d753fc9e7eb51c19dfe1a6142348",
+      "bytes": 4997
+    },
+    {
+      "path": "build.sh",
+      "mode": "100755",
+      "blob": "67051b0aa21ec9abe1e97d56943c58e516c33631",
+      "sha256": "4a7cf6b3542a5179453b5f771467fff7e35c6ceff6710db8b55ced63dbb54b85",
+      "bytes": 950
+    },
+    {
+      "path": "crates/enclave-base-head-listener/Cargo.toml",
+      "mode": "100644",
+      "blob": "1ef558780b0ff5d8875ba966cc9f3f2d2d4bc918",
+      "sha256": "f266b817de8134e9dd65ee19639cd4fc9016c853aa359f9f4a7e38466998a826",
+      "bytes": 1908
+    },
+    {
+      "path": "crates/enclave-base-head-listener/src/lib.rs",
+      "mode": "100644",
+      "blob": "5ed9b2c691a61f7b695dd15f59a25e94fd2b1468",
+      "sha256": "39e966d62802b7dbf2800ff6619d031c035480343540b66fe768a46cae39fb9a",
+      "bytes": 14138
+    },
+    {
+      "path": "crates/enclave-base-head-listener/src/main.rs",
+      "mode": "100644",
+      "blob": "3ba873e814956e3f7b4c1db88e00374945e8f4c9",
+      "sha256": "18a644f3476fb0cc9839aa48053562b76930fa2d636b0e721dae0ef79373ce36",
+      "bytes": 23887
+    },
+    {
+      "path": "crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965074.head.json",
+      "mode": "100644",
+      "blob": "d09c5f1ca9b521f18c872606bf11cbf50b53304a",
+      "sha256": "14fc7bb54d479e4dc2b2bb921bcf9c888403422906582e501b200535b10a0ca2",
+      "bytes": 805
+    },
+    {
+      "path": "crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965074.v4.snappy.hex",
+      "mode": "100644",
+      "blob": "8c59c6b5b7a4ce536847b8e0cddf9bc5d3ae128c",
+      "sha256": "b06394b42f810c93c30104492775d14f955b1a9120fe31b0fb57bb788af45015",
+      "bytes": 78909
+    },
+    {
+      "path": "crates/enclave-base-head-listener/tests/validation.rs",
+      "mode": "100644",
+      "blob": "29230461cab5b64457bbd13e46696ece3fd643a1",
+      "sha256": "95c9fd99ea3fe3e0c5293f24105996024e9fa479fb0b0cd86793d11f37723459",
+      "bytes": 13392
+    },
+    {
+      "path": "live.sh",
+      "mode": "100755",
+      "blob": "3262714039d2f2f23ec3a41b9f98333e55aff169",
+      "sha256": "d706faf6bc27c24a553a9f2693920b1737937b86ab809e391bbe71942e5effac",
+      "bytes": 1218
+    },
+    {
+      "path": "post-check.sh",
+      "mode": "100755",
+      "blob": "8822e94bab7d1debe9200b32c6ffa7b3d0dd7447",
+      "sha256": "a24a82f64376f905ef0fe5ab4229043a872acbd14edd10ea260bd738b9a944d2",
+      "bytes": 1055
+    },
+    {
+      "path": "resolve.sh",
+      "mode": "100755",
+      "blob": "a1d6031d897be69e47bd972718edabfd1a6d1e17",
+      "sha256": "96c8ad09a2463b0e2ab5abc4da38624995d666040bcdab99b29e85fa3c6f7c0a",
+      "bytes": 776
+    },
+    {
+      "path": "run-build-q.sh",
+      "mode": "100755",
+      "blob": "5ab1beb2efdcc5f23a5217d11fb94769e5f4b265",
+      "sha256": "6330c72e2320e97ed3a7544c2a191978c804a0f16f993c39f07e979e2007ca9b",
+      "bytes": 341
+    },
+    {
+      "path": "run-live-q.sh",
+      "mode": "100755",
+      "blob": "0e96ba33f44a57e2900dde189466c9f1b474d9f8",
+      "sha256": "806420b7b4bee4b7b5785635b8dc20e97bb333dc5740dc182965747064f541df",
+      "bytes": 279
+    },
+    {
+      "path": "run-resolve-q.sh",
+      "mode": "100755",
+      "blob": "0d953349847cd9e91398bcca18144fa33452ebb9",
+      "sha256": "c8e1466a99c71306bafeb3d5b9911558d317e0500b2d38eb068e610c1b9221fa",
+      "bytes": 291
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "mode": "100644",
+      "blob": "01a3bee0369171ece106ee78c0016e988f0bd7f4",
+      "sha256": "6c7f7b59e2d60c8c326dc7ccda7bf17c045a261843cd780f4483ebf4beefb5b5",
+      "bytes": 66
+    },
+    {
+      "path": "tools/crosscheck.py",
+      "mode": "100644",
+      "blob": "9017ec127036bf51d391d9162b3ca6e370eb1dbf",
+      "sha256": "25ba5df572575bb18bd044c33e77b814a6cae9581d678c54d815756b5f266d06",
+      "bytes": 2200
+    },
+    {
+      "path": "tools/lock-diff.py",
+      "mode": "100644",
+      "blob": "3213de8e5408cd32d5b2b51ef9260e8bc467b13e",
+      "sha256": "3311866b12b85d0c0d09cf3b5fb6ea7c28814e1167ff03731a585499f7fb1198",
+      "bytes": 712
+    },
+    {
+      "path": "tools/prepare-upstream.py",
+      "mode": "100644",
+      "blob": "c635fec26d59e882c59ba7f9526551a590e4ec8b",
+      "sha256": "9289c99c74b9b32778ae17409e19d2758af7832d26bee49a17c4d4600995a6a8",
+      "bytes": 5815
+    }
+  ],
+  "notPreserved": [
+    "target/ (build output, binaries)",
+    "upstream/base-5476069f (vendored crate copy: re-create with tools/prepare-upstream.py from the pinned codeload tarball in upstream/PROVENANCE.json)",
+    "runs/ raw logs, heads.jsonl and the large cargo metadata.json (only post.out and the live crosscheck.json are kept)",
+    "~/.cargo registry/git caches"
+  ],
+  "scope": "52 sequencer-signed unsafe heads received over direct gossip (verify-object ok=52, crosscheck 10/10 vs a public RPC as corroboration only). Proves direct gossip reception of the UNSAFE tier only: NOT L1 finality, NOT state/proof availability, NOT RPC independence."
+}

@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-23T01:38:15.862581+00:00",
+  "capturedAt": "2026-10-23T01:50:12.885539+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -37,32 +37,39 @@
       "bytes": 1428
     },
     {
-      "label": "ROOT receipts (01:31-01:34Z): same agent 28460 before/after, all 9 fresh ready; six renewals 01:30-01:32 with matching ledger Renewed + reserve LeaseGasPaid events from TWO RPC providers = two-provider corroboration, NOT independent witness verification. Logs cannot tell the keeper timer from the regular pass. 3 leases not yet due; no full goal completion",
+      "label": "ROOT receipts (updated 01:43-01:44Z): same agent 28460 before/after, all nine running with advanced leases; 9 distinct app-paid renewals with matching ledger Renewed + reserve LeaseGasPaid events from TWO RPC providers = two-provider corroboration, NOT independent witness verification. The mid-pass observation has allNineFreshReady=false (3 rows pending in an in-flight pass): incomplete observation, not a failure and not proof of readiness. The renewal-log receipt is unchanged (01:32Z). No full goal completion",
       "source": "outputs/decentralization-audit/windows-node-renewal-chain-20261023.json",
       "stored": "files/outputs/decentralization-audit/windows-node-renewal-chain-20261023.json",
-      "sha256": "261477b6d464965875659a774a6fd62331c90362c514152bbb7e30f66bfdda00",
-      "bytes": 2652
+      "sha256": "09ff59c9548514bdaa83aa71ad9e6fe191e10583d042205ebee1bcb17374cac2",
+      "bytes": 3816
     },
     {
-      "label": "ROOT receipts (01:31-01:34Z): same agent 28460 before/after, all 9 fresh ready; six renewals 01:30-01:32 with matching ledger Renewed + reserve LeaseGasPaid events from TWO RPC providers = two-provider corroboration, NOT independent witness verification. Logs cannot tell the keeper timer from the regular pass. 3 leases not yet due; no full goal completion",
+      "label": "ROOT receipts (updated 01:43-01:44Z): same agent 28460 before/after, all nine running with advanced leases; 9 distinct app-paid renewals with matching ledger Renewed + reserve LeaseGasPaid events from TWO RPC providers = two-provider corroboration, NOT independent witness verification. The mid-pass observation has allNineFreshReady=false (3 rows pending in an in-flight pass): incomplete observation, not a failure and not proof of readiness. The renewal-log receipt is unchanged (01:32Z). No full goal completion",
       "source": "outputs/decentralization-audit/windows-node-renewal-log-20261023.json",
       "stored": "files/outputs/decentralization-audit/windows-node-renewal-log-20261023.json",
       "sha256": "28bca996beba7451b04d30864c25ce5a1f1b34011fdc9a8d8a8c242685f637c0",
       "bytes": 962
     },
     {
-      "label": "ROOT receipts (01:31-01:34Z): same agent 28460 before/after, all 9 fresh ready; six renewals 01:30-01:32 with matching ledger Renewed + reserve LeaseGasPaid events from TWO RPC providers = two-provider corroboration, NOT independent witness verification. Logs cannot tell the keeper timer from the regular pass. 3 leases not yet due; no full goal completion",
+      "label": "ROOT receipts (updated 01:43-01:44Z): same agent 28460 before/after, all nine running with advanced leases; 9 distinct app-paid renewals with matching ledger Renewed + reserve LeaseGasPaid events from TWO RPC providers = two-provider corroboration, NOT independent witness verification. The mid-pass observation has allNineFreshReady=false (3 rows pending in an in-flight pass): incomplete observation, not a failure and not proof of readiness. The renewal-log receipt is unchanged (01:32Z). No full goal completion",
       "source": "outputs/decentralization-audit/windows-node-renewal-observation-20261023.json",
       "stored": "files/outputs/decentralization-audit/windows-node-renewal-observation-20261023.json",
-      "sha256": "de7be8e14fb1f13e191b4365808fca568d2cce78bc8f8b788423327c52a33893",
-      "bytes": 2688
+      "sha256": "a813e744436ba5bd5f393cc45ddd0a4773e4f8c607f1959c937dbeb6b62fe068",
+      "bytes": 3586
     },
     {
-      "label": "ROOT public receipt: APPLIED and independently verified serving after the bounded startup check timed out (helper NOT_READY, not passed). 01:34Z followup: six apps renewed 01:30-01:32 under the new runtime (two-provider corroboration, NOT independent witness verification; logs cannot tell the keeper timer from the regular pass); 3 leases not yet due; not full decentralization",
+      "label": "ROOT public receipt (updated 01:45Z): APPLIED and independently verified serving after the bounded startup check timed out (helper NOT_READY, not passed). Renewal followup: 9 renewals of 9 distinct apps under the new runtime (two-provider corroboration, NOT independent witness verification; events cannot tell the keeper timer from the regular pass); route followup tail-limited; not full decentralization",
       "source": "outputs/decentralization-audit/windows-node-update-20261023.json",
       "stored": "files/outputs/decentralization-audit/windows-node-update-20261023.json",
-      "sha256": "32cad8a3f5a9904614ae811c8f5609b7d84527faaa6c8879fa1a3969107a1e74",
-      "bytes": 2243
+      "sha256": "9f8d2f8a9c8e66398497ea649767aaa9379d1b9bac011c327336b558d6e9f0fc",
+      "bytes": 3074
+    },
+    {
+      "label": "ROOT receipt (01:44:57Z): corrected route script, usable: 746 tail lines since 01:19:00Z (start covered), 0 egress OFF / 0 wallet withheld up to 01:44:49Z, 3 chain-quorum-unavailable lines. Tail-limited; zero matches alone is never evidence of stability",
+      "source": "outputs/decentralization-audit/windows-route-stability-20261023.json",
+      "stored": "files/outputs/decentralization-audit/windows-route-stability-20261023.json",
+      "sha256": "6ffd478e5d384da2db054f4d85f0fd07038d9f8c63c3443b131ea4121a88fdba",
+      "bytes": 734
     },
     {
       "source": "work/resume-after-checkpoint-20261022/adapter-activation-review/RESULT.md",
@@ -3366,8 +3373,15 @@
       "label": "ROOT source: read-only post-activation observation (one bracketed status query); no config, keys or raw logs",
       "source": "work/resume-after-checkpoint-20261022/production-run/observe-node-renewal.py",
       "stored": "files/production-run/observe-node-renewal.py",
-      "sha256": "94b32780433491867c291379d0128f7763d8c1540e9d637770001ae8ec56730a",
-      "bytes": 2595
+      "sha256": "ac2c08d7163c53f33148de28cc11311aec2d8c89934145901868a4abb55b7d86",
+      "bytes": 2937
+    },
+    {
+      "label": "ROOT source: read-only aggregate of the native network.log tail (one remote status query); emits counts only, no config, keys or raw logs",
+      "source": "work/resume-after-checkpoint-20261022/production-run/observe-route-stability.py",
+      "stored": "files/production-run/observe-route-stability.py",
+      "sha256": "6556b63bfc495bb349fe31ca954346cab20dbdad60c059a36ea991c7c0d9cc11",
+      "bytes": 2224
     },
     {
       "source": "work/resume-after-checkpoint-20261022/production-run/pg-init-before.sh",
@@ -4256,6 +4270,188 @@
       "bytes": 1589
     },
     {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/INITIAL.md",
+      "stored": "files/rpc-peer-audit/INITIAL.md",
+      "sha256": "3948f8436149347baf90acc03edab7aaa052a5f1e230983be30cebe94695293e",
+      "bytes": 2162
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/RESULT.md",
+      "stored": "files/rpc-peer-audit/RESULT.md",
+      "sha256": "77df7063da9e128cf10383a698334af1addf149222994c2c2b0aa02442f1bd72",
+      "bytes": 33362
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/.gitignore",
+      "stored": "files/rpc-peer-audit/head-listener/.gitignore",
+      "sha256": "4c8acac5ba17ca40295678564dfdd1ed6063fde7a81c52476a443f6a34d606c1",
+      "bytes": 36
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/Cargo.lock",
+      "stored": "files/rpc-peer-audit/head-listener/Cargo.lock",
+      "sha256": "267fcb518f890e571b753bf17dc6f8c5d76319e3a83def27c6cb2babd0572e97",
+      "bytes": 164111
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/Cargo.toml",
+      "stored": "files/rpc-peer-audit/head-listener/Cargo.toml",
+      "sha256": "b642870cb95a4a74fedce278708a73282a085211f1c4ce85c4a574285ea368aa",
+      "bytes": 17599
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/INTEGRATION.md",
+      "stored": "files/rpc-peer-audit/head-listener/INTEGRATION.md",
+      "sha256": "f2df51ca3697e4b886856c750f8c44749d11d753fc9e7eb51c19dfe1a6142348",
+      "bytes": 4997
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/build.sh",
+      "stored": "files/rpc-peer-audit/head-listener/build.sh",
+      "sha256": "4a7cf6b3542a5179453b5f771467fff7e35c6ceff6710db8b55ced63dbb54b85",
+      "bytes": 950
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/crates/enclave-base-head-listener/Cargo.toml",
+      "stored": "files/rpc-peer-audit/head-listener/crates/enclave-base-head-listener/Cargo.toml",
+      "sha256": "f266b817de8134e9dd65ee19639cd4fc9016c853aa359f9f4a7e38466998a826",
+      "bytes": 1908
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/crates/enclave-base-head-listener/src/lib.rs",
+      "stored": "files/rpc-peer-audit/head-listener/crates/enclave-base-head-listener/src/lib.rs",
+      "sha256": "39e966d62802b7dbf2800ff6619d031c035480343540b66fe768a46cae39fb9a",
+      "bytes": 14138
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/crates/enclave-base-head-listener/src/main.rs",
+      "stored": "files/rpc-peer-audit/head-listener/crates/enclave-base-head-listener/src/main.rs",
+      "sha256": "18a644f3476fb0cc9839aa48053562b76930fa2d636b0e721dae0ef79373ce36",
+      "bytes": 23887
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965074.head.json",
+      "stored": "files/rpc-peer-audit/head-listener/crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965074.head.json",
+      "sha256": "14fc7bb54d479e4dc2b2bb921bcf9c888403422906582e501b200535b10a0ca2",
+      "bytes": 805
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965074.v4.snappy.hex",
+      "stored": "files/rpc-peer-audit/head-listener/crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965074.v4.snappy.hex",
+      "sha256": "b06394b42f810c93c30104492775d14f955b1a9120fe31b0fb57bb788af45015",
+      "bytes": 78909
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/crates/enclave-base-head-listener/tests/validation.rs",
+      "stored": "files/rpc-peer-audit/head-listener/crates/enclave-base-head-listener/tests/validation.rs",
+      "sha256": "95c9fd99ea3fe3e0c5293f24105996024e9fa479fb0b0cd86793d11f37723459",
+      "bytes": 13392
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/live.sh",
+      "stored": "files/rpc-peer-audit/head-listener/live.sh",
+      "sha256": "d706faf6bc27c24a553a9f2693920b1737937b86ab809e391bbe71942e5effac",
+      "bytes": 1218
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/post-check.sh",
+      "stored": "files/rpc-peer-audit/head-listener/post-check.sh",
+      "sha256": "a24a82f64376f905ef0fe5ab4229043a872acbd14edd10ea260bd738b9a944d2",
+      "bytes": 1055
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/resolve.sh",
+      "stored": "files/rpc-peer-audit/head-listener/resolve.sh",
+      "sha256": "96c8ad09a2463b0e2ab5abc4da38624995d666040bcdab99b29e85fa3c6f7c0a",
+      "bytes": 776
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/run-build-q.sh",
+      "stored": "files/rpc-peer-audit/head-listener/run-build-q.sh",
+      "sha256": "6330c72e2320e97ed3a7544c2a191978c804a0f16f993c39f07e979e2007ca9b",
+      "bytes": 341
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/run-live-q.sh",
+      "stored": "files/rpc-peer-audit/head-listener/run-live-q.sh",
+      "sha256": "806420b7b4bee4b7b5785635b8dc20e97bb333dc5740dc182965747064f541df",
+      "bytes": 279
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/run-resolve-q.sh",
+      "stored": "files/rpc-peer-audit/head-listener/run-resolve-q.sh",
+      "sha256": "c8e1466a99c71306bafeb3d5b9911558d317e0500b2d38eb068e610c1b9221fa",
+      "bytes": 291
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/runs/live-20261023T013719Z/crosscheck.json",
+      "stored": "files/rpc-peer-audit/head-listener/runs/live-20261023T013719Z/crosscheck.json",
+      "sha256": "bd01d5d3a15fcd98c51f199bb7786f465c732efa8569e48df0e451d2509740d0",
+      "bytes": 2671
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/runs/post.out",
+      "stored": "files/rpc-peer-audit/head-listener/runs/post.out",
+      "sha256": "65cdd9243f8669f69514224cb0137aaa2ad177d4a159c151bb5369c0921215aa",
+      "bytes": 982
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/rust-toolchain.toml",
+      "stored": "files/rpc-peer-audit/head-listener/rust-toolchain.toml",
+      "sha256": "6c7f7b59e2d60c8c326dc7ccda7bf17c045a261843cd780f4483ebf4beefb5b5",
+      "bytes": 66
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/tools/crosscheck.py",
+      "stored": "files/rpc-peer-audit/head-listener/tools/crosscheck.py",
+      "sha256": "25ba5df572575bb18bd044c33e77b814a6cae9581d678c54d815756b5f266d06",
+      "bytes": 2200
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/tools/lock-diff.py",
+      "stored": "files/rpc-peer-audit/head-listener/tools/lock-diff.py",
+      "sha256": "3311866b12b85d0c0d09cf3b5fb6ea7c28814e1167ff03731a585499f7fb1198",
+      "bytes": 712
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/tools/prepare-upstream.py",
+      "stored": "files/rpc-peer-audit/head-listener/tools/prepare-upstream.py",
+      "sha256": "9289c99c74b9b32778ae17409e19d2758af7832d26bee49a17c4d4600995a6a8",
+      "bytes": 5815
+    },
+    {
+      "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
+      "source": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener/upstream/PROVENANCE.json",
+      "stored": "files/rpc-peer-audit/head-listener/upstream/PROVENANCE.json",
+      "sha256": "f802da9444bef0db160e5ed52ddae40444de23d1dbd94a13d62f5c32dac5cc36",
+      "bytes": 924
+    },
+    {
       "label": "FINAL FROZEN CANDIDATE e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03, two-file swap): source only here; root has it staged and IDENTIFIED, NOT activated",
       "source": "work/resume-after-checkpoint-20261022/serving-first-fixes/INITIAL.md",
       "stored": "files/serving-first-fixes/INITIAL.md",
@@ -4475,8 +4671,15 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "c519af8cdb64b6200f34bcdf9b119a01854f2c3fb34bfce931c296c81a6955c4",
-      "bytes": 38965
+      "sha256": "9cb06950280b355cea05bf6edbff141fa7dee687515b06d68ed08c7406e16b51",
+      "bytes": 47421
+    },
+    {
+      "label": "Git tracked-file inventory of head-listener f3159ea (blob ids + sha256) and what was deliberately not preserved",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/head-listener-f3159ea-inventory.json",
+      "stored": "files/source-preservation/head-listener-f3159ea-inventory.json",
+      "sha256": "a3fa9aac07b540bd71c487a19179aedf55feb6fe224369b04ee0c05e03feb713",
+      "bytes": 6883
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",
@@ -4713,6 +4916,153 @@
       "bytes": 1604
     },
     {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/RESULT.md",
+      "stored": "files/windows-compose/RESULT.md",
+      "sha256": "8b8ca620731b96d7003d224ae3be8b03a7c3bd4a8e61e74dfc91da7305f5811c",
+      "bytes": 19775
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/TEST-EVIDENCE.txt",
+      "stored": "files/windows-compose/TEST-EVIDENCE.txt",
+      "sha256": "b9f453b5dcf5a27327dd48a452d6a6ec30dcc05f5197017089972ccf0b61e095",
+      "bytes": 48618
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/job.sh",
+      "stored": "files/windows-compose/job.sh",
+      "sha256": "101ab48301c94236e3f125964740490793f3cc4ccd678ee7d57dcf6b18e2bd44",
+      "bytes": 1837
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/job5.sh",
+      "stored": "files/windows-compose/job5.sh",
+      "sha256": "dcf91038d0478f8a30307187640d1c09fe3c380fda1db6f4c580c77cee3b2c65",
+      "bytes": 1698
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/job6.sh",
+      "stored": "files/windows-compose/job6.sh",
+      "sha256": "e6f958ed23a8390c3e4e01650544cd60fae053a480b60d9206ea4d908b0a357d",
+      "bytes": 1021
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/job7.sh",
+      "stored": "files/windows-compose/job7.sh",
+      "sha256": "8e7f81c5face98c5313976da1ffe9de832837c5c5bfee649a4de5773fdc48f8f",
+      "bytes": 1480
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/job8.sh",
+      "stored": "files/windows-compose/job8.sh",
+      "sha256": "8b0595d3c41dc5a2c57b60865428f7b42c399dae84f7ea59fad1a332ef5a6aba",
+      "bytes": 885
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/patches/0001-Compose-the-network-side-of-the-non-destructive-wall.patch",
+      "stored": "files/windows-compose/patches/0001-Compose-the-network-side-of-the-non-destructive-wall.patch",
+      "sha256": "5ba874886a5c39b8709bfd89f4b131c8a0f269666869fa0bee08160be0d0af34",
+      "bytes": 145449
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/patches/0002-Compose-the-Windows-node-s-wallet-hold-channel-and-l.patch",
+      "stored": "files/windows-compose/patches/0002-Compose-the-Windows-node-s-wallet-hold-channel-and-l.patch",
+      "sha256": "81af3aaae55b7afa0932493738f50e99c09fcaefdad463a748ee173265a7630c",
+      "bytes": 66703
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/patches/0003-Refresh-wallet-grants-between-slow-host-passes.patch",
+      "stored": "files/windows-compose/patches/0003-Refresh-wallet-grants-between-slow-host-passes.patch",
+      "sha256": "9f0b6fdd55114fe96c2bfc3282114d38e6ce960c94a9bd8e22c51826945021e3",
+      "bytes": 32748
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/patches/0004-Renew-leases-on-their-own-clock-outside-the-slow-hos.patch",
+      "stored": "files/windows-compose/patches/0004-Renew-leases-on-their-own-clock-outside-the-slow-hos.patch",
+      "sha256": "788d8b7303f4debaf0ac04b841f944ba6fbb75696b7caa7dd96ca29daca80bee",
+      "bytes": 57625
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/patches/0005-Reconcile-served-deployments-before-the-queued-claim.patch",
+      "stored": "files/windows-compose/patches/0005-Reconcile-served-deployments-before-the-queued-claim.patch",
+      "sha256": "ddd8060161507b45238152b9a80c6a4ea3601c1f99e159a08725ff465d2d9258",
+      "bytes": 37587
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/patches/0006-Serving-first-reconcile-same-pass-re-claims-and-cont.patch",
+      "stored": "files/windows-compose/patches/0006-Serving-first-reconcile-same-pass-re-claims-and-cont.patch",
+      "sha256": "f8fce01a746cfb4f9e37c27427580f4fec02c62da28104d185de2ef132a9579b",
+      "bytes": 11712
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/patches/0007-Test-the-wallet-hold-channel-on-the-shipped-admissio.patch",
+      "stored": "files/windows-compose/patches/0007-Test-the-wallet-hold-channel-on-the-shipped-admissio.patch",
+      "sha256": "0711426c547466a9c15f0fa3b7ee279e05c0ed0cbaadb39f12b175f79911ecfc",
+      "bytes": 8966
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/q.sh",
+      "stored": "files/windows-compose/q.sh",
+      "sha256": "eebd5f173350590f2ed2446b11521831f36b59a79e0e38ec486ee867cf3cf07a",
+      "bytes": 830
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/stubs/scp",
+      "stored": "files/windows-compose/stubs/scp",
+      "sha256": "5f2ddbb8d3cabf11921faf8c9abe8266fa9f41578140c376b0f3f18a900c404e",
+      "bytes": 92
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/stubs/sftp",
+      "stored": "files/windows-compose/stubs/sftp",
+      "sha256": "c459fc1eeca4cf48b06279dbfbc5e94d2431b3fceea8eefe58298ec31887de30",
+      "bytes": 93
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/stubs/ssh",
+      "stored": "files/windows-compose/stubs/ssh",
+      "sha256": "71ee646db6c488a8cba2640a22ab284e8e6f0ce99265ff21fae7323d38bbded7",
+      "bytes": 92
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/tools/compose-network-enroll.py",
+      "stored": "files/windows-compose/tools/compose-network-enroll.py",
+      "sha256": "9b58515e6c831a303ac4b1191d2f5efc5186d3d1b8fd3a067ce5dffb127abca2",
+      "bytes": 1693
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/tools/compose-privacy-agent.py",
+      "stored": "files/windows-compose/tools/compose-privacy-agent.py",
+      "sha256": "b3e5de0bf17aeb5545556570e6b33595a269bbd6c51460b15d81c3bc2e9f7331",
+      "bytes": 1901
+    },
+    {
+      "label": "SOURCE COMPOSITION a6fb7aab (7 commits on f58e03ec4), accepted by root and INTEGRATED into the checkpoint branch as normal history (blob-identical); not production, not main. MISSING CLOSURE: hostServices (host-service transport) and challengeReplica wiring NOT composed (worker C composing separately). Pre-existing test failures (identical on f58e03e): catalog-platform-enforcement slice, registry-reconcile heartbeat pin, supervisor-wallet-policy slice, release-journal case 4 (mapped root); relay-bundle environment gaps; offchain-heartbeat-writers and session-api-auth NOT RUN (forge build > 1536 MiB). No full Windows/Linux parity (Linux releases on an UNKNOWN wallet policy) and no release claim",
+      "source": "work/resume-after-checkpoint-20261022/windows-compose/windows-compose.patch",
+      "stored": "files/windows-compose/windows-compose.patch",
+      "sha256": "6fc1e5d2668feac559015b34f4a3daf9f83f3ca2c49c4e4109b3df05e45871d4",
+      "bytes": 322735
+    },
+    {
       "label": "SOURCE-ONLY CANDIDATE 829a881c (host.mjs 817389ec + chain.mjs 3e9fae03, two-file swap): not deployed or activated; preserved here, not merged into the normal tree (older lineage)",
       "source": "work/resume-after-checkpoint-20261022/windows-serving-first/INITIAL.md",
       "stored": "files/windows-serving-first/INITIAL.md",
@@ -4781,6 +5131,13 @@
       "stored": "files/windows-serving-first/windows-serving-first.patch",
       "sha256": "db9842bcfe8a019e8fa5a8ca78cb2a76211c9a1ad68725e2d7ac5705470f5514",
       "bytes": 35647
+    },
+    {
+      "label": "root task text for the windows-compose composition",
+      "source": "work/resume-after-checkpoint-20261022/windows-source-composition-task.txt",
+      "stored": "files/windows-source-composition-task.txt",
+      "sha256": "46806afdc0e513e47a206e3a1822983fe085f4ee6f217a542e057f1118459a2c",
+      "bytes": 2025
     }
   ],
   "unchangedAlreadyPreserved": [

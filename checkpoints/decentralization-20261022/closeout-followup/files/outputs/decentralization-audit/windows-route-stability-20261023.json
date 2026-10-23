@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-23T01:44:57.7838161Z",
+  "from": "2026-10-23T01:19:00.0000000Z",
+  "fileLastWriteUtc": "2026-10-23T01:44:49.7275813Z",
+  "linesRead": 12000,
+  "recentLines": 746,
+  "coveredStart": true,
+  "earliestInTail": "/Date(1792705292000)/",
+  "firstRecent": "/Date(1792718350000)/",
+  "lastRecent": "/Date(1792719889000)/",
+  "clockRollovers": 1,
+  "egressOff": 0,
+  "egressBack": 0,
+  "walletWithheld": 0,
+  "chainQuorumUnavailable": 3,
+  "method": "Dates reconstructed backwards from file LastWriteTimeUtc and time-only log lines, decrementing date at midnight. Counts cover this file tail only; clock changes or missing/rotated logs limit inference. Zero matching lines is NOT evidence of stability.",
+  "usable": true
+}

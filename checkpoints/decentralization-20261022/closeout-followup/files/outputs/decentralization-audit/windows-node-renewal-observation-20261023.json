@@ -1,9 +1,16 @@
 {
-  "at": "2026-10-23T01:31:38.2531638Z",
+  "at": "2026-10-23T01:44:21.7950984Z",
   "sameProcessBeforeAfter": true,
   "sameNineRunning": true,
-  "allNineFreshReady": true,
-  "readinessSequence": 14,
+  "allNineFreshReady": false,
+  "readinessSequence": 27,
+  "readinessInFlight": true,
+  "readinessCompletedAt": 0,
+  "pendingRunningChecks": [
+    "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+    "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+    "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c"
+  ],
   "readyChecks": {
     "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681": true,
     "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33": true,
@@ -11,14 +18,20 @@
     "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b": true,
     "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c": true,
     "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77": true,
-    "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a": true,
-    "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371": true,
-    "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c": true
+    "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a": false,
+    "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371": false,
+    "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c": false
   },
   "advancedLeases": [
     "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+    "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
     "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
-    "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b"
+    "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+    "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+    "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+    "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+    "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+    "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c"
   ],
   "current": [
     {
@@ -29,7 +42,7 @@
     {
       "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
       "status": "running",
-      "leaseUntil": 1792719943
+      "leaseUntil": 1792721467
     },
     {
       "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
@@ -44,28 +57,28 @@
     {
       "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
       "status": "running",
-      "leaseUntil": 1792720035
+      "leaseUntil": 1792721835
     },
     {
       "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
       "status": "running",
-      "leaseUntil": 1792719385
+      "leaseUntil": 1792720927
     },
     {
       "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
       "status": "running",
-      "leaseUntil": 1792719397
+      "leaseUntil": 1792720921
     },
     {
       "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
       "status": "running",
-      "leaseUntil": 1792719407
+      "leaseUntil": 1792720945
     },
     {
       "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
       "status": "running",
-      "leaseUntil": 1792719843
+      "leaseUntil": 1792721371
     }
   ],
-  "note": "An advanced lease under the new process is evidence of renewal; transaction provenance still needs its event/log corroboration."
+  "note": "An advanced lease under the new process is evidence of renewal; transaction provenance still needs its event/log corroboration. Readiness rows reset to pending on each pass; a mid-pass false allNineFreshReady is incomplete observation, not proof of service failure."
 }

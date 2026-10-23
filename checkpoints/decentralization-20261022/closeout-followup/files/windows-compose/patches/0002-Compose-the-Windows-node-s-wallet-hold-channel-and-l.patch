@@ -1,0 +1,897 @@
+From f666306d819864dda7ce36aa4df55dbf75ef5edc Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 17:59:12 -0700
+Subject: [PATCH 2/7] Compose the Windows node's wallet hold channel and lease
+ readiness (installed control baseline)
+
+The reviewed Windows lineage (ad4a72a refresher, 2afa673 keeper, 829a881 serving-first, e7e5057 fixes) starts from the
+installed control snapshot lease-readiness-20261022 (commit 32fecf5 in the adapter-admission-review candidate). This tree's
+Windows files were that snapshot minus the D1 wallet hold channel and the lease-readiness evidence; nothing in them is
+absent from the snapshot. Taken verbatim from 32fecf5:
+
+- windows/node/host.mjs      e41122d7 -> 9634cb40 (walletChannelStart/heartbeat/grant/revoke/hold ACK; leaseReadiness;
+                                                  appZoneAdmitted; walletHeld routes refused)
+- windows/node/agent.mjs     c2fe0fff -> 76cac355 (walletAdmission to enrollment, appZone admitted/closeDeployment wiring,
+                                                  /v1/host/state leaseReadiness)
+- windows/node/appzone.mjs   ba9d9bb1 -> 65cbb69a (admitted() re-check at splice time, closeDeployment)
+- tests (new): windows-node-wallet-network-hold, windows-node-appzone-wallet-hold, windows-node-wallet-enroll,
+  windows-node-lease-readiness
+
+Composed, not copied:
+- windows/node/network-enroll.mjs 2d97a0e1 -> bdc6019c: this tree's file plus ONLY the snapshot's walletAdmission block
+  (kept last in the section, as in the snapshot). The snapshot's hostServices (host-service transport) and
+  challengeReplica preservation are NOT composed: their runtime is not in this tree.
+
+The channel stays opt-in (ENCLAVE_NETWORK_WALLET_HOLD=1 with an absolute ENCLAVE_NETWORK_AGENT_DIR); without it, or
+without an agent that confirms the hold, an UNKNOWN wallet policy retires the domain exactly as before.
+---
+ .../windows-node-appzone-wallet-hold.test.mjs |  60 +++++
+ test/windows-node-lease-readiness.test.mjs    |  87 ++++++
+ test/windows-node-wallet-enroll.test.mjs      |  46 ++++
+ .../windows-node-wallet-network-hold.test.mjs | 250 ++++++++++++++++++
+ windows/node/agent.mjs                        |   9 +-
+ windows/node/appzone.mjs                      |  14 +-
+ windows/node/host.mjs                         | 165 +++++++++++-
+ windows/node/network-enroll.mjs               |   6 +-
+ 8 files changed, 627 insertions(+), 10 deletions(-)
+ create mode 100644 test/windows-node-appzone-wallet-hold.test.mjs
+ create mode 100644 test/windows-node-lease-readiness.test.mjs
+ create mode 100644 test/windows-node-wallet-enroll.test.mjs
+ create mode 100644 test/windows-node-wallet-network-hold.test.mjs
+
+diff --git a/test/windows-node-appzone-wallet-hold.test.mjs b/test/windows-node-appzone-wallet-hold.test.mjs
+new file mode 100644
+index 000000000..dfd554a6c
+--- /dev/null
++++ b/test/windows-node-appzone-wallet-hold.test.mjs
+@@ -0,0 +1,60 @@
++// The node's own app zone under a wallet hold (host.mjs #walletHold -> servingWithdrawn -> appZone closeDeployment): the
++// partition splices it already carries for the held deployment end, others do not, and a hold that lands while a new
++// stream is being resolved is not served (the admitted() re-check). Real http upgrade + ws client over loopback.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import http from "node:http";
++import { once } from "node:events";
++import WebSocket from "ws";
++import { appZone } from "../windows/node/appzone.mjs";
++
++const A = "0x" + "a1".repeat(32), B = "0x" + "b2".repeat(32), C = "0x" + "c3".repeat(32);
++
++test("closeDeployment ends only the held deployment's spliced streams; a hold during resolve is refused with 503", { timeout: 10_000 }, async () => {
++  const held = new Set(), served = [];
++  let releaseC; const slowC = new Promise((r) => { releaseC = r; });
++  const target = (id) => ({ id, isolation: { instance: "hv" + id.slice(2, 10), appId: "e".repeat(64), expectName: `${id.slice(2, 10)}.app.enclave.host` } });
++  const zone = appZone({
++    resolve: async (ref) => { const id = [A, B, C].find((x) => x.startsWith(ref)); if (id === C) await slowC; return id ? target(id) : null; },
++    serveHttp: async () => ({ status: 500 }), log: () => {}, admitted: (id) => !held.has(id),
++    isolationSplicer: { serve: (s, t) => { served.push(t.id); return new Promise((r) => s.on("close", () => r({ outcome: "closed" }))); } },
++  });
++  const server = http.createServer((q, s) => { s.writeHead(404); s.end(); });
++  server.on("upgrade", (req, socket, head) => zone.handleUpgrade(req, socket, head));
++  await new Promise((r) => server.listen(0, "127.0.0.1", r));
++  const url = (id) => `ws://127.0.0.1:${server.address().port}/x/${id}/https`, clients = [];
++  try {
++    const a = new WebSocket(url(A)), b = new WebSocket(url(B)); clients.push(a, b);
++    await Promise.all([once(a, "open"), once(b, "open")]);
++    while (served.length < 2) await new Promise((r) => setTimeout(r, 10));
++    assert.deepEqual(served.sort(), [A, B].sort());
++    const aClosed = once(a, "close");
++    held.add(A);
++    assert.equal(zone.closeDeployment(A), 1, "exactly the held deployment's stream");
++    await aClosed;
++    assert.equal(b.readyState, WebSocket.OPEN, "another deployment's stream is untouched");
++    // a new stream for the held deployment: refused by admitted() (the host's appZoneTarget refuses it as well)
++    const outcome = (ws) => Promise.race([once(ws, "unexpected-response").then(([, res]) => res.statusCode), once(ws, "open").then(() => "spliced")]);
++    const a2 = new WebSocket(url(A)); clients.push(a2); a2.on("error", () => {});
++    assert.equal(await outcome(a2), 503);
++    // the hold lands while C's resolve is still awaiting: refused at the re-check, never spliced
++    const c = new WebSocket(url(C)); clients.push(c); c.on("error", () => {});
++    await new Promise((r) => setTimeout(r, 50));
++    held.add(C); releaseC();
++    assert.equal(await outcome(c), 503); assert.equal(served.includes(C), false);
++    b.close();
++  } finally { for (const w of clients) w.terminate(); zone.closeAll(); server.closeAllConnections?.(); await new Promise((r) => server.close(r)); }
++});
++
++test("without admitted() the app zone behaves as before (the option defaults to always served)", { timeout: 10_000 }, async () => {
++  const served = [];
++  const zone = appZone({ resolve: async () => ({ id: A, isolation: { instance: "hv1", appId: "e".repeat(64), expectName: "x" } }), serveHttp: async () => ({ status: 500 }),
++    log: () => {}, isolationSplicer: { serve: (s, t) => { served.push(t.id); return new Promise((r) => s.on("close", () => r({ outcome: "closed" }))); } } });
++  const server = http.createServer(); server.on("upgrade", (req, socket, head) => zone.handleUpgrade(req, socket, head));
++  await new Promise((r) => server.listen(0, "127.0.0.1", r));
++  try {
++    const a = new WebSocket(`ws://127.0.0.1:${server.address().port}/x/${A}/https`); await once(a, "open");
++    while (!served.length) await new Promise((r) => setTimeout(r, 10));
++    assert.equal(zone.closeDeployment(B), 0); assert.equal(a.readyState, WebSocket.OPEN); a.close();
++  } finally { zone.closeAll(); await new Promise((r) => server.close(r)); }
++});
+diff --git a/test/windows-node-lease-readiness.test.mjs b/test/windows-node-lease-readiness.test.mjs
+new file mode 100644
+index 000000000..cd53fcb95
+--- /dev/null
++++ b/test/windows-node-lease-readiness.test.mjs
+@@ -0,0 +1,87 @@
++import {test,after} from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import {fakeBaseRpc,DEPLOYMENTS,CATALOG} from './helpers/fake-base-rpc.mjs';
++process.env.NODE_OPERATOR_KEY='0x'+'7f'.repeat(32);
++const rpc=await fakeBaseRpc();
++const chain=await import('../windows/node/chain.mjs');
++chain.addresses.deployments=DEPLOYMENTS;chain.addresses.appCatalog=CATALOG;chain.loadOperator();
++const {Host}=await import('../windows/node/host.mjs');
++const dirs=[];after(()=>{rpc.close();for(const dir of dirs)fs.rmSync(dir,{recursive:true,force:true});});
++const id='0x'+'ab'.repeat(32), id2='0x'+'ac'.repeat(32),ref='catalog://0x'+'cd'.repeat(32)+'/1',endpoint='https://api.enclave.host/t/lease-readiness-test';
++const version={cid:'bafy',version:'1',vramMb:0,gpuGflops:0,memMb:512,cpuGflops:0,createdAt:1n,verified:true,yanked:false,ports:'',approval:1,config:'{}'};
++const row=(h,key=id,seconds=3600)=>({id:key,owner:chain.operatorAddress(),appRef:ref,ports:'',configCid:'',gpuMilli:0,cpuMilli:100,appPort:8000,isPublic:true,
++ active:true,createdAt:1n,rate:1n,balance6:1000000n,spent6:0n,runner:h.enclaveId,runnerOperator:chain.operatorAddress(),leaseUntil:BigInt(Math.floor(Date.now()/1000)+seconds)});
++async function box(answer=async()=>null){
++ rpc.row.current=null;rpc.rows.current=null;rpc.rows.failGet=null;rpc.chainTx.mine=false;rpc.catalog.current=version;
++ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'lease-readiness-'));dirs.push(dir);
++ const cfg={dir,endpoint,name:'test',appsEnabled:true,vcpus:8,ramGb:16,cpuPricePerSec6:0,hostAdmission:{hostId:chain.enclaveIdOf(endpoint),refusal:answer}};
++ const h=new Host(cfg);h.chainReady=true;h.registered={cpuPricePerSec6:'0'};await h.refreshOwners();
++ for(const name of ['followBook','enforceOff','ensureRegistered','ensurePriced','scanLedger','retireForeignRecovered'])h[name]=async()=>{};
++ h.ensureApp=async key=>{const r={...h.records.get(key),status:'running'};h.records.set(key,r);return r;};
++ return {h,cfg};
++}
++function serving(h,key=id){h.tracked.add(key);h.records.set(key,{id:key,status:'running',appRef:ref,isolationRequired:false});h.apps.set(key,{state:'running',stop:async()=>{},alive:async()=>true});}
++const health=(h,key=id)=>h.leaseReadiness().deployments.find(r=>r.id===key);
++
++test('cold process cannot advertise a completed pass, even with a persisted tracked deployment',async()=>{
++ const {h,cfg}=await box();fs.writeFileSync(path.join(cfg.dir,'host-state.json'),JSON.stringify({tracked:[id],leaseReadiness:{sequence:100,completedAt:Date.now()}}));
++ const restarted=new Host(cfg);assert.ok(restarted.tracked.has(id));assert.deepEqual(restarted.leaseReadiness(),{sequence:0,startedAt:0,completedAt:0,inFlight:false,deployments:[]});
++});
++
++test('completed pass reports actual lease/runner and running adoption without sending needless renewal',async()=>{
++ const {h}=await box();serving(h);rpc.row.current=row(h);const before=rpc.chainTx.sent.length;const t=Date.now();await h.tick();
++ const r=h.leaseReadiness();assert.equal(r.sequence,1);assert.equal(r.inFlight,false);assert.ok(r.completedAt>=r.startedAt&&r.startedAt>=t);
++ assert.equal(health(h).status,'ready');assert.equal(health(h).runner,h.enclaveId.toLowerCase());assert.equal(health(h).leaseUntil,Number(rpc.row.current.leaseUntil));assert.ok(health(h).observedAt>=t);assert.equal(rpc.chainTx.sent.length,before);
++ r.deployments[0].status='forged';assert.equal(health(h).status,'ready','returned rows cannot alter private readiness');
++});
++
++test('slow policy remains pending; overlapping tick joins the same pass',async()=>{
++ let release,entered;const seen=new Promise(r=>entered=r),gate=new Promise(r=>release=r);
++ const {h}=await box(async()=>{entered();await gate;return null;});serving(h);rpc.row.current=row(h);
++ const a=h.tick();await seen;const b=h.tick();assert.equal(a,b);assert.equal(h.leaseReadiness().completedAt,0);assert.equal(h.leaseReadiness().inFlight,true);assert.equal(health(h).status,'pending');
++ release();await a;assert.equal(health(h).status,'ready');assert.equal(h.leaseReadiness().sequence,1);
++});
++
++test('a failed subsequent pass clears old completion and ready rows',async()=>{
++ const {h}=await box();serving(h);rpc.row.current=row(h);await h.tick();assert.equal(health(h).status,'ready');
++ h.followBook=async()=>{throw Error('book unavailable');};await assert.rejects(h.tick(),/book unavailable/);
++ assert.equal(h.leaseReadiness().sequence,2);assert.equal(h.leaseReadiness().completedAt,0);assert.equal(h.leaseReadiness().inFlight,false);assert.equal(health(h).status,'pending');
++});
++
++test('unknown wallet policy cannot reuse earlier ready evidence',async()=>{
++ let unknown=false;const {h}=await box(async()=>{if(unknown)throw Error('policy unavailable');return null;});serving(h);rpc.row.current=row(h);await h.tick();assert.equal(health(h).status,'ready');
++ unknown=true;await h.tick();assert.equal(health(h).status,'pending');assert.notEqual(h.records.get(id).status,'running');
++});
++
++test('one unreadable lease never hides behind another running deployment',async()=>{
++ const {h}=await box();serving(h);serving(h,id2);rpc.rows.current=[row(h),row(h,id2)];rpc.rows.failGet=key=>key===id2;
++ await h.tick();assert.equal(health(h).status,'ready');assert.equal(health(h,id2).status,'pending');assert.ok(h.leaseReadiness().completedAt>0);
++});
++
++test('renewal failure is not ready even though the existing app remains running',async()=>{
++ const {h}=await box();serving(h);rpc.row.current=row(h,id,60);await h.tick();
++ assert.equal(h.records.get(id).status,'running');assert.match(h.records.get(id).reason,/renew failed|will not renew/);assert.equal(health(h).status,'not-ready');
++});
++
++test('unsuccessful adoption never reports readiness',async()=>{
++ const {h}=await box();serving(h);h.apps.delete(id);rpc.row.current=row(h);h.ensureApp=async()=>{h.records.set(id,{...h.records.get(id),status:'held'});};
++ await h.tick();assert.equal(health(h).status,'not-ready');
++});
++
++test('actual Host readiness serializes into the exact cutover gate; a cold successor is refused',async()=>{
++ const {spawnSync}=await import('node:child_process');const {fileURLToPath}=await import('node:url');
++ assert.ok(process.env.PWSH,'PWSH is required for the integration check');
++ const here=path.dirname(fileURLToPath(import.meta.url));const tools=path.resolve(here,'../../cutover/tools');
++ const script=path.resolve(tools,'../helper/node-hold-cutover.ps1');const sinceMs=Date.now()-1;
++ const {h,cfg}=await box();serving(h);rpc.row.current=row(h);await h.tick();
++ const file=path.join(cfg.dir,'readiness-fixture.json');
++ function gate(host){
++  fs.writeFileSync(file,JSON.stringify({sinceMs,params:{runner:h.enclaveId,expectedIds:[id],lease:{marginSec:180}},state:{deployments:host.deployments(),leaseReadiness:host.leaseReadiness()}}));
++  const r=spawnSync(process.env.PWSH,['-NoProfile','-NonInteractive','-File',path.join(tools,'gate-from-report.ps1'),'-Script',script,'-Fixture',file],{encoding:'utf8',timeout:10000});
++  assert.equal(r.status,0,r.stderr);return JSON.parse(r.stdout).ready;
++ }
++ assert.equal(gate(h),true);assert.equal(gate(new Host(cfg)),false);
++});
+diff --git a/test/windows-node-wallet-enroll.test.mjs b/test/windows-node-wallet-enroll.test.mjs
+new file mode 100644
+index 000000000..372a66b9d
+--- /dev/null
++++ b/test/windows-node-wallet-enroll.test.mjs
+@@ -0,0 +1,46 @@
++// network-enroll.mjs carries the node's wallet hold channel into the privacy agent's config (enclaveNetwork.walletAdmission)
++// only while the node runs one, and drops it - restarting the agent once each way - when it stops; the agent then reads it.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { createNetworkEnroll } from "../windows/node/network-enroll.mjs";
++import { rawDigest } from "../network/shield-expectation.mjs";
++
++const RID = "ab".repeat(32), APP = "0x" + "5a".repeat(32), RUNNER = "0x" + "22".repeat(32), D = "0x" + "11".repeat(32);
++const CID = "bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza";
++
++function world(walletAdmission) {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wallet-enroll-")), agentDir = path.join(dir, "agent"), policyFile = path.join(dir, "policy.json");
++  fs.mkdirSync(agentDir); fs.writeFileSync(policyFile, JSON.stringify({ cpu: { runtimeId: RID }, gpu: {} }));
++  const rows = [{ id: D, appRef: `catalog://${APP}/4`, configCid: "{}", runner: RUNNER, active: true, isPublic: true, leaseUntil: 9999999999n }];
++  const vm = { name: D, status: "running", appReady: true, catalog: { app: APP, version: 4 }, cid: CID, appId: "ef".repeat(32), runtimeId: RID,
++               componentSha256: rawDigest(CID), derivation: "enclave-catalog-bundle/1", gpuMilli: 0, startedAt: 1 };
++  let restarts = 0;
++  const make = (wa) => createNetworkEnroll({ agentDir, binDir: path.join(dir, "bin"), runner: RUNNER, relayBase: "https://api.enclave.host",
++    fetch: async () => ({ ok: true, json: async () => ({ domains: {} }) }), log: () => {}, restartAgent: async () => { restarts++; },
++    config: { agentDir, binDir: path.join(dir, "bin"), nodeBinary: "node.exe", operatorKeyFile: "op.key", runner: RUNNER, endpoint: "https://api.enclave.host/t/box",
++      relayBase: "https://api.enclave.host", policyFile, tpmBinary: "tpmattest.exe", tpmSha256: "aa".repeat(32), addressBook: "0x" + "44".repeat(20), chainRpc: ["https://rpc"],
++      enclaveNetwork: { checkers: ["0x" + "57".repeat(20)] }, walletAdmission: wa },
++    rows: async () => rows, version: async () => ({ cid: CID }), vms: async () => [vm] });
++  const read = () => JSON.parse(fs.readFileSync(path.join(agentDir, "privacy-config.json"), "utf8"));
++  return { dir, agentDir, make, read, restarts: () => restarts };
++}
++
++test("the channel is enrolled only while the node runs one: added and dropped with one agent restart each, steady otherwise", async () => {
++  const w = world(null);
++  await w.make(null).pass();
++  assert.equal(w.read().enclaveNetwork.walletAdmission, undefined, "no channel: the agent admits on lease and proof as before");
++  const file = path.join(w.agentDir, "wallet-admission.json");
++  const on = w.make({ file });
++  await on.pass();
++  assert.deepEqual(w.read().enclaveNetwork.walletAdmission, { file }); assert.equal(w.restarts(), 1, "the agent restarts once to enforce it");
++  assert.equal((await on.pass()).changed, false); assert.equal(w.restarts(), 1, "steady: no further restart");
++  await w.make(null).pass();
++  assert.equal(w.read().enclaveNetwork.walletAdmission, undefined, "a node without a channel (rolled back, or OFF) drops it");
++  assert.equal(w.restarts(), 2);
++  await w.make({ file: "relative.json" }).pass();
++  assert.equal(w.read().enclaveNetwork.walletAdmission, undefined, "a relative path is never enrolled");
++  fs.rmSync(w.dir, { recursive: true, force: true });
++});
+diff --git a/test/windows-node-wallet-network-hold.test.mjs b/test/windows-node-wallet-network-hold.test.mjs
+new file mode 100644
+index 000000000..b7b6ca510
+--- /dev/null
++++ b/test/windows-node-wallet-network-hold.test.mjs
+@@ -0,0 +1,250 @@
++// The non-destructive wallet hold, end to end on one box: the REAL Host (windows/node/host.mjs) with chain.mjs on a fake
++// Base RPC and the real IsolationManagerClient against a loopback manager that counts removals, writing its wallet channel
++// (network/wallet-admission.mjs) that the REAL PrivacyAgent / EnclaveNetworkManager / EgressMap read, whose status.json
++// the Host then reads back as the hold's acknowledgement. An UNKNOWN host-wallet answer keeps a running domain only with
++// that acknowledgement; everything else is retired as before.
++import {test,after} from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import http from 'node:http';
++import net from 'node:net';
++import {once} from 'node:events';
++import {fakeBaseRpc,DEPLOYMENTS,CATALOG} from './helpers/fake-base-rpc.mjs';
++process.env.NODE_OPERATOR_KEY='0x'+'7f'.repeat(32);
++delete process.env.ENCLAVE_NETWORK_WALLET_HOLD;
++const rpc=await fakeBaseRpc();
++const chain=await import('../windows/node/chain.mjs');
++chain.addresses.deployments=DEPLOYMENTS;chain.addresses.appCatalog=CATALOG;chain.loadOperator();
++const {Host}=await import('../windows/node/host.mjs');
++const {PrivacyAgent}=await import('../network/privacy-agent.mjs');
++const {WalletAllowFile}=await import('../network/wallet-admission.mjs');
++const {defaultNetworkPolicy}=await import('../network/network-policy-core.mjs');
++const {HostEgress}=await import('../network/host-egress.mjs');
++const dirs=[];
++const id='0x'+'ab'.repeat(32),ref='catalog://0x'+'cd'.repeat(32)+'/1',endpoint='https://api.enclave.host/t/wallet-hold-test';
++const runner=chain.enclaveIdOf(endpoint).toLowerCase(),INSTANCE='hv'+'1'.repeat(32);
++const version={cid:'bafy',version:'1',vramMb:0,gpuGflops:0,memMb:512,cpuGflops:0,createdAt:1n,verified:true,yanked:false,ports:'',approval:1,config:'{}'};
++const expected={appRef:ref,configCid:'',appSha256:'4'.repeat(64),runtimeId:'runtime'};
++
++const mgr={vms:[],removed:[]};
++const srv=http.createServer((q,s)=>{const send=(c,b)=>{s.writeHead(c,{'content-type':'application/json'});s.end(JSON.stringify(b));};
++ const m=q.url.match(/^\/vms(?:\/([^/?]+))?$/);if(!m)return send(404,{error:'no'});
++ const vid=m[1]&&decodeURIComponent(m[1]);
++ if(q.method==='GET'&&!vid)return send(200,{vms:mgr.vms});
++ if(q.method==='GET'){const v=mgr.vms.find(x=>x.id===vid);return v?send(200,v):send(404,{error:'gone'});}
++ if(q.method==='DELETE'){const i=mgr.vms.findIndex(x=>x.id===vid);if(i<0)return send(404,{error:'gone'});mgr.removed.push(vid);mgr.vms.splice(i,1);return send(200,{removed:vid});}
++ send(405,{});});
++await new Promise(r=>srv.listen(0,'127.0.0.1',r));
++const MANAGER=`http://127.0.0.1:${srv.address().port}`;
++const realNow=Date.now;let skew=0;Date.now=()=>realNow()+skew;
++const loops=new Set();
++after(()=>{for(const l of loops)clearInterval(l);Date.now=realNow;rpc.close();srv.close();for(const dir of dirs)fs.rmSync(dir,{recursive:true,force:true});});
++
++const row=()=>({id,owner:chain.operatorAddress(),appRef:ref,ports:'',configCid:'',gpuMilli:0,cpuMilli:100,appPort:8000,isPublic:true,
++ active:true,createdAt:1n,rate:1n,balance6:1000000n,spent6:0n,runner,runnerOperator:chain.operatorAddress(),
++ leaseUntil:BigInt(Math.floor(Date.now()/1000)+600)});
++const quiet=h=>{for(const name of ['followBook','enforceOff','ensureRegistered','ensurePriced','scanLedger','retireForeignRecovered'])h[name]=async()=>{};};
++const UNKNOWN=()=>{throw Error('chain quorum unavailable');};
++const ALLOW=(ms=80_000)=>({refusal:null,validUntil:Date.now()+ms});
++
++// the network agent of this box: the real PrivacyAgent on the host's channel file, its own lease and guest proof kept fresh
++// (what its chain round and proof renewal do), its admission + snapshot timer at 100 ms (1 s in production)
++function network(agentDir,{walletRunner=runner,wallet=true,run=true}={}){
++ const reader=wallet?new WalletAllowFile({file:path.join(agentDir,'wallet-admission.json'),runner:walletRunner}):null;
++ const agent=new PrivacyAgent({apps:[{deploymentId:id,expected}],runner,wallet:reader,directory:path.join(agentDir,'state'),dns:['1.1.1.1'],
++  leaseReader:{get:()=>null},network:{localRoutes:false,runtime:{},providers:async()=>[]}});
++ const prove=()=>{agent.admission.observeLease({id,runner,owner:'0x'+'5'.repeat(40),appRef:ref,configCid:'',active:true,isPublic:true,validUntil:Date.now()+90_000,leaseUntil:Date.now()+90_000});
++  agent.admission.proofs.set(id,{deploymentId:id,appSha256:expected.appSha256,runtimeId:expected.runtimeId,spkiSha256:'5'.repeat(64),validUntil:Date.now()+60_000});};
++ const tick=async()=>{prove();await agent.snapshot();};
++ let loop=null;const start=()=>{loop=setInterval(()=>void tick().catch(()=>{}),100);loops.add(loop);},stop=()=>{clearInterval(loop);loops.delete(loop);};
++ const n={agent,reader,tick,start,stop,
++  admitted:()=>agent.manager.authorizationUntil(id)>Date.now(),
++  egress:()=>JSON.parse(fs.readFileSync(path.join(agentDir,'state','egress-routes.json'),'utf8')).apps,
++  configure:()=>agent.manager.configure([{deploymentId:id,names:[id.slice(2,10)+'.app.enclave.host'],policy:defaultNetworkPolicy(id)}])};
++ return n;
++}
++// a FRESH node process with the channel on, a running domain on the manager, and its box's network agent
++async function box(answer,{hostAdmission,agentDir,networkOpts={},startNetwork=true,cfg={}}={}){
++ skew=0;mgr.removed=[];mgr.vms=[{id:INSTANCE,name:id,status:'running',appId:'a'.repeat(64)}];
++ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'host-wallet-hold-'));dirs.push(dir);
++ agentDir||=path.join(dir,'agent');fs.mkdirSync(path.join(agentDir,'state'),{recursive:true});
++ const walletAdmission={file:path.join(agentDir,'wallet-admission.json'),statusFile:path.join(agentDir,'state','status.json')};
++ const h=new Host({dir,endpoint,name:'test',appsEnabled:true,vcpus:8,ramGb:16,cpuPricePerSec6:0,isolationManager:MANAGER,walletAdmission,...cfg,
++   hostAdmission:hostAdmission||{hostId:chain.enclaveIdOf(endpoint),refusal:async q=>(await answer(q)).refusal,decision:async q=>answer(q)}});
++ h.chainReady=true;h.registered={cpuPricePerSec6:'0'};await h.refreshOwners();quiet(h);
++ await h.walletChannelStart();
++ rpc.row.current=row();rpc.catalog.current=version;rpc.chainTx.mine=true;
++ h.tracked.add(id);h.records.set(id,{id});
++ let launched=0;h.ensureApp=async()=>{launched++;h.records.set(id,{...h.records.get(id),status:'running',isolation:{instance:INSTANCE,appId:'a'.repeat(64)}});return h.records.get(id);};
++ const withdrawn=[];h.servingWithdrawn=i=>withdrawn.push(i);
++ const n=network(agentDir,networkOpts);await n.configure();if(startNetwork){await n.tick();n.start();}
++ return {h,n,dir,agentDir,launched:()=>launched,withdrawn,tx:()=>rpc.chainTx.sent.length};
++}
++
++test('UNKNOWN with a confirmed network hold: domain KEPT (no removal, no tx), ingress/egress and an established stream withdrawn, app zone refuses; a fresh allow restores',{timeout:20_000},async t=>{
++ let mode='allow';
++ const b=await box(()=>mode==='allow'?ALLOW():UNKNOWN());
++ assert.equal(b.n.admitted(),false,'a fresh node generation starts EMPTY: nothing admitted before the first allow');
++ await b.h.tick();await b.n.tick();
++ assert.equal(b.n.admitted(),true,'the definite allow is published with its chain deadline');
++ assert.ok(await b.h.appZoneTarget(id),'served by the app zone while allowed');
++ // a REAL established host-egress stream for the app (the SOCKS server and its splice unchanged; destination on loopback)
++ const sockets=new Set(),echo=net.createServer(s=>{sockets.add(s);s.on('error',()=>{});s.on('close',()=>sockets.delete(s));s.pipe(s);});
++ echo.listen(0,'127.0.0.1');await once(echo,'listening');
++ const egress=new HostEgress({authorize:i=>b.n.agent.admission.allows(i),connect:()=>net.connect({host:'127.0.0.1',port:echo.address().port})});
++ let client=null;t.after(async()=>{b.n.stop();client?.destroy();await egress.close();for(const s of sockets)s.destroy();await new Promise(r=>echo.close(r));});
++ const c=await egress.start({deploymentId:id});c.healthy=true;b.n.agent.manager.apps.get(id).circuits.push(c);await b.n.tick();
++ client=net.connect({host:'127.0.0.1',port:Number(c.egress.split(':').at(-1))});client.on('error',()=>{});await once(client,'connect');
++ let reply=once(client,'data');client.write(Buffer.from([5,1,0]));await reply;
++ reply=once(client,'data');client.write(Buffer.from([5,1,0,1,8,8,8,8,0,80]));assert.equal((await reply)[0][1],0);
++ reply=once(client,'data');client.write('before');assert.equal((await reply)[0].toString(),'before');
++ assert.ok(b.n.egress()[id],'egress map lists the app while allowed');
++ const closed=once(client,'close'),before=b.tx();
++ mode='unknown';skew=30_000;await b.n.tick();await b.h.tick();
++ assert.deepEqual(mgr.removed,[],'the running domain (its key and certificate) is NOT retired');
++ assert.equal(b.tx(),before,'nothing released or renewed on an unknown policy');
++ const r=b.h.records.get(id);assert.equal(r.status,'held');assert.equal(r.walletHeld,true);assert.equal(r.walletKept,true);
++ assert.match(r.reason,/^host wallet policy unavailable \(chain quorum unavailable\): not served, renewed or released.*its domain hv1+ is KEPT: the network agent confirmed its ingress and egress withdrawn$/);
++ await closed;assert.equal(c.closed,true,'the established egress stream was cut before the acknowledgement');
++ assert.equal(b.n.admitted(),false);assert.deepEqual(b.n.egress(),{},'egress map withdrawn');
++ assert.equal(await b.h.appZoneTarget(id),null,'the app zone splices nothing for it');
++ assert.equal(b.h.appZoneAdmitted(id),false);assert.deepEqual(b.withdrawn,[id],'the app zone\'s open streams for it are cut');
++ assert.equal(b.launched(),1,'nothing launched while unknown');
++ skew=60_000;await b.n.tick();await b.h.tick();assert.deepEqual(mgr.removed,[],'still kept on the next unknown pass');assert.equal(b.tx(),before);
++ mode='allow';skew=90_000;await b.h.tick();await b.n.tick();
++ assert.equal(b.h.records.get(id).walletHeld,null);assert.equal(b.launched(),2,'served again: ensureApp adopts the kept domain');
++ assert.equal(b.n.admitted(),true,'a FRESH allow restores network admission');assert.deepEqual(mgr.removed,[]);
++});
++
++test('a COLD node (first answer UNKNOWN) keeps the running domain only on the acknowledgement of its NEW generation',{timeout:20_000},async()=>{
++ let mode='unknown';
++ const b=await box(()=>mode==='allow'?ALLOW():UNKNOWN());
++ await b.h.tick();
++ assert.deepEqual(mgr.removed,[]);assert.equal(b.h.records.get(id).walletKept,true);assert.equal(b.n.admitted(),false);
++ assert.equal(b.n.reader.status().generation,b.h.walletChannel.generation);
++ mode='allow';skew=30_000;await b.h.tick();await b.n.tick();assert.equal(b.n.admitted(),true);assert.deepEqual(mgr.removed,[]);
++ b.n.stop();
++});
++
++test('no false preserve: no network agent, an older one, a stale status, another runner, or an intervening allow -> retired as before',{timeout:30_000},async()=>{
++ const cases=[
++  ['no network agent (no status)',{startNetwork:false},/the network agent's status cannot be read/],
++  ['an older network agent (no walletAdmission)',{networkOpts:{wallet:false}},/does not enforce wallet holds/],
++  ['another runner\'s channel',{networkOpts:{walletRunner:'0x'+'99'.repeat(32)}},/reads another runner's channel/],
++ ];
++ for(const [name,opts,why] of cases){
++  const b=await box(()=>UNKNOWN(),opts);const t0=realNow();
++  await b.h.tick();b.n.stop();
++  assert.equal(mgr.removed.length,1,`${name}: retired`);assert.ok(realNow()-t0<3000,`${name}: at once, not after the bound`);
++  const r=b.h.records.get(id);assert.notEqual(r.walletKept,true);assert.match(r.reason,why,name);
++ }
++ // stale: the agent stopped answering 6 s ago; waited for within the bound, then retired
++ {const b=await box(()=>UNKNOWN(),{cfg:{walletHoldAckMs:1500}});b.n.stop();await b.n.tick();skew=6000;const t0=realNow();await b.h.tick();
++  assert.equal(mgr.removed.length,1,'stale status: retired');assert.ok(realNow()-t0>=1400);assert.match(b.h.records.get(id).reason,/within 1.5 s \(its status is stale\)/);}
++ // an allow lands between the hold and its acknowledgement (another path re-allowed): revision alone is no proof
++ {const b=await box(()=>UNKNOWN(),{cfg:{walletHoldAckMs:1500}});const w=b.h.walletChannel,hold=w.hold.bind(w);
++  w.hold=i=>{const r=hold(i);w.allow(i,{appRef:ref,configCid:'',validUntil:Date.now()+60_000});return r;};
++  const t0=realNow();await b.h.tick();b.n.stop();
++  assert.equal(mgr.removed.length,1,'reallowed: no false preserve');assert.ok(realNow()-t0>=1400);
++  assert.match(b.h.records.get(id).reason,/did not confirm the withdrawal within 1.5 s/);}
++});
++
++test('an acknowledgement that never comes (a circuit close that does not finish) retires after exactly WALLET_HOLD_ACK_MS (15 s)',{timeout:30_000},async()=>{
++ const b=await box(()=>UNKNOWN());
++ b.n.agent.manager.apps.get(id).circuits.push({id:'stuck',healthy:true,providers:{},admit(){},close:()=>new Promise(()=>{})});
++ const t0=realNow();await b.h.tick();const took=realNow()-t0;b.n.stop();
++ assert.equal(mgr.removed.length,1);assert.ok(took>=15_000&&took<17_000,`bounded wait ${took} ms`);
++ assert.match(b.h.records.get(id).reason,/did not confirm the withdrawal within 15 s/);
++ assert.equal(JSON.parse(fs.readFileSync(path.join(b.agentDir,'state','status.json'),'utf8')).walletAdmission.applied,false);
++});
++
++test('a DEFINITE refusal (owner deny, catalog approval, yank) with the channel on: withdrawn on the network, retired and released at once, never KEPT',{timeout:20_000},async()=>{
++ for(const refusal of ['this host owner declines this deployment','this host owner requires current catalog approval','catalog: the version is yanked by its publisher']){
++  let mode='allow';
++  const b=await box(()=>mode==='allow'?ALLOW():{refusal,validUntil:Date.now()+80_000});
++  await b.h.tick();await b.n.tick();assert.equal(b.n.admitted(),true);
++  // 10 s later: the allow (80 s) and the channel document (30 s) are both still current, so only its withdrawal stops it
++  const before=b.tx();mode='deny';skew=10_000;await b.n.tick();assert.equal(b.n.admitted(),true);await b.h.tick();await b.n.tick();
++  assert.equal(mgr.removed.length,1,`retired: ${refusal}`);assert.equal(b.tx(),before+1,'and released');
++  assert.equal(b.n.admitted(),false,'its allow is withdrawn from the network');
++  assert.doesNotMatch(b.h.records.get(id).reason||'',/KEPT/);assert.equal(b.h.tracked.has(id),false);
++  b.n.stop();
++ }
++});
++
++test('a lease that lapses while held is stopped locally: retired, not released, not renewed',{timeout:20_000},async()=>{
++ const b=await box(()=>UNKNOWN());
++ await b.h.tick();assert.deepEqual(mgr.removed,[]);const before=b.tx();
++ skew=601_000;await b.h.tick();
++ assert.equal(mgr.removed.length,1,'retired at lease end');assert.equal(b.tx(),before,'nothing on chain');
++ assert.equal(b.h.records.get(id).status,'stopped');assert.equal(b.h.tracked.has(id),false);
++ b.n.stop();
++});
++
++test('node restart: the new process retires every earlier grant at once (EMPTY generation); its own UNKNOWN is kept only on its ACK',{timeout:20_000},async()=>{
++ let mode='allow';const answer=()=>mode==='allow'?ALLOW():UNKNOWN();
++ const b=await box(answer);await b.h.tick();await b.n.tick();assert.equal(b.n.admitted(),true);
++ // the node process ends without a word; a new one starts on the same files
++ const h2=new Host({dir:b.dir,endpoint,name:'test',appsEnabled:true,vcpus:8,ramGb:16,cpuPricePerSec6:0,isolationManager:MANAGER,
++  walletAdmission:b.h.walletAdmission,hostAdmission:{hostId:chain.enclaveIdOf(endpoint),refusal:async()=>null,decision:async()=>answer()}});
++ h2.chainReady=true;h2.registered={cpuPricePerSec6:'0'};await h2.refreshOwners();quiet(h2);h2.tracked.add(id);h2.records.set(id,{id});
++ let launched=0;h2.ensureApp=async()=>{launched++;return h2.records.get(id);};
++ await h2.walletChannelStart();await b.n.tick();
++ assert.notEqual(h2.walletChannel.generation,b.h.walletChannel.generation);
++ assert.equal(b.n.admitted(),false,'the previous process\'s allow does not survive the restart');assert.deepEqual(mgr.removed,[]);
++ mode='unknown';await h2.tick();assert.deepEqual(mgr.removed,[],'kept on the new generation\'s acknowledgement');assert.equal(h2.records.get(id).walletKept,true);
++ // the old process's writer (a zombie) cannot resurrect its generation: the reader retired it
++ b.h.walletChannel.heartbeat();await b.n.tick();assert.equal(b.n.admitted(),false);assert.match(b.n.reader.status().error,/retired/);
++ h2.walletChannel.heartbeat();await b.n.tick();
++ mode='allow';await h2.tick();await b.n.tick();assert.equal(b.n.admitted(),true,'a fresh allow of the new process restores');assert.equal(launched,1);
++ b.n.stop();
++});
++
++test('node crash or hang: the channel lapses in 30 s and the network withholds; a heartbeat never extends a decision',{timeout:20_000},async()=>{
++ const b=await box(()=>ALLOW(40_000));b.n.stop();
++ await b.h.tick();await b.n.tick();assert.equal(b.n.admitted(),true);
++ skew=31_000;await b.n.tick();assert.equal(b.n.admitted(),false,'no heartbeat: the channel document lapsed');
++ skew=0;b.h.walletChannel.allow(id,{appRef:ref,configCid:'',validUntil:Date.now()+40_000});
++ skew=25_000;b.h.walletHeartbeat();await b.n.tick();assert.equal(b.n.admitted(),true,'heartbeat keeps the CHANNEL alive');
++ skew=41_000;b.h.walletHeartbeat();await b.n.tick();assert.equal(b.n.admitted(),false,'but not the decision past its chain deadline');
++ assert.deepEqual(mgr.removed,[],'withholding never touched the domain');
++});
++
++test('an allow that cannot be published is an UNKNOWN (held, nothing launched), and a forced ensureApp cannot bypass the hold',{timeout:20_000},async()=>{
++ let b=await box(()=>ALLOW(200_000));
++ await b.h.tick();assert.equal(b.launched(),0);assert.equal(b.n.admitted(),false);
++ assert.match(b.h.records.get(id).reason,/the allow could not be published to the network agent/);assert.deepEqual(mgr.removed,[]);b.n.stop();
++ b=await box(()=>UNKNOWN());delete b.h.ensureApp;const before=b.tx();
++ const rec=await b.h.ensureApp(id,row(),{force:true,version});
++ assert.equal(rec.status,'held');assert.equal(rec.walletKept,true);assert.equal(b.h.apps.has(id),false);assert.deepEqual(mgr.removed,[]);assert.equal(b.tx(),before);
++ b.n.stop();
++});
++
++test('channel OFF (an older host-admission bundle without decision(), or not configured): UNKNOWN retires exactly as before, no file written',{timeout:20_000},async()=>{
++ const b=await box(null,{hostAdmission:{hostId:chain.enclaveIdOf(endpoint),refusal:async()=>{throw Error('chain quorum unavailable');}},networkOpts:{wallet:false}});
++ assert.equal(b.h.walletChannel,null);assert.match(b.h.walletChannelOff,/older host-admission bundle/);
++ assert.equal(fs.existsSync(b.h.walletAdmission.file),false,'no channel file');
++ await b.h.tick();assert.equal(mgr.removed.length,1);
++ assert.equal(b.h.records.get(id).reason,'host wallet policy unavailable (chain quorum unavailable): not served, renewed or released until it is established; asked again each pass');
++ b.n.stop();
++ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'host-wallet-off-'));dirs.push(dir);
++ const h=new Host({dir,endpoint,name:'t',appsEnabled:true,vcpus:8,ramGb:16,cpuPricePerSec6:0,isolationManager:MANAGER,hostAdmission:{hostId:chain.enclaveIdOf(endpoint),refusal:async()=>null,decision:async()=>ALLOW()}});
++ assert.equal(h.walletAdmission,null,'off unless ENCLAVE_NETWORK_WALLET_HOLD=1');assert.equal(await h.walletChannelStart(),null);
++});
++
++test('a Windows sharing violation of the hold write: retried ONCE, in the writer (<= 375 ms); transient -> kept; persistent -> the old retire, fast',{timeout:20_000},async()=>{
++ // injected at the atomic replace itself (fs.renameSync of the channel file), not above the writer: the writer's
++ // COMMIT_RETRY is the only retry layer (7d D1 v2), so the host path pays at most its budget, never a multiple of it
++ const realRename=fs.renameSync;
++ const refuse=(file,n)=>{let left=n;fs.renameSync=(a,b)=>{if(b===file&&left-->0)throw Object.assign(Error('EPERM: operation not permitted, rename'),{code:'EPERM'});return realRename(a,b);};};
++ try{
++  let b=await box(()=>UNKNOWN());refuse(b.h.walletAdmission.file,2);
++  await b.h.tick();assert.deepEqual(mgr.removed,[]);assert.equal(b.h.records.get(id).walletKept,true,'transient: kept');b.n.stop();
++  b=await box(()=>UNKNOWN(),{startNetwork:false});refuse(b.h.walletAdmission.file,1e9);const t0=realNow();
++  await b.h.tick();const took=realNow()-t0;
++  assert.equal(mgr.removed.length,1);assert.match(b.h.records.get(id).reason,/not kept: the hold could not be written \(EPERM/);
++  assert.ok(took<2000,`persistent refusal falls back within the single budget (took ${took} ms; two layers would take ~4-12 s)`);b.n.stop();
++ }finally{fs.renameSync=realRename;}
++});
+diff --git a/windows/node/agent.mjs b/windows/node/agent.mjs
+index 61207a3a7..ab691f8bd 100644
+--- a/windows/node/agent.mjs
++++ b/windows/node/agent.mjs
+@@ -810,7 +810,7 @@ function localHttp(port) {
+       await app.stop(); host.apps.delete(String(b.id).toLowerCase());
+       return json(200, { id: b.id, stopped: true });
+     }
+-    if (APPS && p === '/v1/host/state') return json(200, { deployments: host.deployments(), availability: host.availability() });
++    if (APPS && p === '/v1/host/state') return json(200, { deployments: host.deployments(), availability: host.availability(), leaseReadiness: host.leaseReadiness() });
+     const r = await handle({ path: req.url, method: req.method, headers: req.headers, body: body.toString('base64') });
+     res.writeHead(r.status, r.headers); res.end(r.body);
+   });
+@@ -1059,6 +1059,9 @@ async function startHostingControls() {
+           enroll ||= createNetworkEnroll({ agentDir: NET.agentDir, binDir: NET.binDir,
+             runner: host.enclaveId, relayBase,
+             config: { agentDir: NET.agentDir, binDir: NET.binDir, nodeBinary: process.execPath,
++                      // the wallet hold channel the node writes (host.mjs walletChannelStart): the network agent enforces it
++                      // only while this node actually runs one; otherwise the block is dropped (and the agent restarted once)
++                      walletAdmission: host.walletChannel ? { file: host.walletAdmission.file } : null,
+                       operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
+                       policyFile: NET.policy, tpmBinary: process.env.TPMATTEST_EXE,
+                       tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
+@@ -1150,6 +1153,8 @@ async function startHostingControls() {
+     zone = appZone({
+       isolationSplicer,
+       resolve: (id) => host.appZoneTarget(id),
++      // re-asked after the resolve, at the moment of splicing: a wallet hold between the two is not served
++      admitted: (id) => host.appZoneAdmitted(id),
+       // A gate-served app (wasi:http, enclave:app) has no socket: its own hostname is served by
+       // terminating TLS here and carrying the request through the gate, the same frame the /x/
+       // path uses.
+@@ -1160,6 +1165,8 @@ async function startHostingControls() {
+       maxBodyBytes: Math.round((Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64) * 1048576),
+       log: (m) => log(`[app-zone] ${m}`),
+     });
++    // a wallet hold cuts what the app zone already splices or serves for that deployment (host.mjs #walletHold)
++    host.servingWithdrawn = (id) => zone.closeDeployment(id);
+     try {
+       const { loadOperator } = await import('./chain.mjs');
+       const acct = loadOperator(path.join(DIR, 'operator.key'));
+diff --git a/windows/node/appzone.mjs b/windows/node/appzone.mjs
+index 9f9794871..ccf9d0a21 100644
+--- a/windows/node/appzone.mjs
++++ b/windows/node/appzone.mjs
+@@ -143,7 +143,7 @@ export function appRequestHandler({ serveHttp, log = () => {} }) {
+   };
+ }
+ 
+-export function appZone({ resolve, serveHttp, maxBodyBytes = 0, log = () => {}, isolationSplicer = null }) {
++export function appZone({ resolve, serveHttp, maxBodyBytes = 0, log = () => {}, isolationSplicer = null, admitted = null }) {
+   const streams = new Map();
+   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+   // The server for GATE-SERVED apps: node's own HTTP parser, fed sockets by hand. It never
+@@ -178,6 +178,14 @@ export function appZone({ resolve, serveHttp, maxBodyBytes = 0, log = () => {},
+     let target = null;
+     try { target = await resolve(ref); } catch (e) { log(`app-zone ${ref}: ${e.message}`); }
+     const id = target?.id || ref;
++    // NAMED from here, so a later closeDeployment(id) finds this stream; and re-asked now, synchronously with the naming,
++    // so a withdrawal that landed while resolve awaited is not served (host.appZoneAdmitted)
++    st.id = id;
++    if (target && admitted && !admitted(id)) {
++      log(`app-zone ${id.slice(0, 10)}: no longer served here`);
++      st.sock.write(`HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n`);
++      return drop(st.sid);
++    }
+ 
+     // AN ISOLATED DEPLOYMENT IS SPLICED, NOT TERMINATED.
+     //
+@@ -325,5 +333,7 @@ export function appZone({ resolve, serveHttp, maxBodyBytes = 0, log = () => {},
+       .catch(e => { log(`local app ingress: ${e.message}`); drop(sid); });
+     return true;
+   }
+-  return { handleUpgrade, open: () => streams.size, closeAll: () => { for (const sid of [...streams.keys()]) drop(sid); } };
++  // closeDeployment(id): every stream this zone splices or serves for one deployment ends now (a wallet hold) -> count
++  const closeDeployment = (id) => { let n = 0; for (const [sid, st] of [...streams]) if (st.id === id) { drop(sid); n++; } return n; };
++  return { handleUpgrade, open: () => streams.size, closeAll: () => { for (const sid of [...streams.keys()]) drop(sid); }, closeDeployment };
+ }
+diff --git a/windows/node/host.mjs b/windows/node/host.mjs
+index df5e6dce9..e192ff507 100644
+--- a/windows/node/host.mjs
++++ b/windows/node/host.mjs
+@@ -63,6 +63,22 @@ const PROOF_MS = 5 * 60_000;         // the contract's window is 15 min; the pla
+ // reverts "lease expired" and the app is stopped - for risc-box, a cold boot of the whole machine.
+ // 15 minutes gives three attempts inside a ~30-minute lease, for twice the renewals' gas (cents).
+ const RENEW_LEAD_MS = 15 * 60_000;
++// NON-DESTRUCTIVE WALLET HOLD (network/wallet-admission.mjs). An UNKNOWN host-wallet answer keeps a running domain (its
++// key and certificate) ONLY once the network agent confirms it withdrew that deployment's ingress and egress
++// (walletHoldAcknowledged); otherwise the domain is retired exactly as before. The wait is bounded: WALLET_HOLD_ACK_MS
++// covers the agent's 1-s admission timer, its serialized snapshot, the circuit closes and an allocation already in flight
++// (which must settle before it acknowledges); it is spent only while that agent is up and reads this host's channel.
++// The channel document is re-issued every WALLET_CHANNEL_HEARTBEAT_MS (it lives 30 s); that never extends a decision,
++// whose deadline is the chain snapshot's own (host-admission decision().validUntil).
++const WALLET_HOLD_ACK_MS = 15_000, WALLET_HOLD_POLL_MS = 250, WALLET_CHANNEL_HEARTBEAT_MS = 10_000;
++/** The wallet hold channel, opted into per host (ENCLAVE_NETWORK_WALLET_HOLD=1) beside the network agent it enrolls. */
++export function walletAdmissionFromEnv(env = process.env) {
++  if (env.ENCLAVE_NETWORK_WALLET_HOLD !== "1") return null;
++  const dir = String(env.ENCLAVE_NETWORK_AGENT_DIR || "");
++  if (!path.isAbsolute(dir)) return { error: "ENCLAVE_NETWORK_WALLET_HOLD=1 needs an absolute ENCLAVE_NETWORK_AGENT_DIR" };
++  // the privacy agent's state directory is <agent dir>\state (network-enroll.mjs baseConfig, repointed on every pass)
++  return { file: path.join(dir, "wallet-admission.json"), statusFile: path.join(dir, "state", "status.json") };
++}
+ 
+ /**
+  * Why an isolated instance's stated boundary is not this backend's, or null when it is. hyperv-partition-per-app is T0-hv
+@@ -151,6 +167,10 @@ export class Host {
+     // host:port of the manager's data plane. Without it the app zone has no splicer, so an
+     // isolated deployment is refused at the route rather than served through this agent.
+     this.cfg.isolationDataAddr  = this.cfg.isolationDataAddr  || process.env.ENCLAVE_ISOLATION_DATA_ADDR || "";
++    // The wallet hold channel's configuration ({file, statusFile}, or null: off, and an UNKNOWN policy retires as before).
++    this.walletAdmission = cfg.walletAdmission !== undefined ? cfg.walletAdmission : walletAdmissionFromEnv();
++    this.walletChannel = null;
++    this.walletChannelOff = !this.walletAdmission ? "off (not configured)" : this.walletAdmission.error || "not started";
+     /// Secrets this box fetched for a lease it holds, in memory only: never written beside the
+     /// state file, never logged, and dropped when the lease goes.
+     this.secrets = new Map();
+@@ -286,6 +306,7 @@ export class Host {
+   }
+ 
+   async init() {
++    await this.walletChannelStart({ heartbeat: true });
+     try {
+       await chain.resolveAddresses();
+       chain.loadOperator(path.join(this.cfg.dir, "operator.key"));
+@@ -1372,6 +1393,7 @@ export class Host {
+   async ensureApp(id, d, { force = false, version = null } = {}) {
+     const wallet = await this.#walletPolicyState({ ...d, id });
+     if (wallet.refusal) return await this.#giveUp(id, wallet.refusal, { retry: true });
++    if (!wallet.unknown) wallet.unknown = this.#walletGrant(id, d, wallet);
+     if (wallet.unknown) return await this.#walletHold(id, wallet.unknown);
+     if (this.records.get(id)?.walletHeld) this.#record(id, { walletHeld: null });
+     if (force) this.#respawnAfter.delete(id);
+@@ -2042,11 +2064,27 @@ export class Host {
+    */
+   tick() {
+     if (this.#tickInFlight) return this.#tickInFlight;
+-    const pass = this.#tickOnce().finally(() => { if (this.#tickInFlight === pass) this.#tickInFlight = null; });
++    const sequence = ++this.#leaseSequence;
++    this.#leaseStartedAt = Date.now(); this.#leaseCompletedAt = 0;
++    this.#leaseChecks = new Map([...this.tracked].map(id => [id, { id, sequence, status: "pending" }]));
++    const pass = this.#tickOnce().then(() => { this.#leaseCompletedAt = Date.now(); })
++      .finally(() => { if (this.#tickInFlight === pass) this.#tickInFlight = null; });
+     this.#tickInFlight = pass;
+     return pass;
+   }
+   #tickInFlight = null;
++  #leaseSequence = 0;
++  #leaseStartedAt = 0;
++  #leaseCompletedAt = 0;
++  #leaseChecks = new Map();
++  /** Restart readiness is evidence from THIS process's lease pass, never persisted/hydrated from host-state.json.
++   * A ready row means current policy allowed service, the renewal path did not fail, and adoption returned running.
++   * It does not promise future RPC availability. Callers must also verify the expected IDs and remaining lease time.
++   */
++  leaseReadiness() {
++    return { sequence: this.#leaseSequence, startedAt: this.#leaseStartedAt, completedAt: this.#leaseCompletedAt,
++      inFlight: !!this.#tickInFlight, deployments: [...this.#leaseChecks.values()].map(row => ({ ...row })) };
++  }
+   async #tickOnce() {
+     if (!this.chainReady) return;
+     // journaled sponsored releases: settled ONLY from the chain (verified receipt = released; consumed/expired = fence)
+@@ -2066,6 +2104,7 @@ export class Host {
+     await this.retireForeignRecovered().catch((e) => this.log(`isolation: recovered-VM sweep: ${e.message}`));
+     for (const id of [...this.tracked]) {
+       let d; try { d = await chain.readDeployment(id); } catch { continue; }
++      let leaseObservedAt = Date.now(), leaseRenewalOk = true;
+       const rec = this.records.get(id) || this.#record(id, {});
+       const runner = String(d.runner || "").toLowerCase();
+       const unclaimed = /^0x0+$/.test(runner);
+@@ -2082,6 +2121,7 @@ export class Host {
+       // claiming it. The receipt is the truth; give the reads two minutes to catch up.
+       if (!ours) {
+         if (rec.claimedAt && Date.now() - rec.claimedAt < 120_000) continue;
++        this.#walletRevoke(id);
+         await this.consider(id).catch((e) => this.log(`re-claim ${id.slice(0, 10)}: ${e.message}`));
+         continue;
+       }
+@@ -2089,6 +2129,7 @@ export class Host {
+       if (pinRefusal) { await this.#giveUp(id, pinRefusal, { retry: true }); continue; }
+       const wallet = await this.#walletPolicyState({ ...d, id });
+       if (wallet.refusal) { await this.#giveUp(id, wallet.refusal, { retry: true }); continue; }
++      if (!wallet.unknown) wallet.unknown = this.#walletGrant(id, d, wallet);
+       if (wallet.unknown) {
+         if (untilMs < Date.now()) { await this.#stopApp(id, `its lease lapsed while the host wallet policy was unavailable (not renewed): ${wallet.unknown}`); continue; }
+         await this.#walletHold(id, wallet.unknown);
+@@ -2181,9 +2222,11 @@ export class Host {
+             await chain.renewDeployment(id);
+             this.log(`renewed ${id.slice(0, 10)}`);
+             d = await chain.readDeployment(id);
++            leaseObservedAt = Date.now();
+           }
+         }
+         catch (e) {
++          leaseRenewalOk = false;
+           // rateCap doctrine (the platform runner's, mirrored): a renew the LEDGER refuses is not
+           // an error to retry, it is the deployment's own rate cap or its balance saying "this is
+           // the last quantum". Say when the app goes rather than retrying until it vanishes.
+@@ -2208,6 +2251,15 @@ export class Host {
+       await this.#applyShareResize(id, d, rec).catch((e) => this.log(`resize ${id.slice(0, 10)}: ${e.message}`));
+       const app = this.apps.get(id);
+       if (!app || app.state !== "running") await this.ensureApp(id, d);
++      // Publish evidence only after the ordinary policy/renewal/adoption path. Any earlier continue leaves pending.
++      // A failed renewal must never become healthy just because an existing app still answers HTTP.
++      const observed = this.records.get(id);
++      const leaseServing = leaseRenewalOk && !notServing && !oneQuantum && observed?.status === "running"
++        && observed.boundaryHeld !== true && observed.capHeld !== true && !this.platformPolicy.serviceRefusal()
++        && !chain.releaseHold(id) && d.active === true && String(d.runner).toLowerCase() === this.enclaveId.toLowerCase()
++        && Number(d.leaseUntil) * 1000 > Date.now();
++      this.#leaseChecks.set(id, { id, sequence: this.#leaseSequence, status: leaseServing ? "ready" : "not-ready",
++        observedAt: leaseObservedAt, checkedAt: Date.now(), leaseUntil: Number(d.leaseUntil), runner: String(d.runner).toLowerCase() });
+     }
+     // The app's own origin: a certificate order at the relay answers 202 while ACME runs, so keep
+     // asking on the tick rather than only when a visitor arrives. Until it is issued the console's
+@@ -2255,6 +2307,7 @@ export class Host {
+     return p;
+   }
+   async #giveUpOnce(id, why, { retry = false } = {}) {
++    this.#walletRevoke(id);
+     this.#respawnAfter.delete(id);
+     // An isolated domain first: handing the lease back while its partition still serves would
+     // leave the deployment answering with no lease behind it (defect 15). And if it could NOT be confirmed gone, the
+@@ -2437,6 +2490,7 @@ export class Host {
+   }
+ 
+   async #stopApp(id, why) {
++    this.#walletRevoke(id);
+     // BEFORE forgetting anything: a partition is not in this.apps, so without this the domain
+     // simply keeps running under a lease that has ended. An unconfirmed retire keeps the deployment TRACKED, so the
+     // next tick (which reads the same ledger state and comes back here) retries it rather than forgetting a VM that
+@@ -2866,7 +2920,12 @@ export class Host {
+   // refused and nothing is served on it - and never "refused": the lease is not given back on chain for it.
+   async #walletPolicyState(d) {
+     if (!this.hostAdmission) return { refusal: null, unknown: null };
+-    try { return { refusal: (await this.hostAdmission.refusal({ deploymentId: d.id, appRef: d.appRef, forPrivate: d.isPublic === false })) || null, unknown: null }; }
++    try {
++      const q = { deploymentId: d.id, appRef: d.appRef, forPrivate: d.isPublic === false };
++      // with the hold channel on, the same decision plus the chain deadline its allow may be published until
++      if (this.walletChannel) { const r = await this.hostAdmission.decision(q); return { refusal: r?.refusal || null, unknown: null, validUntil: r?.validUntil }; }
++      return { refusal: (await this.hostAdmission.refusal(q)) || null, unknown: null };
++    }
+     catch (e) {
+       const m = String(e.message).slice(0, 240);
+       // a deployment the policy cannot judge by its form is refused by the policy itself, not unknown
+@@ -2887,13 +2946,100 @@ export class Host {
+    */
+   async #walletHold(id, unknown) {
+     const why = `host wallet policy unavailable (${unknown}): not served, renewed or released until it is established; asked again each pass`;
+-    const gone = await this.#retireIsolated(id, why);
++    const prev = this.records.get(id) || {};
++    if (this.walletChannel) {
++      // NOTHING HERE SERVES IT FROM NOW, before anything is asked: the app zone refuses a record that is not running, the
++      // streams it already splices are cut, an in-process app stops. Then the network agent must confirm the hold.
++      this.#record(id, { status: "held", walletHeld: true, port: null });
++      try { this.servingWithdrawn?.(id); } catch (e) { this.log(`${String(id).slice(0, 10)} app-zone withdrawal: ${e.message}`); }
++      const app = this.apps.get(id);
++      if (app) { await app.stop(); this.apps.delete(id); }
++      const held = await this.#walletHoldConfirmed(id);
++      if (held.ok) {
++        const inst = prev.isolation?.instance || prev.isolationHeld || null;
++        const reason = `${why}; ${inst ? `its domain ${inst}` : "its domain"} is KEPT: the network agent confirmed its ingress and egress withdrawn`;
++        if (prev.reason !== reason) this.log(`${String(id).slice(0, 10)} ${reason} (hold revision ${held.revision})`);
++        return this.#record(id, { status: "held", walletHeld: true, walletKept: true, port: null, reason });
++      }
++      unknown = `${unknown}; not kept: ${held.why}`;
++    }
++    const whyRetired = this.walletChannel ? `host wallet policy unavailable (${unknown}): not served, renewed or released until it is established; asked again each pass` : why;
++    const gone = await this.#retireIsolated(id, whyRetired);
+     const app = this.apps.get(id);
+     if (app) { await app.stop(); this.apps.delete(id); }
+     const rec = this.records.get(id) || {};
+-    if (rec.reason !== why) this.log(`${String(id).slice(0, 10)} ${why}`);
+-    return this.#record(id, { status: "held", walletHeld: true, port: null,
+-      reason: gone ? why : `${why}; the isolated domain could not be confirmed gone yet (retried)` });
++    if (rec.reason !== whyRetired) this.log(`${String(id).slice(0, 10)} ${whyRetired}`);
++    return this.#record(id, { status: "held", walletHeld: true, walletKept: null, port: null,
++      reason: gone ? whyRetired : `${whyRetired}; the isolated domain could not be confirmed gone yet (retried)` });
++  }
++  /** The wallet hold channel (network/wallet-admission.mjs): written EMPTY under a fresh generation, so no grant of an
++   *  earlier process survives this one's start; re-issued by the heartbeat; off (the old retire) on any failure. */
++  async walletChannelStart({ heartbeat = false } = {}) {
++    const wa = this.walletAdmission;
++    if (!wa || wa.error || this.walletChannel) return this.walletChannel;
++    try {
++      if (!this.hostAdmission) throw new Error("this host has no wallet admission");
++      if (typeof this.hostAdmission.decision !== "function") throw new Error("the host admission has no decision() with its chain deadline (an older host-admission bundle)");
++      if (!this.cfg.isolationManager) throw new Error("no isolation manager: no domain here is preserved by a network hold");
++      if (!path.isAbsolute(String(wa.file || "")) || !path.isAbsolute(String(wa.statusFile || ""))) throw new Error("absolute channel and status files required");
++      const mod = await import("../../network/wallet-admission.mjs");
++      this.#walletAck = mod.walletHoldAcknowledged;
++      this.walletChannel = new mod.WalletAllowWriter({ file: wa.file, runner: this.enclaveId.toLowerCase() });
++      this.walletChannelOff = null;
++      this.log(`wallet hold channel: ${wa.file}, generation ${this.walletChannel.generation.slice(0, 8)}, written EMPTY (nothing is admitted on the network until a fresh allow)`);
++      if (heartbeat) this.#walletBeat = setInterval(() => this.walletHeartbeat(), WALLET_CHANNEL_HEARTBEAT_MS).unref?.();
++    } catch (e) {
++      this.walletChannel = null; this.walletChannelOff = e.message;
++      this.log(`wallet hold channel OFF (an UNKNOWN wallet policy retires the domain, as before): ${e.message}`);
++    }
++    return this.walletChannel;
++  }
++  #walletAck = null; #walletBeat = null; #walletBeatError = null;
++  /** Re-issue the channel document (its 30-s life). Decisions keep their own deadlines; a failure lets it lapse (closed). */
++  walletHeartbeat() {
++    if (!this.walletChannel) return;
++    try { this.walletChannel.heartbeat(); if (this.#walletBeatError) this.log("wallet hold channel: written again"); this.#walletBeatError = null; }
++    catch (e) { if (this.#walletBeatError !== e.message) this.log(`wallet hold channel NOT written (the network admits nothing once it lapses): ${e.message}`); this.#walletBeatError = e.message; }
++  }
++  /** A DEFINITE allow, published to the network with its own chain deadline -> null, or why it could not be (an UNKNOWN). */
++  #walletGrant(id, d, w) {
++    if (!this.walletChannel) return null;
++    try {
++      this.walletChannel.allow(String(id).toLowerCase(), { appRef: d.appRef, configCid: String(d.configCid ?? ""), validUntil: w.validUntil });
++      return null;
++    } catch (e) { return `the allow could not be published to the network agent (${e.message})`; }
++  }
++  /** Withdraw this box's published allow (a refusal, a stop, a lease no longer ours). Unconfirmed: the caller retires. */
++  #walletRevoke(id) {
++    if (!this.walletChannel) return;
++    try { this.walletChannel.hold(String(id).toLowerCase()); }
++    catch (e) { this.log(`${String(id).slice(0, 10)} wallet hold channel: the allow could not be withdrawn (${e.message}); it lapses with its deadline`); }
++  }
++  /** Write the hold, then wait (bounded) for the network agent's acknowledgement of exactly it. -> {ok, revision} | {ok:false, why} */
++  async #walletHoldConfirmed(id) {
++    // ONE write: the writer already retried a Windows sharing violation within its own bounded budget
++    // (wallet-admission.mjs COMMIT_RETRY, <= 375 ms). Any error left - a persistent refusal included - is the old retire.
++    let hold;
++    try { hold = this.walletChannel.hold(String(id).toLowerCase()); }
++    catch (e) { return { ok: false, why: `the hold could not be written (${e.message})` }; }
++    // (cfg.walletHoldAckMs: a shorter bound for tests only; production uses WALLET_HOLD_ACK_MS)
++    const ackMs = Number(this.cfg.walletHoldAckMs) > 0 ? Number(this.cfg.walletHoldAckMs) : WALLET_HOLD_ACK_MS;
++    const runner = this.enclaveId.toLowerCase(), end = Date.now() + ackMs;
++    for (;;) {
++      let status = null;
++      try { status = JSON.parse(fs.readFileSync(this.walletAdmission.statusFile, "utf8")); } catch {}
++      const now = Date.now();
++      if (this.#walletAck({ status, runner, id: String(id).toLowerCase(), hold, now })) return { ok: true, revision: hold.revision };
++      // waiting helps only while an agent reports enforcing THIS host's channel; with none, the old retire, now. A late
++      // status (an agent slowed by load) is waited for, within the same bound.
++      const w = status?.walletAdmission;
++      if (!status) return { ok: false, why: "the network agent's status cannot be read" };
++      if (!w) return { ok: false, why: "the network agent does not enforce wallet holds (no walletAdmission in its status)" };
++      if (w.runner !== runner) return { ok: false, why: "the network agent reads another runner's channel" };
++      if (now >= end) return { ok: false, why: `the network agent did not confirm the withdrawal within ${ackMs / 1000} s`
++        + (Number.isSafeInteger(status.updatedAt) && now - status.updatedAt >= 5000 ? " (its status is stale)" : "") };
++      await new Promise((r) => setTimeout(r, WALLET_HOLD_POLL_MS));
++    }
+   }
+   claimRefusal(d, { version = null, capacity, appsEnabled, invited = false, ownerAllow = this.ownerSet() }) {
+     // an admitted audit job (servesAuditJob) is claimed as its fee wallet's own: owner-only scope still holds, because only
+@@ -3573,6 +3719,11 @@ export class Host {
+     };
+   }
+ 
++  /** Asked by the app zone at the moment it would splice or serve (after its own resolve): still served here? */
++  appZoneAdmitted(id) {
++    const rec = this.records.get(String(id).toLowerCase());
++    return !!rec && !rec.walletHeld && rec.status === "running";
++  }
+   async appZoneTarget(ref) {
+     // A label (the first 8 hex, which is what the hostname carries) or a full id: resolved against
+     // the leases this box holds, so a prefix that matches nothing here is simply not ours.
+@@ -3584,6 +3735,8 @@ export class Host {
+       id = hit[0];
+     }
+     const rec = this.records.get(id);
++    // HELD ON AN UNKNOWN WALLET POLICY: nothing is spliced or served here (the domain may be kept, its traffic is not)
++    if (rec?.walletHeld) return null;
+     // WHOSE app: in owner-only scope a deployment whose ledger owner this box no longer serves (a delegation removed,
+     // expired or invalid) is never spliced, whatever list the relay still holds - the removal takes effect here at once
+     // (enclave-bf's belt, enclave-87's revocation ruling on the make-before-break re-attach).
+diff --git a/windows/node/network-enroll.mjs b/windows/node/network-enroll.mjs
+index ce10ba92a..3bd2b53bb 100644
+--- a/windows/node/network-enroll.mjs
++++ b/windows/node/network-enroll.mjs
+@@ -103,7 +103,11 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
+     // Directory choice belongs to the host operator; enrollment must not silently
+     // restore the default relay each time a new app appears.
+     const directories = cfg?.enclaveNetwork?.directories || config.enclaveNetwork.directories;
+-    const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork, directories }), ...(hostEgress ? { hostEgress } : {}), ...(paceMbps ? { paceMbps } : {}) };
++    const walletAdmission = config.walletAdmission?.file && path.isAbsolute(config.walletAdmission.file) ? { file: config.walletAdmission.file } : null;
++    const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork, directories }), ...(hostEgress ? { hostEgress } : {}), ...(paceMbps ? { paceMbps } : {}),
++      // the node's wallet hold channel (host.mjs walletChannelStart), only while the node runs one: the agent then admits an
++      // app only on a fresh allow there; dropped (one restart) when the node stops writing it, so nothing waits on a dead file
++      ...(walletAdmission ? { walletAdmission } : {}) };
+     // a box whose config predates the current enclaveNetwork section (or still runs TUNA): switched once, then restarted
+     let switched = false;
+     if (JSON.stringify(cfg.enclaveNetwork) !== JSON.stringify(want)) {
+-- 
+2.56.0
+
