@@ -194,6 +194,19 @@ test('the loopback HTTP verifier: a hung request is cancelled on the wire at the
   }
 });
 
+test('the deadline fires even when nothing else keeps the process alive (child process, no keep-alive)', T, async () => {
+  const { spawnSync } = await import('node:child_process');
+  const src = `import { LeaseReader } from ${JSON.stringify(new URL('../network/lease-reader.mjs', import.meta.url).href)};
+    const ts = '0x' + Math.floor(Date.now() / 1000).toString(16), h = '0x' + '11'.repeat(32);
+    const verifier = { request: async (m, p) => m === 'eth_chainId' ? '0x2105' : m === 'eth_blockNumber' ? '0x64'
+      : { number: p[0], hash: h, stateRoot: h, timestamp: ts } };
+    const r = new LeaseReader({ authority: 'verifier', verifier, addressBook: '0x' + '33'.repeat(20), deadlineMs: 100 });
+    try { await r.agreed(() => new Promise(() => {})); console.log('resolved'); } catch (e) { console.log('rejected: ' + e.message); }`;
+  const out = spawnSync(process.execPath, ['--input-type=module', '-e', src], { encoding: 'utf8', timeout: 4000 });
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /^rejected: no fresh verified chain state: .*deadline of 100 ms has passed/);
+});
+
 test('policy is unchanged: the deadline bound and legacy quorum construction', () => {
   const { verifier } = scripted();
   assert.throws(() => reader(verifier, { deadlineMs: 99 }), /invalid chain policy/);

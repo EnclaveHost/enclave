@@ -416,8 +416,9 @@ export class LeaseReader {
     let closed=null,timer;
     const close=reason=>{if(closed)return;closed=reason;clearTimeout(timer);controller.abort(reason);};
     const expired=new Promise((_r,reject)=>{
+      // NOT unref'd: it is cleared the moment the operation settles, so it only keeps a process alive while an operation is
+      // really in progress, and it must fire even when nothing else (e.g. a silent callback) holds the event loop
       timer=setTimeout(()=>{const e=new Error(`the verified ${kind} deadline of ${this.deadlineMs} ms has passed`);close(e);reject(e);},this.deadlineMs);
-      timer.unref?.();
     });
     expired.catch(()=>{});
     const refusal=()=>closed?new Error(`the verified ${kind} is closed (${closed.message}): no new request`)
