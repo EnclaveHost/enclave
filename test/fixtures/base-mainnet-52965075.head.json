@@ -1,0 +1,20 @@
+{
+ "chainId": 8453,
+ "finality": "none",
+ "hash": "0xed652f3c6bd477aacd7b2c994d9232afcf0484c60887e20b6e044acfce78e394",
+ "number": 52965075,
+ "objectBytes": 57225,
+ "objectEncoding": "base-network-payload-envelope-v4-snappy",
+ "objectSha256": "21bfa4b0534bfbcf895012468665e787ac5e96550edddc87675dc934c018fd35",
+ "parentHash": "0x39aa5527e39d83183030676fd86b70a2ce3fa9d0896e7cfbe19a272d80e9e172",
+ "payloadVersion": "v4",
+ "receiptsRoot": "0x90e98c8517f251905ea7dad545e62d1d9bd124f2a19042877c180856dcc55742",
+ "receivedUnixMs": 1792719497306,
+ "schema": "enclave-base-unsafe-head/v1",
+ "signer": "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a",
+ "stateRoot": "0x0d8fb90b6398cc547ddc26d2638a87bcde03abdcdabeb02bc434fa34bbba05d5",
+ "tier": "unsafe",
+ "timestamp": 1792719497,
+ "txCount": 152,
+ "type": "head"
+}
