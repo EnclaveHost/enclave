@@ -21,7 +21,7 @@ import path from 'node:path';
 import {isIP} from 'node:net';
 import {createHash, createPrivateKey, createPublicKey, randomBytes, sign as signBytes, verify as verifyBytes} from 'node:crypto';
 import {PassThrough, Transform, pipeline} from 'node:stream';
-import {LeaseReader} from './lease-reader.mjs';
+import {LeaseReader, chainAuthorityOptions} from './lease-reader.mjs';
 import {DirectoryClient} from './directory-client.mjs';
 import {DurableState} from './durable-state.mjs';
 import {validateNetworkAuthorities} from './network-authorities.mjs';
@@ -73,12 +73,12 @@ export class ManagementError extends Error {
 export class ManagementClient {
   // hostAdmission(lease) -> {admit, reason}: the platform host policy for the host a request would go to (current lease
   // holder or an owner-named host). Asked before anything is sent; anything but an explicit admit refuses. null = off.
-  constructor({deploymentId, chainId = 8453, authorityPins, rpc, directories, stateDir, signer, reader, fetch = globalThis.fetch, now = Date.now, hostAdmission = null}) {
+  constructor({deploymentId, chainId = 8453, authorityPins, rpc, directories, stateDir, signer, reader, fetch = globalThis.fetch, now = Date.now, hostAdmission = null, chainAuthority, chainVerifier}) {
     if (!/^0x[0-9a-f]{64}$/.test(deploymentId || '') || typeof stateDir !== 'string' || !path.isAbsolute(stateDir) || typeof signer !== 'function')
       throw Error('explicit deployment, state directory and session signer required');
     this.pins = validateNetworkAuthorities(authorityPins);
     Object.assign(this, {deploymentId, chainId, signer, now, hostAdmission});
-    this.reader = reader || new LeaseReader({rpc, chainId, addressBook: ZERO, authorityPins: this.pins, includeHostPayout: true, now});
+    this.reader = reader || new LeaseReader({rpc, chainId, addressBook: ZERO, authorityPins: this.pins, includeHostPayout: true, now, ...chainAuthorityOptions({chainAuthority, chainVerifier})});
     this.directories = new DirectoryClient({origins: directories, fetch});
     // Literal directory origins keep host discovery independent of any DNS authority.
     if (this.directories.origins.some(o => !isIP(new URL(o).hostname.replace(/^\[|\]$/g, '')))) throw Error('management discovery requires literal directory addresses');

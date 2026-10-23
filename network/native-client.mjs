@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {PassThrough,Readable,Transform,pipeline} from 'node:stream';
 import WebSocket from 'ws';
-import {LeaseReader} from './lease-reader.mjs';
+import {LeaseReader,chainAuthorityOptions} from './lease-reader.mjs';
 import {PublicDirectory} from './public-directory.mjs';
 import {DirectoryClient} from './directory-client.mjs';
 import {validateNetworkAuthorities} from './network-authorities.mjs';
@@ -46,7 +46,7 @@ export class NativeClient {
     this.pins=validateNetworkAuthorities(p.authorityPins);
     if(p.linux?.vcekBase64)p.linux.vcek=Buffer.from(p.linux.vcekBase64,'base64');
     if(p.linux?.certChainPem)seedCertChain(p.linux.product,p.linux.certChainPem);
-    this.reader=reader||new LeaseReader({rpc:p.rpc,chainId:p.chainId,addressBook:ZERO,authorityPins:this.pins,includeHostPayout:true,now});
+    this.reader=reader||new LeaseReader({rpc:p.rpc,chainId:p.chainId,addressBook:ZERO,authorityPins:this.pins,includeHostPayout:true,now,...chainAuthorityOptions({chainAuthority:p.chainAuthority,chainVerifier:p.chainVerifier})});
     this.transport=new DirectoryClient({origins:p.directories,fetch});
     // Literal directory origins make the DNS-independent claim enforceable.
     if(this.transport.origins.some(o=>!isIP(new URL(o).hostname.replace(/^\[|\]$/g,''))))throw Error('native discovery requires literal directory addresses');

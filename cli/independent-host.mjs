@@ -32,8 +32,8 @@ export async function managementClient({ trust, chain, deploymentId, directories
   if (typeof stateDir !== "string" || !path.isAbsolute(stateDir)) throw new Error("management needs --state-dir ABSOLUTE_DIR (it keeps per-runner rollback floors)");
   fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
   const authorityPins = networkAuthorities(trust);
-  const { leaseReaderClients } = await import("./independent.mjs");
-  const reader = new LeaseReader({ clients: leaseReaderClients(chain), chainId: chain.chainId, addressBook: ZERO, authorityPins,
+  const { independentReaderAuthority } = await import("./independent.mjs");
+  const reader = new LeaseReader({ ...independentReaderAuthority(trust, chain), chainId: chain.chainId, addressBook: ZERO, authorityPins,
     includeHostPayout: true, maxBlockAgeMs: Math.max(1000, Math.min(trust.maxBlockAgeMs, 120000)), confirmations: Math.max(1, trust.confirmations), now });
   const signer = sessionRequestSigner({ vault: rec.handle.vault, sid: rec.handle.sid, privateKey: sessionKey(rec), now });
   return new ManagementClient({ deploymentId, chainId: chain.chainId, authorityPins, directories, stateDir, signer, reader, now, hostAdmission });

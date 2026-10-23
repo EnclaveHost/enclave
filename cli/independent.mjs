@@ -5,6 +5,7 @@
 // A read that cannot reach quorum fails, and a failure is never reported as an empty answer.
 // Transactions are signed once, broadcast unchanged and confirmed by the same quorum; an outcome that cannot be
 // confirmed is reported as unknown and never re-signed or resent.
+import { chainVerifierOf } from "../network/verified-chain.mjs";
 import fs from "node:fs";
 import { createPublicClient, http as viemHttp, keccak256, toBytes, getAddress, encodeFunctionData } from "viem";
 import { base } from "viem/chains";
@@ -48,7 +49,7 @@ function intIn(v, lo, hi, dflt, what) {
  *  contractPins (already validated by network/contract-pins.mjs) and usdc: the pin-only alternative.
  *  If both a profile and pins are given they must be identical. -> {pins, usdc, profile, digest, rpcs, quorum, ...}
  */
-export function loadIndependentTrust({ profileFile, profileDigest, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec }) {
+export function loadIndependentTrust({ profileFile, profileDigest, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec, chainVerifier }) {
   let profile = null, digest = null, pins = contractPins || null, token = usdc ? String(usdc) : null;
   if (profileDigest && !profileFile) throw new Error("--profile-digest needs --profile");
   if (profileFile) {
@@ -71,8 +72,12 @@ export function loadIndependentTrust({ profileFile, profileDigest, contractPins,
   if (!nonZero(token)) throw new Error("independent mode needs a payment token address (--usdc)");
   const origins = validateRpcOrigins(rpcs);
   const q = intIn(quorum, 2, origins.length, 2, "--quorum");
+  // --chain-verifier (optional, loopback only): the local proof-backed verifier for the reads that can use it - LeaseReader
+  // management reads and the platform host policy. Every other independent-mode read and every transaction still uses the
+  // RPC quorum (it is not replaced, and a verifier refusal never falls back to it).
+  const verifier = chainVerifier ? chainVerifierOf({ chainAuthority: "verifier", chainVerifier }, "--chain-verifier") : null;
   return Object.freeze({ pins, usdc: getAddress(token), profile, digest, rpcs: origins, quorum: q,
-    confirmations: intIn(confirmations, 0, 64, 2, "--confirmations"), maxBlockAgeMs: intIn(maxBlockAgeSec, 10, 86400, 120, "--max-block-age") * 1000 });
+    confirmations: intIn(confirmations, 0, 64, 2, "--confirmations"), maxBlockAgeMs: intIn(maxBlockAgeSec, 10, 86400, 120, "--max-block-age") * 1000, chainVerifier: verifier });
 }
 
 // ---- quorum reads ----------------------------------------------------------------------------------------------------
@@ -494,5 +499,9 @@ export function quorumPublicClient(chain) {
  *  under the same shared identity rule (network/rpc-identity.mjs) these origins were validated with. */
 export function leaseReaderClients(chain) {
   return chain.peers.map(({ client }) => client);
+}
+/** LeaseReader authority options for independent mode: the local verifier when --chain-verifier is set, else the quorum's clients. */
+export function independentReaderAuthority(trust, chain) {
+  return trust.chainVerifier ? { authority: "verifier", verifier: trust.chainVerifier } : { clients: leaseReaderClients(chain) };
 }
 export { ZERO };

@@ -39,7 +39,7 @@ async function hostPolicy(B) {
   const a = B.authority;
   if (policies.has(a)) return policies.get(a);
   const p = (async () => {
-    const { createHostPolicyRuntime, resolveHostPolicyConfig, clientSnapshot } = await import("../network/host-policy-runtime.mjs");
+    const { createHostPolicyRuntime, resolveHostPolicyConfig, clientSnapshot, verifiedHostSnapshot } = await import("../network/host-policy-runtime.mjs");
     const b = await currentScope().bindings();
     const hp = a.cfg.hostPolicy;
     const env = hp === null || hp === undefined ? {} : { ENCLAVE_PLATFORM_HOST_POLICY: typeof hp === "string" ? hp : JSON.stringify(hp) };
@@ -47,7 +47,9 @@ async function hostPolicy(B) {
     // the policy is read on this profile's own agreed quorum, unless the operator's policy configuration names its own
     // read quorum (rpcs): then that one (network/host-policy-runtime.mjs builds it)
     const ownRpcs = hp && typeof hp === "object" && Array.isArray(hp.rpcs) && hp.rpcs.length > 0;
-    const rt = r.on ? createHostPolicyRuntime(r, ownRpcs ? {} : { snapshot: clientSnapshot((fn) => a.chain.snapshot(fn).then((x) => x.value)) }) : null;
+    // chainVerifier (profile): the local proof-backed verifier decides, whatever RPCs are configured (no fallback)
+    const rt = !r.on ? null : a.trust?.chainVerifier ? createHostPolicyRuntime(r, { snapshot: verifiedHostSnapshot({ verifier: a.trust.chainVerifier, chainId: a.chain.chainId }) })
+      : createHostPolicyRuntime(r, ownRpcs ? {} : { snapshot: clientSnapshot((fn) => a.chain.snapshot(fn).then((x) => x.value)) });
     return { rt, source: r.on ? r.source : r.reason };
   })();
   policies.set(a, p);
@@ -217,10 +219,10 @@ async function managementCall(B, a, op, { opts, runner, repeat } = {}) {
   const { ManagementClient } = await import("../network/management-client.mjs");
   const { LeaseReader } = await import("../network/lease-reader.mjs");
   const { networkAuthorities } = await import("../cli/independent-host.mjs");
-  const { leaseReaderClients } = await import("../cli/independent.mjs");
+  const { independentReaderAuthority } = await import("../cli/independent.mjs");
   const { apiMessage, sha256Hex } = await import("../windows/node/session-api-auth.mjs");
   const authorityPins = networkAuthorities(trust);
-  const reader = new LeaseReader({ clients: leaseReaderClients(B.authority.chain), chainId: B.authority.chain.chainId, addressBook: ZERO, authorityPins,
+  const reader = new LeaseReader({ ...independentReaderAuthority(trust, B.authority.chain), chainId: B.authority.chain.chainId, addressBook: ZERO, authorityPins,
     includeHostPayout: true, maxBlockAgeMs: Math.max(1000, Math.min(trust.maxBlockAgeMs, 120000)), confirmations: Math.max(1, trust.confirmations) });
   const signer = async ({ method, hostPath, body }) => {
     if (header) return header;

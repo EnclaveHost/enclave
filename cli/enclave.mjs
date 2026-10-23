@@ -352,10 +352,10 @@ const opt = { json: false, trace: false, base: null, rpc: null, yes: false,
               expect: null, minTcb: null, collateralDir: null,
               // ---- independent mode (docs/network/independent-cli.md): explicit authorities and an agreeing RPC quorum,
               // never the Enclave API, the mutable address book or a first-answer RPC ----
-              independent: false, profile: null, profileDigest: null, quorum: null, confirmations: null, maxBlockAge: null,
+              independent: false, profile: null, profileDigest: null, quorum: null, confirmations: null, maxBlockAge: null, chainVerifier: null,
               usdcToken: null, directories: null, stateDir: null, nativeProfile: null, maxFeeGwei: null };
 const IND_VALUE_FLAGS = { "--profile": "profile", "--profile-digest": "profileDigest", "--quorum": "quorum",
-  "--confirmations": "confirmations", "--max-block-age": "maxBlockAge", "--usdc-token": "usdcToken", "--directories": "directories",
+  "--confirmations": "confirmations", "--max-block-age": "maxBlockAge", "--chain-verifier": "chainVerifier", "--usdc-token": "usdcToken", "--directories": "directories",
   "--state-dir": "stateDir", "--native-profile": "nativeProfile", "--max-fee-gwei": "maxFeeGwei" };
 // The value of `flag` as written AFTER the command word `cmd` in the raw argv, or null. The global parser takes its flags
 // out wherever they appear; a command whose own flag shares a global name (custody migrate --from FILE) gets it back.
@@ -432,9 +432,12 @@ let INDEPENDENT = null;
 let _hostPolicy;
 async function independentHostPolicy() {
   if (_hostPolicy !== undefined) return _hostPolicy;
-  const { createHostPolicyRuntime, resolveHostPolicyConfig, clientSnapshot } = await import("../network/host-policy-runtime.mjs");
+  const { createHostPolicyRuntime, resolveHostPolicyConfig, clientSnapshot, verifiedHostSnapshot } = await import("../network/host-policy-runtime.mjs");
   const r = resolveHostPolicyConfig({ env, chainId: INDEPENDENT.chain.chainId, book: env.ENCLAVE_ADDRESS_BOOK !== undefined ? env.ENCLAVE_ADDRESS_BOOK : DEFAULTS.ADDRESS_BOOK_ADDRESS });
-  _hostPolicy = r.on ? createHostPolicyRuntime(r, { snapshot: clientSnapshot((fn) => INDEPENDENT.chain.snapshot(fn).then((x) => x.value)), log: (m) => trace(m) }) : null;
+  // --chain-verifier: the policy is read from the local proof-backed verifier (no quorum fallback); else on this CLI's quorum
+  const snapshot = INDEPENDENT.trust.chainVerifier ? verifiedHostSnapshot({ verifier: INDEPENDENT.trust.chainVerifier, chainId: INDEPENDENT.chain.chainId })
+    : clientSnapshot((fn) => INDEPENDENT.chain.snapshot(fn).then((x) => x.value));
+  _hostPolicy = r.on ? createHostPolicyRuntime(r, { snapshot, log: (m) => trace(m) }) : null;
   return _hostPolicy;
 }
 // -> null (off) | { [registry id]: decision }; an unreadable policy refuses every host (never lists a banned one as live)
@@ -4793,6 +4796,9 @@ first-answer RPC. Authorities come from --profile FILE --profile-digest sha256:�
 (a reviewed authority profile) or --contract-pins FILE [--usdc-token ADDR]; every
 read needs --quorum N (default 2) of --rpc A,B[,C…] to agree at one block
 --confirmations deep (default 2) and at most --max-block-age seconds old (120).
+--chain-verifier http://127.0.0.1:PORT/ (optional): management lease reads and the
+platform host policy come from that LOCAL proof-backed verifier instead (unsafe
+tier; a refusal never falls back); other reads and all transactions keep the quorum.
 Transactions are signed once, broadcast unchanged and confirmed by the quorum;
 an unconfirmed outcome is reported, never resent (--max-fee-gwei, default 5).
   ls [--owner ADDR] · status <id> · hosts [--all] · pricing · apps · whoami
@@ -4839,7 +4845,8 @@ async function cmdHost(rest) {
     const t = INDEPENDENT.trust, pinsFile = opt.contractPins || env.ENCLAVE_CONTRACT_PINS_FILE;
     const auth = sub !== "init" ? [] : [
       ...(opt.profile ? ["--profile", opt.profile, "--profile-digest", opt.profileDigest] : ["--contract-pins", pinsFile]),
-      "--rpc", t.rpcs.join(","), "--quorum", String(t.quorum), "--confirmations", String(t.confirmations), "--max-block-age", String(t.maxBlockAgeMs / 1000)];
+      "--rpc", t.rpcs.join(","), "--quorum", String(t.quorum), "--confirmations", String(t.confirmations), "--max-block-age", String(t.maxBlockAgeMs / 1000),
+      ...(t.chainVerifier ? ["--chain-verifier", t.chainVerifier] : [])];
     // --json is also a global flag (taken out of argv); `check` is the one lifecycle command that prints JSON
     const code = await hostLifecycle([sub, ...rest, ...(sub === "check" && opt.json ? ["--json"] : []), ...auth]);
     if (code) exit(code);
@@ -5201,9 +5208,9 @@ const INDEPENDENT_REFUSALS = {
 };
 async function configureIndependent() {
   const asked = opt.independent || opt.profile || opt.profileDigest;
-  const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei", "signerMode"].filter((k) => opt[k] !== null);
+  const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei", "signerMode", "chainVerifier"].filter((k) => opt[k] !== null);
   if (!asked) {
-    if (strays.length) throw new Error("--quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei and --signer-mode apply to independent mode: add --independent");
+    if (strays.length) throw new Error("--quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei, --signer-mode and --chain-verifier apply to independent mode: add --independent");
     return;
   }
   const external = !!opt.signer || opt.signerMode === "handoff";
@@ -5213,7 +5220,8 @@ async function configureIndependent() {
   if (!(opt.rpc || env.ENCLAVE_RPC)) throw new Error("independent mode needs explicit RPCs: --rpc https://a,https://b[,…] (at least two; there is no default set)");
   const I = await import("./independent.mjs");
   const trust = I.loadIndependentTrust({ profileFile: opt.profile, profileDigest: opt.profileDigest, contractPins: CONTRACT_PINS,
-    usdc: opt.usdcToken, defaultUsdc: DEFAULTS.USDC_ADDRESS, rpcs: RPCS, quorum: opt.quorum, confirmations: opt.confirmations, maxBlockAgeSec: opt.maxBlockAge });
+    usdc: opt.usdcToken, defaultUsdc: DEFAULTS.USDC_ADDRESS, rpcs: RPCS, quorum: opt.quorum, confirmations: opt.confirmations, maxBlockAgeSec: opt.maxBlockAge,
+    chainVerifier: opt.chainVerifier });
   CONTRACT_PINS = trust.pins;
   for (const [key, name] of Object.entries({ deployments: "DEPLOYMENTS_ADDRESS", registry: "REGISTRY_ADDRESS", appCatalog: "APP_CATALOG_ADDRESS",
     sessionVaultFactory: "SESSION_VAULT_FACTORY_ADDRESS" })) DEFAULTS[name] = /^0x0{40}$/i.test(trust.pins[key]) ? trust.pins[key] : getAddress(trust.pins[key]);

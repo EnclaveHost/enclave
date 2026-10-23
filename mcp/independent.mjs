@@ -45,7 +45,7 @@ class SnapshotChanged extends Error { constructor(what) { super(what); this.name
 // ---- operator configuration --------------------------------------------------------------------------------------
 const PROFILE_KEYS = ["contractPins", "profile", "profileDigest", "usdc", "rpcs", "quorum", "confirmations", "maxBlockAgeSec", "addressBook",
   "managementDirectories", "capacityDirectories", "capacityCold", "maxHosts", "storagePlan", "grantFrontend", "sessionScan", "stateDir",
-  "hostPolicy", "custody", "remote"];
+  "hostPolicy", "custody", "remote", "chainVerifier"];
 function readBounded(file, max, what) {
   const st = fs.statSync(file);
   if (!st.isFile() || st.size > max) throw new IndependentError("config", `${what} ${file} is not a file of at most ${max} bytes`);
@@ -87,7 +87,7 @@ export function loadConfig(file) {
     if (Object.keys(scan).some((k) => !["fromBlock", "chunk", "maxChunks"].includes(k))) throw new IndependentError("config", `profile ${name}.sessionScan: fromBlock, chunk, maxChunks`);
     profiles.set(name, Object.freeze({
       name, contractPins: rel(p.contractPins), profile: rel(p.profile), profileDigest: p.profileDigest, usdc: p.usdc, rpcs: p.rpcs,
-      quorum: p.quorum, confirmations: p.confirmations, maxBlockAgeSec: p.maxBlockAgeSec,
+      quorum: p.quorum, confirmations: p.confirmations, maxBlockAgeSec: p.maxBlockAgeSec, chainVerifier: p.chainVerifier,
       addressBook: p.addressBook === undefined ? null : getAddress(p.addressBook),
       managementDirectories: literalIpOrigins(p.managementDirectories, `${name}.managementDirectories`),
       capacityDirectories: literalIpOrigins(p.capacityDirectories, `${name}.capacityDirectories`),
@@ -116,7 +116,7 @@ export class Authority {
       const pinned = cfg.contractPins ? validateContractPins(parseUniqueJSON(readBounded(cfg.contractPins, 16384, "contract pins").toString("utf8"))) : null;
       return loadIndependentTrust({ profileFile: cfg.profile, profileDigest: cfg.profileDigest, contractPins: pinned, usdc: cfg.usdc,
         defaultUsdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", rpcs: cfg.rpcs, quorum: cfg.quorum, confirmations: cfg.confirmations,
-        maxBlockAgeSec: cfg.maxBlockAgeSec });
+        maxBlockAgeSec: cfg.maxBlockAgeSec, chainVerifier: cfg.chainVerifier });
     })();
     this.trustPromise.catch(() => {});   // surfaced by ready()
     this.deps = deps;
