@@ -30,9 +30,13 @@ const MAX_BODY = 1 << 20, MAX_RESPONSE = 16 << 20, HASH = /^0x[0-9a-fA-F]{64}$/;
 export function witnessKey(method, params) {
   if (!PINNED.has(method) || !Array.isArray(params) || !params.length) return null;
   const at = params[params.length - 1];
-  if (!at || typeof at !== 'object' || Array.isArray(at) || !HASH.test(at.blockHash || '') || Object.keys(at).some((k) => k !== 'blockHash' && k !== 'requireCanonical')) return null;
+  // EIP-1898 {blockHash[, requireCanonical]}, or the bare 32-byte hash alloy sends when requireCanonical is unset
+  // (alloy-eips BlockId::serialize). A 64-hex-digit value is never a block number.
+  const hash = typeof at === 'string' ? (HASH.test(at) ? at : null)
+    : at && typeof at === 'object' && !Array.isArray(at) && HASH.test(at.blockHash || '') && Object.keys(at).every((k) => k === 'blockHash' || k === 'requireCanonical') ? at.blockHash : null;
+  if (!hash) return null;
   const norm = JSON.stringify([method, JSON.parse(JSON.stringify(params).toLowerCase())]);
-  return { key: createHash('sha256').update(norm).digest('hex'), blockHash: at.blockHash.toLowerCase(), norm };
+  return { key: createHash('sha256').update(norm).digest('hex'), blockHash: hash.toLowerCase(), norm };
 }
 
 /** Create-only directory cache of block-hash-pinned witnesses: <dir>/<blockHash>/<sha256(request)>.json. */
@@ -65,9 +69,12 @@ async function call(url, body, fetch, timeoutMs) {
 
 /**
  * upstreams: untrusted execution JSON-RPC URLs, tried in order. cache: optional {get(w), put(w, result)} (dirWitnessCache).
+ * methods: a subset of WITNESS_METHODS to offer (e.g. without the eth_createAccessList prefetch hint, so the verifier
+ * fetches exactly the witnesses execution touches and a recorded cache replays deterministically).
  * -> {handle(request) -> response, listen(port) -> url (127.0.0.1 only), close(), stats()}
  */
-export function createWitnessGateway({ upstreams = [], cache = null, timeoutMs = 8000, fetch = globalThis.fetch } = {}) {
+export function createWitnessGateway({ upstreams = [], cache = null, timeoutMs = 8000, fetch = globalThis.fetch, methods = WITNESS_METHODS } = {}) {
+  if (!Array.isArray(methods) || methods.some((m) => !WITNESS_METHODS.includes(m))) throw new Error('methods must be a subset of WITNESS_METHODS');
   if (!Array.isArray(upstreams) || upstreams.length > 16) throw new Error('0 to 16 upstreams');
   const ids = upstreams.map((u) => rpcEndpoint(u).identity);
   if (new Set(ids).size !== ids.length) throw new Error('upstreams must be distinct endpoints');
@@ -79,7 +86,7 @@ export function createWitnessGateway({ upstreams = [], cache = null, timeoutMs =
   async function handle(req) {
     if (!req || typeof req !== 'object' || req.jsonrpc !== '2.0' || typeof req.method !== 'string') return err(req?.id, -32600, 'invalid request');
     const params = req.params === undefined ? [] : req.params;
-    if (!WITNESS_METHODS.includes(req.method)) { stats.refused[req.method.slice(0, 64)] = (stats.refused[req.method.slice(0, 64)] || 0) + 1; return err(req.id, -32601, 'method not offered by the witness gateway'); }
+    if (!methods.includes(req.method)) { stats.refused[req.method.slice(0, 64)] = (stats.refused[req.method.slice(0, 64)] || 0) + 1; return err(req.id, -32601, 'method not offered by the witness gateway'); }
     const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: req.method, params });
     const w = cache ? witnessKey(req.method, params) : null;
     const broadcast = req.method === 'eth_sendRawTransaction';

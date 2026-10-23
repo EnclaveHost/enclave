@@ -25,6 +25,8 @@ const tmp = () => fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 
 test('only block-hash-pinned proof and code requests are cache keys', () => {
   assert.ok(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], { blockHash: H }]));
   assert.ok(witnessKey('eth_getCode', ['0x' + '01'.repeat(20), { blockHash: H, requireCanonical: false }]));
+  assert.equal(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], H]).blockHash, H, 'bare hash (alloy without requireCanonical)');
+  assert.equal(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], H]).key, witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], H]).key);
   assert.equal(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], 'latest']), null);
   assert.equal(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], '0x10']), null);
   assert.equal(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], { blockNumber: '0x10' }]), null);

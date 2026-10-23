@@ -107,10 +107,14 @@ test('patched Helios follows the signed head and returns proof-verified Enclave 
   assert.equal(await rpc(h.url, 'eth_getBalance', [DEPLOYER.address, 'latest']), await rpc(anvilUrl, 'eth_getBalance', [DEPLOYER.address, head.hash ? { blockHash: head.hash } : 'latest']));
   const proof = await rpc(h.url, 'eth_getProof', [book, [slotOf('deployments', 3n)], 'latest']);
   assert.equal(BigInt(proof.storageProof[0].value), BigInt(DEPLOYMENTS));
-  // local EVM execution is REFUSED: Base mainnet has run Azul+ (Osaka + Base precompiles) since 1779991200 and the
-  // pinned op-revm only implements up to Prague for this chain
   const data = encodeFunctionData({ abi: artifact.abi, functionName: 'addr', args: [stringToHex('registry', { size: 32 })] });
-  await assert.rejects(rpc(h.url, 'eth_call', [{ to: book, data }, 'latest']), /local execution refused/);
+  if (process.env.EXPECT_BASE_EXECUTION === '1') {
+    // enclave-base-evm: Base EVM over proof-backed state; same answer as the chain's own node (Anvil)
+    assert.equal(await rpc(h.url, 'eth_call', [{ to: book, data }, 'latest']), await rpc(anvilUrl, 'eth_call', [{ to: book, data }, { blockHash: head.hash }]));
+  } else {
+    // enclave-base-compat: op-revm only implements Prague for Base, so local execution is REFUSED from Azul
+    await assert.rejects(rpc(h.url, 'eth_call', [{ to: book, data }, 'latest']), /local execution refused/);
+  }
   assert.equal(h.exitCode, null, 'verifier still running');
 });
 
@@ -163,6 +167,29 @@ test('wrong-signer heads are ignored; a signed head with a 0x79 transaction is r
   // head loop must still be alive: a valid higher head is adopted.
   stub.set(await makeCommitment(await nextFields(4, 0), { chainId: 8453, privateKey: SEQ_KEY, txs: head.txs }));
   await until(async () => BigInt(await rpc(h.url, 'eth_blockNumber')) === head.number + 4n, 15000, 'the head loop to adopt a valid higher block');
+});
+
+test('a Denim-era block (beyond the validated Base horizon) refuses execution while proof reads still work', { ...T, skip: process.env.EXPECT_BASE_EXECUTION !== '1' && 'compat build' }, async (t) => {
+  const port = await freePort();
+  const denim = 1_793_901_600;
+  const a2 = start(ANVIL_BIN, ['--port', String(port), '--chain-id', '8453', '--silent', '--timestamp', String(denim + 100)]);
+  const a2Url = `http://127.0.0.1:${port}/`;
+  t.after(() => stop(a2));
+  await until(() => rpc(a2Url, 'eth_chainId'), 20000, 'anvil (Denim era)');
+  // mine past genesis: Helios rejected the genesis block's account proof (Anvil's genesis header root did not verify)
+  await rpc(a2Url, 'evm_mine', []);
+  const b = await rpc(a2Url, 'eth_getBlockByNumber', ['latest', false]);
+  assert.ok(Number(b.timestamp) >= denim, 'block is in the Denim era');
+  const stub = await rawConsensus();
+  stub.set(await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY }));
+  const g = createWitnessGateway({ upstreams: [a2Url] });
+  const gUrl = await g.listen(0);
+  const h = await startHelios(HELIOS_BIN, { consensus: stub.url, execution: gUrl, tag: 'denim' });
+  t.after(async () => { await stop(h); await g.close(); stub.close(); });
+  await until(async () => (await rpc(h.url, 'eth_getBlockByNumber', ['latest', false]))?.hash === b.hash, 60000, 'Denim-era head');
+  const dev = DEPLOYER.address;
+  assert.equal(await rpc(h.url, 'eth_getBalance', [dev, 'latest']), await rpc(a2Url, 'eth_getBalance', [dev, { blockHash: b.hash }]));
+  await assert.rejects(rpc(h.url, 'eth_call', [{ to: dev, data: '0x' }, 'latest']), /local execution refused/);
 });
 
 test('stock Helios 0.12.0 (comparison only): executes eth_call under the wrong spec and dies on a 0x79 transaction', { ...T, skip: !HELIOS_STOCK_BIN && 'HELIOS_STOCK_BIN not set' }, async (t) => {
