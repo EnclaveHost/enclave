@@ -102,7 +102,10 @@ export function createHostAdmission({hostId,ownershipContract,registry,catalog,r
     return pending;
   };
   return {hostId,ownershipContract,registry,catalog,
-    async refusal({deploymentId,appRef,forPrivate=false}) {
+    // The network allow file must carry the original chain deadline, not a new lifetime starting at write time.
+    // Existing callers keep refusal(); cooperating runtimes use decision() for the same policy plus its deadline.
+    async refusal(request) {return (await this.decision(request)).refusal;},
+    async decision({deploymentId,appRef,forPrivate=false}) {
       const a=await policy();
       let version;
       // Always enforce platform moderation using fresh agreeing chain reads.
@@ -121,7 +124,9 @@ export function createHostAdmission({hostId,ownershipContract,registry,catalog,r
         },failures).catch(e=>{throw withReasons(e,failures);});
       }
       if(a.validUntil<=now())throw Error('host policy expired during admission');
-      return hostAdmissionRefusal(a.policy,{hostId,deploymentId,appRef,version,forPrivate});
+      if(!Number.isSafeInteger(version.timestamp)||version.timestamp>now()+5000||version.timestamp+90000<=now())throw Error('catalog snapshot expired during admission');
+      return {refusal:hostAdmissionRefusal(a.policy,{hostId,deploymentId,appRef,version,forPrivate}),
+        validUntil:Math.min(a.validUntil,version.timestamp+90000,now()+90000)};
     },
   };
 }

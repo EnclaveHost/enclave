@@ -10,6 +10,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {privateKeyToAccount} from 'viem/accounts';
 import {LeaseReader,AdmissionGate} from './lease-reader.mjs';
+import {WalletAllowFile,withWalletAdmission} from './wallet-admission.mjs';
 import {EnclaveNetworkManager} from './wg-manager.mjs';
 import {createNetworkHost} from './enclave-network-host.mjs';
 import {WgControlTransport} from './wg-control.mjs';
@@ -49,10 +50,12 @@ export const NETWORK_REQUIRED='enclaveNetwork configuration required: TUNA is re
 // Timely admission is independent of slow allocation and publication work. Even
 // a hung RPC, allocator or distributor cannot extend an old authorization.
 export class PrivacyAgent {
-  constructor({apps,runner,account,leaseReader,probe,distribute,directory,dns,network,qualification,paid=null,chainDeadlineMs=CHAIN_DEADLINE_MS,now=Date.now,log=()=>{}}){
+  // wallet (wallet-admission.mjs WalletAllowFile, enclaveNetwork.walletAdmission): the node's host-wallet allows, a third
+  // admission factor; null admits on the lease and guest proof alone, as before
+  constructor({apps,runner,account,leaseReader,probe,distribute,directory,dns,network,qualification,paid=null,wallet=null,chainDeadlineMs=CHAIN_DEADLINE_MS,now=Date.now,log=()=>{}}){
     if(!network)throw new Error(NETWORK_REQUIRED);
     Object.assign(this,{apps,leaseReader,probe,distribute,directory,now,log,network,chainDeadlineMs});this.refreshing=false;this.closed=false;this.publishing=false;this.configured=[];this.proving=new Map();this.proofFailures=new Map();this.chainRead=null;
-    this.admission=new AdmissionGate({runner,expected:id=>this.apps.find(a=>a.deploymentId===id)?.expected,now});
+    this.admission=withWalletAdmission(new AdmissionGate({runner,expected:id=>this.apps.find(a=>a.deploymentId===id)?.expected,now}),wallet);
     this.manager=new EnclaveNetworkManager({runtime:network.runtime,admission:this.admission,providers:network.providers,byoConfig:network.byoConfig,probeEgress:network.probeEgress,direct:network.direct,hostEgress:network.hostEgress||null,paid,now,log,
       probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),publish:(id,routes)=>this.publisher.publish(id,routes)});
     this.publisher=new RoutePublisher({directory:path.join(directory,'routes'),account,lease:id=>leaseReader.get(id),
@@ -112,7 +115,8 @@ export class PrivacyAgent {
     if(this.closed)return Promise.resolve();
     for(const app of this.configured){
       const id=app.deploymentId;
-      if(this.proving.has(id)||(this.admission.allows(id)&&this.admission.proofs.get(id).validUntil-this.now()>40000))continue;
+      // the lease and proof alone: an app whose wallet allow is withheld keeps its proof current, and is not asked every 5 s
+      if(this.proving.has(id)||(this.admission.proven(id)&&this.admission.proofs.get(id).validUntil-this.now()>40000))continue;
       // after a failure the app waits 4 s before it is asked again, and the same failure is logged once a minute (a guest
       // that is still starting answers the same thing for many minutes)
       const failure=this.proofFailures.get(id);
@@ -128,10 +132,22 @@ export class PrivacyAgent {
     }
     return Promise.allSettled([...this.proving.values()]);
   }
-  async snapshot(){await this.egress.write();await this.status.set('status',{version:2,updatedAt:this.now(),authorizationRefresh:this.authorizationRefresh,apps:this.manager.status().map(app=>({...app,leaseUntil:this.admission.leases.get(app.deploymentId)?.validUntil||0,proofUntil:this.admission.proofs.get(app.deploymentId)?.validUntil||0}))});}
+  // Reading a wallet revision is not an acknowledgement. applied requires all local circuit closes to succeed,
+  // no allocation in flight, and the egress map committed. Serialize refresh + persistence so a newer revision
+  // cannot be attached to an older map. A failed map write publishes no acknowledgement at all.
+  snapshot(){
+    const op=(this.snapshotTail||Promise.resolve()).catch(()=>{}).then(async()=>{
+      const wallet=this.admission.wallet;wallet?.refresh();this.manager.enforceAdmission();this.router?.revoke(id=>this.admission.allows(id));
+      await this.egress.write();
+      await this.status.set('status',{version:2,updatedAt:this.now(),authorizationRefresh:this.authorizationRefresh,
+        ...(wallet?{walletAdmission:{...wallet.status(),applied:this.manager.admissionSettled()}}:{}),
+        apps:this.manager.status().map(app=>({...app,leaseUntil:this.admission.leases.get(app.deploymentId)?.validUntil||0,proofUntil:this.admission.proofs.get(app.deploymentId)?.validUntil||0,...(wallet?{walletUntil:this.admission.walletUntil(app.deploymentId)}:{})}))});
+    });this.snapshotTail=op;return op;
+  }
+  admit(){return this.snapshot();}
   async start(){
-    await this.refreshAuthorization();await this.refreshProofs();if(this.closed)throw new Error('privacy agent stopped during startup');await this.snapshot();
-    this.timers=[setInterval(()=>{this.manager.enforceAdmission();void this.snapshot().catch(e=>this.log(e.message));},1000),
+    this.admission.wallet?.refresh();await this.refreshAuthorization();await this.refreshProofs();if(this.closed)throw new Error('privacy agent stopped during startup');await this.snapshot();
+    this.timers=[setInterval(()=>{void this.admit().catch(e=>this.log(e.message));},1000),
       setInterval(()=>void this.refreshAuthorization(),15000),
       setInterval(()=>void this.refreshProofs(),5000),
       setInterval(()=>{if(this.publishing||this.closed)return;this.publishing=true;void Promise.allSettled([...this.manager.apps.values()].map(app=>this.manager.publishApp(app))).finally(()=>{this.publishing=false;});},10000),
@@ -191,6 +207,11 @@ export async function runPrivacy(configFile){
   const guestd=cfg.guestd?new GuestdIngress({...cfg.guestd,expected:id=>apps.find(a=>a.deploymentId===id)?.expected}):
     cfg.shield?.ingress?new ShieldIngress({...cfg.shield.ingress,expected:id=>apps.find(a=>a.deploymentId===id)?.expected,key:id=>agent?.admission.proofs.get(id)?.spkiSha256}):null;
   const scheduleProbe=createProbeScheduler();
+  // the node agent's host-wallet allows (enclaveNetwork.walletAdmission.file, written by windows/node/host.mjs): an app is
+  // admitted only while its entry is current; a block that is not exactly {file: an absolute path} refuses to start
+  const wa=cfg.enclaveNetwork.walletAdmission;
+  if(wa!==undefined&&(!wa||typeof wa!=='object'||Array.isArray(wa)||Object.keys(wa).join()!=='file'))throw new Error('enclaveNetwork.walletAdmission must be {file}');
+  const wallet=wa?new WalletAllowFile({file:wa.file,runner:cfg.runner,log}):null;
   let wgControl=null,paid=null,stopping=false;
   // The network host is closed LAST and always (enclave-network-host.mjs close(), idempotent): its direct runtime and the
   // qualification canary hold public listeners from startup, and a daemon that keeps them cannot exit.
@@ -253,7 +274,7 @@ export async function runPrivacy(configFile){
     probeUrls:(cfg.enclaveNetwork.directories||[cfg.enclaveNetwork.relay]).map(origin=>new URL('/v1/network/providers',origin).href),log});await wgControl.start();}
   // paid providers (enclaveNetwork.paid): the lease must carry the on-chain connectivity authorization
   paid=cfg.enclaveNetwork.paid?await createPaidNetwork({config:cfg.enclaveNetwork.paid,directory:path.join(cfg.directory,'paid'),leaseReader,providers:network.providers,fetchFn:networkFetch,log}):null;
-  agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,directory:cfg.directory,dns:cfg.dns,network,paid,log,
+  agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,directory:cfg.directory,dns:cfg.dns,network,paid,wallet,log,
     // the route publisher attaches the host's direct-hosting qualification to a direct route (v5)
     qualification:network.direct?.envelope,
     distribute:async(id,value)=>{
