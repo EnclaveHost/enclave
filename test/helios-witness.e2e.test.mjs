@@ -79,7 +79,7 @@ test.before(async () => {
   head = { number: BigInt(b.number), hash: b.hash, stateRoot: b.stateRoot, txs };
   relay = createHeadRelay({ chainId: 8453, signer: seqSigner, maxAgeMs: 300000 });
   const offered = await relay.offer(await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs }));
-  assert.equal(offered.accepted, true, JSON.stringify(offered));
+  assert.equal(offered.accepted, true, String(offered.reason));
   relayUrl = await relay.listen(0);
   gateway = createWitnessGateway({ upstreams: [anvilUrl], cache: dirWitnessCache(path.join(TMP, 'witness-cache')) });
   gatewayUrl = await gateway.listen(0);
