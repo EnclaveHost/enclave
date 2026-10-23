@@ -1,0 +1,74 @@
+[queue] START available=23822MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: all three parts match: verified-legacy (never plain "verified"), exit 0
+ok 1 - all three parts match: verified-legacy (never plain "verified"), exit 0
+  ---
+  duration_ms: 2.530668
+  type: 'test'
+  ...
+# Subtest: registry still names the previous boot's key: pending-registry, exit 2
+ok 2 - registry still names the previous boot's key: pending-registry, exit 2
+  ---
+  duration_ms: 0.475226
+  type: 'test'
+  ...
+# Subtest: every other mismatch is REJECTED
+ok 3 - every other mismatch is REJECTED
+  ---
+  duration_ms: 2.202791
+  type: 'test'
+  ...
+# Subtest: failed reads are UNKNOWN, never pass or pending
+ok 4 - failed reads are UNKNOWN, never pass or pending
+  ---
+  duration_ms: 0.531106
+  type: 'test'
+  ...
+# Subtest: inputs are validated and the public output carries no chip id or raw quote
+ok 5 - inputs are validated and the public output carries no chip id or raw quote
+  ---
+  duration_ms: 1.24131
+  type: 'test'
+  ...
+# Subtest: frozen helpers and the real approved stage image pass; the production path is not required to exist yet
+ok 6 - frozen helpers and the real approved stage image pass; the production path is not required to exist yet
+  ---
+  duration_ms: 181.485728
+  type: 'test'
+  ...
+# Subtest: image pins: every present location must match all five files and name the pin
+ok 7 - image pins: every present location must match all five files and name the pin
+  ---
+  duration_ms: 5.308044
+  type: 'test'
+  ...
+# Subtest: exactly one frozen target is added; a conflicting one refuses; current/new untouched
+ok 8 - exactly one frozen target is added; a conflicting one refuses; current/new untouched
+  ---
+  duration_ms: 0.903182
+  type: 'test'
+  ...
+# Subtest: attest: the frozen probe is pinned to the recovery measurement; acceptance is strict
+ok 9 - attest: the frozen probe is pinned to the recovery measurement; acceptance is strict
+  ---
+  duration_ms: 8.04119
+  type: 'test'
+  ...
+# Subtest: proofkey: the frozen helper checks the stored document against the RECOVERY pin; limits stay explicit
+ok 10 - proofkey: the frozen helper checks the stored document against the RECOVERY pin; limits stay explicit
+  ---
+  duration_ms: 1.511737
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 304.949046
+[memory-guard] exit=0 peakTreeRssMiB=113 minHostAvailableMiB=23785
+[memory-guard] at peak: node:60 node:54
+[queue] EXIT 0

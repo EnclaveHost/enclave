@@ -1,0 +1,367 @@
+From 48cc74bfb8ea2b6d13617b82c5c154789c884cd0 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:13:12 -0700
+Subject: [PATCH] review of the boot-registration activation: GPU-price boot
+ race (critical), strict recovery verdict check
+
+REVIEW-RECOVERY.md: gsup GPU_COUNT=0 -> SELL_GPU_PRICE6=0 before shielded discovery -> full register(gpu=0) instead of
+setProofKey (root stopped the cutover); funding/sender/baseline/gate/rollback notes. check-recovery-verdict.py: exact
+structured acceptance of the recovery-target attest verdict (08d1f838, post-attach, <=900 s, raw 0600). Tests 7/7 + 5/5.
+---
+ REVIEW-RECOVERY.md                      | 87 +++++++++++++++++++++++++
+ check-recovery-verdict.py               | 60 +++++++++++++++++
+ commit-review.sh                        | 23 +++++++
+ logs/commit-recovery-1.guard.log        |  1 +
+ logs/commit-recovery-1.out              |  9 +++
+ logs/commit-recovery-1.rc               |  1 +
+ logs/recovery-verdict-tests-1.guard.log |  1 +
+ logs/recovery-verdict-tests-1.out       | 21 ++++++
+ logs/recovery-verdict-tests-1.rc        |  1 +
+ review-progress.txt                     | 13 ++++
+ tests/test_recovery_verdict.py          | 50 ++++++++++++++
+ 11 files changed, 267 insertions(+)
+ create mode 100644 REVIEW-RECOVERY.md
+ create mode 100644 check-recovery-verdict.py
+ create mode 100755 commit-review.sh
+ create mode 100644 logs/commit-recovery-1.guard.log
+ create mode 100644 logs/commit-recovery-1.out
+ create mode 100644 logs/commit-recovery-1.rc
+ create mode 100644 logs/recovery-verdict-tests-1.guard.log
+ create mode 100644 logs/recovery-verdict-tests-1.out
+ create mode 100644 logs/recovery-verdict-tests-1.rc
+ create mode 100644 review-progress.txt
+ create mode 100644 tests/test_recovery_verdict.py
+
+diff --git a/REVIEW-RECOVERY.md b/REVIEW-RECOVERY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..0d7e1d62c752db58ed7b8f4d7e82fd00a4936f41
+--- /dev/null
++++ b/REVIEW-RECOVERY.md
+@@ -0,0 +1,87 @@
++# Review: work/custody-boot-activation-20261023 + H 9f6d37bd (ROOT-REVIEW-RECOVERY.txt)
++
++This was a read-only source review on 2026-10-23, from about 22:00Z to 22:15Z. I made **no edits to H's files**, and ran no
++SSH, live network, chain or key operations. H's folder kept changing during the review: `common.py`, `keep.py`, `mutants.py`
++and `boot-funding.mjs` changed after my first read, and root's notes now stand beside them.
++
++## 1. CRITICAL: the boot GPU-price race defeats the setProofKey path (root has stopped the cutover)
++
++1. gsup at 9f6d37bd (`metal/guest/gsup.mjs:476`) gives the supervisor `GPU_COUNT: '0'`. So `IS_GPU` starts false, and
++   `supervisor.js:3055` sets `SELL_GPU_PRICE6 = 0`.
++2. The shielded card is adopted late (see the comment at :3030). The price only becomes the card's `pricePerSec6` (1667) at
++   :5858/5859.
++3. `advertise()` runs at module end (:12443), and `registerOnChain` (:614-643) does not wait for discovery. The supervisor's own
++   comment at :5860 says "Discovery can finish after registration".
++4. With row gpu 1667 and desired gpu 0, `bootRegistrationAction` returns "the registered fields differ" → a **full
++   register(gpu=0)**:
++   - root's estimate for it is about 354e9 worst case, against a 376.1e9 balance;
++   - after discovery, a setPrices follows that the balance cannot fund;
++   - the on-chain GPU ask stays 0 meanwhile.
++5. The boot-funding preflight pins desired gpu 1667, so it cannot see this. H's tests model `IS_GPU=false` with
++   `SELL_GPU_PRICE6=2`, and never a pre-discovery 0.
++
++It is a race: a first attempt that backs off past discovery would take the setProofKey path. So the outcome is not guaranteed
++either way. Root has stopped the cutover; the fix belongs in a new commit on 9f6d37bd (root will hand it out).
++
++## 2. Funding feasibility and the default sender: sound
++
++- **Sender:** the boot sends via the existing `sendOperatorTx`, which is plain viem `writeContract` at default fees. A failed
++  setProofKey is never escalated to register().
++- **Root's live numbers** (`custody-boot-registration-20261023/logs/root-live-fees2.out`, block 53001451):
++
++  | Quantity | Value |
++  |---|---|
++  | gas | 38 772 |
++  | maxFee | 7 000 000 wei (5 m base × 1.2 + 1 m tip) |
++  | worst case | 271.93e9 |
++  | 125% gate | 339.9e9 ≤ balance 376.13e9 |
++
++  The gate passes today. It refuses (fail-safe) once base fee exceeds about 5.6 Mwei, or the tip rises.
++- `viemDefaultMaxFee` rounds up, where viem floors. That is conservative, by at most 1 wei/gas.
++- **This attempt is one-shot.** Once a setProofKey lands, about 233e9 is spent (gas used × effective price). About 143e9 remains,
++  which is less than another worst case, so a rollback plus retry needs funding. A lagging re-read that sends setProofKey again
++  is refused by the node for funds before anything is spent. The box then adopts on the next exact re-read, with backoff
++  5→300 s.
++- **Not visible to the preflight:** a registry read that fails at boot also takes the full-register path (supervisor.js:715).
++- **Since my first read:** root's two-RPC block-equality failure (`ROOT-LIVE-REVIEW.txt`) is H's, and is being handled there
++  (`block-probe.mjs`).
++
++## 3. Baseline, record digests, gate, rollback, preservation: sound, with small notes
++
++- **`prebaseline.collect`:**
++  - It uses root's authenticated guestd listing (0600, ≤ 300 s) and keeps id, name, status, recordSha256 and createdAt only.
++  - Each app must have exactly one nonterminal guest, running, with a record digest, equal to the ORIGINAL 21:31:30Z guests
++    (gd9d4a391d, gdd0646f2c), with the same failed history.
++  - `/availability` held is recorded as absent ("old control adopted nothing"), never pretended.
++  - Any status other than `failed` counts as live, so an unexpected status refuses (fail-safe).
++- **Record digests:** they are recorded pre-cutover (`preCutoverRecords`). After adoption only the guest **ids** are compared; the
++  digests are not re-read. This is optional: re-reading them needs root's guestd listing again.
++- **activate.py:**
++  - `verify-operational.py`, `guestrows.py` and `apphealth.py` are **byte copies** of the reviewed files.
++  - Unchanged: the dist-only rewrite, protected fields, the attach within 120 s, the same guests adopted within 300 s, gate v4 at
++    its defaults, and the safe rollback.
++- **Gaps in activate.py:**
++  - It does not record the `[registry]` boot line (`adopted … tx=` vs `registered … (reason)`). Recording it would show which
++    path the boot took, and the setProofKey tx, for root's audit.
++  - The lease preflight age is checked at the start; prebaseline and the funding run (≤ 180 s) then spend margin before the
++    write.
++- **Preservation:** guestd, the guests, drop-ins, WorkingDirectory, leaseGas and the earlier admission backups are never
++  written. Admission is additive (36 → 37).
++- **Rollback:** it does not restore the registry registration (rollback.py says so).
++
++## 4. keep.py attestation acceptance
++
++- When I first read it, keep.py was **substring-only**. It is now strict: `common.attestation_verdict_problems`, 1800 s,
++  measurement = approved, raw 0600 + hash. One residual: `failedChecks` absent counts as OK.
++- **Independent cross-check in this repo:** `check-recovery-verdict.py`. It accepts only a `recovery-target.mjs attest` verdict
++  with all of:
++  - wrapper `recovery-target/1`, target `recovery`, `accepted`;
++  - every required check PASS, `failedChecks == []`;
++  - observed = expected = 08d1f838, and the test pins this to the wrapper's constant;
++  - a 64-hex verifier nonce, VMPL 0;
++  - a time after `result.json` attachedAt, parsed and not string-compared, and ≤ 900 s old;
++  - the result itself provisional at 08d1f838;
++  - its raw answer 0600, hashing to rawSha256.
++- **Tests:** 7/7, plus the existing checker's 5/5 (`logs/recovery-verdict-tests-1.out`, 256 lane).
++- **Usage:** `python3 work/custody-recipient-activation-20261023/check-recovery-verdict.py evidence/attestation-<UTC>.json`.
++  Then pass keep.py the same file.
+diff --git a/check-recovery-verdict.py b/check-recovery-verdict.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..fc57df8efefddfd56249206d7d71a68c9ce98287
+--- /dev/null
++++ b/check-recovery-verdict.py
+@@ -0,0 +1,60 @@
++# READ-ONLY, ROOT runs it on the recovery attestation BEFORE work/custody-boot-activation-20261023/keep.py, whose own
++# --checked-attestation test is only that the file's bytes CONTAIN the measurement hex (a substring: a failed verdict, a verdict
++# for another target, or any text naming 08d1f838 would satisfy it). Pass keep.py the SAME verdict file this accepts.
++#   python3 work/custody-recipient-activation-20261023/check-recovery-verdict.py evidence/attestation-<UTC>.json
++# Accepts ONLY a `recovery-target.mjs attest` verdict (attest-control/1 via wrapper recovery-target/1, target "recovery") that the
++# wrapper ACCEPTED: pass, status verified, admissionSafe, every required check PASS, no failed check, observed == expected == the
++# pinned 08d1f838 (= recovery-target.mjs RECOVERY.measurement, test-checked), freshness by the verifier's own 64-hex nonce, VMPL 0;
++# made AFTER the activation attached (custody-boot-activation-20261023/result.json attachedAt, whose measurement must be the pin and
++# state provisional) and at most MAX_AGE_S before now; its private raw answer present, 0600, hashing to rawSha256.
++import datetime, hashlib, json, stat, sys
++from pathlib import Path
++HERE = Path(__file__).resolve().parent
++PIN = '08d1f838d51274571fdf17b635606d20a6e7250f74d6676217eea40733a8d269aaf52edb85aac4a9ad1cc5c53318a000'
++RESULT = HERE.parent / 'custody-boot-activation-20261023' / 'result.json'
++REQUIRED = ['report shape', 'product line', 'guest policy', 'chain', 'tcb policy', 'measurement', 'binding']
++MAX_AGE_S = 900
++
++def when(s):
++    """ISO-8601 with Z or an offset -> aware datetime; anything else -> None (never compared as text)."""
++    try: t = datetime.datetime.fromisoformat(str(s).replace('Z', '+00:00'))
++    except ValueError: return None
++    return t if t.tzinfo else None
++
++def problems(v, result, raw_dir, now=None):
++    now = now or datetime.datetime.now(datetime.timezone.utc)
++    out = []
++    if v.get('probe') != 'attest-control/1' or v.get('wrapper') != 'recovery-target/1': out.append('not a recovery-target.mjs attest verdict')
++    if v.get('target') != 'recovery': out.append(f"target {v.get('target')!r} is not recovery")
++    if v.get('accepted') is not True or v.get('pass') is not True: out.append('the wrapper did not accept it')
++    if v.get('status') != 'verified' or v.get('admissionSafe') is not True: out.append(f"status {v.get('status')!r} / admissionSafe {v.get('admissionSafe')!r}")
++    if (v.get('expectedMeasurement'), v.get('observedMeasurement'), v.get('measurementMatches')) != (PIN, PIN, True): out.append('measurement is not the pinned 08d1f838')
++    req = v.get('required') or {}
++    for k in REQUIRED:
++        if req.get(k) != 'PASS': out.append(f'required check {k!r} is {req.get(k)!r}')
++    if v.get('failedChecks') != []: out.append(f"failed checks {v.get('failedChecks')!r}")
++    n = v.get('nonce')
++    if v.get('freshness') != 'verifier nonce' or not (isinstance(n, str) and len(n) == 64 and all(c in '0123456789abcdef' for c in n)): out.append('not bound to the verifier nonce')
++    if v.get('vmpl') != 0: out.append(f"vmpl {v.get('vmpl')!r}")
++    if result.get('measurement') != PIN: out.append('the activation result is for another measurement')
++    if result.get('productionActivated') != 'provisional': out.append(f"the activation is not provisional ({result.get('productionActivated')!r})")
++    at, attached = when(v.get('at')), when(result.get('attachedAt'))
++    if at is None: out.append(f"verdict time {v.get('at')!r} unreadable")
++    elif attached is None: out.append('the activation has no readable attachedAt')
++    else:
++        if at <= attached: out.append(f"verdict at {v.get('at')} is not after the attachment {result.get('attachedAt')}")
++        if (now - at).total_seconds() > MAX_AGE_S: out.append(f'verdict is older than {MAX_AGE_S} s: attest again')
++        if (at - now).total_seconds() > 30: out.append('verdict is from the future')
++    stamp = str(v.get('at', '')).replace(':', '').replace('.', '')
++    raw = Path(raw_dir) / f'attestation-raw-{stamp}.json'
++    if not raw.is_file(): out.append(f'private raw answer {raw.name} missing')
++    else:
++        if stat.S_IMODE(raw.stat().st_mode) != 0o600: out.append('private raw answer is not 0600')
++        if hashlib.sha256(raw.read_bytes()).hexdigest() != v.get('rawSha256'): out.append('raw answer does not hash to rawSha256')
++    return out
++
++if __name__ == '__main__':
++    f = Path(sys.argv[1]); v = json.loads(f.read_text())
++    p = problems(v, json.loads(RESULT.read_text()), HERE / 'evidence' / 'private')
++    print(json.dumps({'file': str(f), 'sha256': hashlib.sha256(f.read_bytes()).hexdigest(), 'ok': not p, 'problems': p}))
++    sys.exit(1 if p else 0)
+diff --git a/commit-review.sh b/commit-review.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..a69b77d40c684101a1dcbd638b78e8fa5b793e87
+--- /dev/null
++++ b/commit-review.sh
+@@ -0,0 +1,23 @@
++#!/bin/bash
++# Scan (unchanged scanners) then commit ONLY this review's files; root's live files stay untracked.
++set -euo pipefail
++cd "$(dirname "$0")"
++FILES="check-recovery-verdict.py tests/test_recovery_verdict.py REVIEW-RECOVERY.md review-progress.txt commit-review.sh logs/recovery-verdict-tests-1.out logs/recovery-verdict-tests-1.guard.log logs/recovery-verdict-tests-1.rc logs/commit-recovery-1.out logs/commit-recovery-1.guard.log logs/commit-recovery-1.rc"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++st=$(mktemp -d); for f in $FILES; do mkdir -p "$st/$(dirname $f)"; cp "$f" "$st/$f"; done
++cfg=$(mktemp); git -C "$CKR" show HEAD:.gitleaks.toml > "$cfg"
++/home/steven/.local/bin/gitleaks dir "$st" --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path /dev/null
++find "$st" -type f -print0 | xargs -0 python3 "$CKR/.githooks/scan-crypto-keys.py" --files
++python3 - "$st" <<'PY'
++import pathlib, sys
++OLD = bytes.fromhex('54696e666f696c'); bad = [str(p) for p in pathlib.Path(sys.argv[1]).rglob('*') if p.is_file() and (OLD in p.read_bytes() or OLD.lower() in p.read_bytes())]
++assert not bad, bad; print('literal: none')
++PY
++rm -rf "$st" "$cfg"; echo "[scan] clean"
++git add -- $FILES
++git -c user.name=SteveDeFacto -c user.email=5148995+SteveDeFacto@users.noreply.github.com commit -q -m "review of the boot-registration activation: GPU-price boot race (critical), strict recovery verdict check
++
++REVIEW-RECOVERY.md: gsup GPU_COUNT=0 -> SELL_GPU_PRICE6=0 before shielded discovery -> full register(gpu=0) instead of
++setProofKey (root stopped the cutover); funding/sender/baseline/gate/rollback notes. check-recovery-verdict.py: exact
++structured acceptance of the recovery-target attest verdict (08d1f838, post-attach, <=900 s, raw 0600). Tests 7/7 + 5/5."
++git log -1 --format='%H %an <%ae>'
+diff --git a/logs/commit-recovery-1.guard.log b/logs/commit-recovery-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..0dee6815d6d0a7596a9e05a228cbdfcca09b0fd9
+--- /dev/null
++++ b/logs/commit-recovery-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=65 minHostAvailableMiB=24054
+diff --git a/logs/commit-recovery-1.out b/logs/commit-recovery-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..c759558046ff57fc134dd275972aa9db41601a5d
+--- /dev/null
++++ b/logs/commit-recovery-1.out
+@@ -0,0 +1,9 @@
++[queue] START available=24125MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++2:58PM INF scanned ~21189 bytes (21.19 KB) in 12.3ms
++2:58PM INF no leaks found
++literal: none
++[scan] clean
++c83f2b394e9c60567841d8e6122b980b9c054220 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
++[memory-guard] exit=0 peakTreeRssMiB=65 minHostAvailableMiB=24054
++[memory-guard] at peak: gitleaks:60 bash:6
++[queue] EXIT 0
+diff --git a/logs/commit-recovery-1.rc b/logs/commit-recovery-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/commit-recovery-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/recovery-verdict-tests-1.guard.log b/logs/recovery-verdict-tests-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/logs/recovery-verdict-tests-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/logs/recovery-verdict-tests-1.out b/logs/recovery-verdict-tests-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a3f4f48984e377d7d58f10bf1083b69e98e36cff
+--- /dev/null
++++ b/logs/recovery-verdict-tests-1.out
+@@ -0,0 +1,21 @@
++[queue] START available=23623MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++test_activation_state_must_match (tests.test_recovery_verdict.RecoveryVerdict.test_activation_state_must_match) ... ok
++test_every_weakening_refused (tests.test_recovery_verdict.RecoveryVerdict.test_every_weakening_refused) ... ok
++test_good_passes (tests.test_recovery_verdict.RecoveryVerdict.test_good_passes) ... ok
++test_pin_is_the_wrapper_pin (tests.test_recovery_verdict.RecoveryVerdict.test_pin_is_the_wrapper_pin) ... ok
++test_raw_file_rules (tests.test_recovery_verdict.RecoveryVerdict.test_raw_file_rules) ... ok
++test_substring_alone_is_not_enough (tests.test_recovery_verdict.RecoveryVerdict.test_substring_alone_is_not_enough) ... ok
++test_time_alone_refuses (tests.test_recovery_verdict.RecoveryVerdict.test_time_alone_refuses) ... ok
++test_every_weakening_refused (tests.test_verdict_check.VerdictCheck.test_every_weakening_refused) ... ok
++test_good_passes (tests.test_verdict_check.VerdictCheck.test_good_passes) ... ok
++test_raw_mode_and_presence (tests.test_verdict_check.VerdictCheck.test_raw_mode_and_presence) ... ok
++test_substring_alone_is_not_enough (tests.test_verdict_check.VerdictCheck.test_substring_alone_is_not_enough) ... ok
++test_verdict_before_attachment_refused_on_time_alone (tests.test_verdict_check.VerdictCheck.test_verdict_before_attachment_refused_on_time_alone) ... ok
++
++----------------------------------------------------------------------
++Ran 12 tests in 0.002s
++
++OK
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/recovery-verdict-tests-1.rc b/logs/recovery-verdict-tests-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/recovery-verdict-tests-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/review-progress.txt b/review-progress.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..d2164a964fe4cffe1e8eef9c0c672dbedf22fe7f
+--- /dev/null
++++ b/review-progress.txt
+@@ -0,0 +1,13 @@
++[2026-10-23 review of work/custody-boot-activation-20261023 + H 9f6d37bd; source-only, D]
++CRITICAL BLOCKER (likely): H's boot decision compares the row's GPU price with SELL_GPU_PRICE6 AT BOOT. gsup (9f6d37bd metal/guest/gsup.mjs:476)
++gives the supervisor GPU_COUNT='0', so IS_GPU=false and supervisor.js:3055 sets SELL_GPU_PRICE6=0 until the shielded card is adopted LATE
++(supervisor.js:3030 comment; recomputed at 5858/5859 to the card's pricePerSec6 = 1667). advertise() runs at module end (12443) with no wait
++for discovery (registerOnChain 614-643; comment at 5860: "Discovery can finish after registration ... zero GPU price"). Row gpu=1667 vs
++desired 0 -> bootRegistrationAction "the registered fields differ" -> FULL register(gpu=0) (root est. ~354e9 worst, very tight vs 376.1e9),
++then a setPrices after discovery that the balance cannot fund. The boot-funding preflight pins desired gpu=1667 so it CANNOT see this.
++Race-dependent (a first attempt that fails/backs off past discovery would take setProofKey), so not guaranteed either way.
++Recommend: do NOT run activate.py until H handles the pre-discovery price (e.g. defer the boot decision until the shielded verdict
++settles, or treat SELL_GPU_PRICE6==0 with !IS_GPU on a row with gpu>0 as "not yet comparable") + a test; then rebuild/approve.
++[15:14 local / 22:14Z] Root acknowledged (ROOT-CRITICAL-BOOT-PRICE.txt): cutover STOPPED; 08d1 staged+admitted only. H's keep.py now uses a
++strict verdict check (common.py attestation_verdict_problems, 1800 s). D's separate check-recovery-verdict.py (900 s, wrapper-accepted,
++target recovery, failedChecks == []) is committed here as an independent cross-check. Review summary: REVIEW-RECOVERY.md.
+diff --git a/tests/test_recovery_verdict.py b/tests/test_recovery_verdict.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..a22e805f81e56ba90376a03568d5749dee2b0a1c
+--- /dev/null
++++ b/tests/test_recovery_verdict.py
+@@ -0,0 +1,50 @@
++"""check-recovery-verdict.py: only the wrapper's accepted, fresh, post-attach verdict for 08d1f838 passes; every weakening refuses."""
++import datetime, hashlib, importlib.util, re, tempfile, unittest
++from pathlib import Path
++ROOT = Path(__file__).resolve().parents[1]
++spec = importlib.util.spec_from_file_location('rv', str(ROOT / 'check-recovery-verdict.py'))
++rv = importlib.util.module_from_spec(spec); spec.loader.exec_module(rv)
++NOW = datetime.datetime(2026, 10, 23, 23, 5, tzinfo=datetime.timezone.utc)
++RESULT = {'measurement': rv.PIN, 'productionActivated': 'provisional', 'attachedAt': '2026-10-23T22:55:00+00:00'}
++EE5 = 'ee5df6b83948f5bacebee414574adb87be9d58412b09ae9183fc4deed5aed3d96bc1cbead096372e7ee755febbbc22ec'
++
++class RecoveryVerdict(unittest.TestCase):
++    def setUp(self):
++        self.d = Path(tempfile.mkdtemp())
++        self.v = self.verdict('2026-10-23T23:00:00.000Z')
++    def verdict(self, at, body='{"raw": true}'):
++        raw = self.d / f"attestation-raw-{at.replace(':', '').replace('.', '')}.json"; raw.write_text(body); raw.chmod(0o600)
++        return {'probe': 'attest-control/1', 'wrapper': 'recovery-target/1', 'target': 'recovery', 'accepted': True, 'pass': True,
++                'status': 'verified', 'admissionSafe': True, 'expectedMeasurement': rv.PIN, 'observedMeasurement': rv.PIN, 'measurementMatches': True,
++                'required': {k: 'PASS' for k in rv.REQUIRED}, 'failedChecks': [], 'freshness': 'verifier nonce', 'nonce': 'ab' * 32, 'vmpl': 0,
++                'at': at, 'rawSha256': hashlib.sha256(raw.read_bytes()).hexdigest()}
++    def check(self, v, result=RESULT, now=NOW): return rv.problems(v, result, self.d, now=now)
++
++    def test_pin_is_the_wrapper_pin(self):
++        src = (ROOT / 'recovery-target.mjs').read_text()
++        self.assertEqual(re.search(r"measurement: '([0-9a-f]{96})'", src).group(1), rv.PIN)
++    def test_good_passes(self): self.assertEqual(self.check(self.v), [])
++    def test_every_weakening_refused(self):
++        v = self.v
++        bad = [dict(v, accepted=False), dict(v, **{'pass': False}), dict(v, status='limited'), dict(v, admissionSafe=False),
++               dict(v, target='new'), dict(v, wrapper=None), dict(v, probe='other'), dict(v, observedMeasurement=EE5), dict(v, expectedMeasurement=EE5),
++               dict(v, measurementMatches=False), dict(v, required={**v['required'], 'binding': 'UNAVAILABLE'}), dict(v, required={}),
++               dict(v, failedChecks=['crl']), dict(v, failedChecks=None), dict(v, freshness='none'), dict(v, nonce='ab' * 31), dict(v, nonce='zz' * 32),
++               dict(v, vmpl=1), dict(v, vmpl=None), dict(v, rawSha256='0' * 64), dict(v, at='yesterday')]
++        for b in bad: self.assertTrue(self.check(b), b)
++    def test_activation_state_must_match(self):
++        for r in [dict(RESULT, measurement=EE5), dict(RESULT, productionActivated=False), dict(RESULT, productionActivated=True), dict(RESULT, attachedAt=None)]:
++            self.assertTrue(self.check(self.v, r), r)
++    def test_time_alone_refuses(self):
++        early = self.verdict('2026-10-23T22:50:00.000Z')                      # before the attachment
++        p = self.check(early); self.assertEqual(len(p), 1, p); self.assertIn('not after the attachment', p[0])
++        same = self.verdict('2026-10-23T22:55:00.000Z')                       # equal instant, other text form: parsed, not string-compared
++        self.assertIn('not after the attachment', ' '.join(self.check(same)))
++        p = self.check(self.v, now=NOW + datetime.timedelta(seconds=rv.MAX_AGE_S + 300)); self.assertEqual(len(p), 1, p); self.assertIn('older than', p[0])
++        p = self.check(self.v, now=NOW - datetime.timedelta(minutes=10)); self.assertIn('from the future', ' '.join(p))
++    def test_raw_file_rules(self):
++        raw = self.d / 'attestation-raw-2026-10-23T230000000Z.json'
++        raw.chmod(0o644); self.assertIn('not 0600', ' '.join(self.check(self.v))); raw.chmod(0o600)
++        raw.unlink(); self.assertIn('missing', ' '.join(self.check(self.v)))
++    def test_substring_alone_is_not_enough(self):
++        self.assertTrue(self.check({'note': 'mentions ' + rv.PIN}))           # what keep.py's own test would accept

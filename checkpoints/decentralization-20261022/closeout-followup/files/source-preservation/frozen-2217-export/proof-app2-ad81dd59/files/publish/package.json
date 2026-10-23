@@ -1,0 +1,8 @@
+{
+  "name": "custody-canary-publish-prepare",
+  "private": true,
+  "type": "module",
+  "description": "Read-only preparation of the custody-canary-proof catalog publication (no signing, upload or chain write)",
+  "dependencies": { "viem": "2.53.1" },
+  "devDependencies": { "solc": "0.8.35" }
+}

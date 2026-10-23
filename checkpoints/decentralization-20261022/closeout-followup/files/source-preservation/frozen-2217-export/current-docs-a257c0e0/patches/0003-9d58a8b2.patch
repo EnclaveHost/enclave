@@ -1,0 +1,654 @@
+From 9d58a8b2188879ff35b0f3f87aee0b4a59b6fe27 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:13:33 -0700
+Subject: [PATCH] Reconcile custody v2 docs with the deployed state:
+ code-frozen original committee, proven vs not, rollback and relay limits
+
+Source/documentation only, for root review (root publishes the final). Against the checkpoint dfb4b55e originals plus the
+reviewed dashboard doc commits:
+- secret-custody-v2.md: deployed vault = original 9d43 source (blob 7a385bbc); committee 0x4774 permanently code-frozen
+  (no code-approval signer; a 7-day wait alone cannot upgrade it) -> new committee in the same vault + owner migration
+  (new 10.3); hardware proof = startup/503/reopen only, no secret lifecycle test on hardware or production; rollback
+  limits (old valid blob, malicious 404, any-failure-as-absent in the running image); relay clear/backups; proof key not
+  SNP-bound, quote-only transport key; site r2 unpublished.
+- secret-custody-v2-spec.md: the deployed vault's constructor and Enclave rule beside the source proposal.
+- CURRENT-STATE / TEST-MATRIX / ROLLBACK / SIGNING-AUTHORITY / SOURCES: exact refs; incident data marked PROVISIONAL with
+  timestamps; recovery not asserted; admin rights kept. Original single-seat t=1 custody is NOT decentralized custody.
+---
+ CURRENT-STATE.md                        | 121 ++++++++++++++++++++++++
+ README.md                               |  15 +++
+ ROLLBACK.md                             |  30 ++++++
+ SIGNING-AUTHORITY.md                    |  30 ++++++
+ SOURCES.md                              |  61 ++++++++++++
+ TEST-MATRIX.md                          |  55 +++++++++++
+ commit.sh                               |  57 +++++++++++
+ docs/security/secret-custody-v2-spec.md |   7 ++
+ docs/security/secret-custody-v2.md      |  67 ++++++++++++-
+ logs/scan-1.out                         |   7 ++
+ logs/scan-1.rc                          |   1 +
+ logs/scan-gitleaks.json                 |   1 +
+ q.sh                                    |  10 ++
+ scan.sh                                 |  11 +++
+ 14 files changed, 470 insertions(+), 3 deletions(-)
+ create mode 100644 CURRENT-STATE.md
+ create mode 100644 README.md
+ create mode 100644 ROLLBACK.md
+ create mode 100644 SIGNING-AUTHORITY.md
+ create mode 100644 SOURCES.md
+ create mode 100644 TEST-MATRIX.md
+ create mode 100755 commit.sh
+ create mode 100644 logs/scan-1.out
+ create mode 100644 logs/scan-1.rc
+ create mode 100644 logs/scan-gitleaks.json
+ create mode 100755 q.sh
+ create mode 100755 scan.sh
+
+diff --git a/CURRENT-STATE.md b/CURRENT-STATE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..b5d3cf354121d102cd0f6c9a22e8b75b5ff8655d
+--- /dev/null
++++ b/CURRENT-STATE.md
+@@ -0,0 +1,121 @@
++# Custody v2: current state (draft for root review, 2026-10-23T22:10Z)
++
++**Status of this file.** It is a source and documentation draft for root to review; root publishes the final. It changes no
++production state, and it is not root's public output.
++
++- Section **I** (the incident) is **PROVISIONAL**. It is copied with timestamps from root's live journal and is valid only until root
++  updates it.
++- It does **not** assert that recovery is done.
++- Every claim cites an exact source in `SOURCES.md`, as [Sn].
++
++## A. What is deployed (verified by read-only chain reads)
++
++| item | fact | source |
++|---|---|---|
++| vault | `EnclaveSecretVaultV2` at `0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5`, runtime code hash `0x4b949b37…`. This is the ORIGINAL 9d43e63e8 source (git blob `7a385bbc`): constructor `(book, enclaveOwner)`, Enclave seat decided by registry payout. It is **not** the hostOwnership-pinned vault that `secret-custody-v2-spec.md` §1 now describes as a source proposal. | S1, S2 |
++| committee | `0x4774…f7a3`: epoch 1, **n = 1 seat, t = 1, W = 1**. One machine `0xF0F8…506a` on metal0, measurement hash `0x2530eda0…`, full SNP measurement `c8663742…` (image `custodian-v2-9d43e63e8`). | S1, S3 |
++| code set | `codeActiveAt(2530eda0)` = genesis; `codeActiveAt(fbe2f581)` (the corrected r2 image) = 0. `CODE_DELAY` 604800 s. | S2, S4 |
++| known policy | canary `0x4e62…6c1e`: owner EOA `0x2947…647C`, policyRev 2, secretRev 2, on `0x4774`. The exhaustive event scan is INCOMPLETE, so other policies are not ruled out. | S1 |
++| address book | `secretVaultV2` = 0 and `sessionVaultFactory` = 0, last read at block 53,000,163 (21:07:57Z). Owner `0x0b2d009c…eE61`, unchanged. | S5, S6 |
++
++**This is a SINGLE-SEAT BOOTSTRAP, not decentralized custody.** With t = 1 the one Enclave TEE holds the full key `x` (sealed,
++never in host plaintext). Enclave alone unlocks, admits and upgrades.
++
++## B. The original committee is permanently code-frozen
++
++**The corrected image can never be added to `0x4774` with the running custodian.** A seven-day wait alone cannot upgrade the old
++committee, because no signing route exists [S2, S4, S7]:
++- `proposeCode` needs a current-epoch machine's signature over the vault's `codeDigest`. With an empty list it reverts
++  `Weight(0,1)`, both live and on anvil.
++- The only current machine is `0xF0F8…`. Its key exists only inside the running image (custodian.mjs `7c2cd000`, source 9d43).
++  That image signs genesis, handover, deal and ack digests only, and serves no code-approve route.
++- A handover admits only machines whose code is already active, so `0x4774` can only gain more `2530eda0` machines.
++
++**Supported route** [S4]:
++1. A NEW committee in the SAME vault, created by a corrected custodian (`ab589bf8`, measurement `70aadff5` / `fbe2f581`). Its
++   genesis code set is active for that committee only.
++2. **Owner migration** per deployment: re-entry, or the owner-authorized rewrap.
++
++**Blockers before step 1:**
++- metal0 owner enrollment, which needs operator gas (blocked; no funding workaround);
++- a direct HTTPS origin for the new custodian;
++- the full lifecycle canary.
++
++## C. What has been proven, and what has not
++
++- **Real SNP hardware: startup and recovery only.**
++  - r2 `70aadff5` on 2026-10-23, 20:14:49–20:16:29Z: a fresh start, 7/7 GETs answered 503 with no write, then a reopen with the same
++    identity [S8].
++  - The earlier image `e01206d3` passed a quote-only boot at 19:31Z; it is superseded [S9].
++  - Both are quote-only and are **not** secret release or lifecycle tests.
++- **No secret lifecycle test** (save, release, rotate, pause, migrate, delete) has run on hardware or in production. The lifecycle has
++  run only on mock or fixture, headless browser, and anvil (the rewrap with SYNTHETIC attestation). The production-canary driver has
++  never been run. See `TEST-MATRIX.md`.
++- **The live Oct-14 hardware verification has no surviving receipt** (rollout audit F9). It stays the 2026-10-14 record.
++
++## D. Known limitations (no fix is claimed)
++
++**Rollback and replay** [S10, S11, S8]:
++- High-water marks are memory-only in the running image.
++- A host can serve an OLDER VALID sealed blob, which unseals and silently rolls the state back.
++- A malicious **404** makes the guest create a new identity, which orphans the old share. A guest cannot prove absence without an
++  external monotonic anchor, and none exists.
++- ab589bf8 makes only HTTP 404 count as "absent", so other errors, redirects, wrong sizes and stalls now fail startup. It does not
++  stop the 404 or old-blob cases, denial of service, or a host that lies about writes.
++
++**Relay** [S10]:
++- The migrate step's relay clear happens only if `/exists` reports `custody:true` within 1.5 s (F6).
++- "Deleted" means `secrets.json` only (S7).
++- The inventory of absent old-canary values covers named channels and values, not backups. It is **not** proof of migration, and
++  not proof that backups were erased.
++
++**Attestation binding** [S8, S12]:
++- The control proof key is published at the relay-served attested origin (`/v1/attestation` → `proofKey`) and compared with the
++  registry. It is **not bound to an SNP report**.
++- The custodian hardware verdicts bind the transport key, a fresh challenge and the runtime identity (**quote-only transport key**).
++
++## E. Publication and the dashboard
++
++- **Public IPNS record:** sequence **1026** → `/ipfs/bafybeieuxt6…`, valid until 2026-10-30T13:03:14Z [S13].
++- **Local ipns-publisher:** sequence 0, `http-only`, `durableState: false`, so sequence safety rests on network recovery alone.
++- **Dashboard site release r2** `bafybeihm7f2mhw6…` (source `a942a61f`) is built and verified offline and is **UNPUBLISHED** [S14].
++  The panel is inert while `secretVaultV2` = 0.
++
++## F. Admin rights
++
++**Admin rights are kept.** The book owner `0x0b2d…eE61` keeps every admin and business control, and no existing contract is
++modified [S5, S6].
++- The `sessionVaultFactory` activation handoff serves a page on localhost:39672 [S15]. It was **pending the human** at 21:57Z (no
++  chain write).
++- `secretVaultV2` activation is an unsigned plan, deliberately held.
++
++## I. Incident: metal0 control recovery IN PROGRESS (PROVISIONAL, from root's journal [S16], as read 22:07Z)
++
++| time (UTC) | entry |
++|---|---|
++| 21:29:47 | Root staged the restored control image `ee5df6b8` (relay allowlist 35→36). |
++| 21:32:03 | Control-only activation. Adoption FAILED within 300 s: boot `registerOnChain` does a full register, and operator `0xC9D…` lacks the fee budget. The preflight missed boot-registration gas. |
++| 21:37 | Automatic rollback to the old config `deabf8f9` / `ed918e4b`. **Rollback did not restore adoption or registration.** |
++| 21:41 | Original app VMs confirmed running via authenticated guestd: imagegen `gd9d4a391d`, EyesOff `gdd0646f2c`. |
++| 21:43:18 | imagegen protected renewal tx `0xe543aad9…` paid from the app reserve; no operator ETH spent. |
++| 21:45 | Both apps' public health PASS. |
++| 21:52:36 | EyesOff renewal tx `0x04a8311c…` paid from the app reserve. |
++| 21:54:50 | H `9f6d37bd` minimal boot-registration fix built twice, byte-identical, measurement `08d1f838…`. Staged only, **NOT activated or admitted** (it needs allowlist 36→37). |
++
++**Not yet recovered:**
++- Original control registration and adoption.
++- The paid leases had about 1 h left at 21:51.
++- The proof-key helper is stopped by root ("MUST NOT RUN").
++
++## U. Unresolved actions (owner of each in `SIGNING-AUTHORITY.md`)
++
++1. metal0 control recovery: H `08d1` admission and activation, and registration. **Root.**
++2. metal0 owner enrollment: TX1 by operator `0xc9d0` (needs gas), TX2 by admin `0x0b2d`.
++3. A new committee from the corrected image: an HTTPS origin, a funded submitter, and genesis.
++4. The full secret lifecycle canary on that committee: save, release, rotate, pause, migrate, restart, and the failure cases.
++5. Owner migration of `0x4774` policies, by each owner: the known canary, plus the incomplete inventory.
++6. `sessionVaultFactory`: the human signature. `secretVaultV2`: held until 3–5 and the consumer review.
++7. Site r2 publication: deliver to the fronts, and IPNS once the publisher is durable and repaired.
++8. The doc corrections in `patches/`, for root review.
++9. Stale text in source READMEs that predate the 20:14Z hardware run (harness README L3, release README L13). This is noted, not
++   edited, because those are other workers' trees.
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..3d650ad0edcf593fad1b14fb89b15f891a2af909
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,15 @@
++# custody-v2-current-docs-20261023 (worker R): reconciled custody v2 documentation, for root review
++
++This is source and documentation only. Root reviews and publishes the final version. Nothing here was sent, signed or changed in
++production, and root's public output was not edited.
++
++- `CURRENT-STATE.md`: what is deployed, the code freeze, what is proven, known limits, publication and admin rights, the
++  PROVISIONAL incident timeline, and unresolved actions.
++- `TEST-MATRIX.md`: every test that ran, by class (unit, browser, anvil, SNP hardware, production). No secret lifecycle test has
++  run on hardware or in production.
++- `ROLLBACK.md`: how each action reverses, and the custodian's limits against rollback and replay.
++- `SIGNING-AUTHORITY.md`: who signs and who pays for each step, with status.
++- `SOURCES.md`: exact file, line and commit references.
++- `docs/security/`: the two custody v2 documents, starting from the checkpoint dfb4b55e originals (`docs/ORIGINS.md`).
++- `patches/`: those document changes as patches against the checkpoint dfb4b55e originals and against main 68b82926.
++- `scan.sh`, `q.sh`: the prescan and the unchanged-queue wrapper. Logs are in `logs/`.
+diff --git a/ROLLBACK.md b/ROLLBACK.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..3e78f653881b76162b27c5c713762333f82dfd5a
+--- /dev/null
++++ b/ROLLBACK.md
+@@ -0,0 +1,30 @@
++# Custody v2: rollback, cancel and protection limits (as of 2026-10-23T22:10Z)
++
++## 1. Operational rollback per action (nothing here was executed by this worker)
++
++| action | how to reverse | what it does NOT reverse | source |
++|---|---|---|---|
++| `book.set("secretVaultV2", 0xE486…)` (admin) | Sign the recorded rollback calldata. Pages stop at the next action. | Stored policies and bundles stay. | dashboard HANDOFF §4 step 4 |
++| `book.set("sessionVaultFactory", 0x1f5c…)` (admin) | Set it back to 0. | A policy already pinned to a SessionVault is stranded once the factory exists, and only `claimPolicy` gets past that, which destroys the bundle. | dashboard HANDOFF §4 step 5; factory-consumer review |
++| metal0 owner enrollment (proposeOwner + acceptOwner) | **No renounce.** The only way out is a new propose/accept. | Consumers of the accepted owner (platform host gate, node holds). | custodian `RESULT-R2.md` §3 |
++| new committee genesis | None on chain. Stop using the committee, and do not migrate policies to it. | The committee stays recorded. | vault source |
++| `proposeCode` (corrected committee only) | `removeCode`, same approval weight, takes effect at once. It also blocks the final ack of a pending handover to that code. | The **same measurement cannot be re-proposed in that epoch** (single-use digest). | code-admission test 21/21 |
++| pending handover | Expires after 86400 s; can then be replaced. | | vault source |
++| owner switch to a new committee (re-entry or rewrap) | The owner sends a new `update` back. The old bundle on `0x4774` stays usable until replaced. | Values already released to guests. | rewrap.mjs header |
++| relay copy delete | **None.** Re-enter the value. The owner must rotate it at its issuer. | Relay backups and snapshots (deleting removes `secrets.json` only). | rollout audit F6, S7 |
++| site r2 delivery (fronts) | `site/deploy.sh rollback … --to bafybeig3rai3…`, then probe for the base stamp `166bf9d3 · 2026-10-19`. | IPNS (untouched). | r2 RELEASE-HANDOFF §5, §7 |
++| metal0 control image activation (root) | Automatic rollback to the previous config. | **Observed 21:37Z (PROVISIONAL): the rollback restored the old image, not boot registration or adoption.** | root journal |
++
++## 2. Rollback and replay protection of the custodian: limits
++
++| threat | running image (`c866`, 9d43) | corrected r2 (`70aadff5`, ab589bf8) |
++|---|---|---|
++| host serves an older epoch's blob | refused (an epoch older than the chain's) | refused |
++| host serves an older VALID blob of the current epoch | **not detected**: it unseals and rolls state back | **not detected**: no hardware monotonic counter; the sealed checkpoint can be rolled back from the 20-blob host history |
++| per-deployment high-water marks | **memory-only**: they restart from the next read after a restart | memory-only by default (`custodian.mjs` L47) |
++| host answers 503, an error, a redirect, an oversize or tiny body, or stalls | treated as absent: it **creates and PUTs a fresh identity** (defect) | startup fails and the supervisor retries; proven on hardware for 503 (7/7, 20:14Z) |
++| host answers **404** for existing state | fresh identity; old share orphaned | **the same: not preventable without an external monotonic anchor** |
++| host lies about a write, or denies service | not detected | not detected (liveness only) |
++
++Sources: original daemon 9d43e63e8 `custody/v2/daemon.mjs` L78, L86-91 (any GET failure → `null` → fresh identity PUT); rollout audit `RESULT.md` L171-175, L274-282, L352-355; durability `RESULT.md` L133-138; custodian `RESULT-R2.md`
++L21, L199-204; harness `README.md` L172-176.
+diff --git a/SIGNING-AUTHORITY.md b/SIGNING-AUTHORITY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..5a4549ae0b3bb492ca7949619ccb7c24c6d0396e
+--- /dev/null
++++ b/SIGNING-AUTHORITY.md
+@@ -0,0 +1,30 @@
++# Custody v2: who signs what (as of 2026-10-23T22:10Z)
++
++The agents in this table are:
++- **admin**: the Enclave admin wallet `0x0b2d009c0c9Af05b12100D77F3c815fea822eE61`. It is the book owner and the vault `enclaveOwner`,
++  and it is held by the human.
++- **operator**: metal0's registry operator `0xc9d0835c…e6ab`, root's host key.
++- **TEE identity**: a custodian machine's key, generated and sealed inside its SNP guest.
++- **submitter**: any funded EOA. It can drop transactions, but never forge them.
++
++| action | must sign | pays gas | status (22:10Z) |
++|---|---|---|---|
++| `book.set("secretVaultV2", 0xE486…)` | admin | admin | unsigned plan; deliberately held |
++| `book.set("sessionVaultFactory", 0x1f5c887c…)` | admin (MetaMask handoff on localhost:39672) | admin | **pending the human** (21:57Z: no chain write) |
++| metal0 enrollment TX1 `proposeOwner(metal0, 0x0b2d…)` | operator | operator | **blocked**: balance 376,132,087,579 wei, below the 1.038e12 wei bound; no funding workaround |
++| metal0 enrollment TX2 `acceptOwner(metal0)` | admin | admin | after TX1 |
++| `proposeCode` / `removeCode` on the original `0x4774` | the current machine `0xF0F8…` over `codeDigest` | submitter | **IMPOSSIBLE**: the running image has no code-signing route; the committee is permanently code-frozen |
++| new committee host binding | operator (off-chain `hostDigest`) | none | not started |
++| new committee `createCommittee` | the new machine's TEE identity (genesis digest) | submitter (at most about 6.5e12 wei) | not started; needs enrollment and an HTTPS origin |
++| `proposeCode` / `removeCode` on a corrected committee | **admin** code permit (≤ 30 d, EIP-191 over `codePermitDigest`, valid only while admin is the host's ACCEPTED owner), then the machine's TEE identity over `codeDigest` | submitter (about 1.2e12 wei) | n/a until the committee exists; then 7 days to `activeAt` |
++| handover (propose, deal, ack) | current machines' TEE identities, then new machines' acks | the host submitter | n/a |
++| policy `update` / pause / switch committee | the policy owner: an EOA directly, or its SessionVault's beneficial EOA once the factory is set | the owner | the known canary owner is EOA `0x2947…` |
++| owner-authorized rewrap | the policy owner (rules update, EIP-712 Rewrap ≤ 3 d, switch update) | the owner | proven on anvil with synthetic attestation only |
++| relay copy delete | the owner (signed relay request) | none | per owner |
++| metal0 control image admission and activation (`ee5df6b8`, H `08d1f838`) | root (relay allowlist and control) | the operator, for boot registration | **PROVISIONAL**: the ee5 activation failed at 21:32 and was rolled back at 21:37; H is staged and not admitted |
++| app lease renewals (imagegen, EyesOff) | root (protected renewal) | the app reserve | **PROVISIONAL**: paid at 21:43:18 and 21:52:36 |
++| site r2 delivery (fronts) | root | none | not delivered |
++| IPNS `setConfig` `/ipfs/<CID>` | the publisher deployment owner | the owner | blocked: the local publisher is at sequence 0, not durable |
++
++**Admin rights are preserved throughout.** Nothing in this plan removes or bypasses an admin or business control, and no existing
++contract is changed.
+diff --git a/SOURCES.md b/SOURCES.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..b0930ffc37bcfa5a3471fefec2ae20a82106d44e
+--- /dev/null
++++ b/SOURCES.md
+@@ -0,0 +1,61 @@
++# Exact source references
++
++Paths are under `/home/steven/Documents/Codex/2026-10-18/wo/`. Commits are full or 8-character git ids. Each line ends with
++whether it is "committed" or "uncommitted, as read" (with the time).
++
++- **S1:** `work/custody-v2-live-20261023/evidence/known-state.json` (commit a90f833; repo head 1535fcf0). Block 52,994,819, 18:10Z:
++  vault code hash, book entries and owner, committee 0x4774 and its machine, the canary policy. Also `README.md` L7-9 (measurement
++  c8663742 = 2530eda0, image `custodian-v2-9d43e63e8`).
++- **S2:** `work/custody-code-admission-20261023` commit 8578965c.
++  - `evidence/original-code-path.json`: the deployed bytes reproduced from blob 7a385bbc; Weight(0,1); the 7-day boundary; cancel
++    semantics; 21/21.
++  - `evidence/live-code-state.json`: block 53,001,067; two RPCs agree; `codeActiveAt`; the live `proposeCode` eth_call reverts.
++  - `orig-9d43/`: a git archive of `/home/steven/Projects/enclave` at 9d43e63e84e1799467a0202c0cf1cdc5a8aabca5.
++- **S3:** `outputs/custody-existing-contracts/runtime-image-provenance.json` (root; not a repo): image directory
++  `custodian-v2-9d43e63e8`, custodian.mjs `7c2cd000…`.
++- **S4:** `work/custody-code-admission-20261023/HANDOFF.md` and `evidence/code-admission-plan.json` (commit 8578965c). Also
++  `work/custody-v2-live-20261023/evidence/custody-code-delay.json` (commit 570947d4; block 53,000,630, `correctedCodeActiveAt` 0).
++- **S5:** `work/custody-v2-live-20261023/evidence/session-factory-state.json` (commit 3fd6e8ff, block 52,998,138) and
++  `book-abi-readcheck.json` (commit dc07e225, block 52,999,644: `owner()` = 0x0b2d…, no `pendingOwner`).
++- **S6:** `work/custody-factory-wallet-20261023/evidence/root-live-preflight-20261023.json` (commit 9557ad6d; block 53,000,163,
++  21:07:57Z, `sessionVaultFactory` 0), and `README.md` L1, L10-11, L101, L110-113.
++- **S7:** `work/custody-v2-rollout-audit-20261023/RESULT.md` (commit 8df7139):
++  - F2 (L171-174), F4 (L175), F6 (L179-182), F9 (L194-198);
++  - S5 and S7 (L334, L336), absence-scope L261-267, O3 (L352-355).
++  - "No fake SNP, anvil, local fixture or quote-only run counts as production evidence" (L42).
++- **S8:** `work/custody-snp-recovery-harness-20261023` (commit 7c4844a):
++  - `evidence/20261023T201449Z/result.json` L3-4 (scope "startup-recovery evidence only; quote-only; not secret release or
++    lifecycle"; `quoteOnly: true`), L46-54, L122-162, L245-275;
++  - `terminal.json` L10;
++  - `README.md` L172-176 ("Rollback is NOT addressed") and L231-233.
++  - Stale before the run: `README.md` L3.
++- **S9:** `work/custody-v2-release-20261023` (commit 23f7e51):
++  - `README.md` L3-7 (e01206d3, 19:31Z, quote-only);
++  - `RESULT-R2.md` L21 (only 404 = absent), L119, L199-204 (malicious 404, old valid blob, DoS), L213-214.
++  - Stale before the run: `README.md` L13.
++- **S10:** `work/custody-v2-durability-20261023/RESULT.md` L133-138 (not anti-rollback, high-water memory-only, a lying host) and
++  `ROOT-ROLLOUT-FINDINGS.txt` L3, L5. Uncommitted, as read 22:05Z. The repo is `repo/` at ab589bf8.
++- **S11:** ab589bf8 `custody/v2/custodian.mjs` L47 (`memoryHighWater()`), `startup-state.mjs` L4-5 and L13, `host.mjs` L65 (20
++  history blobs). The original 9d43e63e8 `custody/v2/daemon.mjs` L78 and L86-91.
++- **S12:** ab589bf8 `contracts/DEPLOYMENTS.md` L497-503 and `metal/PROTOCOL.md` L114-118 (proof key served at the attested origin
++  `/v1/attestation` → `proofKey.address`, compared with the registry). Harness `verdict-fresh.json` and `verdict-reopen.json` L15
++  (the binding is transport key + challenge + runtime). The wording "proof key relay-origin, not SNP-bound; quote-only transport
++  key" is root's (`custody-code-admission-20261023/ROOT-DOCUMENT-RECONCILE.txt`).
++- **S13:** `work/custody-publisher-assessment-20261023/RESULT.md` (commit b895d295): L10-11 and L66-68 (sequence 1026, valid
++  until 10-30), L21-22 (`durableState: false`), L59-64 (local sequence 0, http-only, 503 on `/routing`).
++- **S14:** `work/custody-v2-site-release-r2-20261023/RELEASE-HANDOFF.md` (commit 14b5f559) and
++  `work/custody-site-publish-readiness-20261023/CURRENT-STATUS-DRAFT.md` L49 (commit 90a2b826; a draft, not public output).
++- **S15:** `work/custody-factory-wallet-20261023/README.md` L110-113 (`serve.mjs`, port 39672).
++- **S16:** `work/resume-after-checkpoint-20261022/ROOT-CONTINUE-LATEST.txt` L493-519 (root's journal; uncommitted, as read about
++  22:07Z): the 21:29-21:57Z incident entries. Corroborated by:
++  - `work/custody-v2-live-20261023/evidence/protected-renewals/0xda09…result.json` (commit 1535fcf0);
++  - `0x9eb4…result.json` and `boot-public-state.json` (staged, uncommitted);
++  - `work/custody-recipient-activation-20261023/logs/root-activate.out` and `ROOT-REGISTRATION-INCIDENT.txt`;
++  - `outputs/decentralization-audit/custody-v2-live-verification-20261023.md` L3-7 (root's public output; read only).
++
++## Document originals
++
++- **Checkpoint:** `work/source-checkpoint-20261022/main-repo` at checkpoint dfb4b55e627ebd95b647abebf09627296f099862 holds
++  `docs/security/secret-custody-v2.md` 393f9d31 and `secret-custody-v2-spec.md` fee422be.
++- **Main:** main 68b82926968c99503d38ae78dbcb04694cc2c56c holds 6e933b8e and ae96f2a4.
++- **Dashboard:** the reviewed doc commits 2d3839c54 and 9d97b4b00 (custody-v2-dashboard repo) give de1dce4b.
+diff --git a/TEST-MATRIX.md b/TEST-MATRIX.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..176cbe6fb4f98adb617b894722a3b6bf49e50ecc
+--- /dev/null
++++ b/TEST-MATRIX.md
+@@ -0,0 +1,55 @@
++# Custody v2 test matrix (as of 2026-10-23T22:10Z)
++
++**Test classes:**
++- **unit:** source tests, with mocks or fixtures.
++- **browser:** a headless browser.
++- **anvil:** a local chain. "Real bytes" means the deployed vault bytecode (code hash `0x4b949b37…`).
++- **SNP-hw:** the real AMD SEV-SNP production machine, with a disposable guest.
++- **prod-read:** read-only public RPC calls.
++- **prod:** a production action.
++
++**LC** marks secret lifecycle steps.
++
++| area (dir, head) | test | result | class | LC | log / receipt |
++|---|---|---|---|---|---|
++| dashboard (`custody-v2-dashboard-20261023/repo`, tested at e24a47fb2) | custody-v2-dashboard | 10/10 | unit (fixture vault) | save, rotate, pause, migrate, gated relay delete | `logs/final2.out` |
++| | dashboard-browser | 2/2 | browser | the same flow, in a page | `logs/final2.out` |
++| | dashboard-contract | 2/2 | anvil, real bytes + book + SessionVault/factory | save, rotate while paused, pause/resume | `logs/final2.out` |
++| | mutants | 9/9 killed | unit | | `logs/mut2.*` |
++| site release r2 (`custody-v2-site-release-r2-20261023`, 14b5f559) | focused suites | 52/52 (the prior commit fails) | unit | none | `logs/focused-new.out` |
++| | release check, inert smoke | OK | build check, offline browser | none | `check/*.json` |
++| code admission (`custody-code-admission-20261023`, 8578965c) | original-code-path | 21/21 | anvil, real bytes, test keys | none (code and handover) | `evidence/original-code-path.json` |
++| | live-read, static | read-only | prod-read, static | none | `evidence/live-code-state.json`, `original-daemon-static.json` |
++| durability (`custody-v2-durability-20261023/repo`, ab589bf8) | root closure | 8/8 | unit (real Caddy) | none | `root-closure.out` |
++| | daemon-startup | 1/1 (FAILS on c95dcd3a and on the mutant) | unit (real daemon main, stubbed snpkey) | none | `logs/rc-daemon-startup-2.out` |
++| | direct-ingress-paths | 1/1 (the mutant FAILS) | unit (real Caddy + router) | none | `logs/rc-ingress-paths.out` |
++| | e2e on the original vault | 1/1 | anvil | genesis, release at t=1, handover, release at t=2 | `logs/fu-e2e-512.out` |
++| custodian release (`custody-v2-release-20261023`, 23f7e51) | r2 build twice | A == B, measurement `70aadff5` | build | none | `logs/build-r2-1024.out` |
++| | e01206d3 quote canary (image superseded) | ok, 19:31Z | SNP-hw, quote-only | none | `canary/root-hardware-20261023/verdict.json` |
++| SNP recovery (`custody-snp-recovery-harness-20261023`, 7c4844a) | harness units | Python 27/27, Node 6/6 | unit | none | `logs/t2.out` |
++| | fresh / 503 / reopen on r2 `70aadff5` | PASS, 20:14:49–20:16:29Z | **SNP-hw**, quote-only | **none** (startup recovery only) | `evidence/20261023T201449Z/` |
++| ingress forwarder (`custody-v2-ingress-forwarder-20261023`, b1c1feee) | allowlist + forwarder | 13/13; mutants 24/24 | unit | none | `logs/test-7.out` |
++| production canary driver (`custody-v2-production-canary-20261023`, 01525201) | driver suites | 49 pass, 1 TODO; mutants 17/17 | unit | plans every step; **NEVER RUN** | `logs/c17.out` |
++| owner migration (`custody-owner-migration`, not a repo, 10-20) | rewrap e2e | 1/1 (and 1/1 after the result-auth fix) | anvil, **SYNTHETIC** SNP | migrate (rewrap) | `logs/rewrap-e2e.out`, `logs/resultauth-e2e.out` |
++| recipient restore (`custody-recipient-restore-20261023/repo`, a6b1378c) | gsup custody env | 4/4 (the control fails as designed) | unit | none | `logs/test-1.out` |
++| | measured-control | 12/13 on BOTH trees (old failure, not called green) | unit | none | `logs/measured-control-1.out` |
++| | builds | `ee5df6b8`; H `9f6d37bd` → `08d1f838` (root, PASS) | build | none | `logs/root-build-approved.out` |
++| recipient activation (`custody-recipient-activation-20261023`) | activation, attestation, proof-key and recovery tests | 16/16, 21/21, 5/5, 10/10 | unit | none | `logs/tests-2.out` etc. |
++| | **root activation of `ee5df6b8`, 21:32Z** | **FAILED adoption; rolled back 21:37** | **prod** | none | `logs/root-activate.out`, `ROOT-REGISTRATION-INCIDENT.txt` |
++| factory wallet (`custody-factory-wallet-20261023`, 9557ad6d) | activation, browser | 12/12, 3/3; mutants 5/5 | unit, browser (fake MetaMask) | none | `logs/root-batch-tests3.out` |
++| | live preflight | pass | prod-read | none | `evidence/root-live-preflight-20261023.json` |
++
++## Summary
++
++| lifecycle step | mock / fixture / browser | anvil | SNP hardware | production |
++|---|---|---|---|---|
++| save / rotate / pause | yes | yes (real bytes) | **no** | **no** |
++| release (threshold decrypt) | — | yes (durability e2e, t=1 and t=2) | **no** | **no** |
++| migrate / rewrap | yes (dashboard) | yes (synthetic attestation) | **no** | **no** |
++| relay copy delete | yes (gated) | — | **no** | **no** |
++| startup / 503 / reopen | yes | — | **yes (r2, 20:14Z)** | — |
++
++**Not run:**
++- the independent-runtime, independent-lifecycle, governance, identity and host-policy suites (durability `RESULT.md` L125-129);
++- the v1 `custody-browser.test`, stopped by the memory guard at 1521 MiB;
++- the full anvil wallet-route e2e, which needs a Foundry build over 1536 MiB.
+diff --git a/commit.sh b/commit.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..71f4874116e47866590a5e22d059078b52234c42
+--- /dev/null
++++ b/commit.sh
+@@ -0,0 +1,57 @@
++#!/bin/bash
++# commit.sh: build this repository's history in the queue, each commit through the checkpoint's pre-commit key-scan hook:
++#   A = the two docs exactly as on checkpoint dfb4b55e; B = the reviewed dashboard doc commits 2d3839c54 + 9d97b4b00 applied unchanged;
++#   C = this reconciliation (docs edits + CURRENT-STATE/TEST-MATRIX/ROLLBACK/SIGNING-AUTHORITY/SOURCES); D = patches/ generated from A..C.
++set -euo pipefail
++cd "$(dirname "$0")"
++W=/home/steven/Documents/Codex/2026-10-18/wo/work; M=$W/source-checkpoint-20261022/main-repo; DB=$W/custody-v2-dashboard-20261023/repo
++HOOKS=$W/custody-v2-dashboard-20261023/repo/.githooks
++[ ! -e .git ] || { echo ".git exists"; exit 2; }
++T=$(mktemp -d); cp docs/security/secret-custody-v2.md docs/security/secret-custody-v2-spec.md "$T/"
++git init -q; git config user.name SteveDeFacto; git config user.email 5148995+SteveDeFacto@users.noreply.github.com
++C="git -c core.hooksPath=$HOOKS commit -q"
++for f in secret-custody-v2.md secret-custody-v2-spec.md; do git -C "$M" show dfb4b55e627ebd95b647abebf09627296f099862:docs/security/$f > docs/security/$f; done
++[ "$(git hash-object docs/security/secret-custody-v2.md)" = 393f9d31070e3b5f44580689c4a95bff91a3a4d5 ]
++[ "$(git hash-object docs/security/secret-custody-v2-spec.md)" = fee422be923dace1e3acfb39bc10cc71db0ea369 ]
++git add .gitignore docs/ORIGINS.md docs/security
++$C -m "Import custody v2 docs exactly as on checkpoint dfb4b55e (= dashboard base ff13ebe08)"
++git -C "$DB" diff ff13ebe08 9d97b4b003661ad4832fe703dc5649ca807739ed -- docs/security/secret-custody-v2.md docs/security/secret-custody-v2-spec.md | git apply
++[ "$(git hash-object docs/security/secret-custody-v2.md)" = de1dce4b8c4252a3999bcf20f733bf674c3e3b97 ]
++git add docs/security
++$C -m "Apply the reviewed dashboard doc commits 2d3839c54 and 9d97b4b00 unchanged (current state, corrected image, who holds x, goals vs current)"
++cp "$T"/secret-custody-v2.md "$T"/secret-custody-v2-spec.md docs/security/
++git add README.md CURRENT-STATE.md TEST-MATRIX.md ROLLBACK.md SIGNING-AUTHORITY.md SOURCES.md scan.sh q.sh commit.sh docs/security logs/scan-1.out logs/scan-1.rc logs/scan-gitleaks.json
++$C -F - <<'MSG'
++Reconcile custody v2 docs with the deployed state: code-frozen original committee, proven vs not, rollback and relay limits
++
++Source/documentation only, for root review (root publishes the final). Against the checkpoint dfb4b55e originals plus the
++reviewed dashboard doc commits:
++- secret-custody-v2.md: deployed vault = original 9d43 source (blob 7a385bbc); committee 0x4774 permanently code-frozen
++  (no code-approval signer; a 7-day wait alone cannot upgrade it) -> new committee in the same vault + owner migration
++  (new 10.3); hardware proof = startup/503/reopen only, no secret lifecycle test on hardware or production; rollback
++  limits (old valid blob, malicious 404, any-failure-as-absent in the running image); relay clear/backups; proof key not
++  SNP-bound, quote-only transport key; site r2 unpublished.
++- secret-custody-v2-spec.md: the deployed vault's constructor and Enclave rule beside the source proposal.
++- CURRENT-STATE / TEST-MATRIX / ROLLBACK / SIGNING-AUTHORITY / SOURCES: exact refs; incident data marked PROVISIONAL with
++  timestamps; recovery not asserted; admin rights kept. Original single-seat t=1 custody is NOT decentralized custody.
++MSG
++A=$(git rev-list --max-parents=0 HEAD)
++git format-patch -q --full-index --no-renames -o patches "$A"..HEAD -- docs/security
++git -C "$M" show 68b82926968c99503d38ae78dbcb04694cc2c56c:docs/security/secret-custody-v2.md > "$T/main-v2.md"
++git -C "$M" show 68b82926968c99503d38ae78dbcb04694cc2c56c:docs/security/secret-custody-v2-spec.md > "$T/main-spec.md"
++{ git diff --no-index --full-index "$T/main-v2.md" docs/security/secret-custody-v2.md || true; git diff --no-index --full-index "$T/main-spec.md" docs/security/secret-custody-v2-spec.md || true; } \
++  | sed -e "s#a$T/main-v2.md#a/docs/security/secret-custody-v2.md#g" -e "s#a$T/main-spec.md#a/docs/security/secret-custody-v2-spec.md#g" -e "s#b/docs/security/#b/docs/security/#g" > patches/against-main-68b82926.diff
++git diff --full-index "$A" HEAD -- docs/security > patches/against-checkpoint-dfb4b55e.diff
++# both cumulative diffs must reproduce the final docs from their originals
++for base in main:68b82926968c99503d38ae78dbcb04694cc2c56c:against-main-68b82926 ckpt:dfb4b55e627ebd95b647abebf09627296f099862:against-checkpoint-dfb4b55e; do
++  rev=$(echo $base | cut -d: -f2); pf=$(echo $base | cut -d: -f3); X=$(mktemp -d); mkdir -p "$X/docs/security"
++  for f in secret-custody-v2.md secret-custody-v2-spec.md; do git -C "$M" show $rev:docs/security/$f > "$X/docs/security/$f"; done
++  (cd "$X" && git init -q && git apply "$OLDPWD/patches/$pf.diff")
++  cmp "$X/docs/security/secret-custody-v2.md" docs/security/secret-custody-v2.md && cmp "$X/docs/security/secret-custody-v2-spec.md" docs/security/secret-custody-v2-spec.md
++  echo "$pf.diff reproduces the final docs from $rev"; rm -rf "$X"
++done
++git add patches
++$C -m "patches: the custody doc changes as git format-patch (A..C) and cumulative diffs against checkpoint dfb4b55e and main 68b82926"
++rm -rf "$T"
++git log --format='%h %an <%ae> %s'
++sha256sum docs/security/*.md patches/*
+diff --git a/docs/security/secret-custody-v2-spec.md b/docs/security/secret-custody-v2-spec.md
+index fee422be923dace1e3acfb39bc10cc71db0ea369..0222b19ca6ebf9704ff4a0c98e02496811d7fdf7 100644
+--- a/docs/security/secret-custody-v2-spec.md
++++ b/docs/security/secret-custody-v2-spec.md
+@@ -8,6 +8,13 @@
+ 
+ Source migration proposal (not the live deployed vault): wallet-based admission requires a new vault and compatible measured custodian runtime. Existing committees and encrypted bundles must be migrated explicitly before changing discovery.
+ 
++The deployed vault (`0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5` on Base, runtime code hash `0x4b949b37…`) runs the earlier source, git blob `7a385bbc`:
++- its constructor is `(address book, address enclaveOwner)`;
++- the registry is read through `book.addr("registry")`;
++- a machine is Enclave-owned when the registry's `payoutWallet` equals `enclaveOwner`.
++
++Its only committee cannot change its code set, because the deployed custodian has no code-approval signer (secret-custody-v2.md §10.3).
++
+ No owner, no admin, no proxy. Constructor: `(address book, address enclaveOwner, address hostOwnership)`.
+ - `book` is the EnclaveAddressBook (`addr(bytes32)`), consulted once at construction to pin `deploymentLedger` and `sessionVaultFactory`. The ledger must have code; the factory may be zero (no SessionVault unwrapping) or a contract. Later book edits cannot redirect ownership or release decisions.
+ - `hostOwnership` is a deployed `EnclaveHostOwnership`. It and its registry are pinned immutably. Registry operators nominate initial wallet owners; those wallets must accept.
+diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+index de1dce4b8c4252a3999bcf20f733bf674c3e3b97..76b73bc46c24e95b5e173da037398d29400a0f95 100644
+--- a/docs/security/secret-custody-v2.md
++++ b/docs/security/secret-custody-v2.md
+@@ -40,6 +40,16 @@
+   canary `0x4e62…`, owned by an EOA (policyRev 2, secretRev 2, owner `0x29479Bf…`). The exhaustive historical log scan was
+   rate-limited and is INCOMPLETE, so other policies are not ruled out.
+ - **Running custodian.** The original image (`c866…`) is still the live one.
++- **Deployed contract.** The vault at `0xE486…` runs the ORIGINAL source (git blob `7a385bbc`, commit 9d43e63e8):
++  - constructor `(book, enclaveOwner)`;
++  - the registry is read through the book;
++  - a machine is Enclave-owned when the registry payout wallet is `enclaveOwner`.
++
++  The hostOwnership-pinned vault in `secret-custody-v2-spec.md` §1 is a source proposal for a NEW vault. It is not deployed.
++- **The committee is code-frozen (§10.3).** `0x4774…` can never admit new custodian code, so a seven-day wait alone cannot upgrade it:
++  - its only machine runs code that cannot sign a code approval;
++  - live `proposeCode` with no approvals reverts `Weight(0,1)`;
++  - `codeActiveAt` for the corrected image's measurement hash `0xfbe2f581…` is 0 (block 53000630).
+ 
+ Prepared, not done:
+ - **Unsigned plans.** Root has unsigned admin transactions for `book.set("secretVaultV2", 0xE486…)` and
+@@ -50,8 +60,13 @@
+ - **Corrected image.** Root reported on 2026-10-23 at 20:16Z that the corrected custodian image (`ab589bf8`, image `70aadf…`)
+   is reproducibly built and that its startup and sealed-state reopen were verified on AMD hardware. It supersedes the earlier
+   quote-only candidate `c635fd68`.
++  - The hardware run was 20:14:49–20:16:29Z: a fresh start, 7 of 7 state reads answered 503 with no write, then a reopen
++    with the same identity.
++  - That run is quote-only and covers startup recovery only. It was not a secret release.
+   - It is not running in production.
+-  - There is no release, migration or rotation lifecycle proof for it yet.
++  - There is no release, migration or rotation lifecycle proof for it yet. No secret lifecycle test has run on SEV-SNP
++    hardware or in production for any image. Save, release, rotate, pause and migrate have run only on fixtures, in a
++    headless browser and on anvil; the rewrap ran on anvil with synthetic attestation only.
+ - **Activation.** Both book activations remain gated on that lifecycle proof and on the consumer review. Nothing here is
+   decentralized custody or full feature parity with v1.
+ - **Oct-14 verification.** The hardware verification below has no surviving receipt or log (rollout audit F9). It is the
+@@ -75,9 +90,21 @@
+   owners must re-enter their values (§10).
+ - **The custodian keeps some state only in memory.** That is its per-deployment high-water marks and its AMD VCEK
+   cache. After a restart, rollback protection starts again from the next read.
++- **Sealed-state rollback is not prevented (§8.2).**
++  - A host can hand back an older VALID blob of the current epoch.
++  - A host can answer "absent" for state that exists. The custodian then seals a new identity and the old share is
++    orphaned.
++  - The running image also treats any state-read failure as absent.
++- **Relay copy and backups.** Clearing the relay copy during migration depends on the relay's `/exists` custody flag answering
++  within 1.5 s, and it removes `secrets.json` only. An absence inventory of named channels is not proof of migration or of
++  backup erasure.
++- **Proof key and transport key.**
++  - The control proof key is compared through the relay-served attested origin. It is not bound to an SNP report.
++  - The custodian hardware evidence binds the transport key, a fresh challenge and the runtime only (quote-only).
+ - **The relay is in the path.** The guest reaches the custodian through the relay's tunnel, and gets the pointer from
+   the relay-signed release (v1 L3).
+-- **Site v2 panel: source only, not deployed.** It is in the dashboard's Secrets panel (`site/js/core/custody-v2.js`). It
++- **Site v2 panel: source only, not deployed.** A site release carrying it is built and verified offline but unpublished. The
++  public IPNS record still points to the earlier site. It is in the dashboard's Secrets panel (`site/js/core/custody-v2.js`). It
+   stays inert until the governance book entry `secretVaultV2` is set, which has not been done. SessionVault-held deployments
+   also need the book's `sessionVaultFactory`, which is also not set. §10.2 describes it.
+ - **No external cryptographic review.**
+@@ -338,6 +365,12 @@
+ - **Rollback.** The host can hand back an older sealed blob, holding an old epoch's share. The custodian refuses any
+   epoch older than the chain's current one. Old shares are useful only to a TEE break on `t_old` chips that also kept
+   their blobs, the standard assumption of proactive schemes.
++  - **Not covered:** an older VALID blob of the CURRENT epoch unseals and silently rolls the custodian's state back.
++  - **Not covered:** a host that answers "absent" (404) for existing state makes the custodian seal a NEW identity, orphaning
++    its share.
++  - Neither can be detected without an external monotonic anchor, and none exists.
++  - The deployed image also treats every failed state read as absent. The corrected image (ab589bf8) accepts only a 404 as
++    absent, and it fails startup on any other error.
+ - **TCB.** Whether the TCB is mixed into the sealing key is a trade-off. If it is, a microcode update erases the share.
+   If not, an attacker who rolls back the firmware could unseal. Recommended: do not mix it, and have the custodian
+   check its own fresh report against the TCB floor before using sealed state.
+@@ -353,6 +386,8 @@
+ 
+ Owners who reject an upgrade can move their bundles to another committee during the delay.
+ 
++The deployed committee cannot use this path at all: see §10.3.
++
+ ## 9. What v2 does and does not give
+ 
+ **Gives** (design properties for a committee with `n >= 3` seats; the current single-seat bootstrap has none of the
+@@ -463,11 +498,37 @@
+   - `claimPolicy` after a ledger transfer;
+   - independent mode (no Secrets panel there).
+ 
++### 10.3 The deployed committee is code-frozen; moving to corrected code needs a new committee and the owners
++
++- **Why no upgrade exists.**
++  - Adding code to a committee needs approval signatures over the vault's `codeDigest` from that committee's CURRENT
++    machines.
++  - The only machine of the deployed committee `0x4774…` runs the original custodian (commit 9d43e63e8). That custodian signs
++    only genesis, handover, deal and ack digests; it has no code-approval signer and no code-approval route.
++  - Its key exists only inside that measured image.
++  - A handover can only admit machines whose code is already in the set.
++  - So the code set of `0x4774…` can never change. A seven-day wait alone does not upgrade it, because no valid proposal can
++    start the clock.
++- **The supported route.**
++  1. Create a NEW committee in the SAME vault with a corrected custodian. Its genesis code set holds that image's measurement,
++     active for the new committee only.
++  2. Each policy owner moves their own deployment: re-enter the values, or run the owner-authorized rewrap
++     (`custody/v2/rewrap.mjs`), which uses the old committee's normal release path.
++  3. Existing policies and bundles stay on `0x4774…`, served by the original custodian, until their owners move them.
++  - A fresh genesis does not bypass any existing policy's code delay; it creates a different committee.
++- **Later code changes on a corrected committee.**
++  1. The seat owner signs a code permit; for the Enclave seat that is the admin wallet, while it is the host's accepted owner.
++  2. The machine signs `codeDigest`.
++  3. Anyone submits `proposeCode`, and the code becomes active exactly 604800 s after that block.
++  - `removeCode` takes effect at once and also stops a pending handover to that code.
++  - A removed measurement cannot be proposed again in the same epoch.
++
+ ## 11. Decisions (2026-10-14; Steven asked for the recommendation on each)
+ 
+ 1. **Upgrade authority.** Adding a custodian measurement needs signatures from seats holding `t` shares, then a 7-day
+    public delay. Enclave has no override. Removing one needs the same signatures and takes effect at once. With only
+-   the Enclave seat, Enclave decides upgrades alone, until other seats exist.
++   the Enclave seat, Enclave decides upgrades alone, until other seats exist. The deployed custodian implements no
++   code approval at all, so its committee cannot be upgraded (§10.3).
+ 2. **Threshold.** `2/3` of seats (§6.1) and the Enclave rules (§6.2). There is no separate `T_MIN`: with `n >= 3`,
+    `t >= 2`, and below 3 seats the seeding rule applies.
+ 3. **Liveness.** Members send heartbeats every 60 s. A seat silent for 30 min is removed at the next handover.
+diff --git a/logs/scan-1.out b/logs/scan-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..9497480757cdd84c1bc9d46f272c4bc6d2b5d0f5
+--- /dev/null
++++ b/logs/scan-1.out
+@@ -0,0 +1,7 @@
++[queue] START available=23502MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++3:12PM INF scanned ~81701 bytes (81.70 KB) in 13.3ms
++3:12PM INF no leaks found
++[scan] gitleaks=0 scan-crypto-keys=0 literal=0
++[memory-guard] exit=0 peakTreeRssMiB=60 minHostAvailableMiB=23456
++[memory-guard] at peak: gitleaks:50 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-1.rc b/logs/scan-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-gitleaks.json b/logs/scan-gitleaks.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..fe51488c7066f6687ef680d6bfaa4f7768ef205c
+--- /dev/null
++++ b/logs/scan-gitleaks.json
+@@ -0,0 +1 @@
++[]
+diff --git a/q.sh b/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..e4124758a77c9a2858f09608297424621403787e
+--- /dev/null
++++ b/q.sh
+@@ -0,0 +1,10 @@
++#!/bin/bash
++# q.sh MIB NAME CMD...: the unchanged shared queue; retries only on exit 98 (NOT STARTED, kept as NAME.tryN.out); logs/NAME.{out,guard.log,rc}
++mib=$1; name=$2; shift 2
++L=/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-current-docs-20261023/logs
++[ ! -e "$L/$name.rc" ] || { echo "$name.rc exists"; exit 2; }
++for i in $(seq 2 400); do
++  python3 -u /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib "$mib" --log "$L/$name.guard.log" -- "$@" > "$L/$name.out" 2>&1
++  rc=$?; [ $rc -ne 98 ] && break; mv "$L/$name.out" "$L/$name.try$i.out"; sleep 10
++done
++echo $rc > "$L/$name.rc"; exit $rc
+diff --git a/scan.sh b/scan.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..5ca0b864015ca8a9999f44903be307752e97ddd4
+--- /dev/null
++++ b/scan.sh
+@@ -0,0 +1,11 @@
++#!/bin/bash
++# scan.sh: read-only pre-commit scan of this repository's files with the checkpoint's own scanners and config (no allowlist added).
++set -uo pipefail
++cd "$(dirname "$0")"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++cfg=$(mktemp); git -C "$CKR" show dfb4b55e627ebd95b647abebf09627296f099862:.gitleaks.toml > "$cfg"
++st=$(mktemp -d); find . -path ./.git -prune -o -path ./logs -prune -o -type f -print | while read -r f; do mkdir -p "$st/$(dirname "$f")"; cp "$f" "$st/$f"; done
++timeout -k 5 300 /home/steven/.local/bin/gitleaks dir "$st" --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path logs/scan-gitleaks.json; g=$?
++find "$st" -type f -print0 | xargs -0 timeout -k 5 300 python3 "$CKR/.githooks/scan-crypto-keys.py" --files; k=$?
++L=$(python3 -c "print(bytes.fromhex('54696e666f696c').decode())"); grep -rli "$L" "$st" && lit=1 || lit=0
++rm -rf "$st" "$cfg"; echo "[scan] gitleaks=$g scan-crypto-keys=$k literal=$lit"; [ $g -eq 0 ] && [ $k -eq 0 ] && [ $lit -eq 0 ]

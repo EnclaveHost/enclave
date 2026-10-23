@@ -1,0 +1,318 @@
+From a257c0e04bb8fe4d1ae14064758c411ed92c1f5b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:17:25 -0700
+Subject: [PATCH] Refresh status from root's 22:14Z journal: control still
+ old/unregistered, 08d1 admitted not activated, cutover stopped
+
+PROVISIONAL incident data, timestamped; recovery NOT asserted:
+- metal0 control still ed918e4b / unregistered; 08d1 staged+admitted (allowlist 37) 22:10, NOT activated; D found the
+  pre-discovery GPU price 0 race, root stopped the cutover before mutation; new H boot-pricing fix source-only, pending
+- original app guests running 22:07; imagegen second app-reserve renewal 22:10:58 tx 0x398217e3... 1,249,747,460,565 wei;
+  correction: a renewal extends ~30 min, not 1 h; root maintains renewals
+- fresh SNP quote of the original custodian c866 PASS 22:12:53 (quote-only, no secret flow)
+- factory page still pending the human (journal empty 22:11); no v2 book entry, new committee or dashboard publication
+Admin controls preserved. docs/security and patches/ unchanged.
+---
+ CURRENT-STATE.md             | 34 +++++++++++++++++++++++-----------
+ ROLLBACK.md                  |  2 +-
+ SIGNING-AUTHORITY.md         | 10 +++++-----
+ SOURCES.md                   |  5 +++--
+ TEST-MATRIX.md               |  4 +++-
+ commit2.sh                   | 21 +++++++++++++++++++++
+ logs/commit-1.out            | 16 ++++++++++++++++
+ logs/commit-1.rc             |  1 +
+ logs/rangescan-1.out         |  8 ++++++++
+ logs/rangescan-1.rc          |  1 +
+ logs/rangescan-gitleaks.json |  1 +
+ logs/scan-2.out              |  7 +++++++
+ logs/scan-2.rc               |  1 +
+ rangescan.sh                 | 10 ++++++++++
+ 14 files changed, 101 insertions(+), 20 deletions(-)
+ create mode 100755 commit2.sh
+ create mode 100644 logs/commit-1.out
+ create mode 100644 logs/commit-1.rc
+ create mode 100644 logs/rangescan-1.out
+ create mode 100644 logs/rangescan-1.rc
+ create mode 100644 logs/rangescan-gitleaks.json
+ create mode 100644 logs/scan-2.out
+ create mode 100644 logs/scan-2.rc
+ create mode 100755 rangescan.sh
+
+diff --git a/CURRENT-STATE.md b/CURRENT-STATE.md
+index b5d3cf354121d102cd0f6c9a22e8b75b5ff8655d..caa0f267c6861b0932a92f142ed7edf5cb1fac51 100644
+--- a/CURRENT-STATE.md
++++ b/CURRENT-STATE.md
+@@ -1,4 +1,4 @@
+-# Custody v2: current state (draft for root review, 2026-10-23T22:10Z)
++# Custody v2: current state (draft for root review, 2026-10-23T22:10Z; refreshed 22:20Z from root's 22:14Z journal)
+ 
+ **Status of this file.** It is a source and documentation draft for root to review; root publishes the final. It changes no
+ production state, and it is not root's public output.
+@@ -47,7 +47,9 @@
+   - r2 `70aadff5` on 2026-10-23, 20:14:49–20:16:29Z: a fresh start, 7/7 GETs answered 503 with no write, then a reopen with the same
+     identity [S8].
+   - The earlier image `e01206d3` passed a quote-only boot at 19:31Z; it is superseded [S9].
+-  - Both are quote-only and are **not** secret release or lifecycle tests.
++  - The running ORIGINAL custodian `c866…` returned a fresh SNP quote that passed at 22:12:53Z, for the exact on-chain machine
++    (PROVISIONAL, from root's journal [S16]).
++  - All of these are quote-only and are **not** secret release or lifecycle tests. No secret flow was tested.
+ - **No secret lifecycle test** (save, release, rotate, pause, migrate, delete) has run on hardware or in production. The lifecycle has
+   run only on mock or fixture, headless browser, and anvil (the rewrap with SYNTHETIC attestation). The production-canary driver has
+   never been run. See `TEST-MATRIX.md`.
+@@ -85,11 +87,11 @@
+ 
+ **Admin rights are kept.** The book owner `0x0b2d…eE61` keeps every admin and business control, and no existing contract is
+ modified [S5, S6].
+-- The `sessionVaultFactory` activation handoff serves a page on localhost:39672 [S15]. It was **pending the human** at 21:57Z (no
+-  chain write).
++- The `sessionVaultFactory` activation handoff serves a page on localhost:39672 [S15]. It was **still pending the human** at 22:11Z,
++  with an empty journal and no chain write [S16].
+ - `secretVaultV2` activation is an unsigned plan, deliberately held.
+ 
+-## I. Incident: metal0 control recovery IN PROGRESS (PROVISIONAL, from root's journal [S16], as read 22:07Z)
++## I. Incident: metal0 control recovery IN PROGRESS (PROVISIONAL, from root's journal [S16], as read 22:16Z)
+ 
+ | time (UTC) | entry |
+ |---|---|
+@@ -100,16 +102,26 @@
+ | 21:43:18 | imagegen protected renewal tx `0xe543aad9…` paid from the app reserve; no operator ETH spent. |
+ | 21:45 | Both apps' public health PASS. |
+ | 21:52:36 | EyesOff renewal tx `0x04a8311c…` paid from the app reserve. |
+-| 21:54:50 | H `9f6d37bd` minimal boot-registration fix built twice, byte-identical, measurement `08d1f838…`. Staged only, **NOT activated or admitted** (it needs allowlist 36→37). |
+-
+-**Not yet recovered:**
+-- Original control registration and adoption.
+-- The paid leases had about 1 h left at 21:51.
++| 21:54:50 | H `9f6d37bd` minimal boot-registration fix built twice, byte-identical, measurement `08d1f838…`. |
++| 22:07 | Both original app guests still running. |
++| 22:08 | Root funding check for the activation kit `86c5fee`: worst-case setProofKey 271,955,837,004 wei against the operator's 376,132,087,579 wei (25% headroom), PASS. |
++| 22:10 | `08d1` staged and admitted to the relay allowlist (37). **NOT activated.** |
++| 22:10:58 | imagegen SECOND protected renewal, tx `0x398217e371798b337c99de419260002ae88ac82aafb7dd8eb0d16c59f5e8041b`, charged 1,249,747,460,565 wei from the app reserve; receipt verified, no operator ETH. |
++| 22:12:53 | Fresh SNP quote of the ORIGINAL custodian `c866`: PASS, exact chain machine. No secret flow. |
++| by 22:14 | D's review found a race before GPU discovery: the price is 0 against 1667 on chain, which leads to a full register before Shield adopts. **Root STOPPED the cutover before any mutation.** A new boot-pricing fix (H, a child of `9f6d37bd`) is source-only, pending and not frozen. `08d1` must NOT be activated until that is resolved, rebuilt and approved by root. |
++
++**Not yet recovered (as of 22:14Z):**
++- The metal0 control is still on the old `ed918e4b` image and is **unregistered**. Registration and adoption are not recovered.
++- **Correction:** a protected renewal extends a lease by about **30 min, not 1 h**.
++  - At 22:10 imagegen had 176 s left and EyesOff 734 s.
++  - EyesOff needs renewing at about 22:17, before it expires at 22:22. imagegen is valid until about 22:41.
++  - Root maintains the renewals while control recovery is pending.
+ - The proof-key helper is stopped by root ("MUST NOT RUN").
++- There is no new committee, no new policy, no v2 book entry and no dashboard publication.
+ 
+ ## U. Unresolved actions (owner of each in `SIGNING-AUTHORITY.md`)
+ 
+-1. metal0 control recovery: H `08d1` admission and activation, and registration. **Root.**
++1. metal0 control recovery: resolve the pre-discovery GPU-price race (a new source fix is pending), rebuild, get root approval, then activate and register. `08d1` is admitted but must not be activated as it stands. **Root.**
+ 2. metal0 owner enrollment: TX1 by operator `0xc9d0` (needs gas), TX2 by admin `0x0b2d`.
+ 3. A new committee from the corrected image: an HTTPS origin, a funded submitter, and genesis.
+ 4. The full secret lifecycle canary on that committee: save, release, rotate, pause, migrate, restart, and the failure cases.
+diff --git a/ROLLBACK.md b/ROLLBACK.md
+index 3e78f653881b76162b27c5c713762333f82dfd5a..5a157de62b46bc24cbc42549cb1a38a736645aa4 100644
+--- a/ROLLBACK.md
++++ b/ROLLBACK.md
+@@ -13,7 +13,7 @@
+ | owner switch to a new committee (re-entry or rewrap) | The owner sends a new `update` back. The old bundle on `0x4774` stays usable until replaced. | Values already released to guests. | rewrap.mjs header |
+ | relay copy delete | **None.** Re-enter the value. The owner must rotate it at its issuer. | Relay backups and snapshots (deleting removes `secrets.json` only). | rollout audit F6, S7 |
+ | site r2 delivery (fronts) | `site/deploy.sh rollback … --to bafybeig3rai3…`, then probe for the base stamp `166bf9d3 · 2026-10-19`. | IPNS (untouched). | r2 RELEASE-HANDOFF §5, §7 |
+-| metal0 control image activation (root) | Automatic rollback to the previous config. | **Observed 21:37Z (PROVISIONAL): the rollback restored the old image, not boot registration or adoption.** | root journal |
++| metal0 control image activation (root) | Automatic rollback to the previous config. | **Observed 21:37Z (PROVISIONAL): the rollback restored the old image, not boot registration or adoption.** At 22:14Z the control was still on the old `ed918e4b` image and unregistered. `08d1` is admitted but not activated, because the cutover was stopped before mutation. | root journal L498, L521 |
+ 
+ ## 2. Rollback and replay protection of the custodian: limits
+ 
+diff --git a/SIGNING-AUTHORITY.md b/SIGNING-AUTHORITY.md
+index 5a4549ae0b3bb492ca7949619ccb7c24c6d0396e..03081a9fcea4cf52e15d41945b6f2d9142567169 100644
+--- a/SIGNING-AUTHORITY.md
++++ b/SIGNING-AUTHORITY.md
+@@ -1,4 +1,4 @@
+-# Custody v2: who signs what (as of 2026-10-23T22:10Z)
++# Custody v2: who signs what (as of 2026-10-23T22:10Z; refreshed 22:20Z)
+ 
+ The agents in this table are:
+ - **admin**: the Enclave admin wallet `0x0b2d009c0c9Af05b12100D77F3c815fea822eE61`. It is the book owner and the vault `enclaveOwner`,
+@@ -7,10 +7,10 @@
+ - **TEE identity**: a custodian machine's key, generated and sealed inside its SNP guest.
+ - **submitter**: any funded EOA. It can drop transactions, but never forge them.
+ 
+-| action | must sign | pays gas | status (22:10Z) |
++| action | must sign | pays gas | status (22:20Z) |
+ |---|---|---|---|
+ | `book.set("secretVaultV2", 0xE486…)` | admin | admin | unsigned plan; deliberately held |
+-| `book.set("sessionVaultFactory", 0x1f5c887c…)` | admin (MetaMask handoff on localhost:39672) | admin | **pending the human** (21:57Z: no chain write) |
++| `book.set("sessionVaultFactory", 0x1f5c887c…)` | admin (MetaMask handoff on localhost:39672) | admin | **pending the human** (22:11Z: journal empty, no chain write) |
+ | metal0 enrollment TX1 `proposeOwner(metal0, 0x0b2d…)` | operator | operator | **blocked**: balance 376,132,087,579 wei, below the 1.038e12 wei bound; no funding workaround |
+ | metal0 enrollment TX2 `acceptOwner(metal0)` | admin | admin | after TX1 |
+ | `proposeCode` / `removeCode` on the original `0x4774` | the current machine `0xF0F8…` over `codeDigest` | submitter | **IMPOSSIBLE**: the running image has no code-signing route; the committee is permanently code-frozen |
+@@ -21,8 +21,8 @@
+ | policy `update` / pause / switch committee | the policy owner: an EOA directly, or its SessionVault's beneficial EOA once the factory is set | the owner | the known canary owner is EOA `0x2947…` |
+ | owner-authorized rewrap | the policy owner (rules update, EIP-712 Rewrap ≤ 3 d, switch update) | the owner | proven on anvil with synthetic attestation only |
+ | relay copy delete | the owner (signed relay request) | none | per owner |
+-| metal0 control image admission and activation (`ee5df6b8`, H `08d1f838`) | root (relay allowlist and control) | the operator, for boot registration | **PROVISIONAL**: the ee5 activation failed at 21:32 and was rolled back at 21:37; H is staged and not admitted |
+-| app lease renewals (imagegen, EyesOff) | root (protected renewal) | the app reserve | **PROVISIONAL**: paid at 21:43:18 and 21:52:36 |
++| metal0 control image admission and activation (`ee5df6b8`, H `08d1f838`) | root (relay allowlist and control) | the operator, for boot registration | **PROVISIONAL**: the ee5 activation failed at 21:32 and was rolled back at 21:37. `08d1` was admitted (allowlist 37) at 22:10 but NOT activated. The cutover was stopped before mutation (GPU-price race); a new fix is pending. |
++| app lease renewals (imagegen, EyesOff) | root (protected renewal) | the app reserve | **PROVISIONAL**: paid at 21:43:18, 21:52:36 and 22:10:58 (imagegen's second). Each adds about 30 min; root maintains them. |
+ | site r2 delivery (fronts) | root | none | not delivered |
+ | IPNS `setConfig` `/ipfs/<CID>` | the publisher deployment owner | the owner | blocked: the local publisher is at sequence 0, not durable |
+ 
+diff --git a/SOURCES.md b/SOURCES.md
+index b0930ffc37bcfa5a3471fefec2ae20a82106d44e..78bcb6db398f27eaf9bf8263a03e413c66c9a9dc 100644
+--- a/SOURCES.md
++++ b/SOURCES.md
+@@ -46,8 +46,9 @@
+ - **S14:** `work/custody-v2-site-release-r2-20261023/RELEASE-HANDOFF.md` (commit 14b5f559) and
+   `work/custody-site-publish-readiness-20261023/CURRENT-STATUS-DRAFT.md` L49 (commit 90a2b826; a draft, not public output).
+ - **S15:** `work/custody-factory-wallet-20261023/README.md` L110-113 (`serve.mjs`, port 39672).
+-- **S16:** `work/resume-after-checkpoint-20261022/ROOT-CONTINUE-LATEST.txt` L493-519 (root's journal; uncommitted, as read about
+-  22:07Z): the 21:29-21:57Z incident entries. Corroborated by:
++- **S16:** `work/resume-after-checkpoint-20261022/ROOT-CONTINUE-LATEST.txt` L493-523 (root's journal; uncommitted, as read about
++  22:16Z): the 21:29-22:14Z incident entries. L521-523 hold the 22:14Z state, the lease correction, the 22:10:58 renewal, the
++  22:12:53 quote and the factory at 22:11. Corroborated by:
+   - `work/custody-v2-live-20261023/evidence/protected-renewals/0xda09…result.json` (commit 1535fcf0);
+   - `0x9eb4…result.json` and `boot-public-state.json` (staged, uncommitted);
+   - `work/custody-recipient-activation-20261023/logs/root-activate.out` and `ROOT-REGISTRATION-INCIDENT.txt`;
+diff --git a/TEST-MATRIX.md b/TEST-MATRIX.md
+index 176cbe6fb4f98adb617b894722a3b6bf49e50ecc..8cf65c591314dd8767c4b7dd1999b4526fd1d2d7 100644
+--- a/TEST-MATRIX.md
++++ b/TEST-MATRIX.md
+@@ -1,4 +1,4 @@
+-# Custody v2 test matrix (as of 2026-10-23T22:10Z)
++# Custody v2 test matrix (as of 2026-10-23T22:10Z; refreshed 22:20Z)
+ 
+ **Test classes:**
+ - **unit:** source tests, with mocks or fixtures.
+@@ -28,6 +28,7 @@
+ | | e01206d3 quote canary (image superseded) | ok, 19:31Z | SNP-hw, quote-only | none | `canary/root-hardware-20261023/verdict.json` |
+ | SNP recovery (`custody-snp-recovery-harness-20261023`, 7c4844a) | harness units | Python 27/27, Node 6/6 | unit | none | `logs/t2.out` |
+ | | fresh / 503 / reopen on r2 `70aadff5` | PASS, 20:14:49–20:16:29Z | **SNP-hw**, quote-only | **none** (startup recovery only) | `evidence/20261023T201449Z/` |
++| original custodian (`c866…`, running) | fresh SNP quote, root-run | PASS 22:12:53Z (PROVISIONAL, root journal) | **SNP-hw**, quote-only | **none** (no secret flow) | `ROOT-CONTINUE-LATEST.txt` L522 |
+ | ingress forwarder (`custody-v2-ingress-forwarder-20261023`, b1c1feee) | allowlist + forwarder | 13/13; mutants 24/24 | unit | none | `logs/test-7.out` |
+ | production canary driver (`custody-v2-production-canary-20261023`, 01525201) | driver suites | 49 pass, 1 TODO; mutants 17/17 | unit | plans every step; **NEVER RUN** | `logs/c17.out` |
+ | owner migration (`custody-owner-migration`, not a repo, 10-20) | rewrap e2e | 1/1 (and 1/1 after the result-auth fix) | anvil, **SYNTHETIC** SNP | migrate (rewrap) | `logs/rewrap-e2e.out`, `logs/resultauth-e2e.out` |
+@@ -48,6 +49,7 @@
+ | migrate / rewrap | yes (dashboard) | yes (synthetic attestation) | **no** | **no** |
+ | relay copy delete | yes (gated) | — | **no** | **no** |
+ | startup / 503 / reopen | yes | — | **yes (r2, 20:14Z)** | — |
++| fresh quote of the running original custodian | — | — | **yes (c866, 22:12:53Z, quote-only)** | — |
+ 
+ **Not run:**
+ - the independent-runtime, independent-lifecycle, governance, identity and host-policy suites (durability `RESULT.md` L125-129);
+diff --git a/commit2.sh b/commit2.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..fbdaf2e9d14684683e4ff20f9bea5a0d9c1417f0
+--- /dev/null
++++ b/commit2.sh
+@@ -0,0 +1,21 @@
++#!/bin/bash
++# commit2.sh: commit the 22:20Z status refresh (root 22:14Z journal) plus the earlier job logs, through the pre-commit key-scan hook.
++set -euo pipefail
++cd "$(dirname "$0")"
++HOOKS=/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-dashboard-20261023/repo/.githooks
++[ "$(git rev-parse --short=7 HEAD)" = dfca5f0 ]
++git add CURRENT-STATE.md SIGNING-AUTHORITY.md TEST-MATRIX.md ROLLBACK.md SOURCES.md rangescan.sh commit2.sh \
++  logs/commit-1.out logs/commit-1.rc logs/rangescan-1.out logs/rangescan-1.rc logs/rangescan-gitleaks.json logs/scan-2.out logs/scan-2.rc logs/scan-gitleaks.json
++git -c core.hooksPath=$HOOKS commit -q -F - <<'MSG'
++Refresh status from root's 22:14Z journal: control still old/unregistered, 08d1 admitted not activated, cutover stopped
++
++PROVISIONAL incident data, timestamped; recovery NOT asserted:
++- metal0 control still ed918e4b / unregistered; 08d1 staged+admitted (allowlist 37) 22:10, NOT activated; D found the
++  pre-discovery GPU price 0 race, root stopped the cutover before mutation; new H boot-pricing fix source-only, pending
++- original app guests running 22:07; imagegen second app-reserve renewal 22:10:58 tx 0x398217e3... 1,249,747,460,565 wei;
++  correction: a renewal extends ~30 min, not 1 h; root maintains renewals
++- fresh SNP quote of the original custodian c866 PASS 22:12:53 (quote-only, no secret flow)
++- factory page still pending the human (journal empty 22:11); no v2 book entry, new committee or dashboard publication
++Admin controls preserved. docs/security and patches/ unchanged.
++MSG
++git log --format='%H %an <%ae> %s' -1
+diff --git a/logs/commit-1.out b/logs/commit-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..9bd092951a99c97bc52441e21ab26321bb005fdc
+--- /dev/null
++++ b/logs/commit-1.out
+@@ -0,0 +1,16 @@
++[queue] START available=23318MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++against-main-68b82926.diff reproduces the final docs from 68b82926968c99503d38ae78dbcb04694cc2c56c
++against-checkpoint-dfb4b55e.diff reproduces the final docs from dfb4b55e627ebd95b647abebf09627296f099862
++dfca5f0 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> patches: the custody doc changes as git format-patch (A..C) and cumulative diffs against checkpoint dfb4b55e and main 68b82926
++9d58a8b SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Reconcile custody v2 docs with the deployed state: code-frozen original committee, proven vs not, rollback and relay limits
++42015b1 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Apply the reviewed dashboard doc commits 2d3839c54 and 9d97b4b00 unchanged (current state, corrected image, who holds x, goals vs current)
++dd9cc62 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Import custody v2 docs exactly as on checkpoint dfb4b55e (= dashboard base ff13ebe08)
++b4a537b1fee8ca65ed2032d5764b1f7f56a267d460ab61237686bab784b27974  docs/security/secret-custody-v2-spec.md
++b9b02a869c97c853614e6a9a99f0a9e1598446a65675d2f09c5089cddd13ba91  docs/security/secret-custody-v2.md
++dfe0f182967cc86fbeff3c7d17d75ce692d53c336bff10d177cc01d33835cf9c  patches/0001-Apply-the-reviewed-dashboard-doc-commits-2d3839c54-a.patch
++5b3a985267ef3785a797b7f630aff89ebe5c1f48c5cc38031aa2c9c59edd0cc3  patches/0002-Reconcile-custody-v2-docs-with-the-deployed-state-co.patch
++0f370ae1f11957f0aa8a97dd086812a36dd5513e634d2d17b32a4b09c75205db  patches/against-checkpoint-dfb4b55e.diff
++25b1a8fc5ae5233d1811665f3617c0a0305ce6eba7d108fc4f6bb6c7c0ebfd69  patches/against-main-68b82926.diff
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/commit-1.rc b/logs/commit-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/commit-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/rangescan-1.out b/logs/rangescan-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..c6225e1afa6d75ca67df98b095acbec65bce3be6
+--- /dev/null
++++ b/logs/rangescan-1.out
+@@ -0,0 +1,8 @@
++[queue] START available=23595MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++3:13PM INF 4 commits scanned.
++3:13PM INF scanned ~163756 bytes (163.76 KB) in 129ms
++3:13PM INF no leaks found
++[rangescan] gitleaks-all-commits=0 scan-crypto-keys-tracked=0
++[memory-guard] exit=0 peakTreeRssMiB=69 minHostAvailableMiB=23569
++[memory-guard] at peak: gitleaks:59 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/rangescan-1.rc b/logs/rangescan-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/rangescan-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/rangescan-gitleaks.json b/logs/rangescan-gitleaks.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..fe51488c7066f6687ef680d6bfaa4f7768ef205c
+--- /dev/null
++++ b/logs/rangescan-gitleaks.json
+@@ -0,0 +1 @@
++[]
+diff --git a/logs/scan-2.out b/logs/scan-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..c0dcace37dad63956f621eb25a47e86de624556c
+--- /dev/null
++++ b/logs/scan-2.out
+@@ -0,0 +1,7 @@
++[queue] START available=23536MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++3:17PM INF scanned ~165987 bytes (165.99 KB) in 15.6ms
++3:17PM INF no leaks found
++[scan] gitleaks=0 scan-crypto-keys=0 literal=0
++[memory-guard] exit=0 peakTreeRssMiB=59 minHostAvailableMiB=23428
++[memory-guard] at peak: gitleaks:49 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-2.rc b/logs/scan-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-2.rc
+@@ -0,0 +1 @@
++0
+diff --git a/rangescan.sh b/rangescan.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..7ffe86db64ff68293b1368f11d94366684b3bd43
+--- /dev/null
++++ b/rangescan.sh
+@@ -0,0 +1,10 @@
++#!/bin/bash
++# rangescan.sh: post-commit scan of every commit in this repository (gitleaks git + scan-crypto-keys range), checkpoint config.
++set -uo pipefail
++cd "$(dirname "$0")"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++cfg=$(mktemp); git -C "$CKR" show dfb4b55e627ebd95b647abebf09627296f099862:.gitleaks.toml > "$cfg"
++timeout -k 5 300 /home/steven/.local/bin/gitleaks git . --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path logs/rangescan-gitleaks.json; g=$?
++A=$(git rev-list --max-parents=0 HEAD); k=0
++timeout -k 5 300 python3 "$CKR/.githooks/scan-crypto-keys.py" --files $(git ls-files) || k=$?
++rm -f "$cfg"; echo "[rangescan] gitleaks-all-commits=$g scan-crypto-keys-tracked=$k"; [ $g -eq 0 ] && [ $k -eq 0 ]

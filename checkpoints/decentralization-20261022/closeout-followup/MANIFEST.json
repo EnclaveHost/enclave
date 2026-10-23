@@ -42354,6 +42354,1385 @@
       "stored": "files/source-preservation/frozen-2146-labels.json",
       "sha256": "b367261ab9d8be9821245aa1cb22e6c0e451c9a9140961db6146c70629eff442",
       "bytes": 4032
+    },
+    {
+      "label": "FROZEN 2217 batch exported from Git objects (never worktrees; ignored/untracked files and uncommitted WIP never read); bases rebuilt from pushed dfb4b55e material and every recorded tree reproduced (boot-source: patch-only; boot-activation: derived tree) - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: nothing signed, sent, activated or published by this capture; control recovery IN PROGRESS",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/INVENTORY.json",
+      "stored": "files/source-preservation/frozen-2217-export/INVENTORY.json",
+      "sha256": "2cb3f18b155984edee2eda8727c43aba4c1ae8d17a94589ff1cb9f27de81e23f",
+      "bytes": 69559
+    },
+    {
+      "label": "FROZEN 2217 batch exported from Git objects (never worktrees; ignored/untracked files and uncommitted WIP never read); bases rebuilt from pushed dfb4b55e material and every recorded tree reproduced (boot-source: patch-only; boot-activation: derived tree) - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: nothing signed, sent, activated or published by this capture; control recovery IN PROGRESS",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/REBUILD.md",
+      "stored": "files/source-preservation/frozen-2217-export/REBUILD.md",
+      "sha256": "84f2dfafbe793c1262889019c65f3a60958dc97574e604d430986c2c9fc51204",
+      "bytes": 4088
+    },
+    {
+      "label": "FROZEN 2217 batch exported from Git objects (never worktrees; ignored/untracked files and uncommitted WIP never read); bases rebuilt from pushed dfb4b55e material and every recorded tree reproduced (boot-source: patch-only; boot-activation: derived tree) - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: nothing signed, sent, activated or published by this capture; control recovery IN PROGRESS",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/REPRODUCE-CHECK.txt",
+      "stored": "files/source-preservation/frozen-2217-export/REPRODUCE-CHECK.txt",
+      "sha256": "06a0b7739d01176c78dadf2286b2e3de8629d9b48c93c62b2b77656518c44b43",
+      "bytes": 2753
+    },
+    {
+      "label": "ROOT live records on 1535fcf0: protected app renewal intents/results, public boot-state and guest-health reads, fresh-quote verdict metadata, probes; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/custody-live6-ed284731/patches/0001-ed284731.patch",
+      "stored": "files/source-preservation/frozen-2217-export/custody-live6-ed284731/patches/0001-ed284731.patch",
+      "sha256": "1550896f4143202e3a7bd7f6005df3cc07858ff737f2c07482aab0154b432e7d",
+      "bytes": 16418
+    },
+    {
+      "label": "ROOT live records on 1535fcf0: protected app renewal intents/results, public boot-state and guest-health reads, fresh-quote verdict metadata, probes; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/custody-live6-ed284731/files/SCAN-REVIEW.txt",
+      "stored": "files/source-preservation/frozen-2217-export/custody-live6-ed284731/files/SCAN-REVIEW.txt",
+      "sha256": "b103c94ed1cfba0280f9b93939d679496be82fa676e7f4ac547571b9af74fc3b",
+      "bytes": 705
+    },
+    {
+      "label": "ROOT live records on 1535fcf0: protected app renewal intents/results, public boot-state and guest-health reads, fresh-quote verdict metadata, probes; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/boot-public-state.json",
+      "stored": "files/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/boot-public-state.json",
+      "sha256": "99787a3e45366018f2e134581c9e7296f686db360097e78a08c345b9f9cd7f36",
+      "bytes": 1360
+    },
+    {
+      "label": "ROOT live records on 1535fcf0: protected app renewal intents/results, public boot-state and guest-health reads, fresh-quote verdict metadata, probes; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/fresh-quote.json",
+      "stored": "files/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/fresh-quote.json",
+      "sha256": "2e5889a7f3fc685347df86ad571f378371b70b27b6351b2fdd048b896a85f04a",
+      "bytes": 2386
+    },
+    {
+      "label": "ROOT live records on 1535fcf0: protected app renewal intents/results, public boot-state and guest-health reads, fresh-quote verdict metadata, probes; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/protected-guest-health.json",
+      "stored": "files/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/protected-guest-health.json",
+      "sha256": "59c51f9c145eca1dac8bfdaa2fc7ef8890f74dd9546c8c19fce79b7a45391322",
+      "bytes": 707
+    },
+    {
+      "label": "ROOT live records on 1535fcf0: protected app renewal intents/results, public boot-state and guest-health reads, fresh-quote verdict metadata, probes; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json",
+      "stored": "files/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json",
+      "sha256": "e44e7dd6115e64fe029ba9e7d4f09e90d1e0270ae38024e04071b5737dda2ad6",
+      "bytes": 753
+    },
+    {
+      "label": "ROOT live records on 1535fcf0: protected app renewal intents/results, public boot-state and guest-health reads, fresh-quote verdict metadata, probes; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json",
+      "stored": "files/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json",
+      "sha256": "2ed81f4d777a3ca25312ea1508407068d7b7c5df674b7a7463d0eb555b94d32f",
+      "bytes": 311
+    },
+    {
+      "label": "ROOT live records on 1535fcf0: protected app renewal intents/results, public boot-state and guest-health reads, fresh-quote verdict metadata, probes; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json",
+      "stored": "files/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json",
+      "sha256": "7f311bdb01e473ccb038b2706ac97895e06447f8886167c28b9a02d0cc61114d",
+      "bytes": 753
+    },
+    {
+      "label": "ROOT live records on 1535fcf0: protected app renewal intents/results, public boot-state and guest-health reads, fresh-quote verdict metadata, probes; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json",
+      "stored": "files/source-preservation/frozen-2217-export/custody-live6-ed284731/files/evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json",
+      "sha256": "7630921137542366e4f2405c5cf614c226909668be100552e09da6712db0c6de",
+      "bytes": 311
+    },
+    {
+      "label": "ROOT live records on 1535fcf0: protected app renewal intents/results, public boot-state and guest-health reads, fresh-quote verdict metadata, probes; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/custody-live6-ed284731/files/probes/boot-public-state.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/custody-live6-ed284731/files/probes/boot-public-state.mjs",
+      "sha256": "7b4567d5ed333331e1473b155bf06dca0c6e2e5136148057a50a14034c08e6d5",
+      "bytes": 734
+    },
+    {
+      "label": "ROOT live records on 1535fcf0: protected app renewal intents/results, public boot-state and guest-health reads, fresh-quote verdict metadata, probes; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/custody-live6-ed284731/files/probes/protected-guest-listing.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/custody-live6-ed284731/files/probes/protected-guest-listing.mjs",
+      "sha256": "193e8da7107ff240b3b951798f606298c8066a402fa71438889c020774f76d26",
+      "bytes": 1117
+    },
+    {
+      "label": "ROOT live records on 1535fcf0: protected app renewal intents/results, public boot-state and guest-health reads, fresh-quote verdict metadata, probes; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/custody-live6-ed284731/files/probes/renew-protected-2211.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/custody-live6-ed284731/files/probes/renew-protected-2211.mjs",
+      "sha256": "f8091b91edfd14d6c2fe9363f2e8a8ea5a3bc70c0d0c217b50f1ee82720722fd",
+      "bytes": 3933
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/patches/0001-e02b3bd4.patch",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/patches/0001-e02b3bd4.patch",
+      "sha256": "f5afd0e16a62c2b411d61d563ed6bf96a7849f810f890cddf2cb5e14823d73e5",
+      "bytes": 17422
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/patches/0002-8f72453b.patch",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/patches/0002-8f72453b.patch",
+      "sha256": "9d733ecf908ec29ec651619be5021f5603388310f335f1b5faaf7b0c74f3cd21",
+      "bytes": 36920
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/.gitignore",
+      "sha256": "9ba03422dc8a8b8dd6ce798c3011ee29b6ccfdbf0363077045f107fb288e5404",
+      "bytes": 176
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/APPROVED-COMMIT.txt",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/APPROVED-COMMIT.txt",
+      "sha256": "f32ab10418d261e562a1c13db7d12fa7f4560a620602a2349753322a3ced5116",
+      "bytes": 59
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/BUILD-APPROVED-RESULT.md",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/BUILD-APPROVED-RESULT.md",
+      "sha256": "253e251ea316731f58996b4b15b6cf7123af462e8c796947eb54cd108afc4efe",
+      "bytes": 3627
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/build-approved.sh",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/build-approved.sh",
+      "sha256": "5637f0dc1793ef6cfb2130131b2154b17d335259c98456cfa502bc07046caea1",
+      "bytes": 9228
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/commit-approved.sh",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/commit-approved.sh",
+      "sha256": "db11f5b65636b334583866127d2be2caef37993651c41853176cf5919d1cd9ac",
+      "bytes": 1842
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/commit-result.sh",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/commit-result.sh",
+      "sha256": "7d5b18152613e04eeb9cef20de62743fc75ab0433882afbad028c644b9be4d06",
+      "bytes": 2039
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-1.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-1.guard.log",
+      "sha256": "8e49f7c0ebdeef94011d86f9c76585a2d446a17424fb91d65fa1db14130cbcb2",
+      "bytes": 63
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-1.out",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-1.out",
+      "sha256": "d33d7011394b455ec14b00c9a62d4dfca90f31704d2a22617049be38b46ed62e",
+      "bytes": 243
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-1.rc",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-1.rc",
+      "sha256": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "bytes": 2
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-2.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-2.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-2.out",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-2.out",
+      "sha256": "633aeb0da58ce92fd5bea15767941c0999994155f4e4a1e865e3ff7375dc6ab9",
+      "bytes": 590
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-2.rc",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-2.try2.out",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/build-approved-refusal-2.try2.out",
+      "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+      "bytes": 43
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/commit-approved-1.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/commit-approved-1.guard.log",
+      "sha256": "5448cc30be5ac4392ecc87da91a33fc2c185fa424545ba7e192ab45f01afbe48",
+      "bytes": 66
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/commit-approved-1.out",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/commit-approved-1.out",
+      "sha256": "b3a6d800280e95b5ed1166bed52e9de4eb9a6fa16cfa3d467aeb0be6f7ce582f",
+      "bytes": 430
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/commit-approved-1.rc",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/commit-approved-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/root-build-approved.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/root-build-approved.guard.log",
+      "sha256": "8c768223a966dde74ccf8bdbfeffa7410b3ed381384fd3f6bc8b0a9ea93b4bab",
+      "bytes": 67
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/root-build-approved.out",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/logs/root-build-approved.out",
+      "sha256": "89ba2d1b75e766a95d3f6a12e09ee97c2baad3df4c5bb2e9d98b6647b9bba0ba",
+      "bytes": 2059
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/refusal-tests/run.sh",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/refusal-tests/run.sh",
+      "sha256": "c17ba7d5c05de017ea7a2dce3e86906525aeeaa6cbb3aa005152045c9ed5de7b",
+      "bytes": 943
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/stage-approved/INVENTORY.sha256",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/stage-approved/INVENTORY.sha256",
+      "sha256": "c34974adae318bf9d124081fb4acbba778b38ab7586005cb8e53f586ab8779a9",
+      "bytes": 510
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/stage-approved/entries-vs-a6.jsonl",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/stage-approved/entries-vs-a6.jsonl",
+      "sha256": "16df57093a487b599f2205e6c39b05efbe94519328fa50ba3501abaab2919f46",
+      "bytes": 548
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/stage-approved/entries-vs-production.jsonl",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/stage-approved/entries-vs-production.jsonl",
+      "sha256": "c03d00a23cdb636c877a35503cedde140f8840a89fe9c983416678acc40527e4",
+      "bytes": 790
+    },
+    {
+      "label": "approval-gated bounded build template and the approved boot-registration build record (H 9f6d37bd on a6b1378c -> 08d1f838 twice, patch, inventories, refusal tests); staged only, not activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/stage-approved/h-9f6d37bd-on-a6b1378c.patch",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-restore2-8f72453b/files/stage-approved/h-9f6d37bd-on-a6b1378c.patch",
+      "sha256": "56f5405093b422d6dc4a0bf781f2374635fdaddedf68652e096b6920a4ded210",
+      "bytes": 20931
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/patches/0001-cb7fa858.patch",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/patches/0001-cb7fa858.patch",
+      "sha256": "f8bb65f30913cc9e72abfe04e299a5b62a346538c49c689b9cce6fe64d6fed71",
+      "bytes": 31214
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/patches/0002-c83f2b39.patch",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/patches/0002-c83f2b39.patch",
+      "sha256": "d7f06b8dc40d074e5a7957a9238c27a541004f1257df8d0f60c6aaa3412f4dff",
+      "bytes": 25542
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/patches/0003-48cc74bf.patch",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/patches/0003-48cc74bf.patch",
+      "sha256": "71779562d0624bf7c1629a7d38d78af36e49e87798146e2bf9b813dbcad033da",
+      "bytes": 25400
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/PROOFKEY.md",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/PROOFKEY.md",
+      "sha256": "0ef34c81b3a158a9f31fb2dfd2f31c48b6c0786186338e99e1e6aaa4b457172b",
+      "bytes": 5540
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/RECOVERY-TARGET.md",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/RECOVERY-TARGET.md",
+      "sha256": "e49646e38c167948936066a5c56117c3c80b9b4610c93c35e8c25c53468457cf",
+      "bytes": 3148
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/REVIEW-RECOVERY.md",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/REVIEW-RECOVERY.md",
+      "sha256": "b64b9fb44ad6e76c107b101dc8de33865152414066f4288b83c418441ff09df2",
+      "bytes": 6012
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/check-recovery-verdict.py",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/check-recovery-verdict.py",
+      "sha256": "2cd4dcada64ecd23ce1fb3ae19b393da9119ccb8b5156e980d92c6f7bae165ff",
+      "bytes": 4690
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/commit-proofkey.sh",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/commit-proofkey.sh",
+      "sha256": "93300dfd4285e2568281dc9b126e03eb03e1bbfbc1bd0a391f62de2bf0b0ea47",
+      "bytes": 1809
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/commit-recovery.sh",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/commit-recovery.sh",
+      "sha256": "5bcee759f5f58055f81bcbd3bcf8b186dae4dfa84cca988e15f9517a1fbddd7f",
+      "bytes": 1752
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/commit-review.sh",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/commit-review.sh",
+      "sha256": "b842dff4e14abc2d24edf5193aa7fed1e2de20926e31872ecc8fca44300c27a0",
+      "bytes": 1867
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/commit-proofkey-1.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/commit-proofkey-1.guard.log",
+      "sha256": "c90c16923a14fe0da87d1d1e493a397cc2eb1b356f16eff252db11657b5b498f",
+      "bytes": 66
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/commit-proofkey-1.out",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/commit-proofkey-1.out",
+      "sha256": "6ab96a8e15a82da20470ec0201f6d8064e2446fe5e6090daf69bde556850a991",
+      "bytes": 430
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/commit-proofkey-1.rc",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/commit-proofkey-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/commit-recovery-1.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/commit-recovery-1.guard.log",
+      "sha256": "26410c31a0065315b3e53e3f50b1df2d96808ebae53d248419d26ebf09b22f99",
+      "bytes": 66
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/commit-recovery-1.out",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/commit-recovery-1.out",
+      "sha256": "dcbe3325fd3c503a684c9ca9a3ad1ff211935704f9753953ce228f67d9786f70",
+      "bytes": 430
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/commit-recovery-1.rc",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/commit-recovery-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/proofkey-tests-1.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/proofkey-tests-1.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/proofkey-tests-1.out",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/proofkey-tests-1.out",
+      "sha256": "2035739819ef042845d5e51c25b7d918f963466079c5ee19bad0f5ac56143935",
+      "bytes": 1262
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/proofkey-tests-1.rc",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/proofkey-tests-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/recovery-tests-1.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/recovery-tests-1.guard.log",
+      "sha256": "454259b6bcdc3d30a8fb7b3798318f87fdb62e17d287cd3ee1e8928d0a94828d",
+      "bytes": 67
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/recovery-tests-1.out",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/recovery-tests-1.out",
+      "sha256": "ad2ad622f4364f53cf71040e1686c553c77c1a8c18004c1faa867c3a87df96a0",
+      "bytes": 2539
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/recovery-tests-1.rc",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/recovery-tests-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/recovery-verdict-tests-1.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/recovery-verdict-tests-1.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/recovery-verdict-tests-1.out",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/recovery-verdict-tests-1.out",
+      "sha256": "f3667d2d68b5e175b68f9832b5316080e88bc3576810b2a6f6d68a296baa6ac7",
+      "bytes": 1600
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/recovery-verdict-tests-1.rc",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/logs/recovery-verdict-tests-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/recovery-target.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/recovery-target.mjs",
+      "sha256": "c14452e4448353497f3c5ab29de2658a5e2a75ea4f4c60f49f61aa05b232b7b5",
+      "bytes": 6895
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/review-progress.txt",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/review-progress.txt",
+      "sha256": "983aea275cb10a192e211617886280d882eec3d7cb65fc3c18ff7daf7ba26cf9",
+      "bytes": 1704
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/tests/recipient-proofkey.test.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/tests/recipient-proofkey.test.mjs",
+      "sha256": "88ee1aaead0918970b8a496640d7db1a8d93d58dfc711e14578b96832c40b1bf",
+      "bytes": 6094
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/tests/recovery-target.test.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/tests/recovery-target.test.mjs",
+      "sha256": "b2bb37d972c9614d9778b1ca6e6a0c0f60a5e4d72507e77226673866425fd3c0",
+      "bytes": 6288
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/tests/test_recovery_verdict.py",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/tests/test_recovery_verdict.py",
+      "sha256": "eb672ccf94eb61242b0dc86bbd4773e5dd0bbe9701118259942dbd04c7f540f6",
+      "bytes": 4186
+    },
+    {
+      "label": "legacy-control proof-key verification, exact recovery target, boot-registration recovery review with strict verdict checker; source/test only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/verify-recipient-proofkey.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/recipient-activation2-48cc74bf/files/verify-recipient-proofkey.mjs",
+      "sha256": "92097dd2518f578058033b888063e6bf23810fc6b1336800d6858f4b0c85aa70",
+      "bytes": 12917
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/patches/0001-ac33146d.patch",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/patches/0001-ac33146d.patch",
+      "sha256": "9d87924c32e6db90df40e3556703eb5ae26221bead7cd534ce01c0f51cede52f",
+      "bytes": 157513
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/patches/0002-ad81dd59.patch",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/patches/0002-ad81dd59.patch",
+      "sha256": "837a155a15744d1983750d643e51b756b57bc0f42d56aced039fce0bc893ca53",
+      "bytes": 36759
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/.gitignore",
+      "sha256": "6a94b8beb691899bb9017991342bc1533ce2a18c60931325ec7aa661f6ea9ddf",
+      "bytes": 67
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/PROGRESS.txt",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/PROGRESS.txt",
+      "sha256": "73f57e851c91f7e07e465eaca8b142f01d8157aec6b9c441a99433438989de58",
+      "bytes": 2437
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/PUBLISH.md",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/PUBLISH.md",
+      "sha256": "4db48a4ae8cd9bead0ebf6da50ef22207c997a666171039ebf9a179b6ab7d5de",
+      "bytes": 14748
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/README.md",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/README.md",
+      "sha256": "34daa32ba5f9822a94e2f0febf3331fa93b54e5f3eaec845c85e4fc1f6d4a0c1",
+      "bytes": 10126
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/bin/publish-prepare.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/bin/publish-prepare.mjs",
+      "sha256": "de816663d9989feeb878d40df104a0879ab6c5b24c734b421e229b297829094d",
+      "bytes": 2633
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/derive/appid.sh",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/derive/appid.sh",
+      "sha256": "f5d4295bd2cac3241b2f8f9e1b83601cd29e8876e3a2cd86f4f93dea530ecdb1",
+      "bytes": 2335
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/derive/measure.sh",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/derive/measure.sh",
+      "sha256": "ff00194f7f5f5ed84ed7013a7d457bfe0d9050e511b0254091e6f9117629b2dc",
+      "bytes": 1115
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/evidence/derive.json",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/evidence/derive.json",
+      "sha256": "0e822a3f97619f36273a09730ab26908917226d91a4540a1f2826de36c31fcc4",
+      "bytes": 2118
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/evidence/live-readonly.json",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/evidence/live-readonly.json",
+      "sha256": "e5319d232fc88d56d54d87a20802ffadeb4f74a9a6472eca11344d81580ba688",
+      "bytes": 1099
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/evidence/request.json",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/evidence/request.json",
+      "sha256": "3119026f03a01ae8b6afa1ae74e966074243c1a1f9c2782e62a008a65ddf2c9e",
+      "bytes": 2993
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/fixtures/book-build.json",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/fixtures/book-build.json",
+      "sha256": "cf3cc80b0357e8292de858de844314c676d50f54c33796a091ab55926712c2a1",
+      "bytes": 5553
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/fixtures/catalog-build.json",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/fixtures/catalog-build.json",
+      "sha256": "b7c70ae8af9d1ab46575c5d8f14c68fe7a4a3ce32e32c9c1efc33075cbe029d9",
+      "bytes": 62880
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/fixtures/oracle-mock.json",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/fixtures/oracle-mock.json",
+      "sha256": "240cef794412fd05d29eefa2b38e991001896b1e8e5375d8f32054adeaa2e939",
+      "bytes": 1570
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/lib/publish.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/lib/publish.mjs",
+      "sha256": "d255587b66acb6afa9aebe14fd2d7bec86083213cdc07242d268a8e21d88cd41",
+      "bytes": 26745
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/package.json",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/package.json",
+      "sha256": "c8924bbd566843f30472c0e217a70edce842dff0f8d021db852a20f58429565a",
+      "bytes": 295
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/probe/live-readonly.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/probe/live-readonly.mjs",
+      "sha256": "c06704c1e91dad7b5c05922c4acdf3a682c55bf752bb8abc0d51b91982dc3441",
+      "bytes": 3129
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/test/OracleMock.sol",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/test/OracleMock.sol",
+      "sha256": "fad1c0b90487640d12fba5993ee8bff60fe3af33d2e231bc31491ec35dbee1d1",
+      "bytes": 677
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/test/compile-catalog.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/test/compile-catalog.mjs",
+      "sha256": "0babd5f74183fcf79a8288b6ebd2c737f20f70631fc6663d02dcaf3ebbd64d72",
+      "bytes": 4444
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/test/mutants.sh",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/test/mutants.sh",
+      "sha256": "851e2729087331dd6a7bf99be44359a1640e9509a90130edb9efac9626a75567",
+      "bytes": 3886
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/test/pacing.test.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/test/pacing.test.mjs",
+      "sha256": "b513037cdbf30729635c7c79c121a6d36dbdb780d5dd1069bc712e2259544528",
+      "bytes": 6821
+    },
+    {
+      "label": "custody-canary-proof publication preparation (read-only catalog request, bounded paced publish-prepare tool, fixtures, tests, evidence); no WASM/component binary; nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/test/publish.test.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/proof-app2-ad81dd59/files/publish/test/publish.test.mjs",
+      "sha256": "51a85d28d6f8c340bc32e57f6faff0da55d9f37544a4baf2a32d9c87a1853de7",
+      "bytes": 18510
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/patches/0001-dd9cc622.patch",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/patches/0001-dd9cc622.patch",
+      "sha256": "e414ca3a9633df1f0348cdc8d0d863184a86f9344cdbe53eead1d6d44bced1e4",
+      "bytes": 42852
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/patches/0002-42015b1e.patch",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/patches/0002-42015b1e.patch",
+      "sha256": "c4323bd4ac701e889e8a88cdfd94a25252d97699ff81d5a1b59ec97e3d2ee5e5",
+      "bytes": 12690
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/patches/0003-9d58a8b2.patch",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/patches/0003-9d58a8b2.patch",
+      "sha256": "f694902dfd4a0431d9f906685cfe2f1bf5cadc3975c708ae22abd87300f8daa7",
+      "bytes": 50265
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/patches/0004-dfca5f05.patch",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/patches/0004-dfca5f05.patch",
+      "sha256": "1c9261de4e6e47df1e060e35ca5fd4978b8a7346dc8232ce8e7cd3c071e4e37f",
+      "bytes": 77624
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/patches/0005-a257c0e0.patch",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/patches/0005-a257c0e0.patch",
+      "sha256": "13f1d62be3fa7b266669d0362cde82eeab45c565a14eeeafe377b1d5ab865829",
+      "bytes": 22779
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/.gitignore",
+      "sha256": "e39307c27b78706b0a36f8ae32134b7b15339f036d4f275ed98c84470eba2beb",
+      "bytes": 17
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/CURRENT-STATE.md",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/CURRENT-STATE.md",
+      "sha256": "0b3993f6bae1e83f906a68f66ed425641d185876bbbeeb2021776a974e9a2ca7",
+      "bytes": 10248
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/README.md",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/README.md",
+      "sha256": "d505099ce87c42ed0378af5df518ec18734cd4f724d94320368efeb96e7faacd",
+      "bytes": 1182
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/ROLLBACK.md",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/ROLLBACK.md",
+      "sha256": "7c7ede44656daf5ee386e67f1b1079059e8c2385960420909c6c297d77803e56",
+      "bytes": 3816
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/SIGNING-AUTHORITY.md",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/SIGNING-AUTHORITY.md",
+      "sha256": "0cdfb839f165ed5fd8975ae5b3f8e7befd6f9bf00d1742ebc312654734c7d17f",
+      "bytes": 3430
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/SOURCES.md",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/SOURCES.md",
+      "sha256": "b04cdce8558880110b76beee5c345d2f4d014250b7e305886d24f8f385b830b0",
+      "bytes": 5437
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/TEST-MATRIX.md",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/TEST-MATRIX.md",
+      "sha256": "db686216b139f0053f2174d1960073252cdb20d76f2809f109f9f86719db9bfa",
+      "bytes": 5433
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/commit.sh",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/commit.sh",
+      "sha256": "ad01e8335a948f8bcee3c01f1f8091fe69a7cefca257bfcbf69f063fca8be347",
+      "bytes": 5220
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/commit2.sh",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/commit2.sh",
+      "sha256": "318ae8eac7653bedc6c338a5e073749a9173a258ad2aa231003d7951a5148efe",
+      "bytes": 1591
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/docs/ORIGINS.md",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/docs/ORIGINS.md",
+      "sha256": "36d24b7bea7557af776c50375315a097099521a3403a0f0d0791d1d3951fd483",
+      "bytes": 1163
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/docs/security/secret-custody-v2-spec.md",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/docs/security/secret-custody-v2-spec.md",
+      "sha256": "b4a537b1fee8ca65ed2032d5764b1f7f56a267d460ab61237686bab784b27974",
+      "bytes": 14442
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/docs/security/secret-custody-v2.md",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/docs/security/secret-custody-v2.md",
+      "sha256": "b9b02a869c97c853614e6a9a99f0a9e1598446a65675d2f09c5089cddd13ba91",
+      "bytes": 38694
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/commit-1.out",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/commit-1.out",
+      "sha256": "64065a1aec7c8acdc19a8027c48071f67e0d800d82ff0bfe0c6d13aa3548c9c3",
+      "bytes": 1848
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/commit-1.rc",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/commit-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/rangescan-1.out",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/rangescan-1.out",
+      "sha256": "e0ed8ea1176b308ffea04b09827087284c7009e9f77e655c189a77ce01714301",
+      "bytes": 404
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/rangescan-1.rc",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/rangescan-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/rangescan-gitleaks.json",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/rangescan-gitleaks.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/scan-1.out",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/scan-1.out",
+      "sha256": "adf7e97a2318405434bd49a1268927b9da8e94b650388ec6fbd8e933b4198652",
+      "bytes": 358
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/scan-1.rc",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/scan-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/scan-2.out",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/scan-2.out",
+      "sha256": "5d37c0e33969a951b44fbdda6b9531815dd752c6e6844c4db05c6f9d5ed71b04",
+      "bytes": 360
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/scan-2.rc",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/scan-2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/scan-gitleaks.json",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/logs/scan-gitleaks.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/patches/0001-Apply-the-reviewed-dashboard-doc-commits-2d3839c54-a.patch",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/patches/0001-Apply-the-reviewed-dashboard-doc-commits-2d3839c54-a.patch",
+      "sha256": "dfe0f182967cc86fbeff3c7d17d75ce692d53c336bff10d177cc01d33835cf9c",
+      "bytes": 13156
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/patches/0002-Reconcile-custody-v2-docs-with-the-deployed-state-co.patch",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/patches/0002-Reconcile-custody-v2-docs-with-the-deployed-state-co.patch",
+      "sha256": "5b3a985267ef3785a797b7f630aff89ebe5c1f48c5cc38031aa2c9c59edd0cc3",
+      "bytes": 12621
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/patches/against-checkpoint-dfb4b55e.diff",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/patches/against-checkpoint-dfb4b55e.diff",
+      "sha256": "0f370ae1f11957f0aa8a97dd086812a36dd5513e634d2d17b32a4b09c75205db",
+      "bytes": 20788
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/patches/against-main-68b82926.diff",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/patches/against-main-68b82926.diff",
+      "sha256": "25b1a8fc5ae5233d1811665f3617c0a0305ce6eba7d108fc4f6bb6c7c0ebfd69",
+      "bytes": 27857
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/q.sh",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/q.sh",
+      "sha256": "78551a365337b9e89c93fcef4ecdcbb5fa0186e799a4272391a2c871f815e1fe",
+      "bytes": 631
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/rangescan.sh",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/rangescan.sh",
+      "sha256": "f09003c8f98fe0b194290e1dae9e01eab970e59729b31fd728d6d68c65c72a65",
+      "bytes": 796
+    },
+    {
+      "label": "R reconciled custody v2 documentation for root review (CURRENT-STATE with PROVISIONAL incident data, TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches vs dfb4b55e and main 68b82926); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/scan.sh",
+      "stored": "files/source-preservation/frozen-2217-export/current-docs-a257c0e0/files/scan.sh",
+      "sha256": "3196b67722e8d77c243ff0553d192f3626d19ed15045d044d52dd129c7577507",
+      "bytes": 1056
+    },
+    {
+      "label": "H boot-registration adopt source 9f6d37bd on a6b1378c. PATCH-ONLY: exact patch (literal-free) + the test file at base and head; supervisor.js held back at base and head (rewritten literal), recorded by blob and sha256, base pinned to production deabf8f90 /app/supervisor.js in the pushed inventory; export-time check: real parent + patch == 9f6d37bd tree",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-source-9f6d37bd/patches/0001-9f6d37bd.patch",
+      "stored": "files/source-preservation/frozen-2217-export/boot-source-9f6d37bd/patches/0001-9f6d37bd.patch",
+      "sha256": "a0e8474d7fe8972b3586f69398eeccebe9a4de2a9455e4d0c85486899c4ef890",
+      "bytes": 20727
+    },
+    {
+      "label": "H boot-registration adopt source 9f6d37bd on a6b1378c. PATCH-ONLY: exact patch (literal-free) + the test file at base and head; supervisor.js held back at base and head (rewritten literal), recorded by blob and sha256, base pinned to production deabf8f90 /app/supervisor.js in the pushed inventory; export-time check: real parent + patch == 9f6d37bd tree",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-source-9f6d37bd/files/test/registry-advertise-retry.test.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/boot-source-9f6d37bd/files/test/registry-advertise-retry.test.mjs",
+      "sha256": "2dd967cdd96e404c9c32610e805236194cf29b1ce6bcbd11634022e9065af9da",
+      "bytes": 18295
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/patches/0001-fa76e9bb.patch",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/patches/0001-fa76e9bb.patch",
+      "sha256": "5047f59feae835604bb70e210e96449bd750d3afb673f15d385042239fbc0697",
+      "bytes": 193914
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/patches/0002-86c5fee8.patch",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/patches/0002-86c5fee8.patch",
+      "sha256": "aa37275334fb04aa48a91ce3e7becbcdb7248a1e7093a0419a86947b6f763a2b",
+      "bytes": 53188
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/.gitignore",
+      "sha256": "6807f0439a9e1cfe4af2a485783a343804a311246a354d691572fd9fa173c4bf",
+      "bytes": 346
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/README.md",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/README.md",
+      "sha256": "32c5c598bc80033960309e1fad394ed4951c3cc700b3308350ca0aa890b932b4",
+      "bytes": 12338
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/activate.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/activate.py",
+      "sha256": "0e40203bc4c191408826fae882410c9842afd8ed9e4f18110e95c0f05df9c073",
+      "bytes": 10269
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/admit.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/admit.py",
+      "sha256": "48e1b60275c53de5c84540dd13fa79ca311c74b3fac571c4f0732d6fbd662610",
+      "bytes": 1605
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/apphealth.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/apphealth.py",
+      "sha256": "3babd979edfe9dd245ce5d4d2a2e12223dfd67c1fa761d76cb108b53b6b6f88f",
+      "bytes": 2841
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/block-probe.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/block-probe.mjs",
+      "sha256": "9a066d0313a404988e4250526ead248b7be0f2545dde0f3fb59b0e3e32d22878",
+      "bytes": 2209
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/boot-funding.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/boot-funding.mjs",
+      "sha256": "c5fb367057b2d1c2523d819216d8c9b819f4a5adbf2b60ab0e6f8d9c00fedc95",
+      "bytes": 12042
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/build-record.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/build-record.py",
+      "sha256": "599f6ae54170deb3aa3abd86ef858c533464bc315acd555320cf8b042d076387",
+      "bytes": 1968
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/build.json",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/build.json",
+      "sha256": "68b1c391f60a5c942a052bfa7bc14ecc9f5430769a0f5ce6a9965dd049588fc2",
+      "bytes": 1315
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/common.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/common.py",
+      "sha256": "5d296331345456e487a96b93d2b897e6ac8effedfc5d59d01c6c98acc43cd81e",
+      "bytes": 39052
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/fee-fit.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/fee-fit.mjs",
+      "sha256": "8033f3a674d682eef6378e51499f1a7b54d2bd7d26798cde7fa98ce20203e7ba",
+      "bytes": 2120
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/fee-fit.test.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/fee-fit.test.mjs",
+      "sha256": "ef7b2231c1c954e37b6e3a663c99c7786fb1318cae083a9dec3b5957838af52f",
+      "bytes": 1636
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/funding.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/funding.py",
+      "sha256": "ab33b0e0c6ec271094b7086764ff88f070b20550c3d1d5c6c204c95495619b05",
+      "bytes": 1595
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/guestrows.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/guestrows.py",
+      "sha256": "29b7c9dac8e39990e3332cfa2c4f7f9f972ab559f37a4d720edf55eafacb06ab",
+      "bytes": 2616
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/keep.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/keep.py",
+      "sha256": "4028e716697cf06efb2a84110f623fe73415366e11359c63532a0e1317157754",
+      "bytes": 3224
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/b1.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/b1.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/b1.out",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/b1.out",
+      "sha256": "09e234e517543165b43a7fad1ab6fb7bea31ea39962b86d4a00c477a04360359",
+      "bytes": 1671
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/b1.rc",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/b1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/probe1.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/probe1.guard.log",
+      "sha256": "b71f1d54e18ba49d39777dad99a8bb4fb26fe4ce50767b7753cae9aa3bc64723",
+      "bytes": 66
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/probe1.out",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/probe1.out",
+      "sha256": "bb09251a6e37e1a26400912f782adbd10836f97b6139cd6411b5b1ecc014e613",
+      "bytes": 400
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/probe1.rc",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/probe1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/probe2.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/probe2.guard.log",
+      "sha256": "bcd100d5734603e58162694212128d63ee9f80e56f268115f066a95500d5976f",
+      "bytes": 66
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/probe2.out",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/probe2.out",
+      "sha256": "ab444875858c6ffdf3facc8a4ab9c04971a51a4cdc7e69381afe900def636a11",
+      "bytes": 2152
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/probe2.rc",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/probe2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t1.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t1.guard.log",
+      "sha256": "302f730bb854b451829ca8cb52ef613a5a6741225a52e90d9e5d7cbd86d29f47",
+      "bytes": 67
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t1.out",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t1.out",
+      "sha256": "2f0795158d3e351e6caf75195caa62476bf08263d2b0df15f1aac05c85cdfc08",
+      "bytes": 6952
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t1.rc",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t2.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t2.guard.log",
+      "sha256": "5771594e07c01f3bf7b29cc2986c205d6d72b2e8fb2cbb02a8abff677f6b83a6",
+      "bytes": 67
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t2.out",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t2.out",
+      "sha256": "c0d273f83c673062b0e99c17645452a4d6774fe2af01322ce77f8d43b205cfde",
+      "bytes": 6953
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t2.rc",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t3.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t3.guard.log",
+      "sha256": "662cc1e00bfa971163f449ed7638d986b962fb6c3c4044b03ff3048bdc4a8e2b",
+      "bytes": 67
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t3.out",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t3.out",
+      "sha256": "da2efb6091413225ce0420f8a61a1b5ada850561157ae4c995f61cad63d15394",
+      "bytes": 8031
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t3.rc",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t3.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t4.guard.log",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t4.guard.log",
+      "sha256": "17945f143fc5c3fe44382c2957faa19759f5be5ca19592077431cd7b6d40a606",
+      "bytes": 67
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t4.out",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t4.out",
+      "sha256": "40a2c3849e720823293ad7522db846bf5650b178635b1008f48d3d4875283773",
+      "bytes": 8032
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t4.rc",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/logs/t4.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/mutants.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/mutants.py",
+      "sha256": "1023dd3037e9bf6a14323e2c956b9c5eac2c77d17546bc0cd5329322ec6865c2",
+      "bytes": 7649
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/prebaseline.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/prebaseline.py",
+      "sha256": "837956f39c367cd6b5fbeb86b8b460971a14984ac6cd696d94ce538328474b23",
+      "bytes": 3093
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/preflight.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/preflight.mjs",
+      "sha256": "1605f99a201973aae04aff9ac91c96984c19c4f766a28edbaf8813fe9943e553",
+      "bytes": 4370
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/prepare-admission.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/prepare-admission.py",
+      "sha256": "c586da1182ef6f91c0c264a5fb38682fb5c632e03e8f06a4f916f435bc316cd2",
+      "bytes": 2288
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/q.sh",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/q.sh",
+      "sha256": "b25ca78d460a5a8e3dc553867270b825d09b5d1e640490e26755fd01fd43e196",
+      "bytes": 565
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/recheck-admission.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/recheck-admission.py",
+      "sha256": "ff2f438443282a23fff68467d75a4fb9d89aa8ab629b7eca795478d3bf9c91b4",
+      "bytes": 830
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/renewal-watch.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/renewal-watch.py",
+      "sha256": "dd4e340c26b9e300919d4c66f4793304bdf4b26c6785bcdd196a946e491c5709",
+      "bytes": 1004
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/rollback.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/rollback.py",
+      "sha256": "d45554419aa9d9be8203765349923de5587b13f90f30d2f500bc25b2bba1a250",
+      "bytes": 1413
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/run-tests.sh",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/run-tests.sh",
+      "sha256": "565ea868c9ad25aa31dab8f170b9bd37cbd1c7b2a5e568f7525443ed8ce6a827",
+      "bytes": 776
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/scan.sh",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/scan.sh",
+      "sha256": "62614e6332837b4946036ce746f2fd899b5596072a27f67bb79be41abfe66c50",
+      "bytes": 1270
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/stage.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/stage.py",
+      "sha256": "766c31f73452e41d1444bab830adbd5b4624bd2dd78a4000d42ab7edfb3a2c7b",
+      "bytes": 2434
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/tests/boot-funding.test.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/tests/boot-funding.test.mjs",
+      "sha256": "d7a50c12dea14fc9d413d08ee5e7864ea0affc5db0b68f419710ce1ef35a1e0c",
+      "bytes": 9744
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/tests/fixtures/APPROVED-COMMIT.txt",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/tests/fixtures/APPROVED-COMMIT.txt",
+      "sha256": "f32ab10418d261e562a1c13db7d12fa7f4560a620602a2349753322a3ced5116",
+      "bytes": 59
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/tests/fixtures/INVENTORY.sha256",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/tests/fixtures/INVENTORY.sha256",
+      "sha256": "c34974adae318bf9d124081fb4acbba778b38ab7586005cb8e53f586ab8779a9",
+      "bytes": 510
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/tests/fixtures/MEASUREMENT",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/tests/fixtures/MEASUREMENT",
+      "sha256": "6d55c0e2839e5a1aad1258ce80ec112181f155c50be9f5ad1f66f1bb44064537",
+      "bytes": 97
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/tests/fixtures/root-build-approved.out",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/tests/fixtures/root-build-approved.out",
+      "sha256": "89ba2d1b75e766a95d3f6a12e09ee97c2baad3df4c5bb2e9d98b6647b9bba0ba",
+      "bytes": 2059
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/tests/test_activation.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/tests/test_activation.py",
+      "sha256": "8e2d7a6a47ebfa8bff1f74573e3cc60716e1642679853ffe09839bb01f54508d",
+      "bytes": 33666
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/unadmit.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/unadmit.py",
+      "sha256": "61ff8928023eb62751ec0713c668dd27ac8ee5ecc6dafc0f6b04dd2c53e9f802",
+      "bytes": 851
+    },
+    {
+      "label": "second image-only activation kit for the approved boot-registration image and boot funding with canonical block agreement; source, provenance and tests. DERIVATIVE: committed runtime baseline evidence/original-baseline-20261023T213130Z.json omitted (blob + sha256 recorded); root runtime files ignored and never read",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/verify-operational.py",
+      "stored": "files/source-preservation/frozen-2217-export/boot-activation-86c5fee8/files/verify-operational.py",
+      "sha256": "5ef6fa9d59087a757e5e21911ec033b78c2b6fd06e6d9724c49d64e43ab1f067",
+      "bytes": 9947
+    },
+    {
+      "label": "H boot-registration adopt source 9f6d37bd on a6b1378c. PATCH-ONLY: exact patch (literal-free) + the test file at base and head; supervisor.js held back at base and head (rewritten literal), recorded by blob and sha256, base pinned to production deabf8f90 /app/supervisor.js in the pushed inventory; export-time check: real parent + patch == 9f6d37bd tree",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export/boot-source-9f6d37bd/base-files/test/registry-advertise-retry.test.mjs",
+      "stored": "files/source-preservation/frozen-2217-export/boot-source-9f6d37bd/base-files/test/registry-advertise-retry.test.mjs",
+      "sha256": "65ecddee7cfcb2f786929262eea2102863f8561882d698b54b4dab9de37c2084",
+      "bytes": 7895
+    },
+    {
+      "label": "receipt of the 2146 batch (dfb4b55e, committed 21:56:04Z, pushed by 21:57:04Z; main 68b82926 unchanged; root verified remote 22:00Z)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/RESULT-frozen-2146-checkpoint.md",
+      "stored": "files/source-preservation/RESULT-frozen-2146-checkpoint.md",
+      "sha256": "617cb89e09aa448bcc9263ee71e1500d7bf358fd40e7e752cca68603f1463616",
+      "bytes": 8106
+    },
+    {
+      "label": "frozen-2217 checkpoint tooling (\"2217\" = batch start 2026-10-23T22:17:46Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-frozen-2217.py",
+      "stored": "files/source-preservation/export-frozen-2217.py",
+      "sha256": "6df89f8a9eea930ddf86b4397735d9ea73715b4e573d25c0d88076aa943850e1",
+      "bytes": 25009
+    },
+    {
+      "label": "frozen-2217 checkpoint tooling (\"2217\" = batch start 2026-10-23T22:17:46Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-frozen-2217-export.py",
+      "stored": "files/source-preservation/verify-frozen-2217-export.py",
+      "sha256": "c27ac126bf49106a3b39cc8b4b413a9cf53a33df16f654ec61cdc5474e8a7a3c",
+      "bytes": 11786
+    },
+    {
+      "label": "frozen-2217 checkpoint tooling (\"2217\" = batch start 2026-10-23T22:17:46Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-frozen-2217.py",
+      "stored": "files/source-preservation/capture-frozen-2217.py",
+      "sha256": "1a69b0954eaf19a1e86165043d5f3fa85600f2bf455177f4f1948206e7aab731",
+      "bytes": 8528
+    },
+    {
+      "label": "frozen-2217 checkpoint tooling (\"2217\" = batch start 2026-10-23T22:17:46Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-pins.json",
+      "stored": "files/source-preservation/frozen-2217-pins.json",
+      "sha256": "ed0392f2ebc5517fa5b6b6a0f1f3c845e64fc92a3f562e08e3e776306d4ac88d",
+      "bytes": 265
+    },
+    {
+      "label": "frozen-2217 checkpoint tooling (\"2217\" = batch start 2026-10-23T22:17:46Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-q.sh",
+      "stored": "files/source-preservation/frozen-2217-q.sh",
+      "sha256": "f651c89ef51a84e2c081b5ed59905fc7ed23b599c0f60aa8b7483ee5078b66a4",
+      "bytes": 742
+    },
+    {
+      "label": "frozen-2217 checkpoint tooling (\"2217\" = batch start 2026-10-23T22:17:46Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-export.sh",
+      "stored": "files/source-preservation/frozen-2217-export.sh",
+      "sha256": "48e53d8ca3518eeaed76e287b85f09a5d6e4af418731c360688dc9b4864692c5",
+      "bytes": 3608
+    },
+    {
+      "label": "frozen-2217 checkpoint tooling (\"2217\" = batch start 2026-10-23T22:17:46Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-capture.sh",
+      "stored": "files/source-preservation/frozen-2217-capture.sh",
+      "sha256": "8a7f74cb385c47e46d23687e439c25da66e1f76053377aa50bec1ea0dd9a996f",
+      "bytes": 2427
+    },
+    {
+      "label": "frozen-2217 checkpoint tooling (\"2217\" = batch start 2026-10-23T22:17:46Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2217-labels.json",
+      "stored": "files/source-preservation/frozen-2217-labels.json",
+      "sha256": "62fbcbde31fdd8a5ecbba68fb5587b553332b3c0d4d9194e84c9da6e36d8bcaa",
+      "bytes": 2935
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -42562,6 +43941,15 @@
       "added": 276,
       "bytes": 2581506,
       "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"2146\" is a batch identifier (start 21:46:39Z), not this time"
+    },
+    {
+      "at": "2026-10-23T22:21:32.720194+00:00",
+      "by": "source-preservation/capture-frozen-2217.py",
+      "onCheckpoint": "dfb4b55e627ebd95b647abebf09627296f099862",
+      "entriesBefore": 6136,
+      "added": 197,
+      "bytes": 1671326,
+      "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"2217\" is a batch identifier (start 22:17:46Z), not this time"
     }
   ]
 }

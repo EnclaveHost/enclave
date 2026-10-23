@@ -1,0 +1,17 @@
+[queue] START available=23730MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "block": "0x328bf05",
+ "orderEqual": true,
+ "onlyA": [],
+ "onlyB": [],
+ "differing": {},
+ "canonical": {
+  "number": true,
+  "hash": true,
+  "timestamp": true,
+  "parentHash": true
+ }
+}
+[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=23687
+[memory-guard] at peak: node:66
+[queue] EXIT 0

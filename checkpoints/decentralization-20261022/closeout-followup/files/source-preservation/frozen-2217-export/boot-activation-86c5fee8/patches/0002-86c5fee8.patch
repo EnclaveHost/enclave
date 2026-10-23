@@ -1,0 +1,865 @@
+From 86c5fee82c98278e4d1c9446a63f903ab6a131e2 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:12:34 -0700
+Subject: [PATCH] boot funding: canonical block agreement (root 22:07/22:08
+ failure), strict keep verdict, root runtime files kept out
+
+- Root's live read-only funding runs failed on whole-object JSON block equality. The bounded
+  read-only block-probe.mjs (logs/probe2.out, 10 rounds) found publicnode and mainnet.base.org
+  returning the same fields and values in a different property ORDER. Blocks now agree on
+  number/hash/parentHash/timestamp; hash/number/timestamp disagreement, a null block or the
+  wrong number still refuse. Code/nonce/balance/eth_call agreement stays exact; no gas-guard
+  change. The verdict now names the error line instead of the stack tail.
+- keep.py: a strict fresh attest-control/1 verdict for the approved measurement (after attach,
+  <= 1800 s, raw 0600 answer hashing to rawSha256), never a substring of an evidence file.
+- Root's runtime files (approval, plan, admission, evidence, ROOT-*, logs/root-*) are
+  gitignored and excluded from mutant copies.
+Queue (512): python 32/32, node 9/9, mutants 41/41 killed (control passes), scans clean.
+---
+ .gitignore                  |   9 ++
+ README.md                   |  22 ++++-
+ block-probe.mjs             |  26 ++++++
+ boot-funding.mjs            |  13 ++-
+ common.py                   |  40 ++++++++-
+ keep.py                     |  11 ++-
+ logs/probe1.guard.log       |   1 +
+ logs/probe1.out             |  17 ++++
+ logs/probe1.rc              |   1 +
+ logs/probe2.guard.log       |   1 +
+ logs/probe2.out             |  14 ++++
+ logs/probe2.rc              |   1 +
+ logs/t3.guard.log           |   1 +
+ logs/t3.out                 | 158 ++++++++++++++++++++++++++++++++++++
+ logs/t3.rc                  |   1 +
+ logs/t4.guard.log           |   1 +
+ logs/t4.out                 | 158 ++++++++++++++++++++++++++++++++++++
+ logs/t4.rc                  |   1 +
+ mutants.py                  |  27 +++++-
+ tests/boot-funding.test.mjs |  31 ++++++-
+ tests/test_activation.py    |  42 ++++++++++
+ 21 files changed, 561 insertions(+), 15 deletions(-)
+ create mode 100644 block-probe.mjs
+ create mode 100644 logs/probe1.guard.log
+ create mode 100644 logs/probe1.out
+ create mode 100644 logs/probe1.rc
+ create mode 100644 logs/probe2.guard.log
+ create mode 100644 logs/probe2.out
+ create mode 100644 logs/probe2.rc
+ create mode 100644 logs/t3.guard.log
+ create mode 100644 logs/t3.out
+ create mode 100644 logs/t3.rc
+ create mode 100644 logs/t4.guard.log
+ create mode 100644 logs/t4.out
+ create mode 100644 logs/t4.rc
+
+diff --git a/.gitignore b/.gitignore
+index eafacaa6be64cab60ac6798f589f1e2b3380cf5e..cafa551e738c9ecafd56ebe1a3e4b7695e5cf0a6 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -9,3 +9,12 @@
+ evidence/guestd-baseline*.json
+ evidence/lease-preflight*.json
+ logs/root-*
++ROOT-*
++result.json
++APPROVED-BUILD.txt
++plan.json
++admission.json
++admission-apply.out
++measurement.env
++apps-health.json
++gate.json
+diff --git a/README.md b/README.md
+index f80d76960e8ea266d3d8dd4f6140d39306ee0003..5fa1513b1c18defea8c8b0d3a49b205502af916a 100644
+--- a/README.md
++++ b/README.md
+@@ -68,6 +68,12 @@
+      - nonce = latest = pending on both RPCs, so no operator transaction is in flight;
+      - the worst case (larger gas estimate × viem default maxFee + L1 + operator fee) ≤ balance, **with 25% headroom**;
+      - the facts are under 360 s old.
++   - **Block agreement is canonical** (fix after root's failed 22:07/22:08 runs). Root's runs failed because whole block objects were
++     compared as JSON. The bounded read-only `block-probe.mjs` (`logs/probe2.out`, 10 rounds) found publicnode and mainnet.base.org
++     returning the **same fields and values in a different property order** in round 5. The check now requires
++     number/hash/parentHash/timestamp to be equal, and ignores provider metadata and order. Hash, number or timestamp disagreement,
++     a null block, or the wrong block number still refuses (tested; mutants killed). Code, nonce, balance and `eth_call` results
++     must still be exactly equal.
+    - **Root's actual 2-RPC read** (block 53001451, `root-live-fees2.out`) passes: 271.9e9 worst case against 376.1e9. The full
+      register would be 354.1e9.
+    - The supervisor's sender is unchanged. There is no new fee sender, manual proof-key transaction, funding or delegation change,
+@@ -98,7 +104,7 @@
+ | 3b | `python3 …/prebaseline.py --guestd-vms <root's fresh 0600 GET /vms file>` | `evidence/guestd-baseline.json` | read-only (root's own authenticated guestd read happens before, outside this folder) |
+ | 3c | `python3 …/funding.py [--rpc A --rpc B]` | `evidence/boot-funding.json`, `boot-funding-verdict.json` | public chain reads |
+ | 4 | `python3 …/activate.py --guestd-vms <a FRESH file, ≤ 300 s> [--funding-rpc A --funding-rpc B]` | config.json `dist` (fresh `private-backup/`), `result.json`, `gate.json`, `apps-health.json`, `evidence/*-activate.json` | restarts `enclave-metal.service` only (the control VM) |
+-| 5 | `python3 …/renewal-watch.py`, then `python3 …/keep.py --checked-attestation <root evidence> [--audit … --verified id=tx …]` | `result.json` | read-only on the host |
++| 5 | `python3 …/renewal-watch.py`, then `python3 …/keep.py --checked-attestation <root's fresh attest-control/1 verdict for the approved measurement> --attestation-raw <its 0600 raw answer> [--audit … --verified id=tx …]` | `result.json` | read-only on the host |
+ | R | `python3 …/rollback.py` | config.json back (CAS) | restarts the control |
+ | R2 | `python3 …/unadmit.py` (only while the candidate is NOT attached) | relay env back to `85d5f14d` (CAS on both versions) | **privileged**; relay restart |
+ 
+@@ -111,6 +117,20 @@
+ 4. Only then does the claim loop adopt both guests by record digest.
+ 5. The unchanged 300 s adoption deadline and gate v4 decide. Any failure triggers the unchanged safe rollback.
+ 
++**`keep.py` takes a strict verdict, never a substring** (root 22:08). It requires an attest-control/1 verdict that:
++- passed, with every required check PASS;
++- has observed == expected == **the approved measurement**;
++- is bound to the verifier nonce, with VMPL 0;
++- was produced after this activation attached and at most 1800 s before the keep;
++- comes with a private 0600 raw answer that hashes to `rawSha256`.
++
++A file that merely names the measurement is refused. Root supplies the fresh verdict for the recovery target: the frozen
++`attest-control.mjs` pins ee5df6b8 and is not changed here.
++
++**Root's runtime files stay out of the source commit.** They are gitignored and are never copied into the mutant runs:
++`ROOT-*`, `evidence/*private*`, `evidence/boot-funding*.json`, `evidence/guestd-baseline*.json`, `evidence/lease-preflight*.json`
++and `logs/root-*`.
++
+ ## Retained limits
+ 
+ - **Rollback does not restore the host's registration.** The previous control (ed918e4b) needs a full `register()` at boot, which
+diff --git a/block-probe.mjs b/block-probe.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b4f7f279ab6a8ab8bf5cb998c92c27255e6f11c
+--- /dev/null
++++ b/block-probe.mjs
+@@ -0,0 +1,26 @@
++#!/usr/bin/env node
++// READ-ONLY, bounded diagnosis (root's 22:08 review): one block, two RPCs, two requests each, 15 s timeout. Prints the fields
++// only one side has and the fields whose values differ (values cut to 80 chars). No key, no transaction.
++//   node block-probe.mjs https://A https://B [rounds <= 10, 3 s apart]
++const [a, b, k = "1"] = process.argv.slice(2);
++const rounds = Math.min(10, Math.max(1, Number(k) | 0));
++if (!a || !b || a === b || ![a, b].every((u) => /^https:\/\//.test(u))) throw new Error("two distinct https RPCs");
++const call = async (url, method, params) => {
++  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
++    signal: AbortSignal.timeout(15000), redirect: "error" });
++  const j = await r.json(); if (j.error) throw new Error(`${new URL(url).host} ${method}: ${j.error.message}`); return j.result;
++};
++for (let i = 0; i < rounds; i++) {
++if (i) await new Promise((r) => setTimeout(r, 3000));
++const heads = (await Promise.all([a, b].map((u) => call(u, "eth_blockNumber", [])))).map(BigInt);
++const n = "0x" + ((heads[0] < heads[1] ? heads[0] : heads[1]) - 2n).toString(16);
++const [x0, y0] = await Promise.all([a, b].map((u) => call(u, "eth_getBlockByNumber", [n, false])));
++if (!x0 || !y0) { console.log(JSON.stringify({ round: i, block: n, heads: heads.map(String), nullA: !x0, nullB: !y0 })); continue; }
++const x = x0, y = y0;
++const cut = (v) => { const s = JSON.stringify(v); return s === undefined ? "(absent)" : s.length > 80 ? s.slice(0, 80) + `…(${s.length})` : s; };
++const keys = [...new Set([...Object.keys(x), ...Object.keys(y)])].sort();
++console.log(JSON.stringify({ round: i, block: n, heads: heads.map(String), orderEqual: JSON.stringify(Object.keys(x)) === JSON.stringify(Object.keys(y)),
++  onlyA: keys.filter((k) => !(k in y)), onlyB: keys.filter((k) => !(k in x)),
++  differing: Object.fromEntries(keys.filter((k) => k in x && k in y && JSON.stringify(x[k]) !== JSON.stringify(y[k])).map((k) => [k, { a: cut(x[k]), b: cut(y[k]) }])),
++  canonical: Object.fromEntries(["number", "hash", "timestamp", "parentHash"].map((k) => [k, x[k] === y[k]])) }));
++}
+diff --git a/boot-funding.mjs b/boot-funding.mjs
+index 0e370c9dc0e305be97345233d6a3a067b08495d0..9fb0dec1aa14fe9bd4a57756457f628ae8e50883 100644
+--- a/boot-funding.mjs
++++ b/boot-funding.mjs
+@@ -53,6 +53,14 @@
+   return { decide: new Function(`${m[0]}; return bootRegistrationAction;`)(), supervisorSha256: got };
+ }
+ 
++// Two RPCs see the same block when its canonical fields agree. Root's 22:07/22:08 runs failed on whole-object JSON equality:
++// the bounded probe (logs/probe2.out) found publicnode and mainnet.base.org returning the SAME fields and values in a different
++// property ORDER (round 5 of 10). Provider metadata and order are ignored; number/hash/parentHash/timestamp must be equal.
++export const CANONICAL_BLOCK = ["number", "hash", "parentHash", "timestamp"];
++export function sameBlock(x, y) {
++  return !!x && !!y && CANONICAL_BLOCK.every((k) => typeof x[k] === "string" && typeof y[k] === "string" && x[k].toLowerCase() === y[k].toLowerCase());
++}
++
+ // call(url, method, params) -> JSON-RPC result (throws on error). Every chain fact: both RPCs, one block (2 deep), agreement.
+ export async function collect({ call, rpcs, viem, decide, commit, supervisorSha256, now = () => new Date().toISOString() }) {
+   if (rpcs.length !== 2 || rpcs[0] === rpcs[1]) throw new Error("exactly two distinct RPCs");
+@@ -62,7 +70,10 @@
+   if (chainIds.some((x) => x !== PINS.chainId)) throw new Error("not Base");
+   const heads = (await both("eth_blockNumber", [])).map(BigInt);
+   const n = (heads[0] < heads[1] ? heads[0] : heads[1]) - 2n;
+-  const blk = await agree("block", "eth_getBlockByNumber", ["0x" + n.toString(16), false]);
++  const blocks = await both("eth_getBlockByNumber", ["0x" + n.toString(16), false]);
++  if (!sameBlock(blocks[0], blocks[1])) throw new Error(`RPCs disagree on block ${n} (${CANONICAL_BLOCK.join("/")})`);
++  if (BigInt(blocks[0].number) !== n) throw new Error(`asked for block ${n}, got ${blocks[0].number}`);
++  const blk = blocks[0];
+   const at = { blockHash: blk.hash, requireCanonical: true };
+   const ethCall = async (to, abi, fn, args = []) => viem.decodeFunctionResult({ abi, functionName: fn,
+     data: await agree(fn, "eth_call", [{ to, data: viem.encodeFunctionData({ abi, functionName: fn, args }) }, at]) });
+diff --git a/common.py b/common.py
+index 33067b9c3a4b310b969ab8b02cf1b36722f1d5ba..4bea49c21b5044bab2adf64f2a86c94fea408001 100644
+--- a/common.py
++++ b/common.py
+@@ -9,7 +9,7 @@
+ # protected-field and remote-script code below is the first attempt's, byte for byte (tests/test_activation.py pins it).
+ # No keys, env files, private state or release journals are read; journal lines are filtered to the prefixes below.
+ from pathlib import Path
+-import hashlib, json, os, re, subprocess, time, datetime, urllib.request
++import hashlib, json, os, re, stat, subprocess, time, datetime, urllib.request
+ 
+ W = Path('/home/steven/Documents/Codex/2026-10-18/wo')
+ A = Path(__file__).resolve().parent
+@@ -477,6 +477,42 @@
+     """Run boot-funding.mjs (read-only) and decide. -> (facts, problems)."""
+     r = run([node, str(A/'boot-funding.mjs'), '--rpc', rpcs[0], '--rpc', rpcs[1], '--commit', commit, '--out', str(out_path)],
+             capture_output=True, text=True, timeout=180)
+-    if r.returncode != 0: return None, [f'boot-funding.mjs failed ({r.returncode}): {(r.stderr or r.stdout).strip()[-300:]}']
++    if r.returncode != 0:
++        err = (r.stderr or r.stdout or '').strip(); first = next((l.strip() for l in err.splitlines() if re.match(r'\s*(\w*Error|Error):', l)), err[-300:])
++        return None, [f'boot-funding.mjs failed ({r.returncode}): {first[:300]}']
+     f = json.loads(Path(out_path).read_text())
+     return f, boot_funding_problems(f, time.time() if now is None else now, commit, REVIEWED['supervisorSha256'])
++
++# ---- keep: a STRICT fresh attestation verdict for the recovery target (never a substring of some evidence file) ----------------
++# The schema is attest-control/1's (as the first attempt's check-attestation-verdict.py), generalized from the pinned ee5df6b8 to
++# the approved candidate: a PASSED verdict, every required check PASS, observed == expected == the approved measurement, bound
++# to the verifier's own nonce, VMPL 0, produced AFTER this activation attached and at most VERDICT_MAX_AGE_S before the keep,
++# with its private raw answer (0600) hashing to rawSha256.
++VERDICT_REQUIRED = ['report shape', 'product line', 'guest policy', 'chain', 'tcb policy', 'measurement', 'binding']
++VERDICT_MAX_AGE_S = 1800
++
++def attestation_verdict_problems(v, want, attached_at, now, raw_path):
++    out = []
++    if not isinstance(v, dict): return ['the attestation evidence is not a verdict object']
++    if v.get('probe') != 'attest-control/1': out.append('not an attest-control/1 verdict')
++    if v.get('pass') is not True: out.append('pass is not true')
++    if v.get('status') != 'verified' or v.get('admissionSafe') is not True: out.append(f"status {v.get('status')!r} / admissionSafe {v.get('admissionSafe')!r}")
++    if not MEASUREMENT_RE.fullmatch(str(want)) or v.get('expectedMeasurement') != want or v.get('observedMeasurement') != want or v.get('measurementMatches') is not True:
++        out.append('the verdict is not for the approved measurement')
++    req = v.get('required') or {}
++    for k in VERDICT_REQUIRED:
++        if req.get(k) != 'PASS': out.append(f'required check {k!r} is {req.get(k)!r}')
++    if v.get('freshness') != 'verifier nonce' or not re.fullmatch(r'[0-9a-f]{64}', str(v.get('nonce', ''))): out.append('not bound to the verifier nonce')
++    if v.get('vmpl') != 0: out.append(f"vmpl {v.get('vmpl')!r}")
++    if v.get('failedChecks'): out.append(f"failed checks {v['failedChecks']}")
++    try:
++        at = datetime.datetime.fromisoformat(str(v.get('at')).replace('Z', '+00:00')).timestamp()
++        if not attached_at or at <= datetime.datetime.fromisoformat(attached_at).timestamp(): out.append(f"verdict at {v.get('at')} is not after the attachment {attached_at}")
++        if now - at > VERDICT_MAX_AGE_S or at - now > 60: out.append(f'verdict is {int(now - at)} s old (<= {VERDICT_MAX_AGE_S})')
++    except (TypeError, ValueError): out.append('verdict time unreadable')
++    raw = Path(raw_path)
++    if not raw.is_file(): out.append('private raw answer missing')
++    else:
++        if stat.S_IMODE(raw.stat().st_mode) != 0o600: out.append('private raw answer is not 0600')
++        if file_sha(raw) != v.get('rawSha256'): out.append('raw answer does not hash to rawSha256')
++    return out
+diff --git a/keep.py b/keep.py
+index f6d03fb28459c5480cf39db74afbe7a185bccbe4..f50917690ff4af7f73a35d0acaa2c7f5f22c1fae 100644
+--- a/keep.py
++++ b/keep.py
+@@ -1,14 +1,15 @@
+ # PHASE 5 (ROOT EXECUTES after its own fresh attestation + capability check): records KEEP; changes nothing on the host.
+-#   python3 keep.py --checked-attestation <root's fresh attestation/capability evidence file>
++#   python3 keep.py --checked-attestation <root's fresh attest-control/1 verdict JSON for the approved measurement>
++#                   --attestation-raw <its private 0600 raw answer>
+ #                   [--audit <root's chain audit output> --verified <app id>=<tx> ...]
+ # Re-asserts read-only, at keep time: attached at the approved candidate; both apps actually healthy; each app's ONE live guest is still the
+ # baseline guest. Renewal proof is recorded where available (audited --verified pairs must be renewals renewal-watch.py saw);
+ # without it the keep records "renewals pending audit" honestly - the lease code is byte-identical to deabf8f90's.
+-import argparse, json
++import argparse, json, time
+ from common import *
+ NEW = load_new()
+ import apphealth, guestrows
+-ap = argparse.ArgumentParser(); ap.add_argument('--checked-attestation', required=True)
++ap = argparse.ArgumentParser(); ap.add_argument('--checked-attestation', required=True); ap.add_argument('--attestation-raw', required=True)
+ ap.add_argument('--audit'); ap.add_argument('--verified', action='append', default=[])
+ ap.add_argument('--availability', default='https://api.enclave.host/t/metal0/availability')
+ a = ap.parse_args()
+@@ -20,7 +21,9 @@
+ st, body = get(a.availability); assert st == 200
+ held = json.loads(body)['instanceSweep']['held']
+ for i in APPS: vm, why = guestrows.the_live_guest(held, i); assert vm == r['preCutoverGuests'][i], f'{i[:10]}: {vm or why} is not the baseline guest'
+-ev = Path(a.checked_attestation).read_bytes(); assert NEW['measurement'].encode() in ev, 'the attestation evidence does not name the approved candidate'
++ev = Path(a.checked_attestation).read_bytes()   # STRICT verdict, never a substring (root 22:08 review)
++vp = attestation_verdict_problems(json.loads(ev), NEW['measurement'], r.get('attachedAt'), time.time(), a.attestation_raw)
++assert not vp, 'attestation verdict: ' + '; '.join(vp)
+ v = dict(x.lower().split('=', 1) for x in a.verified)
+ if v:
+     assert a.audit, '--verified needs --audit'
+diff --git a/logs/probe1.guard.log b/logs/probe1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..2f17ee143f3111e8eefcb6ff1cad043ffa6de9b9
+--- /dev/null
++++ b/logs/probe1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=23687
+diff --git a/logs/probe1.out b/logs/probe1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..915028a9a0f6d7bddb02ac800f04707a7bc1a124
+--- /dev/null
++++ b/logs/probe1.out
+@@ -0,0 +1,17 @@
++[queue] START available=23730MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++{
++ "block": "0x328bf05",
++ "orderEqual": true,
++ "onlyA": [],
++ "onlyB": [],
++ "differing": {},
++ "canonical": {
++  "number": true,
++  "hash": true,
++  "timestamp": true,
++  "parentHash": true
++ }
++}
++[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=23687
++[memory-guard] at peak: node:66
++[queue] EXIT 0
+diff --git a/logs/probe1.rc b/logs/probe1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/probe1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/probe2.guard.log b/logs/probe2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..b9047a102f1624dc0a3545a407dd66530a5e3f23
+--- /dev/null
++++ b/logs/probe2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=70 minHostAvailableMiB=23242
+diff --git a/logs/probe2.out b/logs/probe2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..e003b4bbff02f0dac8d98ec8db37266de27df30d
+--- /dev/null
++++ b/logs/probe2.out
+@@ -0,0 +1,14 @@
++[queue] START available=23288MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++{"round":0,"block":"0x328bf0a","heads":["53001996","53001996"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
++{"round":1,"block":"0x328bf0c","heads":["53001998","53001998"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
++{"round":2,"block":"0x328bf0e","heads":["53002000","53002000"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
++{"round":3,"block":"0x328bf0f","heads":["53002001","53002001"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
++{"round":4,"block":"0x328bf11","heads":["53002003","53002003"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
++{"round":5,"block":"0x328bf13","heads":["53002005","53002005"],"orderEqual":false,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
++{"round":6,"block":"0x328bf14","heads":["53002006","53002006"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
++{"round":7,"block":"0x328bf16","heads":["53002008","53002008"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
++{"round":8,"block":"0x328bf17","heads":["53002009","53002009"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
++{"round":9,"block":"0x328bf19","heads":["53002011","53002011"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
++[memory-guard] exit=0 peakTreeRssMiB=70 minHostAvailableMiB=23242
++[memory-guard] at peak: node:70
++[queue] EXIT 0
+diff --git a/logs/probe2.rc b/logs/probe2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/probe2.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/t3.guard.log b/logs/t3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e9bef29f48c37450b17fe071f2e1546c1a876c8b
+--- /dev/null
++++ b/logs/t3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=173 minHostAvailableMiB=23242
+diff --git a/logs/t3.out b/logs/t3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..b29f2450093844275b5004b1f64c82435e187ff2
+--- /dev/null
++++ b/logs/t3.out
+@@ -0,0 +1,158 @@
++[queue] START available=23533MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++== python
++test_additive_36_to_37_in_installed_order (test_activation.Admission.test_additive_36_to_37_in_installed_order) ... ok
++test_refusals (test_activation.Admission.test_refusals) ... ok
++test_refusals (test_activation.BootFunding.test_refusals) ... ok
++test_root_actual_read_passes_with_headroom (test_activation.BootFunding.test_root_actual_read_passes_with_headroom) ... ok
++test_runner_failure_names_the_error_line (test_activation.BootFunding.test_runner_failure_names_the_error_line) ... ok
++test_runner_failure_refuses (test_activation.BootFunding.test_runner_failure_refuses) ... ok
++test_approval_and_plan (test_activation.Build.test_approval_and_plan) ... ok
++test_refusals (test_activation.Build.test_refusals) ... ok
++test_source_is_the_reviewed_commit (test_activation.Build.test_source_is_the_reviewed_commit) ... ok
++test_staged_dir_hashes (test_activation.Build.test_staged_dir_hashes) ... ok
++test_the_actual_completed_build_passes (test_activation.Build.test_the_actual_completed_build_passes) ... ok
++test_activation_after_the_write_is_the_first_attempts (test_activation.FirstAttemptCodeUnchanged.test_activation_after_the_write_is_the_first_attempts)
++Everything from the write on (restart, attach, adoption of the SAME guests, gate v4, renewals, rollback) is unchanged ... ok
++test_gate_files_are_the_reviewed_byte_copies (test_activation.FirstAttemptCodeUnchanged.test_gate_files_are_the_reviewed_byte_copies) ... ok
++test_shared_functions_are_the_first_attempts_source (test_activation.FirstAttemptCodeUnchanged.test_shared_functions_are_the_first_attempts_source) ... ok
++test_availability_absent_is_recorded_never_pretended (test_activation.GuestdBaseline.test_availability_absent_is_recorded_never_pretended) ... ok
++test_collect_end_to_end_with_stubs (test_activation.GuestdBaseline.test_collect_end_to_end_with_stubs) ... ok
++test_exact_original_guests_pass_and_only_kept_fields (test_activation.GuestdBaseline.test_exact_original_guests_pass_and_only_kept_fields) ... ok
++test_listing_must_be_fresh_and_private (test_activation.GuestdBaseline.test_listing_must_be_fresh_and_private) ... ok
++test_original_baseline_is_pinned (test_activation.GuestdBaseline.test_original_baseline_is_pinned) ... ok
++test_refusals (test_activation.GuestdBaseline.test_refusals) ... ok
++test_exact_fresh_verdict_passes (test_activation.KeepVerdict.test_exact_fresh_verdict_passes) ... ok
++test_keep_uses_the_strict_check (test_activation.KeepVerdict.test_keep_uses_the_strict_check) ... ok
++test_substring_or_failed_or_stale_evidence_refuses (test_activation.KeepVerdict.test_substring_or_failed_or_stale_evidence_refuses) ... ok
++test_preflight (test_activation.Preconditions.test_preflight) ... ok
++test_baseline_passes (test_activation.Protected.test_baseline_passes) ... ok
++test_every_protected_field_refuses (test_activation.Protected.test_every_protected_field_refuses) ... ok
++test_cas_refuses_changed_env_or_existing_backup_and_restores_on_failed_restart (test_activation.RemoteScripts.test_cas_refuses_changed_env_or_existing_backup_and_restores_on_failed_restart) ... ok
++test_cas_success_keeps_the_first_backup (test_activation.RemoteScripts.test_cas_success_keeps_the_first_backup) ... ok
++test_only_dist_changes_every_other_byte_preserved (test_activation.RewriteDist.test_only_dist_changes_every_other_byte_preserved) ... ok
++test_refuses_concurrent_config_change (test_activation.SafeRollback.test_refuses_concurrent_config_change) ... ok
++test_stop_first_wait_deadline_then_restore_and_start (test_activation.SafeRollback.test_stop_first_wait_deadline_then_restore_and_start) ... ok
++test_unreadable_journal_waits_the_ttl_bound (test_activation.SafeRollback.test_unreadable_journal_waits_the_ttl_bound) ... ok
++
++----------------------------------------------------------------------
++Ran 32 tests in 0.211s
++
++OK
++== node
++TAP version 13
++# Subtest: viem default max fee = ceil(base x 1.2) + tip
++ok 1 - viem default max fee = ceil(base x 1.2) + tip
++  ---
++  duration_ms: 0.639375
++  type: 'test'
++  ...
++# Subtest: root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
++ok 2 - root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
++  ---
++  duration_ms: 0.172239
++  type: 'test'
++  ...
++# Subtest: L1 and operator fees count; the size argument must cover the signed maximum
++ok 3 - L1 and operator fees count; the size argument must cover the signed maximum
++  ---
++  duration_ms: 0.195259
++  type: 'test'
++  ...
++# Subtest: the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
++ok 4 - the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
++  ---
++  duration_ms: 1.682516
++  type: 'test'
++  ...
++# Subtest: the decision is the reviewed commit's bootRegistrationAction; any other commit is refused
++ok 5 - the decision is the reviewed commit's bootRegistrationAction; any other commit is refused
++  ---
++  duration_ms: 6.579976
++  type: 'test'
++  ...
++# Subtest: root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
++ok 6 - root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
++  ---
++  duration_ms: 66.086533
++  type: 'test'
++  ...
++# Subtest: refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
++ok 7 - refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
++  ---
++  duration_ms: 357.606835
++  type: 'test'
++  ...
++# Subtest: RPC disagreement or a non-Base RPC refuses before any decision
++ok 8 - RPC disagreement or a non-Base RPC refuses before any decision
++  ---
++  duration_ms: 1.375379
++  type: 'test'
++  ...
++# Subtest: block agreement is canonical (number/hash/parentHash/timestamp): provider field ORDER and metadata are ignored (root 22:07/22:08)
++ok 9 - block agreement is canonical (number/hash/parentHash/timestamp): provider field ORDER and metadata are ignored (root 22:07/22:08)
++  ---
++  duration_ms: 48.688374
++  type: 'test'
++  ...
++1..9
++# tests 9
++# suites 0
++# pass 9
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 636.4131
++== mutants
++control (unmutated copy) passes
++KILLED   config-before-stop
++KILLED   no-deadline-wait
++KILLED   no-concurrent-config-cas
++KILLED   no-dropin-check
++KILLED   non-additive-admission
++KILLED   cas-no-restore
++KILLED   small-margin-ok
++KILLED   admission-drops-prior
++KILLED   admission-count-ignored
++KILLED   build-any-approval
++KILLED   build-marker-at-least-once
++KILLED   build-a6-image-ok
++KILLED   build-kernel-may-change
++KILLED   build-measurement-file-unchecked
++KILLED   source-bytes-unchecked
++KILLED   approval-unchecked
++KILLED   plan-unchecked
++KILLED   guestd-replacement-adopted
++KILLED   guestd-starting-ok
++KILLED   guestd-no-record-ok
++KILLED   guestd-history-ignored
++KILLED   guestd-two-live-ok
++KILLED   guestd-stale-listing-ok
++KILLED   guestd-public-listing-ok
++KILLED   availability-pretends-adopted
++KILLED   funding-register-accepted
++KILLED   funding-fields-ignored
++KILLED   funding-pending-ignored
++KILLED   funding-no-headroom
++KILLED   funding-delegation-ignored
++KILLED   funding-stale-ok
++KILLED   funding-min-gas
++KILLED   keep-any-measurement
++KILLED   keep-failed-verdict-ok
++KILLED   keep-raw-unchecked
++KILLED   keep-before-attach-ok
++KILLED   block-hash-ignored
++SURVIVED block-timestamp-ignored
++KILLED   block-number-unchecked
++KILLED   block-null-accepted
++KILLED   decision-from-working-tree
++mutants 41 survived 1
++== scan
++3:11PM INF scanned ~215216 bytes (215.22 KB) in 23.9ms
++3:11PM INF no leaks found
++literal files []
++[scan] files 57 gitleaks=0 scan-crypto-keys=0 literal=0
++== RESULT rc=1
++[memory-guard] exit=1 peakTreeRssMiB=173 minHostAvailableMiB=23242
++[memory-guard] at peak: node:74 node:52 python3:24 python3:17 bash:6
++[queue] EXIT 1
+diff --git a/logs/t3.rc b/logs/t3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/t3.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/t4.guard.log b/logs/t4.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..487ed855b3cbf1f80f32d0796db88a87b78d5745
+--- /dev/null
++++ b/logs/t4.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=173 minHostAvailableMiB=23162
+diff --git a/logs/t4.out b/logs/t4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..e930e4aea034fc5ca30917898728ad801ea5a890
+--- /dev/null
++++ b/logs/t4.out
+@@ -0,0 +1,158 @@
++[queue] START available=23428MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++== python
++test_additive_36_to_37_in_installed_order (test_activation.Admission.test_additive_36_to_37_in_installed_order) ... ok
++test_refusals (test_activation.Admission.test_refusals) ... ok
++test_refusals (test_activation.BootFunding.test_refusals) ... ok
++test_root_actual_read_passes_with_headroom (test_activation.BootFunding.test_root_actual_read_passes_with_headroom) ... ok
++test_runner_failure_names_the_error_line (test_activation.BootFunding.test_runner_failure_names_the_error_line) ... ok
++test_runner_failure_refuses (test_activation.BootFunding.test_runner_failure_refuses) ... ok
++test_approval_and_plan (test_activation.Build.test_approval_and_plan) ... ok
++test_refusals (test_activation.Build.test_refusals) ... ok
++test_source_is_the_reviewed_commit (test_activation.Build.test_source_is_the_reviewed_commit) ... ok
++test_staged_dir_hashes (test_activation.Build.test_staged_dir_hashes) ... ok
++test_the_actual_completed_build_passes (test_activation.Build.test_the_actual_completed_build_passes) ... ok
++test_activation_after_the_write_is_the_first_attempts (test_activation.FirstAttemptCodeUnchanged.test_activation_after_the_write_is_the_first_attempts)
++Everything from the write on (restart, attach, adoption of the SAME guests, gate v4, renewals, rollback) is unchanged ... ok
++test_gate_files_are_the_reviewed_byte_copies (test_activation.FirstAttemptCodeUnchanged.test_gate_files_are_the_reviewed_byte_copies) ... ok
++test_shared_functions_are_the_first_attempts_source (test_activation.FirstAttemptCodeUnchanged.test_shared_functions_are_the_first_attempts_source) ... ok
++test_availability_absent_is_recorded_never_pretended (test_activation.GuestdBaseline.test_availability_absent_is_recorded_never_pretended) ... ok
++test_collect_end_to_end_with_stubs (test_activation.GuestdBaseline.test_collect_end_to_end_with_stubs) ... ok
++test_exact_original_guests_pass_and_only_kept_fields (test_activation.GuestdBaseline.test_exact_original_guests_pass_and_only_kept_fields) ... ok
++test_listing_must_be_fresh_and_private (test_activation.GuestdBaseline.test_listing_must_be_fresh_and_private) ... ok
++test_original_baseline_is_pinned (test_activation.GuestdBaseline.test_original_baseline_is_pinned) ... ok
++test_refusals (test_activation.GuestdBaseline.test_refusals) ... ok
++test_exact_fresh_verdict_passes (test_activation.KeepVerdict.test_exact_fresh_verdict_passes) ... ok
++test_keep_uses_the_strict_check (test_activation.KeepVerdict.test_keep_uses_the_strict_check) ... ok
++test_substring_or_failed_or_stale_evidence_refuses (test_activation.KeepVerdict.test_substring_or_failed_or_stale_evidence_refuses) ... ok
++test_preflight (test_activation.Preconditions.test_preflight) ... ok
++test_baseline_passes (test_activation.Protected.test_baseline_passes) ... ok
++test_every_protected_field_refuses (test_activation.Protected.test_every_protected_field_refuses) ... ok
++test_cas_refuses_changed_env_or_existing_backup_and_restores_on_failed_restart (test_activation.RemoteScripts.test_cas_refuses_changed_env_or_existing_backup_and_restores_on_failed_restart) ... ok
++test_cas_success_keeps_the_first_backup (test_activation.RemoteScripts.test_cas_success_keeps_the_first_backup) ... ok
++test_only_dist_changes_every_other_byte_preserved (test_activation.RewriteDist.test_only_dist_changes_every_other_byte_preserved) ... ok
++test_refuses_concurrent_config_change (test_activation.SafeRollback.test_refuses_concurrent_config_change) ... ok
++test_stop_first_wait_deadline_then_restore_and_start (test_activation.SafeRollback.test_stop_first_wait_deadline_then_restore_and_start) ... ok
++test_unreadable_journal_waits_the_ttl_bound (test_activation.SafeRollback.test_unreadable_journal_waits_the_ttl_bound) ... ok
++
++----------------------------------------------------------------------
++Ran 32 tests in 0.221s
++
++OK
++== node
++TAP version 13
++# Subtest: viem default max fee = ceil(base x 1.2) + tip
++ok 1 - viem default max fee = ceil(base x 1.2) + tip
++  ---
++  duration_ms: 0.679465
++  type: 'test'
++  ...
++# Subtest: root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
++ok 2 - root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
++  ---
++  duration_ms: 0.178618
++  type: 'test'
++  ...
++# Subtest: L1 and operator fees count; the size argument must cover the signed maximum
++ok 3 - L1 and operator fees count; the size argument must cover the signed maximum
++  ---
++  duration_ms: 0.218158
++  type: 'test'
++  ...
++# Subtest: the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
++ok 4 - the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
++  ---
++  duration_ms: 3.120335
++  type: 'test'
++  ...
++# Subtest: the decision is the reviewed commit's bootRegistrationAction; any other commit is refused
++ok 5 - the decision is the reviewed commit's bootRegistrationAction; any other commit is refused
++  ---
++  duration_ms: 6.684506
++  type: 'test'
++  ...
++# Subtest: root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
++ok 6 - root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
++  ---
++  duration_ms: 60.45003
++  type: 'test'
++  ...
++# Subtest: refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
++ok 7 - refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
++  ---
++  duration_ms: 363.183671
++  type: 'test'
++  ...
++# Subtest: RPC disagreement or a non-Base RPC refuses before any decision
++ok 8 - RPC disagreement or a non-Base RPC refuses before any decision
++  ---
++  duration_ms: 1.399578
++  type: 'test'
++  ...
++# Subtest: block agreement is canonical (number/hash/parentHash/timestamp): provider field ORDER and metadata are ignored (root 22:07/22:08)
++ok 9 - block agreement is canonical (number/hash/parentHash/timestamp): provider field ORDER and metadata are ignored (root 22:07/22:08)
++  ---
++  duration_ms: 54.272569
++  type: 'test'
++  ...
++1..9
++# tests 9
++# suites 0
++# pass 9
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 637.114677
++== mutants
++control (unmutated copy) passes
++KILLED   config-before-stop
++KILLED   no-deadline-wait
++KILLED   no-concurrent-config-cas
++KILLED   no-dropin-check
++KILLED   non-additive-admission
++KILLED   cas-no-restore
++KILLED   small-margin-ok
++KILLED   admission-drops-prior
++KILLED   admission-count-ignored
++KILLED   build-any-approval
++KILLED   build-marker-at-least-once
++KILLED   build-a6-image-ok
++KILLED   build-kernel-may-change
++KILLED   build-measurement-file-unchecked
++KILLED   source-bytes-unchecked
++KILLED   approval-unchecked
++KILLED   plan-unchecked
++KILLED   guestd-replacement-adopted
++KILLED   guestd-starting-ok
++KILLED   guestd-no-record-ok
++KILLED   guestd-history-ignored
++KILLED   guestd-two-live-ok
++KILLED   guestd-stale-listing-ok
++KILLED   guestd-public-listing-ok
++KILLED   availability-pretends-adopted
++KILLED   funding-register-accepted
++KILLED   funding-fields-ignored
++KILLED   funding-pending-ignored
++KILLED   funding-no-headroom
++KILLED   funding-delegation-ignored
++KILLED   funding-stale-ok
++KILLED   funding-min-gas
++KILLED   keep-any-measurement
++KILLED   keep-failed-verdict-ok
++KILLED   keep-raw-unchecked
++KILLED   keep-before-attach-ok
++KILLED   block-hash-ignored
++KILLED   block-timestamp-ignored
++KILLED   block-number-unchecked
++KILLED   block-null-accepted
++KILLED   decision-from-working-tree
++mutants 41 survived 0
++== scan
++3:12PM INF scanned ~223431 bytes (223.43 KB) in 23.4ms
++3:12PM INF no leaks found
++literal files []
++[scan] files 60 gitleaks=0 scan-crypto-keys=0 literal=0
++== RESULT rc=0
++[memory-guard] exit=0 peakTreeRssMiB=173 minHostAvailableMiB=23162
++[memory-guard] at peak: node:73 node:52 python3:25 python3:17 bash:6
++[queue] EXIT 0
+diff --git a/logs/t4.rc b/logs/t4.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/t4.rc
+@@ -0,0 +1 @@
++0
+diff --git a/mutants.py b/mutants.py
+index 78681fe119e25718d22a28d61824edbf83710a80..2fcf461b818ccdf92a7ec739d9e2be2fca9fa479 100644
+--- a/mutants.py
++++ b/mutants.py
+@@ -3,6 +3,13 @@
+ import shutil, subprocess, sys
+ from pathlib import Path
+ A = Path(__file__).resolve().parent; SRC = (A/'common.py').read_text()
++OTHER = {   # name: (file, from, to) - run against the python suite AND the node tests
++ 'block-hash-ignored': ('boot-funding.mjs', 'export const CANONICAL_BLOCK = ["number", "hash", "parentHash", "timestamp"];', 'export const CANONICAL_BLOCK = ["number", "parentHash", "timestamp"];'),
++ 'block-timestamp-ignored': ('boot-funding.mjs', 'export const CANONICAL_BLOCK = ["number", "hash", "parentHash", "timestamp"];', 'export const CANONICAL_BLOCK = ["number", "hash", "parentHash"];'),
++ 'block-number-unchecked': ('boot-funding.mjs', '  if (BigInt(blocks[0].number) !== n) throw', '  if (false) throw'),
++ 'block-null-accepted': ('boot-funding.mjs', '  return !!x && !!y && CANONICAL_BLOCK.every(', '  return (!x || !y) || CANONICAL_BLOCK.every('),
++ 'decision-from-working-tree': ('boot-funding.mjs', '  if (got !== want) throw new Error', '  if (false) throw new Error'),
++}
+ MUT = {
+  # the first attempt's (unchanged code)
+  'config-before-stop': ("    ops.systemctl('stop', UNIT)\n", "    atomic_config(old_config, config.stat().st_mode & 0o777, config)\n    ops.systemctl('stop', UNIT)\n"),
+@@ -38,13 +45,21 @@
+  'funding-delegation-ignored': ("        if lc(f['operator']['code']) != P['operatorCode']: out.append", "        if False: out.append"),
+  'funding-stale-ok': ("        if age >= P['maxAgeS'] or age < -30: out.append", "        if False: out.append"),
+  'funding-min-gas': ("        if gas != max(int(x) for x in sp['gasEstimates'])", "        if gas != min(int(x) for x in sp['gasEstimates'])"),
++ 'keep-any-measurement': ("or v.get('expectedMeasurement') != want or v.get('observedMeasurement') != want or", "or"),
++ 'keep-failed-verdict-ok': ("    if v.get('pass') is not True: out.append('pass is not true')\n    if v.get('status') != 'verified' or v.get('admissionSafe') is not True: out.append", "    if False: out.append"),
++ 'keep-raw-unchecked': ("        if file_sha(raw) != v.get('rawSha256'): out.append", "        if False: out.append"),
++ 'keep-before-attach-ok': ("        if not attached_at or at <= datetime.datetime.fromisoformat(attached_at).timestamp(): out.append", "        if False: out.append"),
+ }
+-def run(name, src):
++def run(name, src, file='common.py'):
+     d = A.parent / f'{A.name}.mut-{name}'
+     if d.exists(): shutil.rmtree(d)
+-    shutil.copytree(A, d, ignore=shutil.ignore_patterns('.git', 'logs', '__pycache__', '*.mut-*'))
+-    (d/'common.py').write_text(src)
++    # never root's runtime files: evidence/ carries only the pinned original baseline into the copy
++    shutil.copytree(A, d, ignore=shutil.ignore_patterns('.git', 'logs', '__pycache__', '*.mut-*', '*private*', 'boot-funding*.json', 'guestd-baseline*.json',
++                                                         'lease-preflight*.json', 'ROOT-*', 'result.json', 'private-backup'))
++    (d/file).write_text(src)
+     r = subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests'], cwd=d, capture_output=True, text=True, timeout=600)
++    if r.returncode == 0:
++        r = subprocess.run(['node', '--test', 'tests/boot-funding.test.mjs'], cwd=d, capture_output=True, text=True, timeout=600)
+     shutil.rmtree(d); return r
+ c = run('control', SRC)
+ if c.returncode != 0: print('CONTROL FAILED: the run is invalid\n' + c.stderr[-2000:]); sys.exit(2)
+@@ -54,4 +69,8 @@
+     assert SRC.count(a) == 1, (name, a[:70])
+     r = run(name, SRC.replace(a, b)); killed = r.returncode != 0; bad += not killed
+     print(('KILLED  ' if killed else 'SURVIVED'), name)
+-print(f'mutants {len(MUT)} survived {bad}'); sys.exit(1 if bad else 0)
++for name, (f, a, b) in OTHER.items():
++    s = (A/f).read_text(); assert s.count(a) == 1, (name, a[:70])
++    r = run(name, s.replace(a, b), f); killed = r.returncode != 0; bad += not killed
++    print(('KILLED  ' if killed else 'SURVIVED'), name)
++print(f'mutants {len(MUT) + len(OTHER)} survived {bad}'); sys.exit(1 if bad else 0)
+diff --git a/tests/boot-funding.test.mjs b/tests/boot-funding.test.mjs
+index d0fbc11ad233788c9dd3e0e5301993610d0efc71..deb6673af3beb73f1d816721aa7612776e02fdc5 100644
+--- a/tests/boot-funding.test.mjs
++++ b/tests/boot-funding.test.mjs
+@@ -5,7 +5,7 @@
+ import path from "node:path";
+ import { spawnSync } from "node:child_process";
+ import { fileURLToPath, pathToFileURL } from "node:url";
+-import { collect, reviewedDecision, H_REPO, PINS, ROW, ORACLE, REG } from "../boot-funding.mjs";
++import { collect, reviewedDecision, sameBlock, CANONICAL_BLOCK, H_REPO, PINS, ROW, ORACLE, REG } from "../boot-funding.mjs";
+ 
+ const HERE = path.dirname(fileURLToPath(import.meta.url)), A = path.resolve(HERE, "..");
+ const viem = await import(pathToFileURL(path.join(H_REPO, "node_modules/viem/_esm/index.js")).href);
+@@ -24,7 +24,8 @@
+     switch (method) {
+       case "eth_chainId": return "0x2105";
+       case "eth_blockNumber": return "0x328b2ed";
+-      case "eth_getBlockByNumber": return { hash: "0x" + "78".repeat(32), timestamp: "0x" + ts.toString(16), baseFeePerGas: "0x4c4b40" };
++      case "eth_getBlockByNumber": return { hash: "0x" + "78".repeat(32), parentHash: "0x" + "77".repeat(32), number: params[0] === "latest" ? "0x328b2ef" : params[0],
++        timestamp: "0x" + ts.toString(16), baseFeePerGas: "0x4c4b40" };
+       case "eth_getCode": {
+         const a = params[0].toLowerCase();
+         return a === PINS.registry ? CODE.registry : a === PINS.operator ? "0xef0100" + PINS.executor.slice(2) : a === PINS.executor ? CODE.executor : "0x";
+@@ -68,7 +69,7 @@
+   assert.deepEqual(decide({ operator: PINS.operator, active: true, endpoint: "e", repo: "r", measurement: "0x00", cpuPricePerSec6: 1n, gpuPricePerSec6: 2n, proofKey: "0x1" },
+     { operator: PINS.operator, endpoint: "e", repo: "r", measurement: "0x00", cpuPricePerSec6: 1n, gpuPricePerSec6: 2n, proofKey: "0x2" }),
+     { action: "setProofKey", reason: "only the proof key differs" });
+-  assert.throws(() => reviewedDecision("a6b1378cdf430217025987d90c040d0e25a9993d"), /not the reviewed bytes|not found/);
++  assert.throws(() => reviewedDecision("a6b1378cdf430217025987d90c040d0e25a9993d"), /not the reviewed bytes/);
+   assert.throws(() => reviewedDecision("HEAD"), /40 hex/);
+ });
+ 
+@@ -100,3 +101,27 @@
+   await assert.rejects(run({ over: (u, m) => (u === RPCS[0] && m === "eth_chainId" ? "0x1" : undefined) }), /not Base/);
+   await assert.rejects(collect({ call: chain(), rpcs: [RPCS[0], RPCS[0]], viem, decide, commit: COMMIT, supervisorSha256 }), /two distinct/);
+ });
++
++test("block agreement is canonical (number/hash/parentHash/timestamp): provider field ORDER and metadata are ignored (root 22:07/22:08)", async () => {
++  const T = "0x" + (Math.floor(Date.now() / 1000) - 10).toString(16);
++  const blk = { number: "0x328bf13", hash: "0x" + "ab".repeat(32), parentHash: "0x" + "cd".repeat(32), timestamp: "0x6a1b2c3d", baseFeePerGas: "0x4c4b40", size: "0x10" };
++  const reordered = Object.fromEntries(Object.entries({ ...blk, totalDifficulty: "0x0" }).reverse());
++  assert.ok(sameBlock(blk, reordered), "same canonical fields, other order + provider metadata");
++  assert.ok(sameBlock(blk, { ...blk, hash: blk.hash.toUpperCase().replace("0X", "0x") }), "hex case");
++  assert.deepEqual(CANONICAL_BLOCK, ["number", "hash", "parentHash", "timestamp"]);
++  for (const k of ["number", "hash", "parentHash", "timestamp"]) assert.ok(!sameBlock(blk, { ...blk, [k]: "0x1" }), `${k} differs`);
++  assert.ok(!sameBlock(blk, null) && !sameBlock(null, blk) && !sameBlock(blk, { ...blk, hash: undefined }));
++  // end to end: RPC B answers the agreed block with reversed properties and an extra field -> accepted, the gate passes
++  const flip = (u, m, p) => (u === RPCS[1] && m === "eth_getBlockByNumber" && p[0] !== "latest"
++    ? Object.fromEntries(Object.entries({ hash: "0x" + "78".repeat(32), parentHash: "0x" + "77".repeat(32), number: p[0], timestamp: T, baseFeePerGas: "0x4c4b40", requestsHash: "0x00" }).reverse())
++    : undefined);
++  const same = (u, m, p) => (m === "eth_getBlockByNumber" && p[0] !== "latest"
++    ? { hash: "0x" + "78".repeat(32), parentHash: "0x" + "77".repeat(32), number: p[0], timestamp: T, baseFeePerGas: "0x4c4b40" }
++    : undefined);
++  const f = await run({ over: (u, m, p) => flip(u, m, p) ?? same(u, m, p) });
++  assert.deepEqual(gate(f), []);
++  // a different hash (or a null block from a lagging backend) still refuses
++  await assert.rejects(run({ over: (u, m, p) => (u === RPCS[1] && m === "eth_getBlockByNumber" && p[0] !== "latest" ? { ...same(u, m, p), hash: "0x" + "99".repeat(32) } : same(u, m, p)) }), /disagree on block/);
++  await assert.rejects(run({ over: (u, m, p) => (u === RPCS[0] && m === "eth_getBlockByNumber" && p[0] !== "latest" ? null : same(u, m, p)) }), /disagree on block/);
++  await assert.rejects(run({ over: (u, m, p) => (m === "eth_getBlockByNumber" && p[0] !== "latest" ? { ...same(u, m, p), number: "0x1" } : undefined) }), /asked for block/);
++});
+diff --git a/tests/test_activation.py b/tests/test_activation.py
+index 675af2889db6bd6ff4e10ca9765f15ed837eb6e5..3790db68d907533cf4c2173fd3d1a16b91cafa01 100644
+--- a/tests/test_activation.py
++++ b/tests/test_activation.py
+@@ -431,6 +431,48 @@
+         f, probs = C.boot_funding(['https://a', 'https://b'], C.REVIEWED['commit'], '/nonexistent', run=lambda *a, **k: R)
+         self.assertIsNone(f); self.assertRegex(probs[0], 'disagree')
+ 
++    def test_runner_failure_names_the_error_line(self):
++        class R: returncode, stdout = 1, ''
++        R.stderr = 'file:///x/boot-funding.mjs:60\n  const agree = ...\n\nError: RPCs disagree on block\n    at agree (file:///x:60:146)\n' + 'x' * 400 + '\nNode.js v22.23.3'
++        _f, probs = C.boot_funding(['https://a', 'https://b'], C.REVIEWED['commit'], '/nonexistent', run=lambda *a, **k: R)
++        self.assertIn('Error: RPCs disagree on block', probs[0])
++
++
++# ---- keep: a strict verdict, never a substring --------------------------------------------------------------------------------
++class KeepVerdict(unittest.TestCase):
++    want = hashlib.sha384(b'approved candidate').hexdigest()
++    def setUp(self):
++        self.d = Path(tempfile.mkdtemp()); self.raw = self.d/'attestation-raw.json'; self.raw.write_text('{"quote": "..."}'); self.raw.chmod(0o600)
++        self.now = time.time(); self.attached = '2026-10-23T23:00:00+00:00'
++        import datetime as dt
++        at = dt.datetime.fromtimestamp(self.now - 60, dt.timezone.utc).isoformat()
++        self.attached = dt.datetime.fromtimestamp(self.now - 600, dt.timezone.utc).isoformat()
++        self.v = {'probe': 'attest-control/1', 'target': 'recovery', 'pass': True, 'status': 'verified', 'admissionSafe': True,
++                  'expectedMeasurement': self.want, 'observedMeasurement': self.want, 'measurementMatches': True,
++                  'required': {k: 'PASS' for k in C.VERDICT_REQUIRED}, 'freshness': 'verifier nonce', 'nonce': 'ab' * 32, 'vmpl': 0,
++                  'failedChecks': [], 'at': at, 'rawSha256': C.sha(self.raw.read_bytes())}
++    def p(self, v, raw=None): return C.attestation_verdict_problems(v, self.want, self.attached, self.now, raw or self.raw)
++
++    def test_exact_fresh_verdict_passes(self):
++        self.assertEqual(self.p(self.v), [])
++
++    def test_substring_or_failed_or_stale_evidence_refuses(self):
++        self.assertTrue(self.p({'note': 'mentions ' + self.want}), 'naming the measurement is not a verdict')
++        self.assertTrue(self.p('verified ' + self.want))
++        for over, why in [({'pass': False}, 'pass'), ({'status': 'unavailable'}, 'status'), ({'observedMeasurement': PRIOR}, 'approved measurement'),
++                          ({'expectedMeasurement': PRIOR, 'observedMeasurement': PRIOR}, 'approved measurement'), ({'required': {'chain': 'PASS'}}, 'required check'),
++                          ({'nonce': 'short'}, 'nonce'), ({'vmpl': 1}, 'vmpl'), ({'failedChecks': ['tcb policy']}, 'failed checks'),
++                          ({'at': self.attached}, 'not after the attachment'), ({'at': '2026-10-23T00:00:00+00:00'}, 'not after|old'), ({'probe': 'other'}, 'attest-control'),
++                          ({'rawSha256': '0' * 64}, 'rawSha256')]:
++            self.assertRegex('; '.join(self.p({**self.v, **over})), why)
++        self.raw.chmod(0o644); self.assertRegex('; '.join(self.p(self.v)), '0600')
++        self.assertRegex('; '.join(self.p(self.v, self.d/'missing.json')), 'missing')
++
++    def test_keep_uses_the_strict_check(self):
++        k = (C.A/'keep.py').read_text()
++        self.assertIn('attestation_verdict_problems(json.loads(ev), NEW[\'measurement\']', k)
++        self.assertNotIn(".encode() in ev", k)
++
+ 
+ if __name__ == '__main__':
+     unittest.main()

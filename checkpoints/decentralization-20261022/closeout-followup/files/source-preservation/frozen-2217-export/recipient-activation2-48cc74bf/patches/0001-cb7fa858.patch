@@ -1,0 +1,465 @@
+From cb7fa858b8dc456217a0a9787cdff790cb5c8753 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:48:58 -0700
+Subject: [PATCH] metal0 legacy control: proof-key verification around
+ setProofKey (source + offline tests; not run live)
+
+measured-control-verify does not apply (metal0 runs the legacy control, no /.well-known/enclave-control). Three parts:
+A fresh nonce-bound quote via frozen attest-control.mjs; B the supervisor's /t/metal0/v1/attestation proof key + document
+bound to the same transport key and measurement (relay-routed, not hardware-bound); C quorum registry row. Status
+verified-legacy | pending-registry (exit 2) | rejected | unknown. Tests 5/5.
+---
+ PROOFKEY.md                       | 102 +++++++++++++++++++++
+ commit-proofkey.sh                |  24 +++++
+ logs/proofkey-tests-1.guard.log   |   1 +
+ logs/proofkey-tests-1.out         |  44 +++++++++
+ logs/proofkey-tests-1.rc          |   1 +
+ tests/recipient-proofkey.test.mjs |  79 ++++++++++++++++
+ verify-recipient-proofkey.mjs     | 145 ++++++++++++++++++++++++++++++
+ 7 files changed, 396 insertions(+)
+ create mode 100644 PROOFKEY.md
+ create mode 100755 commit-proofkey.sh
+ create mode 100644 logs/proofkey-tests-1.guard.log
+ create mode 100644 logs/proofkey-tests-1.out
+ create mode 100644 logs/proofkey-tests-1.rc
+ create mode 100644 tests/recipient-proofkey.test.mjs
+ create mode 100644 verify-recipient-proofkey.mjs
+
+diff --git a/PROOFKEY.md b/PROOFKEY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..ba350314d83d15a8754e37957058560141cbda22
+--- /dev/null
++++ b/PROOFKEY.md
+@@ -0,0 +1,102 @@
++# Proof-key verification around root's setProofKey (ROOT-BOOT-RECOVERY-VERIFY.txt)
++
++This is source plus offline tests, prepared 2026-10-23. **No live run.** `attest-control.mjs` (2d407753), the activation scripts
++and root's files are unchanged.
++
++## `metal/measured-control-verify.mjs` cannot verify metal0
++
++That verifier is for the **direct** measured-control guest (cmdline `metal.control=direct`). It fetches
++`/.well-known/enclave-control`, whose statement `keys.proof` is bound into the report through the ABI/2 control role.
++
++metal0's control runs the **legacy** path, in both ed918e4b and ee5df6b8. Its cmdline is
++`metal.mode=snp metal.isolation=snp-guest-per-app`, and gsup serves that route only from `startDirectControl`.
++measured-control-verify therefore fails at its evidence step every time:
++- run, it would give a false REJECT;
++- calling the legacy result "measured-control verified" would be untrue.
++
++Neither is done. There is **no statement** in the legacy path. `servedDocumentSha256` (the supervisor's stored attestation
++document) stands where the statement hash would be.
++
++## The helper: `verify-recipient-proofkey.mjs`
++
++```
++node work/custody-recipient-activation-20261023/verify-recipient-proofkey.mjs --target current --expect-proof-key 0x<THIS boot's key>
++```
++
++The default for the current boot is `--target current` (ed918e4b, after the 21:37Z rollback); use `new` only if ee5df6b8 runs.
++
++**The proof key rotates on every CVM boot.** Pass the key the running boot's `/t/metal0/v1/attestation` serves. W's
++0x8853f452… is right only if that is still the running boot.
++
++All three parts must pass.
++
++| Part | Rests on | Checks |
++|---|---|---|
++| A. hardware | `attest-control.mjs` probe, unchanged | fresh quote over OUR nonce, AMD chain/CRL/policy/VMPL/TCB, full measurement pin; gives transport key T |
++| B. supervisor | relay-routed `/t/metal0/v1/attestation`; **not hardware-bound** | `proofKey.address` == expected, `keySource` in-enclave, session key present; stored document names T and the pinned measurement, `report_data[0:32]` = sha256(T) |
++| C. registry | quorum read of 0x868e… (2 of 3 public RPCs, lease modules byte-equal to production) | row `keccak("https://api.enclave.host/t/metal0")`: endpoint, operator 0xC9D0…E6aB, active; `proofKey` |
++
++**Status and exit code:**
++
++| Status | Exit | Meaning |
++|---|---|---|
++| `verified-legacy` | 0 | all three parts match |
++| `pending-registry` | 2 | A and B pass, but the registry still has the old key. This is the expected state before the setProofKey lands. |
++| `rejected` | 1 | any mismatch |
++| `unknown` | 1 | a read failed |
++
++The status is never plain "verified".
++
++**Output:**
++- **Public:** `evidence/recipient-proofkey-<UTC>.json` holds the expected and served proof key, `transportKeySha256`,
++  `servedDocumentSha256` and the registry fields. It carries no chip id and no raw report.
++- **Private:** `evidence/private/recipient-proofkey-raw-<UTC>.json`, mode 0600, gitignored, never overwritten.
++
++**Limits, written into every verdict:**
++- In legacy mode the proof key is bound only by the relay routing `/t/metal0` to the tunnel it attached with T. It is not in
++  any report_data.
++- The stored document is not fresh by itself; part A supplies freshness.
++
++**Tests:** `tests/recipient-proofkey.test.mjs`, all stubbed, ran **5/5** (`logs/proofkey-tests-1.out`, 256 lane). They cover:
++- verified-legacy;
++- pending on the old registry key;
++- 14 reject cases;
++- 5 unknown cases;
++- input checks, no leaks, and the 0600 raw file.
++
++**Not done:** a mutation run of this helper. That differs from `attest-control.mjs`, which has one (9/9 killed).
++
++## Build for H, gated on root's approval: `../custody-recipient-restore-20261023/build-approved.sh`
++
++The template is prepared and **not run**. Without root's `APPROVED-COMMIT.txt` it refuses; see the format in its header.
++
++When root approves a commit:
++
++1. **Commit checks:**
++   - the commit is in H's repo and descends from a6b1378c;
++   - its delta touches only `supervisor.js`, the approved extras and `test/`;
++   - the builder is unchanged;
++   - the staged a6, base and production images are unchanged.
++2. **Control:** a6b1378c rebuilt from H's repo must equal the staged ee5df6b8 image byte for byte.
++3. **Candidate:** built twice, byte-identical.
++4. **Manifest versus a6:** only these may differ:
++   - `controlOverlay.commit`;
++   - the changed file records, which must be within supervisor.js plus the extras (supervisorClosure, builder and base
++     unchanged, nothing removed);
++   - `initramfs`.
++5. **Image entries:**
++   - versus a6: exactly those files plus `manifest.json`;
++   - versus production: those plus `gsup.mjs`.
++6. **Image bytes:** every changed file in the image, and `gsup.mjs`, equals the commit's bytes.
++7. **Measurement:** the recipe must reproduce ed918e4b and ee5df6b8 first, then the candidate is measured.
++
++The builder reads only git objects and the base image, so H's dirty working tree cannot leak into an image.
++
++**Run:** `./q.sh 1024 build-approved-1 bash ./build-approved.sh`. The restore build peaked at 301 MiB, within root's 1536.
++
++**Refusal tests:** `refusal-tests/run.sh` ran **6/6**, each refusing before any build (`logs/build-approved-refusal-2.out`). The
++cases: no file, a short hash, no extra line, an unknown commit, a non-descendant (deabf8f), and an empty delta (a6 itself).
++
++The delta and manifest checks only run on a real build, so they have no offline test.
++
++**H today:** still at a6b1378 with `supervisor.js` and the test uncommitted. There is no H commit to approve yet.
+diff --git a/commit-proofkey.sh b/commit-proofkey.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..0a16a7c02e68c8584c202c5e5188c5933c350c27
+--- /dev/null
++++ b/commit-proofkey.sh
+@@ -0,0 +1,24 @@
++#!/bin/bash
++# Scan (unchanged scanners) then commit ONLY this task's files; root's live files stay untracked.
++set -euo pipefail
++cd "$(dirname "$0")"
++FILES="verify-recipient-proofkey.mjs tests/recipient-proofkey.test.mjs PROOFKEY.md commit-proofkey.sh logs/proofkey-tests-1.out logs/proofkey-tests-1.guard.log logs/proofkey-tests-1.rc"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++st=$(mktemp -d); for f in $FILES; do mkdir -p "$st/$(dirname $f)"; cp "$f" "$st/$f"; done
++cfg=$(mktemp); git -C "$CKR" show HEAD:.gitleaks.toml > "$cfg"
++/home/steven/.local/bin/gitleaks dir "$st" --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path /dev/null
++find "$st" -type f -print0 | xargs -0 python3 "$CKR/.githooks/scan-crypto-keys.py" --files
++python3 - "$st" <<'PY'
++import pathlib, sys
++OLD = bytes.fromhex('54696e666f696c'); bad = [str(p) for p in pathlib.Path(sys.argv[1]).rglob('*') if p.is_file() and (OLD in p.read_bytes() or OLD.lower() in p.read_bytes())]
++assert not bad, bad; print('literal: none')
++PY
++rm -rf "$st" "$cfg"; echo "[scan] clean"
++git add -- $FILES
++git -c user.name=SteveDeFacto -c user.email=5148995+SteveDeFacto@users.noreply.github.com commit -q -m "metal0 legacy control: proof-key verification around setProofKey (source + offline tests; not run live)
++
++measured-control-verify does not apply (metal0 runs the legacy control, no /.well-known/enclave-control). Three parts:
++A fresh nonce-bound quote via frozen attest-control.mjs; B the supervisor's /t/metal0/v1/attestation proof key + document
++bound to the same transport key and measurement (relay-routed, not hardware-bound); C quorum registry row. Status
++verified-legacy | pending-registry (exit 2) | rejected | unknown. Tests 5/5."
++git log -1 --format='%H %an <%ae>'
+diff --git a/logs/proofkey-tests-1.guard.log b/logs/proofkey-tests-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/logs/proofkey-tests-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/logs/proofkey-tests-1.out b/logs/proofkey-tests-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..7d74a6d6bb128edc21b8cd1cb93908d21d5c44d8
+--- /dev/null
++++ b/logs/proofkey-tests-1.out
+@@ -0,0 +1,44 @@
++[queue] START available=23740MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: all three parts match: verified-legacy (never plain "verified"), exit 0
++ok 1 - all three parts match: verified-legacy (never plain "verified"), exit 0
++  ---
++  duration_ms: 2.136863
++  type: 'test'
++  ...
++# Subtest: registry still names the previous boot's key: pending-registry, exit 2
++ok 2 - registry still names the previous boot's key: pending-registry, exit 2
++  ---
++  duration_ms: 0.466766
++  type: 'test'
++  ...
++# Subtest: every other mismatch is REJECTED
++ok 3 - every other mismatch is REJECTED
++  ---
++  duration_ms: 2.216403
++  type: 'test'
++  ...
++# Subtest: failed reads are UNKNOWN, never pass or pending
++ok 4 - failed reads are UNKNOWN, never pass or pending
++  ---
++  duration_ms: 0.532916
++  type: 'test'
++  ...
++# Subtest: inputs are validated and the public output carries no chip id or raw quote
++ok 5 - inputs are validated and the public output carries no chip id or raw quote
++  ---
++  duration_ms: 1.279849
++  type: 'test'
++  ...
++1..5
++# tests 5
++# suites 0
++# pass 5
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 56.741531
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/proofkey-tests-1.rc b/logs/proofkey-tests-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/proofkey-tests-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/tests/recipient-proofkey.test.mjs b/tests/recipient-proofkey.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..01d7e0fff5c799de12793ea2a2cdfa150716849e
+--- /dev/null
++++ b/tests/recipient-proofkey.test.mjs
+@@ -0,0 +1,79 @@
++// verify-recipient-proofkey.mjs with stubs (no network, no chain, no production): every part must pass for
++// "verified-legacy"; a registry key not yet this boot's is PENDING; any other mismatch is REJECTED; a failed read is UNKNOWN.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import crypto from 'node:crypto';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import * as V from '../verify-recipient-proofkey.mjs';
++import { TARGETS } from '../attest-control.mjs';
++
++const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
++const KEY = '0x8853f452533e2f05eb4c9289f77dbeacc316d1ed', OLD_KEY = '0x' + '11'.repeat(20);
++const SPKI = crypto.randomBytes(91), CHIP = 'cd'.repeat(64);
++const M = { current: TARGETS.current.measurement, new: TARGETS.new.measurement };
++function report(meas, spki = SPKI) { const r = Buffer.alloc(0x4a0); crypto.createHash('sha256').update(spki).digest().copy(r, 0x50); Buffer.from(meas, 'hex').copy(r, 0x90); Buffer.from(CHIP, 'hex').copy(r, 0x1a0); return r; }
++const probeOk = (target, over = {}) => async () => ({ verdict: { pass: true, status: 'verified', required: { binding: 'PASS' }, observedMeasurement: M[target],
++  nonce: 'aa'.repeat(32), transportKeySha256: sha(SPKI), rawSha256: 'bb'.repeat(32), unavailable: ['x'], failedChecks: [], ...over }, raw: { text: 'RAW-QUOTE-' + CHIP } });
++const supervisor = (over = {}, doc = {}) => async () => ({ status: 200, text: async () => JSON.stringify({
++  proofKey: { address: KEY.toUpperCase().replace('0X', '0x'), keySource: 'in-enclave' }, sessionKey: { kid: 'kid1' },
++  enclave: { attestationDocument: { format: 'sev-snp-guest-metal-v1', transportKey: SPKI.toString('base64'), body: report(M.current).toString('base64'), ...doc } }, ...over }) });
++const reg = (over = {}) => async (id) => { assert.equal(id, V.REGISTRY_ID); return { endpoint: V.ENDPOINT, operator: V.OPERATOR, active: true, proofKey: KEY, measurement: '0x' + '00'.repeat(32), block: { number: '1' }, ...over }; };
++const run = (deps, target = 'current') => V.run({ target, expectProofKey: KEY, deps: { now: '2026-10-23T22:00:00Z', ...deps } }).then((r) => r.verdict);
++
++test('all three parts match: verified-legacy (never plain "verified"), exit 0', async () => {
++  const v = await run({ probe: probeOk('current'), fetchImpl: supervisor(), registry: reg() });
++  assert.equal(v.status, 'verified-legacy'); assert.equal(v.exitCode, 0); assert.equal(v.parts['C registry'], 'MATCH');
++  assert.match(v.parts['B supervisor'], /not hardware-bound/); assert.ok(v.limits.some((l) => /NOT applicable/.test(l)));
++  assert.equal(v.transportKeySha256, sha(SPKI)); assert.match(v.servedDocumentSha256, /^[0-9a-f]{64}$/);
++});
++
++test('registry still names the previous boot\'s key: pending-registry, exit 2', async () => {
++  const v = await run({ probe: probeOk('current'), fetchImpl: supervisor(), registry: reg({ proofKey: OLD_KEY }) });
++  assert.equal(v.status, 'pending-registry'); assert.equal(v.exitCode, 2); assert.equal(v.parts['C registry'], 'PENDING');
++});
++
++test('every other mismatch is REJECTED', async () => {
++  const other = crypto.randomBytes(91);
++  const cases = [
++    { probe: probeOk('current', { pass: false, status: 'rejected', failedChecks: ['binding'] }) },
++    { probe: probeOk('current', { observedMeasurement: M.new }) },
++    { fetchImpl: supervisor({ proofKey: { address: OLD_KEY, keySource: 'in-enclave' } }) },
++    { fetchImpl: supervisor({ proofKey: { address: KEY, keySource: 'operator' } }) },
++    { fetchImpl: supervisor({ sessionKey: null }) },
++    { fetchImpl: supervisor({}, { transportKey: other.toString('base64') }) },
++    { fetchImpl: supervisor({}, { body: report(M.new).toString('base64') }) },
++    { fetchImpl: supervisor({}, { body: report(M.current, other).toString('base64') }) },
++    { fetchImpl: supervisor({}, { format: 'sev-snp-guest-domain-v1' }) },
++    { fetchImpl: async () => ({ status: 404, text: async () => '{}' }) },
++    { registry: reg({ operator: '0x' + '22'.repeat(20) }) },
++    { registry: reg({ active: false }) },
++    { registry: reg({ endpoint: 'https://api.enclave.host/t/metal1' }) },
++    { registry: reg({ operator: '0x' + '00'.repeat(20) }) },
++  ];
++  for (const c of cases) {
++    const v = await run({ probe: probeOk('current'), fetchImpl: supervisor(), registry: reg(), ...c });
++    assert.equal(v.status, 'rejected', JSON.stringify(Object.keys(c)) + ' ' + v.reasons.join('|')); assert.equal(v.exitCode, 1);
++  }
++});
++
++test('failed reads are UNKNOWN, never pass or pending', async () => {
++  const cases = [{ probe: async () => { throw new Error('KDS 429'); } }, { probe: probeOk('current', { status: 'unavailable', pass: false, reasons: ['relay timeout'] }) },
++                 { fetchImpl: async () => { throw new Error('ECONNRESET'); } }, { fetchImpl: async () => ({ status: 503, text: async () => '' }) },
++                 { registry: async () => { throw new Error('quorum disagreed'); } }];
++  for (const c of cases) {
++    const v = await run({ probe: probeOk('current'), fetchImpl: supervisor(), registry: reg(), ...c });
++    assert.equal(v.status, 'unknown', v.reasons.join('|')); assert.equal(v.exitCode, 1);
++  }
++});
++
++test('inputs are validated and the public output carries no chip id or raw quote', async () => {
++  await assert.rejects(() => V.run({ target: 'current', expectProofKey: '0x123' }), /expect-proof-key/);
++  await assert.rejects(() => V.run({ target: 'other', expectProofKey: KEY }), /target/);
++  const { verdict, raw } = await V.run({ target: 'current', expectProofKey: KEY, deps: { probe: probeOk('current'), fetchImpl: supervisor(), registry: reg(), now: '2026-10-23T22:00:00Z' } });
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pk-')); const f = V.persist(verdict, raw, dir);
++  const pub = fs.readFileSync(f.pub, 'utf8');
++  assert.ok(!pub.includes(CHIP) && !pub.includes('RAW-QUOTE')); assert.ok(fs.readFileSync(f.rawFile, 'utf8').includes('RAW-QUOTE'));
++  assert.equal(fs.statSync(f.rawFile).mode & 0o777, 0o600); assert.equal(JSON.parse(pub).rawSha256, sha(fs.readFileSync(f.rawFile)));
++});
+diff --git a/verify-recipient-proofkey.mjs b/verify-recipient-proofkey.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..d86ab284ef47c417dfadfd8c9dde77d1f44fa2cd
+--- /dev/null
++++ b/verify-recipient-proofkey.mjs
+@@ -0,0 +1,145 @@
++// LEGACY-CONTROL proof-key verification for metal0, before/after root's operator setProofKey (ROOT EXECUTES; read-only;
++// prepared 2026-10-23; not run by its author).
++//
++// Why not metal/measured-control-verify.mjs: that verifier is for the DIRECT measured-control guest (cmdline
++// metal.control=direct): it fetches /.well-known/enclave-control, a canonical statement whose keys.proof is bound into the
++// report through the ABI/2 control role. metal0's control (ed918e4b and ee5df6b8 alike: cmdline "metal.mode=snp
++// metal.isolation=snp-guest-per-app", no metal.control) runs the LEGACY path; gsup serves that route only from
++// startDirectControl, so measured-control-verify against metal0 can only fail at its evidence step. Calling it here would be a
++// guaranteed false REJECT, and calling the legacy result "measured-control verified" would be false; neither is done.
++//
++// What the legacy control CAN show, with existing code only, in three parts that must all pass:
++//   A. HARDWARE (cryptographic): attest-control.mjs (frozen 2d407753): a FRESH quote over OUR nonce from the relay's
++//      /v1/enclaves/metal0/attestation route, verified by verifier/consumer.mjs verifyMetalBox: AMD chain to the pinned ARK,
++//      CRL, policy, VMPL 0, TCB floor, the full pinned measurement, report_data = sha256(transport SPKI T || nonce).
++//   B. SUPERVISOR (relay-routed, NOT hardware-bound): GET https://api.enclave.host/t/metal0/v1/attestation - the supervisor's
++//      own answer over the origin the relay attached with T. It must serve proofKey.address == the key root will register
++//      (keySource in-enclave), a session key, and its stored attestation document must name the SAME transport key T (this
++//      boot's agent key) and the SAME pinned measurement with report_data[0:32] = sha256(T). The proof key is NOT in any
++//      report_data in the legacy path: this part rests on the relay routing /t/metal0 to the tunnel it attached with T.
++//   C. REGISTRY (quorum): EnclaveRegistry.get(keccak("https://api.enclave.host/t/metal0")) through the pinned lease authority
++//      (2 of 3 public RPCs agreeing): endpoint, operator 0xC9D0835C..., active; proofKey == the expected key -> MATCH,
++//      otherwise PENDING (the state before the setProofKey lands).
++// Status: rejected (any mismatch) | unknown (a read failed) | pending-registry (A+B pass, registry key not yet this boot's) |
++// verified-legacy (all three). NEVER "verified" in the measured-control sense. Exit 0 / 2 (pending) / 1.
++// Output: public evidence/recipient-proofkey-<UTC>.json (proof key, transport hash, served-document hash, registry fields;
++// no chip id, no raw report); raw answers in evidence/private/*.json, mode 0600.
++//   node verify-recipient-proofkey.mjs --target current|new --expect-proof-key 0x...
++import fs from 'node:fs';
++import path from 'node:path';
++import crypto from 'node:crypto';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++import * as AC from './attest-control.mjs';
++
++const HERE = path.dirname(fileURLToPath(import.meta.url));
++export const ENDPOINT = 'https://api.enclave.host/t/metal0';
++export const REGISTRY_ID = '0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be';   // keccak256(ENDPOINT) = both leases' runner
++export const OPERATOR = '0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab';
++export const REGISTRY_ADDRESS = '0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac';                       // the control image's baked REGISTRY_ADDRESS
++const PROD = '/home/steven/enclave-prod/metal-deabf8f90';
++const MODS = ['client/lease-executor-authority.mjs', 'network/lease-gas-owner.mjs', 'client/lease-executor-client.mjs'];
++const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
++export const LIMITS = [
++  'legacy control: the proof key is not bound into any SNP report_data; part B rests on the relay routing /t/metal0 to the tunnel it attached with the fresh quote\'s transport key',
++  'metal/measured-control-verify.mjs is NOT applicable: metal0 does not run the direct measured-control guest (no /.well-known/enclave-control statement exists)',
++  'the stored document in part B is not fresh by itself; freshness comes from part A, tied to it by the same transport key and measurement',
++];
++
++/** The registry through the pinned lease authority (the preflight's method): -> {endpoint, operator, active, proofKey, measurement, block}. */
++export async function quorumRegistry(id) {
++  const REPO = AC.REPO;
++  for (const m of MODS) if (sha(fs.readFileSync(path.join(REPO, m))) !== sha(fs.readFileSync(path.join(PROD, m)))) throw new Error(`${m} differs from the production release`);
++  const imp = (m) => import(pathToFileURL(path.join(REPO, m)).href);
++  const { createPublicClient, http } = await import(pathToFileURL(path.join(REPO, 'node_modules/viem/_esm/index.js')).href);
++  const { verifiedLeaseAuthority } = await imp(MODS[0]);
++  const { parseDeploymentRecord, REGISTRY_ABI } = await imp(MODS[1]);
++  const deployment = parseDeploymentRecord(fs.readFileSync('/home/steven/enclave-prod/lease-gas/deployment.json'),
++    { expectedDigest: 'sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089' });
++  const urls = ['https://base-rpc.publicnode.com', 'https://mainnet.base.org', 'https://base-mainnet.public.blastapi.io'];
++  const a = await verifiedLeaseAuthority({ clients: urls.map((url) => createPublicClient({ transport: http(url, { timeout: 12000, retryCount: 0 }) })), deployment, quorum: 2 });
++  if (String(a.pins.registry).toLowerCase() !== REGISTRY_ADDRESS) throw new Error(`the lease authority pins registry ${a.pins.registry}, not ${REGISTRY_ADDRESS}`);
++  const e = await a.client.readContract({ address: a.pins.registry, abi: REGISTRY_ABI, functionName: 'get', args: [id] });
++  return { endpoint: e.endpoint, operator: String(e.operator).toLowerCase(), active: e.active, proofKey: String(e.proofKey).toLowerCase(),
++           measurement: e.measurement, block: { number: String(a.block.number), hash: a.block.hash }, agreeing: a.agreeing };
++}
++
++export async function run({ target, expectProofKey, deps = {} }) {
++  const want = String(expectProofKey || '').toLowerCase();
++  if (!/^0x[0-9a-f]{40}$/.test(want)) throw new Error('--expect-proof-key must be the 20-byte address root intends to register');
++  if (!AC.TARGETS[target]) throw new Error('--target must be current or new');
++  const pinned = AC.TARGETS[target].measurement;
++  const out = { probe: 'verify-recipient-proofkey/1', at: (deps.now ? new Date(deps.now) : new Date()).toISOString(), target, expectedMeasurement: pinned,
++                expectedProofKey: want, endpoint: ENDPOINT, registryId: REGISTRY_ID, expectedOperator: OPERATOR, parts: {}, reasons: [], limits: LIMITS };
++  const raw = {};
++  const done = (status) => Object.assign(out, { status, exitCode: { 'verified-legacy': 0, 'pending-registry': 2 }[status] ?? 1 });
++  const reject = (part, why) => { out.parts[part] = 'FAIL'; out.reasons.push(`REJECT (${part}): ${why}`); return done('rejected'); };
++  const unknown = (part, why) => { out.parts[part] = 'UNKNOWN'; out.reasons.push(`UNKNOWN (${part}): ${why}`); return done('unknown'); };
++  // A. the fresh hardware quote (attest-control.mjs, frozen)
++  let a;
++  try { a = await (deps.probe || AC.probe)({ target }); } catch (e) { return { verdict: unknown('A hardware', e.message), raw }; }
++  raw.attestation = a.raw;
++  out.attestation = { pass: a.verdict.pass, status: a.verdict.status, required: a.verdict.required, observedMeasurement: a.verdict.observedMeasurement,
++                      nonce: a.verdict.nonce, transportKeySha256: a.verdict.transportKeySha256, rawSha256: a.verdict.rawSha256, unavailable: a.verdict.unavailable };
++  if (a.verdict.status === 'unavailable') return { verdict: unknown('A hardware', (a.verdict.reasons || []).join('; ').slice(0, 300)), raw };
++  if (a.verdict.pass !== true || a.verdict.observedMeasurement !== pinned) return { verdict: reject('A hardware', `fresh quote did not verify for ${pinned.slice(0, 16)}… (${a.verdict.status}; failed ${JSON.stringify(a.verdict.failedChecks)})`), raw };
++  const T = a.verdict.transportKeySha256;
++  out.parts['A hardware'] = 'PASS'; out.transportKeySha256 = T;
++  // B. the supervisor's own answer over the relay-routed origin
++  let body;
++  try {
++    const r = await (deps.fetchImpl || globalThis.fetch)(`${ENDPOINT}/v1/attestation`, { redirect: 'error', headers: { accept: 'application/json' } });
++    const text = await r.text(); if (text.length > 2 * 1024 * 1024) throw new Error('answer exceeds 2 MiB');
++    raw.supervisor = { status: r.status, text };
++    if (r.status !== 200) return { verdict: (r.status >= 500 || r.status === 429 ? unknown : reject)('B supervisor', `HTTP ${r.status}`), raw };
++    out.servedDocumentSha256 = sha(Buffer.from(text)); body = JSON.parse(text);
++  } catch (e) { return { verdict: unknown('B supervisor', e.message), raw }; }
++  const served = String(body?.proofKey?.address || '').toLowerCase();
++  out.servedProofKey = served || null;
++  if (served !== want) return { verdict: reject('B supervisor', `the supervisor serves proof key ${served || 'none'}, not ${want}`), raw };
++  if (body.proofKey.keySource !== 'in-enclave') return { verdict: reject('B supervisor', `proof key source ${body.proofKey.keySource}`), raw };
++  if (!body?.sessionKey?.kid) return { verdict: reject('B supervisor', 'no session key'), raw };
++  const doc = body?.enclave?.attestationDocument;
++  if (!doc || doc.format !== 'sev-snp-guest-metal-v1' || typeof doc.transportKey !== 'string' || typeof doc.body !== 'string')
++    return { verdict: reject('B supervisor', 'no stored metal SEV-SNP document beside the proof key'), raw };
++  const spki = Buffer.from(doc.transportKey, 'base64'); const rep = Buffer.from(doc.body, 'base64');
++  if (sha(spki) !== T) return { verdict: reject('B supervisor', 'the stored document names another transport key than the fresh quote (another boot or another box)'), raw };
++  if (rep.length < 0xc0 || rep.subarray(0x90, 0xc0).toString('hex') !== pinned) return { verdict: reject('B supervisor', 'the stored document is another measurement'), raw };
++  if (rep.subarray(0x50, 0x70).toString('hex') !== sha(spki)) return { verdict: reject('B supervisor', 'the stored document\'s report_data does not bind its transport key'), raw };
++  out.parts['B supervisor'] = 'PASS (relay-routed origin; proof key not hardware-bound)'; out.sessionKid = body.sessionKey.kid;
++  // C. the registry through the quorum
++  let e;
++  try { e = await (deps.registry || quorumRegistry)(REGISTRY_ID); } catch (err) { return { verdict: unknown('C registry', String(err.message).slice(0, 200)), raw }; }
++  out.registry = e;
++  if (!e || /^0x0{40}$/.test(e.operator)) return { verdict: reject('C registry', 'metal0 is not registered'), raw };
++  if (String(e.endpoint).replace(/\/+$/, '') !== ENDPOINT) return { verdict: reject('C registry', `registered endpoint ${e.endpoint}`), raw };
++  if (e.operator !== OPERATOR) return { verdict: reject('C registry', `operated by ${e.operator}, not ${OPERATOR}`), raw };
++  if (e.active !== true) return { verdict: reject('C registry', 'registered but inactive'), raw };
++  if (e.proofKey !== want) {
++    out.parts['C registry'] = 'PENDING'; out.reasons.push(`PENDING (C registry): the registry's proof key ${e.proofKey} is not this boot's ${want} (setProofKey not landed yet)`);
++    return { verdict: done('pending-registry'), raw };
++  }
++  out.parts['C registry'] = 'MATCH';
++  return { verdict: done('verified-legacy'), raw };
++}
++
++export function persist(verdict, raw, dir = path.join(HERE, 'evidence')) {
++  const stamp = verdict.at.replace(/[:.]/g, '');
++  const priv = path.join(dir, 'private'); fs.mkdirSync(priv, { recursive: true, mode: 0o700 }); fs.chmodSync(priv, 0o700);
++  const rawFile = path.join(priv, `recipient-proofkey-raw-${stamp}.json`);
++  fs.writeFileSync(rawFile, JSON.stringify(raw), { mode: 0o600, flag: 'wx' }); fs.chmodSync(rawFile, 0o600);
++  verdict.rawSha256 = sha(fs.readFileSync(rawFile));
++  const pub = path.join(dir, `recipient-proofkey-${stamp}.json`);
++  fs.writeFileSync(pub, JSON.stringify(verdict, null, 2) + '\n', { flag: 'wx' });
++  return { pub, rawFile };
++}
++
++if (process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1])) {
++  const arg = (n) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : undefined; };
++  const target = arg('--target'), expectProofKey = arg('--expect-proof-key');
++  AC.checkPins(); AC.checkImage(target);
++  const { verdict, raw } = await run({ target, expectProofKey });
++  const f = persist(verdict, raw);
++  console.log(JSON.stringify({ status: verdict.status, parts: verdict.parts, proofKey: verdict.expectedProofKey, served: verdict.servedProofKey,
++                               registryProofKey: verdict.registry?.proofKey ?? null, transportKeySha256: verdict.transportKeySha256 ?? null, verdict: f.pub }));
++  process.exit(verdict.exitCode);
++}

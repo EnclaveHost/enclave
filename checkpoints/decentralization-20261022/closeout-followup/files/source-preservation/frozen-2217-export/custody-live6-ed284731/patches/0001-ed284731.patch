@@ -1,0 +1,297 @@
+From ed2847318caa6a6ab729332a6c271ecad43f0684 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:14:19 -0700
+Subject: [PATCH] Record protected app renewals and fresh production custodian
+ attestation
+
+---
+ SCAN-REVIEW.txt                               |  2 +
+ evidence/boot-public-state.json               | 71 +++++++++++++++++++
+ evidence/fresh-quote.json                     |  6 +-
+ evidence/protected-guest-health.json          |  2 +-
+ ...faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json | 21 ++++++
+ ...faaeb9a3d5bab0fddfb5bc44ba68d9.result.json |  9 +++
+ ...7ae77bdbcd49086040282e1e4b871c.intent.json | 21 ++++++
+ ...7ae77bdbcd49086040282e1e4b871c.result.json |  9 +++
+ probes/boot-public-state.mjs                  |  6 ++
+ probes/protected-guest-listing.mjs            | 14 ++++
+ probes/renew-protected-2211.mjs               | 29 ++++++++
+ 11 files changed, 186 insertions(+), 4 deletions(-)
+ create mode 100644 evidence/boot-public-state.json
+ create mode 100644 evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json
+ create mode 100644 evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json
+ create mode 100644 evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json
+ create mode 100644 evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json
+ create mode 100644 probes/boot-public-state.mjs
+ create mode 100644 probes/protected-guest-listing.mjs
+ create mode 100644 probes/renew-protected-2211.mjs
+
+diff --git a/SCAN-REVIEW.txt b/SCAN-REVIEW.txt
+index a764a5bfd18ae78650b432da35776bab56b4db1b..9f1d45c2276608963887ad687b334e5a12d5c50d 100644
+--- a/SCAN-REVIEW.txt
++++ b/SCAN-REVIEW.txt
+@@ -1 +1,3 @@
+ Root reviewed the two staged gitleaks generic-api-key findings at diff lines490/491: exact SHA256 values of public source files api-relay.js (481f0041...) and secrets.js (4c491271...), not credentials. No private value was present. Metadata schema clarified as [{path,sha256}], preserving exact observed hashes and original timestamp. No blanket scanner rule disabled. The unmodified scanner is rerun over the final staged diff.
++
++22:14 root: staged generic-api-key finding is the public legacy control proof-key Ethereum ADDRESS 0x9eae…4485, not a private key. Renamed the selected metadata field to proofAddress in probe/evidence without altering observed value or timestamp; unmodified scanner rerun.
+diff --git a/evidence/boot-public-state.json b/evidence/boot-public-state.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..e1353f52a7257f64aac50b3fc7cf845c18b2f555
+--- /dev/null
++++ b/evidence/boot-public-state.json
+@@ -0,0 +1,71 @@
++{
++  "at": "2026-10-23T21:51:49.070Z",
++  "readOnly": true,
++  "proofAddress": "0x9eaeB548222f174abDb7ebA32E5bDab146184485",
++  "keySource": "in-enclave",
++  "availabilityFields": [
++    "gpu",
++    "type",
++    "teeCpu",
++    "gpuShareFree",
++    "cpuShareFree",
++    "usedGpuShare",
++    "usedCpuShare",
++    "maxShare",
++    "vcpusFree",
++    "ramGbFree",
++    "cpuGflopsFree",
++    "nodeVcpus",
++    "nodeRamGb",
++    "nodeGflops",
++    "smFree",
++    "smTotal",
++    "vramFreeGb",
++    "gpuTflopsFree",
++    "cardVramGb",
++    "cardTflops",
++    "cards",
++    "gpuPool",
++    "physicalGpuCount",
++    "cardVramSource",
++    "shielded",
++    "shieldedCards",
++    "askShieldedPricePerSec6",
++    "networkOptions",
++    "waf",
++    "configOverride",
++    "configEdit",
++    "shareResize",
++    "cpuFallback",
++    "gpuOptional",
++    "secrets",
++    "secretsInConfig",
++    "customDomains",
++    "devDeploy",
++    "rateCap",
++    "selfHostFree",
++    "payoutWallet",
++    "proofOfTime",
++    "askCpuPricePerSec6",
++    "askGpuPricePerSec6",
++    "claimEnabled",
++    "isolation",
++    "fullService",
++    "guestPool",
++    "source",
++    "updatedAt",
++    "set",
++    "mem64",
++    "configCid",
++    "configCidOverride",
++    "volumes",
++    "instanceSweep",
++    "ledgerSync",
++    "tenantVouch"
++  ],
++  "cpuPrice": 834,
++  "gpuPrice": 1667,
++  "limits": [
++    "Relay-routed observation only, not hardware binding."
++  ]
++}
+diff --git a/evidence/fresh-quote.json b/evidence/fresh-quote.json
+index ffed2e5ddbabfd843ebefc489a583a835d80c736..700e717ec7b222f21bb2db450fa254c944e0013d 100644
+--- a/evidence/fresh-quote.json
++++ b/evidence/fresh-quote.json
+@@ -1,5 +1,5 @@
+ {
+-  "at": "2026-10-23T18:15:08.436Z",
++  "at": "2026-10-23T22:12:53.585Z",
+   "scope": "Fresh attestation of existing production custodian only; not a secret release or rollout test",
+   "chainBlock": {
+     "number": "52994819",
+@@ -7,8 +7,8 @@
+     "timestamp": "1792778985",
+     "baseFeePerGas": "5000000"
+   },
+-  "nonce": "71e352c322d5e977505f396671330a1574acd6a7c310bb13a43006ca58b92640",
+-  "evidenceSha256": "39b3d22c97ec8c5fb24aeca62b0b1bb7bf37ee8f9590ec8118ee8a0e4d97c738",
++  "nonce": "1555977c882c87112e4b27450556af100dc7de2c3d6501457276a709034aece7",
++  "evidenceSha256": "ea36bd1a82dba5a992b8f181905509703d83141ffc71399c01172df35fba2fd9",
+   "machineMatchesPinnedChain": true,
+   "verdict": {
+     "ok": true,
+diff --git a/evidence/protected-guest-health.json b/evidence/protected-guest-health.json
+index db3928b52ccfc37264dc2cb3a51a3cb9a207ea97..1137f656d6a95eaf4b73b91e2bc04d3877e0ec54 100644
+--- a/evidence/protected-guest-health.json
++++ b/evidence/protected-guest-health.json
+@@ -1,5 +1,5 @@
+ {
+-  "at": "2026-10-23T21:41:37.618Z",
++  "at": "2026-10-23T22:07:01.146Z",
+   "readOnly": true,
+   "rows": [
+     {
+diff --git a/evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json b/evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca4e7349cff2f2b1b1d998b8b3d388d3a68ced72
+--- /dev/null
++++ b/evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json
+@@ -0,0 +1,21 @@
++{
++  "nonce": "130",
++  "deadline": "1792793745",
++  "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++  "kind": "renew",
++  "lease": {
++    "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
++    "kind": 2,
++    "enclaveId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "nonce": "130",
++    "deadline": "1792793745",
++    "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++    "maxChargeWei": "2761861380025"
++  },
++  "fromBlock": "53002049",
++  "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
++  "reserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
++  "executor": "0x8900BACA2167873BA2F8a8bAE8b4876E6396d343",
++  "chainId": 8453,
++  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B"
++}
+diff --git a/evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json b/evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..15bdc4e4a53300f1a0457e300104d588a2c72bf0
+--- /dev/null
++++ b/evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json
+@@ -0,0 +1,9 @@
++{
++  "at": "2026-10-23T22:10:58.140Z",
++  "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
++  "guest": "gd9d4a391d",
++  "hash": "0x398217e371798b337c99de419260002ae88ac82aafb7dd8eb0d16c59f5e8041b",
++  "chargedWei": "1249747460565",
++  "operatorEthSpent": false,
++  "receiptVerified": true
++}
+diff --git a/evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json b/evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..302f9274a451df0a0e02ca42dfc211425917303e
+--- /dev/null
++++ b/evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json
+@@ -0,0 +1,21 @@
++{
++  "nonce": "131",
++  "deadline": "1792792643",
++  "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++  "kind": "renew",
++  "lease": {
++    "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
++    "kind": 2,
++    "enclaveId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "nonce": "131",
++    "deadline": "1792792643",
++    "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++    "maxChargeWei": "2761712362522"
++  },
++  "fromBlock": "53001498",
++  "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
++  "reserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
++  "executor": "0x8900BACA2167873BA2F8a8bAE8b4876E6396d343",
++  "chainId": 8453,
++  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B"
++}
+diff --git a/evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json b/evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..8d1b2688fa2a9dcd9783ed36ef90bf6d927ea3a8
+--- /dev/null
++++ b/evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json
+@@ -0,0 +1,9 @@
++{
++  "at": "2026-10-23T21:52:36.113Z",
++  "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
++  "guest": "gdd0646f2c",
++  "hash": "0x04a8311cb4d5e94549b3b25d701af34ea93e52c8480ba5a4f975dffb6c659151",
++  "chargedWei": "1236051796147",
++  "operatorEthSpent": false,
++  "receiptVerified": true
++}
+diff --git a/probes/boot-public-state.mjs b/probes/boot-public-state.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..dbd1c26b1fd31d51f86691a8b8dd19064d1e985c
+--- /dev/null
++++ b/probes/boot-public-state.mjs
+@@ -0,0 +1,6 @@
++import fs from 'node:fs';
++const base='https://api.enclave.host/t/metal0';
++async function get(p){const r=await fetch(base+p,{signal:AbortSignal.timeout(12000),redirect:'error'});if(!r.ok)throw Error(p+' '+r.status);return r.json();}
++const [a,v]=await Promise.all([get('/v1/attestation'),get('/availability')]);
++const out={at:new Date().toISOString(),readOnly:true,proofAddress:a.proofKey?.address,keySource:a.proofKey?.keySource,availabilityFields:Object.keys(v),cpuPrice:v.askCpuPricePerSec6,gpuPrice:v.askGpuPricePerSec6,limits:['Relay-routed observation only, not hardware binding.']};
++fs.writeFileSync(new URL('../evidence/boot-public-state.json',import.meta.url),JSON.stringify(out,null,2)+'\n');console.log(JSON.stringify(out));
+diff --git a/probes/protected-guest-listing.mjs b/probes/protected-guest-listing.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..63ef998d3df3999eed0515f256190e2e7f6b5c4c
+--- /dev/null
++++ b/probes/protected-guest-listing.mjs
+@@ -0,0 +1,14 @@
++// Root read-only authenticated guestd listing. Persist only public identity/status/digests; never key or guest environment.
++import fs from 'node:fs';
++import {GuestdControl,parseKey} from '../../linux-post-adoption-release/stage/metal-deabf8f90/isolation/m4/guestd/control-client.mjs';
++const dest = process.argv[2]; if(!dest) throw new Error('output path required');
++const key=parseKey(fs.readFileSync('/home/steven/enclave-prod/guestd-pair.key','utf8'));
++try{
++ const client=new GuestdControl('http://127.0.0.1:8095',key,{requestTimeoutMs:12000,maxResponseBytes:1048576});
++ const {status,body}=await client.request('GET','/vms');
++ if(status!==200||!Array.isArray(body?.vms))throw new Error('guestd listing shape/status mismatch');
++ const fields=['id','name','status','recordSha256','createdAt'];
++ const out={vms:body.vms.map(r=>Object.fromEntries(fields.filter(k=>k in r).map(k=>[k,r[k]])))};
++ fs.writeFileSync(dest,JSON.stringify(out,null,2)+'\n',{mode:0o600});fs.chmodSync(dest,0o600);
++ console.log(JSON.stringify({at:new Date().toISOString(),readOnly:true,rows:out.vms.length,output:dest}));
++}finally{key.fill(0)}
+diff --git a/probes/renew-protected-2211.mjs b/probes/renew-protected-2211.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..fb6212849389eb550578be2443e9d69afce29b54
+--- /dev/null
++++ b/probes/renew-protected-2211.mjs
+@@ -0,0 +1,29 @@
++// Root incident operation: one app-funded renewal for an existing running protected guest.
++// Uses unchanged production client, delegation and policy; never spends operator ETH or claims another deployment.
++import fs from 'node:fs';
++import {createPublicClient,http} from 'viem';
++import {privateKeyToAccount} from 'viem/accounts';
++import {parseDeploymentRecord,LEDGER_ABI} from '../../custody-recipient-restore-20261023/repo/network/lease-gas-owner.mjs';
++import {createLeaseClient} from '../../custody-recipient-restore-20261023/repo/client/lease-executor-client.mjs';
++import {verifiedLeaseAuthority} from '../../custody-recipient-restore-20261023/repo/client/lease-executor-authority.mjs';
++import {GuestdControl,parseKey} from '../../linux-post-adoption-release/stage/metal-deabf8f90/isolation/m4/guestd/control-client.mjs';
++const allowed={'0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9':'gd9d4a391d','0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c':'gdd0646f2c'};
++const id=process.argv[2];if(!allowed[id])throw Error('not a protected ID');
++const dir=new URL('../evidence/protected-renewals-2211/',import.meta.url);fs.mkdirSync(dir,{recursive:true,mode:0o700});
++const intent=new URL(id+'.intent.json',dir);if(fs.existsSync(intent))throw Error('Existing attempt: reconcile, never resend blindly');
++const cfg=JSON.parse(fs.readFileSync('/home/steven/Projects/enclave/metal/config.json','utf8'));
++const account=privateKeyToAccount(cfg.registryKey);if(account.address.toLowerCase()!=='0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab')throw Error('operator');
++const dep=parseDeploymentRecord(fs.readFileSync('/home/steven/enclave-prod/lease-gas/deployment.json'),{expectedDigest:'sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089'});
++const clients=['https://base-rpc.publicnode.com','https://mainnet.base.org','https://base-mainnet.public.blastapi.io'].map(url=>createPublicClient({transport:http(url,{timeout:12000,retryCount:0})}));
++const a=await verifiedLeaseAuthority({clients,deployment:dep,quorum:2});
++const row=await a.client.readContract({address:a.pins.ledger,abi:LEDGER_ABI,functionName:'get',args:[id]});
++if(!row.active||row.runner.toLowerCase()!=='0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be'||row.runnerOperator.toLowerCase()!==account.address.toLowerCase())throw Error('not this operator active lease');
++const pair=parseKey(fs.readFileSync('/home/steven/enclave-prod/guestd-pair.key','utf8'));
++try{const c=new GuestdControl('http://127.0.0.1:8095',pair,{requestTimeoutMs:12000,maxResponseBytes:131072});const v=await c.request('GET','/vms/'+allowed[id]);if(v.status!==200||v.body.status!=='running'||v.body.name!==id)throw Error('protected guest not running');}finally{pair.fill(0)}
++const stringify=x=>JSON.stringify(x,(_,v)=>typeof v==='bigint'?String(v):v,2)+'\n';
++const lc=createLeaseClient({clients,account,reserve:dep.reserve,deployment:dep,relays:cfg.leaseGas.relays,quorum:2,
++ onSigned:async r=>{if(r.kind!=='renew'||r.lease.id!==id||r.lease.maxChargeWei>31092172031561n)throw Error('intent exceeds existing policy ceiling');
++ const fd=fs.openSync(intent,'wx',0o600);try{fs.writeSync(fd,stringify(r));fs.fsyncSync(fd)}finally{fs.closeSync(fd)}},
++ log:()=>{}});
++if(!process.argv.includes('--execute')){console.log(stringify({readOnly:true,id,guest:allowed[id],leaseUntil:row.leaseUntil,at:new Date().toISOString(),readyForClientPolicyCheck:true}));process.exit(0);}
++try{const r=await lc.renew(id);const out={at:new Date().toISOString(),id,guest:allowed[id],hash:r.hash,chargedWei:r.verified.chargedWei,operatorEthSpent:false,receiptVerified:true};fs.writeFileSync(new URL(id+'.result.json',dir),stringify(out),{mode:0o600,flag:'wx'});console.log(stringify(out));}catch(e){console.error(JSON.stringify({code:e.code||'error',message:String(e.shortMessage||e.message).slice(0,450),intentExists:fs.existsSync(intent)}));process.exitCode=1}

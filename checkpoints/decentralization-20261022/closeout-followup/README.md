@@ -51,6 +51,8 @@ Frozen 2100 append (2026-10-23; "2100" = the batch start 21:00:37Z, an identifie
 
 Frozen 2146 append (2026-10-23; "2146" = the batch start 21:46:39Z, an identifier): ROOT live custody reconciliation 1535fcf0 (read-only), factory activation handoff 9557ad6d (signing pending the human), production canary driver 01525201, operator proposeOwner fees 7bf4c942, metal0 recipient restore b03be02d + inner a6b1378c (touched-file reproduction; its activation failed adoption and was rolled back), recipient activation adaptation 2d407753, canary proof app e84a1afd, code admission plan 8578965c (original committee code-frozen), publish readiness 90a2b826 (draft); the 2100 receipt. Source preservation only: no new custody lifecycle, original custodian untouched, root owns activation and signing. See `MANIFEST.json` `appends`.
 
+Frozen 2217 append (2026-10-23; "2217" = the batch start 22:17:46Z, an identifier): ROOT live records ed284731, recipient restore build record 8f72453b (H 08d1f838 staged, not activated), boot-registration source 9f6d37bd (PATCH-ONLY: supervisor.js held back for the rewritten literal, base pinned to production by sha256), recipient activation review 48cc74bf, boot activation kit 86c5fee8 (source/tests; committed runtime baseline omitted), proof app publish prep ad81dd59, R current docs a257c0e0; the 2146 receipt. Source preservation only: control recovery in progress, nothing activated or published by this capture. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

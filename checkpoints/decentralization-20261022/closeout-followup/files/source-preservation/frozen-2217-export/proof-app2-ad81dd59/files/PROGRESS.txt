@@ -1,0 +1,24 @@
+2026-10-23 ROOT-CANARY-APP: hash-only canary proof app, source + offline build only. No live hardware, production,
+chain, key, upload, catalog publish or signature. hello-world, enclave-apps and catalog untouched.
+- Env delivery verified on release-16c2999d: each staged (custody) secret reaches the component as its own variable via
+  init `--env NAME=VALUE` (Projects/enclave custody/front-prod 837c0061d; release init/front literals match).
+  work/enclave e762a9c5 predates this (config-only); my first pass used it and was corrected before commit.
+- App reads only CANARY_[A-Z0-9_]{1,40} env, <=8, hashes only driver-format markers; no ENCLAVE_CONFIG, logs, echo,
+  values, lengths or network.
+- Component 7ce32918… (101222 B), CID bafkreid44murq…, reproduced 3x (cached toolchain, pinned lock = hello-world p2 chain).
+- Queue: unit 6/6 (512), mutants 9/9 (512), release-wasmtime HTTP smoke 23/23 (512), builds 1024.
+- Publish/admission/signing prerequisites in README §5 (root).
+2026-10-23 ROOT-PUBLISH-PREPARE: publication request prepared (PUBLISH.md, publish/). No upload, signature, chain write,
+wallet page/server, SSH, hardware or key.
+- Actual book 0xab21 (e4f570e9) -> appCatalog 0x18419 (3f3c4cc0 = f2e9a71d0 rebuilt exact), deployments 0xB178.
+- publishVersion 0x47910c23 by admin 0x0b2d: new slug custody-canary-proof 0.1.0, res [0,0,128,10], config {"wasi":"0.2"},
+  fee 0; approved on publish (L440/L451); catalog appId 0x85c5ed4c…; calldata sha256 13e5a6f4….
+- Upload: no normalization; CID = raw CIDv1 bafkreid44murq… (CLI does not check it: admin must).
+- Footprint {100,128,1}: AppID 4f700c92…, measurement e5febd10…, runtimeId 297b6c2c… (hello cross-check exact).
+- Helper tests 9/9 (anvil, real catalog/book runtimes), mutants 14/14; live probe 12 requests ok at block 53001440.
+- Docs: marker format is syntactic only (README §2); src/frozen WASM untouched.
+2026-10-23 ROOT-READ-PACING: bounded read pacing for publish --prepare (root's live run: mainnet.base.org
+eth_maxPriorityFeePerGas HTTP 429; nothing signed). Per provider 1 start/250 ms; HTTP 429 only, <=3 retries,
+Retry-After <=5 s honoured (longer refuses), else 0.5/1/2 s; <=80 attempts, <=60 s; block <=60 s old at plan time
+(stale refuses); budget > freshness refused at construction. All guards and the request unchanged (calldata 13e5a6f4).
+Tests: transport 8/8 (fake clock), anvil 10/10, mutants 23/23. WASM 7ce32918 unchanged.

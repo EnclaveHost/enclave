@@ -1,0 +1,19 @@
+{
+  "commit": "9f6d37bd858ad44be1171b6415353910214c2fa5",
+  "parent": "a6b1378cdf430217025987d90c040d0e25a9993d",
+  "supervisorSha256": "37e6a34078c2fa1d5ca835a619a115c86e7aca273324924eecda45e7346bab0b",
+  "measurement": "08d1f838d51274571fdf17b635606d20a6e7250f74d6676217eea40733a8d269aaf52edb85aac4a9ad1cc5c53318a000",
+  "name": "dist-leasegas-9f6d37bd8",
+  "files": {
+    "MEASUREMENT": "6d55c0e2839e5a1aad1258ce80ec112181f155c50be9f5ad1f66f1bb44064537",
+    "cmdline": "d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8",
+    "initramfs.cpio.gz": "02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf",
+    "manifest.json": "64bd025db3ed62b82f016ed25f1bd24ab300dbe7520ca81498d3ccd293e43b16",
+    "vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "approvedCommitSha256": "f32ab10418d261e562a1c13db7d12fa7f4560a620602a2349753322a3ced5116",
+  "buildLogSha256": "89ba2d1b75e766a95d3f6a12e09ee97c2baad3df4c5bb2e9d98b6647b9bba0ba",
+  "recordedAt": "2026-10-23T22:07:33.675298+00:00",
+  "buildLog": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/logs/root-build-approved.out",
+  "stagedFrom": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage-approved/dist-leasegas-9f6d37bd8"
+}

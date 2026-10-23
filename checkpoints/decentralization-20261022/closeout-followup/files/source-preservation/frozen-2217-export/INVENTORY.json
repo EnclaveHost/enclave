@@ -1,0 +1,1947 @@
+{
+ "format": "enclave-frozen-2217-export/v1",
+ "checkpointHeadAtExport": "dfb4b55e627ebd95b647abebf09627296f099862",
+ "batch": "2217 = the batch start 2026-10-23T22:17:46Z (date -u): an identifier, not a publication time",
+ "label": "SOURCE + EVIDENCE ONLY. ROOT live records ed284731; recipient restore build record 8f72453b (H 08d1f838 staged, NOT activated); boot-registration source 9f6d37bd (patch-only); recipient activation review 48cc74bf; boot activation kit 86c5fee8 (source/tests; the cutover was STOPPED before mutation, a new boot-pricing fix is pending and not included); proof app publish prep ad81dd59 (nothing published); R current docs a257c0e0 (not published). metal0 control recovery is IN PROGRESS (still the old image, unregistered); no new custody committee, policy, v2 book entry or dashboard publication. Root owns activation and signing.",
+ "sides": {
+  "custody-live6": {
+   "repo": "work/custody-v2-live-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "1535fcf0a3845c4ed625a0cd1095595963352f6f",
+   "baseProvenance": "1535fcf0 preserved in dfb4b55e (frozen-2146 custody-live5 head)",
+   "head": "ed2847318caa6a6ab729332a6c271ecad43f0684",
+   "headTree": "b84ef92125d55a73f902ce54637a0fa8ae5121f7",
+   "commits": [
+    {
+     "commit": "ed2847318caa6a6ab729332a6c271ecad43f0684",
+     "tree": "b84ef92125d55a73f902ce54637a0fa8ae5121f7",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:14:19-07:00",
+     "subject": "Record protected app renewals and fresh production custodian attestation",
+     "parent": "1535fcf0a3845c4ed625a0cd1095595963352f6f",
+     "emptyAfterExclusion": false,
+     "patch": "custody-live6-ed284731/patches/0001-ed284731.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "SCAN-REVIEW.txt",
+     "status": "M",
+     "mode": "100644",
+     "blob": "9f1d45c2276608963887ad687b334e5a12d5c50d",
+     "sha256": "b103c94ed1cfba0280f9b93939d679496be82fa676e7f4ac547571b9af74fc3b",
+     "bytes": 705,
+     "baseBlob": "a764a5bfd18ae78650b432da35776bab56b4db1b"
+    },
+    {
+     "path": "evidence/boot-public-state.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e1353f52a7257f64aac50b3fc7cf845c18b2f555",
+     "sha256": "99787a3e45366018f2e134581c9e7296f686db360097e78a08c345b9f9cd7f36",
+     "bytes": 1360,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/fresh-quote.json",
+     "status": "M",
+     "mode": "100644",
+     "blob": "700e717ec7b222f21bb2db450fa254c944e0013d",
+     "sha256": "2e5889a7f3fc685347df86ad571f378371b70b27b6351b2fdd048b896a85f04a",
+     "bytes": 2386,
+     "baseBlob": "ffed2e5ddbabfd843ebefc489a583a835d80c736"
+    },
+    {
+     "path": "evidence/protected-guest-health.json",
+     "status": "M",
+     "mode": "100644",
+     "blob": "1137f656d6a95eaf4b73b91e2bc04d3877e0ec54",
+     "sha256": "59c51f9c145eca1dac8bfdaa2fc7ef8890f74dd9546c8c19fce79b7a45391322",
+     "bytes": 707,
+     "baseBlob": "db3928b52ccfc37264dc2cb3a51a3cb9a207ea97"
+    },
+    {
+     "path": "evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ca4e7349cff2f2b1b1d998b8b3d388d3a68ced72",
+     "sha256": "e44e7dd6115e64fe029ba9e7d4f09e90d1e0270ae38024e04071b5737dda2ad6",
+     "bytes": 753,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-renewals-2211/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "15bdc4e4a53300f1a0457e300104d588a2c72bf0",
+     "sha256": "2ed81f4d777a3ca25312ea1508407068d7b7c5df674b7a7463d0eb555b94d32f",
+     "bytes": 311,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "302f9274a451df0a0e02ca42dfc211425917303e",
+     "sha256": "7f311bdb01e473ccb038b2706ac97895e06447f8886167c28b9a02d0cc61114d",
+     "bytes": 753,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-renewals/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8d1b2688fa2a9dcd9783ed36ef90bf6d927ea3a8",
+     "sha256": "7630921137542366e4f2405c5cf614c226909668be100552e09da6712db0c6de",
+     "bytes": 311,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/boot-public-state.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "dbd1c26b1fd31d51f86691a8b8dd19064d1e985c",
+     "sha256": "7b4567d5ed333331e1473b155bf06dca0c6e2e5136148057a50a14034c08e6d5",
+     "bytes": 734,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/protected-guest-listing.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "63ef998d3df3999eed0515f256190e2e7f6b5c4c",
+     "sha256": "193e8da7107ff240b3b951798f606298c8066a402fa71438889c020774f76d26",
+     "bytes": 1117,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/renew-protected-2211.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fb6212849389eb550578be2443e9d69afce29b54",
+     "sha256": "f8091b91edfd14d6c2fe9363f2e8a8ea5a3bc70c0d0c217b50f1ee82720722fd",
+     "bytes": 3933,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "custody-live6-ed284731/patches/0001-ed284731.patch",
+     "sha256": "1550896f4143202e3a7bd7f6005df3cc07858ff737f2c07482aab0154b432e7d"
+    }
+   ],
+   "note": "ROOT live records on 1535fcf0 (ed284731): protected app renewal intents/results (incl. the 22:11 batch), public boot-state and guest-health reads, fresh-quote verdict metadata, renewal/listing/boot-state probes. Read-only metadata; no logs or raw quotes"
+  },
+  "recipient-restore2": {
+   "repo": "work/custody-recipient-restore-20261023",
+   "branch": "main",
+   "headReachableFromBranch": true,
+   "base": "b03be02d7d050dd4883e29e011c454942aa790ee",
+   "baseProvenance": "b03be02d preserved in dfb4b55e (frozen-2146 recipient-restore head)",
+   "head": "8f72453be3b702605b99a01621bd80aeb5211cfb",
+   "headTree": "1eb980329b4b50b8a6c18ca4baeb80e3c2352fb0",
+   "commits": [
+    {
+     "commit": "e02b3bd43ec5e029db91ddbb5b13faeb499108f5",
+     "tree": "4b5130664799528f40bd5e1bc4d94105b9028bd0",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T14:48:58-07:00",
+     "subject": "approval-gated bounded build template for H's boot-registration fix on a6b1378c (not run; refusals 6/6)",
+     "parent": "b03be02d7d050dd4883e29e011c454942aa790ee",
+     "emptyAfterExclusion": false,
+     "patch": "recipient-restore2-8f72453b/patches/0001-e02b3bd4.patch"
+    },
+    {
+     "commit": "8f72453be3b702605b99a01621bd80aeb5211cfb",
+     "tree": "1eb980329b4b50b8a6c18ca4baeb80e3c2352fb0",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T14:58:43-07:00",
+     "subject": "approved boot-registration build: record root's PASS (H 9f6d37bd on a6b1378c -> measurement 08d1f838)",
+     "parent": "e02b3bd43ec5e029db91ddbb5b13faeb499108f5",
+     "emptyAfterExclusion": false,
+     "patch": "recipient-restore2-8f72453b/patches/0002-8f72453b.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "M",
+     "mode": "100644",
+     "blob": "5933c2a5650d0653d0618056f52880f8d98252fd",
+     "sha256": "9ba03422dc8a8b8dd6ce798c3011ee29b6ccfdbf0363077045f107fb288e5404",
+     "bytes": 176,
+     "baseBlob": "93fcafc17e0521fca07b40de7e2c1a9dd2534da4"
+    },
+    {
+     "path": "APPROVED-COMMIT.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "16c1d59a2660040641dda59680ed14e1c7cf5180",
+     "sha256": "f32ab10418d261e562a1c13db7d12fa7f4560a620602a2349753322a3ced5116",
+     "bytes": 59,
+     "baseBlob": null
+    },
+    {
+     "path": "BUILD-APPROVED-RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "926d6eb1923e8294827a353403f67e44e857ce6b",
+     "sha256": "253e251ea316731f58996b4b15b6cf7123af462e8c796947eb54cd108afc4efe",
+     "bytes": 3627,
+     "baseBlob": null
+    },
+    {
+     "path": "build-approved.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "9cd194fe2b6f1e184efb2b065ed6879f4b13bf33",
+     "sha256": "5637f0dc1793ef6cfb2130131b2154b17d335259c98456cfa502bc07046caea1",
+     "bytes": 9228,
+     "baseBlob": null
+    },
+    {
+     "path": "commit-approved.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "2733d1f6b60c0e769759cede7045ad0a6eb34a8c",
+     "sha256": "db11f5b65636b334583866127d2be2caef37993651c41853176cf5919d1cd9ac",
+     "bytes": 1842,
+     "baseBlob": null
+    },
+    {
+     "path": "commit-result.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "9923b114fedc9284aa8fdc05580d3de1ee9f10f4",
+     "sha256": "7d5b18152613e04eeb9cef20de62743fc75ab0433882afbad028c644b9be4d06",
+     "bytes": 2039,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build-approved-refusal-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1928b93dceae35cbc26a25eaa7f26a11b328b215",
+     "sha256": "8e49f7c0ebdeef94011d86f9c76585a2d446a17424fb91d65fa1db14130cbcb2",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build-approved-refusal-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4482f5cc44afde9a4d5352998f15b11b7a304cab",
+     "sha256": "d33d7011394b455ec14b00c9a62d4dfca90f31704d2a22617049be38b46ed62e",
+     "bytes": 243,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build-approved-refusal-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0cfbf08886fca9a91cb753ec8734c84fcbe52c9f",
+     "sha256": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build-approved-refusal-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build-approved-refusal-2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9c375c58cef51a5e47181286a680487fad9ca5b1",
+     "sha256": "633aeb0da58ce92fd5bea15767941c0999994155f4e4a1e865e3ff7375dc6ab9",
+     "bytes": 590,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build-approved-refusal-2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build-approved-refusal-2.try2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a0585c28d141b45e7a9cfee66355eb3b9d46b49b",
+     "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+     "bytes": 43,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-approved-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5139162c938e56affb054f30570ce1324e0b9c47",
+     "sha256": "5448cc30be5ac4392ecc87da91a33fc2c185fa424545ba7e192ab45f01afbe48",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-approved-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "76fb1b246cd0922f06b47f8406908424b5cba05e",
+     "sha256": "b3a6d800280e95b5ed1166bed52e9de4eb9a6fa16cfa3d467aeb0be6f7ce582f",
+     "bytes": 430,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-approved-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/root-build-approved.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "050cd0f2b72421e747d97c1be3e43be2619177aa",
+     "sha256": "8c768223a966dde74ccf8bdbfeffa7410b3ed381384fd3f6bc8b0a9ea93b4bab",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/root-build-approved.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6cc04314a55a22d88f196c7a304749aeba3f9b29",
+     "sha256": "89ba2d1b75e766a95d3f6a12e09ee97c2baad3df4c5bb2e9d98b6647b9bba0ba",
+     "bytes": 2059,
+     "baseBlob": null
+    },
+    {
+     "path": "refusal-tests/run.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7337b498722643c45e8c70502a83ee00781d6225",
+     "sha256": "c17ba7d5c05de017ea7a2dce3e86906525aeeaa6cbb3aa005152045c9ed5de7b",
+     "bytes": 943,
+     "baseBlob": null
+    },
+    {
+     "path": "stage-approved/INVENTORY.sha256",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e6fc5a5bc25b9f491c86b992fec9278dcf91afc0",
+     "sha256": "c34974adae318bf9d124081fb4acbba778b38ab7586005cb8e53f586ab8779a9",
+     "bytes": 510,
+     "baseBlob": null
+    },
+    {
+     "path": "stage-approved/entries-vs-a6.jsonl",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f9aecfd8092b31b7395bee1072212d10cde58c35",
+     "sha256": "16df57093a487b599f2205e6c39b05efbe94519328fa50ba3501abaab2919f46",
+     "bytes": 548,
+     "baseBlob": null
+    },
+    {
+     "path": "stage-approved/entries-vs-production.jsonl",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4221be3c6ae76680c593dda67e8d59b18b227835",
+     "sha256": "c03d00a23cdb636c877a35503cedde140f8840a89fe9c983416678acc40527e4",
+     "bytes": 790,
+     "baseBlob": null
+    },
+    {
+     "path": "stage-approved/h-9f6d37bd-on-a6b1378c.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "94e6e8d855c8446db4664b941a503d2baf6ce440",
+     "sha256": "56f5405093b422d6dc4a0bf781f2374635fdaddedf68652e096b6920a4ded210",
+     "bytes": 20931,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "recipient-restore2-8f72453b/patches/0001-e02b3bd4.patch",
+     "sha256": "f5afd0e16a62c2b411d61d563ed6bf96a7849f810f890cddf2cb5e14823d73e5"
+    },
+    {
+     "file": "recipient-restore2-8f72453b/patches/0002-8f72453b.patch",
+     "sha256": "9d733ecf908ec29ec651619be5021f5603388310f335f1b5faaf7b0c74f3cd21"
+    }
+   ],
+   "note": "approval-gated bounded build template (e02b3bd4) and the approved boot-registration build record (8f72453b): H 9f6d37bd on a6b1378c built twice -> measurement 08d1f838, its patch and inventories, refusal tests. Staged only; not activated"
+  },
+  "recipient-activation2": {
+   "repo": "work/custody-recipient-activation-20261023",
+   "branch": "main",
+   "headReachableFromBranch": true,
+   "base": "2d4077530caa03228deac1abda3de8cb03d9550b",
+   "baseProvenance": "2d407753 preserved in dfb4b55e (frozen-2146 recipient-activation head)",
+   "head": "48cc74bfb8ea2b6d13617b82c5c154789c884cd0",
+   "headTree": "9d278ae11436a79ed7be9fa3f73d784553b80280",
+   "commits": [
+    {
+     "commit": "cb7fa858b8dc456217a0a9787cdff790cb5c8753",
+     "tree": "1325ff8b4dec343c2201c143bdb7eef1d7c9f946",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T14:48:58-07:00",
+     "subject": "metal0 legacy control: proof-key verification around setProofKey (source + offline tests; not run live)",
+     "parent": "2d4077530caa03228deac1abda3de8cb03d9550b",
+     "emptyAfterExclusion": false,
+     "patch": "recipient-activation2-48cc74bf/patches/0001-cb7fa858.patch"
+    },
+    {
+     "commit": "c83f2b394e9c60567841d8e6122b980b9c054220",
+     "tree": "1909433ecbae7a3ed21ea9d55ea2cafb9d0039f1",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T14:58:42-07:00",
+     "subject": "metal0 control: exact recovery target (08d1f838, H 9f6d37bd) for the frozen attest/proof-key helpers (source + offline tests)",
+     "parent": "cb7fa858b8dc456217a0a9787cdff790cb5c8753",
+     "emptyAfterExclusion": false,
+     "patch": "recipient-activation2-48cc74bf/patches/0002-c83f2b39.patch"
+    },
+    {
+     "commit": "48cc74bfb8ea2b6d13617b82c5c154789c884cd0",
+     "tree": "9d278ae11436a79ed7be9fa3f73d784553b80280",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:13:12-07:00",
+     "subject": "review of the boot-registration activation: GPU-price boot race (critical), strict recovery verdict check",
+     "parent": "c83f2b394e9c60567841d8e6122b980b9c054220",
+     "emptyAfterExclusion": false,
+     "patch": "recipient-activation2-48cc74bf/patches/0003-48cc74bf.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "PROOFKEY.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ba350314d83d15a8754e37957058560141cbda22",
+     "sha256": "0ef34c81b3a158a9f31fb2dfd2f31c48b6c0786186338e99e1e6aaa4b457172b",
+     "bytes": 5540,
+     "baseBlob": null
+    },
+    {
+     "path": "RECOVERY-TARGET.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "120ba8a74dd67e75ea909756a555fa89b023f366",
+     "sha256": "e49646e38c167948936066a5c56117c3c80b9b4610c93c35e8c25c53468457cf",
+     "bytes": 3148,
+     "baseBlob": null
+    },
+    {
+     "path": "REVIEW-RECOVERY.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0d7e1d62c752db58ed7b8f4d7e82fd00a4936f41",
+     "sha256": "b64b9fb44ad6e76c107b101dc8de33865152414066f4288b83c418441ff09df2",
+     "bytes": 6012,
+     "baseBlob": null
+    },
+    {
+     "path": "check-recovery-verdict.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fc57df8efefddfd56249206d7d71a68c9ce98287",
+     "sha256": "2cd4dcada64ecd23ce1fb3ae19b393da9119ccb8b5156e980d92c6f7bae165ff",
+     "bytes": 4690,
+     "baseBlob": null
+    },
+    {
+     "path": "commit-proofkey.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "0a16a7c02e68c8584c202c5e5188c5933c350c27",
+     "sha256": "93300dfd4285e2568281dc9b126e03eb03e1bbfbc1bd0a391f62de2bf0b0ea47",
+     "bytes": 1809,
+     "baseBlob": null
+    },
+    {
+     "path": "commit-recovery.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "e65cb1f6166dfdf1060a4214b89a6af0b00c8241",
+     "sha256": "5bcee759f5f58055f81bcbd3bcf8b186dae4dfa84cca988e15f9517a1fbddd7f",
+     "bytes": 1752,
+     "baseBlob": null
+    },
+    {
+     "path": "commit-review.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "a69b77d40c684101a1dcbd638b78e8fa5b793e87",
+     "sha256": "b842dff4e14abc2d24edf5193aa7fed1e2de20926e31872ecc8fca44300c27a0",
+     "bytes": 1867,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-proofkey-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9c0651e84bdb0e032fdb4b3b1c2425978f298b2b",
+     "sha256": "c90c16923a14fe0da87d1d1e493a397cc2eb1b356f16eff252db11657b5b498f",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-proofkey-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7f3f542b3b2a9f706276163aaec2b5f4ffb26b59",
+     "sha256": "6ab96a8e15a82da20470ec0201f6d8064e2446fe5e6090daf69bde556850a991",
+     "bytes": 430,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-proofkey-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-recovery-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0dee6815d6d0a7596a9e05a228cbdfcca09b0fd9",
+     "sha256": "26410c31a0065315b3e53e3f50b1df2d96808ebae53d248419d26ebf09b22f99",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-recovery-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c759558046ff57fc134dd275972aa9db41601a5d",
+     "sha256": "dcbe3325fd3c503a684c9ca9a3ad1ff211935704f9753953ce228f67d9786f70",
+     "bytes": 430,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-recovery-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/proofkey-tests-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/proofkey-tests-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7d74a6d6bb128edc21b8cd1cb93908d21d5c44d8",
+     "sha256": "2035739819ef042845d5e51c25b7d918f963466079c5ee19bad0f5ac56143935",
+     "bytes": 1262,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/proofkey-tests-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/recovery-tests-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e9b922fe60290baca026d5d49fa6d14eb8916bb8",
+     "sha256": "454259b6bcdc3d30a8fb7b3798318f87fdb62e17d287cd3ee1e8928d0a94828d",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/recovery-tests-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c66dabc13789a9e3580ce0b07b8c9dcd091b679e",
+     "sha256": "ad2ad622f4364f53cf71040e1686c553c77c1a8c18004c1faa867c3a87df96a0",
+     "bytes": 2539,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/recovery-tests-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/recovery-verdict-tests-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/recovery-verdict-tests-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a3f4f48984e377d7d58f10bf1083b69e98e36cff",
+     "sha256": "f3667d2d68b5e175b68f9832b5316080e88bc3576810b2a6f6d68a296baa6ac7",
+     "bytes": 1600,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/recovery-verdict-tests-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "recovery-target.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "86bb2c0ad2106d7c4836294fffe413457aac3c1c",
+     "sha256": "c14452e4448353497f3c5ab29de2658a5e2a75ea4f4c60f49f61aa05b232b7b5",
+     "bytes": 6895,
+     "baseBlob": null
+    },
+    {
+     "path": "review-progress.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d2164a964fe4cffe1e8eef9c0c672dbedf22fe7f",
+     "sha256": "983aea275cb10a192e211617886280d882eec3d7cb65fc3c18ff7daf7ba26cf9",
+     "bytes": 1704,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/recipient-proofkey.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "01d7e0fff5c799de12793ea2a2cdfa150716849e",
+     "sha256": "88ee1aaead0918970b8a496640d7db1a8d93d58dfc711e14578b96832c40b1bf",
+     "bytes": 6094,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/recovery-target.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c4fdbbbc6698969998fe695c78f1f5599800b188",
+     "sha256": "b2bb37d972c9614d9778b1ca6e6a0c0f60a5e4d72507e77226673866425fd3c0",
+     "bytes": 6288,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/test_recovery_verdict.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a22e805f81e56ba90376a03568d5749dee2b0a1c",
+     "sha256": "eb672ccf94eb61242b0dc86bbd4773e5dd0bbe9701118259942dbd04c7f540f6",
+     "bytes": 4186,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-recipient-proofkey.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d86ab284ef47c417dfadfd8c9dde77d1f44fa2cd",
+     "sha256": "92097dd2518f578058033b888063e6bf23810fc6b1336800d6858f4b0c85aa70",
+     "bytes": 12917,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "recipient-activation2-48cc74bf/patches/0001-cb7fa858.patch",
+     "sha256": "f8bb65f30913cc9e72abfe04e299a5b62a346538c49c689b9cce6fe64d6fed71"
+    },
+    {
+     "file": "recipient-activation2-48cc74bf/patches/0002-c83f2b39.patch",
+     "sha256": "d7f06b8dc40d074e5a7957a9238c27a541004f1257df8d0f60c6aaa3412f4dff"
+    },
+    {
+     "file": "recipient-activation2-48cc74bf/patches/0003-48cc74bf.patch",
+     "sha256": "71779562d0624bf7c1629a7d38d78af36e49e87798146e2bf9b813dbcad033da"
+    }
+   ],
+   "note": "legacy-control proof-key verification (cb7fa858), exact recovery target (c83f2b39), review of the boot-registration recovery with a strict verdict checker (48cc74bf). Source/test only"
+  },
+  "proof-app2": {
+   "repo": "work/custody-proof-app-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "e84a1afd10e19cf8ec4ca48d3d8e389fe8beaa73",
+   "baseProvenance": "e84a1afd preserved in dfb4b55e (frozen-2146 proof-app head)",
+   "head": "ad81dd59f1559dfea74629d4133d75b168047c55",
+   "headTree": "d2aadd32d4df53dc688d2488be2ebf6f18d50775",
+   "commits": [
+    {
+     "commit": "ac33146d80d7bd6bbd9c0ad6333f6b7bde74f4f2",
+     "tree": "ac0d87e625ff1c623f0b57cf8216ee24b724de67",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T14:52:35-07:00",
+     "subject": "custody-canary-proof: read-only catalog publication request (ROOT-PUBLISH-PREPARE)",
+     "parent": "e84a1afd10e19cf8ec4ca48d3d8e389fe8beaa73",
+     "emptyAfterExclusion": false,
+     "patch": "proof-app2-ad81dd59/patches/0001-ac33146d.patch"
+    },
+    {
+     "commit": "ad81dd59f1559dfea74629d4133d75b168047c55",
+     "tree": "d2aadd32d4df53dc688d2488be2ebf6f18d50775",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:03:44-07:00",
+     "subject": "publish prepare: bounded read pacing and HTTP-429-only retries (ROOT-READ-PACING)",
+     "parent": "ac33146d80d7bd6bbd9c0ad6333f6b7bde74f4f2",
+     "emptyAfterExclusion": false,
+     "patch": "proof-app2-ad81dd59/patches/0002-ad81dd59.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d9eb61655b84f854292fb21907e97ab277c28608",
+     "sha256": "6a94b8beb691899bb9017991342bc1533ce2a18c60931325ec7aa661f6ea9ddf",
+     "bytes": 67,
+     "baseBlob": "7407cf45e51942566990d5189be9fbe973ac9860"
+    },
+    {
+     "path": "PROGRESS.txt",
+     "status": "M",
+     "mode": "100644",
+     "blob": "e2a389631344a706eb10b2782039f2396221762d",
+     "sha256": "73f57e851c91f7e07e465eaca8b142f01d8157aec6b9c441a99433438989de58",
+     "bytes": 2437,
+     "baseBlob": "b8876751c3891623514f4431f066126dd4eff4e1"
+    },
+    {
+     "path": "PUBLISH.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ed8263cf60f3e938a081e0acaa62dc615b90b1a6",
+     "sha256": "4db48a4ae8cd9bead0ebf6da50ef22207c997a666171039ebf9a179b6ab7d5de",
+     "bytes": 14748,
+     "baseBlob": null
+    },
+    {
+     "path": "README.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "4b814ec83fbeaadd44ce96ab19ba9e1a7a39e2ee",
+     "sha256": "34daa32ba5f9822a94e2f0febf3331fa93b54e5f3eaec845c85e4fc1f6d4a0c1",
+     "bytes": 10126,
+     "baseBlob": "4717ffc049cf82d7c557b90314f696441955b997"
+    },
+    {
+     "path": "publish/bin/publish-prepare.mjs",
+     "status": "A",
+     "mode": "100755",
+     "blob": "c5ed4e00328e7d3c250b3713f5b68de4cf3ca836",
+     "sha256": "de816663d9989feeb878d40df104a0879ab6c5b24c734b421e229b297829094d",
+     "bytes": 2633,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/derive/appid.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "a0cd94fe3cdf1cf3f3ea9bdaa3488ceea219382f",
+     "sha256": "f5d4295bd2cac3241b2f8f9e1b83601cd29e8876e3a2cd86f4f93dea530ecdb1",
+     "bytes": 2335,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/derive/measure.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "12814ed009c7477dfa58317cc643677762a27f30",
+     "sha256": "ff00194f7f5f5ed84ed7013a7d457bfe0d9050e511b0254091e6f9117629b2dc",
+     "bytes": 1115,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/evidence/derive.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bdc63a6a00e482de1f507cdbcc16bf8cd0da13e9",
+     "sha256": "0e822a3f97619f36273a09730ab26908917226d91a4540a1f2826de36c31fcc4",
+     "bytes": 2118,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/evidence/live-readonly.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1e82a788f3810814d35d035d7cc8df13c8479684",
+     "sha256": "e5319d232fc88d56d54d87a20802ffadeb4f74a9a6472eca11344d81580ba688",
+     "bytes": 1099,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/evidence/request.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ac91e593bc6dc0e2abad64aace86428e549e1a29",
+     "sha256": "3119026f03a01ae8b6afa1ae74e966074243c1a1f9c2782e62a008a65ddf2c9e",
+     "bytes": 2993,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/fixtures/book-build.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "043d2384fc346d61ff0166884cd91db8c3d5987b",
+     "sha256": "cf3cc80b0357e8292de858de844314c676d50f54c33796a091ab55926712c2a1",
+     "bytes": 5553,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/fixtures/catalog-build.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "95ec1552c50578e84e805078257fa17d9b76c9ec",
+     "sha256": "b7c70ae8af9d1ab46575c5d8f14c68fe7a4a3ce32e32c9c1efc33075cbe029d9",
+     "bytes": 62880,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/fixtures/oracle-mock.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a4d4526d108b5abb3b5c63d21cf34edc5cd73b5a",
+     "sha256": "240cef794412fd05d29eefa2b38e991001896b1e8e5375d8f32054adeaa2e939",
+     "bytes": 1570,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/lib/publish.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "16a9a5446ceab620f1fdcd6ba7212c01262950b0",
+     "sha256": "d255587b66acb6afa9aebe14fd2d7bec86083213cdc07242d268a8e21d88cd41",
+     "bytes": 26745,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/package.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4dc369153b5ea502c76b26b6942bc419669795da",
+     "sha256": "c8924bbd566843f30472c0e217a70edce842dff0f8d021db852a20f58429565a",
+     "bytes": 295,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/probe/live-readonly.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1a2d312e384514b97ccd409763b3af0430b71542",
+     "sha256": "c06704c1e91dad7b5c05922c4acdf3a682c55bf752bb8abc0d51b91982dc3441",
+     "bytes": 3129,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/test/OracleMock.sol",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3c98e37244e7c51cb89723be6f7d9dafbdf8b14b",
+     "sha256": "fad1c0b90487640d12fba5993ee8bff60fe3af33d2e231bc31491ec35dbee1d1",
+     "bytes": 677,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/test/compile-catalog.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3995a5391cea2259c6d2027a956f2339c70e1c64",
+     "sha256": "0babd5f74183fcf79a8288b6ebd2c737f20f70631fc6663d02dcaf3ebbd64d72",
+     "bytes": 4444,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/test/mutants.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "c70558d1ca3bf2b1685d89d74f354895ceec9ef7",
+     "sha256": "851e2729087331dd6a7bf99be44359a1640e9509a90130edb9efac9626a75567",
+     "bytes": 3886,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/test/pacing.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6ce500365e8f0d4d5e92fa950107efefda1bbc9f",
+     "sha256": "b513037cdbf30729635c7c79c121a6d36dbdb780d5dd1069bc712e2259544528",
+     "bytes": 6821,
+     "baseBlob": null
+    },
+    {
+     "path": "publish/test/publish.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7e5e4468eb45503b7a3ca4a50c45f943000e6529",
+     "sha256": "51a85d28d6f8c340bc32e57f6faff0da55d9f37544a4baf2a32d9c87a1853de7",
+     "bytes": 18510,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "proof-app2-ad81dd59/patches/0001-ac33146d.patch",
+     "sha256": "9d87924c32e6db90df40e3556703eb5ae26221bead7cd534ce01c0f51cede52f"
+    },
+    {
+     "file": "proof-app2-ad81dd59/patches/0002-ad81dd59.patch",
+     "sha256": "837a155a15744d1983750d643e51b756b57bc0f42d56aced039fce0bc893ca53"
+    }
+   ],
+   "note": "custody-canary-proof publication preparation: read-only catalog publication request (ac33146d) and the bounded paced publish-prepare tool with catalog/oracle fixtures, tests and evidence (ad81dd59). No WASM or component binary; nothing published"
+  },
+  "current-docs": {
+   "repo": "work/custody-v2-current-docs-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "a257c0e04bb8fe4d1ae14064758c411ed92c1f5b",
+   "headTree": "89f863af8b6df65b5c0153d45e4f410a453efe35",
+   "commits": [
+    {
+     "commit": "dd9cc622eb63ac16055398ac15a519516d6c6103",
+     "tree": "765edcc847ded61df435f7ed3d8ad545402e835d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:13:33-07:00",
+     "subject": "Import custody v2 docs exactly as on checkpoint dfb4b55e (= dashboard base ff13ebe08)",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "current-docs-a257c0e0/patches/0001-dd9cc622.patch"
+    },
+    {
+     "commit": "42015b1ebf6ff6e8c9e59b54fcfbadef9cb238f2",
+     "tree": "1550a2a9010c4c98484be36c5aa97ae34cc76365",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:13:33-07:00",
+     "subject": "Apply the reviewed dashboard doc commits 2d3839c54 and 9d97b4b00 unchanged (current state, corrected image, who holds x, goals vs current)",
+     "parent": "dd9cc622eb63ac16055398ac15a519516d6c6103",
+     "emptyAfterExclusion": false,
+     "patch": "current-docs-a257c0e0/patches/0002-42015b1e.patch"
+    },
+    {
+     "commit": "9d58a8b2188879ff35b0f3f87aee0b4a59b6fe27",
+     "tree": "b83dda34aba1d43025e305683d04a61157ccb074",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:13:33-07:00",
+     "subject": "Reconcile custody v2 docs with the deployed state: code-frozen original committee, proven vs not, rollback and relay limits",
+     "parent": "42015b1ebf6ff6e8c9e59b54fcfbadef9cb238f2",
+     "emptyAfterExclusion": false,
+     "patch": "current-docs-a257c0e0/patches/0003-9d58a8b2.patch"
+    },
+    {
+     "commit": "dfca5f0568dbbf0e83c24d4fb9762c1ead9b66c7",
+     "tree": "e0486dc0f3e647b3864f9c5af780db05435f987d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:13:33-07:00",
+     "subject": "patches: the custody doc changes as git format-patch (A..C) and cumulative diffs against checkpoint dfb4b55e and main 68b82926",
+     "parent": "9d58a8b2188879ff35b0f3f87aee0b4a59b6fe27",
+     "emptyAfterExclusion": false,
+     "patch": "current-docs-a257c0e0/patches/0004-dfca5f05.patch"
+    },
+    {
+     "commit": "a257c0e04bb8fe4d1ae14064758c411ed92c1f5b",
+     "tree": "89f863af8b6df65b5c0153d45e4f410a453efe35",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:17:25-07:00",
+     "subject": "Refresh status from root's 22:14Z journal: control still old/unregistered, 08d1 admitted not activated, cutover stopped",
+     "parent": "dfca5f0568dbbf0e83c24d4fb9762c1ead9b66c7",
+     "emptyAfterExclusion": false,
+     "patch": "current-docs-a257c0e0/patches/0005-a257c0e0.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "06814e9fed4667f7bc2d89a7762d819246430d1f",
+     "sha256": "e39307c27b78706b0a36f8ae32134b7b15339f036d4f275ed98c84470eba2beb",
+     "bytes": 17,
+     "baseBlob": null
+    },
+    {
+     "path": "CURRENT-STATE.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "caa0f267c6861b0932a92f142ed7edf5cb1fac51",
+     "sha256": "0b3993f6bae1e83f906a68f66ed425641d185876bbbeeb2021776a974e9a2ca7",
+     "bytes": 10248,
+     "baseBlob": null
+    },
+    {
+     "path": "README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3d650ad0edcf593fad1b14fb89b15f891a2af909",
+     "sha256": "d505099ce87c42ed0378af5df518ec18734cd4f724d94320368efeb96e7faacd",
+     "bytes": 1182,
+     "baseBlob": null
+    },
+    {
+     "path": "ROLLBACK.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5a157de62b46bc24cbc42549cb1a38a736645aa4",
+     "sha256": "7c7ede44656daf5ee386e67f1b1079059e8c2385960420909c6c297d77803e56",
+     "bytes": 3816,
+     "baseBlob": null
+    },
+    {
+     "path": "SIGNING-AUTHORITY.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "03081a9fcea4cf52e15d41945b6f2d9142567169",
+     "sha256": "0cdfb839f165ed5fd8975ae5b3f8e7befd6f9bf00d1742ebc312654734c7d17f",
+     "bytes": 3430,
+     "baseBlob": null
+    },
+    {
+     "path": "SOURCES.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "78bcb6db398f27eaf9bf8263a03e413c66c9a9dc",
+     "sha256": "b04cdce8558880110b76beee5c345d2f4d014250b7e305886d24f8f385b830b0",
+     "bytes": 5437,
+     "baseBlob": null
+    },
+    {
+     "path": "TEST-MATRIX.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8cf65c591314dd8767c4b7dd1999b4526fd1d2d7",
+     "sha256": "db686216b139f0053f2174d1960073252cdb20d76f2809f109f9f86719db9bfa",
+     "bytes": 5433,
+     "baseBlob": null
+    },
+    {
+     "path": "commit.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "71f4874116e47866590a5e22d059078b52234c42",
+     "sha256": "ad01e8335a948f8bcee3c01f1f8091fe69a7cefca257bfcbf69f063fca8be347",
+     "bytes": 5220,
+     "baseBlob": null
+    },
+    {
+     "path": "commit2.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "fbdaf2e9d14684683e4ff20f9bea5a0d9c1417f0",
+     "sha256": "318ae8eac7653bedc6c338a5e073749a9173a258ad2aa231003d7951a5148efe",
+     "bytes": 1591,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/ORIGINS.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "49fe5cf5974679035c0ea54db3a8796d1fcc9224",
+     "sha256": "36d24b7bea7557af776c50375315a097099521a3403a0f0d0791d1d3951fd483",
+     "bytes": 1163,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/security/secret-custody-v2-spec.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0222b19ca6ebf9704ff4a0c98e02496811d7fdf7",
+     "sha256": "b4a537b1fee8ca65ed2032d5764b1f7f56a267d460ab61237686bab784b27974",
+     "bytes": 14442,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/security/secret-custody-v2.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "76b73bc46c24e95b5e173da037398d29400a0f95",
+     "sha256": "b9b02a869c97c853614e6a9a99f0a9e1598446a65675d2f09c5089cddd13ba91",
+     "bytes": 38694,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9bd092951a99c97bc52441e21ab26321bb005fdc",
+     "sha256": "64065a1aec7c8acdc19a8027c48071f67e0d800d82ff0bfe0c6d13aa3548c9c3",
+     "bytes": 1848,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/rangescan-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c6225e1afa6d75ca67df98b095acbec65bce3be6",
+     "sha256": "e0ed8ea1176b308ffea04b09827087284c7009e9f77e655c189a77ce01714301",
+     "bytes": 404,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/rangescan-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/rangescan-gitleaks.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fe51488c7066f6687ef680d6bfaa4f7768ef205c",
+     "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+     "bytes": 3,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9497480757cdd84c1bc9d46f272c4bc6d2b5d0f5",
+     "sha256": "adf7e97a2318405434bd49a1268927b9da8e94b650388ec6fbd8e933b4198652",
+     "bytes": 358,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c0dcace37dad63956f621eb25a47e86de624556c",
+     "sha256": "5d37c0e33969a951b44fbdda6b9531815dd752c6e6844c4db05c6f9d5ed71b04",
+     "bytes": 360,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-gitleaks.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fe51488c7066f6687ef680d6bfaa4f7768ef205c",
+     "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+     "bytes": 3,
+     "baseBlob": null
+    },
+    {
+     "path": "patches/0001-Apply-the-reviewed-dashboard-doc-commits-2d3839c54-a.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c8c361ce9a7f3fdcc16ccc32aa8f33509ea16727",
+     "sha256": "dfe0f182967cc86fbeff3c7d17d75ce692d53c336bff10d177cc01d33835cf9c",
+     "bytes": 13156,
+     "baseBlob": null
+    },
+    {
+     "path": "patches/0002-Reconcile-custody-v2-docs-with-the-deployed-state-co.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "487d55adb4c1b5a13ea1db91907ea49424fe31a3",
+     "sha256": "5b3a985267ef3785a797b7f630aff89ebe5c1f48c5cc38031aa2c9c59edd0cc3",
+     "bytes": 12621,
+     "baseBlob": null
+    },
+    {
+     "path": "patches/against-checkpoint-dfb4b55e.diff",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4ca1330dc6a889738cc9000644c95fb7f825c3b4",
+     "sha256": "0f370ae1f11957f0aa8a97dd086812a36dd5513e634d2d17b32a4b09c75205db",
+     "bytes": 20788,
+     "baseBlob": null
+    },
+    {
+     "path": "patches/against-main-68b82926.diff",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d68325726a2557a8368075e1d0b357cf3e08ccde",
+     "sha256": "25b1a8fc5ae5233d1811665f3617c0a0305ce6eba7d108fc4f6bb6c7c0ebfd69",
+     "bytes": 27857,
+     "baseBlob": null
+    },
+    {
+     "path": "q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "e4124758a77c9a2858f09608297424621403787e",
+     "sha256": "78551a365337b9e89c93fcef4ecdcbb5fa0186e799a4272391a2c871f815e1fe",
+     "bytes": 631,
+     "baseBlob": null
+    },
+    {
+     "path": "rangescan.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "7ffe86db64ff68293b1368f11d94366684b3bd43",
+     "sha256": "f09003c8f98fe0b194290e1dae9e01eab970e59729b31fd728d6d68c65c72a65",
+     "bytes": 796,
+     "baseBlob": null
+    },
+    {
+     "path": "scan.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "5ca0b864015ca8a9999f44903be307752e97ddd4",
+     "sha256": "3196b67722e8d77c243ff0553d192f3626d19ed15045d044d52dd129c7577507",
+     "bytes": 1056,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "current-docs-a257c0e0/patches/0001-dd9cc622.patch",
+     "sha256": "e414ca3a9633df1f0348cdc8d0d863184a86f9344cdbe53eead1d6d44bced1e4"
+    },
+    {
+     "file": "current-docs-a257c0e0/patches/0002-42015b1e.patch",
+     "sha256": "c4323bd4ac701e889e8a88cdfd94a25252d97699ff81d5a1b59ec97e3d2ee5e5"
+    },
+    {
+     "file": "current-docs-a257c0e0/patches/0003-9d58a8b2.patch",
+     "sha256": "f694902dfd4a0431d9f906685cfe2f1bf5cadc3975c708ae22abd87300f8daa7"
+    },
+    {
+     "file": "current-docs-a257c0e0/patches/0004-dfca5f05.patch",
+     "sha256": "1c9261de4e6e47df1e060e35ca5fd4978b8a7346dc8232ce8e7cd3c071e4e37f"
+    },
+    {
+     "file": "current-docs-a257c0e0/patches/0005-a257c0e0.patch",
+     "sha256": "13f1d62be3fa7b266669d0362cde82eeab45c565a14eeeafe377b1d5ab865829"
+    }
+   ],
+   "note": "R reconciled custody v2 documentation for root review: CURRENT-STATE (incident PROVISIONAL, refreshed to root's 22:14Z journal), TEST-MATRIX, ROLLBACK, SIGNING-AUTHORITY, SOURCES, doc patches against checkpoint dfb4b55e and main 68b82926. Not published; no rollout claimed"
+  },
+  "boot-source": {
+   "repo": "work/custody-boot-registration-20261023/repo",
+   "branch": "boot-registration-adopt",
+   "headReachableFromBranch": true,
+   "base": "a6b1378cdf430217025987d90c040d0e25a9993d",
+   "baseProvenance": "a6b1378c preserved in dfb4b55e (frozen-2146 recipient-restore-repo, touched files)",
+   "head": "9f6d37bd858ad44be1171b6415353910214c2fa5",
+   "headTree": "59f0a46d5f46342faf2183ce7899d9c6dea3d035",
+   "commits": [
+    {
+     "commit": "9f6d37bd858ad44be1171b6415353910214c2fa5",
+     "parent": "a6b1378cdf430217025987d90c040d0e25a9993d",
+     "tree": "59f0a46d5f46342faf2183ce7899d9c6dea3d035",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T14:48:04-07:00",
+     "subject": "supervisor: adopt an existing exact registration at boot instead of a full register()"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "test/registry-advertise-retry.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "0fa12218e81b0b85a50329566b5a720c57577ed3",
+     "sha256": "2dd967cdd96e404c9c32610e805236194cf29b1ce6bcbd11634022e9065af9da",
+     "bytes": 18295,
+     "baseBlob": "9cd0a7108212fb59b4bf2d50ea24bcf429868db6"
+    }
+   ],
+   "patches": [
+    {
+     "file": "boot-source-9f6d37bd/patches/0001-9f6d37bd.patch",
+     "sha256": "a0e8474d7fe8972b3586f69398eeccebe9a4de2a9455e4d0c85486899c4ef890"
+    }
+   ],
+   "baseFiles": [
+    {
+     "path": "test/registry-advertise-retry.test.mjs",
+     "mode": "100644",
+     "blob": "9cd0a7108212fb59b4bf2d50ea24bcf429868db6",
+     "file": "boot-source-9f6d37bd/base-files/test/registry-advertise-retry.test.mjs",
+     "sha256": "65ecddee7cfcb2f786929262eea2102863f8561882d698b54b4dab9de37c2084"
+    }
+   ],
+   "patchOnly": true,
+   "touched": [
+    {
+     "path": "supervisor.js",
+     "mode": "100644",
+     "baseBlob": "f6b668cb2c448821fcf0158af1591a25b93b4d26",
+     "baseSha256": "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951",
+     "headBlob": "66ad07d37546dd00fd0349a8908e392d7ad02d45",
+     "headSha256": "37e6a34078c2fa1d5ca835a619a115c86e7aca273324924eecda45e7346bab0b",
+     "bytes": 815857,
+     "containsRewrittenLiteral": true
+    },
+    {
+     "path": "test/registry-advertise-retry.test.mjs",
+     "mode": "100644",
+     "baseBlob": "9cd0a7108212fb59b4bf2d50ea24bcf429868db6",
+     "baseSha256": "65ecddee7cfcb2f786929262eea2102863f8561882d698b54b4dab9de37c2084",
+     "headBlob": "0fa12218e81b0b85a50329566b5a720c57577ed3",
+     "headSha256": "2dd967cdd96e404c9c32610e805236194cf29b1ce6bcbd11634022e9065af9da",
+     "bytes": 18295,
+     "containsRewrittenLiteral": false
+    }
+   ],
+   "heldBackForRewrittenLiteral": [
+    "supervisor.js"
+   ],
+   "patchProvenance": {
+    "exportTimeCheck": "a throwaway index of the real parent a6b1378c + this patch == 9f6d37bd tree (asserted at export)",
+    "supervisorBasePinnedTo": {
+     "pushedInventory": "checkpoints/decentralization-20261022/closeout-followup/files/source-preservation/frozen-2100-export/recipient-provenance-8b0c4da2/held-out/out/dist-leasegas-deabf8f90/initramfs-inventory.json",
+     "member": "/app/supervisor.js",
+     "sha256": "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951"
+    },
+    "why": "supervisor.js (base and head) contains the provider name the 2026-10-21 rewrite removed, so neither is published (no literal waiver); the patch hunks are literal-free and published exactly; the test file is published at base and head"
+   },
+   "note": "H source 9f6d37bd on a6b1378c: supervisor adopts an existing exact registration at boot instead of a full re-register, with tests. PATCH-ONLY: exact patch + test file; supervisor.js held back (rewritten literal), pinned by blob and sha256"
+  }
+ },
+ "derivatives": {
+  "boot-activation": {
+   "repo": "work/custody-boot-activation-20261023",
+   "branch": "main",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "86c5fee82c98278e4d1c9446a63f903ab6a131e2",
+   "headTree": "48640559e08a892b3122b8cdab7b7fe09b9687d5",
+   "commits": [
+    {
+     "commit": "fa76e9bb88fa4d6b309064053499a03016c4fbaa",
+     "tree": "b23ffb6fbca814b91da05ea81eb8d680c16ae6f6",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:08:12-07:00",
+     "subject": "metal0 control: second image-only activation adaptation for the approved boot-registration build (9f6d37bd)",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "boot-activation-86c5fee8/patches/0001-fa76e9bb.patch",
+     "originalTree": "3108b6897fc223219560475b28fbe592fb79ea95"
+    },
+    {
+     "commit": "86c5fee82c98278e4d1c9446a63f903ab6a131e2",
+     "tree": "48640559e08a892b3122b8cdab7b7fe09b9687d5",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:12:34-07:00",
+     "subject": "boot funding: canonical block agreement (root 22:07/22:08 failure), strict keep verdict, root runtime files kept out",
+     "parent": "fa76e9bb88fa4d6b309064053499a03016c4fbaa",
+     "emptyAfterExclusion": false,
+     "patch": "boot-activation-86c5fee8/patches/0002-86c5fee8.patch",
+     "originalTree": "e4b4b85c5bfb23908c9333e666c5499e2b405d38"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cafa551e738c9ecafd56ebe1a3e4b7695e5cf0a6",
+     "sha256": "6807f0439a9e1cfe4af2a485783a343804a311246a354d691572fd9fa173c4bf",
+     "bytes": 346,
+     "baseBlob": null
+    },
+    {
+     "path": "README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5fa1513b1c18defea8c8b0d3a49b205502af916a",
+     "sha256": "32c5c598bc80033960309e1fad394ed4951c3cc700b3308350ca0aa890b932b4",
+     "bytes": 12338,
+     "baseBlob": null
+    },
+    {
+     "path": "activate.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "921c226bcd77d79c841d416e20d6793c41a06a81",
+     "sha256": "0e40203bc4c191408826fae882410c9842afd8ed9e4f18110e95c0f05df9c073",
+     "bytes": 10269,
+     "baseBlob": null
+    },
+    {
+     "path": "admit.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "65f33646dfd70caa1e9ba19db13d0b0f2217b081",
+     "sha256": "48e1b60275c53de5c84540dd13fa79ca311c74b3fac571c4f0732d6fbd662610",
+     "bytes": 1605,
+     "baseBlob": null
+    },
+    {
+     "path": "apphealth.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8a48dcc024a6896cb8a6931e207852f60a6e2487",
+     "sha256": "3babd979edfe9dd245ce5d4d2a2e12223dfd67c1fa761d76cb108b53b6b6f88f",
+     "bytes": 2841,
+     "baseBlob": null
+    },
+    {
+     "path": "block-probe.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5b4f7f279ab6a8ab8bf5cb998c92c27255e6f11c",
+     "sha256": "9a066d0313a404988e4250526ead248b7be0f2545dde0f3fb59b0e3e32d22878",
+     "bytes": 2209,
+     "baseBlob": null
+    },
+    {
+     "path": "boot-funding.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9fb0dec1aa14fe9bd4a57756457f628ae8e50883",
+     "sha256": "c5fb367057b2d1c2523d819216d8c9b819f4a5adbf2b60ab0e6f8d9c00fedc95",
+     "bytes": 12042,
+     "baseBlob": null
+    },
+    {
+     "path": "build-record.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "db99767412fb1384ce02e98bb61e37d5be992669",
+     "sha256": "599f6ae54170deb3aa3abd86ef858c533464bc315acd555320cf8b042d076387",
+     "bytes": 1968,
+     "baseBlob": null
+    },
+    {
+     "path": "build.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "52d6e347d2303320174efebcda26f34243029275",
+     "sha256": "68b1c391f60a5c942a052bfa7bc14ecc9f5430769a0f5ce6a9965dd049588fc2",
+     "bytes": 1315,
+     "baseBlob": null
+    },
+    {
+     "path": "common.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4bea49c21b5044bab2adf64f2a86c94fea408001",
+     "sha256": "5d296331345456e487a96b93d2b897e6ac8effedfc5d59d01c6c98acc43cd81e",
+     "bytes": 39052,
+     "baseBlob": null
+    },
+    {
+     "path": "fee-fit.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "21d33dc5c14e0a99177789d0b57c4b26be0c4c60",
+     "sha256": "8033f3a674d682eef6378e51499f1a7b54d2bd7d26798cde7fa98ce20203e7ba",
+     "bytes": 2120,
+     "baseBlob": null
+    },
+    {
+     "path": "fee-fit.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d84b82b391f0c123afb486a3abae6eef0462298c",
+     "sha256": "ef7b2231c1c954e37b6e3a663c99c7786fb1318cae083a9dec3b5957838af52f",
+     "bytes": 1636,
+     "baseBlob": null
+    },
+    {
+     "path": "funding.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f78068ab32da39b7eac3cc1099ef06ae2f0f5210",
+     "sha256": "ab33b0e0c6ec271094b7086764ff88f070b20550c3d1d5c6c204c95495619b05",
+     "bytes": 1595,
+     "baseBlob": null
+    },
+    {
+     "path": "guestrows.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4f70d73ee98163b9cad165b88b41fded2a675a34",
+     "sha256": "29b7c9dac8e39990e3332cfa2c4f7f9f972ab559f37a4d720edf55eafacb06ab",
+     "bytes": 2616,
+     "baseBlob": null
+    },
+    {
+     "path": "keep.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f50917690ff4af7f73a35d0acaa2c7f5f22c1fae",
+     "sha256": "4028e716697cf06efb2a84110f623fe73415366e11359c63532a0e1317157754",
+     "bytes": 3224,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/b1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/b1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e47a6ee0ab2c9f63fc4c40d8d72e024f00c38756",
+     "sha256": "09e234e517543165b43a7fad1ab6fb7bea31ea39962b86d4a00c477a04360359",
+     "bytes": 1671,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/b1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/probe1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2f17ee143f3111e8eefcb6ff1cad043ffa6de9b9",
+     "sha256": "b71f1d54e18ba49d39777dad99a8bb4fb26fe4ce50767b7753cae9aa3bc64723",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/probe1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "915028a9a0f6d7bddb02ac800f04707a7bc1a124",
+     "sha256": "bb09251a6e37e1a26400912f782adbd10836f97b6139cd6411b5b1ecc014e613",
+     "bytes": 400,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/probe1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/probe2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b9047a102f1624dc0a3545a407dd66530a5e3f23",
+     "sha256": "bcd100d5734603e58162694212128d63ee9f80e56f268115f066a95500d5976f",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/probe2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e003b4bbff02f0dac8d98ec8db37266de27df30d",
+     "sha256": "ab444875858c6ffdf3facc8a4ab9c04971a51a4cdc7e69381afe900def636a11",
+     "bytes": 2152,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/probe2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b8fb5ed6b715004512a2878e44321c36085eeb19",
+     "sha256": "302f730bb854b451829ca8cb52ef613a5a6741225a52e90d9e5d7cbd86d29f47",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "45a829e7c5a292d20bc36d922a906bed35848222",
+     "sha256": "2f0795158d3e351e6caf75195caa62476bf08263d2b0df15f1aac05c85cdfc08",
+     "bytes": 6952,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d1e4fffd745a5625f9c3ae1f05dad98f20491154",
+     "sha256": "5771594e07c01f3bf7b29cc2986c205d6d72b2e8fb2cbb02a8abff677f6b83a6",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7adadf7d3e040031b992f5aeed455e43c7ad81df",
+     "sha256": "c0d273f83c673062b0e99c17645452a4d6774fe2af01322ce77f8d43b205cfde",
+     "bytes": 6953,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e9bef29f48c37450b17fe071f2e1546c1a876c8b",
+     "sha256": "662cc1e00bfa971163f449ed7638d986b962fb6c3c4044b03ff3048bdc4a8e2b",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b29f2450093844275b5004b1f64c82435e187ff2",
+     "sha256": "da2efb6091413225ce0420f8a61a1b5ada850561157ae4c995f61cad63d15394",
+     "bytes": 8031,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t3.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t4.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "487ed855b3cbf1f80f32d0796db88a87b78d5745",
+     "sha256": "17945f143fc5c3fe44382c2957faa19759f5be5ca19592077431cd7b6d40a606",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t4.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e930e4aea034fc5ca30917898728ad801ea5a890",
+     "sha256": "40a2c3849e720823293ad7522db846bf5650b178635b1008f48d3d4875283773",
+     "bytes": 8032,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t4.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "mutants.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2fcf461b818ccdf92a7ec739d9e2be2fca9fa479",
+     "sha256": "1023dd3037e9bf6a14323e2c956b9c5eac2c77d17546bc0cd5329322ec6865c2",
+     "bytes": 7649,
+     "baseBlob": null
+    },
+    {
+     "path": "prebaseline.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c977fc894ee0aeea89d649365b106a698387a16d",
+     "sha256": "837956f39c367cd6b5fbeb86b8b460971a14984ac6cd696d94ce538328474b23",
+     "bytes": 3093,
+     "baseBlob": null
+    },
+    {
+     "path": "preflight.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8fa2271de6df77decab62fde9be7f29d0dbf71ef",
+     "sha256": "1605f99a201973aae04aff9ac91c96984c19c4f766a28edbaf8813fe9943e553",
+     "bytes": 4370,
+     "baseBlob": null
+    },
+    {
+     "path": "prepare-admission.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "376e6eea526f3c68aeb8b1c9f691c323b078d136",
+     "sha256": "c586da1182ef6f91c0c264a5fb38682fb5c632e03e8f06a4f916f435bc316cd2",
+     "bytes": 2288,
+     "baseBlob": null
+    },
+    {
+     "path": "q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "f69b7de1730e7634fb481a8924488479d2eeeeba",
+     "sha256": "b25ca78d460a5a8e3dc553867270b825d09b5d1e640490e26755fd01fd43e196",
+     "bytes": 565,
+     "baseBlob": null
+    },
+    {
+     "path": "recheck-admission.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b3f506451d986b6e923275df26bfb68c522709f4",
+     "sha256": "ff2f438443282a23fff68467d75a4fb9d89aa8ab629b7eca795478d3bf9c91b4",
+     "bytes": 830,
+     "baseBlob": null
+    },
+    {
+     "path": "renewal-watch.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0eef6188367b6485abcb1334a98dc1dc05c6ae20",
+     "sha256": "dd4e340c26b9e300919d4c66f4793304bdf4b26c6785bcdd196a946e491c5709",
+     "bytes": 1004,
+     "baseBlob": null
+    },
+    {
+     "path": "rollback.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "856ee8dfddf49237f422fbc92b47234b82cf4106",
+     "sha256": "d45554419aa9d9be8203765349923de5587b13f90f30d2f500bc25b2bba1a250",
+     "bytes": 1413,
+     "baseBlob": null
+    },
+    {
+     "path": "run-tests.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "ee206e777a495e5c478e49df3280f40fd55143fe",
+     "sha256": "565ea868c9ad25aa31dab8f170b9bd37cbd1c7b2a5e568f7525443ed8ce6a827",
+     "bytes": 776,
+     "baseBlob": null
+    },
+    {
+     "path": "scan.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "9656d408f3c8b2c2371ddbd21fa973e635fd6e49",
+     "sha256": "62614e6332837b4946036ce746f2fd899b5596072a27f67bb79be41abfe66c50",
+     "bytes": 1270,
+     "baseBlob": null
+    },
+    {
+     "path": "stage.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8f24ecf66643c77f878d926d6b5df28950d66953",
+     "sha256": "766c31f73452e41d1444bab830adbd5b4624bd2dd78a4000d42ab7edfb3a2c7b",
+     "bytes": 2434,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/boot-funding.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "deb6673af3beb73f1d816721aa7612776e02fdc5",
+     "sha256": "d7a50c12dea14fc9d413d08ee5e7864ea0affc5db0b68f419710ce1ef35a1e0c",
+     "bytes": 9744,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/fixtures/APPROVED-COMMIT.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "16c1d59a2660040641dda59680ed14e1c7cf5180",
+     "sha256": "f32ab10418d261e562a1c13db7d12fa7f4560a620602a2349753322a3ced5116",
+     "bytes": 59,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/fixtures/INVENTORY.sha256",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e6fc5a5bc25b9f491c86b992fec9278dcf91afc0",
+     "sha256": "c34974adae318bf9d124081fb4acbba778b38ab7586005cb8e53f586ab8779a9",
+     "bytes": 510,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/fixtures/MEASUREMENT",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e10a92ebfdba0ca5cdfe215a0d3b98bcc00a1102",
+     "sha256": "6d55c0e2839e5a1aad1258ce80ec112181f155c50be9f5ad1f66f1bb44064537",
+     "bytes": 97,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/fixtures/root-build-approved.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6cc04314a55a22d88f196c7a304749aeba3f9b29",
+     "sha256": "89ba2d1b75e766a95d3f6a12e09ee97c2baad3df4c5bb2e9d98b6647b9bba0ba",
+     "bytes": 2059,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/test_activation.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3790db68d907533cf4c2173fd3d1a16b91cafa01",
+     "sha256": "8e2d7a6a47ebfa8bff1f74573e3cc60716e1642679853ffe09839bb01f54508d",
+     "bytes": 33666,
+     "baseBlob": null
+    },
+    {
+     "path": "unadmit.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6bd5f74655f7538a681ccc32aa84f9354de10cb0",
+     "sha256": "61ff8928023eb62751ec0713c668dd27ac8ee5ecc6dafc0f6b04dd2c53e9f802",
+     "bytes": 851,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-operational.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b2d68a59f892b04c262cc73983a624ad82821419",
+     "sha256": "5ef6fa9d59087a757e5e21911ec033b78c2b6fd06e6d9724c49d64e43ab1f067",
+     "bytes": 9947,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "boot-activation-86c5fee8/patches/0001-fa76e9bb.patch",
+     "sha256": "5047f59feae835604bb70e210e96449bd750d3afb673f15d385042239fbc0697"
+    },
+    {
+     "file": "boot-activation-86c5fee8/patches/0002-86c5fee8.patch",
+     "sha256": "aa37275334fb04aa48a91ce3e7becbcdb7248a1e7093a0419a86947b6f763a2b"
+    }
+   ],
+   "originalHeadTree": "e4b4b85c5bfb23908c9333e666c5499e2b405d38",
+   "omittedAtHead": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "940601e832c1d96776bdd04c41097b81f861194f",
+     "bytes": "2372",
+     "path": "evidence/original-baseline-20261023T213130Z.json",
+     "sha256": "45554dc55f4cfc38302e922dccf67190c41e00c3b061a4ea52e3f1f530092af0"
+    }
+   ],
+   "excluded": [
+    "evidence/"
+   ],
+   "label": "SOURCE-ONLY DERIVATIVE: second image-only activation adaptation for the approved boot-registration image (fa76e9bb) and boot funding with canonical block agreement (86c5fee8): source, provenance and tests. Root's runtime files are ignored and never read; the committed runtime record evidence/original-baseline-20261023T213130Z.json (a read-only production baseline) is omitted per root (source/provenance/tests only); blob and sha256 in omittedAtHead",
+   "omittedRecipe": "restore the blob in omittedAtHead from the source repository at the head; with it the tree equals originalHeadTree",
+   "note": "second image-only activation adaptation for the approved boot-registration image (fa76e9bb) and boot funding with canonical block agreement (86c5fee8): source, provenance and tests. Root's runtime files are ignored and never read"
+  }
+ },
+ "lowercaseRewrittenLiteral": {},
+ "frozenSources": {
+  "source-preservation/RESULT-frozen-2146-checkpoint.md": "617cb89e09aa448bcc9263ee71e1500d7bf358fd40e7e752cca68603f1463616"
+ },
+ "rootEvidence": {},
+ "rootEvidenceNote": "no root outputs file and no journal snapshot in this batch; the frozen-2146 receipt is stored",
+ "evidenceVsSource": "Committed logs, receipts, run outputs and RESULT files inside these repositories are EVIDENCE; the rest is source.",
+ "notPreserved": [
+  "ignored/untracked files in every repo: root runtime logs, private, evidence, approval, admission and plan files in custody-boot-activation (its .gitignore), images, binaries, WASM/components, CARs, build outputs, node_modules, raw quotes, sealed state, keys, task prompts and progress/err files, uncommitted WIP",
+  "the ongoing H boot-pricing fix, the new wallet repository and the new build template (root: skip; WIP)",
+  "supervisor.js of boot-source at base and head (rewritten literal): blobs and sha256 recorded, patch published",
+  "commits after these heads and every worktree change"
+ ]
+}

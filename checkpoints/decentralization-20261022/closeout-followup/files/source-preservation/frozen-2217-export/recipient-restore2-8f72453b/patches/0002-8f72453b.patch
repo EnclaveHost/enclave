@@ -1,0 +1,580 @@
+From 8f72453be3b702605b99a01621bd80aeb5211cfb Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:58:43 -0700
+Subject: [PATCH] approved boot-registration build: record root's PASS (H
+ 9f6d37bd on a6b1378c -> measurement 08d1f838)
+
+Root ran build-approved.sh 21:50-21:54Z: a6 control identical to ee5df6b8, candidate twice identical, delta exactly
+app/supervisor.js (+manifest; +gsup vs production), image files = commit bytes, recipe reproduces ed918e4b and ee5df6b8.
+Commits the approval, source patch, root's log and public inventory; no image binaries.
+---
+ .gitignore                                  |   3 +
+ APPROVED-COMMIT.txt                         |   2 +
+ BUILD-APPROVED-RESULT.md                    |  71 +++++
+ commit-result.sh                            |  24 ++
+ logs/commit-approved-1.guard.log            |   1 +
+ logs/commit-approved-1.out                  |   9 +
+ logs/commit-approved-1.rc                   |   1 +
+ logs/root-build-approved.guard.log          |   1 +
+ logs/root-build-approved.out                |  33 +++
+ stage-approved/INVENTORY.sha256             |   5 +
+ stage-approved/entries-vs-a6.jsonl          |   3 +
+ stage-approved/entries-vs-production.jsonl  |   4 +
+ stage-approved/h-9f6d37bd-on-a6b1378c.patch | 306 ++++++++++++++++++++
+ 13 files changed, 463 insertions(+)
+ create mode 100644 APPROVED-COMMIT.txt
+ create mode 100644 BUILD-APPROVED-RESULT.md
+ create mode 100755 commit-result.sh
+ create mode 100644 logs/commit-approved-1.guard.log
+ create mode 100644 logs/commit-approved-1.out
+ create mode 100644 logs/commit-approved-1.rc
+ create mode 100644 logs/root-build-approved.guard.log
+ create mode 100644 logs/root-build-approved.out
+ create mode 100644 stage-approved/INVENTORY.sha256
+ create mode 100644 stage-approved/entries-vs-a6.jsonl
+ create mode 100644 stage-approved/entries-vs-production.jsonl
+ create mode 100644 stage-approved/h-9f6d37bd-on-a6b1378c.patch
+
+diff --git a/.gitignore b/.gitignore
+index 93fcafc17e0521fca07b40de7e2c1a9dd2534da4..5933c2a5650d0653d0618056f52880f8d98252fd 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -5,3 +5,6 @@
+ stage/control-*/
+ stage/repro-*/
+ logs/scan-gitleaks.json
++stage-approved/dist-*/
++stage-approved/repro-*/
++stage-approved/control-*/
+diff --git a/APPROVED-COMMIT.txt b/APPROVED-COMMIT.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..16c1d59a2660040641dda59680ed14e1c7cf5180
+--- /dev/null
++++ b/APPROVED-COMMIT.txt
+@@ -0,0 +1,2 @@
++commit 9f6d37bd858ad44be1171b6415353910214c2fa5
++extra NONE
+diff --git a/BUILD-APPROVED-RESULT.md b/BUILD-APPROVED-RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..926d6eb1923e8294827a353403f67e44e857ce6b
+--- /dev/null
++++ b/BUILD-APPROVED-RESULT.md
+@@ -0,0 +1,71 @@
++# Approved boot-registration build: root's PASS (source-only record)
++
++The build ran 2026-10-23 21:50:25Z–21:54:50Z through `build-approved.sh` (template e02b3bd4), with root's approval file. **Root ran
++it**, through the queue's 1024 lane (peak 301 MiB). The log is `logs/root-build-approved.out` (sha256 `89ba2d1b…`), exit 0.
++
++This file records that result. It ran nothing, built nothing and activated nothing. The image binaries stay uncommitted
++(gitignored `stage-approved/dist-*/`).
++
++## Approved source
++
++| | |
++|---|---|
++| H commit | **9f6d37bd858ad44be1171b6415353910214c2fa5** (tree 59f0a46d), on a6b1378c, in `work/custody-boot-registration-20261023/repo` |
++| Commit message | "supervisor: adopt an existing exact registration at boot instead of a full register()" |
++| Approval | `APPROVED-COMMIT.txt`: `commit 9f6d37bd…`, `extra NONE` (sha256 `f32ab104…`) |
++| Delta vs a6b1378c | `supervisor.js` (+53/−6) and `test/registry-advertise-retry.test.mjs`, nothing else |
++| Source patch | `stage-approved/h-9f6d37bd-on-a6b1378c.patch` (`git format-patch a6b1378c..9f6d37bd`, sha256 `56f54050…`) |
++
++## Root's PASS, step by step (from the log)
++
++1. **Control:** a6b1378c rebuilt from H's repo is `CONTROL-IDENTICAL` to the staged ee5df6b8 image. All four of initramfs
++   `5ce61b6f…`, vmlinuz, cmdline and manifest match.
++2. **Candidate:** built twice and `REPRODUCIBLE`. All four files are identical, with initramfs `02c7280a…` (279 388 203 bytes) both
++   times.
++3. **Exact delta:**
++   - `MANIFEST-DELTA-EXACT ['/app/supervisor.js']`;
++   - `ENTRY-DELTA-EXACT`:
++     - versus a6: `app/supervisor.js` and `opt/metal/manifest.json`, out of 29 063 entries;
++     - versus production deabf8f90: the same plus `opt/metal/gsup.mjs` (the a6b1378c vault restore);
++   - `IMAGE-FILES-ARE-SOURCE`: the image's `supervisor.js` (`37e6a340…`, 815 857 bytes) and `gsup.mjs` equal the commit's bytes.
++4. **Measurement:**
++   - `MEASURE-RECIPE-REPRODUCES-PRODUCTION` (ed918e4b) and `MEASURE-RECIPE-REPRODUCES-A6` (ee5df6b8);
++   - then the candidate measures:
++
++**08d1f838d51274571fdf17b635606d20a6e7250f74d6676217eea40733a8d269aaf52edb85aac4a9ad1cc5c53318a000**
++
++## Image pins (`stage-approved/INVENTORY.sha256`)
++
++These are the same pins `recovery-target.mjs` checks.
++
++| File | sha256 |
++|---|---|
++| MEASUREMENT | 6d55c0e2839e5a1aad1258ce80ec112181f155c50be9f5ad1f66f1bb44064537 |
++| initramfs.cpio.gz | 02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf |
++| manifest.json | 64bd025db3ed62b82f016ed25f1bd24ab300dbe7520ca81498d3ccd293e43b16 |
++| vmlinuz | 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7 (= a6, = production) |
++| cmdline | d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8 (= a6) |
++
++**Image locations:**
++- **Now:** `stage-approved/dist-leasegas-9f6d37bd8`.
++- **Eventual production path:** `/home/steven/enclave-prod/dist-leasegas-9f6d37bd8`. It does not exist yet; root copies the image,
++  and the copy must carry the same five hashes.
++
++**Release dir:** the launcher's WorkingDirectory (`metal-deabf8f90`) is unchanged. `supervisor.js` runs in the control image, not
++the launcher.
++
++## Verification after activation (root)
++
++```
++node work/custody-recipient-activation-20261023/recovery-target.mjs attest
++node work/custody-recipient-activation-20261023/recovery-target.mjs proofkey --expect-proof-key 0x<THIS boot's key>
++```
++
++The wrapper uses the frozen helpers unchanged, adding only the exact `recovery` target; see the activation folder's
++`RECOVERY-TARGET.md`.
++
++## Not shown here
++
++- No VM boot of this image, and no adoption.
++- No setProofKey.
++- No custody lifecycle canary.
+diff --git a/commit-result.sh b/commit-result.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..9923b114fedc9284aa8fdc05580d3de1ee9f10f4
+--- /dev/null
++++ b/commit-result.sh
+@@ -0,0 +1,24 @@
++#!/bin/bash
++# Scan (unchanged scanners) then commit ONLY the approved-build record: pins, source patch, root's build log, public inventory.
++set -euo pipefail
++cd "$(dirname "$0")"
++FILES="BUILD-APPROVED-RESULT.md APPROVED-COMMIT.txt .gitignore stage-approved/INVENTORY.sha256 stage-approved/entries-vs-a6.jsonl stage-approved/entries-vs-production.jsonl stage-approved/h-9f6d37bd-on-a6b1378c.patch logs/root-build-approved.out logs/root-build-approved.guard.log commit-result.sh logs/commit-approved-1.out logs/commit-approved-1.guard.log logs/commit-approved-1.rc"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++st=$(mktemp -d); for f in $FILES; do mkdir -p "$st/$(dirname $f)"; cp "$f" "$st/$f"; done
++cfg=$(mktemp); git -C "$CKR" show HEAD:.gitleaks.toml > "$cfg"
++/home/steven/.local/bin/gitleaks dir "$st" --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path /dev/null
++find "$st" -type f -print0 | xargs -0 python3 "$CKR/.githooks/scan-crypto-keys.py" --files
++python3 - "$st" <<'PY'
++import pathlib, sys
++OLD = bytes.fromhex('54696e666f696c'); bad = [str(p) for p in pathlib.Path(sys.argv[1]).rglob('*') if p.is_file() and (OLD in p.read_bytes() or OLD.lower() in p.read_bytes())]
++assert not bad, bad; print('literal: none')
++PY
++rm -rf "$st" "$cfg"; echo "[scan] clean"
++git add -- $FILES
++[ -z "$(git diff --cached --name-only | grep '^stage-approved/dist-')" ] || { echo "binary staged"; exit 1; }
++git -c user.name=SteveDeFacto -c user.email=5148995+SteveDeFacto@users.noreply.github.com commit -q -m "approved boot-registration build: record root's PASS (H 9f6d37bd on a6b1378c -> measurement 08d1f838)
++
++Root ran build-approved.sh 21:50-21:54Z: a6 control identical to ee5df6b8, candidate twice identical, delta exactly
++app/supervisor.js (+manifest; +gsup vs production), image files = commit bytes, recipe reproduces ed918e4b and ee5df6b8.
++Commits the approval, source patch, root's log and public inventory; no image binaries."
++git log -1 --format='%H %an <%ae>'
+diff --git a/logs/commit-approved-1.guard.log b/logs/commit-approved-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..5139162c938e56affb054f30570ce1324e0b9c47
+--- /dev/null
++++ b/logs/commit-approved-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=56 minHostAvailableMiB=23733
+diff --git a/logs/commit-approved-1.out b/logs/commit-approved-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..76fb1b246cd0922f06b47f8406908424b5cba05e
+--- /dev/null
++++ b/logs/commit-approved-1.out
+@@ -0,0 +1,9 @@
++[queue] START available=23768MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++2:48PM INF scanned ~13019 bytes (13.02 KB) in 4.29ms
++2:48PM INF no leaks found
++literal: none
++[scan] clean
++e02b3bd43ec5e029db91ddbb5b13faeb499108f5 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
++[memory-guard] exit=0 peakTreeRssMiB=56 minHostAvailableMiB=23733
++[memory-guard] at peak: gitleaks:50 bash:6
++[queue] EXIT 0
+diff --git a/logs/commit-approved-1.rc b/logs/commit-approved-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/commit-approved-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/root-build-approved.guard.log b/logs/root-build-approved.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..050cd0f2b72421e747d97c1be3e43be2619177aa
+--- /dev/null
++++ b/logs/root-build-approved.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=301 minHostAvailableMiB=23292
+diff --git a/logs/root-build-approved.out b/logs/root-build-approved.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..6cc04314a55a22d88f196c7a304749aeba3f9b29
+--- /dev/null
++++ b/logs/root-build-approved.out
+@@ -0,0 +1,33 @@
++[queue] START available=24090MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
++APPROVED 9f6d37bd858ad44be1171b6415353910214c2fa5 extra=[] delta: supervisor.js test/registry-advertise-retry.test.mjs 
++2026-10-23T21:50:25Z
++== 1. control: a6b1378c from H's repo == the staged ee5df6b8 image
++{"sha256": "5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de", "bytes": 279389920}
++CONTROL-IDENTICAL initramfs.cpio.gz
++CONTROL-IDENTICAL vmlinuz
++CONTROL-IDENTICAL cmdline
++CONTROL-IDENTICAL manifest.json
++== 2. candidate twice
++{"sha256": "02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf", "bytes": 279388203}
++{"sha256": "02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf", "bytes": 279388203}
++REPRODUCIBLE initramfs.cpio.gz
++REPRODUCIBLE vmlinuz
++REPRODUCIBLE cmdline
++REPRODUCIBLE manifest.json
++== 3. exact delta (manifest records, image entries, image bytes = commit source)
++MANIFEST-DELTA-EXACT ['/app/supervisor.js']
++ENTRY-DELTA-EXACT vs a6 ['app/supervisor.js', 'opt/metal/manifest.json'] vs production ['app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/manifest.json']
++IMAGE-FILES-ARE-SOURCE ['app/supervisor.js', 'opt/metal/gsup.mjs']
++== 4. measurement
++MEASURE-RECIPE-REPRODUCES-PRODUCTION
++MEASURE-RECIPE-REPRODUCES-A6
++MEASURE-CANDIDATE 08d1f838d51274571fdf17b635606d20a6e7250f74d6676217eea40733a8d269aaf52edb85aac4a9ad1cc5c53318a000
++6d55c0e2839e5a1aad1258ce80ec112181f155c50be9f5ad1f66f1bb44064537  dist-leasegas-9f6d37bd8/MEASUREMENT
++d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  dist-leasegas-9f6d37bd8/cmdline
++02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf  dist-leasegas-9f6d37bd8/initramfs.cpio.gz
++64bd025db3ed62b82f016ed25f1bd24ab300dbe7520ca81498d3ccd293e43b16  dist-leasegas-9f6d37bd8/manifest.json
++1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  dist-leasegas-9f6d37bd8/vmlinuz
++2026-10-23T21:54:50Z
++[memory-guard] exit=0 peakTreeRssMiB=301 minHostAvailableMiB=23292
++[memory-guard] at peak: sev-snp-measure:295 bash:7
++[queue] EXIT 0
+diff --git a/stage-approved/INVENTORY.sha256 b/stage-approved/INVENTORY.sha256
+new file mode 100644
+index 0000000000000000000000000000000000000000..e6fc5a5bc25b9f491c86b992fec9278dcf91afc0
+--- /dev/null
++++ b/stage-approved/INVENTORY.sha256
+@@ -0,0 +1,5 @@
++6d55c0e2839e5a1aad1258ce80ec112181f155c50be9f5ad1f66f1bb44064537  dist-leasegas-9f6d37bd8/MEASUREMENT
++d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  dist-leasegas-9f6d37bd8/cmdline
++02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf  dist-leasegas-9f6d37bd8/initramfs.cpio.gz
++64bd025db3ed62b82f016ed25f1bd24ab300dbe7520ca81498d3ccd293e43b16  dist-leasegas-9f6d37bd8/manifest.json
++1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  dist-leasegas-9f6d37bd8/vmlinuz
+diff --git a/stage-approved/entries-vs-a6.jsonl b/stage-approved/entries-vs-a6.jsonl
+new file mode 100644
+index 0000000000000000000000000000000000000000..f9aecfd8092b31b7395bee1072212d10cde58c35
+--- /dev/null
++++ b/stage-approved/entries-vs-a6.jsonl
+@@ -0,0 +1,3 @@
++{"entry": "app/supervisor.js", "a": ["0o100644", 811736, "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951"], "b": ["0o100644", 815857, "37e6a34078c2fa1d5ca835a619a115c86e7aca273324924eecda45e7346bab0b"]}
++{"entry": "opt/metal/manifest.json", "a": ["0o100644", 25978, "6364bdc45f299362468b7fd60b616bdc0c1a99600f75ac39435639ff03ce952d"], "b": ["0o100644", 25978, "0bf37dad3ee5802baafc8651b89ee3c0741eb2bdd9412776f49381a8b74e0e10"]}
++{"entriesA": 29063, "entriesB": 29063, "differing": ["app/supervisor.js", "opt/metal/manifest.json"]}
+diff --git a/stage-approved/entries-vs-production.jsonl b/stage-approved/entries-vs-production.jsonl
+new file mode 100644
+index 0000000000000000000000000000000000000000..4221be3c6ae76680c593dda67e8d59b18b227835
+--- /dev/null
++++ b/stage-approved/entries-vs-production.jsonl
+@@ -0,0 +1,4 @@
++{"entry": "app/supervisor.js", "a": ["0o100644", 811736, "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951"], "b": ["0o100644", 815857, "37e6a34078c2fa1d5ca835a619a115c86e7aca273324924eecda45e7346bab0b"]}
++{"entry": "opt/metal/gsup.mjs", "a": ["0o100644", 49848, "c2896d743e36be8fa1832f1f6f0e41042140b61549fd780f32c1921d5a157e99"], "b": ["0o100644", 50341, "2981a5feb98fe46b13968fd8d1ef2d503f624fc84b3d22824fe000bf45bb6a5a"]}
++{"entry": "opt/metal/manifest.json", "a": ["0o100644", 25978, "544416e1a53daff9a886658b295a112a94f15cce8b5ce83ff534a785804f1ca0"], "b": ["0o100644", 25978, "0bf37dad3ee5802baafc8651b89ee3c0741eb2bdd9412776f49381a8b74e0e10"]}
++{"entriesA": 29063, "entriesB": 29063, "differing": ["app/supervisor.js", "opt/metal/gsup.mjs", "opt/metal/manifest.json"]}
+diff --git a/stage-approved/h-9f6d37bd-on-a6b1378c.patch b/stage-approved/h-9f6d37bd-on-a6b1378c.patch
+new file mode 100644
+index 0000000000000000000000000000000000000000..94e6e8d855c8446db4664b941a503d2baf6ce440
+--- /dev/null
++++ b/stage-approved/h-9f6d37bd-on-a6b1378c.patch
+@@ -0,0 +1,306 @@
++From 9f6d37bd858ad44be1171b6415353910214c2fa5 Mon Sep 17 00:00:00 2001
++From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
++Date: Fri, 23 Oct 2026 14:48:04 -0700
++Subject: [PATCH] supervisor: adopt an existing exact registration at boot
++ instead of a full register()
++
++When this operator's active row already carries the endpoint, repo, measurement and
++prices the box would register, boot no longer sends register():
++- all fields exact (proof key included): read-only adopt, no transaction;
++- only the per-boot proof key differs: setProofKey, and adopt only after its
++  confirmed receipt AND a fresh re-read that shows the whole row current. A failed
++  or lagging re-read, a superseded key, a deactivation or any other changed field
++  throws; the next normal advertise attempt reads again.
++Not registered, another operator's row, an inactive row, a failed read, differing
++fields and pre-schema-3 registries keep the full register() unchanged. The repoint
++handling is unchanged.
++---
++ supervisor.js                          |  53 +++++++-
++ test/registry-advertise-retry.test.mjs | 168 ++++++++++++++++++++++++-
++ 2 files changed, 215 insertions(+), 6 deletions(-)
++
++diff --git a/supervisor.js b/supervisor.js
++index f6b668c..66ad07d 100644
++--- a/supervisor.js
+++++ b/supervisor.js
++@@ -641,6 +641,31 @@ async function registerOnChain(endpoint) {
++     // next boot; setPrices (below) covers a change without one.
++     const rev = await registryRev();
++     const proofKey = (PROOF_ACCOUNT && PROOF_ACCOUNT.address) || "0x0000000000000000000000000000000000000000";
+++    // An existing row this operator key already holds, ACTIVE, with every field register() writes already equal, needs no
+++    // register(): on such a row the schema-4 register() only restates them (and bumps lastSeen) at full-register gas.
+++    // Only the proof key, minted per CVM boot, may differ: publish it with setProofKey (the same write register() makes to
+++    // it, and the same lastSeen bump), and adopt the row only once that transaction's receipt and a re-read confirm it.
+++    // A failed read, and a missing, inactive, foreign or differing row, keep the old path: a full register().
+++    const boot = rev >= 3 ? await bootRegistration(id, endpoint, proofKey) : { action: "register", reason: `schema ${rev}` };
+++    if (boot.action !== "register") {
+++      let tx = null;
+++      if (boot.action === "setProofKey") {
+++        const sent = sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "setProofKey", [id, proofKey]);
+++        tx = await sent;
+++        const rcpt = await sent.receipt;
+++        if (!rcpt || rcpt.status !== "success") throw new Error(`setProofKey ${tx} did not succeed (${rcpt ? rcpt.status : "no receipt"})`);
+++        // Fail closed: adopt ONLY when a fresh read shows the whole row current (this key included). A failed or lagging
+++        // read, a superseded key, a deactivation or any other changed field throws; the next normal attempt reads again
+++        // and adopts without a transaction if the row is current by then.
+++        const after = await bootRegistration(id, endpoint, proofKey);
+++        if (after.action !== "adopt")
+++          throw new Error(`after setProofKey ${tx} the row is not adoptable yet (${after.reason}); the next attempt reads it again`);
+++      }
+++      _enclaveId = id; _advertisedEndpoint = endpoint;      // unlocks the claim loop, as a confirmed register() does
+++      _activeSeen = null;
+++      console.log(`[registry] adopted the existing registration of ${endpoint} id=${id} (${boot.reason})`
+++        + (tx ? `: proofKey=${proofKey} tx=${tx}` : `: no transaction, proofKey=${proofKey}`));
+++    } else {
++     const hash = rev >= 3
++       ? await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "register",
++           [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6), proofKey])
++@@ -653,7 +678,9 @@ async function registerOnChain(endpoint) {
++     _activeSeen = null;                                     // register() just set the row active; the next pass re-reads it
++     console.log(`[registry] registered ${endpoint} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`
++       + (rev >= 2 ? ` price=${SELL_CPU_PRICE6}/sec node${IS_GPU ? ` + ${SELL_GPU_PRICE6}/sec card` : ""}` : " (schema 1: unpriced)")
++-      + (rev >= 3 ? ` proofKey=${proofKey}` : " (pre-schema-3 registry: no proof key published)"));
+++      + (rev >= 3 ? ` proofKey=${proofKey}` : " (pre-schema-3 registry: no proof key published)")
+++      + (rev >= 3 ? ` (${boot.reason})` : ""));
+++    }
++     // reconcile loop: NO liveness transaction (readers take liveness from the
++     // signed capacity record, network/host-liveness.mjs). It keeps the published
++     // price, proof key and payout view in step with our configuration (an
++@@ -679,6 +706,30 @@ async function registerOnChain(endpoint) {
++   }
++ }
++ 
+++// Boot registration choice (registerOnChain): read THIS row once and compare it with exactly what register() would write.
+++//   register     no row / another operator (register() reverts "not operator", as before) / inactive (boot re-activates,
+++//                as before) / any of endpoint, repo, measurement, cpu or gpu price differs / the read failed
+++//   setProofKey  this operator's active row, every field equal except the proof key
+++//   adopt        this operator's active row, every field equal including the proof key
+++async function bootRegistration(id, endpoint, proofKey) {
+++  let row;
+++  try { row = await registryEntry(id); }
+++  catch (e) { return { action: "register", reason: `registry read failed (${String(e.shortMessage || e.message).slice(0, 120)}): full register` }; }
+++  return bootRegistrationAction(row, { operator: claimSigner().account.address, endpoint, repo: ENCLAVE_REPO,
+++    measurement: ENCLAVE_MEASUREMENT, cpuPricePerSec6: SELL_CPU_PRICE6, gpuPricePerSec6: SELL_GPU_PRICE6, proofKey });
+++}
+++function bootRegistrationAction(row, want) {
+++  const lc = (x) => String(x == null ? "" : x).toLowerCase();
+++  if (!row || !row.operator || /^0x0{40}$/i.test(String(row.operator))) return { action: "register", reason: "not registered yet" };
+++  if (lc(row.operator) !== lc(want.operator)) return { action: "register", reason: "registered to another operator" };
+++  if (row.active !== true) return { action: "register", reason: "inactive on chain: boot re-registers" };
+++  const same = row.endpoint === want.endpoint && row.repo === want.repo && lc(row.measurement) === lc(want.measurement)
+++    && String(row.cpuPricePerSec6) === String(want.cpuPricePerSec6) && String(row.gpuPricePerSec6) === String(want.gpuPricePerSec6);
+++  if (!same) return { action: "register", reason: "the registered fields differ" };
+++  if (lc(row.proofKey) === lc(want.proofKey)) return { action: "adopt", reason: "already registered exactly" };
+++  return { action: "setProofKey", reason: "only the proof key differs" };
+++}
+++
++ // Publish this box's configured price if the chain doesn't already carry it.
++ // One eth_call per reconcile pass, a tx only on an actual mismatch — which is the
++ // operator changing SELL_*_PRICE6, or a registry that predates our entry. On a
++diff --git a/test/registry-advertise-retry.test.mjs b/test/registry-advertise-retry.test.mjs
++index 9cd0a71..0fa1221 100644
++--- a/test/registry-advertise-retry.test.mjs
+++++ b/test/registry-advertise-retry.test.mjs
++@@ -13,6 +13,8 @@ const slice = (re, what) => { const m = re.exec(src); assert.ok(m, `${what} is i
++ const FNS = [
++   slice(/function registryRepointed\(\) \{[\s\S]*?\n\}/, "registryRepointed"),
++   slice(/async function registerOnChain\(endpoint\) \{[\s\S]*?\n\}/, "registerOnChain"),
+++  slice(/async function bootRegistration\(id, endpoint, proofKey\) \{[\s\S]*?\n\}/, "bootRegistration"),
+++  slice(/function bootRegistrationAction\(row, want\) \{[\s\S]*?\n\}/, "bootRegistrationAction"),
++   slice(/async function registerSelf\(\) \{[\s\S]*?\n\}/, "registerSelf"),
++   slice(/function advertised\(\) \{[\s\S]*?\n\}/, "advertised"),
++   slice(/let _advertising = false;\nasync function advertise\(\) \{[\s\S]*?\n\}/, "advertise"),
++@@ -21,17 +23,27 @@ const FNS = [
++ // One supervisor's registration state, with the chain and the clock stubbed. env.send(fn, args) answers each
++ // operator tx: return a hash, or throw. Backoff sleeps are recorded and yield to the event loop instead of waiting.
++ function box(env) {
++-  const sleeps = [], txs = [], logs = [];
++-  const make = new Function("env", "sleeps", "txs", "logs", `
+++  const sleeps = [], txs = [], logs = [], reads = [];
+++  const make = new Function("env", "sleeps", "txs", "logs", "reads", `
++     let REGISTRY_ADDRESS = "0xAAAA";
++     const REGISTRY_READY = true, PUBLIC_URL = env.PUBLIC_URL || "";
++     let _registered = false, _registeredOn = null, _enclaveId = null, _advertisedEndpoint = null, _activeSeen = null;
++     const keccak256 = (b) => "id(" + b + ")", stringToBytes = (s) => s;
++     const registryRev = async () => 3;
++-    const PROOF_ACCOUNT = null, REGISTRY_ABI = [], REGISTRY_ABI_V2 = [], REGISTRY_ABI_V1 = [];
+++    const PROOF_ACCOUNT = env.proofKey ? { address: env.proofKey } : null, REGISTRY_ABI = [], REGISTRY_ABI_V2 = [], REGISTRY_ABI_V1 = [];
+++    // the registry row as the box reads it (env.row: null = not registered, or throw = read failed) and the operator key
+++    const registryEntry = async (id) => { reads.push(id); return env.row ? env.row(id, REGISTRY_ADDRESS) : null; };
+++    const claimSigner = () => ({ account: { address: env.operator || "0x00000000000000000000000000000000000000aa" } });
++     const ENCLAVE_REPO = "EnclaveHost/enclave", ENCLAVE_MEASUREMENT = "0x00", SELL_CPU_PRICE6 = 1, SELL_GPU_PRICE6 = 2;
++     const IS_GPU = false, RECONCILE_SEC = 60;
++-    const sendOperatorTx = async (address, _abi, fn, args) => { txs.push({ address, fn, endpoint: args[0] }); return env.send(fn, args); };
+++    // like the real queue: the promise is the HASH (at send), .receipt the confirmed outcome
+++    const sendOperatorTx = (address, _abi, fn, args) => {
+++      txs.push({ address, fn, endpoint: args[0], args });
+++      const p = Promise.resolve().then(() => env.send(fn, args));
+++      p.receipt = p.then(() => (env.receipt ? env.receipt(fn, args) : { status: "success" }));
+++      p.receipt.catch(() => {});
+++      return p;
+++    };
++     const setInterval = () => ({ unref() {} });
++     const setTimeout = (fn, ms) => {
++       if (sleeps.length >= 50) throw new Error("still not registered after 50 retries");   // fail, don't spin forever
++@@ -43,7 +55,7 @@ function box(env) {
++     return { advertise, registerSelf,
++       state: () => ({ registered: _registered, enclaveId: _enclaveId, endpoint: _advertisedEndpoint, advertising: _advertising }),
++       repoint: (a) => { REGISTRY_ADDRESS = a; } };`);
++-  return Object.assign(make(env, sleeps, txs, logs), { sleeps, txs, logs });
+++  return Object.assign(make(env, sleeps, txs, logs, reads), { sleeps, txs, logs, reads });
++ }
++ const down = () => { throw new Error("HTTP request failed."); };
++ 
++@@ -124,3 +136,149 @@ test("boot, the reconcile pass's repoint path and the request middleware all go
++   assert.match(reconcile, /registryRepointed\(\)\) return void advertise\(\)/);
++   assert.match(src, /if \(REGISTRY_READY && !_registered\) registerSelf\(\)\.catch\(/, "the middleware kicks registerSelf");
++ });
+++
+++// ---- boot adoption (2026-10-23, metal0): an already-registered, active row of this operator is adopted, with at most a
+++// setProofKey, instead of a full register() the operator's gas balance could not pay ----
+++const URL0 = "https://api.enclave.host/t/metal0", OP = "0x00000000000000000000000000000000000000aa";
+++const KEY_NEW = "0x000000000000000000000000000000000000bEEF", KEY_OLD = "0x000000000000000000000000000000000000dEaD";
+++const row = (over = {}) => ({ endpoint: URL0, repo: "EnclaveHost/enclave", measurement: "0x00", operator: OP, active: true,
+++  cpuPricePerSec6: 1n, gpuPricePerSec6: 2n, proofKey: KEY_OLD, ...over });
+++const ok = () => "0xhash";
+++const fns = (b) => b.txs.map((t) => t.fn);
+++
+++test("adopt: every field already exact, the proof key included -> no transaction at all", async () => {
+++  const b = box({ PUBLIC_URL: URL0, proofKey: KEY_OLD, row: () => row(), send: ok });
+++  await b.advertise();
+++  assert.deepEqual(b.txs, []);
+++  assert.equal(b.state().enclaveId, "id(" + URL0 + ")");
+++  assert.ok(b.logs.some((l) => /adopted the existing registration .*already registered exactly.*no transaction/.test(l)));
+++});
+++
+++test("only the proof key differs -> ONE setProofKey with this boot's key, adopted after its confirmed receipt", async () => {
+++  let key = KEY_OLD;
+++  let receiptSeen = false;
+++  const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => row({ proofKey: key }),
+++    send: (fn, args) => { assert.equal(fn, "setProofKey"); assert.deepEqual(args, ["id(" + URL0 + ")", KEY_NEW]); return "0xpk"; },
+++    receipt: () => { key = KEY_NEW; receiptSeen = true; return { status: "success" }; } });
+++  await b.advertise();
+++  assert.deepEqual(fns(b), ["setProofKey"]);
+++  assert.ok(receiptSeen);
+++  assert.equal(b.state().enclaveId, "id(" + URL0 + ")");
+++  assert.ok(b.logs.some((l) => /only the proof key differs\): proofKey=0x0+beef tx=0xpk/i.test(l)));
+++});
+++
+++test("any registered field that differs keeps the full register(): endpoint, repo, measurement, cpu or gpu price", async () => {
+++  for (const over of [{ endpoint: URL0 + "/" }, { repo: "enclavehost/enclave" }, { measurement: "0x01" }, { cpuPricePerSec6: 834n }, { gpuPricePerSec6: 1667n }]) {
+++    const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => row(over), send: ok });
+++    await b.advertise();
+++    assert.deepEqual(fns(b), ["register"], JSON.stringify(over, (k, v) => typeof v === "bigint" ? String(v) : v));
+++    assert.ok(b.logs.some((l) => /the registered fields differ/.test(l)));
+++  }
+++});
+++
+++test("unchanged paths: not registered, another operator's row, an inactive row, a failed read, a pre-schema-3 registry", async () => {
+++  const cases = [
+++    [() => null, /not registered yet/], [() => row({ operator: "0x0000000000000000000000000000000000000000" }), /not registered yet/],
+++    [() => row({ operator: "0x00000000000000000000000000000000000000bb" }), /another operator/],
+++    [() => row({ active: false }), /inactive on chain/],
+++    [() => { throw new Error("HTTP request failed."); }, /registry read failed/],
+++  ];
+++  for (const [r, re] of cases) {
+++    const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: r, send: ok });
+++    await b.advertise();
+++    assert.deepEqual(fns(b), ["register"], String(re));
+++    assert.ok(b.logs.some((l) => re.test(l)), String(re));
+++  }
+++  // another operator's row: register() reverts "not operator" on chain, exactly as before -> retried, never adopted
+++  let n = 0;
+++  const f = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => row({ operator: "0x00000000000000000000000000000000000000bb" }),
+++    send: () => { if (++n <= 2) throw new Error("execution reverted: not operator"); return "0xhash"; } });
+++  await f.advertise();
+++  assert.deepEqual(fns(f), ["register", "register", "register"]);
+++});
+++
+++test("setProofKey failure: a reverted receipt or a failed send is not adopted and is retried; never escalated to register()", async () => {
+++  let n = 0, key = KEY_OLD;
+++  const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => row({ proofKey: key }), send: () => "0xpk" + (++n),
+++    receipt: () => (n === 1 ? { status: "reverted" } : (key = KEY_NEW, { status: "success" })) });
+++  await b.advertise();
+++  assert.deepEqual(fns(b), ["setProofKey", "setProofKey"]);
+++  assert.deepEqual(b.sleeps, [5], "one backoff after the reverted attempt");
+++  assert.ok(b.logs.some((l) => /setProofKey 0xpk1 did not succeed \(reverted\)/.test(l)));
+++  assert.ok(b.state().enclaveId);
+++  let m = 0, k = KEY_OLD;
+++  const c = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => row({ proofKey: k }), send: () => { if (++m <= 2) throw new Error("insufficient funds for gas * price + value"); return "0xpk"; },
+++    receipt: () => { k = KEY_NEW; return { status: "success" }; } });
+++  await c.advertise();
+++  assert.deepEqual(fns(c), ["setProofKey", "setProofKey", "setProofKey"]);
+++  assert.ok(!c.txs.some((t) => t.fn === "register"));
+++});
+++
+++test("after a CONFIRMED setProofKey, only a fully current re-read adopts: a failed or stale re-read throws, and the next attempt adopts read-only", async () => {
+++  for (const [label, second] of [["failed re-read", () => { throw new Error("HTTP request failed."); }], ["stale (lagging) key", () => row()]]) {
+++    let reads = 0;
+++    // read 1: old key -> setProofKey; read 2: failed / still old -> NOT adopted; read 3: current -> adopted, no second tx
+++    const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => (++reads === 1 ? row() : reads === 2 ? second() : row({ proofKey: KEY_NEW })), send: () => "0xpk" });
+++    await b.advertise();
+++    assert.deepEqual(fns(b), ["setProofKey"], label);
+++    assert.deepEqual(b.sleeps, [5], `${label}: one backoff, then a read-only adoption`);
+++    assert.ok(b.logs.some((l) => /after setProofKey 0xpk the row is not adoptable yet/.test(l)), label);
+++    assert.ok(b.logs.some((l) => /adopted the existing registration .*already registered exactly.*no transaction/.test(l)), label);
+++    assert.ok(b.state().enclaveId, label);
+++  }
+++  // still stale on the next attempt too: no adoption; that attempt publishes this boot's key again
+++  let reads = 0;
+++  const c = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => (++reads <= 3 ? row() : row({ proofKey: KEY_NEW })), send: () => "0xpk" });
+++  await c.advertise();
+++  assert.deepEqual(fns(c), ["setProofKey", "setProofKey"]);
+++  // concurrent entry points (boot loop + request middleware) still send one transaction
+++  const d = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => (d.reads.length >= 2 ? row({ proofKey: KEY_NEW }) : row()), send: () => "0xpk" });
+++  await Promise.all([d.advertise(), d.registerSelf(), d.advertise()]);
+++  assert.deepEqual(fns(d), ["setProofKey"]);
+++});
+++
+++test("a superseded key is never accepted on the strength of an earlier receipt", async () => {
+++  // the receipt confirms OUR key, but the re-read shows another one (a later writer): not adopted
+++  const OTHER = "0x000000000000000000000000000000000000c0de";
+++  let reads = 0;
+++  const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => (++reads === 1 ? row() : reads === 2 ? row({ proofKey: OTHER }) : row({ proofKey: KEY_NEW })), send: () => "0xpk" });
+++  await b.advertise();
+++  assert.deepEqual(fns(b), ["setProofKey"], "not adopted on read 2; read 3 shows our key current: read-only adoption");
+++  assert.ok(b.logs.some((l) => /not adoptable yet \(only the proof key differs\)/.test(l)));
+++  assert.ok(b.state().enclaveId);
+++});
+++
+++test("after setProofKey: a deactivated row or any other changed field is not adopted; the next attempt takes the matching path", async () => {
+++  let reads = 0;
+++  const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => (++reads === 1 ? row() : reads === 2 ? row({ proofKey: KEY_NEW, active: false }) : row({ active: false })),
+++    send: () => "0xtx" });
+++  await b.advertise();
+++  assert.deepEqual(fns(b), ["setProofKey", "register"]);
+++  assert.ok(b.logs.some((l) => /not adoptable yet \(inactive on chain/.test(l)));
+++  for (const over of [{ repo: "Other/repo" }, { measurement: "0x02" }, { cpuPricePerSec6: 9n }, { gpuPricePerSec6: 9n }]) {
+++    let r = 0;
+++    const c = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => (++r === 1 ? row() : row({ ...over, proofKey: KEY_NEW })), send: () => "0xtx" });
+++    await c.advertise();
+++    assert.deepEqual(fns(c), ["setProofKey", "register"], JSON.stringify(over, (k, v) => typeof v === "bigint" ? String(v) : v));
+++    assert.ok(c.logs.some((l) => /not adoptable yet \(the registered fields differ\)/.test(l)));
+++  }
+++});
+++
+++test("root confirms setProofKey externally (the box's own send cannot be pre-paid): the box adopts read-only", async () => {
+++  let rootSent = false, n = 0;
+++  const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => row({ proofKey: rootSent ? KEY_NEW : KEY_OLD }),
+++    send: () => { if (++n === 2) rootSent = true; throw new Error("insufficient funds for gas * price + value"); } });
+++  await b.advertise();
+++  assert.deepEqual(fns(b), ["setProofKey", "setProofKey"], "two refused sends, then the row is current");
+++  assert.ok(b.logs.some((l) => /already registered exactly.*no transaction/.test(l)));
+++  assert.ok(b.state().enclaveId);
+++});
+++
+++test("repoint: an adopted row on registry A does not stand for registry B", async () => {
+++  const b = box({ PUBLIC_URL: URL0, proofKey: KEY_OLD, row: (id, reg) => (reg === "0xAAAA" ? row() : null), send: ok });
+++  await b.advertise();
+++  assert.deepEqual(b.txs, []);
+++  b.repoint("0xBBBB");
+++  await b.advertise();
+++  assert.deepEqual(b.txs.map((t) => [t.address, t.fn]), [["0xBBBB", "register"]]);
+++});
++-- 
++2.56.0
++

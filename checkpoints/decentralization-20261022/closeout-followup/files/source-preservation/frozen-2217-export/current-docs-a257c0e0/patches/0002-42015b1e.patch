@@ -1,0 +1,177 @@
+From 42015b1ebf6ff6e8c9e59b54fcfbadef9cb238f2 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:13:33 -0700
+Subject: [PATCH] Apply the reviewed dashboard doc commits 2d3839c54 and
+ 9d97b4b00 unchanged (current state, corrected image, who holds x, goals vs
+ current)
+
+---
+ docs/security/secret-custody-v2.md | 120 +++++++++++++++++++++++++++--
+ 1 file changed, 113 insertions(+), 7 deletions(-)
+
+diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+index 393f9d31070e3b5f44580689c4a95bff91a3a4d5..de1dce4b8c4252a3999bcf20f733bf674c3e3b97 100644
+--- a/docs/security/secret-custody-v2.md
++++ b/docs/security/secret-custody-v2.md
+@@ -26,7 +26,38 @@
+ | Supervisor | metal0 control image `dist-custody-v2-295650320` (measurement `5678855f…`): signs v2 releases for this vault only |
+ | CLI | `enclave custody set|migrate|status|pause|resume --v2` |
+ 
+-**Hardware verification (canary `0x4e62e60d`, agent wallet, hello-world, rules admitting one image `ab852fe5…`):**
++**Current proven state (2026-10-23, read-only public chain reads by root; `work/custody-v2-live-20261023/evidence`):**
++
++What is proven:
++- **Vault.** The vault code is unchanged: code hash `0x4b949b37…` at block 52994819 (`known-state.json`).
++- **Book.** The book `0xab214342…` (owner `0x0b2d…eE61`) names no `secretVaultV2` (zero at block 52997534) and no
++  `sessionVaultFactory` (zero at block 52998138). Clients that need a pin or the dashboard find no v2 vault through it.
++- **Committee.** The only committee is `0x4774…`: epoch 1, n = 1 seat, t = 1 of W = 1 shares, one machine (the Enclave
++  seat on the metal0 host).
++  - That host's accepted owner on `EnclaveHostOwnership` `0xbbd885…` is unset (`host-reader-preflight.json`).
++  - This is a SINGLE-SEAT BOOTSTRAP, not decentralized custody.
++- **Policies.** Among the deployments sampled (the nine recovered NucBox apps and the old canary), the only v2 policy is the
++  canary `0x4e62…`, owned by an EOA (policyRev 2, secretRev 2, owner `0x29479Bf…`). The exhaustive historical log scan was
++  rate-limited and is INCOMPLETE, so other policies are not ruled out.
++- **Running custodian.** The original image (`c866…`) is still the live one.
++
++Prepared, not done:
++- **Unsigned plans.** Root has unsigned admin transactions for `book.set("secretVaultV2", 0xE486…)` and
++  `book.set("sessionVaultFactory", 0x1f5c887c…)`, simulated. Neither is signed or sent. The factory change needs a consumer
++  review first: a policy already pinned to a SessionVault would then need `claimPolicy`, which destroys its bundle.
++- **Direct ingress.** Direct custodian endpoint ingress is not configured on metal0. The release path above is the relay
++  tunnel.
++- **Corrected image.** Root reported on 2026-10-23 at 20:16Z that the corrected custodian image (`ab589bf8`, image `70aadf…`)
++  is reproducibly built and that its startup and sealed-state reopen were verified on AMD hardware. It supersedes the earlier
++  quote-only candidate `c635fd68`.
++  - It is not running in production.
++  - There is no release, migration or rotation lifecycle proof for it yet.
++- **Activation.** Both book activations remain gated on that lifecycle proof and on the consumer review. Nothing here is
++  decentralized custody or full feature parity with v1.
++- **Oct-14 verification.** The hardware verification below has no surviving receipt or log (rollout audit F9). It is the
++  2026-10-14 record, not re-proven.
++
++**Hardware verification, 2026-10-14 record (canary `0x4e62e60d`, agent wallet, hello-world, rules admitting one image `ab852fe5…`):**
+ - The guest logged `DOM custody: … secrets revision 1 from a v2 threshold of 1 over 1 custodian machines` and started
+   the app. The custodian logged `release … OK`.
+ - With the custodian stopped, the guest refused (`insufficient custodian quorum … need 1`) and did not start the app.
+@@ -46,7 +77,9 @@
+   cache. After a restart, rollback protection starts again from the next read.
+ - **The relay is in the path.** The guest reaches the custodian through the relay's tunnel, and gets the pointer from
+   the relay-signed release (v1 L3).
+-- **Not built yet:** the site's "Save to custody" (v1 only; v2 via the CLI) and the governance book entry.
++- **Site v2 panel: source only, not deployed.** It is in the dashboard's Secrets panel (`site/js/core/custody-v2.js`). It
++  stays inert until the governance book entry `secretVaultV2` is set, which has not been done. SessionVault-held deployments
++  also need the book's `sessionVaultFactory`, which is also not set. §10.2 describes it.
+ - **No external cryptographic review.**
+ 
+ ## 1. Why v1 is not enough
+@@ -66,8 +99,17 @@
+ 
+ ## 2. Goals
+ 
+-1. **No operator can read the secrets, Enclave included.** Shares live only inside attested TEEs. Admitting members
+-   and upgrading custodian code are decided by the members themselves, never by Enclave alone.
++These are design targets for a committee of several independent seats. They are NOT the current state. Today custody v2
++is a single-seat bootstrap (n = 1 seat, t = 1 of W = 1 shares; "Current proven state" above). In it, the Enclave seat
++alone unlocks, admits members and decides custodian upgrades (§6.2, §11 item 1).
++
++The goals are about who can read or release owners' secrets. They do not remove Enclave's administrative and business
++controls. The EnclaveAddressBook administrator (`0x0b2d…eE61`) still chooses which vault and SessionVault factory clients
++use (book keys `secretVaultV2` and `sessionVaultFactory`). The platform's other admin and business controls are outside
++v2 and are unchanged by it.
++
++1. **No operator can read the secrets, Enclave included.** Shares live only inside attested TEEs. Once other seats
++   exist, admitting members and upgrading custodian code are decided by the members themselves, never by Enclave alone.
+ 2. **No small group can block or read a release.** The threshold is a fraction of a large committee of independent
+    hosts, with an absolute floor.
+ 3. **Any qualified members can serve a request.** A guest asks every member; any `t` valid answers unlock. Members
+@@ -114,8 +156,14 @@
+ 
+ ### 4.1 The committee key
+ 
+-- The committee holds a secret scalar `x`. Nobody ever holds `x` itself. Member `i` holds a Shamir share `x_i` over a
+-  degree-`(t-1)` polynomial.
++- The committee holds a secret scalar `x`. Member `i` holds a Shamir share `x_i` over a degree-`(t-1)` polynomial.
++- **Who holds `x` itself.**
++  - With `t = 1`, as at genesis and in production today, the one share IS `x`. The full committee scalar exists inside
++    the single Enclave seat's SEV-SNP custodian guest. It was generated there and is sealed with the chip's derived key, so
++    the host holds only ciphertext and never plaintext `x`.
++  - Every Enclave machine in that seat would hold a copy of it; today there is one.
++  - Threshold distribution, where no single TEE holds `x`, starts only after a handover to a multi-seat committee (§4.4).
++    Even then, below 3 seats the Enclave seat holds `t` shares and can reconstruct `x` on its own (§6.2).
+ - `Y = x·G` is the committee's public key. `Y_i = x_i·G` are the public verification shares, derived from the Feldman
+   commitments on chain.
+ - **Genesis is one Enclave-owned member (§6.2, §10).** It generates `x` inside its TEE and publishes `Y` and the
+@@ -307,7 +355,8 @@
+ 
+ ## 9. What v2 does and does not give
+ 
+-**Gives:**
++**Gives** (design properties for a committee with `n >= 3` seats; the current single-seat bootstrap has none of the
++threshold properties, see §2 and §4.1):
+ - Enclave cannot read secrets or admit its own members alone.
+ - No single host, operator or relay can block a release, as long as `t` qualified members answer.
+ - Stealing costs `t` seats that are each attested and capacity-proven, on distinct chips and within operator caps.
+@@ -357,6 +406,63 @@
+ 7. **Owner tooling and site:** encrypt to `Y`, migrate from v1.
+ 8. **Hardware verification** in the v1 style: release at `t`, refusal below `t`, a handover with live apps, a host move.
+ 
++### 10.2 The dashboard's custody v2 panel (owner side, browser)
++
++The Secrets panel's v2 block (`site/js/core/custody-v2.js`, crypto and reads from `/vendor/custody-v2.js`, built from
++`custody/v2/browser.mjs` by `scripts/build-custody-v2-vendor.mjs`) runs only against a VERIFIED vault:
++
++- **Which vault.** The vault is the one the book names under `secretVaultV2`, or an independent profile's own pin.
++  - There is no default. Unlike the CLI, the page never assumes 0xE486.
++  - The vault must be a reviewed production entry of `network/custody-vaults.mjs`, with matching code hash and immutables
++    at a block two RPCs agree on.
++  - A book-named vault must still be named by the book at that block.
++  - Otherwise the panel says `unset`, `unreviewed`, `unreadable` or `mismatch`, and offers no v2 action. It never falls back
++    to v1.
++- **Committee.** It is shown as its exact n seats and t of W shares, counted as the vault counts them: every Enclave-flagged
++  machine is ONE Enclave seat (replicas hold the same shares), and each other machine is its own seat.
++  - n = 1 is labelled a SINGLE-SEAT BOOTSTRAP. That is the production committee 0x4774… today: n = 1, t = 1, W = 1, one
++    Enclave machine.
++  - More seats are stated exactly and never called decentralized or independent. Distinct hosts or operator addresses do not
++    prove distinct operators or failure domains.
++- **Who signs.** The vault's own rule: the policy owner, or at the first write `beneficialOwnerOf`.
++  - The ledger owner, or for a deployment held by a SessionVault from the book's `sessionVaultFactory`, that SessionVault's
++    owner.
++  - The dashboard sends the update from that wallet DIRECTLY (`wallet.js` sendTx). A session key is refused, by the page
++    and by the vault.
++  - **When the book names no `sessionVaultFactory`** (production today), the vault treats the SessionVault itself as the
++    owner.
++    - The contracts would accept an update sent through `SessionVault.ownerCall`, but that pins the SessionVault as the
++      policy owner.
++    - Once the factory is configured, that policy can no longer be updated by the wallet or the SessionVault. Only
++      `claimPolicy` follows, and it destroys the bundle.
++    - So the panel refuses SessionVault-held deployments until the administrator configures the factory, and says so.
++  - **With the factory configured,** the `ownerCall` route reverts `NotOwner` and the wallet's direct update is the one that
++    works.
++  - Both cases run on the real contracts in `test/custody-v2-dashboard-contract.test.mjs`.
++  - A Safe or passkey owner needs the EIP-712 `updateBySig` (ERC-1271). The panel does not sign that yet and says so.
++- **Save / rotate.** The complete set is encrypted IN THE PAGE to the committee key. One owner `update` stores it, and the
++  vault is read back.
++  - A first policy needs the owner's explicit admit of the relay's predicted images.
++  - An existing policy keeps its rules, committee and pause state.
++  - The values are bound to the config read off the chain when it is inline in the options envelope. Otherwise the owner
++    names that exact JSON, or states there is none (as the CLI's `--config-file` / `--no-config`).
++- **Pause / resume.** One owner `update` each.
++- **Migration from the relay.**
++  - The owner's signed relay read, then the v2 save and read-back.
++  - The relay's plaintext copy is KEPT and reported.
++  - Deleting it is a separate owner step, allowed only when the v2 bundle is on chain and the relay reports the deployment
++    custody-held.
++  - The panel reports only what the relay answered. Backups, logs or replicas outside its live store are not verifiable
++    there, so the owner is told to rotate those credentials.
++- **Activation and rollback.** The book owner sets `secretVaultV2` to 0xE486… (and clears it to roll back). The page re-reads
++  that entry on every action, so a rollback stops v2 actions at once. Stored policies and bundles are unchanged by either.
++- **Not in the panel:**
++  - contract-account owners (Safe or passkey: it refuses and names the EIP-712 `updateBySig` path);
++  - owner read of stored values;
++  - committee moves (owner rewrap, `custody/v2/rewrap.mjs`);
++  - `claimPolicy` after a ledger transfer;
++  - independent mode (no Secrets panel there).
++
+ ## 11. Decisions (2026-10-14; Steven asked for the recommendation on each)
+ 
+ 1. **Upgrade authority.** Adding a custodian measurement needs signatures from seats holding `t` shares, then a 7-day

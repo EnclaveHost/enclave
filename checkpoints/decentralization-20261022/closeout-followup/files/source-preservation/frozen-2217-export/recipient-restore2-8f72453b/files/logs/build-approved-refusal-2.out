@@ -1,0 +1,10 @@
+[queue] START available=22450MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+OK   1: REFUSED: no APPROVED-COMMIT.txt from root
+OK   2: REFUSED: APPROVED-COMMIT.txt has no 40-hex commit
+OK   3: REFUSED: APPROVED-COMMIT.txt must state extra paths or NONE
+OK   4: REFUSED: 0000000000000000000000000000000000000000 not in H's repo
+OK   5: REFUSED: deabf8f90f64902d20d48620fd911d34c445859d does not descend from a6b1378c
+OK   6: REFUSED: the commit changes no image file
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

@@ -1,0 +1,1228 @@
+From ac33146d80d7bd6bbd9c0ad6333f6b7bde74f4f2 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:52:35 -0700
+Subject: [PATCH] custody-canary-proof: read-only catalog publication request
+ (ROOT-PUBLISH-PREPARE)
+
+Exact publishVersion (0x47910c23) by admin 0x0b2d to the actual catalog 0x18419 (book
+0xab21 appCatalog; code 3f3c4cc0 = f2e9a71d0 rebuilt exact; ledger 0xB178): new slug
+custody-canary-proof 0.1.0, res [0,0,128,10], config {"wasi":"0.2"}, fee 0, approved on
+publish. Upload path traced (no normalization; CID = raw CIDv1, CLI does not check it).
+Footprint {100,128,1} on release 16c2999d: AppID 4f700c92, measurement e5febd10 (hello-world
+cross-check exact). Two-RPC prepare helper with L1 + operator fee bounds and caps; no send,
+sign or upload code. Tests 9/9 on anvil with the real catalog/book runtimes, mutants 14/14;
+one live read-only probe (12 requests). README: marker format is syntactic only. Frozen
+component and sources unchanged.
+---
+ .gitignore                          |   2 +
+ PROGRESS.txt                        |   9 +
+ PUBLISH.md                          | 171 ++++++++++++++++++
+ README.md                           |  51 ++----
+ publish/bin/publish-prepare.mjs     |  32 ++++
+ publish/derive/appid.sh             |  21 +++
+ publish/derive/measure.sh           |  15 ++
+ publish/evidence/derive.json        |  42 +++++
+ publish/evidence/live-readonly.json |  49 ++++++
+ publish/evidence/request.json       |  33 ++++
+ publish/fixtures/book-build.json    |   1 +
+ publish/fixtures/catalog-build.json |   1 +
+ publish/fixtures/oracle-mock.json   |   1 +
+ publish/lib/publish.mjs             | 261 ++++++++++++++++++++++++++++
+ publish/package.json                |   8 +
+ publish/probe/live-readonly.mjs     |  37 ++++
+ publish/test/OracleMock.sol         |  11 ++
+ publish/test/compile-catalog.mjs    |  55 ++++++
+ publish/test/mutants.sh             |  27 +++
+ publish/test/publish.test.mjs       | 207 ++++++++++++++++++++++
+ 20 files changed, 999 insertions(+), 35 deletions(-)
+ create mode 100644 PUBLISH.md
+ create mode 100755 publish/bin/publish-prepare.mjs
+ create mode 100755 publish/derive/appid.sh
+ create mode 100755 publish/derive/measure.sh
+ create mode 100644 publish/evidence/derive.json
+ create mode 100644 publish/evidence/live-readonly.json
+ create mode 100644 publish/evidence/request.json
+ create mode 100644 publish/fixtures/book-build.json
+ create mode 100644 publish/fixtures/catalog-build.json
+ create mode 100644 publish/fixtures/oracle-mock.json
+ create mode 100644 publish/lib/publish.mjs
+ create mode 100644 publish/package.json
+ create mode 100644 publish/probe/live-readonly.mjs
+ create mode 100644 publish/test/OracleMock.sol
+ create mode 100644 publish/test/compile-catalog.mjs
+ create mode 100755 publish/test/mutants.sh
+ create mode 100644 publish/test/publish.test.mjs
+
+diff --git a/.gitignore b/.gitignore
+index 7407cf45e51942566990d5189be9fbe973ac9860..d9eb61655b84f854292fb21907e97ab277c28608 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -3,3 +3,5 @@
+ out/
+ ROOT-*.txt
+ __pycache__/
++node_modules/
++prepared/
+diff --git a/PROGRESS.txt b/PROGRESS.txt
+index b8876751c3891623514f4431f066126dd4eff4e1..953fc776502448ce0208e75e9192638eb3640d1a 100644
+--- a/PROGRESS.txt
++++ b/PROGRESS.txt
+@@ -8,3 +8,12 @@
+ - Component 7ce32918… (101222 B), CID bafkreid44murq…, reproduced 3x (cached toolchain, pinned lock = hello-world p2 chain).
+ - Queue: unit 6/6 (512), mutants 9/9 (512), release-wasmtime HTTP smoke 23/23 (512), builds 1024.
+ - Publish/admission/signing prerequisites in README §5 (root).
++2026-10-23 ROOT-PUBLISH-PREPARE: publication request prepared (PUBLISH.md, publish/). No upload, signature, chain write,
++wallet page/server, SSH, hardware or key.
++- Actual book 0xab21 (e4f570e9) -> appCatalog 0x18419 (3f3c4cc0 = f2e9a71d0 rebuilt exact), deployments 0xB178.
++- publishVersion 0x47910c23 by admin 0x0b2d: new slug custody-canary-proof 0.1.0, res [0,0,128,10], config {"wasi":"0.2"},
++  fee 0; approved on publish (L440/L451); catalog appId 0x85c5ed4c…; calldata sha256 13e5a6f4….
++- Upload: no normalization; CID = raw CIDv1 bafkreid44murq… (CLI does not check it: admin must).
++- Footprint {100,128,1}: AppID 4f700c92…, measurement e5febd10…, runtimeId 297b6c2c… (hello cross-check exact).
++- Helper tests 9/9 (anvil, real catalog/book runtimes), mutants 14/14; live probe 12 requests ok at block 53001440.
++- Docs: marker format is syntactic only (README §2); src/frozen WASM untouched.
+diff --git a/PUBLISH.md b/PUBLISH.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca68eca95a49a644d97b8b502394ca8cc333f616
+--- /dev/null
++++ b/PUBLISH.md
+@@ -0,0 +1,171 @@
++# custody-canary-proof: catalog publication request (prepared, NOT executed)
++
++Root task ROOT-PUBLISH-PREPARE (2026-10-23). This is the exact request for the admin `0x0b2d009c0c9Af05b12100D77F3c815fea822eE61`
++to publish the reviewed component (source e84a1af) as a NEW, dedicated, free catalog listing.
++
++**Nothing was uploaded, signed or written.** No wallet page or server, no key, no SSH, no hardware. The frozen
++component and its build are unchanged: sha256 `7ce32918…ee883`, CID `bafkreid44murq…xiqm`.
++
++## 1. The actual deployed contracts
++
++Confirmed live at block 53001440 by both reviewed RPCs, with 12 read-only requests (`publish/evidence/live-readonly.json`).
++
++| contract | address | identity |
++|---|---|---|
++| address book | `0xab214342d5a490150a4a977063a2f88e21f80907` | codeHash `0xe4f570e9…c152`. Rebuilt offline from Projects/enclave 6c1135b0f: the deployed original, single-step owner, no `pendingOwner`. Owner is `0x0b2d…` (book-abi-readcheck.json). |
++| catalog = book `appCatalog` | `0x18419ca2b502d423a8de6269aeee171a378626e3` | codeHash `0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f`. Rebuilt offline from `contracts/EnclaveAppCatalog.sol` blob 018e4bff (f2e9a71d0, schema 9), solc 0.8.35 viaIR runs 200; 22733 bytes, exact, no immutables. |
++| ledger = book `deployments` | `0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b` | EnclaveDeployments rev 16d, codeHash `0x71d50076…6682` (source-verification-base.json). Not called by the publish; pinned for the later deployment. |
++
++**Not used:** the work/enclave defaults, and the CLI's baked `APP_CATALOG_ADDRESS`. On this checkout the latter is the
++retired `0xAc5270…`, which the CLI uses silently if its book lookup times out (§6).
++
++## 2. The exact call
++
++`EnclaveAppCatalog.publishVersion(string slug, string name, string description, string version, string cid, uint32[4] res, string ports, string config, uint256 feePerSec6) returns (bytes32 appId, uint256 index)`
++- Selector `0x47910c23`. The function is non-payable: value 0, no publish fee.
++- From `0x0b2d009c…ee61`, to `0x18419ca2…26e3`, chain 8453.
++
++| arg | value |
++|---|---|
++| slug | `custody-canary-proof` (new: `numVersions` = 0 live; nothing existing is replaced or added to) |
++| name | `Custody canary proof` |
++| description | `Custody canary use ONLY: answers HMAC-SHA256 proofs for dedicated CANARY_ test markers (32 fresh CSPRNG bytes each). Never stage real or user secrets.` |
++| version | `0.1.0` |
++| cid | `bafkreid44murqsilsg4hy772jt3jo2ogo223qnokchkvsbfrkeppspxiqm` (unlisted live) |
++| res | `[vramMb 0, gpuGflops 0, memMb 128, cpuGflops 10]` |
++| ports | `""` (a declared `http:N` port would switch the derivation to bundle/2, which is wrong for a wasi:http proxy) |
++| config | `{"wasi":"0.2"}`: exactly what `enclave publish` stamps for these bytes. Its own classifier, run on the binary in the tests, gives wasip2 with no threads, set or mem64 markers. |
++| feePerSec6 | `0` (free) |
++
++- **Calldata:** `publish/evidence/request.json`, sha256 `13e5a6f4f960bf615c502f90810fabd18a148206bf7600daee8041a68bdea312`.
++- **Expected catalog app id:** `keccak256(admin ‖ slug)` = `0x85c5ed4ce282f8c1f434dd600d902d8738a6d8a54b71497dfaa95a1f635813a0`,
++  at index 0. A transfer redirect is ruled out at prepare.
++- **Approval is automatic.** In the deployed source, `v.approval = msg.sender == owner ? APPROVED : PENDING` (L440), and
++  the same transaction emits `VersionApprovalSet(appId, 0, 1)` (L451). The catalog owner is the admin, so no
++  `setApproval` call is needed. The local test executes the prepared transaction against the exact deployed runtime and
++  checks this: approval 1, CID, config, memMb 128, cpuGflops 10, and `versionFee` 0.
++- **Fee rate:** `feePerSec6 = 0`. The catalog cap `maxFeePerSec6` is 1389 (≈ $5/h) by default; the helper reports the
++  live value.
++- **Contract limits the request satisfies:** slug ≤ 40 bytes (CLI charset), name 1..80, description ≤ 500, version
++  1..32, CID ≤ 100, ports ≤ 96, inline config ≤ 4096, memMb 1..1048576.
++
++## 3. Upload normalization and the actual CID
++
++The component must be uploaded before the transaction, because the call embeds its CID.
++
++- **Path:** CLI `pinBytes` (cli/enclave.mjs:2192-2206).
++  1. The admin wallet signs `enclave-upload:<sha256>:<expiry>`, with expiry = now + 300 s.
++  2. The CLI sends `/v1/apps/upload-token` (relay/api-relay.js:1737-1757). The token is an HMAC over wallet ‖ sha256 ‖
++     expiry, reusable until expiry.
++  3. The CLI POSTs the raw bytes to `https://ipfs.enclave.host/add-wasm`.
++- **No normalization:** the gateway (scripts/ipfs-add-gateway.py) checks the magic and that the layer is 1 (a
++  component), then runs `wasm-tools validate` only if `WASM_TOOLS` is set. It strips nothing and rewrites nothing, then
++  calls Kubo `/api/v0/add?cid-version=1&pin=true` with defaults.
++- **Actual CID:** with cid-version 1, Kubo defaults to raw leaves and 256 KiB chunks. 101,222 bytes is one raw block, so
++  the CID is CIDv1 raw sha2-256(bytes) = `bafkreid44murq…xiqm`. `ipfs add --only-hash` (kubo 0.42.0) and an independent
++  computation agree.
++  - The same path gave hello-world v4 (72,989 bytes) `bafkreibjbefi…`.
++- **Caveat:** the CLI does NOT compare the returned CID with a local one. The admin must check that the gateway's `cid`
++  equals `bafkreid44murqsilsg4hy772jt3jo2ogo223qnokchkvsbfrkeppspxiqm` before any publish transaction. If it differs, STOP:
++  the helper pins the CID and refuses anything else.
++- **UNKNOWN:** the gateway revision deployed on nan, whether `WASM_TOOLS` is set there, the production Kubo `Import.*`
++  config, and the Caddy size cap.
++
++## 4. Resource footprint on release 16c2999d (pinned, offline)
++
++| item | value |
++|---|---|
++| on-chain res | vram 0, gpu 0, **memMb 128**, cpuGflops 10 |
++| policy (enclave-isolation-policy/1) | cpuPercent 100, memMiB max(128, memMb) = 128, vcpus 1. The same shape as hello-world v4. The CLI default `--mem 256` would change the AppID and measurement. |
++| guest | RAM max(1024, 128 + 384) = 1024 MiB, 1 vCPU, 100 % quota. Host reservation 1024 + 768 = 1792 MiB. |
++| bundle | enclave-catalog-bundle/1, 101,461 bytes |
++| **AppID** | `4f700c921576c417da0e1c7b98a6ef0ae5726f86d096c7f25ea278d4e4116a17` |
++| **runtimeId** | `297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8` (wasmtime 49.0.0, jit, cache none) |
++| **measurement** | `e5febd103f8cabbad0a439e4daac47aa1caef213867026c442d04976df0a350777d198668c8f0add4f8f141b024cff12` |
++
++- **Tools:** the platform's own derivation (`derive_reference.py`, blob 6c5f0568) and `expected-measurement.sh --pin
++  16c2999d7715…` from the release lineage custody/front-prod 837c0061d, run offline with `sev-snp-measure`
++  (`publish/derive/appid.sh`, `measure.sh`).
++- **Cross-check, same run:** hello-world v4's bundle reproduces exactly what the canary rules already admit: AppID
++  `9c3d10f1…0d45`, runtimeId `297b6c2c…02f8`, measurement `9709716c…d230`.
++- **What sets the AppID and measurement:** only memMb (via the policy floor) and ports. cpuGflops, fee, config, slug and
++  version do not. The evidence is in `publish/evidence/derive.json`.
++
++## 5. The read-only fee and gas helper (root may run it)
++
++`publish/lib/publish.mjs`, CLI `publish/bin/publish-prepare.mjs`, viem 2.53.1 as in the reviewed repos.
++
++- **`--print`:** offline. Prints the exact call above.
++- **`--prepare`:** live, read-only, two RPCs (`mainnet.base.org`, `base.public.blockpi.network`) at one agreed block
++  (lower head − 2). The local run used 54 JSON-RPC requests in total, a fixed path. It refuses (exit 3, with a code)
++  unless all of the following hold:
++  - **book:** its code hash matches, and its `appCatalog`/`deployments` entries are the pinned catalog and ledger;
++  - **ledger** and **catalog:** code hashes match;
++  - **authority:** catalog `owner()` = admin and `pendingOwner()` = 0, so the publish is approved on publish;
++  - **catalog:** schema is 9;
++  - **listing:** the slug is new (`appIdOf` with no redirect, `numVersions` = 0) and the CID is unlisted;
++  - **nonce:** the admin's nonce is settled (agreed = latest = pending on both RPCs);
++  - **simulation:** `eth_call` of the exact calldata from the admin returns (expected appId, 0);
++  - **rpc_disagree:** both RPCs agree on every fact.
++- **Gas:** the larger estimate + 25 %.
++- **Fees:** priority = the larger `eth_maxPriorityFeePerGas`; maxFeePerGas = 2 × base + priority.
++  - The L1 data fee is `GasPriceOracle.getL1FeeUpperBound(max(unsigned, signedMax − 68))`, sized from the exact
++    transaction with the admin's real nonce.
++  - The operator fee is `getOperatorFee(gas limit)` when `isIsthmus()`. Otherwise it is undetermined and the helper
++    refuses.
++  - `totalAtBlockWei` = L2 cap + L1 bound + operator bound, at the agreed block's parameters. This is not a guarantee
++    against later changes.
++- **Caps:** gas ≤ 1,500,000; maxFeePerGas ≤ 0.1 gwei; total ≤ 50,000,000,000,000 wei (0.00005 ETH).
++  - On the local chain the estimate was 609,159 and the prepared gas 761,449.
++  - Every refusal in the "refuses unless" list above aborts before anything is written; the admin's balance is only
++    reported (`balanceSufficient`, `fundingNeededWei`).
++- **Output:** a public plan `publish/prepared/<sha256>.json` holding the unsigned EIP-1559 transaction and every
++  observation. There is no send, sign or upload code; a test greps the source for those.
++
++## 6. Signing and publication sequence (root and the admin decide; nothing here performs it)
++
++1. **Pre-flight:** run `node publish/bin/publish-prepare.mjs --prepare`. Every check must pass, and `balanceSufficient`
++   must be true.
++2. **Signature 1, upload:** the admin signs `enclave-upload:7ce32918490b91b87c7ffa4cf69769c676b5b835ca11d55904b1511ef93ee883:<expiry>`.
++   Upload `out/custody_canary_proof.wasm` (sha256 checked first) and compare the returned CID to §3.
++3. **Re-prepare:** run `--prepare` again right before signing, then compare `unsignedTx.data` with `request.json`
++   (sha256 `13e5a6f4…`).
++4. **Signature 2, the transaction:** the admin signs exactly `unsignedTx` from the current plan, with the same nonce, gas
++   and fee fields.
++5. **Post-checks (read-only):**
++   - the receipt status is 1 and carries `VersionApprovalSet(0x85c5ed4c…13a0, 0, 1)`;
++   - `getVersion(0x85c5…, 0)` returns the CID, approval 1, config `{"wasi":"0.2"}`, memMb 128 and cpuGflops 10;
++   - `versionFee` is 0.
++
++**If the admin uses `enclave publish` instead** (it uploads and publishes in one run), pass exactly:
++`enclave publish out/custody_canary_proof.wasm --slug custody-canary-proof --name "Custody canary proof" --desc "<the description above>" --version 0.1.0 --mem 128 --cpu-gflops 10`
++- Use no `--ports`, `--config` or `--fee`.
++- Hazards:
++  - The CLI's own RPCs and fees bypass this helper's caps.
++  - It does not check the returned CID.
++  - Its confirm line must read `res=[vram 0MB, gpu 0Gf, mem 128MB, cpu 10Gf]`.
++  - On a checkout whose baked catalog is the retired `0xAc5270…`, a book-lookup timeout sends the publish there. Use a
++    tree that bakes `0x18419…` (for example work/history-checkpoint-transport/tree/cli), or confirm the resolved address.
++
++## 7. After publication: what the canary rules change to (root review)
++
++The canary deploys `catalog://0x85c5ed4ce282f8c1f434dd600d902d8738a6d8a54b71497dfaa95a1f635813a0/0` and admits AppID
++`4f700c92…6a17`, measurement `e5febd10…ff12`, runtimeId `297b6c2c…02f8` instead of hello-world's. Re-derive with
++`expected-measurement.sh --pin` before copying. Staged secrets are the driver's markers only: at most 8 CANARY_ names,
++each `CANARY_<run>_<set>_<64 hex>` from `randomBytes(32)`.
++
++The format check is syntactic only. Confidentiality depends entirely on that CSPRNG generation (README §2).
++
++## 8. Checks (unchanged queue, 256/512 lanes)
++
++| check | lane | result |
++|---|---|---|
++| catalog + book offline rebuild = deployed code hashes | 512 | exact, peak 302 MiB |
++| AppID derivation + hello-world cross-check | 256 | 4f700c92… / 9c3d10f1… reproduced |
++| expected measurement (hello cross-check + canary) | 512 | 9709716c… reproduced / e5febd10…, peak 111 MiB |
++| helper tests on anvil (real catalog + book runtimes, mock oracle) | 512 | 9/9, peak 185 MiB |
++| helper mutants (owner, handoff, listing, CID, book, catalog and ledger hashes, operator fee, not-Isthmus, L1 size, RPC agreement, nonce, fee cap, chain) | 512 | 14/14 killed |
++| live read-only probe | 256 | 12 requests, all agree, ok |
++
++The frozen component's sha256 was re-verified in the tests. Root's activation was holding the large lane; no job here
++needed it, and no exit 98 was bypassed.
+diff --git a/README.md b/README.md
+index 4717ffc049cf82d7c557b90314f696441955b997..4b814ec83fbeaadd44ce96ab19ba9e1a7a39e2ee 100644
+--- a/README.md
++++ b/README.md
+@@ -48,8 +48,15 @@
+   - ENCLAVE_CONFIG is never a source.
+ - **Markers:** a value is hashed only if it has the canary driver's dedicated marker form
+   `CANARY_<YYYYMMDDTHHMMSSZ>_<[a-z0-9-]{1,32}>_<64 lowercase hex>` (32 random bytes; driver/markers.mjs
+-  `createMarkerSet`). Any other value under a CANARY_ name is skipped and not listed, so the app is never a guessing
+-  oracle for a low-entropy value.
++  `createMarkerSet`). Any other value under a CANARY_ name is skipped and not listed.
++  - **The format check is SYNTACTIC ONLY (root review of e84a1af).** It cannot measure entropy. A guessable value written
++    in marker form (for example, a fixed or counter-derived "hex" part) passes, and its proofs are then an offline
++    guessing oracle for it.
++  - Confidentiality rests entirely on the marker generator: root's CSPRNG, 32 fresh bytes per marker
++    (`randomBytes(32)` in driver/markers.mjs), dedicated to the canary and never reused.
++  - Canary use only; never user or production secrets.
++  - The same overstatement remains in the doc comment at `src/proof.rs:8` ("never a guessing oracle"). It was left
++    unedited on purpose so the reviewed source and the frozen component stay byte-identical; this paragraph supersedes it.
+   - More than 8 CANARY_ names, or a duplicate name, refuses everything with 409.
+ - **What it never does:** log, echo, return a value, length or prefix, read a request body, open an outbound network
+   connection, or keep state.
+@@ -134,41 +141,15 @@
+     test-dominit-handoff.sh), and I did not re-run them;
+   - a real guest, an attested client fetch, or a custody release. No hardware evidence is claimed.
+ 
+-## 5. Publish / admission / signing prerequisites (for root; NONE done)
+-
+-1. **Review:** root reviews this source and the value-proof contract (§2).
+-2. **Upload:** `enclave publish out/custody_canary_proof.wasm --slug custody-canary-proof --name "Custody canary proof"
+-   --version 0.1.0 --desc "Custody canary use ONLY: answers HMAC proofs for high-entropy CANARY_ test markers. Never
+-   stage real secrets." --mem <MB> --cpu-gflops <N>` (P/cli/enclave.mjs:2215).
+-   - Signing: the publisher wallet signs `enclave-upload:<sha256>:<expiry>` for the upload token, then sends
+-     `EnclaveAppCatalog.publishVersion`.
+-   - The appId is `keccak256(publisher ‖ slug)`.
+-   - No `--config` (the app reads none).
+-   - The CLI stamps `wasi:"0.2"`.
+-   - After upload, check the CID equals `bafkreid44murq…` and the sha256 equals `7ce32918…`.
+-3. **Approval:** if the publisher is not the catalog owner, the admin calls `setApproval(appId, idx, 1)` (Sol:557).
+-   Runners refuse unapproved versions.
+-4. **Measurement:**
+-   - Build the bundle with `bundle build -label <label> -world wasi:http -kind wasm-component -cpu <C> -mem <M> -vcpus <V>
+-     out/custody_canary_proof.wasm app.bundle`, then `bundle id app.bundle` (P/isolation/contract/cmd/bundle).
+-   - Then run `P/isolation/m4/expected-measurement.sh --pin 16c2999d7715a38f8a29adcff03d9c3c0e071eb1c0afc207c1f335b654dca0aa
+-     ~/enclave-prod/release-16c2999d app.bundle <V>`.
+-   - This gives a NEW app_id and measurement, because app.wasm is in the measured initrd. The resource values must be
+-     the ones the runner will use.
+-5. **Canary rules:** pin this app's catalog ref, app_id and measurement instead of hello-world's, then root re-reviews.
+-   The driver change (fetch with a fresh challenge via `isolation/m2/client.mjs` TRUSTED, recompute from the private
+-   marker file, record names and booleans only) is the separately reviewed step in CANARY-APP-PLAN.md.
+-6. **Deployment:**
+-   - A canary owner deploys the approved version with NO real secrets. Staged secrets are the driver's markers only,
+-     under the canary's CANARY_ names, at most 8.
+-   - On the per-app tier the relay must list the deployment or app ref for attested release (`SECRETS_ATTESTED_RELEASE`,
+-     `SECRETS_RELEASE_DEPLOYMENTS`/`SECRETS_RELEASE_APP_REFS`, work/enclave relay/secrets-release.mjs:174-198). This
+-     is relay config, set by root.
+-   - The custody-v2 recipient blocker still applies (metal0's running gsup has no measured CUSTODY_VAULT_V2; see
+-     work/custody-recipient-restore-20261023).
++## 5. Publish / admission / signing prerequisites
++
++Superseded by **PUBLISH.md** (root task ROOT-PUBLISH-PREPARE), which covers the actual deployed book, catalog and
++ledger, the exact `publishVersion` call (memMb 128, not the CLI default 256), automatic approval, the upload path and
++CID, the AppID and measurement on release 16c2999d, and the read-only fee/gas helper in `publish/`. None of it is
++executed.
+ 
+ ## Files
+ 
+ `src/proof.rs` (logic + unit tests), `src/lib.rs` (wasi:http glue), `Cargo.toml`/`Cargo.lock`/`.cargo/config.toml` (pins),
+ `test/kat.py`, `test/smoke.py`, `test/mutants.sh`, `qrun.sh` (one queue job, retried only on 98), `ARTIFACT.json`,
+-`PROGRESS.txt`. Untracked: `out/` (the binary), `logs/`, `target/`.
++`PROGRESS.txt`, `PUBLISH.md` + `publish/` (read-only publication preparation). Untracked: `out/` (the binary), `logs/`, `target/`.
+diff --git a/publish/bin/publish-prepare.mjs b/publish/bin/publish-prepare.mjs
+new file mode 100755
+index 0000000000000000000000000000000000000000..1597638392234aa4283a0b434d23d7c377a33df4
+--- /dev/null
++++ b/publish/bin/publish-prepare.mjs
+@@ -0,0 +1,32 @@
++#!/usr/bin/env node
++// custody-canary-proof catalog publication: READ-ONLY preparation for root. Never reads a key, signs, uploads or sends.
++//   --print     offline: the exact call (selector, args, calldata, sha256, expected catalog appId). No network.
++//   --prepare   live, read-only: two RPCs at one agreed block (about 54 JSON-RPC requests, fixed by the code path);
++//               writes prepared/<planHash>.json (public) and prints the plan hash. Exit 3 on a refusal (with its code).
++import fs from "node:fs";
++import path from "node:path";
++import { createPreparer, request, PRODUCTION, COMPONENT, SELECTOR, Refusal, httpRpc } from "../lib/publish.mjs";
++
++const mode = process.argv[2];
++const big = (_k, v) => (typeof v === "bigint" ? v.toString() : v);
++if (mode === "--print") {
++  const r = request();
++  console.log(JSON.stringify({ chainId: PRODUCTION.chainId, from: PRODUCTION.publisher, to: PRODUCTION.catalog, value: "0", selector: SELECTOR,
++    function: "publishVersion(string,string,string,string,string,uint32[4],string,string,uint256)", args: r.args, data: r.data,
++    dataSha256: r.dataSha256, expectedCatalogAppId: r.appId, component: COMPONENT }, big, 1));
++} else if (mode === "--prepare") {
++  const counter = { n: 0 };
++  try {
++    const out = await createPreparer({ rpc: httpRpc(15_000, counter) }).prepare();
++    const dir = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "prepared");
++    fs.mkdirSync(dir, { recursive: true });
++    fs.writeFileSync(path.join(dir, `${out.planHash}.json`), out.text, { flag: "wx", mode: 0o644 });
++    console.log(JSON.stringify({ status: out.status, planHash: out.planHash, requests: counter.n, fees: out.plan.observed.fees, balanceSufficient: out.plan.observed.balanceSufficient }, null, 1));
++  } catch (e) {
++    if (e instanceof Refusal) { console.error(`REFUSED ${e.code}: ${e.message} (${counter.n} requests)`); process.exit(3); }
++    throw e;
++  }
++} else {
++  console.error("usage: publish-prepare.mjs --print | --prepare");
++  process.exit(2);
++}
+diff --git a/publish/derive/appid.sh b/publish/derive/appid.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..a0cd94fe3cdf1cf3f3ea9bdaa3488ceea219382f
+--- /dev/null
++++ b/publish/derive/appid.sh
+@@ -0,0 +1,21 @@
++#!/bin/bash
++# Offline AppID derivation (enclave-catalog-bundle/1, DERIVE.md) with the platform's INDEPENDENT reference implementation
++# derive_reference.py, pinned by git blob from Projects/enclave custody/front-prod (the release-16c2999d lineage). The
++# policy is enclave-isolation-policy/1 over the on-chain memMb: {cpuPercent 100, memMiB max(128, memMb), vcpus 1}.
++# catalog.app/version and runtimeId are NOT in the bundle (AppID unaffected); they are filled with the real pending
++# values where known, a labelled placeholder otherwise. Cross-check first: hello-world v4 must give 9c3d10f1….
++set -euo pipefail
++here=$(cd "$(dirname "$0")" && pwd); app=$(cd "$here/../.." && pwd); out=$app/out/derive; mkdir -p "$out"
++BLOB=6c5f056836019374114210865fcf067010b58182
++git -C /home/steven/Projects/enclave cat-file -p $BLOB > "$out/derive_reference.py"
++HELLO=/home/steven/enclave-prod/pvm-host/components/bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza.wasm
++RT=cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd   # placeholder: not in the bundle
++rec() { printf '{"catalog":{"app":"%s","version":%s},"cid":"%s","derivation":"enclave-catalog-bundle/1","policy":{"cpuPercent":100,"memMiB":128,"vcpus":1},"runtimeId":"%s"}' "$1" "$2" "$3" "$RT"; }
++rec 0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed 4 bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza > "$out/hello.record.json"
++python3 "$out/derive_reference.py" bundle "$out/hello.record.json" "$HELLO" "$out/hello.bundle" > "$out/hello.mapping.json"
++python3 -c 'import json,sys; m=json.load(open(sys.argv[1])); print("hello-world v4 appId", m["appId"]); assert m["appId"].startswith("9c3d10f1"), "cross-check failed"' "$out/hello.mapping.json"
++APPID=$(node -e 'import("'"$app"'/publish/lib/publish.mjs").then(m=>console.log(m.request().appId))')
++rec "$APPID" 0 bafkreid44murqsilsg4hy772jt3jo2ogo223qnokchkvsbfrkeppspxiqm > "$out/canary.record.json"
++python3 "$out/derive_reference.py" bundle "$out/canary.record.json" "$app/out/custody_canary_proof.wasm" "$out/canary.bundle" > "$out/canary.mapping.json"
++python3 -c 'import json,sys; m=json.load(open(sys.argv[1])); print("canary appId", m["appId"], "bundleBytes", m["bundleBytes"], "componentSha256", m["componentSha256"])' "$out/canary.mapping.json"
++sha256sum "$out/canary.bundle"
+diff --git a/publish/derive/measure.sh b/publish/derive/measure.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..12814ed009c7477dfa58317cc643677762a27f30
+--- /dev/null
++++ b/publish/derive/measure.sh
+@@ -0,0 +1,15 @@
++#!/bin/bash
++# Offline expected launch measurement for the canary bundle on the pinned per-app release 16c2999d, with the release
++# lineage's own verifier script (Projects/enclave custody/front-prod: isolation/m4 + isolation/contract, extracted by
++# git archive into out/, the repo untouched). Cross-check first: hello-world v4's bundle must reproduce the measurement
++# the canary rules already admit (9709716c…d230, runtimeId 297b6c2c…). No network, no hardware.
++set -euo pipefail
++here=$(cd "$(dirname "$0")" && pwd); app=$(cd "$here/../.." && pwd); out=$app/out/derive; em=$out/em
++PIN=16c2999d7715a38f8a29adcff03d9c3c0e071eb1c0afc207c1f335b654dca0aa
++REL=/home/steven/enclave-prod/release-16c2999d
++rm -rf "$em"; mkdir -p "$em"
++git -C /home/steven/Projects/enclave archive custody/front-prod isolation/m4 isolation/contract | tar -x -C "$em"
++echo "lineage $(git -C /home/steven/Projects/enclave rev-parse custody/front-prod)"
++run() { "$em/isolation/m4/expected-measurement.sh" --pin $PIN "$REL" "$1" 1; }
++echo "== hello-world v4"; run "$out/hello.bundle"
++echo "== custody-canary-proof"; run "$out/canary.bundle"
+diff --git a/publish/evidence/derive.json b/publish/evidence/derive.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..bdc63a6a00e482de1f507cdbcc16bf8cd0da13e9
+--- /dev/null
++++ b/publish/evidence/derive.json
+@@ -0,0 +1,42 @@
++{
++ "what": "offline AppID + expected launch measurement, no network/hardware",
++ "release": "release-16c2999d (pin 16c2999d7715a38f8a29adcff03d9c3c0e071eb1c0afc207c1f335b654dca0aa)",
++ "tools": {
++  "derive_reference.py": "Projects/enclave custody/front-prod blob 6c5f056836019374114210865fcf067010b58182",
++  "expected-measurement.sh": "Projects/enclave custody/front-prod 837c0061dc60ecf4c534aa754e626a7dd44f05c0 (git archive isolation/m4 isolation/contract)",
++  "sev-snp-measure": "~/.local/bin/sev-snp-measure"
++ },
++ "policy": {
++  "rule": "enclave-isolation-policy/1: vcpus 1, memMiB max(128, on-chain memMb), cpuPercent 100",
++  "cpuPercent": 100,
++  "memMiB": 128,
++  "vcpus": 1,
++  "onChainRes": {
++   "vramMb": 0,
++   "gpuGflops": 0,
++   "memMb": 128,
++   "cpuGflops": 10
++  },
++  "guestRamMiB": "max(1024, memMiB+384) = 1024 (guestd server.go)",
++  "hostReservationMiB": "1024 + 768 QEMU overhead = 1792"
++ },
++ "crossCheck": {
++  "helloWorldV4": {
++   "release": "16c2999d7715a38f8a29adcff03d9c3c0e071eb1c0afc207c1f335b654dca0aa",
++   "app_id": "9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45",
++   "runtime_id": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
++   "measurement": "9709716c9b63e1d2a048347478fbd6a94d42babd222e7bc8e18422e5b9075c840844e5213feaaf5fb3a3949dd30ad230"
++  },
++  "admittedByCanaryRules": "measurement 9709716c\u2026d230, runtimeId 297b6c2c\u202602f8, appId 9c3d10f1\u20260d45 (custody-v2-production-canary-20261023 pins)"
++ },
++ "canary": {
++  "release": "16c2999d7715a38f8a29adcff03d9c3c0e071eb1c0afc207c1f335b654dca0aa",
++  "app_id": "4f700c921576c417da0e1c7b98a6ef0ae5726f86d096c7f25ea278d4e4116a17",
++  "runtime_id": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
++  "measurement": "e5febd103f8cabbad0a439e4daac47aa1caef213867026c442d04976df0a350777d198668c8f0add4f8f141b024cff12",
++  "bundleBytes": 101461,
++  "componentSha256": "7ce32918490b91b87c7ffa4cf69769c676b5b835ca11d55904b1511ef93ee883",
++  "derivation": "enclave-catalog-bundle/1"
++ },
++ "notInBundle": "catalog appId/version, CID string, runtimeId, cpuGflops, fee, config, slug/version label"
++}
+\ No newline at end of file
+diff --git a/publish/evidence/live-readonly.json b/publish/evidence/live-readonly.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..1e82a788f3810814d35d035d7cc8df13c8479684
+--- /dev/null
++++ b/publish/evidence/live-readonly.json
+@@ -0,0 +1,49 @@
++{
++ "at": "2026-10-23T21:50:33.693Z",
++ "readOnly": true,
++ "requests": 12,
++ "rpcs": [
++  "mainnet.base.org",
++  "base.public.blockpi.network"
++ ],
++ "block": "53001440",
++ "book": {
++  "address": "0xab214342d5a490150a4a977063a2f88e21f80907",
++  "appCatalog": [
++   "0x18419ca2b502d423a8de6269aeee171a378626e3",
++   "0x18419ca2b502d423a8de6269aeee171a378626e3"
++  ],
++  "deployments": [
++   "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++   "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b"
++  ]
++ },
++ "catalog": {
++  "address": "0x18419ca2b502d423a8de6269aeee171a378626e3",
++  "codeHash": [
++   "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f",
++   "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f"
++  ],
++  "codeHashMatchesReviewed": true
++ },
++ "listing": {
++  "slug": "custody-canary-proof",
++  "appId": "0x85c5ed4ce282f8c1f434dd600d902d8738a6d8a54b71497dfaa95a1f635813a0",
++  "numVersions": [
++   "0",
++   "0"
++  ],
++  "cidListed": [
++   false,
++   false
++  ]
++ },
++ "agree": {
++  "appCatalog": true,
++  "deployments": true,
++  "codeHash": true,
++  "numVersions": true,
++  "cid": true
++ },
++ "ok": true
++}
+diff --git a/publish/evidence/request.json b/publish/evidence/request.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..ac91e593bc6dc0e2abad64aace86428e549e1a29
+--- /dev/null
++++ b/publish/evidence/request.json
+@@ -0,0 +1,33 @@
++{
++ "chainId": 8453,
++ "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++ "to": "0x18419ca2b502d423a8de6269aeee171a378626e3",
++ "value": "0",
++ "selector": "0x47910c23",
++ "function": "publishVersion(string,string,string,string,string,uint32[4],string,string,uint256)",
++ "args": [
++  "custody-canary-proof",
++  "Custody canary proof",
++  "Custody canary use ONLY: answers HMAC-SHA256 proofs for dedicated CANARY_ test markers (32 fresh CSPRNG bytes each). Never stage real or user secrets.",
++  "0.1.0",
++  "bafkreid44murqsilsg4hy772jt3jo2ogo223qnokchkvsbfrkeppspxiqm",
++  [
++   0,
++   0,
++   128,
++   10
++  ],
++  "",
++  "{\"wasi\":\"0.2\"}",
++  "0"
++ ],
++ "data": "0x47910c23000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000001c0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002c00000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000360000000000000000000000000000000000000000000000000000000000000038000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000014637573746f64792d63616e6172792d70726f6f660000000000000000000000000000000000000000000000000000000000000000000000000000000000000014437573746f64792063616e6172792070726f6f660000000000000000000000000000000000000000000000000000000000000000000000000000000000000096437573746f64792063616e61727920757365204f4e4c593a20616e737765727320484d41432d5348413235362070726f6f667320666f72206465646963617465642043414e4152595f2074657374206d61726b6572732028333220667265736820435350524e472062797465732065616368292e204e65766572207374616765207265616c206f72207573657220736563726574732e000000000000000000000000000000000000000000000000000000000000000000000000000000000005302e312e30000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003b6261666b7265696434346d75727173696c73673468793737326a74336a6f326f676f323233716e6f6b63686b76736266726b65707073707869716d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e7b2277617369223a22302e32227d000000000000000000000000000000000000",
++ "dataSha256": "13e5a6f4f960bf615c502f90810fabd18a148206bf7600daee8041a68bdea312",
++ "expectedCatalogAppId": "0x85c5ed4ce282f8c1f434dd600d902d8738a6d8a54b71497dfaa95a1f635813a0",
++ "component": {
++  "file": "out/custody_canary_proof.wasm",
++  "sha256": "7ce32918490b91b87c7ffa4cf69769c676b5b835ca11d55904b1511ef93ee883",
++  "size": 101222,
++  "cid": "bafkreid44murqsilsg4hy772jt3jo2ogo223qnokchkvsbfrkeppspxiqm"
++ }
++}
+diff --git a/publish/fixtures/book-build.json b/publish/fixtures/book-build.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..043d2384fc346d61ff0166884cd91db8c3d5987b
+--- /dev/null
++++ b/publish/fixtures/book-build.json
+@@ -0,0 +1 @@
++{"sourceRev":"6c1135b0f","sourceSha256":"124aa407863e2213d8ef700e6e9492e9112b7a8e1ce50fc10f324b781173ac9a","solc":"0.8.35+commit.47b9dedd.Emscripten.clang","codeHash":"0xe4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152","abi":[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"key","type":"bytes32"},{"indexed":false,"internalType":"address","name":"value","type":"address"}],"name":"AddressSet","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"address","name":"owner","type":"address"}],"name":"OwnerChanged","type":"event"},{"inputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"name":"addr","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"all","outputs":[{"internalType":"bytes32[]","name":"keys_","type":"bytes32[]"},{"internalType":"address[]","name":"values","type":"address[]"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"count","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes32","name":"key","type":"bytes32"},{"internalType":"address","name":"value","type":"address"}],"name":"set","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes32[]","name":"keys_","type":"bytes32[]"},{"internalType":"address[]","name":"values","type":"address[]"}],"name":"setMany","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newOwner","type":"address"}],"name":"setOwner","outputs":[],"stateMutability":"nonpayable","type":"function"}],"runtime":"0x608060405234801561000f575f5ffd5b506004361061007a575f3560e01c806313af40351161005857806313af4035146100bf5780633b3b57de146100d25780638da5cb5b14610112578063ba44593c14610124575f5ffd5b806306661abd1461007e57806310c4e8b01461009457806312d1a4a8146100aa575b5f5ffd5b6001546040519081526020015b60405180910390f35b61009c610137565b60405161008b9291906104fa565b6100bd6100b83660046105cb565b610256565b005b6100bd6100cd366004610652565b6102ec565b6100fa6100e0366004610672565b60026020525f90815260409020546001600160a01b031681565b6040516001600160a01b03909116815260200161008b565b5f546100fa906001600160a01b031681565b6100bd610132366004610689565b6103c1565b606080600180548060200260200160405190810160405280929190818152602001828054801561018457602002820191905f5260205f20905b815481526020019060010190808311610170575b5050600154939550505067ffffffffffffffff82111590506101a8576101a86106b3565b6040519080825280602002602001820160405280156101d1578160200160208202803683370190505b5090505f5b6001548110156102515760025f600183815481106101f6576101f66106c7565b905f5260205f20015481526020019081526020015f205f9054906101000a90046001600160a01b0316828281518110610231576102316106c7565b6001600160a01b03909216602092830291909101909101526001016101d6565b509091565b8281146102905760405162461bcd60e51b81526020600482015260036024820152623632b760e91b60448201526064015b60405180910390fd5b5f5b838110156102e5576102dd8585838181106102af576102af6106c7565b905060200201358484848181106102c8576102c86106c7565b90506020020160208101906101329190610652565b600101610292565b5050505050565b5f546001600160a01b0316331461032e5760405162461bcd60e51b815260206004820152600660248201526510b7bbb732b960d11b6044820152606401610287565b6001600160a01b03811661036e5760405162461bcd60e51b815260206004820152600760248201526606f776e65723d360cc1b6044820152606401610287565b5f80546001600160a01b0319166001600160a01b0383169081179091556040519081527fa2ea9883a321a3e97b8266c2b078bfeec6d50c711ed71f874a90d500ae2eaf369060200160405180910390a150565b5f546001600160a01b031633146104035760405162461bcd60e51b815260206004820152600660248201526510b7bbb732b960d11b6044820152606401610287565b816104385760405162461bcd60e51b815260206004820152600560248201526406b65793d360dc1b6044820152606401610287565b5f8281526003602052604090205460ff16610497575f828152600360205260408120805460ff191660019081179091558054808201825591527fb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6018290555b5f8281526002602090815260409182902080546001600160a01b0319166001600160a01b038516908117909155915191825283917fb37614c7d254ea8d16eb81fa11dddaeb266aa8ba4917980859c7740aff30c691910160405180910390a25050565b604080825283519082018190525f9060208501906060840190835b81811015610533578351835260209384019390920191600101610515565b5050838103602080860191909152855180835291810192508501905f5b818110156105775782516001600160a01b0316845260209384019390920191600101610550565b50919695505050505050565b5f5f83601f840112610593575f5ffd5b50813567ffffffffffffffff8111156105aa575f5ffd5b6020830191508360208260051b85010111156105c4575f5ffd5b9250929050565b5f5f5f5f604085870312156105de575f5ffd5b843567ffffffffffffffff8111156105f4575f5ffd5b61060087828801610583565b909550935050602085013567ffffffffffffffff81111561061f575f5ffd5b61062b87828801610583565b95989497509550505050565b80356001600160a01b038116811461064d575f5ffd5b919050565b5f60208284031215610662575f5ffd5b61066b82610637565b9392505050565b5f60208284031215610682575f5ffd5b5035919050565b5f5f6040838503121561069a575f5ffd5b823591506106aa60208401610637565b90509250929050565b634e487b7160e01b5f52604160045260245ffd5b634e487b7160e01b5f52603260045260245ffdfea26469706673582212202bedd0ece74a720c2e286460efde57ec0c0557cfcd76debb8b4066c5399ce98464736f6c63430008230033"}
+diff --git a/publish/fixtures/catalog-build.json b/publish/fixtures/catalog-build.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..95ec1552c50578e84e805078257fa17d9b76c9ec
+--- /dev/null
++++ b/publish/fixtures/catalog-build.json
+@@ -0,0 +1 @@
++{"sourceBlob":"018e4bffc6ac99f87b7b6087a6c4628a53e7a1e9","sourceSha256":"b31744361efbb43fcf60152a5eaaa185d1af07bdc27f077af0a2b48e7de3b191","solc":"0.8.35+commit.47b9dedd.Emscripten.clang","codeHash":"0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f","abi":[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"appId","type":"bytes32"},{"indexed":false,"internalType":"bool","name":"active","type":"bool"}],"name":"AppActiveSet","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"appId","type":"bytes32"},{"indexed":true,"internalType":"address","name":"publisher","type":"address"},{"indexed":false,"internalType":"string","name":"slug","type":"string"},{"indexed":false,"internalType":"string","name":"name","type":"string"}],"name":"AppCreated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"appId","type":"bytes32"},{"indexed":false,"internalType":"string","name":"name","type":"string"},{"indexed":false,"internalType":"string","name":"description","type":"string"}],"name":"AppEdited","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"appId","type":"bytes32"},{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":true,"internalType":"address","name":"to","type":"address"}],"name":"AppTransferred","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"cidKey","type":"bytes32"},{"indexed":true,"internalType":"bytes32","name":"appId","type":"bytes32"}],"name":"CidGranted","type":"event"},{"anonymous":false,"inputs":[],"name":"ImportsSealed","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"maxFeePerSec6","type":"uint256"}],"name":"MaxFeeSet","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"owner","type":"address"}],"name":"OwnerChanged","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"previousOwner","type":"address"},{"indexed":true,"internalType":"address","name":"newOwner","type":"address"}],"name":"OwnershipTransferStarted","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"appId","type":"bytes32"},{"indexed":true,"internalType":"uint256","name":"index","type":"uint256"},{"indexed":false,"internalType":"uint8","name":"status","type":"uint8"}],"name":"VersionApprovalSet","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"appId","type":"bytes32"},{"indexed":true,"internalType":"uint256","name":"index","type":"uint256"},{"indexed":false,"internalType":"string","name":"configCid","type":"string"}],"name":"VersionConfigCidSet","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"appId","type":"bytes32"},{"indexed":true,"internalType":"uint256","name":"index","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"feePerSec6","type":"uint256"}],"name":"VersionFeeSet","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"appId","type":"bytes32"},{"indexed":true,"internalType":"uint256","name":"index","type":"uint256"},{"indexed":false,"internalType":"string","name":"version","type":"string"},{"indexed":false,"internalType":"string","name":"cid","type":"string"}],"name":"VersionPublished","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"appId","type":"bytes32"},{"indexed":true,"internalType":"uint256","name":"index","type":"uint256"},{"indexed":false,"internalType":"bool","name":"verified","type":"bool"}],"name":"VersionVerified","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"appId","type":"bytes32"},{"indexed":true,"internalType":"uint256","name":"index","type":"uint256"}],"name":"VersionYanked","type":"event"},{"inputs":[],"name":"APPROVAL_APPROVED","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"APPROVAL_PENDING","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"APPROVAL_REJECTED","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"acceptOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"appCount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"i","type":"uint256"}],"name":"appIdAt","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"publisher","type":"address"},{"internalType":"string","name":"slug","type":"string"}],"name":"appIdOf","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"catalogSchema","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"string","name":"cid","type":"string"}],"name":"cidStatus","outputs":[{"internalType":"bool","name":"listed","type":"bool"},{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"uint256","name":"index","type":"uint256"},{"internalType":"uint8","name":"approval","type":"uint8"},{"internalType":"bool","name":"yanked","type":"bool"},{"internalType":"bool","name":"appActive","type":"bool"},{"internalType":"uint32[4]","name":"res","type":"uint32[4]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"string","name":"slug","type":"string"},{"internalType":"string","name":"name","type":"string"},{"internalType":"string","name":"description","type":"string"}],"name":"editApp","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"}],"name":"getApp","outputs":[{"components":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"address","name":"publisher","type":"address"},{"internalType":"string","name":"slug","type":"string"},{"internalType":"string","name":"name","type":"string"},{"internalType":"string","name":"description","type":"string"},{"internalType":"uint32","name":"versionCount","type":"uint32"},{"internalType":"uint64","name":"createdAt","type":"uint64"},{"internalType":"uint64","name":"updatedAt","type":"uint64"},{"internalType":"bool","name":"active","type":"bool"}],"internalType":"struct EnclaveAppCatalog.App","name":"","type":"tuple"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"start","type":"uint256"},{"internalType":"uint256","name":"n","type":"uint256"}],"name":"getAppsPage","outputs":[{"components":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"address","name":"publisher","type":"address"},{"internalType":"string","name":"slug","type":"string"},{"internalType":"string","name":"name","type":"string"},{"internalType":"string","name":"description","type":"string"},{"internalType":"uint32","name":"versionCount","type":"uint32"},{"internalType":"uint64","name":"createdAt","type":"uint64"},{"internalType":"uint64","name":"updatedAt","type":"uint64"},{"internalType":"bool","name":"active","type":"bool"}],"internalType":"struct EnclaveAppCatalog.App[]","name":"page","type":"tuple[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"uint256","name":"index","type":"uint256"}],"name":"getVersion","outputs":[{"components":[{"internalType":"string","name":"cid","type":"string"},{"internalType":"string","name":"version","type":"string"},{"internalType":"uint32","name":"vramMb","type":"uint32"},{"internalType":"uint32","name":"gpuGflops","type":"uint32"},{"internalType":"uint32","name":"memMb","type":"uint32"},{"internalType":"uint32","name":"cpuGflops","type":"uint32"},{"internalType":"uint64","name":"createdAt","type":"uint64"},{"internalType":"bool","name":"verified","type":"bool"},{"internalType":"bool","name":"yanked","type":"bool"},{"internalType":"string","name":"ports","type":"string"},{"internalType":"uint8","name":"approval","type":"uint8"},{"internalType":"string","name":"config","type":"string"}],"internalType":"struct EnclaveAppCatalog.Version","name":"","type":"tuple"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"uint256","name":"start","type":"uint256"},{"internalType":"uint256","name":"n","type":"uint256"}],"name":"getVersionsPage","outputs":[{"components":[{"internalType":"string","name":"cid","type":"string"},{"internalType":"string","name":"version","type":"string"},{"internalType":"uint32","name":"vramMb","type":"uint32"},{"internalType":"uint32","name":"gpuGflops","type":"uint32"},{"internalType":"uint32","name":"memMb","type":"uint32"},{"internalType":"uint32","name":"cpuGflops","type":"uint32"},{"internalType":"uint64","name":"createdAt","type":"uint64"},{"internalType":"bool","name":"verified","type":"bool"},{"internalType":"bool","name":"yanked","type":"bool"},{"internalType":"string","name":"ports","type":"string"},{"internalType":"uint8","name":"approval","type":"uint8"},{"internalType":"string","name":"config","type":"string"}],"internalType":"struct EnclaveAppCatalog.Version[]","name":"page","type":"tuple[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"string","name":"cid","type":"string"},{"internalType":"bytes32","name":"appId","type":"bytes32"}],"name":"grantCid","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"components":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"address","name":"publisher","type":"address"},{"internalType":"string","name":"slug","type":"string"},{"internalType":"string","name":"name","type":"string"},{"internalType":"string","name":"description","type":"string"},{"internalType":"uint32","name":"versionCount","type":"uint32"},{"internalType":"uint64","name":"createdAt","type":"uint64"},{"internalType":"uint64","name":"updatedAt","type":"uint64"},{"internalType":"bool","name":"active","type":"bool"}],"internalType":"struct EnclaveAppCatalog.App[]","name":"items","type":"tuple[]"}],"name":"importApps","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"uint256[]","name":"indices","type":"uint256[]"},{"internalType":"string[]","name":"cids","type":"string[]"}],"name":"importVersionConfigCids","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"uint256[]","name":"indices","type":"uint256[]"},{"internalType":"uint256[]","name":"fees","type":"uint256[]"}],"name":"importVersionFees","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"components":[{"internalType":"string","name":"cid","type":"string"},{"internalType":"string","name":"version","type":"string"},{"internalType":"uint32","name":"vramMb","type":"uint32"},{"internalType":"uint32","name":"gpuGflops","type":"uint32"},{"internalType":"uint32","name":"memMb","type":"uint32"},{"internalType":"uint32","name":"cpuGflops","type":"uint32"},{"internalType":"uint64","name":"createdAt","type":"uint64"},{"internalType":"bool","name":"verified","type":"bool"},{"internalType":"bool","name":"yanked","type":"bool"},{"internalType":"string","name":"ports","type":"string"},{"internalType":"uint8","name":"approval","type":"uint8"},{"internalType":"string","name":"config","type":"string"}],"internalType":"struct EnclaveAppCatalog.Version[]","name":"items","type":"tuple[]"}],"name":"importVersions","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"importsSealed","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"maxFeePerSec6","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes[]","name":"calls","type":"bytes[]"}],"name":"multicall","outputs":[{"internalType":"bytes[]","name":"results","type":"bytes[]"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"}],"name":"numVersions","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"pendingOwner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"string","name":"slug","type":"string"},{"internalType":"string","name":"name","type":"string"},{"internalType":"string","name":"description","type":"string"},{"internalType":"string","name":"version","type":"string"},{"internalType":"string","name":"cid","type":"string"},{"internalType":"uint32[4]","name":"res","type":"uint32[4]"},{"internalType":"string","name":"ports","type":"string"},{"internalType":"string","name":"config","type":"string"},{"internalType":"uint256","name":"feePerSec6","type":"uint256"}],"name":"publishVersion","outputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"uint256","name":"index","type":"uint256"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"string","name":"slug","type":"string"},{"internalType":"string","name":"name","type":"string"},{"internalType":"string","name":"description","type":"string"},{"internalType":"string","name":"version","type":"string"},{"internalType":"string","name":"cid","type":"string"},{"internalType":"uint32[4]","name":"res","type":"uint32[4]"},{"internalType":"string","name":"ports","type":"string"},{"internalType":"string","name":"config","type":"string"},{"internalType":"string","name":"configCid","type":"string"},{"internalType":"uint256","name":"feePerSec6","type":"uint256"}],"name":"publishVersionCfg","outputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"uint256","name":"index","type":"uint256"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"sealImports","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"string","name":"slug","type":"string"},{"internalType":"bool","name":"active","type":"bool"}],"name":"setActive","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"uint256","name":"index","type":"uint256"},{"internalType":"uint8","name":"status","type":"uint8"}],"name":"setApproval","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"_maxFeePerSec6","type":"uint256"}],"name":"setMaxFee","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"uint256","name":"index","type":"uint256"},{"internalType":"bool","name":"v","type":"bool"}],"name":"setVerified","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"address","name":"to","type":"address"}],"name":"transferApp","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"o","type":"address"}],"name":"transferOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"uint256","name":"index","type":"uint256"}],"name":"versionConfigCid","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"}],"name":"versionConfigCids","outputs":[{"internalType":"string[]","name":"out","type":"string[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes32","name":"appId","type":"bytes32"},{"internalType":"uint256","name":"index","type":"uint256"}],"name":"versionFee","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"string","name":"slug","type":"string"},{"internalType":"uint256","name":"index","type":"uint256"}],"name":"yankVersion","outputs":[],"stateMutability":"nonpayable","type":"function"}],"creation":"0x60808060405234607c5760207fd0f8c51945dea723082a25e6655046533b6c6d26e9ac825098d4f8d5b6594f1b9161056d6002553360018060a01b03195f5416175f55337fa2ea9883a321a3e97b8266c2b078bfeec6d50c711ed71f874a90d500ae2eaf365f80a261056d8152a16040516158cd90816100818239f35b5f80fdfe610200806040526004361015610013575f80fd5b5f3560e01c90816318cccf571461474f575080632ba018b114613da95780632eb7c1f014613d21578063345c52dc14613c7d578063353aa20f14613be35780633de1aa0114613bc957806342c71f1d14613b8257806347910c2314612d985780634ca171e514612ccc578063577d81b514612c335780635ea1708a14612b2f578063637d577714612aec5780636efaf460146129dc578063710e5d2f1461298457806379ba5097146128e25780637b33926f146128c05780637e2b44041461171e57806380c4a4ec1461170357806382869209146116d4578063838bb07d146116b95780638747b2ff1461168f5780638da5cb5b146116685780638eaff2e51461160b57806395b957d7146115ee5780639e4b5d561461154a578063a0483de1146114c5578063a67613fa146113e6578063ac9650d814611253578063af904a0614611204578063b55ca2c3146111e7578063b99b29fa14611190578063cbe6673d14611163578063d41bf3a314610f2c578063e24c906814610804578063e30c3978146107dc578063ef4729631461046a578063f2fde38b146103ed5763f42c1151146101bf575f80fd5b346103e95760403660031901126103e9576024356001600160a01b038116906004358282036103e9576101fc60018060a01b035f54163314614aa9565b805f52600560205261021460ff60405f205416614b13565b61021f8315156155a2565b5f8181526004602052604090206001810180546001600160a01b03169391908585146103b057600282019260405161026e81610260876020830195866155da565b03601f198101835282614a37565b51902084811480159081610384575b1561033f576102f39460405161029c8161026060208201948c866155da565b519020805f52600b6020528660405f20541461032c575b50610319575b5080546001600160a01b03191686179055600501805467ffffffffffffffff60601b19164260601b67ffffffffffffffff60601b16179055565b7f568dd0393226a713c7f47eaeb70a759c7f0279766388e18d92cbf63bd43116e75f80a4005b5f52600b6020528360405f20555f6102b9565b5f52600b6020525f60408120555f6102b3565b60405162461bcd60e51b815260206004820152601960248201527f736c75672074616b656e2061742064657374696e6174696f6e000000000000006044820152606490fd5b50815f52600560205260ff60405f20541615801561027d5750815f52600b60205260405f20541561027d565b60405162461bcd60e51b815260206004820152601160248201527030b63932b0b23c90383ab13634b9b432b960791b6044820152606490fd5b5f80fd5b346103e95760203660031901126103e9576104066149ce565b5f546001600160a01b03169061041d338314614aa9565b6001600160a01b0316906104328215156155a2565b600180546001600160a01b031916831790557f38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e227005f80a3005b346103e95760603660031901126103e9576004356001600160401b0381116103e95761049a903690600401614895565b906024356001600160401b0381116103e9576104ba903690600401614895565b906044356001600160401b0381116103e9576104dd610505913690600401614895565b959094841515806107d1575b6104f29061552e565b6105006101f4881115615568565b6156aa565b92835f52600460205260405f20600381016001600160401b0385116106fd5761052e8154614c38565b601f8111610780575b50845f601f821160011461071c575f91610711575b508560011b905f198760031b1c19161790555b600481016001600160401b0387116106fd5761057b8154614c38565b601f81116106ac575b505f601f881160011461061e57879261060e94927fa9f996d7196227506f7cded5a75895348d23d6fc54783a1b816b9bb7f1aa32269899610602935f91610613575b508560011b905f198760031b1c19161790555b600501805467ffffffffffffffff60601b19164260601b67ffffffffffffffff60601b16179055565b60405194859485614cc9565b0390a2005b90508401358b6105c6565b601f19881690825f5260205f20915f5b818110610694575092610602928a95927fa9f996d7196227506f7cded5a75895348d23d6fc54783a1b816b9bb7f1aa32269a9b61060e98961061067b575b5050600185811b0190556105d9565b8501355f19600388901b60f8161c191690558a8061066c565b9192602060018192868a01358155019401920161062e565b8781111561058457815f5260205f20601f890160051c9060208a106106f5575b81601f9101920160051c03905f5b8281106106e8575050610584565b5f828201556001016106da565b5f91506106cc565b634e487b7160e01b5f52604160045260245ffd5b90508401358861054c565b5f8381526020812092508790601f198216905b81811061076557501061074c575b5050600185811b01905561055f565b8501355f19600388901b60f8161c19169055878061073d565b8884013585556001909401936020938401938a93500161072f565b8581111561053757815f5260205f20601f870160051c90602088106107c9575b81601f9101920160051c03905f5b8281106107bc575050610537565b5f828201556001016107ae565b5f91506107a0565b5060508511156104e9565b346103e9575f3660031901126103e9576001546040516001600160a01b039091168152602090f35b346103e95760203660031901126103e9576004356001600160401b0381116103e957610834903690600401614768565b61084860018060a01b035f54163314614aa9565b61085760ff600d541615614ade565b5f915b81831061086357005b61086e8383836154ae565b359261087b84151561503f565b835f52600560205260ff60405f205416610efe57835f52600b60205260405f2054610eb9576108b660206108b08386866154ae565b016154d1565b603461090b6108d36108c98588886154ae565b6040810190614b84565b92908360405194859260208401976001600160601b03199060601b1688528484013781015f838201520301601f198101835282614a37565b519020808503610e40575b50835f52600560205260405f20600160ff19825416179055610937846154e5565b6109428184846154ae565b93805f52600460205260405f209480358655610960602082016154d1565b6001870180546001600160a01b0319166001600160a01b03909216919091179055600286016109926040830183614b84565b906001600160401b0382116106fd5781906109ad8454614c38565b601f8111610de9575b505f90601f8311600114610d82575f92610d77575b50508160011b915f199060031b1c19161790555b600386016109f06060830183614b84565b906001600160401b0382116106fd578190610a0b8454614c38565b601f8111610d20575b505f90601f8311600114610cb9575f92610cae575b50508160011b915f199060031b1c19161790555b6004860195610a4f6080830183614b84565b6001600160401b0381999299116106fd57610a6a8254614c38565b601f8111610c5d575b505f601f8211600114610be857610b609493610b4693836101009460059460019c9d9e5f92610bdd575b50505f19600383901b1c1916908b1b1790555b019263ffffffff610ac360a08301614c70565b1663ffffffff19855416178455610b09610adf60c08301614bf3565b85546bffffffffffffffff00000000191660209190911b6bffffffffffffffff0000000016178555565b610b40610b1860e08301614bf3565b855467ffffffffffffffff60601b191660609190911b67ffffffffffffffff60601b16178555565b01614c81565b815460ff60a01b191690151560a01b60ff60a01b16179055565b610b7060206108b08488886154ae565b907f755d1bc89922a9bafc6d7da616ed30d78b52a6be22257be2f331fb9759a8be8c610ba06108c98589896154ae565b9093610bd2610bbd610bb3888c8c6154ae565b6060810190614b84565b906040519485948b8060a01b03169885614cc9565b0390a301919061085a565b013590508e80610a9d565b601f19821690835f5260205f20915f5b818110610c45575093600184600594829c9d9e610b609a999561010098610b469a10610c2c575b505050811b019055610ab0565b01355f19600384901b60f8161c191690558e8080610c1f565b8c830135845560019093019260209283019201610bf8565b81811115610a7357825f5260205f20601f830160051c9060208410610ca6575b81601f9101920160051c03905f5b828110610c99575050610a73565b5f82820155600101610c8b565b5f9150610c7d565b013590508980610a29565b909150601f19831691845f5260205f20925f5b818110610d085750908460019594939210610cef575b505050811b019055610a3d565b01355f19600384901b60f8161c19169055898080610ce2565b83830135855560019094019360209283019201610ccc565b82811115610a1457909150835f5260205f20601f840160051c9060208510610d6f575b81601f9101920160051c03905f5b828110610d62575083929150610a14565b5f82820155600101610d51565b5f9150610d43565b0135905089806109cb565b909150601f19831691845f5260205f20925f5b818110610dd15750908460019594939210610db8575b505050811b0190556109df565b01355f19600384901b60f8161c19169055898080610dab565b83830135855560019094019360209283019201610d95565b828111156109b657909150835f5260205f20601f840160051c9060208510610e38575b81601f9101920160051c03905f5b828110610e2b5750839291506109b6565b5f82820155600101610e1a565b5f9150610e0c565b805f52600560205260ff60405f2054161580610ea5575b15610e6f575f52600b6020528360405f205584610916565b60405162461bcd60e51b815260206004820152600e60248201526d39b63ab3903932b3103a30b5b2b760911b6044820152606490fd5b50805f52600b60205260405f205415610e57565b60405162461bcd60e51b815260206004820152601c60248201527f617070496420736861646f7765642062792061207265646972656374000000006044820152606490fd5b60405162461bcd60e51b815260206004820152600660248201526565786973747360d01b6044820152606490fd5b346103e957610f3a36614979565b939091610f5160018060a01b035f54163314614aa9565b610f6060ff600d541615614ade565b815f526005602052610f7860ff60405f205416614b13565b610f838582146152b7565b815f52600660205260405f2054935f5b828110610f9c57005b610fb286610fab8386866152f5565b3510615007565b610fbd818887615497565b855f52600c60205260405f20610fd48487876152f5565b355f5260205260405f20916001600160401b0382116106fd57610ff78354614c38565b601f8111611112575b505f90601f83116001146110aa576001949392915f918361109f575b50505f19600383901b1c191690841b1790555b61103a818988615497565b9050611047575b01610f93565b6110528185856152f5565b35857f7d6e8b41be7a7f0e41cbb0e6cb566a4e51f2b9718c067758e4c60b41d8172bd1611080848c8b615497565b611097604051928392602084526020840191614ca9565b0390a3611041565b013590508b8061101c565b601f19831691845f5260205f20925f5b8181106110fa5750916001969594929183889593106110e1575b505050811b01905561102f565b01355f19600384901b60f8161c191690558b80806110d4565b919360206001819287870135815501950192016110ba565b8281111561100057835f5260205f20601f840160051c906020851061115b575b81601f9101920160051c03905f5b82811061114e575050611000565b5f82820155600101611140565b5f9150611132565b346103e95760203660031901126103e9576020611181600435615369565b90549060031b1c604051908152f35b346103e9575f3660031901126103e9576111b460018060a01b035f54163314614aa9565b600160ff19600d541617600d557f2dacaaef646bac537aab207f87ac7b1170c649895219926a1ffb600df97d34f25f80a1005b346103e9575f3660031901126103e9576020600354604051908152f35b346103e95761124f61123b61123561121b36614963565b90611224614d07565b505f52600660205260405f20614c1f565b50614e20565b6040519182916020835260208301906147bc565b0390f35b346103e95760203660031901126103e9576004356001600160401b0381116103e957611283903690600401614768565b61128c81614cf0565b9161129a6040519384614a37565b8183526112a682614cf0565b916112b96020850193601f19018461529b565b5f5b81811061132857838560405191829160208301906020845251809152604083019060408160051b85010192915f905b8282106112f957505050500390f35b919360019193955060206113188192603f198a82030186528851614798565b96019201920185949391926112ea565b5f80611335838587615497565b9081604051928392833781018381520390305af43d156113de573d9061135a82614a58565b916113686040519384614a37565b82523d5f602084013e5b1561139757906001916113858288614d6c565b526113908187614d6c565b50016112bb565b8051156113a657602081519101fd5b60405162461bcd60e51b815260206004820152601060248201526f1b5d5b1d1a58d85b1b0819985a5b195960821b6044820152606490fd5b606090611372565b346103e95760603660031901126103e9576004356024359060443560ff81168091036103e95761142060018060a01b035f54163314614aa9565b815f52600560205261143860ff60405f205416614b13565b815f52600660205261144f60405f20548410615007565b600281116114935760205f5160206158785f395f51905f5291835f5260068252600461147e8660405f20614c1f565b5001805460ff191682179055604051908152a3005b60405162461bcd60e51b815260206004820152600a6024820152696261642073746174757360b01b6044820152606490fd5b346103e95760403660031901126103e9576114e4602435600435615381565b6040518091602082016020835281518091526040830190602060408260051b8601019301915f905b82821061151b57505050500390f35b9193600191939550602061153a8192603f198a820301865288516148c2565b960192019201859493919261150c565b346103e95760403660031901126103e9576004356001600160401b0381116103e95761157a903690600401614895565b602435918215158084036103e9576115e56115b87fe37d21d950f7568fb2cd0b7de3c01db681eb1bc4bede4cc6573e70655472a4a9946020946156aa565b5f8181526004855260409020600501805460ff60a01b191696151560a01b60ff60a01b1696909617909555565b604051908152a2005b346103e9575f3660031901126103e9576020600254604051908152f35b346103e95760403660031901126103e9576116246149ce565b6024356001600160401b0381116103e957366023820112156103e95760209161165a611660923690602481600401359101614a73565b90615305565b604051908152f35b346103e9575f3660031901126103e9575f546040516001600160a01b039091168152602090f35b346103e95760203660031901126103e9576004355f526006602052602060405f2054604051908152f35b346103e9575f3660031901126103e957602060405160018152f35b346103e9576116e236614963565b905f52600a60205260405f20905f52602052602060405f2054604051908152f35b346103e9575f3660031901126103e957602060405160028152f35b346103e9576101a03660031901126103e9576004356001600160401b0381116103e95761174f903690600401614895565b906024356001600160401b0381116103e95761176f903690600401614895565b6044939193356001600160401b0381116103e957611791903690600401614895565b9190936064356001600160401b0381116103e9576117b3903690600401614895565b9390956084356001600160401b0381116103e9576117d5903690600401614895565b90610120529336610124116103e957610124356001600160401b0381116103e957611804903690600401614895565b60805260a052610144356001600160401b0381116103e95761182a903690600401614895565b60c05260e052610164356001600160401b0381116103e957611850903690600401614895565b6101005298610100511515806128b2575b1561287a5761187661100060c0511115615156565b8615158061286f575b15612839578515158061282e575b156127fc5763ffffffff60a4351660a435036103e9576210000063ffffffff60a43516116127c85763ffffffff60c435168060c435036103e95762989680106127915763ffffffff60e43516978860e435141598896103e9578015159081612780575b501561274d5763ffffffff61010435168061010435036103e9576298968010612716576060608051116126e257801515806126d7575b156126a45782151580612699575b61193d9061552e565b61194b6101f4861115615568565b61195f611959368389614a73565b33615305565b61014052610140515f52600460205260405f2095610140515f52600560205260ff60405f205416155f1461267957610140515f52600560205260405f20600160ff198254161790556119b3610140516154e5565b6101405187556001870180546001600160a01b031916331790556001600160401b0382116106fd576119e86002880154614c38565b601f8111612626575b50815f601f82116001146125bc575f916125b1575b508260011b905f198460031b1c19161760028801555b6005870180546bffffffffffffffff0000000019164260201b6bffffffffffffffff00000000161790557f755d1bc89922a9bafc6d7da616ed30d78b52a6be22257be2f331fb9759a8be8c60405180611a7d87873397610140519785614cc9565b0390a35b6001600160401b0382116106fd578190611a9e6003870154614c38565b601f811161254d575b505f90601f83116001146124e0575f926124d5575b50508160011b915f199060031b1c19161760038401555b6001600160401b0382116106fd57611aee6004840154614c38565b601f8111612482575b505f90601f831160011461241657600492915f918361240b575b50508160011b915f199060031b1c1916179101555b6101405150611b3c610140518261012051615780565b90604051602081019061014051825284876040830137611b6f6040828781015f838201520301601f198101835282614a37565b519020805f526008602052611b8b60ff60405f20541615614bb6565b5f52600860205260405f20600160ff19825416179055610140515f52600660205260405f20948554600160401b8110156106fd57806001611bcf9201885587614c1f565b506001600160401b0383116106fd57611be88154614c38565b601f81116123bb575b50825f601f8211600114612352575f91612344575b508360011b905f198560031b1c19161781555b600181016001600160401b0386116106fd57611c358154614c38565b601f81116122f3575b50855f601f821160011461228f575f91612284575b508660011b905f198860031b1c19161790555b60028101805467ffffffffffffffff191660a43563ffffffff161760c43560201b67ffffffff0000000016178155956103e95785546101043560601b63ffffffff60601b1660e43560401b63ffffffff60401b16600160401b600160c01b0319909216919091171742608081811b67ffffffffffffffff60801b1692909217909755516001600160401b03968716966003830191116106fd57611d098154614c38565b601f811161222d575b505f601f608051116001146121c2575f906080516121b5575b5060805160011b905f1960805160031b1c19161790555b5f54336001600160a01b03909116036121aa5760ff60046001925b01911660ff198254161790558554955f198701968088116121965787967f26953af27f4a071f84bcafc8a4a4c5259eac9218fd217a2d8fe05d21185bdb139563ffffffff600181611e379560405194611db5866149e4565b6101405186528260208701921682525f52600760205260405f209451855551169201911663ffffffff19825416179055610140515f52600460205263ffffffff60058160405f209554169401931663ffffffff1984541617835582908154906001600160401b0360601b9060601b16906001600160401b0360601b1916179055565b600160a01b60ff60a01b19825416179055611e616040519283926101405196610120519185614cc9565b0390a35f546001600160a01b03163314612173575b60c051612031575b610140515f52600c60205260405f20815f5260205260405f20916001600160401b0361010051116106fd57611eb38354614c38565b601f8111611fd7575b505f92601f6101005111600114611f65579082916040945f9061010051611f5a575b506101005160011b905f196101005160031b1c19161790555b7f7d6e8b41be7a7f0e41cbb0e6cb566a4e51f2b9718c067758e4c60b41d8172bd184516020815280611f36610140519460208301906101005190614ca9565b0390a3611f4a6101843582610140516156f7565b8151906101405182526020820152f35b905082013586611ede565b601f196101005116815f5260205f20905f5b818110611fbf575090604095859493926101005111611fa3575b5050600161010051811b019055611ef7565b5f1960f86101005160031b161c19908401351690558580611f91565b84870135835560209687019660019093019201611f77565b61010051811115611ebc57835f5260205f20601f610100510160051c9060206101005110612029575b81601f9101920160051c03905f5b82811061201c575050611ebc565b5f8282015560010161200e565b5f9150612000565b610140515f526006602052600561204b8260405f20614c1f565b50016001600160401b0360c051116106fd576120678154614c38565b601f811161211c575b505f601f60c051116001146120b1575f9060c0516120a4575b5060c05160011b905f1960c05160031b1c1916179055611e7e565b905060e051013584612089565b601f1960c0511690825f5260205f20915f5b818110612102575060c051116120e5575b5050600160c051811b019055611e7e565b5f1960f860c05160031b161c199060e051013516905583806120d4565b91926020600181928660e0510135815501940192016120c3565b60c05181111561207057815f5260205f20601f60c0510160051c90602060c0511061216b575b81601f9101920160051c03905f5b82811061215e575050612070565b5f82820155600101612150565b5f9150612142565b80604051600181525f5160206158785f395f51905f5260206101405192a3611e76565b634e487b7160e01b5f52601160045260245ffd5b60ff60045f92611d5d565b905060a05101358a611d2b565b601f196080511690825f5260205f20915f5b8181106122135750608051116121f6575b50506001608051811b019055611d42565b5f1960f860805160031b161c199060a051013516905589806121e5565b91926020600181928660a0510135815501940192016121d4565b608051811115611d1257815f5260205f20601f6080510160051c9060206080511061227c575b81601f9101920160051c03905f5b82811061226f575050611d12565b5f82820155600101612261565b5f9150612253565b90508301358a611c53565b5f8381526020812092508890601f198216905b8181106122d85750106122bf575b5050600186811b019055611c66565b8401355f19600389901b60f8161c1916905589806122b0565b8784013585556001909401936020938401938b9350016122a2565b86811115611c3e57815f5260205f20601f880160051c906020891061233c575b81601f9101920160051c03905f5b82811061232f575050611c3e565b5f82820155600101612321565b5f9150612313565b905061012051013589611c06565b5f8381526020812092505b601f19861681106123a0575084601f19811610612384575b5050600183811b018155611c19565b6101205101355f19600386901b60f8161c191690558880612375565b9091602060018192856101205101358155019301910161235d565b83811115611bf157815f5260205f20601f850160051c60208610612404575b809101905f5b81601f850160051c0381106123f757505050611bf1565b5f838201556001016123e0565b505f6123da565b013590508980611b11565b600484015f5260205f20915f5b601f198516811061246a5750918391600193600495601f19811610612451575b505050811b01910155611b26565b01355f19600384901b60f8161c19169055898080612443565b90926020600181928686013581550194019101612423565b82811115611af757600484015f5260205f20601f840160051c90602085106124cd575b5f5b82601f850160051c0381106124be57505050611af7565b5f8284018201556001016124a7565b5f91506124a5565b013590508a80611abc565b909250600386015f5260205f20905f935b601f1984168510612535576001945083601f1981161061251c575b505050811b016003840155611ad3565b01355f19600384901b60f8161c191690558a808061250c565b818101358355602094850194600190930192016124f1565b82811115611aa757909150600386015f5260205f20601f840160051c90602085106125a9575b92909184925f945b81601f840160051c038610612594575050509091611aa7565b5f81830187015560019095019486945061257b565b5f9150612573565b90508101358d611a06565b9050600288015f5260205f20905f5b601f198516811061260e575083601f198116106125f5575b5050600182811b016002880155611a1c565b8201355f19600385901b60f8161c191690558c806125e3565b909160206001819285870135815501930191016125cb565b828111156119f157600288015f5260205f20601f840160051c9060208510612671575b5f5b82601f850160051c038110612662575050506119f1565b5f82840182015560010161264b565b5f9150612649565b50506001850154612694906001600160a01b0316331461566e565b611a81565b506050831115611934565b60405162461bcd60e51b815260206004820152600b60248201526a0e6d8eace40d8cadccee8d60ab1b6044820152606490fd5b506028811115611926565b60405162461bcd60e51b815260206004820152600c60248201526b0e0dee4e8e640d8cadccee8d60a31b6044820152606490fd5b60405162461bcd60e51b815260206004820152600f60248201526e63707547666c6f70732072616e676560881b6044820152606490fd5b60405162461bcd60e51b815260206004820152600b60248201526a6d656d4d622072616e676560a81b6044820152606490fd5b995050621000005f9911158c6118f0565b60405162461bcd60e51b815260206004820152600f60248201526e67707547666c6f70732072616e676560881b6044820152606490fd5b60405162461bcd60e51b815260206004820152600c60248201526b7672616d4d622072616e676560a01b6044820152606490fd5b60405162461bcd60e51b815260206004820152600a6024820152690c6d2c840d8cadccee8d60b31b6044820152606490fd5b50606486111561188d565b60405162461bcd60e51b815260206004820152600e60248201526d0eccae4e6d2dedc40d8cadccee8d60931b6044820152606490fd5b50602087111561187f565b60405162461bcd60e51b815260206004820152601060248201526f0c6dedcccd2ce86d2c840d8cadccee8d60831b6044820152606490fd5b506064610100511115611861565b346103e9575f3660031901126103e957602060ff600d54166040519015158152f35b346103e9575f3660031901126103e9576001546001600160a01b038116903382900361294f57816001600160601b0360a01b5f5416175f556001600160601b0360a01b166001557fa2ea9883a321a3e97b8266c2b078bfeec6d50c711ed71f874a90d500ae2eaf365f80a2005b60405162461bcd60e51b815260206004820152600d60248201526c10b832b73234b733a7bbb732b960991b6044820152606490fd5b346103e95760203660031901126103e9577fd0f8c51945dea723082a25e6655046533b6c6d26e9ac825098d4f8d5b6594f1b60206004356129cf60018060a01b035f54163314614aa9565b80600255604051908152a1005b346103e9576129ea36614979565b612a0260018060a0979495971b035f54163314614aa9565b612a1160ff600d541615614ade565b815f526005602052612a2960ff60405f205416614b13565b612a348186146152b7565b815f52600660205260405f2054945f5b818110612a4d57005b80612a5f88610fab600194868b6152f5565b612a6a8185886152f5565b35855f52600a60205260405f20612a8283868b6152f5565b355f5260205260405f2055612a988185886152f5565b35612aa4575b01612a44565b612aaf8184896152f5565b35857f117f9fd0d242404176a3279f33d4dbde00d6e602c6c39e6100a637385043a60a6020612adf85898c6152f5565b35604051908152a3612a9e565b346103e957612afa36614963565b905f52600c60205260405f20905f5260205261124f612b1b60405f20614d80565b604051918291602083526020830190614798565b346103e95760203660031901126103e957600435805f52600660205260405f205490612b5a82614cf0565b91612b686040519384614a37565b808352612b7481614cf0565b91612b876020850193601f19018461529b565b5f5b828110612bf657838560405191829160208301906020845251809152604083019060408160051b85010192915f905b828210612bc757505050500390f35b91936001919395506020612be68192603f198a82030186528851614798565b9601920192018594939192612bb8565b600190825f52600c60205260405f20815f52602052612c1760405f20614d80565b612c218288614d6c565b52612c2c8187614d6c565b5001612b89565b346103e95760203660031901126103e9576004356001600160401b0381116103e957612c6e612c6860ff923690600401614895565b90615192565b9596929193909460405197151588526020880152604087015216606085015215156080840152151560a083015260c082015f905b60048210612cb05761014084f35b60208060019263ffffffff865116815201930191019091612ca2565b346103e95760603660031901126103e957602435600435604435801515908181036103e9577f384b6bd0256dfe6d2d434b54516dc4eb7a08593045bb0ab0b0f23affceb4fca491612d8f602092612d2d60018060a01b035f54163314614aa9565b855f5260058452612d4460ff60405f205416614b13565b855f5260068452612d5a60405f20548810615007565b855f52600684526002612d708860405f20614c1f565b5001805460ff60c01b191691151560c01b60ff60c01b16919091179055565b604051908152a3005b346103e9576101803660031901126103e9576004356001600160401b0381116103e957612dc9903690600401614895565b906024356001600160401b0381116103e957612de9903690600401614895565b92906044356001600160401b0381116103e957612e0a903690600401614895565b9190936064356001600160401b0381116103e957612e2c903690600401614895565b9390956084356001600160401b0381116103e957612e4e903690600401614895565b906101c0529336610124116103e957610124356001600160401b0381116103e957612e7d903690600401614895565b6101605261018052610144356001600160401b0381116103e957612ea5903690600401614895565b6101a05298612ebb6110006101a0511115615156565b86151580613b77575b156128395785151580613b6c575b156127fc5763ffffffff60a4351660a435036103e9576210000063ffffffff60a43516116127c85763ffffffff60c435168060c435036103e95762989680106127915763ffffffff60e43516978860e435141598896103e9578015159081613b5b575b501561274d5763ffffffff61010435168061010435036103e957629896801061271657606061016051116126e25780151580613b50575b156126a45781151580613b45575b612f839061552e565b612f916101f4861115615568565b612f9f611959368389614a73565b6101e0526101e0515f52600460205260405f20956101e0515f52600560205260ff60405f205416155f14613b25576101e0515f52600560205260405f20600160ff19825416179055612ff36101e0516154e5565b6101e05187556001870180546001600160a01b031916331790556001600160401b0382116106fd576130286002880154614c38565b601f8111613ad2575b50815f601f8211600114613a68575f91613a5d575b508260011b905f198460031b1c19161760028801555b6005870180546bffffffffffffffff0000000019164260201b6bffffffffffffffff00000000161790557f755d1bc89922a9bafc6d7da616ed30d78b52a6be22257be2f331fb9759a8be8c604051806130bd868833976101e0519785614cc9565b0390a35b60038501916001600160401b0382116106fd5781906130e08454614c38565b601f8111613a04575b505f90601f831160011461399d575f92613992575b50508160011b915f199060031b1c19161790555b6001600160401b0382116106fd5761312d6004840154614c38565b601f811161393f575b505f90601f83116001146138d357600492915f91836138c8575b50508160011b915f199060031b1c1916179101555b6101e0515061317b6101e051826101c051615780565b9060405160208101906101e0518252848760408301376131ae6040828781015f838201520301601f198101835282614a37565b519020805f5260086020526131ca60ff60405f20541615614bb6565b5f52600860205260405f20600160ff198254161790556101e0515f52600660205260405f20948554600160401b8110156106fd5780600161320e9201885587614c1f565b506001600160401b0383116106fd576132278154614c38565b601f8111613878575b50825f601f821160011461380f575f91613801575b508360011b905f198560031b1c19161781555b600181016001600160401b0386116106fd576132748154614c38565b601f81116137b0575b50855f601f821160011461374c575f91613741575b508660011b905f198860031b1c19161790555b60028101805467ffffffffffffffff191660a43563ffffffff161760c43560201b67ffffffff0000000016178155956103e957855467ffffffffffffffff60801b42608081901b91909116600160401b600160c01b031990921663ffffffff60401b60e43560401b161763ffffffff60601b6101043560601b161791909117909655610160516001600160401b03968716966003830191116106fd5761334b8154614c38565b601f81116136e7575b505f601f6101605111600114613676575f9061016051613668575b506101605160011b905f196101605160031b1c19161790555b5f54336001600160a01b039091160361365d5760ff60046001925b01911660ff198254161790558554955f198701968088116121965787967f26953af27f4a071f84bcafc8a4a4c5259eac9218fd217a2d8fe05d21185bdb139563ffffffff60018161347d95604051946133fb866149e4565b6101e05186528260208701921682525f52600760205260405f209451855551169201911663ffffffff198254161790556101e0515f52600460205263ffffffff60058160405f209554169401931663ffffffff1984541617835582908154906001600160401b0360601b9060601b16906001600160401b0360601b1916179055565b600160a01b60ff60a01b198254161790556134a76040519283926101e051966101c0519185614cc9565b0390a35f546001600160a01b0316331461363a575b6101a0516134e9575b6040906134d961016435826101e0516156f7565b8151906101e05182526020820152f35b6101e0515f52600660205260056135038260405f20614c1f565b50016001600160401b036101a051116106fd576135208154614c38565b601f81116135e0575b505f601f6101a0511160011461357157926040935f916101a051613566575b50506101a05160011b905f196101a05160031b1c19161790556134c5565b013590508480613548565b601f196101a0511693825f5260205f20915f5b8681106135c857506040956101a051116135ac575b50505060016101a051811b0190556134c5565b5f1960f86101a05160031b161c19910135169055838080613599565b90926020600181928686013581550194019101613584565b6101a05181111561352957815f5260205f20601f6101a0510160051c9060206101a05110613632575b81601f9101920160051c03905f5b828110613625575050613529565b5f82820155600101613617565b5f9150613609565b80604051600181525f5160206158785f395f51905f5260206101e05192a36134bc565b60ff60045f926133a3565b90506101805101358a61336f565b601f19610160511690825f5260205f20915f5b8181106136cc575061016051116136ad575b5050600161016051811b019055613388565b5f1960f86101605160031b161c1990610180510135169055898061369b565b91926020600181928661018051013581550194019201613689565b6101605181111561335457815f5260205f20601f610160510160051c9060206101605110613739575b81601f9101920160051c03905f5b82811061372c575050613354565b5f8282015560010161371e565b5f9150613710565b90508301358a613292565b5f8381526020812092508890601f198216905b81811061379557501061377c575b5050600186811b0190556132a5565b8401355f19600389901b60f8161c19169055898061376d565b8784013585556001909401936020938401938b93500161375f565b8681111561327d57815f5260205f20601f880160051c90602089106137f9575b81601f9101920160051c03905f5b8281106137ec57505061327d565b5f828201556001016137de565b5f91506137d0565b90506101c051013589613245565b5f8381526020812092505b601f198616811061385d575084601f19811610613841575b5050600183811b018155613258565b6101c05101355f19600386901b60f8161c191690558880613832565b9091602060018192856101c05101358155019301910161381a565b8381111561323057815f5260205f20601f850160051c90602086106138c0575b5f5b82601f850160051c0381106138b157505050613230565b5f82840182015560010161389a565b5f9150613898565b013590508980613150565b600484015f5260205f20915f5b601f19851681106139275750918391600193600495601f1981161061390e575b505050811b01910155613165565b01355f19600384901b60f8161c19169055898080613900565b909260206001819286860135815501940191016138e0565b8281111561313657600484015f5260205f20601f840160051c906020851061398a575b5f5b82601f850160051c03811061397b57505050613136565b5f828401820155600101613964565b5f9150613962565b013590508b806130fe565b909150601f19831691845f5260205f20925f5b8181106139ec57509084600195949392106139d3575b505050811b019055613112565b01355f19600384901b60f8161c191690558b80806139c6565b919360206001819287870135815501950192016139b0565b828111156130e957909150835f5260205f20601f840160051c9060208510613a55575b849392601f0160051c82900391015f5b828110613a455750506130e9565b5f81830155859450600101613a37565b5f9150613a27565b90508101358d613046565b9050600288015f5260205f20905f5b601f1985168110613aba575083601f19811610613aa1575b5050600182811b01600288015561305c565b8201355f19600385901b60f8161c191690558c80613a8f565b90916020600181928587013581550193019101613a77565b8281111561303157600288015f5260205f20601f840160051c9060208510613b1d575b5f5b82601f850160051c038110613b0e57505050613031565b5f828401820155600101613af7565b5f9150613af5565b50506001850154613b40906001600160a01b0316331461566e565b6130c1565b506050821115612f7a565b506028811115612f6c565b995050621000005f9911158c612f35565b506064861115612ed2565b506020871115612ec4565b346103e95760203660031901126103e957613b9b615075565b506004355f52600460205261124f613bb560405f206150ba565b6040519182916020835260208301906148c2565b346103e9575f3660031901126103e95760206040515f8152f35b346103e95760403660031901126103e9576004356001600160401b0381116103e957613c16613c42913690600401614895565b919060243592613c3060018060a01b035f54163314614aa9565b613c3b84151561503f565b3691614a73565b60208151910120805f5260096020528160405f20557f312794885e0c088cc6bcf1f95a6234c17a80485e011e974b72291475f689467a5f80a3005b346103e95760403660031901126103e9576004356001600160401b0381116103e957613cb0613cba913690600401614895565b60243592916156aa565b805f526006602052613cd160405f20548310615007565b805f5260066020526002613ce88360405f20614c1f565b5001805460ff60c81b1916600160c81b1790557f3c78716bf886f65c8a2897c9c7b0c6dc13b675c7a90d32959a4df875f10100b95f80a3005b346103e95760603660031901126103e957613d43604435602435600435614ee9565b6040518091602082016020835281518091526040830190602060408260051b8601019301915f905b828210613d7a57505050500390f35b91936001919395506020613d998192603f198a820301865288516147bc565b9601920192018594939192613d6b565b346103e95760403660031901126103e9576004356024356001600160401b0381116103e957613ddc903690600401614768565b9190613df260018060a01b035f54163314614aa9565b613e0160ff600d541615614ade565b815f526005602052613e1960ff60405f205416614b13565b815f52600660205260405f20905f5b848110613e5e578363ffffffff845416905f52600460205263ffffffff600560405f2001911663ffffffff198254161790555f80f35b613e76613e6c828785614b4d565b6020810190614b84565b613ea26040805183819460208301968b88528484013781015f838201520301601f198101835282614a37565b519020805f526008602052613ebe60ff60405f20541615614bb6565b5f52600860205260405f20600160ff19825416179055613eeb613c3b613ee5838886614b4d565b80614b84565b6020815191012090815f52600760205260405f209163ffffffff600184015416928315938885156146f6575b613f25925084915086614b4d565b8554600160401b8110156106fd57806001613f439201885587614c1f565b6146e357613f518280614b84565b906001600160401b0382116106fd578190613f6c8454614c38565b601f811161468c575b505f90601f8311600114614625575f9261461a575b50508160011b915f199060031b1c19161781555b60018101613faf6020840184614b84565b906001600160401b0382116106fd578190613fca8454614c38565b601f81116145c3575b505f90601f831160011461455c575f92614551575b50508160011b915f199060031b1c19161790555b6002810163ffffffff61401160408501614c70565b1663ffffffff1982541617815561404f61402d60608501614c70565b825467ffffffff00000000191660209190911b67ffffffff0000000016178255565b61408361405e60808501614c70565b82546bffffffff0000000000000000191660409190911b63ffffffff60401b16178255565b6140b261409260a08501614c70565b825463ffffffff60601b191660609190911b63ffffffff60601b16178255565b6140e96140c160c08501614bf3565b825467ffffffffffffffff60801b191660809190911b67ffffffffffffffff60801b16178255565b6141126140f860e08501614c81565b825460ff60c01b191690151560c01b60ff60c01b16178255565b61411f6101008401614c81565b815460ff60c81b191690151560c81b60ff60c81b1617905560038101614149610120840184614b84565b906001600160401b0382116106fd576141628354614c38565b601f8111614500575b505f90601f8311600114614495579180600594926141ca96945f9261448a575b50508160011b915f199060031b1c19161790555b6141ac6101408501614c8e565b60ff60048301911660ff198254161790550191610160810190614b84565b906001600160401b0382116106fd5781906141e58454614c38565b601f8111614433575b505f90601f83116001146143cc575f926143c1575b50508160011b915f199060031b1c19161790555b8454925f19840191848311612196577f26953af27f4a071f84bcafc8a4a4c5259eac9218fd217a2d8fe05d21185bdb13848a61428961427c613ee5614273613e6c8f98868f60019f8a938f9e918e92614374575b505050614b4d565b9590948d614b4d565b9060405194859485614cc9565b0390a38086888460ff6142a96101406142a384868d614b4d565b01614c8e565b16614340575b6142c2935060e09250610b409188614b4d565b61430f575b6142d8610100610b40848a88614b4d565b6142e4575b5001613e28565b857f3c78716bf886f65c8a2897c9c7b0c6dc13b675c7a90d32959a4df875f10100b95f80a3866142dd565b80867f384b6bd0256dfe6d2d434b54516dc4eb7a08593045bb0ab0b0f23affceb4fca46020604051878152a36142c7565b6143616101406142a36020935f5160206158785f395f51905f52958c614b4d565b60ff60405191168152a3808688846142af565b60019063ffffffff929083916040519561438d876149e4565b86528260208701921682525f52600760205260405f209451855551169201911663ffffffff198254161790558b5f8061426b565b013590508a80614203565b909150601f19831691845f5260205f20925f5b81811061441b5750908460019594939210614402575b505050811b019055614217565b01355f19600384901b60f8161c191690558a80806143f5565b838301358555600190940193602092830192016143df565b828111156141ee57909150835f5260205f20601f840160051c9060208510614482575b81601f9101920160051c03905f5b8281106144755750839291506141ee565b5f82820155600101614464565b5f9150614456565b013590508e8061418b565b601f19831691845f5260205f20925f5b8181106144e857509260019285926141ca989660059896106144cf575b505050811b01905561419f565b01355f19600384901b60f8161c191690558e80806144c2565b838301358555600190940193602092830192016144a5565b8281111561416b57835f5260205f20601f840160051c9060208510614549575b81601f9101920160051c03905f5b82811061453c57505061416b565b5f8282015560010161452e565b5f9150614520565b013590508c80613fe8565b909150601f19831691845f5260205f20925f5b8181106145ab5750908460019594939210614592575b505050811b019055613ffc565b01355f19600384901b60f8161c191690558c8080614585565b8383013585556001909401936020928301920161456f565b82811115613fd357909150835f5260205f20601f840160051c9060208510614612575b81601f9101920160051c03905f5b828110614605575083929150613fd3565b5f828201556001016145f4565b5f91506145e6565b013590508b80613f8a565b909150601f19831691845f5260205f20925f5b818110614674575090846001959493921061465b575b505050811b018155613f9e565b01355f19600384901b60f8161c191690558b808061464e565b83830135855560019094019360209283019201614638565b82811115613f7557909150835f5260205f20601f840160051c90602085106146db575b81601f9101920160051c03905f5b8281106146ce575083929150613f75565b5f828201556001016146bd565b5f91506146af565b634e487b7160e01b5f525f60045260245ffd5b6001600160401b039293955061473b839261471f60c0614719896002968d614b4d565b01614bf3565b95545f52600660205261473560405f2091614c07565b90614c1f565b50015460801c169116101591878088613f17565b346103e9575f3660031901126103e95780600960209252f35b9181601f840112156103e9578235916001600160401b0383116103e9576020808501948460051b0101116103e957565b805180835260209291819084018484015e5f828201840152601f01601f1916010190565b614892916101606148716147f06147de85516101808652610180860190614798565b60208601518582036020870152614798565b63ffffffff604086015116604085015263ffffffff606086015116606085015263ffffffff608086015116608085015263ffffffff60a08601511660a08501526001600160401b0360c08601511660c085015260e0850151151560e08501526101008501511515610100850152610120850151848203610120860152614798565b9260ff61014082015116610140840152015190610160818403910152614798565b90565b9181601f840112156103e9578235916001600160401b0383116103e957602083818601950101116103e957565b908151815260018060a01b036020830151166020820152610100806149226149106148fe60408701516101206040880152610120870190614798565b60608701518682036060880152614798565b60808601518582036080870152614798565b9363ffffffff60a08201511660a08501526001600160401b0360c08201511660c08501526001600160401b0360e08201511660e08501520151151591015290565b60409060031901126103e9576004359060243590565b9060606003198301126103e957600435916024356001600160401b0381116103e957816149a891600401614768565b92909291604435906001600160401b0382116103e9576149ca91600401614768565b9091565b600435906001600160a01b03821682036103e957565b604081019081106001600160401b038211176106fd57604052565b61018081019081106001600160401b038211176106fd57604052565b61012081019081106001600160401b038211176106fd57604052565b90601f801991011681019081106001600160401b038211176106fd57604052565b6001600160401b0381116106fd57601f01601f191660200190565b929192614a7f82614a58565b91614a8d6040519384614a37565b8294818452818301116103e9578281602093845f960137010152565b15614ab057565b60405162461bcd60e51b815260206004820152600660248201526510b7bbb732b960d11b6044820152606490fd5b15614ae557565b60405162461bcd60e51b81526020600482015260066024820152651cd9585b195960d21b6044820152606490fd5b15614b1a57565b60405162461bcd60e51b815260206004820152600b60248201526a0756e6b6e6f776e206170760ac1b6044820152606490fd5b9190811015614b705760051b8101359061017e19813603018212156103e9570190565b634e487b7160e01b5f52603260045260245ffd5b903590601e19813603018212156103e957018035906001600160401b0382116103e9576020019181360383136103e957565b15614bbd57565b60405162461bcd60e51b815260206004820152600e60248201526d76657273696f6e2065786973747360901b6044820152606490fd5b356001600160401b03811681036103e95790565b63ffffffff5f199116019063ffffffff821161219657565b8054821015614b70575f52600660205f20910201905f90565b90600182811c92168015614c66575b6020831014614c5257565b634e487b7160e01b5f52602260045260245ffd5b91607f1691614c47565b3563ffffffff811681036103e95790565b3580151581036103e95790565b3560ff811681036103e95790565b9190820391821161219657565b908060209392818452848401375f828201840152601f01601f1916010190565b9290614ce2906148929593604086526040860191614ca9565b926020818503910152614ca9565b6001600160401b0381116106fd5760051b60200190565b60405190614d14826149ff565b6060610160838281528260208201525f60408201525f838201525f60808201525f60a08201525f60c08201525f60e08201525f610100820152826101208201525f6101408201520152565b9190820180921161219657565b8051821015614b705760209160051b010190565b9060405191825f825492614d9384614c38565b8084529360018116908115614dfe5750600114614dba575b50614db892500383614a37565b565b90505f9291925260205f20905f915b818310614de2575050906020614db8928201015f614dab565b6020919350806001915483858901015201910190918492614dc9565b905060209250614db894915060ff191682840152151560051b8201015f614dab565b90604051614e2d816149ff565b610160614ee460058395614e4081614d80565b8552614e4e60018201614d80565b602086015260ff600282015463ffffffff8116604088015263ffffffff8160201c16606088015263ffffffff8160401c16608088015263ffffffff8160601c1660a08801526001600160401b038160801c1660c0880152818160c01c16151560e088015260c81c161515610100860152614eca60038201614d80565b61012086015260ff60048201541661014086015201614d80565b910152565b929190835f52600660205260405f20549182821015614fca57614f0c9082614d5f565b91808311614fc2575b50614f208183614c9c565b614f2981614cf0565b90614f376040519283614a37565b808252614f46601f1991614cf0565b015f5b818110614fab5750508094825b848110614f64575050505050565b600190825f526006602052614fa4614f7f8260405f20614c1f565b50614f93614f8d8885614c9c565b91614e20565b614f9d8288614d6c565b5285614d6c565b5001614f56565b602090614fb6614d07565b82828601015201614f49565b91505f614f15565b509192505050604051614fde602082614a37565b5f81525f805b818110614ff057505090565b602090614ffb614d07565b82828601015201614fe4565b1561500e57565b60405162461bcd60e51b81526020600482015260096024820152680c4c2c840d2dcc8caf60bb1b6044820152606490fd5b1561504657565b60405162461bcd60e51b8152602060048201526007602482015266061707049643d360cc1b6044820152606490fd5b6040519061508282614a1b565b5f6101008382815282602082015260606040820152606080820152606060808201528260a08201528260c08201528260e08201520152565b906040516150c781614a1b565b61010060ff600583958054855260018060a01b0360018201541660208601526150f260028201614d80565b604086015261510360038201614d80565b606086015261511460048201614d80565b6080860152015463ffffffff811660a08501526001600160401b038160201c1660c08501526001600160401b038160601c1660e085015260a01c161515910152565b1561515d57565b60405162461bcd60e51b815260206004820152600d60248201526c0c6dedcccd2ce40d8cadccee8d609b1b6044820152606490fd5b6151b190604051926151a5608085614a37565b60803685373691614a73565b602081519101205f52600760205260405f2063ffffffff60018201541691821561528a57505491825f5260066020526151f060405f2061473584614c07565b509160405191608083018381106001600160401b038211176106fd5760405260ff600461525760028701549463ffffffff8616875263ffffffff8660201c16602088015263ffffffff8660401c16604088015263ffffffff8660601c166060880152614c07565b9501541692855f52600460205260ff600560405f20015460a01c169160ff63ffffffff6001989716959460c81c16929190565b5f9384935083925082918291829190565b5f5b8281106152a957505050565b60608282015260200161529d565b156152be57565b60405162461bcd60e51b815260206004820152600f60248201526e0d8cadccee8d040dad2e6dac2e8c6d608b1b6044820152606490fd5b9190811015614b705760051b0190565b906153486034602092604051938491818301966001600160601b03199060601b1687528051918291018484015e81015f838201520301601f198101835282614a37565b5190205f818152600b6020526040902054908115615364575090565b905090565b600354811015614b705760035f5260205f2001905f90565b9190600354908184101561545b576153999084614d5f565b90808211615453575b506153ad8382614c9c565b926153b784614cf0565b936153c56040519586614a37565b8085526153d4601f1991614cf0565b015f5b81811061543c57505083815b8381106153f05750505050565b806153fc600192615369565b90549060031b1c5f52600460205261543560405f2061542461541e8785614c9c565b916150ba565b61542e8287614d6c565b5284614d6c565b50016153e3565b602090615447615075565b828289010152016153d7565b90505f6153a2565b509091505060405161546e602082614a37565b5f81525f805b81811061548057505090565b60209061548b615075565b82828601015201615474565b90821015614b70576149ca9160051b810190614b84565b9190811015614b705760051b8101359061011e19813603018212156103e9570190565b356001600160a01b03811681036103e95790565b600354600160401b8110156106fd5760018101600355600354811015614b705760035f527fc2575a0e9e593c00f959f8c92f12db2869c3395a3b0502d05e2516446f71f85b0155565b1561553557565b60405162461bcd60e51b815260206004820152600b60248201526a0dcc2daca40d8cadccee8d60ab1b6044820152606490fd5b1561556f57565b60405162461bcd60e51b815260206004820152600b60248201526a0c8cae6c640d8cadccee8d60ab1b6044820152606490fd5b156155a957565b60405162461bcd60e51b81526020600482015260096024820152683d32b9379030b2323960b91b6044820152606490fd5b91906001600160601b03199060601b1682525f918154916155fa83614c38565b926001811690811561564e5750600114615615575b50505090565b909192505f5260205f205f905b838210615637575050016014015f808061560f565b600181602092546014858701015201910190615622565b9150506014935060ff9291921916838301528015150201015f808061560f565b1561567557565b60405162461bcd60e51b815260206004820152600d60248201526c3737ba10383ab13634b9b432b960991b6044820152606490fd5b611959906156b9923691614a73565b90815f5260056020526156d260ff60405f205416614b13565b5f82815260046020526040902060010154614db8906001600160a01b0316331461566e565b9091600254811161574f578061570c57505050565b60207f117f9fd0d242404176a3279f33d4dbde00d6e602c6c39e6100a637385043a60a91835f52600a825260405f20855f5282528060405f2055604051908152a3565b60405162461bcd60e51b81526020600482015260096024820152680cccaca407c40dac2f60bb1b6044820152606490fd5b61578e919392933691614a73565b6020815191012091825f52600760205260405f2063ffffffff60018201541691821590811561586c575b8115615856575b5061585257906157de91545f52600660205261473560405f2091614c07565b5060ff600282015460c81c1690811561583f575b50156157fa57565b60405162461bcd60e51b815260206004820152601960248201527f636964206c697374656420627920616e6f7468657220617070000000000000006044820152606490fd5b6004015460ff166001141590505f6157f2565b5050565b9050845f52600960205260405f2054145f6157bf565b8254811491506157b856fe89ccbc5c797897b50cec144f00e911a5853c383b146fd62bda90c28bff8398a8a264697066735822122051c05e06f8243cc43629e7b9f69375aa4bf6d216d338fce625c8252642e4f5ad64736f6c63430008230033"}
+diff --git a/publish/fixtures/oracle-mock.json b/publish/fixtures/oracle-mock.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..a4d4526d108b5abb3b5c63d21cf34edc5cd73b5a
+--- /dev/null
++++ b/publish/fixtures/oracle-mock.json
+@@ -0,0 +1 @@
++{"test":"mock, not the predeploy","abi":[{"inputs":[{"internalType":"uint256","name":"size","type":"uint256"}],"name":"getL1FeeUpperBound","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"pure","type":"function"},{"inputs":[{"internalType":"uint256","name":"gasUsed","type":"uint256"}],"name":"getOperatorFee","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"isIsthmus","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"mode","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}],"runtime":"0x608060405234801561000f575f5ffd5b506004361061004a575f3560e01c8063275aedd21461004e578063295a521214610074578063b54501bc1461007c578063f1c7a58b14610091575b5f5ffd5b61006161005c366004610111565b6100a4565b6040519081526020015b60405180910390f35b6100615f5481565b5f54604051600190911415815260200161006b565b61006161009f366004610111565b6100f9565b5f5f546002036100e85760405162461bcd60e51b815260206004820152600b60248201526a1b5bd8dac81c995d995c9d60aa1b604482015260640160405180910390fd5b6100f382600761013c565b92915050565b5f610105826044610153565b6100f3906103e861013c565b5f60208284031215610121575f5ffd5b5035919050565b634e487b7160e01b5f52601160045260245ffd5b80820281158282048414176100f3576100f3610128565b808201808211156100f3576100f361012856fea26469706673582212206bf8435fa09f6de4a0f2d758a622bb964d26036e975d8c5b07e23517dc80362064736f6c63430008230033"}
+diff --git a/publish/lib/publish.mjs b/publish/lib/publish.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..86030a0ceb14b97372fc3f9760fc12ae7fbb4821
+--- /dev/null
++++ b/publish/lib/publish.mjs
+@@ -0,0 +1,261 @@
++// The custody-canary-proof catalog publication: ONE transaction, EnclaveAppCatalog(0x18419…).publishVersion(...) from the
++// catalog owner/admin 0x0b2d…, read-only PREPARE only. This module never reads a key, never signs, never uploads and
++// never sends: it has no broadcast method, no wallet and no upload code at all (a test greps for them).
++//
++//   offline (`request()`): the exact arguments, calldata, appId and selector, from pins alone (no network).
++//   prepare: two RPCs, one agreed block. Pins the book (code hash; appCatalog and deployments keys), the ledger code
++//     hash, the catalog code hash, its owner (= the publisher, pendingOwner 0), schema 9 and fee cap; proves the slug is
++//     NEW for this publisher (numVersions 0, no transfer redirect) and the CID unlisted; simulates the exact call from
++//     the publisher (decoded appId/index must be the expected new listing); estimates gas; prices L2 + the GasPriceOracle
++//     L1 data-fee upper bound for the maximum signed size of the exact tx (real nonce) + the oracle's operator fee for
++//     the gas limit (Isthmus, else refuse); checks the caps; reports the publisher's balance. Writes a public plan.
++// Every chain fact needs both RPCs to agree; an RPC error is an error, never "absent".
++import { createHash } from "node:crypto";
++import { encodeFunctionData, decodeFunctionResult, encodePacked, keccak256, serializeTransaction, stringToHex, toFunctionSelector } from "viem";
++
++const lc = (a) => String(a).toLowerCase();
++const sha256 = (b) => createHash("sha256").update(b).digest("hex");
++const hexN = (n) => "0x" + BigInt(n).toString(16);
++const ZERO = "0x0000000000000000000000000000000000000000";
++const key32 = (s) => stringToHex(s, { size: 32 });           // EnclaveAddressBook keys: ASCII, right-padded
++
++export const COMPONENT = Object.freeze({
++  file: "out/custody_canary_proof.wasm",
++  sha256: "7ce32918490b91b87c7ffa4cf69769c676b5b835ca11d55904b1511ef93ee883",
++  size: 101222,
++  cid: "bafkreid44murqsilsg4hy772jt3jo2ogo223qnokchkvsbfrkeppspxiqm",   // CIDv1 raw sha2-256: one block (< 256 KiB)
++});
++
++export const PRODUCTION = Object.freeze({
++  chainId: 8453,
++  book: "0xab214342d5a490150a4a977063a2f88e21f80907",
++  bookCodeHash: "0xe4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152",
++  catalog: "0x18419ca2b502d423a8de6269aeee171a378626e3",
++  catalogCodeHash: "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f",   // f2e9a71d0, rebuilt offline
++  catalogSchema: 9n,
++  ledger: "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",                                     // EnclaveDeployments rev 16d
++  ledgerCodeHash: "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
++  publisher: "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",                                  // catalog owner = Enclave admin
++  oracle: "0x420000000000000000000000000000000000000f",
++  rpcs: Object.freeze(["https://mainnet.base.org", "https://base.public.blockpi.network/v1/rpc/public"]),
++  // the request: a NEW dedicated slug and version; nothing existing is replaced
++  request: Object.freeze({
++    slug: "custody-canary-proof",
++    name: "Custody canary proof",
++    description: "Custody canary use ONLY: answers HMAC-SHA256 proofs for dedicated CANARY_ test markers (32 fresh CSPRNG bytes each). Never stage real or user secrets.",
++    version: "0.1.0",
++    cid: COMPONENT.cid,
++    res: Object.freeze([0, 0, 128, 10]),        // [vramMb, gpuGflops, memMb, cpuGflops]: hello-world v4's policy {100,128,1}
++    ports: "",
++    config: '{"wasi":"0.2"}',                   // exactly what `enclave publish` stamps for this binary (no other key)
++    feePerSec6: 0n,                             // free; nothing is paid to the publisher
++  }),
++  caps: Object.freeze({ gas: 1_500_000n, maxFeePerGas: 100_000_000n /* 0.1 gwei */, totalWei: 50_000_000_000_000n /* 0.00005 ETH */ }),
++  readDepth: 2,
++});
++
++export const CATALOG_ABI = [
++  { type: "function", name: "publishVersion", stateMutability: "nonpayable",
++    inputs: [{ type: "string", name: "slug" }, { type: "string", name: "name" }, { type: "string", name: "description" }, { type: "string", name: "version" },
++             { type: "string", name: "cid" }, { type: "uint32[4]", name: "res" }, { type: "string", name: "ports" }, { type: "string", name: "config" },
++             { type: "uint256", name: "feePerSec6" }],
++    outputs: [{ type: "bytes32", name: "appId" }, { type: "uint256", name: "index" }] },
++  { type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
++  { type: "function", name: "pendingOwner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
++  { type: "function", name: "catalogSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
++  { type: "function", name: "maxFeePerSec6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
++  { type: "function", name: "appIdOf", stateMutability: "view", inputs: [{ type: "address" }, { type: "string" }], outputs: [{ type: "bytes32" }] },
++  { type: "function", name: "numVersions", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "uint256" }] },
++  { type: "function", name: "cidStatus", stateMutability: "view", inputs: [{ type: "string" }],
++    outputs: [{ type: "bool", name: "listed" }, { type: "bytes32", name: "appId" }, { type: "uint256", name: "index" }, { type: "uint8", name: "approval" },
++              { type: "bool", name: "yanked" }, { type: "bool", name: "appActive" }, { type: "uint32[4]", name: "res" }] },
++];
++const BOOK_ABI = [{ type: "function", name: "addr", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] }];
++const ORACLE_ABI = [
++  { type: "function", name: "getL1FeeUpperBound", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
++  { type: "function", name: "isIsthmus", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
++  { type: "function", name: "getOperatorFee", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
++];
++export const ORACLE_SIGNATURE_ALLOWANCE = 68;
++export const SELECTOR = toFunctionSelector("publishVersion(string,string,string,string,string,uint32[4],string,string,uint256)");
++
++export class Refusal extends Error { constructor(code, message) { super(message); this.code = code; } }
++const refuse = (code, message) => { throw new Refusal(code, message); };
++
++// the contract's own limits (EnclaveAppCatalog f2e9a71d0) and the CLI's slug rule, checked before anything is sent
++export function checkRequest(r) {
++  const len = (s) => Buffer.byteLength(s, "utf8");
++  if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(r.slug)) refuse("request", "slug: the CLI rule ^[a-z0-9][a-z0-9-]{0,39}$");
++  if (len(r.name) < 1 || len(r.name) > 80) refuse("request", "name: 1..80 bytes");
++  if (len(r.description) > 500) refuse("request", "description: at most 500 bytes");
++  if (len(r.version) < 1 || len(r.version) > 32) refuse("request", "version: 1..32 bytes");
++  if (len(r.cid) < 1 || len(r.cid) > 100) refuse("request", "cid: 1..100 bytes");
++  if (len(r.ports) > 96) refuse("request", "ports: at most 96 bytes");
++  if (len(r.config) > 4096) refuse("request", "config: at most 4096 bytes inline");
++  const [vram, gpu, mem, cpu] = r.res;
++  if (r.res.length !== 4 || r.res.some((x) => !Number.isInteger(x) || x < 0)) refuse("request", "res: four non-negative integers");
++  if (vram > 1048576 || mem < 1 || mem > 1048576 || gpu > 10_000_000 || cpu > 10_000_000) refuse("request", "res: outside the catalog's bounds");
++  if (r.feePerSec6 !== 0n) refuse("request", "the canary listing is free (feePerSec6 0)");
++  return r;
++}
++
++/** The exact call, offline: arguments, calldata, the expected appId (no transfer redirect for a new slug). */
++export function request(cfg = PRODUCTION) {
++  const r = checkRequest(cfg.request);
++  const args = [r.slug, r.name, r.description, r.version, r.cid, [...r.res], r.ports, r.config, r.feePerSec6];
++  const data = encodeFunctionData({ abi: CATALOG_ABI, functionName: "publishVersion", args });
++  if (data.slice(0, 10) !== SELECTOR) refuse("request", "selector mismatch");
++  const appId = keccak256(encodePacked(["address", "string"], [cfg.publisher, r.slug]));
++  return { args, data, appId, selector: SELECTOR, dataSha256: sha256(Buffer.from(data.slice(2), "hex")) };
++}
++
++export function txSizes(tx) {
++  const unsigned = (serializeTransaction(tx).length - 2) / 2;
++  const signedMax = (serializeTransaction(tx, { r: "0x" + "ff".repeat(32), s: "0x" + "ff".repeat(32), yParity: 1 }).length - 2) / 2;
++  return { unsigned, signedMax, argument: Math.max(unsigned, signedMax - ORACLE_SIGNATURE_ALLOWANCE) };
++}
++export function assertCoversSigned({ argument, signedMax }) {
++  if (!(Number.isSafeInteger(argument) && argument + ORACLE_SIGNATURE_ALLOWANCE >= signedMax))
++    refuse("l1_size", `the L1 fee size ${argument} (+${ORACLE_SIGNATURE_ALLOWANCE}) undercounts the signed transaction (${signedMax} bytes)`);
++}
++
++/** JSON-RPC over fetch with a deadline; an error answer throws. Counts requests. */
++export const httpRpc = (timeoutMs = 15_000, counter = { n: 0 }) => async (url, method, params) => {
++  counter.n++;
++  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
++    signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
++  if (!r.ok) throw new Error(`${new URL(url).host} ${method}: HTTP ${r.status}`);
++  const j = await r.json();
++  if (j.error) throw Object.assign(new Error(`${new URL(url).host} ${method}: ${String(j.error.message || j.error.code).slice(0, 200)}`), { rpcError: j.error });
++  return j.result;
++};
++
++// ledgerCodeHashOf: a TEST seam only, for the ledger alone (its deployed runtime embeds immutables and a library address
++// that are not rebuilt here; the book and catalog are rebuilt byte-exact and always hashed with keccak256). The CLI never
++// passes it.
++export function createPreparer({ cfg = PRODUCTION, rpc = httpRpc(), now = () => Date.now(), ledgerCodeHashOf = keccak256 } = {}) {
++  // nothing that names the transaction may differ from production; tests change only the RPC URLs
++  for (const k of ["chainId", "book", "bookCodeHash", "catalog", "catalogCodeHash", "catalogSchema", "ledger", "ledgerCodeHash", "publisher", "oracle", "readDepth"])
++    if (cfg[k] !== PRODUCTION[k]) throw new Error(`config ${k} must be the production value`);
++  if (cfg.request !== PRODUCTION.request || cfg.caps !== PRODUCTION.caps) throw new Error("the request and caps must be the production values");
++  const rpcs = [...cfg.rpcs];
++  if (rpcs.length !== 2 || rpcs[0] === rpcs[1]) throw new Error("exactly two distinct RPCs");
++  const both = (method, params) => Promise.all(rpcs.map((u) => rpc(u, method, params)));
++  const agree = async (what, method, params) => {
++    const r = await both(method, params);
++    if (JSON.stringify(r[0]) !== JSON.stringify(r[1])) refuse("rpc_disagree", `the RPCs disagree on ${what}`);
++    return r[0];
++  };
++  const req = request(cfg);
++
++  async function agreedBlock() {
++    const ids = await both("eth_chainId", []);
++    if (ids.some((x) => Number(x) !== cfg.chainId)) refuse("chain", "an RPC is not on Base");
++    const heads = (await both("eth_blockNumber", [])).map((x) => BigInt(x));
++    const n = (heads[0] < heads[1] ? heads[0] : heads[1]) - BigInt(cfg.readDepth);
++    const blocks = await both("eth_getBlockByNumber", [hexN(n), false]);
++    if (!blocks[0] || !blocks[1] || lc(blocks[0].hash) !== lc(blocks[1].hash)) refuse("rpc_disagree", `the RPCs disagree on block ${n}`);
++    const latest = await both("eth_getBlockByNumber", ["latest", false]);
++    const base = latest.map((b) => BigInt(b.baseFeePerGas)).reduce((a, x) => (x > a ? x : a), BigInt(blocks[0].baseFeePerGas));
++    return { number: n, hash: lc(blocks[0].hash), baseFee: base, timestamp: Number(blocks[0].timestamp) };
++  }
++
++  async function prepare() {
++    const blk = await agreedBlock();
++    const at = { blockHash: blk.hash, requireCanonical: true };
++    const call = (to, abi, functionName, args = [], from) => agree(`${to} ${functionName}`, "eth_call",
++      [{ to, data: encodeFunctionData({ abi, functionName, args }), ...(from ? { from } : {}) }, at]).then((data) => decodeFunctionResult({ abi, functionName, data }));
++    const codeHash = async (a, what, hashOf = keccak256) => hashOf(await agree(`${what} code`, "eth_getCode", [a, at]));
++
++    // the deployed addresses, from the actual book (not any CLI default)
++    if (await codeHash(cfg.book, "book") !== cfg.bookCodeHash) refuse("book", "the address book's code hash differs from the reviewed one");
++    const bookCatalog = lc(await call(cfg.book, BOOK_ABI, "addr", [key32("appCatalog")]));
++    const bookLedger = lc(await call(cfg.book, BOOK_ABI, "addr", [key32("deployments")]));
++    if (bookCatalog !== cfg.catalog) refuse("book", `the book's appCatalog is ${bookCatalog}, not the pinned catalog`);
++    if (bookLedger !== cfg.ledger) refuse("book", `the book's deployments ledger is ${bookLedger}, not the pinned ledger`);
++    if (await codeHash(cfg.ledger, "ledger", ledgerCodeHashOf) !== cfg.ledgerCodeHash) refuse("ledger", "the ledger's code hash differs from the reviewed rev 16d");
++    if (await codeHash(cfg.catalog, "catalog") !== cfg.catalogCodeHash) refuse("catalog", "the catalog's code hash differs from the reviewed f2e9a71d0 build");
++
++    // the catalog's authority and limits
++    const owner = lc(await call(cfg.catalog, CATALOG_ABI, "owner")), pending = lc(await call(cfg.catalog, CATALOG_ABI, "pendingOwner"));
++    if (owner !== cfg.publisher) refuse("authority", `the catalog owner is ${owner}: the publish would NOT be approved on publish`);
++    if (pending !== ZERO) refuse("authority", `an ownership handoff to ${pending} is pending`);
++    const schema = await call(cfg.catalog, CATALOG_ABI, "catalogSchema");
++    if (schema !== cfg.catalogSchema) refuse("catalog", `catalog schema ${schema}, expected ${cfg.catalogSchema}`);
++    const maxFee = await call(cfg.catalog, CATALOG_ABI, "maxFeePerSec6");
++
++    // a NEW dedicated listing: no transfer redirect, no version under this slug, the CID unlisted
++    const appId = lc(await call(cfg.catalog, CATALOG_ABI, "appIdOf", [cfg.publisher, cfg.request.slug]));
++    if (appId !== lc(req.appId)) refuse("listing", "the slug resolves through a transfer redirect: not a new listing");
++    const versions = await call(cfg.catalog, CATALOG_ABI, "numVersions", [req.appId]);
++    if (versions !== 0n) refuse("listing", `the slug already has ${versions} version(s): this tool never adds to or replaces an existing listing`);
++    const cs = await call(cfg.catalog, CATALOG_ABI, "cidStatus", [cfg.request.cid]);
++    if (cs[0]) refuse("listing", `the component CID is already listed (app ${cs[1]} index ${cs[2]})`);
++
++    // the publisher: settled nonce, balance, code (an EOA or a delegation is reported, not changed)
++    const pubCode = lc(await agree("publisher code", "eth_getCode", [cfg.publisher, at]));
++    const nonceAt = BigInt(await agree("nonce at block", "eth_getTransactionCount", [cfg.publisher, at]));
++    const nl = (await both("eth_getTransactionCount", [cfg.publisher, "latest"])).map(BigInt), np = (await both("eth_getTransactionCount", [cfg.publisher, "pending"])).map(BigInt);
++    if ([...nl, ...np].some((x) => x !== nonceAt)) refuse("nonce", "the publisher's nonce is not settled (latest/pending/agreed differ): a transaction may be in flight");
++    const balance = BigInt(await agree("balance", "eth_getBalance", [cfg.publisher, at]));
++
++    // the exact call, simulated from the publisher at the agreed block
++    const P = { from: cfg.publisher, to: cfg.catalog, data: req.data, value: "0x0" };
++    const ret = decodeFunctionResult({ abi: CATALOG_ABI, functionName: "publishVersion", data: await agree("simulation", "eth_call", [P, at]) });
++    if (lc(ret[0]) !== lc(req.appId) || ret[1] !== 0n) refuse("simulation", `the simulation returned app ${ret[0]} index ${ret[1]}, not the new listing at index 0`);
++    const est = (await both("eth_estimateGas", [P, hexN(blk.number)])).map(BigInt);
++    const estMax = est[0] > est[1] ? est[0] : est[1];
++    const gas = (estMax * 5n + 3n) / 4n;                                                   // +25 %
++    if (gas > cfg.caps.gas) refuse("gas", `gas ${gas} exceeds the cap ${cfg.caps.gas}`);
++    const tips = (await both("eth_maxPriorityFeePerGas", [])).map(BigInt);
++    const prio = tips[0] > tips[1] ? tips[0] : tips[1];
++    const maxFeePerGas = 2n * blk.baseFee + prio;
++    if (maxFeePerGas > cfg.caps.maxFeePerGas) refuse("fees", `maxFeePerGas ${maxFeePerGas} exceeds the cap ${cfg.caps.maxFeePerGas}`);
++    const tx = { type: "eip1559", chainId: cfg.chainId, nonce: Number(nonceAt), to: cfg.catalog, value: 0n, data: req.data, gas, maxFeePerGas, maxPriorityFeePerGas: prio };
++    const sizes = txSizes(tx);
++    assertCoversSigned(sizes);
++    const l1 = await call(cfg.oracle, ORACLE_ABI, "getL1FeeUpperBound", [BigInt(sizes.argument)]);
++    let isthmus;
++    try { isthmus = await call(cfg.oracle, ORACLE_ABI, "isIsthmus"); } catch (e) {
++      if (e instanceof Refusal) throw e;
++      refuse("operator_fee", `the GasPriceOracle cannot report the operator fee (${String(e.message).slice(0, 120)}): undetermined, not bounded`);
++    }
++    if (isthmus !== true) refuse("operator_fee", "the GasPriceOracle reports no Isthmus operator-fee support: the operator fee is undetermined");
++    let operatorFee;
++    try { operatorFee = await call(cfg.oracle, ORACLE_ABI, "getOperatorFee", [gas]); } catch (e) {
++      if (e instanceof Refusal) throw e;
++      refuse("operator_fee", `getOperatorFee(${gas}) failed (${String(e.message).slice(0, 120)}): undetermined, not bounded`);
++    }
++    const l2 = gas * maxFeePerGas, total = l2 + l1 + operatorFee;
++    if (total > cfg.caps.totalWei) refuse("cap", `the worst-case cost ${total} wei (L2 ${l2} + L1 ${l1} + operator ${operatorFee}) exceeds the cap ${cfg.caps.totalWei}`);
++
++    const plan = {
++      v: 1, tool: "custody-canary-publish-prepare", readOnly: true, preparedAt: new Date(now()).toISOString(),
++      component: COMPONENT,
++      call: { function: "publishVersion(string,string,string,string,string,uint32[4],string,string,uint256)", selector: SELECTOR,
++              args: { slug: cfg.request.slug, name: cfg.request.name, description: cfg.request.description, version: cfg.request.version, cid: cfg.request.cid,
++                      res: { vramMb: cfg.request.res[0], gpuGflops: cfg.request.res[1], memMb: cfg.request.res[2], cpuGflops: cfg.request.res[3] },
++                      ports: cfg.request.ports, config: cfg.request.config, feePerSec6: "0" },
++              dataSha256: req.dataSha256 },
++      unsignedTx: { type: "eip1559", chainId: cfg.chainId, from: cfg.publisher, to: cfg.catalog, value: "0", data: req.data, nonce: nonceAt.toString(),
++                    gas: gas.toString(), maxFeePerGas: maxFeePerGas.toString(), maxPriorityFeePerGas: prio.toString() },
++      expected: { appId: lc(req.appId), index: "0", approvalOnPublish: "approved (catalog owner; VersionApprovalSet(appId, 0, 1) in the same receipt)" },
++      caps: { gas: cfg.caps.gas.toString(), maxFeePerGas: cfg.caps.maxFeePerGas.toString(), totalWei: cfg.caps.totalWei.toString() },
++      observed: { block: blk.number.toString(), blockHash: blk.hash, rpcs: rpcs.map((u) => new URL(u).host),
++                  book: { address: cfg.book, codeHash: cfg.bookCodeHash, appCatalog: bookCatalog, deployments: bookLedger },
++                  ledger: { address: cfg.ledger, codeHash: cfg.ledgerCodeHash },
++                  catalog: { address: cfg.catalog, codeHash: cfg.catalogCodeHash, owner, pendingOwner: pending, schema: schema.toString(), maxFeePerSec6: maxFee.toString() },
++                  listing: { appIdOf: appId, numVersions: "0", cidListed: false },
++                  simulation: { appId: lc(ret[0]), index: ret[1].toString() },
++                  publisher: { address: cfg.publisher, code: pubCode === "0x" ? "none (EOA)" : pubCode, nonce: nonceAt.toString(), balanceWei: balance.toString() },
++                  estimates: est.map(String), baseFeePerGas: blk.baseFee.toString(),
++                  fees: { l2MaxWei: l2.toString(), l1DataUpperBoundWei: l1.toString(), operatorFeeUpperBoundWei: operatorFee.toString(), totalAtBlockWei: total.toString(),
++                          encodedBytes: { unsigned: sizes.unsigned, signedMax: sizes.signedMax, oracleArgument: sizes.argument, oracleSignatureAllowance: ORACLE_SIGNATURE_ALLOWANCE },
++                          note: "L2 cap (gas x maxFeePerGas) + GasPriceOracle L1 data-fee upper bound for the maximum signed size + the oracle's operator fee for the gas limit, all at the agreed block's parameters. Not a guarantee against later changes; the signer must re-check before signing." },
++                  balanceSufficient: balance >= total, fundingNeededWei: (balance >= total ? 0n : total - balance).toString() },
++    };
++    const text = JSON.stringify(plan, null, 1) + "\n";
++    return { status: "prepared", planHash: "0x" + sha256(text), text, plan };
++  }
++  return { prepare, request: () => req };
++}
+diff --git a/publish/package.json b/publish/package.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..4dc369153b5ea502c76b26b6942bc419669795da
+--- /dev/null
++++ b/publish/package.json
+@@ -0,0 +1,8 @@
++{
++  "name": "custody-canary-publish-prepare",
++  "private": true,
++  "type": "module",
++  "description": "Read-only preparation of the custody-canary-proof catalog publication (no signing, upload or chain write)",
++  "dependencies": { "viem": "2.53.1" },
++  "devDependencies": { "solc": "0.8.35" }
++}
+diff --git a/publish/probe/live-readonly.mjs b/publish/probe/live-readonly.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..1a2d312e384514b97ccd409763b3af0430b71542
+--- /dev/null
++++ b/publish/probe/live-readonly.mjs
+@@ -0,0 +1,37 @@
++// ONE bounded read-only probe for root's publication request (2026-10-23): at most 12 JSON-RPC requests, hard-capped
++// here; no broad scan, no signing, no write. Both reviewed RPCs, one block number (the lower head minus 2):
++//   2 eth_blockNumber, 2 book.addr("appCatalog"), 2 book.addr("deployments"), 2 eth_getCode(catalog) (hashed, never
++//   stored), 2 catalog.numVersions(keccak(admin‖slug)), 2 catalog.cidStatus(component CID). -> evidence/live-readonly.json
++import fs from "node:fs";
++import { encodeFunctionData, decodeFunctionResult, keccak256, stringToHex } from "viem";
++import { PRODUCTION as P, CATALOG_ABI, request, httpRpc } from "../lib/publish.mjs";
++
++const MAX = 12, counter = { n: 0 };
++const base = httpRpc(15_000, counter);
++const rpc = (u, m, p) => { if (counter.n >= MAX) throw new Error("request budget exhausted"); return base(u, m, p); };
++const both = (m, p) => Promise.all(P.rpcs.map((u) => rpc(u, m, p)));
++const BOOK = [{ type: "function", name: "addr", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] }];
++const heads = (await both("eth_blockNumber", [])).map(BigInt);
++const n = (heads[0] < heads[1] ? heads[0] : heads[1]) - 2n, tag = "0x" + n.toString(16);
++const call = async (to, abi, fn, args) => (await both("eth_call", [{ to, data: encodeFunctionData({ abi, functionName: fn, args }) }, tag]))
++  .map((d) => decodeFunctionResult({ abi, functionName: fn, data: d }));
++const s = (x) => JSON.stringify(x, (k, v) => (typeof v === "bigint" ? v.toString() : v));
++const appCatalog = await call(P.book, BOOK, "addr", [stringToHex("appCatalog", { size: 32 })]);
++const deployments = await call(P.book, BOOK, "addr", [stringToHex("deployments", { size: 32 })]);
++const codes = (await both("eth_getCode", [P.catalog, tag])).map((c) => keccak256(c));
++const appId = request().appId;
++const versions = await call(P.catalog, CATALOG_ABI, "numVersions", [appId]);
++const cid = await call(P.catalog, CATALOG_ABI, "cidStatus", [P.request.cid]);
++const agree = (a) => s(a[0]) === s(a[1]);
++const out = {
++  at: new Date().toISOString(), readOnly: true, requests: counter.n, rpcs: P.rpcs.map((u) => new URL(u).host), block: n.toString(),
++  book: { address: P.book, appCatalog: appCatalog.map((x) => x.toLowerCase()), deployments: deployments.map((x) => x.toLowerCase()) },
++  catalog: { address: P.catalog, codeHash: codes, codeHashMatchesReviewed: codes.every((h) => h === P.catalogCodeHash) },
++  listing: { slug: P.request.slug, appId, numVersions: versions.map(String), cidListed: cid.map((r) => r[0]) },
++  agree: { appCatalog: agree(appCatalog), deployments: agree(deployments), codeHash: agree(codes), numVersions: agree(versions), cid: agree(cid) },
++};
++out.ok = Object.values(out.agree).every(Boolean) && out.book.appCatalog[0] === P.catalog && out.book.deployments[0] === P.ledger
++  && out.catalog.codeHashMatchesReviewed && out.listing.numVersions[0] === "0" && out.listing.cidListed[0] === false;
++fs.writeFileSync(new URL("../evidence/live-readonly.json", import.meta.url), JSON.stringify(out, null, 1) + "\n");
++console.log(JSON.stringify(out));
++process.exit(out.ok ? 0 : 1);
+diff --git a/publish/test/OracleMock.sol b/publish/test/OracleMock.sol
+new file mode 100644
+index 0000000000000000000000000000000000000000..3c98e37244e7c51cb89723be6f7d9dafbdf8b14b
+--- /dev/null
++++ b/publish/test/OracleMock.sol
+@@ -0,0 +1,11 @@
++// SPDX-License-Identifier: MIT
++// TEST ONLY: stands in for Base's GasPriceOracle predeploy on a local chain. mode (slot 0): 0 normal, 1 not Isthmus,
++// 2 getOperatorFee reverts. L1 bound = 1000 wei per byte of the oracle-side size (argument + 68); operator fee = 7 wei
++// per gas.
++pragma solidity ^0.8.20;
++contract OracleMock {
++    uint256 public mode;
++    function getL1FeeUpperBound(uint256 size) external pure returns (uint256) { return (size + 68) * 1000; }
++    function isIsthmus() external view returns (bool) { return mode != 1; }
++    function getOperatorFee(uint256 gasUsed) external view returns (uint256) { require(mode != 2, "mock revert"); return gasUsed * 7; }
++}
+diff --git a/publish/test/compile-catalog.mjs b/publish/test/compile-catalog.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..3995a5391cea2259c6d2027a956f2339c70e1c64
+--- /dev/null
++++ b/publish/test/compile-catalog.mjs
+@@ -0,0 +1,55 @@
++// Offline reproduction of the DEPLOYED contracts the publish touches, for the local-chain tests. No network.
++//   catalog 0x18419…: source blob 018e4bff (Projects/enclave f2e9a71d0), soljson 0.8.35 (sha256 fa4345d6…), runs 200,
++//     viaIR. Its runtime keccak must equal the deployed codeHash in source-verification-base.json (no immutables: exact).
++//   book 0xab21…: EnclaveAddressBook at 6c1135b0f (the deployed original, no pendingOwner), runs 200; its runtime keccak
++//     must equal the code hash both RPCs reported in custody-v2-live-20261023/evidence/book-abi-readcheck.json.
++//   a MOCK GasPriceOracle (test only; the real predeploy is not reproduced): mode 0 normal, 1 not Isthmus, 2 the operator
++//     fee reverts.
++// Writes fixtures/catalog-build.json, fixtures/book-build.json, fixtures/oracle-mock.json.
++import fs from "node:fs";
++import { execFileSync } from "node:child_process";
++import { createHash } from "node:crypto";
++import { createRequire } from "node:module";
++import { keccak256 } from "viem";
++
++const REPO = "/home/steven/Projects/enclave", BLOB = "018e4bffc6ac99f87b7b6087a6c4628a53e7a1e9";
++const SRC_SHA = "b31744361efbb43fcf60152a5eaaa185d1af07bdc27f077af0a2b48e7de3b191";
++const SOLJSON_SHA = "fa4345d648d9a09c6601ffc978e78e9f5267b54e6d91e8f8c473f44c0c16323b";
++const BOOK_REV = "6c1135b0f", BOOK_SRC_SHA = "124aa407863e2213d8ef700e6e9492e9112b7a8e1ce50fc10f324b781173ac9a";
++const BOOK_CODEHASH = "0xe4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152";
++const DEPLOYED_CODEHASH = "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f";
++const require = createRequire(import.meta.url);
++const sha = (b) => createHash("sha256").update(b).digest("hex");
++
++const src = execFileSync("git", ["-C", REPO, "cat-file", "-p", BLOB]);
++if (sha(src) !== SRC_SHA) throw new Error("catalog source blob sha256 differs");
++const soljsonPath = require.resolve("solc/soljson.js");
++if (sha(fs.readFileSync(soljsonPath)) !== SOLJSON_SHA) throw new Error("soljson differs from the pinned 0.8.35 build");
++const solc = require("solc");
++function build(file, content, name, viaIR) {
++  const input = { language: "Solidity", sources: { [file]: { content } },
++    settings: { optimizer: { enabled: true, runs: 200 }, viaIR, outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object"] } } } };
++  const out = JSON.parse(solc.compile(JSON.stringify(input)));
++  const errs = (out.errors || []).filter((e) => e.severity === "error");
++  if (errs.length) throw new Error(errs.map((e) => e.formattedMessage).join("\n"));
++  const c = out.contracts[file][name];
++  const runtime = "0x" + c.evm.deployedBytecode.object;
++  return { abi: c.abi, creation: "0x" + c.evm.bytecode.object, runtime, codeHash: keccak256(runtime), runtimeBytes: (runtime.length - 2) / 2 };
++}
++const fx = (f) => new URL("../fixtures/" + f, import.meta.url);
++fs.mkdirSync(new URL("../fixtures/", import.meta.url), { recursive: true });
++
++const cat = build("EnclaveAppCatalog.sol", src.toString("utf8"), "EnclaveAppCatalog", true);
++const bookSrc = execFileSync("git", ["-C", REPO, "show", `${BOOK_REV}:contracts/EnclaveAddressBook.sol`]);
++if (sha(bookSrc) !== BOOK_SRC_SHA) throw new Error("book source differs");
++const book = build("EnclaveAddressBook.sol", bookSrc.toString("utf8"), "EnclaveAddressBook", false);
++const oracleSrc = fs.readFileSync(new URL("./OracleMock.sol", import.meta.url), "utf8");
++const oracle = build("OracleMock.sol", oracleSrc, "OracleMock", false);
++const result = { solc: solc.version(),
++  catalog: { runtimeBytes: cat.runtimeBytes, codeHash: cat.codeHash, matchesDeployed: cat.codeHash === DEPLOYED_CODEHASH },
++  book: { runtimeBytes: book.runtimeBytes, codeHash: book.codeHash, matchesDeployed: book.codeHash === BOOK_CODEHASH } };
++console.log(JSON.stringify(result));
++if (!result.catalog.matchesDeployed || !result.book.matchesDeployed) process.exit(1);
++fs.writeFileSync(fx("catalog-build.json"), JSON.stringify({ sourceBlob: BLOB, sourceSha256: SRC_SHA, solc: solc.version(), codeHash: cat.codeHash, abi: cat.abi, creation: cat.creation }) + "\n");
++fs.writeFileSync(fx("book-build.json"), JSON.stringify({ sourceRev: BOOK_REV, sourceSha256: BOOK_SRC_SHA, solc: solc.version(), codeHash: book.codeHash, abi: book.abi, runtime: book.runtime }) + "\n");
++fs.writeFileSync(fx("oracle-mock.json"), JSON.stringify({ test: "mock, not the predeploy", abi: oracle.abi, runtime: oracle.runtime }) + "\n");
+diff --git a/publish/test/mutants.sh b/publish/test/mutants.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..91d259ae53e918385f220337ec05150600ff024d
+--- /dev/null
++++ b/publish/test/mutants.sh
+@@ -0,0 +1,27 @@
++#!/bin/bash
++# Each mutant removes one safety check from lib/publish.mjs; the suite must FAIL on every one. Scratch copy in out/.
++set -u
++here=$(cd "$(dirname "$0")/.." && pwd); m=$(cd "$here/.." && pwd)/out/publish-mutant; killed=0; total=0
++mutant() {
++  total=$((total+1)); rm -rf "$m"; mkdir -p "$m"; cp -r "$here/lib" "$here/test" "$here/fixtures" "$here/package.json" "$m/"; ln -s "$here/node_modules" "$m/node_modules"
++  mkdir -p "$m/../out-link"; perl -0pi -e "$2" "$m/lib/publish.mjs"
++  if cmp -s "$here/lib/publish.mjs" "$m/lib/publish.mjs"; then echo "MUTANT NOT APPLIED: $1"; return; fi
++  sed -i 's|new URL("../../out/custody_canary_proof.wasm", import.meta.url)|new URL("file://'"$(cd "$here/.." && pwd)"'/out/custody_canary_proof.wasm")|' "$m/test/publish.test.mjs"
++  if (cd "$m" && node --test --test-concurrency=1 test/publish.test.mjs >/dev/null 2>&1); then echo "SURVIVED: $1"; else echo "killed: $1"; killed=$((killed+1)); fi
++}
++mutant "catalog owner not checked"          's/if \(owner !== cfg\.publisher\) refuse/if (false) refuse/'
++mutant "pending handoff ignored"            's/if \(pending !== ZERO\) refuse/if (false) refuse/'
++mutant "existing listing accepted"          's/if \(versions !== 0n\) refuse/if (false) refuse/'
++mutant "listed CID accepted"                's/if \(cs\[0\]\) refuse/if (false) refuse/'
++mutant "book appCatalog not checked"        's/if \(bookCatalog !== cfg\.catalog\) refuse/if (false) refuse/'
++mutant "catalog code hash not checked"      's/if \(await codeHash\(cfg\.catalog, "catalog"\) !== cfg\.catalogCodeHash\) refuse/if (false) refuse/'
++mutant "ledger code hash not checked"       's/if \(await codeHash\(cfg\.ledger, "ledger", ledgerCodeHashOf\) !== cfg\.ledgerCodeHash\) refuse/if (false) refuse/'
++mutant "operator fee left out of the total" 's/const l2 = gas \* maxFeePerGas, total = l2 \+ l1 \+ operatorFee;/const l2 = gas * maxFeePerGas, total = l2 + l1;/'
++mutant "not-Isthmus treated as zero fee"    's/if \(isthmus !== true\) refuse\([^;]*\);/if (isthmus !== true) operatorFee = 0n;/'
++mutant "L1 sized from the unsigned tx only" 's/argument: Math\.max\(unsigned, signedMax - ORACLE_SIGNATURE_ALLOWANCE\)/argument: unsigned - 10/'
++mutant "first RPC trusted alone"            's/if \(JSON\.stringify\(r\[0\]\) !== JSON\.stringify\(r\[1\]\)\) refuse/if (false) refuse/'
++mutant "unsettled nonce accepted"           's/if \(\[\.\.\.nl, \.\.\.np\]\.some\(\(x\) => x !== nonceAt\)\) refuse/if (false) refuse/'
++mutant "fee cap not enforced"               's/if \(maxFeePerGas > cfg\.caps\.maxFeePerGas\) refuse/if (false) refuse/'
++mutant "wrong chain accepted"               's/if \(ids\.some\(\(x\) => Number\(x\) !== cfg\.chainId\)\) refuse/if (false) refuse/'
++echo "MUTANTS killed $killed/$total"
++[ "$killed" = "$total" ]
+diff --git a/publish/test/publish.test.mjs b/publish/test/publish.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..95dbd89ee79dba9287e7bc7baeb5f751406d7001
+--- /dev/null
++++ b/publish/test/publish.test.mjs
+@@ -0,0 +1,207 @@
++// Local-chain tests of the read-only publish preparer. anvil (chain id 8453) carries, AT THEIR PRODUCTION ADDRESSES:
++// the deployed catalog's exact runtime (rebuilt from f2e9a71d0, codeHash 0x3f3c4cc0…) with the state its constructor
++// leaves, the deployed book's exact runtime (6c1135b0f, 0xe4f570e9…) with appCatalog/deployments set, a placeholder at
++// the ledger (its hash via the ledger-only test seam), and a MOCK GasPriceOracle. No network beyond 127.0.0.1.
++import { test, before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import net from "node:net";
++import { spawn, execFileSync } from "node:child_process";
++import { createHash } from "node:crypto";
++import { encodeFunctionData, decodeFunctionResult, decodeEventLog, encodePacked, keccak256, stringToHex, decodeFunctionData } from "viem";
++import { PRODUCTION, COMPONENT, CATALOG_ABI, SELECTOR, request, checkRequest, createPreparer, httpRpc, Refusal } from "../lib/publish.mjs";
++
++const fx = (f) => JSON.parse(fs.readFileSync(new URL("../fixtures/" + f, import.meta.url), "utf8"));
++const CAT = fx("catalog-build.json"), BOOK = fx("book-build.json"), ORACLE = fx("oracle-mock.json");
++const WASM = new URL("../../out/custody_canary_proof.wasm", import.meta.url);
++const P = PRODUCTION, pad32 = (n) => "0x" + BigInt(n).toString(16).padStart(64, "0");
++let anvil, URL0, OWNER_SLOT;
++
++const raw = async (method, params = []) => {
++  const r = await fetch(URL0, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
++  const j = await r.json();
++  if (j.error) throw new Error(`${method}: ${j.error.message}`);
++  return j.result;
++};
++const mine = () => raw("evm_mine");
++async function sendAs(from, tx) {
++  await raw("anvil_impersonateAccount", [from]);
++  const h = await raw("eth_sendTransaction", [{ from, ...tx }]);
++  await mine();
++  const rc = await raw("eth_getTransactionReceipt", [h]);
++  await raw("anvil_stopImpersonatingAccount", [from]);
++  return rc;
++}
++const freePort = () => new Promise((res) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => res(p)); }); });
++
++before(async () => {
++  const port = await freePort();
++  URL0 = `http://127.0.0.1:${port}`;
++  anvil = spawn("anvil", ["--chain-id", "8453", "--port", String(port), "--block-base-fee-per-gas", "5000000", "--no-mining", "--silent"], { stdio: "ignore" });
++  for (let i = 0; i < 100; i++) { try { await raw("eth_chainId"); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
++  await raw("anvil_setBalance", [P.publisher, "0x" + (10n ** 17n).toString(16)]);
++  // the catalog: deploy from the publisher (constructor: owner = msg.sender), then move runtime + constructor state to
++  // the production address
++  const rc = await sendAs(P.publisher, { data: CAT.creation, gas: "0x1c9c380" });
++  const tmp = rc.contractAddress;
++  const code = await raw("eth_getCode", [tmp, "latest"]);
++  assert.equal(keccak256(code), P.catalogCodeHash, "the local catalog runtime is the deployed one");
++  await raw("anvil_setCode", [P.catalog, code]);
++  for (let s = 0; s < 64; s++) {
++    const v = await raw("eth_getStorageAt", [tmp, pad32(s), "latest"]);
++    if (BigInt(v) !== 0n) await raw("anvil_setStorageAt", [P.catalog, pad32(s), v]);
++    if (BigInt(v) === BigInt(P.publisher) && OWNER_SLOT === undefined) OWNER_SLOT = s;
++  }
++  assert.ok(OWNER_SLOT !== undefined, "found the owner slot");
++  // the book: exact runtime, owner (slot 0) = the admin, keys set by the owner
++  await raw("anvil_setCode", [P.book, BOOK.runtime]);
++  await raw("anvil_setStorageAt", [P.book, pad32(0), pad32(BigInt(P.publisher))]);
++  const BOOK_SET = [{ type: "function", name: "setMany", inputs: [{ type: "bytes32[]" }, { type: "address[]" }], outputs: [], stateMutability: "nonpayable" }];
++  await sendAs(P.publisher, { to: P.book, data: encodeFunctionData({ abi: BOOK_SET, functionName: "setMany",
++    args: [[stringToHex("registry", { size: 32 }), stringToHex("deployments", { size: 32 }), stringToHex("appCatalog", { size: 32 })],
++           ["0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac", P.ledger, P.catalog]] }) });
++  await raw("anvil_setCode", [P.ledger, "0x6001600055"]);          // placeholder; hashed through the test seam
++  await raw("anvil_setCode", [P.oracle, ORACLE.runtime]);
++  for (let i = 0; i < 3; i++) await mine();                       // readDepth 2
++});
++after(() => anvil?.kill());
++
++// two "RPCs" over the one local chain; anvil's 1 gwei tip suggestion replaced by a Base-like 0.001 gwei, and per-side
++// tampering for disagreement tests
++const counter = { n: 0 };
++function rpcWith(tamper = () => undefined) {
++  const base = httpRpc(15_000, counter);
++  return async (url, method, params) => {
++    const t = tamper(url, method, params);
++    if (t !== undefined) { counter.n++; return t; }
++    if (method === "eth_maxPriorityFeePerGas") { counter.n++; return "0xf4240"; }
++    return base(URL0, method, params);
++  };
++}
++const LEDGER_SEAM = () => P.ledgerCodeHash;
++const prep = (opts = {}) => createPreparer({ rpc: rpcWith(opts.tamper), ledgerCodeHashOf: opts.ledgerCodeHashOf ?? LEDGER_SEAM, now: () => Date.parse("2026-10-23T22:00:00Z") });
++const refuses = async (code, opts) => assert.rejects(prep(opts).prepare(), (e) => e instanceof Refusal && e.code === code ? true : assert.fail(`expected ${code}, got ${e.code}: ${e.message}`));
++async function withState(addr, slot, value, fn) {
++  const old = await raw("eth_getStorageAt", [addr, pad32(slot), "latest"]);
++  await raw("anvil_setStorageAt", [addr, pad32(slot), value]); for (let i = 0; i < 3; i++) await mine();
++  try { await fn(); } finally { await raw("anvil_setStorageAt", [addr, pad32(slot), old]); for (let i = 0; i < 3; i++) await mine(); }
++}
++
++test("offline request: exact selector, arguments, calldata and appId", () => {
++  const r = request();
++  assert.equal(SELECTOR, "0x47910c23");
++  assert.equal(r.data.slice(0, 10), "0x47910c23");
++  const d = decodeFunctionData({ abi: CATALOG_ABI, data: r.data });
++  assert.deepEqual(d.args, ["custody-canary-proof", "Custody canary proof", P.request.description, "0.1.0", COMPONENT.cid, [0, 0, P.request.res[2], P.request.res[3]], "", '{"wasi":"0.2"}', 0n]);
++  assert.equal(r.appId, keccak256(encodePacked(["address", "string"], [P.publisher, "custody-canary-proof"])));
++  assert.ok(/canary use ONLY/i.test(P.request.description) && /Never stage real or user secrets/.test(P.request.description));
++});
++
++test("the component pins: file bytes, sha256, size and raw CIDv1", () => {
++  const b = fs.readFileSync(WASM);
++  assert.equal(createHash("sha256").update(b).digest("hex"), COMPONENT.sha256);
++  assert.equal(b.length, COMPONENT.size);
++  const b32 = (buf) => { const A = "abcdefghijklmnopqrstuvwxyz234567"; let bits = 0, v = 0, o = ""; for (const x of buf) { v = (v << 8) | x; bits += 8; while (bits >= 5) { o += A[(v >>> (bits - 5)) & 31]; bits -= 5; } } if (bits) o += A[(v << (5 - bits)) & 31]; return o; };
++  assert.equal("b" + b32(Buffer.from([0x01, 0x55, 0x12, 0x20, ...createHash("sha256").update(b).digest()])), COMPONENT.cid);
++});
++
++test("config = what the CLI itself stamps for these bytes (its own classifier, run on the binary)", () => {
++  const src = execFileSync("git", ["-C", "/home/steven/Projects/enclave", "show", "HEAD:cli/enclave.mjs"], { maxBuffer: 64 << 20 }).toString();
++  const fn = (name) => { const i = src.indexOf(`function ${name}(`); assert.ok(i >= 0, name); let d = 0, j = src.indexOf("{", i);
++    for (let k = j; k < src.length; k++) { if (src[k] === "{") d++; else if (src[k] === "}" && --d === 0) return src.slice(i, k + 1); } };
++  const lib = new Function(`${fn("componentMem64")}\n${fn("componentContract")}\nreturn { componentMem64, componentContract };`)();
++  const b = fs.readFileSync(WASM);
++  const layer = b[6] | (b[7] << 8);
++  assert.equal(layer, 1, "a component (layer 1)");
++  const contract = lib.componentContract(b);
++  assert.deepEqual(contract, { wasi: "0.2", world: "wasi:http/incoming-handler@0.2.4" });
++  assert.equal(lib.componentMem64(b), false);
++  assert.equal(b.includes("[thread-"), false); assert.equal(b.includes("[set-spawn-indirect]"), false);
++  // the CLI's stamp for rev >= 4 and no --config: {} + wasi
++  assert.equal(JSON.stringify({ wasi: contract.wasi }), P.request.config);
++});
++
++test("checkRequest enforces the catalog's own limits", () => {
++  const bad = (patch) => assert.throws(() => checkRequest({ ...P.request, ...patch }), Refusal);
++  bad({ slug: "Custody" }); bad({ slug: "x".repeat(41) }); bad({ name: "" }); bad({ name: "n".repeat(81) });
++  bad({ description: "d".repeat(501) }); bad({ version: "" }); bad({ version: "v".repeat(33) }); bad({ cid: "c".repeat(101) });
++  bad({ ports: "p".repeat(97) }); bad({ config: "{" + " ".repeat(4096) + "}" }); bad({ res: [0, 0, 0, 10] }); bad({ res: [0, 0, 256] });
++  bad({ res: [0, 0, 1048577, 10] }); bad({ feePerSec6: 1n });
++  assert.doesNotThrow(() => checkRequest(P.request));
++});
++
++test("the preparer refuses any non-production target or request", () => {
++  assert.throws(() => createPreparer({ cfg: { ...P, catalog: "0x0000000000000000000000000000000000000001" } }), /catalog/);
++  assert.throws(() => createPreparer({ cfg: { ...P, publisher: "0x0000000000000000000000000000000000000001" } }), /publisher/);
++  assert.throws(() => createPreparer({ cfg: { ...P, request: { ...P.request, slug: "hello-world" } } }), /request/);
++  assert.throws(() => createPreparer({ cfg: { ...P, rpcs: [P.rpcs[0], P.rpcs[0]] } }), /two distinct/);
++  assert.equal(Object.keys(createPreparer({ rpc: rpcWith() })).sort().join(), "prepare,request", "no send, sign or upload surface");
++  const src = fs.readFileSync(new URL("../lib/publish.mjs", import.meta.url), "utf8");
++  for (const s of ["eth_sendRawTransaction", "eth_sendTransaction", "privateKeyToAccount", "signTransaction", "add-wasm", "upload-token"]) assert.ok(!src.includes(s), s);
++});
++
++let prepared;
++test("prepare: a new free listing, simulated from the admin, priced within the caps", async () => {
++  counter.n = 0;
++  prepared = await prep().prepare();
++  const p = prepared.plan;
++  assert.equal(prepared.status, "prepared");
++  assert.equal(prepared.planHash, "0x" + createHash("sha256").update(prepared.text).digest("hex"));
++  assert.equal(p.observed.book.appCatalog, P.catalog); assert.equal(p.observed.book.deployments, P.ledger);
++  assert.equal(p.observed.catalog.owner, P.publisher); assert.equal(p.observed.catalog.schema, "9"); assert.equal(p.observed.catalog.maxFeePerSec6, "1389");
++  assert.equal(p.observed.simulation.appId, request().appId.toLowerCase()); assert.equal(p.observed.simulation.index, "0");
++  assert.equal(p.unsignedTx.to, P.catalog); assert.equal(p.unsignedTx.value, "0"); assert.equal(p.unsignedTx.data, request().data);
++  const f = p.observed.fees;
++  const gas = BigInt(p.unsignedTx.gas), est = BigInt(p.observed.estimates[0]);
++  assert.ok(gas >= est && gas <= P.caps.gas);
++  assert.equal(BigInt(f.totalAtBlockWei), BigInt(f.l2MaxWei) + BigInt(f.l1DataUpperBoundWei) + BigInt(f.operatorFeeUpperBoundWei));
++  assert.equal(BigInt(f.operatorFeeUpperBoundWei), gas * 7n, "the mock oracle's operator fee for the gas LIMIT");
++  assert.equal(BigInt(f.l1DataUpperBoundWei), BigInt(f.encodedBytes.oracleArgument + 68) * 1000n);
++  assert.ok(f.encodedBytes.oracleArgument + 68 >= f.encodedBytes.signedMax);
++  assert.ok(BigInt(f.totalAtBlockWei) <= P.caps.totalWei);
++  assert.equal(p.observed.publisher.code, "none (EOA)");
++  console.log(`# local prepare: ${counter.n} RPC requests; estimate ${est}; gas ${gas}; total ${f.totalAtBlockWei} wei (mock oracle)`);
++});
++
++test("refusals: the book, the catalog, the ledger, authority, a pending handoff", async () => {
++  await refuses("book", { tamper: (u, m, p) => (m === "eth_call" && p[0].to === P.book && p[0].data.includes(stringToHex("appCatalog", { size: 32 }).slice(2)) ? pad32(1) : undefined) });
++  await refuses("book", { tamper: (u, m, p) => (m === "eth_getCode" && p[0] === P.book ? "0x00" : undefined) });
++  await refuses("catalog", { tamper: (u, m, p) => (m === "eth_getCode" && p[0] === P.catalog ? "0x00" : undefined) });
++  await refuses("ledger", { ledgerCodeHashOf: keccak256 });
++  await withState(P.catalog, OWNER_SLOT, pad32(1n), () => refuses("authority"));            // another owner: no approval on publish
++  await withState(P.catalog, OWNER_SLOT + 1, pad32(2n), () => assert.rejects(prep().prepare(), /handoff to 0x0+2 is pending/));   // pendingOwner
++});
++
++test("refusals: CID already listed, oracle not Isthmus, operator fee reverts, RPC disagreement, unsettled nonce, fee cap", async () => {
++  await assert.rejects(prep({ tamper: (u, m, p) => (m === "eth_call" && p[0].data.startsWith("0x8747b2ff") ? pad32(1n) : undefined) }).prepare(),
++    (e) => e.code === "listing" && /already has 1 version/.test(e.message));                   // an existing listing is never added to
++  await refuses("listing", { tamper: (u, m, p) => (m === "eth_call" && p[0].data.startsWith("0x577d81b5") ? pad32(1n) + "0".repeat(64 * 9) : undefined) });
++  await withState(P.oracle, 0, pad32(1n), () => refuses("operator_fee"));
++  await withState(P.oracle, 0, pad32(2n), () => refuses("operator_fee"));
++  await refuses("rpc_disagree", { tamper: (u, m, p) => (u === P.rpcs[1] && m === "eth_call" && p[0].data.startsWith("0x8da5cb5b") ? pad32(2n) : undefined) });
++  await refuses("nonce", { tamper: (u, m, p) => (m === "eth_getTransactionCount" && p[1] === "pending" ? "0x999" : undefined) });
++  await refuses("fees", { tamper: (u, m) => (m === "eth_maxPriorityFeePerGas" ? "0x5f5e100" : undefined) });
++  await refuses("chain", { tamper: (u, m) => (u === P.rpcs[0] && m === "eth_chainId" ? "0x1" : undefined) });
++});
++
++test("the prepared transaction, executed on the local chain only, lists the canary APPROVED at index 0", async () => {
++  const t = prepared.plan.unsignedTx;
++  const rc = await sendAs(P.publisher, { to: t.to, data: t.data, gas: "0x" + BigInt(t.gas).toString(16), value: "0x0" });
++  assert.equal(BigInt(rc.status), 1n);
++  const appId = request().appId;
++  const evs = rc.logs.filter((l) => l.address.toLowerCase() === P.catalog).map((l) => { try { return decodeEventLog({ abi: CAT.abi, data: l.data, topics: l.topics }); } catch { return null; } }).filter(Boolean);
++  const names = evs.map((e) => e.eventName);
++  assert.ok(names.includes("AppCreated") && names.includes("VersionPublished"));
++  const appr = evs.find((e) => e.eventName === "VersionApprovalSet");
++  assert.ok(appr && appr.args.appId === appId && appr.args.index === 0n && Number(appr.args.status) === 1, "approved on publish");
++  assert.ok(!names.includes("VersionFeeSet") || evs.find((e) => e.eventName === "VersionFeeSet").args.feePerSec6 === 0n);
++  assert.ok(BigInt(rc.gasUsed) <= BigInt(t.gas));
++  const call = async (fn, args) => decodeFunctionResult({ abi: CAT.abi, functionName: fn, data: await raw("eth_call", [{ to: P.catalog, data: encodeFunctionData({ abi: CAT.abi, functionName: fn, args }) }, "latest"]) });
++  const v = await call("getVersion", [appId, 0n]);
++  assert.equal(v.cid, COMPONENT.cid); assert.equal(v.version, "0.1.0"); assert.equal(Number(v.approval), 1); assert.equal(v.config, '{"wasi":"0.2"}');
++  assert.equal(Number(v.memMb), P.request.res[2]); assert.equal(Number(v.cpuGflops), P.request.res[3]);
++  assert.equal(await call("versionFee", [appId, 0n]), 0n);
++  // ...after which the same preparation refuses: the slug is no longer new (checked before the CID)
++  for (let i = 0; i < 3; i++) await mine();
++  await assert.rejects(prep().prepare(), (e) => e.code === "listing" && /already has 1 version/.test(e.message));
++});

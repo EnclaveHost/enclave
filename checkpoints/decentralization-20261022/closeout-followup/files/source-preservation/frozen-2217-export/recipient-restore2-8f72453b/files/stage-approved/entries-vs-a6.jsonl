@@ -1,0 +1,3 @@
+{"entry": "app/supervisor.js", "a": ["0o100644", 811736, "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951"], "b": ["0o100644", 815857, "37e6a34078c2fa1d5ca835a619a115c86e7aca273324924eecda45e7346bab0b"]}
+{"entry": "opt/metal/manifest.json", "a": ["0o100644", 25978, "6364bdc45f299362468b7fd60b616bdc0c1a99600f75ac39435639ff03ce952d"], "b": ["0o100644", 25978, "0bf37dad3ee5802baafc8651b89ee3c0741eb2bdd9412776f49381a8b74e0e10"]}
+{"entriesA": 29063, "entriesB": 29063, "differing": ["app/supervisor.js", "opt/metal/manifest.json"]}

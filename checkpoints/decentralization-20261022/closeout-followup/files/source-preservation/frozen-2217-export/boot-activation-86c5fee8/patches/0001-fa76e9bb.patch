@@ -1,0 +1,2805 @@
+From fa76e9bb88fa4d6b309064053499a03016c4fbaa Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:07:58 -0700
+Subject: [PATCH] metal0 control: second image-only activation adaptation for
+ the approved boot-registration build (9f6d37bd)
+
+Source only; root executes each phase after review. Adapted from the first attempt
+(custody-recipient-activation 7426b29), with its gate/rollback unchanged (byte copies and
+source-identical functions, pinned by tests) and its own state/private backup:
+- reviewed-build input: build-record.py derives build.json from the completed build of the
+  reviewed commit (source, approval, log markers, inventory, re-hashed files); nothing later
+  accepts a measurement without root's APPROVED-BUILD.txt over those exact bytes;
+- additive relay admission 36 -> 37 by CAS from the 21:30Z env 85d5f14d;
+- pre-cutover baseline from root's authenticated guestd GET /vms (the original 21:31Z guests
+  gd9d4a391d / gdd0646f2c, running, record digests); /availability held recorded as absent;
+- mandatory boot-funding preflight (boot-funding.mjs + gate) before the restart: the reviewed
+  decision must be exactly setProofKey, nonce = pending, delegation/registry unchanged, worst
+  case at viem default fees within the balance with 25% headroom.
+Queue (512): python 28/28, node 8/8, mutants 32/32 killed (control passes), scans clean.
+---
+ .gitignore                             |  11 +
+ README.md                              | 130 +++++++
+ activate.py                            | 119 ++++++
+ admit.py                               |  18 +
+ apphealth.py                           |  44 +++
+ boot-funding.mjs                       | 137 +++++++
+ build-record.py                        |  22 ++
+ build.json                             |  19 +
+ common.py                              | 482 +++++++++++++++++++++++++
+ fee-fit.mjs                            |  31 ++
+ fee-fit.test.mjs                       |  26 ++
+ funding.py                             |  17 +
+ guestrows.py                           |  41 +++
+ keep.py                                |  35 ++
+ logs/b1.guard.log                      |   1 +
+ logs/b1.out                            |  24 ++
+ logs/b1.rc                             |   1 +
+ logs/t1.guard.log                      |   1 +
+ logs/t1.out                            | 139 +++++++
+ logs/t1.rc                             |   1 +
+ logs/t2.guard.log                      |   1 +
+ logs/t2.out                            | 139 +++++++
+ logs/t2.rc                             |   1 +
+ mutants.py                             |  57 +++
+ prebaseline.py                         |  41 +++
+ preflight.mjs                          |  46 +++
+ prepare-admission.py                   |  26 ++
+ q.sh                                   |  11 +
+ recheck-admission.py                   |  10 +
+ renewal-watch.py                       |  13 +
+ rollback.py                            |  17 +
+ run-tests.sh                           |  14 +
+ scan.sh                                |  18 +
+ stage.py                               |  30 ++
+ tests/boot-funding.test.mjs            | 102 ++++++
+ tests/fixtures/APPROVED-COMMIT.txt     |   2 +
+ tests/fixtures/INVENTORY.sha256        |   5 +
+ tests/fixtures/MEASUREMENT             |   1 +
+ tests/fixtures/root-build-approved.out |  33 ++
+ tests/test_activation.py               | 436 ++++++++++++++++++++++
+ unadmit.py                             |  11 +
+ verify-operational.py                  | 134 +++++++
+ 42 files changed, 2447 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 README.md
+ create mode 100644 activate.py
+ create mode 100644 admit.py
+ create mode 100644 apphealth.py
+ create mode 100644 boot-funding.mjs
+ create mode 100644 build-record.py
+ create mode 100644 build.json
+ create mode 100644 common.py
+ create mode 100644 fee-fit.mjs
+ create mode 100644 fee-fit.test.mjs
+ create mode 100644 funding.py
+ create mode 100644 guestrows.py
+ create mode 100644 keep.py
+ create mode 100644 logs/b1.guard.log
+ create mode 100644 logs/b1.out
+ create mode 100644 logs/b1.rc
+ create mode 100644 logs/t1.guard.log
+ create mode 100644 logs/t1.out
+ create mode 100644 logs/t1.rc
+ create mode 100644 logs/t2.guard.log
+ create mode 100644 logs/t2.out
+ create mode 100644 logs/t2.rc
+ create mode 100644 mutants.py
+ create mode 100644 prebaseline.py
+ create mode 100644 preflight.mjs
+ create mode 100644 prepare-admission.py
+ create mode 100755 q.sh
+ create mode 100644 recheck-admission.py
+ create mode 100644 renewal-watch.py
+ create mode 100644 rollback.py
+ create mode 100755 run-tests.sh
+ create mode 100755 scan.sh
+ create mode 100644 stage.py
+ create mode 100644 tests/boot-funding.test.mjs
+ create mode 100644 tests/fixtures/APPROVED-COMMIT.txt
+ create mode 100644 tests/fixtures/INVENTORY.sha256
+ create mode 100644 tests/fixtures/MEASUREMENT
+ create mode 100644 tests/fixtures/root-build-approved.out
+ create mode 100644 tests/test_activation.py
+ create mode 100644 unadmit.py
+ create mode 100644 verify-operational.py
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..eafacaa6be64cab60ac6798f589f1e2b3380cf5e
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,11 @@
++private-backup/
++__pycache__/
++tests/__pycache__/
++logs/scan-gitleaks.json
++evidence/private/
++*.mut-*/
++evidence/*private*
++evidence/boot-funding*.json
++evidence/guestd-baseline*.json
++evidence/lease-preflight*.json
++logs/root-*
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..f80d76960e8ea266d3d8dd4f6140d39306ee0003
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,130 @@
++# metal0 control: second image-only activation, carrying the boot-registration fix (ROOT EXECUTES each phase after review)
++
++Prepared 2026-10-23 as source only. Nothing here touched production, the relay, SSH, the chain or keys.
++
++This attempt reuses the first attempt (`work/custody-recipient-activation-20261023`, 7426b29), whose rollback restored
++deabf8f90 at 21:37Z. It changes **only config.json `dist`**, to a build of H's reviewed commit 9f6d37bd that **root has
++approved**. That attempt's state, private backup, evidence and relay backup are not touched; this folder keeps its own.
++
++| Field | Value |
++|---|---|
++| Image | `dist-leasegas-deabf8f90` (ed918e4b) → `dist-leasegas-9f6d37bd8` |
++| Source | H's commit **9f6d37bd858a…** (child of a6b1378c; delta = `supervisor.js` + its test) |
++| Build | root's `build-approved.sh` run, log `custody-recipient-restore-20261023/logs/root-build-approved.out` |
++| Measurement | **only** what root approves in `build.json`. That run printed `08d1f838…a000`, initramfs `02c7280a…` |
++
++**What the second attempt changes vs the first:**
++
++1. **Reviewed-build input instead of constants.**
++   - `build-record.py` derives `build.json` from the completed build. It checks:
++     - the commit, its parent, its delta and its `supervisor.js` bytes;
++     - `APPROVED-COMMIT.txt` is exactly that commit with `extra NONE`;
++     - every success marker of the log appears exactly once, and there is no refusal;
++     - the logged inventory equals `INVENTORY.sha256`;
++     - the kernel and cmdline are unchanged, and the initramfs and manifest are not a6's;
++     - `MEASUREMENT` equals the logged value;
++     - every staged file, re-hashed.
++   - Root reviews it and writes `APPROVED-BUILD.txt` = `build-sha256 <sha256 of build.json>`.
++   - `stage.py`, `prepare-admission.py`, `admit.py`, `unadmit.py`, `activate.py` and `keep.py` accept nothing else:
++     - `load_new()` re-checks plan.json against the approval on every run;
++     - no other head, measurement or file is accepted.
++2. **Admission 36 → 37, additive.**
++   - The compare-and-swap is from the 21:30Z env `85d5f14d…`. That is the 35, plus ee5df6b8, in installed order.
++   - ed918e4b and ee5df6b8 must both be present. The candidate is appended and nothing is removed.
++   - It is the same privileged admission type as before: a backup (`.before-9f6d37bd8`, while `.before-a6b1378cd` stays), an
++     atomic replace, an explicit relay restart, and restore-and-restart on failure.
++3. **Pre-cutover baseline from root's authenticated guestd listing.**
++   - **Why guestd:** the old control is not registered, so it adopted nothing, and `/availability` has no `instanceSweep.held`.
++   - **How root takes it:** root saves its existing authenticated client's `GET /vms` answer privately (0600, ≤ 300 s old). This
++     folder never reads the key.
++   - **Per app, the listing must show:**
++     - exactly one nonterminal guest;
++     - that guest is `running` and has a `recordSha256`;
++     - it is the guest of the **original 21:31:30Z baseline** (`evidence/original-baseline-20261023T213130Z.json`, sha pinned
++       `45554dc5…`): **gd9d4a391d** image-generator, **gdd0646f2c** EyesOff;
++     - the same (empty) failed history.
++   - **What is kept:** only id/name/status/recordSha256/createdAt. Other guests are recorded as `otherGuests`.
++   - **`/availability` held is recorded as it is.** If absent, the result says `oldControlAdopted: false`; it never pretends the old
++     control adopted. If present, it must agree with guestd.
++   - Actual app health must pass now.
++4. **Mandatory boot-funding preflight**, run by `funding.py` and run again by `activate.py` as the **last** check before its single
++   write.
++   - **`boot-funding.mjs` reads** (two RPCs, one agreed block, read-only):
++     - the schema-4 registry code;
++     - the operator's EIP-7702 code, which must be exactly `0xef0100 8900baca…` (root 20:14; keccak = `e2f1317f…`, tested);
++     - the executor code hash `dd893cd4…`;
++     - the metal0 row;
++     - nonce at the block, latest and pending on both RPCs;
++     - the balance;
++     - viem's default fee `ceil(1.2·base)+tip` (≈ 7 mwei now, not 11);
++     - two gas estimates, the L1 upper bound and the Isthmus operator fee for `setProofKey(metal0, 0xff…ff)`. The test key is the
++       worst-case nonzero 20-byte key, for **fee estimation only**; the real boot key is minted after the restart.
++   - **The decision function** is the **reviewed commit's own** `bootRegistrationAction`, read with `git show 9f6d37bd:supervisor.js`
++     and hash-checked. It is asked about root's confirmed fields: repo `EnclaveHost/enclave`, measurement 0, prices 834/1667.
++   - **`boot_funding_problems()` refuses unless:**
++     - the decision is **exactly setProofKey**. A needed full `register()` is NOT accepted as a fallback for this cutover;
++     - all fields are exact and the row is active and this operator's;
++     - registry, delegation and executor are unchanged;
++     - nonce = latest = pending on both RPCs, so no operator transaction is in flight;
++     - the worst case (larger gas estimate × viem default maxFee + L1 + operator fee) ≤ balance, **with 25% headroom**;
++     - the facts are under 360 s old.
++   - **Root's actual 2-RPC read** (block 53001451, `root-live-fees2.out`) passes: 271.9e9 worst case against 376.1e9. The full
++     register would be 354.1e9.
++   - The supervisor's sender is unchanged. There is no new fee sender, manual proof-key transaction, funding or delegation change,
++     and W's rejected helper is neither used nor reimplemented.
++
++**Byte for byte from the first attempt (tests pin this):**
++- `verify-operational.py`, `guestrows.py` and `apphealth.py` (the `REVIEWED-COPIES.json` hashes);
++- `preflight.mjs` and `renewal-watch.py`;
++- in `common.py`: the rollback, journal, deadline, verified-block, dist-rewrite, protected-field, remote-script and lease-preflight
++  code;
++- in `activate.py`: everything from the write on. That covers the restart, attach in 120 s, both apps adopted with the **same**
++  guests in 300 s, gate v4 at its defaults, renewals and PROVISIONAL. Only the state text naming the measurement differs.
++
++There is no relaxation of health, adoption, vouch or authority. WorkingDirectory, drop-ins, leaseGas and all other config stay as
++they are.
++
++## Phases (run from `/home/steven/Documents/Codex/2026-10-18/wo`; stop and review after each)
++
++| # | Command | Writes | Privilege / impact |
++|---|---|---|---|
++| B | `python3 work/custody-boot-activation-20261023/build-record.py --log work/custody-recipient-restore-20261023/logs/root-build-approved.out` | `build.json` | local, read-only (already run once, see `logs/`) |
++| B' | **root reviews `build.json`** and writes `APPROVED-BUILD.txt` | | root's decision |
++| 0 | `python3 …/stage.py` | `~/enclave-prod/dist-leasegas-9f6d37bd8` (via `.staging`, every hash checked), `plan.json` | local copy only |
++| 1 | `python3 …/prepare-admission.py` | `admission.json`, `measurement.env` | **read-only** SSH read of the relay env and drop-in; public attestation |
++| 2 | `python3 …/admit.py` | relay env (CAS + `.before-9f6d37bd8`) | **privileged**; restarts `enclave-api-relay.service` (transient: every api.enclave.host request/tunnel drops for seconds and reconnects; metal0 reattaches at ed918e4b) |
++| 2b | `python3 …/recheck-admission.py` | `admission.json` stage | public read |
++| 3 | `node …/preflight.mjs` (< 6 min before 4) | `evidence/lease-preflight.json` | public chain reads. **Both leases need fresh margin** (> 780 s: adoption 300 + rollback 480) |
++| 3b | `python3 …/prebaseline.py --guestd-vms <root's fresh 0600 GET /vms file>` | `evidence/guestd-baseline.json` | read-only (root's own authenticated guestd read happens before, outside this folder) |
++| 3c | `python3 …/funding.py [--rpc A --rpc B]` | `evidence/boot-funding.json`, `boot-funding-verdict.json` | public chain reads |
++| 4 | `python3 …/activate.py --guestd-vms <a FRESH file, ≤ 300 s> [--funding-rpc A --funding-rpc B]` | config.json `dist` (fresh `private-backup/`), `result.json`, `gate.json`, `apps-health.json`, `evidence/*-activate.json` | restarts `enclave-metal.service` only (the control VM) |
++| 5 | `python3 …/renewal-watch.py`, then `python3 …/keep.py --checked-attestation <root evidence> [--audit … --verified id=tx …]` | `result.json` | read-only on the host |
++| R | `python3 …/rollback.py` | config.json back (CAS) | restarts the control |
++| R2 | `python3 …/unadmit.py` (only while the candidate is NOT attached) | relay env back to `85d5f14d` (CAS on both versions) | **privileged**; relay restart |
++
++**Expected boot sequence after phase 4's restart:**
++1. The candidate attaches.
++2. The reviewed supervisor reads its row, which is exact except for this boot's key, and sends ONE `setProofKey` through the
++   existing default sender.
++3. After the receipt **and** an exact re-read it adopts the registry row. A failed or lagging re-read throws, and the next normal
++   attempt reads again.
++4. Only then does the claim loop adopt both guests by record digest.
++5. The unchanged 300 s adoption deadline and gate v4 decide. Any failure triggers the unchanged safe rollback.
++
++## Retained limits
++
++- **Rollback does not restore the host's registration.** The previous control (ed918e4b) needs a full `register()` at boot, which
++  is the 21:37Z state: not registered, nothing adopted. Root may need to maintain the app leases separately while it is back.
++- **Residual race.** The old control keeps retrying its full `register()` (backoff ≤ 300 s) until phase 4 stops it. The funding
++  check sees an in-flight transaction only at check time.
++  - If an old register lands in the seconds between the check and the stop, the balance drops by about 0.3e12 wei.
++  - The new boot's setProofKey then cannot be paid, adoption times out, and the unchanged rollback runs.
++  - The row would still be exact, apart from the old boot's key.
++- **Funding bounds hold only at the checked block.** The 25% headroom covers about a 25% rise in fee or gas before the restart.
++- **The guestd listing format is guestd 174edbb7's `GET /vms`** (`{"vms": [{id, name = deployment id, status, recordSha256,
++  createdAt, …}]}`). Root's client output must be that body.
++- **Not exercised end to end:** `activate.py`, `keep.py`, `preflight.mjs`, `funding.py` against the real chain, and `prebaseline.py`
++  against the real guestd. They act on production, the relay or the chain. Their decisions are tested functions, and the gate is the
++  byte copy.
++- **Still open, unchanged by this attempt:** the custody canary's own blockers (owner gas, r2 two guests, the unset book
++  `secretVaultV2`) and guestd's binary-to-source link.
+diff --git a/activate.py b/activate.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..921c226bcd77d79c841d416e20d6793c41a06a81
+--- /dev/null
++++ b/activate.py
+@@ -0,0 +1,119 @@
++# PHASE 4 (ROOT EXECUTES after phases B, 0-3c and review):
++#   python3 work/custody-boot-activation-20261023/activate.py --guestd-vms <root's private GET /vms answer, <= 300 s old>
++# SECOND image-only cutover: config.json "dist" deabf8f90 -> the ROOT-APPROVED build of 9f6d37bd (dist-leasegas-9f6d37bd8; plan.json
++# re-checked against APPROVED-BUILD.txt). Phases, each must pass, else SAFE ROLLBACK (common.safe_rollback, unchanged: stop the
++# new control, wait out every sponsored deadline it logged on a block two public RPCs agree on, CAS-restore config.json, start
++# the previous control):
++#  0. preconditions, read-only: staged image hashes = the approved build; admission verified (public allowlist = the 36 + the
++#     candidate; attached at ed918e4b); a fresh lease/funding preflight (< 360 s) for both apps with margin; protected fields =
++#     the baseline (config sha 58aa9653, dist, leaseGas digest 3570d2, WorkingDirectory metal-deabf8f90, KillMode control-group,
++#     the two drop-ins' hashes); the pre-cutover baseline from root's AUTHENTICATED guestd listing (prebaseline.collect: exactly
++#     the original 21:31Z guests gd9d4a391d / gdd0646f2c, running, record digests; /availability held recorded as it is - absent
++#     now, the old control adopted nothing); actual app health NOW; and LAST, immediately before the write, the MANDATORY
++#     boot-funding preflight (boot-funding.mjs + boot_funding_problems: the reviewed boot decision is exactly setProofKey, nothing
++#     in flight, delegation/registry unchanged, worst case at viem default fees <= balance with 25% headroom).
++#  1-5. UNCHANGED from the first attempt: the one write (ONLY dist; fresh private-backup/ in THIS folder), restart, attach of the
++#     candidate within 120 s, both apps adopted with the SAME guests within 300 s (the new boot first sends its one setProofKey and
++#     adopts the registry row after the receipt + an exact re-read), the reviewed gate v4 byte copy at its defaults, renewals
++#     recorded, PROVISIONAL. A rollback does NOT restore the host's registry registration (see rollback.py).
++import argparse, json, re, subprocess, sys, time
++from common import *
++import apphealth, guestrows, prebaseline
++ap = argparse.ArgumentParser(); ap.add_argument('--availability', default='https://api.enclave.host/t/metal0/availability')
++ap.add_argument('--guestd-vms', required=True); ap.add_argument('--funding-rpc', action='append')
++args = ap.parse_args()
++NEW = load_new(); rpcs = args.funding_rpc or RPCS[:2]; assert len(rpcs) == 2, 'exactly two --funding-rpc'
++os.umask(0o077)
++ids = list(APPS)
++plan = json.loads((A/'plan.json').read_text()); ad = json.loads((A/'admission.json').read_text())
++assert plan['measurement'] == NEW['measurement'] and plan['image'] == NEW['dist']
++assert not staged_problems(NEW['dist'], NEW['files']), 'the staged image changed'
++assert ad['stage'] == 'verified active; old control still connected', ad['stage']
++assert ad['added'] == NEW['measurement'], 'admission.json admitted another measurement'
++al = public_attestation(get)['operatorAllowlist']
++assert al['admittedAtAttach'] == CURRENT['measurement'], 'production is not attached at ed918e4b'
++assert set(ad['existing'] + [NEW['measurement']]) <= set(al['measurements']), 'the public allowlist lost a measurement or lacks the candidate'
++pre = json.loads((EVIDENCE/'lease-preflight.json').read_text()); probs = preflight_problems(pre, ids, time.time())
++assert not probs, 'lease preflight: ' + '; '.join(probs)
++backup = A/'private-backup'
++assert not backup.exists() and not (A/'result.json').exists(), 'an earlier attempt exists: inspect'
++old = CONFIG.read_bytes(); unit = read_unit(); drops = read_dropins()
++probs = protected_problems(old, unit, drops); assert not probs, 'protected fields: ' + '; '.join(probs)
++new = rewrite_dist(old, CURRENT['dist'], NEW['dist'])
++# the pre-cutover baseline, mandatory: root's authenticated guestd listing = the original 21:31Z guests; actual health now
++pb = prebaseline.collect(args.guestd_vms, args.availability)
++(EVIDENCE/'guestd-baseline-activate.json').write_text(json.dumps(pb, indent=2) + '\n')
++assert not pb['problems'], 'pre-cutover baseline: ' + '; '.join(pb['problems'])
++specs = pb['health']
++(A/'apps-health.json').write_text(json.dumps(specs, indent=2) + '\n'); apphealth.load_specs(A/'apps-health.json', ids)
++snap = {i: pb['apps'][i]['guest'] for i in ids}; history = {i: pb['apps'][i]['history'] for i in ids}
++# LAST before any write: the mandatory boot-funding preflight (fresh, read-only)
++fund, probs = boot_funding(rpcs, NEW['commit'], EVIDENCE/'boot-funding-activate.json')
++assert not probs, 'boot funding: ' + '; '.join(probs)
++
++backup.mkdir(mode=0o700); (backup/'config.json').write_bytes(old); (backup/'config.json').chmod(0o600)
++mode = CONFIG.stat().st_mode & 0o777
++result = {'startedAt': utc(), 'measurement': NEW['measurement'], 'commit': NEW['commit'], 'image': NEW['dist'], 'previousImage': CURRENT['dist'],
++          'configBeforeSha256': sha(old), 'configAfterSha256': sha(new), 'protected': {'unit': unit, 'dropins': drops}, 'state': 'starting',
++          'preCutoverGuests': snap, 'preCutoverHistory': history, 'appsHealth': specs, 'preCutoverRecords': {i: pb['apps'][i]['recordSha256'] for i in ids},
++          'baselineSource': 'guestd (root authenticated listing ' + pb['source']['guestdListingSha256'][:16] + ')', 'oldControlAdopted': pb['oldControlAdopted'],
++          'availabilityAtBaseline': pb['availability'], 'buildSha256': NEW['buildSha256'],
++          'bootFunding': {'block': fund['block']['number'], 'action': fund['action']['action'], 'balanceWei': fund['operator']['balanceWei'],
++                          'setProofKeyWorstCaseWei': fund['setProofKey']['worstCaseWei'], 'nonce': fund['operator']['nonceAtBlock']}, 'adoption': {}, 'guests': {}, 'renewalsObserved': {},
++          'productionActivated': False}
++def save(): (A/'result.json').write_text(json.dumps(result, indent=2) + '\n')
++BAD = [re.compile(p) for p in (r'^\[bill\] (\S+) (instance respawned|respawn failed)', r'^\[claim\] (\S+) (app instance died|app died|lease lost|lease looks lost)',
++                               r'^\[instance\] reaped orphan (\S+)', r'^\[release\] (\S+) ', r'^\[isolation\] (0x[0-9a-f]{8}): guest \S+ app ')]
++def bad(lines):
++    return [l[:200] for l in lines for r in BAD for m in [r.match(l)]
++            if m and any(i == m.group(1).lower() or (i.startswith(m.group(1).lower()) and len(m.group(1)) == 10) for i in ids)]
++save(); mutated = False
++since = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'); result['journalSince'] = since
++try:
++    assert CONFIG.read_bytes() == old and read_dropins() == CURRENT['dropins']
++    atomic_config(new, mode); mutated = True
++    systemctl('restart', UNIT, timeout=60)
++    print('Control restarted on the candidate image; awaiting fresh hardware-attested attachment.', flush=True)
++    end = time.monotonic() + ATTACH_S
++    while time.monotonic() < end:
++        try:
++            if public_attestation(get)['operatorAllowlist'].get('admittedAtAttach') == NEW['measurement']:
++                subprocess.run(['systemctl', '--user', 'is-active', '--quiet', UNIT], check=True)
++                result.update(state='attached; adoption pending', attachedAt=utc()); save(); print(result['state'], flush=True); break
++        except (AssertionError, ValueError, KeyError) as e: result['lastObservationError'] = str(e)[:120]; save()
++        time.sleep(5)
++    else: raise RuntimeError(f'the candidate measurement did not attach within {ATTACH_S} s')
++    end = time.monotonic() + ADOPT_S
++    while time.monotonic() < end:
++        lines = journal(since)
++        if bad(lines): raise RuntimeError('during adoption: ' + ' | '.join(bad(lines)))
++        for i in ids:
++            if i not in result['adoption']:
++                a = next((l for l in lines if l.startswith('[claim] ' + i + ' adopted:')), None)
++                g = next((m.group(1) for l in lines for m in [re.match(r'^\[isolation\] ' + i[:10] + r': adopted guest (\S+) ', l)] if m), None)
++                if a and g: result['adoption'][i] = a[:300]; result['guests'][i] = g; save(); print(a[:200], '<-', g, flush=True)
++        if len(result['adoption']) == len(ids): break
++        time.sleep(5)
++    else: raise RuntimeError(f'both apps were not adopted (with their guest) within {ADOPT_S} s')
++    for i in ids:
++        if result['guests'][i] != snap[i]: raise RuntimeError(f'{i[:10]} adopted {result["guests"][i]}, not the baseline guest {snap[i]}')
++    result.update(state='adopted the same guests; operational gate running'); save(); print(result['state'], flush=True)
++    gate = [sys.executable, str(A/'verify-operational.py'), '--availability', args.availability, '--apps-json', str(A/'apps-health.json'),
++            '--since', since, '--out', str(A/'gate.json')]
++    for i in ids: gate += ['--expect-guest', f'{i}={snap[i]}'] + [x for vm in history[i] for x in ('--known-failed', f'{i}={vm}')]
++    if subprocess.run(gate).returncode != 0: raise RuntimeError('the operational gate FAILED: ' + json.dumps(json.loads((A/'gate.json').read_text()).get('why'))[:400])
++    lines = journal(since)
++    if bad(lines): raise RuntimeError('after the gate: ' + ' | '.join(bad(lines)))
++    for i in ids:
++        m = next((m for l in lines for m in [re.match(r'^\[lease-gas\] renew ' + i + r' landed in (0x[0-9a-f]{64})', l)] if m), None)
++        if m: result['renewalsObserved'][i] = m.group(1)
++    result['renewalWarnings'] = [l[:200] for l in lines if l.startswith('[lease-gas] ') and ' not sent' in l][-6:]
++    result.update(state=f'PROVISIONAL: attached {NEW["measurement"][:8]}, the same guests adopted, operational gate v4 PASSED; root fresh '
++                        'attestation/capability check and keep.py pending (renewal-watch.py records app-paid renewals as they land)',
++                  productionActivated='provisional', provisionalAt=utc()); save(); print(result['state'], flush=True)
++except BaseException as e:
++    result.update(state='activation failed; safe rollback pending', error=type(e).__name__, detail=str(e)[:600]); save()
++    print('FAILED:', result['detail'], flush=True)
++    if mutated:
++        safe_rollback(result, save, since=since, old_config=old, new_config=new); print(result['state'], flush=True)
++    raise
+diff --git a/admit.py b/admit.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..65f33646dfd70caa1e9ba19db13d0b0f2217b081
+--- /dev/null
++++ b/admit.py
+@@ -0,0 +1,18 @@
++# PHASE 2 (ROOT EXECUTES, privileged, after reviewing admission.json + measurement.env):
++#   python3 work/custody-boot-activation-20261023/admit.py
++# On the API relay: COMPARE-AND-SWAP the measurement env (it must still be exactly what prepare-admission read), a FRESH
++# backup beside it (.before-9f6d37bd8; refuses if one exists - the first attempt's .before-a6b1378cd stays untouched), atomic replace, restart enclave-api-relay.service; on ANY
++# failure the previous bytes are restored and the service restarted. TRANSIENT IMPACT: the relay restart drops every
++# open api.enclave.host connection and fleet tunnel (metal0's control, custody-metal0, other boxes) for the restart
++# (seconds); tunnels reconnect by themselves. The running ed918e4b (and ee5df6b8) stay admitted, so metal0 reattaches unchanged.
++# Same privileged admission type as the first attempt (explicit relay restart).
++import json, sys
++from common import *
++NEW = load_new()
++ad = json.loads((A/'admission.json').read_text()); assert ad['stage'] == 'prepared only', ad['stage']
++body = (A/'measurement.env').read_text(); assert sha(body.encode()) == ad['environmentSha256']
++args = (RELAY['env'], RELAY['dropin'], ad['remoteBackup'], body, ad['replacesInstalledSha256'], ad['dropinSha256'], NEW['commit'][:9], 'systemctl', RELAY['service'])
++code, out, err = run_remote(remote(REMOTE_CAS, args))
++(A/'admission-apply.out').write_text(out + err); print(out + err, end='')
++if code: sys.exit(code)
++ad.update(stage='installed; public endpoint recheck pending', installedAt=utc()); (A/'admission.json').write_text(json.dumps(ad, indent=2) + '\n')
+diff --git a/apphealth.py b/apphealth.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8a48dcc024a6896cb8a6931e207852f60a6e2487
+--- /dev/null
++++ b/apphealth.py
+@@ -0,0 +1,44 @@
++# ACTUAL application health, the ONE definition used by activate.py (pre-cutover baseline, renewal phase) and by
++# verify-operational.py (the gate). A status code alone is never health (a 404 or an error page is not the app).
++#   kind "json-ping"  (EyesOff /ping): HTTP 200, JSON body with ok === true AND pong === true;
++#   kind "html"       (image-generator /): HTTP 200, text/html, >= minBytes, and - when the pre-cutover baseline had one -
++#                     the SAME <title> (the app's identity as the previous control served it).
++# Specs live in apps-health.json, which activate.py writes from the pre-cutover baseline.
++import json, re, ssl, urllib.error, urllib.request
++
++CTX = ssl.create_default_context()
++
++def fetch(url, timeout=12):
++    req = urllib.request.Request(url, headers={'user-agent': 'enclave-activation-health/1', 'cache-control': 'no-cache'})
++    try:
++        with urllib.request.urlopen(req, timeout=timeout, context=CTX) as r:
++            return r.status, (r.headers.get('content-type') or '').lower(), r.read(1 << 20)
++    except urllib.error.HTTPError as e: return e.code, '', b''
++    except Exception as e: return None, '', type(e).__name__.encode()
++
++def title_of(body):
++    m = re.search(rb'<title[^>]*>(.*?)</title>', body, re.I | re.S)
++    return re.sub(r'\s+', ' ', m.group(1).decode('utf-8', 'replace')).strip() if m else None
++
++def check(spec, timeout=12):
++    """-> (ok, detail). Fails closed on anything but the app's own healthy answer."""
++    st, ctype, body = fetch(spec['url'], timeout)
++    if st != 200: return False, f"HTTP {st}{'' if st else ' ' + body.decode(errors='replace')[:60]}"
++    if spec['kind'] == 'json-ping':
++        try: j = json.loads(body)
++        except Exception: return False, 'not JSON'
++        return (True, 'ok/pong') if isinstance(j, dict) and j.get('ok') is True and j.get('pong') is True else (False, f'ping body {str(j)[:80]}')
++    if spec['kind'] == 'html':
++        if 'text/html' not in ctype: return False, f'content-type {ctype or "none"}'
++        if len(body) < int(spec.get('minBytes', 1024)): return False, f'{len(body)} bytes'
++        if spec.get('title') is not None and title_of(body) != spec['title']: return False, f'title {title_of(body)!r} is not {spec["title"]!r}'
++        return True, f'html {len(body)}B' + (f' title {spec["title"]!r}' if spec.get('title') is not None else ' (no title in the baseline)')
++    return False, f'unknown health kind {spec.get("kind")}'
++
++def load_specs(path, ids=None):
++    specs = json.loads(open(path).read())
++    for i, s in specs.items():
++        assert re.fullmatch(r'0x[0-9a-f]{64}', i) and s['kind'] in ('json-ping', 'html'), i
++        assert s['url'].startswith(('https://', 'http://127.0.0.1')), s['url']
++    if ids is not None: assert set(specs) == set(ids), 'health specs must cover exactly the apps'
++    return specs
+diff --git a/boot-funding.mjs b/boot-funding.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..0e370c9dc0e305be97345233d6a3a067b08495d0
+--- /dev/null
++++ b/boot-funding.mjs
+@@ -0,0 +1,137 @@
++#!/usr/bin/env node
++// MANDATORY BOOT-FUNDING PREFLIGHT, READ-ONLY (root runs it standalone via funding.py; activate.py runs it again immediately
++// before the restart). Adapted from work/custody-boot-registration-20261023/tools/estimate-boot-registration.mjs:
++//   node boot-funding.mjs --rpc https://A --rpc https://B --commit <reviewed 40-hex> --out evidence/boot-funding.json
++// It COLLECTS facts at one block two RPCs agree on; common.py boot_funding_problems() DECIDES. The boot decision is the reviewed
++// commit's own bootRegistrationAction (git show <commit>:supervisor.js, hash-checked), asked for the fields the box registers
++// (root 21:51Z: repo EnclaveHost/enclave, measurement 0, prices 834/1667) and the worst-case nonzero 20-byte test proof key
++// 0xff..ff - fee estimation ONLY: the real boot key is minted inside the new boot. The supervisor sends with viem's default fees
++// (maxFee = ceil(1.2 x base) + tip) through the existing default sender, unchanged; no transaction, key or signing here.
++import fs from "node:fs";
++import path from "node:path";
++import crypto from "node:crypto";
++import { execFileSync } from "node:child_process";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { feeFit, l1SizeArgument, viemDefaultMaxFee } from "./fee-fit.mjs";
++
++const HERE = path.dirname(fileURLToPath(import.meta.url));
++export const H_REPO = path.resolve(HERE, "../custody-boot-registration-20261023/repo");
++export const REVIEWED_SUPERVISOR_SHA256 = "37e6a34078c2fa1d5ca835a619a115c86e7aca273324924eecda45e7346bab0b";
++export const PINS = Object.freeze({
++  chainId: 8453,
++  registry: "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++  endpoint: "https://api.enclave.host/t/metal0",
++  operator: "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++  executor: "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
++  oracle: "0x420000000000000000000000000000000000000f",
++  repo: "EnclaveHost/enclave",
++  measurement: "0x" + "00".repeat(32),
++  cpu: 834n,
++  gpu: 1667n,
++  testProofKey: "0x" + "ff".repeat(20),
++});
++export const ROW = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: [
++  { name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" }, { name: "operator", type: "address" },
++  { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" }, { name: "active", type: "bool" }, { name: "cpuPricePerSec6", type: "uint64" },
++  { name: "gpuPricePerSec6", type: "uint64" }, { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" }] }] }];
++export const REG = [
++  { type: "function", name: "setProofKey", stateMutability: "nonpayable", inputs: [{ type: "bytes32" }, { type: "address" }], outputs: [] },
++  { type: "function", name: "register", stateMutability: "nonpayable", inputs: [{ type: "string" }, { type: "string" }, { type: "bytes32" }, { type: "uint64" }, { type: "uint64" }, { type: "address" }], outputs: [{ type: "bytes32" }] },
++];
++export const ORACLE = [{ type: "function", name: "getL1FeeUpperBound", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
++  { type: "function", name: "isIsthmus", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
++  { type: "function", name: "getOperatorFee", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] }];
++
++// the decision function of the REVIEWED commit (no second implementation, never the working tree)
++export function reviewedDecision(commit, repo = H_REPO, want = REVIEWED_SUPERVISOR_SHA256) {
++  if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error("--commit: 40 hex");
++  const src = execFileSync("git", ["-C", repo, "show", `${commit}:supervisor.js`], { maxBuffer: 64 << 20 });
++  const got = crypto.createHash("sha256").update(src).digest("hex");
++  if (got !== want) throw new Error(`supervisor.js at ${commit} is ${got.slice(0, 16)}, not the reviewed bytes`);
++  const m = /function bootRegistrationAction\(row, want\) \{[\s\S]*?\n\}/.exec(src.toString("utf8"));
++  if (!m) throw new Error("bootRegistrationAction not found at the reviewed commit");
++  return { decide: new Function(`${m[0]}; return bootRegistrationAction;`)(), supervisorSha256: got };
++}
++
++// call(url, method, params) -> JSON-RPC result (throws on error). Every chain fact: both RPCs, one block (2 deep), agreement.
++export async function collect({ call, rpcs, viem, decide, commit, supervisorSha256, now = () => new Date().toISOString() }) {
++  if (rpcs.length !== 2 || rpcs[0] === rpcs[1]) throw new Error("exactly two distinct RPCs");
++  const both = (method, params) => Promise.all(rpcs.map((u) => call(u, method, params)));
++  const agree = async (what, method, params) => { const r = await both(method, params); if (JSON.stringify(r[0]) !== JSON.stringify(r[1])) throw new Error(`RPCs disagree on ${what}`); return r[0]; };
++  const chainIds = (await both("eth_chainId", [])).map(Number);
++  if (chainIds.some((x) => x !== PINS.chainId)) throw new Error("not Base");
++  const heads = (await both("eth_blockNumber", [])).map(BigInt);
++  const n = (heads[0] < heads[1] ? heads[0] : heads[1]) - 2n;
++  const blk = await agree("block", "eth_getBlockByNumber", ["0x" + n.toString(16), false]);
++  const at = { blockHash: blk.hash, requireCanonical: true };
++  const ethCall = async (to, abi, fn, args = []) => viem.decodeFunctionResult({ abi, functionName: fn,
++    data: await agree(fn, "eth_call", [{ to, data: viem.encodeFunctionData({ abi, functionName: fn, args }) }, at]) });
++  const registryCode = await agree("registry code", "eth_getCode", [PINS.registry, at]);
++  const operatorCode = await agree("operator code", "eth_getCode", [PINS.operator, at]);
++  const executorCode = await agree("executor code", "eth_getCode", [PINS.executor, at]);
++  const id = viem.keccak256(viem.stringToBytes(PINS.endpoint));
++  const row = await ethCall(PINS.registry, ROW, "get", [id]);
++  const desired = { operator: PINS.operator, endpoint: PINS.endpoint, repo: PINS.repo, measurement: PINS.measurement,
++    cpuPricePerSec6: PINS.cpu, gpuPricePerSec6: PINS.gpu, proofKey: PINS.testProofKey };
++  const action = decide(row, desired);
++  const nonce = BigInt(await agree("nonce", "eth_getTransactionCount", [PINS.operator, at]));
++  const latest = (await both("eth_getTransactionCount", [PINS.operator, "latest"])).map(BigInt);
++  const pending = (await both("eth_getTransactionCount", [PINS.operator, "pending"])).map(BigInt);
++  const balance = BigInt(await agree("balance", "eth_getBalance", [PINS.operator, at]));
++  const tops = await both("eth_getBlockByNumber", ["latest", false]);
++  const baseFee = tops.map((b) => BigInt(b.baseFeePerGas)).reduce((a, x) => (x > a ? x : a), 0n);
++  const tip = (await both("eth_maxPriorityFeePerGas", [])).map(BigInt).reduce((a, x) => (x > a ? x : a), 0n);
++  const isthmus = await ethCall(PINS.oracle, ORACLE, "isIsthmus").catch(() => null);
++  const maxFee = viemDefaultMaxFee(baseFee, tip);
++  async function price(fn, args) {
++    const data = viem.encodeFunctionData({ abi: REG, functionName: fn, args });
++    const estimates = (await both("eth_estimateGas", [{ from: PINS.operator, to: PINS.registry, data }, "0x" + n.toString(16)])).map(BigInt);
++    const gas = estimates.reduce((a, x) => (x > a ? x : a), 0n);
++    const tx = { type: "eip1559", chainId: PINS.chainId, nonce: Number(nonce), to: PINS.registry, value: 0n, data, gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: tip };
++    const unsigned = (viem.serializeTransaction(tx).length - 2) / 2;
++    const signedMax = (viem.serializeTransaction(tx, { r: "0x" + "ff".repeat(32), s: "0x" + "ff".repeat(32), yParity: 1 }).length - 2) / 2;
++    const l1 = await ethCall(PINS.oracle, ORACLE, "getL1FeeUpperBound", [BigInt(l1SizeArgument({ unsigned, signedMax }))]);
++    const op = isthmus === true ? await ethCall(PINS.oracle, ORACLE, "getOperatorFee", [gas]) : null;
++    return { fn, gasEstimates: estimates.map(String), sizes: { unsigned, signedMax }, l1FeeUpperBoundWei: String(l1),
++      operatorFeeWei: op === null ? "UNDETERMINED" : String(op), ...feeFit({ gas, baseFee, tip, l1FeeUpperBound: l1, operatorFee: op ?? 0n, balance }) };
++  }
++  const s = (x) => String(x);
++  return {
++    at: now(), readOnly: true, rpcs, chainIds, block: { number: s(n), hash: blk.hash, timestamp: s(BigInt(blk.timestamp)) },
++    source: { commit, supervisorSha256 },
++    registry: { address: PINS.registry, codeHash: viem.keccak256(registryCode) },
++    operator: { address: PINS.operator, code: operatorCode, nonceAtBlock: s(nonce), latest: latest.map(s), pending: pending.map(s), balanceWei: s(balance) },
++    executor: { address: PINS.executor, codeHash: viem.keccak256(executorCode) },
++    id, row: { operator: row.operator, active: row.active, endpoint: row.endpoint, repo: row.repo, measurement: row.measurement,
++      cpu: s(row.cpuPricePerSec6), gpu: s(row.gpuPricePerSec6), proofKey: row.proofKey },
++    desired: { ...desired, cpuPricePerSec6: s(desired.cpuPricePerSec6), gpuPricePerSec6: s(desired.gpuPricePerSec6) },
++    testProofKey: PINS.testProofKey, action,
++    fees: { baseFeeWei: s(baseFee), tipWei: s(tip), viemDefaultMaxFeePerGas: s(maxFee), isthmus },
++    setProofKey: await price("setProofKey", [id, PINS.testProofKey]),
++    registerForComparison: await price("register", [PINS.endpoint, PINS.repo, PINS.measurement, PINS.cpu, PINS.gpu, PINS.testProofKey]).catch((e) => ({ error: e.message })),
++    note: "bounds at this block only; the setProofKey worst case at viem's default fees, for the worst-case test key, is what the gate checks",
++  };
++}
++
++export async function rpcCall(url, method, params) {
++  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
++    signal: AbortSignal.timeout(15000), redirect: "error" });
++  const j = await r.json();
++  if (j.error) throw new Error(`${new URL(url).host} ${method}: ${j.error.message}`);
++  return j.result;
++}
++
++if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
++  const argv = process.argv.slice(2);
++  const all = (k) => argv.flatMap((a, i) => (a === `--${k}` ? [argv[i + 1]] : []));
++  const one = (k) => { const v = all(k); if (v.length !== 1) throw new Error(`--${k} exactly once`); return v[0]; };
++  const rpcs = all("rpc");
++  if (rpcs.length !== 2 || rpcs[0] === rpcs[1] || rpcs.some((u) => !/^https:\/\//.test(u))) throw new Error("exactly two distinct https --rpc");
++  const commit = one("commit"), out = one("out");
++  const { decide, supervisorSha256 } = reviewedDecision(commit);
++  const viem = await import(pathToFileURL(path.join(H_REPO, "node_modules/viem/_esm/index.js")).href);
++  const facts = await collect({ call: rpcCall, rpcs, viem, decide, commit, supervisorSha256 });
++  fs.writeFileSync(out, JSON.stringify(facts, null, 1) + "\n");
++  console.log(JSON.stringify({ block: facts.block.number, action: facts.action, balanceWei: facts.operator.balanceWei,
++    setProofKeyWorstCaseWei: facts.setProofKey.worstCaseWei, nonce: facts.operator.nonceAtBlock, pending: facts.operator.pending }));
++}
+diff --git a/build-record.py b/build-record.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..db99767412fb1384ce02e98bb61e37d5be992669
+--- /dev/null
++++ b/build-record.py
+@@ -0,0 +1,22 @@
++# PHASE B (read-only, local; root or Claude): python3 work/custody-boot-activation-20261023/build-record.py --log <the build's queue log>
++# Turns the COMPLETED build-approved.sh run of the reviewed commit into build.json, refusing on any deviation:
++#   the reviewed commit itself (child of a6b1378c, delta exactly supervisor.js + its test, supervisor.js = the reviewed bytes);
++#   the restore folder's APPROVED-COMMIT.txt = exactly that commit with extra NONE; the build log's every success marker once
++#   (control identical, reproducible, manifest/entry delta = app/supervisor.js + manifest, image files = source, measurement
++#   recipe reproduces ed918e4b and ee5df6b8, queue exit 0) and no refusal; the logged inventory = stage INVENTORY.sha256; kernel
++#   and cmdline unchanged; MEASUREMENT = the logged candidate; every staged file re-hashed. Root reviews build.json and then writes
++#   APPROVED-BUILD.txt = "build-sha256 <sha256 of build.json>\n". Nothing later accepts a build without that line.
++import argparse, json, sys
++from common import *
++ap = argparse.ArgumentParser(); ap.add_argument('--log', required=True); a = ap.parse_args()
++assert not (A/'build.json').exists(), 'build.json exists: inspect'
++probs = source_problems()
++log = Path(a.log).read_text()
++rec, p = build_problems(log, (RESTORE/'APPROVED-COMMIT.txt').read_text(), (REVIEWED['stage']/'INVENTORY.sha256').read_text(),
++                        (REVIEWED['stage']/REVIEWED['name']/'MEASUREMENT').read_text())
++probs += p
++if rec: probs += staged_problems(REVIEWED['stage']/REVIEWED['name'], rec['files'])
++if probs: sys.exit('REFUSED: ' + '; '.join(probs))
++rec.update(recordedAt=utc(), buildLog=str(Path(a.log).resolve()), stagedFrom=str(REVIEWED['stage']/REVIEWED['name']))
++raw = (json.dumps(rec, indent=2) + '\n').encode(); (A/'build.json').write_bytes(raw)
++print(raw.decode(), end=''); print(f'ROOT: review build.json, then write APPROVED-BUILD.txt containing exactly: build-sha256 {sha(raw)}')
+diff --git a/build.json b/build.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..52d6e347d2303320174efebcda26f34243029275
+--- /dev/null
++++ b/build.json
+@@ -0,0 +1,19 @@
++{
++  "commit": "9f6d37bd858ad44be1171b6415353910214c2fa5",
++  "parent": "a6b1378cdf430217025987d90c040d0e25a9993d",
++  "supervisorSha256": "37e6a34078c2fa1d5ca835a619a115c86e7aca273324924eecda45e7346bab0b",
++  "measurement": "08d1f838d51274571fdf17b635606d20a6e7250f74d6676217eea40733a8d269aaf52edb85aac4a9ad1cc5c53318a000",
++  "name": "dist-leasegas-9f6d37bd8",
++  "files": {
++    "MEASUREMENT": "6d55c0e2839e5a1aad1258ce80ec112181f155c50be9f5ad1f66f1bb44064537",
++    "cmdline": "d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8",
++    "initramfs.cpio.gz": "02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf",
++    "manifest.json": "64bd025db3ed62b82f016ed25f1bd24ab300dbe7520ca81498d3ccd293e43b16",
++    "vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
++  },
++  "approvedCommitSha256": "f32ab10418d261e562a1c13db7d12fa7f4560a620602a2349753322a3ced5116",
++  "buildLogSha256": "89ba2d1b75e766a95d3f6a12e09ee97c2baad3df4c5bb2e9d98b6647b9bba0ba",
++  "recordedAt": "2026-10-23T22:07:33.675298+00:00",
++  "buildLog": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/logs/root-build-approved.out",
++  "stagedFrom": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage-approved/dist-leasegas-9f6d37bd8"
++}
+diff --git a/common.py b/common.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..33067b9c3a4b310b969ab8b02cf1b36722f1d5ba
+--- /dev/null
++++ b/common.py
+@@ -0,0 +1,482 @@
++# Shared by every script here (prepared by Claude 2026-10-23; ROOT EXECUTES each phase after review). A SECOND image-only attempt
++# for metal0's control, adapted from work/custody-recipient-activation-20261023 (7426b29), whose rollback restored deabf8f90
++# at 21:37Z: config.json "dist" moves from dist-leasegas-deabf8f90 (ed918e4b) to the ROOT-APPROVED build of the boot-registration
++# fix 9f6d37bd (reviewed-build JSON -> plan.json; no measurement is accepted from anywhere else). Nothing else is written: not the
++# rest of config.json (leaseGas and every other byte stay), not the drop-ins, not WorkingDirectory (metal-deabf8f90), not
++# lease-gas journals, not guestd or its guests. NEW vs the first attempt: the reviewed-build pins, the 36 -> 37 additive admission,
++# the pre-cutover baseline from root's authenticated guestd listing (the old control is NOT registered, so /availability has no
++# instanceSweep.held), and the mandatory boot-funding preflight before the restart. The rollback, journal, rewrite,
++# protected-field and remote-script code below is the first attempt's, byte for byte (tests/test_activation.py pins it).
++# No keys, env files, private state or release journals are read; journal lines are filtered to the prefixes below.
++from pathlib import Path
++import hashlib, json, os, re, subprocess, time, datetime, urllib.request
++
++W = Path('/home/steven/Documents/Codex/2026-10-18/wo')
++A = Path(__file__).resolve().parent
++EVIDENCE = A / 'evidence'
++CONFIG = Path('/home/steven/Projects/enclave/metal/config.json')
++UNIT = 'enclave-metal.service'
++DROPIN_DIR = Path('/home/steven/.config/systemd/user/enclave-metal.service.d')
++RPCS = ['https://base-rpc.publicnode.com', 'https://mainnet.base.org', 'https://base-mainnet.public.blastapi.io']
++utc = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat()
++sha = lambda b: hashlib.sha256(b).hexdigest()
++
++# ---- current production: the first attempt's baseline, restored by its rollback at 21:37Z (root: config sha 58aa9653) ----------
++CURRENT = {
++    'configSha256': '58aa9653586b6e4d67f2198dde111fad0329d2b33770c4f4a4ba14d5ddc220b3',
++    'dist': '/home/steven/enclave-prod/dist-leasegas-deabf8f90',
++    'measurement': 'ed918e4b393699b3f6251853d2d34317869d7d9e3150b41ffa917df3d392012c682f376a799494d01e6a6dd5bedd2ac2',
++    'leaseGasDigest': '3570d276b92175e8125a152d15eb7f5a7022301b15535c604923020971672562',
++    'workingDirectory': '/home/steven/enclave-prod/metal-deabf8f90',
++    'killMode': 'control-group',
++    'dropins': {'80-shield-inference.conf': '9f3acb480ce85b85cb02acd3fa0a9d5eb50e5b0a823a3a09b150cbe88eddd40b',
++                '95-app-funded-leases.conf': '71b3feb343f3f02ac4fc555df33d8571ffeb2e92d7dd0b4f33474ad549037daa'},
++}
++# ---- the candidate: ONLY the root-reviewed source commit, and ONLY a build root approved (APPROVED-BUILD.txt) --------------------
++H_REPO = W / 'work/custody-boot-registration-20261023/repo'
++RESTORE = W / 'work/custody-recipient-restore-20261023'
++REVIEWED = {
++    'commit': '9f6d37bd858ad44be1171b6415353910214c2fa5',          # root-reviewed boot-registration fix (H), never another head
++    'parent': 'a6b1378cdf430217025987d90c040d0e25a9993d',          # the restore commit (ee5df6b8)
++    'supervisorSha256': '37e6a34078c2fa1d5ca835a619a115c86e7aca273324924eecda45e7346bab0b',
++    'delta': ['supervisor.js', 'test/registry-advertise-retry.test.mjs'],
++    'stage': RESTORE / 'stage-approved',
++    'name': 'dist-leasegas-9f6d37bd8',
++    'unchanged': {'cmdline': 'd9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8',      # = a6b1378cd = deabf8f90
++                  'vmlinuz': '1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7'},
++    'a6': {'initramfs.cpio.gz': '5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de',
++           'manifest.json': '3874066dff197d154f51f1fe791ab66e5000e81017670cb6c39cb861e79ec12b'},
++}
++PRIOR = {'measurement': 'ee5df6b83948f5bacebee414574adb87be9d58412b09ae9183fc4deed5aed3d96bc1cbead096372e7ee755febbbc22ec'}   # a6b1378cd, admitted 21:30Z
++FILES = ['MEASUREMENT', 'cmdline', 'initramfs.cpio.gz', 'manifest.json', 'vmlinuz']
++NEW = None   # set by load_new() from plan.json (stage.py), re-checked against root's APPROVED-BUILD.txt
++APPS = {'0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9': {'url': 'https://da09d0f2.app.enclave.host/', 'kind': 'html'},       # image-generator
++        '0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c': {'url': 'https://9eb4e600.app.enclave.host/ping', 'kind': 'json-ping'}}  # EyesOff
++# ---- the API relay's measurement admission (root's SSH, as the Oct-21 admit.py) ------------------------------------------
++RELAY = {'env': '/etc/nan-relay/linux-leasegas-measurements.env',
++         'dropin': '/etc/systemd/system/enclave-api-relay.service.d/zzzzz-linux-leasegas-measurement.conf',
++         'dropinSha256': '21fadc7209de6f7ba82fd614bcddd2fe1ba2cfa9feba988d34ab36b68d5caf9a',
++         'installedSha256': '85d5f14db002499e995d688c457c2c43f9aebecfe272c8c884ada1e1115626e6',   # the 21:30Z admission (35 + ee5df6b8)
++         'expectedCount': 36, 'service': 'enclave-api-relay.service'}
++SSH = ['ssh', '-p', '32423', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'UserKnownHostsFile=work/control-vm/known_hosts',
++       '-i', '/home/steven/.ssh/minipc', 'controladmin@127.0.0.1', 'sudo -n python3 -']
++MEASUREMENT_RE = re.compile(r'[0-9a-f]{96}')
++
++# ---- the one config change ---------------------------------------------------------------------------------------------------
++def rewrite_dist(raw, old_dist, new_dist):
++    """-> the config bytes with ONLY the "dist" value replaced, every other byte preserved; refuses an ambiguous file."""
++    text = raw.decode('utf-8')
++    needle = json.dumps(old_dist)
++    hits = [m.start() for m in re.finditer(r'"dist"\s*:\s*' + re.escape(needle), text)]
++    if len(hits) != 1: raise AssertionError(f'expected exactly one "dist": {needle} entry, found {len(hits)}')
++    if text.count(needle) != 1: raise AssertionError(f'{needle} occurs elsewhere in the config: refusing a textual rewrite')
++    new = text.replace(needle, json.dumps(new_dist), 1).encode('utf-8')
++    a, b = json.loads(raw), json.loads(new)
++    if b != {**a, 'dist': new_dist} or list(a) != list(b): raise AssertionError('the rewrite changed more than dist')
++    return new
++
++def protected_problems(config_raw, unit, dropins, current=CURRENT):
++    """Every protected field that is not what the reviewed baseline recorded -> list of problems (empty = ok)."""
++    out = []
++    c = json.loads(config_raw)
++    if sha(config_raw) != current['configSha256']: out.append(f'config sha {sha(config_raw)[:16]} is not the baseline {current["configSha256"][:16]}')
++    if c.get('dist') != current['dist']: out.append(f'config dist {c.get("dist")!r} is not {current["dist"]!r}')
++    if c.get('mode') != 'snp': out.append(f'config mode {c.get("mode")!r} is not snp')
++    if not c.get('leaseGas'): out.append('config has no leaseGas')
++    elif sha(json.dumps(c['leaseGas'], sort_keys=True).encode()) != current['leaseGasDigest']: out.append('config leaseGas digest changed')
++    if c.get('direct'): out.append('config carries direct settings')
++    if unit.get('WorkingDirectory') != current['workingDirectory']: out.append(f'WorkingDirectory {unit.get("WorkingDirectory")!r}')
++    if unit.get('KillMode') != current['killMode']: out.append(f'KillMode {unit.get("KillMode")!r}')
++    if unit.get('ActiveState') != 'active': out.append(f'unit ActiveState {unit.get("ActiveState")!r}')
++    if dropins != current['dropins']: out.append(f'drop-ins {dropins} are not the baseline {current["dropins"]}')
++    return out
++
++def read_unit():
++    keys = ['ActiveState', 'SubState', 'MainPID', 'WorkingDirectory', 'KillMode']
++    r = subprocess.check_output(['systemctl', '--user', 'show', UNIT] + [x for k in keys for x in ('-p', k)], text=True)
++    return dict(l.split('=', 1) for l in r.splitlines() if '=' in l)
++
++def read_dropins(d=DROPIN_DIR):
++    return {p.name: sha(p.read_bytes()) for p in sorted(d.glob('*.conf'))}
++
++def atomic_config(raw, mode, config=CONFIG):
++    tmp = config.with_name(config.name + '.custody-restore-tmp'); assert not tmp.exists(), f'{tmp} exists: inspect'
++    tmp.write_bytes(raw); tmp.chmod(mode); os.replace(tmp, config)
++
++# ---- the API relay admission ---------------------------------------------------------------------------------------------
++def admission_body(remote_body, public_list, new, old=CURRENT['measurement'], prior=PRIOR['measurement'], expected=RELAY['expectedCount']):
++    """-> (existing list in the installed order, the new env file text). Additive: every installed measurement is kept."""
++    m = re.fullmatch(r'METAL_ALLOWED_MEASUREMENTS=([0-9a-f,]+)\n', remote_body)
++    if not m: raise AssertionError('the installed env file is not exactly one METAL_ALLOWED_MEASUREMENTS= line')
++    existing = m.group(1).split(',')
++    if not all(MEASUREMENT_RE.fullmatch(x) for x in existing) or len(set(existing)) != len(existing): raise AssertionError('malformed or duplicate measurement')
++    if len(existing) != expected: raise AssertionError(f'{len(existing)} installed measurements, the reviewed state is {expected}')
++    if set(existing) != set(public_list) or len(public_list) != len(set(public_list)): raise AssertionError('the installed list is not the public allowlist')
++    if old not in existing: raise AssertionError('the running measurement is not admitted')
++    if prior not in existing: raise AssertionError('the first attempt\'s ee5df6b8 is not admitted: the installed state is not the reviewed one')
++    if not MEASUREMENT_RE.fullmatch(new): raise AssertionError('malformed candidate measurement')
++    if new in existing: raise AssertionError('the candidate is already admitted: inspect')
++    return existing, 'METAL_ALLOWED_MEASUREMENTS=' + ','.join(existing + [new]) + '\n'
++
++# Remote scripts (run as `sudo -n python3 -` on the API relay; ARGS is substituted with a repr'd tuple). SYSTEMCTL is an
++# argument so the tests can run the SAME text against temp files with a stub.
++REMOTE_READ = '''import hashlib, json, subprocess
++from pathlib import Path
++ENV, DROP, SYSTEMCTL, SERVICE = ARGS
++e, d = Path(ENV).read_bytes(), Path(DROP).read_bytes()
++active = subprocess.run([SYSTEMCTL, 'is-active', SERVICE], capture_output=True, text=True).stdout.strip()
++print(json.dumps({'envSha256': hashlib.sha256(e).hexdigest(), 'envBody': e.decode(), 'dropinSha256': hashlib.sha256(d).hexdigest(), 'serviceActive': active}))
++'''
++REMOTE_CAS = '''import hashlib, os, subprocess
++from pathlib import Path
++ENV, DROP, BACKUP, BODY, EXPECT, DROPSHA, TAG, SYSTEMCTL, SERVICE = ARGS
++e, dr, b = Path(ENV), Path(DROP), Path(BACKUP)
++assert hashlib.sha256(e.read_bytes()).hexdigest() == EXPECT, 'installed admission changed since prepare-admission: inspect first'
++assert hashlib.sha256(dr.read_bytes()).hexdigest() == DROPSHA, 'admission drop-in changed: inspect first'
++assert not b.exists(), 'a backup from an earlier attempt exists: inspect first'
++assert subprocess.run([SYSTEMCTL, 'is-active', SERVICE], capture_output=True, text=True).stdout.strip() == 'active'
++old = e.read_bytes(); b.write_bytes(old); b.chmod(0o600)
++try:
++    t = e.with_name(e.name + '.tmp-' + TAG); assert not t.exists(); t.write_text(BODY); t.chmod(0o644); os.replace(t, e)
++    subprocess.run([SYSTEMCTL, 'restart', SERVICE], check=True, timeout=45)
++    subprocess.run([SYSTEMCTL, 'is-active', '--quiet', SERVICE], check=True)
++    print('ADMISSION-UPDATED API service active')
++except BaseException:
++    e.write_bytes(old); subprocess.run([SYSTEMCTL, 'restart', SERVICE], check=True, timeout=45)
++    print('ADMISSION-RESTORED after failure')
++    raise
++'''
++REMOTE_RESTORE = '''import hashlib, os, subprocess
++from pathlib import Path
++ENV, BACKUP, NEW, OLD, TAG, SYSTEMCTL, SERVICE = ARGS
++e, b = Path(ENV), Path(BACKUP)
++assert hashlib.sha256(e.read_bytes()).hexdigest() == NEW, 'the installed env is not the one admit.py wrote'
++assert hashlib.sha256(b.read_bytes()).hexdigest() == OLD, 'the backup is not the replaced env'
++t = e.with_name(e.name + '.restore-' + TAG); assert not t.exists(); t.write_bytes(b.read_bytes()); t.chmod(0o644); os.replace(t, e)
++subprocess.run([SYSTEMCTL, 'restart', SERVICE], check=True, timeout=45)
++print('ADMISSION-RESTORED')
++'''
++def remote(template, args):
++    return template.replace('ARGS', repr(tuple(args)))
++
++def run_remote(script, timeout=60, ssh=SSH):
++    r = subprocess.run(ssh, input=script, text=True, capture_output=True, timeout=timeout, cwd=str(W))
++    return r.returncode, r.stdout, r.stderr
++
++def public_attestation(get):
++    import secrets
++    st, body = get('https://api.enclave.host/v1/enclaves/metal0/attestation?nonce=' + secrets.token_hex(32))
++    assert st == 200, f'attestation -> {st}'
++    return json.loads(body)
++
++def get(url, timeout=12):
++    try:
++        with urllib.request.urlopen(urllib.request.Request(url, headers={'user-agent': 'enclave-custody-restore/1'}), timeout=timeout) as r: return r.status, r.read(1 << 20)
++    except urllib.error.HTTPError as e: return e.code, b''
++    except Exception as e: return None, type(e).__name__.encode()
++
++# ---- journal, deadlines, verified block (as the Oct-21 common.py) ---------------------------------------------------------
++PREFIXES = ('[claim] ', '[release] ', '[bill] ', '[instance] ', '[isolation] ', '[lease-gas] ')
++def journal(since):
++    r = subprocess.run(['journalctl', '--user', '-u', UNIT, '--since', since, '-o', 'cat', '--no-pager'], capture_output=True, text=True, timeout=30)
++    if r.returncode != 0: raise RuntimeError(f'journal unreadable (exit {r.returncode}): {r.stderr.strip()[:160]}')   # fail closed
++    return [l for l in r.stdout.splitlines() if l.startswith(PREFIXES)]
++
++def pending_deadlines(lines):
++    return sorted({int(x) for l in lines for x in re.findall(r'deadline (\d{10})', l)})
++
++def rpc(url, method, params):
++    body = json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params}).encode()
++    req = urllib.request.Request(url, data=body, headers={'content-type': 'application/json', 'user-agent': 'enclave-custody-restore/1'})
++    with urllib.request.urlopen(req, timeout=15) as r: return json.load(r)['result']
++
++def verified_block_after(ts, rpcs, limit_s):
++    """Wait until >= 2 public RPCs agree (same number AND hash) on a block whose timestamp is past ts. -> the block."""
++    end = time.monotonic() + limit_s
++    while time.monotonic() < end:
++        heads = []
++        for u in rpcs:
++            try: heads.append(int(rpc(u, 'eth_blockNumber', []), 16))
++            except Exception: pass
++        if len(heads) >= 2:
++            n = sorted(heads, reverse=True)[1]
++            seen = {}
++            for u in rpcs:
++                try:
++                    b = rpc(u, 'eth_getBlockByNumber', [hex(n), False]); seen.setdefault((b['hash'], int(b['timestamp'], 16)), []).append(u)
++                except Exception: pass
++            for (h, t), who in seen.items():
++                if len(who) >= 2 and t > ts: return {'number': n, 'hash': h, 'timestamp': t, 'agreeing': who}
++        time.sleep(10)
++    raise RuntimeError(f'no two RPCs agreed on a block past {ts} within {limit_s}s')
++
++def systemctl(*args, timeout=60):
++    subprocess.run(['systemctl', '--user', *args], check=True, timeout=timeout)
++
++class Ops:
++    """The side effects safe_rollback needs; tests substitute every one."""
++    systemctl = staticmethod(systemctl); journal = staticmethod(journal); verified_block_after = staticmethod(verified_block_after)
++    now = staticmethod(lambda: int(time.time())); read_dropins = staticmethod(read_dropins)
++
++def safe_rollback(result, save, *, since, old_config, new_config, config=CONFIG, ops=Ops, rpcs=RPCS):
++    """Stop the new control FIRST (it signs nothing more), let every sponsored request it signed expire on a verified block,
++    restore the previous config by compare-and-swap and start the previous control. Drop-ins are never written (they must
++    still be the baseline's); guestd, its guests and lease journals are never touched."""
++    ops.systemctl('stop', UNIT)
++    result.update(state='new control stopped; waiting out its pending sponsored requests', stoppedAt=utc()); save()
++    stopped = ops.now()
++    try: deadlines = pending_deadlines(ops.journal(since))
++    except Exception as e:
++        # an unreadable journal is no evidence that nothing is pending: every sponsored request has a deadline <= its
++        # authority block + the lease client's 300 s ttl, and nothing was signed after the stop
++        deadlines = [stopped + 300 + 60]; result['journalUnreadableAtRollback'] = str(e)[:200]
++    result['pendingSponsoredDeadlines'] = deadlines; save()
++    if deadlines:
++        wait = max(0, deadlines[-1] - ops.now()) + 900
++        result['deadlineBlock'] = ops.verified_block_after(deadlines[-1], rpcs, wait); save()
++    assert config.read_bytes() == new_config, 'config changed concurrently: refuse overwriting it'
++    assert ops.read_dropins() == CURRENT['dropins'], 'drop-ins changed concurrently: refuse restarting into an unknown unit'
++    atomic_config(old_config, config.stat().st_mode & 0o777, config)
++    ops.systemctl('start', UNIT)
++    result.update(state='rolled back to the previous control image (deabf8f90, ed918e4b)', rolledBackAt=utc(), productionActivated=False); save()
++
++# ---- activation preconditions (pure functions: tested with stubs) ---------------------------------------------------------
++ATTACH_S, ADOPT_S = 120, 300
++ROLLBACK_MARGIN_S = 480   # stop + the 300 s sponsored ttl + slack, as the Oct-21 activate.py
++
++def preflight_problems(pre, ids, now):
++    """The lease/funding preflight (evidence/lease-preflight.json) must be fresh and cover both apps with margin."""
++    out = []
++    age = now - float(pre['block']['timestamp'])
++    if age >= 360: out.append(f'preflight is {int(age)} s old: refresh it (< 360 s)')
++    rows = {r['id'].lower(): r for r in pre['rows']}
++    for i in ids:
++        r = rows.get(i)
++        if not r: out.append(f'{i[:10]}: not in the preflight'); continue
++        if not r.get('active'): out.append(f'{i[:10]}: deployment not active')
++        if int(r['leaseRemainingSeconds']) - age <= ROLLBACK_MARGIN_S + ADOPT_S: out.append(f'{i[:10]}: lease margin {int(r["leaseRemainingSeconds"]) - int(age)} s too small for adoption + a controlled rollback')
++        if not (r['reserve']['enabled'] and int(r['reserve']['balanceWei']) > 0): out.append(f'{i[:10]}: reserve disabled or empty')
++        if r.get('hostActive') is not True: out.append(f'{i[:10]}: runner registry entry not active')
++    if len({str(rows[i]['runner']).lower() for i in ids if i in rows}) != 1: out.append('the apps are not leased by one runner')
++    return out
++
++# ---- the reviewed build (build-record.py writes build.json; root reviews it and writes APPROVED-BUILD.txt) --------------------
++APPROVED_COMMIT_TEXT = f"commit {REVIEWED['commit']}\nextra NONE\n"
++def git(*args, repo=H_REPO):
++    return subprocess.run(['git', '-C', str(repo), *args], capture_output=True, check=True, timeout=60).stdout
++
++def source_problems(git=git, rev=REVIEWED):
++    """The reviewed commit itself: child of a6b1378c, changes exactly supervisor.js + its test, supervisor.js = the reviewed bytes."""
++    out = []
++    try:
++        if git('rev-parse', rev['commit'] + '^').decode().strip() != rev['parent']: out.append('the reviewed commit is not a child of a6b1378c')
++        names = sorted(git('diff', '--name-only', rev['parent'], rev['commit']).decode().split())
++        if names != sorted(rev['delta']): out.append(f'the reviewed commit changes {names}, not {rev["delta"]}')
++        if sha(git('show', rev['commit'] + ':supervisor.js')) != rev['supervisorSha256']: out.append('supervisor.js at the reviewed commit is not the reviewed bytes')
++    except Exception as e: out.append(f'source unreadable: {type(e).__name__}: {str(e)[:120]}')
++    return out
++
++def parse_inventory(text, name=REVIEWED['name']):
++    """`<sha256>  <name>/<file>` lines -> {file: sha256}; refuses anything else, any other file or a duplicate."""
++    inv = {}
++    for l in text.splitlines():
++        m = re.fullmatch(r'([0-9a-f]{64})  ' + re.escape(name) + r'/([A-Za-z0-9._-]+)', l)
++        if not m or m.group(2) in inv: raise AssertionError(f'inventory line {l[:100]!r} is not one file of {name}')
++        inv[m.group(2)] = m.group(1)
++    if sorted(inv) != sorted(FILES): raise AssertionError(f'inventory files {sorted(inv)} are not {FILES}')
++    return inv
++
++def build_problems(log_text, approved_text, inventory_text, measurement_text, rev=REVIEWED):
++    """The completed build of the reviewed commit, from its own log + the stage's INVENTORY + MEASUREMENT. -> (record, problems)."""
++    out = []
++    if approved_text != APPROVED_COMMIT_TEXT: out.append('APPROVED-COMMIT.txt is not exactly the reviewed commit with extra NONE')
++    lines = log_text.splitlines()
++    want = [f"APPROVED {rev['commit']} extra=[] delta: {' '.join(rev['delta'])} "]
++    want += [f'CONTROL-IDENTICAL {f}' for f in ('initramfs.cpio.gz', 'vmlinuz', 'cmdline', 'manifest.json')]
++    want += [f'REPRODUCIBLE {f}' for f in ('initramfs.cpio.gz', 'vmlinuz', 'cmdline', 'manifest.json')]
++    want += ["MANIFEST-DELTA-EXACT ['/app/supervisor.js']",
++             "ENTRY-DELTA-EXACT vs a6 ['app/supervisor.js', 'opt/metal/manifest.json'] vs production ['app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/manifest.json']",
++             "IMAGE-FILES-ARE-SOURCE ['app/supervisor.js', 'opt/metal/gsup.mjs']",
++             'MEASURE-RECIPE-REPRODUCES-PRODUCTION', 'MEASURE-RECIPE-REPRODUCES-A6', '[queue] EXIT 0']
++    for w in want:
++        if lines.count(w) != 1: out.append(f'build log: {w[:90]!r} appears {lines.count(w)} times, not once')
++    if any(re.search(r'REFUSED|DIFFERS|NOT-REPRODUCIBLE|MISMATCH|Traceback|AssertionError', l) for l in lines): out.append('build log reports a refusal or failure')
++    ms = [l.split(' ', 1)[1] for l in lines if l.startswith('MEASURE-CANDIDATE ')]
++    m = ms[0] if len(ms) == 1 else None
++    if m is None or not MEASUREMENT_RE.fullmatch(m): out.append('build log: not exactly one well-formed MEASURE-CANDIDATE'); m = None
++    elif m in (CURRENT['measurement'], PRIOR['measurement']): out.append('the candidate measurement is a previous image\'s')
++    if m is not None and measurement_text != m + '\n': out.append('MEASUREMENT file is not the logged candidate measurement')
++    try: inv = parse_inventory(inventory_text, rev['name'])
++    except AssertionError as e: return None, out + [str(e)]
++    logged = [l for l in lines if re.fullmatch(r'[0-9a-f]{64}  ' + re.escape(rev['name']) + r'/\S+', l)]
++    if sorted(logged) != sorted(inventory_text.splitlines()): out.append('the logged inventory is not stage INVENTORY.sha256')
++    for f, h in rev['unchanged'].items():
++        if inv[f] != h: out.append(f'{f} changed: only the initramfs and manifest may differ')
++    for f, h in rev['a6'].items():
++        if inv[f] == h: out.append(f'{f} equals a6b1378cd\'s: not the new build')
++    if measurement_text is not None and sha(measurement_text.encode()) != inv['MEASUREMENT']: out.append('MEASUREMENT does not hash to its inventory entry')
++    rec = {'commit': rev['commit'], 'parent': rev['parent'], 'supervisorSha256': rev['supervisorSha256'], 'measurement': m,
++           'name': rev['name'], 'files': inv, 'approvedCommitSha256': sha(approved_text.encode()), 'buildLogSha256': sha(log_text.encode())}
++    return rec, out
++
++def file_sha(p):
++    h = hashlib.sha256()
++    with open(p, 'rb') as f:
++        for c in iter(lambda: f.read(1 << 20), b''): h.update(c)
++    return h.hexdigest()
++
++def staged_problems(d, files):
++    """Every file of the image dir d hashes to the record (streamed: the initramfs is ~280 MB); no other file."""
++    d = Path(d)
++    if not d.is_dir(): return [f'{d} missing']
++    out = [] if sorted(p.name for p in d.iterdir()) == sorted(files) else [f'{d} holds {sorted(p.name for p in d.iterdir())}']
++    for f, h in files.items():
++        if (d/f).is_file() and file_sha(d/f) != h: out.append(f'{d.name}/{f} does not hash to the reviewed build')
++    return out
++
++def approved_build(build_path, approval_path):
++    """-> the build record, only if root's APPROVED-BUILD.txt names exactly these bytes ('build-sha256 <hex>')."""
++    raw = Path(build_path).read_bytes(); appr = Path(approval_path).read_text()
++    if appr != f'build-sha256 {sha(raw)}\n': raise AssertionError('APPROVED-BUILD.txt does not approve exactly this build.json: root review first')
++    rec = json.loads(raw)
++    if (rec.get('commit'), rec.get('supervisorSha256'), rec.get('name')) != (REVIEWED['commit'], REVIEWED['supervisorSha256'], REVIEWED['name']):
++        raise AssertionError('build.json is not a build of the reviewed commit')
++    return rec, sha(raw)
++
++def load_new(a=None):
++    """The candidate from plan.json (stage.py), re-checked against root's approval: never a measurement from anywhere else."""
++    a = Path(a or A); global NEW
++    rec, h = approved_build(a/'build.json', a/'APPROVED-BUILD.txt')
++    plan = json.loads((a/'plan.json').read_text())
++    if plan.get('buildSha256') != h or plan.get('measurement') != rec['measurement'] or plan.get('files') != rec['files']:
++        raise AssertionError('plan.json is not the approved build')
++    NEW = {'commit': rec['commit'], 'dist': plan['image'], 'measurement': rec['measurement'], 'files': rec['files'], 'buildSha256': h}
++    return NEW
++
++# ---- pre-cutover baseline from root's AUTHENTICATED guestd listing (GET /vms) ----------------------------------------------------
++# The old control is not registered (no adoption), so /availability carries no instanceSweep.held: the baseline is guestd's own
++# list, which root reads with its existing authenticated client and saves privately. Only id/name/status/recordSha256/createdAt
++# are kept. Each app (guestd "name" = deployment id) must have exactly ONE nonterminal guest, running, with a record digest, and
++# it must be the guest of the ORIGINAL 21:31:30Z baseline (the first attempt's pre-cutover record), with the same failed history.
++ORIGINAL = {'file': A / 'evidence/original-baseline-20261023T213130Z.json',
++            'sha256': '45554dc55f4cfc38302e922dccf67190c41e00c3b061a4ea52e3f1f530092af0',
++            'guests': {'0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9': 'gd9d4a391d',     # image-generator
++                       '0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c': 'gdd0646f2c'}}    # EyesOff
++GUESTD_MAX_AGE_S = 300
++KEEP = ('id', 'name', 'status', 'recordSha256', 'createdAt')
++
++def original_baseline(o=ORIGINAL):
++    raw = Path(o['file']).read_bytes()
++    if sha(raw) != o['sha256']: raise AssertionError('the original 21:31 baseline file changed')
++    b = json.loads(raw)['baseline']
++    if {i: b[i]['guest'] for i in b} != o['guests']: raise AssertionError('the original baseline does not name the pinned guests')
++    return {i: {'guest': b[i]['guest'], 'history': sorted(b[i]['history'])} for i in b}
++
++def guestd_baseline(listing, apps, original):
++    """listing: guestd's GET /vms body ({"vms": [...]}). -> (baseline {app: {guest, status, recordSha256, history, createdAt}},
++    every row reduced to KEEP, problems)."""
++    vms = listing.get('vms') if isinstance(listing, dict) else None
++    if not isinstance(vms, list): return {}, [], ['not a guestd GET /vms listing ({"vms": [...]})']
++    rows = [{k: r.get(k) for k in KEEP} for r in vms if isinstance(r, dict)]
++    out, base = [], {}
++    if len(rows) != len(vms): out.append('a guestd row is not an object')
++    ids = [str(r['id']) for r in rows]
++    if len(set(ids)) != len(ids): out.append('duplicate guest ids in the listing')
++    for app in apps:
++        mine = [r for r in rows if str(r.get('name', '')).lower() == app]
++        live = [r for r in mine if r.get('status') != 'failed']
++        hist = sorted(str(r['id']) for r in mine if r.get('status') == 'failed')
++        want = original[app]
++        if len(live) != 1: out.append(f'{app[:10]}: {len(live)} nonterminal guests, not exactly one'); continue
++        r = live[0]
++        if r.get('status') != 'running': out.append(f'{app[:10]}: guest {r.get("id")} is {r.get("status")!r}, not running')
++        if not re.fullmatch(r'[A-Za-z0-9-]{1,64}', str(r.get('id'))): out.append(f'{app[:10]}: malformed guest id')
++        if str(r.get('id')) != want['guest']: out.append(f'{app[:10]}: guest {r.get("id")} is not the original baseline guest {want["guest"]}: never adopt a replacement')
++        if not re.fullmatch(r'[0-9a-f]{64}', str(r.get('recordSha256') or '')): out.append(f'{app[:10]}: no record digest')
++        if hist != want['history']: out.append(f'{app[:10]}: failed history {hist} is not the original {want["history"]}')
++        base[app] = {'guest': str(r.get('id')), 'status': r.get('status'), 'recordSha256': r.get('recordSha256'), 'history': hist, 'createdAt': r.get('createdAt')}
++    return base, rows, out
++
++def availability_cross_check(held, base, guestrows):
++    """/availability instanceSweep.held: absent (the old control adopted nothing: recorded, never pretended), or it must agree."""
++    if held is None: return 'absent: the old control is not registered and adopted nothing', []
++    if not isinstance(held, list): return 'malformed', ['instanceSweep.held is not a list']
++    try: seen = guestrows.baseline(held, list(base))
++    except AssertionError as e: return 'present', [str(e)]
++    bad = [f'{i[:10]}: /availability holds {seen[i]["guest"]}, guestd runs {base[i]["guest"]}' for i in base if seen[i]['guest'] != base[i]['guest']]
++    return 'present and agrees with guestd', bad
++
++def guestd_listing(path, now, max_age=GUESTD_MAX_AGE_S):
++    """Root's private listing file: fresh (mtime) and parseable. -> (listing, sha256). The raw bytes are never copied."""
++    p = Path(path); st = p.stat()
++    if now - st.st_mtime > max_age or st.st_mtime - now > 30: raise AssertionError(f'guestd listing is {int(now - st.st_mtime)} s old: re-read it (<= {max_age} s)')
++    if st.st_mode & 0o077: raise AssertionError('guestd listing must be private (0600)')
++    raw = p.read_bytes(); return json.loads(raw), sha(raw)
++
++# ---- MANDATORY boot-funding preflight (boot-funding.mjs collects, this decides) ----------------------------------------------
++# The new boot's registration with the reviewed fix is ONE setProofKey (only the per-boot proof key differs) sent by the existing
++# default sender (viem default fees). Refuse unless: the row is this operator's, active, every field exact (a full register()
++# fallback is NOT accepted for this cutover); the registry and the operator's EIP-7702 delegation are unchanged; nonce = pending
++# on both RPCs (no operator tx in flight); the worst case for the worst-case 20-byte test key fits the balance with 25% headroom.
++FUNDING = {
++    'registry': '0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac',
++    'registryCodeHash': '0x39911d6f53959c610b9108bb906fc36ea8f57016c4b2571b5cd52c9c32a6f518',
++    'operator': '0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab',
++    'operatorCode': '0xef01008900baca2167873ba2f8a8bae8b4876e6396d343',            # root 20:14 (ROOT-FUNDING-REVIEW): do not re-delegate
++    'executor': '0x8900baca2167873ba2f8a8bae8b4876e6396d343',
++    'executorCodeHash': '0xdd893cd48b7c102dc266949d027c33d396a7f8884533ee81b3b2275048ec9ab2',
++    'endpoint': 'https://api.enclave.host/t/metal0', 'repo': 'EnclaveHost/enclave', 'measurement': '0x' + '00' * 32,
++    'cpu': '834', 'gpu': '1667',                                                     # root 21:51Z: the box's actual public prices
++    'testProofKey': '0x' + 'ff' * 20,                                                # fee estimation ONLY; the boot mints its own
++    'maxAgeS': 360, 'headroomPct': 125,
++}
++
++def viem_default_max_fee(base, tip):
++    return (int(base) * 12 + 9) // 10 + int(tip)
++
++def boot_funding_problems(f, now, commit, supervisor_sha, P=FUNDING):
++    out = []
++    lc = lambda x: str(x if x is not None else '').lower()
++    try:
++        age = now - int(f['block']['timestamp'])
++        if age >= P['maxAgeS'] or age < -30: out.append(f'funding preflight is {int(age)} s old: re-run it (< {P["maxAgeS"]} s)')
++        if f.get('readOnly') is not True: out.append('not a read-only preflight')
++        if len(f['rpcs']) != 2 or len({lc(u) for u in f['rpcs']}) != 2: out.append('not two distinct RPCs')
++        if f['chainIds'] != [8453, 8453]: out.append('not Base on both RPCs')
++        if f['source'] != {'commit': commit, 'supervisorSha256': supervisor_sha}: out.append('the decision was not sliced from the reviewed supervisor.js')
++        if lc(f['registry']['address']) != P['registry'] or lc(f['registry']['codeHash']) != P['registryCodeHash']: out.append('registry address or code changed')
++        if lc(f['operator']['address']) != P['operator']: out.append('another operator')
++        if lc(f['operator']['code']) != P['operatorCode']: out.append('the operator\'s EIP-7702 delegation changed')
++        if lc(f['executor']['address']) != P['executor'] or lc(f['executor']['codeHash']) != P['executorCodeHash']: out.append('the delegated executor code changed')
++        r = f['row']
++        if lc(r['operator']) != P['operator'] or r['active'] is not True: out.append('the metal0 row is not this operator\'s active row')
++        if (r['endpoint'], r['repo'], lc(r['measurement']), str(r['cpu']), str(r['gpu'])) != (P['endpoint'], P['repo'], P['measurement'], P['cpu'], P['gpu']):
++            out.append('the registered fields are not exactly endpoint/repo/measurement/prices: the boot would need a full register(), not accepted')
++        d = f['desired']
++        if (d['endpoint'], d['repo'], lc(d['measurement']), str(d['cpuPricePerSec6']), str(d['gpuPricePerSec6'])) != (P['endpoint'], P['repo'], P['measurement'], P['cpu'], P['gpu']):
++            out.append('the preflight did not ask for the reviewed fields')
++        if lc(f['testProofKey']) != P['testProofKey'] or lc(r['proofKey']) == P['testProofKey']: out.append('not the worst-case test proof key, or the row already holds it')
++        if f['action'] != {'action': 'setProofKey', 'reason': 'only the proof key differs'}: out.append(f'the reviewed boot decision is {f["action"]}, not setProofKey')
++        o = f['operator']; n = int(o['nonceAtBlock'])
++        if [int(x) for x in o['latest']] != [n, n] or [int(x) for x in o['pending']] != [n, n]: out.append('operator nonce/pending disagree: a transaction is in flight or just landed')
++        fe = f['fees']; sp = f['setProofKey']
++        if fe.get('isthmus') is not True or not str(sp.get('operatorFeeWei', '')).isdigit(): out.append('the operator fee is undetermined')
++        mf = viem_default_max_fee(fe['baseFeeWei'], fe['tipWei'])
++        if int(sp['maxFeePerGas']) != mf: out.append('maxFeePerGas is not viem\'s default (ceil(1.2 x base) + tip)')
++        gas = int(sp['gas'])
++        if gas != max(int(x) for x in sp['gasEstimates']) or len(sp['gasEstimates']) != 2: out.append('gas is not the larger of the two estimates')
++        worst = gas * mf + int(sp['l1FeeUpperBoundWei']) + int(sp.get('operatorFeeWei') or 0)
++        if int(sp['worstCaseWei']) != worst: out.append('worst case does not add up')
++        bal = int(o['balanceWei'])
++        if bal < worst: out.append(f'setProofKey worst case {worst} wei exceeds the balance {bal}')
++        elif bal * 100 < worst * P['headroomPct']: out.append(f'balance {bal} lacks the {P["headroomPct"] - 100}% headroom over the worst case {worst}')
++    except (KeyError, TypeError, ValueError) as e: out.append(f'malformed funding preflight: {type(e).__name__} {e}')
++    return out
++
++def boot_funding(rpcs, commit, out_path, now=None, node='node', run=subprocess.run):
++    """Run boot-funding.mjs (read-only) and decide. -> (facts, problems)."""
++    r = run([node, str(A/'boot-funding.mjs'), '--rpc', rpcs[0], '--rpc', rpcs[1], '--commit', commit, '--out', str(out_path)],
++            capture_output=True, text=True, timeout=180)
++    if r.returncode != 0: return None, [f'boot-funding.mjs failed ({r.returncode}): {(r.stderr or r.stdout).strip()[-300:]}']
++    f = json.loads(Path(out_path).read_text())
++    return f, boot_funding_problems(f, time.time() if now is None else now, commit, REVIEWED['supervisorSha256'])
+diff --git a/fee-fit.mjs b/fee-fit.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..21d33dc5c14e0a99177789d0b57c4b26be0c4c60
+--- /dev/null
++++ b/fee-fit.mjs
+@@ -0,0 +1,31 @@
++// Pure fee arithmetic for the operator's ONE boot transaction (setProofKey or register), as the supervisor sends it:
++// viem writeContract with its default fees (maxFeePerGas = ceil(baseFee x 1.2) + maxPriorityFeePerGas) and gas = the
++// node's estimate. On Base the sender also pays the L1 data fee and, from Isthmus, the operator fee.
++export const ORACLE_SIGNATURE_ALLOWANCE = 68;
++
++export function viemDefaultMaxFee(baseFee, tip) {        // viem estimateFeesPerGas, baseFeeMultiplier 1.2, rounded up
++  return (BigInt(baseFee) * 12n + 9n) / 10n + BigInt(tip);
++}
++
++// the L1 size argument that covers the largest signed form (yParity 1, r = s = 2^256-1) of the exact transaction
++export function l1SizeArgument({ unsigned, signedMax }) {
++  const argument = Math.max(unsigned, signedMax - ORACLE_SIGNATURE_ALLOWANCE);
++  if (!(argument + ORACLE_SIGNATURE_ALLOWANCE >= signedMax)) throw new Error("L1 size undercounts the signed transaction");
++  return argument;
++}
++
++// -> { fitsAsSent, worstCaseWei, minMaxFeeForBalance, landsAtBaseFee, ... } all bigint/strings; no decision is taken here
++export function feeFit({ gas, baseFee, tip, l1FeeUpperBound, operatorFee, balance, maxFeePerGas = null }) {
++  const g = BigInt(gas), b = BigInt(baseFee), t = BigInt(tip), l1 = BigInt(l1FeeUpperBound), op = BigInt(operatorFee), bal = BigInt(balance);
++  const maxFee = maxFeePerGas === null ? viemDefaultMaxFee(b, t) : BigInt(maxFeePerGas);
++  const worst = g * maxFee + l1 + op;
++  const headroom = bal - l1 - op;
++  const minMaxFeeForBalance = headroom > 0n ? headroom / g : 0n;    // the highest maxFeePerGas this balance can pre-pay
++  return {
++    gas: String(g), maxFeePerGas: String(maxFee), worstCaseWei: String(worst), balanceWei: String(bal),
++    fitsAsSent: bal >= worst,                                        // the node's pre-check: gas x maxFee + L1 (+ operator fee)
++    shortfallWei: String(bal >= worst ? 0n : worst - bal),
++    maxAffordableMaxFeePerGas: String(minMaxFeeForBalance),
++    landsAtCurrentBaseFee: minMaxFeeForBalance >= b + t,             // a capped fee the balance allows could still be included now
++  };
++}
+diff --git a/fee-fit.test.mjs b/fee-fit.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..d84b82b391f0c123afb486a3abae6eef0462298c
+--- /dev/null
++++ b/fee-fit.test.mjs
+@@ -0,0 +1,26 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { feeFit, viemDefaultMaxFee, l1SizeArgument } from "./fee-fit.mjs";
++
++test("viem default max fee = ceil(base x 1.2) + tip", () => {
++  assert.equal(viemDefaultMaxFee(5_000_000n, 1_000_000n), 7_000_000n);
++  assert.equal(viemDefaultMaxFee(5_000_001n, 0n), 6_000_002n);
++});
++
++test("root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei", () => {
++  const r = feeFit({ gas: 50354n, baseFee: 5_000_000n, tip: 1_000_000n, l1FeeUpperBound: 0n, operatorFee: 0n, balance: 376132087579n, maxFeePerGas: 11_000_000n });
++  assert.equal(r.fitsAsSent, false);
++  assert.equal(r.worstCaseWei, String(50354n * 11_000_000n));
++  assert.equal(r.maxAffordableMaxFeePerGas, String(376132087579n / 50354n));
++  assert.equal(r.landsAtCurrentBaseFee, true, "a capped 7.4 mwei fee would still land at base 5 + tip 1");
++});
++
++test("L1 and operator fees count; the size argument must cover the signed maximum", () => {
++  const a = feeFit({ gas: 30000n, baseFee: 5_000_000n, tip: 1_000_000n, l1FeeUpperBound: 1_000_000_000n, operatorFee: 0n, balance: 10n ** 12n });
++  assert.equal(a.worstCaseWei, String(30000n * 7_000_000n + 1_000_000_000n));
++  assert.equal(a.fitsAsSent, true);
++  const b = feeFit({ gas: 30000n, baseFee: 5_000_000n, tip: 1_000_000n, l1FeeUpperBound: 1_000_000_000n, operatorFee: 5n, balance: 30000n * 7_000_000n + 1_000_000_000n });
++  assert.equal(b.fitsAsSent, false); assert.equal(b.shortfallWei, "5");
++  assert.equal(l1SizeArgument({ unsigned: 100, signedMax: 167 }), 100);
++  assert.equal(l1SizeArgument({ unsigned: 100, signedMax: 170 }), 102);
++});
+diff --git a/funding.py b/funding.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..f78068ab32da39b7eac3cc1099ef06ae2f0f5210
+--- /dev/null
++++ b/funding.py
+@@ -0,0 +1,17 @@
++# PHASE 3c (ROOT EXECUTES, read-only; MANDATORY before ANY activation restart - activate.py runs it again right before its write):
++#   python3 work/custody-boot-activation-20261023/funding.py [--rpc https://A --rpc https://B]
++# boot-funding.mjs reads, at one block both RPCs agree on: the registry code (schema 4), the operator's EIP-7702 delegation and its
++# executor's code, the metal0 row, nonce/latest/pending on both RPCs, the balance, fees, two gas estimates and the L1/operator fee
++# bounds for setProofKey(metal0, 0xff..ff) - the worst-case nonzero test key, fee estimation ONLY. boot_funding_problems() then
++# requires the REVIEWED boot decision to be exactly setProofKey (no full register() fallback for this cutover), nothing in flight,
++# delegation/registry unchanged and the worst case at viem's default fees <= balance with 25% headroom. No key, no transaction.
++import argparse, json, sys
++from common import *
++ap = argparse.ArgumentParser(); ap.add_argument('--rpc', action='append'); a = ap.parse_args()
++rpcs = a.rpc or RPCS[:2]; assert len(rpcs) == 2, 'exactly two --rpc'
++f, probs = boot_funding(rpcs, REVIEWED['commit'], EVIDENCE/'boot-funding.json')
++v = {'at': utc(), 'ok': not probs, 'problems': probs}
++if f: v.update(block=f['block'], action=f['action'], balanceWei=f['operator']['balanceWei'], setProofKeyWorstCaseWei=f['setProofKey']['worstCaseWei'],
++               nonce=f['operator']['nonceAtBlock'], pending=f['operator']['pending'])
++(EVIDENCE/'boot-funding-verdict.json').write_text(json.dumps(v, indent=2) + '\n'); print(json.dumps(v, indent=2))
++if probs: sys.exit(1)
+diff --git a/guestrows.py b/guestrows.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..4f70d73ee98163b9cad165b88b41fded2a675a34
+--- /dev/null
++++ b/guestrows.py
+@@ -0,0 +1,41 @@
++# The ONE reading of /availability instanceSweep.held per app, used by activate.py (pre-cutover baseline) and by
++# verify-operational.py (the gate). guestd's own vm status enum (isolation/m4/guestd/server.go) is exactly:
++#   "starting" -> "running" -> (ended: removed from the map) | "failed" (kept until the supervisor deletes it).
++# held rows carry {id (deployment), vm, status (v.status or null), owned}. guestd RETAINS failed guests as tombstones beside
++# the live one (metal0 07:51Z: image-generator held gd491817b2 running plus 3 failed rows), so per app:
++#   - "failed" rows are terminal HISTORY: recorded as evidence, never deleted here, never counted as the live guest;
++#   - every other row is a NONTERMINAL candidate ("starting", "running", null or any status this code does not know -
++#     unknown fails closed); there must be exactly ONE, it must be "running" and owned, with a well-formed guest id.
++import re
++TERMINAL = {'failed'}
++VM = re.compile(r'[A-Za-z0-9-]{1,64}')
++
++def rows_of(held, app):
++    return [r for r in (held or []) if str(r.get('id', '')).lower() == app]
++
++def classify(held, app):
++    """-> (live_rows, history_vms): every non-failed row of the app, and the failed rows' guest ids."""
++    rows = rows_of(held, app)
++    return [r for r in rows if r.get('status') not in TERMINAL], sorted(str(r.get('vm')) for r in rows if r.get('status') in TERMINAL)
++
++def the_live_guest(held, app):
++    """-> (vm, None) for exactly one running, owned, well-formed live guest; else (None, why)."""
++    live, _ = classify(held, app)
++    if not live: return None, 'no live guest (only failed history, or none)'
++    if len(live) > 1: return None, 'more than one nonterminal guest: ' + ', '.join(f"{r.get('vm')}={r.get('status')}" for r in live)
++    r = live[0]
++    if r.get('status') != 'running': return None, f"its only nonterminal guest {r.get('vm')} is {r.get('status')!r}, not running"
++    if r.get('owned') is not True: return None, f"its running guest {r.get('vm')} is not owned"
++    if not VM.fullmatch(str(r.get('vm'))): return None, f"malformed guest id {r.get('vm')!r}"
++    return str(r['vm']), None
++
++def baseline(held, apps):
++    """Pre-cutover baseline: {app: {'guest': vm, 'history': [failed vms]}}; raises naming every app that does not have
++    exactly one running owned guest."""
++    out, bad = {}, []
++    for app in apps:
++        vm, why = the_live_guest(held, app)
++        if why: bad.append(f'{app[:10]}: {why}')
++        else: out[app] = {'guest': vm, 'history': classify(held, app)[1]}
++    if bad: raise AssertionError('pre-cutover baseline refused: ' + '; '.join(bad))
++    return out
+diff --git a/keep.py b/keep.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..f6d03fb28459c5480cf39db74afbe7a185bccbe4
+--- /dev/null
++++ b/keep.py
+@@ -0,0 +1,35 @@
++# PHASE 5 (ROOT EXECUTES after its own fresh attestation + capability check): records KEEP; changes nothing on the host.
++#   python3 keep.py --checked-attestation <root's fresh attestation/capability evidence file>
++#                   [--audit <root's chain audit output> --verified <app id>=<tx> ...]
++# Re-asserts read-only, at keep time: attached at the approved candidate; both apps actually healthy; each app's ONE live guest is still the
++# baseline guest. Renewal proof is recorded where available (audited --verified pairs must be renewals renewal-watch.py saw);
++# without it the keep records "renewals pending audit" honestly - the lease code is byte-identical to deabf8f90's.
++import argparse, json
++from common import *
++NEW = load_new()
++import apphealth, guestrows
++ap = argparse.ArgumentParser(); ap.add_argument('--checked-attestation', required=True)
++ap.add_argument('--audit'); ap.add_argument('--verified', action='append', default=[])
++ap.add_argument('--availability', default='https://api.enclave.host/t/metal0/availability')
++a = ap.parse_args()
++r = json.loads((A/'result.json').read_text())
++assert r.get('productionActivated') == 'provisional', 'not provisional: ' + r.get('state', '')
++assert public_attestation(get)['operatorAllowlist']['admittedAtAttach'] == NEW['measurement'], 'not attached at the approved candidate'
++specs = apphealth.load_specs(A/'apps-health.json', list(APPS))
++for i, s in specs.items(): ok, d = apphealth.check(s); assert ok, f'{i[:10]} not healthy ({d})'
++st, body = get(a.availability); assert st == 200
++held = json.loads(body)['instanceSweep']['held']
++for i in APPS: vm, why = guestrows.the_live_guest(held, i); assert vm == r['preCutoverGuests'][i], f'{i[:10]}: {vm or why} is not the baseline guest'
++ev = Path(a.checked_attestation).read_bytes(); assert NEW['measurement'].encode() in ev, 'the attestation evidence does not name the approved candidate'
++v = dict(x.lower().split('=', 1) for x in a.verified)
++if v:
++    assert a.audit, '--verified needs --audit'
++    obs = {k.lower(): t.lower() for k, t in r.get('renewalsObserved', {}).items()}
++    assert all(obs.get(k) == t for k, t in v.items()), 'an audited transaction is not a renewal renewal-watch.py recorded'
++    audit = Path(a.audit).read_bytes().lower()
++    for t in v.values(): assert t.encode() in audit, f'{t} is not in the audit output'
++r.update(state=f'KEPT: {NEW["measurement"][:8]} attached, same guests, gate v4 passed, root attestation checked'
++               + ('; app-paid renewals audited: ' + ','.join(k[:10] for k in v) if v else '; app-paid renewals pending root audit'),
++         productionActivated=True, keptAt=utc(), attestationEvidence={'file': str(Path(a.checked_attestation).resolve()), 'sha256': sha(ev)},
++         **({'audit': {'file': str(Path(a.audit).resolve()), 'sha256': sha(Path(a.audit).read_bytes()), 'verified': v}} if v else {}))
++(A/'result.json').write_text(json.dumps(r, indent=2) + '\n'); print(r['state'])
+diff --git a/logs/b1.guard.log b/logs/b1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/logs/b1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/logs/b1.out b/logs/b1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..e47a6ee0ab2c9f63fc4c40d8d72e024f00c38756
+--- /dev/null
++++ b/logs/b1.out
+@@ -0,0 +1,24 @@
++[queue] START available=23737MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
++{
++  "commit": "9f6d37bd858ad44be1171b6415353910214c2fa5",
++  "parent": "a6b1378cdf430217025987d90c040d0e25a9993d",
++  "supervisorSha256": "37e6a34078c2fa1d5ca835a619a115c86e7aca273324924eecda45e7346bab0b",
++  "measurement": "08d1f838d51274571fdf17b635606d20a6e7250f74d6676217eea40733a8d269aaf52edb85aac4a9ad1cc5c53318a000",
++  "name": "dist-leasegas-9f6d37bd8",
++  "files": {
++    "MEASUREMENT": "6d55c0e2839e5a1aad1258ce80ec112181f155c50be9f5ad1f66f1bb44064537",
++    "cmdline": "d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8",
++    "initramfs.cpio.gz": "02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf",
++    "manifest.json": "64bd025db3ed62b82f016ed25f1bd24ab300dbe7520ca81498d3ccd293e43b16",
++    "vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
++  },
++  "approvedCommitSha256": "f32ab10418d261e562a1c13db7d12fa7f4560a620602a2349753322a3ced5116",
++  "buildLogSha256": "89ba2d1b75e766a95d3f6a12e09ee97c2baad3df4c5bb2e9d98b6647b9bba0ba",
++  "recordedAt": "2026-10-23T22:07:33.675298+00:00",
++  "buildLog": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/logs/root-build-approved.out",
++  "stagedFrom": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage-approved/dist-leasegas-9f6d37bd8"
++}
++ROOT: review build.json, then write APPROVED-BUILD.txt containing exactly: build-sha256 68b1c391f60a5c942a052bfa7bc14ecc9f5430769a0f5ce6a9965dd049588fc2
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/b1.rc b/logs/b1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/b1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/t1.guard.log b/logs/t1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..b8fb5ed6b715004512a2878e44321c36085eeb19
+--- /dev/null
++++ b/logs/t1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=146 minHostAvailableMiB=23975
+diff --git a/logs/t1.out b/logs/t1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..45a829e7c5a292d20bc36d922a906bed35848222
+--- /dev/null
++++ b/logs/t1.out
+@@ -0,0 +1,139 @@
++[queue] START available=24172MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++== python
++test_additive_36_to_37_in_installed_order (test_activation.Admission.test_additive_36_to_37_in_installed_order) ... ok
++test_refusals (test_activation.Admission.test_refusals) ... ok
++test_refusals (test_activation.BootFunding.test_refusals) ... ok
++test_root_actual_read_passes_with_headroom (test_activation.BootFunding.test_root_actual_read_passes_with_headroom) ... ok
++test_runner_failure_refuses (test_activation.BootFunding.test_runner_failure_refuses) ... ok
++test_approval_and_plan (test_activation.Build.test_approval_and_plan) ... ok
++test_refusals (test_activation.Build.test_refusals) ... ok
++test_source_is_the_reviewed_commit (test_activation.Build.test_source_is_the_reviewed_commit) ... ok
++test_staged_dir_hashes (test_activation.Build.test_staged_dir_hashes) ... ok
++test_the_actual_completed_build_passes (test_activation.Build.test_the_actual_completed_build_passes) ... ok
++test_activation_after_the_write_is_the_first_attempts (test_activation.FirstAttemptCodeUnchanged.test_activation_after_the_write_is_the_first_attempts)
++Everything from the write on (restart, attach, adoption of the SAME guests, gate v4, renewals, rollback) is unchanged ... ok
++test_gate_files_are_the_reviewed_byte_copies (test_activation.FirstAttemptCodeUnchanged.test_gate_files_are_the_reviewed_byte_copies) ... ok
++test_shared_functions_are_the_first_attempts_source (test_activation.FirstAttemptCodeUnchanged.test_shared_functions_are_the_first_attempts_source) ... ok
++test_availability_absent_is_recorded_never_pretended (test_activation.GuestdBaseline.test_availability_absent_is_recorded_never_pretended) ... ok
++test_collect_end_to_end_with_stubs (test_activation.GuestdBaseline.test_collect_end_to_end_with_stubs) ... ok
++test_exact_original_guests_pass_and_only_kept_fields (test_activation.GuestdBaseline.test_exact_original_guests_pass_and_only_kept_fields) ... ok
++test_listing_must_be_fresh_and_private (test_activation.GuestdBaseline.test_listing_must_be_fresh_and_private) ... ok
++test_original_baseline_is_pinned (test_activation.GuestdBaseline.test_original_baseline_is_pinned) ... ok
++test_refusals (test_activation.GuestdBaseline.test_refusals) ... ok
++test_preflight (test_activation.Preconditions.test_preflight) ... ok
++test_baseline_passes (test_activation.Protected.test_baseline_passes) ... ok
++test_every_protected_field_refuses (test_activation.Protected.test_every_protected_field_refuses) ... ok
++test_cas_refuses_changed_env_or_existing_backup_and_restores_on_failed_restart (test_activation.RemoteScripts.test_cas_refuses_changed_env_or_existing_backup_and_restores_on_failed_restart) ... ok
++test_cas_success_keeps_the_first_backup (test_activation.RemoteScripts.test_cas_success_keeps_the_first_backup) ... ok
++test_only_dist_changes_every_other_byte_preserved (test_activation.RewriteDist.test_only_dist_changes_every_other_byte_preserved) ... ok
++test_refuses_concurrent_config_change (test_activation.SafeRollback.test_refuses_concurrent_config_change) ... ok
++test_stop_first_wait_deadline_then_restore_and_start (test_activation.SafeRollback.test_stop_first_wait_deadline_then_restore_and_start) ... ok
++test_unreadable_journal_waits_the_ttl_bound (test_activation.SafeRollback.test_unreadable_journal_waits_the_ttl_bound) ... ok
++
++----------------------------------------------------------------------
++Ran 28 tests in 0.199s
++
++OK
++== node
++TAP version 13
++# Subtest: viem default max fee = ceil(base x 1.2) + tip
++ok 1 - viem default max fee = ceil(base x 1.2) + tip
++  ---
++  duration_ms: 0.664104
++  type: 'test'
++  ...
++# Subtest: root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
++ok 2 - root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
++  ---
++  duration_ms: 0.172668
++  type: 'test'
++  ...
++# Subtest: L1 and operator fees count; the size argument must cover the signed maximum
++ok 3 - L1 and operator fees count; the size argument must cover the signed maximum
++  ---
++  duration_ms: 0.212138
++  type: 'test'
++  ...
++# Subtest: the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
++ok 4 - the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
++  ---
++  duration_ms: 2.941146
++  type: 'test'
++  ...
++# Subtest: the decision is the reviewed commit's bootRegistrationAction; any other commit is refused
++ok 5 - the decision is the reviewed commit's bootRegistrationAction; any other commit is refused
++  ---
++  duration_ms: 6.513487
++  type: 'test'
++  ...
++# Subtest: root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
++ok 6 - root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
++  ---
++  duration_ms: 58.226772
++  type: 'test'
++  ...
++# Subtest: refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
++ok 7 - refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
++  ---
++  duration_ms: 339.849937
++  type: 'test'
++  ...
++# Subtest: RPC disagreement or a non-Base RPC refuses before any decision
++ok 8 - RPC disagreement or a non-Base RPC refuses before any decision
++  ---
++  duration_ms: 1.25095
++  type: 'test'
++  ...
++1..8
++# tests 8
++# suites 0
++# pass 8
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 551.800935
++== mutants
++control (unmutated copy) passes
++KILLED   config-before-stop
++KILLED   no-deadline-wait
++KILLED   no-concurrent-config-cas
++KILLED   no-dropin-check
++KILLED   non-additive-admission
++KILLED   cas-no-restore
++KILLED   small-margin-ok
++KILLED   admission-drops-prior
++KILLED   admission-count-ignored
++KILLED   build-any-approval
++KILLED   build-marker-at-least-once
++KILLED   build-a6-image-ok
++KILLED   build-kernel-may-change
++KILLED   build-measurement-file-unchecked
++KILLED   source-bytes-unchecked
++KILLED   approval-unchecked
++KILLED   plan-unchecked
++KILLED   guestd-replacement-adopted
++KILLED   guestd-starting-ok
++KILLED   guestd-no-record-ok
++KILLED   guestd-history-ignored
++KILLED   guestd-two-live-ok
++KILLED   guestd-stale-listing-ok
++KILLED   guestd-public-listing-ok
++KILLED   availability-pretends-adopted
++KILLED   funding-register-accepted
++KILLED   funding-fields-ignored
++KILLED   funding-pending-ignored
++KILLED   funding-no-headroom
++KILLED   funding-delegation-ignored
++KILLED   funding-stale-ok
++KILLED   funding-min-gas
++mutants 32 survived 0
++== scan
++3:06PM INF scanned ~158558 bytes (158.56 KB) in 25.2ms
++3:06PM INF no leaks found
++literal files []
++[scan] files 33 gitleaks=0 scan-crypto-keys=0 literal=0
++== RESULT rc=0
++[memory-guard] exit=0 peakTreeRssMiB=146 minHostAvailableMiB=23975
++[memory-guard] at peak: node:73 node:54 python3:13 bash:6
++[queue] EXIT 0
+diff --git a/logs/t1.rc b/logs/t1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/t1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/t2.guard.log b/logs/t2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d1e4fffd745a5625f9c3ae1f05dad98f20491154
+--- /dev/null
++++ b/logs/t2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=157 minHostAvailableMiB=23525
+diff --git a/logs/t2.out b/logs/t2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..7adadf7d3e040031b992f5aeed455e43c7ad81df
+--- /dev/null
++++ b/logs/t2.out
+@@ -0,0 +1,139 @@
++[queue] START available=23727MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++== python
++test_additive_36_to_37_in_installed_order (test_activation.Admission.test_additive_36_to_37_in_installed_order) ... ok
++test_refusals (test_activation.Admission.test_refusals) ... ok
++test_refusals (test_activation.BootFunding.test_refusals) ... ok
++test_root_actual_read_passes_with_headroom (test_activation.BootFunding.test_root_actual_read_passes_with_headroom) ... ok
++test_runner_failure_refuses (test_activation.BootFunding.test_runner_failure_refuses) ... ok
++test_approval_and_plan (test_activation.Build.test_approval_and_plan) ... ok
++test_refusals (test_activation.Build.test_refusals) ... ok
++test_source_is_the_reviewed_commit (test_activation.Build.test_source_is_the_reviewed_commit) ... ok
++test_staged_dir_hashes (test_activation.Build.test_staged_dir_hashes) ... ok
++test_the_actual_completed_build_passes (test_activation.Build.test_the_actual_completed_build_passes) ... ok
++test_activation_after_the_write_is_the_first_attempts (test_activation.FirstAttemptCodeUnchanged.test_activation_after_the_write_is_the_first_attempts)
++Everything from the write on (restart, attach, adoption of the SAME guests, gate v4, renewals, rollback) is unchanged ... ok
++test_gate_files_are_the_reviewed_byte_copies (test_activation.FirstAttemptCodeUnchanged.test_gate_files_are_the_reviewed_byte_copies) ... ok
++test_shared_functions_are_the_first_attempts_source (test_activation.FirstAttemptCodeUnchanged.test_shared_functions_are_the_first_attempts_source) ... ok
++test_availability_absent_is_recorded_never_pretended (test_activation.GuestdBaseline.test_availability_absent_is_recorded_never_pretended) ... ok
++test_collect_end_to_end_with_stubs (test_activation.GuestdBaseline.test_collect_end_to_end_with_stubs) ... ok
++test_exact_original_guests_pass_and_only_kept_fields (test_activation.GuestdBaseline.test_exact_original_guests_pass_and_only_kept_fields) ... ok
++test_listing_must_be_fresh_and_private (test_activation.GuestdBaseline.test_listing_must_be_fresh_and_private) ... ok
++test_original_baseline_is_pinned (test_activation.GuestdBaseline.test_original_baseline_is_pinned) ... ok
++test_refusals (test_activation.GuestdBaseline.test_refusals) ... ok
++test_preflight (test_activation.Preconditions.test_preflight) ... ok
++test_baseline_passes (test_activation.Protected.test_baseline_passes) ... ok
++test_every_protected_field_refuses (test_activation.Protected.test_every_protected_field_refuses) ... ok
++test_cas_refuses_changed_env_or_existing_backup_and_restores_on_failed_restart (test_activation.RemoteScripts.test_cas_refuses_changed_env_or_existing_backup_and_restores_on_failed_restart) ... ok
++test_cas_success_keeps_the_first_backup (test_activation.RemoteScripts.test_cas_success_keeps_the_first_backup) ... ok
++test_only_dist_changes_every_other_byte_preserved (test_activation.RewriteDist.test_only_dist_changes_every_other_byte_preserved) ... ok
++test_refuses_concurrent_config_change (test_activation.SafeRollback.test_refuses_concurrent_config_change) ... ok
++test_stop_first_wait_deadline_then_restore_and_start (test_activation.SafeRollback.test_stop_first_wait_deadline_then_restore_and_start) ... ok
++test_unreadable_journal_waits_the_ttl_bound (test_activation.SafeRollback.test_unreadable_journal_waits_the_ttl_bound) ... ok
++
++----------------------------------------------------------------------
++Ran 28 tests in 0.213s
++
++OK
++== node
++TAP version 13
++# Subtest: viem default max fee = ceil(base x 1.2) + tip
++ok 1 - viem default max fee = ceil(base x 1.2) + tip
++  ---
++  duration_ms: 0.657235
++  type: 'test'
++  ...
++# Subtest: root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
++ok 2 - root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
++  ---
++  duration_ms: 0.168429
++  type: 'test'
++  ...
++# Subtest: L1 and operator fees count; the size argument must cover the signed maximum
++ok 3 - L1 and operator fees count; the size argument must cover the signed maximum
++  ---
++  duration_ms: 0.194399
++  type: 'test'
++  ...
++# Subtest: the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
++ok 4 - the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
++  ---
++  duration_ms: 1.687526
++  type: 'test'
++  ...
++# Subtest: the decision is the reviewed commit's bootRegistrationAction; any other commit is refused
++ok 5 - the decision is the reviewed commit's bootRegistrationAction; any other commit is refused
++  ---
++  duration_ms: 8.235022
++  type: 'test'
++  ...
++# Subtest: root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
++ok 6 - root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
++  ---
++  duration_ms: 60.103707
++  type: 'test'
++  ...
++# Subtest: refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
++ok 7 - refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
++  ---
++  duration_ms: 359.340067
++  type: 'test'
++  ...
++# Subtest: RPC disagreement or a non-Base RPC refuses before any decision
++ok 8 - RPC disagreement or a non-Base RPC refuses before any decision
++  ---
++  duration_ms: 1.434138
++  type: 'test'
++  ...
++1..8
++# tests 8
++# suites 0
++# pass 8
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 571.761768
++== mutants
++control (unmutated copy) passes
++KILLED   config-before-stop
++KILLED   no-deadline-wait
++KILLED   no-concurrent-config-cas
++KILLED   no-dropin-check
++KILLED   non-additive-admission
++KILLED   cas-no-restore
++KILLED   small-margin-ok
++KILLED   admission-drops-prior
++KILLED   admission-count-ignored
++KILLED   build-any-approval
++KILLED   build-marker-at-least-once
++KILLED   build-a6-image-ok
++KILLED   build-kernel-may-change
++KILLED   build-measurement-file-unchecked
++KILLED   source-bytes-unchecked
++KILLED   approval-unchecked
++KILLED   plan-unchecked
++KILLED   guestd-replacement-adopted
++KILLED   guestd-starting-ok
++KILLED   guestd-no-record-ok
++KILLED   guestd-history-ignored
++KILLED   guestd-two-live-ok
++KILLED   guestd-stale-listing-ok
++KILLED   guestd-public-listing-ok
++KILLED   availability-pretends-adopted
++KILLED   funding-register-accepted
++KILLED   funding-fields-ignored
++KILLED   funding-pending-ignored
++KILLED   funding-no-headroom
++KILLED   funding-delegation-ignored
++KILLED   funding-stale-ok
++KILLED   funding-min-gas
++mutants 32 survived 0
++== scan
++3:07PM INF scanned ~182448 bytes (182.45 KB) in 28.6ms
++3:07PM INF no leaks found
++literal files []
++[scan] files 47 gitleaks=0 scan-crypto-keys=0 literal=0
++== RESULT rc=0
++[memory-guard] exit=0 peakTreeRssMiB=157 minHostAvailableMiB=23525
++[memory-guard] at peak: node:73 node:54 python3:25 bash:6
++[queue] EXIT 0
+diff --git a/logs/t2.rc b/logs/t2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/t2.rc
+@@ -0,0 +1 @@
++0
+diff --git a/mutants.py b/mutants.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..78681fe119e25718d22a28d61824edbf83710a80
+--- /dev/null
++++ b/mutants.py
+@@ -0,0 +1,57 @@
++"""Mutation check: each mutant weakens ONE guard of common.py; the unchanged python suite must FAIL on it. Copies live BESIDE
++this folder (relative paths stay valid), and an UNMUTATED control copy must pass first, else the run is invalid."""
++import shutil, subprocess, sys
++from pathlib import Path
++A = Path(__file__).resolve().parent; SRC = (A/'common.py').read_text()
++MUT = {
++ # the first attempt's (unchanged code)
++ 'config-before-stop': ("    ops.systemctl('stop', UNIT)\n", "    atomic_config(old_config, config.stat().st_mode & 0o777, config)\n    ops.systemctl('stop', UNIT)\n"),
++ 'no-deadline-wait': ("    if deadlines:\n        wait", "    if False:\n        wait"),
++ 'no-concurrent-config-cas': ("    assert config.read_bytes() == new_config, 'config changed concurrently: refuse overwriting it'\n", ""),
++ 'no-dropin-check': ("    assert ops.read_dropins() == CURRENT['dropins'], 'drop-ins changed concurrently: refuse restarting into an unknown unit'\n", ""),
++ 'non-additive-admission': ("','.join(existing + [new])", "','.join([new])"),
++ 'cas-no-restore': ("    e.write_bytes(old); subprocess.run([SYSTEMCTL, 'restart', SERVICE], check=True, timeout=45)\n    print('ADMISSION-RESTORED after failure')", "    print('ADMISSION-RESTORED after failure')"),
++ 'small-margin-ok': ("<= ROLLBACK_MARGIN_S + ADOPT_S", "<= 0"),
++ # this attempt's
++ 'admission-drops-prior': ("    if prior not in existing: raise", "    if False: raise"),
++ 'admission-count-ignored': ("    if len(existing) != expected: raise", "    if False: raise"),
++ 'build-any-approval': ("    if approved_text != APPROVED_COMMIT_TEXT: out.append", "    if False: out.append"),
++ 'build-marker-at-least-once': ("        if lines.count(w) != 1: out.append", "        if lines.count(w) < 1: out.append"),
++ 'build-a6-image-ok': ("        if inv[f] == h: out.append", "        if False: out.append"),
++ 'build-kernel-may-change': ("        if inv[f] != h: out.append(f'{f} changed", "        if False: out.append(f'{f} changed"),
++ 'build-measurement-file-unchecked': ("    if m is not None and measurement_text != m + '\\n': out.append", "    if False: out.append"),
++ 'source-bytes-unchecked': ("        if sha(git('show', rev['commit'] + ':supervisor.js')) != rev['supervisorSha256']: out.append", "        if False: out.append"),
++ 'approval-unchecked': ("    if appr != f'build-sha256 {sha(raw)}\\n': raise", "    if False: raise"),
++ 'plan-unchecked': ("    if plan.get('buildSha256') != h or plan.get('measurement') != rec['measurement'] or plan.get('files') != rec['files']:\n        raise", "    if False:\n        raise"),
++ 'guestd-replacement-adopted': ("        if str(r.get('id')) != want['guest']: out.append", "        if False: out.append"),
++ 'guestd-starting-ok': ("        if r.get('status') != 'running': out.append", "        if False: out.append"),
++ 'guestd-no-record-ok': ("        if not re.fullmatch(r'[0-9a-f]{64}', str(r.get('recordSha256') or '')): out.append", "        if False: out.append"),
++ 'guestd-history-ignored': ("        if hist != want['history']: out.append", "        if False: out.append"),
++ 'guestd-two-live-ok': ("        if len(live) != 1: out.append", "        if not live: out.append"),
++ 'guestd-stale-listing-ok': ("    if now - st.st_mtime > max_age or", "    if False or"),
++ 'guestd-public-listing-ok': ("    if st.st_mode & 0o077: raise", "    if False: raise"),
++ 'availability-pretends-adopted': ("    if held is None: return 'absent: the old control is not registered and adopted nothing', []", "    if held is None: return 'present and agrees with guestd', []"),
++ 'funding-register-accepted': ("        if f['action'] != {'action': 'setProofKey', 'reason': 'only the proof key differs'}: out.append", "        if f['action'].get('action') not in ('setProofKey', 'register', 'adopt'): out.append"),
++ 'funding-fields-ignored': ("            out.append('the registered fields are not exactly", "            pass  # out.append('the registered fields are not exactly"),
++ 'funding-pending-ignored': ("or [int(x) for x in o['pending']] != [n, n]: out.append", ": out.append"),
++ 'funding-no-headroom': ("'maxAgeS': 360, 'headroomPct': 125,", "'maxAgeS': 360, 'headroomPct': 100,"),
++ 'funding-delegation-ignored': ("        if lc(f['operator']['code']) != P['operatorCode']: out.append", "        if False: out.append"),
++ 'funding-stale-ok': ("        if age >= P['maxAgeS'] or age < -30: out.append", "        if False: out.append"),
++ 'funding-min-gas': ("        if gas != max(int(x) for x in sp['gasEstimates'])", "        if gas != min(int(x) for x in sp['gasEstimates'])"),
++}
++def run(name, src):
++    d = A.parent / f'{A.name}.mut-{name}'
++    if d.exists(): shutil.rmtree(d)
++    shutil.copytree(A, d, ignore=shutil.ignore_patterns('.git', 'logs', '__pycache__', '*.mut-*'))
++    (d/'common.py').write_text(src)
++    r = subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests'], cwd=d, capture_output=True, text=True, timeout=600)
++    shutil.rmtree(d); return r
++c = run('control', SRC)
++if c.returncode != 0: print('CONTROL FAILED: the run is invalid\n' + c.stderr[-2000:]); sys.exit(2)
++print('control (unmutated copy) passes')
++bad = 0
++for name, (a, b) in MUT.items():
++    assert SRC.count(a) == 1, (name, a[:70])
++    r = run(name, SRC.replace(a, b)); killed = r.returncode != 0; bad += not killed
++    print(('KILLED  ' if killed else 'SURVIVED'), name)
++print(f'mutants {len(MUT)} survived {bad}'); sys.exit(1 if bad else 0)
+diff --git a/prebaseline.py b/prebaseline.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c977fc894ee0aeea89d649365b106a698387a16d
+--- /dev/null
++++ b/prebaseline.py
+@@ -0,0 +1,41 @@
++# PHASE 3b (ROOT EXECUTES, read-only; activate.py runs the same collect() again just before the restart):
++#   python3 work/custody-boot-activation-20261023/prebaseline.py --guestd-vms <root's private GET /vms answer, 0600, <= 300 s old>
++# The old control (ed918e4b, restored 21:37Z) is NOT registered and adopted nothing, so /availability has no instanceSweep.held.
++# The pre-cutover baseline is therefore guestd's own list, read by root with its existing AUTHENTICATED guestd client (root alone
++# holds that key; nothing here reads it). Each app must run exactly ONE guest, running, with a record digest, and it must be the
++# guest of the ORIGINAL 21:31:30Z baseline (gd9d4a391d image-generator, gdd0646f2c EyesOff) with the same failed history.
++# /availability is recorded as it is: held absent = "old control adopted nothing" (never pretended otherwise); if present it must
++# agree with guestd. Actual app health must pass now. Writes evidence/guestd-baseline.json (ids, names, statuses, record
++# digests, createdAt and the listing's sha256 only; the raw listing is never copied).
++import argparse, json, sys, time
++from common import *
++import apphealth, guestrows
++
++def collect(guestd_vms, availability, now=None, get=get, fetch=apphealth.fetch, check=apphealth.check):
++    now = time.time() if now is None else now
++    listing, lsha = guestd_listing(guestd_vms, now)
++    base, rows, probs = guestd_baseline(listing, list(APPS), original_baseline())
++    st, body = get(availability)
++    if st != 200: probs.append(f'/availability -> {st}'); held = None; state = 'unreadable'
++    else:
++        held = (json.loads(body).get('instanceSweep') or {}).get('held')
++        state, p = availability_cross_check(held, base, guestrows) if not probs else ('not compared', []); probs += p
++    specs, titles = {}, {}
++    for i, s in APPS.items():
++        spec = dict(s)
++        if s['kind'] == 'html':
++            hs, _ctype, hb = fetch(s['url']); spec.update(minBytes=1024, title=apphealth.title_of(hb) if hs == 200 else None); titles[i] = spec['title']
++        ok, detail = check(spec)
++        if not ok: probs.append(f'{i[:10]} is not actually healthy BEFORE the cutover ({detail})')
++        specs[i] = spec
++    return {'at': utc(), 'readOnly': True, 'source': {'guestdListingSha256': lsha, 'rows': len(rows)},
++            'original': {'file': str(ORIGINAL['file'].name), 'sha256': ORIGINAL['sha256'], 'guests': ORIGINAL['guests']},
++            'apps': base, 'otherGuests': [r for r in rows if str(r.get('name', '')).lower() not in APPS],
++            'availability': state, 'oldControlAdopted': state == 'present and agrees with guestd', 'health': specs, 'problems': probs}
++
++if __name__ == '__main__':
++    ap = argparse.ArgumentParser(); ap.add_argument('--guestd-vms', required=True)
++    ap.add_argument('--availability', default='https://api.enclave.host/t/metal0/availability'); a = ap.parse_args()
++    out = collect(a.guestd_vms, a.availability)
++    (EVIDENCE/'guestd-baseline.json').write_text(json.dumps(out, indent=2) + '\n'); print(json.dumps(out, indent=2))
++    if out['problems']: sys.exit(1)
+diff --git a/preflight.mjs b/preflight.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..8fa2271de6df77decab62fde9be7f29d0dbf71ef
+--- /dev/null
++++ b/preflight.mjs
+@@ -0,0 +1,46 @@
++// PHASE 3 (ROOT EXECUTES, read-only, minutes before activate.py): node work/custody-recipient-activation-20261023/preflight.mjs
++// The reviewed linux-lease-root-release/live-preflight.mjs logic (quorum-verified lease authority, each app's ledger row,
++// reserve, renew budget and runner's registry entry), with two corrections: the lease modules are imported from the restore
++// repo at a6b1378c and asserted byte-equal to PRODUCTION's release (~/enclave-prod/metal-deabf8f90), not work/enclave's
++// (whose lease-gas-owner/lease-executor-client differ); the apps are the explicit two ids, not a funding-proposal slice.
++// Output: a NEW file evidence/lease-preflight.json (plus a timestamped copy). Reads public chain state only.
++import fs from 'node:fs';
++import path from 'node:path';
++import crypto from 'node:crypto';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++const HERE = path.dirname(fileURLToPath(import.meta.url));
++const REPO = path.resolve(HERE, '../custody-recipient-restore-20261023/repo'), PROD = '/home/steven/enclave-prod/metal-deabf8f90';
++const MODS = ['client/lease-executor-authority.mjs', 'network/lease-gas-owner.mjs', 'client/lease-executor-client.mjs'];
++const h = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
++for (const m of MODS) if (h(path.join(REPO, m)) !== h(path.join(PROD, m))) throw new Error(`${m} differs from the production release`);
++const imp = (m) => import(pathToFileURL(path.join(REPO, m)).href);
++const { createPublicClient, http } = await import(pathToFileURL(path.join(REPO, 'node_modules/viem/_esm/index.js')).href);
++const { verifiedLeaseAuthority } = await imp(MODS[0]);
++const { parseDeploymentRecord, LEDGER_ABI, OWNER_ABI, REGISTRY_ABI } = await imp(MODS[1]);
++const { STATUS, KIND } = await imp(MODS[2]);
++const IDS = ['0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9', '0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c'];
++const deployment = parseDeploymentRecord(fs.readFileSync('/home/steven/enclave-prod/lease-gas/deployment.json'),
++  { expectedDigest: 'sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089' });
++const urls = ['https://base-rpc.publicnode.com', 'https://mainnet.base.org', 'https://base-mainnet.public.blastapi.io'];
++const clients = urls.map((url) => createPublicClient({ transport: http(url, { timeout: 12000, retryCount: 0 }) }));
++const a = await verifiedLeaseAuthority({ clients, deployment, quorum: 2 });
++const rows = [];
++for (const id of IDS) {
++  const dep = await a.client.readContract({ address: a.pins.ledger, abi: LEDGER_ABI, functionName: 'get', args: [id] });
++  const [reserve, renew, host] = await Promise.all([
++    a.client.readContract({ address: a.pins.reserve, abi: OWNER_ABI, functionName: 'reserveOf', args: [id, dep.owner] }),
++    a.client.readContract({ address: a.pins.reserve, abi: OWNER_ABI, functionName: 'statusOf', args: [id, KIND.renew, dep.runner, dep.runnerOperator] }),
++    a.client.readContract({ address: a.pins.registry, abi: REGISTRY_ABI, functionName: 'get', args: [dep.runner] })]);
++  rows.push({ id, owner: dep.owner, active: dep.active, runner: dep.runner, runnerOperator: dep.runnerOperator, leaseUntil: dep.leaseUntil,
++    leaseRemainingSeconds: dep.leaseUntil - a.block.timestamp, reserve, renewStatus: STATUS[Number(renew[0])],
++    renewBudget: { availableWei: renew[1], epochLeftWei: renew[2], maxPerOpWei: renew[3] }, hostActive: host.active, hostOperator: host.operator });
++}
++const data = { at: new Date().toISOString(), readOnly: true, modules: Object.fromEntries(MODS.map((m) => [m, h(path.join(REPO, m))])),
++  quorum: a.quorum, agreeing: a.agreeing, block: a.block, rows };
++const text = JSON.stringify(data, (_k, v) => (typeof v === 'bigint' ? v.toString() : v), 2) + '\n';
++fs.mkdirSync(path.join(HERE, 'evidence'), { recursive: true });
++fs.writeFileSync(path.join(HERE, 'evidence', `lease-preflight-${data.at.replace(/[:.]/g, '')}.json`), text);
++fs.writeFileSync(path.join(HERE, 'evidence', 'lease-preflight.json'), text);
++console.log(JSON.stringify({ at: data.at, block: String(a.block.number), agreeing: a.agreeing,
++  rows: rows.map((r) => ({ id: r.id.slice(0, 10), leaseRemainingSeconds: String(r.leaseRemainingSeconds), enabled: r.reserve.enabled,
++    balanceWei: String(r.reserve.balanceWei), renewStatus: r.renewStatus, hostActive: r.hostActive })) }));
+diff --git a/prepare-admission.py b/prepare-admission.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..376e6eea526f3c68aeb8b1c9f691c323b078d136
+--- /dev/null
++++ b/prepare-admission.py
+@@ -0,0 +1,26 @@
++# PHASE 1 (ROOT EXECUTES, read-only, after stage.py): python3 work/custody-boot-activation-20261023/prepare-admission.py
++# Reads (a) the PUBLIC attestation allowlist, (b) over root's SSH, READ-ONLY, the relay's installed measurement env file
++# (its sha256 and body - a public measurement list, no secret) and its drop-in sha256 and the API service state.
++# Asserts: the installed file is the first attempt's admission (85d5f14d...: the 35 + ee5df6b8) holding exactly the 36 public
++# measurements, the running ed918e4b and ee5df6b8 among them, the approved candidate not yet; the drop-in is the installed one.
++# Writes admission.json + measurement.env (ADDITIVE: all 36 in their installed order, then the candidate = 37; nothing removed).
++# Changes nothing anywhere.
++import json, sys
++from common import *
++NEW = load_new()
++assert not (A/'admission.json').exists(), 'already prepared: inspect'
++att = public_attestation(get); al = att['operatorAllowlist']
++assert al['admittedAtAttach'] == CURRENT['measurement'], f"production attached at {al['admittedAtAttach'][:16]}, not ed918e4b"
++code, out, err = run_remote(remote(REMOTE_READ, (RELAY['env'], RELAY['dropin'], 'systemctl', RELAY['service'])))
++if code: sys.exit(f'remote read failed ({code}): {err.strip()[:300]}')
++r = json.loads(out.strip().splitlines()[-1])
++assert r['serviceActive'] == 'active', r['serviceActive']
++assert r['envSha256'] == RELAY['installedSha256'], f"installed env {r['envSha256'][:16]} is not the 21:30Z admission (85d5f14d): inspect first"
++assert r['dropinSha256'] == RELAY['dropinSha256'], 'the admission drop-in changed: inspect first'
++existing, body = admission_body(r['envBody'], al['measurements'], NEW['measurement'])
++(A/'measurement.env').write_text(body)
++rec = {'at': utc(), 'stage': 'prepared only', 'existing': existing, 'added': NEW['measurement'], 'admittedAtAttach': al['admittedAtAttach'],
++       'replacesInstalledSha256': r['envSha256'], 'environmentSha256': sha(body.encode()), 'dropinSha256': r['dropinSha256'],
++       'remoteBackup': RELAY['env'] + '.before-' + NEW['commit'][:9]}
++(A/'admission.json').write_text(json.dumps(rec, indent=2) + '\n')
++print(json.dumps({'existing': len(existing), 'added': NEW['measurement'][:16], 'replaces': r['envSha256'][:16], 'new': rec['environmentSha256'][:16]}))
+diff --git a/q.sh b/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..f69b7de1730e7634fb481a8924488479d2eeeeba
+--- /dev/null
++++ b/q.sh
+@@ -0,0 +1,11 @@
++#!/bin/bash
++# q.sh MIB NAME CMD... : run CMD through the unchanged shared queue, retrying only on exit 98 (NOT STARTED); keeps every try.
++mib=$1; name=$2; shift 2
++d=$(cd "$(dirname "$0")" && pwd)/logs
++[ ! -e "$d/$name.rc" ] || { echo "$name.rc exists"; exit 2; }
++for i in $(seq 2 200); do
++  python3 -u /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib "$mib" --log "$d/$name.guard.log" -- "$@" > "$d/$name.out" 2>&1
++  rc=$?; [ $rc -ne 98 ] && break
++  mv "$d/$name.out" "$d/$name.try$i.out"; sleep 10
++done
++echo $rc > "$d/$name.rc"; exit $rc
+diff --git a/recheck-admission.py b/recheck-admission.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..b3f506451d986b6e923275df26bfb68c522709f4
+--- /dev/null
++++ b/recheck-admission.py
+@@ -0,0 +1,10 @@
++# PHASE 2b (ROOT EXECUTES, read-only): the PUBLIC allowlist now lists all 36 + the approved candidate (37), and metal0 is still
++# attached at ed918e4b.
++import json
++from common import *
++ad = json.loads((A/'admission.json').read_text()); assert ad['stage'] == 'installed; public endpoint recheck pending'
++al = public_attestation(get)['operatorAllowlist']
++assert al['admittedAtAttach'] == CURRENT['measurement'], 'metal0 is not attached at ed918e4b after the relay restart: inspect'
++assert sorted(al['measurements']) == sorted(ad['existing'] + [ad['added']]), 'public allowlist is not existing + candidate'
++ad.update(stage='verified active; old control still connected', verifiedAt=utc()); (A/'admission.json').write_text(json.dumps(ad, indent=2) + '\n')
++print(json.dumps({'stage': ad['stage'], 'allowed': len(al['measurements'])}))
+diff --git a/renewal-watch.py b/renewal-watch.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..0eef6188367b6485abcb1334a98dc1dc05c6ae20
+--- /dev/null
++++ b/renewal-watch.py
+@@ -0,0 +1,13 @@
++# READ-ONLY (ROOT, any time after activate.py): records every "[lease-gas] renew <id> landed in <tx>" line the new control has
++# logged since its start into result.json renewalsObserved (no host change). Root audits those transactions on chain
++# (e.g. work/lease-relay-activation/audit-paid-leases.mjs) and passes them to keep.py --verified.
++import json, re
++from common import *
++r = json.loads((A/'result.json').read_text()); assert r.get('journalSince'), 'no activation recorded'
++lines = journal(r['journalSince'])
++for i in APPS:
++    for l in lines:
++        m = re.match(r'^\[lease-gas\] renew ' + i + r' landed in (0x[0-9a-f]{64})', l)
++        if m: r.setdefault('renewalsObserved', {})[i] = m.group(1)
++r['renewalWarnings'] = [l[:200] for l in lines if l.startswith('[lease-gas] ') and ' not sent' in l][-6:]; r['renewalWatchAt'] = utc()
++(A/'result.json').write_text(json.dumps(r, indent=2) + '\n'); print(json.dumps({'renewalsObserved': r['renewalsObserved'], 'warnings': len(r['renewalWarnings'])}))
+diff --git a/rollback.py b/rollback.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..856ee8dfddf49237f422fbc92b47234b82cf4106
+--- /dev/null
++++ b/rollback.py
+@@ -0,0 +1,17 @@
++# ROOT EXECUTES to roll back a PROVISIONAL or kept activation: the same safe rollback activate.py uses on failure (stop the
++# new control first, wait out every sponsored deadline it logged on a verified block, CAS-restore config.json from THIS
++# directory's private-backup, start the previous control on dist-leasegas-deabf8f90 / ed918e4b, still admitted).
++# NOTE: a rollback does NOT restore the host's registry registration: the previous control's boot still needs a full
++# register() (the 21:37Z state: not registered, nothing adopted). Root may need to maintain the app leases separately.
++# The private backup is only compared and written back, never printed. guestd, guests, drop-ins and journals are not touched.
++import json
++from common import *
++r = json.loads((A/'result.json').read_text())
++old = (A/'private-backup/config.json').read_bytes(); new = CONFIG.read_bytes()
++assert sha(new) == r['configAfterSha256'], 'the active config is not the one activate.py wrote'
++assert sha(old) == r['configBeforeSha256']
++assert r.get('productionActivated') in ('provisional', True), 'nothing to roll back: ' + r.get('state', '')
++def save(): (A/'result.json').write_text(json.dumps(r, indent=2) + '\n')
++r['rollbackRequestedAt'] = utc(); save()
++safe_rollback(r, save, since=r['journalSince'], old_config=old, new_config=new)
++r['state'] = 'rolled back to the previous control image (operator)'; save(); print(r['state'])
+diff --git a/run-tests.sh b/run-tests.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..ee206e777a495e5c478e49df3280f40fd55143fe
+--- /dev/null
++++ b/run-tests.sh
+@@ -0,0 +1,14 @@
++#!/bin/bash
++# The whole check, one queue job: syntax, python unit tests, node tests (boot-funding against a stub chain + the python gate;
++# fee arithmetic), mutation check of the guards, secret/literal scans of every file to be committed.
++set -uo pipefail
++cd "$(dirname "$0")"
++rc=0
++for f in *.py tests/*.py; do python3 -m py_compile "$f" || rc=1; done
++for f in *.mjs tests/*.mjs; do node --check "$f" || rc=1; done
++echo "== python"; python3 -m unittest discover -s tests -v 2>&1 | tail -80; [ "${PIPESTATUS[0]}" -eq 0 ] || rc=1
++echo "== node"; node --test tests/boot-funding.test.mjs fee-fit.test.mjs || rc=1
++echo "== mutants"; python3 mutants.py || rc=1
++echo "== scan"; bash scan.sh || rc=1
++find . -name __pycache__ -prune -exec rm -rf {} +
++echo "== RESULT rc=$rc"; exit $rc
+diff --git a/scan.sh b/scan.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..9656d408f3c8b2c2371ddbd21fa973e635fd6e49
+--- /dev/null
++++ b/scan.sh
+@@ -0,0 +1,18 @@
++#!/bin/bash
++# Secret + rewritten-literal scans (checkpoint's own unchanged scanners/config) of every file to be committed: the outer
++# files to be committed (git ls-files: tracked + untracked not ignored).
++set -uo pipefail
++cd "$(dirname "$0")"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++st=$(mktemp -d)
++for f in $(git ls-files --others --cached --exclude-standard); do mkdir -p "$st/$(dirname $f)"; cp "$f" "$st/$f"; done
++cfg=$(mktemp); git -C "$CKR" show HEAD:.gitleaks.toml > "$cfg"
++timeout -k 5 120 /home/steven/.local/bin/gitleaks dir "$st" --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path logs/scan-gitleaks.json; g=$?; rm -f "$cfg"
++find "$st" -type f -print0 | xargs -0 timeout -k 5 120 python3 "$CKR/.githooks/scan-crypto-keys.py" --files; k=$?
++python3 - "$st" <<'PY'; l=$?
++import pathlib, sys
++OLD = bytes.fromhex('54696e666f696c'); bad = [str(p) for p in pathlib.Path(sys.argv[1]).rglob('*') if p.is_file() and (OLD in p.read_bytes() or OLD.lower() in p.read_bytes())]
++print('literal files', bad); sys.exit(1 if bad else 0)
++PY
++echo "[scan] files $(find "$st" -type f | wc -l) gitleaks=$g scan-crypto-keys=$k literal=$l"; rm -rf "$st"
++[ $g -eq 0 ] && [ $k -eq 0 ] && [ $l -eq 0 ]
+diff --git a/stage.py b/stage.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8f24ecf66643c77f878d926d6b5df28950d66953
+--- /dev/null
++++ b/stage.py
+@@ -0,0 +1,30 @@
++# PHASE 0 (ROOT EXECUTES after approving build.json): python3 work/custody-boot-activation-20261023/stage.py
++# Copies ONLY the approved image dir into ~/enclave-prod/dist-leasegas-9f6d37bd8 (via .staging, then rename), re-verifying
++# root's approval, the reviewed source commit, the build log and every file hash first. No release dir is staged
++# (WorkingDirectory stays metal-deabf8f90: the launcher files are byte-identical). Never overwrites; deabf8f90's image stays
++# the rollback, a6b1378cd's stays as it is. No config, drop-in or service is touched. Writes plan.json.
++import json, shutil, os, sys
++from common import *
++os.umask(0o022)
++rec, h = approved_build(A/'build.json', A/'APPROVED-BUILD.txt')
++probs = source_problems()
++log = Path(rec['buildLog']).read_bytes()
++if sha(log) != rec['buildLogSha256']: probs.append('the build log changed since build.json')
++again, p = build_problems(log.decode(), (RESTORE/'APPROVED-COMMIT.txt').read_text(), (REVIEWED['stage']/'INVENTORY.sha256').read_text(),
++                          (REVIEWED['stage']/REVIEWED['name']/'MEASUREMENT').read_text())
++probs += p
++if again and {k: again[k] for k in again} != {k: rec[k] for k in again}: probs.append('the build no longer derives build.json')
++src = Path(rec['stagedFrom']); dest = Path('/home/steven/enclave-prod')/REVIEWED['name']; tmp = dest.with_name(dest.name + '.staging')
++if src != REVIEWED['stage']/REVIEWED['name']: probs.append('build.json names another staged dir')
++probs += staged_problems(src, rec['files'])
++if probs: sys.exit('REFUSED: ' + '; '.join(probs))
++assert not (A/'plan.json').exists(), 'already staged: inspect'
++assert not dest.exists() and not tmp.exists(), 'destination exists: inspect rather than overwrite'
++for d in (CURRENT['dist'], CURRENT['workingDirectory']): assert Path(d).is_dir(), f'rollback target {d} missing'
++shutil.copytree(src, tmp)
++assert not staged_problems(tmp, rec['files']), 'the copy differs'
++os.rename(tmp, dest)
++plan = {'at': utc(), 'stage': 'image staged; no config or service changed', 'image': str(dest), 'measurement': rec['measurement'],
++        'commit': rec['commit'], 'files': rec['files'], 'buildSha256': h, 'previousImage': CURRENT['dist'],
++        'previousMeasurement': CURRENT['measurement'], 'workingDirectory': CURRENT['workingDirectory'], 'apps': {i: s['url'] for i, s in APPS.items()}}
++(A/'plan.json').write_text(json.dumps(plan, indent=2) + '\n'); print(json.dumps(plan, indent=2))
+diff --git a/tests/boot-funding.test.mjs b/tests/boot-funding.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..d0fbc11ad233788c9dd3e0e5301993610d0efc71
+--- /dev/null
++++ b/tests/boot-funding.test.mjs
+@@ -0,0 +1,102 @@
++// boot-funding.mjs against a stub two-RPC chain (no network), decided by the REAL python gate (common.boot_funding_problems),
++// with the reviewed commit's own bootRegistrationAction read from H's git objects.
++import test from "node:test";
++import assert from "node:assert/strict";
++import path from "node:path";
++import { spawnSync } from "node:child_process";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { collect, reviewedDecision, H_REPO, PINS, ROW, ORACLE, REG } from "../boot-funding.mjs";
++
++const HERE = path.dirname(fileURLToPath(import.meta.url)), A = path.resolve(HERE, "..");
++const viem = await import(pathToFileURL(path.join(H_REPO, "node_modules/viem/_esm/index.js")).href);
++const COMMIT = "9f6d37bd858ad44be1171b6415353910214c2fa5";
++const { decide, supervisorSha256 } = reviewedDecision(COMMIT);
++const CODE = { registry: "0x6080604052", executor: "0x6080604053" };
++
++// one Base chain as two RPCs see it; over(url, method, params) may answer differently for one of them
++function chain({ row = {}, nonce = 23759n, pending = {}, balance = 376132087579n, gas = {}, over = () => undefined } = {}) {
++  const r = { endpoint: PINS.endpoint, repo: PINS.repo, measurement: PINS.measurement, operator: "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
++    registeredAt: 1n, lastSeen: 2n, active: true, cpuPricePerSec6: 834n, gpuPricePerSec6: 1667n, proofKey: "0x8604ce59f394daf05b235122E5Dc054F5C2bB453",
++    payoutWallet: "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61", ...row };
++  const ts = Math.floor(Date.now() / 1000) - 10;
++  return async (url, method, params) => {
++    const o = over(url, method, params); if (o !== undefined) return o;
++    switch (method) {
++      case "eth_chainId": return "0x2105";
++      case "eth_blockNumber": return "0x328b2ed";
++      case "eth_getBlockByNumber": return { hash: "0x" + "78".repeat(32), timestamp: "0x" + ts.toString(16), baseFeePerGas: "0x4c4b40" };
++      case "eth_getCode": {
++        const a = params[0].toLowerCase();
++        return a === PINS.registry ? CODE.registry : a === PINS.operator ? "0xef0100" + PINS.executor.slice(2) : a === PINS.executor ? CODE.executor : "0x";
++      }
++      case "eth_getTransactionCount": return "0x" + (params[1] === "pending" ? (pending[url] ?? nonce) : nonce).toString(16);
++      case "eth_getBalance": return "0x" + balance.toString(16);
++      case "eth_maxPriorityFeePerGas": return "0xf4240";
++      case "eth_estimateGas": {
++        const fn = viem.decodeFunctionData({ abi: REG, data: params[0].data }).functionName;
++        return "0x" + BigInt((gas[url] && gas[url][fn]) ?? (fn === "setProofKey" ? 38772 : 50354)).toString(16);
++      }
++      case "eth_call": {
++        const { to, data } = params[0];
++        if (to === PINS.registry) return viem.encodeFunctionResult({ abi: ROW, functionName: "get", result: r });
++        const fn = viem.decodeFunctionData({ abi: ORACLE, data }).functionName;
++        const v = { isIsthmus: true, getL1FeeUpperBound: 529241039n, getOperatorFee: 0n }[fn];
++        return viem.encodeFunctionResult({ abi: ORACLE, functionName: fn, result: v });
++      }
++    }
++    throw new Error(`unstubbed ${method}`);
++  };
++}
++const RPCS = ["https://a.example", "https://b.example"];
++const run = (opts) => collect({ call: chain(opts), rpcs: RPCS, viem, decide, commit: COMMIT, supervisorSha256 });
++// the python gate, with the stub's registry/executor code hashes in place of production's
++function gate(facts, now = Math.floor(Date.now() / 1000)) {
++  const P = { registryCodeHash: viem.keccak256(CODE.registry), executorCodeHash: viem.keccak256(CODE.executor) };
++  const py = `import sys, json; sys.path.insert(0, ${JSON.stringify(A)}); import common as C
++f = json.load(sys.stdin); P = {**C.FUNDING, **json.loads(sys.argv[1])}
++print(json.dumps(C.boot_funding_problems(f, ${now}, C.REVIEWED['commit'], C.REVIEWED['supervisorSha256'], P)))`;
++  const r = spawnSync("python3", ["-c", py, JSON.stringify(P)], { input: JSON.stringify(facts), encoding: "utf8" });
++  assert.equal(r.status, 0, r.stderr);
++  return JSON.parse(r.stdout);
++}
++
++test("the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW", () => {
++  assert.equal(viem.keccak256("0xef0100" + PINS.executor.slice(2)), "0xe2f1317f7b76520f746c22fe4898b7ad32d7a6947a4c11a766fdcdd55bf88bbe");
++});
++
++test("the decision is the reviewed commit's bootRegistrationAction; any other commit is refused", () => {
++  assert.deepEqual(decide({ operator: PINS.operator, active: true, endpoint: "e", repo: "r", measurement: "0x00", cpuPricePerSec6: 1n, gpuPricePerSec6: 2n, proofKey: "0x1" },
++    { operator: PINS.operator, endpoint: "e", repo: "r", measurement: "0x00", cpuPricePerSec6: 1n, gpuPricePerSec6: 2n, proofKey: "0x2" }),
++    { action: "setProofKey", reason: "only the proof key differs" });
++  assert.throws(() => reviewedDecision("a6b1378cdf430217025987d90c040d0e25a9993d"), /not the reviewed bytes|not found/);
++  assert.throws(() => reviewedDecision("HEAD"), /40 hex/);
++});
++
++test("root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes", async () => {
++  const f = await run();
++  assert.deepEqual(f.action, { action: "setProofKey", reason: "only the proof key differs" });
++  assert.equal(f.testProofKey, "0x" + "ff".repeat(20));
++  assert.equal(f.setProofKey.maxFeePerGas, "7000000", "viem default: ceil(1.2 x 5 mwei) + 1 mwei");
++  assert.equal(f.setProofKey.worstCaseWei, String(38772n * 7000000n + 529241039n));
++  assert.equal(f.operator.code, "0xef0100" + PINS.executor.slice(2));
++  assert.deepEqual(gate(f), []);
++});
++
++test("refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation", async () => {
++  assert.match(gate(await run({ row: { cpuPricePerSec6: 835n } })).join("; "), /not setProofKey.*|full register/);
++  assert.match(gate(await run({ row: { active: false } })).join("; "), /active row/);
++  assert.match(gate(await run({ pending: { [RPCS[1]]: 23760n } })).join("; "), /in flight/);
++  assert.match(gate(await run({ balance: 300000000000n })).join("; "), /headroom/);
++  assert.match(gate(await run({ balance: 200000000000n })).join("; "), /exceeds the balance/);
++  const redelegated = await run({ over: (u, m, p) => (m === "eth_getCode" && p[0].toLowerCase() === PINS.operator ? "0xef0100" + "22".repeat(20) : undefined) });
++  assert.match(gate(redelegated).join("; "), /delegation/);
++  const big = await run({ gas: { [RPCS[1]]: { setProofKey: 40000 } } });
++  assert.equal(big.setProofKey.gas, "40000", "the larger estimate counts");
++  assert.deepEqual(gate(big), [], "40000 x 7 mwei + L1 still leaves 25% headroom");
++});
++
++test("RPC disagreement or a non-Base RPC refuses before any decision", async () => {
++  await assert.rejects(run({ over: (u, m) => (u === RPCS[1] && m === "eth_getBalance" ? "0x1" : undefined) }), /disagree on balance/);
++  await assert.rejects(run({ over: (u, m) => (u === RPCS[0] && m === "eth_chainId" ? "0x1" : undefined) }), /not Base/);
++  await assert.rejects(collect({ call: chain(), rpcs: [RPCS[0], RPCS[0]], viem, decide, commit: COMMIT, supervisorSha256 }), /two distinct/);
++});
+diff --git a/tests/fixtures/APPROVED-COMMIT.txt b/tests/fixtures/APPROVED-COMMIT.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..16c1d59a2660040641dda59680ed14e1c7cf5180
+--- /dev/null
++++ b/tests/fixtures/APPROVED-COMMIT.txt
+@@ -0,0 +1,2 @@
++commit 9f6d37bd858ad44be1171b6415353910214c2fa5
++extra NONE
+diff --git a/tests/fixtures/INVENTORY.sha256 b/tests/fixtures/INVENTORY.sha256
+new file mode 100644
+index 0000000000000000000000000000000000000000..e6fc5a5bc25b9f491c86b992fec9278dcf91afc0
+--- /dev/null
++++ b/tests/fixtures/INVENTORY.sha256
+@@ -0,0 +1,5 @@
++6d55c0e2839e5a1aad1258ce80ec112181f155c50be9f5ad1f66f1bb44064537  dist-leasegas-9f6d37bd8/MEASUREMENT
++d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  dist-leasegas-9f6d37bd8/cmdline
++02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf  dist-leasegas-9f6d37bd8/initramfs.cpio.gz
++64bd025db3ed62b82f016ed25f1bd24ab300dbe7520ca81498d3ccd293e43b16  dist-leasegas-9f6d37bd8/manifest.json
++1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  dist-leasegas-9f6d37bd8/vmlinuz
+diff --git a/tests/fixtures/MEASUREMENT b/tests/fixtures/MEASUREMENT
+new file mode 100644
+index 0000000000000000000000000000000000000000..e10a92ebfdba0ca5cdfe215a0d3b98bcc00a1102
+--- /dev/null
++++ b/tests/fixtures/MEASUREMENT
+@@ -0,0 +1 @@
++08d1f838d51274571fdf17b635606d20a6e7250f74d6676217eea40733a8d269aaf52edb85aac4a9ad1cc5c53318a000
+diff --git a/tests/fixtures/root-build-approved.out b/tests/fixtures/root-build-approved.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..6cc04314a55a22d88f196c7a304749aeba3f9b29
+--- /dev/null
++++ b/tests/fixtures/root-build-approved.out
+@@ -0,0 +1,33 @@
++[queue] START available=24090MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
++APPROVED 9f6d37bd858ad44be1171b6415353910214c2fa5 extra=[] delta: supervisor.js test/registry-advertise-retry.test.mjs 
++2026-10-23T21:50:25Z
++== 1. control: a6b1378c from H's repo == the staged ee5df6b8 image
++{"sha256": "5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de", "bytes": 279389920}
++CONTROL-IDENTICAL initramfs.cpio.gz
++CONTROL-IDENTICAL vmlinuz
++CONTROL-IDENTICAL cmdline
++CONTROL-IDENTICAL manifest.json
++== 2. candidate twice
++{"sha256": "02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf", "bytes": 279388203}
++{"sha256": "02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf", "bytes": 279388203}
++REPRODUCIBLE initramfs.cpio.gz
++REPRODUCIBLE vmlinuz
++REPRODUCIBLE cmdline
++REPRODUCIBLE manifest.json
++== 3. exact delta (manifest records, image entries, image bytes = commit source)
++MANIFEST-DELTA-EXACT ['/app/supervisor.js']
++ENTRY-DELTA-EXACT vs a6 ['app/supervisor.js', 'opt/metal/manifest.json'] vs production ['app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/manifest.json']
++IMAGE-FILES-ARE-SOURCE ['app/supervisor.js', 'opt/metal/gsup.mjs']
++== 4. measurement
++MEASURE-RECIPE-REPRODUCES-PRODUCTION
++MEASURE-RECIPE-REPRODUCES-A6
++MEASURE-CANDIDATE 08d1f838d51274571fdf17b635606d20a6e7250f74d6676217eea40733a8d269aaf52edb85aac4a9ad1cc5c53318a000
++6d55c0e2839e5a1aad1258ce80ec112181f155c50be9f5ad1f66f1bb44064537  dist-leasegas-9f6d37bd8/MEASUREMENT
++d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  dist-leasegas-9f6d37bd8/cmdline
++02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf  dist-leasegas-9f6d37bd8/initramfs.cpio.gz
++64bd025db3ed62b82f016ed25f1bd24ab300dbe7520ca81498d3ccd293e43b16  dist-leasegas-9f6d37bd8/manifest.json
++1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  dist-leasegas-9f6d37bd8/vmlinuz
++2026-10-23T21:54:50Z
++[memory-guard] exit=0 peakTreeRssMiB=301 minHostAvailableMiB=23292
++[memory-guard] at peak: sev-snp-measure:295 bash:7
++[queue] EXIT 0
+diff --git a/tests/test_activation.py b/tests/test_activation.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..675af2889db6bd6ff4e10ca9765f15ed837eb6e5
+--- /dev/null
++++ b/tests/test_activation.py
+@@ -0,0 +1,436 @@
++"""Focused tests of the second activation attempt, all with stubs: no production file, service, SSH or network is touched.
++   python3 -m unittest discover -s tests -v   (from this directory)"""
++import ast, copy, hashlib, json, os, stat, subprocess, sys, tempfile, time, unittest
++from pathlib import Path
++sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
++import common as C
++import guestrows, prebaseline
++
++HERE = Path(__file__).resolve().parent; FX = HERE / 'fixtures'
++FIRST = C.W / 'work/custody-recipient-activation-20261023'          # the first attempt, commit 7426b29 (reviewed)
++M = lambda c: c * 96
++OLD, PRIOR = C.CURRENT['measurement'], C.PRIOR['measurement']
++NEWM = hashlib.sha384(b'approved candidate').hexdigest()
++NEWDIST = '/home/steven/enclave-prod/dist-leasegas-9f6d37bd8'
++EXISTING = [OLD] + [hashlib.sha384(str(n).encode()).hexdigest() for n in range(34)] + [PRIOR]   # the 36 installed at 21:30Z
++assert len(EXISTING) == 36 and NEWM not in EXISTING
++IG, EO = list(C.APPS)   # image-generator, EyesOff
++
++
++class FirstAttemptCodeUnchanged(unittest.TestCase):
++    """'Use the prior strict gate/rollback unchanged': byte copies and source-identical shared functions."""
++    def test_gate_files_are_the_reviewed_byte_copies(self):
++        pins = json.loads((FIRST/'REVIEWED-COPIES.json').read_text())
++        self.assertEqual(sorted(pins), ['apphealth.py', 'guestrows.py', 'verify-operational.py'])
++        for f, p in pins.items(): self.assertEqual(C.sha((C.A/f).read_bytes()), p['sha256'], f)
++        self.assertEqual(C.sha((C.A/'verify-operational.py').read_bytes()), '5ef6fa9d59087a757e5e21911ec033b78c2b6fd06e6d9724c49d64e43ab1f067')
++        for f in ('preflight.mjs', 'renewal-watch.py'): self.assertEqual((C.A/f).read_bytes(), (FIRST/f).read_bytes(), f)
++
++    def test_shared_functions_are_the_first_attempts_source(self):
++        old_src = subprocess.check_output(['git', '-C', str(FIRST), 'show', '7426b29:common.py'], text=True)
++        new_src = (C.A/'common.py').read_text()
++        def defs(src):
++            t = ast.parse(src); out = {}
++            for n in t.body:
++                if isinstance(n, (ast.FunctionDef, ast.ClassDef)): out[n.name] = ast.get_source_segment(src, n)
++                elif isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name): out[n.targets[0].id] = ast.get_source_segment(src, n)
++            return out
++        o, n = defs(old_src), defs(new_src)
++        same = ['rewrite_dist', 'protected_problems', 'read_unit', 'read_dropins', 'atomic_config', 'REMOTE_READ', 'REMOTE_CAS', 'REMOTE_RESTORE',
++                'remote', 'run_remote', 'public_attestation', 'get', 'PREFIXES', 'journal', 'pending_deadlines', 'rpc', 'verified_block_after',
++                'systemctl', 'Ops', 'safe_rollback', 'ROLLBACK_MARGIN_S', 'preflight_problems', 'CURRENT', 'APPS', 'SSH', 'RPCS', 'CONFIG', 'UNIT', 'DROPIN_DIR']
++        for k in same: self.assertEqual(n.get(k), o[k], k)
++        self.assertIn('ATTACH_S, ADOPT_S = 120, 300', new_src)
++
++    def test_activation_after_the_write_is_the_first_attempts(self):
++        """Everything from the write on (restart, attach, adoption of the SAME guests, gate v4, renewals, rollback) is unchanged
++        but for the state text naming the measurement."""
++        cut = "save(); mutated = False"
++        old = (FIRST/'activate.py').read_text(); new = (C.A/'activate.py').read_text()
++        old_tail = old[old.index(cut):].replace("result.update(state='PROVISIONAL: attached ee5df6b8,", "result.update(state=f'PROVISIONAL: attached {NEW[\"measurement\"][:8]},")
++        self.assertEqual(new[new.index(cut):], old_tail)
++        self.assertLess(new.index("fund, probs = boot_funding("), new.index("atomic_config(new, mode)"), 'the funding preflight precedes the write')
++        self.assertLess(new.index("pb = prebaseline.collect("), new.index("fund, probs = boot_funding("))
++
++
++class RewriteDist(unittest.TestCase):
++    raw = ('{\n  "name": "metal0",\n  "dist": "/home/steven/enclave-prod/dist-leasegas-deabf8f90",\n  "leaseGas": {"rpcs": ["x"]},\n'
++           '    "odd":   [1,2 , 3]\n}\n').encode()
++
++    def test_only_dist_changes_every_other_byte_preserved(self):
++        new = C.rewrite_dist(self.raw, C.CURRENT['dist'], NEWDIST)
++        self.assertEqual(new, self.raw.replace(b'dist-leasegas-deabf8f90', b'dist-leasegas-9f6d37bd8'))
++        self.assertEqual(json.loads(new), {**json.loads(self.raw), 'dist': NEWDIST})
++
++
++class Protected(unittest.TestCase):
++    def setUp(self):
++        self.cfg = json.dumps({'dist': C.CURRENT['dist'], 'mode': 'snp', 'leaseGas': {'rpcs': ['a']}}).encode()
++        self.cur = {**C.CURRENT, 'configSha256': C.sha(self.cfg), 'leaseGasDigest': C.sha(json.dumps({'rpcs': ['a']}, sort_keys=True).encode())}
++        self.unit = {'ActiveState': 'active', 'WorkingDirectory': C.CURRENT['workingDirectory'], 'KillMode': 'control-group'}
++        self.drops = dict(C.CURRENT['dropins'])
++
++    def test_baseline_passes(self):
++        self.assertEqual(C.protected_problems(self.cfg, self.unit, self.drops, self.cur), [])
++
++    def test_every_protected_field_refuses(self):
++        cases = [
++            (json.dumps({'dist': C.CURRENT['dist'], 'mode': 'snp', 'leaseGas': {'rpcs': ['b']}}).encode(), self.unit, self.drops),
++            (self.cfg, {**self.unit, 'WorkingDirectory': '/home/steven/enclave-prod/metal-a6b1378cd'}, self.drops),
++            (self.cfg, {**self.unit, 'KillMode': 'process'}, self.drops),
++            (self.cfg, {**self.unit, 'ActiveState': 'failed'}, self.drops),
++            (self.cfg, self.unit, {**self.drops, '95-app-funded-leases.conf': '0' * 64}),
++            (self.cfg, self.unit, {**self.drops, '99-new.conf': '1' * 64}),
++            (self.cfg, self.unit, {'80-shield-inference.conf': self.drops['80-shield-inference.conf']}),
++        ]
++        for cfg, unit, drops in cases:
++            self.assertTrue(C.protected_problems(cfg, unit, drops, self.cur), (unit, drops))
++
++
++class Admission(unittest.TestCase):
++    body = 'METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING) + '\n'
++
++    def test_additive_36_to_37_in_installed_order(self):
++        existing, text = C.admission_body(self.body, list(reversed(EXISTING)), NEWM)
++        self.assertEqual(existing, EXISTING)
++        self.assertEqual(text, 'METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING + [NEWM]) + '\n')
++        self.assertEqual(len(text.strip().split('=')[1].split(',')), 37)
++        self.assertEqual(C.RELAY['installedSha256'], json.loads((FIRST/'admission.json').read_text())['environmentSha256'], 'CAS from the 21:30Z admission')
++
++    def test_refusals(self):
++        w35 = [x for x in EXISTING if x != PRIOR] + [M('d')]
++        cases = [(self.body + 'X=1\n', EXISTING, NEWM, 'not exactly one'),
++                 ('METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING[:35]) + '\n', EXISTING[:35], NEWM, 'reviewed state is 36'),
++                 (self.body, EXISTING[:35] + [M('f')], NEWM, 'not the public allowlist'),
++                 ('METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING[1:] + [M('e')]) + '\n', EXISTING[1:] + [M('e')], NEWM, 'running measurement is not admitted'),
++                 ('METAL_ALLOWED_MEASUREMENTS=' + ','.join(w35) + '\n', w35, NEWM, 'ee5df6b8 is not admitted'),
++                 (self.body, EXISTING, PRIOR, 'already admitted'),
++                 (self.body, EXISTING, 'x' * 96, 'malformed candidate'),
++                 ('METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING[:35] + [EXISTING[3]]) + '\n', EXISTING, NEWM, 'duplicate')]
++        for body, pub, new, w in cases:
++            with self.assertRaisesRegex(AssertionError, w): C.admission_body(body, pub, new)
++
++
++class RemoteScripts(unittest.TestCase):
++    """The SAME remote script text admit/unadmit/prepare send over SSH, run locally against temp files and a stub systemctl."""
++    def setUp(self):
++        self.d = Path(tempfile.mkdtemp())
++        self.env, self.drop, self.log = self.d/'m.env', self.d/'drop.conf', self.d/'systemctl.log'
++        self.env.write_text('METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING) + '\n'); self.drop.write_text('[Service]\nEnvironmentFile=x\n')
++        (self.d/'m.env.before-a6b1378cd').write_text('the first attempt\'s backup')
++        self.ctl = self.d/'systemctl'
++        self.ctl.write_text(f'#!/bin/sh\necho "$@" >> {self.log}\nif [ "$1" = restart ] && [ -e {self.d}/fail-restart ]; then rm {self.d}/fail-restart; exit 1; fi\n'
++                            f'if [ "$1" = is-active ]; then echo active; fi\nexit 0\n')
++        self.ctl.chmod(0o755)
++
++    def run_script(self, template, args):
++        return subprocess.run([sys.executable, '-'], input=C.remote(template, args), text=True, capture_output=True)
++
++    def cas(self, body, expect=None, backup=None):
++        backup = backup or self.d/'m.env.before-9f6d37bd8'
++        args = (str(self.env), str(self.drop), str(backup), body, expect or C.sha(self.env.read_bytes()), C.sha(self.drop.read_bytes()),
++                '9f6d37bd8', str(self.ctl), 'enclave-api-relay.service')
++        return self.run_script(C.REMOTE_CAS, args), backup
++
++    def test_cas_success_keeps_the_first_backup(self):
++        old = self.env.read_bytes(); new = 'METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING + [NEWM]) + '\n'
++        r, backup = self.cas(new)
++        self.assertEqual(r.returncode, 0, r.stderr); self.assertEqual(self.env.read_text(), new); self.assertEqual(backup.read_bytes(), old)
++        self.assertEqual(stat.S_IMODE(backup.stat().st_mode), 0o600); self.assertIn('restart enclave-api-relay.service', self.log.read_text())
++        self.assertEqual((self.d/'m.env.before-a6b1378cd').read_text(), 'the first attempt\'s backup')
++
++    def test_cas_refuses_changed_env_or_existing_backup_and_restores_on_failed_restart(self):
++        old = self.env.read_bytes()
++        r, _ = self.cas('X', expect='0' * 64); self.assertNotEqual(r.returncode, 0); self.assertEqual(self.env.read_bytes(), old)
++        self.assertFalse(self.log.exists() and 'restart' in self.log.read_text(), 'no restart on a refused CAS')
++        (self.d/'fail-restart').write_text('')
++        r, b = self.cas('METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING + [NEWM]) + '\n')
++        self.assertNotEqual(r.returncode, 0); self.assertEqual(self.env.read_bytes(), old)
++        self.assertEqual(self.log.read_text().count('restart enclave-api-relay.service'), 2, 'the restore restarts the relay again')
++        r, _ = self.cas('X', backup=b); self.assertNotEqual(r.returncode, 0)   # its backup now exists: refuse
++
++
++class SafeRollback(unittest.TestCase):
++    def setUp(self):
++        self.d = Path(tempfile.mkdtemp()); self.cfg = self.d/'config.json'
++        self.old, self.new = b'{"dist": "old"}\n', b'{"dist": "new"}\n'
++        self.cfg.write_bytes(self.new); self.cfg.chmod(0o640)
++        self.calls = []
++        test = self
++        class Ops:
++            lines = ['[lease-gas] renew 0xab sponsored deadline 1790000000 sent']
++            drops = dict(C.CURRENT['dropins'])
++            @staticmethod
++            def systemctl(*a, **k): test.calls.append(('systemctl', a, test.cfg.read_bytes()))
++            @staticmethod
++            def journal(since):
++                if Ops.lines is None: raise RuntimeError('unreadable')
++                return Ops.lines
++            @staticmethod
++            def verified_block_after(ts, rpcs, limit): test.calls.append(('block', ts, limit)); return {'number': 1, 'timestamp': ts + 1}
++            now = staticmethod(lambda: 1789999000)
++            @staticmethod
++            def read_dropins(): return Ops.drops
++        self.ops = Ops; self.result = {}
++
++    def roll(self):
++        C.safe_rollback(self.result, lambda: None, since='x', old_config=self.old, new_config=self.new, config=self.cfg, ops=self.ops)
++
++    def test_stop_first_wait_deadline_then_restore_and_start(self):
++        self.roll()
++        self.assertEqual(self.calls[0][:2], ('systemctl', ('stop', C.UNIT))); self.assertEqual(self.calls[0][2], self.new)
++        self.assertEqual(self.calls[1][:2], ('block', 1790000000)); self.assertEqual(self.calls[2][:2], ('systemctl', ('start', C.UNIT)))
++        self.assertEqual(self.calls[2][2], self.old); self.assertEqual(stat.S_IMODE(self.cfg.stat().st_mode), 0o640)
++
++    def test_refuses_concurrent_config_change(self):
++        self.cfg.write_bytes(b'{"dist": "someone else"}\n')
++        with self.assertRaises(AssertionError): self.roll()
++        self.assertNotIn(('systemctl', ('start', C.UNIT)), [c[:2] for c in self.calls])
++        self.cfg.write_bytes(self.new); self.calls.clear(); self.ops.drops = {**C.CURRENT['dropins'], '99-x.conf': 'f' * 64}
++        with self.assertRaises(AssertionError): self.roll()
++        self.assertEqual(self.cfg.read_bytes(), self.new); self.assertNotIn(('systemctl', ('start', C.UNIT)), [c[:2] for c in self.calls])
++
++    def test_unreadable_journal_waits_the_ttl_bound(self):
++        self.ops.lines = None; self.roll()
++        self.assertEqual(self.result['pendingSponsoredDeadlines'], [1789999000 + 360]); self.assertEqual(self.calls[1][1], 1789999360)
++
++
++class Preconditions(unittest.TestCase):
++    ids = list(C.APPS)
++    def pre(self, **over):
++        rows = [{'id': i, 'active': True, 'runner': '0xR', 'leaseRemainingSeconds': '1500', 'hostActive': True,
++                 'reserve': {'enabled': True, 'balanceWei': '100'}} for i in self.ids]
++        for r in rows: r.update(over)
++        return {'block': {'timestamp': '1000'}, 'rows': rows}
++
++    def test_preflight(self):
++        self.assertEqual(C.preflight_problems(self.pre(), self.ids, 1010), [])
++        self.assertTrue(C.preflight_problems(self.pre(), self.ids, 1400))                         # stale
++        self.assertTrue(C.preflight_problems(self.pre(leaseRemainingSeconds='700'), self.ids, 1010))   # margin
++        self.assertTrue(C.preflight_problems(self.pre(reserve={'enabled': False, 'balanceWei': '1'}), self.ids, 1010))
++        self.assertTrue(C.preflight_problems(self.pre(hostActive=False), self.ids, 1010))
++        p = self.pre(); p['rows'][1]['runner'] = '0xS'; self.assertTrue(C.preflight_problems(p, self.ids, 1010))
++        p = self.pre(); p['rows'].pop(); self.assertTrue(C.preflight_problems(p, self.ids, 1010))
++
++
++# ---- the reviewed build -------------------------------------------------------------------------------------------------------
++class Build(unittest.TestCase):
++    def setUp(self):
++        self.log = (FX/'root-build-approved.out').read_text(); self.appr = (FX/'APPROVED-COMMIT.txt').read_text()
++        self.inv = (FX/'INVENTORY.sha256').read_text(); self.meas = (FX/'MEASUREMENT').read_text()
++
++    def bp(self, log=None, appr=None, inv=None, meas=None):
++        return C.build_problems(self.log if log is None else log, self.appr if appr is None else appr,
++                                self.inv if inv is None else inv, self.meas if meas is None else meas)
++
++    def test_the_actual_completed_build_passes(self):
++        rec, probs = self.bp()
++        self.assertEqual(probs, [])
++        self.assertEqual(rec['measurement'], '08d1f838d51274571fdf17b635606d20a6e7250f74d6676217eea40733a8d269aaf52edb85aac4a9ad1cc5c53318a000')
++        self.assertEqual(rec['files']['initramfs.cpio.gz'], '02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf')
++        self.assertEqual(rec['commit'], C.REVIEWED['commit'])
++
++    def test_refusals(self):
++        L = self.log
++        ia = 'f' * 64 + '  dist-leasegas-9f6d37bd8/initramfs.cpio.gz'
++        cases = [
++            (dict(appr='commit ' + 'a' * 40 + '\nextra NONE\n'), 'APPROVED-COMMIT'),
++            (dict(appr=self.appr.replace('NONE', 'metal/x.mjs')), 'APPROVED-COMMIT'),
++            (dict(log=L.replace('CONTROL-IDENTICAL manifest.json\n', '')), 'CONTROL-IDENTICAL manifest.json'),
++            (dict(log=L.replace('REPRODUCIBLE vmlinuz\n', 'REPRODUCIBLE vmlinuz\nREPRODUCIBLE vmlinuz\n')), 'REPRODUCIBLE vmlinuz'),
++            (dict(log=L.replace("MANIFEST-DELTA-EXACT ['/app/supervisor.js']", "MANIFEST-DELTA-EXACT ['/app/supervisor.js', '/app/x.js']")), 'MANIFEST-DELTA'),
++            (dict(log=L.replace('MEASURE-RECIPE-REPRODUCES-A6', 'MEASURE-MISMATCH a6')), 'MEASURE-RECIPE-REPRODUCES-A6'),
++            (dict(log=L.replace('[queue] EXIT 0', '[queue] EXIT 1')), 'EXIT 0'),
++            (dict(log=L + 'REFUSED: x\n'), 'refusal'),
++            (dict(log=L.replace('APPROVED 9f6d37bd', 'APPROVED 0f6d37bd')), 'APPROVED'),
++            (dict(meas=PRIOR + '\n', log=L.replace(self.meas.strip(), PRIOR)), 'previous image'),
++            (dict(meas=M('a') + '\n'), 'MEASUREMENT file'),
++            (dict(inv=self.inv + '0' * 64 + '  dist-leasegas-9f6d37bd8/extra\n'), 'inventory files'),
++            (dict(inv=self.inv.replace('dist-leasegas-9f6d37bd8/cmdline', 'dist-leasegas-0f6d37bd8/cmdline')), 'inventory line'),
++            (dict(inv=self.inv.replace('02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf', '5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de')), 'equals a6b1378cd'),
++            (dict(inv=self.inv.replace('1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7', 'e' * 64)), 'vmlinuz changed'),
++            (dict(inv=self.inv.replace('64bd025db3ed62b82f016ed25f1bd24ab300dbe7520ca81498d3ccd293e43b16', 'c' * 64)), 'logged inventory'),
++        ]
++        for kw, why in cases:
++            rec, probs = self.bp(**kw)
++            self.assertTrue(probs, why); self.assertRegex('; '.join(probs), why)
++
++    def test_source_is_the_reviewed_commit(self):
++        self.assertEqual(C.source_problems(), [])                       # the real H repo, git objects only
++        real = C.git
++        def stub(**over):
++            def g(*args):
++                k = args[0]
++                if k in over: return over[k]
++                return real(*args)
++            return g
++        self.assertRegex('; '.join(C.source_problems(stub(**{'rev-parse': b'deabf8f90f64902d20d48620fd911d34c445859d\n'}))), 'not a child')
++        self.assertRegex('; '.join(C.source_problems(stub(diff=b'supervisor.js\nmetal/guest/gsup.mjs\ntest/registry-advertise-retry.test.mjs\n'))), 'changes')
++        self.assertRegex('; '.join(C.source_problems(stub(show=b'// other bytes\n'))), 'not the reviewed bytes')
++        self.assertRegex('; '.join(C.source_problems(rev={**C.REVIEWED, 'commit': 'a6b1378cdf430217025987d90c040d0e25a9993d'})), 'not a child|changes|reviewed bytes')
++
++    def test_approval_and_plan(self):
++        d = Path(tempfile.mkdtemp()); rec, _ = self.bp(); raw = (json.dumps(rec) + '\n').encode(); (d/'build.json').write_bytes(raw)
++        with self.assertRaisesRegex(AssertionError, 'root review'): C.approved_build(d/'build.json', FX/'MEASUREMENT')
++        (d/'APPROVED-BUILD.txt').write_text(f'build-sha256 {C.sha(raw)}\n')
++        got, h = C.approved_build(d/'build.json', d/'APPROVED-BUILD.txt'); self.assertEqual(h, C.sha(raw))
++        (d/'APPROVED-BUILD.txt').write_text(f'build-sha256 {C.sha(raw + b" ")}\n')
++        with self.assertRaisesRegex(AssertionError, 'root review'): C.approved_build(d/'build.json', d/'APPROVED-BUILD.txt')
++        other = {**rec, 'commit': 'a6b1378cdf430217025987d90c040d0e25a9993d'}; raw2 = (json.dumps(other) + '\n').encode()
++        (d/'build.json').write_bytes(raw2); (d/'APPROVED-BUILD.txt').write_text(f'build-sha256 {C.sha(raw2)}\n')
++        with self.assertRaisesRegex(AssertionError, 'not a build of the reviewed commit'): C.approved_build(d/'build.json', d/'APPROVED-BUILD.txt')
++        (d/'build.json').write_bytes(raw); (d/'APPROVED-BUILD.txt').write_text(f'build-sha256 {C.sha(raw)}\n')
++        plan = {'buildSha256': C.sha(raw), 'measurement': rec['measurement'], 'files': rec['files'], 'image': NEWDIST}
++        (d/'plan.json').write_text(json.dumps(plan)); self.assertEqual(C.load_new(d)['measurement'], rec['measurement'])
++        (d/'plan.json').write_text(json.dumps({**plan, 'measurement': PRIOR}))
++        with self.assertRaisesRegex(AssertionError, 'not the approved build'): C.load_new(d)
++
++    def test_staged_dir_hashes(self):
++        d = Path(tempfile.mkdtemp()); files = {}
++        for f in C.FILES: (d/f).write_bytes(f.encode()); files[f] = C.sha(f.encode())
++        self.assertEqual(C.staged_problems(d, files), [])
++        (d/'cmdline').write_bytes(b'x'); self.assertTrue(C.staged_problems(d, files))
++        (d/'cmdline').write_bytes(b'cmdline'); (d/'extra').write_bytes(b''); self.assertTrue(C.staged_problems(d, files))
++
++
++# ---- the pre-cutover baseline from root's guestd listing ------------------------------------------------------------------------
++def listing(over=None):
++    rows = [{'id': 'gd9d4a391d', 'name': IG, 'status': 'running', 'recordSha256': 'a' * 64, 'createdAt': 1, 'hostData': 'h', 'transportKeySha256': 't'},
++            {'id': 'gdd0646f2c', 'name': EO, 'status': 'running', 'recordSha256': 'b' * 64, 'createdAt': 2},
++            {'id': 'gdcustody01', 'name': '0x' + 'c' * 64, 'status': 'running', 'recordSha256': 'c' * 64, 'createdAt': 3}]
++    for i, r in (over or {}).items(): rows[i] = {**rows[i], **r} if r is not None else None
++    return {'vms': [r for r in rows if r is not None]}
++
++class GuestdBaseline(unittest.TestCase):
++    orig = C.original_baseline()
++
++    def test_original_baseline_is_pinned(self):
++        self.assertEqual(self.orig, {IG: {'guest': 'gd9d4a391d', 'history': []}, EO: {'guest': 'gdd0646f2c', 'history': []}})
++        self.assertEqual(C.sha((FIRST/'evidence/baseline.json').read_bytes()), C.ORIGINAL['sha256'], 'the first attempt\'s 21:31:30Z record')
++
++    def test_exact_original_guests_pass_and_only_kept_fields(self):
++        base, rows, probs = C.guestd_baseline(listing(), list(C.APPS), self.orig)
++        self.assertEqual(probs, [])
++        self.assertEqual({i: base[i]['guest'] for i in base}, C.ORIGINAL['guests'])
++        self.assertEqual(base[IG]['recordSha256'], 'a' * 64)
++        self.assertTrue(all(set(r) == set(C.KEEP) for r in rows), 'hostData/transport digests are not kept')
++
++    def test_refusals(self):
++        cases = [(listing({0: {'id': 'gd00000000'}}), 'not the original baseline guest'),
++                 (listing({1: {'status': 'starting'}}), 'not running'),
++                 (listing({0: {'recordSha256': None}}), 'no record digest'),
++                 (listing({1: None}), '0 nonterminal'),
++                 ({'vms': listing()['vms'] + [{'id': 'gd11111111', 'name': IG, 'status': 'running', 'recordSha256': 'd' * 64}]}, '2 nonterminal'),
++                 ({'vms': listing()['vms'] + [{'id': 'gd22222222', 'name': EO, 'status': 'failed'}]}, 'failed history'),
++                 ({'vms': listing()['vms'] + [dict(listing()['vms'][2])]}, 'duplicate'),
++                 ([], 'not a guestd'), ({'vms': None}, 'not a guestd')]
++        for l, why in cases:
++            _b, _r, probs = C.guestd_baseline(l, list(C.APPS), self.orig)
++            self.assertRegex('; '.join(probs), why)
++
++    def test_availability_absent_is_recorded_never_pretended(self):
++        base, _r, _p = C.guestd_baseline(listing(), list(C.APPS), self.orig)
++        self.assertEqual(C.availability_cross_check(None, base, guestrows), ('absent: the old control is not registered and adopted nothing', []))
++        held = [{'id': IG, 'vm': 'gd9d4a391d', 'status': 'running', 'owned': True}, {'id': EO, 'vm': 'gdd0646f2c', 'status': 'running', 'owned': True}]
++        self.assertEqual(C.availability_cross_check(held, base, guestrows)[1], [])
++        held[1]['vm'] = 'gd33333333'; self.assertTrue(C.availability_cross_check(held, base, guestrows)[1])
++        self.assertTrue(C.availability_cross_check({'x': 1}, base, guestrows)[1])
++
++    def test_listing_must_be_fresh_and_private(self):
++        d = Path(tempfile.mkdtemp()); p = d/'vms.json'; p.write_text(json.dumps(listing())); p.chmod(0o600)
++        now = time.time(); l, h = C.guestd_listing(p, now); self.assertEqual(h, C.sha(p.read_bytes()))
++        os.utime(p, (now - 400, now - 400))
++        with self.assertRaisesRegex(AssertionError, 'old'): C.guestd_listing(p, now)
++        os.utime(p, (now, now)); p.chmod(0o644)
++        with self.assertRaisesRegex(AssertionError, 'private'): C.guestd_listing(p, now)
++
++    def test_collect_end_to_end_with_stubs(self):
++        d = Path(tempfile.mkdtemp()); p = d/'vms.json'; p.write_text(json.dumps(listing())); p.chmod(0o600)
++        avail = lambda url: (200, json.dumps({'instanceSweep': {}}).encode())
++        fetch = lambda url: (200, 'text/html', b'<title>image generator</title>' + b' ' * 2000)
++        out = prebaseline.collect(p, 'https://x/availability', get=avail, fetch=fetch, check=lambda s: (True, 'ok'))
++        self.assertEqual(out['problems'], []); self.assertIs(out['oldControlAdopted'], False)
++        self.assertEqual([r['id'] for r in out['otherGuests']], ['gdcustody01'])
++        self.assertNotIn('hostData', json.dumps(out))
++        bad = prebaseline.collect(p, 'https://x/availability', get=avail, fetch=fetch, check=lambda s: (False, 'down'))
++        self.assertRegex('; '.join(bad['problems']), 'not actually healthy')
++        p.write_text(json.dumps(listing({0: {'id': 'gd00000000'}}))); p.chmod(0o600)
++        self.assertRegex('; '.join(prebaseline.collect(p, 'u', get=avail, fetch=fetch, check=lambda s: (True, 'ok'))['problems']), 'original baseline guest')
++
++
++# ---- the mandatory boot-funding gate --------------------------------------------------------------------------------------------
++def facts(now=10_000):
++    """Modeled on root's actual 2-RPC read (root-live-fees2, block 53001451) with the worst-case test key."""
++    return {
++        'at': 'x', 'readOnly': True, 'rpcs': ['https://a', 'https://b'], 'chainIds': [8453, 8453],
++        'block': {'number': '53001451', 'hash': '0x' + '78' * 32, 'timestamp': str(now - 20)},
++        'source': {'commit': C.REVIEWED['commit'], 'supervisorSha256': C.REVIEWED['supervisorSha256']},
++        'registry': {'address': C.FUNDING['registry'], 'codeHash': C.FUNDING['registryCodeHash']},
++        'operator': {'address': '0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB', 'code': C.FUNDING['operatorCode'], 'nonceAtBlock': '23759',
++                     'latest': ['23759', '23759'], 'pending': ['23759', '23759'], 'balanceWei': '376132087579'},
++        'executor': {'address': C.FUNDING['executor'], 'codeHash': C.FUNDING['executorCodeHash']},
++        'row': {'operator': '0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB', 'active': True, 'endpoint': 'https://api.enclave.host/t/metal0',
++                'repo': 'EnclaveHost/enclave', 'measurement': '0x' + '00' * 32, 'cpu': '834', 'gpu': '1667', 'proofKey': '0x8604ce59f394daf05b235122E5Dc054F5C2bB453'},
++        'desired': {'operator': C.FUNDING['operator'], 'endpoint': 'https://api.enclave.host/t/metal0', 'repo': 'EnclaveHost/enclave',
++                    'measurement': '0x' + '00' * 32, 'cpuPricePerSec6': '834', 'gpuPricePerSec6': '1667', 'proofKey': '0x' + 'ff' * 20},
++        'testProofKey': '0x' + 'ff' * 20, 'action': {'action': 'setProofKey', 'reason': 'only the proof key differs'},
++        'fees': {'baseFeeWei': '5000000', 'tipWei': '1000000', 'viemDefaultMaxFeePerGas': '7000000', 'isthmus': True},
++        'setProofKey': {'gas': '38772', 'gasEstimates': ['38772', '38500'], 'maxFeePerGas': '7000000', 'l1FeeUpperBoundWei': '529241039',
++                        'operatorFeeWei': '0', 'worstCaseWei': str(38772 * 7000000 + 529241039)},
++    }
++
++class BootFunding(unittest.TestCase):
++    now = 10_000
++    def probs(self, f): return C.boot_funding_problems(f, self.now, C.REVIEWED['commit'], C.REVIEWED['supervisorSha256'])
++
++    def test_root_actual_read_passes_with_headroom(self):
++        self.assertEqual(self.probs(facts(self.now)), [])
++        f = facts(self.now); self.assertGreaterEqual(int(f['operator']['balanceWei']) * 100, int(f['setProofKey']['worstCaseWei']) * 125)
++
++    def test_refusals(self):
++        def m(path, v):
++            f = facts(self.now); o = f
++            for k in path[:-1]: o = o[k]
++            o[path[-1]] = v; return f
++        worst = 38772 * 7000000 + 529241039
++        cases = [
++            (m(['block', 'timestamp'], str(self.now - 400)), 'old'),
++            (m(['action'], {'action': 'register', 'reason': 'the registered fields differ'}), 'not setProofKey'),
++            (m(['action'], {'action': 'adopt', 'reason': 'already registered exactly'}), 'not setProofKey'),
++            (m(['row', 'cpu'], '835'), 'full register'),
++            (m(['row', 'repo'], 'enclavehost/enclave'), 'full register'),
++            (m(['row', 'active'], False), 'active row'),
++            (m(['row', 'operator'], '0x' + '11' * 20), 'active row'),
++            (m(['operator', 'pending'], ['23760', '23759']), 'in flight'),
++            (m(['operator', 'latest'], ['23760', '23760']), 'in flight'),
++            (m(['operator', 'code'], '0xef0100' + '22' * 20), 'delegation'),
++            (m(['operator', 'code'], '0x'), 'delegation'),
++            (m(['executor', 'codeHash'], '0x' + '33' * 32), 'executor'),
++            (m(['registry', 'codeHash'], '0x' + '44' * 32), 'registry'),
++            (m(['source', 'commit'], 'a6b1378cdf430217025987d90c040d0e25a9993d'), 'reviewed supervisor'),
++            (m(['testProofKey'], '0x' + '01' * 20), 'test proof key'),
++            (m(['row', 'proofKey'], '0x' + 'FF' * 20), 'test proof key'),
++            (m(['operator', 'balanceWei'], str(worst * 12 // 10)), 'headroom'),
++            (m(['operator', 'balanceWei'], str(worst - 1)), 'exceeds the balance'),
++            (m(['setProofKey', 'maxFeePerGas'], '6000000'), 'viem'),
++            (m(['setProofKey', 'gasEstimates'], ['38772', '40000']), 'larger of the two'),
++            (m(['setProofKey', 'operatorFeeWei'], 'UNDETERMINED'), 'undetermined'),
++            (m(['fees', 'isthmus'], None), 'undetermined'),
++            (m(['setProofKey', 'worstCaseWei'], str(worst - 5)), 'add up'),
++            (m(['chainIds'], [8453, 1]), 'Base'),
++            (m(['rpcs'], ['https://a', 'https://A']), 'distinct'),
++            (m(['readOnly'], False), 'read-only'),
++            (m(['desired', 'gpuPricePerSec6'], '1666'), 'reviewed fields'),
++        ]
++        for f, why in cases:
++            self.assertRegex('; '.join(self.probs(f)), why)
++        g = facts(self.now); del g['setProofKey']; self.assertRegex('; '.join(self.probs(g)), 'malformed')
++
++    def test_runner_failure_refuses(self):
++        class R: returncode, stdout, stderr = 1, '', 'RPCs disagree on balance'
++        f, probs = C.boot_funding(['https://a', 'https://b'], C.REVIEWED['commit'], '/nonexistent', run=lambda *a, **k: R)
++        self.assertIsNone(f); self.assertRegex(probs[0], 'disagree')
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/unadmit.py b/unadmit.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..6bd5f74655f7538a681ccc32aa84f9354de10cb0
+--- /dev/null
++++ b/unadmit.py
+@@ -0,0 +1,11 @@
++# ROOT EXECUTES only to undo admit.py: restores the env file it replaced (CAS on both versions) and restarts the API relay
++# (same transient impact as admit.py). Never run while the new measurement is attached.
++import json, sys
++from common import *
++NEW = load_new()
++ad = json.loads((A/'admission.json').read_text())
++assert public_attestation(get)['operatorAllowlist']['admittedAtAttach'] != NEW['measurement'], 'the candidate is attached: roll back the control first'
++args = (RELAY['env'], ad['remoteBackup'], ad['environmentSha256'], ad['replacesInstalledSha256'], NEW['commit'][:9], 'systemctl', RELAY['service'])
++code, out, err = run_remote(remote(REMOTE_RESTORE, args)); print(out + err, end='')
++if code: sys.exit(code)
++ad.update(stage='unadmitted (restored)', unadmittedAt=utc()); (A/'admission.json').write_text(json.dumps(ad, indent=2) + '\n')
+diff --git a/verify-operational.py b/verify-operational.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..b2d68a59f892b04c262cc73983a624ad82821419
+--- /dev/null
++++ b/verify-operational.py
+@@ -0,0 +1,134 @@
++# OPERATIONAL GATE v3 (prepared by Claude, 2026-10-21; v2 kept in prior-gate2/, the first version in
++# linux-post-adoption-repair/activation-gate/). activate.py runs it after attach + adoption; root may run it alone.
++# READ-ONLY: the apps' public endpoints, the control's public /availability, and this host's enclave-metal journal lines
++# (journalctl -o cat; only the prefixes below are kept, nothing else read or stored).
++#
++# v3 closes root's review holes (ROOT-GATE-REVIEW.txt):
++#  - ACTUAL app health (apphealth.py, the same definition activate.py uses): EyesOff /ping JSON ok+pong, image-generator
++#    200 text/html with the pre-cutover <title>; a 404 or error page is never healthy;
++#  - the journal FAILS CLOSED: a non-zero journalctl exit, or a journal that does not show both apps' adoption lines
++#    (the run's own anchor), is no evidence of "no error lines" - that poll is not clean;
++#  - FINITE: a hard overall deadline (default warmup + window + 4 polls + 120 s); missing it fails, naming what was
++#    missing (e.g. vouch cycles); a vouch timestamp that stops advancing for --vouch-stale s inside the window fails;
++#  - guest ids are MANDATORY inputs (--expect-guest for every app, from the pre-cutover baseline); never inferred.
++# v4 (root, metal0 07:51Z: guestd RETAINS failed guests beside the live one) reads held rows through guestrows.py: per app
++# exactly ONE nonterminal row (guestd's enum: starting/running; null or unknown fails closed) and it must be the expected
++# guest, running and owned; "failed" rows are terminal history, allowed only if the baseline recorded them
++# (--known-failed); a guest failing during the gate, a second nonterminal guest, or a replacement fails at once.
++# Warm-up (<= --warmup s) tolerates only "not yet" states before the window starts: the platform gate's first admit, the
++# first reconcile pass's `held`. Once every check passes the window starts and EVERY poll must pass. HARD failures end the
++# gate at any time: a death/reap/release/respawn/new-launch journal line for an app, an app unvouched, another guest id.
++import argparse, datetime, json, re, subprocess, sys, time, urllib.request
++from pathlib import Path
++sys.path.insert(0, str(Path(__file__).resolve().parent))
++import apphealth, guestrows
++
++ap = argparse.ArgumentParser()
++ap.add_argument('--availability', required=True)
++ap.add_argument('--apps-json', required=True, help='apps-health.json: {deployment id: {url, kind, title?, minBytes?}}')
++ap.add_argument('--expect-guest', action='append', required=True, metavar='DEPLOYMENT_ID=VM_ID')
++ap.add_argument('--known-failed', action='append', default=[], metavar='DEPLOYMENT_ID=VM_ID', help='baseline failed (history) rows')
++ap.add_argument('--since', required=True)
++ap.add_argument('--window', type=int, default=420)
++ap.add_argument('--warmup', type=int, default=300)
++ap.add_argument('--min-vouches', type=int, default=3)   # the vouch in effect at the window's start + 2 completed cycles
++ap.add_argument('--vouch-stale', type=int, default=180)  # three missed 60 s passes
++ap.add_argument('--poll', type=int, default=15)
++ap.add_argument('--deadline', type=int, default=None)
++ap.add_argument('--journal-cmd', default='journalctl --user -u enclave-metal.service --since {since} -o cat --no-pager',
++                help=argparse.SUPPRESS)   # the gate's own test substitutes a fixture
++ap.add_argument('--out', required=True)
++a = ap.parse_args()
++apps = apphealth.load_specs(a.apps_json)
++expect = {}
++for s in a.expect_guest:
++    i, v = s.split('=', 1); i = i.lower(); assert i in apps and re.fullmatch(r'[A-Za-z0-9-]{1,64}', v), s; expect[i] = v
++assert set(expect) == set(apps), 'an expected (pre-cutover) guest id is required for every app'
++known_failed = {i: set() for i in apps}
++for s in a.known_failed:
++    i, v = s.split('=', 1); i = i.lower(); assert i in apps and guestrows.VM.fullmatch(v) and v != expect[i], s; known_failed[i].add(v)
++deadline = a.deadline if a.deadline is not None else a.warmup + a.window + 4 * a.poll + 120
++now = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat()
++
++def get(url, timeout=12):
++    try:
++        with urllib.request.urlopen(urllib.request.Request(url, headers={'user-agent': 'enclave-activation-gate/3'}), timeout=timeout,
++                                    context=apphealth.CTX) as r: return r.status, r.read(1 << 20)
++    except Exception as e: return None, type(e).__name__.encode()
++
++def journal():
++    """-> (lines, problem). Fails closed: an unreadable journal, or one without the run's adoption anchor, is a problem."""
++    cmd = [x.replace('{since}', a.since) for x in a.journal_cmd.split(' ')]
++    try: r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
++    except Exception as e: return [], f'journal unreadable: {type(e).__name__}'
++    if r.returncode != 0: return [], f'journal unreadable: exit {r.returncode} {r.stderr.strip()[:120]}'
++    lines = [l for l in r.stdout.splitlines() if l.startswith(('[claim] ', '[release] ', '[bill] ', '[instance] ', '[isolation] '))]
++    missing = [i[:10] for i in apps if not any(l.startswith(f'[claim] {i} adopted:') for l in lines)]
++    return lines, (f'journal shows no adoption line for {missing}: not this run\'s journal' if missing else None)
++BAD = [re.compile(p) for p in (r'^\[bill\] (\S+) (instance respawned|respawn failed)', r'^\[claim\] (\S+) (app instance died|app died|lease lost|lease looks lost)',
++                               r'^\[instance\] reaped orphan (\S+)', r'^\[release\] (\S+) ', r'^\[isolation\] (0x[0-9a-f]{8}): guest \S+ app ')]
++def app_of(token):
++    t = token.lower()
++    return next((i for i in apps if i == t or (len(t) == 10 and i.startswith(t))), None)
++
++result = {'startedAt': now(), 'gate': 4, 'apps': apps, 'expectGuests': expect, 'knownFailed': {i: sorted(v) for i, v in known_failed.items()}, 'window': a.window, 'warmup': a.warmup,
++          'deadline': deadline, 'minVouches': a.min_vouches, 'polls': [], 'state': 'observing'}
++def save(): open(a.out, 'w').write(json.dumps(result, indent=2) + '\n')
++def finish(state, code, **kw):
++    result.update(state=state, at=now(), **kw); save(); print(state, json.dumps(kw)[:2000]); sys.exit(code)
++t0 = time.monotonic(); good_since = None; vouch_ats = set(); last_vouch = None; last_vouch_change = None
++while True:
++    hard, soft = [], []
++    p = {'at': now()}; cur_vouch = None
++    for i, spec in apps.items():
++        ok, detail = apphealth.check(spec); p[i[:10]] = detail
++        if not ok: soft.append(f'{i[:10]}: app not healthy ({detail})')
++    st, body = get(a.availability)
++    try: av = json.loads(body) if st == 200 else None
++    except Exception: av = None
++    if not isinstance(av, dict): soft.append(f'/availability -> {st}')
++    else:
++        v, held = av.get('tenantVouch') or {}, (av.get('instanceSweep') or {}).get('held')
++        if v.get('ok') is True and v.get('at'):
++            cur_vouch = v['at']; vouch_ats.add(cur_vouch)
++            if cur_vouch != last_vouch: last_vouch, last_vouch_change = cur_vouch, time.monotonic()
++        else: soft.append(f"tenantVouch not ok: {str(v.get('reason'))[:120]}")
++        for u in v.get('unvouched') or []:
++            if app_of(str(u.get('id', ''))): hard.append(f"{str(u.get('id'))[:10]} UNVOUCHED ({u.get('expiresIn')}s)")
++        if held is None: soft.append('instanceSweep.held not published')
++        else:
++            for i in apps:
++                live, history = guestrows.classify(held, i); p.setdefault('history', {})[i[:10]] = history
++                new_failed = sorted(set(history) - known_failed[i])
++                if new_failed: hard.append(f'{i[:10]}: guest(s) {new_failed} failed since the baseline')
++                if len(live) > 1:
++                    hard.append(f'{i[:10]}: more than one nonterminal guest: ' + ', '.join(f"{r.get('vm')}={r.get('status')}" for r in live))
++                elif live and live[0].get('vm') != expect[i]:
++                    hard.append(f'{i[:10]}: its nonterminal guest {live[0].get("vm")}={live[0].get("status")} is not the pre-cutover {expect[i]} (relaunched/replaced)')
++                elif live and live[0].get('status') != 'running':
++                    hard.append(f'{i[:10]}: the expected guest {expect[i]} is {live[0].get("status")!r}, not running')
++                elif not live: soft.append(f'{i[:10]}: no live guest held')
++                elif live[0].get('owned') is not True: soft.append(f'{i[:10]}: the expected guest {expect[i]} is not owned (yet)')
++    lines, jproblem = journal()
++    if jproblem: soft.append(jproblem)
++    for l in lines:
++        for r in BAD:
++            m = r.match(l)
++            if m and app_of(m.group(1)): hard.append('journal: ' + l[:200])
++    if good_since is not None and last_vouch_change is not None and time.monotonic() - last_vouch_change > a.vouch_stale:
++        hard.append(f'vouch stale: tenantVouch.at {last_vouch} has not advanced for {int(time.monotonic() - last_vouch_change)} s')
++    p['hard'], p['soft'] = hard, soft
++    result['polls'].append(p); result['vouchCycles'] = len(vouch_ats); result['guests'] = expect
++    elapsed = time.monotonic() - t0
++    if hard: finish('FAIL', 1, why=hard)
++    if soft:
++        if good_since is not None: finish('FAIL', 1, why=['after the window started: '] + soft)
++        if elapsed > a.warmup: finish('FAIL', 1, why=['warm-up exceeded: '] + soft)
++    else:
++        if good_since is None: good_since = time.monotonic(); vouch_ats = {cur_vouch}   # the window starts now
++        if time.monotonic() - good_since >= a.window and len(vouch_ats) >= a.min_vouches:
++            finish('PASS', 0, stableFor=a.window, guests=expect, vouchCycles=len(vouch_ats))
++    if elapsed > deadline:
++        finish('FAIL', 1, why=[f'overall deadline {deadline} s passed: window {"not started" if good_since is None else f"{int(time.monotonic() - good_since)} s of {a.window}"},'
++                               f' vouch cycles {len(vouch_ats)} of {a.min_vouches}'])
++    save(); time.sleep(a.poll)

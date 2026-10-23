@@ -1,0 +1,28 @@
+custody-live6 base rebuilt from empty + 10 stored patch(es) in dfb4b55e6: tree 0ec5226afb9658b715da1de0c19eff5472e1e7b2 OK
+custody-live6 ed2847318: tree b84ef92125d55a73f902ce54637a0fa8ae5121f7 OK
+recipient-restore2 base rebuilt from empty + 1 stored patch(es) in dfb4b55e6: tree 9c26fc2cd862092fe44a5b2fe18e4066a6d61d01 OK
+recipient-restore2 e02b3bd43: tree 4b5130664799528f40bd5e1bc4d94105b9028bd0 OK
+recipient-restore2 8f72453be: tree 1eb980329b4b50b8a6c18ca4baeb80e3c2352fb0 OK
+recipient-activation2 base rebuilt from empty + 3 stored patch(es) in dfb4b55e6: tree 6424dd932e56c0051be92f40b22cb324336a045d OK
+recipient-activation2 cb7fa858b: tree 1325ff8b4dec343c2201c143bdb7eef1d7c9f946 OK
+recipient-activation2 c83f2b394: tree 1909433ecbae7a3ed21ea9d55ea2cafb9d0039f1 OK
+recipient-activation2 48cc74bfb: tree 9d278ae11436a79ed7be9fa3f73d784553b80280 OK
+proof-app2 base rebuilt from empty + 1 stored patch(es) in dfb4b55e6: tree 71f91f097ec92ba1c5031c8123e03be15d478064 OK
+proof-app2 ac33146d8: tree ac0d87e625ff1c623f0b57cf8216ee24b724de67 OK
+proof-app2 ad81dd59f: tree d2aadd32d4df53dc688d2488be2ebf6f18d50775 OK
+current-docs base rebuilt from empty + 0 stored patch(es) in dfb4b55e6: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+current-docs dd9cc622e: tree 765edcc847ded61df435f7ed3d8ad545402e835d OK
+current-docs 42015b1eb: tree 1550a2a9010c4c98484be36c5aa97ae34cc76365 OK
+current-docs 9d58a8b21: tree b83dda34aba1d43025e305683d04a61157ccb074 OK
+current-docs dfca5f056: tree e0486dc0f3e647b3864f9c5af780db05435f987d OK
+current-docs a257c0e04: tree 89f863af8b6df65b5c0153d45e4f410a453efe35 OK
+boot-source base file test/registry-advertise-retry.test.mjs: blob 9cd0a7108 OK
+boot-source supervisor.js: held back (rewritten literal); patch index names f6b668cb2..66ad07d37 OK
+boot-source test/registry-advertise-retry.test.mjs: base + patch -> head blob 0fa12218e OK
+boot-source supervisor.js base sha256 01ac9cb17a5a == pushed production /app/supervisor.js OK
+boot-source: full tree 59f0a46d5 NOT reproduced (patch-only; parent and supervisor.js carry the rewritten literal)
+boot-activation base rebuilt from empty + 0 stored patch(es) in dfb4b55e6: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+boot-activation fa76e9bb8: tree b23ffb6fbca814b91da05ea81eb8d680c16ae6f6 OK
+boot-activation 86c5fee82: tree 48640559e08a892b3122b8cdab7b7fe09b9687d5 OK
+boot-activation trees are the ORIGINAL trees minus ['evidence/'] held at the base (head original e4b4b85c5); exact originals NOT reproduced
+RESULT custody-live6 reproduced: True, recipient-restore2 reproduced: True, recipient-activation2 reproduced: True, proof-app2 reproduced: True, current-docs reproduced: True, boot-source reproduced: True (patch-only), boot-activation reproduced: True

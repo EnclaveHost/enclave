@@ -1,0 +1,14 @@
+[queue] START available=23288MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{"round":0,"block":"0x328bf0a","heads":["53001996","53001996"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
+{"round":1,"block":"0x328bf0c","heads":["53001998","53001998"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
+{"round":2,"block":"0x328bf0e","heads":["53002000","53002000"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
+{"round":3,"block":"0x328bf0f","heads":["53002001","53002001"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
+{"round":4,"block":"0x328bf11","heads":["53002003","53002003"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
+{"round":5,"block":"0x328bf13","heads":["53002005","53002005"],"orderEqual":false,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
+{"round":6,"block":"0x328bf14","heads":["53002006","53002006"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
+{"round":7,"block":"0x328bf16","heads":["53002008","53002008"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
+{"round":8,"block":"0x328bf17","heads":["53002009","53002009"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
+{"round":9,"block":"0x328bf19","heads":["53002011","53002011"],"orderEqual":true,"onlyA":[],"onlyB":[],"differing":{},"canonical":{"number":true,"hash":true,"timestamp":true,"parentHash":true}}
+[memory-guard] exit=0 peakTreeRssMiB=70 minHostAvailableMiB=23242
+[memory-guard] at peak: node:70
+[queue] EXIT 0

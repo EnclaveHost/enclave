@@ -1,0 +1,3 @@
+Root reviewed the two staged gitleaks generic-api-key findings at diff lines490/491: exact SHA256 values of public source files api-relay.js (481f0041...) and secrets.js (4c491271...), not credentials. No private value was present. Metadata schema clarified as [{path,sha256}], preserving exact observed hashes and original timestamp. No blanket scanner rule disabled. The unmodified scanner is rerun over the final staged diff.
+
+22:14 root: staged generic-api-key finding is the public legacy control proof-key Ethereum ADDRESS 0x9eae…4485, not a private key. Renamed the selected metadata field to proofAddress in probe/evidence without altering observed value or timestamp; unmodified scanner rerun.

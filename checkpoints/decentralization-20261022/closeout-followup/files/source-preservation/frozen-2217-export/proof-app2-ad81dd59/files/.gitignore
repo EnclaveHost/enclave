@@ -1,0 +1,7 @@
+target/
+logs/
+out/
+ROOT-*.txt
+__pycache__/
+node_modules/
+prepared/

@@ -1,0 +1,49 @@
+{
+ "at": "2026-10-23T21:50:33.693Z",
+ "readOnly": true,
+ "requests": 12,
+ "rpcs": [
+  "mainnet.base.org",
+  "base.public.blockpi.network"
+ ],
+ "block": "53001440",
+ "book": {
+  "address": "0xab214342d5a490150a4a977063a2f88e21f80907",
+  "appCatalog": [
+   "0x18419ca2b502d423a8de6269aeee171a378626e3",
+   "0x18419ca2b502d423a8de6269aeee171a378626e3"
+  ],
+  "deployments": [
+   "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+   "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b"
+  ]
+ },
+ "catalog": {
+  "address": "0x18419ca2b502d423a8de6269aeee171a378626e3",
+  "codeHash": [
+   "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f",
+   "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f"
+  ],
+  "codeHashMatchesReviewed": true
+ },
+ "listing": {
+  "slug": "custody-canary-proof",
+  "appId": "0x85c5ed4ce282f8c1f434dd600d902d8738a6d8a54b71497dfaa95a1f635813a0",
+  "numVersions": [
+   "0",
+   "0"
+  ],
+  "cidListed": [
+   false,
+   false
+  ]
+ },
+ "agree": {
+  "appCatalog": true,
+  "deployments": true,
+  "codeHash": true,
+  "numVersions": true,
+  "cid": true
+ },
+ "ok": true
+}

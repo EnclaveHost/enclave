@@ -1,0 +1,33 @@
+[queue] START available=24090MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+APPROVED 9f6d37bd858ad44be1171b6415353910214c2fa5 extra=[] delta: supervisor.js test/registry-advertise-retry.test.mjs 
+2026-10-23T21:50:25Z
+== 1. control: a6b1378c from H's repo == the staged ee5df6b8 image
+{"sha256": "5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de", "bytes": 279389920}
+CONTROL-IDENTICAL initramfs.cpio.gz
+CONTROL-IDENTICAL vmlinuz
+CONTROL-IDENTICAL cmdline
+CONTROL-IDENTICAL manifest.json
+== 2. candidate twice
+{"sha256": "02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf", "bytes": 279388203}
+{"sha256": "02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf", "bytes": 279388203}
+REPRODUCIBLE initramfs.cpio.gz
+REPRODUCIBLE vmlinuz
+REPRODUCIBLE cmdline
+REPRODUCIBLE manifest.json
+== 3. exact delta (manifest records, image entries, image bytes = commit source)
+MANIFEST-DELTA-EXACT ['/app/supervisor.js']
+ENTRY-DELTA-EXACT vs a6 ['app/supervisor.js', 'opt/metal/manifest.json'] vs production ['app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/manifest.json']
+IMAGE-FILES-ARE-SOURCE ['app/supervisor.js', 'opt/metal/gsup.mjs']
+== 4. measurement
+MEASURE-RECIPE-REPRODUCES-PRODUCTION
+MEASURE-RECIPE-REPRODUCES-A6
+MEASURE-CANDIDATE 08d1f838d51274571fdf17b635606d20a6e7250f74d6676217eea40733a8d269aaf52edb85aac4a9ad1cc5c53318a000
+6d55c0e2839e5a1aad1258ce80ec112181f155c50be9f5ad1f66f1bb44064537  dist-leasegas-9f6d37bd8/MEASUREMENT
+d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  dist-leasegas-9f6d37bd8/cmdline
+02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf  dist-leasegas-9f6d37bd8/initramfs.cpio.gz
+64bd025db3ed62b82f016ed25f1bd24ab300dbe7520ca81498d3ccd293e43b16  dist-leasegas-9f6d37bd8/manifest.json
+1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  dist-leasegas-9f6d37bd8/vmlinuz
+2026-10-23T21:54:50Z
+[memory-guard] exit=0 peakTreeRssMiB=301 minHostAvailableMiB=23292
+[memory-guard] at peak: sev-snp-measure:295 bash:7
+[queue] EXIT 0

@@ -1,0 +1,13 @@
+[2026-10-23 review of work/custody-boot-activation-20261023 + H 9f6d37bd; source-only, D]
+CRITICAL BLOCKER (likely): H's boot decision compares the row's GPU price with SELL_GPU_PRICE6 AT BOOT. gsup (9f6d37bd metal/guest/gsup.mjs:476)
+gives the supervisor GPU_COUNT='0', so IS_GPU=false and supervisor.js:3055 sets SELL_GPU_PRICE6=0 until the shielded card is adopted LATE
+(supervisor.js:3030 comment; recomputed at 5858/5859 to the card's pricePerSec6 = 1667). advertise() runs at module end (12443) with no wait
+for discovery (registerOnChain 614-643; comment at 5860: "Discovery can finish after registration ... zero GPU price"). Row gpu=1667 vs
+desired 0 -> bootRegistrationAction "the registered fields differ" -> FULL register(gpu=0) (root est. ~354e9 worst, very tight vs 376.1e9),
+then a setPrices after discovery that the balance cannot fund. The boot-funding preflight pins desired gpu=1667 so it CANNOT see this.
+Race-dependent (a first attempt that fails/backs off past discovery would take setProofKey), so not guaranteed either way.
+Recommend: do NOT run activate.py until H handles the pre-discovery price (e.g. defer the boot decision until the shielded verdict
+settles, or treat SELL_GPU_PRICE6==0 with !IS_GPU on a row with gpu>0 as "not yet comparable") + a test; then rebuild/approve.
+[15:14 local / 22:14Z] Root acknowledged (ROOT-CRITICAL-BOOT-PRICE.txt): cutover STOPPED; 08d1 staged+admitted only. H's keep.py now uses a
+strict verdict check (common.py attestation_verdict_problems, 1800 s). D's separate check-recovery-verdict.py (900 s, wrapper-accepted,
+target recovery, failedChecks == []) is committed here as an independent cross-check. Review summary: REVIEW-RECOVERY.md.

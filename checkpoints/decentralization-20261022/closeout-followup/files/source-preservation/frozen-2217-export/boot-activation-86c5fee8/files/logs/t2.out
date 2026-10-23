@@ -1,0 +1,139 @@
+[queue] START available=23727MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+== python
+test_additive_36_to_37_in_installed_order (test_activation.Admission.test_additive_36_to_37_in_installed_order) ... ok
+test_refusals (test_activation.Admission.test_refusals) ... ok
+test_refusals (test_activation.BootFunding.test_refusals) ... ok
+test_root_actual_read_passes_with_headroom (test_activation.BootFunding.test_root_actual_read_passes_with_headroom) ... ok
+test_runner_failure_refuses (test_activation.BootFunding.test_runner_failure_refuses) ... ok
+test_approval_and_plan (test_activation.Build.test_approval_and_plan) ... ok
+test_refusals (test_activation.Build.test_refusals) ... ok
+test_source_is_the_reviewed_commit (test_activation.Build.test_source_is_the_reviewed_commit) ... ok
+test_staged_dir_hashes (test_activation.Build.test_staged_dir_hashes) ... ok
+test_the_actual_completed_build_passes (test_activation.Build.test_the_actual_completed_build_passes) ... ok
+test_activation_after_the_write_is_the_first_attempts (test_activation.FirstAttemptCodeUnchanged.test_activation_after_the_write_is_the_first_attempts)
+Everything from the write on (restart, attach, adoption of the SAME guests, gate v4, renewals, rollback) is unchanged ... ok
+test_gate_files_are_the_reviewed_byte_copies (test_activation.FirstAttemptCodeUnchanged.test_gate_files_are_the_reviewed_byte_copies) ... ok
+test_shared_functions_are_the_first_attempts_source (test_activation.FirstAttemptCodeUnchanged.test_shared_functions_are_the_first_attempts_source) ... ok
+test_availability_absent_is_recorded_never_pretended (test_activation.GuestdBaseline.test_availability_absent_is_recorded_never_pretended) ... ok
+test_collect_end_to_end_with_stubs (test_activation.GuestdBaseline.test_collect_end_to_end_with_stubs) ... ok
+test_exact_original_guests_pass_and_only_kept_fields (test_activation.GuestdBaseline.test_exact_original_guests_pass_and_only_kept_fields) ... ok
+test_listing_must_be_fresh_and_private (test_activation.GuestdBaseline.test_listing_must_be_fresh_and_private) ... ok
+test_original_baseline_is_pinned (test_activation.GuestdBaseline.test_original_baseline_is_pinned) ... ok
+test_refusals (test_activation.GuestdBaseline.test_refusals) ... ok
+test_preflight (test_activation.Preconditions.test_preflight) ... ok
+test_baseline_passes (test_activation.Protected.test_baseline_passes) ... ok
+test_every_protected_field_refuses (test_activation.Protected.test_every_protected_field_refuses) ... ok
+test_cas_refuses_changed_env_or_existing_backup_and_restores_on_failed_restart (test_activation.RemoteScripts.test_cas_refuses_changed_env_or_existing_backup_and_restores_on_failed_restart) ... ok
+test_cas_success_keeps_the_first_backup (test_activation.RemoteScripts.test_cas_success_keeps_the_first_backup) ... ok
+test_only_dist_changes_every_other_byte_preserved (test_activation.RewriteDist.test_only_dist_changes_every_other_byte_preserved) ... ok
+test_refuses_concurrent_config_change (test_activation.SafeRollback.test_refuses_concurrent_config_change) ... ok
+test_stop_first_wait_deadline_then_restore_and_start (test_activation.SafeRollback.test_stop_first_wait_deadline_then_restore_and_start) ... ok
+test_unreadable_journal_waits_the_ttl_bound (test_activation.SafeRollback.test_unreadable_journal_waits_the_ttl_bound) ... ok
+
+----------------------------------------------------------------------
+Ran 28 tests in 0.213s
+
+OK
+== node
+TAP version 13
+# Subtest: viem default max fee = ceil(base x 1.2) + tip
+ok 1 - viem default max fee = ceil(base x 1.2) + tip
+  ---
+  duration_ms: 0.657235
+  type: 'test'
+  ...
+# Subtest: root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
+ok 2 - root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
+  ---
+  duration_ms: 0.168429
+  type: 'test'
+  ...
+# Subtest: L1 and operator fees count; the size argument must cover the signed maximum
+ok 3 - L1 and operator fees count; the size argument must cover the signed maximum
+  ---
+  duration_ms: 0.194399
+  type: 'test'
+  ...
+# Subtest: the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
+ok 4 - the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
+  ---
+  duration_ms: 1.687526
+  type: 'test'
+  ...
+# Subtest: the decision is the reviewed commit's bootRegistrationAction; any other commit is refused
+ok 5 - the decision is the reviewed commit's bootRegistrationAction; any other commit is refused
+  ---
+  duration_ms: 8.235022
+  type: 'test'
+  ...
+# Subtest: root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
+ok 6 - root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
+  ---
+  duration_ms: 60.103707
+  type: 'test'
+  ...
+# Subtest: refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
+ok 7 - refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
+  ---
+  duration_ms: 359.340067
+  type: 'test'
+  ...
+# Subtest: RPC disagreement or a non-Base RPC refuses before any decision
+ok 8 - RPC disagreement or a non-Base RPC refuses before any decision
+  ---
+  duration_ms: 1.434138
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 571.761768
+== mutants
+control (unmutated copy) passes
+KILLED   config-before-stop
+KILLED   no-deadline-wait
+KILLED   no-concurrent-config-cas
+KILLED   no-dropin-check
+KILLED   non-additive-admission
+KILLED   cas-no-restore
+KILLED   small-margin-ok
+KILLED   admission-drops-prior
+KILLED   admission-count-ignored
+KILLED   build-any-approval
+KILLED   build-marker-at-least-once
+KILLED   build-a6-image-ok
+KILLED   build-kernel-may-change
+KILLED   build-measurement-file-unchecked
+KILLED   source-bytes-unchecked
+KILLED   approval-unchecked
+KILLED   plan-unchecked
+KILLED   guestd-replacement-adopted
+KILLED   guestd-starting-ok
+KILLED   guestd-no-record-ok
+KILLED   guestd-history-ignored
+KILLED   guestd-two-live-ok
+KILLED   guestd-stale-listing-ok
+KILLED   guestd-public-listing-ok
+KILLED   availability-pretends-adopted
+KILLED   funding-register-accepted
+KILLED   funding-fields-ignored
+KILLED   funding-pending-ignored
+KILLED   funding-no-headroom
+KILLED   funding-delegation-ignored
+KILLED   funding-stale-ok
+KILLED   funding-min-gas
+mutants 32 survived 0
+== scan
+3:07PM INF scanned ~182448 bytes (182.45 KB) in 28.6ms
+3:07PM INF no leaks found
+literal files []
+[scan] files 47 gitleaks=0 scan-crypto-keys=0 literal=0
+== RESULT rc=0
+[memory-guard] exit=0 peakTreeRssMiB=157 minHostAvailableMiB=23525
+[memory-guard] at peak: node:73 node:54 python3:25 bash:6
+[queue] EXIT 0

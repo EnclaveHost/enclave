@@ -1,0 +1,42 @@
+{
+ "what": "offline AppID + expected launch measurement, no network/hardware",
+ "release": "release-16c2999d (pin 16c2999d7715a38f8a29adcff03d9c3c0e071eb1c0afc207c1f335b654dca0aa)",
+ "tools": {
+  "derive_reference.py": "Projects/enclave custody/front-prod blob 6c5f056836019374114210865fcf067010b58182",
+  "expected-measurement.sh": "Projects/enclave custody/front-prod 837c0061dc60ecf4c534aa754e626a7dd44f05c0 (git archive isolation/m4 isolation/contract)",
+  "sev-snp-measure": "~/.local/bin/sev-snp-measure"
+ },
+ "policy": {
+  "rule": "enclave-isolation-policy/1: vcpus 1, memMiB max(128, on-chain memMb), cpuPercent 100",
+  "cpuPercent": 100,
+  "memMiB": 128,
+  "vcpus": 1,
+  "onChainRes": {
+   "vramMb": 0,
+   "gpuGflops": 0,
+   "memMb": 128,
+   "cpuGflops": 10
+  },
+  "guestRamMiB": "max(1024, memMiB+384) = 1024 (guestd server.go)",
+  "hostReservationMiB": "1024 + 768 QEMU overhead = 1792"
+ },
+ "crossCheck": {
+  "helloWorldV4": {
+   "release": "16c2999d7715a38f8a29adcff03d9c3c0e071eb1c0afc207c1f335b654dca0aa",
+   "app_id": "9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45",
+   "runtime_id": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+   "measurement": "9709716c9b63e1d2a048347478fbd6a94d42babd222e7bc8e18422e5b9075c840844e5213feaaf5fb3a3949dd30ad230"
+  },
+  "admittedByCanaryRules": "measurement 9709716c\u2026d230, runtimeId 297b6c2c\u202602f8, appId 9c3d10f1\u20260d45 (custody-v2-production-canary-20261023 pins)"
+ },
+ "canary": {
+  "release": "16c2999d7715a38f8a29adcff03d9c3c0e071eb1c0afc207c1f335b654dca0aa",
+  "app_id": "4f700c921576c417da0e1c7b98a6ef0ae5726f86d096c7f25ea278d4e4116a17",
+  "runtime_id": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+  "measurement": "e5febd103f8cabbad0a439e4daac47aa1caef213867026c442d04976df0a350777d198668c8f0add4f8f141b024cff12",
+  "bundleBytes": 101461,
+  "componentSha256": "7ce32918490b91b87c7ffa4cf69769c676b5b835ca11d55904b1511ef93ee883",
+  "derivation": "enclave-catalog-bundle/1"
+ },
+ "notInBundle": "catalog appId/version, CID string, runtimeId, cpuGflops, fee, config, slug/version label"
+}

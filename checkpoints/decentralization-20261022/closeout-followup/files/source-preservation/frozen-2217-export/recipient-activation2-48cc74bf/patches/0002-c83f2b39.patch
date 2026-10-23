@@ -1,0 +1,450 @@
+From c83f2b394e9c60567841d8e6122b980b9c054220 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:58:42 -0700
+Subject: [PATCH] metal0 control: exact recovery target (08d1f838, H 9f6d37bd)
+ for the frozen attest/proof-key helpers (source + offline tests)
+
+recovery-target.mjs pins the frozen helpers' bytes, re-ties the pin to all five approved image files (stage or production
+copy, every present one), adds exactly TARGETS.recovery in-process; no measurement flag. Proof key stays NOT hardware-bound
+(legacy). Tests 5/5 + 5/5.
+---
+ RECOVERY-TARGET.md               |  59 +++++++++++++++++
+ commit-recovery.sh               |  23 +++++++
+ logs/commit-proofkey-1.guard.log |   1 +
+ logs/commit-proofkey-1.out       |   9 +++
+ logs/commit-proofkey-1.rc        |   1 +
+ logs/recovery-tests-1.guard.log  |   1 +
+ logs/recovery-tests-1.out        |  74 ++++++++++++++++++++++
+ logs/recovery-tests-1.rc         |   1 +
+ recovery-target.mjs              | 105 +++++++++++++++++++++++++++++++
+ tests/recovery-target.test.mjs   |  84 +++++++++++++++++++++++++
+ 10 files changed, 358 insertions(+)
+ create mode 100644 RECOVERY-TARGET.md
+ create mode 100755 commit-recovery.sh
+ create mode 100644 logs/commit-proofkey-1.guard.log
+ create mode 100644 logs/commit-proofkey-1.out
+ create mode 100644 logs/commit-proofkey-1.rc
+ create mode 100644 logs/recovery-tests-1.guard.log
+ create mode 100644 logs/recovery-tests-1.out
+ create mode 100644 logs/recovery-tests-1.rc
+ create mode 100644 recovery-target.mjs
+ create mode 100644 tests/recovery-target.test.mjs
+
+diff --git a/RECOVERY-TARGET.md b/RECOVERY-TARGET.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..120ba8a74dd67e75ea909756a555fa89b023f366
+--- /dev/null
++++ b/RECOVERY-TARGET.md
+@@ -0,0 +1,59 @@
++# Exact recovery target for the frozen helpers (ROOT-RECOVERY-IMAGE-PINS.txt)
++
++This is source plus offline tests, prepared 2026-10-23, and has not been run live. **Root runs it after activating the recovery
++image.** `attest-control.mjs` (2d407753) and `verify-recipient-proofkey.mjs` (cb7fa858) are **unchanged**: `recovery-target.mjs`
++checks their sha256s before anything else. The verifier modules stay the a6b1378c pins (`checkPins`).
++
++```
++node work/custody-recipient-activation-20261023/recovery-target.mjs attest
++node work/custody-recipient-activation-20261023/recovery-target.mjs proofkey --expect-proof-key 0x<THIS boot's key>
++```
++
++## The target
++
++The wrapper adds exactly one entry, `TARGETS.recovery`, in-process and frozen, using
++`../custody-recipient-restore-20261023/BUILD-APPROVED-RESULT.md`:
++- **Measurement:** **08d1f838…c5c53318a000**, from H 9f6d37bd on a6b1378c, built and passed by root.
++- **No flags:** there is no measurement or target flag, and no generic unknown-measurement path.
++- **Refusals:** a different `recovery` entry already present refuses. `current` and `new` are untouched.
++
++**Before any network call**, all five image files must match the pins: MEASUREMENT `6d55c0e2…` (naming the pin), initramfs
++`02c7280a…`, manifest `64bd025d…`, vmlinuz `1a3a02d5…`, cmdline `d9e04c2c…`. The check covers:
++- `/home/steven/enclave-prod/dist-leasegas-9f6d37bd8` once root has copied it there;
++- the approved `stage-approved/dist-leasegas-9f6d37bd8`;
++- **every location that exists**, so a production copy that differs from the stage refuses.
++
++## The two modes
++
++**`attest`:** the frozen probe runs for target `recovery`, with the fresh nonce, the AMD chain and the full pin. Exit 0 only if:
++- the probe's own `pass` is true;
++- the target is `recovery`;
++- observed = expected = 08d1f838.
++
++The verdict is written through the frozen `persist`: a public file plus a 0600 raw file. **`check-attestation-verdict.py` and
++`keep.py` are ee5df6b8-only.** Root's new H activation (`work/custody-boot-activation-20261023`, not edited here) must use this
++wrapper's acceptance, or its own check.
++
++**`proofkey`:** the frozen helper runs for target `recovery`, so part B's stored document must carry 08d1f838. The statuses are
++unchanged: `verified-legacy` 0, `pending-registry` 2, rejected or unknown 1.
++
++**Unchanged limits, in every verdict:**
++- the proof key is **NOT hardware-bound**: part B is the relay-routed origin;
++- only part A's quote is fresh;
++- measured-control-verify does not apply (legacy control).
++
++## Tests
++
++`logs/recovery-tests-1.out`: `tests/recovery-target.test.mjs` **5/5**, plus the existing proof-key tests 5/5. They ran in the 256
++lane, peak 113 MiB. They cover:
++- the frozen hashes;
++- the real stage image passing;
++- fake images: tampered, missing, a production copy that differs, MEASUREMENT naming another pin;
++- one frozen target, with a conflicting one refused;
++- the probe pinned to recovery and strict acceptance (5 negatives);
++- the proof key verified, pending, and rejected for an ee5df6b8 quote or document.
++
++## Not covered
++
++- No live run.
++- W's manual proof-key helper is not used or reimplemented.
+diff --git a/commit-recovery.sh b/commit-recovery.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..e65cb1f6166dfdf1060a4214b89a6af0b00c8241
+--- /dev/null
++++ b/commit-recovery.sh
+@@ -0,0 +1,23 @@
++#!/bin/bash
++# Scan (unchanged scanners) then commit ONLY this task's files; root's live files stay untracked.
++set -euo pipefail
++cd "$(dirname "$0")"
++FILES="recovery-target.mjs tests/recovery-target.test.mjs RECOVERY-TARGET.md commit-recovery.sh logs/recovery-tests-1.out logs/recovery-tests-1.guard.log logs/recovery-tests-1.rc logs/commit-proofkey-1.out logs/commit-proofkey-1.guard.log logs/commit-proofkey-1.rc"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++st=$(mktemp -d); for f in $FILES; do mkdir -p "$st/$(dirname $f)"; cp "$f" "$st/$f"; done
++cfg=$(mktemp); git -C "$CKR" show HEAD:.gitleaks.toml > "$cfg"
++/home/steven/.local/bin/gitleaks dir "$st" --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path /dev/null
++find "$st" -type f -print0 | xargs -0 python3 "$CKR/.githooks/scan-crypto-keys.py" --files
++python3 - "$st" <<'PY'
++import pathlib, sys
++OLD = bytes.fromhex('54696e666f696c'); bad = [str(p) for p in pathlib.Path(sys.argv[1]).rglob('*') if p.is_file() and (OLD in p.read_bytes() or OLD.lower() in p.read_bytes())]
++assert not bad, bad; print('literal: none')
++PY
++rm -rf "$st" "$cfg"; echo "[scan] clean"
++git add -- $FILES
++git -c user.name=SteveDeFacto -c user.email=5148995+SteveDeFacto@users.noreply.github.com commit -q -m "metal0 control: exact recovery target (08d1f838, H 9f6d37bd) for the frozen attest/proof-key helpers (source + offline tests)
++
++recovery-target.mjs pins the frozen helpers' bytes, re-ties the pin to all five approved image files (stage or production
++copy, every present one), adds exactly TARGETS.recovery in-process; no measurement flag. Proof key stays NOT hardware-bound
++(legacy). Tests 5/5 + 5/5."
++git log -1 --format='%H %an <%ae>'
+diff --git a/logs/commit-proofkey-1.guard.log b/logs/commit-proofkey-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..9c0651e84bdb0e032fdb4b3b1c2425978f298b2b
+--- /dev/null
++++ b/logs/commit-proofkey-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=55 minHostAvailableMiB=23734
+diff --git a/logs/commit-proofkey-1.out b/logs/commit-proofkey-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..7f3f542b3b2a9f706276163aaec2b5f4ffb26b59
+--- /dev/null
++++ b/logs/commit-proofkey-1.out
+@@ -0,0 +1,9 @@
++[queue] START available=23753MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++2:48PM INF scanned ~27687 bytes (27.69 KB) in 11.1ms
++2:48PM INF no leaks found
++literal: none
++[scan] clean
++cb7fa858b8dc456217a0a9787cdff790cb5c8753 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
++[memory-guard] exit=0 peakTreeRssMiB=55 minHostAvailableMiB=23734
++[memory-guard] at peak: gitleaks:49 bash:6
++[queue] EXIT 0
+diff --git a/logs/commit-proofkey-1.rc b/logs/commit-proofkey-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/commit-proofkey-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/recovery-tests-1.guard.log b/logs/recovery-tests-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e9b922fe60290baca026d5d49fa6d14eb8916bb8
+--- /dev/null
++++ b/logs/recovery-tests-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=113 minHostAvailableMiB=23785
+diff --git a/logs/recovery-tests-1.out b/logs/recovery-tests-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..c66dabc13789a9e3580ce0b07b8c9dcd091b679e
+--- /dev/null
++++ b/logs/recovery-tests-1.out
+@@ -0,0 +1,74 @@
++[queue] START available=23822MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: all three parts match: verified-legacy (never plain "verified"), exit 0
++ok 1 - all three parts match: verified-legacy (never plain "verified"), exit 0
++  ---
++  duration_ms: 2.530668
++  type: 'test'
++  ...
++# Subtest: registry still names the previous boot's key: pending-registry, exit 2
++ok 2 - registry still names the previous boot's key: pending-registry, exit 2
++  ---
++  duration_ms: 0.475226
++  type: 'test'
++  ...
++# Subtest: every other mismatch is REJECTED
++ok 3 - every other mismatch is REJECTED
++  ---
++  duration_ms: 2.202791
++  type: 'test'
++  ...
++# Subtest: failed reads are UNKNOWN, never pass or pending
++ok 4 - failed reads are UNKNOWN, never pass or pending
++  ---
++  duration_ms: 0.531106
++  type: 'test'
++  ...
++# Subtest: inputs are validated and the public output carries no chip id or raw quote
++ok 5 - inputs are validated and the public output carries no chip id or raw quote
++  ---
++  duration_ms: 1.24131
++  type: 'test'
++  ...
++# Subtest: frozen helpers and the real approved stage image pass; the production path is not required to exist yet
++ok 6 - frozen helpers and the real approved stage image pass; the production path is not required to exist yet
++  ---
++  duration_ms: 181.485728
++  type: 'test'
++  ...
++# Subtest: image pins: every present location must match all five files and name the pin
++ok 7 - image pins: every present location must match all five files and name the pin
++  ---
++  duration_ms: 5.308044
++  type: 'test'
++  ...
++# Subtest: exactly one frozen target is added; a conflicting one refuses; current/new untouched
++ok 8 - exactly one frozen target is added; a conflicting one refuses; current/new untouched
++  ---
++  duration_ms: 0.903182
++  type: 'test'
++  ...
++# Subtest: attest: the frozen probe is pinned to the recovery measurement; acceptance is strict
++ok 9 - attest: the frozen probe is pinned to the recovery measurement; acceptance is strict
++  ---
++  duration_ms: 8.04119
++  type: 'test'
++  ...
++# Subtest: proofkey: the frozen helper checks the stored document against the RECOVERY pin; limits stay explicit
++ok 10 - proofkey: the frozen helper checks the stored document against the RECOVERY pin; limits stay explicit
++  ---
++  duration_ms: 1.511737
++  type: 'test'
++  ...
++1..10
++# tests 10
++# suites 0
++# pass 10
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 304.949046
++[memory-guard] exit=0 peakTreeRssMiB=113 minHostAvailableMiB=23785
++[memory-guard] at peak: node:60 node:54
++[queue] EXIT 0
+diff --git a/logs/recovery-tests-1.rc b/logs/recovery-tests-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/recovery-tests-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/recovery-target.mjs b/recovery-target.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..86bb2c0ad2106d7c4836294fffe413457aac3c1c
+--- /dev/null
++++ b/recovery-target.mjs
+@@ -0,0 +1,105 @@
++// EXACT PINNED RECOVERY TARGET for the two frozen helpers (ROOT EXECUTES after activating the recovery image; prepared
++// 2026-10-23; not run by its author). The helpers are imported UNCHANGED (sha256-pinned below) and get ONE extra target,
++// "recovery", added in-process: the root-approved boot-registration build H 9f6d37bd on a6b1378c, root's PASS at 21:54:50Z
++// (../custody-recipient-restore-20261023/BUILD-APPROVED-RESULT.md). There is no measurement flag: the pin is this file's
++// constant, re-tied before any network call to the image files' hashes, at the production path after root copies it, else
++// the approved stage path (every location that exists must match all five). The verifier modules stay the a6b1378c pins
++// (attest-control.mjs checkPins).
++//   node recovery-target.mjs attest                                   -> attest-control probe, target recovery; exit 0 only if verified
++//   node recovery-target.mjs proofkey --expect-proof-key 0x<this boot>  -> verify-recipient-proofkey, target recovery; 0 / 2 pending / 1
++// The legacy limits are unchanged and carried in every proof-key verdict: the proof key is NOT hardware-bound (relay-routed
++// origin, part B); only part A's fresh quote is.
++import fs from 'node:fs';
++import path from 'node:path';
++import crypto from 'node:crypto';
++import { fileURLToPath } from 'node:url';
++import * as AC from './attest-control.mjs';
++import * as PK from './verify-recipient-proofkey.mjs';
++
++const HERE = path.dirname(fileURLToPath(import.meta.url));
++export const FROZEN = {   // attest-control.mjs at 2d407753, verify-recipient-proofkey.mjs at cb7fa858
++  'attest-control.mjs': '79c59a821c7b375fc383391c4ded09ebc60d2df662dd1b277cfead0b32d7c8de',
++  'verify-recipient-proofkey.mjs': '92097dd2518f578058033b888063e6bf23810fc6b1336800d6858f4b0c85aa70',
++};
++export const RECOVERY = Object.freeze({
++  measurement: '08d1f838d51274571fdf17b635606d20a6e7250f74d6676217eea40733a8d269aaf52edb85aac4a9ad1cc5c53318a000',
++  source: 'root-approved build of H 9f6d37bd on a6b1378c (custody-recipient-restore-20261023 BUILD-APPROVED-RESULT.md; 2 identical builds)',
++  images: Object.freeze(['/home/steven/enclave-prod/dist-leasegas-9f6d37bd8',
++                         path.resolve(HERE, '../custody-recipient-restore-20261023/stage-approved/dist-leasegas-9f6d37bd8')]),
++  files: Object.freeze({
++    MEASUREMENT: '6d55c0e2839e5a1aad1258ce80ec112181f155c50be9f5ad1f66f1bb44064537',
++    'manifest.json': '64bd025db3ed62b82f016ed25f1bd24ab300dbe7520ca81498d3ccd293e43b16',
++    'initramfs.cpio.gz': '02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf',
++    vmlinuz: '1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7',
++    cmdline: 'd9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8',
++  }),
++});
++
++function fileSha(f) {   // streamed (the initramfs is ~270 MiB)
++  const h = crypto.createHash('sha256'), b = Buffer.alloc(1 << 20), fd = fs.openSync(f, 'r');
++  try { for (let n; (n = fs.readSync(fd, b, 0, b.length, null)) > 0;) h.update(b.subarray(0, n)); } finally { fs.closeSync(fd); }
++  return h.digest('hex');
++}
++
++export function checkFrozen(dir = HERE) {
++  for (const [f, h] of Object.entries(FROZEN)) if (fileSha(path.join(dir, f)) !== h) throw new Error(`${f} is not the frozen helper`);
++}
++
++/** -> the image path used; every listed location that exists must carry all pinned files, and at least one must exist. */
++export function checkRecoveryImage(t = RECOVERY) {
++  const present = t.images.filter((p) => fs.existsSync(p));
++  if (!present.length) throw new Error(`no recovery image at ${t.images.join(' or ')}`);
++  for (const p of present) {
++    for (const [f, h] of Object.entries(t.files)) if (fileSha(path.join(p, f)) !== h) throw new Error(`${p}/${f} is not the approved file`);
++    if (fs.readFileSync(path.join(p, 'MEASUREMENT'), 'utf8').trim() !== t.measurement) throw new Error(`${p}/MEASUREMENT does not name the pin`);
++  }
++  return present[0];
++}
++
++/** Adds exactly TARGETS.recovery to the frozen helpers' shared target table (in-process only). */
++export function installTarget(image, t = RECOVERY) {
++  const entry = Object.freeze({ measurement: t.measurement, image, source: t.source, files: t.files });
++  const have = AC.TARGETS.recovery;
++  if (have && (have.measurement !== entry.measurement || have.image !== image)) throw new Error('a different recovery target is already installed');
++  if (!have) AC.TARGETS.recovery = entry;
++  return AC.TARGETS.recovery;
++}
++
++/** The attest verdict this wrapper accepts: the frozen probe's own pass, for the recovery target, at exactly the pin. */
++export function attestAccepted(v, t = RECOVERY) {
++  return v.pass === true && v.target === 'recovery' && v.expectedMeasurement === t.measurement && v.observedMeasurement === t.measurement;
++}
++
++export async function attest({ deps } = {}) {
++  const { verdict, raw } = await AC.probe({ target: 'recovery', deps });
++  verdict.wrapper = 'recovery-target/1'; verdict.accepted = attestAccepted(verdict);
++  return { verdict, raw };
++}
++
++export async function proofkey({ expectProofKey, deps } = {}) {
++  const r = await PK.run({ target: 'recovery', expectProofKey, deps });
++  if (r.verdict.expectedMeasurement !== RECOVERY.measurement) throw new Error('the proof-key helper did not pin the recovery measurement');
++  r.verdict.wrapper = 'recovery-target/1';
++  return r;
++}
++
++if (process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1])) {
++  const mode = process.argv[2];
++  if (mode !== 'attest' && mode !== 'proofkey') { console.error('usage: recovery-target.mjs attest | proofkey --expect-proof-key 0x...'); process.exit(1); }
++  checkFrozen(); AC.checkPins();
++  const image = checkRecoveryImage(); installTarget(image);
++  if (mode === 'attest') {
++    const { verdict, raw } = await attest();
++    const files = AC.persist(verdict, raw);
++    console.log(JSON.stringify({ accepted: verdict.accepted, status: verdict.status, target: verdict.target, image, required: verdict.required, crl: verdict.crl,
++                                 observed: verdict.observedMeasurement?.slice(0, 16), expected: verdict.expectedMeasurement.slice(0, 16),
++                                 transportKeySha256: verdict.transportKeySha256, failedChecks: verdict.failedChecks, verdict: files.pub, rawSha256: verdict.rawSha256 }));
++    process.exit(verdict.accepted ? 0 : 1);
++  }
++  const i = process.argv.indexOf('--expect-proof-key');
++  const { verdict, raw } = await proofkey({ expectProofKey: i > 0 ? process.argv[i + 1] : undefined });
++  const f = PK.persist(verdict, raw);
++  console.log(JSON.stringify({ status: verdict.status, image, parts: verdict.parts, proofKey: verdict.expectedProofKey, served: verdict.servedProofKey,
++                               registryProofKey: verdict.registry?.proofKey ?? null, transportKeySha256: verdict.transportKeySha256 ?? null, verdict: f.pub }));
++  process.exit(verdict.exitCode);
++}
+diff --git a/tests/recovery-target.test.mjs b/tests/recovery-target.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..c4fdbbbc6698969998fe695c78f1f5599800b188
+--- /dev/null
++++ b/tests/recovery-target.test.mjs
+@@ -0,0 +1,84 @@
++// recovery-target.mjs offline: exact image pins (stage path for real; tampered copies refused), one frozen target added,
++// the frozen helpers' own checks applied to the recovery pin, the strict attest acceptance. No network, chain or production.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import crypto from 'node:crypto';
++import fs from 'node:fs';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++import * as R from '../recovery-target.mjs';
++import { TARGETS } from '../attest-control.mjs';
++
++const HERE = path.dirname(fileURLToPath(import.meta.url));
++const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
++const PIN = R.RECOVERY.measurement, KEY = '0x8853f452533e2f05eb4c9289f77dbeacc316d1ed';
++const STAGE = R.RECOVERY.images[1];
++
++test('frozen helpers and the real approved stage image pass; the production path is not required to exist yet', () => {
++  R.checkFrozen();
++  assert.equal(R.checkRecoveryImage(), fs.existsSync(R.RECOVERY.images[0]) ? R.RECOVERY.images[0] : STAGE);
++  assert.equal(fs.readFileSync(path.join(STAGE, 'MEASUREMENT'), 'utf8').trim(), PIN);
++});
++
++function fake(dir, over = {}) {
++  fs.mkdirSync(dir, { recursive: true });
++  const files = { MEASUREMENT: PIN + '\n', 'manifest.json': '{}', 'initramfs.cpio.gz': 'i', vmlinuz: 'k', cmdline: 'c', ...over };
++  for (const [f, b] of Object.entries(files)) fs.writeFileSync(path.join(dir, f), b);
++  return Object.fromEntries(Object.entries(files).map(([f, b]) => [f, sha(Buffer.from(b))]));
++}
++
++test('image pins: every present location must match all five files and name the pin', () => {
++  const base = fs.mkdtempSync(path.join(HERE, '..', '.recovery-test-')); try {
++    const good = path.join(base, 'good'), bad = path.join(base, 'bad'), none = path.join(base, 'none');
++    const files = fake(good); fake(bad, { 'initramfs.cpio.gz': 'j' });
++    const t = (images, over = {}) => ({ ...R.RECOVERY, images, files, ...over });
++    assert.equal(R.checkRecoveryImage(t([none, good])), good);
++    assert.throws(() => R.checkRecoveryImage(t([none])), /no recovery image/);
++    assert.throws(() => R.checkRecoveryImage(t([good, bad])), /initramfs.cpio.gz is not the approved file/);   // prod copy differs from stage
++    assert.throws(() => R.checkRecoveryImage(t([bad, good])), /not the approved file/);
++    const other = path.join(base, 'other'), f2 = fake(other, { MEASUREMENT: TARGETS.new.measurement + '\n' });
++    assert.throws(() => R.checkRecoveryImage({ ...R.RECOVERY, images: [other], files: f2 }), /does not name the pin/);
++  } finally { fs.rmSync(base, { recursive: true }); }
++});
++
++test('exactly one frozen target is added; a conflicting one refuses; current/new untouched', () => {
++  const before = JSON.stringify({ c: TARGETS.current, n: TARGETS.new });
++  const e = R.installTarget(STAGE);
++  assert.equal(e.measurement, PIN); assert.ok(Object.isFrozen(e)); assert.equal(R.installTarget(STAGE), e);
++  assert.throws(() => R.installTarget('/elsewhere'), /different recovery target/);
++  assert.deepEqual(Object.keys(TARGETS).sort(), ['current', 'new', 'recovery']);
++  assert.equal(JSON.stringify({ c: TARGETS.current, n: TARGETS.new }), before);
++});
++
++test('attest: the frozen probe is pinned to the recovery measurement; acceptance is strict', async () => {
++  R.installTarget(STAGE);
++  const fetchImpl = async () => ({ status: 503, text: async () => 'down' });
++  const { verdict } = await R.attest({ deps: { fetchImpl, now: Date.parse('2026-10-23T22:30:00Z') } });
++  assert.equal(verdict.target, 'recovery'); assert.equal(verdict.expectedMeasurement, PIN);
++  assert.equal(verdict.pass, false); assert.equal(verdict.accepted, false);
++  const ok = { pass: true, target: 'recovery', expectedMeasurement: PIN, observedMeasurement: PIN };
++  assert.equal(R.attestAccepted(ok), true);
++  for (const over of [{ pass: false }, { target: 'new' }, { observedMeasurement: TARGETS.new.measurement }, { expectedMeasurement: TARGETS.current.measurement }, { observedMeasurement: null }])
++    assert.equal(R.attestAccepted({ ...ok, ...over }), false, JSON.stringify(over));
++});
++
++test('proofkey: the frozen helper checks the stored document against the RECOVERY pin; limits stay explicit', async () => {
++  R.installTarget(STAGE);
++  const spki = crypto.randomBytes(91), T = sha(spki);
++  const report = (meas) => { const r = Buffer.alloc(0x4a0); crypto.createHash('sha256').update(spki).digest().copy(r, 0x50); Buffer.from(meas, 'hex').copy(r, 0x90); return r; };
++  const probe = (meas) => async ({ target }) => { assert.equal(target, 'recovery');
++    return { verdict: { pass: true, status: 'verified', observedMeasurement: meas, transportKeySha256: T, failedChecks: [], unavailable: [] }, raw: {} }; };
++  const sup = (meas) => async () => ({ status: 200, text: async () => JSON.stringify({ proofKey: { address: KEY, keySource: 'in-enclave' }, sessionKey: { kid: 'k' },
++    enclave: { attestationDocument: { format: 'sev-snp-guest-metal-v1', transportKey: spki.toString('base64'), body: report(meas).toString('base64') } } }) });
++  const registry = (proofKey) => async () => ({ endpoint: 'https://api.enclave.host/t/metal0', operator: '0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab', active: true, proofKey });
++  const go = (deps) => R.proofkey({ expectProofKey: KEY, deps: { now: '2026-10-23T22:30:00Z', ...deps } }).then((r) => r.verdict);
++  let v = await go({ probe: probe(PIN), fetchImpl: sup(PIN), registry: registry(KEY) });
++  assert.equal(v.status, 'verified-legacy'); assert.equal(v.expectedMeasurement, PIN); assert.equal(v.wrapper, 'recovery-target/1');
++  assert.match(v.parts['B supervisor'], /not hardware-bound/); assert.ok(v.limits.some((l) => /not bound into any SNP report_data/.test(l)));
++  v = await go({ probe: probe(PIN), fetchImpl: sup(PIN), registry: registry('0x' + '11'.repeat(20)) });
++  assert.equal(v.status, 'pending-registry'); assert.equal(v.exitCode, 2);
++  v = await go({ probe: probe(TARGETS.new.measurement), fetchImpl: sup(PIN), registry: registry(KEY) });   // the ee5df6b8 image is not recovery
++  assert.equal(v.status, 'rejected');
++  v = await go({ probe: probe(PIN), fetchImpl: sup(TARGETS.new.measurement), registry: registry(KEY) });
++  assert.equal(v.status, 'rejected'); assert.match(v.reasons.join(), /another measurement/);
++});

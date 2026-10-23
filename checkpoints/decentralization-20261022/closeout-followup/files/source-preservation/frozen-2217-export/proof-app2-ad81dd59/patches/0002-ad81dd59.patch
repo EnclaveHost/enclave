@@ -1,0 +1,489 @@
+From ad81dd59f1559dfea74629d4133d75b168047c55 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:03:44 -0700
+Subject: [PATCH] publish prepare: bounded read pacing and HTTP-429-only
+ retries (ROOT-READ-PACING)
+
+Root's live read-only prepare died on mainnet.base.org eth_maxPriorityFeePerGas HTTP 429.
+One paced transport per prepare: per provider one start per 250 ms; HTTP 429 only, at most
+3 retries per request, Retry-After <= 5 s honoured (longer refuses), else 0.5/1/2 s backoff;
+other errors fail at once. Finite budgets: 80 attempts, 60 s; the agreed block must be at
+most 60 s old when the plan is written (stale refuses) and the time budget may never exceed
+the freshness window. Two-RPC agreement and every guard, the request (calldata 13e5a6f4) and
+the WASM unchanged. Tests: transport 8/8 on a discrete-event fake clock, anvil 10/10,
+mutants 23/23.
+---
+ PROGRESS.txt                    |   5 ++
+ PUBLISH.md                      |  26 +++++++-
+ publish/bin/publish-prepare.mjs |  21 ++++--
+ publish/lib/publish.mjs         |  87 +++++++++++++++++++++++--
+ publish/test/mutants.sh         |  11 +++-
+ publish/test/pacing.test.mjs    | 110 ++++++++++++++++++++++++++++++++
+ publish/test/publish.test.mjs   |  37 ++++++++++-
+ 7 files changed, 277 insertions(+), 20 deletions(-)
+ create mode 100644 publish/test/pacing.test.mjs
+
+diff --git a/PROGRESS.txt b/PROGRESS.txt
+index 953fc776502448ce0208e75e9192638eb3640d1a..e2a389631344a706eb10b2782039f2396221762d 100644
+--- a/PROGRESS.txt
++++ b/PROGRESS.txt
+@@ -17,3 +17,8 @@
+ - Footprint {100,128,1}: AppID 4f700c92…, measurement e5febd10…, runtimeId 297b6c2c… (hello cross-check exact).
+ - Helper tests 9/9 (anvil, real catalog/book runtimes), mutants 14/14; live probe 12 requests ok at block 53001440.
+ - Docs: marker format is syntactic only (README §2); src/frozen WASM untouched.
++2026-10-23 ROOT-READ-PACING: bounded read pacing for publish --prepare (root's live run: mainnet.base.org
++eth_maxPriorityFeePerGas HTTP 429; nothing signed). Per provider 1 start/250 ms; HTTP 429 only, <=3 retries,
++Retry-After <=5 s honoured (longer refuses), else 0.5/1/2 s; <=80 attempts, <=60 s; block <=60 s old at plan time
++(stale refuses); budget > freshness refused at construction. All guards and the request unchanged (calldata 13e5a6f4).
++Tests: transport 8/8 (fake clock), anvil 10/10, mutants 23/23. WASM 7ce32918 unchanged.
+diff --git a/PUBLISH.md b/PUBLISH.md
+index ca68eca95a49a644d97b8b502394ca8cc333f616..ed8263cf60f3e938a081e0acaa62dc615b90b1a6 100644
+--- a/PUBLISH.md
++++ b/PUBLISH.md
+@@ -97,7 +97,8 @@
+ 
+ - **`--print`:** offline. Prints the exact call above.
+ - **`--prepare`:** live, read-only, two RPCs (`mainnet.base.org`, `base.public.blockpi.network`) at one agreed block
+-  (lower head − 2). The local run used 54 JSON-RPC requests in total, a fixed path. It refuses (exit 3, with a code)
++  (lower head − 2). The read path is fixed at 54 JSON-RPC requests; read pacing and bounded retries (below) add at
++  most 26 attempts. It refuses (exit 3, with a code)
+   unless all of the following hold:
+   - **book:** its code hash matches, and its `appCatalog`/`deployments` entries are the pinned catalog and ledger;
+   - **ledger** and **catalog:** code hashes match;
+@@ -119,6 +120,24 @@
+   - On the local chain the estimate was 609,159 and the prepared gas 761,449.
+   - Every refusal in the "refuses unless" list above aborts before anything is written; the admin's balance is only
+     reported (`balanceSufficient`, `fundingNeededWei`).
++- **Read pacing and retries (ROOT-READ-PACING, after root's live prepare died on `mainnet.base.org`
++  `eth_maxPriorityFeePerGas` HTTP 429).** All reads of one prepare share one paced transport (lib `PACING`):
++  - **Pacing:** at most one request starts per provider every 250 ms; the two providers are paced independently.
++  - **Retries:** only HTTP 429 is retried, at most 3 times per request.
++    - A `Retry-After` of ≤ 5 s (delta seconds or HTTP date) is honoured; a longer one refuses at once.
++    - Without one, the waits are 0.5, 1 and 2 s.
++    - Nothing else is retried: other HTTP statuses, JSON-RPC errors (no transient class is documented for them here,
++      including -32005), timeouts and network errors fail at once (exit 1, `FAILED (not retried)`).
++  - **Budgets:** at most 80 attempts (54 reads + 26 retries) and 60 s per prepare. A wait that would cross the deadline
++    is not started (`rpc_budget`); exhausted 429 retries refuse with `rpc_rate_limited`, never relabelled as a fee
++    finding.
++  - **Freshness:** the agreed block may be at most 60 s old (measured from its selection) when the plan is written,
++    otherwise `stale`. The time budget can never exceed the freshness window: that is refused at construction and never
++    relaxed.
++  - **Unchanged guards:** the two-RPC same-block agreement and every guard listed under `--prepare` above. The plan
++    records `transport` (requests, 429 retries, waited, elapsed, block age, pacing).
++  - **Not changed here:** the one-off 12-request live probe (`publish/probe/live-readonly.mjs`) still sends single
++    attempts, unpaced.
+ - **Output:** a public plan `publish/prepared/<sha256>.json` holding the unsigned EIP-1559 transaction and every
+   observation. There is no send, sign or upload code; a test greps the source for those.
+ 
+@@ -163,8 +182,9 @@
+ | catalog + book offline rebuild = deployed code hashes | 512 | exact, peak 302 MiB |
+ | AppID derivation + hello-world cross-check | 256 | 4f700c92… / 9c3d10f1… reproduced |
+ | expected measurement (hello cross-check + canary) | 512 | 9709716c… reproduced / e5febd10…, peak 111 MiB |
+-| helper tests on anvil (real catalog + book runtimes, mock oracle) | 512 | 9/9, peak 185 MiB |
+-| helper mutants (owner, handoff, listing, CID, book, catalog and ledger hashes, operator fee, not-Isthmus, L1 size, RPC agreement, nonce, fee cap, chain) | 512 | 14/14 killed |
++| helper tests on anvil (real catalog + book runtimes, mock oracle, fake clock) | 512 | 10/10 (incl. 429→success, exhausted 429, Retry-After over cap, non-429 fail, stale, time budget), 0.85 s, peak 177 MiB |
++| paced transport unit tests (discrete-event fake clock, no real sleeps) | 256 | 8/8 (429→success, Retry-After both forms, cap, exhaustion, 5 non-429 kinds, pacing timing, budgets, bounds) |
++| helper mutants (owner, handoff, listing, CID, book, catalog and ledger hashes, operator fee, not-Isthmus, L1 size, RPC agreement, nonce, fee cap, chain; non-429 retried, no pacing, unbounded 429, Retry-After cap or value ignored, request or time budget unchecked, stale accepted, budget > freshness) | 512 | 23/23 killed |
+ | live read-only probe | 256 | 12 requests, all agree, ok |
+ 
+ The frozen component's sha256 was re-verified in the tests. Root's activation was holding the large lane; no job here
+diff --git a/publish/bin/publish-prepare.mjs b/publish/bin/publish-prepare.mjs
+index 1597638392234aa4283a0b434d23d7c377a33df4..c5ed4e00328e7d3c250b3713f5b68de4cf3ca836 100755
+--- a/publish/bin/publish-prepare.mjs
++++ b/publish/bin/publish-prepare.mjs
+@@ -1,11 +1,14 @@
+ #!/usr/bin/env node
+ // custody-canary-proof catalog publication: READ-ONLY preparation for root. Never reads a key, signs, uploads or sends.
+ //   --print     offline: the exact call (selector, args, calldata, sha256, expected catalog appId). No network.
+-//   --prepare   live, read-only: two RPCs at one agreed block (about 54 JSON-RPC requests, fixed by the code path);
+-//               writes prepared/<planHash>.json (public) and prints the plan hash. Exit 3 on a refusal (with its code).
++//   --prepare   live, read-only: two RPCs at one agreed block. The read path is fixed at 54 JSON-RPC requests; with
++//               per-provider pacing (one start per 250 ms each) and bounded HTTP-429-only retries (<= 3 per request,
++//               Retry-After <= 5 s honoured, else 0.5/1/2 s) it never exceeds 80 attempts or 60 s, and the agreed block is
++//               at most 60 s old when the plan is written (lib PACING). Writes prepared/<planHash>.json (public) and
++//               prints the plan hash. Exit 3 on a refusal (with its code: rpc_rate_limited, rpc_budget, stale, ...).
+ import fs from "node:fs";
+ import path from "node:path";
+-import { createPreparer, request, PRODUCTION, COMPONENT, SELECTOR, Refusal, httpRpc } from "../lib/publish.mjs";
++import { createPreparer, request, PRODUCTION, COMPONENT, SELECTOR, Refusal, httpRpc, PACING } from "../lib/publish.mjs";
+ 
+ const mode = process.argv[2];
+ const big = (_k, v) => (typeof v === "bigint" ? v.toString() : v);
+@@ -16,15 +19,19 @@
+     dataSha256: r.dataSha256, expectedCatalogAppId: r.appId, component: COMPONENT }, big, 1));
+ } else if (mode === "--prepare") {
+   const counter = { n: 0 };
++  const preparer = createPreparer({ rpc: httpRpc(15_000, counter), pacing: PACING });
+   try {
+-    const out = await createPreparer({ rpc: httpRpc(15_000, counter) }).prepare();
++    const out = await preparer.prepare();
+     const dir = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "prepared");
+     fs.mkdirSync(dir, { recursive: true });
+     fs.writeFileSync(path.join(dir, `${out.planHash}.json`), out.text, { flag: "wx", mode: 0o644 });
+-    console.log(JSON.stringify({ status: out.status, planHash: out.planHash, requests: counter.n, fees: out.plan.observed.fees, balanceSufficient: out.plan.observed.balanceSufficient }, null, 1));
++    console.log(JSON.stringify({ status: out.status, planHash: out.planHash, requests: counter.n, transport: out.plan.transport, fees: out.plan.observed.fees,
++      balanceSufficient: out.plan.observed.balanceSufficient }, null, 1));
+   } catch (e) {
+-    if (e instanceof Refusal) { console.error(`REFUSED ${e.code}: ${e.message} (${counter.n} requests)`); process.exit(3); }
+-    throw e;
++    const st = preparer.stats();
++    const tail = `(${counter.n} requests, ${st?.retries429 ?? 0} 429 retries)`;
++    if (e instanceof Refusal) { console.error(`REFUSED ${e.code}: ${e.message} ${tail}`); process.exit(3); }
++    console.error(`FAILED (not retried): ${e.message} ${tail}`); process.exit(1);
+   }
+ } else {
+   console.error("usage: publish-prepare.mjs --print | --prepare");
+diff --git a/publish/lib/publish.mjs b/publish/lib/publish.mjs
+index 86030a0ceb14b97372fc3f9760fc12ae7fbb4821..16a9a5446ceab620f1fdcd6ba7212c01262950b0 100644
+--- a/publish/lib/publish.mjs
++++ b/publish/lib/publish.mjs
+@@ -119,28 +119,96 @@
+     refuse("l1_size", `the L1 fee size ${argument} (+${ORACLE_SIGNATURE_ALLOWANCE}) undercounts the signed transaction (${signedMax} bytes)`);
+ }
+ 
+-/** JSON-RPC over fetch with a deadline; an error answer throws. Counts requests. */
++/** JSON-RPC over fetch, ONE attempt with a deadline; an error answer throws. Counts requests. An HTTP error carries its
++ *  status, and a 429 its Retry-After header, for the pacing layer; nothing here retries. */
+ export const httpRpc = (timeoutMs = 15_000, counter = { n: 0 }) => async (url, method, params) => {
+   counter.n++;
+   const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+     signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
+-  if (!r.ok) throw new Error(`${new URL(url).host} ${method}: HTTP ${r.status}`);
++  if (!r.ok) throw Object.assign(new Error(`${new URL(url).host} ${method}: HTTP ${r.status}`), { status: r.status, retryAfter: r.headers.get("retry-after") });
+   const j = await r.json();
+   if (j.error) throw Object.assign(new Error(`${new URL(url).host} ${method}: ${String(j.error.message || j.error.code).slice(0, 200)}`), { rpcError: j.error });
+   return j.result;
+ };
+ 
++// READ pacing (root 2026-10-23: a live prepare died on mainnet.base.org eth_maxPriorityFeePerGas HTTP 429). Every request
++// of one prepare goes through one paced transport:
++//   - per provider, at most one request starts per minIntervalMs (the two providers are paced independently);
++//   - HTTP 429 ONLY is retried, at most max429Retries times per request: after Retry-After when the provider sends one
++//     (seconds or an HTTP date) and it is <= retryAfterCapMs, else after the short backoff for that attempt; a
++//     Retry-After beyond the cap is not waited out (the read fails). Nothing else is retried: other HTTP statuses,
++//     JSON-RPC errors (no transient class is documented for them here), timeouts and network errors fail at once;
++//   - finite overall budgets: maxRequests (attempts, retries included) and timeBudgetMs from the start of prepare; a
++//     wait that would cross the deadline is not started;
++//   - freshness: the agreed block may be at most freshnessMs old (measured from when it was selected) when the plan is
++//     written, and the time budget may never exceed the freshness window (refused at construction, never relaxed).
++// Exhausted budgets and exhausted 429 retries are Refusals ("rpc_budget", "rpc_rate_limited"; a late plan "stale").
++export const PACING = Object.freeze({ minIntervalMs: 250, max429Retries: 3, retryAfterCapMs: 5_000, backoffMs: Object.freeze([500, 1_000, 2_000]),
++  maxRequests: 80, timeBudgetMs: 60_000, freshnessMs: 60_000 });
++export const realClock = Object.freeze({ now: () => Date.now(), sleepUntil: (at) => new Promise((r) => setTimeout(r, Math.max(0, at - Date.now()))) });
++
++export function checkPacing(p) {
++  const int = (x, lo, hi) => Number.isSafeInteger(x) && x >= lo && x <= hi;
++  if (!int(p.minIntervalMs, 0, 5_000) || !int(p.max429Retries, 0, 5) || !int(p.retryAfterCapMs, 0, 10_000) || !int(p.maxRequests, 1, 100)
++      || !int(p.timeBudgetMs, 1, 120_000) || !int(p.freshnessMs, 1, 120_000) || !Array.isArray(p.backoffMs) || p.backoffMs.length < p.max429Retries
++      || p.backoffMs.some((b) => !int(b, 0, 10_000)))
++    throw new Error("pacing: out of bounds");
++  if (p.timeBudgetMs > p.freshnessMs) throw new Error("pacing: the time budget may not exceed the block freshness window");
++  return p;
++}
++
++/** Retry-After in ms (delta seconds or an HTTP date), or null when absent/unparseable. */
++export function retryAfterMs(v, nowMs) {
++  if (v == null || v === "") return null;
++  if (/^\d+$/.test(String(v).trim())) return Number(String(v).trim()) * 1000;
++  const t = Date.parse(String(v));
++  return Number.isFinite(t) ? Math.max(0, t - nowMs) : null;
++}
++
++/** The paced, budgeted transport over a single-attempt rpc(url, method, params). */
++export function pacedTransport({ rpc, pacing = PACING, clock = realClock, start = clock.now() }) {
++  checkPacing(pacing);
++  const next = new Map(), stats = { requests: 0, retries429: 0, waitedMs: 0 };
++  const deadline = start + pacing.timeBudgetMs;
++  async function waitUntil(at, why) {
++    if (at > deadline) refuse("rpc_budget", `${why}: waiting until +${at - start} ms would cross the ${pacing.timeBudgetMs} ms budget`);
++    const t = clock.now();
++    if (at > t) { stats.waitedMs += at - t; await clock.sleepUntil(at); }
++  }
++  async function send(url, method, params) {
++    for (let attempt = 0; ; attempt++) {
++      // per-provider pacing: reserve this provider's next slot before waiting, so concurrent callers queue up
++      const slot = Math.max(clock.now(), next.get(url) ?? -Infinity);
++      next.set(url, slot + pacing.minIntervalMs);
++      await waitUntil(slot, `${new URL(url).host} ${method}`);
++      if (stats.requests >= pacing.maxRequests) refuse("rpc_budget", `the ${pacing.maxRequests}-request budget is exhausted (at ${method})`);
++      stats.requests++;
++      try { return await rpc(url, method, params); } catch (e) {
++        if (e instanceof Refusal || e?.status !== 429) throw e;                   // only HTTP 429 is transient here
++        if (attempt >= pacing.max429Retries) refuse("rpc_rate_limited", `${e.message} after ${attempt} retries`);
++        const ra = retryAfterMs(e.retryAfter, clock.now());
++        if (ra !== null && ra > pacing.retryAfterCapMs) refuse("rpc_rate_limited", `${e.message}: Retry-After ${ra} ms is beyond the ${pacing.retryAfterCapMs} ms cap`);
++        stats.retries429++;
++        await waitUntil(clock.now() + (ra ?? pacing.backoffMs[attempt]), `${new URL(url).host} ${method} 429 retry`);
++      }
++    }
++  }
++  return { send, stats, start, deadline };
++}
++
+ // ledgerCodeHashOf: a TEST seam only, for the ledger alone (its deployed runtime embeds immutables and a library address
+ // that are not rebuilt here; the book and catalog are rebuilt byte-exact and always hashed with keccak256). The CLI never
+ // passes it.
+-export function createPreparer({ cfg = PRODUCTION, rpc = httpRpc(), now = () => Date.now(), ledgerCodeHashOf = keccak256 } = {}) {
++export function createPreparer({ cfg = PRODUCTION, rpc = httpRpc(), clock = realClock, pacing = PACING, ledgerCodeHashOf = keccak256 } = {}) {
+   // nothing that names the transaction may differ from production; tests change only the RPC URLs
+   for (const k of ["chainId", "book", "bookCodeHash", "catalog", "catalogCodeHash", "catalogSchema", "ledger", "ledgerCodeHash", "publisher", "oracle", "readDepth"])
+     if (cfg[k] !== PRODUCTION[k]) throw new Error(`config ${k} must be the production value`);
+   if (cfg.request !== PRODUCTION.request || cfg.caps !== PRODUCTION.caps) throw new Error("the request and caps must be the production values");
+   const rpcs = [...cfg.rpcs];
+   if (rpcs.length !== 2 || rpcs[0] === rpcs[1]) throw new Error("exactly two distinct RPCs");
+-  const both = (method, params) => Promise.all(rpcs.map((u) => rpc(u, method, params)));
++  checkPacing(pacing);
++  let transport = null;                                                  // one paced, budgeted transport per prepare
++  const both = (method, params) => Promise.all(rpcs.map((u) => transport.send(u, method, params)));
+   const agree = async (what, method, params) => {
+     const r = await both(method, params);
+     if (JSON.stringify(r[0]) !== JSON.stringify(r[1])) refuse("rpc_disagree", `the RPCs disagree on ${what}`);
+@@ -161,7 +229,9 @@
+   }
+ 
+   async function prepare() {
++    transport = pacedTransport({ rpc, pacing, clock });
+     const blk = await agreedBlock();
++    const selectedAt = clock.now();
+     const at = { blockHash: blk.hash, requireCanonical: true };
+     const call = (to, abi, functionName, args = [], from) => agree(`${to} ${functionName}`, "eth_call",
+       [{ to, data: encodeFunctionData({ abi, functionName, args }), ...(from ? { from } : {}) }, at]).then((data) => decodeFunctionResult({ abi, functionName, data }));
+@@ -229,8 +299,11 @@
+     const l2 = gas * maxFeePerGas, total = l2 + l1 + operatorFee;
+     if (total > cfg.caps.totalWei) refuse("cap", `the worst-case cost ${total} wei (L2 ${l2} + L1 ${l1} + operator ${operatorFee}) exceeds the cap ${cfg.caps.totalWei}`);
+ 
++    // freshness: never write a plan from a block selected longer ago than the window allows
++    const age = clock.now() - selectedAt;
++    if (age > pacing.freshnessMs) refuse("stale", `the agreed block was selected ${age} ms ago (window ${pacing.freshnessMs} ms): prepare again`);
+     const plan = {
+-      v: 1, tool: "custody-canary-publish-prepare", readOnly: true, preparedAt: new Date(now()).toISOString(),
++      v: 1, tool: "custody-canary-publish-prepare", readOnly: true, preparedAt: new Date(clock.now()).toISOString(),
+       component: COMPONENT,
+       call: { function: "publishVersion(string,string,string,string,string,uint32[4],string,string,uint256)", selector: SELECTOR,
+               args: { slug: cfg.request.slug, name: cfg.request.name, description: cfg.request.description, version: cfg.request.version, cid: cfg.request.cid,
+@@ -253,9 +326,11 @@
+                           encodedBytes: { unsigned: sizes.unsigned, signedMax: sizes.signedMax, oracleArgument: sizes.argument, oracleSignatureAllowance: ORACLE_SIGNATURE_ALLOWANCE },
+                           note: "L2 cap (gas x maxFeePerGas) + GasPriceOracle L1 data-fee upper bound for the maximum signed size + the oracle's operator fee for the gas limit, all at the agreed block's parameters. Not a guarantee against later changes; the signer must re-check before signing." },
+                   balanceSufficient: balance >= total, fundingNeededWei: (balance >= total ? 0n : total - balance).toString() },
++      transport: { requests: transport.stats.requests, retries429: transport.stats.retries429, waitedMs: transport.stats.waitedMs,
++                   elapsedMs: clock.now() - transport.start, blockAgeMs: age, pacing },
+     };
+     const text = JSON.stringify(plan, null, 1) + "\n";
+     return { status: "prepared", planHash: "0x" + sha256(text), text, plan };
+   }
+-  return { prepare, request: () => req };
++  return { prepare, request: () => req, stats: () => transport?.stats ?? null };
+ }
+diff --git a/publish/test/mutants.sh b/publish/test/mutants.sh
+index 91d259ae53e918385f220337ec05150600ff024d..c70558d1ca3bf2b1685d89d74f354895ceec9ef7 100755
+--- a/publish/test/mutants.sh
++++ b/publish/test/mutants.sh
+@@ -7,7 +7,7 @@
+   mkdir -p "$m/../out-link"; perl -0pi -e "$2" "$m/lib/publish.mjs"
+   if cmp -s "$here/lib/publish.mjs" "$m/lib/publish.mjs"; then echo "MUTANT NOT APPLIED: $1"; return; fi
+   sed -i 's|new URL("../../out/custody_canary_proof.wasm", import.meta.url)|new URL("file://'"$(cd "$here/.." && pwd)"'/out/custody_canary_proof.wasm")|' "$m/test/publish.test.mjs"
+-  if (cd "$m" && node --test --test-concurrency=1 test/publish.test.mjs >/dev/null 2>&1); then echo "SURVIVED: $1"; else echo "killed: $1"; killed=$((killed+1)); fi
++  if (cd "$m" && node --test --test-concurrency=1 test/pacing.test.mjs test/publish.test.mjs >/dev/null 2>&1); then echo "SURVIVED: $1"; else echo "killed: $1"; killed=$((killed+1)); fi
+ }
+ mutant "catalog owner not checked"          's/if \(owner !== cfg\.publisher\) refuse/if (false) refuse/'
+ mutant "pending handoff ignored"            's/if \(pending !== ZERO\) refuse/if (false) refuse/'
+@@ -23,5 +23,14 @@
+ mutant "unsettled nonce accepted"           's/if \(\[\.\.\.nl, \.\.\.np\]\.some\(\(x\) => x !== nonceAt\)\) refuse/if (false) refuse/'
+ mutant "fee cap not enforced"               's/if \(maxFeePerGas > cfg\.caps\.maxFeePerGas\) refuse/if (false) refuse/'
+ mutant "wrong chain accepted"               's/if \(ids\.some\(\(x\) => Number\(x\) !== cfg\.chainId\)\) refuse/if (false) refuse/'
++mutant "non-429 errors retried too"          's/if \(e instanceof Refusal \|\| e\?\.status !== 429\) throw e;/if (e instanceof Refusal) throw e;/'
++mutant "no per-provider pacing"             's/next\.set\(url, slot \+ pacing\.minIntervalMs\);/next.set(url, slot);/'
++mutant "unbounded 429 retries"              's/if \(attempt >= pacing\.max429Retries\) refuse/if (false) refuse/'
++mutant "Retry-After cap ignored"            's/if \(ra !== null && ra > pacing\.retryAfterCapMs\) refuse/if (false) refuse/'
++mutant "Retry-After ignored (backoff only)" 's/clock\.now\(\) \+ \(ra \?\? pacing\.backoffMs\[attempt\]\)/clock.now() + pacing.backoffMs[attempt]/'
++mutant "request budget unchecked"           's/if \(stats\.requests >= pacing\.maxRequests\) refuse/if (false) refuse/'
++mutant "time budget unchecked"              's/if \(at > deadline\) refuse/if (false) refuse/'
++mutant "stale block accepted"               's/if \(age > pacing\.freshnessMs\) refuse/if (false) refuse/'
++mutant "budget may exceed freshness"        's/if \(p\.timeBudgetMs > p\.freshnessMs\) throw/if (false) throw/'
+ echo "MUTANTS killed $killed/$total"
+ [ "$killed" = "$total" ]
+diff --git a/publish/test/pacing.test.mjs b/publish/test/pacing.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6ce500365e8f0d4d5e92fa950107efefda1bbc9f
+--- /dev/null
++++ b/publish/test/pacing.test.mjs
+@@ -0,0 +1,110 @@
++// The paced READ transport alone, with a fake clock (virtual time; no real sleeps) and a fake single-attempt rpc.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { pacedTransport, checkPacing, retryAfterMs, PACING, Refusal } from "../lib/publish.mjs";
++
++const A = "https://a.example/rpc", B = "https://b.example/rpc";
++// discrete-event fake clock: sleepUntil registers a timer; drive() lets microtasks settle, then fires the earliest timer
++// (advancing virtual time to it), until the awaited promise settles. Wall-clock time is never waited on.
++function fakeClock(t0 = 1_000_000) {
++  const c = { t: t0, timers: [], now: () => c.t, sleepUntil: (at) => new Promise((r) => c.timers.push({ at, r })) };
++  return c;
++}
++async function drive(c, p) {
++  let done = false, val, err;
++  p.then((v) => { done = true; val = v; }, (e) => { done = true; err = e; });
++  for (let spins = 0; !done; spins++) {
++    await new Promise((r) => setImmediate(r));
++    if (done) break;
++    assert.ok(c.timers.length && spins < 10_000, "stuck: nothing pending in virtual time");
++    c.timers.sort((a, b) => a.at - b.at);
++    const x = c.timers.shift();
++    c.t = Math.max(c.t, x.at); x.r();
++  }
++  if (err) throw err;
++  return val;
++}
++// a fake rpc: script(url, method, attemptNo) -> value, or throws; records the virtual start time of every attempt
++function fakeRpc(clock, script) {
++  const log = [];
++  const rpc = async (url, method) => {
++    const k = `${url} ${method}`, n = log.filter((l) => l.k === k).length;
++    log.push({ k, url, method, at: clock.now() });
++    return script(url, method, n);
++  };
++  return { rpc, log };
++}
++const e429 = (retryAfter = null) => Object.assign(new Error("HTTP 429"), { status: 429, retryAfter });
++const code = (c) => (e) => (e instanceof Refusal && e.code === c) || assert.fail(`expected ${c}, got ${e.code ?? e.message}`);
++
++test("429 then success: retried with the short backoff, in virtual time", async () => {
++  const clock = fakeClock(), { rpc, log } = fakeRpc(clock, (u, m, n) => { if (n < 2) throw e429(); return "0x1"; });
++  const t = pacedTransport({ rpc, clock });
++  assert.equal(await drive(clock, t.send(A, "eth_maxPriorityFeePerGas", [])), "0x1");
++  assert.equal(t.stats.requests, 3); assert.equal(t.stats.retries429, 2);
++  assert.deepEqual(log.map((l) => l.at - 1_000_000), [0, 500, 1500], "backoff 500 then 1000 ms (pacing 250 ms is shorter)");
++  assert.ok(clock.t - 1_000_000 < 5_000, "no real time involved");
++});
++
++test("Retry-After is honoured when within the cap (delta seconds and HTTP date)", async () => {
++  const clock = fakeClock(Date.parse("2026-10-23T22:00:00Z"));
++  const { rpc, log } = fakeRpc(clock, (u, m, n) => { if (n === 0) throw e429("2"); if (n === 1) throw e429(new Date(clock.now() + 3_000).toUTCString()); return "ok"; });
++  const t = pacedTransport({ rpc, clock });
++  assert.equal(await drive(clock, t.send(A, "eth_chainId", [])), "ok");
++  assert.deepEqual(log.map((l) => l.at - log[0].at), [0, 2_000, 5_000]);
++  assert.equal(retryAfterMs("7", 0), 7_000); assert.equal(retryAfterMs("", 0), null); assert.equal(retryAfterMs("soon", 0), null);
++});
++
++test("Retry-After beyond the cap is not waited out: refused at once", async () => {
++  const clock = fakeClock(), { rpc, log } = fakeRpc(clock, () => { throw e429("60"); });
++  await assert.rejects(drive(clock, pacedTransport({ rpc, clock }).send(A, "eth_call", [])), code("rpc_rate_limited"));
++  assert.equal(log.length, 1); assert.equal(clock.t, 1_000_000, "no wait at all");
++});
++
++test("exhausted 429: max429Retries retries, then rpc_rate_limited", async () => {
++  const clock = fakeClock(), { rpc, log } = fakeRpc(clock, () => { throw e429(); });
++  const t = pacedTransport({ rpc, clock });
++  await assert.rejects(drive(clock, t.send(A, "eth_blockNumber", [])), code("rpc_rate_limited"));
++  assert.equal(log.length, PACING.max429Retries + 1); assert.equal(t.stats.retries429, PACING.max429Retries);
++});
++
++test("non-429 errors fail at once, never retried", async () => {
++  for (const err of [Object.assign(new Error("HTTP 503"), { status: 503 }), Object.assign(new Error("HTTP 403"), { status: 403 }),
++    Object.assign(new Error("rpc: limit exceeded"), { rpcError: { code: -32005 } }), Object.assign(new Error("aborted"), { name: "TimeoutError" }), new TypeError("fetch failed")]) {
++    const clock = fakeClock(), { rpc, log } = fakeRpc(clock, () => { throw err; });
++    await assert.rejects(drive(clock, pacedTransport({ rpc, clock }).send(A, "eth_call", [])), (e) => e === err);
++    assert.equal(log.length, 1, err.message);
++  }
++});
++
++test("pacing: per provider at most one start per minIntervalMs; providers independent; concurrent callers queue", async () => {
++  const clock = fakeClock(), { rpc, log } = fakeRpc(clock, () => "0x0");
++  const t = pacedTransport({ rpc, clock });
++  for (let i = 0; i < 3; i++) await drive(clock, Promise.all([t.send(A, "eth_call", []), t.send(B, "eth_call", [])]));
++  await drive(clock, Promise.all([t.send(A, "x", []), t.send(A, "y", []), t.send(A, "z", [])]));         // concurrent on one provider
++  const starts = (u) => log.filter((l) => l.url === u).map((l) => l.at - 1_000_000);
++  assert.deepEqual(starts(A), [0, 250, 500, 750, 1000, 1250]);
++  assert.deepEqual(starts(B), [0, 250, 500], "B is paced on its own clock slot, not behind A");
++});
++
++test("finite budgets: request count and time; a wait that would cross the deadline is not started", async () => {
++  const clock = fakeClock(), { rpc } = fakeRpc(clock, () => "0x0");
++  const small = { ...PACING, maxRequests: 3 };
++  const t = pacedTransport({ rpc, clock, pacing: small });
++  for (let i = 0; i < 3; i++) await drive(clock, t.send(A, "m", []));
++  await assert.rejects(drive(clock, t.send(B, "m", [])), code("rpc_budget"));
++  const c2 = fakeClock(), r2 = fakeRpc(c2, () => { throw e429("4"); });
++  const tight = { ...PACING, timeBudgetMs: 3_000, freshnessMs: 3_000 };
++  await assert.rejects(drive(c2, pacedTransport({ rpc: r2.rpc, clock: c2, pacing: tight }).send(A, "m", [])), code("rpc_budget"));
++  assert.equal(c2.t, 1_000_000, "the 4 s wait past a 3 s budget never started");
++});
++
++test("pacing bounds: the time budget can never exceed the freshness window, and every knob is bounded", () => {
++  assert.doesNotThrow(() => checkPacing(PACING));
++  assert.throws(() => checkPacing({ ...PACING, timeBudgetMs: 90_000, freshnessMs: 60_000 }), /freshness/);
++  assert.throws(() => checkPacing({ ...PACING, max429Retries: 9 }), /bounds/);
++  assert.throws(() => checkPacing({ ...PACING, maxRequests: 1000 }), /bounds/);
++  assert.throws(() => checkPacing({ ...PACING, retryAfterCapMs: 60_000 }), /bounds/);
++  assert.throws(() => checkPacing({ ...PACING, backoffMs: [500] }), /bounds/);
++  assert.ok(PACING.maxRequests >= 54 + 2 * PACING.max429Retries, "the fixed 54-read path plus a few retries fits");
++});
+diff --git a/publish/test/publish.test.mjs b/publish/test/publish.test.mjs
+index 95dbd89ee79dba9287e7bc7baeb5f751406d7001..7e5e4468eb45503b7a3ca4a50c45f943000e6529 100644
+--- a/publish/test/publish.test.mjs
++++ b/publish/test/publish.test.mjs
+@@ -9,7 +9,9 @@
+ import { spawn, execFileSync } from "node:child_process";
+ import { createHash } from "node:crypto";
+ import { encodeFunctionData, decodeFunctionResult, decodeEventLog, encodePacked, keccak256, stringToHex, decodeFunctionData } from "viem";
+-import { PRODUCTION, COMPONENT, CATALOG_ABI, SELECTOR, request, checkRequest, createPreparer, httpRpc, Refusal } from "../lib/publish.mjs";
++import { PRODUCTION, COMPONENT, CATALOG_ABI, SELECTOR, PACING, request, checkRequest, createPreparer, httpRpc, Refusal } from "../lib/publish.mjs";
++import { toFunctionSelector } from "viem";
++const isIsthmusSel = toFunctionSelector("isIsthmus()"), operatorFeeSel = toFunctionSelector("getOperatorFee(uint256)");
+ 
+ const fx = (f) => JSON.parse(fs.readFileSync(new URL("../fixtures/" + f, import.meta.url), "utf8"));
+ const CAT = fx("catalog-build.json"), BOOK = fx("book-build.json"), ORACLE = fx("oracle-mock.json");
+@@ -79,7 +81,10 @@
+   };
+ }
+ const LEDGER_SEAM = () => P.ledgerCodeHash;
+-const prep = (opts = {}) => createPreparer({ rpc: rpcWith(opts.tamper), ledgerCodeHashOf: opts.ledgerCodeHashOf ?? LEDGER_SEAM, now: () => Date.parse("2026-10-23T22:00:00Z") });
++// a fake clock: pacing and backoff advance virtual time only (no real sleeps)
++const fakeClock = (t0 = Date.parse("2026-10-23T22:00:00Z")) => { const c = { t: t0, now: () => c.t, sleepUntil: async (at) => { c.t = Math.max(c.t, at); } }; return c; };
++const prep = (opts = {}) => createPreparer({ rpc: rpcWith(opts.tamper), ledgerCodeHashOf: opts.ledgerCodeHashOf ?? LEDGER_SEAM, clock: opts.clock ?? fakeClock() });
++const http429 = (retryAfter = null) => Object.assign(new Error("fake HTTP 429"), { status: 429, retryAfter });
+ const refuses = async (code, opts) => assert.rejects(prep(opts).prepare(), (e) => e instanceof Refusal && e.code === code ? true : assert.fail(`expected ${code}, got ${e.code}: ${e.message}`));
+ async function withState(addr, slot, value, fn) {
+   const old = await raw("eth_getStorageAt", [addr, pad32(slot), "latest"]);
+@@ -135,7 +140,7 @@
+   assert.throws(() => createPreparer({ cfg: { ...P, publisher: "0x0000000000000000000000000000000000000001" } }), /publisher/);
+   assert.throws(() => createPreparer({ cfg: { ...P, request: { ...P.request, slug: "hello-world" } } }), /request/);
+   assert.throws(() => createPreparer({ cfg: { ...P, rpcs: [P.rpcs[0], P.rpcs[0]] } }), /two distinct/);
+-  assert.equal(Object.keys(createPreparer({ rpc: rpcWith() })).sort().join(), "prepare,request", "no send, sign or upload surface");
++  assert.equal(Object.keys(createPreparer({ rpc: rpcWith() })).sort().join(), "prepare,request,stats", "no send, sign or upload surface");
+   const src = fs.readFileSync(new URL("../lib/publish.mjs", import.meta.url), "utf8");
+   for (const s of ["eth_sendRawTransaction", "eth_sendTransaction", "privateKeyToAccount", "signTransaction", "add-wasm", "upload-token"]) assert.ok(!src.includes(s), s);
+ });
+@@ -184,6 +189,32 @@
+   await refuses("chain", { tamper: (u, m) => (u === P.rpcs[0] && m === "eth_chainId" ? "0x1" : undefined) });
+ });
+ 
++test("pacing at prepare level: the 429 root hit is retried; exhausted 429s and stale blocks refuse with their own codes", async () => {
++  // the failure root saw: mainnet.base.org eth_maxPriorityFeePerGas HTTP 429, here twice, then answered
++  let n429 = 0;
++  const ok = await prep({ tamper: (u, m) => { if (u === P.rpcs[0] && m === "eth_maxPriorityFeePerGas" && n429 < 2) { n429++; throw http429(); } } }).prepare();
++  assert.equal(ok.status, "prepared");
++  assert.equal(ok.plan.transport.retries429, 2);
++  assert.ok(ok.plan.transport.requests <= PACING.maxRequests && ok.plan.transport.elapsedMs <= PACING.timeBudgetMs);
++  assert.ok(ok.plan.transport.waitedMs >= 1500, "backoff 500 + 1000 ms in virtual time");
++  // the same guards still hold after a retry: the plan is the same transaction
++  assert.equal(ok.plan.unsignedTx.data, request().data);
++  // exhausted: every attempt 429 -> rpc_rate_limited, not a fee/operator classification
++  await refuses("rpc_rate_limited", { tamper: (u, m) => { if (u === P.rpcs[0] && m === "eth_maxPriorityFeePerGas") throw http429(); } });
++  // a 429 inside the oracle reads is NOT relabelled as an undetermined operator fee
++  await refuses("rpc_rate_limited", { tamper: (u, m, p) => { if (m === "eth_call" && p[0].to === P.oracle && p[0].data.startsWith(isIsthmusSel)) throw http429(); } });
++  // Retry-After beyond the cap: no wait, refused
++  await refuses("rpc_rate_limited", { tamper: (u, m) => { if (u === P.rpcs[1] && m === "eth_chainId") throw http429("30"); } });
++  // a non-429 HTTP error is never retried
++  await assert.rejects(prep({ tamper: (u, m) => { if (m === "eth_getCode") throw Object.assign(new Error("fake HTTP 503"), { status: 503 }); } }).prepare(), /HTTP 503/);
++  // stale: the clock jumps past the freshness window during the LAST read (no later request to hit the time budget)
++  const clock = fakeClock();
++  await refuses("stale", { clock, tamper: (u, m, p) => { if (u === P.rpcs[1] && m === "eth_call" && p[0].to === P.oracle && p[0].data.startsWith(operatorFeeSel)) clock.t += PACING.freshnessMs + 1; } });
++  // ...and a jump earlier in the run hits the overall time budget instead
++  const clock2 = fakeClock();
++  await refuses("rpc_budget", { clock: clock2, tamper: (u, m) => { if (u === P.rpcs[0] && m === "eth_getBlockByNumber") clock2.t += PACING.timeBudgetMs + 1; } });
++});
++
+ test("the prepared transaction, executed on the local chain only, lists the canary APPROVED at index 0", async () => {
+   const t = prepared.plan.unsignedTx;
+   const rc = await sendAs(P.publisher, { to: t.to, data: t.data, gas: "0x" + BigInt(t.gas).toString(16), value: "0x0" });
