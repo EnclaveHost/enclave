@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-23T00:13:01.727555+00:00",
+  "capturedAt": "2026-10-23T00:41:46.882932+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -7,6 +7,13 @@
       "stored": "files/outputs/decentralization-audit/native-control-hardware-canary-20261022.json",
       "sha256": "4ea372a39d53b5ef60b259f84453b1066d394529fe78987de8888420b9e8ca89",
       "bytes": 2322
+    },
+    {
+      "label": "ROOT receipt: encrypted archive copy verified on a second attached device, same workstation/site; NOT offsite or a complete cold recovery",
+      "source": "outputs/decentralization-audit/storage-cold-recovery-second-device-20261023.json",
+      "stored": "files/outputs/decentralization-audit/storage-cold-recovery-second-device-20261023.json",
+      "sha256": "11eddc7083cb44129c42c72dd52334c246bd3564d3e6fe4a81a91b59e21789eb",
+      "bytes": 570
     },
     {
       "source": "work/resume-after-checkpoint-20261022/adapter-activation-review/RESULT.md",
@@ -2641,6 +2648,48 @@
       "bytes": 2606
     },
     {
+      "label": "READ-ONLY receipts (root): installed updater 36f9e0d6 for published 2026.10.12.47, a same-version no-op; no signed release policy present; no policy changed",
+      "source": "work/resume-after-checkpoint-20261022/node-updater-readonly/RESULT.json",
+      "stored": "files/node-updater-readonly/RESULT.json",
+      "sha256": "56abd020fcda1f6f0e65176ce81b9ee1d5ebd4d392f671b5a575fec82c656d63",
+      "bytes": 677
+    },
+    {
+      "label": "READ-ONLY receipts (root): installed updater 36f9e0d6 for published 2026.10.12.47, a same-version no-op; no signed release policy present; no policy changed",
+      "source": "work/resume-after-checkpoint-20261022/node-updater-readonly/current-0021.json",
+      "stored": "files/node-updater-readonly/current-0021.json",
+      "sha256": "a0fdc641995a92218ffd724225990ebd28649197716848ceae1cfc75ef4d0606",
+      "bytes": 6832
+    },
+    {
+      "label": "READ-ONLY receipts (root): installed updater 36f9e0d6 for published 2026.10.12.47, a same-version no-op; no signed release policy present; no policy changed",
+      "source": "work/resume-after-checkpoint-20261022/node-updater-readonly/identify.json",
+      "stored": "files/node-updater-readonly/identify.json",
+      "sha256": "262879f6aad2d63b1a0008053ef8a9a4499662aafc3f99a4203f1ee55f09dc9d",
+      "bytes": 550
+    },
+    {
+      "label": "READ-ONLY receipts (root): installed updater 36f9e0d6 for published 2026.10.12.47, a same-version no-op; no signed release policy present; no policy changed",
+      "source": "work/resume-after-checkpoint-20261022/node-updater-readonly/installed-update-host.ps1",
+      "stored": "files/node-updater-readonly/installed-update-host.ps1",
+      "sha256": "36f9e0d61afe58b77e566033ad1155d5c771252874f622592837c33e0a990112",
+      "bytes": 19597
+    },
+    {
+      "label": "READ-ONLY receipts (root): installed updater 36f9e0d6 for published 2026.10.12.47, a same-version no-op; no signed release policy present; no policy changed",
+      "source": "work/resume-after-checkpoint-20261022/node-updater-readonly/latest.json",
+      "stored": "files/node-updater-readonly/latest.json",
+      "sha256": "e3e6cea7af55cbc57ee5e0d573ebf0808226a7eb69a99a2dd727f58676b487e7",
+      "bytes": 409
+    },
+    {
+      "label": "READ-ONLY receipts (root): installed updater 36f9e0d6 for published 2026.10.12.47, a same-version no-op; no signed release policy present; no policy changed",
+      "source": "work/resume-after-checkpoint-20261022/node-updater-readonly/source.json",
+      "stored": "files/node-updater-readonly/source.json",
+      "sha256": "caebf6915c5fa77eee0dad3bb0ac09e48fd9e05b845c6c6b372996e7cb58064f",
+      "bytes": 76
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/platform-api-admin-final/EVIDENCE-status.sha256",
       "stored": "files/platform-api-admin-final/EVIDENCE-status.sha256",
       "sha256": "6d406f4dc89e1ca0dbe5ca381ce8d88e771ad3cf206bf4e105e6745d514b2ad2",
@@ -2837,6 +2886,13 @@
       "stored": "files/production-run/capture-fresh.py",
       "sha256": "ad5e702f6dd4dc68336aadbd00f56c9a402fd70bb4e3a2164eaec2ebabf5cbe0",
       "bytes": 3378
+    },
+    {
+      "label": "ROOT-RUN: copies only the pinned encrypted archive (no keys or passphrase) to the attached array, with read-back verification",
+      "source": "work/resume-after-checkpoint-20261022/production-run/copy-encrypted-recovery.py",
+      "stored": "files/production-run/copy-encrypted-recovery.py",
+      "sha256": "2fef00d0c3576361ac846d9b1a83443eb1935bd16cbd9a307488b3d7a0cda031",
+      "bytes": 1802
     },
     {
       "source": "work/resume-after-checkpoint-20261022/production-run/inspect-worker-staging.sh",
@@ -3724,10 +3780,66 @@
       "bytes": 5663
     },
     {
+      "label": "SOURCE-ONLY CANDIDATE e8f0997f (sia-s3 recovery restore, on 54818ba; recovery.rs 7d2c1d41): not built into a pinned binary, released or run against production data; root runs live verification",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-bucket-recovery/INITIAL.md",
+      "stored": "files/sia-whole-bucket-recovery/INITIAL.md",
+      "sha256": "93c12a62508d19faf2e6dce614811770af05137eea4bc9a2b42e6ab648e3c8bc",
+      "bytes": 6133
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE e8f0997f (sia-s3 recovery restore, on 54818ba; recovery.rs 7d2c1d41): not built into a pinned binary, released or run against production data; root runs live verification",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-bucket-recovery/RESULT.md",
+      "stored": "files/sia-whole-bucket-recovery/RESULT.md",
+      "sha256": "baa8e437df159a0c83a6ffe553059f0c498daae001d43841b152d815a5a85acd",
+      "bytes": 10252
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE e8f0997f (sia-s3 recovery restore, on 54818ba; recovery.rs 7d2c1d41): not built into a pinned binary, released or run against production data; root runs live verification",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-bucket-recovery/SOURCE-MANIFEST.json",
+      "stored": "files/sia-whole-bucket-recovery/SOURCE-MANIFEST.json",
+      "sha256": "572c3b24925f8c626f0e276d7b2de502491b8e9010998dd1fd8e67657e0052ff",
+      "bytes": 4720
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE e8f0997f (sia-s3 recovery restore, on 54818ba; recovery.rs 7d2c1d41): not built into a pinned binary, released or run against production data; root runs live verification",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-bucket-recovery/logs/m-etag.diff",
+      "stored": "files/sia-whole-bucket-recovery/logs/m-etag.diff",
+      "sha256": "f707409c6f2e769739bb699b4e82a94998c9bad93c658f5e10c7e45e741c806a",
+      "bytes": 847
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE e8f0997f (sia-s3 recovery restore, on 54818ba; recovery.rs 7d2c1d41): not built into a pinned binary, released or run against production data; root runs live verification",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-bucket-recovery/logs/m-sha.diff",
+      "stored": "files/sia-whole-bucket-recovery/logs/m-sha.diff",
+      "sha256": "3620b284a6ae170e60f5f3bfb76f5d11fd42544382b7e5a06e52fbfb5484b8fc",
+      "bytes": 542
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE e8f0997f (sia-s3 recovery restore, on 54818ba; recovery.rs 7d2c1d41): not built into a pinned binary, released or run against production data; root runs live verification",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-bucket-recovery/repo/sia-s3/src/recovery.rs",
+      "stored": "files/sia-whole-bucket-recovery/repo/sia-s3/src/recovery.rs",
+      "sha256": "7d2c1d413b0955a4253bccddaf1c24e0a409dbb166e8d6281004e3ef3e2fbe8b",
+      "bytes": 54107
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE e8f0997f (sia-s3 recovery restore, on 54818ba; recovery.rs 7d2c1d41): not built into a pinned binary, released or run against production data; root runs live verification",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-bucket-recovery/run-tests.sh",
+      "stored": "files/sia-whole-bucket-recovery/run-tests.sh",
+      "sha256": "b5bfdd90474df858f304379ddc78e99e6719415fdb136e6d89b12a1a507433a6",
+      "bytes": 887
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE e8f0997f (sia-s3 recovery restore, on 54818ba; recovery.rs 7d2c1d41): not built into a pinned binary, released or run against production data; root runs live verification",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-bucket-recovery/whole-bucket-restore.patch",
+      "stored": "files/sia-whole-bucket-recovery/whole-bucket-restore.patch",
+      "sha256": "77ce150061acadd5031fded1a5f8872e1157bfa3f2778f58a746f6441c239235",
+      "bytes": 32829
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "1d74c5f57bc58aa8b6b8fb59da696bd09ed07d5c393c5e0260d84f4801b96328",
-      "bytes": 22647
+      "sha256": "d53839307000d6dcc351ad27141f29a40db1c64ca27d17967cd90c93ca566094",
+      "bytes": 24847
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",

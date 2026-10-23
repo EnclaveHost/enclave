@@ -1,0 +1,59 @@
+{
+ "format": "sia-whole-bucket-recovery-source-manifest/v1",
+ "sourceWorktree": "work/enclave-apps-sia-recovery (branch decentralize/sia-recovery, never edited)",
+ "base": {
+  "commit": "54818ba68ea0feddec1cae5650230ddf2fec3d30",
+  "subject": "feat: replicate Sia storage across independently configured indexers",
+  "why": "the committed HEAD: recovery.rs reads snapshot v1 (pinned binary bcb2025e = 446ac5f) AND v2 manifests (added here)"
+ },
+ "pinnedRecoveryBinary": {
+  "path": "work/enclave-apps-sia-recovery/sia-s3/target/x86_64-unknown-linux-gnu/release/sia-s3",
+  "sha256": "bcb2025e218fb99c8e98f1af1300627b223138f438b31e24f5cd989fb4ee70d1",
+  "builtFrom": "446ac5f (built 2026-10-19 13:10 -0700; contains no manifest strings): its exports are snapshot v1"
+ },
+ "workingRecoveryRsSha256": "43609c73f6b9802bf5639ae93a72b395fb4647540d0d35a316f8946cc9715fb2",
+ "excludedWorkingChanges": {
+  "sia-s3/README.md": {
+   "status": "M",
+   "workingSha256": "e22865799c609da74bf23f64d7f5b672183cdd243ef838ad1b9578993013c4de",
+   "headSha256": "7dc32f55b839272129de8c99a854a87ffc5b0e89a46980b968938066ccadec61",
+   "included": false,
+   "why": "unrelated replication work in progress in the source worktree (never edited, not copied). The clone uses HEAD's recovery.rs (byte-identical to the working copy) and HEAD's store.rs; the working store.rs adds replication membership records (Meta.ms) that single-indexer snapshots do not carry (HEAD's Meta has no deny_unknown_fields, so such a field would be ignored, not misread)"
+  },
+  "sia-s3/REPLICATION.md": {
+   "status": "M",
+   "workingSha256": "e8ff4c1deba4d44d3bce87b7477ec64a1ef9209b02e2098fec33eb8c1187294e",
+   "headSha256": "996bcf57339bd5df70ff17b5dfca10ee2a84eb57a7ec4f2690b855350d6945ba",
+   "included": false,
+   "why": "unrelated replication work in progress in the source worktree (never edited, not copied). The clone uses HEAD's recovery.rs (byte-identical to the working copy) and HEAD's store.rs; the working store.rs adds replication membership records (Meta.ms) that single-indexer snapshots do not carry (HEAD's Meta has no deny_unknown_fields, so such a field would be ignored, not misread)"
+  },
+  "sia-s3/src/config.rs": {
+   "status": "M",
+   "workingSha256": "0926f0cf0402b9fb32a9bfa0b6048693b6f1ab179c21c61abc99da9b32d6f11f",
+   "headSha256": "5a526e1912e82a96f2c5f4a8278c60ab9e42fce7214e433c3cc7fe98a8d33820",
+   "included": false,
+   "why": "unrelated replication work in progress in the source worktree (never edited, not copied). The clone uses HEAD's recovery.rs (byte-identical to the working copy) and HEAD's store.rs; the working store.rs adds replication membership records (Meta.ms) that single-indexer snapshots do not carry (HEAD's Meta has no deny_unknown_fields, so such a field would be ignored, not misread)"
+  },
+  "sia-s3/src/main.rs": {
+   "status": "M",
+   "workingSha256": "ed6abf7f587319c62a99a3f32de4a78dab4ac11d0697fbfd0ebc48876cd8ed5a",
+   "headSha256": "f3f8b87648349cd4cad578cb13e9b630ae66b5a7c2d259f44c83460809fb43e9",
+   "included": false,
+   "why": "unrelated replication work in progress in the source worktree (never edited, not copied). The clone uses HEAD's recovery.rs (byte-identical to the working copy) and HEAD's store.rs; the working store.rs adds replication membership records (Meta.ms) that single-indexer snapshots do not carry (HEAD's Meta has no deny_unknown_fields, so such a field would be ignored, not misread)"
+  },
+  "sia-s3/src/replica.rs": {
+   "status": "M",
+   "workingSha256": "e45eb2f0e3fe0e392a13254060fc7f2a378a213da7384c4368543248380bdb0e",
+   "headSha256": "e598ae828e2eb3d444d5629123ff980ac89ebd580d5fcfd17730e97297e61a88",
+   "included": false,
+   "why": "unrelated replication work in progress in the source worktree (never edited, not copied). The clone uses HEAD's recovery.rs (byte-identical to the working copy) and HEAD's store.rs; the working store.rs adds replication membership records (Meta.ms) that single-indexer snapshots do not carry (HEAD's Meta has no deny_unknown_fields, so such a field would be ignored, not misread)"
+  },
+  "sia-s3/src/store.rs": {
+   "status": "M",
+   "workingSha256": "225c09b42eed019fe883caf2dc7c8525c470edc55579fb04885f1e6eb9b1ee49",
+   "headSha256": "94c4e44502abd4e5d8426a5c630c0b1f123331cf90a9c2aef283ee69850e966f",
+   "included": false,
+   "why": "unrelated replication work in progress in the source worktree (never edited, not copied). The clone uses HEAD's recovery.rs (byte-identical to the working copy) and HEAD's store.rs; the working store.rs adds replication membership records (Meta.ms) that single-indexer snapshots do not carry (HEAD's Meta has no deny_unknown_fields, so such a field would be ignored, not misread)"
+  }
+ }
+}

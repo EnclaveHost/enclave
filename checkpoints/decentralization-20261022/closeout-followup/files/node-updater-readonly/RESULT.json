@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-23T00:13:28.081845+00:00",
+  "installedVersion": "2026.10.12.47",
+  "publishedVersion": "2026.10.12.47",
+  "installedUpdaterSha": "36f9e0d61afe58b77e566033ad1155d5c771252874f622592837c33e0a990112",
+  "installedSourceReviewed": true,
+  "sameVersionNoOp": true,
+  "evidence": "Installed updater line199 exits when latest <= installed unless -Force; scheduled task does not use -Force. Future newer releases can still overwrite hotfix pair. Recheck task after its scheduled run before activation.",
+  "signedPolicyPresent": false,
+  "policyLimitation": "Current legacy unsigned metadata channel remains a required origin trust dependency; no policy changed."
+}

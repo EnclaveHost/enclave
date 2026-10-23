@@ -1,0 +1,16 @@
+{
+  "at": "2026-10-23T00:12:07.4820779Z",
+  "installedVersion": "2026.10.12.47",
+  "updaterSha": "36f9e0d61afe58b77e566033ad1155d5c771252874f622592837c33e0a990112",
+  "signedPolicyPresent": false,
+  "taskState": "Ready",
+  "nextRunUtc": "2026-10-23T00:13:36.0000000Z",
+  "lastRunUtc": "2026-10-22T23:13:37.0000000Z",
+  "lastResult": 0,
+  "actions": [
+    {
+      "Execute": "powershell.exe",
+      "Arguments": "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \"C:\\Program Files\\Enclave\\update-host.ps1\""
+    }
+  ]
+}

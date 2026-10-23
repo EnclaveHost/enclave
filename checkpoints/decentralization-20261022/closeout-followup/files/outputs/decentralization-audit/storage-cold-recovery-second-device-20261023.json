@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-23T00:13:28.178443+00:00",
+  "archive": "sia-direct-recovery-20261022T195643Z-c16c22ef.tar.gpg",
+  "sha256": "3cfb4f12991b3588d6c9b1317e08ef9613bac349f1a60073a2d835cad326c335",
+  "bytes": 6861390,
+  "destination": "/mnt/usb/enclave-cold-recovery/20261022T195643Z-c16c22ef/sia-direct-recovery-20261022T195643Z-c16c22ef.tar.gpg",
+  "verifiedReadback": true,
+  "plaintextSecretsCopied": false,
+  "passphraseRemainsOnWorkstation": true,
+  "failureDomain": "Separate attached storage device, same workstation/site; not offsite or complete cold recovery"
+}

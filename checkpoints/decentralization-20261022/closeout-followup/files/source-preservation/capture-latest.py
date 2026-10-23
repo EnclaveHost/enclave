@@ -268,6 +268,19 @@ for name in ('RESULT.md', 'reupload-exact.mjs', 'ROOT-LIVE-UPDATE.txt'):
     paths.add(base / 'dns-artifact-recovery' / name)
 for name in ('inspect.py', 'inspect.json', 'http-pinned.json', 'state-0005.json'):
     paths.add(base / 'dns-live-recovery' / name)
+# The whole-bucket Sia cold restore (e8f0997f on 54818ba): its one changed file, the patch, the plan and result, the source
+# manifest, the bounded test runner and the two mutant diffs. Never the rest of its clone, its target dirs or raw logs.
+wb = base / 'sia-whole-bucket-recovery'
+for name in ('INITIAL.md', 'RESULT.md', 'SOURCE-MANIFEST.json', 'run-tests.sh', 'whole-bucket-restore.patch',
+             'repo/sia-s3/src/recovery.rs', 'logs/m-etag.diff', 'logs/m-sha.diff'):
+    paths.add(wb / name)
+# Root's read-only Windows updater check: public release metadata, the installed updater it reviewed, the node's public
+# deployment status and its result. (Root's archive copy script is under production-run/, collected above.)
+for p in (base / 'node-updater-readonly').iterdir():
+    if p.is_file() and not p.is_symlink() and p.suffix in ('.json', '.ps1'):
+        paths.add(p)
+# Root's second-device copy receipt (hashes, sizes and booleans only).
+outputs.append(root / 'outputs/decentralization-audit/storage-cold-recovery-second-device-20261023.json')
 # what each new group IS, recorded on its manifest entries (nothing here is activated by this checkpoint)
 LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent '
                                    'tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)',
@@ -281,6 +294,15 @@ LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; n
                                     'Root live update: the CID answers HEAD 200 with the exact 2588705 bytes; that is NOT a full artifact read '
                                     '(a full GET returned 502)',
           'dns-live-recovery/': 'READ-ONLY receipts: HEAD success only, not a full artifact read (GET 502); no force or republication',
+          'sia-whole-bucket-recovery/': 'SOURCE-ONLY CANDIDATE e8f0997f (sia-s3 recovery restore, on 54818ba; recovery.rs 7d2c1d41): not built '
+                                        'into a pinned binary, released or run against production data; root runs live verification',
+          'node-updater-readonly/': 'READ-ONLY receipts (root): installed updater 36f9e0d6 for published 2026.10.12.47, a same-version no-op; '
+                                    'no signed release policy present; no policy changed',
+          'production-run/copy-encrypted-recovery.py': 'ROOT-RUN: copies only the pinned encrypted archive (no keys or passphrase) to the '
+                                                       'attached array, with read-back verification',
+          'outputs/decentralization-audit/storage-cold-recovery-second-device': 'ROOT receipt: encrypted archive copy verified on a second '
+                                                                               'attached device, same workstation/site; NOT offsite or a '
+                                                                               'complete cold recovery',
           'cron-placement/': 'Cron moved to nucbox by the existing dashboard wallet flow; native running 23:58:37Z, 3 RPCs agree at block '
                              '52962071. NOT a durable on-chain pin: the ledger configCid has no placement field. RESULT.md = '
                              'source-only analysis (its setConfig placement option was not executed)'}
