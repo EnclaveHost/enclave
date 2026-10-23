@@ -31,7 +31,7 @@ export async function startWorld({ anvilArgs = [] } = {}) {
   try { return await setupWorld({ anvil, rpcUrl, rpc }); }
   catch (e) { anvil.kill("SIGKILL"); throw e; }   // a failed setup must not leave anvil holding this test process
 }
-async function setupWorld({ anvil, rpcUrl, rpc }) {
+async function setupWorld({ anvil, rpcUrl, rpc, fundImpl = null }) {
   for (let i = 0; i < 100; i++) { try { await rpc("eth_chainId"); break; } catch { await new Promise((r) => setTimeout(r, 200)); } }
   const chain = viem.defineChain({ id: 8453, name: "local-8453", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } });
   const pc = viem.createPublicClient({ chain, transport: viem.http(rpcUrl) });
@@ -57,7 +57,7 @@ async function setupWorld({ anvil, rpcUrl, rpc }) {
     return { reserve, executor, reserveCodeHash: viem.keccak256(await pc.getCode({ address: reserve })), executorCodeHash: viem.keccak256(await pc.getCode({ address: executor })) };
   };
   Object.assign(addr, await newReserve());
-  const fund = (a, wei = 10n ** 18n) => rpc("anvil_setBalance", [a, viem.toHex(wei)]);
+  const fund = fundImpl ? (a, wei = 10n ** 18n) => fundImpl({ send, a, wei }) : (a, wei = 10n ** 18n) => rpc("anvil_setBalance", [a, viem.toHex(wei)]);
   /** a zero-ETH host operator registered at `endpoint` (fixture shortcut: temporary ETH for register(), then 0) */
   async function operator(endpoint, { proofKey = "0x000000000000000000000000000000000000bEEF", key = generatePrivateKey() } = {}) {
     const account = privateKeyToAccount(key);
@@ -91,4 +91,17 @@ async function setupWorld({ anvil, rpcUrl, rpc }) {
   const warpTo = async (ts) => { await rpc("evm_setNextBlockTimestamp", [Number(ts)]); await rpc("evm_mine", []); };
   return { rpcUrl, chain, rpc, pc, wc, send, deploy, write, A, addr, newReserve, fund, operator, owner, create, enable, row, reserveOf, warpTo,
            stop: () => anvil.kill("SIGKILL") };
+}
+
+/** The same world on an EXISTING chain (a reth --dev node: no anvil_* or evm_* calls, the anvil dev keys funded at genesis):
+ *  funding is a transfer from the deployer up to `wei` (a balance is never lowered, so a "zero-ETH" operator keeps dust);
+ *  warpTo is unavailable. The caller owns the chain process (stop() is a no-op here). */
+export async function startWorldOn({ rpcUrl }) {
+  const rpc = async (m, p = []) => { const r = await fetch(rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: m, params: p }) }); const j = await r.json(); if (j.error) throw new Error(j.error.message); return j.result; };
+  const fundImpl = async ({ send, a, wei }) => {
+    const have = BigInt(await rpc("eth_getBalance", [a, "latest"]));
+    if (wei > have) await send(DEPLOYER, { to: a, value: wei - have, gas: 21_000n });
+  };
+  const w = await setupWorld({ anvil: { kill() {} }, rpcUrl, rpc, fundImpl });
+  return { ...w, warpTo: () => { throw new Error("warpTo needs anvil"); }, stop: () => {} };
 }

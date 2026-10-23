@@ -219,12 +219,15 @@ test("no config: nothing at all; an invalid config: refused before anything", T,
 test("a state file that cannot be written: nothing is broadcast; writable again: the nomination goes out once", T, async () => {
   setModes("ok", "ok", "ok");
   const h = await host("journal-readonly"), from = await pc.getBlockNumber();
-  const ro = path.join(tmp, "readonly"); fs.mkdirSync(ro); fs.chmodSync(ro, 0o500);
+  // unwritable for ANY user: the state path's parent is a regular file (ENOTDIR). A 0500 directory is not enough where
+  // the suite runs as root (a user namespace, as the queued runner does): root writes into it, and the case passed vacuously
+  // nowhere but failed there - the same on the baseline (673601e54) as here
+  const ro = path.join(tmp, "readonly"); fs.writeFileSync(ro, "not a directory");
   const a = await nominate(h, { state: path.join(ro, "state.json"), selftest: { passes: 3, gapMs: 500 } });
   assert.equal(a.out.status.status, "pending-check", JSON.stringify(a.out)); assert.match(a.out.status.why, /could not be made durable: dropped, nothing broadcast/);
   assert.equal(a.out.status.sends, 0); assert.equal(a.out.status.tx, null);
   assert.deepEqual(await operatorTxs(from), [], "no transaction reached the chain");
-  fs.chmodSync(ro, 0o700);
+  fs.rmSync(ro); fs.mkdirSync(ro);   // writable again
   const b = await nominate(h, { state: path.join(ro, "state.json") });
   assert.equal(b.out.status.status, "done", JSON.stringify(b.out)); assert.equal(proposes(await operatorTxs(from)).length, 1);
 });

@@ -55,7 +55,7 @@ export function fixture({hostId=host}={}){
    if(q.functionName==='getVersion')return {cid:'cid',version:'1',active:true,yanked:false,approval:1,config:'{}'};
    if(q.functionName==='versionFee')return 0n;if(q.functionName==='versionConfigCid')return '';throw Error('unexpected read');}},
   _reach:{tripped:false},RENEW_MARGIN_SEC:900,tenantProvisions:new Map(),_releaseIntents:new Map(),
-  HOST_POLICY_GATE:{enabled:false,serviceRefusal:()=>null,status:()=>({})},_stateCorrupt:null,leaseGasActive:()=>false,leaseGasRenewDue:async()=>true,
+  HOST_POLICY_GATE:{enabled:false,serviceRefusal:()=>null,status:()=>({})},_stateCorrupt:null,chainActionGate:async()=>{},leaseGasActive:()=>false,leaseGasRenewDue:async()=>true,
   TERMINAL_STATUSES:new Set(['expired','failed','terminated','stopping']),lc:v=>String(v||'').toLowerCase(),
   placementRefusal:()=>null,readLedgerContract:async()=>row(),
 reconcileInstancesSoon:()=>{},egress:{closeDeployment:id=>{s.egressClosed.push(id);return 0;}},
