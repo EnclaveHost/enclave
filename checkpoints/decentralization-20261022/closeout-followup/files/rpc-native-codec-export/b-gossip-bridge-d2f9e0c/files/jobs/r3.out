@@ -1,0 +1,195 @@
+[queue] START available=25114MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+artifacts/enclave-base-head-listener: OK
+cd38d79 Tests: report adapter counters on timeout; pin-mismatch test reaches the native verifier
+v22.23.3
+external network: unreachable (as intended)
+TAP version 13
+# Subtest: offline guard: no network route exists in this test namespace
+ok 1 - offline guard: no network route exists in this test namespace
+  ---
+  duration_ms: 1.049193
+  type: 'test'
+  ...
+# Subtest: the real listener binary is the tested pinned build
+ok 2 - the real listener binary is the tested pinned build
+  ---
+  duration_ms: 62.725187
+  type: 'test'
+  ...
+# Subtest: real Base heads: native verify-object + decode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
+ok 3 - real Base heads: native verify-object + decode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
+  ---
+  duration_ms: 403.325232
+  type: 'test'
+  ...
+# Subtest: stale heads are refused and the relay serves nothing
+ok 4 - stale heads are refused and the relay serves nothing
+  ---
+  duration_ms: 64.911762
+  type: 'test'
+  ...
+# Subtest: a head delivered fresh goes stale with the clock; status and relay fail closed
+ok 5 - a head delivered fresh goes stale with the clock; status and relay fail closed
+  ---
+  duration_ms: 163.769403
+  type: 'test'
+  ...
+# Subtest: start record with wrong signer ends the session before any head is used
+ok 6 - start record with wrong signer ends the session before any head is used
+  ---
+  duration_ms: 54.367016
+  type: 'test'
+  ...
+# Subtest: start record with wrong chain ends the session before any head is used
+ok 7 - start record with wrong chain ends the session before any head is used
+  ---
+  duration_ms: 53.659921
+  type: 'test'
+  ...
+# Subtest: start record with not an admin pin ends the session before any head is used
+ok 8 - start record with not an admin pin ends the session before any head is used
+  ---
+  duration_ms: 52.607198
+  type: 'test'
+  ...
+# Subtest: start record with other base/base source ends the session before any head is used
+ok 9 - start record with other base/base source ends the session before any head is used
+  ---
+  duration_ms: 53.79119
+  type: 'test'
+  ...
+# Subtest: start record with other schema ends the session before any head is used
+ok 10 - start record with other schema ends the session before any head is used
+  ---
+  duration_ms: 52.878027
+  type: 'test'
+  ...
+# Subtest: head records that disagree with the pins or this session are rejected individually
+ok 11 - head records that disagree with the pins or this session are rejected individually
+  ---
+  duration_ms: 167.252809
+  type: 'test'
+  ...
+# Subtest: corrupt, truncated, missing and mis-sized objects are refused (the real verify-object refuses tampered bytes)
+not ok 12 - corrupt, truncated, missing and mis-sized objects are refused (the real verify-object refuses tampered bytes)
+  ---
+  duration_ms: 20027.731713
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:139:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting; status={"sessions":1,"restarts":0,"heads":5,"delivered":1,"rejected":{"verify-refused":1,"object-missing":2,"object-size":1},"queueDropped":0,"archiveDropped":0,"archiveFailed":0,"archived":0} lastExit=null'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:26:37)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:150:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a genuine Base object is refused when the adapter is pinned to a different signer
+ok 13 - a genuine Base object is refused when the adapter is pinned to a different signer
+  ---
+  duration_ms: 116.277508
+  type: 'test'
+  ...
+# Subtest: restart: later sessions replaying the same signed block cannot make it fresh again
+ok 14 - restart: later sessions replaying the same signed block cannot make it fresh again
+  ---
+  duration_ms: 3227.217133
+  type: 'test'
+  ...
+# Subtest: process death (SIGKILL) is recorded and the listener is restarted with backoff
+ok 15 - process death (SIGKILL) is recorded and the listener is restarted with backoff
+  ---
+  duration_ms: 1166.273234
+  type: 'test'
+  ...
+# Subtest: stop() terminates the owned process group, including a grandchild, and nothing else
+ok 16 - stop() terminates the owned process group, including a grandchild, and nothing else
+  ---
+  duration_ms: 139.748652
+  type: 'test'
+  ...
+# Subtest: signalOwned never signals a process whose identity does not match
+ok 17 - signalOwned never signals a process whose identity does not match
+  ---
+  duration_ms: 15.388422
+  type: 'test'
+  ...
+# Subtest: an over-long stdout line ends the session (bounded buffers)
+ok 18 - an over-long stdout line ends the session (bounded buffers)
+  ---
+  duration_ms: 53.455122
+  type: 'test'
+  ...
+# Subtest: a silent listener is restarted after restartIfNoHeadMs (stale stream)
+ok 19 - a silent listener is restarted after restartIfNoHeadMs (stale stream)
+  ---
+  duration_ms: 2023.302863
+  type: 'test'
+  ...
+# Subtest: a binary that does not match the pinned digest is never started
+ok 20 - a binary that does not match the pinned digest is never started
+  ---
+  duration_ms: 63.958458
+  type: 'test'
+  ...
+# Subtest: a stuck downstream archive never delays serving fresh heads
+ok 21 - a stuck downstream archive never delays serving fresh heads
+  ---
+  duration_ms: 361.023317
+  type: 'test'
+  ...
+# Subtest: real listener lifecycle offline: start record accepted, no heads, exit 3 recorded, restart scheduled
+ok 22 - real listener lifecycle offline: start record accepted, no heads, exit 3 recorded, restart scheduled
+  ---
+  duration_ms: 2190.28918
+  type: 'test'
+  ...
+# Subtest: real block 52965074: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+ok 23 - real block 52965074: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+  ---
+  duration_ms: 51.659755
+  type: 'test'
+  ...
+# Subtest: real block 52965075: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+ok 24 - real block 52965075: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+  ---
+  duration_ms: 37.260886
+  type: 'test'
+  ...
+# Subtest: real block 52965076: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+ok 25 - real block 52965076: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+  ---
+  duration_ms: 28.431949
+  type: 'test'
+  ...
+# Subtest: every truncation of a real object is refused
+ok 26 - every truncation of a real object is refused
+  ---
+  duration_ms: 108.711591
+  type: 'test'
+  ...
+# Subtest: declared length over the cap, bad offsets and trailing garbage are refused
+ok 27 - declared length over the cap, bad offsets and trailing garbage are refused
+  ---
+  duration_ms: 0.684465
+  type: 'test'
+  ...
+# Subtest: bounded fuzz: random single-byte corruptions throw, decode to identical bytes, or fail signature recovery
+ok 28 - bounded fuzz: random single-byte corruptions throw, decode to identical bytes, or fail signature recovery
+  ---
+  duration_ms: 1585.979851
+  type: 'test'
+  ...
+1..28
+# tests 28
+# suites 0
+# pass 27
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 32601.221653
+[memory-guard] exit=1 peakTreeRssMiB=278 minHostAvailableMiB=24964
+[memory-guard] at peak: node:161 node:59 fake-listener.m:55 timeout:4
+[queue] EXIT 1

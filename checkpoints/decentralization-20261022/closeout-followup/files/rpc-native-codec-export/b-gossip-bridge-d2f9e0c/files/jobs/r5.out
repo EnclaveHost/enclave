@@ -1,0 +1,192 @@
+[queue] START available=25144MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+artifacts/enclave-base-head-listener: OK
+f6a9458 Tests: the content-identical re-encoding case is deterministic for the fixture
+v22.23.3
+external network: unreachable (as intended)
+TAP version 13
+# Subtest: offline guard: no network route exists in this test namespace
+ok 1 - offline guard: no network route exists in this test namespace
+  ---
+  duration_ms: 0.918203
+  type: 'test'
+  ...
+# Subtest: the real listener binary is the tested pinned build
+ok 2 - the real listener binary is the tested pinned build
+  ---
+  duration_ms: 60.404122
+  type: 'test'
+  ...
+# Subtest: real Base heads: native verify-object + decode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
+ok 3 - real Base heads: native verify-object + decode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
+  ---
+  duration_ms: 417.711247
+  type: 'test'
+  ...
+# Subtest: stale heads are refused and the relay serves nothing
+ok 4 - stale heads are refused and the relay serves nothing
+  ---
+  duration_ms: 64.345024
+  type: 'test'
+  ...
+# Subtest: a head delivered fresh goes stale with the clock; status and relay fail closed
+ok 5 - a head delivered fresh goes stale with the clock; status and relay fail closed
+  ---
+  duration_ms: 164.838671
+  type: 'test'
+  ...
+# Subtest: start record with wrong signer ends the session before any head is used
+ok 6 - start record with wrong signer ends the session before any head is used
+  ---
+  duration_ms: 54.133116
+  type: 'test'
+  ...
+# Subtest: start record with wrong chain ends the session before any head is used
+ok 7 - start record with wrong chain ends the session before any head is used
+  ---
+  duration_ms: 53.044844
+  type: 'test'
+  ...
+# Subtest: start record with not an admin pin ends the session before any head is used
+ok 8 - start record with not an admin pin ends the session before any head is used
+  ---
+  duration_ms: 52.883605
+  type: 'test'
+  ...
+# Subtest: start record with other base/base source ends the session before any head is used
+ok 9 - start record with other base/base source ends the session before any head is used
+  ---
+  duration_ms: 53.54767
+  type: 'test'
+  ...
+# Subtest: start record with other schema ends the session before any head is used
+ok 10 - start record with other schema ends the session before any head is used
+  ---
+  duration_ms: 52.352108
+  type: 'test'
+  ...
+# Subtest: head records that disagree with the pins or this session are rejected individually
+ok 11 - head records that disagree with the pins or this session are rejected individually
+  ---
+  duration_ms: 164.543242
+  type: 'test'
+  ...
+# Subtest: corrupt, truncated, missing and mis-sized objects are refused (the real verify-object refuses tampered bytes)
+ok 12 - corrupt, truncated, missing and mis-sized objects are refused (the real verify-object refuses tampered bytes)
+  ---
+  duration_ms: 163.666288
+  type: 'test'
+  ...
+# Subtest: a different compression of the identical signed block is accepted as that same block (content, not encoding, is authenticated)
+ok 13 - a different compression of the identical signed block is accepted as that same block (content, not encoding, is authenticated)
+  ---
+  duration_ms: 168.432065
+  type: 'test'
+  ...
+# Subtest: a genuine Base object is refused when the adapter is pinned to a different signer
+ok 14 - a genuine Base object is refused when the adapter is pinned to a different signer
+  ---
+  duration_ms: 115.461461
+  type: 'test'
+  ...
+# Subtest: restart: later sessions replaying the same signed block cannot make it fresh again
+ok 15 - restart: later sessions replaying the same signed block cannot make it fresh again
+  ---
+  duration_ms: 3225.631732
+  type: 'test'
+  ...
+# Subtest: process death (SIGKILL) is recorded and the listener is restarted with backoff
+ok 16 - process death (SIGKILL) is recorded and the listener is restarted with backoff
+  ---
+  duration_ms: 1164.297158
+  type: 'test'
+  ...
+# Subtest: stop() terminates the owned process group, including a grandchild, and nothing else
+ok 17 - stop() terminates the owned process group, including a grandchild, and nothing else
+  ---
+  duration_ms: 139.50349
+  type: 'test'
+  ...
+# Subtest: signalOwned never signals a process whose identity does not match
+ok 18 - signalOwned never signals a process whose identity does not match
+  ---
+  duration_ms: 16.542443
+  type: 'test'
+  ...
+# Subtest: an over-long stdout line ends the session (bounded buffers)
+ok 19 - an over-long stdout line ends the session (bounded buffers)
+  ---
+  duration_ms: 53.903867
+  type: 'test'
+  ...
+# Subtest: a silent listener is restarted after restartIfNoHeadMs (stale stream)
+ok 20 - a silent listener is restarted after restartIfNoHeadMs (stale stream)
+  ---
+  duration_ms: 2024.550192
+  type: 'test'
+  ...
+# Subtest: a binary that does not match the pinned digest is never started
+ok 21 - a binary that does not match the pinned digest is never started
+  ---
+  duration_ms: 66.30839
+  type: 'test'
+  ...
+# Subtest: a stuck downstream archive never delays serving fresh heads
+ok 22 - a stuck downstream archive never delays serving fresh heads
+  ---
+  duration_ms: 373.35162
+  type: 'test'
+  ...
+# Subtest: real listener lifecycle offline: start record accepted, no heads, exit 3 recorded, restart scheduled
+ok 23 - real listener lifecycle offline: start record accepted, no heads, exit 3 recorded, restart scheduled
+  ---
+  duration_ms: 2189.035963
+  type: 'test'
+  ...
+# Subtest: real block 52965074: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+ok 24 - real block 52965074: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+  ---
+  duration_ms: 52.392498
+  type: 'test'
+  ...
+# Subtest: real block 52965075: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+ok 25 - real block 52965075: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+  ---
+  duration_ms: 38.357007
+  type: 'test'
+  ...
+# Subtest: real block 52965076: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+ok 26 - real block 52965076: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+  ---
+  duration_ms: 27.397706
+  type: 'test'
+  ...
+# Subtest: every truncation of a real object is refused
+ok 27 - every truncation of a real object is refused
+  ---
+  duration_ms: 112.109584
+  type: 'test'
+  ...
+# Subtest: declared length over the cap, bad offsets and trailing garbage are refused
+ok 28 - declared length over the cap, bad offsets and trailing garbage are refused
+  ---
+  duration_ms: 0.680575
+  type: 'test'
+  ...
+# Subtest: bounded fuzz: random single-byte corruptions throw, decode to identical bytes, or fail signature recovery
+ok 29 - bounded fuzz: random single-byte corruptions throw, decode to identical bytes, or fail signature recovery
+  ---
+  duration_ms: 1565.007091
+  type: 'test'
+  ...
+1..29
+# tests 29
+# suites 0
+# pass 29
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12924.802839
+[memory-guard] exit=0 peakTreeRssMiB=329 minHostAvailableMiB=24933
+[memory-guard] at peak: node:167 node:60 fake-listener.m:54 fake-listener.m:44 timeout:4
+[queue] EXIT 0

@@ -1,0 +1,11 @@
+[queue] START available=25223MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+verify-object pinned signer: ok=52 failed=0
+{"finality":"none","hash":"0x0a41d6d81b9e76dae313759d02d195507ce857bc8862dea3f27670437f9545de","number":52965067,"objectSha256":"05e87666411de18f6980dc9809b6915aab5f7d5e5b554b264781530f80d054d3","ok":true,"schema":"enclave-base-unsafe-head/v1","signer":"0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a","stateRoot":"0x9507dd3d4b4234d26e334b9c93ae330043c09c86053c293f0d21c3e104d69234","tier":"unsafe","type":"verify"}
+rc=0
+{"error":"signer mismatch: expected 0x0000000000000000000000000000000000000001, recovered 0xAf6E19BE0F9cE7f8afd49a1824851023A8249e8a","ok":false,"schema":"enclave-base-unsafe-head/v1","type":"verify"}
+wrong-signer rc=1
+crosscheck rc=0
+crosscheck allMatch True checked 10
+[memory-guard] exit=0 peakTreeRssMiB=37 minHostAvailableMiB=24175
+[memory-guard] at peak: python3:27 post-check.sh:6 timeout:4
+[queue] EXIT 0

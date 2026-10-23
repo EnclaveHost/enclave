@@ -1,0 +1,285 @@
+From d0c5c143fe06b9fb87824afd566151306fe4e546 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 18:55:12 -0700
+Subject: [PATCH 04/11] Tests: signature-region flip must be refused;
+ content-identical re-encoding is the same block
+
+---
+ jobs/r3.guard.log                |   1 +
+ jobs/r3.out                      | 195 +++++++++++++++++++++++++++++++
+ jobs/r3.rc                       |   1 +
+ test/fixtures/fake-listener.mjs  |   2 +-
+ test/gossip-head-source.test.mjs |  22 +++-
+ 5 files changed, 219 insertions(+), 2 deletions(-)
+ create mode 100644 jobs/r3.guard.log
+ create mode 100644 jobs/r3.out
+ create mode 100644 jobs/r3.rc
+
+diff --git a/jobs/r3.guard.log b/jobs/r3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..ce60f1d7d5bcd590f8a56029760b02bff37a30bf
+--- /dev/null
++++ b/jobs/r3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=278 minHostAvailableMiB=24964
+diff --git a/jobs/r3.out b/jobs/r3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..fafa688c606c9a424755667d4d1a709364dd2b8d
+--- /dev/null
++++ b/jobs/r3.out
+@@ -0,0 +1,195 @@
++[queue] START available=25114MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
++artifacts/enclave-base-head-listener: OK
++cd38d79 Tests: report adapter counters on timeout; pin-mismatch test reaches the native verifier
++v22.23.3
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: offline guard: no network route exists in this test namespace
++ok 1 - offline guard: no network route exists in this test namespace
++  ---
++  duration_ms: 1.049193
++  type: 'test'
++  ...
++# Subtest: the real listener binary is the tested pinned build
++ok 2 - the real listener binary is the tested pinned build
++  ---
++  duration_ms: 62.725187
++  type: 'test'
++  ...
++# Subtest: real Base heads: native verify-object + decode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
++ok 3 - real Base heads: native verify-object + decode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
++  ---
++  duration_ms: 403.325232
++  type: 'test'
++  ...
++# Subtest: stale heads are refused and the relay serves nothing
++ok 4 - stale heads are refused and the relay serves nothing
++  ---
++  duration_ms: 64.911762
++  type: 'test'
++  ...
++# Subtest: a head delivered fresh goes stale with the clock; status and relay fail closed
++ok 5 - a head delivered fresh goes stale with the clock; status and relay fail closed
++  ---
++  duration_ms: 163.769403
++  type: 'test'
++  ...
++# Subtest: start record with wrong signer ends the session before any head is used
++ok 6 - start record with wrong signer ends the session before any head is used
++  ---
++  duration_ms: 54.367016
++  type: 'test'
++  ...
++# Subtest: start record with wrong chain ends the session before any head is used
++ok 7 - start record with wrong chain ends the session before any head is used
++  ---
++  duration_ms: 53.659921
++  type: 'test'
++  ...
++# Subtest: start record with not an admin pin ends the session before any head is used
++ok 8 - start record with not an admin pin ends the session before any head is used
++  ---
++  duration_ms: 52.607198
++  type: 'test'
++  ...
++# Subtest: start record with other base/base source ends the session before any head is used
++ok 9 - start record with other base/base source ends the session before any head is used
++  ---
++  duration_ms: 53.79119
++  type: 'test'
++  ...
++# Subtest: start record with other schema ends the session before any head is used
++ok 10 - start record with other schema ends the session before any head is used
++  ---
++  duration_ms: 52.878027
++  type: 'test'
++  ...
++# Subtest: head records that disagree with the pins or this session are rejected individually
++ok 11 - head records that disagree with the pins or this session are rejected individually
++  ---
++  duration_ms: 167.252809
++  type: 'test'
++  ...
++# Subtest: corrupt, truncated, missing and mis-sized objects are refused (the real verify-object refuses tampered bytes)
++not ok 12 - corrupt, truncated, missing and mis-sized objects are refused (the real verify-object refuses tampered bytes)
++  ---
++  duration_ms: 20027.731713
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:139:1'
++  failureType: 'testCodeFailure'
++  error: 'timed out waiting; status={"sessions":1,"restarts":0,"heads":5,"delivered":1,"rejected":{"verify-refused":1,"object-missing":2,"object-size":1},"queueDropped":0,"archiveDropped":0,"archiveFailed":0,"archived":0} lastExit=null'
++  code: 'ERR_TEST_FAILURE'
++  stack: |-
++    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:26:37)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:150:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: a genuine Base object is refused when the adapter is pinned to a different signer
++ok 13 - a genuine Base object is refused when the adapter is pinned to a different signer
++  ---
++  duration_ms: 116.277508
++  type: 'test'
++  ...
++# Subtest: restart: later sessions replaying the same signed block cannot make it fresh again
++ok 14 - restart: later sessions replaying the same signed block cannot make it fresh again
++  ---
++  duration_ms: 3227.217133
++  type: 'test'
++  ...
++# Subtest: process death (SIGKILL) is recorded and the listener is restarted with backoff
++ok 15 - process death (SIGKILL) is recorded and the listener is restarted with backoff
++  ---
++  duration_ms: 1166.273234
++  type: 'test'
++  ...
++# Subtest: stop() terminates the owned process group, including a grandchild, and nothing else
++ok 16 - stop() terminates the owned process group, including a grandchild, and nothing else
++  ---
++  duration_ms: 139.748652
++  type: 'test'
++  ...
++# Subtest: signalOwned never signals a process whose identity does not match
++ok 17 - signalOwned never signals a process whose identity does not match
++  ---
++  duration_ms: 15.388422
++  type: 'test'
++  ...
++# Subtest: an over-long stdout line ends the session (bounded buffers)
++ok 18 - an over-long stdout line ends the session (bounded buffers)
++  ---
++  duration_ms: 53.455122
++  type: 'test'
++  ...
++# Subtest: a silent listener is restarted after restartIfNoHeadMs (stale stream)
++ok 19 - a silent listener is restarted after restartIfNoHeadMs (stale stream)
++  ---
++  duration_ms: 2023.302863
++  type: 'test'
++  ...
++# Subtest: a binary that does not match the pinned digest is never started
++ok 20 - a binary that does not match the pinned digest is never started
++  ---
++  duration_ms: 63.958458
++  type: 'test'
++  ...
++# Subtest: a stuck downstream archive never delays serving fresh heads
++ok 21 - a stuck downstream archive never delays serving fresh heads
++  ---
++  duration_ms: 361.023317
++  type: 'test'
++  ...
++# Subtest: real listener lifecycle offline: start record accepted, no heads, exit 3 recorded, restart scheduled
++ok 22 - real listener lifecycle offline: start record accepted, no heads, exit 3 recorded, restart scheduled
++  ---
++  duration_ms: 2190.28918
++  type: 'test'
++  ...
++# Subtest: real block 52965074: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
++ok 23 - real block 52965074: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
++  ---
++  duration_ms: 51.659755
++  type: 'test'
++  ...
++# Subtest: real block 52965075: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
++ok 24 - real block 52965075: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
++  ---
++  duration_ms: 37.260886
++  type: 'test'
++  ...
++# Subtest: real block 52965076: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
++ok 25 - real block 52965076: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
++  ---
++  duration_ms: 28.431949
++  type: 'test'
++  ...
++# Subtest: every truncation of a real object is refused
++ok 26 - every truncation of a real object is refused
++  ---
++  duration_ms: 108.711591
++  type: 'test'
++  ...
++# Subtest: declared length over the cap, bad offsets and trailing garbage are refused
++ok 27 - declared length over the cap, bad offsets and trailing garbage are refused
++  ---
++  duration_ms: 0.684465
++  type: 'test'
++  ...
++# Subtest: bounded fuzz: random single-byte corruptions throw, decode to identical bytes, or fail signature recovery
++ok 28 - bounded fuzz: random single-byte corruptions throw, decode to identical bytes, or fail signature recovery
++  ---
++  duration_ms: 1585.979851
++  type: 'test'
++  ...
++1..28
++# tests 28
++# suites 0
++# pass 27
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 32601.221653
++[memory-guard] exit=1 peakTreeRssMiB=278 minHostAvailableMiB=24964
++[memory-guard] at peak: node:161 node:59 fake-listener.m:55 timeout:4
++[queue] EXIT 1
+diff --git a/jobs/r3.rc b/jobs/r3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/jobs/r3.rc
+@@ -0,0 +1 @@
++1
+diff --git a/test/fixtures/fake-listener.mjs b/test/fixtures/fake-listener.mjs
+index 8c885010c59e30e268e86a89169bf08c02dffe26..f4845c23889e7e9cfd120406fa0fd531eca8d181 100755
+--- a/test/fixtures/fake-listener.mjs
++++ b/test/fixtures/fake-listener.mjs
+@@ -28,7 +28,7 @@ for (const h of plan.heads || []) {
+   await sleep(h.delayMs || 0);
+   const record = JSON.parse(readFileSync(path.join(fixtures, `base-mainnet-${h.fixture}.head.json`), 'utf8'));
+   let bytes = Buffer.from(readFileSync(path.join(fixtures, `base-mainnet-${h.fixture}.v4.snappy.hex`), 'utf8').trim(), 'hex');
+-  if (h.mutate === 'flip') { bytes = Buffer.from(bytes); bytes[Math.floor(bytes.length / 2)] ^= 0x01; }
++  if (h.mutate === 'flip') { bytes = Buffer.from(bytes); bytes[h.flipAt ?? Math.floor(bytes.length / 2)] ^= 0x01; }
+   if (h.mutate === 'truncate') bytes = bytes.subarray(0, Math.floor(bytes.length * 0.7));
+   const sha = createHash('sha256').update(bytes).digest('hex');
+   if (h.mutate !== 'missing') writeFileSync(path.join(out, 'objects', `${sha}.v4.snappy`), bytes);
+diff --git a/test/gossip-head-source.test.mjs b/test/gossip-head-source.test.mjs
+index 281e0de0905ad6004ebcd29c215d9d78a8df36ad..cd3c1faba6d8af563e1339c61b847756a549ec16 100644
+--- a/test/gossip-head-source.test.mjs
++++ b/test/gossip-head-source.test.mjs
+@@ -138,7 +138,7 @@ test('head records that disagree with the pins or this session are rejected indi
+ 
+ test('corrupt, truncated, missing and mis-sized objects are refused (the real verify-object refuses tampered bytes)', async () => {
+   const plan = { heads: [
+-    all(52965076, { mutate: 'flip' }),
++    all(52965076, { mutate: 'flip', flipAt: 10 }),   // inside the literal holding the signature's r value
+     all(52965076, { mutate: 'truncate' }),
+     all(52965076, { mutate: 'missing' }),
+     all(52965075, { record: { objectBytes: 12345 } }),
+@@ -156,6 +156,26 @@ test('corrupt, truncated, missing and mis-sized objects are refused (the real ve
+   } finally { await h.cleanup(); }
+ });
+ 
++test('a different compression of the identical signed block is accepted as that same block (content, not encoding, is authenticated)', async () => {
++  // Found by run r3: flipping the middle byte of the 52965076 object changes the snappy encoding but not the decoded
++  // envelope. The native verifier and signature recovery both bind to decoded bytes, so this is the genuine block;
++  // the compressed object's sha256 is therefore NOT a unique block identifier (archive by block hash instead).
++  const h = harness({ plan: { heads: [all(52965076, { mutate: 'flip' })] } });
++  try {
++    await h.src.start();
++    await waitFor(() => h.delivered.length + Object.keys(h.src.status().counters.rejected).length >= 1);
++    const original = (await import('../network/snappy-raw.mjs')).snappyRawDecode(
++      new Uint8Array(Buffer.from(readFileSync(path.join(ROOT, 'test', 'fixtures', 'base-mainnet-52965076.v4.snappy.hex'), 'utf8').trim(), 'hex')));
++    if (h.delivered.length) {
++      assert.equal(h.delivered[0].hash, head(52965076).hash);
++      assert.equal(h.relay.latest().data, '0x' + Buffer.from(original.subarray(65)).toString('hex'));
++      assert.notEqual(h.delivered[0].objectSha256, head(52965076).objectSha256);
++    } else {
++      assert.ok(h.src.status().counters.rejected['verify-refused'] >= 1);   // if the flip does change content, it is refused
++    }
++  } finally { await h.cleanup(); }
++});
++
+ test('a genuine Base object is refused when the adapter is pinned to a different signer', async () => {
+   const other = '0x' + '42'.repeat(20);
+   // start record and head record both name the pin, so the refusal can only come from the native signature check

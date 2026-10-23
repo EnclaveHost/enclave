@@ -1,0 +1,272 @@
+[
+ {
+  "path": "network/host-service-ingress.mjs",
+  "class": "absent-in-candidate",
+  "baseline32fecf5": {
+   "blob": "439d2e0764865f6aa9aca7cc3efa0dc5179321af",
+   "sha256": "5465684fdff06a309ee4e8b836e5f0664f5469766a8bfe2518b9f810b9461b7c",
+   "mode": "100644"
+  },
+  "candidateBefore": null
+ },
+ {
+  "path": "network/host-service-names.mjs",
+  "class": "absent-in-candidate",
+  "baseline32fecf5": {
+   "blob": "9368596eaae4fffb2fbb757d81939c027a31f29f",
+   "sha256": "a46123cbb70ab666f9dfb23b5b545fe76d87658c6bf82c7f7574579d0c65b32c",
+   "mode": "100644"
+  },
+  "candidateBefore": null
+ },
+ {
+  "path": "network/host-service-transport.mjs",
+  "class": "absent-in-candidate",
+  "baseline32fecf5": {
+   "blob": "0f9a375a137e137d24f8634eb4b4c9a423ee1c34",
+   "sha256": "de5bb98a2e77ffd90ccf65211f564d9515f667b4cd6d17cbb3644fb2ca454e06",
+   "mode": "100644"
+  },
+  "candidateBefore": null
+ },
+ {
+  "path": "network/wg-provider/dns-probe.mjs",
+  "class": "absent-in-candidate",
+  "baseline32fecf5": {
+   "blob": "f0718fbda107bac2e7b10a9b245975e1b4810c06",
+   "sha256": "a5de2f2bcde518bbee0c3b1392c64e6209cd215d61f1891742c6438e73810a97",
+   "mode": "100644"
+  },
+  "candidateBefore": null
+ },
+ {
+  "path": "network/wg-provider/host-services-config.mjs",
+  "class": "absent-in-candidate",
+  "baseline32fecf5": {
+   "blob": "cbeb6c5adc0440f5dcba92947f727f78d830a2b9",
+   "sha256": "cd3feaab7996adb00a8f4da8ee158444898805c00bfebc59843fde9c1c6b8054",
+   "mode": "100644"
+  },
+  "candidateBefore": null
+ },
+ {
+  "path": "network/wg/udpforward.go",
+  "class": "absent-in-candidate",
+  "baseline32fecf5": {
+   "blob": "fda3dd1f6fe27689a109a2219744793fad5d354c",
+   "sha256": "46a58c236c7b283558b7755c4b2d60e6259d9fc45038ddc8b8549fe15729d01f",
+   "mode": "100644"
+  },
+  "candidateBefore": null
+ },
+ {
+  "path": "network/wg/udpforward_test.go",
+  "class": "absent-in-candidate",
+  "baseline32fecf5": {
+   "blob": "91a0537ce5268c16f4002aca698516ced5637d56",
+   "sha256": "b9b1daa7c558aae52df04f57b6e41be7d781a5af913b4d6dfb0c63fc3e26b692",
+   "mode": "100644"
+  },
+  "candidateBefore": null
+ },
+ {
+  "path": "test/host-service-transport.test.mjs",
+  "class": "absent-in-candidate",
+  "baseline32fecf5": {
+   "blob": "890bd56fdf68e0de3f9e8692d83c7bcc00f5676c",
+   "sha256": "ea167d1b8e11e6a8d4b73ff0b1da21aedebdce49b166ab007739aacc6e15740b",
+   "mode": "100644"
+  },
+  "candidateBefore": null
+ },
+ {
+  "path": "test/fixtures/challenge-replica-reviewed.json",
+  "class": "absent-in-candidate",
+  "baseline32fecf5": {
+   "blob": "1a6e86dbf2da1946de087e9612cc652303ef80bb",
+   "sha256": "2b644d22c3fe1517fcca13fd01c07363cd0f5f5a65ea7f16fb466d958d0b62ad",
+   "mode": "100644"
+  },
+  "candidateBefore": null
+ },
+ {
+  "path": "network/build.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "e7de5a32925fed50cf3cddfd1675d26063a123eb",
+   "sha256": "a7aeb460dcbd3a7b94bd4fd1274197d533fe3861359cd457c1026dc66938283a",
+   "mode": "100644"
+  },
+  "candidateBefore": "69ba8d18d91798400a0b4743942dc3341ac08bd419d85a6b782be736a74e0792"
+ },
+ {
+  "path": "network/enclave-network-host.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "11cccc89cf1148d713a0287324e6e2cf0a476583",
+   "sha256": "7c2f8af54bcb546d27b5ac960cddff818be25a7e0ad9b50edaac63ff7b6d99b8",
+   "mode": "100644"
+  },
+  "candidateBefore": "7af9e9a5cd2b8768f3bb9d1d6b57287b6dc3026bbb58a5d6ffec61d3eda8b318"
+ },
+ {
+  "path": "network/host-services/roles.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "43f65bfb2b39d5da15b38c62feaa7d484ed813b6",
+   "sha256": "c956cae557bccd31e8d137ced6a53eb252f28de2deb53fc43d77362f38a21e0e",
+   "mode": "100644"
+  },
+  "candidateBefore": "eab6f55b1147da19ae9ee37ad6eece68add0910782d1845e3c92934981bdbad4"
+ },
+ {
+  "path": "network/host-services/stage-tool.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "4eb40fdd1fd223852add011b84cfa6eb71981661",
+   "sha256": "957de80cec9aabd3f5c9a9655712c412ae1fb3c50d8088d01bd2390f91e2a0ac",
+   "mode": "100644"
+  },
+  "candidateBefore": "1bfca53cb503681bad883cd608caa628c4fbdabc968d418b0056aa475cfb7a86"
+ },
+ {
+  "path": "network/privacy-agent.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "bf70b4279f5c90218dfee0ee1419ddb47dfc3081",
+   "sha256": "a3f08aca344d4022f9af3d3954c9d6601654ab084251dcbd60d1ee76372f9c62",
+   "mode": "100644"
+  },
+  "candidateBefore": "d5885d2caa8f5e40439b69bfa847d4e85b6fb95df1af2a8da0c1b2bee9c6a688"
+ },
+ {
+  "path": "network/wg-circuit-runtime.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "61b1b6be85b728942936663cbd7f3eba8a6728e4",
+   "sha256": "ff7784432eb812d47079fa4e34ee575bc75a53f4d05cfa5ff41e3f9c7d2fa03f",
+   "mode": "100644"
+  },
+  "candidateBefore": "6e301e1ac0d4249bbe5433fe369e5a7bf3a1c938fb914a29c0ef8b8704524b30"
+ },
+ {
+  "path": "network/wg-control.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "4c3c6d81602f6cbe85cf28961d0c3b28b50de33a",
+   "sha256": "c14a2fa76b206f5a9dd6f15f3f00a59088d31fb503a8236fa5c74c02f34c845d",
+   "mode": "100644"
+  },
+  "candidateBefore": "b49660130a96698f044e1251e772d21028734aeff8ef4a6410145b304c0e634f"
+ },
+ {
+  "path": "network/wg-grants.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "724def4d185b559a402dbe531ed88a82e6c35abf",
+   "sha256": "0f9016bc93196f549c5f3f17b20e333108aa3d04ea09d2b3610aaa489cbf6e02",
+   "mode": "100644"
+  },
+  "candidateBefore": "014b104971034599146a9235f6858c04a3d8484bf4e5acc7b2589fa6205f3469"
+ },
+ {
+  "path": "network/wg-provider/control.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "4b765a0ffbf303828f9b6cd85af73e58e811c87e",
+   "sha256": "12e0d287025a22edaa814f1966cc943ea4cb9aa7d8f0342ddb60343162d1bc9e",
+   "mode": "100644"
+  },
+  "candidateBefore": "6abd2ca468b83a88555c2478807f561710326c3d93ee75619204d2a04f104b1f"
+ },
+ {
+  "path": "network/wg-provider/install.sh",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "584abc5f6650c8129d4f9ec2607a8e6ce6cccb7e",
+   "sha256": "d21197d5915362be64f7180a4d510ac6e2ccdfaeb3424f5dd6ecd481a862ebf5",
+   "mode": "100644"
+  },
+  "candidateBefore": "5c8f8dcff59867c27cc94845065cd52279268a36a6a5b6bf0fc1109a91ce0da8"
+ },
+ {
+  "path": "network/wg-provider/kernel.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "4f6db5407ea7349aac6381ae78e4013094abc114",
+   "sha256": "b912c85cc90b63c0f0b9dcc3bc8545d0317c1985c5a180b161d16bdc2890033b",
+   "mode": "100644"
+  },
+  "candidateBefore": "96182bb51aa8393a14573c08e5114c51f8e24bbdb55d70703ce8ab377c226a8f"
+ },
+ {
+  "path": "network/wg-provider/main.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "1c497f7de7bc7b0e87ca26aabda610e4def7cbfa",
+   "sha256": "166ed03faa2bd1307f9f5d9c3fee3f451faa112548295fb93f2230cd5773f574",
+   "mode": "100644"
+  },
+  "candidateBefore": "875daaa8459414497c1d63c748775a9503d2b999d0e7513502b9fcdc779f3d19"
+ },
+ {
+  "path": "network/wg-provider/provider.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "73634e704ecae72c20b82bbdd5d90f707f8cd759",
+   "sha256": "68ceaff71d2ba1313b7fcd580997fb7733513731bde8c0d7269694d8c4d40cd6",
+   "mode": "100644"
+  },
+  "candidateBefore": "90ce11c085f6bac0e2c8fd9409058c50bff17640d2c02e844b7771b3b40cd531"
+ },
+ {
+  "path": "network/wg/forward.go",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "de3d8597a03cf9585cd2132849646898aef385f4",
+   "sha256": "c9dea2ce078b4a2adc38ab13cddf19f68861b63946028479b9815803fef14e7a",
+   "mode": "100644"
+  },
+  "candidateBefore": "3cfb1645d1d30f312dcc3052880c44ee5b2fa21deb077605536befc504830c0e"
+ },
+ {
+  "path": "network/wg/cmd/enclave-wg/main.go",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "109aeaa48ba5b963ca95f5ae4f4afe742d2a5ffd",
+   "sha256": "b1772502efc59b1ec531f07f869ca4aa187b6f3d84d4754edab65c40eaff70c9",
+   "mode": "100644"
+  },
+  "candidateBefore": "82e2a5ad16e645cd287cfcbf11e78a0a7efb067aba0be9a2c8a543c1cb88e1ca"
+ },
+ {
+  "path": "scripts/check-transport-profile.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "818181db052cec0d0b7126d7096318b546994146",
+   "sha256": "0c058df2b4285d94a0e136cbd7640caebb3ad40deab5b5df137cc31009ebd4bf",
+   "mode": "100644"
+  },
+  "candidateBefore": "38a25b98b7b488060fdd6f765088b0bbd23ae4a8c0bddcaec13584ff6abc7aa7"
+ },
+ {
+  "path": "windows/installer/stage-bundle.sh",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "ffdd6b7d2dd0c3ae24bb0a51c22f4ceb6a65ec28",
+   "sha256": "6a797277f8c34b36c45799ddc63e52a354b82b3bfbe8bd3d6ff978d047725688",
+   "mode": "100644"
+  },
+  "candidateBefore": "e157e729586c8c26e1106823bb29843d2de7d3ec3f11afdb7ce4c040f8aa9f2d"
+ },
+ {
+  "path": "windows/node/network-enroll.mjs",
+  "class": "baseline-strict-superset",
+  "baseline32fecf5": {
+   "blob": "caa8ea25b862e564c40ba2a93c6d04ba1942dbe8",
+   "sha256": "a9729786598107e69d24d5163ea8592d114f93a9b6693106a7fa3414c95430d6",
+   "mode": "100644"
+  },
+  "candidateBefore": "bdc6019cd82d35860670ba69debe853c22c1ef0b1261a56fe73a3ffff56211de"
+ }
+]

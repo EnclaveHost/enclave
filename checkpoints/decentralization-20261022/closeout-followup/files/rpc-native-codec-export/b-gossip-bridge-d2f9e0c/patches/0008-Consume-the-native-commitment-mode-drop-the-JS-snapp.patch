@@ -1,0 +1,690 @@
+From 57e4fd82ccfa8c3f0c0a0212a3f74ba5fc18f0ba Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 19:08:20 -0700
+Subject: [PATCH 08/11] Consume the native commitment mode; drop the JS snappy
+ decoder; bound disk and archive paths
+
+---
+ .gitignore                       |   1 +
+ jobs/bridge-tests.sh             |   6 +-
+ network/gossip-head-source.mjs   | 159 ++++++++++++++++++++++---------
+ network/snappy-raw.mjs           |  68 -------------
+ test/fixtures/fake-listener.mjs  |  21 ++--
+ test/gossip-head-source.test.mjs |  97 +++++++++++++++++--
+ test/snappy-raw.test.mjs         |  70 --------------
+ 7 files changed, 218 insertions(+), 204 deletions(-)
+ delete mode 100644 network/snappy-raw.mjs
+ delete mode 100644 test/snappy-raw.test.mjs
+
+diff --git a/.gitignore b/.gitignore
+index be770402a4094223f2d47da74b7d8499865cda39..ee0c86861d4a153d328d6f6fc74d2a94a7cb44d8 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,2 +1,3 @@
+ /node_modules
+ /artifacts/
++/listener/
+diff --git a/jobs/bridge-tests.sh b/jobs/bridge-tests.sh
+index 09e807c0bd0f862641d64f2f246ecbea165e1aed..7688412081d1eccbde8270e6d94f12c6461ede69 100755
+--- a/jobs/bridge-tests.sh
++++ b/jobs/bridge-tests.sh
+@@ -1,10 +1,10 @@
+ #!/bin/bash
+-# rpc-gossip-bridge offline tests: real pinned listener (verify-object + offline lifecycle), real captured Base objects,
++# rpc-gossip-bridge offline tests: real pinned listener (commitment mode + offline lifecycle), real captured Base objects,
+ # A's op-head-relay.mjs @97785a40c (byte-identical copy). Inside `unshare -r -n`: no route to any peer or provider.
+ set -euo pipefail
+ B=/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge
+ cd "$B"
+-echo "8ef3d51d8767a66fddef7727837737890c2c6e4ff860df1add6aadb0f5581974  artifacts/enclave-base-head-listener" | sha256sum -c -
++echo "ebd045b428227530fac1c1b079f47c67ecb874637a1c7dcb4f021dd5929e8d3a  artifacts/enclave-base-head-listener" | sha256sum -c -
+ git log --oneline -1
+ node --version
+ exec unshare -r -n bash -c '
+@@ -13,5 +13,5 @@ exec unshare -r -n bash -c '
+   if curl -s -m 3 -o /dev/null https://mainnet.base.org; then echo "UNEXPECTED: external network reachable"; exit 3; fi
+   echo "external network: unreachable (as intended)"
+   timeout -k 10 600 node --test --test-force-exit --test-concurrency=1 --test-timeout=300000 \
+-    test/snappy-raw.test.mjs test/gossip-head-source.test.mjs
++    test/gossip-head-source.test.mjs
+ '
+diff --git a/network/gossip-head-source.mjs b/network/gossip-head-source.mjs
+index 57c3d2fc319e361ccaca4ea129855e5634b1b0b2..0662853601e1d6f6b1286ae28f5248dcad7cbf92 100644
+--- a/network/gossip-head-source.mjs
++++ b/network/gossip-head-source.mjs
+@@ -9,39 +9,55 @@
+ //   1. the session's start record names the pinned chain, signer (admin pin), schema and base/base source commit;
+ //   2. the head record is well-formed, labelled unsafe/none, for the pinned chain and signer, received in THIS session;
+ //   3. the object file is the session's own, its size and sha256 match the record and stay under the cap;
+-//   4. the pinned listener binary's own `verify-object` (maintained signer + chain domain + block-hash check) accepts it and
+-//      reports the same number/hash/stateRoot;
+-//   5. op-head-relay's verifyCommitment recovers the pinned signer from the decoded commitment for the pinned chain, and
+-//      the decoded number/hash/stateRoot/parentHash/timestamp equal the record;
++//   4. the pinned listener binary's `commitment` mode accepts it: maintained base/base decode + signer + chain domain +
++//      block-hash verification FIRST, then (maintained `snap` decoder, bounded before allocation) the exact original
++//      decompressed bytes after the 65-byte signature, bound to the verified payload hash; its metadata (including the
++//      sha256 of the bytes it read) must equal the record;
++//   5. op-head-relay's verifyCommitment independently recovers the pinned signer over those exact bytes for the pinned
++//      chain, and the decoded number/hash/stateRoot/parentHash/timestamp equal the record;
+ //   6. the block timestamp is within maxHeadAgeMs of now (and not more than 5 s ahead).
+-// Freshness is always judged from the signed block timestamp, never from when a head was read, so a restart cannot make
+-// an old head fresh: each session gets a new empty object directory and only records stamped after the session started
+-// are considered.
++// No decoding of the object happens in JavaScript.
++//
++// Restarts (exact behaviour): this source judges freshness only from the signed block timestamp. A new session starts
++// with an empty object directory and refuses records stamped before it started, so nothing from an earlier session is
++// re-read or re-delivered. `status().head` stays the last delivered head but reports fresh only while that head's own
++// timestamp is within maxHeadAgeMs AND it was delivered less than staleAfterMs ago. The relay keeps its highest verified
++// head across source restarts and serves it only while ITS signed timestamp is within the relay's maxAgeMs (and not
++// equivocated); a restart therefore never extends any head's freshness, but a head delivered just before a restart can
++// still be served until it ages out (at most maxAgeMs after its block timestamp).
++//
++// Disk: each session directory holds only what the listener wrote in it, capped by the listener's own --max-output-bytes
++// budget (objects + records). Objects are deleted once processed or dropped; files whose record never arrives stay until
++// the session ends, when the whole directory is removed. Session directories left by a crashed earlier run of this
++// source (marked OWNER) are removed at start. Upper bound: one session's maxOutputBytes plus a few KiB.
+ import { spawn, execFile } from 'node:child_process';
+ import { createHash, randomBytes } from 'node:crypto';
+-import { mkdir, readFile, readlink, readdir, rm, writeFile, stat } from 'node:fs/promises';
++import { mkdir, open, readFile, readdir, rm, writeFile, stat } from 'node:fs/promises';
+ import { readFileSync } from 'node:fs';
+ import path from 'node:path';
+ import { verifyCommitment } from './op-head-relay.mjs';
+-import { snappyRawDecode } from './snappy-raw.mjs';
+ 
+ export const SCHEMA = 'enclave-base-gossip-commitment/v1';
+ export const LISTENER_SCHEMA = 'enclave-base-unsafe-head/v1';
+ export const LISTENER_OBJECT_ENCODING = 'base-network-payload-envelope-v4-snappy';
+ export const BASE_SOURCE_COMMIT = '5476069f1eb74a56bccb56fdefd4b4bb0e3cda42';
+-/** The listener build whose live run and fixtures this adapter was tested against (head-listener commit f3159ea). */
+-export const TESTED_LISTENER_SHA256 = '8ef3d51d8767a66fddef7727837737890c2c6e4ff860df1add6aadb0f5581974';
++export const NATIVE_COMMITMENT_SCHEMA = 'enclave-base-signed-commitment/v1';
++/** The listener build this adapter was tested against: rpc-gossip-bridge/listener branch commitment-mode (f3159ea plus
++ *  the `commitment` mode). The live-run listener f3159ea had 8ef3d51d...; its `listen` path is unchanged. */
++export const TESTED_LISTENER_SHA256 = 'ebd045b428227530fac1c1b079f47c67ecb874637a1c7dcb4f021dd5929e8d3a';
+ 
+ const ADDR = /^0x[0-9a-f]{40}$/, H32 = /^0x[0-9a-f]{64}$/, SHA = /^[0-9a-f]{64}$/;
+-const SIG_LEN = 65;
++const RELAY_MAX_DATA = 4 * 1024 * 1024;   // op-head-relay.mjs MAX_DATA: larger commitments are refused there anyway
+ const LIMITS = Object.freeze({
+   maxLineBytes: 16 * 1024,          // listener records are < 1 KiB
+   stderrTailBytes: 16 * 1024,
+-  maxObjectBytes: 10 * (1 << 20),   // base MAX_GOSSIP_SIZE
++  maxObjectBytes: 10 * (1 << 20),   // base MAX_GOSSIP_SIZE; the native mode refuses larger files unread
+   maxQueuedHeads: 32,
+   maxArchiveQueue: 16,
+-  verifyTimeoutMs: 10_000,
+-  verifyOutputBytes: 64 * 1024,
++  maxArchiveQueuedBytes: 32 * (1 << 20),
++  maxArchiveOutstanding: 2,         // timed-out archive calls still holding their entry
++  nativeTimeoutMs: 10_000,
++  nativeOutputSlack: 64 * 1024,     // native stdout <= 2 x maxDataBytes (hex) + this
+   killGraceMs: 5_000,
+ });
+ const BACKOFF_MS = [1_000, 2_000, 5_000, 15_000, 60_000];
+@@ -90,7 +106,8 @@ function validateOptions(o) {
+   need(typeof o.workDir === 'string' && path.isAbsolute(o.workDir), 'workDir must be an absolute path');
+   need(typeof o.onCommitment === 'function', 'onCommitment callback required');
+   for (const [k, lo, hi] of [['sessionSecs', 1, 3600], ['maxPeers', 1, 50], ['maxOutputBytes', 1 << 20, 1 << 30],
+-    ['maxHeadAgeMs', 1000, 600_000], ['staleAfterMs', 1000, 600_000], ['restartIfNoHeadMs', 5000, 3_600_000], ['discoveryAfterSecs', 0, 3600]])
++    ['maxHeadAgeMs', 1000, 600_000], ['staleAfterMs', 1000, 600_000], ['restartIfNoHeadMs', 5000, 3_600_000], ['discoveryAfterSecs', 0, 3600],
++    ['maxDataBytes', 1024, RELAY_MAX_DATA], ['archiveTimeoutMs', 10, 600_000]])
+     need(Number.isSafeInteger(o[k]) && o[k] >= lo && o[k] <= hi, `invalid ${k}`);
+   need(['off', 'bounded'].includes(o.discovery), 'discovery must be off or bounded');
+ }
+@@ -103,19 +120,21 @@ function validateOptions(o) {
+  *   onCommitment(commitment, meta) receives each verified commitment; use (c) => relay.offer(c, 'native-gossip')
+  *   onArchive?(entry)             optional downstream sink (e.g. Sia). Fire-and-forget, bounded, never gates serving.
+  *   sessionSecs (3600), maxPeers (20), maxOutputBytes (64 MiB), discovery ('bounded'), discoveryAfterSecs (10),
+- *   maxHeadAgeMs (60000), staleAfterMs (30000), restartIfNoHeadMs (120000), now (Date.now), signal (AbortSignal)
++ *   maxHeadAgeMs (60000), staleAfterMs (30000), restartIfNoHeadMs (120000), maxDataBytes (4 MiB = relay MAX_DATA),
++ *   archiveTimeoutMs (60000), now (Date.now), signal (AbortSignal)
+  */
+ export function createGossipHeadSource(options) {
+   const o = { sessionSecs: 3600, maxPeers: 20, maxOutputBytes: 64 << 20, discovery: 'bounded', discoveryAfterSecs: 10,
+-    maxHeadAgeMs: 60_000, staleAfterMs: 30_000, restartIfNoHeadMs: 120_000, now: Date.now, extraEnv: {}, ...options };
++    maxHeadAgeMs: 60_000, staleAfterMs: 30_000, restartIfNoHeadMs: 120_000, maxDataBytes: RELAY_MAX_DATA,
++    archiveTimeoutMs: 60_000, now: Date.now, extraEnv: {}, ...options };
+   validateOptions(o);
+   const signer = lower(o.signer);
+   const counters = { sessions: 0, restarts: 0, heads: 0, delivered: 0, rejected: {}, queueDropped: 0, archiveDropped: 0,
+-    archiveFailed: 0, archived: 0 };
++    archiveFailed: 0, archiveTimedOut: 0, archiveSkipped: 0, archived: 0, staleSessionDirsRemoved: 0 };
+   const reject = (reason) => { counters.rejected[reason] = (counters.rejected[reason] || 0) + 1; };
+   let session = null, stopped = true, restartTimer = null, watchdog = null, backoff = 0, lastHead = null, lastExit = null;
+   let processing = Promise.resolve();
+-  const archiveQueue = []; let archiving = false;
++  const archiveQueue = []; let archiving = false, archiveQueuedBytes = 0, archiveOutstanding = 0;
+ 
+   function fresh(ts) {
+     const ms = Number(ts) * 1000, now = o.now();
+@@ -127,18 +146,31 @@ export function createGossipHeadSource(options) {
+     if (digest !== o.listenerSha256) throw new Error(`listener binary digest ${digest} does not match the pin`);
+   }
+ 
+-  function runVerifyObject(file) {
++  /** Runs the pinned binary's `commitment` mode on one object; stdout is bounded by maxBuffer (hex expansion included). */
++  function runNativeCommitment(file) {
+     return new Promise((resolve) => {
+-      execFile(o.listenerPath, ['verify-object', '--signer', signer, '--file', file],
+-        { timeout: LIMITS.verifyTimeoutMs, maxBuffer: LIMITS.verifyOutputBytes, killSignal: 'SIGKILL', env: { PATH: '/usr/bin:/bin', ...o.extraEnv } },
++      execFile(o.listenerPath, ['commitment', '--signer', signer, '--file', file, '--max-data-bytes', String(o.maxDataBytes)],
++        { timeout: LIMITS.nativeTimeoutMs, maxBuffer: 2 * o.maxDataBytes + LIMITS.nativeOutputSlack, killSignal: 'SIGKILL',
++          env: { PATH: '/usr/bin:/bin', ...o.extraEnv } },
+         (err, stdout) => {
+-          if (err) return resolve({ ok: false, why: err.killed ? 'verify-timeout' : 'verify-refused' });
+-          try { const v = JSON.parse(stdout.trim()); resolve(v && v.ok === true ? { ok: true, v } : { ok: false, why: 'verify-refused' }); }
+-          catch { resolve({ ok: false, why: 'verify-output' }); }
++          if (err) return resolve({ ok: false, why: err.killed ? 'native-timeout' : err.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' ? 'native-output-too-large' : 'native-refused' });
++          try { const v = JSON.parse(stdout); resolve(v && v.ok === true ? { ok: true, v } : { ok: false, why: 'native-refused' }); }
++          catch { resolve({ ok: false, why: 'native-output' }); }
+         });
+     });
+   }
+ 
++  /** Reads at most `max` bytes of `file` (used only for the optional archive copy). */
++  async function readBounded(file, max) {
++    const fh = await open(file, 'r');
++    try {
++      const buf = Buffer.alloc(max + 1);
++      const { bytesRead } = await fh.read(buf, 0, max + 1, 0);
++      if (bytesRead > max) throw new Error('object grew past its recorded size');
++      return buf.subarray(0, bytesRead);
++    } finally { await fh.close(); }
++  }
++
+   function validStart(r) {
+     return r.schema === LISTENER_SCHEMA && r.type === 'start' && r.chainId === o.chainId && lower(r.signer) === signer
+       && r.signerSource === 'admin-pin' && r.baseSourceCommit === BASE_SOURCE_COMMIT && r.objectEncoding === LISTENER_OBJECT_ENCODING;
+@@ -162,23 +194,19 @@ export function createGossipHeadSource(options) {
+     if (shape) return reject(shape);
+     if (!fresh(r.timestamp)) return reject('stale');
+     const file = path.join(s.objects, `${r.objectSha256}.v4.snappy`);
+-    let bytes;
+     try {
+       const st = await stat(file);
+       if (!st.isFile() || st.size !== r.objectBytes) return reject('object-size');
+-      bytes = await readFile(file);
+     } catch { return reject('object-missing'); }
+-    if (bytes.length !== r.objectBytes || sha256(bytes) !== r.objectSha256) return reject('object-digest');
+-    const native = await runVerifyObject(file);
++    const native = await runNativeCommitment(file);
+     if (!native.ok) return reject(native.why);
+     const nv = native.v;
+-    if (nv.number !== r.number || lower(nv.hash) !== lower(r.hash) || lower(nv.stateRoot) !== lower(r.stateRoot) || lower(nv.signer) !== signer) return reject('verify-mismatch');
+-    let env;
+-    try { env = snappyRawDecode(bytes); } catch { return reject('decode'); }
+-    if (env.length < SIG_LEN + 32) return reject('decode');
+-    const sig = env.subarray(0, SIG_LEN);
+-    const hex = (b) => '0x' + Buffer.from(b).toString('hex');
+-    const commitment = { data: hex(env.subarray(SIG_LEN)), signature: { r: hex(sig.subarray(0, 32)), s: hex(sig.subarray(32, 64)), yParity: sig[64] } };
++    if (nv.schema !== NATIVE_COMMITMENT_SCHEMA || nv.type !== 'commitment' || nv.tier !== 'unsafe' || nv.finality !== 'none'
++      || nv.chainId !== o.chainId || lower(nv.signer) !== signer || nv.payloadVersion !== 'v4' || nv.objectSha256 !== r.objectSha256
++      || nv.number !== r.number || lower(nv.hash) !== lower(r.hash) || lower(nv.stateRoot) !== lower(r.stateRoot)
++      || lower(nv.parentHash) !== lower(r.parentHash) || nv.timestamp !== r.timestamp) return reject('native-mismatch');
++    const commitment = nv.commitment;
++    if (!commitment || typeof commitment.data !== 'string' || commitment.data.length > 2 + 2 * o.maxDataBytes) return reject('native-mismatch');
+     let checked;
+     try { checked = await verifyCommitment(commitment, { chainId: o.chainId, signer }); } catch { return reject('commitment-signature'); }
+     const h = checked.head;
+@@ -191,23 +219,53 @@ export function createGossipHeadSource(options) {
+     counters.delivered++;
+     lastHead = { ...meta, deliveredAt: o.now() };
+     backoff = 0;
+-    if (o.onArchive) enqueueArchive({ meta, object: bytes });
++    if (o.onArchive) {
++      // archive copy: the object bytes, re-read bounded and checked against the digest the native mode verified
++      let bytes = null;
++      try { bytes = await readBounded(file, r.objectBytes); } catch {}
++      if (bytes && sha256(bytes) === r.objectSha256) enqueueArchive({ meta, object: bytes, commitment: checked.commitment });
++      else counters.archiveSkipped++;
++    }
+   }
+ 
++  /** Bounded, serial, fire-and-forget archive queue: at most maxArchiveQueue entries and maxArchiveQueuedBytes queued,
++   *  each call abandoned after archiveTimeoutMs, and at most maxArchiveOutstanding abandoned calls still pending before
++   *  new entries are dropped. Never awaited by the serving path. */
+   function enqueueArchive(entry) {
+-    if (archiveQueue.length >= LIMITS.maxArchiveQueue) { archiveQueue.shift(); counters.archiveDropped++; }
+-    archiveQueue.push(entry);
++    const size = entry.object.length + entry.commitment.data.length;
++    while (archiveQueue.length && (archiveQueue.length >= LIMITS.maxArchiveQueue || archiveQueuedBytes + size > LIMITS.maxArchiveQueuedBytes)) {
++      archiveQueuedBytes -= archiveQueue.shift().size; counters.archiveDropped++;
++    }
++    if (size > LIMITS.maxArchiveQueuedBytes) { counters.archiveDropped++; return; }
++    archiveQueue.push({ entry, size }); archiveQueuedBytes += size;
+     if (archiving) return;
+     archiving = true;
+     (async () => {
+       while (archiveQueue.length) {
+-        const next = archiveQueue.shift();
+-        try { await o.onArchive(next); counters.archived++; } catch { counters.archiveFailed++; }
++        if (archiveOutstanding >= LIMITS.maxArchiveOutstanding) {   // hung sink: drop instead of piling up calls
++          while (archiveQueue.length) { archiveQueuedBytes -= archiveQueue.shift().size; counters.archiveDropped++; }
++          break;
++        }
++        const { entry: next, size: n } = archiveQueue.shift(); archiveQueuedBytes -= n;
++        archiveOutstanding++;
++        let settled = false;
++        const call = Promise.resolve().then(() => o.onArchive(next))
++          .then(() => { counters.archived++; }, () => { counters.archiveFailed++; })
++          .finally(() => { settled = true; archiveOutstanding--; });
++        let timer;
++        await Promise.race([call, new Promise((r) => { timer = setTimeout(r, o.archiveTimeoutMs); timer.unref?.(); })]);
++        clearTimeout(timer);
++        if (!settled) counters.archiveTimedOut++;
+       }
+       archiving = false;
+     })();
+   }
+ 
++  /** Deletes the object a dropped record names (only a well-formed sha256 name inside this session's object dir). */
++  function discard(s, r) {
++    if (SHA.test(r?.objectSha256 || '')) rm(path.join(s.objects, `${r.objectSha256}.v4.snappy`), { force: true }).catch(() => {});
++  }
++
+   function onLine(s, line) {
+     let r;
+     try { r = JSON.parse(line); } catch { return reject('record-json'); }
+@@ -218,15 +276,14 @@ export function createGossipHeadSource(options) {
+       return;
+     }
+     if (r.type !== 'head') return;   // discovery-started / progress / summary are diagnostics only
+-    if (!s.started) return reject('head-before-start');
++    if (!s.started) { discard(s, r); return reject('head-before-start'); }
+     counters.heads++;
+-    if (s.queued >= LIMITS.maxQueuedHeads) { counters.queueDropped++; return; }
++    if (s.queued >= LIMITS.maxQueuedHeads) { discard(s, r); counters.queueDropped++; return; }
+     s.queued++;
+     // Heads already read from this session finish processing before its directory is removed (endSession awaits this
+     // chain), so stop() resolves only after the last delivery; nothing is delivered after stop() returns.
+-    // Each object file is deleted as soon as it was processed (accepted or not): disk use stays bounded by in-flight
+-    // objects, and the optional archive hook already received the bytes in memory.
+-    const done = () => { s.queued--; if (SHA.test(r?.objectSha256 || '')) return rm(path.join(s.objects, `${r.objectSha256}.v4.snappy`), { force: true }).catch(() => {}); };
++    // Each object file is deleted as soon as it was processed (accepted or not); the archive hook got its own copy.
++    const done = () => { s.queued--; discard(s, r); };
+     processing = processing.then(() => processHead(s, r)).finally(done);
+   }
+ 
+@@ -310,6 +367,14 @@ export function createGossipHeadSource(options) {
+     if (!stopped) return;
+     stopped = false;
+     await mkdir(path.join(o.workDir, 'sessions'), { recursive: true });
++    // Remove session directories a crashed earlier run of this source left behind (only ones carrying our OWNER marker).
++    for (const name of await readdir(path.join(o.workDir, 'sessions')).catch(() => [])) {
++      const dir = path.join(o.workDir, 'sessions', name);
++      const owner = await readFile(path.join(dir, 'OWNER'), 'utf8').catch(() => '');
++      if (/^s\d+-[0-9a-f]{12}$/.test(name) && owner.startsWith('gossip-head-source ')) {
++        await rm(dir, { recursive: true, force: true }); counters.staleSessionDirsRemoved++;
++      }
++    }
+     o.signal?.addEventListener('abort', () => { stop(); }, { once: true });
+     watchdog = setInterval(tickWatchdog, 1000); watchdog.unref?.();
+     try { await startSession(); } catch (e) { lastExit = { error: String(e.message || e) }; await stop(); throw e; }
+diff --git a/network/snappy-raw.mjs b/network/snappy-raw.mjs
+deleted file mode 100644
+index 448116290a69c6758508fab1ca887d92431e68b6..0000000000000000000000000000000000000000
+--- a/network/snappy-raw.mjs
++++ /dev/null
+@@ -1,68 +0,0 @@
+-// Bounded decoder for the raw (unframed) Snappy block format, as used by Base/OP-stack v4 block gossip and by the
+-// enclave-base-head-listener object files (NetworkPayloadEnvelope::encode_v4 = snap::raw::Encoder).
+-// Format: https://github.com/google/snappy/blob/main/format_description.txt (varint length, then literal/copy elements).
+-//
+-// This is a codec, not a verifier. Its output is only ever used after the native listener's maintained verify-object
+-// accepted the same file, and the bytes it produces are then re-checked by signature recovery over keccak256(data)
+-// (op-head-relay.mjs verifyCommitment). A decoding mistake therefore fails closed; it cannot produce an accepted head.
+-
+-/** Default cap: base/base MAX_DECOMPRESSED_ENVELOPE_BYTES (crates/common/rpc-types-engine/src/envelope.rs:26 @5476069f). */
+-export const MAX_DECOMPRESSED_BYTES = 10 * (1 << 20);
+-
+-/** Decode `input` (Uint8Array). Throws on any malformed, truncated or oversized input. */
+-export function snappyRawDecode(input, maxOutput = MAX_DECOMPRESSED_BYTES) {
+-  if (!(input instanceof Uint8Array)) throw new TypeError('snappy input must be bytes');
+-  let i = 0, length = 0;
+-  for (let shift = 0; ; shift += 7) {
+-    if (i >= input.length) throw new Error('snappy: truncated length preamble');
+-    if (shift > 28) throw new Error('snappy: length preamble too long');
+-    const b = input[i++];
+-    length += (b & 0x7f) * 2 ** shift;
+-    if (!(b & 0x80)) break;
+-  }
+-  if (length > maxOutput || length > 0xffffffff) throw new Error('snappy: declared length exceeds the cap');
+-  const out = new Uint8Array(length);
+-  let o = 0;
+-  const need = (n) => { if (i + n > input.length) throw new Error('snappy: truncated element'); };
+-  while (i < input.length) {
+-    const tag = input[i++];
+-    const kind = tag & 3;
+-    if (kind === 0) {
+-      let len = tag >>> 2;
+-      if (len >= 60) {
+-        const n = len - 59;
+-        need(n);
+-        len = 0;
+-        for (let k = 0; k < n; k++) len += input[i + k] * 2 ** (8 * k);
+-        i += n;
+-      }
+-      len += 1;
+-      need(len);
+-      if (o + len > length) throw new Error('snappy: literal overruns the declared length');
+-      out.set(input.subarray(i, i + len), o);
+-      i += len; o += len;
+-      continue;
+-    }
+-    let len, offset;
+-    if (kind === 1) {
+-      need(1);
+-      len = ((tag >>> 2) & 7) + 4;
+-      offset = ((tag >>> 5) << 8) | input[i++];
+-    } else if (kind === 2) {
+-      need(2);
+-      len = (tag >>> 2) + 1;
+-      offset = input[i] | (input[i + 1] << 8);
+-      i += 2;
+-    } else {
+-      need(4);
+-      len = (tag >>> 2) + 1;
+-      offset = (input[i] | (input[i + 1] << 8) | (input[i + 2] << 16)) + input[i + 3] * 2 ** 24;
+-      i += 4;
+-    }
+-    if (offset === 0 || offset > o) throw new Error('snappy: copy offset out of range');
+-    if (o + len > length) throw new Error('snappy: copy overruns the declared length');
+-    for (let k = 0; k < len; k++, o++) out[o] = out[o - offset];   // byte-wise: overlapping copies are legal
+-  }
+-  if (o !== length) throw new Error('snappy: output shorter than the declared length');
+-  return out;
+-}
+diff --git a/test/fixtures/fake-listener.mjs b/test/fixtures/fake-listener.mjs
+index f4845c23889e7e9cfd120406fa0fd531eca8d181..b04132279e85b5ea8f4e058d3a64ca8edf9f964d 100755
+--- a/test/fixtures/fake-listener.mjs
++++ b/test/fixtures/fake-listener.mjs
+@@ -1,28 +1,37 @@
+ #!/usr/bin/node
+ // Test double for enclave-base-head-listener `listen`: replays REAL captured records and objects (or tampered copies)
+ // on the listener's stdout contract and simulates process behaviour (exit, signal, hang, grandchild, line flood).
+-// `verify-object` is delegated to the REAL pinned listener binary (REAL_LISTENER), so the native verification gate in
+-// gossip-head-source.mjs is never faked.
++// Every other subcommand (`commitment`, `verify-object`) is delegated to the REAL pinned listener binary (REAL_LISTENER),
++// so the native verification gate in gossip-head-source.mjs is never faked. plan.forge deliberately corrupts one byte of
++// the REAL native result to prove the JavaScript relay verifier catches it independently.
+ import { spawn, spawnSync } from 'node:child_process';
+ import { createHash } from 'node:crypto';
+ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+ import path from 'node:path';
+ 
+ const argv = process.argv.slice(2);
+-if (argv[0] === 'verify-object') {
+-  const r = spawnSync(process.env.REAL_LISTENER, argv, { stdio: 'inherit' });
++const plan = JSON.parse(process.env.FAKE_PLAN || '{}');
++if (argv[0] !== 'listen') {
++  const r = spawnSync(process.env.REAL_LISTENER, argv, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
++  let out = r.stdout;
++  if (plan.forge && argv[0] === 'commitment' && r.status === 0) {
++    const v = JSON.parse(out);
++    const d = v.commitment.data, at = 2 + 2 * 40;   // a byte inside parentBeaconRoot/payload, not the head fields
++    v.commitment.data = d.slice(0, at) + (d[at] === '0' ? '1' : '0') + d.slice(at + 1);
++    out = JSON.stringify(v) + '\n';
++  }
++  process.stdout.write(out);
+   process.exit(r.status ?? 1);
+ }
+ const arg = (name) => argv[argv.indexOf(name) + 1];
+ const fixtures = path.join(path.dirname(new URL(import.meta.url).pathname));
+-const plan = JSON.parse(process.env.FAKE_PLAN || '{}');
+ const out = arg('--out-dir');
+ mkdirSync(path.join(out, 'objects'), { recursive: true });
+ const print = (v) => process.stdout.write((typeof v === 'string' ? v : JSON.stringify(v)) + '\n');
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+ 
+ const start = JSON.parse(readFileSync(path.join(fixtures, 'listener-start-record.json'), 'utf8'));
+-print({ ...start, signer: arg('--signer'), startedUnixMs: Date.now(), ...(plan.start || {}) });
++if (!plan.noStart) print({ ...start, signer: arg('--signer'), startedUnixMs: Date.now(), ...(plan.start || {}) });
+ 
+ for (const h of plan.heads || []) {
+   await sleep(h.delayMs || 0);
+diff --git a/test/gossip-head-source.test.mjs b/test/gossip-head-source.test.mjs
+index 9e696da32f8699201185ad3517ef579e72c213d7..100e5aefeccd9a41cfba6ad3bbacecf48d55b45c 100644
+--- a/test/gossip-head-source.test.mjs
++++ b/test/gossip-head-source.test.mjs
+@@ -1,11 +1,12 @@
+ // network/gossip-head-source.mjs: native listener child -> verified Helios SequencerCommitment -> op-head-relay.
+ // Offline only (the job runs inside `unshare -r -n`; asserted below). Uses the REAL pinned listener binary (f3159ea,
+-// sha256 8ef3d51d...) for every verify-object call and for the lifecycle test, REAL captured Base mainnet objects, and a
++// commitment mode, sha256 ebd045b4...) for every native commitment call and for the lifecycle test, REAL captured Base mainnet objects, and a
+ // scripted stand-in only to replay records and simulate process behaviour.
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import { createHash } from 'node:crypto';
+-import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
++import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
++import { execFileSync } from 'node:child_process';
+ import os from 'node:os';
+ import path from 'node:path';
+ import { createGossipHeadSource, signalOwned, procIdentity, TESTED_LISTENER_SHA256 } from '../network/gossip-head-source.mjs';
+@@ -42,6 +43,16 @@ function harness({ plan = {}, nowMs = T76 * 1000 + 1000, listener = FAKE, signer
+   return { src, relay, delivered, clock, workDir, cleanup: async () => { await src.stop(); rmSync(workDir, { recursive: true, force: true }); } };
+ }
+ const all = (fixture, extra = {}) => ({ fixture, ...extra });
++/** The real binary's commitment for an unmodified captured object (reference output, maintained decoding). */
++function nativeCommitment(n) {
++  const dir = mkdtempSync(path.join(os.tmpdir(), 'ghs-ref-'));
++  try {
++    const file = path.join(dir, 'o.v4.snappy');
++    writeFileSync(file, Buffer.from(readFileSync(path.join(ROOT, 'test', 'fixtures', `base-mainnet-${n}.v4.snappy.hex`), 'utf8').trim(), 'hex'));
++    return JSON.parse(execFileSync(REAL, ['commitment', '--signer', SIGNER, '--file', file], { encoding: 'utf8' }));
++  } finally { rmSync(dir, { recursive: true, force: true }); }
++}
++const objectsDir = (h) => { const s = readdirSync(path.join(h.workDir, 'sessions'))[0]; return s ? path.join(h.workDir, 'sessions', s, 'out', 'objects') : null; };
+ 
+ test('offline guard: no network route exists in this test namespace', () => {
+   const routes = readFileSync('/proc/net/route', 'utf8').trim().split('\n').slice(1);
+@@ -52,7 +63,7 @@ test('the real listener binary is the tested pinned build', () => {
+   assert.equal(sha(REAL), TESTED_LISTENER_SHA256);
+ });
+ 
+-test('real Base heads: native verify-object + decode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe', async () => {
++test('real Base heads: native commitment mode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe', async () => {
+   const h = harness({ plan: { heads: [all(52965074), all(52965075), all(52965076)] } });
+   try {
+     await h.src.start();
+@@ -134,12 +145,12 @@ test('head records that disagree with the pins or this session are rejected indi
+     await h.src.start();
+     await waitFor(() => Object.values(h.src.status().counters.rejected).reduce((a, b) => a + b, 0) === bad.length);
+     assert.deepEqual(h.src.status().counters.rejected,
+-      { signer: 1, chain: 1, tier: 2, version: 1, 'not-this-session': 1, 'object-too-large': 1, 'verify-mismatch': 1 });
++      { signer: 1, chain: 1, tier: 2, version: 1, 'not-this-session': 1, 'object-too-large': 1, 'native-mismatch': 1 });
+     assert.equal(h.delivered.length, 0);
+   } finally { await h.cleanup(); }
+ });
+ 
+-test('corrupt, truncated, missing and mis-sized objects are refused (the real verify-object refuses tampered bytes)', async () => {
++test('corrupt, truncated, missing and mis-sized objects are refused (the real native mode refuses tampered bytes)', async () => {
+   const plan = { heads: [
+     all(52965076, { mutate: 'flip', flipAt: 10 }),   // inside the literal holding the signature's r value
+     all(52965076, { mutate: 'truncate' }),
+@@ -152,7 +163,7 @@ test('corrupt, truncated, missing and mis-sized objects are refused (the real ve
+     await h.src.start();
+     await waitFor(() => Object.values(h.src.status().counters.rejected).reduce((a, b) => a + b, 0) === 5);
+     const r = h.src.status().counters.rejected;
+-    assert.equal(r['verify-refused'], 2, JSON.stringify(r));
++    assert.equal(r['native-refused'], 2, JSON.stringify(r));
+     assert.equal(r['object-missing'], 2, JSON.stringify(r));   // missing file; wrong digest names a file that does not exist
+     assert.equal(r['object-size'], 1, JSON.stringify(r));
+     assert.equal(h.delivered.length, 0);
+@@ -167,13 +178,12 @@ test('a different compression of the identical signed block is accepted as that
+   try {
+     await h.src.start();
+     await waitFor(() => h.delivered.length + Object.keys(h.src.status().counters.rejected).length >= 1);
+-    const original = (await import('../network/snappy-raw.mjs')).snappyRawDecode(
+-      new Uint8Array(Buffer.from(readFileSync(path.join(ROOT, 'test', 'fixtures', 'base-mainnet-52965076.v4.snappy.hex'), 'utf8').trim(), 'hex')));
++    const original = nativeCommitment(52965076);
+     // deterministic for this fixed fixture: the middle flip decodes to the identical envelope
+     assert.equal(h.delivered.length, 1);
+     assert.deepEqual(h.src.status().counters.rejected, {});
+     assert.equal(h.delivered[0].hash, head(52965076).hash);
+-    assert.equal(h.relay.latest().data, '0x' + Buffer.from(original.subarray(65)).toString('hex'));
++    assert.equal(h.relay.latest().data, original.commitment.data);
+     assert.notEqual(h.delivered[0].objectSha256, head(52965076).objectSha256);
+   } finally { await h.cleanup(); }
+ });
+@@ -184,7 +194,7 @@ test('a genuine Base object is refused when the adapter is pinned to a different
+   const h = harness({ signer: other, plan: { heads: [all(52965076, { record: { signer: other } })] } });
+   try {
+     await h.src.start();
+-    await waitFor(() => (h.src.status().counters.rejected['verify-refused'] || 0) === 1);
++    await waitFor(() => (h.src.status().counters.rejected['native-refused'] || 0) === 1);
+     assert.equal(h.delivered.length, 0);
+   } finally { await h.cleanup(); }
+ });
+@@ -281,6 +291,73 @@ test('a stuck downstream archive never delays serving fresh heads', async () =>
+   } finally { await h.cleanup(); }
+ });
+ 
++test('a forged native result is caught by the relay verifier recovering the exact signed bytes', async () => {
++  const h = harness({ plan: { forge: true, heads: [all(52965076)] } });
++  try {
++    await h.src.start();
++    await waitFor(() => (h.src.status().counters.rejected['commitment-signature'] || 0) === 1);
++    assert.equal(h.delivered.length, 0);
++    assert.equal(h.relay.latest(), null);
++  } finally { await h.cleanup(); }
++});
++
++test('a commitment larger than maxDataBytes is refused natively (bounded output)', async () => {
++  const h = harness({ plan: { heads: [all(52965074)] }, opts: { maxDataBytes: 1024 } });
++  try {
++    await h.src.start();
++    await waitFor(() => (h.src.status().counters.rejected['native-refused'] || 0) === 1);
++    assert.equal(h.delivered.length, 0);
++  } finally { await h.cleanup(); }
++});
++
++test('objects of records dropped before processing are deleted (pre-start head, queue overflow)', async () => {
++  const pre = harness({ plan: { noStart: true, heads: [all(52965076)] } });
++  try {
++    await pre.src.start();
++    await waitFor(() => (pre.src.status().counters.rejected['head-before-start'] || 0) === 1);
++    await waitFor(() => readdirSync(objectsDir(pre)).length === 0, 5000);
++  } finally { await pre.cleanup(); }
++  const heads = Array.from({ length: 40 }, () => all(52965074));
++  const flood = harness({ plan: { heads } });
++  try {
++    await flood.src.start();
++    const st = () => flood.src.status().counters;
++    await waitFor(() => { const c = st(); return c.queueDropped + c.delivered + Object.values(c.rejected).reduce((a, b) => a + b, 0) >= 40; }, 30000);
++    assert.ok(st().queueDropped >= 1, JSON.stringify(st()));
++    await waitFor(() => readdirSync(objectsDir(flood)).length === 0, 5000);
++  } finally { await flood.cleanup(); }
++});
++
++test('session dirs left by a crashed earlier run are removed at start; foreign dirs are left alone', async () => {
++  const h = harness({ plan: {} });
++  const sessions = path.join(h.workDir, 'sessions');
++  mkdirSync(path.join(sessions, 's7-aaaaaaaaaaaa', 'out', 'objects'), { recursive: true });
++  writeFileSync(path.join(sessions, 's7-aaaaaaaaaaaa', 'OWNER'), 'gossip-head-source pid=1\n');
++  writeFileSync(path.join(sessions, 's7-aaaaaaaaaaaa', 'out', 'objects', 'x.v4.snappy'), Buffer.alloc(4096));
++  mkdirSync(path.join(sessions, 'foreign'), { recursive: true });
++  try {
++    await h.src.start();
++    assert.equal(existsSync(path.join(sessions, 's7-aaaaaaaaaaaa')), false);
++    assert.equal(existsSync(path.join(sessions, 'foreign')), true);
++    assert.equal(h.src.status().counters.staleSessionDirsRemoved, 1);
++  } finally { await h.cleanup(); }
++});
++
++test('a hung archive sink is bounded: calls time out, at most 2 stay outstanding, the rest are dropped', async () => {
++  let calls = 0;
++  const h = harness({ plan: { heads: [all(52965074), all(52965075), all(52965076)] },
++    opts: { archiveTimeoutMs: 50, onArchive: () => { calls++; return new Promise(() => {}); } } });
++  try {
++    await h.src.start();
++    await waitFor(() => h.delivered.length === 3);
++    await waitFor(() => { const c = h.src.status().counters; return c.archiveTimedOut + c.archiveDropped >= 3 || (c.archiveTimedOut === 2 && c.archiveDropped === 1); });
++    const c = h.src.status().counters;
++    assert.ok(calls <= 2, `calls ${calls}`);
++    assert.equal(calls + c.archiveDropped, 3);
++    assert.equal(payloadHead(h.relay.latest().data).number, 52965076n);
++  } finally { await h.cleanup(); }
++});
++
+ test('real listener lifecycle offline: start record accepted, no heads, exit 3 recorded, restart scheduled', async () => {
+   const h = harness({ listener: REAL, nowMs: undefined, opts: { sessionSecs: 2, now: Date.now } });
+   try {
+diff --git a/test/snappy-raw.test.mjs b/test/snappy-raw.test.mjs
+deleted file mode 100644
+index 3cd694eda82c399b7c302d1d3256fd20c5eb9009..0000000000000000000000000000000000000000
+--- a/test/snappy-raw.test.mjs
++++ /dev/null
+@@ -1,70 +0,0 @@
+-// network/snappy-raw.mjs against REAL Base mainnet v4 gossip objects (captured by enclave-base-head-listener f3159ea's
+-// 2026-10-23T01:37Z live run): decoded layout matches the listener's record, and malformed input always throws.
+-import test from 'node:test';
+-import assert from 'node:assert/strict';
+-import { readFileSync } from 'node:fs';
+-import { snappyRawDecode } from '../network/snappy-raw.mjs';
+-import { payloadHead, verifyCommitment, BASE_MAINNET } from '../network/op-head-relay.mjs';
+-
+-const fx = (n) => ({
+-  bytes: new Uint8Array(Buffer.from(readFileSync(new URL(`./fixtures/base-mainnet-${n}.v4.snappy.hex`, import.meta.url), 'utf8').trim(), 'hex')),
+-  head: JSON.parse(readFileSync(new URL(`./fixtures/base-mainnet-${n}.head.json`, import.meta.url), 'utf8')),
+-});
+-const hex = (b) => '0x' + Buffer.from(b).toString('hex');
+-const toCommitment = (env) => ({ data: hex(env.subarray(65)), signature: { r: hex(env.subarray(0, 32)), s: hex(env.subarray(32, 64)), yParity: env[64] } });
+-
+-for (const n of [52965074, 52965075, 52965076]) {
+-  test(`real block ${n}: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer`, async () => {
+-    const { bytes, head } = fx(n);
+-    const env = snappyRawDecode(bytes);
+-    const ph = payloadHead(hex(env.subarray(65)));
+-    assert.deepEqual({ number: Number(ph.number), timestamp: Number(ph.timestamp), hash: ph.hash, stateRoot: ph.stateRoot, parentHash: ph.parentHash },
+-      { number: head.number, timestamp: head.timestamp, hash: head.hash, stateRoot: head.stateRoot, parentHash: head.parentHash });
+-    const v = await verifyCommitment(toCommitment(env), { chainId: 8453, signer: BASE_MAINNET.unsafeSigner });
+-    assert.equal(v.head.hash, head.hash);
+-    await assert.rejects(verifyCommitment(toCommitment(env), { chainId: 84532, signer: BASE_MAINNET.unsafeSigner }), /not signed/);
+-  });
+-}
+-
+-test('every truncation of a real object is refused', () => {
+-  const { bytes } = fx(52965074);
+-  for (let cut = 0; cut < bytes.length; cut += Math.max(1, Math.floor(bytes.length / 997))) {
+-    assert.throws(() => snappyRawDecode(bytes.subarray(0, cut)), /snappy/);
+-  }
+-  assert.throws(() => snappyRawDecode(bytes.subarray(0, bytes.length - 1)), /snappy/);
+-});
+-
+-test('declared length over the cap, bad offsets and trailing garbage are refused', () => {
+-  assert.throws(() => snappyRawDecode(Uint8Array.from([0x80, 0x80, 0x80, 0x80, 0x10])), /exceeds the cap/);   // 4 GiB
+-  assert.throws(() => snappyRawDecode(Uint8Array.from([0x05, 0x01 | (1 << 2), 0x00])), /offset/);              // copy before any output
+-  assert.throws(() => snappyRawDecode(Uint8Array.from([0x01, 0x00, 0x41, 0x00, 0x42])), /overruns/);           // 2 literals > length 1
+-  assert.throws(() => snappyRawDecode(Uint8Array.from([0x03, 0x00, 0x41])), /shorter/);                        // ends early
+-  assert.throws(() => snappyRawDecode(Uint8Array.from([0x80])), /truncated/);
+-  assert.deepEqual([...snappyRawDecode(Uint8Array.from([0x00]))], []);
+-  // literal "ab" then an overlapping copy (offset 2, len 4) -> "ababab"
+-  assert.equal(Buffer.from(snappyRawDecode(Uint8Array.from([0x06, 0x04, 0x61, 0x62, 0x01, 0x02]))).toString(), 'ababab');
+-  const { bytes } = fx(52965074);
+-  assert.throws(() => snappyRawDecode(bytes, 1000), /exceeds the cap/);
+-});
+-
+-test('bounded fuzz: random single-byte corruptions throw, decode to identical bytes, or fail signature recovery', async () => {
+-  const { bytes, head } = fx(52965074);
+-  const original = Buffer.from(snappyRawDecode(bytes));
+-  let seed = 20261023;
+-  const rnd = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
+-  let threw = 0, decodedButRejected = 0, identical = 0;
+-  for (let k = 0; k < 200; k++) {
+-    const b = Uint8Array.from(bytes);
+-    const at = Math.floor(rnd() * b.length);
+-    b[at] ^= 1 + Math.floor(rnd() * 255);
+-    let env;
+-    try { env = snappyRawDecode(b); } catch { threw++; continue; }
+-    if (original.equals(Buffer.from(env))) { identical++; continue; }   // e.g. a copy offset that reads equal bytes
+-    try {
+-      const v = await verifyCommitment(toCommitment(env), { chainId: 8453, signer: BASE_MAINNET.unsafeSigner });
+-      assert.notEqual(v.head.hash, undefined);
+-      assert.fail(`corruption at ${at} still verified as block ${head.number}`);
+-    } catch (e) { if (e?.code === 'ERR_ASSERTION') throw e; decodedButRejected++; }
+-  }
+-  assert.equal(threw + decodedButRejected + identical, 200);
+-});

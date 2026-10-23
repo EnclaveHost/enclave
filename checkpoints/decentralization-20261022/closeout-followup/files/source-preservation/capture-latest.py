@@ -465,6 +465,65 @@ for name, want in {'base-direct-gossip-20261023.json': 'b32958fc0f6d8ba072e45995
     p = root / 'outputs/decentralization-audit' / name
     assert hashlib.sha256(p.read_bytes()).hexdigest() == want, f'NOT CAPTURED: {name} changed after review'
     outputs.append(p)
+# FINISHED native-codec work (worker B), plus the finished C and D commits, exported from Git OBJECTS by
+# source-preservation/export-native-codec.py (never from the mutable/dirty worktrees; C and D are still ACTIVE):
+# B listener commitment-mode 5e17867 (3 patches on the already-preserved f3159ea), B bridge d2f9e0c (11 patches from its
+# root), C d7f520bf (7 patches from pushed f58e03ec4; 0007 = d281007c..d7f520bf), D 09ff3ed5 (1 patch on pushed 2bbea898).
+# REPRODUCE-CHECK.txt records every commit tree (and f3159ea from the stored checkpoint files) rebuilt exactly.
+ncx = base / 'rpc-native-codec-export'
+NCX_PINS = {'INVENTORY.json': 'b41ee8b1a45bccac87acb29cacce196f82015b11a3eec359610d8e4365abafb9',
+            'REBUILD.md': '300e7a848bb248150d00b8e018e4d21f142d6cf342eb68988fafa3aaea81645a',
+            'REPRODUCE-CHECK.txt': '92ed42ee507487051407ba7121b41e6b995203f8e0b90d5687281a781c07c971'}
+for name, want in NCX_PINS.items():
+    assert hashlib.sha256((ncx / name).read_bytes()).hexdigest() == want, f'NOT CAPTURED: rpc-native-codec-export/{name} changed'
+    paths.add(ncx / name)
+ncx_inventory = json.loads((ncx / 'INVENTORY.json').read_text())
+for name, want in ncx_inventory['frozenSources'].items():
+    p = base / name
+    assert hashlib.sha256(p.read_bytes()).hexdigest() == want, f'NOT CAPTURED: {name} changed after the native-codec export'
+    paths.add(p)
+for side in ncx_inventory['sides'].values():
+    for patch in side['patches']:
+        p = ncx / patch['file']
+        assert hashlib.sha256(p.read_bytes()).hexdigest() == patch['sha256'], f'NOT CAPTURED: {patch["file"]} differs'
+        paths.add(p)
+    folder = ncx / Path(side['patches'][0]['file']).parts[0] / 'files'
+    for f in side['changedFiles']:
+        if f['status'] == 'D':
+            continue
+        p = folder / f['path']
+        assert hashlib.sha256(p.read_bytes()).hexdigest() == f['sha256'], f'NOT CAPTURED: {p} differs from its commit blob'
+        paths.add(p)
+for name in ('export-native-codec.py', 'verify-native-codec-export.py', 'native-codec-export.sh'):
+    paths.add(base / 'source-preservation' / name)
+# Root's safe review notes and offline probes (sources + their result JSON). The receipt review is read-only: its receipt
+# probe did NOT run (missing binary), so nothing in it is reproduced evidence.
+ROOT_NOTES = {
+    'ROOT-HOST-SERVICE-COLD-REVIEW.txt': '1c811c4fe28509091cce1e8eb69e2553a86c8da09128d97c7fb2bfa954003808',
+    'ROOT-LINUX-HOLD-REVIEW.txt': 'c1b4bbf6b614fb21f12720d443752b77f64ca43b2e165797e738edde7d43ff92',
+    'ROOT-RECEIPT-REVIEW.txt': 'bfdc3482057256ecba93d70f275d85194beb06c39291f0c0835e963109158250',
+    'root-service-empty-apps-probe.mjs': 'b0f95b461aafa523f995d1763210f940021b435f7dfff9641145ebc3007eb053',
+    'root-service-empty-apps-probe/result.json': '001eca4891cfb6c2cf31d63f127ba07be43c66a6f6e4c20d28155f67f4c8f38f',
+    'root-witness-cache-probe.mjs': 'a2b37ad7fbebbd1de99753f8b07ae3206322ec6c29ed54741d98699733958ca6',
+    'root-witness-cache-probe/result.json': 'bc532f4a7e0bf664332b22ac49e37b6cc44f527ca57fedffd301728fa9060ce3',
+}
+for name, want in ROOT_NOTES.items():
+    p = base / name
+    assert hashlib.sha256(p.read_bytes()).hexdigest() == want, f'NOT CAPTURED: {name} changed after review'
+    paths.add(p)
+# Root's public receipts (counts/hashes/timestamps only). The whole-recovery FAILURE (02:20:32Z) supersedes the earlier
+# RUNNING receipt, which stays unchanged as historical evidence (see the manifest's supersessions).
+for name, want in {'storage-whole-recovery-failure-20261023.json': 'daddc73ffa798920b524aa391d4130199aff1021461ce5192c9f02debe1649e0',
+                   'windows-node-updater-postcheck-20261023.json': '2fab2c0f1931d6d356c22e90bb85940edceeeae744ef2ab74c9599bc54dcf13c',
+                   'windows-node-second-renewal-cycle-20261023.json': 'eea553d1ca2e10c769d7e2061a98f00bfd04a12c19cf4aa793acf2d400e6d04f'}.items():
+    p = root / 'outputs/decentralization-audit' / name
+    assert hashlib.sha256(p.read_bytes()).hexdigest() == want, f'NOT CAPTURED: {name} changed after review'
+    outputs.append(p)
+SUPERSESSIONS = [{'historical': 'outputs/decentralization-audit/storage-whole-recovery-live-20261023.json',
+                  'supersededBy': 'outputs/decentralization-audit/storage-whole-recovery-failure-20261023.json',
+                  'latestStatus': 'FAILED_OOM_KILL_NO_FINAL_INVENTORY at 2026-10-23T02:20:32Z (1460 files / 12.39 GB observed, '
+                                  'no result file or final inventory; fullRecoveryVerified=false)',
+                  'note': 'the RUNNING receipt is kept byte-for-byte as historical evidence of its capture time only'}]
 # what each new group IS, recorded on its manifest entries (nothing here is activated by this checkpoint)
 LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent '
                                    'tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)',
@@ -511,11 +570,63 @@ LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; n
                                                                  'mid-pass observation has allNineFreshReady=false (3 rows pending in an '
                                                                  'in-flight pass): incomplete observation, not a failure and not proof of '
                                                                  'readiness. The renewal-log receipt is unchanged (01:32Z). No full goal completion',
-          'outputs/decentralization-audit/storage-whole-recovery-live': 'ROOT receipt: RUNNING, NOT COMPLETE (unit sia-whole-restore-efe2c21b-001; '
-                                                                        'the file holds the INITIAL progress, 19 files). Root reported 425 files '
-                                                                        '/ 950 MB committed + 327 MB in flight at 01:35. Isolation verified 31/31 '
-                                                                        'endpoints blocked, 6/6 names unresolved, 2 Sia hosts reached. SAME '
-                                                                        'physical host as indexd: not host-loss proof',
+          'outputs/decentralization-audit/storage-whole-recovery-live': 'HISTORICAL ROOT receipt, SUPERSEDED by storage-whole-recovery-'
+                                                                        'failure-20261023.json: the run later FAILED (OOM kill '
+                                                                        '02:20:32Z, no final inventory). At its capture it was RUNNING '
+                                                                        '(unit sia-whole-restore-efe2c21b-001; initial progress, 19 '
+                                                                        'files; 425 files / 950 MB at 01:35; isolation 31/31 endpoints '
+                                                                        'blocked, 6/6 names unresolved, 2 Sia hosts reached; SAME '
+                                                                        'physical host as indexd). Kept unchanged; never evidence of a '
+                                                                        'completed recovery',
+          'outputs/decentralization-audit/storage-whole-recovery-failure': 'LATEST ROOT receipt for the whole-bucket Sia recovery: '
+                                                                           'FAILED_OOM_KILL_NO_FINAL_INVENTORY at 02:20:32Z (800 MiB '
+                                                                           'cgroup; the two Python isolation bridges dominated memory). '
+                                                                           '1460 files / 12.39 GB observed, no result file: NOT a '
+                                                                           'verified full recovery. Partial files stay private',
+          'outputs/decentralization-audit/windows-node-updater-postcheck': 'ROOT receipt: the scheduled updater run kept the reviewed '
+                                                                           'runtime hashes; not proof that a future published update '
+                                                                           'preserves them, not a signed production release',
+          'outputs/decentralization-audit/windows-node-second-renewal-cycle': 'ROOT receipt: second app-paid renewal cycle on the same '
+                                                                              'process and nine apps (counts/lease times only); '
+                                                                              'operational observation, not full decentralization',
+          'rpc-native-codec-export/': 'FINISHED worker commits exported from Git objects; all commit trees reproduced exactly '
+                                      '(REPRODUCE-CHECK.txt). SOURCE + OFFLINE PROOF ONLY, not merged into the normal tree, not '
+                                      'deployed',
+          'rpc-native-codec-export/b-listener-commitment-mode-5e17867/': 'B listener commitment mode (code a0c7c4e, 3 patches on '
+                                                                         'f3159ea): maintained base/base verify FIRST, then the '
+                                                                         'exact signed commitment bytes from the maintained snap '
+                                                                         'decoder, bounded before allocation; native 7/7 offline. '
+                                                                         'Debug binary ebd045b4 not stored. No RPC independence, '
+                                                                         'finality or state availability',
+          'rpc-native-codec-export/b-gossip-bridge-d2f9e0c/': 'B gossip-head-source bridge: consumes the native commitment mode '
+                                                              '(no JS codec); A\'s relay verifyCommitment recovers the signer '
+                                                              'independently; bounded disk/archive/queue; 28/28 offline in an '
+                                                              'isolated netns. Unsafe tier only; no finality, fresh-state or '
+                                                              'Denim-rate proof; live availability = one 120 s run',
+          'rpc-native-codec-export/c-host-services-compose-d7f520bf/': 'C host-services transport + challengeReplica composition '
+                                                                       'd7f520bf (from d281007c, the parent of accepted a6fb7aab). '
+                                                                       'NOT production-ready: the hostServices zero-app gate and '
+                                                                       'the generated-package CLI guard are OUTSTANDING. C is still '
+                                                                       'active; its newer working changes are not captured',
+          'rpc-native-codec-export/d-linux-wallet-unknown-09ff3ed5/': 'D Linux unknown-wallet hold 09ff3ed5 (3 files on 2bbea898). '
+                                                                      'Epoch / failed-stop review PENDING (ROOT-LINUX-HOLD-REVIEW.txt); '
+                                                                      'no image, no deployment. D is still active',
+          'windows-host-services-compose/': 'C\'s RESULT.md and PROVENANCE.files.json at their stable bytes (hash-frozen in '
+                                            'rpc-native-codec-export/INVENTORY.json): hostServices zero-app gate and generated-'
+                                            'package CLI guard outstanding, not production-ready',
+          'linux-wallet-unknown/': 'D\'s RESULT.md at its stable bytes: epoch / failed-stop review pending, no image or deployment',
+          'rpc-gossip-bridge/listener/upstream/PROVENANCE.json': 'listener vendoring provenance (pinned base/base tarball sha256, '
+                                                                 'unmodified crate manifests)',
+          'ROOT-HOST-SERVICE-COLD-REVIEW.txt': 'ROOT source review (02:07Z): runPrivacy rejects an empty app list before hostServices '
+                                               'start = an open cold-bootstrap gate; source-level, not a production outage claim',
+          'root-service-empty-apps-probe': 'ROOT offline probe (unshare -rn, queue 256): a valid hostServices block with apps[] is '
+                                           'refused early; proves the empty-app gate only, not that all other config is valid',
+          'ROOT-LINUX-HOLD-REVIEW.txt': 'ROOT source review of D (02:13Z): permit epoch/identity and unconfirmed-stop concerns to '
+                                        'verify; review only, nothing reproduced by a test yet',
+          'ROOT-RECEIPT-REVIEW.txt': 'ROOT read-only review of E\'s receipt verifier (01:52Z). The receipt probe did NOT RUN (missing '
+                                     'binary): nothing here is reproduced',
+          'root-witness-cache-probe': 'ROOT offline probe: the witness gateway cache kept a malformed proof (availability / cache-'
+                                      'poisoning risk); Helios is expected to reject it; NOT acceptance of false chain state',
           'production-run/observe-node-renewal.py': 'ROOT source: read-only post-activation observation (one bracketed status query); '
                                                     'no config, keys or raw logs',
           'production-run/verify-node-renewal-chain.mjs': 'ROOT source: read-only two-provider log corroboration (public RPCs); no keys, '
@@ -637,7 +748,7 @@ for p in sorted(paths):
                     **({'capturedFromUnmutatedBackup': str(actual.relative_to(root))} if actual != p else {})})
 manifest = {'capturedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
             'status': 'Recovery checkpoint; drafts and ongoing validation, not a release or activation',
-            'entries': entries, 'unchangedAlreadyPreserved': unchanged,
+            'entries': entries, 'unchangedAlreadyPreserved': unchanged, 'supersessions': SUPERSESSIONS,
             'exclusions': ['credentials and private configuration', 'live run directories and raw transcripts',
                            'generated images/binaries and dependency caches', 'copied base trees preserved earlier']}
 (dest / 'MANIFEST.json').write_text(json.dumps(manifest, indent=2) + '\n')

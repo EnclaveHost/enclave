@@ -1,0 +1,477 @@
+From 5ec1be4b98d12e751aea4ea02e07877048f4325f Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 18:57:52 -0700
+Subject: [PATCH 07/11] RESULT, provenance and integration instructions
+
+---
+ PROVENANCE.json   |  65 ++++++++++++++++
+ RESULT.md         | 170 ++++++++++++++++++++++++++++++++++++++++
+ jobs/r6.guard.log |   1 +
+ jobs/r6.out       | 192 ++++++++++++++++++++++++++++++++++++++++++++++
+ jobs/r6.rc        |   1 +
+ 5 files changed, 429 insertions(+)
+ create mode 100644 PROVENANCE.json
+ create mode 100644 RESULT.md
+ create mode 100644 jobs/r6.guard.log
+ create mode 100644 jobs/r6.out
+ create mode 100644 jobs/r6.rc
+
+diff --git a/PROVENANCE.json b/PROVENANCE.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..eb9d1f63e7ea6b474ba42fe80473279fffc3c5c4
+--- /dev/null
++++ b/PROVENANCE.json
+@@ -0,0 +1,65 @@
++{
++ "generatedAt": "2026-10-23T01:57:01.769312+00:00",
++ "candidate": {
++  "path": "work/resume-after-checkpoint-20261022/rpc-gossip-bridge",
++  "commit": "df8c1e4dfd622b2b305e4954f571d0a2c924e3b0"
++ },
++ "files": {
++  "network/gossip-head-source.mjs": "6dacfab4cffbc46aa75608f1c9b53ccd5d6ce97727d248ecbfcd4d4bd9d9d559",
++  "network/snappy-raw.mjs": "fa7836ff685f2df3158277da1eb90444f378a7387bf547f50aba15f667d1cbae",
++  "network/op-head-relay.mjs": "ed71c0695230c9400d759e792ae44da3a8fc27cf065abe9dddd9bec09411fe27",
++  "network/rpc-identity.mjs": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
++  "test/gossip-head-source.test.mjs": "74e6e5fe40528d1e5676a924196c23bdbf5c38e26e3038a3d98424f5794cb647",
++  "test/snappy-raw.test.mjs": "9259efdcd03bff82d3463c03dd201410c0fa20952451aef9e76469afa2fd1bbd",
++  "test/fixtures/fake-listener.mjs": "5f0292dac8ac0e4d868f61d3bed9f36d8e401be915c5a6125c3a0c4132bd399d",
++  "test/fixtures/listener-start-record.json": "b80d909fe8ae5a13418c66d269832f00a621009af045812f968520df2a458fec",
++  "test/fixtures/base-mainnet-52965074.head.json": "14fc7bb54d479e4dc2b2bb921bcf9c888403422906582e501b200535b10a0ca2",
++  "test/fixtures/base-mainnet-52965074.v4.snappy.hex": "b06394b42f810c93c30104492775d14f955b1a9120fe31b0fb57bb788af45015",
++  "test/fixtures/base-mainnet-52965075.head.json": "915453065b5d390f018490f6d7ffd1ced7dcdd58be2943237195a964ea31e0d9",
++  "test/fixtures/base-mainnet-52965075.v4.snappy.hex": "e55130dc6f67e67cad3e033c1ab29b4be4e0eb5ed4ad29bc4f5d7107e80251b5",
++  "test/fixtures/base-mainnet-52965076.head.json": "62f4b8b4e08834ca3708e9b128da05801614868fc184d01d3b1fafb383eda389",
++  "test/fixtures/base-mainnet-52965076.v4.snappy.hex": "02beaa24c8cc9e7ab7b68fb01dbc3e76bd737af2190c318f528482a9a6da7590"
++ },
++ "references": {
++  "op-head-relay.mjs": {
++   "from": "rpc-priority/repo",
++   "commit": "97785a40cda92c42d8b8e14ab9e9d25afc3332a2",
++   "identicalAtAHead": "36a83c89b",
++   "doNotMerge": "byte-identical copy of A's file; used only so tests import the real reviewed verifier"
++  },
++  "rpc-identity.mjs": {
++   "from": "rpc-priority/repo",
++   "commit": "97785a40cda92c42d8b8e14ab9e9d25afc3332a2",
++   "doNotMerge": true
++  }
++ },
++ "listener": {
++  "repo": "work/resume-after-checkpoint-20261022/rpc-peer-audit/head-listener",
++  "commit": "f3159ea73786eeda344f2ffa1dc82d59de46a6db",
++  "binary": "target/debug/enclave-base-head-listener (copied to artifacts/, gitignored)",
++  "binarySha256": "8ef3d51d8767a66fddef7727837737890c2c6e4ff860df1add6aadb0f5581974",
++  "base": "base/base 5476069f1eb74a56bccb56fdefd4b4bb0e3cda42"
++ },
++ "fixtures": {
++  "origin": "head-listener live run live-20261023T013719Z (2026-10-23T01:37-01:39Z), objects for blocks 52965074 (also in listener repo f3159ea), 52965075, 52965076",
++  "listenerRepoFixtureIdentical": true
++ },
++ "jsDependencies": {
++  "runtime": "node built-ins only (gossip-head-source.mjs, snappy-raw.mjs) + ./op-head-relay.mjs",
++  "transitive": {
++   "viem": {
++    "version": "2.53.1",
++    "integrity": "sha512-FhfJ/SW73CVosiyVLmIMVgKDRKYV1AGCLzZoHYvmNayyVff63Qi1ocPCk59LqC/cNw244RbBJjHnmxqXkE7NpA==",
++    "source": "rpc-priority/repo/package-lock.json (node_modules symlinked read-only)"
++   }
++  },
++  "node": "v22.23.3",
++  "newDependencies": []
++ },
++ "testEvidence": {
++  "final": "jobs/r6.out",
++  "cap": "768 MiB queue, 16 GiB floor",
++  "namespace": "unshare -r -n, lo up, external network asserted unreachable",
++  "result": "29/29 pass"
++ }
++}
+diff --git a/RESULT.md b/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..5bac45bd322c3d1a37c0dfa9a7592c5525ca28c7
+--- /dev/null
++++ b/RESULT.md
+@@ -0,0 +1,170 @@
++# rpc-gossip-bridge — RESULT (2026-10-23 ~02:20Z)
++
++**Status: source plus offline tests only. Nothing deployed, no live P2P probe in this step, no production action, no SSH,
++no transactions, no keys, no chain sync.** I did not edit, build in or message worker A's trees (`rpc-priority/repo`,
++`rpc-priority/helios-patched`).
++
++## What it is
++
++`network/gossip-head-source.mjs` is the narrow adapter between the tested native listener and A's existing Helios head
++relay. It runs `enclave-base-head-listener` (head-listener `f3159ea`, binary sha256 `8ef3d51d…`) as an owned child
++process. It turns each head the listener accepted into the Helios `SequencerCommitment`
++(`{data: parentBeaconRoot ‖ SSZ payload, signature: {r, s, yParity}}`) that `op-head-relay.mjs` already verifies and
++serves to Helios through `--consensus-rpc http://127.0.0.1:<port>/`. **No hosted consensus URL** is involved: the relay
++is created with `sources: []`, and the native source feeds it through `relay.offer`.
++
++Tier: `unsafe`, finality: `none`. A head means only that the administrator-pinned sequencer key signed that block.
++
++## Checks per head (all must pass; otherwise the head is dropped and counted)
++
++1. **Session start record:** `schema enclave-base-unsafe-head/v1`, pinned `chainId`, pinned `signer` with
++   `signerSource=admin-pin`, `baseSourceCommit 5476069f…` and the listener's object encoding. A mismatch ends the
++   session before any head is used.
++2. **Head record:**
++   * unsafe/none labels, pinned chain and signer, `payloadVersion v4`, well-formed hashes;
++   * `objectBytes` ≤ 10 MiB;
++   * `receivedUnixMs` ≥ the session start, so a replay from an earlier run is refused.
++3. **Object file:** the session's own `<sha256>.v4.snappy`. Its size and sha256 must equal the record.
++4. **Native verification:** the **real pinned listener's `verify-object`** (maintained base/base signer, chain domain
++   and block-hash check) must accept the file and report the same number, hash, stateRoot and signer. Bounds: 10 s
++   timeout, 64 KiB output.
++5. **Decode:** a bounded raw-snappy decode (`network/snappy-raw.mjs`, capped at base's 10 MiB). Then `data` = bytes
++   65 onward, and the signature is the first 65 bytes.
++6. **Reviewed verifier:** A's `verifyCommitment` (viem `recoverAddress`) must recover the pinned signer for the pinned
++   chain. The decoded number, hash, stateRoot, parentHash and timestamp must equal the record.
++7. **Freshness:** the signed block timestamp must be within `maxHeadAgeMs` (default 60 s) of now and at most 5 s in the
++   future. It is checked before and after the native round trip. The relay then applies its own freshness check,
++   equivocation check and refusal of transaction types the verifier can't decode.
++
++Validation is never downgraded. There is no fallback source of any kind, and freshness always comes from the signed
++timestamp. A restart cannot make an old head fresh: each session gets a new empty object directory, and records stamped
++before the session started are refused.
++
++## Lifecycle and bounds
++
++* **Owned child:**
++  * spawned `detached`, so it has its own process group;
++  * identity recorded as pid, pgid and `/proc` start time;
++  * environment limited to PATH, an isolated per-session HOME and RUST_LOG=warn;
++  * the binary's sha256 is checked before **every** spawn, and a mismatch means no start.
++* **Signalling:** only the leader whose start time still matches, or surviving members of its group created after it.
++  A recycled PID is never signalled; zombies count as gone.
++* **Stop:** SIGTERM, then SIGKILL after 5 s, then a sweep of the owned group. `stop()` resolves after the last
++  delivery, and the session directory is removed.
++* **Restarts:** backoff of 1, 2, 5, 15 and 60 s, reset after a delivery. A listener with no delivered head for
++  `restartIfNoHeadMs` (default 120 s) is restarted. `status().fresh` turns false `staleAfterMs` (default 30 s) after
++  the last delivery, or as soon as the head is older than `maxHeadAgeMs`.
++* **Buffers:**
++  * stdout line ≤ 16 KiB (a longer line ends the session);
++  * stderr keeps only a 16 KiB tail;
++  * at most 32 queued heads (extra ones are dropped and counted);
++  * at most 16 queued archive entries.
++* **Disk:** each object is deleted as soon as it has been processed, so disk use is bounded by in-flight objects.
++* **Archiving:** an optional `onArchive` hook, for example Sia, is downstream and fire-and-forget. It gets the bytes in
++  memory and never delays serving (tested with a hook that never resolves). Neither Sia nor RPC is needed to bootstrap.
++
++## Test evidence (shared queue, terminal results)
++
++All runs: `jobs/run-q.sh` → `claude-test-queue.py --mib 768` with the 16 GiB floor, inside `unshare -r -n` with `lo`
++up. The script and test 1 both assert that no external route or network exists. The real listener binary's sha256 is
++checked first.
++
++| Run | Result | Peak RSS | What changed |
++|---|---|---|---|
++| r1 | 14/18 pass, rc 1 | 200 MiB | My bugs: `verify-object` ran with an env that dropped the test double's delegate variable (fail-closed: every head refused); a wrong test vector; a per-file test timeout |
++| r2 | 26/28, rc 1 | 276 MiB | A test bug: the pin-mismatch record also mismatched the signer field, so it never reached the native check |
++| r3 | 27/28, rc 1 | 278 MiB | **Finding:** flipping the middle byte of object 52965076 is a different snappy encoding of the *identical* signed envelope. It was correctly accepted as that genuine block, so the test was wrong. Split into two tests |
++| r4 | 29/29, rc 0 | 349 MiB | — |
++| r5 | 29/29, rc 0 | 329 MiB | The re-encoding test made strict (deterministic for the fixture) |
++| **r6** | **29/29, rc 0, 13.1 s** | **285 MiB** | Objects deleted after processing (final code) |
++
++The 29 tests cover:
++* **Real Base mainnet data:** 3 captured objects (blocks 52965074, 52965075 and 52965076, from the 2026-10-23T01:37Z
++  live run). They are verified by the real `verify-object`, decoded, and recover Base's signer
++  `0xaf6e…9e8a` through A's verifier. The relay serves 52965076.
++* **Rejections:**
++  * stale and later-stale heads;
++  * 5 start-record mismatches: signer, chain, not an admin pin, other source commit, other schema;
++  * 8 record mismatches: signer, chain, tier ×2, version, previous-session stamp, oversized object, stateRoot
++    disagreeing with native verification;
++  * object attacks: signature-byte flip (refused by the real verifier), truncation (refused by the real verifier),
++    missing file, size mismatch, digest mismatch;
++  * a genuine object under a different pinned signer (refused by the real verifier).
++* **Restart replay:** later sessions replaying the same genuine block cannot make it fresh.
++* **Lifecycle:**
++  * SIGKILL death followed by a restart;
++  * group kill of leader and grandchild;
++  * refusing to signal an identity that doesn't match;
++  * a line flood;
++  * a silent listener (restart);
++  * a digest mismatch (never started);
++  * a stuck archive hook;
++  * the **real listener's offline lifecycle**: start record accepted, 0 heads, exit 3 recorded, restart scheduled.
++* **Snappy:** all 3 real objects; truncation at about 1,000 cut points; length cap; bad offsets; overrun; early end; an
++  overlapping copy; and a 200-case seeded corruption fuzz. Every case either throws, decodes to identical bytes, or
++  fails signature recovery.
++
++**Not tested here:**
++* Live peers: no further probe was authorized, and the listener's own live evidence is in
++  `../rpc-peer-audit/RESULT.md` §10.
++* Running Helios against this adapter: A's tree owns that end-to-end test.
++* Denim 200 ms rates.
++
++## Integration instructions (for root and A after A's current work is terminal)
++
++1. **Copy into `rpc-priority/repo`** (new files; nothing existing is modified):
++   * `network/gossip-head-source.mjs`
++   * `network/snappy-raw.mjs`
++   * `test/gossip-head-source.test.mjs`
++   * `test/snappy-raw.test.mjs`
++   * `test/fixtures/fake-listener.mjs` (keep it executable)
++   * `test/fixtures/listener-start-record.json`
++   * `test/fixtures/base-mainnet-5296507{4,5,6}.{head.json,v4.snappy.hex}`
++
++   **Do not** copy `network/op-head-relay.mjs` or `network/rpc-identity.mjs`. They are byte-identical copies of A's
++   `97785a40c` versions (sha256 `ed71c069…` and `74cb965e…`, unchanged at A's `36a83c89b`). If A changes
++   `op-head-relay.mjs`, re-run the tests: the adapter uses only `verifyCommitment`, `relay.offer` and `payloadHead`.
++2. **No new npm dependency.** The adapter uses only Node built-ins plus viem through `op-head-relay.mjs` (viem 2.53.1,
++   locked in A's `package-lock.json`).
++3. **Native binary:** build head-listener at `f3159ea` (`tools/prepare-upstream.py` plus `build.sh`; see its
++   `INTEGRATION.md`) and require sha256 `8ef3d51d8767a66fddef7727837737890c2c6e4ff860df1add6aadb0f5581974`
++   (`TESTED_LISTENER_SHA256`). Tests expect it at `artifacts/enclave-base-head-listener`. Adjust `REAL` in
++   `test/gossip-head-source.test.mjs` to the in-repo artifact path.
++4. **Run the tests the way A's `jobs/witness-tests-r2.sh` does:** `unshare -r -n`, `ip link set lo up`, then
++   `node --test --test-force-exit --test-concurrency=1 --test-timeout=300000 test/snappy-raw.test.mjs test/gossip-head-source.test.mjs`.
++   Queue at 768 MiB; the peak was 285–349 MiB.
++5. **Wiring** (administrator pin; no hosted URL):
++   ```js
++   const relay = createHeadRelay({ sources: [], chainId: 8453, signer: adminPinnedSigner, maxAgeMs: 60000 });
++   const consensusRpc = await relay.listen(0);            // 127.0.0.1 only -> Helios --consensus-rpc
++   const gossip = createGossipHeadSource({ listenerPath, listenerSha256: TESTED_LISTENER_SHA256, chainId: 8453,
++     signer: adminPinnedSigner, workDir, onCommitment: (c) => relay.offer(c, 'native-gossip'), onArchive /* optional */ });
++   await gossip.start();   // gossip.status() for health; gossip.stop() on shutdown or abort
++   ```
++   * `adminPinnedSigner` comes from administrator configuration, never from peers or chain advertisements. Today it
++     is `0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a` (base/base `config.rs:500`, matches A's `BASE_MAINNET`).
++   * Rotation means a config change and a restart. L1 SystemConfig rotation tracking is not implemented.
++   * Keep `workDir` on the storage that hosting policy allows (not an NVMe hosting allocation). Contents are transient
++     and bounded.
++
++## Limits and uncertainty
++
++* **Availability:** availability equals the listener's live behaviour. In the one 120 s live run, the v4 mesh never
++  exceeded 1 peer and all 5 published bootnodes failed from this site. Longer-term availability is UNMEASURED.
++* **Restarts lose head continuity:** each session lasts at most `sessionSecs` (≤ 3600). A new ephemeral identity must
++  rediscover peers, which took about 10–20 s in the live run. During that time the relay may serve nothing (fail
++  closed). Gap behaviour over many restarts is unmeasured.
++* **Denim (2026-11-05, 200 ms blocks):**
++  * the per-head `verify-object` spawn and the queue cap of 32 are untested at 5 heads/s;
++  * when the queue is full, new heads are dropped rather than old ones;
++  * the listener's `--max-output-bytes` must be raised (it counts all bytes written; at about 325 KB/s the 64 MiB
++    default lasts about 200 s before the listener exits and restarts).
++* **Object identity for archiving:** the compressed object's sha256 is **not** a unique block identifier, because
++  different snappy encodings of the same signed block exist (observed in r3). Sia or any downstream archive should
++  key by block hash (or sha256 of the decoded envelope) and re-verify on read.
++* **Unsafe tier only:** no finality, possible unsafe reorgs, no state. Fresh state witnesses still need a JSON-RPC
++  proof source.
++* **Self-written codec:** the snappy decoder is written here, not taken from a maintained library (none is installed,
++  and adding one was avoided). It is defended in depth: native verification first, signature recovery over the exact
++  decoded bytes after, plus truncation and fuzz tests. A decoder fault can only refuse a head; it cannot accept a
++  wrong one.
+diff --git a/jobs/r6.guard.log b/jobs/r6.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..8617f14f462431ca8a731528a07d57f648222ee3
+--- /dev/null
++++ b/jobs/r6.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=285 minHostAvailableMiB=24956
+diff --git a/jobs/r6.out b/jobs/r6.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..7dac7efef418c366cc184e651a218f55d8cd52b2
+--- /dev/null
++++ b/jobs/r6.out
+@@ -0,0 +1,192 @@
++[queue] START available=25173MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
++artifacts/enclave-base-head-listener: OK
++df8c1e4 Delete each processed object; disk use bounded by in-flight objects
++v22.23.3
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: offline guard: no network route exists in this test namespace
++ok 1 - offline guard: no network route exists in this test namespace
++  ---
++  duration_ms: 0.899852
++  type: 'test'
++  ...
++# Subtest: the real listener binary is the tested pinned build
++ok 2 - the real listener binary is the tested pinned build
++  ---
++  duration_ms: 59.918025
++  type: 'test'
++  ...
++# Subtest: real Base heads: native verify-object + decode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
++ok 3 - real Base heads: native verify-object + decode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
++  ---
++  duration_ms: 463.449483
++  type: 'test'
++  ...
++# Subtest: stale heads are refused and the relay serves nothing
++ok 4 - stale heads are refused and the relay serves nothing
++  ---
++  duration_ms: 67.626513
++  type: 'test'
++  ...
++# Subtest: a head delivered fresh goes stale with the clock; status and relay fail closed
++ok 5 - a head delivered fresh goes stale with the clock; status and relay fail closed
++  ---
++  duration_ms: 165.947167
++  type: 'test'
++  ...
++# Subtest: start record with wrong signer ends the session before any head is used
++ok 6 - start record with wrong signer ends the session before any head is used
++  ---
++  duration_ms: 53.884962
++  type: 'test'
++  ...
++# Subtest: start record with wrong chain ends the session before any head is used
++ok 7 - start record with wrong chain ends the session before any head is used
++  ---
++  duration_ms: 53.569526
++  type: 'test'
++  ...
++# Subtest: start record with not an admin pin ends the session before any head is used
++ok 8 - start record with not an admin pin ends the session before any head is used
++  ---
++  duration_ms: 53.404907
++  type: 'test'
++  ...
++# Subtest: start record with other base/base source ends the session before any head is used
++ok 9 - start record with other base/base source ends the session before any head is used
++  ---
++  duration_ms: 54.610846
++  type: 'test'
++  ...
++# Subtest: start record with other schema ends the session before any head is used
++ok 10 - start record with other schema ends the session before any head is used
++  ---
++  duration_ms: 53.214978
++  type: 'test'
++  ...
++# Subtest: head records that disagree with the pins or this session are rejected individually
++ok 11 - head records that disagree with the pins or this session are rejected individually
++  ---
++  duration_ms: 165.455052
++  type: 'test'
++  ...
++# Subtest: corrupt, truncated, missing and mis-sized objects are refused (the real verify-object refuses tampered bytes)
++ok 12 - corrupt, truncated, missing and mis-sized objects are refused (the real verify-object refuses tampered bytes)
++  ---
++  duration_ms: 163.655429
++  type: 'test'
++  ...
++# Subtest: a different compression of the identical signed block is accepted as that same block (content, not encoding, is authenticated)
++ok 13 - a different compression of the identical signed block is accepted as that same block (content, not encoding, is authenticated)
++  ---
++  duration_ms: 170.545514
++  type: 'test'
++  ...
++# Subtest: a genuine Base object is refused when the adapter is pinned to a different signer
++ok 14 - a genuine Base object is refused when the adapter is pinned to a different signer
++  ---
++  duration_ms: 117.208076
++  type: 'test'
++  ...
++# Subtest: restart: later sessions replaying the same signed block cannot make it fresh again
++ok 15 - restart: later sessions replaying the same signed block cannot make it fresh again
++  ---
++  duration_ms: 3225.633045
++  type: 'test'
++  ...
++# Subtest: process death (SIGKILL) is recorded and the listener is restarted with backoff
++ok 16 - process death (SIGKILL) is recorded and the listener is restarted with backoff
++  ---
++  duration_ms: 1165.832119
++  type: 'test'
++  ...
++# Subtest: stop() terminates the owned process group, including a grandchild, and nothing else
++ok 17 - stop() terminates the owned process group, including a grandchild, and nothing else
++  ---
++  duration_ms: 140.774647
++  type: 'test'
++  ...
++# Subtest: signalOwned never signals a process whose identity does not match
++ok 18 - signalOwned never signals a process whose identity does not match
++  ---
++  duration_ms: 15.108318
++  type: 'test'
++  ...
++# Subtest: an over-long stdout line ends the session (bounded buffers)
++ok 19 - an over-long stdout line ends the session (bounded buffers)
++  ---
++  duration_ms: 54.448418
++  type: 'test'
++  ...
++# Subtest: a silent listener is restarted after restartIfNoHeadMs (stale stream)
++ok 20 - a silent listener is restarted after restartIfNoHeadMs (stale stream)
++  ---
++  duration_ms: 2024.862965
++  type: 'test'
++  ...
++# Subtest: a binary that does not match the pinned digest is never started
++ok 21 - a binary that does not match the pinned digest is never started
++  ---
++  duration_ms: 66.615085
++  type: 'test'
++  ...
++# Subtest: a stuck downstream archive never delays serving fresh heads
++ok 22 - a stuck downstream archive never delays serving fresh heads
++  ---
++  duration_ms: 368.561249
++  type: 'test'
++  ...
++# Subtest: real listener lifecycle offline: start record accepted, no heads, exit 3 recorded, restart scheduled
++ok 23 - real listener lifecycle offline: start record accepted, no heads, exit 3 recorded, restart scheduled
++  ---
++  duration_ms: 2191.192633
++  type: 'test'
++  ...
++# Subtest: real block 52965074: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
++ok 24 - real block 52965074: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
++  ---
++  duration_ms: 55.256152
++  type: 'test'
++  ...
++# Subtest: real block 52965075: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
++ok 25 - real block 52965075: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
++  ---
++  duration_ms: 41.271103
++  type: 'test'
++  ...
++# Subtest: real block 52965076: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
++ok 26 - real block 52965076: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
++  ---
++  duration_ms: 28.678331
++  type: 'test'
++  ...
++# Subtest: every truncation of a real object is refused
++ok 27 - every truncation of a real object is refused
++  ---
++  duration_ms: 110.92893
++  type: 'test'
++  ...
++# Subtest: declared length over the cap, bad offsets and trailing garbage are refused
++ok 28 - declared length over the cap, bad offsets and trailing garbage are refused
++  ---
++  duration_ms: 0.659484
++  type: 'test'
++  ...
++# Subtest: bounded fuzz: random single-byte corruptions throw, decode to identical bytes, or fail signature recovery
++ok 29 - bounded fuzz: random single-byte corruptions throw, decode to identical bytes, or fail signature recovery
++  ---
++  duration_ms: 1658.391738
++  type: 'test'
++  ...
++1..29
++# tests 29
++# suites 0
++# pass 29
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 13079.37232
++[memory-guard] exit=0 peakTreeRssMiB=285 minHostAvailableMiB=24956
++[memory-guard] at peak: node:168 node:60 fake-listener.m:54 timeout:4
++[queue] EXIT 0
+diff --git a/jobs/r6.rc b/jobs/r6.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/jobs/r6.rc
+@@ -0,0 +1 @@
++0

@@ -11,6 +11,8 @@ Current evidence as of 2026-10-22:
 
 Distributed service activation, independent ingress, provider-loss testing, storage replication and full feature parity remain incomplete. Enclave administrative governance remains required. Historical status statements in earlier receipts describe their capture times; they do not override the newer evidence.
 
+Latest whole-bucket Sia recovery status (2026-10-23): FAILED (OOM kill 02:20:32Z, no final inventory) per `files/outputs/decentralization-audit/storage-whole-recovery-failure-20261023.json`. The earlier RUNNING receipt `storage-whole-recovery-live-20261023.json` is kept unchanged as historical evidence; `MANIFEST.json` `supersessions` records the relation. No completed whole-snapshot recovery has been verified.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

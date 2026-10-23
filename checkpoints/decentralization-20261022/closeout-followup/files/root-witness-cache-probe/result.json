@@ -1,0 +1,8 @@
+{
+  "at": "2026-10-23T02:17:16.619Z",
+  "sourceSha256": "d1944b1f1e6f4aaf1e914309a9f2c68d05be9f5d93141f2a8b7d400e2c1c24c6",
+  "malformedProofReturnedByGateway": true,
+  "secondUpstreamContacted": false,
+  "firstCachedMalformedResultSurvivesReplacement": true,
+  "scope": "Gateway/cache transport behavior only. Helios is expected to reject the malformed proof; this demonstrates an availability and persistent cache-poisoning risk, NOT acceptance of false chain state."
+}

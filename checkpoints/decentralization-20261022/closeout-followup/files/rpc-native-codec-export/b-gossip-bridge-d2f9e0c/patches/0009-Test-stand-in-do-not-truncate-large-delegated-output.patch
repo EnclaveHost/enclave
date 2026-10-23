@@ -1,0 +1,394 @@
+From d767f80e27b1bb2457cccd35c910c5f8de849d2a Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 19:15:28 -0700
+Subject: [PATCH 09/11] Test stand-in: do not truncate large delegated output
+ with process.exit
+
+---
+ jobs/diag.guard.log             |   1 +
+ jobs/diag.sh                    |   6 +
+ jobs/r7.guard.log               |   1 +
+ jobs/r7.out                     | 313 ++++++++++++++++++++++++++++++++
+ jobs/r7.rc                      |   1 +
+ test/fixtures/fake-listener.mjs |   6 +-
+ 6 files changed, 326 insertions(+), 2 deletions(-)
+ create mode 100644 jobs/diag.guard.log
+ create mode 100755 jobs/diag.sh
+ create mode 100644 jobs/r7.guard.log
+ create mode 100644 jobs/r7.out
+ create mode 100644 jobs/r7.rc
+
+diff --git a/jobs/diag.guard.log b/jobs/diag.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/jobs/diag.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/jobs/diag.sh b/jobs/diag.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..b151f3fcad0622ef59382e76e71912bccb4ab5e8
+--- /dev/null
++++ b/jobs/diag.sh
+@@ -0,0 +1,6 @@
++#!/bin/bash
++cd "$(dirname "$0")/.."
++d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
++python3 -I -c "import sys;open(sys.argv[2],'wb').write(bytes.fromhex(open(sys.argv[1]).read().strip()))" test/fixtures/base-mainnet-52965074.v4.snappy.hex $d/o.v4.snappy
++echo "--- real"; artifacts/enclave-base-head-listener commitment --signer 0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a --file $d/o.v4.snappy | head -c 300; echo; echo "rc=${PIPESTATUS[0]}"
++echo "--- fake"; REAL_LISTENER=$PWD/artifacts/enclave-base-head-listener FAKE_PLAN='{}' test/fixtures/fake-listener.mjs commitment --signer 0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a --file $d/o.v4.snappy > $d/out; echo "rc=$?"; wc -c $d/out; head -c 200 $d/out; echo; tail -c 100 $d/out | od -c | tail -3
+diff --git a/jobs/r7.guard.log b/jobs/r7.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b661ff4715f933007bae0756b8c2665af536bd6
+--- /dev/null
++++ b/jobs/r7.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=336 minHostAvailableMiB=24669
+diff --git a/jobs/r7.out b/jobs/r7.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..940bed5ed3b1208531ea742bcff7d6a361711fd5
+--- /dev/null
++++ b/jobs/r7.out
+@@ -0,0 +1,313 @@
++[queue] START available=24857MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
++artifacts/enclave-base-head-listener: OK
++57e4fd8 Consume the native commitment mode; drop the JS snappy decoder; bound disk and archive paths
++v22.23.3
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: offline guard: no network route exists in this test namespace
++ok 1 - offline guard: no network route exists in this test namespace
++  ---
++  duration_ms: 1.052571
++  type: 'test'
++  ...
++# Subtest: the real listener binary is the tested pinned build
++ok 2 - the real listener binary is the tested pinned build
++  ---
++  duration_ms: 55.980604
++  type: 'test'
++  ...
++# Subtest: real Base heads: native commitment mode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
++not ok 3 - real Base heads: native commitment mode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
++  ---
++  duration_ms: 20043.54741
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:66:1'
++  failureType: 'testCodeFailure'
++  error: 'timed out waiting; status={"sessions":1,"restarts":0,"heads":3,"delivered":0,"rejected":{"native-output":3},"queueDropped":0,"archiveDropped":0,"archiveFailed":0,"archiveTimedOut":0,"archiveSkipped":0,"archived":0,"staleSessionDirsRemoved":0} lastExit=null'
++  code: 'ERR_TEST_FAILURE'
++  stack: |-
++    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:27:37)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:70:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: stale heads are refused and the relay serves nothing
++ok 4 - stale heads are refused and the relay serves nothing
++  ---
++  duration_ms: 66.007597
++  type: 'test'
++  ...
++# Subtest: a head delivered fresh goes stale with the clock; status and relay fail closed
++not ok 5 - a head delivered fresh goes stale with the clock; status and relay fail closed
++  ---
++  duration_ms: 20025.263743
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:101:1'
++  failureType: 'testCodeFailure'
++  error: 'timed out waiting; status={"sessions":1,"restarts":0,"heads":1,"delivered":0,"rejected":{"native-output":1},"queueDropped":0,"archiveDropped":0,"archiveFailed":0,"archiveTimedOut":0,"archiveSkipped":0,"archived":0,"staleSessionDirsRemoved":0} lastExit=null'
++  code: 'ERR_TEST_FAILURE'
++  stack: |-
++    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:27:37)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:105:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: start record with wrong signer ends the session before any head is used
++ok 6 - start record with wrong signer ends the session before any head is used
++  ---
++  duration_ms: 54.812375
++  type: 'test'
++  ...
++# Subtest: start record with wrong chain ends the session before any head is used
++ok 7 - start record with wrong chain ends the session before any head is used
++  ---
++  duration_ms: 53.721783
++  type: 'test'
++  ...
++# Subtest: start record with not an admin pin ends the session before any head is used
++ok 8 - start record with not an admin pin ends the session before any head is used
++  ---
++  duration_ms: 53.215757
++  type: 'test'
++  ...
++# Subtest: start record with other base/base source ends the session before any head is used
++ok 9 - start record with other base/base source ends the session before any head is used
++  ---
++  duration_ms: 52.967149
++  type: 'test'
++  ...
++# Subtest: start record with other schema ends the session before any head is used
++ok 10 - start record with other schema ends the session before any head is used
++  ---
++  duration_ms: 53.333847
++  type: 'test'
++  ...
++# Subtest: head records that disagree with the pins or this session are rejected individually
++not ok 11 - head records that disagree with the pins or this session are rejected individually
++  ---
++  duration_ms: 217.150264
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:132:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly deep-equal:
++    + actual - expected
++    
++      {
++    +   'native-output': 1,
++    -   'native-mismatch': 1,
++        'not-this-session': 1,
++        'object-too-large': 1,
++        chain: 1,
++        signer: 1,
++        tier: 2,
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected:
++    signer: 1
++    chain: 1
++    tier: 2
++    version: 1
++    not-this-session: 1
++    object-too-large: 1
++    native-mismatch: 1
++  actual:
++    signer: 1
++    chain: 1
++    tier: 2
++    version: 1
++    not-this-session: 1
++    object-too-large: 1
++    native-output: 1
++  operator: 'deepStrictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:147:12)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: corrupt, truncated, missing and mis-sized objects are refused (the real native mode refuses tampered bytes)
++ok 12 - corrupt, truncated, missing and mis-sized objects are refused (the real native mode refuses tampered bytes)
++  ---
++  duration_ms: 164.472144
++  type: 'test'
++  ...
++# Subtest: a different compression of the identical signed block is accepted as that same block (content, not encoding, is authenticated)
++not ok 13 - a different compression of the identical signed block is accepted as that same block (content, not encoding, is authenticated)
++  ---
++  duration_ms: 255.892094
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:173:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly equal:
++    
++    0 !== 1
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: 1
++  actual: 0
++  operator: 'strictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:183:12)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: a genuine Base object is refused when the adapter is pinned to a different signer
++ok 14 - a genuine Base object is refused when the adapter is pinned to a different signer
++  ---
++  duration_ms: 112.642276
++  type: 'test'
++  ...
++# Subtest: restart: later sessions replaying the same signed block cannot make it fresh again
++not ok 15 - restart: later sessions replaying the same signed block cannot make it fresh again
++  ---
++  duration_ms: 3320.829883
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:202:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly equal:
++    
++    0 !== 1
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: 1
++  actual: 0
++  operator: 'strictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:209:12)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: process death (SIGKILL) is recorded and the listener is restarted with backoff
++not ok 16 - process death (SIGKILL) is recorded and the listener is restarted with backoff
++  ---
++  duration_ms: 1166.995656
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:217:1'
++  failureType: 'testCodeFailure'
++  error: 'the head printed before the kill was still processed'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: true
++  actual: false
++  operator: '=='
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:223:12)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: stop() terminates the owned process group, including a grandchild, and nothing else
++ok 17 - stop() terminates the owned process group, including a grandchild, and nothing else
++  ---
++  duration_ms: 145.430362
++  type: 'test'
++  ...
++# Subtest: signalOwned never signals a process whose identity does not match
++ok 18 - signalOwned never signals a process whose identity does not match
++  ---
++  duration_ms: 15.338531
++  type: 'test'
++  ...
++# Subtest: an over-long stdout line ends the session (bounded buffers)
++ok 19 - an over-long stdout line ends the session (bounded buffers)
++  ---
++  duration_ms: 53.436845
++  type: 'test'
++  ...
++# Subtest: a silent listener is restarted after restartIfNoHeadMs (stale stream)
++ok 20 - a silent listener is restarted after restartIfNoHeadMs (stale stream)
++  ---
++  duration_ms: 2024.215688
++  type: 'test'
++  ...
++# Subtest: a binary that does not match the pinned digest is never started
++ok 21 - a binary that does not match the pinned digest is never started
++  ---
++  duration_ms: 65.498742
++  type: 'test'
++  ...
++# Subtest: a stuck downstream archive never delays serving fresh heads
++not ok 22 - a stuck downstream archive never delays serving fresh heads
++  ---
++  duration_ms: 20019.165848
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:282:1'
++  failureType: 'testCodeFailure'
++  error: 'timed out waiting; status={"sessions":1,"restarts":0,"heads":3,"delivered":0,"rejected":{"native-output":3},"queueDropped":0,"archiveDropped":0,"archiveFailed":0,"archiveTimedOut":0,"archiveSkipped":0,"archived":0,"staleSessionDirsRemoved":0} lastExit=null'
++  code: 'ERR_TEST_FAILURE'
++  stack: |-
++    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:27:37)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:288:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: a forged native result is caught by the relay verifier recovering the exact signed bytes
++not ok 23 - a forged native result is caught by the relay verifier recovering the exact signed bytes
++  ---
++  duration_ms: 20032.587425
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:294:1'
++  failureType: 'testCodeFailure'
++  error: 'timed out waiting; status={"sessions":1,"restarts":0,"heads":1,"delivered":0,"rejected":{"native-output":1},"queueDropped":0,"archiveDropped":0,"archiveFailed":0,"archiveTimedOut":0,"archiveSkipped":0,"archived":0,"staleSessionDirsRemoved":0} lastExit=null'
++  code: 'ERR_TEST_FAILURE'
++  stack: |-
++    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:27:37)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:298:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: a commitment larger than maxDataBytes is refused natively (bounded output)
++ok 24 - a commitment larger than maxDataBytes is refused natively (bounded output)
++  ---
++  duration_ms: 118.432543
++  type: 'test'
++  ...
++# Subtest: objects of records dropped before processing are deleted (pre-start head, queue overflow)
++ok 25 - objects of records dropped before processing are deleted (pre-start head, queue overflow)
++  ---
++  duration_ms: 232.975447
++  type: 'test'
++  ...
++# Subtest: session dirs left by a crashed earlier run are removed at start; foreign dirs are left alone
++ok 26 - session dirs left by a crashed earlier run are removed at start; foreign dirs are left alone
++  ---
++  duration_ms: 13.489136
++  type: 'test'
++  ...
++# Subtest: a hung archive sink is bounded: calls time out, at most 2 stay outstanding, the rest are dropped
++not ok 27 - a hung archive sink is bounded: calls time out, at most 2 stay outstanding, the rest are dropped
++  ---
++  duration_ms: 20017.31185
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:346:1'
++  failureType: 'testCodeFailure'
++  error: 'timed out waiting; status={"sessions":1,"restarts":0,"heads":3,"delivered":0,"rejected":{"native-output":3},"queueDropped":0,"archiveDropped":0,"archiveFailed":0,"archiveTimedOut":0,"archiveSkipped":0,"archived":0,"staleSessionDirsRemoved":0} lastExit=null'
++  code: 'ERR_TEST_FAILURE'
++  stack: |-
++    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:27:37)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:352:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: real listener lifecycle offline: start record accepted, no heads, exit 3 recorded, restart scheduled
++ok 28 - real listener lifecycle offline: start record accepted, no heads, exit 3 recorded, restart scheduled
++  ---
++  duration_ms: 2197.831506
++  type: 'test'
++  ...
++1..28
++# tests 28
++# suites 0
++# pass 19
++# fail 9
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 110784.257717
++[memory-guard] exit=1 peakTreeRssMiB=336 minHostAvailableMiB=24669
++[memory-guard] at peak: node:152 node:60 fake-listener.m:54 fake-listener.m:53 enclave-base-he:12 timeout:4
++[queue] EXIT 1
+diff --git a/jobs/r7.rc b/jobs/r7.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/jobs/r7.rc
+@@ -0,0 +1 @@
++1
+diff --git a/test/fixtures/fake-listener.mjs b/test/fixtures/fake-listener.mjs
+index b04132279e85b5ea8f4e058d3a64ca8edf9f964d..b5b42bb6c02853c2a8ed492ee806b130a77a9368 100755
+--- a/test/fixtures/fake-listener.mjs
++++ b/test/fixtures/fake-listener.mjs
+@@ -20,9 +20,10 @@ if (argv[0] !== 'listen') {
+     v.commitment.data = d.slice(0, at) + (d[at] === '0' ? '1' : '0') + d.slice(at + 1);
+     out = JSON.stringify(v) + '\n';
+   }
++  // exitCode, not process.exit(): a >64 KiB write to a pipe completes asynchronously and exit() would truncate it
++  process.exitCode = r.status ?? 1;
+   process.stdout.write(out);
+-  process.exit(r.status ?? 1);
+-}
++} else {
+ const arg = (name) => argv[argv.indexOf(name) + 1];
+ const fixtures = path.join(path.dirname(new URL(import.meta.url).pathname));
+ const out = arg('--out-dir');
+@@ -57,3 +58,4 @@ switch (plan.after) {
+   }
+   default: setInterval(() => {}, 1000);   // stay alive, silent (a stale stream)
+ }
++}

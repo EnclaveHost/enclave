@@ -1,0 +1,186 @@
+[queue] START available=25582MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+artifacts/enclave-base-head-listener: OK
+d767f80 Test stand-in: do not truncate large delegated output with process.exit
+v22.23.3
+external network: unreachable (as intended)
+TAP version 13
+# Subtest: offline guard: no network route exists in this test namespace
+ok 1 - offline guard: no network route exists in this test namespace
+  ---
+  duration_ms: 1.038812
+  type: 'test'
+  ...
+# Subtest: the real listener binary is the tested pinned build
+ok 2 - the real listener binary is the tested pinned build
+  ---
+  duration_ms: 55.582509
+  type: 'test'
+  ...
+# Subtest: real Base heads: native commitment mode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
+ok 3 - real Base heads: native commitment mode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
+  ---
+  duration_ms: 501.820246
+  type: 'test'
+  ...
+# Subtest: stale heads are refused and the relay serves nothing
+ok 4 - stale heads are refused and the relay serves nothing
+  ---
+  duration_ms: 65.864011
+  type: 'test'
+  ...
+# Subtest: a head delivered fresh goes stale with the clock; status and relay fail closed
+ok 5 - a head delivered fresh goes stale with the clock; status and relay fail closed
+  ---
+  duration_ms: 183.329601
+  type: 'test'
+  ...
+# Subtest: start record with wrong signer ends the session before any head is used
+ok 6 - start record with wrong signer ends the session before any head is used
+  ---
+  duration_ms: 55.084353
+  type: 'test'
+  ...
+# Subtest: start record with wrong chain ends the session before any head is used
+ok 7 - start record with wrong chain ends the session before any head is used
+  ---
+  duration_ms: 53.459465
+  type: 'test'
+  ...
+# Subtest: start record with not an admin pin ends the session before any head is used
+ok 8 - start record with not an admin pin ends the session before any head is used
+  ---
+  duration_ms: 52.470022
+  type: 'test'
+  ...
+# Subtest: start record with other base/base source ends the session before any head is used
+ok 9 - start record with other base/base source ends the session before any head is used
+  ---
+  duration_ms: 53.576584
+  type: 'test'
+  ...
+# Subtest: start record with other schema ends the session before any head is used
+ok 10 - start record with other schema ends the session before any head is used
+  ---
+  duration_ms: 53.098428
+  type: 'test'
+  ...
+# Subtest: head records that disagree with the pins or this session are rejected individually
+ok 11 - head records that disagree with the pins or this session are rejected individually
+  ---
+  duration_ms: 217.553081
+  type: 'test'
+  ...
+# Subtest: corrupt, truncated, missing and mis-sized objects are refused (the real native mode refuses tampered bytes)
+ok 12 - corrupt, truncated, missing and mis-sized objects are refused (the real native mode refuses tampered bytes)
+  ---
+  duration_ms: 165.051209
+  type: 'test'
+  ...
+# Subtest: a different compression of the identical signed block is accepted as that same block (content, not encoding, is authenticated)
+ok 13 - a different compression of the identical signed block is accepted as that same block (content, not encoding, is authenticated)
+  ---
+  duration_ms: 274.49835
+  type: 'test'
+  ...
+# Subtest: a genuine Base object is refused when the adapter is pinned to a different signer
+ok 14 - a genuine Base object is refused when the adapter is pinned to a different signer
+  ---
+  duration_ms: 115.638174
+  type: 'test'
+  ...
+# Subtest: restart: later sessions replaying the same signed block cannot make it fresh again
+ok 15 - restart: later sessions replaying the same signed block cannot make it fresh again
+  ---
+  duration_ms: 3249.474139
+  type: 'test'
+  ...
+# Subtest: process death (SIGKILL) is recorded and the listener is restarted with backoff
+ok 16 - process death (SIGKILL) is recorded and the listener is restarted with backoff
+  ---
+  duration_ms: 1195.26219
+  type: 'test'
+  ...
+# Subtest: stop() terminates the owned process group, including a grandchild, and nothing else
+ok 17 - stop() terminates the owned process group, including a grandchild, and nothing else
+  ---
+  duration_ms: 176.463362
+  type: 'test'
+  ...
+# Subtest: signalOwned never signals a process whose identity does not match
+ok 18 - signalOwned never signals a process whose identity does not match
+  ---
+  duration_ms: 14.44817
+  type: 'test'
+  ...
+# Subtest: an over-long stdout line ends the session (bounded buffers)
+ok 19 - an over-long stdout line ends the session (bounded buffers)
+  ---
+  duration_ms: 53.188997
+  type: 'test'
+  ...
+# Subtest: a silent listener is restarted after restartIfNoHeadMs (stale stream)
+ok 20 - a silent listener is restarted after restartIfNoHeadMs (stale stream)
+  ---
+  duration_ms: 2024.541225
+  type: 'test'
+  ...
+# Subtest: a binary that does not match the pinned digest is never started
+ok 21 - a binary that does not match the pinned digest is never started
+  ---
+  duration_ms: 63.27019
+  type: 'test'
+  ...
+# Subtest: a stuck downstream archive never delays serving fresh heads
+ok 22 - a stuck downstream archive never delays serving fresh heads
+  ---
+  duration_ms: 468.003713
+  type: 'test'
+  ...
+# Subtest: a forged native result is caught by the relay verifier recovering the exact signed bytes
+ok 23 - a forged native result is caught by the relay verifier recovering the exact signed bytes
+  ---
+  duration_ms: 177.081958
+  type: 'test'
+  ...
+# Subtest: a commitment larger than maxDataBytes is refused natively (bounded output)
+ok 24 - a commitment larger than maxDataBytes is refused natively (bounded output)
+  ---
+  duration_ms: 116.714176
+  type: 'test'
+  ...
+# Subtest: objects of records dropped before processing are deleted (pre-start head, queue overflow)
+ok 25 - objects of records dropped before processing are deleted (pre-start head, queue overflow)
+  ---
+  duration_ms: 232.683696
+  type: 'test'
+  ...
+# Subtest: session dirs left by a crashed earlier run are removed at start; foreign dirs are left alone
+ok 26 - session dirs left by a crashed earlier run are removed at start; foreign dirs are left alone
+  ---
+  duration_ms: 12.844892
+  type: 'test'
+  ...
+# Subtest: a hung archive sink is bounded: calls time out, at most 2 stay outstanding, the rest are dropped
+ok 27 - a hung archive sink is bounded: calls time out, at most 2 stay outstanding, the rest are dropped
+  ---
+  duration_ms: 523.971779
+  type: 'test'
+  ...
+# Subtest: real listener lifecycle offline: start record accepted, no heads, exit 3 recorded, restart scheduled
+ok 28 - real listener lifecycle offline: start record accepted, no heads, exit 3 recorded, restart scheduled
+  ---
+  duration_ms: 2185.449547
+  type: 'test'
+  ...
+1..28
+# tests 28
+# suites 0
+# pass 28
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12490.211211
+[memory-guard] exit=0 peakTreeRssMiB=357 minHostAvailableMiB=25353
+[memory-guard] at peak: node:169 fake-listener.m:60 node:59 fake-listener.m:53 enclave-base-he:12 timeout:4
+[queue] EXIT 0

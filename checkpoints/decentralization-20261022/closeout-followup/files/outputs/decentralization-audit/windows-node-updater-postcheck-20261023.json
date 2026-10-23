@@ -1,0 +1,16 @@
+{
+  "observedAt": "2026-10-23T02:14:16.8066521Z",
+  "source": "Native read-only current-window.py over the existing authorized host transport",
+  "updater": {
+    "lastRunUtc": "2026-10-23T02:13:37.0000000Z",
+    "result": 0,
+    "state": "Ready",
+    "nextRunUtc": "2026-10-23T03:13:36.0000000Z"
+  },
+  "hostSha256": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
+  "chainSha256": "3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938",
+  "matchesReviewedRuntime": true,
+  "runningApps": 9,
+  "enclaveDnsLeaseUntil": 1792723635,
+  "limitation": "This scheduled updater run preserved the installed fixes. It does not prove that a future published update will preserve them or establish a signed production release of the composed source. Lease values are native observations, not fresh independent cryptographic proofs."
+}

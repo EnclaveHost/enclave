@@ -1,0 +1,79 @@
+{
+ "endpoint": "https://mainnet.base.org",
+ "role": "corroboration-only",
+ "heads": 52,
+ "checked": 10,
+ "allMatch": true,
+ "results": [
+  {
+   "number": 52965055,
+   "listenerHash": "0x8b97b6fe58a07427f8d68f1db0f05e29f1ca1a63f78630fe691c8d32815d50b1",
+   "rpcHash": "0x8b97b6fe58a07427f8d68f1db0f05e29f1ca1a63f78630fe691c8d32815d50b1",
+   "hashMatch": true,
+   "stateRootMatch": true
+  },
+  {
+   "number": 52965056,
+   "listenerHash": "0x32628e6d3ece7acc3e61074b2567d85791c3cbf39433fde81809b2911edd5430",
+   "rpcHash": "0x32628e6d3ece7acc3e61074b2567d85791c3cbf39433fde81809b2911edd5430",
+   "hashMatch": true,
+   "stateRootMatch": true
+  },
+  {
+   "number": 52965057,
+   "listenerHash": "0x054369b2599c15936d7fb5fb9735bea705da31e3319cef87297726b890073a97",
+   "rpcHash": "0x054369b2599c15936d7fb5fb9735bea705da31e3319cef87297726b890073a97",
+   "hashMatch": true,
+   "stateRootMatch": true
+  },
+  {
+   "number": 52965058,
+   "listenerHash": "0x8377c08add317eaabb778ba27bf5ab98a1a2b2797770999b07e3be4fd2435879",
+   "rpcHash": "0x8377c08add317eaabb778ba27bf5ab98a1a2b2797770999b07e3be4fd2435879",
+   "hashMatch": true,
+   "stateRootMatch": true
+  },
+  {
+   "number": 52965059,
+   "listenerHash": "0x0ec5d7738f1c172c99bdbde6e50a79967b16111b918f6dd4d646acfa5fdd17cc",
+   "rpcHash": "0x0ec5d7738f1c172c99bdbde6e50a79967b16111b918f6dd4d646acfa5fdd17cc",
+   "hashMatch": true,
+   "stateRootMatch": true
+  },
+  {
+   "number": 52965060,
+   "listenerHash": "0x4ffe8c75fc6c6080890937f7776162defc8a19b7c59341f85618d7bc85113980",
+   "rpcHash": "0x4ffe8c75fc6c6080890937f7776162defc8a19b7c59341f85618d7bc85113980",
+   "hashMatch": true,
+   "stateRootMatch": true
+  },
+  {
+   "number": 52965061,
+   "listenerHash": "0x34998c25577d7528e01333076a177c840e19a38581518adf19221fd984f2defd",
+   "rpcHash": "0x34998c25577d7528e01333076a177c840e19a38581518adf19221fd984f2defd",
+   "hashMatch": true,
+   "stateRootMatch": true
+  },
+  {
+   "number": 52965062,
+   "listenerHash": "0x94753014e8490a80ffb517d25846e6c9fa9de84606bab80506bec9e94628a8db",
+   "rpcHash": "0x94753014e8490a80ffb517d25846e6c9fa9de84606bab80506bec9e94628a8db",
+   "hashMatch": true,
+   "stateRootMatch": true
+  },
+  {
+   "number": 52965063,
+   "listenerHash": "0x1a19d9971c901a9f3b53019c8bc4a3d74299ccfb2392aa7183cd17e38fa60db1",
+   "rpcHash": "0x1a19d9971c901a9f3b53019c8bc4a3d74299ccfb2392aa7183cd17e38fa60db1",
+   "hashMatch": true,
+   "stateRootMatch": true
+  },
+  {
+   "number": 52965064,
+   "listenerHash": "0x67b1a1ceb79be62a75327c78b0f2bde5d5c32c38e345f63641ef9f37b6382c31",
+   "rpcHash": "0x67b1a1ceb79be62a75327c78b0f2bde5d5c32c38e345f63641ef9f37b6382c31",
+   "hashMatch": true,
+   "stateRootMatch": true
+  }
+ ]
+}

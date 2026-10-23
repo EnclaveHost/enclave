@@ -1,0 +1,22 @@
+{
+  "failedAt": "2026-10-23T02:20:32Z",
+  "state": "FAILED_OOM_KILL_NO_FINAL_INVENTORY",
+  "fullRecoveryVerified": false,
+  "completedObjectFilesObserved": 1460,
+  "completedObjectBytesObserved": 12387271725,
+  "inFlightBytesObserved": 264241152,
+  "resultFilePresent": false,
+  "memoryLimitBytes": 805306368,
+  "memoryPeakBytes": 806264832,
+  "kernelAnonymousMemoryBytes": 778260480,
+  "kernelFileCacheBytes": 24576,
+  "processAnonymousRssKiB": {
+    "outerPythonBridge": 363756,
+    "innerPythonBridge": 356768,
+    "siaRecoveryBinary": 39236
+  },
+  "diagnosis": "The two Python isolation bridge processes dominated memory. The precise allocation/connection-retention mechanism is being reproduced; the evidence does not implicate whole-object buffering by the Sia recovery binary.",
+  "partialFilesPreserved": true,
+  "retryStarted": false,
+  "limitation": "Observed output files do not establish successful whole-snapshot recovery. The isolated attempt had no final result or inventory. Earlier Sia-only network isolation checks passed, but this run is a failed full-recovery test."
+}

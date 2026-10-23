@@ -1,0 +1,8 @@
+{
+  "at": "2026-10-23T02:07:50.087Z",
+  "sourceSha256": "a3f08aca344d4022f9af3d3954c9d6601654ab084251dcbd60d1ee76372f9c62",
+  "validHostServicesShape": true,
+  "apps": 0,
+  "error": "version 2 app configuration required",
+  "scope": "The source rejects an empty app list before validating or starting otherwise well-shaped hostServices. This is a source-level cold-start gate, not a production outage test or proof that all other service configuration is valid."
+}

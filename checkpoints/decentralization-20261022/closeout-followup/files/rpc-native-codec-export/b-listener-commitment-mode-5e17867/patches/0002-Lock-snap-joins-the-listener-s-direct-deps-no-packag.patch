@@ -1,0 +1,542 @@
+From a0c7c4efa9edd172633b0d41b0eb6444f0eb7b20 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 19:05:46 -0700
+Subject: [PATCH 2/3] Lock: snap joins the listener's direct deps (no
+ package/version change); c1 evidence 7/7
+
+---
+ Cargo.lock        |   1 +
+ jobs/c1.guard.log |   1 +
+ jobs/c1.out       | 494 ++++++++++++++++++++++++++++++++++++++++++++++
+ jobs/c1.rc        |   1 +
+ 4 files changed, 497 insertions(+)
+ create mode 100644 jobs/c1.guard.log
+ create mode 100644 jobs/c1.out
+ create mode 100644 jobs/c1.rc
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 8683ede3fd64629cc4997a2f3c3f8efa7cc56970..ea71ca8ada7b355071e05b7ac4c8c903ba4c4716 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -2300,6 +2300,7 @@ dependencies = [
+  "serde",
+  "serde_json",
+  "sha2 0.10.9",
++ "snap",
+  "tempfile",
+  "thiserror 2.0.19",
+  "tokio",
+diff --git a/jobs/c1.guard.log b/jobs/c1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..2ff040b5acb636ddd8366d417c699e2c94ddc414
+--- /dev/null
++++ b/jobs/c1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=743 minHostAvailableMiB=23860
+diff --git a/jobs/c1.out b/jobs/c1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..c21e62d5346430d87f96b595255925b2d48afb80
+--- /dev/null
++++ b/jobs/c1.out
+@@ -0,0 +1,494 @@
++[queue] START available=25032MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
++=== 2026-10-23T02:02:39Z toolchain
++rustc 1.96.0 (ac68faa20 2026-05-25)
++=== 2026-10-23T02:02:39Z lock-diff
++{
++ "workspacePackages": 625,
++ "upstreamPackages": 1797,
++ "notIdenticalToUpstream": [
++  [
++   "enclave-base-head-listener",
++   "0.1.0",
++   null,
++   null
++  ]
++ ]
++}
++=== 2026-10-23T02:02:39Z build
++   Compiling proc-macro2 v1.0.107
++   Compiling quote v1.0.47
++   Compiling unicode-ident v1.0.24
++   Compiling syn v2.0.119
++   Compiling cfg-if v1.0.4
++   Compiling libc v0.2.188
++   Compiling serde_core v1.0.229
++   Compiling syn v3.0.2
++   Compiling typenum v1.20.1
++   Compiling serde v1.0.229
++   Compiling serde_derive v1.0.229
++   Compiling version_check v0.9.5
++   Compiling getrandom v0.2.17
++   Compiling zeroize_derive v1.5.0
++   Compiling zeroize v1.9.0
++   Compiling rand_core v0.6.4
++   Compiling generic-array v0.14.7
++   Compiling subtle v2.6.1
++   Compiling crypto-common v0.1.7
++   Compiling const-oid v0.9.6
++   Compiling block-buffer v0.10.4
++   Compiling digest v0.10.7
++   Compiling portable-atomic v1.14.0
++   Compiling bytes v1.12.1
++   Compiling cpufeatures v0.2.17
++   Compiling critical-section v1.2.0
++   Compiling once_cell v1.21.4
++   Compiling der v0.7.10
++   Compiling base16ct v0.2.0
++   Compiling serdect v0.2.0
++   Compiling spki v0.7.3
++   Compiling ff v0.13.1
++   Compiling group v0.13.0
++   Compiling pkcs8 v0.10.2
++   Compiling sec1 v0.7.3
++   Compiling signature v2.2.0
++   Compiling hmac v0.12.1
++   Compiling crypto-bigint v0.5.5
++   Compiling elliptic-curve v0.13.8
++   Compiling rfc6979 v0.4.0
++   Compiling sha2 v0.10.9
++   Compiling ecdsa v0.16.9
++   Compiling k256 v0.13.4
++   Compiling pin-project-lite v0.2.17
++   Compiling memchr v2.8.3
++   Compiling paste v1.0.15
++   Compiling thiserror v2.0.19
++   Compiling thiserror-impl v2.0.19
++   Compiling equivalent v1.0.2
++   Compiling foldhash v0.2.0
++   Compiling allocator-api2 v0.2.21
++   Compiling hybrid-array v0.4.13
++   Compiling getrandom v0.4.3
++   Compiling block-buffer v0.12.1
++   Compiling crypto-common v0.2.2
++   Compiling smallvec v1.15.2
++   Compiling zerocopy v0.8.55
++   Compiling digest v0.11.3
++   Compiling hashbrown v0.17.1
++   Compiling alloy-rlp-derive v0.3.16
++   Compiling log v0.4.33
++   Compiling arrayvec v0.7.8
++   Compiling alloy-rlp v0.3.16
++   Compiling keccak v0.2.0
++   Compiling unicode-segmentation v1.13.3
++   Compiling convert_case v0.10.0
++   Compiling sha3 v0.11.0
++   Compiling either v1.16.0
++   Compiling unicode-xid v0.2.6
++   Compiling ruint-macro v1.2.1
++   Compiling ruint v1.19.0
++   Compiling derive_more-impl v2.1.1
++   Compiling itoa v1.0.18
++   Compiling derive_more v2.1.1
++   Compiling ppv-lite86 v0.2.21
++   Compiling indexmap v2.14.0
++   Compiling const-hex v1.19.1
++   Compiling alloy-primitives v1.6.1
++   Compiling futures-core v0.3.33
++   Compiling tracing-core v0.1.36
++   Compiling synstructure v0.13.2
++   Compiling futures-sink v0.3.33
++   Compiling tracing-attributes v0.1.31
++   Compiling slab v0.4.12
++   Compiling tracing v0.1.44
++   Compiling futures-channel v0.3.33
++   Compiling zerofrom-derive v0.1.7
++   Compiling rand_chacha v0.3.1
++   Compiling futures-macro v0.3.33
++   Compiling futures-task v0.3.33
++   Compiling futures-io v0.3.33
++   Compiling futures-util v0.3.33
++   Compiling rand v0.8.7
++   Compiling zerofrom v0.1.8
++   Compiling yoke-derive v0.8.2
++   Compiling stable_deref_trait v1.2.1
++   Compiling yoke v0.8.3
++   Compiling zerovec-derive v0.11.3
++   Compiling heck v0.5.0
++   Compiling zerovec v0.11.6
++   Compiling displaydoc v0.2.6
++   Compiling semver v1.0.28
++   Compiling scopeguard v1.2.0
++   Compiling lock_api v0.4.14
++   Compiling rustc_version v0.4.1
++   Compiling tinystr v0.8.3
++   Compiling autocfg v1.5.1
++   Compiling writeable v0.6.3
++   Compiling litemap v0.8.2
++   Compiling icu_locale_core v2.2.0
++   Compiling num-traits v0.2.19
++   Compiling zerotrie v0.2.4
++   Compiling potential_utf v0.1.5
++   Compiling futures-executor v0.3.33
++   Compiling alloy-eip7928 v0.4.5
++   Compiling auto_impl v1.3.0
++   Compiling icu_normalizer_data v2.0.0
++   Compiling icu_properties_data v2.0.1
++   Compiling hex v0.4.3
++   Compiling futures v0.3.33
++   Compiling icu_collections v2.0.0
++   Compiling icu_provider v2.2.0
++   Compiling strsim v0.11.1
++   Compiling curve25519-dalek v4.1.3
++   Compiling itertools v0.14.0
++   Compiling mio v1.2.2
++   Compiling socket2 v0.6.5
++   Compiling tokio-macros v2.7.1
++   Compiling parking_lot_core v0.9.12
++   Compiling tokio v1.53.1
++   Compiling icu_properties v2.0.2
++   Compiling icu_normalizer v2.0.1
++   Compiling alloy-eip2930 v0.2.3
++   Compiling alloy-eip7702 v0.6.3
++   Compiling curve25519-dalek-derive v0.1.1
++   Compiling arrayref v0.3.9
++   Compiling ident_case v1.0.1
++   Compiling anyhow v1.0.104
++   Compiling darling_core v0.23.0
++   Compiling idna_adapter v1.2.1
++   Compiling data-encoding v2.11.0
++   Compiling utf8_iter v1.0.4
++   Compiling static_assertions v1.1.0
++   Compiling zmij v1.0.23
++   Compiling unsigned-varint v0.8.0
++   Compiling percent-encoding v2.3.2
++   Compiling form_urlencoded v1.2.2
++   Compiling idna v1.1.0
++   Compiling parking_lot v0.12.5
++   Compiling darling_macro v0.23.0
++   Compiling num-integer v0.1.46
++   Compiling ed25519 v2.2.3
++   Compiling pin-project-internal v1.1.13
++   Compiling bitflags v2.13.1
++   Compiling byteorder v1.5.0
++   Compiling serde_json v1.0.151
++   Compiling data-encoding-macro-internal v0.1.18
++   Compiling pin-project v1.1.13
++   Compiling ed25519-dalek v2.2.0
++   Compiling prost-derive v0.14.4
++   Compiling darling v0.23.0
++   Compiling url v2.5.8
++   Compiling match-lookup v0.1.2
++   Compiling const-str v0.4.3
++   Compiling base256emoji v1.0.2
++   Compiling prost v0.14.4
++   Compiling data-encoding-macro v0.1.20
++   Compiling num-bigint v0.4.8
++   Compiling multihash v0.19.5
++   Compiling hkdf v0.12.4
++   Compiling ahash v0.8.12
++   Compiling crc-catalog v2.5.0
++   Compiling radium v0.7.0
++   Compiling asn1_der v0.7.7
++   Compiling base-x v0.2.11
++   Compiling base45 v3.2.0
++   Compiling bs58 v0.5.1
++   Compiling libp2p-identity v0.2.14
++   Compiling multibase v0.9.3
++   Compiling crc v3.4.0
++   Compiling fnv v1.0.7
++   Compiling tap v1.0.1
++   Compiling wyz v0.5.1
++   Compiling alloy-eip2124 v0.2.0
++   Compiling multiaddr v0.18.2
++   Compiling ethereum_serde_utils v0.8.1
++   Compiling serde_with_macros v3.21.0
++   Compiling quick-protobuf v0.8.1
++   Compiling unsigned-varint v0.7.2
++   Compiling crossbeam-utils v0.8.22
++   Compiling web-time v1.1.0
++   Compiling futures-timer v3.0.4
++   Compiling funty v2.0.0
++   Compiling bitvec v1.1.1
++   Compiling multistream-select v0.13.0
++   Compiling serde_with v3.21.0
++   Compiling ethereum_ssz v0.10.4
++   Compiling alloy-serde v2.4.1
++   Compiling ethereum_ssz_derive v0.10.4
++   Compiling rw-stream-sink v0.4.0
++   Compiling revm-primitives v42.0.0
++   Compiling nybbles v0.4.8
++   Compiling enum-ordinalize-derive v4.4.1
++   Compiling find-msvc-tools v0.1.9
++   Compiling shlex v2.0.1
++   Compiling cc v1.3.0
++   Compiling enum-ordinalize v4.4.1
++   Compiling alloy-trie v0.9.5
++   Compiling revm-bytecode v42.0.0
++   Compiling libp2p-core v0.43.2
++   Compiling alloy-eips v2.4.1
++   Compiling ark-std v0.6.0
++   Compiling ark-serialize-derive v0.6.0
++   Compiling nonmax v0.5.5
++   Compiling getrandom v0.3.4
++   Compiling revm-state v42.0.0
++   Compiling ark-serialize v0.6.0
++   Compiling educe v0.6.0
++   Compiling ark-ff-macros v0.6.0
++   Compiling alloy-tx-macros v2.4.1
++   Compiling syn-solidity v1.6.1
++   Compiling ark-ff-asm v0.6.0
++   Compiling macro-string v0.2.0
++   Compiling proc-macro-error-attr3 v3.0.1
++   Compiling rustversion v1.0.23
++   Compiling dunce v1.0.5
++   Compiling alloy-sol-macro-input v1.6.1
++   Compiling proc-macro-error3 v3.0.1
++   Compiling ark-ff v0.6.0
++   Compiling alloy-consensus v2.4.1
++   Compiling revm-database-interface v42.0.0
++   Compiling thiserror v1.0.69
++   Compiling foldhash v0.1.5
++   Compiling siphasher v1.0.3
++   Compiling phf_shared v0.14.0
++   Compiling hashbrown v0.15.5
++   Compiling rand_core v0.9.5
++   Compiling ark-poly v0.6.0
++   Compiling alloy-sol-macro-expander v1.6.1
++   Compiling num_enum_derive v0.7.6
++   Compiling thiserror-impl v1.0.69
++   Compiling num_enum v0.7.6
++   Compiling alloy-sol-macro v1.6.1
++   Compiling ark-ec v0.6.0
++   Compiling rand_chacha v0.9.0
++   Compiling hashlink v0.10.0
++   Compiling phf v0.14.0
++   Compiling revm-context-interface v42.0.0
++   Compiling num-rational v0.4.2
++   Compiling num-iter v0.1.46
++   Compiling num-complex v0.4.6
++   Compiling libp2p-swarm-derive v0.35.1
++   Compiling cfg_aliases v0.2.2
++   Compiling nix v0.30.1
++   Compiling libp2p-swarm v0.47.1
++   Compiling num v0.4.3
++   Compiling alloy-chains v0.2.36
++   Compiling rand v0.9.5
++   Compiling alloy-sol-types v1.6.1
++   Compiling ring v0.17.14
++   Compiling netlink-packet-core v0.8.1
++   Compiling aho-corasick v1.1.4
++   Compiling primeorder v0.13.6
++   Compiling ipnet v2.12.0
++   Compiling dyn-clone v1.0.20
++   Compiling regex-syntax v0.8.11
++   Compiling crossbeam-epoch v0.9.20
++   Compiling cpufeatures v0.3.0
++   Compiling sha2 v0.11.0
++   Compiling regex-automata v0.4.16
++   Compiling alloy-hardforks v0.4.7
++   Compiling p256 v0.13.2
++   Compiling aurora-engine-modexp v1.2.0
++   Compiling ark-bn254 v0.6.0
++   Compiling ark-bls12-381 v0.6.0
++   Compiling concurrent-queue v2.5.0
++   Compiling netlink-sys v0.8.8
++   Compiling spin v0.10.1
++   Compiling asynchronous-codec v0.7.0
++   Compiling ripemd v0.2.0
++   Compiling inout v0.1.4
++   Compiling async-trait v0.1.91
++   Compiling derive-where v1.6.1
++   Compiling parking v2.2.1
++   Compiling tinyvec_macros v0.1.1
++   Compiling tinyvec v1.12.0
++   Compiling event-listener v5.4.1
++   Compiling revm-context v42.0.0
++   Compiling cipher v0.4.4
++   Compiling revm-precompile v42.0.1
++   Compiling base-common-genesis v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/common/genesis)
++   Compiling netlink-proto v0.12.0
++   Compiling netlink-packet-route v0.28.0
++   Compiling revm-interpreter v42.0.0
++   Compiling crossbeam-channel v0.5.16
++   Compiling alloy-genesis v2.4.1
++   Compiling snow v0.9.6
++   Compiling enum-as-inner v0.6.1
++   Compiling uuid v1.24.0
++   Compiling universal-hash v0.5.1
++   Compiling base64 v0.22.1
++   Compiling syn v1.0.109
++   Compiling untrusted v0.9.0
++   Compiling tagptr v0.2.0
++   Compiling crunchy v0.2.4
++   Compiling opaque-debug v0.3.1
++   Compiling nohash-hasher v0.2.0
++   Compiling polyval v0.6.2
++   Compiling moka v0.12.15
++   Compiling hickory-proto v0.25.2
++   Compiling revm-handler v42.0.1
++   Compiling rtnetlink v0.20.0
++   Compiling event-listener-strategy v0.5.4
++   Compiling quick-protobuf-codec v0.3.1
++   Compiling secp256k1-sys v0.10.1
++   Compiling hashbrown v0.14.5
++   Compiling hashbrown v0.16.1
++   Compiling keccak v0.1.6
++   Compiling lazy_static v1.5.0
++   Compiling resolv-conf v0.7.6
++   Compiling hickory-resolver v0.25.2
++   Compiling sha3 v0.10.9
++   Compiling hashlink v0.9.1
++   Compiling async-channel v2.5.0
++   Compiling if-watch v3.2.2
++   Compiling revm-inspector v42.0.1
++   Compiling ghash v0.5.1
++   Compiling yamux v0.13.10
++   Compiling yamux v0.12.1
++   Compiling ctr v0.9.2
++   Compiling aes v0.8.4
++   Compiling regex v1.13.1
++   Compiling revm-database v42.0.0
++   Compiling futures-bounded v0.2.4
++   Compiling x25519-dalek v2.0.1
++   Compiling tokio-util v0.7.19
++   Compiling itertools v0.10.5
++   Compiling strum_macros v0.27.2
++   Compiling aead v0.5.2
++   Compiling snap v1.1.2
++   Compiling option-ext v0.2.0
++   Compiling hex_fmt v0.3.0
++   Compiling libp2p-gossipsub v0.49.5
++   Compiling dirs-sys v0.5.0
++   Compiling aes-gcm v0.10.3
++   Compiling strum v0.27.2
++   Compiling ambassador v0.4.2
++   Compiling delay_map v0.4.1
++   Compiling libp2p-noise v0.46.1
++   Compiling libp2p-identify v0.47.0
++   Compiling revm v42.0.1
++   Compiling libp2p-yamux v0.47.0
++   Compiling uint v0.10.0
++   Compiling libp2p-tcp v0.44.1
++   Compiling enr v0.13.0
++   Compiling libp2p-dns v0.44.0
++   Compiling hashlink v0.11.1
++   Compiling libp2p-ping v0.47.0
++   Compiling libp2p-allow-block-list v0.6.0
++   Compiling libp2p-connection-limits v0.6.0
++   Compiling utf8parse v0.2.2
++   Compiling more-asserts v0.3.1
++   Compiling alloc-no-stdlib v2.0.4
++   Compiling brotli-decompressor v5.0.3
++   Compiling discv5 v0.10.4
++   Compiling anstyle-parse v1.0.0
++   Compiling libp2p v0.56.0
++   Compiling secp256k1 v0.30.0
++   Compiling base-common-chains v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/common/chains)
++   Compiling base-common-consensus v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/common/consensus)
++   Compiling alloy-rpc-types-engine v2.4.1
++   Compiling dirs v6.0.0
++   Compiling alloy-network-primitives v2.4.1
++   Compiling alloy-consensus-any v2.4.1
++   Compiling anstyle-query v1.1.5
++   Compiling is_terminal_polyfill v1.70.2
++   Compiling adler2 v2.0.1
++   Compiling anstyle v1.0.14
++   Compiling colorchoice v1.0.5
++   Compiling fastrand v2.5.0
++   Compiling backon v1.6.0
++   Compiling anstream v1.0.0
++   Compiling miniz_oxide v0.9.1
++   Compiling alloy-rpc-types-eth v2.4.1
++   Compiling base-consensus-peers v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/consensus/peers)
++   Compiling base-common-rpc-types-engine v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/common/rpc-types-engine)
++   Compiling brotli v8.0.4
++   Compiling clap_lex v1.1.0
++   Compiling base-metrics v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/utilities/metrics)
++   Compiling base-consensus-disc v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/consensus/disc)
++   Compiling clap_builder v4.6.5
++   Compiling base-protocol v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/consensus/protocol)
++   Compiling sharded-slab v0.1.7
++   Compiling lru v0.16.4
++   Compiling matchers v0.2.0
++   Compiling clap_derive v4.6.4
++   Compiling tracing-log v0.2.0
++   Compiling serde_repr v0.1.21
++   Compiling thread_local v1.1.10
++   Compiling nu-ansi-term v0.50.3
++   Compiling tracing-subscriber v0.3.23
++   Compiling base-consensus-gossip v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/consensus/gossip)
++   Compiling clap v4.6.5
++   Compiling enclave-base-head-listener v0.1.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/crates/enclave-base-head-listener)
++    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2m 22s
++=== 2026-10-23T02:05:01Z test-commitment
++   Compiling serde_json v1.0.151
++   Compiling bitflags v2.13.1
++   Compiling ethereum_serde_utils v0.8.1
++   Compiling ethereum_ssz v0.10.4
++   Compiling alloy-serde v2.4.1
++   Compiling alloy-eips v2.4.1
++   Compiling alloy-consensus v2.4.1
++   Compiling revm-state v42.0.0
++   Compiling revm-database-interface v42.0.0
++   Compiling revm-context-interface v42.0.0
++   Compiling revm-context v42.0.0
++   Compiling revm-precompile v42.0.1
++   Compiling base-common-genesis v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/common/genesis)
++   Compiling nix v0.30.1
++   Compiling netlink-packet-route v0.28.0
++   Compiling revm-interpreter v42.0.0
++   Compiling alloy-genesis v2.4.1
++   Compiling revm-handler v42.0.1
++   Compiling rtnetlink v0.20.0
++   Compiling alloy-consensus-any v2.4.1
++   Compiling alloy-network-primitives v2.4.1
++   Compiling alloy-rpc-types-eth v2.4.1
++   Compiling if-watch v3.2.2
++   Compiling revm-inspector v42.0.1
++   Compiling revm-database v42.0.0
++   Compiling revm v42.0.1
++   Compiling libp2p-tcp v0.44.1
++   Compiling fastrand v2.5.0
++   Compiling libp2p v0.56.0
++   Compiling base-common-chains v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/common/chains)
++   Compiling base-common-consensus v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/common/consensus)
++   Compiling alloy-rpc-types-engine v2.4.1
++   Compiling base-consensus-peers v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/consensus/peers)
++   Compiling base-common-rpc-types-engine v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/common/rpc-types-engine)
++   Compiling backon v1.6.0
++   Compiling base-consensus-disc v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/consensus/disc)
++   Compiling base-protocol v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/consensus/protocol)
++   Compiling http v1.4.2
++   Compiling rustix v1.1.4
++   Compiling base-consensus-gossip v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/base-5476069f/crates/consensus/gossip)
++   Compiling alloy-json-rpc v2.4.1
++   Compiling alloy-rpc-types-any v2.4.1
++   Compiling alloy-signer v2.4.1
++   Compiling futures-utils-wasm v0.1.0
++   Compiling linux-raw-sys v0.12.1
++   Compiling alloy-network v2.4.1
++   Compiling enclave-base-head-listener v0.1.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/crates/enclave-base-head-listener)
++   Compiling alloy-signer-local v2.4.1
++   Compiling tempfile v3.27.0
++    Finished `test` profile [unoptimized + debuginfo] target(s) in 34.68s
++     Running tests/commitment.rs (target/debug/deps/commitment-181f65470a7a6149)
++
++running 7 tests
++test a_different_encoding_of_the_same_envelope_yields_identical_commitment_bytes ... ok
++test cli_emits_one_bounded_line_and_fails_closed ... ok
++test malformed_truncated_and_tampered_objects_are_refused ... ok
++test object_files_over_the_cap_are_refused_unread ... ok
++test oversized_declared_lengths_are_refused_before_decoding ... ok
++test real_objects_yield_exact_signed_commitments ... ok
++test wrong_pin_or_chain_is_refused_before_anything_is_emitted ... ok
++
++test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.11s
++
++=== 2026-10-23T02:05:37Z artifact
++ebd045b428227530fac1c1b079f47c67ecb874637a1c7dcb4f021dd5929e8d3a  target/debug/enclave-base-head-listener
++5ad182d75859595c7e8f70f03b9ae35da9eeae3f6ef7890b367dca78b349c0eb  Cargo.lock
++=== 2026-10-23T02:05:37Z done
++=== 2026-10-23T02:05:37Z exit rc=0
++[memory-guard] exit=0 peakTreeRssMiB=743 minHostAvailableMiB=23860
++[memory-guard] at peak: rust-lld:357 rustc:225 cargo:140 build-commitmen:6 bash:6 timeout:4 cc:3 collect2:3
++[queue] EXIT 0
+diff --git a/jobs/c1.rc b/jobs/c1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/jobs/c1.rc
+@@ -0,0 +1 @@
++0

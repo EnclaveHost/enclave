@@ -1,0 +1,53 @@
+[package]
+name = "enclave-base-head-listener"
+version = "0.1.0"
+description = "Listens to Base unsafe-block gossip and emits validated unsafe head records"
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "enclave-base-head-listener"
+path = "src/main.rs"
+
+[dependencies]
+# Base (vendored from base/base 5476069f, see upstream/PROVENANCE.json)
+base-consensus-gossip.workspace = true
+base-consensus-disc.workspace = true
+base-consensus-peers.workspace = true
+base-common-chains.workspace = true
+base-common-genesis.workspace = true
+base-common-consensus = { workspace = true, features = ["k256"] }
+base-common-rpc-types-engine = { workspace = true, features = ["std", "serde"] }
+
+# Alloy
+alloy-consensus = { workspace = true, features = ["std"] }
+alloy-eips = { workspace = true, features = ["std"] }
+alloy-primitives = { workspace = true, features = ["k256", "std", "serde"] }
+
+# Networking
+discv5 = { workspace = true, features = ["libp2p"] }
+libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "dns", "noise", "gossipsub", "ping", "yamux", "identify"] }
+libp2p-identity = { workspace = true, features = ["secp256k1"] }
+
+# Misc
+clap = { workspace = true, features = ["derive", "std"] }
+hex.workspace = true
+serde = { workspace = true, features = ["derive", "std"] }
+serde_json = { workspace = true, features = ["std"] }
+sha2 = { workspace = true, features = ["std"] }
+snap.workspace = true
+thiserror = { workspace = true, features = ["std"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "sync"] }
+tracing = { workspace = true, features = ["std"] }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+
+[dev-dependencies]
+alloy-rpc-types-engine = { workspace = true, features = ["std"] }
+alloy-signer.workspace = true
+alloy-signer-local.workspace = true
+tempfile.workspace = true

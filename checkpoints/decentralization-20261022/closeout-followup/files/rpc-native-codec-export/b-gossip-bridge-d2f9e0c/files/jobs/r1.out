@@ -1,0 +1,209 @@
+[queue] START available=25358MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+artifacts/enclave-base-head-listener: OK
+edf722f Native Base gossip head source for op-head-relay (offline tests pending)
+v22.23.3
+external network: unreachable (as intended)
+TAP version 13
+# Subtest: offline guard: no network route exists in this test namespace
+ok 1 - offline guard: no network route exists in this test namespace
+  ---
+  duration_ms: 0.914884
+  type: 'test'
+  ...
+# Subtest: the real listener binary is the tested pinned build
+ok 2 - the real listener binary is the tested pinned build
+  ---
+  duration_ms: 63.362128
+  type: 'test'
+  ...
+# Subtest: real Base heads: native verify-object + decode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
+not ok 3 - real Base heads: native verify-object + decode + reviewed verifyCommitment -> relay serves the newest, labelled unsafe
+  ---
+  duration_ms: 20040.244437
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:50:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:24:61)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:54:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: stale heads are refused and the relay serves nothing
+ok 4 - stale heads are refused and the relay serves nothing
+  ---
+  duration_ms: 67.967605
+  type: 'test'
+  ...
+# Subtest: a head delivered fresh goes stale with the clock; status and relay fail closed
+not ok 5 - a head delivered fresh goes stale with the clock; status and relay fail closed
+  ---
+  duration_ms: 20023.433145
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:82:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:24:61)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:86:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: start record with wrong signer ends the session before any head is used
+ok 6 - start record with wrong signer ends the session before any head is used
+  ---
+  duration_ms: 53.851933
+  type: 'test'
+  ...
+# Subtest: start record with wrong chain ends the session before any head is used
+ok 7 - start record with wrong chain ends the session before any head is used
+  ---
+  duration_ms: 53.639874
+  type: 'test'
+  ...
+# Subtest: start record with not an admin pin ends the session before any head is used
+ok 8 - start record with not an admin pin ends the session before any head is used
+  ---
+  duration_ms: 53.113307
+  type: 'test'
+  ...
+# Subtest: start record with other base/base source ends the session before any head is used
+ok 9 - start record with other base/base source ends the session before any head is used
+  ---
+  duration_ms: 53.951641
+  type: 'test'
+  ...
+# Subtest: start record with other schema ends the session before any head is used
+ok 10 - start record with other schema ends the session before any head is used
+  ---
+  duration_ms: 54.154711
+  type: 'test'
+  ...
+# Subtest: head records that disagree with the pins or this session are rejected individually
+not ok 11 - head records that disagree with the pins or this session are rejected individually
+  ---
+  duration_ms: 118.143562
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:113:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+        'not-this-session': 1,
+        'object-too-large': 1,
+    +   'verify-refused': 1,
+    -   'verify-mismatch': 1,
+        chain: 1,
+        signer: 1,
+        tier: 2,
+        version: 1
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    signer: 1
+    chain: 1
+    tier: 2
+    version: 1
+    not-this-session: 1
+    object-too-large: 1
+    verify-mismatch: 1
+  actual:
+    signer: 1
+    chain: 1
+    tier: 2
+    version: 1
+    not-this-session: 1
+    object-too-large: 1
+    verify-refused: 1
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:128:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: corrupt, truncated, missing and mis-sized objects are refused (the real verify-object refuses tampered bytes)
+ok 12 - corrupt, truncated, missing and mis-sized objects are refused (the real verify-object refuses tampered bytes)
+  ---
+  duration_ms: 115.023984
+  type: 'test'
+  ...
+# Subtest: test/gossip-head-source.test.mjs
+not ok 1 - test/gossip-head-source.test.mjs
+  ---
+  duration_ms: 60021.089977
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/gossip-head-source.test.mjs:1:1'
+  failureType: 'testTimeoutFailure'
+  error: 'test timed out after 60000ms'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: real block 52965074: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+ok 14 - real block 52965074: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+  ---
+  duration_ms: 57.903394
+  type: 'test'
+  ...
+# Subtest: real block 52965075: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+ok 15 - real block 52965075: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+  ---
+  duration_ms: 36.518084
+  type: 'test'
+  ...
+# Subtest: real block 52965076: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+ok 16 - real block 52965076: decoded envelope is signature || parentBeaconRoot || SSZ payload and recovers the Base signer
+  ---
+  duration_ms: 32.320643
+  type: 'test'
+  ...
+# Subtest: every truncation of a real object is refused
+ok 17 - every truncation of a real object is refused
+  ---
+  duration_ms: 116.076126
+  type: 'test'
+  ...
+# Subtest: declared length over the cap, bad offsets and trailing garbage are refused
+not ok 18 - declared length over the cap, bad offsets and trailing garbage are refused
+  ---
+  duration_ms: 0.713415
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/snappy-raw.test.mjs:37:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-gossip-bridge/test/snappy-raw.test.mjs:40:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: bounded fuzz: random single-byte corruptions throw, decode to identical bytes, or fail signature recovery
+ok 19 - bounded fuzz: random single-byte corruptions throw, decode to identical bytes, or fail signature recovery
+  ---
+  duration_ms: 1669.379695
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 14
+# fail 4
+# cancelled 1
+# skipped 0
+# todo 0
+# duration_ms 62082.559591
+[memory-guard] exit=1 peakTreeRssMiB=200 minHostAvailableMiB=25149
+[memory-guard] at peak: node:142 node:55 timeout:4
+[queue] EXIT 1

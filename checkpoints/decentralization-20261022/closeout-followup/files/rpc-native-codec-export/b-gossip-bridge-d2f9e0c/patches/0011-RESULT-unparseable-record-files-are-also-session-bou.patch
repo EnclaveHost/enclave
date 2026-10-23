@@ -1,0 +1,24 @@
+From d2f9e0c10d20676619ba9466899dc58a36c9aa75 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 19:26:00 -0700
+Subject: [PATCH 11/11] RESULT: unparseable-record files are also
+ session-bounded
+
+---
+ RESULT.md | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/RESULT.md b/RESULT.md
+index ed9631f7abdf056aae5d2c19865ed403457d44a4..cbd84576178d9234b1fb995987fe28fe2a898a66 100644
+--- a/RESULT.md
++++ b/RESULT.md
+@@ -113,7 +113,8 @@ Each head must pass every check below, or it is dropped and counted:
+     objects and records).
+   * Objects are deleted after processing **and** when their record is dropped (queue full, before the start record,
+     or any validation failure).
+-  * Files whose record line never arrived (for example, the listener died between writing and printing) remain until
++  * Files whose record line never arrived or could not be parsed (for example, the listener died between writing and
++    printing) remain until
+     the session ends, when the whole directory is removed.
+   * Session directories marked `OWNER` that a crashed earlier run left behind are removed at start; unmarked
+     directories are left alone.

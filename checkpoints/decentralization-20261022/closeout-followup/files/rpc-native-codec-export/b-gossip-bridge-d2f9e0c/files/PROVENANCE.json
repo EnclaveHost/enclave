@@ -1,0 +1,78 @@
+{
+ "revision": 2,
+ "generatedAt": "2026-10-23T02:25:48Z",
+ "bridge": {
+  "path": "work/resume-after-checkpoint-20261022/rpc-gossip-bridge",
+  "commitBeforeThisFile": "d767f80e27b1bb2457cccd35c910c5f8de849d2a",
+  "files": {
+   "network/gossip-head-source.mjs": "150a06f8b474d74c6542244290f3696d76aab65ac33c70f989a0d0781aa2eb0a",
+   "network/op-head-relay.mjs": "ed71c0695230c9400d759e792ae44da3a8fc27cf065abe9dddd9bec09411fe27",
+   "network/rpc-identity.mjs": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+   "test/gossip-head-source.test.mjs": "e0ce8a2d5b19fedc03e4ff1bd1d7479ed1f28a197f308da92d23a24c5a5565d4",
+   "test/fixtures/fake-listener.mjs": "c89d85c609872530a0538196e00edf0efa4e9a4f39aee1ebe3770409c4498deb",
+   "test/fixtures/listener-start-record.json": "b80d909fe8ae5a13418c66d269832f00a621009af045812f968520df2a458fec",
+   "test/fixtures/base-mainnet-52965074.head.json": "14fc7bb54d479e4dc2b2bb921bcf9c888403422906582e501b200535b10a0ca2",
+   "test/fixtures/base-mainnet-52965074.v4.snappy.hex": "b06394b42f810c93c30104492775d14f955b1a9120fe31b0fb57bb788af45015",
+   "test/fixtures/base-mainnet-52965075.head.json": "915453065b5d390f018490f6d7ffd1ced7dcdd58be2943237195a964ea31e0d9",
+   "test/fixtures/base-mainnet-52965075.v4.snappy.hex": "e55130dc6f67e67cad3e033c1ab29b4be4e0eb5ed4ad29bc4f5d7107e80251b5",
+   "test/fixtures/base-mainnet-52965076.head.json": "62f4b8b4e08834ca3708e9b128da05801614868fc184d01d3b1fafb383eda389",
+   "test/fixtures/base-mainnet-52965076.v4.snappy.hex": "02beaa24c8cc9e7ab7b68fb01dbc3e76bd737af2190c318f528482a9a6da7590"
+  },
+  "removed": [
+   "network/snappy-raw.mjs",
+   "test/snappy-raw.test.mjs"
+  ]
+ },
+ "listener": {
+  "path": "rpc-gossip-bridge/listener (separate git repo, gitignored by the bridge)",
+  "branch": "commitment-mode",
+  "base": "f3159ea73786eeda344f2ffa1dc82d59de46a6db (frozen, archived on checkpoint 2bbea898; untouched)",
+  "head": "5e178676bbe0ce5cda7ea95a3ccfefa8dca8a4b7",
+  "codeCommit": "a0c7c4e",
+  "files": {
+   "crates/enclave-base-head-listener/src/lib.rs": "14c951d1be4258380cd14d82578500c641d5651150860f6f2f5f35e076c4e3e1",
+   "crates/enclave-base-head-listener/src/main.rs": "8d752b0c4be6d6a82646c1efc1918a920bfff0a5c8b1dd63e25a0c8d696fe339",
+   "crates/enclave-base-head-listener/tests/commitment.rs": "034c65548f3e550d11128af416441eb792fbfd297ad3a8dcece3959d0fcee44d",
+   "crates/enclave-base-head-listener/Cargo.toml": "f9a7ef982882dd835ff93b9828366addbb0c8d889684e963b401e5455bd510a6",
+   "Cargo.lock": "5ad182d75859595c7e8f70f03b9ae35da9eeae3f6ef7890b367dca78b349c0eb",
+   "INTEGRATION.md": "9634aca3338ddf7947178937d8b4dc36ad61205497fe44250af40fd527d803ef"
+  },
+  "binary": {
+   "path": "listener/target/debug/enclave-base-head-listener (copied to artifacts/, gitignored)",
+   "sha256": "ebd045b428227530fac1c1b079f47c67ecb874637a1c7dcb4f021dd5929e8d3a",
+   "rust": "1.96.0",
+   "build": "listener/jobs/c1 2026-10-23T02:02:39Z-02:05:37Z queue 1536 peak 743 MiB"
+  },
+  "upstream": {
+   "source": "https://codeload.github.com/base/base/tar.gz/5476069f1eb74a56bccb56fdefd4b4bb0e3cda42",
+   "sha256": "9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012",
+   "crateManifestsModified": false
+  },
+  "lock": {
+   "sha256": "5ad182d75859595c7e8f70f03b9ae35da9eeae3f6ef7890b367dca78b349c0eb",
+   "diffVsF3159ea": "+1 line: \"snap\" in enclave-base-head-listener dependencies",
+   "packagesIdenticalToUpstream": 625
+  }
+ },
+ "references": {
+  "op-head-relay.mjs": {
+   "from": "rpc-priority/repo@97785a40c",
+   "sha256": "ed71c0695230c9400d759e792ae44da3a8fc27cf065abe9dddd9bec09411fe27",
+   "doNotMerge": true
+  },
+  "rpc-identity.mjs": {
+   "from": "rpc-priority/repo@97785a40c",
+   "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+   "doNotMerge": true
+  }
+ },
+ "jsDependencies": {
+  "new": [],
+  "viem": "2.53.1 via A's op-head-relay.mjs (A's package-lock integrity sha512-FhfJ/SW73CVosiyVLmIMVgKDRKYV1AGCLzZoHYvmNayyVff63Qi1ocPCk59LqC/cNw244RbBJjHnmxqXkE7NpA==)",
+  "node": "v22.23.3"
+ },
+ "tests": {
+  "native": "listener/jobs/c1.out 7/7",
+  "bridge": "jobs/r8.out 28/28 (2026-10-23T02:24:09Z, queue 768, unshare -r -n, peak 357 MiB)"
+ }
+}

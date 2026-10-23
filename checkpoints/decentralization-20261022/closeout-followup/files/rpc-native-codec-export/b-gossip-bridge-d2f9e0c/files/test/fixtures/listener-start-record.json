@@ -1,0 +1,27 @@
+{
+ "baseSourceCommit": "5476069f1eb74a56bccb56fdefd4b4bb0e3cda42",
+ "chainConfigDefaultSigner": "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a",
+ "chainId": 8453,
+ "forkSchedule": {
+  "azul": 1779991200,
+  "beryl": 1782410400,
+  "cobalt": 1790791200,
+  "denim": 1793901600,
+  "isthmus": 1746806401,
+  "jovian": 1764691201
+ },
+ "limits": {
+  "discovery": "Bounded",
+  "discoveryAfterSecs": 10,
+  "durationSecs": 120,
+  "maxOutputBytes": 67108864,
+  "maxPeers": 20
+ },
+ "objectEncoding": "base-network-payload-envelope-v4-snappy",
+ "schema": "enclave-base-unsafe-head/v1",
+ "signer": "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a",
+ "signerMatchesChainDefault": true,
+ "signerSource": "admin-pin",
+ "startedUnixMs": 1792719439520,
+ "type": "start"
+}

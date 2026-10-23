@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-23T02:13:57.514321+00:00",
+  "capturedAt": "2026-10-23T02:38:04.298448+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -37,7 +37,14 @@
       "bytes": 570
     },
     {
-      "label": "ROOT receipt: RUNNING, NOT COMPLETE (unit sia-whole-restore-efe2c21b-001; the file holds the INITIAL progress, 19 files). Root reported 425 files / 950 MB committed + 327 MB in flight at 01:35. Isolation verified 31/31 endpoints blocked, 6/6 names unresolved, 2 Sia hosts reached. SAME physical host as indexd: not host-loss proof",
+      "label": "LATEST ROOT receipt for the whole-bucket Sia recovery: FAILED_OOM_KILL_NO_FINAL_INVENTORY at 02:20:32Z (800 MiB cgroup; the two Python isolation bridges dominated memory). 1460 files / 12.39 GB observed, no result file: NOT a verified full recovery. Partial files stay private",
+      "source": "outputs/decentralization-audit/storage-whole-recovery-failure-20261023.json",
+      "stored": "files/outputs/decentralization-audit/storage-whole-recovery-failure-20261023.json",
+      "sha256": "daddc73ffa798920b524aa391d4130199aff1021461ce5192c9f02debe1649e0",
+      "bytes": 1089
+    },
+    {
+      "label": "HISTORICAL ROOT receipt, SUPERSEDED by storage-whole-recovery-failure-20261023.json: the run later FAILED (OOM kill 02:20:32Z, no final inventory). At its capture it was RUNNING (unit sia-whole-restore-efe2c21b-001; initial progress, 19 files; 425 files / 950 MB at 01:35; isolation 31/31 endpoints blocked, 6/6 names unresolved, 2 Sia hosts reached; SAME physical host as indexd). Kept unchanged; never evidence of a completed recovery",
       "source": "outputs/decentralization-audit/storage-whole-recovery-live-20261023.json",
       "stored": "files/outputs/decentralization-audit/storage-whole-recovery-live-20261023.json",
       "sha256": "c6bfa9e5a835d4d7fa1e0d89bc4b766d0cd9bed5389f8884c40c6ed3ef1ad57a",
@@ -65,11 +72,25 @@
       "bytes": 3586
     },
     {
+      "label": "ROOT receipt: second app-paid renewal cycle on the same process and nine apps (counts/lease times only); operational observation, not full decentralization",
+      "source": "outputs/decentralization-audit/windows-node-second-renewal-cycle-20261023.json",
+      "stored": "files/outputs/decentralization-audit/windows-node-second-renewal-cycle-20261023.json",
+      "sha256": "eea553d1ca2e10c769d7e2061a98f00bfd04a12c19cf4aa793acf2d400e6d04f",
+      "bytes": 1719
+    },
+    {
       "label": "ROOT public receipt (updated 01:45Z): APPLIED and independently verified serving after the bounded startup check timed out (helper NOT_READY, not passed). Renewal followup: 9 renewals of 9 distinct apps under the new runtime (two-provider corroboration, NOT independent witness verification; events cannot tell the keeper timer from the regular pass); route followup tail-limited; not full decentralization",
       "source": "outputs/decentralization-audit/windows-node-update-20261023.json",
       "stored": "files/outputs/decentralization-audit/windows-node-update-20261023.json",
       "sha256": "9f8d2f8a9c8e66398497ea649767aaa9379d1b9bac011c327336b558d6e9f0fc",
       "bytes": 3074
+    },
+    {
+      "label": "ROOT receipt: the scheduled updater run kept the reviewed runtime hashes; not proof that a future published update preserves them, not a signed production release",
+      "source": "outputs/decentralization-audit/windows-node-updater-postcheck-20261023.json",
+      "stored": "files/outputs/decentralization-audit/windows-node-updater-postcheck-20261023.json",
+      "sha256": "2fab2c0f1931d6d356c22e90bb85940edceeeae744ef2ab74c9599bc54dcf13c",
+      "bytes": 856
     },
     {
       "label": "ROOT receipt (updated 01:55:06Z, was 01:44:57Z): corrected route script, usable: 957 tail lines since 01:19:00Z (start covered), 0 egress OFF / 0 wallet withheld up to the 01:54:54Z log write, 3 chain-quorum-unavailable lines. Tail-limited; zero matches alone is never evidence of stability",
@@ -84,6 +105,27 @@
       "stored": "files/outputs/decentralization-audit/windows-source-composition-root-review-20261023.json",
       "sha256": "ee91441f058b9e2c7d13740bf477ae4c59f1c02e68992f1408bf82a8183fd83a",
       "bytes": 2223
+    },
+    {
+      "label": "ROOT source review (02:07Z): runPrivacy rejects an empty app list before hostServices start = an open cold-bootstrap gate; source-level, not a production outage claim",
+      "source": "work/resume-after-checkpoint-20261022/ROOT-HOST-SERVICE-COLD-REVIEW.txt",
+      "stored": "files/ROOT-HOST-SERVICE-COLD-REVIEW.txt",
+      "sha256": "1c811c4fe28509091cce1e8eb69e2553a86c8da09128d97c7fb2bfa954003808",
+      "bytes": 1644
+    },
+    {
+      "label": "ROOT source review of D (02:13Z): permit epoch/identity and unconfirmed-stop concerns to verify; review only, nothing reproduced by a test yet",
+      "source": "work/resume-after-checkpoint-20261022/ROOT-LINUX-HOLD-REVIEW.txt",
+      "stored": "files/ROOT-LINUX-HOLD-REVIEW.txt",
+      "sha256": "c1b4bbf6b614fb21f12720d443752b77f64ca43b2e165797e738edde7d43ff92",
+      "bytes": 1769
+    },
+    {
+      "label": "ROOT read-only review of E's receipt verifier (01:52Z). The receipt probe did NOT RUN (missing binary): nothing here is reproduced",
+      "source": "work/resume-after-checkpoint-20261022/ROOT-RECEIPT-REVIEW.txt",
+      "stored": "files/ROOT-RECEIPT-REVIEW.txt",
+      "sha256": "bfdc3482057256ecba93d70f275d85194beb06c39291f0c0835e963109158250",
+      "bytes": 1026
     },
     {
       "source": "work/resume-after-checkpoint-20261022/adapter-activation-review/RESULT.md",
@@ -873,6 +915,13 @@
       "stored": "files/dns-tls-publication/a2b8fabd-five-files.patch",
       "sha256": "1b6efb04d28892f1c2a1a500057f1c4d895935335611344f3fdb7af2ade77935",
       "bytes": 19130
+    },
+    {
+      "label": "D's RESULT.md at its stable bytes: epoch / failed-stop review pending, no image or deployment",
+      "source": "work/resume-after-checkpoint-20261022/linux-wallet-unknown/RESULT.md",
+      "stored": "files/linux-wallet-unknown/RESULT.md",
+      "sha256": "d301ff6b2d3b56f46ccb9c6e6706b1143ca7d6e872c662984fa5d56c27d9d898",
+      "bytes": 13504
     },
     {
       "source": "work/resume-after-checkpoint-20261022/measured-composition/RESULT-closeout.json",
@@ -4284,6 +4333,34 @@
       "bytes": 1589
     },
     {
+      "label": "ROOT offline probe (unshare -rn, queue 256): a valid hostServices block with apps[] is refused early; proves the empty-app gate only, not that all other config is valid",
+      "source": "work/resume-after-checkpoint-20261022/root-service-empty-apps-probe/result.json",
+      "stored": "files/root-service-empty-apps-probe/result.json",
+      "sha256": "001eca4891cfb6c2cf31d63f127ba07be43c66a6f6e4c20d28155f67f4c8f38f",
+      "bytes": 465
+    },
+    {
+      "label": "ROOT offline probe (unshare -rn, queue 256): a valid hostServices block with apps[] is refused early; proves the empty-app gate only, not that all other config is valid",
+      "source": "work/resume-after-checkpoint-20261022/root-service-empty-apps-probe.mjs",
+      "stored": "files/root-service-empty-apps-probe.mjs",
+      "sha256": "b0f95b461aafa523f995d1763210f940021b435f7dfff9641145ebc3007eb053",
+      "bytes": 1942
+    },
+    {
+      "label": "ROOT offline probe: the witness gateway cache kept a malformed proof (availability / cache-poisoning risk); Helios is expected to reject it; NOT acceptance of false chain state",
+      "source": "work/resume-after-checkpoint-20261022/root-witness-cache-probe/result.json",
+      "stored": "files/root-witness-cache-probe/result.json",
+      "sha256": "bc532f4a7e0bf664332b22ac49e37b6cc44f527ca57fedffd301728fa9060ce3",
+      "bytes": 472
+    },
+    {
+      "label": "ROOT offline probe: the witness gateway cache kept a malformed proof (availability / cache-poisoning risk); Helios is expected to reject it; NOT acceptance of false chain state",
+      "source": "work/resume-after-checkpoint-20261022/root-witness-cache-probe.mjs",
+      "stored": "files/root-witness-cache-probe.mjs",
+      "sha256": "a2b37ad7fbebbd1de99753f8b07ae3206322ec6c29ed54741d98699733958ca6",
+      "bytes": 2207
+    },
+    {
       "label": "FINISHED Base EVM work (worker A), SOURCE + OFFLINE/RECORDED FIXTURES ONLY: Enclave candidate 9fdc1418c (4 patches on public dfe020abf; NOT merged into the normal tree) and patched Helios eeffcc9 (enclave-base-evm, 4 patches on upstream 0.12.0 2af9b418 incl. compat 0a02256; base/base v1.5.1 5476069f path dependency), exported from Git objects; all 8 commit trees reproduced exactly. Proven: 5 real Cobalt-era mainnet eth_call replays byte-exact, offline replay 12/12, Rust 15/15, real gossip head E2E 3/3 (debug builds only). NOT deployed; NOT RPC independence; no fresh proof-source independence, finality, tx broadcast, consumer wiring or Sia backend. Base execution refused from Denim (2026-11-05T18:00Z) until validated",
       "source": "work/resume-after-checkpoint-20261022/rpc-base-evm-export/INVENTORY.json",
       "stored": "files/rpc-base-evm-export/INVENTORY.json",
@@ -4499,6 +4576,923 @@
       "stored": "files/rpc-base-evm-export/helios-enclave-base-evm-eeffcc9/patches/0004-opstack-server-serve-heads-from-a-verified-directory.patch",
       "sha256": "b45e01d8f8f15478798f7a5329f2a33a6f1e49ab75195f0e5ab6760b27a0b847",
       "bytes": 10512
+    },
+    {
+      "label": "listener vendoring provenance (pinned base/base tarball sha256, unmodified crate manifests)",
+      "source": "work/resume-after-checkpoint-20261022/rpc-gossip-bridge/listener/upstream/PROVENANCE.json",
+      "stored": "files/rpc-gossip-bridge/listener/upstream/PROVENANCE.json",
+      "sha256": "f802da9444bef0db160e5ed52ddae40444de23d1dbd94a13d62f5c32dac5cc36",
+      "bytes": 924
+    },
+    {
+      "label": "FINISHED worker commits exported from Git objects; all commit trees reproduced exactly (REPRODUCE-CHECK.txt). SOURCE + OFFLINE PROOF ONLY, not merged into the normal tree, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/INVENTORY.json",
+      "stored": "files/rpc-native-codec-export/INVENTORY.json",
+      "sha256": "b41ee8b1a45bccac87acb29cacce196f82015b11a3eec359610d8e4365abafb9",
+      "bytes": 50980
+    },
+    {
+      "label": "FINISHED worker commits exported from Git objects; all commit trees reproduced exactly (REPRODUCE-CHECK.txt). SOURCE + OFFLINE PROOF ONLY, not merged into the normal tree, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/REBUILD.md",
+      "stored": "files/rpc-native-codec-export/REBUILD.md",
+      "sha256": "300e7a848bb248150d00b8e018e4d21f142d6cf342eb68988fafa3aaea81645a",
+      "bytes": 2479
+    },
+    {
+      "label": "FINISHED worker commits exported from Git objects; all commit trees reproduced exactly (REPRODUCE-CHECK.txt). SOURCE + OFFLINE PROOF ONLY, not merged into the normal tree, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/REPRODUCE-CHECK.txt",
+      "stored": "files/rpc-native-codec-export/REPRODUCE-CHECK.txt",
+      "sha256": "92ed42ee507487051407ba7121b41e6b995203f8e0b90d5687281a781c07c971",
+      "bytes": 1702
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/.gitignore",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/.gitignore",
+      "sha256": "1237f3b2a25fba7481e550001c386f528f6641998cae8b731f0db165ce698db9",
+      "bytes": 37
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/PROVENANCE.json",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/PROVENANCE.json",
+      "sha256": "4a56e9317108e64a55fe102c1c7e2540b319768594fe3ac683987a519d0d8b0c",
+      "bytes": 4188
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/RESULT.md",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/RESULT.md",
+      "sha256": "68ce55610ba7453ddc9b979c49bd76cb05a10287264475e3f852277ca6d77984",
+      "bytes": 13854
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/bridge-tests.sh",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/bridge-tests.sh",
+      "sha256": "209252feb719266715cdc8da1d59159efe7a611bd7fe9fb9c16cf1591d9cfea0",
+      "bytes": 917
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/diag.guard.log",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/diag.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/diag.sh",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/diag.sh",
+      "sha256": "e8a776678d8ebf9805049c95b9e4979159861e09c36085b8baa67418e3fc39b3",
+      "bytes": 739
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r1.guard.log",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r1.guard.log",
+      "sha256": "0843729f25dafaffcd7aaf3c9cfa49855b4575fd6d134140fd0a761123294e10",
+      "bytes": 67
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r1.out",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r1.out",
+      "sha256": "7860b3f3543d5c93e631d218dc19332b5e7e09cef0d221bd1d8f9f02dbdcd74e",
+      "bytes": 8682
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r1.rc",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r1.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r2.guard.log",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r2.guard.log",
+      "sha256": "da0cadd50b8b2be61473a9fac425200f2b84f611a0d0d0c37f7544564a51207f",
+      "bytes": 67
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r2.out",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r2.out",
+      "sha256": "3f5156d4e75d8c229e395c697ebb79036cd6cbba094f181c7d529b2341e79008",
+      "bytes": 8529
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r2.rc",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r2.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r3.guard.log",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r3.guard.log",
+      "sha256": "95bba8e71c7afcebabaa90b61def8c945808311cef91e63b6442a732c3194131",
+      "bytes": 67
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r3.out",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r3.out",
+      "sha256": "5d8b96efaf095ce91c80dc1b30f5b69b01ed4174d1a1f1db49687d69e330fb26",
+      "bytes": 8003
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r3.rc",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r3.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r4.guard.log",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r4.guard.log",
+      "sha256": "158334a54883feb46a93b31f0282ffd78c14106d14cdb0f043d796ebb2424dbd",
+      "bytes": 67
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r4.out",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r4.out",
+      "sha256": "9a3dd7f74268934c1ddb298beeda976da5df13805e49d80c50a3326881c169f6",
+      "bytes": 7431
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r4.rc",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r4.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r5.guard.log",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r5.guard.log",
+      "sha256": "eeae23a9a2c48ad23a76cdc1dba27a7cc480fc781d5d641c14f6019e65850351",
+      "bytes": 67
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r5.out",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r5.out",
+      "sha256": "a56b1fcce07a7e96c24f1bb67e9e662f6ad58b20fa09becffd86818ef8346890",
+      "bytes": 7393
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r5.rc",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r5.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r6.guard.log",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r6.guard.log",
+      "sha256": "253997ec57b69beb68a5ec8a5398d9615b322187b715d12e44dcad0493c0ce2b",
+      "bytes": 67
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r6.out",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r6.out",
+      "sha256": "6da5697c519d879ec147557955c0f20f39216303c395ea6d255f5bf1cb7a6e15",
+      "bytes": 7365
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r6.rc",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r6.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r7.guard.log",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r7.guard.log",
+      "sha256": "6115e1f96ba1c4fa4d4bb60de733f838a89c135859167af7d510e91c9e40d6ac",
+      "bytes": 67
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r7.out",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r7.out",
+      "sha256": "8c04c7aa56b5d9cea97ef8760ffed413c9e4d2e26f8e45ad4d58c4ef4056ce80",
+      "bytes": 15149
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r7.rc",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r7.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r8.guard.log",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r8.guard.log",
+      "sha256": "6daee41385f656c203379bdd75fc1904b26270e605aa1f56cae64d3f0599ff42",
+      "bytes": 67
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r8.out",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r8.out",
+      "sha256": "fdfbaf6de13028e1c2388104fe55696138f1e885284cff5fc954ff5200d7c629",
+      "bytes": 7064
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r8.rc",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/r8.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/run-q.sh",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/jobs/run-q.sh",
+      "sha256": "ad74dc1277f6943d6ebff8a530472c285c4afca7bddebf535a9887da9809a424",
+      "bytes": 409
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/network/gossip-head-source.mjs",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/network/gossip-head-source.mjs",
+      "sha256": "150a06f8b474d74c6542244290f3696d76aab65ac33c70f989a0d0781aa2eb0a",
+      "bytes": 24388
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/network/op-head-relay.mjs",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/network/op-head-relay.mjs",
+      "sha256": "ed71c0695230c9400d759e792ae44da3a8fc27cf065abe9dddd9bec09411fe27",
+      "bytes": 13783
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/network/rpc-identity.mjs",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/network/rpc-identity.mjs",
+      "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+      "bytes": 5636
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/base-mainnet-52965074.head.json",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/base-mainnet-52965074.head.json",
+      "sha256": "14fc7bb54d479e4dc2b2bb921bcf9c888403422906582e501b200535b10a0ca2",
+      "bytes": 805
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/base-mainnet-52965074.v4.snappy.hex",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/base-mainnet-52965074.v4.snappy.hex",
+      "sha256": "b06394b42f810c93c30104492775d14f955b1a9120fe31b0fb57bb788af45015",
+      "bytes": 78909
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/base-mainnet-52965075.head.json",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/base-mainnet-52965075.head.json",
+      "sha256": "915453065b5d390f018490f6d7ffd1ced7dcdd58be2943237195a964ea31e0d9",
+      "bytes": 804
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/base-mainnet-52965075.v4.snappy.hex",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/base-mainnet-52965075.v4.snappy.hex",
+      "sha256": "e55130dc6f67e67cad3e033c1ab29b4be4e0eb5ed4ad29bc4f5d7107e80251b5",
+      "bytes": 114451
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/base-mainnet-52965076.head.json",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/base-mainnet-52965076.head.json",
+      "sha256": "62f4b8b4e08834ca3708e9b128da05801614868fc184d01d3b1fafb383eda389",
+      "bytes": 804
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/base-mainnet-52965076.v4.snappy.hex",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/base-mainnet-52965076.v4.snappy.hex",
+      "sha256": "02beaa24c8cc9e7ab7b68fb01dbc3e76bd737af2190c318f528482a9a6da7590",
+      "bytes": 106479
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/fake-listener.mjs",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/fake-listener.mjs",
+      "sha256": "c89d85c609872530a0538196e00edf0efa4e9a4f39aee1ebe3770409c4498deb",
+      "bytes": 3526
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/listener-start-record.json",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/fixtures/listener-start-record.json",
+      "sha256": "b80d909fe8ae5a13418c66d269832f00a621009af045812f968520df2a458fec",
+      "bytes": 742
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/gossip-head-source.test.mjs",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/files/test/gossip-head-source.test.mjs",
+      "sha256": "e0ce8a2d5b19fedc03e4ff1bd1d7479ed1f28a197f308da92d23a24c5a5565d4",
+      "bytes": 19991
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0001-Native-Base-gossip-head-source-for-op-head-relay-off.patch",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0001-Native-Base-gossip-head-source-for-op-head-relay-off.patch",
+      "sha256": "a9526fbd60bcd912e705769818df37329b6276cd4169e65c8081fac3c725e643",
+      "bytes": 374613
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0002-verify-object-gets-the-configured-env-fix-snappy-ove.patch",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0002-verify-object-gets-the-configured-env-fix-snappy-ove.patch",
+      "sha256": "c53a27bad56dee0e4a496c8c92ecfcdebbf2e65f42a8788e523cefb8b015dcc7",
+      "bytes": 13316
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0003-Tests-report-adapter-counters-on-timeout-pin-mismatc.patch",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0003-Tests-report-adapter-counters-on-timeout-pin-mismatc.patch",
+      "sha256": "561d6aabf0c93b971174ea5ae9d6b6bdc7417fa215bd7f494a73d3d2455366ce",
+      "bytes": 12611
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0004-Tests-signature-region-flip-must-be-refused-content-.patch",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0004-Tests-signature-region-flip-must-be-refused-content-.patch",
+      "sha256": "2010a8feb0d66c5bd50f182a46b4775c3d7426421acbf31cda606298d8c43478",
+      "bytes": 13262
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0005-Tests-the-content-identical-re-encoding-case-is-dete.patch",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0005-Tests-the-content-identical-re-encoding-case-is-dete.patch",
+      "sha256": "1d20b110ddb441c1f0b26048f5851f92472624437d6e498033617a7439e544d3",
+      "bytes": 10542
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0006-Delete-each-processed-object-disk-use-bounded-by-in-.patch",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0006-Delete-each-processed-object-disk-use-bounded-by-in-.patch",
+      "sha256": "042f601db8f143607941c803965e32b227ab71e5abcf84cafb4fdb4120935be6",
+      "bytes": 10904
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0007-RESULT-provenance-and-integration-instructions.patch",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0007-RESULT-provenance-and-integration-instructions.patch",
+      "sha256": "76ea39d96127c2c1f70634e315d4f53d97c1d832cf7c65ce28d7b4ba17f000ba",
+      "bytes": 25072
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0008-Consume-the-native-commitment-mode-drop-the-JS-snapp.patch",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0008-Consume-the-native-commitment-mode-drop-the-JS-snapp.patch",
+      "sha256": "975a5424d29d59ec75b782a2a0c92cd120bc764b1ba1d2799cc172e9236c0445",
+      "bytes": 42731
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0009-Test-stand-in-do-not-truncate-large-delegated-output.patch",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0009-Test-stand-in-do-not-truncate-large-delegated-output.patch",
+      "sha256": "ae11eed3e714348a2e09ed92a8fad07cfeeb98198218934ba4c1ee3ee0e52965",
+      "bytes": 19099
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0010-RESULT-revision-2-provenance-native-commitment-mode-.patch",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0010-RESULT-revision-2-provenance-native-commitment-mode-.patch",
+      "sha256": "6addab7fed1f43f91437df0e02ed43d2af000b1df56012bb783114c9818fdfa0",
+      "bytes": 42324
+    },
+    {
+      "label": "B gossip-head-source bridge: consumes the native commitment mode (no JS codec); A's relay verifyCommitment recovers the signer independently; bounded disk/archive/queue; 28/28 offline in an isolated netns. Unsafe tier only; no finality, fresh-state or Denim-rate proof; live availability = one 120 s run",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0011-RESULT-unparseable-record-files-are-also-session-bou.patch",
+      "stored": "files/rpc-native-codec-export/b-gossip-bridge-d2f9e0c/patches/0011-RESULT-unparseable-record-files-are-also-session-bou.patch",
+      "sha256": "efe5fc8c1ad005377a9391e5d54e6cde6e71f929fcf18c5cc96f5d1049566ec8",
+      "bytes": 1227
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/Cargo.lock",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/Cargo.lock",
+      "sha256": "5ad182d75859595c7e8f70f03b9ae35da9eeae3f6ef7890b367dca78b349c0eb",
+      "bytes": 164120
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/INTEGRATION.md",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/INTEGRATION.md",
+      "sha256": "9634aca3338ddf7947178937d8b4dc36ad61205497fe44250af40fd527d803ef",
+      "bytes": 6771
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/build-commitment.sh",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/build-commitment.sh",
+      "sha256": "d678f6f8aed4d4968d8c7e9c9e3500f6d165c5f68ead16a1b3f0464adb3f8150",
+      "bytes": 798
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/Cargo.toml",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/Cargo.toml",
+      "sha256": "f9a7ef982882dd835ff93b9828366addbb0c8d889684e963b401e5455bd510a6",
+      "bytes": 1930
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/src/lib.rs",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/src/lib.rs",
+      "sha256": "14c951d1be4258380cd14d82578500c641d5651150860f6f2f5f35e076c4e3e1",
+      "bytes": 21155
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/src/main.rs",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/src/main.rs",
+      "sha256": "8d752b0c4be6d6a82646c1efc1918a920bfff0a5c8b1dd63e25a0c8d696fe339",
+      "bytes": 25834
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/tests/commitment.rs",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/tests/commitment.rs",
+      "sha256": "034c65548f3e550d11128af416441eb792fbfd297ad3a8dcece3959d0fcee44d",
+      "bytes": 7853
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965075.head.json",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965075.head.json",
+      "sha256": "915453065b5d390f018490f6d7ffd1ced7dcdd58be2943237195a964ea31e0d9",
+      "bytes": 804
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965075.v4.snappy.hex",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965075.v4.snappy.hex",
+      "sha256": "e55130dc6f67e67cad3e033c1ab29b4be4e0eb5ed4ad29bc4f5d7107e80251b5",
+      "bytes": 114451
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965076.head.json",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965076.head.json",
+      "sha256": "62f4b8b4e08834ca3708e9b128da05801614868fc184d01d3b1fafb383eda389",
+      "bytes": 804
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965076.v4.snappy.hex",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/crates/enclave-base-head-listener/tests/fixtures/base-mainnet-52965076.v4.snappy.hex",
+      "sha256": "02beaa24c8cc9e7ab7b68fb01dbc3e76bd737af2190c318f528482a9a6da7590",
+      "bytes": 106479
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/jobs/c1.guard.log",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/jobs/c1.guard.log",
+      "sha256": "8320f59ac53ef671ec08f35f183dcf0ae0b02cac90884b0e550c0a1a5072a231",
+      "bytes": 67
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/jobs/c1.out",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/jobs/c1.out",
+      "sha256": "c9d8068379fe32135648caeb097786df89bb01a751505045c9ad1a4de115125f",
+      "bytes": 19385
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/jobs/c1.rc",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/jobs/c1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/jobs/run-q.sh",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/files/jobs/run-q.sh",
+      "sha256": "607d5666afc585748f92f3b8b65cdd62e985d61783095d042153a443d877fb46",
+      "bytes": 391
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/patches/0001-commitment-mode-maintained-verify-first-then-exact-s.patch",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/patches/0001-commitment-mode-maintained-verify-first-then-exact-s.patch",
+      "sha256": "5aa277494bf281e0d07247af320b0c5faee9136ebaa6b9f52252823cfbd1dbef",
+      "bytes": 247800
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/patches/0002-Lock-snap-joins-the-listener-s-direct-deps-no-packag.patch",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/patches/0002-Lock-snap-joins-the-listener-s-direct-deps-no-packag.patch",
+      "sha256": "fcc3f087e85e6a4ce1238d6c400a5f473d3e772809fbaec14a7a356fb06bd580",
+      "bytes": 21444
+    },
+    {
+      "label": "B listener commitment mode (code a0c7c4e, 3 patches on f3159ea): maintained base/base verify FIRST, then the exact signed commitment bytes from the maintained snap decoder, bounded before allocation; native 7/7 offline. Debug binary ebd045b4 not stored. No RPC independence, finality or state availability",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/b-listener-commitment-mode-5e17867/patches/0003-Document-the-commitment-mode.patch",
+      "stored": "files/rpc-native-codec-export/b-listener-commitment-mode-5e17867/patches/0003-Document-the-commitment-mode.patch",
+      "sha256": "25418408ce4c089f4b169a681478daf9398f6e3b95322b42dc94486a68e2e133",
+      "bytes": 2447
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/build.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/build.mjs",
+      "sha256": "a7aeb460dcbd3a7b94bd4fd1274197d533fe3861359cd457c1026dc66938283a",
+      "bytes": 2041
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/enclave-network-host.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/enclave-network-host.mjs",
+      "sha256": "7c2f8af54bcb546d27b5ac960cddff818be25a7e0ad9b50edaac63ff7b6d99b8",
+      "bytes": 18361
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/host-admission-runtime.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/host-admission-runtime.mjs",
+      "sha256": "cb42269dad71148d2efc20a1167847472e9e94e9a915c3a50f564179c53739e2",
+      "bytes": 10233
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/host-service-ingress.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/host-service-ingress.mjs",
+      "sha256": "5465684fdff06a309ee4e8b836e5f0664f5469766a8bfe2518b9f810b9461b7c",
+      "bytes": 3931
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/host-service-names.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/host-service-names.mjs",
+      "sha256": "a46123cbb70ab666f9dfb23b5b545fe76d87658c6bf82c7f7574579d0c65b32c",
+      "bytes": 3636
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/host-service-transport.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/host-service-transport.mjs",
+      "sha256": "de5bb98a2e77ffd90ccf65211f564d9515f667b4cd6d17cbb3644fb2ca454e06",
+      "bytes": 12119
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/host-services/roles.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/host-services/roles.mjs",
+      "sha256": "c956cae557bccd31e8d137ced6a53eb252f28de2deb53fc43d77362f38a21e0e",
+      "bytes": 17915
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/host-services/stage-tool.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/host-services/stage-tool.mjs",
+      "sha256": "957de80cec9aabd3f5c9a9655712c412ae1fb3c50d8088d01bd2390f91e2a0ac",
+      "bytes": 34587
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/local-app-router.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/local-app-router.mjs",
+      "sha256": "40a8240afc8a5cb4292a8cfa6b61189a574e92a4103479d1e2891adaae4370df",
+      "bytes": 8383
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/privacy-agent.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/privacy-agent.mjs",
+      "sha256": "a3f08aca344d4022f9af3d3954c9d6601654ab084251dcbd60d1ee76372f9c62",
+      "bytes": 31879
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wallet-admission.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wallet-admission.mjs",
+      "sha256": "0fa7678f7586388b4725f1432683fa4ab172fd1d57c163d9a63195fbb2f445ee",
+      "bytes": 8664
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg/cmd/enclave-wg/main.go",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg/cmd/enclave-wg/main.go",
+      "sha256": "b1772502efc59b1ec531f07f869ca4aa187b6f3d84d4754edab65c40eaff70c9",
+      "bytes": 10101
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg/forward.go",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg/forward.go",
+      "sha256": "c9dea2ce078b4a2adc38ab13cddf19f68861b63946028479b9815803fef14e7a",
+      "bytes": 3570
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg/udpforward.go",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg/udpforward.go",
+      "sha256": "46a58c236c7b283558b7755c4b2d60e6259d9fc45038ddc8b8549fe15729d01f",
+      "bytes": 9028
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg/udpforward_test.go",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg/udpforward_test.go",
+      "sha256": "b9b1daa7c558aae52df04f57b6e41be7d781a5af913b4d6dfb0c63fc3e26b692",
+      "bytes": 14490
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-circuit-runtime.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-circuit-runtime.mjs",
+      "sha256": "ff7784432eb812d47079fa4e34ee575bc75a53f4d05cfa5ff41e3f9c7d2fa03f",
+      "bytes": 19380
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-control.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-control.mjs",
+      "sha256": "c14a2fa76b206f5a9dd6f15f3f00a59088d31fb503a8236fa5c74c02f34c845d",
+      "bytes": 4660
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-grants.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-grants.mjs",
+      "sha256": "0f9016bc93196f549c5f3f17b20e333108aa3d04ea09d2b3610aaa489cbf6e02",
+      "bytes": 4422
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-manager.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-manager.mjs",
+      "sha256": "c27049e2d7f7ee9c93780c265a0d3f6cfdd197ffdfe1c509e783cb6cd487c5af",
+      "bytes": 21431
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/control.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/control.mjs",
+      "sha256": "12e0d287025a22edaa814f1966cc943ea4cb9aa7d8f0342ddb60343162d1bc9e",
+      "bytes": 2346
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/dns-probe.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/dns-probe.mjs",
+      "sha256": "a5de2f2bcde518bbee0c3b1392c64e6209cd215d61f1891742c6438e73810a97",
+      "bytes": 1695
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/host-services-config.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/host-services-config.mjs",
+      "sha256": "cd3feaab7996adb00a8f4da8ee158444898805c00bfebc59843fde9c1c6b8054",
+      "bytes": 5753
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/install.sh",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/install.sh",
+      "sha256": "d21197d5915362be64f7180a4d510ac6e2ccdfaeb3424f5dd6ecd481a862ebf5",
+      "bytes": 9936
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/kernel.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/kernel.mjs",
+      "sha256": "b912c85cc90b63c0f0b9dcc3bc8545d0317c1985c5a180b161d16bdc2890033b",
+      "bytes": 13579
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/main.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/main.mjs",
+      "sha256": "166ed03faa2bd1307f9f5d9c3fee3f451faa112548295fb93f2230cd5773f574",
+      "bytes": 18290
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/provider.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/network/wg-provider/provider.mjs",
+      "sha256": "68ceaff71d2ba1313b7fcd580997fb7733513731bde8c0d7269694d8c4d40cd6",
+      "bytes": 31269
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/scripts/check-transport-profile.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/scripts/check-transport-profile.mjs",
+      "sha256": "0c058df2b4285d94a0e136cbd7640caebb3ad40deab5b5df137cc31009ebd4bf",
+      "bytes": 4877
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/fixtures/challenge-replica-reviewed.json",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/fixtures/challenge-replica-reviewed.json",
+      "sha256": "2b644d22c3fe1517fcca13fd01c07363cd0f5f5a65ea7f16fb466d958d0b62ad",
+      "bytes": 2750
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/helpers/windows-lease-scripted-fixture.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/helpers/windows-lease-scripted-fixture.mjs",
+      "sha256": "7f41a0147f62e7fa94e6f1c0045cbc29ff7dcf6e3a8a0f7e6d1f8d0c5ee9936b",
+      "bytes": 789
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/host-admission-runtime.test.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/host-admission-runtime.test.mjs",
+      "sha256": "648a4236bc4eddb186b0fadb9932bbe6289d5fb7078812d276984bee35a7b283",
+      "bytes": 6387
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/host-service-transport.test.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/host-service-transport.test.mjs",
+      "sha256": "ea167d1b8e11e6a8d4b73ff0b1da21aedebdce49b166ab007739aacc6e15740b",
+      "bytes": 26839
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/windows-node-appzone-wallet-hold.test.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/windows-node-appzone-wallet-hold.test.mjs",
+      "sha256": "abaa681164f9a9d907b64b802275105acde9b365e07fffc378ad43b87ea819cd",
+      "bytes": 4276
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/windows-node-lease-readiness.test.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/windows-node-lease-readiness.test.mjs",
+      "sha256": "88e42af545822c9018c2c1510e867a5d7c6ecd6a8b4198e6b982769dab72c3a6",
+      "bytes": 7175
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/windows-node-lease-renewal-keeper.test.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/windows-node-lease-renewal-keeper.test.mjs",
+      "sha256": "519c431cec67fda2d8d2a84085760470f74517a66e74efdaa86a71ebe230f267",
+      "bytes": 33838
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/windows-node-wallet-enroll.test.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/windows-node-wallet-enroll.test.mjs",
+      "sha256": "5270bef33e77301f9ef896aa3c254d7c05e6d9bc14528839879edf766d2a6573",
+      "bytes": 3522
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/windows-node-wallet-grant-refresh.test.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/windows-node-wallet-grant-refresh.test.mjs",
+      "sha256": "903de4163ea715ed3ecf3b7179fcd52235e50b24f35f5f88598da262bec2851b",
+      "bytes": 19763
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/windows-node-wallet-network-hold.test.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/test/windows-node-wallet-network-hold.test.mjs",
+      "sha256": "d12d1aa8f44bc8944a4c994e86904ed4fc4820f9fe0b320cc14de49c4ef5ddc2",
+      "bytes": 20669
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/installer/stage-bundle.sh",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/installer/stage-bundle.sh",
+      "sha256": "6a797277f8c34b36c45799ddc63e52a354b82b3bfbe8bd3d6ff978d047725688",
+      "bytes": 5554
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/node/agent.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/node/agent.mjs",
+      "sha256": "76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1",
+      "bytes": 92997
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/node/appzone.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/node/appzone.mjs",
+      "sha256": "65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68",
+      "bytes": 19657
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/node/chain.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/node/chain.mjs",
+      "sha256": "3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938",
+      "bytes": 58660
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/node/host-admission.bundle.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/node/host-admission.bundle.mjs",
+      "sha256": "3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8",
+      "bytes": 349063
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/node/host.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/node/host.mjs",
+      "sha256": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
+      "bytes": 306881
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/node/network-enroll.mjs",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/files/windows/node/network-enroll.mjs",
+      "sha256": "a9729786598107e69d24d5163ea8592d114f93a9b6693106a7fa3414c95430d6",
+      "bytes": 16181
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0001-Compose-the-network-side-of-the-non-destructive-wall.patch",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0001-Compose-the-network-side-of-the-non-destructive-wall.patch",
+      "sha256": "643448893c073d8ffa4e2974f4c2628989c6b344f632351430865604ac492f07",
+      "bytes": 145871
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0002-Compose-the-Windows-node-s-wallet-hold-channel-and-l.patch",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0002-Compose-the-Windows-node-s-wallet-hold-channel-and-l.patch",
+      "sha256": "7b54e83c654772333825a81a14142b92e45fdf1f679d909c41033bcdd4444c11",
+      "bytes": 67187
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0003-Refresh-wallet-grants-between-slow-host-passes.patch",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0003-Refresh-wallet-grants-between-slow-host-passes.patch",
+      "sha256": "186524c66ff8823bc336bca5e6dd53678d46c6b329cf4ff31e701d2658e52378",
+      "bytes": 32860
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0004-Renew-leases-on-their-own-clock-outside-the-slow-hos.patch",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0004-Renew-leases-on-their-own-clock-outside-the-slow-hos.patch",
+      "sha256": "69b40173a670163af2b7e5ddb91caa9c2ba693510c19569663fb034b7201c375",
+      "bytes": 57861
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0005-Reconcile-served-deployments-before-the-queued-claim.patch",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0005-Reconcile-served-deployments-before-the-queued-claim.patch",
+      "sha256": "991363e9271c7d433d1475411ce10ed6984eef932cc1dc6aabdfb3935f7e965c",
+      "bytes": 37699
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0006-Serving-first-reconcile-same-pass-re-claims-and-cont.patch",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0006-Serving-first-reconcile-same-pass-re-claims-and-cont.patch",
+      "sha256": "5ffc75aa28f7842171bb5d6ba8739285acbad1aa681b25f7ebbea571a2fbb137",
+      "bytes": 11824
+    },
+    {
+      "label": "C host-services transport + challengeReplica composition d7f520bf (from d281007c, the parent of accepted a6fb7aab). NOT production-ready: the hostServices zero-app gate and the generated-package CLI guard are OUTSTANDING. C is still active; its newer working changes are not captured",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0007-Compose-host-services-transport-and-challengeReplica.patch",
+      "stored": "files/rpc-native-codec-export/c-host-services-compose-d7f520bf/patches/0007-Compose-host-services-transport-and-challengeReplica.patch",
+      "sha256": "a9bf78802148b5a57b8ede499fef81d2324a8c7a4fd2b026f140fdae126ec9a7",
+      "bytes": 197333
+    },
+    {
+      "label": "D Linux unknown-wallet hold 09ff3ed5 (3 files on 2bbea898). Epoch / failed-stop review PENDING (ROOT-LINUX-HOLD-REVIEW.txt); no image, no deployment. D is still active",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/d-linux-wallet-unknown-09ff3ed5/files/supervisor.js",
+      "stored": "files/rpc-native-codec-export/d-linux-wallet-unknown-09ff3ed5/files/supervisor.js",
+      "sha256": "2742f5355017819a19a2f9b18f49503707ee485776d30937037038c50a495ef6",
+      "bytes": 842916
+    },
+    {
+      "label": "D Linux unknown-wallet hold 09ff3ed5 (3 files on 2bbea898). Epoch / failed-stop review PENDING (ROOT-LINUX-HOLD-REVIEW.txt); no image, no deployment. D is still active",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/d-linux-wallet-unknown-09ff3ed5/files/test/supervisor-wallet-policy.test.mjs",
+      "stored": "files/rpc-native-codec-export/d-linux-wallet-unknown-09ff3ed5/files/test/supervisor-wallet-policy.test.mjs",
+      "sha256": "712f6b64459a97d196cb9e963a4de1eda8b4e271ece25a25e2d39725f826ac38",
+      "bytes": 5304
+    },
+    {
+      "label": "D Linux unknown-wallet hold 09ff3ed5 (3 files on 2bbea898). Epoch / failed-stop review PENDING (ROOT-LINUX-HOLD-REVIEW.txt); no image, no deployment. D is still active",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/d-linux-wallet-unknown-09ff3ed5/files/test/supervisor-wallet-unknown-hold.test.mjs",
+      "stored": "files/rpc-native-codec-export/d-linux-wallet-unknown-09ff3ed5/files/test/supervisor-wallet-unknown-hold.test.mjs",
+      "sha256": "59840e65ca20783cbcb015476077fdd1571bcb8ba3d8caec5db5400833a116f7",
+      "bytes": 16596
+    },
+    {
+      "label": "D Linux unknown-wallet hold 09ff3ed5 (3 files on 2bbea898). Epoch / failed-stop review PENDING (ROOT-LINUX-HOLD-REVIEW.txt); no image, no deployment. D is still active",
+      "source": "work/resume-after-checkpoint-20261022/rpc-native-codec-export/d-linux-wallet-unknown-09ff3ed5/patches/0001-Linux-hold-on-an-unknown-host-wallet-policy-instead-.patch",
+      "stored": "files/rpc-native-codec-export/d-linux-wallet-unknown-09ff3ed5/patches/0001-Linux-hold-on-an-unknown-host-wallet-policy-instead-.patch",
+      "sha256": "a73e098de093860e1e939989ab6d35235ec1278b22d6b0a841ec0e323651a4f0",
+      "bytes": 39083
     },
     {
       "label": "FINISHED Base unsafe-head gossip listener f3159ea (worker B; local commit, no remote) + its audit RESULT: 52 sequencer-signed unsafe heads received by direct gossip = direct gossip only, NOT L1 finality, NOT proof/state availability, NOT RPC independence. Binaries, vendor copy and raw runs stay local",
@@ -5483,8 +6477,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "49c446196089e6144db56f305e0aedbf2a58a3df6c88e0fcf714f6b17ac877e5",
-      "bytes": 55110
+      "sha256": "957ff797eecf2d8be8e2d198bf848726fb3546f2917e51b622abfc28b3d3c3e3",
+      "bytes": 66285
     },
     {
       "label": "exporter for rpc-base-evm-export/ (Git objects only; no network/builds)",
@@ -5492,6 +6486,12 @@
       "stored": "files/source-preservation/export-base-evm.py",
       "sha256": "243e6c6a6195d6ed4ca206376a2cecbe5c39e10efe07c7f3c9b2d9836f34634a",
       "bytes": 14814
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-native-codec.py",
+      "stored": "files/source-preservation/export-native-codec.py",
+      "sha256": "5073719806c31e823fb1cdbac85ffa48278bb7c44426a0eb76f8dac488d8a61d",
+      "bytes": 10722
     },
     {
       "label": "Git tracked-file inventory of head-listener f3159ea (blob ids + sha256) and what was deliberately not preserved",
@@ -5506,6 +6506,12 @@
       "stored": "files/source-preservation/manifest-drift.py",
       "sha256": "1da2770dc78dfaf86974c2c7d1c9ab8b1620c518b693e0792e47a91894f0ede5",
       "bytes": 1023
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/native-codec-export.sh",
+      "stored": "files/source-preservation/native-codec-export.sh",
+      "sha256": "6ef53744810eb79750f5556579cc22080f266f61d58ee15d76349de45872342e",
+      "bytes": 187
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",
@@ -5567,6 +6573,12 @@
       "stored": "files/source-preservation/verify-base-evm-export.py",
       "sha256": "1d5fa6a9455549e554f0e1e83dda28c4fecf244c9fc2ceebd511f334cd710e68",
       "bytes": 3018
+    },
+    {
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-native-codec-export.py",
+      "stored": "files/source-preservation/verify-native-codec-export.py",
+      "sha256": "972fe6764ab578e199ecfd792ad1adf6577307f093ab2739605027401feec908",
+      "bytes": 3860
     },
     {
       "source": "work/resume-after-checkpoint-20261022/storage-activation-next/ACTIONS.json",
@@ -5896,6 +6908,20 @@
       "bytes": 322735
     },
     {
+      "label": "C's RESULT.md and PROVENANCE.files.json at their stable bytes (hash-frozen in rpc-native-codec-export/INVENTORY.json): hostServices zero-app gate and generated-package CLI guard outstanding, not production-ready",
+      "source": "work/resume-after-checkpoint-20261022/windows-host-services-compose/PROVENANCE.files.json",
+      "stored": "files/windows-host-services-compose/PROVENANCE.files.json",
+      "sha256": "e1012d139b20e6a74dbb5a44f98a2c403565cfd43b22e516f078190f7f08e4ec",
+      "bytes": 9189
+    },
+    {
+      "label": "C's RESULT.md and PROVENANCE.files.json at their stable bytes (hash-frozen in rpc-native-codec-export/INVENTORY.json): hostServices zero-app gate and generated-package CLI guard outstanding, not production-ready",
+      "source": "work/resume-after-checkpoint-20261022/windows-host-services-compose/RESULT.md",
+      "stored": "files/windows-host-services-compose/RESULT.md",
+      "sha256": "3a40e1b606af1441a273b4a02f390c0cd38b15b28eb1d87f0e92644300f1ea36",
+      "bytes": 9625
+    },
+    {
       "label": "SOURCE-ONLY CANDIDATE 829a881c (host.mjs 817389ec + chain.mjs 3e9fae03, two-file swap): not deployed or activated; preserved here, not merged into the normal tree (older lineage)",
       "source": "work/resume-after-checkpoint-20261022/windows-serving-first/INITIAL.md",
       "stored": "files/windows-serving-first/INITIAL.md",
@@ -5993,6 +7019,14 @@
     "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tools/q.sh",
     "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tree-a.inventory.json",
     "checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tree-b.inventory.json"
+  ],
+  "supersessions": [
+    {
+      "historical": "outputs/decentralization-audit/storage-whole-recovery-live-20261023.json",
+      "supersededBy": "outputs/decentralization-audit/storage-whole-recovery-failure-20261023.json",
+      "latestStatus": "FAILED_OOM_KILL_NO_FINAL_INVENTORY at 2026-10-23T02:20:32Z (1460 files / 12.39 GB observed, no result file or final inventory; fullRecoveryVerified=false)",
+      "note": "the RUNNING receipt is kept byte-for-byte as historical evidence of its capture time only"
+    }
   ],
   "exclusions": [
     "credentials and private configuration",
