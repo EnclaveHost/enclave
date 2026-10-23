@@ -122,6 +122,38 @@ test('a revert keeps its data through the verifier (simulate/readContract decode
     (e) => e.walk((x) => x.name === 'ContractFunctionRevertedError')?.data?.errorName === 'NotYours');
 });
 
+test('estimateGas answers a gas LIMIT a verified execution succeeded with, never the verifier\'s gas used after refunds; a revert is the answer', async () => {
+  // a release-like call: it spends 52 000 but frees storage, so the gas USED after refunds (what the pinned Helios answers
+  // to eth_estimateGas) is 41 600, and sent with that limit it would run out of gas on chain
+  const NEED = 52_000n, USED = 41_600n;
+  const gasOf = (p) => BigInt(p[0].gas);
+  const v = await scripted(verifierScript({
+    eth_call: (p) => (gasOf(p) >= NEED ? { result: '0x' } : { error: { code: -32000, message: 'execution reverted' } }),
+    eth_estimateGas: () => ({ result: '0x' + USED.toString(16) }) }));
+  const b = await scripted(backendScript());
+  const a = authority(v, b);
+  const gas = await a.client.estimateGas({ account: '0x' + '55'.repeat(20), to: '0x' + '11'.repeat(20), data: '0x67d42a8b', maxFeePerGas: 10n ** 30n, maxPriorityFeePerGas: 1n });
+  assert.ok(gas >= NEED, `the limit ${gas} succeeds (needs ${NEED})`);
+  assert.ok(gas * 1000n <= NEED * 1015n, `and is within 1.5% of the least one (${gas})`);
+  const probes = v.calls.filter((c) => c.method === 'eth_call');
+  assert.ok(probes.length >= 2 && probes.length <= 12, `a bounded search (${probes.length} executions)`);
+  assert.equal(new Set(v.calls.filter((c) => ['eth_call', 'eth_estimateGas'].includes(c.method)).map((c) => c.params[1])).size, 1, 'every execution at ONE numbered block');
+  assert.ok(probes.every((c) => /^0x[0-9a-f]+$/.test(c.params[1]) && c.params[0].maxFeePerGas === undefined && c.params[0].type === undefined), 'numbered, and without fee fields (the balance never limits a probe)');
+  assert.deepEqual(b.methods(), [], 'an estimate never asks the backend');
+  // a call that cannot succeed even at the block's gas limit: its revert is the answer (the pinned Helios would answer a number)
+  const data = encodeErrorResult({ abi: ABI, errorName: 'NotYours', args: ['0x' + '44'.repeat(20)] });
+  const v2 = await scripted(verifierScript({ eth_call: () => ({ error: { code: 3, message: 'execution reverted', data } }) }));
+  await assert.rejects(authority(v2, null).client.estimateGas({ account: '0x' + '55'.repeat(20), to: '0x' + '11'.repeat(20), data: '0x67d42a8b' }),
+    (e) => /reverted/i.test(String(e.details || e.shortMessage || e.message)));
+  assert.ok(!v2.methods().includes('eth_estimateGas'), 'no gas-used answer is taken for a failing call');
+  // an unreachable verifier is not "too little gas": the estimate fails, it never guesses high
+  let n = 0;
+  const v3 = await scripted(verifierScript({ eth_call: () => (++n > 1 ? undefined : { result: '0x' }), eth_estimateGas: () => ({ result: '0x' + USED.toString(16) }) }));
+  const a3 = createChainAuthority({ verifier: v3.url, chain: base, now: () => NOW,
+    fetch: async (u, init) => { if (n >= 1 && JSON.parse(init.body).method === 'eth_call') throw new Error('connection refused'); return fetch(u, init); } });
+  await assert.rejects(a3.client.estimateGas({ account: '0x' + '55'.repeat(20), to: '0x' + '11'.repeat(20), data: '0x67d42a8b' }), /unreachable/);
+});
+
 test('submission: only through a backend BOUND to the verifier\'s chain on a fresh head; otherwise refused before anything is sent', async () => {
   const key = '0x' + '61'.repeat(32), account = privateKeyToAccount(key);
   const send = async (a) => { const w = createWalletClient({ account, chain: base, transport: a.transport });

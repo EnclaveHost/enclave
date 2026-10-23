@@ -16,7 +16,8 @@ optional `ENCLAVE_CHAIN_TX_BACKEND` is the operator's own Base node at a loopbac
 
 | method | answered by | trust |
 |---|---|---|
-| `eth_call`, `eth_estimateGas` | local verifier | executed locally over state proven against the block state root |
+| `eth_call` | local verifier | executed locally over state proven against the block state root |
+| `eth_estimateGas` | local verifier (searched here) | a gas **limit** at which a local execution over proven state succeeded, within 1.5% of the least such limit, at one numbered block. It is not the pinned Helios's own answer: that is the gas *used after refunds*, which is too little for a transaction that frees storage (a `release` sent with it runs out of gas), and it is answered even for a failing call. A call that fails at the block's gas limit answers with its revert |
 | `eth_getBalance`, `eth_getCode`, `eth_getStorageAt`, `eth_getTransactionCount` (a block) | local verifier | account/storage/code proof |
 | `eth_blockNumber`, `eth_getBlockByNumber`, `eth_getBlockByHash`, `eth_chainId` | local verifier | the sequencer-signed head chain (signed head or authenticated ancestry) |
 | `eth_getTransactionReceipt`, `eth_getBlockReceipts` | local verifier | the receipts root of a verified block. "Not found" means only *no evidence* (never absence), so callers decide by the proven nonce |

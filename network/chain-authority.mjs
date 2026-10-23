@@ -31,7 +31,7 @@ export const METHODS = Object.freeze({
   eth_getBlockByNumber: [V, 'a block of the verifier\'s signed head chain (signed head or authenticated ancestry)'],
   eth_getBlockByHash: [V, 'a block of the verifier\'s signed head chain (signed head or authenticated ancestry)'],
   eth_call: [V, 'executed locally over state proven against the block state root'],
-  eth_estimateGas: [V, 'executed locally over state proven against the block state root'],
+  eth_estimateGas: [V, 'a gas limit at which a local execution over proven state succeeded (searched with eth_call)'],
   eth_getBalance: [V, 'account proof against the block state root'],
   eth_getCode: [V, 'code proven against the account\'s code hash'],
   eth_getStorageAt: [V, 'storage proof against the block state root'],
@@ -172,6 +172,32 @@ export function createChainAuthority({ verifier, backend = null, chain, maxHeadA
     const n = await callV('eth_blockNumber', []);
     return callV('eth_getBlockByNumber', [n, full]);
   }
+  // eth_estimateGas as a node answers it: a gas LIMIT the transaction succeeds with. The pinned Helios answers with the gas
+  // USED after refunds (and answers even for a call that fails), which is too little for a transaction that frees storage
+  // (a release): sent with it, it runs out of gas on chain. So the limit is searched here with verified executions at one
+  // numbered block: the call must succeed at the cap (else its revert is the answer), the verifier's used gas is the lower
+  // bound, and the answer is always a limit at which a verified execution SUCCEEDED (within 1.5% of the least such limit).
+  async function estimateGas(params) {
+    // without its fee fields (and so its fee type): a probe at the block's gas limit must not fail for the sender's
+    // balance (gas is the question; the backend refuses an unaffordable submission)
+    const [{ gasPrice, maxFeePerGas, maxPriorityFeePerGas, type, ...tx } = {}, at = 'latest', ...rest] = params;
+    const blk = ['latest', 'pending'].includes(at) ? await callV('eth_blockNumber', []) : at;
+    const call = (gas) => callV('eth_call', [{ ...tx, gas: '0x' + gas.toString(16) }, blk, ...rest]);
+    let hi = tx.gas != null ? BigInt(tx.gas) : BigInt((await callV(/^0x[0-9a-f]{64}$/i.test(blk) ? 'eth_getBlockByHash' : 'eth_getBlockByNumber', [blk, false]))?.gasLimit ?? 0);
+    if (hi <= 0n) throw refused('eth_estimateGas', 'the verifier has no gas limit for that block');
+    await call(hi);                                         // fails here: the transaction cannot succeed (its revert is the answer)
+    const used = BigInt(await callV('eth_estimateGas', [{ ...tx, gas: '0x' + hi.toString(16) }, blk, ...rest]));
+    let lo = used > 0n ? used - 1n : 0n;                   // below the gas used, no limit can succeed
+    const probe = async (gas) => { try { await call(gas); return true; } catch (e) { if (e?.authorityUnavailable) throw e; return false; } };
+    // a refund is at most a fifth of the gas spent (EIP-3529), and a call keeps back 1/64 of what it forwards (EIP-150)
+    const optimistic = ((used * 5n) / 4n + 2300n) * 64n / 63n + 1n;
+    if (optimistic < hi) { if (await probe(optimistic)) hi = optimistic; else lo = optimistic; }
+    while (hi - lo > 1n && (hi - lo) * 1000n > hi * 15n) {
+      const mid = hi > lo * 2n ? lo * 2n : (hi + lo) / 2n;
+      if (await probe(mid)) hi = mid; else lo = mid;
+    }
+    return '0x' + hi.toString(16);
+  }
   async function request({ method, params = [] }) {
     const route = METHODS[method];
     if (method === 'eth_getBlockByNumber' && ['latest', 'pending'].includes(params[0])) return headBlock(!!params[1]);
@@ -191,6 +217,7 @@ export function createChainAuthority({ verifier, backend = null, chain, maxHeadA
       }
       return callB(method, params);
     }
+    if (method === 'eth_estimateGas') return estimateGas(params);
     try { return await callV(method, params); }
     catch (e) {
       // Helios answers an unknown receipt with an error; a provider answers null. Both mean only "no receipt evidence"

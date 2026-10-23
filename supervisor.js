@@ -10603,7 +10603,7 @@ async function runRelease(it) {
     if (_releaseIntents.get(it.id) !== it) return { outcome: it.outcome || "cancelled", block: null, tx: null, intent: it };
     const tx = it.txs[it.txs.length - 1];
     if (tx && tx.state === "pending") {
-      try { await resolveReleaseTx(it, tx); } catch (e) { note(`resolving ${tx.hash} failed for now (${e.shortMessage || e.message})`); }
+      try { await resolveReleaseTx(it, tx); } catch (e) { note(`resolving ${tx.hash} failed for now (${e.shortMessage || e.message}${e.details ? `: ${String(e.details).slice(0, 200)}` : ""})`); }
       if (tx.state === "pending") await sleepMs(RELEASE_POLL_MS);
       continue;
     }
