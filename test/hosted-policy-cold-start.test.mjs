@@ -45,6 +45,10 @@ const compileIndexInChild = () => JSON.parse(execFileSync(process.execPath, ['--
 const OUT = path.join(REPO, 'contracts/foundry/out');
 const skip = haveTools() || (!fs.existsSync(path.join(PKG, 'policy-mirror.package.json')) ? 'needs the built packages (scripts/build-host-service-packages.mjs)' : false);
 const DO = { name: 'digitalocean', addresses: ['134.199.235.187', '134.209.248.172', '165.245.191.129', '146.190.246.39'] };
+// the production-shaped mirror list this test refuses: the four former fleet fronts. The shipped production default
+// (network/platform-host-policy-config.mjs, host-admission bundle 40e8ba71) names NO mirror at all; configuring the former
+// fleet set here keeps the test's point - every such front refused at the transport - explicit rather than vacuous.
+const FLEET_MIRRORS = DO.addresses.map((ip) => `https://${ip}/platform-policy`);
 const pin = (role) => 'sha256:' + createHash('sha256').update(fs.readFileSync(path.join(PKG, `${role}.package.json`))).digest('hex');
 const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, name + '.json'), 'utf8')); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-policy-'));
@@ -70,7 +74,7 @@ const wait = async (f, ms = 30000, what = 'condition') => { const end = Date.now
 const up = (port) => fetch(`http://127.0.0.1:${port}/health`).then((r) => r.ok, () => false);
 
 let rig, index, indexPin, book, ownership, bookAbi, registryAddr, hosts = {}, docs = [];
-const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...PRODUCTION_MIRRORS], activation: 'required' });
+const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...FLEET_MIRRORS], activation: 'required' });
 
 async function sign(deny, signer = admin) {
   const prev = docs.length ? docs[docs.length - 1].digest : Z32;
@@ -131,13 +135,14 @@ after(async () => {
 });
 
 test('fresh hosts with empty caches start under an ACTIVATED anchor with every fleet policy mirror refused; a fleet-only host never does', { skip }, async () => {
+  assert.deepEqual(PRODUCTION_MIRRORS, [], 'the shipped production default names no fleet mirror');
   // host A: the first carrier, from an operator-imported copy of the signed document (untrusted bytes; verified on chain)
   hosts.a = await startHost('a', { importDoc: docs[0], carriers: { importDir: path.join(tmp, 'host-a', 'import') }, policyMirror: true });
   await wait(() => up(hosts.a.ports.dir), 30000, 'host A directory (admitted by the real gate)');
   const sa = hosts.a.running.status();
   assert.equal(sa.refusal, null); assert.equal(sa.platformHostPolicy.serving, true, JSON.stringify(sa.platformHostPolicy));
   assert.equal(sa.platformHostPolicy.runtime.accepted.digest, docs[0].digest); assert.equal(sa.platformHostPolicy.runtime.anchor, 'anchored');
-  assert.ok(denied.some((u) => u.startsWith(PRODUCTION_MIRRORS[0])), 'the gate did try the fleet mirrors, and they were refused');
+  assert.ok(denied.some((u) => u.startsWith(FLEET_MIRRORS[0])), 'the gate did try the fleet mirrors, and they were refused');
   const served = await wait(() => netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy/${docs[0].digest}.json`).then((r) => r.ok && r.json()), 20000, 'host A policy mirror serves the anchored document');
   assert.equal(served.signature, docs[0].signature);
   assert.equal((await netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy/latest.json`)).status, 404, 'no unanchored latest');
