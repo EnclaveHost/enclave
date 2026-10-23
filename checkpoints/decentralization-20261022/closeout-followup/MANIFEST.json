@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-23T01:18:44.138065+00:00",
+  "capturedAt": "2026-10-23T01:22:43.012931+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -28,6 +28,13 @@
       "stored": "files/outputs/decentralization-audit/storage-cold-recovery-second-device-20261023.json",
       "sha256": "11eddc7083cb44129c42c72dd52334c246bd3564d3e6fe4a81a91b59e21789eb",
       "bytes": 570
+    },
+    {
+      "label": "ROOT public receipt: APPLIED and independently verified serving after the bounded startup check timed out (helper NOT_READY, not passed); new-keeper renewal PENDING; not full decentralization",
+      "source": "outputs/decentralization-audit/windows-node-update-20261023.json",
+      "stored": "files/outputs/decentralization-audit/windows-node-update-20261023.json",
+      "sha256": "6a4be35adce81032049e6fe5016c030f909216b68913093c38f96f9c53ae71dc",
+      "bytes": 1309
     },
     {
       "source": "work/resume-after-checkpoint-20261022/adapter-activation-review/RESULT.md",
@@ -2761,6 +2768,76 @@
       "bytes": 240
     },
     {
+      "label": "ROOT native activation evidence (frozen): runtime CHANGED 01:17 to host ea0f6b8a + chain 3e9fae03 (e7e5057a, helper f7a77598). The bounded helper ended NOT_READY (M1 not proven within 60 s): NOT a passed activation. Root's independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion",
+      "source": "work/resume-after-checkpoint-20261022/node-pair-runner/runs/ROOT-NEXT-WINDOW.txt",
+      "stored": "files/node-pair-runner/runs/ROOT-NEXT-WINDOW.txt",
+      "sha256": "8a79f3c8d528e81091cff7d354b4a326a84c3eceb20a31b871e9fdbf9c555204",
+      "bytes": 3214
+    },
+    {
+      "label": "ROOT native activation evidence (frozen): runtime CHANGED 01:17 to host ea0f6b8a + chain 3e9fae03 (e7e5057a, helper f7a77598). The bounded helper ended NOT_READY (M1 not proven within 60 s): NOT a passed activation. Root's independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion",
+      "source": "work/resume-after-checkpoint-20261022/node-pair-runner/runs/apply-result-apply-20261023t011516z.json",
+      "stored": "files/node-pair-runner/runs/apply-result-apply-20261023t011516z.json",
+      "sha256": "7bfb77ebfa8de38fce01a56073c3490de5d03860607a929ae1291b069606cfeb",
+      "bytes": 5602
+    },
+    {
+      "label": "ROOT native activation evidence (frozen): runtime CHANGED 01:17 to host ea0f6b8a + chain 3e9fae03 (e7e5057a, helper f7a77598). The bounded helper ended NOT_READY (M1 not proven within 60 s): NOT a passed activation. Root's independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion",
+      "source": "work/resume-after-checkpoint-20261022/node-pair-runner/runs/attempt-apply-apply-20261023t011516z.json",
+      "stored": "files/node-pair-runner/runs/attempt-apply-apply-20261023t011516z.json",
+      "sha256": "12345415375f75da5dba56d7c7747d5f15c308b0a354ceca169635c9390d2d92",
+      "bytes": 350
+    },
+    {
+      "label": "ROOT native activation evidence (frozen): runtime CHANGED 01:17 to host ea0f6b8a + chain 3e9fae03 (e7e5057a, helper f7a77598). The bounded helper ended NOT_READY (M1 not proven within 60 s): NOT a passed activation. Root's independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion",
+      "source": "work/resume-after-checkpoint-20261022/node-pair-runner/runs/attempt-identify-identify-20261023t011354z.json",
+      "stored": "files/node-pair-runner/runs/attempt-identify-identify-20261023t011354z.json",
+      "sha256": "a69dd481fbad55374ede149c2ac801fe3a0be1796f5bafe9ed39def6d06a9a35",
+      "bytes": 356
+    },
+    {
+      "label": "ROOT native activation evidence (frozen): runtime CHANGED 01:17 to host ea0f6b8a + chain 3e9fae03 (e7e5057a, helper f7a77598). The bounded helper ended NOT_READY (M1 not proven within 60 s): NOT a passed activation. Root's independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion",
+      "source": "work/resume-after-checkpoint-20261022/node-pair-runner/runs/attempt-identify-identify-20261023t011924z.json",
+      "stored": "files/node-pair-runner/runs/attempt-identify-identify-20261023t011924z.json",
+      "sha256": "ff427c84e3c66fde002a181622f2a7e82f5170509da70415dd6fd3051df0a679",
+      "bytes": 356
+    },
+    {
+      "label": "ROOT native activation evidence (frozen): runtime CHANGED 01:17 to host ea0f6b8a + chain 3e9fae03 (e7e5057a, helper f7a77598). The bounded helper ended NOT_READY (M1 not proven within 60 s): NOT a passed activation. Root's independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion",
+      "source": "work/resume-after-checkpoint-20261022/node-pair-runner/runs/identify-result-identify-20261023t011354z.json",
+      "stored": "files/node-pair-runner/runs/identify-result-identify-20261023t011354z.json",
+      "sha256": "abc199de6f3f01b4d0461382d6137dc50bc4888b601ef1a3efe0ac0f7eb7fd34",
+      "bytes": 7525
+    },
+    {
+      "label": "ROOT native activation evidence (frozen): runtime CHANGED 01:17 to host ea0f6b8a + chain 3e9fae03 (e7e5057a, helper f7a77598). The bounded helper ended NOT_READY (M1 not proven within 60 s): NOT a passed activation. Root's independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion",
+      "source": "work/resume-after-checkpoint-20261022/node-pair-runner/runs/identify-result-identify-20261023t011924z.json",
+      "stored": "files/node-pair-runner/runs/identify-result-identify-20261023t011924z.json",
+      "sha256": "bb2cffda9a0d07a36f8e2dcfc71ccd5cd40f3156f3cf2c116ca5c049cbc2e83c",
+      "bytes": 7286
+    },
+    {
+      "label": "ROOT native activation evidence (frozen): runtime CHANGED 01:17 to host ea0f6b8a + chain 3e9fae03 (e7e5057a, helper f7a77598). The bounded helper ended NOT_READY (M1 not proven within 60 s): NOT a passed activation. Root's independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion",
+      "source": "work/resume-after-checkpoint-20261022/node-pair-runner/runs/params-apply-20261023t011516z.json",
+      "stored": "files/node-pair-runner/runs/params-apply-20261023t011516z.json",
+      "sha256": "a182b11048a6f9cb30eb7a1a69d9700f36804ce4bac3732568c3f31b6b43a9ae",
+      "bytes": 5653
+    },
+    {
+      "label": "ROOT native activation evidence (frozen): runtime CHANGED 01:17 to host ea0f6b8a + chain 3e9fae03 (e7e5057a, helper f7a77598). The bounded helper ended NOT_READY (M1 not proven within 60 s): NOT a passed activation. Root's independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion",
+      "source": "work/resume-after-checkpoint-20261022/node-pair-runner/runs/params-identify-20261023t011354z.json",
+      "stored": "files/node-pair-runner/runs/params-identify-20261023t011354z.json",
+      "sha256": "36d245fc7993f6f1afa26505fb20a0334760bef3ddf8cec779a15a8ba986d99b",
+      "bytes": 1666
+    },
+    {
+      "label": "ROOT native activation evidence (frozen): runtime CHANGED 01:17 to host ea0f6b8a + chain 3e9fae03 (e7e5057a, helper f7a77598). The bounded helper ended NOT_READY (M1 not proven within 60 s): NOT a passed activation. Root's independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion",
+      "source": "work/resume-after-checkpoint-20261022/node-pair-runner/runs/params-identify-20261023t011924z.json",
+      "stored": "files/node-pair-runner/runs/params-identify-20261023t011924z.json",
+      "sha256": "41d6f9ad84de4d6cc87d2a5137f6cd2eb3a6444fde4fbf067b50d4bec5ba6be4",
+      "bytes": 1666
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/node-pair-runner/test_root_node_pair.py",
       "stored": "files/node-pair-runner/test_root_node_pair.py",
       "sha256": "9b4183bfe006dae43aeadbb18d391877990ad3cc1771bac6dce4a04952abdca4",
@@ -4342,8 +4419,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "bc2d68960e094efd26b049ee14580dcc8d73e86d921bccf160353b4f36712dad",
-      "bytes": 31165
+      "sha256": "dbe8f46c48fe4e169557b8185b7ce909cf906f4beb7cc1151d6a3dd0a2fab194",
+      "bytes": 34004
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",

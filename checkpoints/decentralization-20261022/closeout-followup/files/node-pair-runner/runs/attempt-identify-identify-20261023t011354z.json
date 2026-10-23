@@ -1,0 +1,9 @@
+{
+ "what": "attempt",
+ "at": "2026-10-23T01:13:59Z",
+ "mode": "identify",
+ "stage": "C:\\ProgramData\\Enclave\\staging\\nodepair-32f4076e9d27",
+ "helperSha": "f7a775988e31ca1090420241ecc597f137314c5d5126db4393bf8da720c3c5c2",
+ "paramsSha": "36d245fc7993f6f1afa26505fb20a0334760bef3ddf8cec779a15a8ba986d99b",
+ "task": "node-pair-identify-20261023t011354z"
+}

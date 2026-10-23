@@ -1,0 +1,90 @@
+{
+  "stage": "C:\\ProgramData\\Enclave\\staging\\nodepair-32f4076e9d27",
+  "runId": "apply-20261023t011516z",
+  "boundSec": 700,
+  "nodeExe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+  "nodeSha": "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3",
+  "bundleSwap": {
+    "path": "C:\\ProgramData\\Enclave\\staging\\nodepair-32f4076e9d27\\bundle-swap.ps1",
+    "sha": "21d85c69b2b70564cc04f7ea7d72e9f763ef8ae65059fdb9972f0413f042b103"
+  },
+  "files": [
+    {
+      "name": "chain.mjs",
+      "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\chain.mjs",
+      "oldSha": "86c81124cca6f6e1c06c25c075c03c6811bb46e9344291df080245ffdf3d6580",
+      "newSha": "3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938",
+      "newFile": "C:\\ProgramData\\Enclave\\staging\\nodepair-32f4076e9d27\\files\\chain.mjs",
+      "workDir": "C:\\ProgramData\\Enclave\\staging\\nodepair-32f4076e9d27\\swap-chain.mjs"
+    },
+    {
+      "name": "host.mjs",
+      "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\host.mjs",
+      "oldSha": "9634cb40c60b74f92eff8497f687dcaa1ec04a33c21cbd22dc745d773b1da396",
+      "newSha": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
+      "newFile": "C:\\ProgramData\\Enclave\\staging\\nodepair-32f4076e9d27\\files\\host.mjs",
+      "workDir": "C:\\ProgramData\\Enclave\\staging\\nodepair-32f4076e9d27\\swap-host.mjs"
+    }
+  ],
+  "unchangedFiles": [
+    {
+      "path": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+      "sha": "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3"
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\run-node.cmd",
+      "sha": "0fdc3699228c9d7a4c2e971d05804b49f978a56a4c1d9f7a06f3546f3ced09fd"
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\node-config.local.cmd",
+      "sha": "405db912b15c73e57334bef4ad2c1071695495010bb95e67c72f200c48e382f0"
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\lease-gas\\lease-gas-config.cmd",
+      "sha": "2324904b7b7b55e52108734447468849da25a4b857111b5cbc10525a701f603a"
+    }
+  ],
+  "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+  "task": {
+    "execute": "cmd.exe",
+    "arguments": "/c \"C:\\ProgramData\\Enclave\\run-node.cmd\""
+  },
+  "node": {
+    "cmdPid": 32204,
+    "cmdStart": "2026-10-22T03:37:27.5955170Z",
+    "agentPid": 33032,
+    "agentStart": "2026-10-22T03:37:27.6506510Z"
+  },
+  "scheduler": {
+    "pid": 3292,
+    "start": "2026-10-14T14:33:07.3785880Z",
+    "name": "svchost.exe",
+    "commandLike": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p -s Schedule"
+  },
+  "privacy": {
+    "pid": 13932,
+    "start": "2026-10-22T03:37:14.0971470Z"
+  },
+  "manager": "35464@2026-10-21T12:13:07.5552110Z",
+  "vms": "hv3ce75c9cf18e65505f27d16b3f030155|0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33|running,hv5931e9aa7ae0c217e4143a2a9926fd37|0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c|running,hv83c250002b6cb99d354630739742d4f5|0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681|running,hv88b63f6b5c736c24dcfe512873a7d620|0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c|running,hv91101bf06850cb658310766e2b9ae7de|0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238|running,hvaeed347c691f146f805d1aa786840661|0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77|running,hvb18ed314d52a6f44df3593830a8cc96f|0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a|running,hvbb0ad3bc36e82dea599ea2db6987570c|0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371|running,hvbb3032d23186a7603a5b3ad87934c98b|shield-readiness-v1|running,hvf8242fd1050e3fcd56f82beb1cb95ef5|0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b|running",
+  "hyperv": "1e8deb01-9f22-40eb-adff-1092b5837376|enclave-app-hv5931e9aa7ae0c2-9e2053bc|Running,4a4ddcac-d06f-4a5c-b96e-e692302db5c8|enclave-storage|Running,55987653-f678-40a8-93f0-2f58c189c99e|enclave-app-hvbb3032d23186a7-a79db30f|Running,56df4c54-996f-4191-a137-f66c0d16460c|enclave-app-hvb18ed314d52a6f-3dfcbff8|Running,5839fea9-c7f2-415c-a4e8-0ca5d2ec1e08|enclave-app-hv91101bf06850cb-ea9d4773|Running,623b7f9d-3055-495b-8790-8c4fd7160e2e|enclave-app-hv3ce75c9cf18e65-10c44a8a|Running,826b2303-a2d0-4314-81fc-ca24f765b664|enclave-app-hv88b63f6b5c736c-3f770400|Running,a0bfc616-da49-4c3f-99cb-f56398a0e06e|enclave-app-hvf8242fd1050e3f-322c5206|Running,af7a226c-b821-4c1c-b91f-b90c78e32770|enclave-app-hv83c250002b6cb9-46de1836|Running,d1e9096e-3829-42fb-9b29-3a1f6ba66c99|enclave-app-hvbb0ad3bc36e82d-f4322953|Running,db676134-4cb7-48ee-94c9-656553c82c35|enclave-app-hvaeed347c691f14-ad0f596e|Running,dd8df95d-b771-4545-a861-0092e74a40f3|enclave-control|Running",
+  "expectedIds": [
+    "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+    "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+    "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+    "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+    "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+    "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+    "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+    "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+    "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c"
+  ],
+  "lease": {
+    "marginSec": 120,
+    "revertSec": 355,
+    "forwardMinSec": 535,
+    "startNodeSec": 120,
+    "returnPinsSec": 60,
+    "processUpSec": 60
+  }
+}

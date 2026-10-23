@@ -1,0 +1,51 @@
+{
+  "at": "2026-10-23T01:20:18.0168443Z",
+  "runtimeStatus": "APPLIED; independently verified serving after bounded startup check timed out",
+  "applyReceipt": "apply-result-apply-20261023t011516z.json",
+  "sourceCommit": "e7e5057acc73d654e4ddf188bdaef89fe23d8e11",
+  "nativeHashes": [
+    {
+      "file": "chain.mjs",
+      "sha": "3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938",
+      "journal": "done"
+    },
+    {
+      "file": "host.mjs",
+      "sha": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
+      "journal": "done"
+    }
+  ],
+  "process": {
+    "cmd": [
+      {
+        "pid": 33876,
+        "start": "2026-10-23T01:17:13.5548790Z"
+      }
+    ],
+    "agent": [
+      {
+        "pid": 28460,
+        "parent": 33876,
+        "start": "2026-10-23T01:17:13.6149660Z"
+      }
+    ]
+  },
+  "listener9600": [
+    28460
+  ],
+  "unchangedChecks": {
+    "manager": true,
+    "privacy": true,
+    "vms": true,
+    "hyperv": true,
+    "unchanged": true
+  },
+  "runningCount": 9,
+  "leaseReadiness": {
+    "sequence": 3,
+    "inFlight": false,
+    "startedAt": 1792718362117,
+    "completedAt": 1792718401698
+  },
+  "pending": "Actual lease renewal performed by the new keeper has not yet been observed. First due around01:29Z. Do not infer full decentralization."
+}

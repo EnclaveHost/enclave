@@ -321,6 +321,25 @@ for name in ('LINEAGE.json', 'a2b8fabd-five-files.patch'):
 # Root's safe Windows helpers (no remote calls / one read-only status query); NOT its mutable identify/apply receipts (runs/).
 paths.add(base / 'node-pair-runner/prepare-next-params.py')
 paths.add(base / 'node-updater-readonly/current-window.py')
+# Root's FROZEN native Windows activation evidence (e7e5057a pair via helper f7a77598): exactly these run files, reviewed to hold
+# hashes, PIDs, counts, timestamps, public deployment ids and Windows paths only. Each must still match its reviewed hash.
+FROZEN_RUNS = {
+    'ROOT-NEXT-WINDOW.txt': '8a79f3c8d528e81091cff7d354b4a326a84c3eceb20a31b871e9fdbf9c555204',
+    'params-identify-20261023t011354z.json': '36d245fc7993f6f1afa26505fb20a0334760bef3ddf8cec779a15a8ba986d99b',
+    'attempt-identify-identify-20261023t011354z.json': 'a69dd481fbad55374ede149c2ac801fe3a0be1796f5bafe9ed39def6d06a9a35',
+    'identify-result-identify-20261023t011354z.json': 'abc199de6f3f01b4d0461382d6137dc50bc4888b601ef1a3efe0ac0f7eb7fd34',
+    'params-apply-20261023t011516z.json': 'a182b11048a6f9cb30eb7a1a69d9700f36804ce4bac3732568c3f31b6b43a9ae',
+    'attempt-apply-apply-20261023t011516z.json': '12345415375f75da5dba56d7c7747d5f15c308b0a354ceca169635c9390d2d92',
+    'apply-result-apply-20261023t011516z.json': '7bfb77ebfa8de38fce01a56073c3490de5d03860607a929ae1291b069606cfeb',
+    'params-identify-20261023t011924z.json': '41d6f9ad84de4d6cc87d2a5137f6cd2eb3a6444fde4fbf067b50d4bec5ba6be4',
+    'attempt-identify-identify-20261023t011924z.json': 'ff427c84e3c66fde002a181622f2a7e82f5170509da70415dd6fd3051df0a679',
+    'identify-result-identify-20261023t011924z.json': 'bb2cffda9a0d07a36f8e2dcfc71ccd5cd40f3156f3cf2c116ca5c049cbc2e83c',
+}
+for name, want in FROZEN_RUNS.items():
+    p = base / 'node-pair-runner/runs' / name
+    assert hashlib.sha256(p.read_bytes()).hexdigest() == want, f'NOT CAPTURED: {name} changed after review'
+    paths.add(p)
+outputs.append(root / 'outputs/decentralization-audit/windows-node-update-20261023.json')
 # Root's public receipts: the EnclaveDNS TLS recovery observation and the 00:40Z progress snapshot.
 outputs += [root / 'outputs/decentralization-audit/enclavedns-tls-20261023.json',
             root / 'outputs/decentralization-audit/progress-20261023T0040.json']
@@ -352,7 +371,15 @@ LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; n
                                     'rule pins (NOT 110/110). Not merged into the normal tree',
           'dns-tls-publication/': 'lineage of a2b8fabd (parent ad074e2): no normal-tree conflict (the normal tree holds the parent bytes); '
                                   'not applied there',
-          'node-pair-runner/prepare-next-params.py': 'ROOT source: prepares immutable params from an IDENTIFIED receipt; no remote calls',
+          'node-pair-runner/runs/': 'ROOT native activation evidence (frozen): runtime CHANGED 01:17 to host ea0f6b8a + chain 3e9fae03 '
+                                    '(e7e5057a, helper f7a77598). The bounded helper ended NOT_READY (M1 not proven within 60 s): NOT a '
+                                    'passed activation. Root\'s independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 '
+                                    'post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes '
+                                    'unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion',
+          'outputs/decentralization-audit/windows-node-update-20261023': 'ROOT public receipt: APPLIED and independently verified serving '
+                                                                         'after the bounded startup check timed out (helper NOT_READY, not '
+                                                                         'passed); new-keeper renewal PENDING; not full decentralization',
+          'node-pair-runner/prepare-next-params.py':'ROOT source: prepares immutable params from an IDENTIFIED receipt; no remote calls',
           'node-updater-readonly/current-window.py': 'ROOT source: one read-only status query of the Windows node; nothing changed',
           'production-run/build-whole-recovery.sh':'ROOT-RUN source: builds the e8f0997f recovery binary (dev profile, '
                                                     'sha256 3ef760ed); not a release',
