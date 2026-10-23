@@ -12092,6 +12092,10 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
 // mapping. rec.owner is the on-chain owner address — SIWE tokens already carry
 // an address, so owner-only routes (status, delete) work unchanged.
 async function adopt(d, g, firewall, slice, { resume = false } = {}) {
+  // The held-guest lookup below can overlap a teardown or policy withdrawal. Bind this adoption to the record and
+  // permission generation it started with; a new sweep must decide again after either changes.
+  const prior = deployments.get(d.id), priorEpoch = prior?._leaseEpoch || 0, priorVerdicts = walletVerdicts(d.id);
+  if (prior?._stopPending || prior?.walletHeld) return false;
   let heldReservation = false;
   if (resume && ISOLATION_BACKEND && !slice.cpu) {
     const held = await isolationHeldGuest(d.id);
@@ -12102,6 +12106,8 @@ async function adopt(d, g, firewall, slice, { resume = false } = {}) {
   // Check after the await: another sweep/hint may already have adopted it, or a release of it may have opened.
   if (releaseHold(d.id)) { console.log(`[claim] ${d.id} not adopted: ${releaseHold(d.id)}`); return; }
   const left = deployments.get(d.id);
+  if (left !== prior || (left?._leaseEpoch || 0) !== priorEpoch || walletVerdicts(d.id) !== priorVerdicts
+      || left?._stopPending || left?.walletHeld) return false;
   // A concurrent hint/sweep may have completed its prefetch after another
   // adoption already installed the live record. Never replace that launch.
   if (left && !CLAIM_TERMINAL.has(left.status)) return;
