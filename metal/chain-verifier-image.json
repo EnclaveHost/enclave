@@ -17,7 +17,7 @@
   },
   "binaries": ["helios", "witnessCheck"]
  },
- "binaryStaging": "verify-in-place",
+ "binaryStaging": "copy",
  "hostTools": { "flock": "/usr/bin/flock" },
  "stateDir": "/mnt/ramdisk/enclave-chain-verifier/state",
  "configDir": "/mnt/ramdisk/enclave-chain-verifier",
@@ -26,6 +26,7 @@
   "helios": "Helios enclave-base-evm eeffcc9 (CLI identical in function through ef320298), DEBUG profile (the release build exceeded the 1536 MiB build allocation); needs GLIBC_2.39, so it runs through glibcRuntime",
   "witnessCheck": "witness-check ef320298, DEBUG profile; needs GLIBC_2.38, so it runs through glibcRuntime",
   "glibcRuntime": "the build host's own runtime files, copied exactly: Arch glibc 2.44+r50+g1848099f063e-1 (ld-linux-x86-64.so.2, libc.so.6, libm.so.6) and gcc-libs 16.2.1+r23+gd564253eb6c8-1 (libgcc_s.so.1); used ONLY by the two binaries above, through their own loader with --library-path",
-  "guestBase": "dist-sdshield-2857356cd: Debian 12 (bookworm), glibc 2.36, node v20.20.2, util-linux flock 2.38.1, no curl"
+  "guestBase": "dist-sdshield-2857356cd: Debian 12 (bookworm), glibc 2.36, node v20.20.2, util-linux flock 2.38.1, no curl",
+  "binaryStaging": "copy: each start copies the pinned files into its 0700 run directory on the guest tmpfs, hashes them there and runs them from there (~234 MB of tmpfs while the verifier runs). verify-in-place cannot hold on this base: 29027 of its 29040 entries, / /opt /app /usr included, are owned by uid 1000 (node), not root (receipts/base-owners.json)"
  }
 }

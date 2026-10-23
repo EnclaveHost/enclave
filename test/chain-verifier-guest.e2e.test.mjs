@@ -2,7 +2,9 @@
 //   * the production base image's rootfs (Debian 12, glibc 2.36, node v20; extracted read-only as GUEST_ROOTFS), hard-link
 //     copied, with this commit's image files installed at their image paths: /opt/metal/{gsup,chain-verifier}.mjs, the
 //     runtime's import closure under /app/network, and /opt/rpc-runtime (the PINNED Helios cc962e2b and helper 4fe0cd3b, run
-//     through the pinned glibc runtime, verified in place; IMAGE.json);
+//     through the pinned glibc runtime, copied and hashed into a 0700 run directory on the guest tmpfs; IMAGE.json);
+//     NOT modelled: the real base's uid-1000 ownership (in this user namespace every file appears as root), which is why
+//     the image uses copy staging (tools/image-inputs.py gates verify-in-place on the base's real owners);
 //   * gsup's REAL child supervision and chain-verifier block (test/fixtures/gsup-chain-verifier-harness.mjs, sliced from the
 //     installed gsup.mjs) under the guest's node, chroot'ed, /proc and /dev bind-mounted, sharing the test's loopback;
 //   * the supervisor's REAL consumer: host wallet admission from the shipped bundle (windows/node/host-admission.bundle.mjs,
@@ -214,11 +216,15 @@ test('cold start in the guest userland: the verifier starts before the superviso
   await until(() => fs.existsSync(path.join(STATE, 'ready.json')), 300000, 'verifier ready');
   assert.equal(Number(await rpc(env.ENCLAVE_CHAIN_VERIFIER, 'eth_chainId')), 8453);
   const st = readJson(path.join(STATE, 'status.json'));
-  assert.equal(st.binaries.staging, 'verify-in-place');
+  assert.equal(st.binaries.staging, 'copy');
   assert.deepEqual(st.binaries.glibcRuntime.for, ['helios', 'witnessCheck']);
   const helios = readJson(path.join(STATE, 'children.json')).find((c) => c.role === 'helios');
-  assert.deepEqual(cmdline(helios.pid).slice(0, 4), ['/opt/rpc-runtime/glibc/ld-linux-x86-64.so.2', '--library-path', '/opt/rpc-runtime/glibc', '/opt/rpc-runtime/helios'],
-    'Helios runs in place through the pinned glibc runtime (the guest glibc 2.36 cannot run it)');
+  const [loader, flag, libDir, heliosBin] = cmdline(helios.pid);
+  const runDir = path.dirname(libDir);
+  assert.match(runDir, /^\/mnt\/ramdisk\/enclave-chain-verifier\/state\/runs\/r\d+-[0-9a-f]{12}$/, 'a fresh run directory on the guest tmpfs');
+  assert.deepEqual([loader, flag, libDir, heliosBin], [`${runDir}/glibc/ld-linux-x86-64.so.2`, '--library-path', `${runDir}/glibc`, `${runDir}/bin/helios`],
+    'Helios runs from its hashed copy through the copied pinned glibc runtime (the guest glibc 2.36 cannot run it)');
+  assert.equal((fs.statSync(path.join(R, runDir)).mode & 0o777), 0o700);
   d = await decide(env);
   unknownForChain(d, 'ready but no proof source answers: refused as unknown, not admitted');
   proxy.st.mode = 'ok';

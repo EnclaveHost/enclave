@@ -50,7 +50,7 @@ test('the committed image pin record builds a runtime config the runtime itself 
   const c = validateRuntimeConfig(cfg);
   assert.equal(c.format, 'enclave-rpc-runtime/v2');
   assert.equal(c.verifier.bind, '127.0.0.1'); assert.equal(c.verifier.port, 8546);
-  assert.equal(c.binaryStaging, 'verify-in-place');
+  assert.equal(c.binaryStaging, 'copy');
   assert.deepEqual([...c.glibcRuntime.binaries], ['helios', 'witnessCheck']);
   assert.match(c.binaries.listener.build, /release profile/);
   assert.match(c.binaries.witnessCheck.build, /ef320298/);
