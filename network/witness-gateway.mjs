@@ -77,8 +77,31 @@ export function witnessKey(method, params) {
  * never overwritten). `candidates(w)` returns every stored answer for the request (bounded), including a legacy
  * single-slot <dir>/<blockHash>/<sha256(request)>.json entry. Entries are UNTRUSTED: the gateway verifies each one.
  */
-export function dirWitnessCache(dir, { maxCandidates = 32, maxEntryBytes = 16 << 20 } = {}) {
+export function dirWitnessCache(dir, { maxCandidates = 32, maxEntryBytes = 16 << 20, maxBytes = 1 << 30 } = {}) {
+  // maxBytes: THIS cache's share of the central storage budget for the host's caches (allocated bytes, including
+  // directories and the transient temp file of a write). It is a configured limit, not a device reservation: the
+  // storage owner enforces the aggregate device budget. Over the limit, writes are skipped (create-only: nothing is
+  // evicted or rewritten) and reads continue. Default 1 GiB; a deployment sets it from the central budget.
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < (1 << 20)) throw new Error('invalid maxBytes (this cache\'s share of the central storage budget, in bytes)');
   const folder = (w) => path.join(dir, w.blockHash, w.key);
+  const budget = { used: null, skipped: 0 };
+  const alloc = (bytes) => Math.ceil(bytes / 4096) * 4096;
+  /** Allocated bytes under dir now (bounded walk; past 1,000,000 entries the cache counts as full). */
+  function measure() {
+    let used = 0, seen = 0;
+    const walk = (d) => {
+      let names; try { names = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+      for (const n of names) {
+        if (++seen > 1e6) { used = Infinity; return; }
+        const f = path.join(d, n.name);
+        try { const st = fs.lstatSync(f); used += st.blocks ? st.blocks * 512 : alloc(st.size); } catch { continue; }
+        if (n.isDirectory()) walk(f);
+        if (used === Infinity) return;
+      }
+    };
+    walk(dir);
+    return used;
+  }
   async function read(file, w) {
     try {
       if ((await fs.promises.stat(file)).size > maxEntryBytes) return undefined;
@@ -102,8 +125,14 @@ export function dirWitnessCache(dir, { maxCandidates = 32, maxEntryBytes = 16 <<
     candidates,
     /** Compatibility: the first stored answer (unverified, like every cache read). */
     async get(w) { return (await candidates(w))[0]; },
+    usage() { return { usedBytes: budget.used ?? measure(), maxBytes, skippedOverBudget: budget.skipped }; },
     async put(w, result) {
       const body = JSON.stringify({ format: 'enclave-witness-rpc/v1', request: w.norm, result });
+      budget.used ??= measure();
+      // entry + its transient temp copy + a possibly new request directory and block directory
+      const cost = 2 * alloc(Buffer.byteLength(body)) + 2 * 4096;
+      if (budget.used + cost > maxBytes) { budget.skipped++; return; }
+      budget.used += cost - alloc(Buffer.byteLength(body));            // the temp copy is removed again
       const file = path.join(folder(w), sha256(JSON.stringify(result)) + '.json');
       await fs.promises.mkdir(folder(w), { recursive: true });
       const tmp = path.join(folder(w), `.tmp-${process.pid}-${randomBytes(6).toString('hex')}`);
@@ -159,7 +188,7 @@ function limiter(max, maxQueued) {
  * proofs: {checker, roots} (network/witness-verify.mjs), REQUIRED when eth_getProof/eth_getCode are offered or a cache
  * is given: there is no unverified witness mode. cache: optional {put(w, result), candidates(w)} (dirWitnessCache); a
  * store with only {get, put} works, but a single-slot store can still be shadowed by a bad first write.
- * archive: optional {candidates(w, {deadline}), put(w, result)} (s3WitnessCache): read only after the cache and every
+ * archive: optional {candidates(w, {deadline, signal}), put(w, result)} (s3WitnessCache): read only after the cache and every
  * upstream failed, written only with verified answers (witnesses, and headers checked for ancestry) and never awaited.
  * Bounds: deadlineMs per request covers EVERYTHING the request does (queue wait for a slot, every upstream try and body
  * read, root recovery, helper checks, the cache read); timeoutMs per try (cut to what is left of the deadline when the
@@ -234,18 +263,25 @@ export function createWitnessGateway({ upstreams = [], cache = null, archive = n
   let server = null;
   /** Queue a VERIFIED answer for the archive; never awaited, never throws (a slow or hung store cannot delay a read). */
   function archivePut(w, result) {
+    if (closed) return;                                    // a late write after close() never reaches the archive
     stats.archiveQueued++;
     try { Promise.resolve(archive.put(w, result)).catch(() => { stats.archiveErrors++; }); } catch { stats.archiveErrors++; }
   }
-  /** The archive's UNVERIFIED candidates for w, inside the deadline (at most 64); [] on any failure. */
-  async function archived(w, deadline) {
-    if (deadline - Date.now() <= 0) return [];
-    let timer;
+  /** The archive's UNVERIFIED candidates for w within `op` (a request, or a shared ancestry walk): at most 64; [] when
+   *  the archive fails or is busy. The read carries op's signal, so when op ends (its deadline, its last caller leaving,
+   *  or close) the archive drops op's queued slot and kills op's S3 transfers; other ops' reads continue. Counted
+   *  against the same aggregate maxCacheOps bound as local cache reads. An expired op is a deadline, never a miss. */
+  async function archived(w, op) {
+    if (expired(op)) throw ended(op);
+    if (cacheOps >= maxCacheOps) { stats.cacheSkipped++; return []; }
+    cacheOps++;
+    const read = Promise.resolve().then(() => archive.candidates(w, { deadline: op.deadline, signal: op.signal }));
+    read.then(() => { cacheOps--; }, () => { cacheOps--; });
     try {
-      const list = await Promise.race([archive.candidates(w, { deadline }),
-        new Promise((r) => { timer = setTimeout(() => r([]), Math.max(0, deadline - Date.now())); })]);
+      const list = await abortable(read, op.signal);
+      if (expired(op)) throw ended(op);
       return Array.isArray(list) ? list.slice(0, 64) : [];
-    } catch { stats.archiveErrors++; return []; } finally { clearTimeout(timer); }
+    } catch (e) { if (expired(op)) throw ended(op); stats.archiveErrors++; return []; }
   }
   /** The archive key of a block header: pinned by the block's own hash, like a witness request. */
   const headerKey = (hash) => {
@@ -287,7 +323,7 @@ export function createWitnessGateway({ upstreams = [], cache = null, archive = n
     // every upstream failed: an archived header, checked by the helper exactly like an upstream's
     if (archive) {
       const k = headerKey(hash);
-      for (const c of await archived(k, op.deadline)) {
+      for (const c of await archived(k, op)) {
         if (Date.now() >= op.deadline) break;
         const tag = `${k.key}:${sha256(JSON.stringify(c))}`;
         if (quarantine.has(tag)) continue;
@@ -350,7 +386,7 @@ export function createWitnessGateway({ upstreams = [], cache = null, archive = n
       }
       // last resort: the archive, inside the remaining deadline; every candidate verified like a cache entry
       if (archive) {
-        const found = await archived(w, op.deadline);
+        const found = await archived(w, op);
         for (const c of found) {
           if (Date.now() >= op.deadline) break;
           const tag = `${w.key}:${sha256(JSON.stringify(c))}`;

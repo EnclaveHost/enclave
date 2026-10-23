@@ -54,7 +54,9 @@ export function canonicalJson(v) {
  * One SigV4-signed S3 request through curl. -> { status, body: Buffer } or throws { code: 'timeout' | 'oversize' | 'curl' }.
  * Bounded: wall time (curl --max-time plus a kill), response bytes (curl --max-filesize plus a stream cap).
  */
-export function s3Request({ method, url, region, credentials, headers = [], body = null, timeoutMs, maxBytes, curl = 'curl', children, scratch }) {
+export function s3Request({ method, url, region, credentials, headers = [], body = null, timeoutMs, maxBytes, curl = 'curl', children, scratch, signal }) {
+  // a caller that has already given up starts no transport at all
+  if (signal?.aborted) return Promise.reject(Object.assign(new Error('S3 request aborted'), { code: 'aborted' }));
   let bodyFile = null;
   if (body !== null) {
     const dir = scratch || fs.mkdtempSync(path.join(os.tmpdir(), 's3wc-'));
@@ -75,7 +77,10 @@ export function s3Request({ method, url, region, credentials, headers = [], body
     p.exited = new Promise((r) => p.once('close', r));
     children?.add(p);
     const out = []; let size = 0, err = '', settled = false;
-    const done = (fn, v) => { if (settled) return; settled = true; clearTimeout(timer); children?.delete(p); cleanup(); fn(v); };
+    const done = (fn, v) => { if (settled) return; settled = true; clearTimeout(timer); signal?.removeEventListener('abort', onAbort); children?.delete(p); cleanup(); fn(v); };
+    // the caller gave up (its deadline, or the gateway closed): kill THIS request's curl at once; other callers' requests are untouched
+    const onAbort = () => { p.kill('SIGKILL'); done(reject, Object.assign(new Error('S3 request aborted'), { code: 'aborted' })); };
+    signal?.addEventListener('abort', onAbort, { once: true });
     const timer = setTimeout(() => { p.kill('SIGKILL'); done(reject, Object.assign(new Error('S3 request timed out'), { code: 'timeout' })); }, timeoutMs + 1000);
     p.stdout.on('data', (c) => { size += c.length; if (size > maxBytes) { p.kill('SIGKILL'); done(reject, Object.assign(new Error('S3 response too large'), { code: 'oversize' })); } else out.push(c); });
     p.stderr.on('data', (c) => { if (err.length < 4096) err += c; });
@@ -96,7 +101,10 @@ export function s3Request({ method, url, region, credentials, headers = [], body
  * endpoint: S3 base URL (https, or http on loopback). bucket, region. chainId: the gateway's chain (namespaces keys).
  * credentials: {accessKeyId, secretAccessKey}, loaded by the caller from a 0600 file (never logged).
  * archive: false (default) = read-only; true = also write witnesses (see PRIVACY above).
- * -> { candidates(w, {deadline}), get(w), put(w, result), idle(), close(), stats(), privacy }
+ * -> { candidates(w, {deadline, signal}), get(w), put(w, result), idle(), close(), stats(), privacy }
+ * A caller's `signal` (the gateway's per-request deadline or its close) ends only that caller's reads: its waiting slot
+ * is given up and its curl processes are killed; other callers' reads continue. Writes are detached from any caller
+ * (bounded queue, putTimeoutMs, killed by close()).
  */
 export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix = 'enclave-witness', chainId, credentials, archive = false,
   timeoutMs = 4000, readBudgetMs = 8000, putTimeoutMs = 60000, maxObjectBytes = 4 << 20, maxCandidates = 8, maxListPages = 2, maxListBytes = 256 << 10,
@@ -144,24 +152,28 @@ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix 
   }
 
   // read slots: a finished read hands its slot straight to the oldest waiter; a waiter gives up after one read's budget
-  function acquire() {
+  function acquire(signal) {
+    if (signal?.aborted) return Promise.resolve(false);
     if (gets < maxInflightGets) { gets++; return Promise.resolve(true); }
     return new Promise((r) => {
-      const waiter = () => { clearTimeout(t); r(true); };
-      const t = setTimeout(() => { const i = waiting.indexOf(waiter); if (i >= 0) waiting.splice(i, 1); r(false); }, timeoutMs);
+      const leave = () => { clearTimeout(t); signal?.removeEventListener('abort', leave); const i = waiting.indexOf(waiter); if (i >= 0) waiting.splice(i, 1); r(false); };
+      const waiter = () => { clearTimeout(t); signal?.removeEventListener('abort', leave); r(true); };
+      const t = setTimeout(leave, timeoutMs);
+      signal?.addEventListener('abort', leave, { once: true });     // an aborted caller leaves the queue at once
       waiting.push(waiter);
     });
   }
   function release() { const next = waiting.shift(); if (next) next(); else gets--; }
 
   const left = (deadline) => deadline - Date.now();
-  async function fetchEntry(w, key, deadline) {
+  async function fetchEntry(w, key, deadline, signal) {
     const t = Math.min(timeoutMs, left(deadline));
+    if (closed || signal?.aborted) return undefined;
     if (t < 50) { bump(stats.errors, 'budget'); return undefined; }
-    if (!(await acquire())) { bump(stats.errors, 'busy'); return undefined; }
-    if (closed) { release(); return undefined; }
+    if (!(await acquire(signal))) { bump(stats.errors, signal?.aborted ? 'aborted' : 'busy'); return undefined; }
+    if (closed || signal?.aborted) { release(); return undefined; }
     try {
-      const r = await req({ method: 'GET', url: urlOf(key), timeoutMs: t, maxBytes: maxObjectBytes });
+      const r = await req({ method: 'GET', url: urlOf(key), timeoutMs: t, maxBytes: maxObjectBytes, signal });
       if (r.status === 404) { stats.misses++; return undefined; }
       if (r.status !== 200) { bump(stats.errors, 'http' + r.status); return undefined; }
       return accept(w, r.body);
@@ -169,17 +181,19 @@ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix 
     finally { release(); }
   }
   /** Up to maxCandidates content-addressed object keys for w, in listing (lexicographic) order; bounded pages. */
-  async function listKeys(w, deadline) {
+  async function listKeys(w, deadline, signal) {
     const pfx = folder(w), keys = [];
     const ok = new RegExp('^' + pfx.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[0-9a-f]{64}\\.json$');
     let token = null;
     for (let page = 0; page < maxListPages && keys.length < maxCandidates; page++) {
       const t = Math.min(timeoutMs, left(deadline));
+      if (closed || signal?.aborted) break;
       if (t < 50) { bump(stats.errors, 'budget'); break; }
       const q = `list-type=2&max-keys=${maxCandidates}&prefix=${encodeURIComponent(pfx)}` + (token ? `&continuation-token=${encodeURIComponent(token)}` : '');
-      if (!(await acquire())) { bump(stats.errors, 'busy'); break; }
+      if (!(await acquire(signal))) { bump(stats.errors, signal?.aborted ? 'aborted' : 'busy'); break; }
+      if (closed || signal?.aborted) { release(); break; }
       let r;
-      try { r = await req({ method: 'GET', url: `${base}/${bucket}?${q}`, timeoutMs: t, maxBytes: maxListBytes }); }
+      try { r = await req({ method: 'GET', url: `${base}/${bucket}?${q}`, timeoutMs: t, maxBytes: maxListBytes, signal }); }
       catch (e) { bump(stats.errors, 'list-' + (e.code || 'error')); break; }
       finally { release(); }
       stats.lists++;
@@ -198,13 +212,13 @@ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix 
    * Every stored answer for w that passes the envelope and content-address checks (UNVERIFIED: the gateway checks
    * each against an authenticated root). Bounded by maxCandidates, listing bounds and one read budget; never throws.
    */
-  async function candidates(w, { deadline = Date.now() + readBudgetMs } = {}) {
-    if (closed || !valid(w)) return [];
+  async function candidates(w, { deadline = Date.now() + readBudgetMs, signal } = {}) {
+    if (closed || !valid(w) || signal?.aborted) return [];
     deadline = Math.min(deadline, Date.now() + readBudgetMs);
     const out = [];
     try {
-      for (const key of await listKeys(w, deadline)) {
-        const got = await fetchEntry(w, key, deadline);
+      for (const key of await listKeys(w, deadline, signal)) {
+        const got = await fetchEntry(w, key, deadline, signal);
         if (!got) continue;
         const [ok, v] = got;
         if (!ok) { bump(stats.rejected, v); continue; }
@@ -212,7 +226,7 @@ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix 
         out.push(v);
       }
       if (out.length < maxCandidates) {
-        const got = await fetchEntry(w, legacyKey(w), deadline);
+        const got = await fetchEntry(w, legacyKey(w), deadline, signal);
         if (got) { if (got[0]) out.push(got[1]); else bump(stats.rejected, got[1]); }
       }
     } catch (e) { bump(stats.errors, e?.code || 'error'); }
