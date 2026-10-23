@@ -184,7 +184,9 @@ test('the loopback HTTP verifier: a hung request is cancelled on the wire at the
   try {
     const r = new LeaseReader({ authority: 'verifier', verifier: `http://127.0.0.1:${server.address().port}/`, addressBook: BOOK, confirmations: 2, deadlineMs: 200 });
     const t0 = performance.now();
-    await assert.rejects(r.agreed(async (c) => ({ v: String(await c.readContract({ address: ADDR, abi: BAL_ABI, functionName: 'balanceOf', args: [ADDR] })) })), /deadline|timed out/);
+    // the request's own timeout (the time left) and the operation's deadline fire at about the same moment: either wins
+    await assert.rejects(r.agreed(async (c) => ({ v: String(await c.readContract({ address: ADDR, abi: BAL_ABI, functionName: 'balanceOf', args: [ADDR] })) })),
+      /no fresh verified chain state: .*(deadline|timed out|aborted due to timeout)/);
     await sleep(100);
     assert.equal(closedAt.length, 1, 'the server saw the hung request aborted');
     assert.ok(closedAt[0] - t0 < 400, `aborted ${Math.round(closedAt[0] - t0)} ms after start (deadline 200 ms)`);
