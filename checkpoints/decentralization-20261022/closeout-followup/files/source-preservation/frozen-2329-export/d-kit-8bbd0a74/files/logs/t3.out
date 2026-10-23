@@ -1,0 +1,221 @@
+[queue] START available=23904MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+== python
+test_additive_37_to_38_in_installed_order (test_activation.Admission.test_additive_37_to_38_in_installed_order) ... ok
+test_refusals (test_activation.Admission.test_refusals) ... ok
+test_refusals (test_activation.BootFunding.test_refusals) ... ok
+test_root_actual_read_passes_with_headroom (test_activation.BootFunding.test_root_actual_read_passes_with_headroom) ... ok
+test_runner_failure_names_the_error_line (test_activation.BootFunding.test_runner_failure_names_the_error_line) ... ok
+test_runner_failure_refuses (test_activation.BootFunding.test_runner_failure_refuses) ... ok
+test_approval_and_plan (test_activation.Build.test_approval_and_plan) ... ok
+test_refusals (test_activation.Build.test_refusals) ... ok
+test_source_is_rederived_from_git_with_the_pinned_precheck (test_activation.Build.test_source_is_rederived_from_git_with_the_pinned_precheck) ... ok
+test_staged_dir_hashes (test_activation.Build.test_staged_dir_hashes) ... ok
+test_the_actual_completed_build_passes (test_activation.Build.test_the_actual_completed_build_passes) ... ok
+test_after_gate_needs_more_than_rollback (test_activation.CutoverMarginAndWatchdog.test_after_gate_needs_more_than_rollback) ... ok
+test_cutover_margin_is_strictly_above_900_at_the_actual_time (test_activation.CutoverMarginAndWatchdog.test_cutover_margin_is_strictly_above_900_at_the_actual_time) ... ok
+test_happy_path_waits_for_the_gate_and_never_reports_pass (test_activation.CutoverMarginAndWatchdog.test_happy_path_waits_for_the_gate_and_never_reports_pass) ... ok
+test_lease_read_parses_only_a_verified_preflight (test_activation.CutoverMarginAndWatchdog.test_lease_read_parses_only_a_verified_preflight) ... ok
+test_low_margin_stops_the_gate (test_activation.CutoverMarginAndWatchdog.test_low_margin_stops_the_gate) ... ok
+test_only_a_verified_renewal_extends_the_window (test_activation.CutoverMarginAndWatchdog.test_only_a_verified_renewal_extends_the_window) ... ok
+test_real_process_group_is_stopped_without_orphans (test_activation.CutoverMarginAndWatchdog.test_real_process_group_is_stopped_without_orphans) ... ok
+test_rpc_failure_and_staleness_stop_the_gate (test_activation.CutoverMarginAndWatchdog.test_rpc_failure_and_staleness_stop_the_gate) ... ok
+test_activation_after_the_write_is_the_first_attempts (test_activation.FirstAttemptCodeUnchanged.test_activation_after_the_write_is_the_first_attempts)
+Everything from the write on (restart, attach, adoption of the SAME guests, gate v4 at its defaults, renewals, rollback) is ... ok
+test_gate_files_are_the_reviewed_byte_copies (test_activation.FirstAttemptCodeUnchanged.test_gate_files_are_the_reviewed_byte_copies) ... ok
+test_shared_functions_are_the_first_attempts_source (test_activation.FirstAttemptCodeUnchanged.test_shared_functions_are_the_first_attempts_source) ... ok
+test_availability_absent_is_recorded_never_pretended (test_activation.GuestdBaseline.test_availability_absent_is_recorded_never_pretended) ... ok
+test_collect_end_to_end_with_stubs (test_activation.GuestdBaseline.test_collect_end_to_end_with_stubs) ... ok
+test_exact_original_guests_pass_and_only_kept_fields (test_activation.GuestdBaseline.test_exact_original_guests_pass_and_only_kept_fields) ... ok
+test_listing_must_be_fresh_and_private (test_activation.GuestdBaseline.test_listing_must_be_fresh_and_private) ... ok
+test_original_baseline_is_pinned (test_activation.GuestdBaseline.test_original_baseline_is_pinned) ... ok
+test_refusals (test_activation.GuestdBaseline.test_refusals) ... ok
+test_exact_fresh_verdict_passes (test_activation.KeepVerdict.test_exact_fresh_verdict_passes) ... ok
+test_keep_uses_the_strict_check (test_activation.KeepVerdict.test_keep_uses_the_strict_check) ... ok
+test_substring_or_failed_or_stale_evidence_refuses (test_activation.KeepVerdict.test_substring_or_failed_or_stale_evidence_refuses) ... ok
+test_preflight (test_activation.Preconditions.test_preflight) ... ok
+test_baseline_passes (test_activation.Protected.test_baseline_passes) ... ok
+test_every_protected_field_refuses (test_activation.Protected.test_every_protected_field_refuses) ... ok
+test_paths (test_activation.RegistryRecord.test_paths) ... ok
+test_cas_refuses_changed_env_or_existing_backup_and_restores_on_failed_restart (test_activation.RemoteScripts.test_cas_refuses_changed_env_or_existing_backup_and_restores_on_failed_restart) ... ok
+test_cas_success_keeps_the_first_backup (test_activation.RemoteScripts.test_cas_success_keeps_the_first_backup) ... ok
+test_only_dist_changes_every_other_byte_preserved (test_activation.RewriteDist.test_only_dist_changes_every_other_byte_preserved) ... ok
+test_refuses_concurrent_config_change (test_activation.SafeRollback.test_refuses_concurrent_config_change) ... ok
+test_stop_first_wait_deadline_then_restore_and_start (test_activation.SafeRollback.test_stop_first_wait_deadline_then_restore_and_start) ... ok
+test_unreadable_journal_waits_the_ttl_bound (test_activation.SafeRollback.test_unreadable_journal_waits_the_ttl_bound) ... ok
+test_pinned_launcher_and_config (test_activation.ShieldedExpectation.test_pinned_launcher_and_config) ... ok
+
+----------------------------------------------------------------------
+Ran 42 tests in 0.680s
+
+OK
+== node
+TAP version 13
+# Subtest: viem default max fee = ceil(base x 1.2) + tip
+ok 1 - viem default max fee = ceil(base x 1.2) + tip
+  ---
+  duration_ms: 0.628174
+  type: 'test'
+  ...
+# Subtest: root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
+ok 2 - root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
+  ---
+  duration_ms: 0.165739
+  type: 'test'
+  ...
+# Subtest: L1 and operator fees count; the size argument must cover the signed maximum
+ok 3 - L1 and operator fees count; the size argument must cover the signed maximum
+  ---
+  duration_ms: 0.199828
+  type: 'test'
+  ...
+# Subtest: frozen helpers are the pinned bytes
+ok 4 - frozen helpers are the pinned bytes
+  ---
+  duration_ms: 0.761103
+  type: 'test'
+  ...
+# Subtest: the target is only a root-approved build.json, never a prior or malformed measurement
+ok 5 - the target is only a root-approved build.json, never a prior or malformed measurement
+  ---
+  duration_ms: 5.373071
+  type: 'test'
+  ...
+# Subtest: image pins: every present location must match build.json; a differing production copy refuses
+ok 6 - image pins: every present location must match build.json; a differing production copy refuses
+  ---
+  duration_ms: 5.068324
+  type: 'test'
+  ...
+# Subtest: attest pins the frozen probe to the approved measurement; acceptance is strict; proofkey runs the frozen checks
+ok 7 - attest pins the frozen probe to the approved measurement; acceptance is strict; proofkey runs the frozen checks
+  ---
+  duration_ms: 13.029091
+  type: 'test'
+  ...
+# Subtest: the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
+ok 8 - the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
+  ---
+  duration_ms: 1.580376
+  type: 'test'
+  ...
+# Subtest: the decision is the approved commit's bootRegistrationAction, file AND function hash-checked; anything else is refused
+ok 9 - the decision is the approved commit's bootRegistrationAction, file AND function hash-checked; anything else is refused
+  ---
+  duration_ms: 11.413526
+  type: 'test'
+  ...
+# Subtest: 9f6d37bd's decision (the 22:13Z counterexample) registers while the GPU price is pending: the gate refuses it
+ok 10 - 9f6d37bd's decision (the 22:13Z counterexample) registers while the GPU price is pending: the gate refuses it
+  ---
+  duration_ms: 70.475408
+  type: 'test'
+  ...
+# Subtest: root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
+ok 11 - root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
+  ---
+  duration_ms: 57.622475
+  type: 'test'
+  ...
+# Subtest: refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
+ok 12 - refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
+  ---
+  duration_ms: 387.366215
+  type: 'test'
+  ...
+# Subtest: RPC disagreement or a non-Base RPC refuses before any decision
+ok 13 - RPC disagreement or a non-Base RPC refuses before any decision
+  ---
+  duration_ms: 1.0969
+  type: 'test'
+  ...
+# Subtest: block agreement is canonical (number/hash/parentHash/timestamp): provider field ORDER and metadata are ignored (root 22:07/22:08)
+ok 14 - block agreement is canonical (number/hash/parentHash/timestamp): provider field ORDER and metadata are ignored (root 22:07/22:08)
+  ---
+  duration_ms: 48.453499
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 816.756668
+== mutants
+control (unmutated copy) passes
+KILLED   config-before-stop
+KILLED   no-deadline-wait
+KILLED   no-concurrent-config-cas
+KILLED   no-dropin-check
+KILLED   non-additive-admission
+KILLED   cas-no-restore
+KILLED   small-margin-ok
+KILLED   admission-count-ignored
+KILLED   build-marker-at-least-once
+KILLED   approval-unchecked
+KILLED   plan-unchecked
+KILLED   guestd-replacement-adopted
+KILLED   guestd-starting-ok
+KILLED   guestd-no-record-ok
+KILLED   guestd-history-ignored
+KILLED   guestd-two-live-ok
+KILLED   guestd-stale-listing-ok
+KILLED   guestd-public-listing-ok
+KILLED   availability-pretends-adopted
+KILLED   funding-fields-ignored
+KILLED   funding-pending-ignored
+KILLED   funding-no-headroom
+KILLED   funding-delegation-ignored
+KILLED   funding-stale-ok
+KILLED   funding-min-gas
+KILLED   keep-any-measurement
+KILLED   keep-failed-verdict-ok
+KILLED   keep-raw-unchecked
+KILLED   keep-before-attach-ok
+KILLED   admission-drops-prior
+KILLED   build-other-source-ok
+SURVIVED build-08d1-image-ok
+KILLED   build-kernel-may-change
+KILLED   build-measurement-file-unchecked
+SURVIVED source-expectation-unchecked
+KILLED   source-gsup-unchanged-ok
+KILLED   precheck-unpinned
+KILLED   funding-register-accepted
+KILLED   funding-pending-fields-unchecked
+KILLED   funding-decision-hash-ignored
+KILLED   margin-900-inclusive
+KILLED   expectation-ignored
+KILLED   watchdog-floor-ignored
+KILLED   watchdog-stale-ignored
+KILLED   watchdog-no-stop
+KILLED   watchdog-stop-reported-exited
+KILLED   after-gate-unchecked
+KILLED   keep-target-any
+KILLED   keep-failedchecks-missing-ok
+KILLED   keep-build-any
+KILLED   block-hash-ignored
+KILLED   block-timestamp-ignored
+KILLED   block-number-unchecked
+KILLED   block-null-accepted
+KILLED   supervisor-hash-unchecked
+KILLED   decision-hash-unchecked
+KILLED   pending-not-asked
+KILLED   wrapper-any-observed
+KILLED   wrapper-failed-checks-ok
+KILLED   wrapper-image-unchecked
+KILLED   wrapper-unapproved-ok
+KILLED   wrapper-prior-ok
+KILLED   activate-watchdog-stop-ignored
+KILLED   activate-after-gate-unchecked
+mutants 64 survived 2
+== scan
+3:46PM INF scanned ~258202 bytes (258.20 KB) in 39.1ms
+3:46PM INF no leaks found
+literal files []
+[scan] files 46 gitleaks=0 scan-crypto-keys=0 literal=0
+== RESULT rc=1
+[memory-guard] exit=1 peakTreeRssMiB=179 minHostAvailableMiB=21870
+[memory-guard] at peak: node:78 node:54 python3:25 python3:17 bash:6
+[queue] EXIT 1

@@ -1,0 +1,287 @@
+From 50f05862fd91a298fdca011cd2c04078acd203e0 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:58:12 -0700
+Subject: [PATCH] patches: append 0004 (recipient-binding conclusions);
+ regenerate cumulative diffs against checkpoint dfb4b55e and main 68b82926
+
+---
+ ...g-root-reviewed-source-review-direct.patch | 61 +++++++++++++++++++
+ patches/against-checkpoint-dfb4b55e.diff      | 40 +++++++++---
+ patches/against-main-68b82926.diff            | 42 +++++++++----
+ 3 files changed, 122 insertions(+), 21 deletions(-)
+ create mode 100644 patches/0004-Recipient-binding-root-reviewed-source-review-direct.patch
+
+diff --git a/patches/0004-Recipient-binding-root-reviewed-source-review-direct.patch b/patches/0004-Recipient-binding-root-reviewed-source-review-direct.patch
+new file mode 100644
+index 0000000000000000000000000000000000000000..6ec29d02e615c5977eff532e18eafaba65e4cebe
+--- /dev/null
++++ b/patches/0004-Recipient-binding-root-reviewed-source-review-direct.patch
+@@ -0,0 +1,61 @@
++From ac48ded9f94e3d50c738c5131b9dcb061751b9ec Mon Sep 17 00:00:00 2001
++From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
++Date: Fri, 23 Oct 2026 15:58:12 -0700
++Subject: [PATCH] Recipient binding (root-reviewed source review): direct SNP
++ quote gates confidentiality; no value-integrity claim; root 22:56Z facts
++
++Source/documentation only; the review is SOURCE evidence, not production evidence (nothing was run):
++- a custody v2 release needs a VCEK-signed SNP report binding the guest-minted recipient key, revisions, committee/epoch,
++  challenge, runtime and transport key (report_data[0:32]), the owner's appId ([32:64]) and HOST_DATA = deployment; the
++  registry proofKey is not an input, so registering one or holding the operator key cannot forge a release
++- the guest does not chain-verify the relay pointer (front/custody.go L116-134, config check L286-287): a malicious relay
++  cannot read real values but can make the guest run attacker-chosen values/config; owner-committed value integrity NOT claimed
++- root facts (PROVISIONAL): canary top-up target verified 22:47:45 (EOA, 61,654,449,641,751 wei), no human confirmation;
++  b007d471 staged 22:49, admitted 37->38 22:50, NOT activated; old ed918e4b re-attached 22:52, no control restart; funding
++  refused 22:55:45 (fee 303,866,570,907 vs 376,132,087,579, no 25% headroom; setProofKey nonce 23759); D kit 47 py + 14 node
++  pass, 78 mutants running, not production
++- secret-custody-v2.md: what attestation gates and what it does not; v1 L3 note on the unverified pointer
++---
++ docs/security/secret-custody-v2.md | 19 ++++++++++++++++---
++ 1 file changed, 16 insertions(+), 3 deletions(-)
++
++diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
++index d56f08909cc2a0e8b01440cdbfd2b0bdb83bbe6c..9d2e333da3b52a2bb9f11f5f32937b0113987e16 100644
++--- a/docs/security/secret-custody-v2.md
+++++ b/docs/security/secret-custody-v2.md
++@@ -98,9 +98,20 @@ Prepared, not done:
++ - **Relay copy and backups.** Clearing the relay copy during migration depends on the relay's `/exists` custody flag answering
++   within 1.5 s, and it removes `secrets.json` only. An absence inventory of named channels is not proof of migration or of
++   backup erasure.
++-- **Proof key and transport key.**
++-  - The control proof key is compared through the relay-served attested origin. It is not bound to an SNP report.
++-  - The custodian hardware evidence binds the transport key, a fresh challenge and the runtime only (quote-only).
+++- **What attestation gates, and what it does not** (from a source review; not production evidence).
+++  - **What is gated:** a custody v2 release reaches only an SEV-SNP guest running an owner-admitted image. Each custodian checks
+++    a VCEK-signed report whose `report_data` binds the release binding to the owner's appId, with `HOST_DATA` = the
+++    deployment. The binding covers the recipient key minted in the guest, the revisions, the committee and epoch, the
+++    custodian's challenge, the runtime and the transport key. Partials are sealed to that recipient key.
+++  - **Not an input:** the registry proofKey plays no part in this path. Registering an arbitrary proofKey, or holding the
+++    operator key, cannot forge a release; the operator signature only authorizes it.
+++  - **Separate limitation:** the control proof key is compared through the relay-served attested origin and is not bound to an
+++    SNP report. That concerns checkpoint and metering trust and what a browser is shown, not custody release.
+++  - **Not gated (value integrity):** the guest builds the committee and bundle from the relay-delivered pointer without
+++    reading the chain. So a malicious relay cannot read the real values, but it can make the guest run with values and config
+++    it chose. Only "released to attested, owner-admitted guests" is claimed, not "the guest received the owner's committed
+++    values".
+++  - The gate is as strict as the owner's on-chain rules (measurement and runtime pairs, appId, minTcb, VMPL).
++ - **The relay is in the path.** The guest reaches the custodian through the relay's tunnel, and gets the pointer from
++   the relay-signed release (v1 L3).
++ - **Site v2 panel: source only, not deployed.** A site release carrying it is built and verified offline but unpublished. The
++@@ -402,6 +413,8 @@ threshold properties, see §2 and §4.1):
++ - **v1 L3, the relay in the guest's path.** The pointer to the committee arrives in the relay-signed release. A
++   malicious relay can point a guest at a committee it runs: an integrity attack, not a read of real secrets. Closing it
++   needs the guest to read Base itself (a light client or storage proofs).
+++  Today's guest front does not chain-verify the pointer, so a guest given a relay-chosen committee and bundle runs with
+++  attacker-chosen values and config. Value integrity is therefore not claimed.
++ - **The owner's device.** It is still trusted for its own secrets (v1 L7).
++ - **Base.** Censorship by Base, or lost Base RPC access, blocks policy reads.
++ - **Sybil resistance in full.** Capacity proofs and caps make seats expensive, not impossible: Capacity Work notes
++-- 
++2.56.0
++
+diff --git a/patches/against-checkpoint-dfb4b55e.diff b/patches/against-checkpoint-dfb4b55e.diff
+index 283f9084b06e1dc0e6d20c9b68911416bf3bd362..616580ccc6f976c8f42693d84fb068f85f371b3f 100644
+--- a/patches/against-checkpoint-dfb4b55e.diff
++++ b/patches/against-checkpoint-dfb4b55e.diff
+@@ -17,7 +17,7 @@
+  - `book` is the EnclaveAddressBook (`addr(bytes32)`), consulted once at construction to pin `deploymentLedger` and `sessionVaultFactory`. The ledger must have code; the factory may be zero (no SessionVault unwrapping) or a contract. Later book edits cannot redirect ownership or release decisions.
+  - `hostOwnership` is a deployed `EnclaveHostOwnership`. It and its registry are pinned immutably. Registry operators nominate initial wallet owners; those wallets must accept.
+ diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+-index 393f9d31070e3b5f44580689c4a95bff91a3a4d5..d56f08909cc2a0e8b01440cdbfd2b0bdb83bbe6c 100644
++index 393f9d31070e3b5f44580689c4a95bff91a3a4d5..9d2e333da3b52a2bb9f11f5f32937b0113987e16 100644
+ --- a/docs/security/secret-custody-v2.md
+ +++ b/docs/security/secret-custody-v2.md
+ @@ -26,7 +26,53 @@ for the current implementation, validation and remaining activation gates.
+@@ -75,7 +75,7 @@
+  - The guest logged `DOM custody: … secrets revision 1 from a v2 threshold of 1 over 1 custodian machines` and started
+    the app. The custodian logged `release … OK`.
+  - With the custodian stopped, the guest refused (`insufficient custodian quorum … need 1`) and did not start the app.
+-@@ -44,9 +90,23 @@ for the current implementation, validation and remaining activation gates.
++@@ -44,9 +90,34 @@ for the current implementation, validation and remaining activation gates.
+    owners must re-enter their values (§10).
+  - **The custodian keeps some state only in memory.** That is its per-deployment high-water marks and its AMD VCEK
+    cache. After a restart, rollback protection starts again from the next read.
+@@ -87,9 +87,20 @@
+ +- **Relay copy and backups.** Clearing the relay copy during migration depends on the relay's `/exists` custody flag answering
+ +  within 1.5 s, and it removes `secrets.json` only. An absence inventory of named channels is not proof of migration or of
+ +  backup erasure.
+-+- **Proof key and transport key.**
+-+  - The control proof key is compared through the relay-served attested origin. It is not bound to an SNP report.
+-+  - The custodian hardware evidence binds the transport key, a fresh challenge and the runtime only (quote-only).
+++- **What attestation gates, and what it does not** (from a source review; not production evidence).
+++  - **What is gated:** a custody v2 release reaches only an SEV-SNP guest running an owner-admitted image. Each custodian checks
+++    a VCEK-signed report whose `report_data` binds the release binding to the owner's appId, with `HOST_DATA` = the
+++    deployment. The binding covers the recipient key minted in the guest, the revisions, the committee and epoch, the
+++    custodian's challenge, the runtime and the transport key. Partials are sealed to that recipient key.
+++  - **Not an input:** the registry proofKey plays no part in this path. Registering an arbitrary proofKey, or holding the
+++    operator key, cannot forge a release; the operator signature only authorizes it.
+++  - **Separate limitation:** the control proof key is compared through the relay-served attested origin and is not bound to an
+++    SNP report. That concerns checkpoint and metering trust and what a browser is shown, not custody release.
+++  - **Not gated (value integrity):** the guest builds the committee and bundle from the relay-delivered pointer without
+++    reading the chain. So a malicious relay cannot read the real values, but it can make the guest run with values and config
+++    it chose. Only "released to attested, owner-admitted guests" is claimed, not "the guest received the owner's committed
+++    values".
+++  - The gate is as strict as the owner's on-chain rules (measurement and runtime pairs, appId, minTcb, VMPL).
+  - **The relay is in the path.** The guest reaches the custodian through the relay's tunnel, and gets the pointer from
+    the relay-signed release (v1 L3).
+ -- **Not built yet:** the site's "Save to custody" (v1 only; v2 via the CLI) and the governance book entry.
+@@ -100,7 +111,7 @@
+  - **No external cryptographic review.**
+  
+  ## 1. Why v1 is not enough
+-@@ -66,8 +126,17 @@ v2 keeps v1's guest side (attestation, binding, config commitment, fail closed)
++@@ -66,8 +137,17 @@ v2 keeps v1's guest side (attestation, binding, config commitment, fail closed)
+  
+  ## 2. Goals
+  
+@@ -120,7 +131,7 @@
+  2. **No small group can block or read a release.** The threshold is a fraction of a large committee of independent
+     hosts, with an absolute floor.
+  3. **Any qualified members can serve a request.** A guest asks every member; any `t` valid answers unlock. Members
+-@@ -114,8 +183,14 @@ any real value depends on v2 (v1's L1 applies twice over).
++@@ -114,8 +194,14 @@ any real value depends on v2 (v1's L1 applies twice over).
+  
+  ### 4.1 The committee key
+  
+@@ -137,7 +148,7 @@
+  - `Y = x·G` is the committee's public key. `Y_i = x_i·G` are the public verification shares, derived from the Feldman
+    commitments on chain.
+  - **Genesis is one Enclave-owned member (§6.2, §10).** It generates `x` inside its TEE and publishes `Y` and the
+-@@ -290,6 +365,12 @@ Two guest capabilities are needed that per-app guests do not have today:
++@@ -290,6 +376,12 @@ Two guest capabilities are needed that per-app guests do not have today:
+  - **Rollback.** The host can hand back an older sealed blob, holding an old epoch's share. The custodian refuses any
+    epoch older than the chain's current one. Old shares are useful only to a TEE break on `t_old` chips that also kept
+    their blobs, the standard assumption of proactive schemes.
+@@ -150,7 +161,7 @@
+  - **TCB.** Whether the TCB is mixed into the sealing key is a trade-off. If it is, a microcode update erases the share.
+    If not, an attacker who rolls back the firmware could unseal. Recommended: do not mix it, and have the custodian
+    check its own fresh report against the TCB floor before using sealed state.
+-@@ -305,9 +386,12 @@ Whoever can add a measurement to the custodian code set can ship code that expor
++@@ -305,9 +397,12 @@ Whoever can add a measurement to the custodian code set can ship code that expor
+  
+  Owners who reject an upgrade can move their bundles to another committee during the delay.
+  
+@@ -164,7 +175,16 @@
+  - Enclave cannot read secrets or admit its own members alone.
+  - No single host, operator or relay can block a release, as long as `t` qualified members answer.
+  - Stealing costs `t` seats that are each attested and capacity-proven, on distinct chips and within operator caps.
+-@@ -357,11 +441,104 @@ temporary outage of more than `n/3` members only blocks unlocks until enough ret
++@@ -318,6 +413,8 @@ Owners who reject an upgrade can move their bundles to another committee during
++ - **v1 L3, the relay in the guest's path.** The pointer to the committee arrives in the relay-signed release. A
++   malicious relay can point a guest at a committee it runs: an integrity attack, not a read of real secrets. Closing it
++   needs the guest to read Base itself (a light client or storage proofs).
+++  Today's guest front does not chain-verify the pointer, so a guest given a relay-chosen committee and bundle runs with
+++  attacker-chosen values and config. Value integrity is therefore not claimed.
++ - **The owner's device.** It is still trusted for its own secrets (v1 L7).
++ - **Base.** Censorship by Base, or lost Base RPC access, blocks policy reads.
++ - **Sybil resistance in full.** Capacity proofs and caps make seats expensive, not impossible: Capacity Work notes
++@@ -357,11 +454,104 @@ temporary outage of more than `n/3` members only blocks unlocks until enough ret
+  7. **Owner tooling and site:** encrypt to `Y`, migrate from v1.
+  8. **Hardware verification** in the v1 style: release at `t`, refusal below `t`, a handover with live apps, a host move.
+  
+diff --git a/patches/against-main-68b82926.diff b/patches/against-main-68b82926.diff
+index 5407780aadbe00e2b9e6088db2b348755c452059..e5e90f1835af56c8b6d4b5e0c3ed49e918171238 100644
+--- a/patches/against-main-68b82926.diff
++++ b/patches/against-main-68b82926.diff
+@@ -1,5 +1,5 @@
+ diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+-index 6e933b8e6ba7244520a59f2b965fa166b1073b52..d56f08909cc2a0e8b01440cdbfd2b0bdb83bbe6c 100644
++index 6e933b8e6ba7244520a59f2b965fa166b1073b52..9d2e333da3b52a2bb9f11f5f32937b0113987e16 100644
+ --- a/docs/security/secret-custody-v2.md
+ +++ b/docs/security/secret-custody-v2.md
+ @@ -1,10 +1,18 @@
+@@ -78,7 +78,7 @@
+  - The guest logged `DOM custody: … secrets revision 1 from a v2 threshold of 1 over 1 custodian machines` and started
+    the app. The custodian logged `release … OK`.
+  - With the custodian stopped, the guest refused (`insufficient custodian quorum … need 1`) and did not start the app.
+-@@ -36,9 +90,23 @@ Enclave-seat rules. Interfaces: [secret-custody-v2-spec.md](secret-custody-v2-sp
++@@ -36,9 +90,34 @@ Enclave-seat rules. Interfaces: [secret-custody-v2-spec.md](secret-custody-v2-sp
+    owners must re-enter their values (§10).
+  - **The custodian keeps some state only in memory.** That is its per-deployment high-water marks and its AMD VCEK
+    cache. After a restart, rollback protection starts again from the next read.
+@@ -90,9 +90,20 @@
+ +- **Relay copy and backups.** Clearing the relay copy during migration depends on the relay's `/exists` custody flag answering
+ +  within 1.5 s, and it removes `secrets.json` only. An absence inventory of named channels is not proof of migration or of
+ +  backup erasure.
+-+- **Proof key and transport key.**
+-+  - The control proof key is compared through the relay-served attested origin. It is not bound to an SNP report.
+-+  - The custodian hardware evidence binds the transport key, a fresh challenge and the runtime only (quote-only).
+++- **What attestation gates, and what it does not** (from a source review; not production evidence).
+++  - **What is gated:** a custody v2 release reaches only an SEV-SNP guest running an owner-admitted image. Each custodian checks
+++    a VCEK-signed report whose `report_data` binds the release binding to the owner's appId, with `HOST_DATA` = the
+++    deployment. The binding covers the recipient key minted in the guest, the revisions, the committee and epoch, the
+++    custodian's challenge, the runtime and the transport key. Partials are sealed to that recipient key.
+++  - **Not an input:** the registry proofKey plays no part in this path. Registering an arbitrary proofKey, or holding the
+++    operator key, cannot forge a release; the operator signature only authorizes it.
+++  - **Separate limitation:** the control proof key is compared through the relay-served attested origin and is not bound to an
+++    SNP report. That concerns checkpoint and metering trust and what a browser is shown, not custody release.
+++  - **Not gated (value integrity):** the guest builds the committee and bundle from the relay-delivered pointer without
+++    reading the chain. So a malicious relay cannot read the real values, but it can make the guest run with values and config
+++    it chose. Only "released to attested, owner-admitted guests" is claimed, not "the guest received the owner's committed
+++    values".
+++  - The gate is as strict as the owner's on-chain rules (measurement and runtime pairs, appId, minTcb, VMPL).
+  - **The relay is in the path.** The guest reaches the custodian through the relay's tunnel, and gets the pointer from
+    the relay-signed release (v1 L3).
+ -- **Not built yet:** the site's "Save to custody" (v1 only; v2 via the CLI) and the governance book entry.
+@@ -103,7 +114,7 @@
+  - **No external cryptographic review.**
+  
+  ## 1. Why v1 is not enough
+-@@ -58,8 +126,17 @@ v2 keeps v1's guest side (attestation, binding, config commitment, fail closed)
++@@ -58,8 +137,17 @@ v2 keeps v1's guest side (attestation, binding, config commitment, fail closed)
+  
+  ## 2. Goals
+  
+@@ -123,7 +134,7 @@
+  2. **No small group can block or read a release.** The threshold is a fraction of a large committee of independent
+     hosts, with an absolute floor.
+  3. **Any qualified members can serve a request.** A guest asks every member; any `t` valid answers unlock. Members
+-@@ -106,8 +183,14 @@ any real value depends on v2 (v1's L1 applies twice over).
++@@ -106,8 +194,14 @@ any real value depends on v2 (v1's L1 applies twice over).
+  
+  ### 4.1 The committee key
+  
+@@ -140,7 +151,7 @@
+  - `Y = x·G` is the committee's public key. `Y_i = x_i·G` are the public verification shares, derived from the Feldman
+    commitments on chain.
+  - **Genesis is one Enclave-owned member (§6.2, §10).** It generates `x` inside its TEE and publishes `Y` and the
+-@@ -220,9 +303,9 @@ held by live members when it restarts, so shares follow membership, never usage.
++@@ -220,9 +314,9 @@ held by live members when it restarts, so shares follow membership, never usage.
+  
+  ### 6.2 The Enclave seat (Steven, 2026-10-14)
+  
+@@ -153,7 +164,7 @@
+  
+  1. **All Enclave-owned members share ONE seat.** Each holds a copy of the same share(s). However many machines Enclave
+     runs, they count once. **Enclave machines can never make up the threshold among themselves once `n >= 3`.** This is
+-@@ -282,6 +365,12 @@ Two guest capabilities are needed that per-app guests do not have today:
++@@ -282,6 +376,12 @@ Two guest capabilities are needed that per-app guests do not have today:
+  - **Rollback.** The host can hand back an older sealed blob, holding an old epoch's share. The custodian refuses any
+    epoch older than the chain's current one. Old shares are useful only to a TEE break on `t_old` chips that also kept
+    their blobs, the standard assumption of proactive schemes.
+@@ -166,7 +177,7 @@
+  - **TCB.** Whether the TCB is mixed into the sealing key is a trade-off. If it is, a microcode update erases the share.
+    If not, an attacker who rolls back the firmware could unseal. Recommended: do not mix it, and have the custodian
+    check its own fresh report against the TCB floor before using sealed state.
+-@@ -297,9 +386,12 @@ Whoever can add a measurement to the custodian code set can ship code that expor
++@@ -297,9 +397,12 @@ Whoever can add a measurement to the custodian code set can ship code that expor
+  
+  Owners who reject an upgrade can move their bundles to another committee during the delay.
+  
+@@ -180,7 +191,16 @@
+  - Enclave cannot read secrets or admit its own members alone.
+  - No single host, operator or relay can block a release, as long as `t` qualified members answer.
+  - Stealing costs `t` seats that are each attested and capacity-proven, on distinct chips and within operator caps.
+-@@ -349,11 +441,104 @@ temporary outage of more than `n/3` members only blocks unlocks until enough ret
++@@ -310,6 +413,8 @@ Owners who reject an upgrade can move their bundles to another committee during
++ - **v1 L3, the relay in the guest's path.** The pointer to the committee arrives in the relay-signed release. A
++   malicious relay can point a guest at a committee it runs: an integrity attack, not a read of real secrets. Closing it
++   needs the guest to read Base itself (a light client or storage proofs).
+++  Today's guest front does not chain-verify the pointer, so a guest given a relay-chosen committee and bundle runs with
+++  attacker-chosen values and config. Value integrity is therefore not claimed.
++ - **The owner's device.** It is still trusted for its own secrets (v1 L7).
++ - **Base.** Censorship by Base, or lost Base RPC access, blocks policy reads.
++ - **Sybil resistance in full.** Capacity proofs and caps make seats expensive, not impossible: Capacity Work notes
++@@ -349,11 +454,104 @@ temporary outage of more than `n/3` members only blocks unlocks until enough ret
+  7. **Owner tooling and site:** encrypt to `Y`, migrate from v1.
+  8. **Hardware verification** in the v1 style: release at `t`, refusal below `t`, a handover with live apps, a host move.
+  

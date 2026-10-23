@@ -1,0 +1,9 @@
+[queue] START available=23599MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+...............................................
+----------------------------------------------------------------------
+Ran 47 tests in 1.116s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=62 minHostAvailableMiB=23515
+[memory-guard] at peak: python3:36 python3:14 python3:12
+[queue] EXIT 0

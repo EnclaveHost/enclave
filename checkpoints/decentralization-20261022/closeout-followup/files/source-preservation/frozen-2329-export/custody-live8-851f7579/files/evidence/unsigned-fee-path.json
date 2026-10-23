@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-23T23:19:59.787Z",
+  "readOnly": true,
+  "signingDisabled": true,
+  "broadcastMethodsDisabled": true,
+  "address": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+  "balanceWei": "376132087579",
+  "methods": [
+    "eth_getBalance",
+    "eth_fillTransaction",
+    "eth_getTransactionCount",
+    "eth_getBlockByNumber",
+    "eth_maxPriorityFeePerGas",
+    "eth_estimateGas"
+  ],
+  "filled": [],
+  "prepared": {
+    "gas": "38772",
+    "maxFeePerGas": "7000000",
+    "maxPriorityFeePerGas": "1000000",
+    "l2BoundWei": "271404000000"
+  },
+  "error": null
+}

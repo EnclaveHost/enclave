@@ -1,0 +1,442 @@
+From ac48ded9f94e3d50c738c5131b9dcb061751b9ec Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:58:12 -0700
+Subject: [PATCH] Recipient binding (root-reviewed source review): direct SNP
+ quote gates confidentiality; no value-integrity claim; root 22:56Z facts
+
+Source/documentation only; the review is SOURCE evidence, not production evidence (nothing was run):
+- a custody v2 release needs a VCEK-signed SNP report binding the guest-minted recipient key, revisions, committee/epoch,
+  challenge, runtime and transport key (report_data[0:32]), the owner's appId ([32:64]) and HOST_DATA = deployment; the
+  registry proofKey is not an input, so registering one or holding the operator key cannot forge a release
+- the guest does not chain-verify the relay pointer (front/custody.go L116-134, config check L286-287): a malicious relay
+  cannot read real values but can make the guest run attacker-chosen values/config; owner-committed value integrity NOT claimed
+- root facts (PROVISIONAL): canary top-up target verified 22:47:45 (EOA, 61,654,449,641,751 wei), no human confirmation;
+  b007d471 staged 22:49, admitted 37->38 22:50, NOT activated; old ed918e4b re-attached 22:52, no control restart; funding
+  refused 22:55:45 (fee 303,866,570,907 vs 376,132,087,579, no 25% headroom; setProofKey nonce 23759); D kit 47 py + 14 node
+  pass, 78 mutants running, not production
+- secret-custody-v2.md: what attestation gates and what it does not; v1 L3 note on the unverified pointer
+---
+ CURRENT-STATE.md                   | 46 ++++++++++++----
+ RECIPIENT-BINDING-REVIEW.txt       | 85 ++++++++++++++++++++++++++++++
+ ROLLBACK.md                        |  2 +-
+ SIGNING-AUTHORITY.md               |  9 ++--
+ SOURCES.md                         | 14 +++++
+ TEST-MATRIX.md                     |  2 +
+ commit6.sh                         | 49 +++++++++++++++++
+ docs/security/secret-custody-v2.md | 19 +++++--
+ logs/commit-5.out                  |  5 ++
+ logs/commit-5.rc                   |  1 +
+ logs/rangescan-5.out               |  8 +++
+ logs/rangescan-5.rc                |  1 +
+ logs/scan-6.out                    |  7 +++
+ logs/scan-6.rc                     |  1 +
+ 14 files changed, 232 insertions(+), 17 deletions(-)
+ create mode 100644 RECIPIENT-BINDING-REVIEW.txt
+ create mode 100755 commit6.sh
+ create mode 100644 logs/commit-5.out
+ create mode 100644 logs/commit-5.rc
+ create mode 100644 logs/rangescan-5.out
+ create mode 100644 logs/rangescan-5.rc
+ create mode 100644 logs/scan-6.out
+ create mode 100644 logs/scan-6.rc
+
+diff --git a/CURRENT-STATE.md b/CURRENT-STATE.md
+index f0030fad23bfad46685b216cc8489650b611ada1..aced29201ab2042490b2e2328ab44e65f9c1efcb 100644
+--- a/CURRENT-STATE.md
++++ b/CURRENT-STATE.md
+@@ -1,4 +1,4 @@
+-# Custody v2: current state (draft for root review, 2026-10-23T22:10Z; refreshed 22:29Z from root's 22:14Z journal and 22:25Z review; 22:47Z from root's 22:45Z state)
++# Custody v2: current state (draft for root review, 2026-10-23T22:10Z; refreshed 22:29Z from root's 22:14Z journal and 22:25Z review; 22:47Z from root's 22:45Z state; 22:58Z with root's 22:56Z facts and the root-reviewed recipient-binding review)
+ 
+ **Status of this file.** It is a source and documentation draft for root to review; root publishes the final. It changes no
+ production state, and it is not root's public output.
+@@ -71,10 +71,31 @@
+ - The inventory of absent old-canary values covers named channels and values, not backups. It is **not** proof of migration, and
+   not proof that backups were erased.
+ 
+-**Attestation binding** [S8, S12]:
+-- The control proof key is published at the relay-served attested origin (`/v1/attestation` → `proofKey`) and compared with the
+-  registry. It is **not bound to an SNP report**.
+-- The custodian hardware verdicts bind the transport key, a fresh challenge and the runtime identity (**quote-only transport key**).
++**Attestation binding** (root-reviewed SOURCE review of ab589bf8 and 7dd3acd, not production evidence; nothing was run) [S21]:
++- **A direct SNP quote gates the confidentiality of the real values.** Each custodian hashes into one release binding:
++  - the recipient key minted in the guest, the deployment, the policy and secret revisions, the committee and epoch;
++  - its own fresh challenge, the runtime and the transport key.
++
++  The release needs a VCEK-signed SEV-SNP report for an owner-admitted measurement with:
++  - `report_data[0:32]` = that binding and `report_data[32:64]` = the owner's appId;
++  - `HOST_DATA` = the deployment id;
++  - DEBUG off and the owner's VMPL.
++
++  Partials are sealed to the bound recipient key (`custodian.mjs` L164, L169-173, L178-180; `verifiers.mjs` L40-53;
++  `front/custody.go` L245-258).
++- **The registry proofKey is NOT an input** to custody release; `custody/` names it only in the registry ABI (`chain.mjs` L71).
++  - A host operator or non-TEE control cannot forge a release by registering an arbitrary proofKey.
++  - The operator signature only authorizes; it can withhold a release, not create one.
++  - The control proof key being compared through the relay-served origin, and not bound to an SNP report, concerns checkpoint
++    and metering trust and the browser display, not custody release.
++- **Value INTEGRITY is NOT claimed.** The guest builds the committee and bundle from the relay-delivered pointer without a chain
++  check (`front/custody.go` L116-134), and its config check compares the relay config with that relay-pointed bundle (L286-287).
++  - A malicious relay cannot obtain the real values.
++  - It could make the guest run with attacker-chosen "secrets" and config.
++  - So the supported claim is "values released only to attested, owner-admitted guests", not "the guest received the owner's
++    committed values".
++- The gate is only as strict as the owner's on-chain rules (measurement and runtime pairs, appId, minTcb, VMPL).
++- The custodian hardware verdicts of the 20:14Z run bind the transport key, a fresh challenge and the runtime (quote-only) [S8].
+ 
+ ## E. Publication and the dashboard
+ 
+@@ -117,9 +138,16 @@
+ | 22:39:27 | imagegen app-reserve renewal, tx `0x843c4aa800b6ad2471d704b857811691243f9fdf9329219eef5e9bf30da1b835`, charged 1,265,909,891,753 wei; confirmed. [S20] |
+ | 22:43:54 | EyesOff app-reserve renewal, tx `0xeb9279fd08a5fe682bdd636d757896ea4187cf173c47b2f65cb2fcd3c748af29`, charged 1,237,616,215,992 wei; confirmed. [S20] |
+ | 22:45 | Root state: the control is STILL on `ed918e4b` and unregistered. Both tenants' original guest IDs are running. The original custodian and committee are unchanged. No change to the committee, the admin contracts, the book or the dashboard. [S20] |
+-
+-**Not yet recovered (as of 22:45Z; the control is NOT restored; recovery is NOT done):**
+-- The metal0 control is still on the old `ed918e4b` image and is **unregistered**. Registration and adoption are not recovered.
++| 22:47:45 | Root verified the canary top-up target: Base EOA `0x29479Bf…647C` has code `0x` (an EOA) and balance 61,654,449,641,751 wei. The human is asked for a 0.0001 ETH top-up. **No human confirmation on any signing page.** [S22] |
++| 22:49 | `b007d471` staged. [S22] |
++| 22:50 | `b007d471` admitted to the relay allowlist (37 → 38). [S22] |
++| 22:52 | Root independently confirmed that the old `ed918e4b` control re-attached. **No control restart.** [S22] |
++| 22:55:45 | Root's funding check REFUSED. A fee of 303,866,570,907 wei against the operator balance of 376,132,087,579 wei does not leave 25% headroom. Both planned actions are `setProofKey` at nonce 23759. [S22] |
++| by 22:56 | D's new activation kit: 47 Python and 14 Node tests pass, 78 mutants still running. The kit is NOT production. [S22] |
++
++**Not yet recovered (as of 22:56Z; the control is NOT restored; recovery is NOT done):**
++- The metal0 control is still on the old `ed918e4b` image (re-attached, confirmed 22:52) and is **unregistered**. Registration and adoption are not recovered.
++- `b007d471` is staged and admitted (allowlist 38) but NOT activated. Root's 22:55:45 funding check refused it (no 25% fee headroom).
+ - **Correction:** a protected renewal extends a lease by about **30 min, not 1 h**.
+   - At 22:10 imagegen had 176 s left and EyesOff 734 s.
+   - EyesOff needs renewing at about 22:17, before it expires at 22:22. imagegen is valid until about 22:41.
+@@ -129,7 +157,7 @@
+ 
+ ## U. Unresolved actions (owner of each in `SIGNING-AUTHORITY.md`)
+ 
+-1. metal0 control recovery: the `7dd3acd` candidate (`b007d471…`, built twice at 22:29) still needs a reviewed activation kit (D's review is in progress), activation and registration. `08d1` is admitted but must not be activated. **Root.**
++1. metal0 control recovery: `b007d471` (staged and admitted) still needs a reviewed activation kit (D's tests pass, mutants still running) and operator funding with 25% headroom over the `setProofKey` fee. Then activation and registration. `08d1` must not be activated. **Root.**
+ 2. metal0 owner enrollment: TX1 by operator `0xc9d0` (needs gas), TX2 by admin `0x0b2d`.
+ 3. A new committee from the corrected image: an HTTPS origin, a funded submitter, and genesis.
+ 4. The full secret lifecycle canary on that committee: save, release, rotate, pause, migrate, restart, and the failure cases.
+diff --git a/RECIPIENT-BINDING-REVIEW.txt b/RECIPIENT-BINDING-REVIEW.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..00fb973e90d4be77c7b24ad8e32cd04c4d4ef05b
+--- /dev/null
++++ b/RECIPIENT-BINDING-REVIEW.txt
+@@ -0,0 +1,85 @@
++RECIPIENT BINDING REVIEW (bounded, source-only; Claude). Written 2026-10-23T22:54:44Z (date -u). No source, doc, test, live, SSH or key action.
++Sources:
++  custodian repo work/custody-v2-durability-20261023/repo @ ab589bf8;
++  recipient candidate work/custody-boot-registration-20261023/repo @ 7dd3acd (git show).
++Line numbers are at those commits.
++
++ANSWER
++The r2 (custody v2) release to an SNP app guest is gated by a DIRECT QUOTE at every custodian. The recipient encryption key,
++the deployment, the policy/secret revisions, the committee/epoch, every custodian challenge, the runtime and the transport key
++are hashed into one 32-byte binding. That binding must appear as report_data[0:32] of a VCEK-signed SEV-SNP report:
++  - for an owner-admitted measurement;
++  - with report_data[32:64] = the owner's appId;
++  - with HOST_DATA = the deployment id.
++The registry proofKey is NOT an input anywhere in this path.
++
++A host operator or non-TEE control CANNOT forge a release by registering an arbitrary proofKey:
++  - custody/v2/custodian.mjs never reads it; the only mention in custody/ is the registry ABI tuple at chain.mjs:71.
++  - The operator's own key only AUTHORIZES (step 7). It can withhold a release, never make one.
++The "control proofKey is in-enclave but not SNP-bound in the public verifier" limitation therefore does not weaken custody
++release. It concerns checkpoint/metering trust and what a browser is shown.
++
++TRACE (custodian side, custody/v2/custodian.mjs decide())
++  - :164 binding = v2.releaseBinding({chainId, vault, id, policyRev, secretRev, committeeId, epoch, challenges, runtimeId,
++    transportSpki, recipientKey}).
++    protocol.mjs:173-177 = sha256(domain || ctx || id || revs || committee || epoch || challengeRoot || runtimeId ||
++    sha256(SPKI) || recipientKey).
++  - :92 + :71-76: one of the challenges must be THIS custodian's, unexpired, unused, purpose "release". This gives freshness
++    and prevents replay.
++  - :128 lease runner = the registered endpoint and the lease is live.
++    :166-167 the operator message (protocol.mjs:197) over the binding must recover to the registry operator of the lease
++    holder.
++  - :146-161 rules from the ON-CHAIN policy (owner-written): parseRules (rules.mjs:45-59) requires appId, the
++    (measurement, runtimeId) pairs, minTcb (no default floor) and vmpl, and admits only platform sev-snp. Shield, TDX and AVF
++    are refused by name; the optional Shield adapter applies only to Shield-format evidence under owner Shield rules, :145-149.
++  - :169-173 verify(): verifiers.mjs:26-53 (production table :55, the only entry):
++      - VCEK -> ASK -> pinned AMD ARK plus the required CRL (via verifier/consumer.mjs);
++      - then re-read: VCEK-signed, DEBUG off, VMPL = rules, measurement admitted, report_data[0:32] = binding,
++        [32:64] = appId, HOST_DATA = id, CHIP_ID not masked.
++    The synthetic-roots hook (:28, :34) is unreachable from either daemon: custodian-daemon.mjs:23-24,90 and
++    v2/daemon.mjs:174 both build productionVerifiers.
++  - :178-180 partials are DLEQ-proved and HPKE-sealed to recipientKey with the binding as AAD. Only the holder of the private
++    key of the key bound in the report can open them.
++
++TRACE (recipient side, the measured guest front)
++  - isolation/m2/custody/v2client.go:205-231: NewRecipientKey() is minted IN the guest; BindingV2 is computed over it;
++    Evidence(binding) is called, then AuthorizeV2 (the operator signature). The private key never leaves the guest.
++  - isolation/m2/front/custody.go:245-258: report_data = binding || appSha. appSha comes from the code the front loaded
++    (/app.wasm, refused otherwise at :224-226). The front calls p.report in exactly two places (custody.go:249, provision.go:112),
++    both over bindings the front computed itself. No path exists for a host to obtain a report over chosen data.
++  - Recipient candidate 7dd3acd supervisor.js:2767-2785 authorizeCustody signs the v2 operator message only for the measured
++    CUSTODY_VAULT_V2, or an owner-committed vault (:2774-2776, :2838). It signs the binding as given. That is correct: the
++    signature is authorization, and the binding's TEE meaning comes from the report. The signing key is REGISTRY_PK
++    (host-supplied fw_cfg), so the operator signature proves "the lease holder agreed", never "a TEE asked".
++
++THREE TRUST PATHS, distinguished
++  1. DIRECT QUOTE GATE: custody v2, above. Confidentiality of the owner's secret values rests on SNP hardware evidence for
++     owner-admitted images, checked independently by each custodian. Nothing the relay, operator or registry proofKey says can
++     substitute for it.
++  2. TICKET CHAIN: relay release. provision.go:101-113 binds a relay ticket + seal key into report_data. The relay (platform,
++     non-TEE) verifies the report and delivers config / relay-held secrets / the custody POINTER (release/release.go:100-108).
++     For custody deployments the relay holds no values (Secrets empty). It does choose the pointer; see caveat A.
++  3. BROWSER TRUST: verifier/web/snp-app.mjs and relay-routed attestation display. This is what a user is SHOWN. It is not an
++     input to release authorization.
++
++BLOCKERS / CAVEATS for an honest "attestation-gated canary release" claim
++  A. INTEGRITY, not confidentiality: the guest does not chain-verify the custody pointer.
++     - front/custody.go:116-134 builds the committee (machine encKeys, endpoints, commitments, threshold, bundle) from the
++       relay-delivered pointer. No quorum or chain read appears in front/custody.go or custody/v2client.go for the SNP path.
++     - So a malicious relay cannot obtain the REAL values (custodians gate them as in path 1, and they only seal to a bound
++       recipient key).
++     - It COULD point the guest at a fabricated committee and bundle, plus a matching config. The app would then run with
++       attacker-chosen "secrets" and config. The config check (custody.go:283-285) compares relay config with a relay-pointed
++       bundle.
++     - Claim wording should say "values released only to attested owner-admitted guests". Not "the guest provably received
++       the owner's committed values" unless the pointer is verified against chain.
++  B. Out of this bounded scope, and an assumption the claim depends on: that the committee's custodian machines (their encKeys
++     in the chain committee) are themselves attested SNP custodians. That is admission/governance, not the release path.
++  C. The gate is exactly as strong as the owner's on-chain rules (measurement/runtime pairs, appId, minTcb, vmpl 0..3). A
++     permissive rule (e.g. an image that serves arbitrary report_data, or vmpl > 0) weakens it by the owner's own choice.
++     The canary's rules should be stated: vmpl 0, the exact canary image, appId.
++  D. Availability, not safety: the host (operator key, lease, relay ticket/pointer, guestd) can deny or stall any release.
++
++No blocker found to the claim "an r2 release reaches only an SEV-SNP guest running an owner-admitted image, verified by each
++custodian from AMD-rooted evidence binding the recipient key; registering a proofKey or holding the operator key cannot
++forge one". Caveat A must be stated, or closed by a pointer check, before claiming value INTEGRITY.
+diff --git a/ROLLBACK.md b/ROLLBACK.md
+index 1f1455dc5b20383033ca6157b4517fd50cf57969..b4e77c13211a36ccbb48107a1af18b32bbbf2c38 100644
+--- a/ROLLBACK.md
++++ b/ROLLBACK.md
+@@ -13,7 +13,7 @@
+ | owner switch to a new committee (re-entry or rewrap) | **Before the switch update:** nothing on chain changed, and the old policy, rules, bundle and committee keep working. **After it**, there is no undo: the vault stores ONE current bundle per deployment, and the switch replaced the `0x4774` bundle. Going back is a NEW owner `update` (`setPolicy` committee `0x4774` plus `setBundle` with a FRESH bundle encrypted to `0x4774`'s key). That bundle comes from re-entry, or from a fresh owner-authorized rewrap in the reverse direction (not tested). It needs the original committee still serving. | Revisions only increase (policyRev and secretRev +1 at each step); the old ciphertext is not restorable as the current bundle; credentials rotated at their issuers stay rotated; values already released to guests stay released. Restoring files cannot undo any of these. | vault 9d43 `_apply` (committee change needs a fresh bundle or a clear; `_bundles[id]` holds the current revision only), rewrap.mjs header |
+ | relay copy delete | **None.** Re-enter the value. The owner must rotate it at its issuer. | Relay backups and snapshots (deleting removes `secrets.json` only). | rollout audit F6, S7 |
+ | site release delivery (fronts) | Record and verify the EXACT pre-cutover state at deployment time: the front release (`/.well-known/enclave-site-release.json`, or the served `index.html` hash), the public IPNS sequence and CID. Then roll back ONLY to that validated previous artifact: `site/deploy.sh rollback --to <that CID>`, and probe its own stamp. No blind old-CID rollback. The CID and stamp in the r2 handoff were correct at the 2026-10-23 20:20Z public read only. | IPNS: never reset the sequence and never republish a lower-sequence record. If IPNS must roll back, publish a NEW signed record with a HIGHER sequence pointing to the previous CID. r2 is not published today, so nothing needs rolling back now. | r2 RELEASE-HANDOFF §5, §7; ipns-publisher assessment |
+-| metal0 control image activation (root) | Automatic rollback to the previous config. | **Observed 21:37Z (PROVISIONAL): the rollback restored the old image, not boot registration or adoption.** At 22:14Z the control was still on the old `ed918e4b` image and unregistered. `08d1` is admitted but not activated, because the cutover was stopped before mutation. | root journal L498, L521 |
++| metal0 control image activation (root) | Automatic rollback to the previous config. | **Observed 21:37Z (PROVISIONAL): the rollback restored the old image, not boot registration or adoption.** At 22:14Z the control was still on the old `ed918e4b` image and unregistered. `08d1` is admitted but not activated, because the cutover was stopped before mutation. At 22:50 `b007d471` was admitted (allowlist 38) but NOT activated. At 22:52 root confirmed the old control re-attached, with no restart. | root journal L498, L521; root 22:56Z (S22) |
+ 
+ ## 2. Rollback and replay protection of the custodian: limits
+ 
+diff --git a/SIGNING-AUTHORITY.md b/SIGNING-AUTHORITY.md
+index 915c9ec7f7d13ff749921fc1799e979c080f4f86..9e0743d89213f824e65e46f4cf4050678848cd81 100644
+--- a/SIGNING-AUTHORITY.md
++++ b/SIGNING-AUTHORITY.md
+@@ -1,4 +1,4 @@
+-# Custody v2: who signs what (as of 2026-10-23T22:10Z; refreshed 22:20Z and 22:47Z)
++# Custody v2: who signs what (as of 2026-10-23T22:10Z; refreshed 22:20Z, 22:47Z and 22:58Z)
+ 
+ The agents in this table are:
+ - **admin**: the Enclave admin wallet `0x0b2d009c0c9Af05b12100D77F3c815fea822eE61`. It is the book owner and the vault `enclaveOwner`,
+@@ -7,7 +7,7 @@
+ - **TEE identity**: a custodian machine's key, generated and sealed inside its SNP guest.
+ - **submitter**: any funded EOA. It can drop transactions, but never forge them.
+ 
+-| action | must sign | pays gas | status (22:45Z) |
++| action | must sign | pays gas | status (22:56Z) |
+ |---|---|---|---|
+ | `book.set("secretVaultV2", 0xE486…)` | admin | admin | unsigned plan; deliberately held |
+ | `book.set("sessionVaultFactory", 0x1f5c887c…)` | admin (MetaMask handoff on localhost:39672) | admin | **pending the human** (22:45Z: no chain write) |
+@@ -21,9 +21,10 @@
+ | policy `update` / pause / switch committee | the policy owner: an EOA directly, or its SessionVault's beneficial EOA once the factory is set | the owner | the known canary owner is EOA `0x2947…` |
+ | owner-authorized rewrap | the policy owner (rules update, EIP-712 Rewrap ≤ 3 d, switch update) | the owner | proven on anvil with synthetic attestation only |
+ | relay copy delete | the owner (signed relay request) | none | per owner |
+-| metal0 control image admission and activation (`ee5df6b8`, H `08d1f838`) | root (relay allowlist and control) | the operator, for boot registration | **PROVISIONAL**: the ee5 activation failed at 21:32 and was rolled back at 21:37. `08d1` was admitted (allowlist 37) at 22:10 but NOT activated. The cutover was stopped before mutation (GPU-price race). The new candidate `7dd3acd` (`b007d471…`) was built twice at 22:29 and is NOT activated; its activation kit is under review. At 22:45 the control was still on `ed918e4b`, unregistered. |
++| metal0 control image admission and activation (`ee5df6b8`, H `08d1f838`) | root (relay allowlist and control) | the operator, for boot registration | **PROVISIONAL**: the ee5 activation failed at 21:32 and was rolled back at 21:37. `08d1` was admitted (allowlist 37) at 22:10 but NOT activated. The cutover was stopped before mutation (GPU-price race). The new candidate `7dd3acd` (`b007d471…`) was built twice at 22:29, staged at 22:49 and admitted (allowlist 38) at 22:50. It is NOT activated; its activation kit is under review. At 22:52 the old `ed918e4b` re-attached (no restart), still unregistered. At 22:55:45 root's funding check refused it: the `setProofKey` fee of 303,866,570,907 wei leaves no 25% headroom on 376,132,087,579 wei. |
+ | app lease renewals (imagegen, EyesOff) | root (protected renewal) | the app reserve | **PROVISIONAL**: paid at 21:43:18, 21:52:36, 22:10:58, 22:39:27 (imagegen) and 22:43:54 (EyesOff). Each adds about 30 min; root maintains them. |
+-| canary app upload message + catalog publish (0-ETH tx) | admin (MetaMask handoff on localhost:39675) | admin | **awaiting the human** (22:45Z) |
++| canary app upload message + catalog publish (0-ETH tx) | admin (MetaMask handoff on localhost:39675) | admin | **awaiting the human** (22:56Z: no confirmation) |
++| canary owner top-up, 0.0001 ETH to Base EOA `0x29479Bf…647C` | the human (their wallet) | the human | **requested**; the target was verified at 22:47:45 (code `0x`, balance 61,654,449,641,751 wei); no human confirmation yet |
+ | site r2 delivery (fronts) | root | none | not delivered |
+ | IPNS `setConfig` `/ipfs/<CID>` | the publisher deployment owner | the owner | blocked: the local publisher is at sequence 0, not durable |
+ 
+diff --git a/SOURCES.md b/SOURCES.md
+index 9018dcb194d11fcf06b0f46d4061758dc7d6018b..27048ebf79d93e1cf8eca06272a629fc1f5e2a98 100644
+--- a/SOURCES.md
++++ b/SOURCES.md
+@@ -75,6 +75,20 @@
+     imagegen tx 0x843c4aa8… at 22:39:27.772Z, EyesOff tx 0xeb9279fd… at 22:43:54.255Z;
+   - the build record `work/custody-boot-price-release-20261023/stage/build-record.json` (measurement b007d471…).
+ 
++- **S21:** `work/custody-v2-current-docs-20261023/RECIPIENT-BINDING-REVIEW.txt`. This is a bounded SOURCE review, written
++  2026-10-23T22:54:44Z and reviewed by root; nothing was run. It covers the custodian at `custody-v2-durability-20261023/repo`
++  ab589bf8 and the recipient candidate at `custody-boot-registration-20261023/repo` 7dd3acd.
++  - Lines re-checked by this worker at ab589bf8:
++    - `custody/v2/custodian.mjs` L164 (releaseBinding), L169-173 (verify with binding, appId, HOST_DATA), L178-180 (partials over
++      the binding);
++    - `custody/verifiers.mjs` L40-53 (VCEK-signed, DEBUG off, VMPL, measurement, report_data[0:32]/[32:64], HOST_DATA, CHIP_ID);
++    - `custody/v2/chain.mjs` L71 (proofKey only in the registry ABI);
++    - `isolation/m2/front/custody.go` L116-134 (committee from the pointer, no chain read), L245-258 (report_data = binding ||
++      appSha), L286-287 (config compared with the relay-pointed bundle; the review cited L283-285).
++- **S22:** root's instruction for this update (2026-10-23, received about 22:56Z). It is the source for the 22:47:45-22:56 facts:
++  the top-up target check, `b007d471` staged and admitted (37 → 38), the old control re-attached with no restart, the funding
++  refusal, and D's test counts. All are PROVISIONAL until root updates its journal.
++
+ ## Document originals
+ 
+ - **Checkpoint:** `work/source-checkpoint-20261022/main-repo` at checkpoint dfb4b55e627ebd95b647abebf09627296f099862 holds
+diff --git a/TEST-MATRIX.md b/TEST-MATRIX.md
+index 8cf65c591314dd8767c4b7dd1999b4526fd1d2d7..57aaf7f05c39cd432cdf276868d96d651be0bce0 100644
+--- a/TEST-MATRIX.md
++++ b/TEST-MATRIX.md
+@@ -37,6 +37,8 @@
+ | | builds | `ee5df6b8`; H `9f6d37bd` → `08d1f838` (root, PASS) | build | none | `logs/root-build-approved.out` |
+ | recipient activation (`custody-recipient-activation-20261023`) | activation, attestation, proof-key and recovery tests | 16/16, 21/21, 5/5, 10/10 | unit | none | `logs/tests-2.out` etc. |
+ | | **root activation of `ee5df6b8`, 21:32Z** | **FAILED adoption; rolled back 21:37** | **prod** | none | `logs/root-activate.out`, `ROOT-REGISTRATION-INCIDENT.txt` |
++| D's new activation kit (not frozen) | its suites | 47 Python + 14 Node pass; 78 mutants still running (root, by 22:56Z) | unit | none | PROVISIONAL [S22] |
++| recipient binding (`ab589bf8` custodian, `7dd3acd` recipient) | root-reviewed SOURCE review | direct quote gate; proofKey not an input; pointer not chain-verified (integrity caveat) | **source review only, nothing run** | none | `RECIPIENT-BINDING-REVIEW.txt` |
+ | factory wallet (`custody-factory-wallet-20261023`, 9557ad6d) | activation, browser | 12/12, 3/3; mutants 5/5 | unit, browser (fake MetaMask) | none | `logs/root-batch-tests3.out` |
+ | | live preflight | pass | prod-read | none | `evidence/root-live-preflight-20261023.json` |
+ 
+diff --git a/commit6.sh b/commit6.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..38d10e3540de95cb767faddc4d3a2d52a621651d
+--- /dev/null
++++ b/commit6.sh
+@@ -0,0 +1,49 @@
++#!/bin/bash
++# commit6.sh: the recipient-binding doc update, then patch 0004 appended and both cumulative diffs
++# regenerated against the SAME baselines (checkpoint dfb4b55e, main 68b82926); earlier patches 0001/0002 kept byte-identical.
++set -euo pipefail
++cd "$(dirname "$0")"
++W=/home/steven/Documents/Codex/2026-10-18/wo/work; M=$W/source-checkpoint-20261022/main-repo
++HOOKS=$W/custody-v2-dashboard-20261023/repo/.githooks; C="git -c core.hooksPath=$HOOKS commit -q"
++[ "$(git rev-parse --short=7 HEAD)" = 1b3c261 ]
++p1=$(sha256sum patches/0001-*.patch patches/0002-*.patch patches/0003-*.patch)
++git add CURRENT-STATE.md SIGNING-AUTHORITY.md TEST-MATRIX.md ROLLBACK.md SOURCES.md RECIPIENT-BINDING-REVIEW.txt docs/security/secret-custody-v2.md commit6.sh \
++  logs/commit-5.out logs/commit-5.rc logs/rangescan-5.out logs/rangescan-5.rc logs/scan-6.out logs/scan-6.rc logs/scan-gitleaks.json
++$C -F - <<'MSG'
++Recipient binding (root-reviewed source review): direct SNP quote gates confidentiality; no value-integrity claim; root 22:56Z facts
++
++Source/documentation only; the review is SOURCE evidence, not production evidence (nothing was run):
++- a custody v2 release needs a VCEK-signed SNP report binding the guest-minted recipient key, revisions, committee/epoch,
++  challenge, runtime and transport key (report_data[0:32]), the owner's appId ([32:64]) and HOST_DATA = deployment; the
++  registry proofKey is not an input, so registering one or holding the operator key cannot forge a release
++- the guest does not chain-verify the relay pointer (front/custody.go L116-134, config check L286-287): a malicious relay
++  cannot read real values but can make the guest run attacker-chosen values/config; owner-committed value integrity NOT claimed
++- root facts (PROVISIONAL): canary top-up target verified 22:47:45 (EOA, 61,654,449,641,751 wei), no human confirmation;
++  b007d471 staged 22:49, admitted 37->38 22:50, NOT activated; old ed918e4b re-attached 22:52, no control restart; funding
++  refused 22:55:45 (fee 303,866,570,907 vs 376,132,087,579, no 25% headroom; setProofKey nonce 23759); D kit 47 py + 14 node
++  pass, 78 mutants running, not production
++- secret-custody-v2.md: what attestation gates and what it does not; v1 L3 note on the unverified pointer
++MSG
++A=$(git rev-list --max-parents=0 HEAD); C2=$(git rev-parse HEAD)
++git format-patch -q --full-index --no-renames --start-number 4 -o patches HEAD~1..HEAD -- docs/security
++[ "$(sha256sum patches/0001-*.patch patches/0002-*.patch patches/0003-*.patch)" = "$p1" ]
++T=$(mktemp -d)
++for f in secret-custody-v2.md secret-custody-v2-spec.md; do git -C "$M" show 68b82926968c99503d38ae78dbcb04694cc2c56c:docs/security/$f > "$T/main-$f"; done
++{ git diff --no-index --full-index "$T/main-secret-custody-v2.md" docs/security/secret-custody-v2.md || true; git diff --no-index --full-index "$T/main-secret-custody-v2-spec.md" docs/security/secret-custody-v2-spec.md || true; } \
++  | sed -e "s#a$T/main-secret-custody-v2.md#a/docs/security/secret-custody-v2.md#g" -e "s#a$T/main-secret-custody-v2-spec.md#a/docs/security/secret-custody-v2-spec.md#g" > patches/against-main-68b82926.diff
++git diff --full-index "$A" HEAD -- docs/security > patches/against-checkpoint-dfb4b55e.diff
++for base in 68b82926968c99503d38ae78dbcb04694cc2c56c:against-main-68b82926 dfb4b55e627ebd95b647abebf09627296f099862:against-checkpoint-dfb4b55e; do
++  rev=${base%%:*}; pf=${base##*:}; X=$(mktemp -d); mkdir -p "$X/docs/security"
++  for f in secret-custody-v2.md secret-custody-v2-spec.md; do git -C "$M" show $rev:docs/security/$f > "$X/docs/security/$f"; done
++  (cd "$X" && git init -q && git apply "$OLDPWD/patches/$pf.diff")
++  cmp "$X/docs/security/secret-custody-v2.md" docs/security/secret-custody-v2.md && cmp "$X/docs/security/secret-custody-v2-spec.md" docs/security/secret-custody-v2-spec.md
++  echo "$pf.diff reproduces the final docs from $rev"; rm -rf "$X"
++done
++# the chained format-patches 0001..0003 on the checkpoint originals give the same final docs
++X=$(mktemp -d); mkdir -p "$X/docs/security"
++for f in secret-custody-v2.md secret-custody-v2-spec.md; do git -C "$M" show dfb4b55e627ebd95b647abebf09627296f099862:docs/security/$f > "$X/docs/security/$f"; done
++(cd "$X" && git init -q && for p in "$OLDPWD"/patches/000[1234]-*.patch; do git apply "$p"; done)
++cmp "$X/docs/security/secret-custody-v2.md" docs/security/secret-custody-v2.md && echo "0001..0004 chain reproduces the final docs from dfb4b55e"; rm -rf "$X" "$T"
++git add patches
++$C -m "patches: append 0004 (recipient-binding conclusions); regenerate cumulative diffs against checkpoint dfb4b55e and main 68b82926"
++git log --format='%h %an <%ae> %s' -3; sha256sum patches/*
+diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+index d56f08909cc2a0e8b01440cdbfd2b0bdb83bbe6c..9d2e333da3b52a2bb9f11f5f32937b0113987e16 100644
+--- a/docs/security/secret-custody-v2.md
++++ b/docs/security/secret-custody-v2.md
+@@ -98,9 +98,20 @@
+ - **Relay copy and backups.** Clearing the relay copy during migration depends on the relay's `/exists` custody flag answering
+   within 1.5 s, and it removes `secrets.json` only. An absence inventory of named channels is not proof of migration or of
+   backup erasure.
+-- **Proof key and transport key.**
+-  - The control proof key is compared through the relay-served attested origin. It is not bound to an SNP report.
+-  - The custodian hardware evidence binds the transport key, a fresh challenge and the runtime only (quote-only).
++- **What attestation gates, and what it does not** (from a source review; not production evidence).
++  - **What is gated:** a custody v2 release reaches only an SEV-SNP guest running an owner-admitted image. Each custodian checks
++    a VCEK-signed report whose `report_data` binds the release binding to the owner's appId, with `HOST_DATA` = the
++    deployment. The binding covers the recipient key minted in the guest, the revisions, the committee and epoch, the
++    custodian's challenge, the runtime and the transport key. Partials are sealed to that recipient key.
++  - **Not an input:** the registry proofKey plays no part in this path. Registering an arbitrary proofKey, or holding the
++    operator key, cannot forge a release; the operator signature only authorizes it.
++  - **Separate limitation:** the control proof key is compared through the relay-served attested origin and is not bound to an
++    SNP report. That concerns checkpoint and metering trust and what a browser is shown, not custody release.
++  - **Not gated (value integrity):** the guest builds the committee and bundle from the relay-delivered pointer without
++    reading the chain. So a malicious relay cannot read the real values, but it can make the guest run with values and config
++    it chose. Only "released to attested, owner-admitted guests" is claimed, not "the guest received the owner's committed
++    values".
++  - The gate is as strict as the owner's on-chain rules (measurement and runtime pairs, appId, minTcb, VMPL).
+ - **The relay is in the path.** The guest reaches the custodian through the relay's tunnel, and gets the pointer from
+   the relay-signed release (v1 L3).
+ - **Site v2 panel: source only, not deployed.** A site release carrying it is built and verified offline but unpublished. The
+@@ -402,6 +413,8 @@
+ - **v1 L3, the relay in the guest's path.** The pointer to the committee arrives in the relay-signed release. A
+   malicious relay can point a guest at a committee it runs: an integrity attack, not a read of real secrets. Closing it
+   needs the guest to read Base itself (a light client or storage proofs).
++  Today's guest front does not chain-verify the pointer, so a guest given a relay-chosen committee and bundle runs with
++  attacker-chosen values and config. Value integrity is therefore not claimed.
+ - **The owner's device.** It is still trusted for its own secrets (v1 L7).
+ - **Base.** Censorship by Base, or lost Base RPC access, blocks policy reads.
+ - **Sybil resistance in full.** Capacity proofs and caps make seats expensive, not impossible: Capacity Work notes
+diff --git a/logs/commit-5.out b/logs/commit-5.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a42b15243f9bdc7b3c409c660267ce7aaf42d3c3
+--- /dev/null
++++ b/logs/commit-5.out
+@@ -0,0 +1,5 @@
++[queue] START available=23722MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++1b3c26117d2ca4bb6488ea51f9180c6004abe2bd Status at root's 22:45Z: 7dd3acd candidate built (b007d471), not activated; control still unregistered; renewals 22:39/22:43
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/commit-5.rc b/logs/commit-5.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/commit-5.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/rangescan-5.out b/logs/rangescan-5.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..911ceecde4eb9fe43ed6912d10b7fc668ae6a8b5
+--- /dev/null
++++ b/logs/rangescan-5.out
+@@ -0,0 +1,8 @@
++[queue] START available=23709MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++3:47PM INF 9 commits scanned.
++3:47PM INF scanned ~200430 bytes (200.43 KB) in 131ms
++3:47PM INF no leaks found
++[rangescan] gitleaks-all-commits=0 scan-crypto-keys-tracked=0
++[memory-guard] exit=0 peakTreeRssMiB=69 minHostAvailableMiB=23664
++[memory-guard] at peak: gitleaks:59 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/rangescan-5.rc b/logs/rangescan-5.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/rangescan-5.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-6.out b/logs/scan-6.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..9e206db099f29c29dd85d568e0e4181448ac448c
+--- /dev/null
++++ b/logs/scan-6.out
+@@ -0,0 +1,7 @@
++[queue] START available=23865MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++3:58PM INF scanned ~215421 bytes (215.42 KB) in 23ms
++3:58PM INF no leaks found
++[scan] gitleaks=0 scan-crypto-keys=0 literal=0
++[memory-guard] exit=0 peakTreeRssMiB=55 minHostAvailableMiB=23804
++[memory-guard] at peak: gitleaks:45 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-6.rc b/logs/scan-6.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-6.rc
+@@ -0,0 +1 @@
++0

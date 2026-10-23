@@ -55,6 +55,8 @@ Frozen 2217 append (2026-10-23; "2217" = the batch start 22:17:46Z, an identifie
 
 Frozen 2246 append (2026-10-23; "2246" = the batch start 22:46:00Z, an identifier): ROOT live records b4e1f14, boot-pricing source 7dd3acd0 (PATCH-ONLY, base blobs anchored to pushed records; supervisor.js held back for the rewritten literal), boot-price build release template + root-granted public build metadata 88b70dbe (candidate b007d471, NOT activated; image binaries not committed), canary-wallet handoff b5e4613 (journals never read), R current docs 1b3c2611; the 2217 receipt and a 22:42 snapshot of root's public live-verification output. Source preservation only: control still unregistered at 22:45; the new D activation kit is excluded. See `MANIFEST.json` `appends`.
 
+Frozen 2329 append (2026-10-23; "2329" = the batch start 23:29:30Z, an identifier): ROOT live records 851f7579, R current docs 967eeb96 (recipient binding; 23:10 FAILED control recovery and 23:15 rollback; fee cause not confirmed), the old FAILED D activation kit 8bbd0a74 (committed baseline omitted) with its two root-allowed runtime receipts, and the public live-verification output before and after its 23:29Z top-status correction; the 2246 receipt. Source preservation only: control recovery NOT done; active H/D builds not included. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

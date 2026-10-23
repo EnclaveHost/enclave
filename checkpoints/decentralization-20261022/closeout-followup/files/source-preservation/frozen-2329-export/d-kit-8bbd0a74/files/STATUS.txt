@@ -1,0 +1,31 @@
+[2026-10-23T22:35:35Z] D, source-only kit work/custody-boot-price-activation-20261023 (from frozen 86c5fee). NOT READY yet.
+- The real build validates: source_record() + build_problems() on root's 7dd3acd build (root-build-price.out, stage/*) -> no problems,
+  measurement b007d471..., supervisor 916780f9..., gsup f8dee4dc..., boot decision fe25be11... (read-only check; no build.json written).
+- Margin per ROOT-MARGIN-REVIEW: the pre-write check is now > 900 s (attach 120 + adopt 300 + rollback 480); gate v4 unchanged; a lease
+  watchdog around the gate is being added (60 s cadence, 45 s read cap, stale 105 s, floor 600 s; > 480 s after PASS).
+- No critical blocker found so far.
+[2026-10-23T22:43:34Z] Progress (measured):
+- t2 (512): python suite 42/42 OK. t1: node suites 14/14 (boot-funding 8 incl. the 9f6d37bd pending counterexample, attest-price 4, fee-fit 3... see logs/t1.out).
+- t3 (full run-tests.sh incl. 64 mutants) is still running in the queue (admitted, not stopped). It is INVALID for the final verdict:
+  common.py/tests were changed while it ran (the root/H review fixes below). The final authoritative run is t5, after t3 ends.
+- Root/H review 22:41 fixes, applied: the watchdog accepts a verified read as FRESH only if its agreed block is -30..105 s from now
+  (stale/future = failed read, retried within the 105 s bound); the lease holder (runner, runner operator, host active) must stay
+  the gate start's, else the gate is stopped; the after-gate read needs the same freshness + holder, and > 480 s; stop_gate SIGKILLs
+  the gate's process group once more after reaping it, so a SIGTERM-ignoring descendant cannot linger. Tests + 4 mutants added.
+- No critical blocker.
+[2026-10-23T22:52:19Z] Progress (measured):
+- t3 (full run, started before the review fixes): INVALID as a verdict - common.py/tests changed while it ran. It still reported
+  64 mutants / 2 survivors (build-08d1-image-ok, source-expectation-unchecked); both are now covered by targeted tests (t7 46/46).
+- t4 44/44, t6 46/46 + node 14/14, t7 46/46 (intermediate states, kept as logs).
+- Root 22:44 ruling applied:
+  - the cutover needs > 1440 s left (600 floor + 420 window + 120 attach + 300 adopt); 900 s only protects the rollback;
+  - the watchdog is seeded by a FRESH read taken just before the gate (lease_before_gate: retried <= 105 s, block -30..105 s old,
+    same holder as the cutover read, > 600 s), and the old pre-cutover block is never blessed (no readAt reset);
+  - staleness is the last accepted read's ABSOLUTE agreed-block age > 105 s.
+  t9 python 47/47.
+- t10 = authoritative full run-tests.sh (syntax, python, node, 78 mutants incl. seed-blessed-fresh-now / stale-from-readAt /
+  feasibility-1020 / pre-gate-floor-unchecked, scans) RUNNING in the queue.
+- No critical blocker.
+ROOT 2026-10-23T22:59Z: t10 process vanished with no rc/guard-final and no finaltestresult (ps confirms no mutants.py/run-tests/queueguard); its output remains onlythroughnodephase. It is INCOMPLETE, notPASS. Root now owns root-final-tests via persistentexecsession, no sourceeditsalloweduntilfinish. Do not silentlyacceptt10. Sourceonlyfinaltestsunder512queue unchanged.
+[2026-10-23T23:02:35Z] D: root-final-tests (22:59:32-23:01:25Z) PASS - python 47/47, node 14/14, mutants 78/78 killed (control passes), scans 0/0/0.
+  Tested source digest 2fb95679...0033 (TESTED-SOURCE.sha256, unchanged since 22:52:04Z). Committing source + HANDOFF.md (SteveDeFacto).

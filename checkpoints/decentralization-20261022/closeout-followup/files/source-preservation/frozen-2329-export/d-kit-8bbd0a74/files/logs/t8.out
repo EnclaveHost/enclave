@@ -1,0 +1,27 @@
+[queue] START available=23525MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+E
+======================================================================
+ERROR: test_activation (unittest.loader._FailedTest.test_activation)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_activation
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/unittest/loader.py", line 433, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "/usr/lib/python3.14/unittest/loader.py", line 374, in _get_module_from_name
+    __import__(name)
+    ~~~~~~~~~~^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-price-activation-20261023/tests/test_activation.py", line 6, in <module>
+    import common as C
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-price-activation-20261023/common.py", line 294, in <module>
+    CUTOVER_FEASIBLE_S = WATCH_FLOOR_S + GATE_WINDOW_S + ATTACH_S + ADOPT_S
+                         ^^^^^^^^^^^^^
+NameError: name 'WATCH_FLOOR_S' is not defined
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

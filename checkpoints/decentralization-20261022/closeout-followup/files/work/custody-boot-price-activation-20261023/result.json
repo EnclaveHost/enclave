@@ -1,0 +1,96 @@
+{
+  "startedAt": "2026-10-23T23:10:06.620862+00:00",
+  "measurement": "b007d47147d52ea01780abdee5f7b28d2eb02102a7915bf5f8dcafbf7d2a77b6a9ebb9d8b848acb8dd6377be5f1c09c6",
+  "commit": "7dd3acd061af765cdcd9ba21b9744f2f2c6bdf5b",
+  "image": "/home/steven/enclave-prod/dist-leasegas-7dd3acd06",
+  "previousImage": "/home/steven/enclave-prod/dist-leasegas-deabf8f90",
+  "configBeforeSha256": "58aa9653586b6e4d67f2198dde111fad0329d2b33770c4f4a4ba14d5ddc220b3",
+  "configAfterSha256": "838177428e2cc77b2acb48cf891e7046238bae3eb3833a0833f13762052108f1",
+  "protected": {
+    "unit": {
+      "ActiveState": "active",
+      "SubState": "running",
+      "MainPID": "461821",
+      "WorkingDirectory": "/home/steven/enclave-prod/metal-deabf8f90",
+      "KillMode": "control-group"
+    },
+    "dropins": {
+      "80-shield-inference.conf": "9f3acb480ce85b85cb02acd3fa0a9d5eb50e5b0a823a3a09b150cbe88eddd40b",
+      "95-app-funded-leases.conf": "71b3feb343f3f02ac4fc555df33d8571ffeb2e92d7dd0b4f33474ad549037daa"
+    }
+  },
+  "state": "rolled back to the previous control image (deabf8f90, ed918e4b)",
+  "preCutoverGuests": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "gd9d4a391d",
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "gdd0646f2c"
+  },
+  "preCutoverHistory": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": [],
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": []
+  },
+  "appsHealth": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": {
+      "url": "https://da09d0f2.app.enclave.host/",
+      "kind": "html",
+      "minBytes": 1024,
+      "title": "image generator"
+    },
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": {
+      "url": "https://9eb4e600.app.enclave.host/ping",
+      "kind": "json-ping"
+    }
+  },
+  "preCutoverRecords": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "507be9a521c8e856c4a456ec79babaa32363fde930d5faa763dcc43f4033b7e9",
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "4c6a3075a5b41248c23b3f14a1c3c39fec5f9841952faf3ab2a9d37ce3fb29c8"
+  },
+  "baselineSource": "guestd (root authenticated listing e5b430a099a733c5)",
+  "oldControlAdopted": false,
+  "availabilityAtBaseline": "absent: the old control is not registered and adopted nothing",
+  "buildSha256": "117d0b845a25345c3276306f09c23633934d836b501370454cdbb692b26cacbf",
+  "shieldedGpuExpected": 2,
+  "cutoverLeaseSeconds": {
+    "0xda09d0f2": 1510,
+    "0x9eb4e600": 1762
+  },
+  "bootFunding": {
+    "block": "53003826",
+    "actions": {
+      "pending": "setProofKey",
+      "discovered": "setProofKey"
+    },
+    "balanceWei": "376132087579",
+    "setProofKeyWorstCaseWei": "272793630154",
+    "nonce": "23759"
+  },
+  "adoption": {},
+  "guests": {},
+  "renewalsObserved": {},
+  "productionActivated": false,
+  "journalSince": "2026-10-23 16:10:06",
+  "lastObservationError": "attestation -> 404",
+  "attachedAt": "2026-10-23T23:10:26.688757+00:00",
+  "error": "RuntimeError",
+  "detail": "both apps were not adopted (with their guest) within 300 s",
+  "stoppedAt": "2026-10-23T23:15:29.383496+00:00",
+  "pendingSponsoredDeadlines": [],
+  "rolledBackAt": "2026-10-23T23:15:29.399843+00:00",
+  "registry": {
+    "path": "no registration line seen",
+    "setProofKeyTx": null,
+    "lines": [
+      "[registry] self-registration failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+      "[registry] self-registration failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+      "[registry] self-registration failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+      "[registry] self-registration failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+      "[registry] self-registration failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+      "[registry] self-registration failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+      "[registry] self-registration failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+      "[registry] self-registration failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+      "[registry] self-registration failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+      "[registry] self-registration failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+      "[registry] self-registration failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+      "[registry] self-registration failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account."
+    ]
+  }
+}

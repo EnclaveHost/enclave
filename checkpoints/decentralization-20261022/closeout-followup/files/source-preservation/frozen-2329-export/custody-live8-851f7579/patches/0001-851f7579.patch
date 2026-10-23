@@ -1,0 +1,252 @@
+From 851f75797b09b7dce8d7b256baedc1b74803f203 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 16:27:39 -0700
+Subject: [PATCH] Record protected app renewals and read-only fee and canary
+ funding probes
+
+---
+ evidence/boot-public-state.json               |  2 +-
+ evidence/canary-topup-preflight.json          | 12 ++++++++
+ ...7ae77bdbcd49086040282e1e4b871c.intent.json | 21 ++++++++++++++
+ ...7ae77bdbcd49086040282e1e4b871c.result.json |  9 ++++++
+ ...faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json | 21 ++++++++++++++
+ ...faaeb9a3d5bab0fddfb5bc44ba68d9.result.json |  9 ++++++
+ evidence/unsigned-fee-path.json               | 24 +++++++++++++++
+ probes/canary-topup-preflight.mjs             | 10 +++++++
+ probes/renew-protected-2306.mjs               | 29 +++++++++++++++++++
+ probes/unsigned-fee-path.mjs                  | 24 +++++++++++++++
+ 10 files changed, 160 insertions(+), 1 deletion(-)
+ create mode 100644 evidence/canary-topup-preflight.json
+ create mode 100644 evidence/protected-renewals-2306/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json
+ create mode 100644 evidence/protected-renewals-2306/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json
+ create mode 100644 evidence/protected-renewals-2306/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json
+ create mode 100644 evidence/protected-renewals-2306/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json
+ create mode 100644 evidence/unsigned-fee-path.json
+ create mode 100644 probes/canary-topup-preflight.mjs
+ create mode 100644 probes/renew-protected-2306.mjs
+ create mode 100644 probes/unsigned-fee-path.mjs
+
+diff --git a/evidence/boot-public-state.json b/evidence/boot-public-state.json
+index e1353f52a7257f64aac50b3fc7cf845c18b2f555..aa438899ae1eb14a21e77ddedaf09f49bb761e98 100644
+--- a/evidence/boot-public-state.json
++++ b/evidence/boot-public-state.json
+@@ -1,5 +1,5 @@
+ {
+-  "at": "2026-10-23T21:51:49.070Z",
++  "at": "2026-10-23T22:46:12.343Z",
+   "readOnly": true,
+   "proofAddress": "0x9eaeB548222f174abDb7ebA32E5bDab146184485",
+   "keySource": "in-enclave",
+diff --git a/evidence/canary-topup-preflight.json b/evidence/canary-topup-preflight.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..64dbf289bfdb940880f519912fca5a98e2987725
+--- /dev/null
++++ b/evidence/canary-topup-preflight.json
+@@ -0,0 +1,12 @@
++{
++  "at": "2026-10-23T22:47:45.809Z",
++  "readOnly": true,
++  "chainId": 8453,
++  "address": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++  "code": "0x",
++  "balanceWei": "61654449641751",
++  "proposedTopupWei": "100000000000000",
++  "purpose": "Dedicated custody canary test transactions and new-committee submission; no production user secrets",
++  "signed": false,
++  "submitted": false
++}
+diff --git a/evidence/protected-renewals-2306/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json b/evidence/protected-renewals-2306/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..34df412ae1e34a0e23564f62bf2b65107abd2185
+--- /dev/null
++++ b/evidence/protected-renewals-2306/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json
+@@ -0,0 +1,21 @@
++{
++  "nonce": "134",
++  "deadline": "1792797259",
++  "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++  "kind": "renew",
++  "lease": {
++    "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
++    "kind": 2,
++    "enclaveId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "nonce": "134",
++    "deadline": "1792797259",
++    "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++    "maxChargeWei": "2765013013966"
++  },
++  "fromBlock": "53003806",
++  "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
++  "reserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
++  "executor": "0x8900BACA2167873BA2F8a8bAE8b4876E6396d343",
++  "chainId": 8453,
++  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B"
++}
+diff --git a/evidence/protected-renewals-2306/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json b/evidence/protected-renewals-2306/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..bad3617a36d0716fbab7de4dfd3ae36577657c91
+--- /dev/null
++++ b/evidence/protected-renewals-2306/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json
+@@ -0,0 +1,9 @@
++{
++  "at": "2026-10-23T23:09:30.085Z",
++  "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
++  "guest": "gdd0646f2c",
++  "hash": "0x99f2316f5b1e8426542ef5dd9a5c61ce50bae078149c1e4dad45fd6157615ce1",
++  "chargedWei": "1226325013966",
++  "operatorEthSpent": false,
++  "receiptVerified": true
++}
+diff --git a/evidence/protected-renewals-2306/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json b/evidence/protected-renewals-2306/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..32633b04727a445369a0b5b2640e39e1621d3726
+--- /dev/null
++++ b/evidence/protected-renewals-2306/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json
+@@ -0,0 +1,21 @@
++{
++  "nonce": "132",
++  "deadline": "1792797007",
++  "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++  "kind": "renew",
++  "lease": {
++    "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
++    "kind": 2,
++    "enclaveId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "nonce": "132",
++    "deadline": "1792797007",
++    "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++    "maxChargeWei": "2767935937862"
++  },
++  "fromBlock": "53003680",
++  "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
++  "reserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
++  "executor": "0x8900BACA2167873BA2F8a8bAE8b4876E6396d343",
++  "chainId": 8453,
++  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B"
++}
+diff --git a/evidence/protected-renewals-2306/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json b/evidence/protected-renewals-2306/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..c4efad84535793376b2835c4581d1375c37afa65
+--- /dev/null
++++ b/evidence/protected-renewals-2306/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json
+@@ -0,0 +1,9 @@
++{
++  "at": "2026-10-23T23:05:18.543Z",
++  "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
++  "guest": "gd9d4a391d",
++  "hash": "0xd5fda3191bc0cce07b2bc8fe21128bbf2f2e002880d060acf0e6b065150ae15d",
++  "chargedWei": "1256317442859",
++  "operatorEthSpent": false,
++  "receiptVerified": true
++}
+diff --git a/evidence/unsigned-fee-path.json b/evidence/unsigned-fee-path.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..9dada9f8e312e7572b3fd6240017277190c28d97
+--- /dev/null
++++ b/evidence/unsigned-fee-path.json
+@@ -0,0 +1,24 @@
++{
++  "at": "2026-10-23T23:19:59.787Z",
++  "readOnly": true,
++  "signingDisabled": true,
++  "broadcastMethodsDisabled": true,
++  "address": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++  "balanceWei": "376132087579",
++  "methods": [
++    "eth_getBalance",
++    "eth_fillTransaction",
++    "eth_getTransactionCount",
++    "eth_getBlockByNumber",
++    "eth_maxPriorityFeePerGas",
++    "eth_estimateGas"
++  ],
++  "filled": [],
++  "prepared": {
++    "gas": "38772",
++    "maxFeePerGas": "7000000",
++    "maxPriorityFeePerGas": "1000000",
++    "l2BoundWei": "271404000000"
++  },
++  "error": null
++}
+diff --git a/probes/canary-topup-preflight.mjs b/probes/canary-topup-preflight.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..aebee102aff78bbffedc167154f22fc7fff5761b
+--- /dev/null
++++ b/probes/canary-topup-preflight.mjs
+@@ -0,0 +1,10 @@
++// Read-only preparation for a human wallet top-up. No credentials, signer or transaction sender.
++import fs from 'node:fs';
++import {pinBlock,agree} from '../lib/live.mjs';
++const address='0x29479bf04ed889d46a7afb7f292b9bb26e12647c';
++const block=await pinBlock(); const tag='0x'+block.number.toString(16);
++const code=await agree('eth_getCode',[address,tag]);
++if(code!=='0x')throw Error('Canary submitter is not an ordinary EOA; do not prepare a plain transfer');
++const balance=BigInt(await agree('eth_getBalance',[address,tag]));
++const out={at:new Date().toISOString(),readOnly:true,chainId:8453,address,code,balanceWei:String(balance),proposedTopupWei:'100000000000000',purpose:'Dedicated custody canary test transactions and new-committee submission; no production user secrets',signed:false,submitted:false};
++fs.writeFileSync(new URL('../evidence/canary-topup-preflight.json',import.meta.url),JSON.stringify(out,null,2)+'\n');console.log(JSON.stringify(out));
+diff --git a/probes/renew-protected-2306.mjs b/probes/renew-protected-2306.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6ea19aacf6d2259cff009fe381271fbec92ec6fe
+--- /dev/null
++++ b/probes/renew-protected-2306.mjs
+@@ -0,0 +1,29 @@
++// Root incident operation: one app-funded renewal for an existing running protected guest.
++// Uses unchanged production client, delegation and policy; never spends operator ETH or claims another deployment.
++import fs from 'node:fs';
++import {createPublicClient,http} from 'viem';
++import {privateKeyToAccount} from 'viem/accounts';
++import {parseDeploymentRecord,LEDGER_ABI} from '../../custody-recipient-restore-20261023/repo/network/lease-gas-owner.mjs';
++import {createLeaseClient} from '../../custody-recipient-restore-20261023/repo/client/lease-executor-client.mjs';
++import {verifiedLeaseAuthority} from '../../custody-recipient-restore-20261023/repo/client/lease-executor-authority.mjs';
++import {GuestdControl,parseKey} from '../../linux-post-adoption-release/stage/metal-deabf8f90/isolation/m4/guestd/control-client.mjs';
++const allowed={'0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9':'gd9d4a391d','0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c':'gdd0646f2c'};
++const id=process.argv[2];if(!allowed[id])throw Error('not a protected ID');
++const dir=new URL('../evidence/protected-renewals-2306/',import.meta.url);fs.mkdirSync(dir,{recursive:true,mode:0o700});
++const intent=new URL(id+'.intent.json',dir);if(fs.existsSync(intent))throw Error('Existing attempt: reconcile, never resend blindly');
++const cfg=JSON.parse(fs.readFileSync('/home/steven/Projects/enclave/metal/config.json','utf8'));
++const account=privateKeyToAccount(cfg.registryKey);if(account.address.toLowerCase()!=='0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab')throw Error('operator');
++const dep=parseDeploymentRecord(fs.readFileSync('/home/steven/enclave-prod/lease-gas/deployment.json'),{expectedDigest:'sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089'});
++const clients=['https://base-rpc.publicnode.com','https://mainnet.base.org','https://base-mainnet.public.blastapi.io'].map(url=>createPublicClient({transport:http(url,{timeout:12000,retryCount:0})}));
++const a=await verifiedLeaseAuthority({clients,deployment:dep,quorum:2});
++const row=await a.client.readContract({address:a.pins.ledger,abi:LEDGER_ABI,functionName:'get',args:[id]});
++if(!row.active||row.runner.toLowerCase()!=='0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be'||row.runnerOperator.toLowerCase()!==account.address.toLowerCase())throw Error('not this operator active lease');
++const pair=parseKey(fs.readFileSync('/home/steven/enclave-prod/guestd-pair.key','utf8'));
++try{const c=new GuestdControl('http://127.0.0.1:8095',pair,{requestTimeoutMs:12000,maxResponseBytes:131072});const v=await c.request('GET','/vms/'+allowed[id]);if(v.status!==200||v.body.status!=='running'||v.body.name!==id)throw Error('protected guest not running');}finally{pair.fill(0)}
++const stringify=x=>JSON.stringify(x,(_,v)=>typeof v==='bigint'?String(v):v,2)+'\n';
++const lc=createLeaseClient({clients,account,reserve:dep.reserve,deployment:dep,relays:cfg.leaseGas.relays,quorum:2,
++ onSigned:async r=>{if(r.kind!=='renew'||r.lease.id!==id||r.lease.maxChargeWei>31092172031561n)throw Error('intent exceeds existing policy ceiling');
++ const fd=fs.openSync(intent,'wx',0o600);try{fs.writeSync(fd,stringify(r));fs.fsyncSync(fd)}finally{fs.closeSync(fd)}},
++ log:()=>{}});
++if(!process.argv.includes('--execute')){console.log(stringify({readOnly:true,id,guest:allowed[id],leaseUntil:row.leaseUntil,at:new Date().toISOString(),readyForClientPolicyCheck:true}));process.exit(0);}
++try{const r=await lc.renew(id);const out={at:new Date().toISOString(),id,guest:allowed[id],hash:r.hash,chargedWei:r.verified.chargedWei,operatorEthSpent:false,receiptVerified:true};fs.writeFileSync(new URL(id+'.result.json',dir),stringify(out),{mode:0o600,flag:'wx'});console.log(stringify(out));}catch(e){console.error(JSON.stringify({code:e.code||'error',message:String(e.shortMessage||e.message).slice(0,450),intentExists:fs.existsSync(intent)}));process.exitCode=1}
+diff --git a/probes/unsigned-fee-path.mjs b/probes/unsigned-fee-path.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..0d04d41bf0721e78f9851261f06edec79643f4a5
+--- /dev/null
++++ b/probes/unsigned-fee-path.mjs
+@@ -0,0 +1,24 @@
++// Public, READ-ONLY diagnostic of the production SDK preparation path. Cannot sign or broadcast.
++import fs from 'node:fs';
++import {createWalletClient,custom,encodeFunctionData,parseAbi} from 'viem';
++import {toAccount} from 'viem/accounts';
++import {base} from 'viem/chains';
++const address='0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab';
++const deny=()=>{throw Error('Signing prohibited in read-only fee probe')};
++const account=toAccount({address,signMessage:deny,signTransaction:deny,signTypedData:deny});
++const allowed=new Set(['eth_chainId','eth_getBlockByNumber','eth_fillTransaction','eth_estimateGas','eth_getTransactionCount','eth_getCode','eth_maxPriorityFeePerGas','eth_gasPrice','eth_feeHistory','eth_getBalance']);
++const calls=[],fills=[];let count=0;
++async function request({method,params}){
++ if(!allowed.has(method)||++count>30)throw Error('Read-only method or request budget refusal');calls.push(method);
++ const r=await fetch('https://mainnet.base.org',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:count,method,params}),redirect:'error',signal:AbortSignal.timeout(12000)});
++ const j=await r.json();if(j.error){const e=Error('RPC read refused');e.code=j.error.code;throw e;}
++ if(method==='eth_fillTransaction'){const t=j.result?.tx||j.result?.transaction||{};fills.push(Object.fromEntries(['gas','maxFeePerGas','maxPriorityFeePerGas'].filter(k=>k in t).map(k=>[k,String(BigInt(t[k]))])));}
++ return j.result;
++}
++const wallet=createWalletClient({account,chain:base,transport:custom({request},{retryCount:0})});
++const abi=parseAbi(['function setProofKey(bytes32,address)']);
++const data=encodeFunctionData({abi,functionName:'setProofKey',args:['0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be','0xffffffffffffffffffffffffffffffffffffffff']});
++const balance=BigInt(await request({method:'eth_getBalance',params:[address,'latest']}));
++let prepared=null,error=null;
++try{const t=await wallet.prepareTransactionRequest({to:'0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac',data});prepared={gas:String(t.gas),maxFeePerGas:String(t.maxFeePerGas),maxPriorityFeePerGas:String(t.maxPriorityFeePerGas),l2BoundWei:String(t.gas*t.maxFeePerGas)};}catch(e){error={name:e.name,code:e.code||null};}
++const out={at:new Date().toISOString(),readOnly:true,signingDisabled:true,broadcastMethodsDisabled:true,address,balanceWei:String(balance),methods:calls,filled:fills,prepared,error};fs.writeFileSync(new URL('../evidence/unsigned-fee-path.json',import.meta.url),JSON.stringify(out,null,2)+'\n');console.log(JSON.stringify(out));

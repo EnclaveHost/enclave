@@ -1,0 +1,48 @@
+{
+  "at": "2026-10-23T23:16:22.200885+00:00",
+  "readOnly": true,
+  "source": {
+    "guestdListingSha256": "e5b430a099a733c562ca3abb2f082b65fc07a04a8b43ab64e03a9412f9c4ba72",
+    "rows": 2
+  },
+  "original": {
+    "file": "original-baseline-20261023T213130Z.json",
+    "sha256": "45554dc55f4cfc38302e922dccf67190c41e00c3b061a4ea52e3f1f530092af0",
+    "guests": {
+      "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "gd9d4a391d",
+      "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "gdd0646f2c"
+    }
+  },
+  "apps": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": {
+      "guest": "gd9d4a391d",
+      "status": "running",
+      "recordSha256": "507be9a521c8e856c4a456ec79babaa32363fde930d5faa763dcc43f4033b7e9",
+      "history": [],
+      "createdAt": 1792770237
+    },
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": {
+      "guest": "gdd0646f2c",
+      "status": "running",
+      "recordSha256": "4c6a3075a5b41248c23b3f14a1c3c39fec5f9841952faf3ab2a9d37ce3fb29c8",
+      "history": [],
+      "createdAt": 1792714782
+    }
+  },
+  "otherGuests": [],
+  "availability": "absent: the old control is not registered and adopted nothing",
+  "oldControlAdopted": false,
+  "health": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": {
+      "url": "https://da09d0f2.app.enclave.host/",
+      "kind": "html",
+      "minBytes": 1024,
+      "title": "image generator"
+    },
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": {
+      "url": "https://9eb4e600.app.enclave.host/ping",
+      "kind": "json-ping"
+    }
+  },
+  "problems": []
+}

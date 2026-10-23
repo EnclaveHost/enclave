@@ -1,0 +1,11 @@
+[queue] START available=23537MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+............................................
+----------------------------------------------------------------------
+Ran 44 tests in 0.993s
+
+OK
+# pass 14
+# fail 0
+[memory-guard] exit=0 peakTreeRssMiB=137 minHostAvailableMiB=23500
+[memory-guard] at peak: node:74 node:54 bash:6 grep:4
+[queue] EXIT 0

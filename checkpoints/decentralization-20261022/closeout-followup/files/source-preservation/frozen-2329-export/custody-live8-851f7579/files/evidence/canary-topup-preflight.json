@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-23T22:47:45.809Z",
+  "readOnly": true,
+  "chainId": 8453,
+  "address": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+  "code": "0x",
+  "balanceWei": "61654449641751",
+  "proposedTopupWei": "100000000000000",
+  "purpose": "Dedicated custody canary test transactions and new-committee submission; no production user secrets",
+  "signed": false,
+  "submitted": false
+}

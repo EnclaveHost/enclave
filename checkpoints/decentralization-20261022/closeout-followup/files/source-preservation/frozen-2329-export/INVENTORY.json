@@ -1,0 +1,1059 @@
+{
+ "format": "enclave-frozen-2329-export/v1",
+ "checkpointHeadAtExport": "ef1baaa1b136208e2e86e5f978b7095617fdb501",
+ "batch": "2329 = the batch start 2026-10-23T23:29:30Z (date -u): an identifier, not a publication time",
+ "label": "SOURCE + EVIDENCE ONLY. ROOT live records 851f7579 (renewals, unsigned fee probe, top-up preflight); R current docs 967eeb96 (recipient binding; 23:10 FAILED control recovery, 23:15 rollback; fee cause NOT confirmed); the old FAILED D activation kit 8bbd0a74 with its two root-allowed runtime receipts (result.json, evidence/postrollback-health.json); the public live-verification output before and after its 23:29Z top-status correction (health stated only as last observed 23:16). Control recovery NOT done; the explicit-fee H 5db2be3f build (running 23:28) and new D builds are NOT included. Root owns activation and signing.",
+ "sides": {
+  "custody-live8": {
+   "repo": "work/custody-v2-live-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "b4e1f14f2ce65799978c18ce201f3a5ef674569c",
+   "baseProvenance": "b4e1f14 preserved in ef1baaa1 (frozen-2246 custody-live7 head)",
+   "head": "851f75797b09b7dce8d7b256baedc1b74803f203",
+   "headTree": "c8abbfae9fc2943a19bc87a15c510653a7c9a25d",
+   "commits": [
+    {
+     "commit": "851f75797b09b7dce8d7b256baedc1b74803f203",
+     "tree": "c8abbfae9fc2943a19bc87a15c510653a7c9a25d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T16:27:39-07:00",
+     "subject": "Record protected app renewals and read-only fee and canary funding probes",
+     "parent": "b4e1f14f2ce65799978c18ce201f3a5ef674569c",
+     "emptyAfterExclusion": false,
+     "patch": "custody-live8-851f7579/patches/0001-851f7579.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "evidence/boot-public-state.json",
+     "status": "M",
+     "mode": "100644",
+     "blob": "aa438899ae1eb14a21e77ddedaf09f49bb761e98",
+     "sha256": "ae99d9cd7a709d4bb87900fa9029a37e910a0b8c507a0fa4d43a42667d7cde1c",
+     "bytes": 1360,
+     "baseBlob": "e1353f52a7257f64aac50b3fc7cf845c18b2f555"
+    },
+    {
+     "path": "evidence/canary-topup-preflight.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "64dbf289bfdb940880f519912fca5a98e2987725",
+     "sha256": "08e6634bea4610a7678c937c5910cb1a20d78effa73476007e0159d9a7d8facb",
+     "bytes": 385,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-renewals-2306/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "34df412ae1e34a0e23564f62bf2b65107abd2185",
+     "sha256": "0710f7857441f287101ba6eec2977fbe5afec0e69e0b222ff0d46e7084a38e79",
+     "bytes": 753,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-renewals-2306/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bad3617a36d0716fbab7de4dfd3ae36577657c91",
+     "sha256": "95fd61bc679f36fd253cd324088ec4ab3dffb0d03400cf8f7a03201d7d4de9de",
+     "bytes": 311,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-renewals-2306/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "32633b04727a445369a0b5b2640e39e1621d3726",
+     "sha256": "dca94da595e2783e8bda747d35ba469ee8ee2b2c47f909e99624baba6d445f3e",
+     "bytes": 753,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-renewals-2306/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c4efad84535793376b2835c4581d1375c37afa65",
+     "sha256": "74f55bf07014bea2f8122ee8efb50a8a454e2a5ef987b625970673e637af449b",
+     "bytes": 311,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/unsigned-fee-path.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9dada9f8e312e7572b3fd6240017277190c28d97",
+     "sha256": "ad3e02f5732aed4f3bd6ea4803be649d39f1d042331cca1d0675283e7bf4733a",
+     "bytes": 572,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/canary-topup-preflight.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "aebee102aff78bbffedc167154f22fc7fff5761b",
+     "sha256": "2cf4b3ec8a66aae87ffa96748df009e210665a299d4e48039b1c6d07eeac7114",
+     "bytes": 961,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/renew-protected-2306.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6ea19aacf6d2259cff009fe381271fbec92ec6fe",
+     "sha256": "dcc2e646e81dcd75442c12f7ce8ed903ec522153d439f4de940bc3d7a72767ef",
+     "bytes": 3933,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/unsigned-fee-path.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0d04d41bf0721e78f9851261f06edec79643f4a5",
+     "sha256": "4074918783fd70cb61f7d7e58d744c5b99f552f5cf46bb9d264e27b0420ceb57",
+     "bytes": 2580,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "custody-live8-851f7579/patches/0001-851f7579.patch",
+     "sha256": "56a3649d7c0cda08b0c7906810210e6a66455966dc9e3787c861dd2880a0ce98"
+    }
+   ],
+   "note": "ROOT live records on b4e1f14 (851f7579): protected app renewals of 23:06, the read-only UNSIGNED fee-path probe of 23:19:59 (signing and broadcast disabled), the canary top-up preflight, and their probes. Read-only metadata; no logs or raw quotes"
+  },
+  "current-docs3": {
+   "repo": "work/custody-v2-current-docs-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "1b3c26117d2ca4bb6488ea51f9180c6004abe2bd",
+   "baseProvenance": "1b3c2611 preserved in ef1baaa1 (frozen-2246 current-docs2 head)",
+   "head": "967eeb96dfaf7df7ca2f9db334c9f3b8b3d743f2",
+   "headTree": "60f2fe7e0829466a5567d594d42a85d17b7855c1",
+   "commits": [
+    {
+     "commit": "ac48ded9f94e3d50c738c5131b9dcb061751b9ec",
+     "tree": "4ef4962e8d6ee764d726851493ffaf84f25b2138",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:58:12-07:00",
+     "subject": "Recipient binding (root-reviewed source review): direct SNP quote gates confidentiality; no value-integrity claim; root 22:56Z facts",
+     "parent": "1b3c26117d2ca4bb6488ea51f9180c6004abe2bd",
+     "emptyAfterExclusion": false,
+     "patch": "current-docs3-967eeb96/patches/0001-ac48ded9.patch"
+    },
+    {
+     "commit": "50f05862fd91a298fdca011cd2c04078acd203e0",
+     "tree": "4bd77f4a22800ea8cf43deff735a144d085e2579",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:58:12-07:00",
+     "subject": "patches: append 0004 (recipient-binding conclusions); regenerate cumulative diffs against checkpoint dfb4b55e and main 68b82926",
+     "parent": "ac48ded9f94e3d50c738c5131b9dcb061751b9ec",
+     "emptyAfterExclusion": false,
+     "patch": "current-docs3-967eeb96/patches/0002-50f05862.patch"
+    },
+    {
+     "commit": "967eeb96dfaf7df7ca2f9db334c9f3b8b3d743f2",
+     "tree": "60f2fe7e0829466a5567d594d42a85d17b7855c1",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T16:27:06-07:00",
+     "subject": "Status: 23:10 control recovery FAILED, 23:15 rollback to ed918e4b; apps healthy; actual fee NOT measured (13.2 mwei = suspected)",
+     "parent": "50f05862fd91a298fdca011cd2c04078acd203e0",
+     "emptyAfterExclusion": false,
+     "patch": "current-docs3-967eeb96/patches/0003-967eeb96.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "CURRENT-STATE.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "acbf33c508d1a418d1b9ea6ad230c5e802f736d0",
+     "sha256": "6532b3d302196dbac5f09656da7d774a05c498497d9f4fc4b9d189f9e1372bcf",
+     "bytes": 17108,
+     "baseBlob": "f0030fad23bfad46685b216cc8489650b611ada1"
+    },
+    {
+     "path": "RECIPIENT-BINDING-REVIEW.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "00fb973e90d4be77c7b24ad8e32cd04c4d4ef05b",
+     "sha256": "5872e1b7dc1a67a151b59084d9b45c7cdd4eeb908936ff1ada0b182219fb980d",
+     "bytes": 7226,
+     "baseBlob": null
+    },
+    {
+     "path": "ROLLBACK.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "e01c13ec2431015971e280abda703c58531e086e",
+     "sha256": "b1567883216a9cd4b6a878188c34faa074db437d041d768fd3292b84cf5c3b0a",
+     "bytes": 6516,
+     "baseBlob": "1f1455dc5b20383033ca6157b4517fd50cf57969"
+    },
+    {
+     "path": "SIGNING-AUTHORITY.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "554ead05876045109dcd59ec285a9ff0fbaad783",
+     "sha256": "65d90a9e53fe015aa77b50dc45231a22232644757c678dcbbccccee61d2f1387",
+     "bytes": 4524,
+     "baseBlob": "915c9ec7f7d13ff749921fc1799e979c080f4f86"
+    },
+    {
+     "path": "SOURCES.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "7974fed35b37c79a58ad1a2cf21c18e87d872c25",
+     "sha256": "aae321bcdbf7f53438cec0310ccaa269930061b529546400f2edf4b989423f0c",
+     "bytes": 9945,
+     "baseBlob": "9018dcb194d11fcf06b0f46d4061758dc7d6018b"
+    },
+    {
+     "path": "TEST-MATRIX.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "7ab92ddb39cfa4e5a326162b36bc3e06da0f1209",
+     "sha256": "fbc7b611126ab16d66b1352a966b1a6f704ed841eca844802578791181b93848",
+     "bytes": 6107,
+     "baseBlob": "8cf65c591314dd8767c4b7dd1999b4526fd1d2d7"
+    },
+    {
+     "path": "commit6.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "38d10e3540de95cb767faddc4d3a2d52a621651d",
+     "sha256": "484fdabf7c9975216bb3bcd7ad2a3bb54b74d78a28a6bde6171cc66fe3f2f6f3",
+     "bytes": 4666,
+     "baseBlob": null
+    },
+    {
+     "path": "commit7.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "0cb39b2725d237ce75aec26c390c0f7110d05661",
+     "sha256": "7f0b62b1e9c16f73c8092f748401dff7aedcd2f5cc231741630b6efe861acb1f",
+     "bytes": 1616,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/security/secret-custody-v2.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "9d2e333da3b52a2bb9f11f5f32937b0113987e16",
+     "sha256": "f9be78fab23f8b122b8b8bf841cc016a1f4eef8d2744b0c3a4e692b3cf75f5a5",
+     "bytes": 41069,
+     "baseBlob": "d56f08909cc2a0e8b01440cdbfd2b0bdb83bbe6c"
+    },
+    {
+     "path": "logs/commit-5.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a42b15243f9bdc7b3c409c660267ce7aaf42d3c3",
+     "sha256": "5b55c4f8bccae5447ebf7db1d667c7f9fd4744955b1c49057fc9c0e10ae321a8",
+     "bytes": 367,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-5.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-6.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6252f51deff36a241d95d19965790d53a402f1ba",
+     "sha256": "fa13284fd9410d410c3df2e450f2e98835f67663339cbea9c1620e66666b5710",
+     "bytes": 1815,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-6.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/rangescan-5.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "911ceecde4eb9fe43ed6912d10b7fc668ae6a8b5",
+     "sha256": "c0007b3658f2f1ecf676f110fb4426ca37b2ef1ab7bb9b632e952450397aa2bc",
+     "bytes": 404,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/rangescan-5.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/rangescan-6.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ff77f17d2a3e6589029120de4d9ac137374df8c7",
+     "sha256": "4e927d03eadc30d18ed0452079be160acb8adf38ab71d8af3c514d7b1033d921",
+     "bytes": 405,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/rangescan-6.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-6.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9e206db099f29c29dd85d568e0e4181448ac448c",
+     "sha256": "c9fa9a726b36455a27d6107b309bc212689c8c26ff601a3db56f3e0c3f88d167",
+     "bytes": 358,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-6.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-7.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1e954d26cc5077c444178527c5e8192a5b2fb9de",
+     "sha256": "6fe810f096ed85bf2a74a44e305bf884a3dd8c1797a9dc0898bd8514ab6bcd35",
+     "bytes": 360,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-7.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "patches/0004-Recipient-binding-root-reviewed-source-review-direct.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6ec29d02e615c5977eff532e18eafaba65e4cebe",
+     "sha256": "8e7054506d1c110cbc02e1626c09499505c6650246ff49930736f9cd999eec23",
+     "bytes": 5157,
+     "baseBlob": null
+    },
+    {
+     "path": "patches/against-checkpoint-dfb4b55e.diff",
+     "status": "M",
+     "mode": "100644",
+     "blob": "616580ccc6f976c8f42693d84fb068f85f371b3f",
+     "sha256": "2548a2d34ac7ba5fbe523d50d5b4b781e45b89df3c680671bbfd40b135d7fce4",
+     "bytes": 23867,
+     "baseBlob": "283f9084b06e1dc0e6d20c9b68911416bf3bd362"
+    },
+    {
+     "path": "patches/against-main-68b82926.diff",
+     "status": "M",
+     "mode": "100644",
+     "blob": "e5e90f1835af56c8b6d4b5e0c3ed49e918171238",
+     "sha256": "b5e5dce970ee2f1733d64eb3cc5f4255ad7596aaf77c0f10456f70cff49e18b0",
+     "bytes": 30936,
+     "baseBlob": "5407780aadbe00e2b9e6088db2b348755c452059"
+    }
+   ],
+   "patches": [
+    {
+     "file": "current-docs3-967eeb96/patches/0001-ac48ded9.patch",
+     "sha256": "06126e4641ee8cd5ea9d76a431e6258640ea2e0e090a023ae7c68bbd00a318da"
+    },
+    {
+     "file": "current-docs3-967eeb96/patches/0002-50f05862.patch",
+     "sha256": "645b5a514004e5c93e962c3efa483a06b2ac9a69f67df9c92bb8a52878fc7f20"
+    },
+    {
+     "file": "current-docs3-967eeb96/patches/0003-967eeb96.patch",
+     "sha256": "c937397605aa6c6c04bb70d24c5d65b1e2f4b0d7dcf7946eb88855696f959d1b"
+    }
+   ],
+   "note": "R reconciled custody docs on 1b3c2611: recipient-binding conclusions (direct SNP quote gates confidentiality; registry proofKey not an input; relay pointer not chain-verified, so no value-integrity claim) with patch 0004 (ac48ded, 50f05862); the 23:10 FAILED control recovery and the 23:15 rollback, the fee cause NOT confirmed (967eeb96). Not published; recovery NOT done"
+  }
+ },
+ "derivatives": {
+  "d-kit": {
+   "repo": "work/custody-boot-price-activation-20261023",
+   "branch": "main",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "8bbd0a745641f8f66d835c75eb3a8e3feef3eb47",
+   "headTree": "be4f70831b69e9fb9adbcad1829ad57466c00b0d",
+   "commits": [
+    {
+     "commit": "8bbd0a745641f8f66d835c75eb3a8e3feef3eb47",
+     "tree": "be4f70831b69e9fb9adbcad1829ad57466c00b0d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T16:02:46-07:00",
+     "subject": "metal0 control: third image-only activation kit for the boot GPU-price build (7dd3acd0 -> b007d471), source only",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "d-kit-8bbd0a74/patches/0001-8bbd0a74.patch",
+     "originalTree": "9a5a3b2cb7bdbda7f0490c22b79dfd35f4896132"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cf8e88bfc438f9ded312e264dad91c5fa40f71db",
+     "sha256": "d40de80a8e61303d8ae0301ecea0275202db77e816fa22993a21461e02ac3478",
+     "bytes": 379,
+     "baseBlob": null
+    },
+    {
+     "path": "HANDOFF.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a849c08528fc8bc93294a93cd482a54d69d82e9e",
+     "sha256": "ecba00437b782bded5b7bb59f2e95c1863b9677940af3ca87c3ae1b906adf22e",
+     "bytes": 3665,
+     "baseBlob": null
+    },
+    {
+     "path": "README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5aa6b17f1150b5859a58d05e535809297c1867e4",
+     "sha256": "502be02a65fa197d69e509c7704aa389eeca78d1ae239a5082d70fcdff689bd1",
+     "bytes": 7985,
+     "baseBlob": null
+    },
+    {
+     "path": "STATUS.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6e00366ac047685706003a177e043def277047f3",
+     "sha256": "de188e7f633003aad7fb0e4c747e90b8c61866b4fbea1665d6cd552bf0d5cd93",
+     "bytes": 3457,
+     "baseBlob": null
+    },
+    {
+     "path": "TESTED-SOURCE.sha256",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a0da41c4bfee56fcd190ceee5d6664211b33ed89",
+     "sha256": "2fb9567972f4029385a07fff14fc7fab631085cd32ab22b3631f20e0a48e0033",
+     "bytes": 2613,
+     "baseBlob": null
+    },
+    {
+     "path": "activate.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "14a6f53dca9daed958bbd019860d47c554e59592",
+     "sha256": "1aa78a313c4e7490c4f654e0bddac5fbc2e6e261e3df369ee069f68547f87bec",
+     "bytes": 13364,
+     "baseBlob": null
+    },
+    {
+     "path": "admit.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4b8537e526ad99ca8ef7e27b9a5a1d4a50a4f7e3",
+     "sha256": "931d0cdd483cc2fec999407956beb5f1ad9365884249a31c0db2bd26cc4f27bb",
+     "bytes": 1630,
+     "baseBlob": null
+    },
+    {
+     "path": "apphealth.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8a48dcc024a6896cb8a6931e207852f60a6e2487",
+     "sha256": "3babd979edfe9dd245ce5d4d2a2e12223dfd67c1fa761d76cb108b53b6b6f88f",
+     "bytes": 2841,
+     "baseBlob": null
+    },
+    {
+     "path": "attest-price.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6e342f0ec6f70b10ecc342a849ee5f71f285d1b0",
+     "sha256": "e4baf19076a6ee842100794953b1154441118a0ccdaf97c8cd235b6c2ea5aa25",
+     "bytes": 8442,
+     "baseBlob": null
+    },
+    {
+     "path": "block-probe.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5b4f7f279ab6a8ab8bf5cb998c92c27255e6f11c",
+     "sha256": "9a066d0313a404988e4250526ead248b7be0f2545dde0f3fb59b0e3e32d22878",
+     "bytes": 2209,
+     "baseBlob": null
+    },
+    {
+     "path": "boot-funding.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f80f7081b5ba222bd6c23b2095c8305989ad6451",
+     "sha256": "5686127dd58131ba38b7470612b057cac5c0c45ee16e582872e0b17069b27376",
+     "bytes": 13246,
+     "baseBlob": null
+    },
+    {
+     "path": "build-record.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8e937711a362a303e007ffe1fee42444bde349d4",
+     "sha256": "1fc4d733d3f2b2455b5d5ea8917ece941ad22f8f78c75f7b9f2a7b3bd938395b",
+     "bytes": 2367,
+     "baseBlob": null
+    },
+    {
+     "path": "commit.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "e19a1234a539a573cb2a1650377436be2f79d892",
+     "sha256": "c553c8204e71aac99dbcd13b6d158ceb32ebcb83bc94279dc41bf52771db0365",
+     "bytes": 2497,
+     "baseBlob": null
+    },
+    {
+     "path": "common.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "55ecc8598f144db4d034c7e0e022adc454c1fac0",
+     "sha256": "57233cc51831b583f3d672c0750dbcbdb47f1132d296e5935f6dc24a55be6234",
+     "bytes": 56973,
+     "baseBlob": null
+    },
+    {
+     "path": "fee-fit.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "21d33dc5c14e0a99177789d0b57c4b26be0c4c60",
+     "sha256": "8033f3a674d682eef6378e51499f1a7b54d2bd7d26798cde7fa98ce20203e7ba",
+     "bytes": 2120,
+     "baseBlob": null
+    },
+    {
+     "path": "fee-fit.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d84b82b391f0c123afb486a3abae6eef0462298c",
+     "sha256": "ef7b2231c1c954e37b6e3a663c99c7786fb1318cae083a9dec3b5957838af52f",
+     "bytes": 1636,
+     "baseBlob": null
+    },
+    {
+     "path": "funding.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "eacd4b7ad66415440dcde4f7a9b13ddbf75b6a6f",
+     "sha256": "53b77deb188a3f8d8964a109ad4e64dad4aca1ee0c100842a309d66d7052defc",
+     "bytes": 1755,
+     "baseBlob": null
+    },
+    {
+     "path": "guestrows.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4f70d73ee98163b9cad165b88b41fded2a675a34",
+     "sha256": "29b7c9dac8e39990e3332cfa2c4f7f9f972ab559f37a4d720edf55eafacb06ab",
+     "bytes": 2616,
+     "baseBlob": null
+    },
+    {
+     "path": "keep.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4113d6f6f28b06fb6af951a06a8dbfa5645ed9b8",
+     "sha256": "8b386d300ba1f3554e2a733ae2277e0387dcefc7ec6e02c1b2bf7cd924f2a73b",
+     "bytes": 3318,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e6d802d1e0323b2ede5d3e23a51f92c63f89f592",
+     "sha256": "153c542ec32785998074a7e8368e0b3983e25920b2749287203213203e72e70d",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "377bc4f4f3cb9613d63bf3df0077f8fa5de5cb73",
+     "sha256": "1ad87c0845393a6498aa4abaa42943072686408f0178a59e080989cbd0d4a42d",
+     "bytes": 600,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e8c2cca0b3dc7386e82f809add36511d40f250b3",
+     "sha256": "29746e737d7ab1dbecefe283d80aed9209c3a1ce118fcead5b14a270454624d8",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1e81cb048caf81c334ecefab8e7325154bb4a4ec",
+     "sha256": "bdf3f357e1ab063ed09cc03a4d221abeacbbcafe95708b3d09d4a3131597c946",
+     "bytes": 4194,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t10.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8817a4131e051c528d51a0d37dbd4fcb773381bf",
+     "sha256": "a4f79cd83e31842e34d332c26ae0e8d821d4a3650e8f2869081b87318cc5206a",
+     "bytes": 10085,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b0b3189178c10fca95ee2d79763dd7eba6641503",
+     "sha256": "b8b3a584e0e70d448f9687706e021fe411c459f55b3c9f908ff928c65713e0c9",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "784797be0b1925bee61b631846452394475838e6",
+     "sha256": "242ddc86fdfd479f64f50e4924c8e463dc2c31c686444db2aa257a087a91dcfc",
+     "bytes": 366,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7bdc52354c41e904b0b046308c4d74a69ac561f7",
+     "sha256": "dcc709cd51894b3a7861b87bc0a87c416fda8e494e77733621564921605c0c9d",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "dd8ce9b1ff4fbd19405ceea0702cef2fa61e6470",
+     "sha256": "765a66d896e39ce4809aece6a01e18824172ef1a3df1d988060f397314afb27b",
+     "bytes": 11464,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t3.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t4.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d1add257b0f3d898dcab24d81713fd86709b6137",
+     "sha256": "c5a84f0ac5deb07c648f4e46c15fb4d24589fa7be4643fe58a56c8aa7ca4f197",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t4.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a774a20e76ddf0c63ca116d3eb7afd758e7c6544",
+     "sha256": "cd5c032c864f5cf9ede05d19496a1b826cef9fc20344c2929c5ba4dd0aacec2b",
+     "bytes": 396,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t4.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t4.try2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b4d3bd05284f9ce193a77bc8a96336fd23bd97ee",
+     "sha256": "cf69f3b7c712f2914f43dc2f8757cc3ee3020192d2d66db85dd91f27ee828c51",
+     "bytes": 42,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t4.try3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b4d3bd05284f9ce193a77bc8a96336fd23bd97ee",
+     "sha256": "cf69f3b7c712f2914f43dc2f8757cc3ee3020192d2d66db85dd91f27ee828c51",
+     "bytes": 42,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t6.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "30a55b5fab7022d49f88212038ce65c543cb9542",
+     "sha256": "22d2d20134e5636ad965d15ed213ea5411b37b1177159f0914f2808bf7ad2b77",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t6.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bb3fdbb01549207df311fcc2560119d349855f8a",
+     "sha256": "8ea966197ddd2551ecfed2e8ab03ee5fa140a62c60253a7025f8965b0e7d286d",
+     "bytes": 409,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t6.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t7.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a0cae4216c26340e3065d23026e7d43cf83b7db4",
+     "sha256": "541702de10225c078914f80c5251027b5d055c49e9b2286d7d14e2e3d12b46b1",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t7.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "dfe6f4117ad767ced5c04dd13655fd3680447008",
+     "sha256": "ed05e88ca580434a567ac3f267c7aae28a5f8a290eade0f02d98908ac08c55bb",
+     "bytes": 381,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t7.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t8.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d66a239c7c881d3a9f39e8a35a2403360d00af30",
+     "sha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t8.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cdb0d06f1f44fd2558c7c574acc739440ebdc550",
+     "sha256": "eb41dced31af6b059992f2cbcf7fd844c8bae2dc230d44ac68a1f044139e0fb2",
+     "bytes": 1327,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t8.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t9.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6cabd6a5d17e533f27b38658c01b6ba73c8e4f7c",
+     "sha256": "3ae8ab11dffdca9ca0d502d014e54a2ea307eb889895279b19832f125e3bb57a",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t9.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "40a05228495e0bfb8639739c5f02e4c79e946fe7",
+     "sha256": "85ff20e4fb3e8209184a5a6c342322bc6ba45e61891a85084318e2ae5dd05f2c",
+     "bytes": 382,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/t9.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "mutants.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ec1ffb0d18a016680a302f0022f2f6166ae8cc13",
+     "sha256": "4b6a5d4fc9bbaa329849e924bc5a79ccbc21a3b193886d14ae9fc5806062be05",
+     "bytes": 13154,
+     "baseBlob": null
+    },
+    {
+     "path": "prebaseline.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "008df0f9b3dafa5d7c56d8c96f4bdcdebd41c7a3",
+     "sha256": "a74a48740d039f0ca3c6ae1e124722503dffd7bd15bf1bb7f49546618ddf63f3",
+     "bytes": 3099,
+     "baseBlob": null
+    },
+    {
+     "path": "preflight.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8fa2271de6df77decab62fde9be7f29d0dbf71ef",
+     "sha256": "1605f99a201973aae04aff9ac91c96984c19c4f766a28edbaf8813fe9943e553",
+     "bytes": 4370,
+     "baseBlob": null
+    },
+    {
+     "path": "prepare-admission.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8589772fc1b1eb47e77aab6e938b402313a956cb",
+     "sha256": "5d5af354548e26484e85652c220ac9e559a19eda72bb82ad01de158dd85e9280",
+     "bytes": 2637,
+     "baseBlob": null
+    },
+    {
+     "path": "q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "f69b7de1730e7634fb481a8924488479d2eeeeba",
+     "sha256": "b25ca78d460a5a8e3dc553867270b825d09b5d1e640490e26755fd01fd43e196",
+     "bytes": 565,
+     "baseBlob": null
+    },
+    {
+     "path": "recheck-admission.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8fc4f2c8d6ba21fa94d765dc72dc14156b1f5afc",
+     "sha256": "084bed78d417e6a7a2286dfc5dd5a343d0d35c165bc2fafe4d6d60894a7c2dd0",
+     "bytes": 830,
+     "baseBlob": null
+    },
+    {
+     "path": "renewal-watch.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0eef6188367b6485abcb1334a98dc1dc05c6ae20",
+     "sha256": "dd4e340c26b9e300919d4c66f4793304bdf4b26c6785bcdd196a946e491c5709",
+     "bytes": 1004,
+     "baseBlob": null
+    },
+    {
+     "path": "rollback.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "856ee8dfddf49237f422fbc92b47234b82cf4106",
+     "sha256": "d45554419aa9d9be8203765349923de5587b13f90f30d2f500bc25b2bba1a250",
+     "bytes": 1413,
+     "baseBlob": null
+    },
+    {
+     "path": "run-tests.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "dd16711bc07de01573b129e220bc5f8a994be7fa",
+     "sha256": "d4b355efeaf258940eb3559bed4aa1532840b93b65718833ace0d04a3e30d4bb",
+     "bytes": 825,
+     "baseBlob": null
+    },
+    {
+     "path": "scan.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "9656d408f3c8b2c2371ddbd21fa973e635fd6e49",
+     "sha256": "62614e6332837b4946036ce746f2fd899b5596072a27f67bb79be41abfe66c50",
+     "bytes": 1270,
+     "baseBlob": null
+    },
+    {
+     "path": "stage.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c25af459e8bfabdf2ff83e539eb28d4333c673d5",
+     "sha256": "2c48c0b08983908688f92e11b3d1a8a256cf57870ac9766085e98e0c762ea29e",
+     "bytes": 2723,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/attest-price.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fc7354364b1e456068382d271e5f9e7a0955723a",
+     "sha256": "a7b48fe79e5a67185d81a463842db199b372fc29be29b0e7afdd6f78bdb1e665",
+     "bytes": 6608,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/boot-funding.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "71cdcf92da35d96c08f7f7d3a60ec3f6898d2522",
+     "sha256": "6853f56238d32027fea07cad68db8eb87644b406876d323afd620025c1ec1978",
+     "bytes": 12158,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/test_activation.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "882a12178f6793663925fd1ff8650aa4236d38f5",
+     "sha256": "8137798d4f6885df1c7d64b5f7d798913acde1d1c6365145f348d5895a0ca4f4",
+     "bytes": 59666,
+     "baseBlob": null
+    },
+    {
+     "path": "unadmit.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6bd5f74655f7538a681ccc32aa84f9354de10cb0",
+     "sha256": "61ff8928023eb62751ec0713c668dd27ac8ee5ecc6dafc0f6b04dd2c53e9f802",
+     "bytes": 851,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-operational.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b2d68a59f892b04c262cc73983a624ad82821419",
+     "sha256": "5ef6fa9d59087a757e5e21911ec033b78c2b6fd06e6d9724c49d64e43ab1f067",
+     "bytes": 9947,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "d-kit-8bbd0a74/patches/0001-8bbd0a74.patch",
+     "sha256": "6430e0f6a5f7f9b4c46e24c52b4c26b585c21de38f28bcf7aa47bc92f58be42e"
+    }
+   ],
+   "originalHeadTree": "9a5a3b2cb7bdbda7f0490c22b79dfd35f4896132",
+   "omittedAtHead": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "940601e832c1d96776bdd04c41097b81f861194f",
+     "bytes": "2372",
+     "path": "evidence/original-baseline-20261023T213130Z.json",
+     "sha256": "45554dc55f4cfc38302e922dccf67190c41e00c3b061a4ea52e3f1f530092af0"
+    }
+   ],
+   "excluded": [
+    "evidence/"
+   ],
+   "label": "SOURCE-ONLY DERIVATIVE: D third image-only activation kit for the boot GPU-price build (8bbd0a74): source, provenance and tests; root-final-tests PASS. Root ran it at 23:10 and it FAILED (no adoption; rolled back 23:15:29). Root runtime files ignored and never read, except the two receipts root allowed; the committed read-only production baseline evidence/original-baseline-20261023T213130Z.json is omitted per root; blob and sha256 in omittedAtHead",
+   "omittedRecipe": "restore the blob in omittedAtHead from the source repository at the head; with it the tree equals originalHeadTree",
+   "note": "D third image-only activation kit for the boot GPU-price build (8bbd0a74): source, provenance and tests; root-final-tests PASS. Root ran it at 23:10 and it FAILED (no adoption; rolled back 23:15:29). Root runtime files ignored and never read, except the two receipts root allowed"
+  }
+ },
+ "lowercaseRewrittenLiteral": {},
+ "frozenSources": {
+  "source-preservation/RESULT-frozen-2246-checkpoint.md": "3fe428bafcbbd812f9fd65e1e96039386c62fbe48ea28dfcccf3660b90138b9f",
+  "source-preservation/snapshots-2329/custody-v2-live-verification-20261023.pre-correction-2329.md": "4d613dc8230e1a8e42e8a0747624bec2a8dce5763b74eeb8085c641b2530b3e3",
+  "source-preservation/snapshots-2329/custody-v2-live-verification-20261023.snapshot-2329.md": "604080876baf91184344cbd9e7e8d596cfce6c32b7cbdfec760494a49306f209"
+ },
+ "rootEvidence": {
+  "../custody-boot-price-activation-20261023/result.json": "511808455bac7ef43567bdcabff715be3d2932faaeebbefc755d3be116ccd0e3",
+  "../custody-boot-price-activation-20261023/evidence/postrollback-health.json": "5f131bf1687044bd40dae585167a8ee22d1e3403f18bbab1e76d8393e6765024"
+ },
+ "rootEvidenceNote": "rootEvidence = the two runtime receipts root explicitly allowed (public ids/hashes/status only; read and scanned); the outputs file is captured as two dated snapshots (pre-correction 4d613dc8 and corrected 60408087); its earlier stored bytes stay unchanged",
+ "evidenceVsSource": "Committed logs, receipts, run outputs and RESULT files inside these repositories are EVIDENCE; the rest is source.",
+ "notPreserved": [
+  "the D kit committed baseline evidence/original-baseline-20261023T213130Z.json (blob recorded)",
+  "every other ignored/untracked file of the D kit: private-backup, raw attestation, logs/root-*, ROOT-* files, other evidence, review and progress files (never read)",
+  "the active explicit-fee H 5db2be3f/9b82acc8 sources and new D builds",
+  "images, binaries, WASM, node_modules, keys, sealed state, uncommitted WIP, commits after these heads"
+ ]
+}

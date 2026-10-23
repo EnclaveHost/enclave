@@ -1,0 +1,10 @@
+custody-live8 base rebuilt from empty + 13 stored patch(es) in ef1baaa1b: tree 3e070b68dd36701d9c956982dc38c6caae407730 OK
+custody-live8 851f75797: tree c8abbfae9fc2943a19bc87a15c510653a7c9a25d OK
+current-docs3 base rebuilt from empty + 9 stored patch(es) in ef1baaa1b: tree 078a51a914c5955ed471a3053b9cf4a035ac6c8d OK
+current-docs3 ac48ded9f: tree 4ef4962e8d6ee764d726851493ffaf84f25b2138 OK
+current-docs3 50f05862f: tree 4bd77f4a22800ea8cf43deff735a144d085e2579 OK
+current-docs3 967eeb96d: tree 60f2fe7e0829466a5567d594d42a85d17b7855c1 OK
+d-kit base rebuilt from empty + 0 stored patch(es) in ef1baaa1b: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+d-kit 8bbd0a745: tree be4f70831b69e9fb9adbcad1829ad57466c00b0d OK
+d-kit trees are the ORIGINAL trees minus ['evidence/'] held at the base (head original 9a5a3b2cb); exact originals NOT reproduced
+RESULT custody-live8 reproduced: True, current-docs3 reproduced: True, d-kit reproduced: True

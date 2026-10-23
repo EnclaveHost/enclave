@@ -1,0 +1,55 @@
+[queue] START available=24221MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+............F..F..............F...........
+======================================================================
+FAIL: test_cutover_margin_is_strictly_above_900_at_the_actual_time (test_activation.CutoverMarginAndWatchdog.test_cutover_margin_is_strictly_above_900_at_the_actual_time)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-price-activation-20261023/tests/test_activation.py", line 344, in test_cutover_margin_is_strictly_above_900_at_the_actual_time
+    self.assertRegex('; '.join(C.cutover_margin_problems(self.pre(), self.ids, 1000 + 300)), 'da09d0f264')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'da09d0f264' not found in '0xda09d0f2: lease 700 s left at the cutover, not > 900 s (attach 120 + adopt 300 + rollback 480)'
+
+======================================================================
+FAIL: test_low_margin_stops_the_gate (test_activation.CutoverMarginAndWatchdog.test_low_margin_stops_the_gate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-price-activation-20261023/tests/test_activation.py", line 373, in test_low_margin_stops_the_gate
+    self.assertEqual(wd['outcome'], 'stopped'); self.assertTrue(proc.stopped); self.assertRegex(wd['why'], '<= 600')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'exited' != 'stopped'
+- exited
++ stopped
+
+
+======================================================================
+FAIL: test_substring_or_failed_or_stale_evidence_refuses (test_activation.KeepVerdict.test_substring_or_failed_or_stale_evidence_refuses)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-price-activation-20261023/tests/test_activation.py", line 639, in test_substring_or_failed_or_stale_evidence_refuses
+    self.assertRegex('; '.join(self.p({**self.v, **over})), why)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'attest-control' not found in 'not an attest-price.mjs attest verdict'
+
+----------------------------------------------------------------------
+Ran 42 tests in 0.701s
+
+FAILED (failures=3)
+ok 1 - viem default max fee = ceil(base x 1.2) + tip
+ok 2 - root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
+ok 3 - L1 and operator fees count; the size argument must cover the signed maximum
+ok 4 - frozen helpers are the pinned bytes
+ok 5 - the target is only a root-approved build.json, never a prior or malformed measurement
+ok 6 - image pins: every present location must match build.json; a differing production copy refuses
+ok 7 - attest pins the frozen probe to the approved measurement; acceptance is strict; proofkey runs the frozen checks
+ok 8 - the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
+ok 9 - the decision is the approved commit's bootRegistrationAction, file AND function hash-checked; anything else is refused
+ok 10 - 9f6d37bd's decision (the 22:13Z counterexample) registers while the GPU price is pending: the gate refuses it
+ok 11 - root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
+ok 12 - refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
+ok 13 - RPC disagreement or a non-Base RPC refuses before any decision
+ok 14 - block agreement is canonical (number/hash/parentHash/timestamp): provider field ORDER and metadata are ignored (root 22:07/22:08)
+# pass 14
+# fail 0
+[memory-guard] exit=0 peakTreeRssMiB=166 minHostAvailableMiB=24051
+[memory-guard] at peak: node:74 node:54 python3:24 bash:6 grep:4 head:4
+[queue] EXIT 0

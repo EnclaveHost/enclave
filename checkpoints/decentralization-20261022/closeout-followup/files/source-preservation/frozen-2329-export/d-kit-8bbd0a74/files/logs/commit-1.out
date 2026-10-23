@@ -1,0 +1,14 @@
+[queue] START available=23722MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+4:02PM INF scanned ~299016 bytes (299.02 KB) in 36.7ms
+4:02PM INF no leaks found
+literal: none
+[scan] clean
+The following paths are ignored by one of your .gitignore files:
+logs/root-final-tests.guard.log
+logs/root-final-tests.out
+logs/root-final-tests.rc
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
+[memory-guard] exit=1 peakTreeRssMiB=42 minHostAvailableMiB=23678
+[memory-guard] at peak: gitleaks:37 bash:6
+[queue] EXIT 1
