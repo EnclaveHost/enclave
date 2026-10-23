@@ -1,0 +1,35 @@
+{
+  "at": "2026-10-23T00:03:46.693487+00:00",
+  "results": [
+    {
+      "url": "https://59f1273d.app.enclave.host/",
+      "exit": 35,
+      "result": "000 1 0.099239",
+      "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+    },
+    {
+      "url": "https://38f368d6.app.enclave.host/",
+      "exit": 0,
+      "result": "200 0 0.796781",
+      "error": ""
+    },
+    {
+      "url": "https://9eb4e600.app.enclave.host/",
+      "exit": 35,
+      "result": "000 1 0.099209",
+      "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+    },
+    {
+      "url": "https://7ae476a3.app.enclave.host/health",
+      "exit": 0,
+      "result": "404 0 0.699437",
+      "error": ""
+    },
+    {
+      "url": "https://enclavehost.eth.limo/",
+      "exit": 0,
+      "result": "200 0 0.950237",
+      "error": ""
+    }
+  ]
+}

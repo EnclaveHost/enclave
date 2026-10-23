@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "DENIED: ssh is stubbed out (adapter-admission-review: no remote access)" >&2
+exit 97

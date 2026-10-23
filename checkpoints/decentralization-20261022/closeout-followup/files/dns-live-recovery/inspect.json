@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-23T00:02:47.3854488Z",
+  "node": [
+    {
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "running",
+      "leaseUntil": 1792714635,
+      "reason": null,
+      "error": null
+    }
+  ],
+  "vms": [
+    {
+      "id": "hv5931e9aa7ae0c217e4143a2a9926fd37",
+      "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "running",
+      "recovered": null,
+      "reason": null
+    }
+  ],
+  "managerSha": "8107f272741c40a3d6ea51c0054d5fdc0904cd277346265cd01ca9de1c74ed17",
+  "hostSha": "9634cb40c60b74f92eff8497f687dcaa1ec04a33c21cbd22dc745d773b1da396"
+}

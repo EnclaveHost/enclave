@@ -252,11 +252,35 @@ paths.add(base / 'cron-placement/ROOT-STATUS.json')
 # nucbox state after; and the worker's finished source-only placement analysis. Never its probe logs or public-before.json.
 for name in ('verify-placement.mjs', 'placement-confirmed.json', 'nucbox-after.json', 'RESULT.md'):
     paths.add(base / 'cron-placement' / name)
+# The Windows serving-first candidate (829a881c on 2afa6733): exactly its two control files, the changed test, the patch, the
+# reports and its bounded test recipe (job runner + ssh/scp/sftp denial stubs). Never its dependency trees, logs, tmp/, the
+# copied cutover/ test fixture or temporary base/mutant trees. Kept HERE, not in the normal tree: the checkpoint's
+# windows/node/host.mjs (e41122d7) is an older lineage than the installed 9634cb40 this candidate builds on.
+sf = base / 'windows-serving-first'
+for name in ('candidate/windows/node/host.mjs', 'candidate/windows/node/chain.mjs', 'candidate/test/windows-node-lease-renewal-keeper.test.mjs',
+             'windows-serving-first.patch', 'INITIAL.md', 'RESULT.md', 'job-tests.sh', 'stubs/ssh', 'stubs/scp', 'stubs/sftp'):
+    paths.add(sf / name)
+paths.add(base / 'serving-first-review/RESULT.md')
+# Cold snapshot (A9) refresh plan; the EnclaveDNS artifact recovery (procedure + root-run-only script, NOT run) and root's
+# live update; the read-only live DNS receipts (sanitized JSON + the authored reader). Never their .log files.
+paths.add(base / 'cold-storage-refresh/RESULT.md')
+for name in ('RESULT.md', 'reupload-exact.mjs', 'ROOT-LIVE-UPDATE.txt'):
+    paths.add(base / 'dns-artifact-recovery' / name)
+for name in ('inspect.py', 'inspect.json', 'http-pinned.json', 'state-0005.json'):
+    paths.add(base / 'dns-live-recovery' / name)
 # what each new group IS, recorded on its manifest entries (nothing here is activated by this checkpoint)
 LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent '
                                    'tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)',
           'node-activate-min/': 'SOURCE ONLY: not run natively, not activated',
           'queued-rpc-diagnosis/': 'SOURCE-ONLY PROPOSALS (read-only diagnosis); nothing implemented or activated',
+          'windows-serving-first/': 'SOURCE-ONLY CANDIDATE 829a881c (host.mjs 817389ec + chain.mjs 3e9fae03, two-file swap): not deployed or '
+                                    'activated; preserved here, not merged into the normal tree (older lineage)',
+          'serving-first-review/': 'independent read-only review of the serving-first candidate (no blocker; should-fix items open)',
+          'cold-storage-refresh/': 'PLAN/REPORT ONLY: local and source; nothing run',
+          'dns-artifact-recovery/': 'HISTORICAL PROCEDURE: reupload-exact.mjs is root-run only and was NOT run; nothing restored or republished. '
+                                    'Root live update: the CID answers HEAD 200 with the exact 2588705 bytes; that is NOT a full artifact read '
+                                    '(a full GET returned 502)',
+          'dns-live-recovery/': 'READ-ONLY receipts: HEAD success only, not a full artifact read (GET 502); no force or republication',
           'cron-placement/': 'Cron moved to nucbox by the existing dashboard wallet flow; native running 23:58:37Z, 3 RPCs agree at block '
                              '52962071. NOT a durable on-chain pin: the ledger configCid has no placement field. RESULT.md = '
                              'source-only analysis (its setConfig placement option was not executed)'}

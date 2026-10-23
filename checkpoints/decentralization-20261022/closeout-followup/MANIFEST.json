@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-22T23:59:39.978476+00:00",
+  "capturedAt": "2026-10-23T00:13:01.727555+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -199,6 +199,13 @@
       "stored": "files/adapter-renewal-task.txt",
       "sha256": "cfb6726993846ca07570d106a42ea852772aaba668f90cb475be8a15b423b496",
       "bytes": 2036
+    },
+    {
+      "label": "PLAN/REPORT ONLY: local and source; nothing run",
+      "source": "work/resume-after-checkpoint-20261022/cold-storage-refresh/RESULT.md",
+      "stored": "files/cold-storage-refresh/RESULT.md",
+      "sha256": "92afa72ac18c11fa291915addcbc1c08f74901cb50ef8a9bde572c1b3e6a01b1",
+      "bytes": 12443
     },
     {
       "source": "work/resume-after-checkpoint-20261022/controller-bounds-validation/PRODUCTION-RECIPE.final.md",
@@ -558,6 +565,55 @@
       "stored": "files/direct-hardware-task.txt",
       "sha256": "46bd110f054e8425b24112af49c7a3185d5dfc09cc911d9a9277e5eee5b5edcc",
       "bytes": 3479
+    },
+    {
+      "label": "HISTORICAL PROCEDURE: reupload-exact.mjs is root-run only and was NOT run; nothing restored or republished. Root live update: the CID answers HEAD 200 with the exact 2588705 bytes; that is NOT a full artifact read (a full GET returned 502)",
+      "source": "work/resume-after-checkpoint-20261022/dns-artifact-recovery/RESULT.md",
+      "stored": "files/dns-artifact-recovery/RESULT.md",
+      "sha256": "f18bd29fdc853a6674f76de099b5d9c060cd019e3a4f33b1f0ea3147e18684d4",
+      "bytes": 6054
+    },
+    {
+      "label": "HISTORICAL PROCEDURE: reupload-exact.mjs is root-run only and was NOT run; nothing restored or republished. Root live update: the CID answers HEAD 200 with the exact 2588705 bytes; that is NOT a full artifact read (a full GET returned 502)",
+      "source": "work/resume-after-checkpoint-20261022/dns-artifact-recovery/ROOT-LIVE-UPDATE.txt",
+      "stored": "files/dns-artifact-recovery/ROOT-LIVE-UPDATE.txt",
+      "sha256": "65061246825200f97b12352fc5d5fa02242a8cc7458f7fee679e6b3d4ebbd1a1",
+      "bytes": 504
+    },
+    {
+      "label": "HISTORICAL PROCEDURE: reupload-exact.mjs is root-run only and was NOT run; nothing restored or republished. Root live update: the CID answers HEAD 200 with the exact 2588705 bytes; that is NOT a full artifact read (a full GET returned 502)",
+      "source": "work/resume-after-checkpoint-20261022/dns-artifact-recovery/reupload-exact.mjs",
+      "stored": "files/dns-artifact-recovery/reupload-exact.mjs",
+      "sha256": "536dfd9db2dd4e7c6f514a5a362df80ece7ae4dd13afa0df501bae2f0cc8933a",
+      "bytes": 4091
+    },
+    {
+      "label": "READ-ONLY receipts: HEAD success only, not a full artifact read (GET 502); no force or republication",
+      "source": "work/resume-after-checkpoint-20261022/dns-live-recovery/http-pinned.json",
+      "stored": "files/dns-live-recovery/http-pinned.json",
+      "sha256": "9571d745f6fdd8cb9c7f79998ba429043ce1ef3af2f706dca93176ca6678bf41",
+      "bytes": 912
+    },
+    {
+      "label": "READ-ONLY receipts: HEAD success only, not a full artifact read (GET 502); no force or republication",
+      "source": "work/resume-after-checkpoint-20261022/dns-live-recovery/inspect.json",
+      "stored": "files/dns-live-recovery/inspect.json",
+      "sha256": "51eb8877af9936e5bb5a538b66630b32cd42dda06de175edc0d74658e4cf3bf0",
+      "bytes": 655
+    },
+    {
+      "label": "READ-ONLY receipts: HEAD success only, not a full artifact read (GET 502); no force or republication",
+      "source": "work/resume-after-checkpoint-20261022/dns-live-recovery/inspect.py",
+      "stored": "files/dns-live-recovery/inspect.py",
+      "sha256": "8e3e95359202b8a6402401ed95a313fecd47fd4d72f32b731b14958b66edea58",
+      "bytes": 997
+    },
+    {
+      "label": "READ-ONLY receipts: HEAD success only, not a full artifact read (GET 502); no force or republication",
+      "source": "work/resume-after-checkpoint-20261022/dns-live-recovery/state-0005.json",
+      "stored": "files/dns-live-recovery/state-0005.json",
+      "sha256": "bccbf95dfe1323e135f96ba4962589ef6cf106b8f9cf8449ac4bc27028fef3ea",
+      "bytes": 3716
     },
     {
       "source": "work/resume-after-checkpoint-20261022/measured-composition/RESULT-closeout.json",
@@ -3595,6 +3651,12 @@
       "bytes": 2316
     },
     {
+      "source": "work/resume-after-checkpoint-20261022/relay-release-live/health-0002.json",
+      "stored": "files/relay-release-live/health-0002.json",
+      "sha256": "1f445fdc92e117aa7d90a7e158a6185b89c6640fbd4fee9cc168c00ff7886fa2",
+      "bytes": 833
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/relay-release-live/ingress-probe.json",
       "stored": "files/relay-release-live/ingress-probe.json",
       "sha256": "eda0d4b2d62dc39cfe433a863b44d4bb5de946d258fd52bc814435e31b8e6a6c",
@@ -3655,10 +3717,17 @@
       "bytes": 1589
     },
     {
+      "label": "independent read-only review of the serving-first candidate (no blocker; should-fix items open)",
+      "source": "work/resume-after-checkpoint-20261022/serving-first-review/RESULT.md",
+      "stored": "files/serving-first-review/RESULT.md",
+      "sha256": "0e3fd1b3fe46e59ef8e3576484efed4eea27c4d71d7cebb7070514ff1d8448cd",
+      "bytes": 5663
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "3ba39003999f13c5f827f2d8f5f7d3331c14d152d6543d833385e69e7db57897",
-      "bytes": 20275
+      "sha256": "1d74c5f57bc58aa8b6b8fb59da696bd09ed07d5c393c5e0260d84f4801b96328",
+      "bytes": 22647
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",
@@ -3893,6 +3962,76 @@
       "stored": "files/storage-public-read/rpc-capabilities.mjs",
       "sha256": "0e2ed0f62047d3235522b4e77c147613293422102b2a6eb1201c7073099bc41e",
       "bytes": 1604
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE 829a881c (host.mjs 817389ec + chain.mjs 3e9fae03, two-file swap): not deployed or activated; preserved here, not merged into the normal tree (older lineage)",
+      "source": "work/resume-after-checkpoint-20261022/windows-serving-first/INITIAL.md",
+      "stored": "files/windows-serving-first/INITIAL.md",
+      "sha256": "8ef01d808f2ebef0aa0cd8bcd598fc6f52102aa8861ce16b115836ed60bf40c1",
+      "bytes": 3357
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE 829a881c (host.mjs 817389ec + chain.mjs 3e9fae03, two-file swap): not deployed or activated; preserved here, not merged into the normal tree (older lineage)",
+      "source": "work/resume-after-checkpoint-20261022/windows-serving-first/RESULT.md",
+      "stored": "files/windows-serving-first/RESULT.md",
+      "sha256": "807efac026d870fd8fb98a4de06658a01bf33eeb75e5f18b64391fb40162b17d",
+      "bytes": 7486
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE 829a881c (host.mjs 817389ec + chain.mjs 3e9fae03, two-file swap): not deployed or activated; preserved here, not merged into the normal tree (older lineage)",
+      "source": "work/resume-after-checkpoint-20261022/windows-serving-first/candidate/test/windows-node-lease-renewal-keeper.test.mjs",
+      "stored": "files/windows-serving-first/candidate/test/windows-node-lease-renewal-keeper.test.mjs",
+      "sha256": "600b59802a2be325bbcb45c39982a8617600623db1ce32e001b8cb0d0146ff65",
+      "bytes": 30773
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE 829a881c (host.mjs 817389ec + chain.mjs 3e9fae03, two-file swap): not deployed or activated; preserved here, not merged into the normal tree (older lineage)",
+      "source": "work/resume-after-checkpoint-20261022/windows-serving-first/candidate/windows/node/chain.mjs",
+      "stored": "files/windows-serving-first/candidate/windows/node/chain.mjs",
+      "sha256": "3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938",
+      "bytes": 58660
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE 829a881c (host.mjs 817389ec + chain.mjs 3e9fae03, two-file swap): not deployed or activated; preserved here, not merged into the normal tree (older lineage)",
+      "source": "work/resume-after-checkpoint-20261022/windows-serving-first/candidate/windows/node/host.mjs",
+      "stored": "files/windows-serving-first/candidate/windows/node/host.mjs",
+      "sha256": "817389eca381b1ed9d298f9289780214643f83cc75480795a751bb5749d87149",
+      "bytes": 304349
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE 829a881c (host.mjs 817389ec + chain.mjs 3e9fae03, two-file swap): not deployed or activated; preserved here, not merged into the normal tree (older lineage)",
+      "source": "work/resume-after-checkpoint-20261022/windows-serving-first/job-tests.sh",
+      "stored": "files/windows-serving-first/job-tests.sh",
+      "sha256": "b9f75d85ede9554722dab98fabb787890efec0a8cebe2397dbc8a69a3f3c4487",
+      "bytes": 1216
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE 829a881c (host.mjs 817389ec + chain.mjs 3e9fae03, two-file swap): not deployed or activated; preserved here, not merged into the normal tree (older lineage)",
+      "source": "work/resume-after-checkpoint-20261022/windows-serving-first/stubs/scp",
+      "stored": "files/windows-serving-first/stubs/scp",
+      "sha256": "4cea176f719fcc20c12fc857d3d3fc54f5365d31f28a3314c425b65fc7743c40",
+      "bytes": 101
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE 829a881c (host.mjs 817389ec + chain.mjs 3e9fae03, two-file swap): not deployed or activated; preserved here, not merged into the normal tree (older lineage)",
+      "source": "work/resume-after-checkpoint-20261022/windows-serving-first/stubs/sftp",
+      "stored": "files/windows-serving-first/stubs/sftp",
+      "sha256": "f46b0a849dc7c5f059cfa67795f0a31b830a875d9b1c36961aa768ec50f72fd2",
+      "bytes": 102
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE 829a881c (host.mjs 817389ec + chain.mjs 3e9fae03, two-file swap): not deployed or activated; preserved here, not merged into the normal tree (older lineage)",
+      "source": "work/resume-after-checkpoint-20261022/windows-serving-first/stubs/ssh",
+      "stored": "files/windows-serving-first/stubs/ssh",
+      "sha256": "8208583a09c44fbb98919fb2671c60c199c8314257520495351bd1f709a88fa4",
+      "bytes": 101
+    },
+    {
+      "label": "SOURCE-ONLY CANDIDATE 829a881c (host.mjs 817389ec + chain.mjs 3e9fae03, two-file swap): not deployed or activated; preserved here, not merged into the normal tree (older lineage)",
+      "source": "work/resume-after-checkpoint-20261022/windows-serving-first/windows-serving-first.patch",
+      "stored": "files/windows-serving-first/windows-serving-first.patch",
+      "sha256": "db9842bcfe8a019e8fa5a8ca78cb2a76211c9a1ad68725e2d7ac5705470f5514",
+      "bytes": 35647
     }
   ],
   "unchangedAlreadyPreserved": [

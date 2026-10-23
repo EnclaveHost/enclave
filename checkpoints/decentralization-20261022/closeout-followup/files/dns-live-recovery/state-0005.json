@@ -1,0 +1,129 @@
+{
+  "at": "2026-10-23T00:04:34.8540836Z",
+  "deployments": [
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "running",
+      "leaseUntil": 1792714619,
+      "reason": null
+    },
+    {
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "status": "running",
+      "leaseUntil": 1792714699,
+      "reason": null
+    },
+    {
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "status": "running",
+      "leaseUntil": 1792714643,
+      "reason": null
+    },
+    {
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "status": "running",
+      "leaseUntil": 1792714629,
+      "reason": null
+    },
+    {
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "status": "running",
+      "leaseUntil": 1792715323,
+      "reason": null
+    },
+    {
+      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "status": "running",
+      "leaseUntil": 1792714613,
+      "reason": null
+    },
+    {
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "running",
+      "leaseUntil": 1792714635,
+      "reason": null
+    },
+    {
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "status": "running",
+      "leaseUntil": 1792714649,
+      "reason": null
+    },
+    {
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "status": "running",
+      "leaseUntil": 1792715191,
+      "reason": null
+    }
+  ],
+  "readiness": {
+    "sequence": 615,
+    "startedAt": 1792713862736,
+    "completedAt": 0,
+    "inFlight": true,
+    "deployments": [
+      {
+        "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+        "sequence": 615,
+        "status": "pending"
+      },
+      {
+        "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+        "sequence": 615,
+        "status": "pending"
+      },
+      {
+        "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+        "sequence": 615,
+        "status": "pending"
+      },
+      {
+        "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+        "sequence": 615,
+        "status": "pending"
+      },
+      {
+        "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+        "sequence": 615,
+        "status": "pending"
+      },
+      {
+        "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+        "sequence": 615,
+        "status": "pending"
+      },
+      {
+        "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+        "sequence": 615,
+        "status": "pending"
+      },
+      {
+        "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+        "sequence": 615,
+        "status": "pending"
+      },
+      {
+        "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+        "sequence": 615,
+        "status": "pending"
+      },
+      {
+        "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+        "sequence": 615,
+        "status": "pending"
+      },
+      {
+        "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+        "sequence": 615,
+        "status": "pending"
+      }
+    ]
+  },
+  "update": [
+    {
+      "state": "Ready",
+      "execute": "powershell.exe",
+      "arguments": "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \"C:\\Program Files\\Enclave\\update-host.ps1\""
+    }
+  ]
+}
