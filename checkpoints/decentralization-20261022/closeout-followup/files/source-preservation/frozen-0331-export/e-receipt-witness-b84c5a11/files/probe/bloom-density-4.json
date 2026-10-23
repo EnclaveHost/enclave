@@ -1,0 +1,18 @@
+{
+ "stopped": "{\"code\":-32005,\"message\":\"rate limit exceeded\"}",
+ "rows": [
+  {
+   "number": 52965176,
+   "txs": 269,
+   "bloomBitsSet": 1139,
+   "admits": {
+    "deployments": false,
+    "registry": false,
+    "appCatalog": false,
+    "connectivity": false,
+    "proofOfTime": false,
+    "addressBook": true
+   }
+  }
+ ]
+}

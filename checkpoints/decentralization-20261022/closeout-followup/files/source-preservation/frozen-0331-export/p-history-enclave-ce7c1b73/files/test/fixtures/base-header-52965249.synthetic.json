@@ -1,0 +1,43 @@
+{
+ "format": "enclave-base-canonical-headers/v1",
+ "chainId": 8453,
+ "signer": "0xd8291E50E2e68fb2c70d77cCDc707D291a89f209",
+ "authority": "SYNTHETIC: TEST-key authority (\"5e\" x 32, record-base-calls.mjs) AND a synthetic block identity. The recorded commitment carries the real block's header fields and state root but no transactions and a zero parent beacon root, so its rebuilt header hashes to a synthetic hash, not the real block hash. The state root (and therefore the recorded proofs) is real; nothing here proves mainnet canonicality.",
+ "realBlockHash": "0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5",
+ "strictExportRefusal": "canonical header hash 0xd6596e1626527b1fee449c3bd4a958064b8ec6c3a60e0cf4d709bb26a4802a56 is not the signed block hash 0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5",
+ "source": "rpc-priority fixture base-calls-20261023T014412Z fixture.json commitment",
+ "derivation": "witness-check exportHeader {synthetic:true} with the test signer: Helios payload_to_block + Base envelope fields, alloy hash_slow()",
+ "headers": [
+  {
+   "number": 52965249,
+   "hash": "0xd6596e1626527b1fee449c3bd4a958064b8ec6c3a60e0cf4d709bb26a4802a56",
+   "parentHash": "0xa3462aa1e52d4e9c60323fa3135ede0c1d4cc72afcadcafce3d680a052bcea4b",
+   "stateRoot": "0x3b94c43efbb24d38900eb3ff1edf25419c5139cbbc4b1e35fc97697128f1f1b4",
+   "timestamp": 1792719845,
+   "header": {
+    "baseFeePerGas": "0x4c4b40",
+    "blobGasUsed": "0x790930",
+    "difficulty": "0x0",
+    "excessBlobGas": "0x0",
+    "extraData": "0x01000000640000000500000000004c4b40",
+    "gasLimit": "0x17d78400",
+    "gasUsed": "0x1c71f36",
+    "hash": "0xd6596e1626527b1fee449c3bd4a958064b8ec6c3a60e0cf4d709bb26a4802a56",
+    "logsBloom": "0x5e379471bf17f9791c011325f774b749f2df2bf87dbff1e11ba7aa4263777c1afd2efc7693f4f7a74773d65bdd9e5fb1fdff9ad0f7776f0ebefb8ffbceffff3d13c7ddf4dac92559dfe0c43dc336d4f35eddb48f7b7cabbb9f77ed2af425f720b9df55afee9aa70417d2ced5fc73bb7fb7de7cff594fee9087f1cef8efbe3774efe5f5dc7bf9ef8cff6dab2fd5ee72b3dfcaf79deffdbb4e573ea47727b0575c47e88657dff2609cf355bdd61b1a2c573f9f5fc937bf8c8e13dfbe6a5ef5c28ffc3ef13e7f57bcef516ba925c5de2917ddac59caf7a6ea79fdcf5debd8d8fbf1f895eef4e55f1f66f7617771db92defae497f77b3e83e7ed1f8890f0b7acbfd3",
+    "miner": "0x4200000000000000000000000000000000000011",
+    "mixHash": "0x1414ad2dae16d52e4f679dfe88bebb25e881f201abc8eba99778b05e6a69c566",
+    "nonce": "0x0000000000000000",
+    "number": "0x3282f81",
+    "parentBeaconBlockRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "parentHash": "0xa3462aa1e52d4e9c60323fa3135ede0c1d4cc72afcadcafce3d680a052bcea4b",
+    "receiptsRoot": "0x5b88c39ee8647753ce6c9858bcfce252f14851b9f0e831a5709afbdb145a0a65",
+    "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+    "stateRoot": "0x3b94c43efbb24d38900eb3ff1edf25419c5139cbbc4b1e35fc97697128f1f1b4",
+    "timestamp": "0x6adabbe5",
+    "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+    "withdrawalsRoot": "0xae383ef391f78c862a25e634a5707688b6fb1f7e7bb9c267bc41ebd4e6573036"
+   }
+  }
+ ]
+}

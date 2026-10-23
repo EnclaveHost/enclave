@@ -1,0 +1,167 @@
+{
+ "summary": {
+  "endpoint": "https://base-rpc.polkachu.com",
+  "generatedAt": "2026-10-23T01:42:55.922Z",
+  "blocks": [
+   52965182,
+   52965191
+  ],
+  "requests": 13,
+  "bloomBitsSet": {
+   "min": 1218,
+   "max": 1714,
+   "mean": 1435
+  },
+  "txsPerBlockMean": 424.1,
+  "bloomPositiveBlocks": {
+   "deployments": 3,
+   "registry": 3,
+   "appCatalog": 1,
+   "connectivity": 2,
+   "proofOfTime": 2,
+   "addressBook": 3
+  },
+  "truePositiveBlocks": {
+   "deployments": 0,
+   "registry": 0,
+   "appCatalog": 0,
+   "connectivity": 0,
+   "proofOfTime": 0,
+   "addressBook": 0
+  },
+  "logsReturned": 0,
+  "sampled": 10
+ },
+ "rows": [
+  {
+   "number": 52965191,
+   "txs": 330,
+   "bloomBitsSet": 1370,
+   "admits": {
+    "deployments": false,
+    "registry": false,
+    "appCatalog": true,
+    "connectivity": false,
+    "proofOfTime": false,
+    "addressBook": false
+   }
+  },
+  {
+   "number": 52965190,
+   "txs": 335,
+   "bloomBitsSet": 1402,
+   "admits": {
+    "deployments": true,
+    "registry": false,
+    "appCatalog": false,
+    "connectivity": false,
+    "proofOfTime": false,
+    "addressBook": false
+   }
+  },
+  {
+   "number": 52965189,
+   "txs": 345,
+   "bloomBitsSet": 1328,
+   "admits": {
+    "deployments": false,
+    "registry": true,
+    "appCatalog": false,
+    "connectivity": true,
+    "proofOfTime": true,
+    "addressBook": false
+   }
+  },
+  {
+   "number": 52965188,
+   "txs": 475,
+   "bloomBitsSet": 1423,
+   "admits": {
+    "deployments": false,
+    "registry": false,
+    "appCatalog": false,
+    "connectivity": false,
+    "proofOfTime": false,
+    "addressBook": true
+   }
+  },
+  {
+   "number": 52965187,
+   "txs": 403,
+   "bloomBitsSet": 1407,
+   "admits": {
+    "deployments": true,
+    "registry": false,
+    "appCatalog": false,
+    "connectivity": false,
+    "proofOfTime": false,
+    "addressBook": false
+   }
+  },
+  {
+   "number": 52965186,
+   "txs": 720,
+   "bloomBitsSet": 1632,
+   "admits": {
+    "deployments": false,
+    "registry": true,
+    "appCatalog": false,
+    "connectivity": false,
+    "proofOfTime": true,
+    "addressBook": true
+   }
+  },
+  {
+   "number": 52965185,
+   "txs": 298,
+   "bloomBitsSet": 1342,
+   "admits": {
+    "deployments": false,
+    "registry": false,
+    "appCatalog": false,
+    "connectivity": false,
+    "proofOfTime": false,
+    "addressBook": false
+   }
+  },
+  {
+   "number": 52965184,
+   "txs": 550,
+   "bloomBitsSet": 1514,
+   "admits": {
+    "deployments": true,
+    "registry": false,
+    "appCatalog": false,
+    "connectivity": false,
+    "proofOfTime": false,
+    "addressBook": false
+   }
+  },
+  {
+   "number": 52965183,
+   "txs": 296,
+   "bloomBitsSet": 1218,
+   "admits": {
+    "deployments": false,
+    "registry": true,
+    "appCatalog": false,
+    "connectivity": false,
+    "proofOfTime": false,
+    "addressBook": false
+   }
+  },
+  {
+   "number": 52965182,
+   "txs": 489,
+   "bloomBitsSet": 1714,
+   "admits": {
+    "deployments": false,
+    "registry": false,
+    "appCatalog": false,
+    "connectivity": true,
+    "proofOfTime": false,
+    "addressBook": true
+   }
+  }
+ ]
+}

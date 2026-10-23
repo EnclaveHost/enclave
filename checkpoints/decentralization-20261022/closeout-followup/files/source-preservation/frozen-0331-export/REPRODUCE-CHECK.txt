@@ -1,0 +1,14 @@
+s-bridge base 0d7e6b8a6 rebuilt from empty + 0 stored patch(es) in 552fb9f54: tree 97b973b840ba8ae9f1fb84fb48469f152191261f OK
+s-bridge f98786e90: tree b442ef6c2e60f9443ee546ce568ac86bb80007d9 OK
+e-sia-cache base 9fdc1418c rebuilt from dfe020abf + 4 stored patch(es) in 552fb9f54: tree 5c84c3da6c3142d5fe0742e6ac6f516d84926062 OK
+e-sia-cache b71c82615: tree 93b256fe959cc736ab57c69048f181fec64984fc OK
+e-receipt-witness base none (root commit) rebuilt from empty + 0 stored patch(es) in 552fb9f54: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+e-receipt-witness b84c5a112: tree f5c195f545279a8a7f3429bdff3cdd2f8ca65817 OK
+p-history-enclave base bfbd649d8 rebuilt from dfe020abf + 6 stored patch(es) in 552fb9f54: tree eec364504ce589bfee6f0e1643b06d6b371c7ef0 OK
+p-history-enclave cf5cc363b: tree ea2d5c997ce0824c9939e6e627ac749996b4b347 OK
+p-history-enclave ce7c1b730: tree 9dc123ddf8c55e9e7d1f6ff54c70ad9fc791649c OK
+p-history-helios base 1ec2c1a52 rebuilt from 2af9b4188 + 5 stored patch(es) in 552fb9f54: tree 88bc44a0922a09236e35ea5a45442ceed1d03205 OK
+p-history-helios aca81764f: tree 082c719ec1d63ea923f65cb14598f78efff07e5c OK
+a-verifier-authority base 9fdc1418c rebuilt from dfe020abf + 4 stored patch(es) in 552fb9f54: tree 5c84c3da6c3142d5fe0742e6ac6f516d84926062 OK
+a-verifier-authority 921d60c2b: tree c5be3e08c9b616be0dafea1c8b1761d5cf1d4d9f OK
+RESULT s-bridge head tree reproduced: True, e-sia-cache head tree reproduced: True, e-receipt-witness head tree reproduced: True, p-history-enclave head tree reproduced: True, p-history-helios head tree reproduced: True, a-verifier-authority head tree reproduced: True

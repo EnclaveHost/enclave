@@ -1,0 +1,90 @@
+{
+ "registry-schema4--EnclaveRegistry.sol": {
+  "build": "registry-schema4",
+  "commit": "b17db9a33b3500783a67774f4e47ec648e833699",
+  "gitBlob": "d7fb9740a29cc3d6dc7c197ddf62937112b22a6c",
+  "sha256": "e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360",
+  "sha256Matches": true,
+  "from": "enclave"
+ },
+ "ledger-rev16d--EnclaveDeployments.sol": {
+  "build": "ledger-rev16d",
+  "commit": "4b7419bb0955ffd02a6ce8d75809dac0a18f302f",
+  "gitBlob": "3f3d2c3ac155be4c108531b247b3f95a5c9ccdd4",
+  "sha256": "2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1",
+  "sha256Matches": true,
+  "from": "source-checkpoint-20261022/main-repo"
+ },
+ "catalog--EnclaveAppCatalog.sol": {
+  "build": "catalog",
+  "commit": "f2e9a71d0fb25b67a774be76b29081f6cb6f8ec3",
+  "gitBlob": "018e4bffc6ac99f87b7b6087a6c4628a53e7a1e9",
+  "sha256": "b31744361efbb43fcf60152a5eaaa185d1af07bdc27f077af0a2b48e7de3b191",
+  "sha256Matches": true,
+  "from": "enclave"
+ },
+ "proof-of-time--EnclaveProofOfTime.sol": {
+  "build": "proof-of-time",
+  "commit": "44d5b928b9afe7d207bed0f1d8d4ae6976dd6401",
+  "gitBlob": "a2affef0f4c6083f04f5c1167602f17c7c02ef71",
+  "sha256": "6ec89dc59bd58f7ff4f6b60d0477c3b5166066255c1b808f184213e5b866f019",
+  "sha256Matches": true,
+  "from": "enclave"
+ },
+ "pay--EnclavePay.sol": {
+  "build": "pay",
+  "commit": "cf6022cce34034455f7d28a98b2059ac35525857",
+  "gitBlob": "68cb3ec3e55458b6424d93253f992f5ef116019f",
+  "sha256": "a0411962c8286a7655dbe6691e028dbf00ebeea42c1183dad323944e67a130f6",
+  "sha256Matches": true,
+  "from": "enclave"
+ },
+ "verification-fees--EnclaveVerificationFees.sol": {
+  "build": "verification-fees",
+  "commit": "28dd23c2e289413232553f54be939b618fd576d3",
+  "gitBlob": "cd38195c3289926a6e4a812a264a7dc69b950093",
+  "sha256": "a0db02fd901cd27b7646fa4312a387c5eb1079b654308a1c87a95cbebcc07d22",
+  "sha256Matches": true,
+  "from": "enclave"
+ },
+ "connectivity--EnclaveConnectivity.sol": {
+  "build": "connectivity",
+  "commit": "4b7419bb0955ffd02a6ce8d75809dac0a18f302f",
+  "gitBlob": "c0fb0bed725c7eba45eb4a6abc44ba9ee96f3b3e",
+  "sha256": "da607b8a38546b8f535f28fb622344ebedf9e9ac908a8777e0fea53dc9d2615f",
+  "sha256Matches": true,
+  "from": "enclave"
+ },
+ "connectivity--EnclaveDeployments.sol": {
+  "build": "connectivity",
+  "commit": "4b7419bb0955ffd02a6ce8d75809dac0a18f302f",
+  "gitBlob": "3f3d2c3ac155be4c108531b247b3f95a5c9ccdd4",
+  "sha256": "2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1",
+  "sha256Matches": true,
+  "from": "source-checkpoint-20261022/main-repo"
+ },
+ "payment-router--PaymentRouter.sol": {
+  "build": "payment-router",
+  "commit": "09ccf9cdb7624c9ef96584c00db95dd21fb9de92",
+  "gitBlob": "b1211335f8fe77ac99f1a02391b31ae1f75a2626",
+  "sha256": "8f28d3e4a313ea66a2dda511fca1194933c845a81756806f9f011ebe3e912ed0",
+  "sha256Matches": true,
+  "from": "enclave"
+ },
+ "key-attestations--EnclaveKeyAttestations.sol": {
+  "build": "key-attestations",
+  "commit": "ee28c686f8361f9e883776112a742217398c7340",
+  "gitBlob": "c294ea829317184aa6224ec7a9631bb08c186bce",
+  "sha256": "4afb43a58e4b44de1fc0aae81bfa6acb019011fefc22d0cd3930247970621d8a",
+  "sha256Matches": true,
+  "from": "enclave"
+ },
+ "legacy-sessions-v2--SessionVault.sol": {
+  "build": "legacy-sessions-v2",
+  "commit": "4aea7d8986681bb7ccfef27067e7222a8eafbcdf",
+  "gitBlob": "46ac1ed0ebc824ac4e1aa9819c15baa713c63480",
+  "sha256": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c",
+  "sha256Matches": true,
+  "from": "enclave"
+ }
+}

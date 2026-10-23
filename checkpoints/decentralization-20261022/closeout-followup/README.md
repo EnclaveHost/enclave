@@ -15,6 +15,8 @@ Latest whole-bucket Sia recovery status (2026-10-23): FAILED (OOM kill 02:20:32Z
 
 Frozen 03:18Z append (2026-10-23): witness failover Enclave bfbd649d + Helios witness-check 1ec2c1a5 (source and offline proof/availability tests only; not production, not RPC independence) and the UNREADY Linux hold candidate b744ba19 (root later found a tryClaim permit-capture window; worker repairing), with root reviews/probes and receipts. See `MANIFEST.json` `appends`. The whole-bucket OOM failure above remains the latest full-restore status.
 
+Frozen 03:31Z append (2026-10-23): S bounded bridge f98786e9 (offline/loopback tests + load fixture; NOT a restore pass), E optional S3 witness cache b71c8261 (not live Sia) and receipt-witness b84c5a11 (diagnostic only), P authenticated-ancestry history ce7c1b73/aca81764 (proof-call test uses a synthetic block identity) and A verifier authority 921d60c2 (whole-operation deadline gap open). See `MANIFEST.json` `appends`. The whole-bucket OOM failure above remains the latest terminal full-restore status.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

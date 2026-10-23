@@ -1,0 +1,2451 @@
+From f98786e90e83c66da6f593315faea83e717caeed Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 20:23:10 -0700
+Subject: [PATCH] Bounded single-thread selector bridge for the isolated
+ whole-restore harness
+
+Replace the thread-per-connection relay (recv 256 KiB + sendall, 900 s select) at both bridge
+ends with one selectors loop per end: recv_into a fixed scratch buffer, one pooled 64 KiB chunk per
+direction (genuine backpressure), half-close forwarding, per-end and per-endpoint caps that refuse
+the newcomer (never evict an existing flow), connect/status/idle/half-closed-idle/stalled-send
+deadlines (stall only while bytes wait), bounded kernel socket buffers, clean stop, and bridge stats
+in result.json (success requires both loops ended). Status byte and probe semantics unchanged.
+whole_restore start gains validated --bridge KEY=INT. Adds real-socket bridge tests, capacity
+pressure tests, mutation controls and loopback load tools.
+---
+ .gitignore           |   1 +
+ RESULT-BRIDGE.md     | 267 +++++++++++++++++++
+ load/run-measure.sh  |  10 +
+ load/siaload.py      | 503 ++++++++++++++++++++++++++++++++++++
+ load/unit-load.py    | 201 +++++++++++++++
+ run-tests.sh         |  12 +-
+ runner.py            | 524 ++++++++++++++++++++++++++++++++-----
+ test/mutate.py       |  72 ++++++
+ test/test_bridge.py  | 596 +++++++++++++++++++++++++++++++++++++++++++
+ test/test_harness.py |  24 ++
+ whole_restore.py     |  24 +-
+ 11 files changed, 2166 insertions(+), 68 deletions(-)
+ create mode 100644 .gitignore
+ create mode 100644 RESULT-BRIDGE.md
+ create mode 100755 load/run-measure.sh
+ create mode 100755 load/siaload.py
+ create mode 100644 load/unit-load.py
+ create mode 100755 test/mutate.py
+ create mode 100644 test/test_bridge.py
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..c18dd8d83ceed1806b50b0aaa46beb7e335fff13
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1 @@
++__pycache__/
+diff --git a/RESULT-BRIDGE.md b/RESULT-BRIDGE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..9f3c556df1a175638bef905d47fd2d6ee1d3c2b8
+--- /dev/null
++++ b/RESULT-BRIDGE.md
+@@ -0,0 +1,267 @@
++# Bounded bridge for the isolated whole-restore harness (RESULT, 2026-10-23)
++
++**Status: SOURCE + OFFLINE / LOOPBACK TESTS ONLY.**
++- No SSH, no live Sia/indexd/DNS, no private file, no production action. Nothing was spent.
++- The frozen harness `work/resume-after-checkpoint-20261022/sia-whole-restore-harness/` is unmodified: `runner.py`
++  still `d11f7bca…`, `whole_restore.py` still `8a6cc0d3…` (re-hashed at the end).
++- The Rust binary is unchanged; the candidate needs no rebuild.
++- Root owns the new full attempt.
++
++## 1. Why the run died, and what is inference
++
++Root's kernel evidence (`ROOT-KERNEL-EVIDENCE.json`), from the VM run killed at 02:20:32Z by its 768 MiB cgroup:
++- the outer Python bridge was at 363,756 KiB anonymous memory and the inner one at 356,768 KiB;
++- `sia-s3` was at 39,236 KiB;
++- file cache was 24 KiB.
++
++So the two Python bridge processes filled the cgroup with anonymous memory. The restore binary did not, and neither did
++the page cache.
++
++**The old bridge design (`runner.py d11f7bca`):**
++- each end runs one thread per listener (50) and one more thread per accepted connection;
++- each relay loop calls `recv(256 KiB)`, which allocates a fresh bytes object on every read, then `sendall`;
++- the code had no connection limit and no stall deadline;
++- its only timeout is a 900 s `select()`, and that timeout does not apply while a `sendall` is blocked.
++
++**Measured locally** (real TCP and AF_UNIX on loopback, generated data, the frozen runner run unchanged from its
++original path):
++
++| run | per-end anon peak (inside / outside) | threads per end | cgroup, sampled max | throughput / integrity |
++|---|---|---|---|---|
++| `old-all-1`: 50 streams (10 slow), 100 churn/s, 30 stallers, 30 idlers, 150 s, glibc default arenas | 85 / 78 MiB | 167 | current 601 MiB, **sock 316 MiB** | 74.4 GB, 0 mismatches |
++| `m1-oldA16`: 50 streams (40 paced), 40 churn/s, `arena_max=16` (≈ a 2-vCPU VM), 150 s | 74 / 66 MiB, **creeping** (outside 57 → 65 MiB over 130 s) | 104 | current 330 MiB | 79.6 GB, 0 mismatches |
++| `m1-newA16`: the same load against the new runner (`a9c26824`, a pre-fix tree) | **13 / 12 MiB, flat** | **2** | current 222 MiB | 74.5 GB, 0 mismatches |
++
++The `memoryPeakBytes` that `m1` reports is cumulative over the shared queue scope (the old case ran first). It is not
++a new-only peak. The sampled per-run maxima above are the comparable numbers.
++
++**The mechanism:**
++- **Inference.** The likely cause is per-connection threads that each allocate a 256 KiB recv buffer on every read, in
++  shared glibc per-thread arenas, over hours of churn and streaming. That fits both bridges growing about equally, and
++  the VM's 1.8 GB total-vm (about 16 arenas and about 95 threads).
++- **Not reproduced.** The synthetic old bridge did **not** reach 360 MB; it plateaued at 66–87 MiB with a slow creep.
++- **Interrupted.** The longer diagnostic `d-oldA16long` was interrupted by root at 02:58:20Z. It has no result and is
++  **not a pass**; its log is `logs/d-INTERRUPTED.out` (with a README), and the other `d` cases never ran. By root's
++  ruling, no comparative matrix was re-run.
++- **The fix does not depend on this.** The new bridge removes every candidate mechanism: per-connection threads,
++  per-read allocation, unbounded connections and stalled peers without a deadline.
++
++**Other defects of the old bridge, found on the way (not claimed as the OOM cause):**
++- **Half-close truncation.** The first EOF in either direction closed both directions.
++- **The `select()` fd limit.** `select()` raises `ValueError` above fd 1024, and the code catches only `OSError`.
++- **Idle timeout = keepalive interval.** 900 s equals the siamux keepalive interval (3/4 of its 20 min timeout).
++- **Kernel socket memory.** Stalled peers held kernel socket memory with no limit (`sock` 316 MiB above).
++
++## 2. The new bridge (`runner.py 6d243858`)
++
++**Structure.** Each end is one `Bridge`: a single thread running one `selectors` loop over non-blocking sockets.
++- **outside:** AF_UNIX listeners → the real `ip:port`;
++- **inside:** loopback TCP listeners → AF_UNIX.
++
++**Status handshake (unchanged meaning).**
++- The outside dials the real host without blocking. Only when that connect completes does it send byte `1`; it sends `0`
++  if the dial failed and `2` if a connection limit refused it.
++- The inside relays nothing before it reads a `1`.
++- The positive-control probe (`bridged()`) is unchanged, so it still requires the REAL host to accept.
++
++**Backpressure.**
++- Every read goes into one fixed scratch buffer (`recv_into`), so reads allocate nothing.
++- Bytes the destination cannot take wait in that direction's 64 KiB chunk, and its source is not read until the chunk
++  drains.
++- Chunks come from a bounded pool, so the high-water mark is ≤ 2 × the live connections.
++
++**Half-close.** An EOF becomes `shutdown(SHUT_WR)` once that direction's bytes are written; the other direction keeps
++flowing.
++
++**Limits.**
++- `maxConns` (256) caps each end and `maxConnsPerEndpoint` (16) caps each endpoint.
++- At a cap the **newcomer** is refused: RST inside, status 2 outside.
++- **An existing connection is never evicted.** Root's half-close review found that the first candidate's `_room`
++  evicted a healthy half-closed download. That eviction is removed. Section 4 lists the capacity tests and the mutant
++  that proves them.
++- The cap also shrinks to fit the inherited `RLIMIT_NOFILE`, which is left unchanged.
++
++**Deadlines** (no absolute age limit):
++
++| deadline | default | applies when |
++|---|---|---|
++| connect | 15 s | the outside's dial of the real host |
++| status | 30 s | the inside waits for the status byte |
++| stalled send | 300 s | bytes are waiting and none can be written. This is the **only** deadline while bytes wait |
++| half-closed idle | 60 s | one direction has ended, nothing waits, nothing moves |
++| idle | 1800 s | nothing waits, nothing moves |
++
++**Kernel buffers.**
++- `hostRecvBufBytes` (1 MiB) is the `SO_RCVBUF` of the host socket, set before connect.
++- `localSendBufBytes` (256 KiB) is the `SO_SNDBUF` of the inside's accepted socket.
++
++Both bound what can queue ahead of a slow restore; `0` means kernel autotuning.
++
++**Errors.**
++- The TCP sockets of the end that detects an error close with RST.
++- Across the AF_UNIX hop an abort arrives as EOF, as before. siamux frames are authenticated, so a truncated stream is
++  detected.
++
++**Stop.**
++- `stop()` closes every listener and connection and joins the thread.
++- Both ends' stats (counts only) go into `result.json` under `bridge`.
++- `success` now also requires `bridge.ok`: both loops ended and neither failed.
++
++**`whole_restore.py 724cb639`.**
++- **New flag:** an optional, repeatable `start --bridge KEY=INT`.
++- **Validated early:** the runner's own `bridge_settings` checks each value before any pin, upload or unit. A bad value
++  is refused with nothing started.
++- **Recorded:** the values go into `plan.json` and the `start` output.
++- **Unchanged:** handle, invocation id, pins, isolation and upload.
++
++## 3. Inventory (candidate repo `work/storage-restore-memory/candidate`)
++
++| file | sha256 | role |
++|---|---|---|
++| `runner.py` | `6d2438580b14b1b2beb29ee0b6cc51d74d9a6a10517296836089d3812dc937f2` | runs inside the unit; the new bridge |
++| `whole_restore.py` | `724cb63918e07d7d3954c7ca577a8431f6da22f87f4a56537cc31161a806adc2` | the launcher; `--bridge` |
++| `run-tests.sh` | `c327248f8803d5cfea18ff451db5d6606ea55caa8a7b71012b5a62bc0b6b8633` | offline suites inside `unshare -rn` (`harness`, `bridge`; `$TESTS` selects tests) |
++| `test/test_harness.py` | `a44f14598b675837b0ea681fbb88cdfd4e6495eefcfbb2d8f1b39a5f551d46ad` | 18 tests: the 17 originals, plus bridge result assertions and a `--bridge` test |
++| `test/test_bridge.py` | `300a84d5b0a9a4251cd7edd86dc36dd60d219bdbe20dbfe7d328738bcc75abe3` | 17 real-socket bridge tests |
++| `test/test_real_systemd.py` | `548e5cd235748575e8e06e2246fe07b6f66582b8000498ddd2e800414280b6dc` | unchanged |
++| `test/fake-sia-s3`, `test/stubs/*` | unchanged (`13b7ec74…`, …) | |
++| `test/mutate.py` | `df2f7734d89243c5025f988d560ff3d6b3f00a4579ce98beff4b79b91808cb43` | mutation controls. Same as the `../mutate.py` (`9b30c7fe…`) that ran, except the line locating the repo |
++| `load/siaload.py` | `20d4805138a99abac35308635b7ca69430adaebdc3a14cefe10bc35ff85d7baf` | fake Sia hosts, a load-generator "binary", and the namespace load driver |
++| `load/unit-load.py` | `217387055fb1fe0eec85bf05a233300f2f0f924c0ef8d7a889e9b6be252ee3d1` | load through the real `whole_restore.py start` and a real `systemd-run --user` unit |
++| `load/run-measure.sh` | `94a82e947d3ce26a35d31e9c0c017ec97598d5447e418e6316d5a135a0dbb760` | private-namespace wrapper for `siaload.py measure` |
++
++**Commits.**
++- Baseline `0d7e6b8`: the frozen files, imported unchanged.
++- One fix commit on top (see `git log`). `../bridge.patch` is `git diff 0d7e6b8 HEAD`.
++- Nothing was pushed or merged.
++
++## 4. Terminal test receipts
++
++Every run went through `work/claude-test-queue.py`. The logs are in `work/storage-restore-memory/logs/`.
++
++| log | cap | what | result |
++|---|---|---|---|
++| `final-1` | 256 | **final hashes:** `run-tests.sh` (harness 18, bridge 17), the unbounded-queue mutant, `test_real_systemd.py` | **18/18 OK, 17/17 OK, mutant KILLED, real unit OK** (isolated, `Result=success`, `memoryPeakBytes` 28,983,296, no leftover unit) |
++| `unit-sustained-1` | 512 job + a 256 MiB user unit | **the one sustained case** (details below) | **succeeded** |
++| `mut-4`, `mut-5`, `tb-7` | 256 | mutants: status ignored; no stall deadline; EOF closes both; no idle deadline; no limits; **re-introduced half-closed eviction**; half-closed idle while bytes wait; stop leaves connections | **all KILLED.** The eviction mutant fails all 4 capacity tests |
++| `mut-2` / `mut-3` | 256 | unbounded queue behind a slow reader | full suite: cgroup OOM (EXIT -15). Slow-reader test alone: assertion FAIL, so KILLED |
++| `old-all-1`, `m1` | 768 | old vs new comparison (section 1) | valid baselines |
++| `d-INTERRUPTED` | 768 | old long creep run | **INTERRUPTED by root, not a pass** |
++
++**The sustained case (`unit-sustained-1`, runner `6d243858`):**
++- **How it ran:** through the real `whole_restore.py start --target local` and a real `systemd-run --user` unit with
++  `MemoryMax=256M`, on loopback only.
++- **Load:** 50 endpoints; 50 streams of 4 MiB sectors (40 host-paced); 4 churn threads at 20 connects/s (close, RST
++  abort, small, no data); 10 stallers; 10 idlers.
++- **Duration and settings:** 420 s, with `--bridge stalledSendSecs=60 idleSecs=120 halfClosedIdleSecs=30` so that
++  expiry happens inside the run.
++- **Integrity:** 211,648,774,144 bytes in 50,461 requests, byte-compared, **0 mismatches**; 8,240 churn connects, 0
++  errors.
++- **Peers closed by their deadlines:** stallers 10/10 and idlers 10/10.
++- **Each bridge end:**
++  - **memory:** RssAnon **13 MiB, flat from 31 s to 409 s**;
++  - **threads:** **2**;
++  - **descriptors:** 156–202, plateaued;
++  - **at stop:** `openAtStop` 0, `loopError` none.
++- **Unit totals:** anon 59 MiB flat; memory.current ≤ 196 MiB; sock ≤ 124 MiB; `oom_kill` 0; tasks 59;
++  `memoryPeakBytes` 232,480,768. After the run the unit was `not-found` / `inactive`.
++
++**What the 17 bridge tests cover** (real sockets, no mocks):
++- **Correctness:** 24 concurrent bidirectional transfers, byte-exact;
++- **Slow peers:**
++  - a slow reader holds exactly one chunk at each end;
++  - a 7 s trickle is not cut by 1 s idle, half-closed or stall deadlines;
++- **Half-close:**
++  - a client half-close reaches the host and the response flows back;
++  - a host half-close keeps the client → host direction open;
++- **Handshake and dial:**
++  - a down host is refused, and the probe requires the real host to accept;
++  - the connect timeout works;
++- **Deadlines:**
++  - a stalled reader is dropped and its chunks are returned;
++  - idle and half-closed idle connections end;
++  - a backpressured half-closed response survives 3.5 s of no movement (half-closed idle 1 s; only the stall deadline
++    applies);
++- **Capacity pressure, at the inside and outside ends, per endpoint and globally:**
++  - the clients `SHUT_WR`, then receive paced 16 MiB responses;
++  - the newcomer is refused with no byte and never reaches the host;
++  - both responses arrive complete and byte-exact, with no timeouts or resets;
++  - the freed capacity then serves a new connection;
++- **Lifecycle:**
++  - a stop mid-transfer closes everything, with no thread or descriptor left;
++  - 4000-connection churn returns to a plateau (anon change < 4 MiB, descriptors at baseline);
++- **Settings:** settings are validated.
++
++**Memory accounting for the real-unit runs.** The unit runs outside the queue scope, so the accounting is: queue job 512
++or 256, plus the unit's own `MemoryMax` of 256 (the same pattern as the original `real-5`).
++
++## 5. Remaining uncertainty and honest limits
++
++- **Not reproduced.** The production ~360 MB per bridge was not reproduced; the mechanism in section 1 is inference.
++- **Loopback only.** WAN latency and real Sia hosts were not exercised.
++- **The 1 MiB host window** caps each host connection at about 10 MB/s at 100 ms RTT.
++  - The total also depends on how many hosts the restore reads at once.
++  - Pass `--bridge hostRecvBufBytes=0` for kernel autotuning, at the cost of unbounded per-connection kernel buffering.
++- **Slow readers.** A peer that keeps making some progress at least once per stall window (300 s) is not cut. Its
++  memory is bounded by the caps (one chunk per direction plus the kernel buffers).
++- **Aborts.** An abort crosses the AF_UNIX hop as EOF (as before).
++- **Throughput.** In `m1` the new bridge moved 74.5 GB against the old 79.6 GB in 150 s. The client was the bottleneck,
++  so this is not a measured bridge limit.
++- **Unchanged risks.** The debug `sia-s3` throughput, the sequential restore and the lack of resume are as before.
++
++## 6. Root's new full attempt (preflight and start; the existing recipe with the candidate harness)
++
++The old attempt and its ~12.4 GB of partial data stay untouched. `start` always creates a NEW attempt directory and a
++NEW remote directory, and nothing below claims, reuses or erases the old one.
++
++```bash
++cd /home/steven/Documents/Codex/2026-10-18/wo/work
++H=storage-restore-memory/candidate
++sha256sum $H/runner.py $H/whole_restore.py   # must be 6d243858… and 724cb639…
++B=resume-after-checkpoint-20261022/sia-whole-bucket-recovery/target/x86_64-unknown-linux-gnu/debug/sia-s3   # 3ef760ed…
++# preflight 1: the old unit is ended (FAILED / oom-kill) and nothing holds its name
++#   (poll with the FROZEN harness, read-only, by the old run's handle)
++python3 -I resume-after-checkpoint-20261022/sia-whole-restore-harness/whole_restore.py poll --run <OLD_RUN>   # expect a failed or ended state, never running
++# preflight 2: read-only resources of the VM (one SSH)
++python3 -I $H/whole_restore.py check --target vm --root /home/storageadmin/recovery-lab --total-bytes 21445494044 --binary $B \
++  --ssh-dest storageadmin@127.0.0.1 --ssh-port 32422 --ssh-identity /home/steven/.ssh/minipc --ssh-known-hosts storage-vm/known_hosts
++# fitsBudget must hold with the old partial data present (budget + 1 GiB)
++# a fresh prepare (new run dir; re-resolves host addresses) — same arguments as the original RESULT.md §5
++python3 -I $H/whole_restore.py prepare --root private/sia-whole-restore --blocked private/sia-whole-restore/blocked.json \
++  --snapshot <SNAPSHOT> --snapshot-sha 0e5b28c9dc53a5ac65e1bace6cf7409c8f6369599c114fb1878503acec210da1 \
++  --archive <ARCHIVE> --archive-sha 3cfb4f12991b3588d6c9b1317e08ef9613bac349f1a60073a2d835cad326c335 --key-file <KEY>
++RUN=<run printed by prepare>
++python3 -I $H/whole_restore.py start --run $RUN --target vm --vm-root /home/storageadmin/recovery-lab \
++  --ssh-dest storageadmin@127.0.0.1 --ssh-port 32422 --ssh-identity /home/steven/.ssh/minipc --ssh-known-hosts storage-vm/known_hosts \
++  --binary $B --binary-sha 3ef760ede4e46b5a944f429a78706b0822900434246bd8a24aeb22ceaba388aa \
++  --max-total-bytes 23000000000 --deadline-secs <DEADLINE> --memory-max-mib 768     # the same 768: no cap increase
++python3 -I $H/whole_restore.py poll --run $RUN   # repeat; exit 3 = running
++```
++
++**Bridge settings.** The defaults apply, and the `start` output prints them under `bridge`. To change one, pass
++`--bridge KEY=INT`.
++
++**What to watch.**
++- **During the run:** `unitState.MemoryPeak` in `poll`.
++- **On success:** `result.memoryPeakBytes`, and `result.bridge` (per end: `maxLive`, `buffersAllocated`, the timeout
++  counters, `loopError: null`).
++- **Expected memory:** each bridge end should stay at tens of MiB, against ~360 MB before.
++
++**Success criteria** (unchanged from the original §5, plus one): `result.bridge.ok == true`.
++
++## 7. Rollback and cleanup
++
++- **Rollback** means using the frozen harness again: `work/resume-after-checkpoint-20261022/sia-whole-restore-harness`,
++  unmodified. It keeps the known memory defect.
++- **Separate files.** The candidate has its own path, so it shares nothing with the frozen files.
++- **After an attempt:**
++  - after a failure: `finish --run $RUN --abandon`, which removes staging and the uploaded key on the VM;
++  - after a success: `finish --run $RUN`.
++- **Restored data** is never removed automatically. `discard` is root's choice.
++- **Test artefacts:**
++  - `work/storage-restore-memory/runs` (1.1 MB of generated-data reports) and `logs/` can be deleted at any time;
++  - nothing is staged on any VM;
++  - every `sia-whole-restore-*` user unit from these tests is reset (`not-found`);
++  - the two `/tmp` socket directories left by the interrupted and OOM-killed runs (`swr-bcn_ty84`, `brt-hq475ziu`)
++    were removed;
++  - older `/tmp/swr-test-*` directories from 10-22 17:58–18:01 local time predate this work and were left alone.
+diff --git a/load/run-measure.sh b/load/run-measure.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..b34d4dbec4a1d4a39c861a611b8812503bbae07d
+--- /dev/null
++++ b/load/run-measure.sh
+@@ -0,0 +1,10 @@
++#!/bin/bash
++# One load measurement inside a private user+network namespace (no route anywhere). The loopback carries the fake Sia
++# host addresses 203.0.113.10.. (one per endpoint; the runner's child namespace adds the same ones) and 127.0.0.2 (the
++# "indexer" control). Usage: run-measure.sh N_ENDPOINTS siaload-measure-args...   (through work/claude-test-queue.py)
++set -u
++n=$1; shift
++exec timeout -k 10 "${JOB_SEC:-900}" unshare --user --map-root-user --net bash -c '
++  ip link set lo up || exit 2
++  i=0; while [ $i -lt "$0" ]; do ip address add 203.0.113.$((10 + i))/32 dev lo || exit 2; i=$((i + 1)); done
++  exec python3 -I "$(dirname "$1")/siaload.py" measure --endpoints "$0" "${@:2}"' "$n" "$(realpath "$0")" "$@"
+diff --git a/load/siaload.py b/load/siaload.py
+new file mode 100755
+index 0000000000000000000000000000000000000000..b2d28b8c4fa30c017f923f6b0be32cc870f4c72e
+--- /dev/null
++++ b/load/siaload.py
+@@ -0,0 +1,503 @@
++#!/usr/bin/env python3
++"""Load reproduction for the whole-restore bridge (generated data only; loopback / private namespace only).
++
++  siaload.py hosts SPEC.json STATS.json          fake Sia hosts: one asyncio process serving every endpoint of SPEC
++  siaload.py recovery restore SNAP SHA OUT ...   the stand-in restore binary: the load generator (config in SNAP["load"])
++  siaload.py measure ...                         drive one runner.py (old or new) under that load and sample memory
++
++Wire protocol (client -> host, then host -> client): a 24-byte request '>QQII' (nbytes, seed, mode, param), then the
++host streams `nbytes` of position-dependent generated data. Modes: 0 normal; 1 slow (16 KiB pieces, `param` ms apart);
++2 stall (send `param` bytes, then never send again but keep the connection open); 3 reset (send `param` bytes, then
++RST); 4 host half-close (send everything, shut down the write side, then read until the client's EOF); 5 client
++half-close (read until the client's EOF, `param` bytes expected, then send `nbytes` and close). Hosts never close idle
++connections (as Sia hosts do).
++"""
++import asyncio
++import hashlib
++import json
++import os
++import random
++import signal
++import socket
++import struct
++import subprocess
++import sys
++import threading
++import time
++
++BLOCK = hashlib.shake_256(b'siaload').digest(1 << 20)
++PIECE = 1 << 16
++REQ = struct.Struct('>QQII')
++
++
++def piece(seed, i):
++    off = (seed * 7919 + i * 104729) % (len(BLOCK) - PIECE)
++    return struct.pack('>QQ', seed & (2**64 - 1), i) + BLOCK[off:off + PIECE - 16]
++
++
++def gen(seed, n):
++    i = 0
++    while n > 0:
++        p = piece(seed, i)
++        if n < len(p):
++            p = p[:n]
++        yield p
++        n -= len(p)
++        i += 1
++
++
++class Expect:
++    """Compares a received stream, in arbitrary pieces, with gen(seed, n); also hashes it."""
++    def __init__(self, seed, n):
++        self.it, self.cur, self.pos, self.left, self.bad = gen(seed, n), b'', 0, n, False
++        self.sha = hashlib.sha256()
++
++    def feed(self, data):
++        self.sha.update(data)
++        mv = memoryview(data)
++        while len(mv):
++            if self.pos == len(self.cur):
++                self.cur, self.pos = next(self.it, b''), 0
++                if not self.cur:
++                    self.bad = True
++                    return
++            k = min(len(mv), len(self.cur) - self.pos)
++            if mv[:k] != self.cur[self.pos:self.pos + k]:
++                self.bad = True
++            self.pos += k
++            self.left -= k
++            mv = mv[k:]
++
++
++def expected_sha(seed, n):
++    h = hashlib.sha256()
++    for p in gen(seed, n):
++        h.update(p)
++    return h.hexdigest()
++
++
++# ---- fake hosts ------------------------------------------------------------------------------------------------------
++def hosts(spec_path, stats_path):
++    spec = json.load(open(spec_path))
++    stats = {'accepted': 0, 'open': 0, 'maxOpen': 0, 'requests': 0, 'bytesSent': 0, 'resets': 0}
++
++    async def handle(reader, writer):
++        stats['accepted'] += 1
++        stats['open'] += 1
++        stats['maxOpen'] = max(stats['maxOpen'], stats['open'])
++        try:
++            while True:
++                try:
++                    n, seed, mode, param = REQ.unpack(await reader.readexactly(REQ.size))
++                except (asyncio.IncompleteReadError, ConnectionError):
++                    return
++                stats['requests'] += 1
++                if mode == 5:
++                    got = 0
++                    while True:
++                        d = await reader.read(1 << 16)
++                        if not d:
++                            break
++                        got += len(d)
++                    if got != param:
++                        return
++                sent = 0
++                for p in gen(seed, n):
++                    if mode in (2, 3) and sent + len(p) > param:
++                        p = p[:param - sent]
++                    if p:
++                        writer.write(p)
++                        await writer.drain()
++                        sent += len(p)
++                        stats['bytesSent'] += len(p)
++                    if mode in (2, 3) and sent >= param:
++                        break
++                    if mode == 1:
++                        await asyncio.sleep(param / 1000)
++                if mode == 2:
++                    while await reader.read(1 << 16):
++                        pass
++                    return
++                if mode == 3:
++                    sock = writer.get_extra_info('socket')
++                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
++                    stats['resets'] += 1
++                    writer.transport.abort()
++                    return
++                if mode in (4, 5):
++                    if mode == 4:
++                        writer.write_eof()
++                        while await reader.read(1 << 16):
++                            pass
++                    return
++        except (ConnectionError, OSError):
++            return
++        finally:
++            stats['open'] -= 1
++            writer.close()
++
++    async def control(reader, writer):
++        writer.close()
++
++    async def main():
++        servers = []
++        for ip, port in spec['endpoints']:
++            servers.append(await asyncio.start_server(handle, ip, port, backlog=512, limit=1 << 16))
++        for ip, port in spec.get('controls', []):
++            servers.append(await asyncio.start_server(control, ip, port))
++        stop = asyncio.Event()
++        asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, stop.set)
++        open(stats_path + '.ready', 'w').close()
++        await stop.wait()
++        for s in servers:
++            s.close()
++        with open(stats_path, 'w') as f:
++            json.dump(stats, f)
++    asyncio.run(main())
++
++
++# ---- the stand-in restore binary: load generator ---------------------------------------------------------------------
++def client(argv):
++    _, op, sub, snap_path, sha, outdir, max_total, deadline = argv
++    assert (op, sub) == ('recovery', 'restore')
++    raw = open(snap_path, 'rb').read()
++    assert hashlib.sha256(raw).hexdigest() == sha
++    snap = json.loads(raw)
++    cfg = snap['load']
++    eps = [tuple(a['address'].rsplit(':', 1)) for h in snap['hosts'] for a in h['addresses']]
++    eps = [(ip, int(p)) for ip, p in eps]
++    end = time.monotonic() + cfg['duration']
++    lock = threading.Lock()
++    st = {'streamBytes': 0, 'streamRequests': 0, 'streamErrors': 0, 'mismatches': 0, 'churnConnects': 0,
++          'churnErrors': 0, 'stallersOpened': 0, 'stallersClosedByPeer': 0, 'idlersOpened': 0, 'idlersClosedByPeer': 0}
++    errors = {}
++
++    def add(k, v=1):
++        with lock:
++            st[k] += v
++
++    def err(e):
++        with lock:
++            errors[type(e).__name__] = errors.get(type(e).__name__, 0) + 1
++
++    def read_exact(s, n, seed, delay):
++        exp, buf = Expect(seed, n), bytearray(PIECE)
++        left = n
++        while left:
++            k = s.recv_into(buf, min(left, PIECE))
++            if not k:
++                raise ConnectionAbortedError('eof after %d of %d' % (n - left, n))
++            exp.feed(bytes(buf[:k]))
++            left -= k
++            if delay:
++                time.sleep(delay)
++        return not exp.bad
++
++    def stream(i):
++        ep = eps[i % len(eps)]
++        slow = i < cfg.get('slowStreams', 0)
++        paced = cfg.get('slowStreams', 0) <= i < cfg.get('slowStreams', 0) + cfg.get('pacedStreams', 0)
++        s = None
++        while time.monotonic() < end:
++            try:
++                if s is None:
++                    s = socket.create_connection(ep, 15)
++                    s.settimeout(cfg.get('readTimeout', 120))
++                seed = random.getrandbits(62)
++                n = cfg['sectorBytes']
++                s.sendall(REQ.pack(n, seed, 1, cfg.get('paceMs', 2)) if paced else REQ.pack(n, seed, 0, 0))
++                ok = read_exact(s, n, seed, cfg.get('slowDelay', 0.002) if slow else 0)
++                add('streamRequests')
++                add('streamBytes', n)
++                if not ok:
++                    add('mismatches')
++            except OSError as e:
++                add('streamErrors')
++                err(e)
++                if s:
++                    s.close()
++                s = None
++                time.sleep(0.2)
++        if s:
++            s.close()
++
++    def churn(i):
++        rnd = random.Random(i)
++        gap = cfg.get('churnThreads', 1) / max(cfg.get('churnPerSec', 1), 0.001)
++        while time.monotonic() < end:
++            t0 = time.monotonic()
++            try:
++                s = socket.create_connection(rnd.choice(eps), 10)
++                add('churnConnects')
++                act = rnd.choice(('close', 'abort', 'small', 'nodata'))
++                s.settimeout(30)
++                if act == 'abort':
++                    s.sendall(REQ.pack(1 << 20, rnd.getrandbits(62), 0, 0))
++                    s.recv(1 << 16)
++                    s.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
++                elif act == 'small':
++                    seed = rnd.getrandbits(62)
++                    s.sendall(REQ.pack(1 << 16, seed, 0, 0))
++                    if not read_exact(s, 1 << 16, seed, 0):
++                        add('mismatches')
++                elif act == 'nodata':
++                    time.sleep(0.05)
++                s.close()
++            except OSError as e:
++                add('churnErrors')
++                err(e)
++            time.sleep(max(0, gap - (time.monotonic() - t0)))
++
++    held = []
++    for i in range(cfg.get('stallers', 0)):  # request a lot, read nothing, never close
++        try:
++            s = socket.create_connection(eps[i % len(eps)], 15)
++            s.sendall(REQ.pack(cfg.get('stallerBytes', 1 << 30), random.getrandbits(62), 0, 0))
++            held.append(('staller', s))
++            add('stallersOpened')
++        except OSError as e:
++            err(e)
++    for i in range(cfg.get('idlers', 0)):  # connect, send nothing
++        try:
++            held.append(('idler', socket.create_connection(eps[i % len(eps)], 15)))
++            add('idlersOpened')
++        except OSError as e:
++            err(e)
++    threads = [threading.Thread(target=stream, args=(i,)) for i in range(cfg.get('streams', 0))]
++    threads += [threading.Thread(target=churn, args=(i,)) for i in range(cfg.get('churnThreads', 0))]
++    for t in threads:
++        t.start()
++    for t in threads:
++        t.join()
++    for kind, s in held:  # did the bridge close it (a stalled or idle peer must not be held for ever)?
++        s.setblocking(False)
++        try:
++            closed = s.recv(1, socket.MSG_PEEK) == b'' if kind == 'idler' else False
++        except BlockingIOError:
++            closed = False
++        except OSError:
++            closed = True
++        if kind == 'staller':
++            try:
++                while True:
++                    if not s.recv(1 << 20):
++                        closed = True
++                        break
++            except BlockingIOError:
++                pass
++            except OSError:
++                closed = True
++        add('stallersClosedByPeer' if kind == 'staller' else 'idlersClosedByPeer', int(closed))
++        s.close()
++    summary = dict(st, errors=errors)
++    data = (json.dumps(summary, sort_keys=True) + '\n').encode()
++    os.mkdir(outdir, 0o700)
++    os.mkdir(os.path.join(outdir, 'objects'), 0o700)
++    with open(os.path.join(outdir, 'objects', '000001.bin'), 'xb') as f:
++        f.write(data)
++    ok = st['mismatches'] == 0 and st['streamRequests'] > 0
++    inv = {'format': 'sia-s3-recovery-restore/v1', 'complete': ok, 'keys': 1, 'restored': 1, 'restoredBytes': len(data),
++           'totalBytes': len(data), 'failed': [], 'notAttempted': [], 'expectedButAbsent': [],
++           'files': [{'file': 'objects/000001.bin', 'bytes': len(data), 'outputSha256': hashlib.sha256(data).hexdigest(),
++                      'etagCheck': 'md5', 'independentSha256': 'not-provided'}], 'indexerUsed': False, 'writesToSia': False}
++    with open(os.path.join(outdir, 'inventory.json'), 'x') as f:
++        json.dump(inv, f)
++    print(json.dumps(summary, sort_keys=True), flush=True)
++    return 0 if ok else 1
++
++
++# ---- the driver -------------------------------------------------------------------------------------------------------
++def proc_tree(root):
++    kids = {}
++    for p in os.listdir('/proc'):
++        if p.isdigit():
++            try:
++                s = open('/proc/%s/stat' % p).read()
++                kids.setdefault(int(s[s.rfind(')') + 2:].split()[1]), []).append(int(p))
++            except OSError:
++                pass
++    out, todo = [], [root]
++    while todo:
++        p = todo.pop()
++        out.append(p)
++        todo += kids.get(p, [])
++    return out
++
++
++def proc_info(pid):
++    try:
++        status = dict(l.split(':', 1) for l in open('/proc/%d/status' % pid).read().splitlines() if ':' in l)
++        cmd = open('/proc/%d/cmdline' % pid, 'rb').read().split(b'\0')
++        return {'pid': pid, 'cmd': [c.decode(errors='replace') for c in cmd if c][:4],
++                'rssAnonKiB': int(status.get('RssAnon', '0 kB').split()[0]), 'rssKiB': int(status.get('VmRSS', '0 kB').split()[0]),
++                'vmKiB': int(status.get('VmSize', '0 kB').split()[0]), 'threads': int(status.get('Threads', '0')),
++                'fds': len(os.listdir('/proc/%d/fd' % pid))}
++    except (OSError, ValueError):
++        return None
++
++
++def role(info):
++    c = ' '.join(info['cmd'])
++    if 'runner.py child' in c or (len(info['cmd']) >= 3 and info['cmd'][-2:-1] == ['child']):
++        return 'inside'
++    if 'runner.py' in c and ' run ' in c + ' ':
++        return 'outside'
++    if 'recovery' in info['cmd']:
++        return 'client'
++    return None
++
++
++def cgroup_dir():
++    rel = [l.split(':', 2)[2] for l in open('/proc/self/cgroup').read().splitlines() if l.startswith('0::')][0].strip()
++    return '/sys/fs/cgroup' + rel
++
++
++def cg_sample(d):
++    try:
++        stat = dict(l.split() for l in open(d + '/memory.stat').read().splitlines())
++        return {'current': int(open(d + '/memory.current').read()), 'anon': int(stat['anon']), 'file': int(stat['file']),
++                'sock': int(stat['sock']), 'kernel': int(stat.get('kernel', 0))}
++    except (OSError, KeyError, ValueError):
++        return None
++
++
++def measure(a):
++    import argparse
++    ap = argparse.ArgumentParser(prog='siaload.py measure')
++    ap.add_argument('--runner', required=True)
++    ap.add_argument('--workdir', required=True)
++    ap.add_argument('--out', required=True)
++    ap.add_argument('--endpoints', type=int, default=50)
++    ap.add_argument('--first-ip', default='203.0.113.10')
++    ap.add_argument('--port', type=int, default=9984)
++    ap.add_argument('--control', default='127.0.0.2:4100')
++    ap.add_argument('--duration', type=float, default=120)
++    ap.add_argument('--streams', type=int, default=50)
++    ap.add_argument('--slow-streams', type=int, default=0)
++    ap.add_argument('--slow-delay', type=float, default=0.002)
++    ap.add_argument('--paced-streams', type=int, default=0, help='streams whose host sends 16 KiB pieces --pace-ms apart')
++    ap.add_argument('--pace-ms', type=int, default=2)
++    ap.add_argument('--sector-bytes', type=int, default=4 << 20)
++    ap.add_argument('--churn-threads', type=int, default=0)
++    ap.add_argument('--churn-per-sec', type=float, default=0)
++    ap.add_argument('--stallers', type=int, default=0)
++    ap.add_argument('--idlers', type=int, default=0)
++    ap.add_argument('--stop-anon-mib', type=int, default=320, help='end the run early if a bridge process exceeds this')
++    ap.add_argument('--env', action='append', default=[], help='KEY=VALUE for the runner (e.g. GLIBC_TUNABLES)')
++    ap.add_argument('--plan-extra', default='{}', help='JSON merged into plan.json (bridge settings for the new runner)')
++    ap.add_argument('--interval', type=float, default=1.0)
++    a = ap.parse_args(a)
++    import ipaddress
++    base = ipaddress.ip_address(a.first_ip)
++    eps = [(str(base + i), a.port) for i in range(a.endpoints)]
++    work = os.path.abspath(a.workdir)
++    os.makedirs(work, mode=0o700)
++    attempt = os.path.join(work, 'attempt')
++    os.mkdir(attempt, 0o700)
++    cip, cport = a.control.rsplit(':', 1)
++    spec = {'endpoints': eps, 'controls': [[cip, int(cport)]]}
++    json.dump(spec, open(os.path.join(work, 'hosts.json'), 'w'))
++    hstats = os.path.join(work, 'hosts-stats.json')
++    hp = subprocess.Popen([sys.executable, '-I', os.path.abspath(__file__), 'hosts', os.path.join(work, 'hosts.json'), hstats])
++    for _ in range(200):
++        if os.path.exists(hstats + '.ready'):
++            break
++        time.sleep(0.05)
++    load = {'duration': a.duration, 'streams': a.streams, 'slowStreams': a.slow_streams, 'slowDelay': a.slow_delay,
++            'sectorBytes': a.sector_bytes, 'pacedStreams': a.paced_streams, 'paceMs': a.pace_ms, 'churnThreads': a.churn_threads, 'churnPerSec': a.churn_per_sec,
++            'stallers': a.stallers, 'idlers': a.idlers}
++    snap = {'version': 1, 'load': load,
++            'hosts': [{'public_key': 'ed25519:%d' % i, 'addresses': [{'protocol': 'siamux', 'address': '%s:%d' % e}]} for i, e in enumerate(eps)]}
++    raw = json.dumps(snap).encode()
++    open(os.path.join(work, 'snapshot.json'), 'wb').write(raw)
++    key = os.path.join(work, 'key')
++    with open(os.open(key, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as f:
++        f.write('load-test-key\n')
++    me = os.path.abspath(__file__)
++    plan = {'format': 'sia-whole-restore-plan/v1', 'binary': me, 'binarySha256': hashlib.sha256(open(me, 'rb').read()).hexdigest(),
++            'snapshot': os.path.join(work, 'snapshot.json'), 'snapshotSha256': hashlib.sha256(raw).hexdigest(),
++            'originalSnapshot': os.path.join(work, 'snapshot.json'), 'originalSnapshotSha256': hashlib.sha256(raw).hexdigest(),
++            'keyFile': key, 'outdir': os.path.join(attempt, 'restored'), 'maxTotalBytes': 1 << 20, 'deadlineSecs': int(a.duration) + 600,
++            'endpoints': [{'ip': ip, 'port': p} for ip, p in eps],
++            'blocked': [{'label': 'indexer', 'ip': cip, 'port': int(cport), 'outsideMustConnect': True},
++                        {'label': 'nan', 'ip': '198.51.100.7', 'port': 443, 'outsideMustConnect': False}],
++            'blockedNames': []}
++    plan.update(json.loads(a.plan_extra))
++    json.dump(plan, open(os.path.join(attempt, 'plan.json'), 'w'))
++    runner_bytes = open(a.runner, 'rb').read()
++    open(os.path.join(attempt, 'runner.py'), 'wb').write(runner_bytes)
++    env = dict(os.environ)
++    for kv in a.env:
++        k, v = kv.split('=', 1)
++        env[k] = v
++    cg = cgroup_dir()
++    base_cg = cg_sample(cg)
++    t0 = time.monotonic()
++    rp = subprocess.Popen([sys.executable, '-I', os.path.join(attempt, 'runner.py'), 'run', attempt], env=env, stdin=subprocess.DEVNULL)
++    series, peaks, early = [], {}, None
++    while rp.poll() is None:
++        t = round(time.monotonic() - t0, 1)
++        row = {'t': t, 'cg': cg_sample(cg), 'procs': {}}
++        for pid in proc_tree(rp.pid):
++            info = proc_info(pid)
++            r = info and role(info)
++            if r:
++                row['procs'][r] = {k: info[k] for k in ('pid', 'rssAnonKiB', 'rssKiB', 'vmKiB', 'threads', 'fds')}
++                pk = peaks.setdefault(r, {'rssAnonKiB': 0, 'threads': 0, 'fds': 0, 'vmKiB': 0})
++                for k in pk:
++                    pk[k] = max(pk[k], info[k])
++                if r in ('inside', 'outside') and info['rssAnonKiB'] > a.stop_anon_mib * 1024 and early is None:
++                    early = {'t': t, 'role': r, 'rssAnonKiB': info['rssAnonKiB']}
++        series.append(row)
++        if early:
++            for pid in reversed(proc_tree(rp.pid)):
++                try:
++                    os.kill(pid, signal.SIGKILL)
++                except ProcessLookupError:
++                    pass
++            break
++        time.sleep(a.interval)
++    rc = rp.wait()
++    hp.send_signal(signal.SIGTERM)
++    hp.wait(30)
++    def last(r, k):
++        vals = [row['procs'][r][k] for row in series if r in row['procs']]
++        return vals[-1] if vals else None
++    cgs = [row['cg'] for row in series if row['cg']]
++    rep = {'runner': os.path.abspath(a.runner), 'runnerSha256': hashlib.sha256(runner_bytes).hexdigest(), 'args': vars(a),
++           'runnerExit': rc, 'earlyStop': early, 'elapsed': round(time.monotonic() - t0, 1), 'peaks': peaks,
++           'final': {r: {k: last(r, k) for k in ('rssAnonKiB', 'threads', 'fds')} for r in ('outside', 'inside', 'client')},
++           'cgroupBaseline': base_cg,
++           'cgroupMax': {k: max(c[k] for c in cgs) for k in ('current', 'anon', 'sock')} if cgs else None,
++           'hosts': json.load(open(hstats)) if os.path.exists(hstats) else None}
++    for name in ('result.json', 'probes.json', 'restore.stdout', 'restore.stderr', 'bridge-outside.json', 'bridge-inside.json'):
++        p = os.path.join(attempt, name)
++        if os.path.exists(p):
++            txt = open(p).read()
++            try:
++                rep[name] = json.loads(txt)
++            except ValueError:
++                rep[name] = txt[-4000:]
++    rep['series'] = [{'t': r['t'], 'cg': r['cg'], **{k: {kk: v[kk] for kk in ('rssAnonKiB', 'threads', 'fds')} for k, v in r['procs'].items()}}
++                     for r in series[::max(1, len(series) // 120)]]
++    with open(a.out, 'w') as f:
++        json.dump(rep, f, indent=1, sort_keys=True)
++    brief = {k: rep[k] for k in ('runnerSha256', 'runnerExit', 'earlyStop', 'elapsed', 'peaks', 'final', 'cgroupMax', 'hosts')}
++    brief['client'] = rep.get('restore.stdout')
++    brief['result'] = {k: (rep.get('result.json') or {}).get(k) for k in ('success', 'error', 'restoreExit', 'memoryPeakBytes')}
++    for n in ('bridge-outside.json', 'bridge-inside.json'):
++        if n in rep:
++            brief[n] = rep[n]
++    print(json.dumps(brief, sort_keys=True), flush=True)
++    return 0
++
++
++if __name__ == '__main__':
++    if len(sys.argv) == 4 and sys.argv[1] == 'hosts':
++        hosts(sys.argv[2], sys.argv[3])
++    elif len(sys.argv) >= 3 and sys.argv[1] == 'recovery':
++        sys.exit(client(sys.argv))
++    elif len(sys.argv) >= 2 and sys.argv[1] == 'measure':
++        sys.exit(measure(sys.argv[2:]))
++    else:
++        sys.exit(__doc__)
+diff --git a/load/unit-load.py b/load/unit-load.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c495687fe14db3d2b340373dd98f4943c855256b
+--- /dev/null
++++ b/load/unit-load.py
+@@ -0,0 +1,201 @@
++#!/usr/bin/env python3
++"""The load reproduction through the REAL launcher and a REAL `systemd-run --user` unit with a reduced MemoryMax
++(loopback only): `whole_restore.py start --target local` of a given harness (the frozen one or the candidate) runs
++siaload.py as the restore binary; the fake Sia hosts listen on 127.0.1.N (outside the unit), the "indexer" on 127.0.0.2.
++Samples the unit's own cgroup (memory.current / anon / sock / oom_kill, tasks) while it runs; then `finish --abandon`
++(staging only) and `systemctl --user reset-failed`. Prints one JSON summary.
++
++  unit-load.py --harness DIR --workdir NEW_DIR --out JSON --memory-max-mib 256 --duration 180 [load knobs]
++"""
++import argparse
++import hashlib
++import json
++import os
++import secrets
++import signal
++import socket
++import subprocess
++import sys
++import time
++
++HERE = os.path.dirname(os.path.abspath(__file__))
++LOAD = os.path.join(HERE, 'siaload.py')
++
++
++def free_port(ips):
++    for _ in range(200):
++        port = 20000 + secrets.randbelow(30000)
++        ok = True
++        for ip in ips:
++            s = socket.socket()
++            try:
++                s.bind((ip, port))
++            except OSError:
++                ok = False
++            s.close()
++        if ok:
++            return port
++    raise SystemExit('no free port')
++
++
++def call(harness, *argv):
++    p = subprocess.run([sys.executable, '-I', os.path.join(harness, 'whole_restore.py')] + list(argv), capture_output=True, text=True, timeout=120)
++    lines = p.stdout.strip().splitlines()
++    return p.returncode, (json.loads(lines[-1]) if lines else {'stderr': p.stderr[-2000:]})
++
++
++def unit_cgroup(unit):
++    p = subprocess.run(['systemctl', '--user', 'show', unit, '-p', 'ControlGroup', '--value'], capture_output=True, text=True)
++    cg = p.stdout.strip()
++    return '/sys/fs/cgroup' + cg if cg else None
++
++
++def procs(cg):
++    """Per-process rows of the unit: role, RssAnon, threads, descriptors."""
++    rows = {}
++    try:
++        pids = [int(x) for x in open(cg + '/cgroup.procs').read().split()]
++    except (OSError, ValueError):
++        return rows
++    for pid in pids:
++        try:
++            st = dict(l.split(':', 1) for l in open('/proc/%d/status' % pid).read().splitlines() if ':' in l)
++            cmd = [c.decode() for c in open('/proc/%d/cmdline' % pid, 'rb').read().split(b'\0') if c]
++            role = 'inside' if 'child' in cmd[2:4] else 'outside' if 'run' in cmd[2:4] else 'restore' if 'recovery' in cmd else cmd[0].rsplit('/', 1)[-1]
++            rows[role] = {'rssAnonKiB': int(st['RssAnon'].split()[0]), 'threads': int(st['Threads']),
++                          'fds': len(os.listdir('/proc/%d/fd' % pid))}
++        except (OSError, KeyError, ValueError, IndexError):
++            pass
++    return rows
++
++
++def sample(cg):
++    try:
++        stat = dict(l.split() for l in open(cg + '/memory.stat').read().splitlines())
++        ev = dict(l.split() for l in open(cg + '/memory.events').read().splitlines())
++        return {'current': int(open(cg + '/memory.current').read()), 'anon': int(stat['anon']), 'sock': int(stat['sock']),
++                'file': int(stat['file']), 'oomKill': int(ev.get('oom_kill', 0)), 'tasks': int(open(cg + '/pids.current').read()),
++                'procs': procs(cg)}
++    except (OSError, KeyError, ValueError):
++        return None
++
++
++def main():
++    ap = argparse.ArgumentParser()
++    ap.add_argument('--harness', required=True)
++    ap.add_argument('--workdir', required=True)
++    ap.add_argument('--out', required=True)
++    ap.add_argument('--memory-max-mib', type=int, required=True)
++    ap.add_argument('--duration', type=float, default=180)
++    ap.add_argument('--endpoints', type=int, default=50)
++    ap.add_argument('--streams', type=int, default=50)
++    ap.add_argument('--paced-streams', type=int, default=40)
++    ap.add_argument('--pace-ms', type=int, default=2)
++    ap.add_argument('--sector-bytes', type=int, default=4 << 20)
++    ap.add_argument('--churn-threads', type=int, default=4)
++    ap.add_argument('--churn-per-sec', type=float, default=10)
++    ap.add_argument('--stallers', type=int, default=10)
++    ap.add_argument('--idlers', type=int, default=10)
++    ap.add_argument('--bridge', action='append', default=[])
++    a = ap.parse_args()
++    harness = os.path.abspath(a.harness)
++    work = os.path.abspath(a.workdir)
++    os.makedirs(work, mode=0o700)
++    os.chmod(work, 0o700)
++    ips = ['127.0.1.%d' % (i + 1) for i in range(a.endpoints)]
++    port, cport = free_port(ips), free_port(['127.0.0.2'])
++    spec = {'endpoints': [[ip, port] for ip in ips], 'controls': [['127.0.0.2', cport]]}
++    json.dump(spec, open(os.path.join(work, 'hosts.json'), 'w'))
++    hstats = os.path.join(work, 'hosts-stats.json')
++    hp = subprocess.Popen([sys.executable, '-I', LOAD, 'hosts', os.path.join(work, 'hosts.json'), hstats])
++    rep = {'harness': harness, 'whole_restoreSha256': hashlib.sha256(open(os.path.join(harness, 'whole_restore.py'), 'rb').read()).hexdigest(),
++           'runnerSha256': hashlib.sha256(open(os.path.join(harness, 'runner.py'), 'rb').read()).hexdigest(), 'args': vars(a)}
++    unit = None
++    try:
++        for _ in range(200):
++            if os.path.exists(hstats + '.ready'):
++                break
++            time.sleep(0.05)
++        root = os.path.join(work, 'root')
++        os.mkdir(root, 0o700)
++        run = os.path.join(root, '20261023T000000Z-' + secrets.token_hex(4))
++        os.mkdir(run, 0o700)
++        load = {'duration': a.duration, 'streams': a.streams, 'slowStreams': 0, 'pacedStreams': a.paced_streams, 'paceMs': a.pace_ms,
++                'sectorBytes': a.sector_bytes, 'churnThreads': a.churn_threads, 'churnPerSec': a.churn_per_sec,
++                'stallers': a.stallers, 'idlers': a.idlers}
++        snap = {'version': 1, 'load': load, 'hosts': [{'public_key': 'ed25519:%d' % i, 'addresses': [{'protocol': 'siamux', 'address': '%s:%d' % (ip, port)}]}
++                                                      for i, ip in enumerate(ips)]}
++        raw = json.dumps(snap).encode()
++        open(os.path.join(work, 'snapshot.json'), 'wb').write(raw)
++        open(os.path.join(run, 'snapshot-ip-pinned.json'), 'wb').write(raw)
++        open(os.path.join(work, 'archive'), 'wb').write(b'a')
++        key = os.path.join(work, 'app.seed')
++        with open(os.open(key, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as f:
++            f.write('load-test-key-' + secrets.token_hex(8))
++        sha = hashlib.sha256(raw).hexdigest()
++        json.dump({'snapshot': os.path.join(work, 'snapshot.json'), 'snapshotSha256': sha, 'archive': os.path.join(work, 'archive'),
++                   'archiveSha256': hashlib.sha256(b'a').hexdigest(), 'keyFile': key, 'derivativeSha256': sha,
++                   'endpoints': [{'ip': ip, 'port': port} for ip in ips], 'blockedNames': [],
++                   'blocked': [{'label': 'indexer', 'ip': '127.0.0.2', 'port': cport, 'outsideMustConnect': True}]},
++                  open(os.path.join(run, 'run.json'), 'w'))
++        extra = [x for b in a.bridge for x in ('--bridge', b)]
++        code, st = call(harness, 'start', '--run', run, '--target', 'local', '--binary', LOAD,
++                        '--binary-sha', hashlib.sha256(open(LOAD, 'rb').read()).hexdigest(), '--max-total-bytes', str(1 << 20),
++                        '--deadline-secs', str(int(a.duration) + 300), '--memory-max-mib', str(a.memory_max_mib), *extra)
++        rep['start'] = st
++        if code:
++            raise SystemExit('start refused: %s' % st)
++        unit = st['unit']
++        t0, series, cg = time.monotonic(), [], None
++        while True:
++            cg = cg or unit_cgroup(unit)
++            s = sample(cg) if cg else None
++            if s:
++                series.append(dict(s, t=round(time.monotonic() - t0, 1)))
++            code, p = call(harness, 'poll', '--run', run)
++            if p.get('state') != 'running':
++                break
++            if time.monotonic() - t0 > a.duration + 900:
++                rep['stopped'] = call(harness, 'stop', '--run', run)
++            time.sleep(2)
++        rep['poll'] = p
++        rep['elapsed'] = round(time.monotonic() - t0, 1)
++        if series:
++            rep['unitMax'] = {k: max(x[k] for x in series) for k in ('current', 'anon', 'sock', 'tasks', 'oomKill')}
++            rep['procMax'] = {}
++            for x in series:
++                for r, v in x['procs'].items():
++                    m = rep['procMax'].setdefault(r, {k: 0 for k in v})
++                    for k in v:
++                        m[k] = max(m[k], v[k])
++            rep['series'] = series[::max(1, len(series) // 60)]
++        out_dir = st['attempt']
++        for name in ('restore.stdout', 'probes.json'):
++            try:
++                rep[name] = json.loads(open(os.path.join(out_dir, name)).read())
++            except (OSError, ValueError):
++                rep[name] = None
++        rep['finish'] = call(harness, 'finish', '--run', run, '--abandon')[1]
++    finally:
++        if unit:
++            subprocess.run(['systemctl', '--user', 'reset-failed', unit], capture_output=True)
++            rep['unitAfter'] = subprocess.run(['systemctl', '--user', 'show', unit, '-p', 'LoadState,ActiveState', '--value'],
++                                              capture_output=True, text=True).stdout.split()
++        hp.send_signal(signal.SIGTERM)
++        hp.wait(30)
++        rep['hosts'] = json.load(open(hstats)) if os.path.exists(hstats) else None
++        with open(a.out, 'w') as f:
++            json.dump(rep, f, indent=1, sort_keys=True)
++    res = (rep.get('poll') or {}).get('result') or {}
++    brief = {'state': (rep.get('poll') or {}).get('state'), 'unitState': (rep.get('poll') or {}).get('unitState'),
++             'unitMaxMiB': {k: (v >> 20 if k in ('current', 'anon', 'sock') else v) for k, v in (rep.get('unitMax') or {}).items()},
++             'procMax': rep.get('procMax'), 'success': res.get('success'), 'error': res.get('error'), 'memoryPeakBytes': res.get('memoryPeakBytes'),
++             'client': rep.get('restore.stdout'), 'bridge': {k: {kk: v.get(kk) for kk in ('relayed', 'maxLive', 'buffersAllocated', 'stalledTimeouts',
++                                                                                          'idleTimeouts', 'resets', 'loopError', 'openAtStop')}
++                                                             for k, v in (res.get('bridge') or {}).items() if isinstance(v, dict)},
++             'runnerSha256': rep['runnerSha256'], 'elapsed': rep.get('elapsed'), 'unitAfter': rep.get('unitAfter')}
++    print(json.dumps(brief, sort_keys=True), flush=True)
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/run-tests.sh b/run-tests.sh
+index f58974e59548250a4270487f9eacc358a378b504..7d9c30dce703ad6fe46569e5f50595c657b75e3d 100755
+--- a/run-tests.sh
++++ b/run-tests.sh
+@@ -1,9 +1,13 @@
+ #!/bin/bash
+ # The harness's offline tests, inside a private network namespace (no route anywhere; loopback also carries 203.0.113.5,
+ # standing in for a Sia host address). Run through the shared queue, e.g.
+-#   python3 -u work/claude-test-queue.py --mib 256 --log LOG -- ./run-tests.sh
++#   python3 -u work/claude-test-queue.py --mib 256 --log LOG -- ./run-tests.sh [harness|bridge]
+ set -u
+ cd "$(dirname "$0")" || exit 2
+-sha256sum whole_restore.py runner.py test/test_harness.py test/fake-sia-s3 test/stubs/*
+-exec timeout -k 10 "${JOB_SEC:-300}" unshare --user --map-root-user --net sh -c \
+-  'ip link set lo up && ip address add 203.0.113.5/32 dev lo && exec python3 -I test/test_harness.py "$@"' sh "$@"
++sha256sum whole_restore.py runner.py test/test_harness.py test/test_bridge.py test/fake-sia-s3 test/stubs/*
++suites=${1:-harness bridge}
++exec timeout -k 10 "${JOB_SEC:-420}" unshare --user --map-root-user --net sh -c '
++  ip link set lo up && ip address add 203.0.113.5/32 dev lo || exit 2
++  rc=0
++  for s in $0; do echo "=== test_$s.py"; python3 -I test/test_$s.py $TESTS || rc=1; done
++  exit $rc' "$suites"
+diff --git a/runner.py b/runner.py
+index ca000c4461f3794edd16ceaaaf89121155a4acf1..5431406a52ff766d8526862e82af6da001d55756 100755
+--- a/runner.py
++++ b/runner.py
+@@ -13,12 +13,15 @@ Output: ATTEMPT_DIR/result.json (counts, sizes, digests and booleans only). The
+ in ATTEMPT_DIR/restored (private). A partial restore is a failure. The key file is passed to the binary by PATH only.
+ """
+ import datetime
++import errno
+ import hashlib
+ import json
+ import os
+-import select
++import resource
++import selectors
+ import shutil
+ import socket
++import struct
+ import subprocess
+ import sys
+ import tempfile
+@@ -55,61 +58,437 @@ def write_new(path, obj):
+         os.unlink(tmp)
+ 
+ 
+-def relay(a, b):
+-    try:
+-        while True:
+-            ready, _, _ = select.select([a, b], [], [], 900)
+-            if not ready:
+-                return
+-            for s in ready:
+-                data = s.recv(1 << 18)
+-                if not data:
+-                    return
+-                (b if s is a else a).sendall(data)
+-    except OSError:
+-        pass
+-    finally:
+-        a.close()
+-        b.close()
+-
++# ---- the bridge ------------------------------------------------------------------------------------------------------
++# Both ends (outside: AF_UNIX listeners -> the real ip:port; inside: loopback TCP listeners -> AF_UNIX) are one Bridge:
++# one thread running one selector loop over non-blocking sockets. No thread per connection, no allocation per read.
++#   status byte   the outside answers each AF_UNIX connection with ONE byte once its own dial has finished: 1 = the real
++#                 host accepted the TCP connection, 0 = it did not, 2 = the bridge refused (a connection limit). The
++#                 inside relays nothing before it has read a 1, so a local accept is never mistaken for the host.
++#   backpressure  each direction holds at most one chunk. A source is read only while its direction holds nothing;
++#                 bytes the destination cannot take wait in that direction's chunk, so a slow reader slows its writer
++#                 through the kernel's own flow control instead of growing a queue here.
++#   half-close    an EOF is passed on as shutdown(SHUT_WR) once that direction's bytes are written; the other direction
++#                 keeps flowing. The connection closes when both directions have ended.
++#   bounds        live connections per end and per endpoint: at a cap the NEW connection is refused (inside: RST;
++#                 outside: status 2), never an existing one. Connect, status, idle, half-closed idle and stalled-send
++#                 timeouts. No absolute age limit: a transfer that keeps moving bytes is never cut.
++#   errors        a reset, a refused dial, a limit or a timeout closes both sockets; the TCP socket(s) of the end that
++#                 detects it close with RST. Across the AF_UNIX hop an abort arrives as EOF (as in the old bridge);
++#                 siamux frames are authenticated, so the SDK detects a truncated stream either way.
++BRIDGE_DEFAULTS = {
++    'chunkBytes': 64 << 10,        # per direction, held only while the destination is not writable
++    'maxConns': 256,               # live connections per bridge end
++    'maxConnsPerEndpoint': 16,     # the SDK keeps one connection per host; re-dials after errors
++    'connectSecs': 15,             # outside: the dial of the real host (the SDK gives up after 10)
++    'statusSecs': 30,              # inside: wait for the status byte (longer than connectSecs)
++    'idleSecs': 1800,              # nothing moved either way (siamux keepalives: every 3/4 of its 20 min timeout)
++    'halfClosedIdleSecs': 60,      # one direction has ended and NOTHING moves either way (an active response continues)
++    'stalledSendSecs': 300,        # bytes are waiting and the destination took none of them
++    'hostRecvBufBytes': 1 << 20,   # outside: SO_RCVBUF of the dial to the real host, set before connect (the TCP window)
++    'localSendBufBytes': 256 << 10,  # inside: SO_SNDBUF of each accepted loopback connection
++}
++BRIDGE_LIMITS = {'chunkBytes': (4096, 1 << 20), 'maxConns': (1, 4096), 'maxConnsPerEndpoint': (1, 4096),
++                 'connectSecs': (1, 300), 'statusSecs': (2, 600), 'idleSecs': (1, 86400), 'halfClosedIdleSecs': (1, 86400),
++                 'stalledSendSecs': (1, 86400), 'hostRecvBufBytes': (0, 64 << 20), 'localSendBufBytes': (0, 64 << 20)}
++ABORT = struct.pack('ii', 1, 0)    # SO_LINGER on, 0 s: close() sends RST
++
++
++def bridge_settings(plan):
++    cfg = dict(BRIDGE_DEFAULTS)
++    for k, v in (plan.get('bridge') or {}).items():
++        lo, hi = BRIDGE_LIMITS.get(k, (None, None))
++        if lo is None or isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
++            raise SystemExit('plan bridge setting %r must be an integer in %s' % (k, BRIDGE_LIMITS.get(k)))
++        cfg[k] = v
++    if cfg['statusSecs'] <= cfg['connectSecs']:
++        raise SystemExit('plan bridge statusSecs must exceed connectSecs')
++    return cfg
++
++
++class Direction:
++    __slots__ = ('src', 'dst', 'buf', 'start', 'end', 'eof', 'done', 'since')
++
++    def __init__(self, src, dst):
++        self.src, self.dst, self.buf, self.start, self.end = src, dst, None, 0, 0
++        self.eof = self.done = False
++        self.since = 0.0  # when the waiting bytes last moved
++
++
++class Conn:
++    __slots__ = ('a', 'b', 'ep', 'state', 'deadline', 'last', 'up', 'down', 'masks')
++
++    def __init__(self, a, ep, now):
++        self.a, self.b, self.ep, self.state, self.deadline, self.last = a, None, ep, 'new', 0.0, now
++        self.up = self.down = None
++        self.masks = {}
++
++
++class Bridge:
++    """The relay loop of one bridge end. outside=True: each listener is an AF_UNIX socket, and its connections go to the
++    real (ip, port) of that endpoint, answered with the status byte. outside=False: each listener is a loopback TCP socket,
++    and its connections go to the AF_UNIX path, after a status byte of 1."""
++
++    def __init__(self, outside, cfg):
++        self.outside, self.cfg = outside, cfg
++        self.sel = selectors.DefaultSelector()
++        self.wake_r, self.wake_w = socket.socketpair()
++        self.wake_r.setblocking(False)
++        self.wake_w.setblocking(False)
++        self.sel.register(self.wake_r, selectors.EVENT_READ, ('wake', None))
++        self.listeners, self.paused = [], {}
++        self.conns, self.per_ep = set(), {}
++        self.pool, self.buffers = [], 0
++        self.scratch = bytearray(cfg['chunkBytes'])
++        self.stopping = False
++        self.thread = None
++        self.stats = {k: 0 for k in ('accepted', 'relayed', 'rejectedLimit', 'rejectedEndpointLimit', 'dialFailed',
++                                     'statusFailed', 'connectTimeouts', 'statusTimeouts', 'idleTimeouts',
++                                     'halfClosedTimeouts', 'stalledTimeouts', 'resets', 'closedClean', 'halfCloses',
++                                     'bytesAtoB', 'bytesBtoA', 'maxLive', 'buffersAllocated', 'acceptPaused')}
++        self.stats['loopError'] = None
++        self.stats['settings'] = dict(cfg)
++        self.max_conns = cfg['maxConns']
++
++    # -- setup / teardown (caller's thread) --
++    def add(self, listener, target):
++        """target: (ip, port) outside, or an AF_UNIX path inside. The bridge owns and closes the listener."""
++        listener.setblocking(False)
++        ep = len(self.listeners)
++        self.listeners.append((listener, target))
++        self.per_ep[ep] = 0
++        self.sel.register(listener, selectors.EVENT_READ, ('listen', ep))
++
++    def start(self):
++        # two descriptors per connection plus the listeners must fit the descriptor limit, which is left unchanged (the
++        # restore inherits it); a smaller limit lowers the connection cap rather than failing accepts
++        soft = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
++        if soft != resource.RLIM_INFINITY:
++            self.max_conns = max(1, min(self.max_conns, (soft - len(self.listeners) - 64) // 2))
++        self.stats['maxConnsEffective'] = self.max_conns
++        self.thread = threading.Thread(target=self._run, name='bridge-' + ('outside' if self.outside else 'inside'), daemon=True)
++        self.thread.start()
++        return self
++
++    def stop(self, timeout=30):
++        """Close every listener and connection and end the loop thread. -> stats (counts and booleans only)."""
++        self.stopping = True
++        try:
++            self.wake_w.send(b'x')
++        except OSError:
++            pass
++        if self.thread:
++            self.thread.join(timeout)
++        else:
++            self._cleanup()
++        self.stats['threadEnded'] = not (self.thread and self.thread.is_alive())
++        return dict(self.stats)
++
++    # -- the loop --
++    def _run(self):
++        try:
++            next_scan = 0.0
++            while not self.stopping:
++                for key, ev in self.sel.select(1.0):
++                    kind, obj = key.data
++                    if kind == 'listen':
++                        self._accept(obj)
++                    elif kind == 'conn':
++                        conn, sock = obj
++                        if conn in self.conns:
++                            self._event(conn, sock, ev)
++                    else:
++                        try:
++                            while self.wake_r.recv(64):
++                                pass
++                        except BlockingIOError:
++                            pass
++                now = time.monotonic()
++                if now >= next_scan:
++                    next_scan = now + 0.5
++                    self._timeouts(now)
++        except Exception as e:  # noqa: BLE001 - recorded, and the run fails (see run())
++            self.stats['loopError'] = '%s: %s' % (type(e).__name__, e)
++        finally:
++            self._cleanup()
++
++    def _cleanup(self):
++        self.stats['openAtStop'] = len(self.conns)
++        for conn in list(self.conns):
++            self._close(conn, abort=True, why=None)
++        for listener, _ in self.listeners:
++            self._unregister(listener)
++            listener.close()
++        self._unregister(self.wake_r)
++        self.wake_r.close()
++        self.wake_w.close()
++        self.sel.close()
++        self.pool.clear()
++
++    def _unregister(self, sock):
++        try:
++            self.sel.unregister(sock)
++        except (KeyError, ValueError):
++            pass
+ 
+-def serve(listener, connect, status=False):
+-    """Relay each accepted connection to connect(). With status (the outside end of the bridge), first tell the inside
+-    end in one byte whether the real ip:port answered, so the inside never mistakes its own listener for the host."""
+-    def loop():
+-        while True:
++    def _accept(self, ep):
++        listener, target = self.listeners[ep]
++        for _ in range(64):
+             try:
+                 a, _ = listener.accept()
++            except BlockingIOError:
++                return
++            except OSError as e:
++                if e.errno in (errno.EMFILE, errno.ENFILE, errno.ENOBUFS, errno.ENOMEM):
++                    self._unregister(listener)  # try again on the next timeout scan rather than spin
++                    self.paused[ep] = time.monotonic() + 1
++                    self.stats['acceptPaused'] += 1
++                return
++            self.stats['accepted'] += 1
++            try:
++                self._open(a, ep, target)
++            except OSError:  # a socket call on the new connection failed: drop just that connection
++                self.stats['resets'] += 1
++                conn = next((c for c in self.conns if c.a is a), None)
++                if conn:
++                    self._close(conn, abort=True, why=None)
++                else:
++                    a.close()
++
++    def _open(self, a, ep, target):
++        a.setblocking(False)
++        if not self._room(ep):
++            self.stats['rejectedLimit' if len(self.conns) >= self.max_conns else 'rejectedEndpointLimit'] += 1
++            if self.outside:
++                self._send_status(a, b'\2')
++                a.close()
++            else:
++                self._rst(a)
++            return
++        now = time.monotonic()
++        conn = Conn(a, ep, now)
++        self.conns.add(conn)
++        self.per_ep[ep] += 1
++        self.stats['maxLive'] = max(self.stats['maxLive'], len(self.conns))
++        if self.outside:
++            try:
++                b = socket.socket(socket.AF_INET6 if ':' in target[0] else socket.AF_INET, socket.SOCK_STREAM)
+             except OSError:
++                self.stats['dialFailed'] += 1
++                self._send_status(a, b'\0')
++                self._close(conn, abort=False, why=None)
++                return
++            b.setblocking(False)
++            conn.b = b
++            if self.cfg['hostRecvBufBytes']:  # bounds what the host can push ahead of the restore (0 = autotune)
++                b.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.cfg['hostRecvBufBytes'])
++            err = b.connect_ex(target)
++            if err not in (0, errno.EINPROGRESS):
++                self.stats['dialFailed'] += 1
++                self._send_status(a, b'\0')
++                self._close(conn, abort=False, why=None)
+                 return
++            conn.state, conn.deadline = 'dial', now + self.cfg['connectSecs']
++            self._want(conn, b, selectors.EVENT_WRITE)
++        else:
++            if self.cfg['localSendBufBytes']:
++                a.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, self.cfg['localSendBufBytes'])
++            try:
++                b = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
++                b.setblocking(False)
++                conn.b = b
++                b.connect(target)
++            except OSError:  # EAGAIN: the outside's backlog is full; anything else: it is gone
++                self.stats['statusFailed'] += 1
++                self._close(conn, abort=True, why=None)
++                return
++            conn.state, conn.deadline = 'status', now + self.cfg['statusSecs']
++            self._want(conn, b, selectors.EVENT_READ)
+ 
+-            def one(a=a):
+-                try:
+-                    b = connect()
+-                except OSError:
+-                    if status:
+-                        try:
+-                            a.sendall(b'\0')
+-                        except OSError:
+-                            pass
+-                    a.close()
++    def _room(self, ep):
++        """A new connection fits the per-endpoint and global caps. At capacity the NEWCOMER is refused; an existing
++        connection is never closed to make room (a half-closed one may still be carrying its response). Existing
++        connections end only on completion, error or their own connect/status/idle/half-closed-idle/stall deadline."""
++        return self.per_ep[ep] < self.cfg['maxConnsPerEndpoint'] and len(self.conns) < self.max_conns
++
++    def _send_status(self, sock, byte):
++        try:
++            return sock.send(byte) == 1
++        except OSError:
++            return False
++
++    def _rst(self, sock):
++        try:
++            if sock.family != socket.AF_UNIX:
++                sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, ABORT)
++        except OSError:
++            pass
++        sock.close()
++
++    def _want(self, conn, sock, mask):
++        old = conn.masks.get(sock, 0)
++        if mask == old:
++            return
++        if not mask:
++            self._unregister(sock)
++        elif not old:
++            self.sel.register(sock, mask, ('conn', (conn, sock)))
++        else:
++            self.sel.modify(sock, mask, ('conn', (conn, sock)))
++        conn.masks[sock] = mask
++
++    def _update(self, conn):
++        """Interest for both sockets of a relaying connection, from its two directions."""
++        for sock in (conn.a, conn.b):
++            mask = 0
++            for d in (conn.up, conn.down):
++                if d.src is sock and not d.eof and d.buf is None:
++                    mask |= selectors.EVENT_READ
++                if d.dst is sock and d.buf is not None:
++                    mask |= selectors.EVENT_WRITE
++            self._want(conn, sock, mask)
++
++    def _begin_relay(self, conn, now):
++        conn.state, conn.last = 'relay', now
++        conn.up, conn.down = Direction(conn.a, conn.b), Direction(conn.b, conn.a)
++        self.stats['relayed'] += 1
++        self._update(conn)
++
++    def _event(self, conn, sock, ev):
++        now = time.monotonic()
++        try:
++            if conn.state == 'dial':  # outside: the real host's TCP connect has finished
++                if sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR):
++                    self.stats['dialFailed'] += 1
++                    self._send_status(conn.a, b'\0')
++                    self._close(conn, abort=False, why=None)
++                    return
++                if not self._send_status(conn.a, b'\1'):
++                    self._close(conn, abort=True, why=None)
+                     return
++                self._want(conn, conn.b, 0)
++                self._begin_relay(conn, now)
++                return
++            if conn.state == 'status':  # inside: the outside's verdict on the real host
+                 try:
+-                    if status:
+-                        a.sendall(b'\1')
+-                except OSError:
+-                    a.close()
+-                    b.close()
++                    status = sock.recv(1)
++                except BlockingIOError:
+                     return
+-                relay(a, b)
+-            threading.Thread(target=one, daemon=True).start()
+-    threading.Thread(target=loop, daemon=True).start()
+-
++                if status != b'\1':
++                    self.stats['statusFailed'] += 1
++                    self._close(conn, abort=True, why=None)
++                    return
++                self._want(conn, conn.b, 0)
++                self._begin_relay(conn, now)
++                return
++            for d in (conn.up, conn.down):
++                if ev & selectors.EVENT_WRITE and d.dst is sock and d.buf is not None:
++                    self._flush(d, now, conn)
++                if ev & selectors.EVENT_READ and d.src is sock and d.buf is None and not d.eof:
++                    self._pump(d, now, conn)
++            if conn.up.done and conn.down.done:
++                self.stats['closedClean'] += 1
++                self._close(conn, abort=False, why=None)
++            elif conn in self.conns:
++                self._update(conn)
++        except OSError:
++            self._close(conn, abort=True, why='resets')
+ 
+-def dial(ip, port):
+-    s = socket.create_connection((ip, port), 15)
+-    s.settimeout(None)  # the relay waits in select(); a send must not time out mid-transfer
+-    return s
++    def _pump(self, d, now, conn):
++        try:
++            n = d.src.recv_into(self.scratch)
++        except BlockingIOError:
++            return
++        if n == 0:
++            d.eof = True
++            self._end(d, conn)
++            return
++        conn.last = now
++        self.stats['bytesAtoB' if d is conn.up else 'bytesBtoA'] += n
++        try:
++            sent = d.dst.send(memoryview(self.scratch)[:n])
++        except BlockingIOError:
++            sent = 0
++        if sent < n:  # keep the rest in this direction's chunk; stop reading its source until it is written
++            d.buf = self.pool.pop() if self.pool else self._new_buffer()
++            d.buf[:n - sent] = memoryview(self.scratch)[sent:n]
++            d.start, d.end, d.since = 0, n - sent, now
++
++    def _new_buffer(self):
++        self.buffers += 1
++        self.stats['buffersAllocated'] = max(self.stats['buffersAllocated'], self.buffers)
++        return bytearray(self.cfg['chunkBytes'])
++
++    def _flush(self, d, now, conn):
++        try:
++            sent = d.dst.send(memoryview(d.buf)[d.start:d.end])
++        except BlockingIOError:
++            return
++        if sent:
++            d.start += sent
++            d.since = conn.last = now
++        if d.start == d.end:
++            self._release(d)
++            if d.eof:
++                self._end(d, conn)
++
++    def _release(self, d):
++        if d.buf is not None:
++            if len(self.pool) < 2 * self.cfg['maxConns']:
++                self.pool.append(d.buf)
++            else:
++                self.buffers -= 1
++            d.buf = None
++
++    def _end(self, d, conn):
++        """Source EOF with nothing waiting: pass it on as a half-close."""
++        if d.buf is None and not d.done:
++            d.dst.shutdown(socket.SHUT_WR)
++            d.done = True
++            self.stats['halfCloses'] += 1
++
++    def _timeouts(self, now):
++        for ep, until in list(self.paused.items()):
++            if now >= until:
++                del self.paused[ep]
++                self.sel.register(self.listeners[ep][0], selectors.EVENT_READ, ('listen', ep))
++        c = self.cfg
++        for conn in list(self.conns):
++            if conn.state == 'dial' and now >= conn.deadline:
++                self.stats['connectTimeouts'] += 1
++                self._send_status(conn.a, b'\0')
++                self._close(conn, abort=True, why=None)
++            elif conn.state == 'status' and now >= conn.deadline:
++                self._close(conn, abort=True, why='statusTimeouts')
++            elif conn.state == 'relay':
++                waiting = [d.since for d in (conn.up, conn.down) if d.buf is not None]
++                if waiting:  # bytes wait for a slow destination: only the stall deadline applies
++                    if now - min(waiting) >= c['stalledSendSecs']:
++                        self._close(conn, abort=True, why='stalledTimeouts')
++                elif (conn.up.eof or conn.down.eof) and now - conn.last >= c['halfClosedIdleSecs']:
++                    self._close(conn, abort=True, why='halfClosedTimeouts')
++                elif now - conn.last >= c['idleSecs']:
++                    self._close(conn, abort=True, why='idleTimeouts')
++
++    def _close(self, conn, abort, why):
++        if conn not in self.conns:
++            return
++        self.conns.discard(conn)
++        self.per_ep[conn.ep] -= 1
++        if why:
++            self.stats[why] += 1
++        for d in (conn.up, conn.down):
++            if d is not None:
++                self._release(d)
++        for sock in (conn.a, conn.b):
++            if sock is None:
++                continue
++            if conn.masks.get(sock):
++                self._unregister(sock)
++            if abort:
++                self._rst(sock)
++            else:
++                sock.close()
++        conn.masks.clear()
+ 
+ 
+ def bridged(path):
+@@ -150,17 +529,25 @@ def check_plan(plan):
+ def child(attempt, sockdir):
+     """Inside the new network namespace: loopback listeners, probes, then the restore. -> exit code."""
+     plan = json.load(open(os.path.join(attempt, 'plan.json')))
+-    subprocess.run(['ip', 'link', 'set', 'lo', 'up'], check=True)
+-    for ip in sorted({e['ip'] for e in plan['endpoints']}):
+-        if not ip.startswith('127.'):  # already on loopback (test fixtures only; prepare admits global addresses)
+-            subprocess.run(['ip', 'address', 'add', ip + '/32', 'dev', 'lo'], check=True)
+-    for i, e in enumerate(plan['endpoints']):
+-        listener = socket.socket()
+-        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+-        listener.bind((e['ip'], e['port']))
+-        listener.listen(128)
+-
+-        serve(listener, lambda path=os.path.join(sockdir, str(i)): bridged(path))
++    bridge = Bridge(False, bridge_settings(plan))
++    try:
++        subprocess.run(['ip', 'link', 'set', 'lo', 'up'], check=True)
++        for ip in sorted({e['ip'] for e in plan['endpoints']}):
++            if not ip.startswith('127.'):  # already on loopback (test fixtures only; prepare admits global addresses)
++                subprocess.run(['ip', 'address', 'add', ip + '/32', 'dev', 'lo'], check=True)
++        for i, e in enumerate(plan['endpoints']):
++            listener = socket.socket()
++            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
++            listener.bind((e['ip'], e['port']))
++            listener.listen(128)
++            bridge.add(listener, os.path.join(sockdir, str(i)))
++        bridge.start()
++        return probe_and_restore(plan, attempt, sockdir)
++    finally:
++        write_new(os.path.join(attempt, 'bridge-inside.json'), bridge.stop())
++
++
++def probe_and_restore(plan, attempt, sockdir):
+     probes = {'at': now(), 'blocked': [], 'names': [], 'allowedReached': 0, 'allowedTried': 0}
+     for e in plan['blocked']:
+         err = try_connect(e['ip'], e['port'])
+@@ -259,27 +646,38 @@ def run(attempt):
+               'binarySha256': plan['binarySha256'], 'snapshotSha256': plan['snapshotSha256'],
+               'originalSnapshotSha256': plan['originalSnapshotSha256'], 'maxTotalBytes': plan['maxTotalBytes'],
+               'deadlineSecs': plan['deadlineSecs'], 'allowedEndpoints': len(plan['endpoints'])}
+-    sockdir = None
++    sockdir = bridge = None
+     try:
+         check_plan(plan)
++        cfg = bridge_settings(plan)
+         st = os.statvfs(attempt)
+         result['freeBytesBefore'] = st.f_bavail * st.f_frsize
+         if result['freeBytesBefore'] < plan['maxTotalBytes'] + RESERVE_BYTES:
+             raise SystemExit('not enough free space for the byte budget plus %d reserve' % RESERVE_BYTES)
+         sockdir = tempfile.mkdtemp(prefix='swr-', dir='/tmp')  # short paths: AF_UNIX names are limited to 107 bytes
+-        listeners = []
++        bridge = Bridge(True, cfg)
+         for i, e in enumerate(plan['endpoints']):
+             path = os.path.join(sockdir, str(i))
+             assert len(path) < 100
+             listener = socket.socket(socket.AF_UNIX)
+             listener.bind(path)
+             listener.listen(128)
+-            listeners.append(listener)
+-            serve(listener, lambda e=e: dial(e['ip'], e['port']), status=True)
++            bridge.add(listener, (e['ip'], e['port']))
++        bridge.start()
+         userns = [] if os.geteuid() == 0 else ['--user', '--map-root-user']
+         code = subprocess.run(['unshare', '--net'] + userns + [sys.executable, '-I', os.path.abspath(__file__), 'child', attempt, sockdir],
+                               stdin=subprocess.DEVNULL).returncode
+         result['restoreExit'] = code
++        result['bridge'] = {'outside': bridge.stop()}
++        bridge = None
++        try:
++            result['bridge']['inside'] = json.load(open(os.path.join(attempt, 'bridge-inside.json')))
++        except (OSError, ValueError):
++            result['bridge']['inside'] = None
++        bridge_ok = all(b and b.get('loopError') is None and b.get('threadEnded') for b in result['bridge'].values())
++        result['bridge']['ok'] = bridge_ok
++        if not bridge_ok:
++            result['error'] = 'a bridge loop failed or did not end'
+         try:
+             probes = json.load(open(os.path.join(attempt, 'probes.json')))
+             result['probes'] = {'blocked': sum(p['blocked'] for p in probes['blocked']), 'blockedTried': len(probes['blocked']),
+@@ -296,7 +694,7 @@ def run(attempt):
+         if os.path.exists(os.path.join(plan['outdir'], 'inventory.json')):
+             summary, ok = verify_output(plan['outdir'])
+             result['restore'] = summary
+-            result['success'] = code == 0 and ok and bool(result['probes'] and result['probes']['isolated'])
++            result['success'] = code == 0 and ok and bool(result['probes'] and result['probes']['isolated']) and bridge_ok
+         result['originalSnapshotUnchanged'] = (not plan.get('originalSnapshot')) or not os.path.exists(plan['originalSnapshot']) or \
+             sha256_file(plan['originalSnapshot']) == plan['originalSnapshotSha256']
+         result['success'] = result['success'] and result['originalSnapshotUnchanged']
+@@ -305,6 +703,8 @@ def run(attempt):
+     except Exception as e:  # noqa: BLE001 - report every harness failure as a failed result, never as success
+         result['error'] = '%s: %s' % (type(e).__name__, e)
+     finally:
++        if bridge:
++            result.setdefault('bridge', {'outside': bridge.stop()})
+         if sockdir:
+             shutil.rmtree(sockdir, ignore_errors=True)
+         result['memoryPeakBytes'] = memory_peak()
+diff --git a/test/mutate.py b/test/mutate.py
+new file mode 100755
+index 0000000000000000000000000000000000000000..17ab8e7a19f9421641f3132f9e1d044f35e0e389
+--- /dev/null
++++ b/test/mutate.py
+@@ -0,0 +1,72 @@
++#!/usr/bin/env python3
++"""Mutation controls: each mutant breaks one bridge property in a copy of the candidate; its suites must FAIL."""
++import shutil, subprocess, sys, os
++C = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # the candidate repo (this file is test/mutate.py)
++M = os.path.join(os.path.dirname(C), 'mutants')
++MUTANTS = {
++  'status-ignored': ("""                if status != b'\\1':""", """                if status not in (b'\\1', b'\\0', b''):""", 'harness bridge'),
++  'no-stall-timeout': ("""                    if now - min(waiting) >= c['stalledSendSecs']:""", """                    if False:""", 'bridge'),
++  'eof-closes-both': ("""            d.eof = True
++            self._end(d, conn)""", """            d.eof = True
++            self._close(conn, abort=False, why=None)""", 'bridge'),
++  'no-idle-timeout': ("""                elif now - conn.last >= c['idleSecs']:""", """                elif False:""", 'bridge'),
++  'no-limits': ("""        return self.per_ep[ep] < self.cfg['maxConnsPerEndpoint'] and len(self.conns) < self.max_conns""",
++                """        return True""", 'bridge'),
++  'evict-half-closed': ("""        return self.per_ep[ep] < self.cfg['maxConnsPerEndpoint'] and len(self.conns) < self.max_conns""",
++                        """        for full, pool in ((lambda: self.per_ep[ep] >= self.cfg['maxConnsPerEndpoint'], lambda c: c.ep == ep),
++                           (lambda: len(self.conns) >= self.max_conns, lambda c: True)):
++            if full():
++                half = [c for c in self.conns if pool(c) and c.state == 'relay' and (c.up.eof or c.down.eof)]
++                if not half:
++                    return False
++                self._close(min(half, key=lambda c: c.last), abort=True, why='resets')
++        return True""", 'bridge'),
++  'half-idle-while-waiting': ("""                if waiting:  # bytes wait for a slow destination: only the stall deadline applies
++                    if now - min(waiting) >= c['stalledSendSecs']:
++                        self._close(conn, abort=True, why='stalledTimeouts')
++                elif""", """                if waiting and now - min(waiting) >= c['stalledSendSecs']:
++                    self._close(conn, abort=True, why='stalledTimeouts')
++                elif""", 'bridge'),
++  'stop-leaves-conns': ("""        self.stats['openAtStop'] = len(self.conns)
++        for conn in list(self.conns):""", """        self.stats['openAtStop'] = len(self.conns)
++        for conn in []:""", 'bridge'),
++  'unbounded-queue': [("""                if d.src is sock and not d.eof and d.buf is None:""", """                if d.src is sock and not d.eof:"""),
++                      ("""                if ev & selectors.EVENT_READ and d.src is sock and d.buf is None and not d.eof:""",
++                       """                if ev & selectors.EVENT_READ and d.src is sock and not d.eof:"""),
++                      ("""        conn.last = now
++        self.stats['bytesAtoB' if d is conn.up else 'bytesBtoA'] += n
++""", """        conn.last = now
++        self.stats['bytesAtoB' if d is conn.up else 'bytesBtoA'] += n
++        if d.buf is not None:  # MUTANT: queue without bound behind a slow destination
++            d.buf[d.end:] = memoryview(self.scratch)[:n]
++            d.end += n
++            return
++"""), 'bridge'],
++}
++src = open(os.path.join(C, 'runner.py')).read()
++for name, spec in MUTANTS.items():  # every mutant applies exactly once before anything runs
++    for old, _ in (spec[:-1] if isinstance(spec, list) else [spec[:2]]):
++        assert src.count(old) == 1, name
++os.makedirs(M, exist_ok=True)
++fails = {}
++only = sys.argv[1:]
++for name, spec in MUTANTS.items():
++    if only and name not in only:
++        continue
++    edits, suites = (spec[:-1], spec[-1]) if isinstance(spec, list) else ([spec[:2]], spec[2])
++    d = os.path.join(M, name)
++    shutil.rmtree(d, ignore_errors=True)
++    shutil.copytree(C, d, ignore=shutil.ignore_patterns('.git', '__pycache__'))
++    p = os.path.join(d, 'runner.py')
++    s = open(p).read()
++    for old, new in edits:
++        assert s.count(old) == 1, name
++        s = s.replace(old, new)
++    open(p, 'w').write(s)
++    r = subprocess.run([os.path.join(d, 'run-tests.sh'), suites], capture_output=True, text=True, env=dict(os.environ, JOB_SEC="240", TESTS=os.environ.get("MUT_TESTS", "")))
++    lines = [l for l in (r.stdout + r.stderr).splitlines() if l.startswith(('FAIL:', 'ERROR:', 'Ran ', 'OK', 'FAILED'))]
++    print('=== %s rc=%d (%s)' % (name, r.returncode, 'KILLED' if r.returncode else 'SURVIVED'), *lines, sep='\n  ', flush=True)
++    fails[name] = r.returncode
++    shutil.rmtree(d, ignore_errors=True)
++print('mutants killed: %d/%d' % (sum(1 for v in fails.values() if v), len(fails)))
++sys.exit(0 if all(fails.values()) else 1)
+diff --git a/test/test_bridge.py b/test/test_bridge.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..b3dda7d6c60a469ea3975ebc1e44f92978eac32e
+--- /dev/null
++++ b/test/test_bridge.py
+@@ -0,0 +1,596 @@
++"""Bridge tests with real sockets: the inside Bridge (loopback TCP -> AF_UNIX) and the outside Bridge (AF_UNIX -> TCP)
++of runner.py relay between real clients and real "host" servers. Run by run-tests.sh INSIDE `unshare -rn` (loopback
++only; 203.0.113.5 carries the inside listeners as in a restore namespace, 127.0.0.3 the hosts). No mocks: every byte
++goes through the kernel, and every assertion is about what a client or a host actually received."""
++import gc
++import hashlib
++import importlib.util
++import os
++import shutil
++import socket
++import struct
++import tempfile
++import threading
++import time
++import unittest
++from pathlib import Path
++
++HERE = Path(__file__).resolve().parent
++spec = importlib.util.spec_from_file_location('runner', HERE.parent / 'runner.py')
++runner = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(runner)
++INSIDE_IP, HOST_IP = '203.0.113.5', '127.0.0.3'
++BLOCK = hashlib.shake_256(b'bridge-test').digest(1 << 20)
++
++
++def pieces(seed, n):
++    """n generated bytes in 64 KiB pieces, different per seed and position."""
++    i = 0
++    while n > 0:
++        off = (seed * 7919 + i * 104729) % (len(BLOCK) - 65536)
++        p = (struct.pack('>QQ', seed, i) + BLOCK[off:off + 65520])[:n]
++        yield p
++        n -= len(p)
++        i += 1
++
++
++def data(seed, n):
++    return b''.join(pieces(seed, n))
++
++
++def send_stream(c, seed, n):
++    for p in pieces(seed, n):
++        c.sendall(p)
++
++
++def digest(seed, n):
++    h = hashlib.sha256()
++    for p in pieces(seed, n):
++        h.update(p)
++    return h.digest()
++
++
++def recv_all(s, limit=1 << 30):
++    out = bytearray()
++    while len(out) < limit:
++        d = s.recv(1 << 16)
++        if not d:
++            break
++        out += d
++    return bytes(out)
++
++
++def rss_anon_kib():
++    for line in open('/proc/self/status'):
++        if line.startswith('RssAnon:'):
++            return int(line.split()[1])
++    return 0
++
++
++def fds():
++    return len(os.listdir('/proc/self/fd'))
++
++
++class Host:
++    """A real TCP server on HOST_IP; handler(conn) runs in its own thread per accepted connection."""
++    def __init__(self, handler, backlog=64, inline=False):
++        self.s = socket.socket()
++        self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
++        self.s.bind((HOST_IP, 0))
++        self.s.listen(backlog)
++        self.addr = self.s.getsockname()
++        self.accepted, self.threads, self.errors = 0, [], []
++        self.handler, self.inline = handler, inline
++        self.release = threading.Event()  # handlers that hold a connection open wait on it
++        if handler:
++            threading.Thread(target=self._loop, daemon=True).start()
++
++    def _loop(self):
++        while True:
++            try:
++                c, _ = self.s.accept()
++            except OSError:
++                return
++            self.accepted += 1
++            if self.inline:
++                self._one(c)
++                continue
++            t = threading.Thread(target=self._one, args=(c,), daemon=True)
++            self.threads.append(t)
++            t.start()
++
++    def _one(self, c):
++        try:
++            self.handler(c)
++        except OSError as e:
++            self.errors.append(type(e).__name__)
++        finally:
++            c.close()
++
++    def close(self):
++        self.release.set()
++        try:
++            self.s.shutdown(socket.SHUT_RDWR)
++        except OSError:
++            pass
++        self.s.close()
++
++
++class Pair:
++    """inside Bridge on INSIDE_IP:port -> AF_UNIX path -> outside Bridge -> host."""
++    def __init__(self, host_addr, endpoints=1, outside=None, **cfg):
++        """cfg: settings of both ends; outside: further settings for the outside end only."""
++        self.cfg = runner.bridge_settings({'bridge': cfg})
++        self.dir = tempfile.mkdtemp(prefix='brt-', dir='/tmp')
++        self.outside = runner.Bridge(True, runner.bridge_settings({'bridge': dict(cfg, **(outside or {}))}))
++        self.inside = runner.Bridge(False, self.cfg)
++        self.addrs = []
++        for i in range(endpoints):
++            path = os.path.join(self.dir, str(i))
++            u = socket.socket(socket.AF_UNIX)
++            u.bind(path)
++            u.listen(128)
++            self.outside.add(u, host_addr)
++            t = socket.socket()
++            t.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
++            t.bind((INSIDE_IP, 0))
++            t.listen(128)
++            self.addrs.append(t.getsockname())
++            self.inside.add(t, path)
++        self.outside.start()
++        self.inside.start()
++        self.stopped = None
++
++    def connect(self, i=0, timeout=30):
++        return socket.create_connection(self.addrs[i], timeout)
++
++    def live(self):
++        return len(self.inside.conns), len(self.outside.conns)
++
++    def wait_live(self, want, secs=10):
++        end = time.monotonic() + secs
++        while time.monotonic() < end and self.live() != want:
++            time.sleep(0.05)
++        return self.live()
++
++    def stop(self):
++        if self.stopped is None:
++            self.stopped = (self.inside.stop(), self.outside.stop())
++            shutil.rmtree(self.dir, ignore_errors=True)
++        return self.stopped
++
++
++class BridgeTest(unittest.TestCase):
++    def setUp(self):
++        gc.collect()
++        self.fd0, self.threads0 = fds(), set(threading.enumerate())
++        self.cleanup = []
++
++    def tearDown(self):
++        for f in reversed(self.cleanup):
++            f()
++
++    def pair(self, host, **kw):
++        p = Pair(host.addr, **kw)
++        self.cleanup.append(p.stop)
++        return p
++
++    def host(self, handler, **kw):
++        h = Host(handler, **kw)
++        self.cleanup.append(h.close)
++        return h
++
++    def assert_clean_stop(self, p, *hosts):
++        si, so = p.stop()
++        for st in (si, so):
++            self.assertIsNone(st['loopError'])
++            self.assertTrue(st['threadEnded'])
++        for h in hosts:
++            h.close()
++            for t in h.threads:
++                t.join(10)
++        time.sleep(0.2)
++        gc.collect()
++        self.assertEqual(set(threading.enumerate()) - self.threads0, set(), 'no bridge or host thread outlives the test')
++        self.assertLessEqual(fds(), self.fd0, 'every bridge, host and client descriptor is closed')
++        return si, so
++
++    # -- byte-exactness, concurrency, backpressure --
++    def test_concurrent_bidirectional_streams_are_byte_exact(self):
++        def echo_digest(c):  # host: read the request, answer it with generated data, then echo the upload's digest
++            n, seed, up = struct.unpack('>QQQ', recv_exactly(c, 24))
++            send_stream(c, seed, n)
++            h, left = hashlib.sha256(), up
++            while left:
++                d = c.recv(min(left, 1 << 16))
++                if not d:
++                    return
++                h.update(d)
++                left -= len(d)
++            c.sendall(h.digest())
++        host = self.host(echo_digest)
++        p = self.pair(host, endpoints=4)
++        results, errors = {}, []
++
++        def client(k):
++            try:
++                n, up = (3 << 20) + k * 4099, (1 << 20) + k * 7
++                s = p.connect(k % 4)
++                s.sendall(struct.pack('>QQQ', n, k, up))
++                w = threading.Thread(target=send_stream, args=(s, 10_000 + k, up))  # upload while the download flows
++                w.start()
++                h, left = hashlib.sha256(), n
++                while left:
++                    d = s.recv(min(left, 1 << 16))
++                    if not d:
++                        raise ConnectionAbortedError('eof with %d left' % left)
++                    h.update(d)
++                    left -= len(d)
++                echoed = recv_exactly(s, 32)
++                w.join()
++                s.close()
++                results[k] = (h.digest() == digest(k, n), echoed == digest(10_000 + k, up))
++            except OSError as e:
++                errors.append(repr(e))
++        ts = [threading.Thread(target=client, args=(k,)) for k in range(24)]
++        for t in ts:
++            t.start()
++        for t in ts:
++            t.join(120)
++        self.assertEqual(errors, [])
++        self.assertEqual(results, {k: (True, True) for k in range(24)})
++        self.assertEqual(p.wait_live((0, 0)), (0, 0))
++        si, so = self.assert_clean_stop(p, host)
++        self.assertEqual(host.accepted, 24, 'every client reached the real host')
++        self.assertEqual((si['relayed'], so['relayed']), (24, 24))
++        self.assertLessEqual(si['buffersAllocated'], 2 * 24)
++
++    def test_slow_reader_backpressure_holds_one_chunk_per_direction(self):
++        n = 48 << 20
++        host = self.host(lambda c: send_stream(c, 7, n))
++        p = self.pair(host)
++        s = p.connect()
++        s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 64 << 10)
++        time.sleep(1.5)  # the client reads nothing: the host must be held back, not buffered here
++        anon_stalled = rss_anon_kib()
++        self.assertEqual(p.inside.buffers + p.outside.buffers, 2, 'one waiting chunk at each end, nothing more')
++        h, got = hashlib.sha256(), 0
++        while True:
++            d = s.recv(1 << 15)
++            if not d:
++                break
++            h.update(d)
++            got += len(d)
++            if got < (8 << 20):
++                time.sleep(0.0005)  # a slow consumer for the first part
++        s.close()
++        self.assertEqual((got, h.digest()), (n, digest(7, n)))
++        self.assertLess(anon_stalled - self.anon0, 16 << 10, 'a stalled 48 MiB transfer costs no buffering here')
++        self.assert_clean_stop(p, host)
++
++    def test_long_trickle_is_not_cut_by_idle_or_age(self):
++        def trickle(c):
++            for i in range(14):
++                c.sendall(data(i, 4096))
++                time.sleep(0.5)  # 7 s in total, longer than every timeout below; never 1 s without a byte
++        host = self.host(trickle)
++        p = self.pair(host, idleSecs=1, halfClosedIdleSecs=1, stalledSendSecs=1)
++        s = p.connect()
++        got = recv_all(s)
++        s.close()
++        self.assertEqual(got, b''.join(data(i, 4096) for i in range(14)))
++        si, so = self.assert_clean_stop(p, host)
++        self.assertEqual(si['idleTimeouts'] + so['idleTimeouts'] + si['stalledTimeouts'] + so['stalledTimeouts'], 0)
++
++    # -- half-close, both directions --
++    def test_client_half_close_reaches_host_and_response_flows_back(self):
++        def answer_after_eof(c):
++            body = recv_all(c)
++            c.sendall(hashlib.sha256(body).digest() + data(3, 5 << 20))
++        host = self.host(answer_after_eof)
++        p = self.pair(host)
++        s = p.connect()
++        payload = data(2, 3 << 20)
++        s.sendall(payload)
++        s.shutdown(socket.SHUT_WR)
++        got = recv_all(s)
++        s.close()
++        self.assertEqual(got[:32], hashlib.sha256(payload).digest(), 'the host saw the upload end exactly once')
++        self.assertEqual(got[32:], data(3, 5 << 20))
++        self.assertEqual(p.wait_live((0, 0)), (0, 0))
++        self.assert_clean_stop(p, host)
++
++    def test_host_half_close_keeps_client_to_host_direction_open(self):
++        seen = {}
++
++        def respond_then_listen(c):
++            c.sendall(data(5, 1 << 20))
++            c.shutdown(socket.SHUT_WR)
++            seen['afterEof'] = recv_all(c)
++        host = self.host(respond_then_listen)
++        p = self.pair(host)
++        s = p.connect()
++        self.assertEqual(recv_all(s), data(5, 1 << 20))
++        s.sendall(b'still talking after your EOF')
++        s.shutdown(socket.SHUT_WR)
++        self.assertEqual(p.wait_live((0, 0)), (0, 0))
++        s.close()
++        host.threads[0].join(10)
++        self.assertEqual(seen['afterEof'], b'still talking after your EOF')
++        self.assert_clean_stop(p, host)
++
++    # -- rejection, status byte, real-host positive control --
++    def test_down_host_is_refused_and_probe_requires_the_real_host(self):
++        down = Host(None)
++        down.close()  # nothing listens there now
++        p = Pair(down.addr)
++        self.cleanup.append(p.stop)
++        s = p.connect()
++        s.settimeout(10)
++        try:
++            self.assertEqual(s.recv(1), b'', 'no byte, no fake host')
++        except ConnectionResetError:
++            pass
++        s.close()
++        with self.assertRaises(OSError):
++            runner.bridged(os.path.join(p.dir, '0'))
++        si, so = self.assert_clean_stop(p)
++        self.assertEqual(so['dialFailed'], 2)
++        self.assertEqual(si['statusFailed'], 1)
++        up = self.host(lambda c: c.recv(1))
++        p2 = self.pair(up)
++        runner.bridged(os.path.join(p2.dir, '0')).close()
++        for _ in range(100):
++            if up.accepted:
++                break
++            time.sleep(0.05)
++        self.assertEqual(up.accepted, 1, 'the positive control is the real host accepting, not the bridge')
++        self.assert_clean_stop(p2, up)
++
++    def test_connect_timeout_refuses_without_leaking(self):
++        host = Host(None, backlog=0)  # never accepts: once its queue is full, SYNs are dropped and dials hang
++        self.cleanup.append(host.close)
++        fill = []
++        for _ in range(4):
++            f = socket.socket()
++            f.setblocking(False)
++            f.connect_ex(host.addr)
++            fill.append(f)
++        time.sleep(0.3)
++        p = self.pair(host, connectSecs=1, statusSecs=3)
++        t0 = time.monotonic()
++        s = p.connect()
++        s.settimeout(10)
++        try:
++            got = s.recv(1)
++        except ConnectionResetError:
++            got = b''
++        s.close()
++        took = time.monotonic() - t0
++        self.assertEqual(got, b'')
++        self.assertLess(took, 3, 'refused at the connect timeout, not at the status timeout')
++        for f in fill:
++            f.close()
++        si, so = self.assert_clean_stop(p, host)
++        self.assertEqual(so['connectTimeouts'] + so['dialFailed'], 1)
++
++    # -- malicious or dead peers: stalled, idle; limits --
++    def test_stalled_reader_is_closed_and_frees_its_buffers(self):
++        host = self.host(lambda c: send_stream(c, 9, 256 << 20))
++        p = self.pair(host, stalledSendSecs=2)
++        s = p.connect()
++        s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 64 << 10)
++        self.assertEqual(p.wait_live((1, 1)), (1, 1))
++        self.assertEqual(p.wait_live((0, 0), secs=15), (0, 0), 'a reader that never reads is dropped')
++        self.assertEqual((len(p.inside.pool), len(p.outside.pool)), (p.inside.buffers, p.outside.buffers), 'chunks returned')
++        s.close()
++        si, so = self.assert_clean_stop(p, host)
++        self.assertGreaterEqual(si['stalledTimeouts'] + so['stalledTimeouts'], 1, (si, so))
++
++    def test_idle_and_half_closed_idle_connections_end(self):
++        host = self.host(lambda c: (recv_all(c), host.release.wait(30)))
++        p = self.pair(host, idleSecs=2, halfClosedIdleSecs=1)
++        idle = p.connect()
++        half = p.connect()
++        half.shutdown(socket.SHUT_WR)  # the host never answers nor closes: a half-closed connection that never ends
++        self.assertEqual(p.wait_live((2, 2)), (2, 2))
++        self.assertEqual(p.wait_live((0, 0), secs=10), (0, 0))
++        idle.close()
++        half.close()
++        si, so = self.assert_clean_stop(p, host)
++        self.assertGreaterEqual(si['idleTimeouts'] + so['idleTimeouts'], 1)
++        self.assertGreaterEqual(si['halfClosedTimeouts'] + so['halfClosedTimeouts'], 1)
++
++    def capacity_case(self, end, cap):
++        """`cap` long downloads fill one end's per-endpoint or global cap; each client sent its request then
++        shutdown(SHUT_WR) and keeps receiving a paced 16 MiB response. A newcomer is refused with no byte and never
++        reaches the host; every long response arrives complete and byte-exact (no eviction, no timeout); afterwards the
++        freed capacity serves a new connection in full."""
++        n = 16 << 20
++
++        def long_after_eof(c):
++            seed = int(recv_all(c))
++            for piece in pieces(seed, n):
++                c.sendall(piece)
++                time.sleep(0.004)  # about 4 s per response
++        host = self.host(long_after_eof)
++        limits = {'per-endpoint': {'maxConnsPerEndpoint': 2}, 'global': {'maxConns': 2}}[cap]
++        loose = {'maxConnsPerEndpoint': 64, 'maxConns': 64}
++        cfg, out = (dict(loose, **limits), loose) if end == 'inside' else (loose, limits)
++        p = self.pair(host, endpoints=2, outside=out, halfClosedIdleSecs=1, idleSecs=2, stalledSendSecs=2, **cfg)
++        firsts = [0, 0] if cap == 'per-endpoint' else [0, 1]
++        newcomer_ep = 0 if cap == 'per-endpoint' else 1
++        longs = []
++        for k, ep in enumerate(firsts):
++            s = p.connect(ep)
++            s.sendall(b'%d' % (100 + k))
++            s.shutdown(socket.SHUT_WR)
++            longs.append(s)
++        self.assertEqual(p.wait_live((2, 2)), (2, 2))
++        heads = [recv_exactly(s, 1 << 20) for s in longs]  # both responses are flowing
++        accepted = host.accepted
++        newcomer = p.connect(newcomer_ep)
++        newcomer.settimeout(10)
++        try:
++            got = newcomer.recv(1)
++        except ConnectionResetError:
++            got = b''
++        newcomer.close()
++        self.assertEqual(got, b'', 'the newcomer is refused')
++        self.assertEqual(host.accepted, accepted, 'the refused newcomer never reached the host')
++        for k, (s, head) in enumerate(zip(longs, heads)):
++            h = hashlib.sha256(head)
++            while True:
++                d = s.recv(1 << 16)
++                if not d:
++                    break
++                h.update(d)
++            s.close()
++            self.assertEqual(h.digest(), digest(100 + k, n), 'half-closed response %d complete and byte-exact' % k)
++        self.assertEqual(p.wait_live((0, 0)), (0, 0))
++        again = p.connect(newcomer_ep)
++        again.sendall(b'7')
++        again.shutdown(socket.SHUT_WR)
++        h = hashlib.sha256()
++        while True:
++            d = again.recv(1 << 16)
++            if not d:
++                break
++            h.update(d)
++        again.close()
++        self.assertEqual(h.digest(), digest(7, n), 'freed capacity serves the next connection')
++        si, so = self.assert_clean_stop(p, host)
++        capped = si if end == 'inside' else so
++        self.assertEqual(capped['rejectedEndpointLimit' if cap == 'per-endpoint' else 'rejectedLimit'], 1, (si, so))
++        if end == 'outside':
++            self.assertEqual(si['statusFailed'], 1, 'the inside saw status 2 and refused its client')
++        for st in (si, so):
++            self.assertEqual((st['halfClosedTimeouts'], st['idleTimeouts'], st['stalledTimeouts'], st['resets']), (0, 0, 0, 0), st)
++        self.assertEqual((si['closedClean'], so['closedClean']), (3, 3))
++
++    def test_paused_reader_of_half_closed_response_is_held_by_the_stall_deadline_only(self):
++        n = 24 << 20
++
++        def answer(c):
++            seed = int(recv_all(c))
++            send_stream(c, seed, n)
++        host = self.host(answer)
++        p = self.pair(host, halfClosedIdleSecs=1, idleSecs=1, stalledSendSecs=8)
++        s = p.connect()
++        s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 64 << 10)
++        s.sendall(b'11')
++        s.shutdown(socket.SHUT_WR)
++        head = recv_exactly(s, 1 << 16)
++        time.sleep(3.5)  # backpressured, nothing moves: longer than the half-closed and idle deadlines, shorter than stall
++        h = hashlib.sha256(head)
++        while True:
++            d = s.recv(1 << 16)
++            if not d:
++                break
++            h.update(d)
++        s.close()
++        self.assertEqual(h.digest(), digest(11, n))
++        si, so = self.assert_clean_stop(p, host)
++        for st in (si, so):
++            self.assertEqual((st['halfClosedTimeouts'], st['idleTimeouts'], st['stalledTimeouts']), (0, 0, 0), st)
++
++    def test_capacity_inside_per_endpoint(self):
++        self.capacity_case('inside', 'per-endpoint')
++
++    def test_capacity_inside_global(self):
++        self.capacity_case('inside', 'global')
++
++    def test_capacity_outside_per_endpoint(self):
++        self.capacity_case('outside', 'per-endpoint')
++
++    def test_capacity_outside_global(self):
++        self.capacity_case('outside', 'global')
++
++    # -- cancellation --
++    def test_stop_mid_transfer_closes_everything(self):
++        host = self.host(lambda c: send_stream(c, 1, 512 << 20))
++        p = self.pair(host)
++        busy, idle = p.connect(), p.connect()
++        busy.recv(1 << 16)
++        self.assertEqual(p.wait_live((2, 2)), (2, 2))
++        si, so = p.stop()
++        self.assertEqual(si['openAtStop'], 2, 'stopped with two live connections')  # the outside's may end first
++        for s in (busy, idle):
++            s.settimeout(10)
++            try:
++                recv_all(s)
++            except ConnectionResetError:
++                pass
++            s.close()
++        self.assert_clean_stop(p, host)
++        with self.assertRaises(OSError):
++            p.connect()
++
++    # -- churn: memory and descriptors return to a plateau --
++    def test_connect_churn_plateau(self):
++        body = data(4, 200 << 10)
++        host = self.host(lambda c: c.sendall(body), inline=True)  # one host thread: the process RSS is the bridges'
++        p = self.pair(host, endpoints=4)
++
++        errors = []
++
++        def cycle(k):
++            try:
++                one(k)
++            except (OSError, AssertionError) as e:
++                errors.append(repr(e))
++
++        def one(k):
++            s = p.connect(k % 4)
++            if k % 3 == 0:
++                s.close()  # gone before the status byte
++            elif k % 3 == 1:
++                s.recv(1 << 12)  # abort mid-response with unread data: RST
++                s.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
++                s.close()
++            else:
++                if recv_all(s) != body:
++                    raise AssertionError('short or wrong response')
++                s.close()
++        marks = []
++        for rnd in range(4):
++            ts = [threading.Thread(target=lambda r=rnd: [cycle(r * 1000 + k) for k in range(250)]) for _ in range(4)]
++            for t in ts:
++                t.start()
++            for t in ts:
++                t.join(120)
++            self.assertEqual(p.wait_live((0, 0), secs=20), (0, 0))
++            gc.collect()
++            marks.append(rss_anon_kib())
++        si, so = self.assert_clean_stop(p, host)
++        self.assertEqual(errors, [])
++        self.assertEqual(si['accepted'], 4000)
++        self.assertLess(marks[-1] - marks[0], 4 << 10, 'anon memory after 4000 connections: %s KiB' % marks)
++        self.assertLessEqual(si['buffersAllocated'] + so['buffersAllocated'], 2 * (si['maxLive'] + so['maxLive']))
++
++    def run(self, result=None):
++        gc.collect()
++        self.anon0 = rss_anon_kib()
++        return super().run(result)
++
++
++def recv_exactly(s, n):
++    out = bytearray()
++    while len(out) < n:
++        d = s.recv(min(n - len(out), 1 << 16))
++        if not d:
++            raise ConnectionAbortedError('eof after %d of %d' % (len(out), n))
++        out += d
++    return bytes(out)
++
++
++class Settings(unittest.TestCase):
++    def test_settings_validation(self):
++        self.assertEqual(runner.bridge_settings({}), runner.BRIDGE_DEFAULTS)
++        for bad in ({'maxConns': 0}, {'idleSecs': 'x'}, {'nope': 1}, {'chunkBytes': True}, {'connectSecs': 30, 'statusSecs': 30}):
++            with self.assertRaises(SystemExit):
++                runner.bridge_settings({'bridge': bad})
++
++
++if __name__ == '__main__':
++    unittest.main(verbosity=2)
+diff --git a/test/test_harness.py b/test/test_harness.py
+index 7da6165dfad1c5e6bdb6967928b9816e75adc3bc..4ed7e9fde0120ffb90485316959ccbf98f98a8d7 100644
+--- a/test/test_harness.py
++++ b/test/test_harness.py
+@@ -282,6 +282,13 @@ class Start(Base):
+                                        'allowedReached': 2, 'allowedTried': 2, 'isolated': True})
+         self.assertEqual((r['restore']['keys'], r['restore']['restored'], r['restore']['onDiskBytes']), (2, 2, 1500 + 3108))
+         self.assertTrue(r['originalSnapshotUnchanged'])
++        b = r['bridge']
++        self.assertTrue(b['ok'])
++        for end in ('inside', 'outside'):
++            self.assertEqual((b[end]['loopError'], b[end]['threadEnded']), (None, True))
++            self.assertEqual(b[end]['settings'], wr.bridge_overrides([])[0])
++        self.assertEqual(b['inside']['relayed'], 2, 'one relayed connection per host, by the restore')
++        self.assertEqual(b['outside']['relayed'], 2 + 2, 'plus the two positive-control probes')
+         attempt = Path(o['attempt'])
+         inv = json.loads((attempt / 'restored' / 'inventory.json').read_text())
+         self.assertEqual(inv['fakeBlockedReached'], [False, False], 'the binary itself cannot reach the indexer or Nan')
+@@ -304,6 +311,23 @@ class Start(Base):
+         self.assertFalse((attempt / 'restored').exists())
+         self.assertTrue((attempt / 'result.json').exists())
+ 
++    def test_bridge_overrides_are_validated_and_reach_the_runner(self):
++        run = self.make_run()
++        for bad in (['maxConns=0'], ['nope=3'], ['idleSecs=x'], ['connectSecs=40']):
++            code, o, _ = call(*self.start_args(run, extra=['--bridge', bad[0]]))
++            self.assertEqual(code, 2, o)
++            self.assertIn('refused', o)
++        self.assertEqual(self.calls('systemd-run'), [], 'a bad setting starts nothing')
++        code, o, _ = call(*self.start_args(run, extra=['--bridge', 'maxConnsPerEndpoint=3', '--bridge', 'idleSecs=600']))
++        self.assertEqual(code, 0, o)
++        self.assertEqual((o['bridge']['maxConnsPerEndpoint'], o['bridge']['idleSecs']), (3, 600))
++        plan = json.loads((Path(o['attempt']) / 'plan.json').read_text())
++        self.assertEqual(plan['bridge'], {'maxConnsPerEndpoint': 3, 'idleSecs': 600})
++        code, p, _ = call('poll', '--run', str(run))
++        self.assertEqual((code, p['state']), (0, 'succeeded'), p)
++        self.assertEqual(p['result']['bridge']['inside']['settings']['maxConnsPerEndpoint'], 3)
++        self.assertEqual(p['result']['bridge']['outside']['settings']['idleSecs'], 600)
++
+     def test_pins_are_checked_before_anything_starts_or_uploads(self):
+         run = self.make_run()
+         for target in ('local', 'vm'):
+diff --git a/whole_restore.py b/whole_restore.py
+index 9a25224c6dbd4cf10b17333c3964f679a50b8481..a77d6043f26adef1036b4ac25580f5b698103696 100755
+--- a/whole_restore.py
++++ b/whole_restore.py
+@@ -326,8 +326,27 @@ def unit_props(a, ips=None):
+     return [x for p in props for x in ('-p', p)]
+ 
+ 
++def bridge_overrides(pairs):
++    """--bridge KEY=INT settings, checked by the runner's own validation before anything starts."""
++    import importlib.util
++    spec = importlib.util.spec_from_file_location('swr_runner', RUNNER)
++    mod = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(mod)
++    over = {}
++    for p in pairs or []:
++        k, sep, v = p.partition('=')
++        if not sep or not re.fullmatch(r'[0-9]+', v):
++            raise Refused('--bridge takes KEY=INTEGER')
++        over[k] = int(v)
++    try:
++        return mod.bridge_settings({'bridge': over}), over
++    except SystemExit as e:
++        raise Refused(str(e))
++
++
+ def start(a):
+     hexarg(a.binary_sha, 'binary sha')
++    bridge, bridge_over = bridge_overrides(a.bridge)
+     if not 0 < a.deadline_secs <= MAX_DEADLINE or a.max_total_bytes <= 0 or not 128 <= a.memory_max_mib <= 65536 or not 1 <= a.cpu_quota <= 3200:
+         raise Refused('deadline must be 1..604800 s, budget > 0, memory 128..65536 MiB, cpu quota 1..3200 %')
+     run_dir = Path(a.run).resolve()
+@@ -359,7 +378,7 @@ def start(a):
+     unit = f"{UNIT_PREFIX}{run_dir.name[-8:]}-{n:03d}"
+     plan = {'format': 'sia-whole-restore-plan/v1', 'binarySha256': a.binary_sha, 'snapshotSha256': run['derivativeSha256'],
+             'originalSnapshotSha256': run['snapshotSha256'], 'maxTotalBytes': a.max_total_bytes, 'deadlineSecs': a.deadline_secs,
+-            'endpoints': run['endpoints'], 'blocked': run['blocked'], 'blockedNames': run['blockedNames']}
++            'endpoints': run['endpoints'], 'blocked': run['blocked'], 'blockedNames': run['blockedNames'], 'bridge': bridge_over}
+     handle = {'format': 'sia-whole-restore-handle/v1', 'target': a.target, 'unit': unit, 'attempt': str(attempt),
+               'startedAt': now().isoformat(), 'binarySha256': a.binary_sha, 'runnerSha256': hashlib.sha256(runner_bytes).hexdigest()}
+     if a.target == 'local':
+@@ -406,7 +425,7 @@ def start(a):
+     return out({'started': True, 'target': a.target, 'unit': unit, 'attempt': str(attempt), 'remote': handle.get('remote'),
+                 'outsideControlsReached': controls, 'allowedEndpoints': len(run['endpoints']), 'binarySha256': a.binary_sha,
+                 'derivativeSha256': run['derivativeSha256'], 'maxTotalBytes': a.max_total_bytes, 'deadlineSecs': a.deadline_secs,
+-                'memoryMaxMiB': a.memory_max_mib})
++                'memoryMaxMiB': a.memory_max_mib, 'bridge': bridge})
+ 
+ 
+ # ---- polling and cleanup by the exact handle -------------------------------------------------------------------------
+@@ -595,6 +614,7 @@ def main(argv=None):
+     p.add_argument('--deadline-secs', type=int, required=True)
+     p.add_argument('--memory-max-mib', type=int, required=True)
+     p.add_argument('--cpu-quota', type=int, default=200)
++    p.add_argument('--bridge', action='append', metavar='KEY=INT', help='a bridge bound (runner.BRIDGE_DEFAULTS); repeatable')
+     p.add_argument('--vm-root', help='existing directory on the VM; a new private directory is created inside it')
+     ssh_opts(p)
+     for name in ('poll', 'stop', 'finish', 'discard'):

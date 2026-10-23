@@ -1,0 +1,884 @@
+{
+ "format": "enclave-frozen-0331-export/v1",
+ "checkpointHeadAtExport": "552fb9f5460b996c30a69c2600c60c5e38b7d83f",
+ "label": "SOURCE + OFFLINE TESTS ONLY. Nothing here is merged into the normal tree, imaged or deployed. s-bridge f98786e9: bounded selector bridge for the isolated whole-restore harness; offline/loopback tests and a load fixture only, NEVER a restore pass: the old OOM remains the latest terminal full restore (a new attempt was prepared, not started, at 03:31Z). e-sia-cache b71c8261: optional S3 cache backend (MinIO unit tests + real-Helios replay), NOT live Sia; first-writer poisoning availability gap still open. e-receipt-witness b84c5a11: DIAGNOSTIC ONLY, not policy authority. p-history ce7c1b73/aca81764: authenticated-ancestry root recovery; the combined proof-call test uses a SYNTHETIC block identity, not real history + proof from one fixture; fresh witness availability not solved. a-verifier-authority 921d60c2: whole-operation deadline gap identified (root probe), B fix in progress; A's later Reth positive E2E is NOT part of this commit.",
+ "sides": {
+  "s-bridge": {
+   "repo": "work/storage-restore-memory/candidate",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "0d7e6b8a6cad4f820c9322323b8fcf7f0cf9bf4e",
+   "baseProvenance": "0d7e6b8 = root commit importing the frozen sia-whole-restore-harness UNCHANGED (runner d11f7bca, whole_restore 8a6cc0d3); all 12 blobs equal the files already stored in this checkpoint under sia-whole-restore-harness/, from which its tree is rebuilt",
+   "head": "f98786e90e83c66da6f593315faea83e717caeed",
+   "headTree": "b442ef6c2e60f9443ee546ce568ac86bb80007d9",
+   "commits": [
+    {
+     "commit": "f98786e90e83c66da6f593315faea83e717caeed",
+     "parent": "0d7e6b8a6cad4f820c9322323b8fcf7f0cf9bf4e",
+     "tree": "b442ef6c2e60f9443ee546ce568ac86bb80007d9",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:23:10-07:00",
+     "subject": "Bounded single-thread selector bridge for the isolated whole-restore harness"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c18dd8d83ceed1806b50b0aaa46beb7e335fff13",
+     "sha256": "32dae3052f331ee34d628ef535709b301259a45df7c7522c4d35dcf49873f00b",
+     "bytes": 13,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT-BRIDGE.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9f3c556df1a175638bef905d47fd2d6ee1d3c2b8",
+     "sha256": "9dd20d6e94994d00c4af3e33347364aeab19c82f4a8022e76b1662f42d014e5f",
+     "bytes": 17772,
+     "baseBlob": null
+    },
+    {
+     "path": "load/run-measure.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "b34d4dbec4a1d4a39c861a611b8812503bbae07d",
+     "sha256": "94a82e947d3ce26a35d31e9c0c017ec97598d5447e418e6316d5a135a0dbb760",
+     "bytes": 721,
+     "baseBlob": null
+    },
+    {
+     "path": "load/siaload.py",
+     "status": "A",
+     "mode": "100755",
+     "blob": "b2d28b8c4fa30c017f923f6b0be32cc870f4c72e",
+     "sha256": "20d4805138a99abac35308635b7ca69430adaebdc3a14cefe10bc35ff85d7baf",
+     "bytes": 22122,
+     "baseBlob": null
+    },
+    {
+     "path": "load/unit-load.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c495687fe14db3d2b340373dd98f4943c855256b",
+     "sha256": "217387055fb1fe0eec85bf05a233300f2f0f924c0ef8d7a889e9b6be252ee3d1",
+     "bytes": 10537,
+     "baseBlob": null
+    },
+    {
+     "path": "run-tests.sh",
+     "status": "M",
+     "mode": "100755",
+     "blob": "7d9c30dce703ad6fe46569e5f50595c657b75e3d",
+     "sha256": "c327248f8803d5cfea18ff451db5d6606ea55caa8a7b71012b5a62bc0b6b8633",
+     "bytes": 747,
+     "baseBlob": "f58974e59548250a4270487f9eacc358a378b504"
+    },
+    {
+     "path": "runner.py",
+     "status": "M",
+     "mode": "100755",
+     "blob": "5431406a52ff766d8526862e82af6da001d55756",
+     "sha256": "6d2438580b14b1b2beb29ee0b6cc51d74d9a6a10517296836089d3812dc937f2",
+     "bytes": 33837,
+     "baseBlob": "ca000c4461f3794edd16ceaaaf89121155a4acf1"
+    },
+    {
+     "path": "test/mutate.py",
+     "status": "A",
+     "mode": "100755",
+     "blob": "17ab8e7a19f9421641f3132f9e1d044f35e0e389",
+     "sha256": "df2f7734d89243c5025f988d560ff3d6b3f00a4579ce98beff4b79b91808cb43",
+     "bytes": 4773,
+     "baseBlob": null
+    },
+    {
+     "path": "test/test_bridge.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b3dda7d6c60a469ea3975ebc1e44f92978eac32e",
+     "sha256": "300a84d5b0a9a4251cd7edd86dc36dd60d219bdbe20dbfe7d328738bcc75abe3",
+     "bytes": 23214,
+     "baseBlob": null
+    },
+    {
+     "path": "test/test_harness.py",
+     "status": "M",
+     "mode": "100644",
+     "blob": "4ed7e9fde0120ffb90485316959ccbf98f98a8d7",
+     "sha256": "a44f14598b675837b0ea681fbb88cdfd4e6495eefcfbb2d8f1b39a5f551d46ad",
+     "bytes": 26725,
+     "baseBlob": "7da6165dfad1c5e6bdb6967928b9816e75adc3bc"
+    },
+    {
+     "path": "whole_restore.py",
+     "status": "M",
+     "mode": "100755",
+     "blob": "a77d6043f26adef1036b4ac25580f5b698103696",
+     "sha256": "724cb63918e07d7d3954c7ca577a8431f6da22f87f4a56537cc31161a806adc2",
+     "bytes": 31311,
+     "baseBlob": "9a25224c6dbd4cf10b17333c3964f679a50b8481"
+    }
+   ],
+   "patches": [
+    {
+     "file": "s-bridge-f98786e9/patches/0001-Bounded-single-thread-selector-bridge-for-the-isolat.patch",
+     "sha256": "5b0f368ed9ef90f08159c4d101e0941c818d08894950f35099039cb89023f721"
+    }
+   ],
+   "baseTreeFiles": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "4d4808b406e2ba4f358c4421c52156a148d5670e",
+     "path": "RESULT.md"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "aa63b65dc6d91fe3e9a0fbf69215900ace8acf9a",
+     "path": "blocked.vm.example.json"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "b8afddba0f8472b0dfd22e8d147e55748cafa263",
+     "path": "blocked.workstation.example.json"
+    },
+    {
+     "mode": "100755",
+     "type": "blob",
+     "blob": "f58974e59548250a4270487f9eacc358a378b504",
+     "path": "run-tests.sh"
+    },
+    {
+     "mode": "100755",
+     "type": "blob",
+     "blob": "ca000c4461f3794edd16ceaaaf89121155a4acf1",
+     "path": "runner.py"
+    },
+    {
+     "mode": "100755",
+     "type": "blob",
+     "blob": "f54ea54cbc220202c2e50095b0abf2f125144b6e",
+     "path": "test/fake-sia-s3"
+    },
+    {
+     "mode": "100755",
+     "type": "blob",
+     "blob": "be72f5b22829f8d7efbfc2c1bbfaf1f0aa435b3b",
+     "path": "test/stubs/ssh"
+    },
+    {
+     "mode": "100755",
+     "type": "blob",
+     "blob": "951d4ec53c09c11ec75fec7b7362df2dfbb9cd01",
+     "path": "test/stubs/systemctl"
+    },
+    {
+     "mode": "100755",
+     "type": "blob",
+     "blob": "d9d566e48eae1dd313658622a68657ecb27e2eee",
+     "path": "test/stubs/systemd-run"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "7da6165dfad1c5e6bdb6967928b9816e75adc3bc",
+     "path": "test/test_harness.py"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "688c8ff9767b9c44bd462f24f35bf43dabf6e22e",
+     "path": "test/test_real_systemd.py"
+    },
+    {
+     "mode": "100755",
+     "type": "blob",
+     "blob": "9a25224c6dbd4cf10b17333c3964f679a50b8481",
+     "path": "whole_restore.py"
+    }
+   ],
+   "baseTree": "97b973b840ba8ae9f1fb84fb48469f152191261f"
+  },
+  "e-sia-cache": {
+   "repo": "work/resume-after-checkpoint-20261022/rpc-sia-cache/repo",
+   "branch": "work/sia-witness-cache",
+   "headReachableFromBranch": true,
+   "base": "9fdc1418caff88d1baa5c5967ac7eaaf9cf2a368",
+   "baseProvenance": "9fdc1418c = A's finished candidate, preserved in 9f40daae as rpc-base-evm-export (4 patches on public dfe020abf)",
+   "head": "b71c82615975ba6d1d7c966d1baddf57f5c53eea",
+   "headTree": "93b256fe959cc736ab57c69048f181fec64984fc",
+   "commits": [
+    {
+     "commit": "b71c82615975ba6d1d7c966d1baddf57f5c53eea",
+     "parent": "9fdc1418caff88d1baa5c5967ac7eaaf9cf2a368",
+     "tree": "93b256fe959cc736ab57c69048f181fec64984fc",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:24:33-07:00",
+     "subject": "Optional S3 (Sia-S3) backend for the witness gateway's immutable cache"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "network/s3-witness-cache.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5677bfc3cef1a11946002523e2cd5b4d21ae249a",
+     "sha256": "a7f3ea7d22af980799da33030e300e5a793ddc418a6c81a2c3ccb76ef656ef99",
+     "bytes": 13743,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/SOURCE.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0cbe3d6ec5a80b937139df3d8814192919dad309",
+     "sha256": "e7c307a102d121ae622df22fa80f2e5a8c9c000eae0fc3a64548b064c1630b9d",
+     "bytes": 952,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-header-value-trim/context.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0468d80074cb592e77c1d4bdfe088933e1028efc",
+     "sha256": "5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1",
+     "bytes": 318,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-header-value-trim/header-signed-request.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6331d16d5e40bdac24248b0c1732698d4672bcd5",
+     "sha256": "5a08e8c4caa69eb8521e06ebe0eaa62d4d93ecaa78fd13b83dc8eadede437784",
+     "bytes": 337,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-header-value-trim/request.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ad1ea986773b32b50453c4fbc51d15dfe70e5149",
+     "sha256": "3ca569dba28e15df4200ca1619c6909645ad0259f6121827e099c46c66e9dc87",
+     "bytes": 85,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-vanilla/context.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0468d80074cb592e77c1d4bdfe088933e1028efc",
+     "sha256": "5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1",
+     "bytes": 318,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-vanilla/header-signed-request.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "36b86e79ee9490c24a7902fc1142790f0364fd31",
+     "sha256": "f94281f97a281169827bbd016b1454eec132260d77c505405c558b7d21a177bc",
+     "bytes": 272,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-vanilla/request.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e659c3be2c30123d75effb8e95c1c05927139a55",
+     "sha256": "9b87a0709187548ccac04f6d06a8cba1fc85273003efcda670e9f3ca1ad63e4f",
+     "bytes": 42,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-s3-replay.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3037f6f0b4b6b2d1b816fb82c96ad85c3075d77a",
+     "sha256": "5c54c18e2fc48249e4d66771263ffe877990cad9c0cf8e5ad70fbfdb81837e64",
+     "bytes": 10073,
+     "baseBlob": null
+    },
+    {
+     "path": "test/s3-witness-cache.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0f6966c82a9058e53278120d790f4ac4dac4fdd5",
+     "sha256": "e56f5fa3a6fb3d68945e05983252bd31e5b4b3431eda0d6fdf73a7e5ae52c0b8",
+     "bytes": 17718,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "e-sia-cache-b71c8261/patches/0001-Optional-S3-Sia-S3-backend-for-the-witness-gateway-s.patch",
+     "sha256": "abe64c8b11580605fc034386ba68514f3f66087c0479f4fae1269b36fce681e3"
+    }
+   ]
+  },
+  "e-receipt-witness": {
+   "repo": "work/resume-after-checkpoint-20261022/rpc-receipt-witness",
+   "branch": "HEAD",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (new repository). 4 of its 27 files (RESULT.md, ALLOWLIST.txt/.sha256, inventory/consumer-reads.json) were already stored as the 2bbea898-era snapshot rpc-receipt-witness/",
+   "head": "b84c5a1127edfedf3d6ba8fb1553e17aa50ee846",
+   "headTree": "f5c195f545279a8a7f3429bdff3cdd2f8ca65817",
+   "commits": [
+    {
+     "commit": "b84c5a1127edfedf3d6ba8fb1553e17aa50ee846",
+     "parent": "",
+     "tree": "f5c195f545279a8a7f3429bdff3cdd2f8ca65817",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T19:06:37-07:00",
+     "subject": "Receipt-witness audit: event-completeness of deployed contracts, verified lease-view prototype"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "ALLOWLIST.sha256",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a5088edd4dd200aeae3824b08c55e44f76fc75e4",
+     "sha256": "393c8d8a897bddd5ca926641b4220cf71dd68319d9e0bb010deb4f644f124f02",
+     "bytes": 2732,
+     "baseBlob": null
+    },
+    {
+     "path": "ALLOWLIST.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1aa51c6e68b3c8403935dd1959fa7ffb039cd158",
+     "sha256": "c4e492d2a4952ca080f5c2b64da2440012e39f7093dd852913fa75f2ebafc172",
+     "bytes": 1305,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f16096094a858f1eb13574770ba1e392efb25ec9",
+     "sha256": "3dacb49edc51dc29cbb981122a8464300db056472f118397f8cbaead66dab986",
+     "bytes": 26556,
+     "baseBlob": null
+    },
+    {
+     "path": "inventory/consumer-reads.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bdef28adedf5d292dc44a652501121c6124c1dc5",
+     "sha256": "07a37bd9a16f468f414e5686233d71761fb376d88f29b734e56ac0d609d7a1f4",
+     "bytes": 45038,
+     "baseBlob": null
+    },
+    {
+     "path": "probe/bloom-density-4.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a24fbe79dce723e4cf1f32fab9f4114c1ea0a1b8",
+     "sha256": "a923fc87acd82b94b9f0cd7d160f162048814390105e24e4cdfd6d2bfd90959c",
+     "bytes": 329,
+     "baseBlob": null
+    },
+    {
+     "path": "probe/bloom-density-5.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "406e2e5ce10accf8a2edf36ad3d94ac42bca3f31",
+     "sha256": "6560ee96dc774f28dbf5bd23eb2dfaa5cc5cc7ec6d47604eb3c9681ace2a0505",
+     "bytes": 3060,
+     "baseBlob": null
+    },
+    {
+     "path": "probe/bloom-density.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6b07f715bc50430d845558c5a9cc497d188e95e5",
+     "sha256": "919a2ec35eb96ea8889031315625ee0ebedec8c040e4d41934027654a81ec31b",
+     "bytes": 4602,
+     "baseBlob": null
+    },
+    {
+     "path": "probe/capture.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "48e5a1ecd5bae672dae03fb3b7939b49450f2066",
+     "sha256": "1e0bf61484825964c055f4f2198b901da0b50cbebb51d7a6bfa3a234f09c5183",
+     "bytes": 3963,
+     "baseBlob": null
+    },
+    {
+     "path": "probe/fixture-1.json.gz",
+     "status": "A",
+     "mode": "100644",
+     "blob": "43bad4374868f8a677049fc41d21e3b771171087",
+     "sha256": "921a72e61fc138e587e7681b27c0e43a0e13f36e7b7d57d10ddb80c9a19da8c5",
+     "bytes": 967286,
+     "baseBlob": null,
+     "storedAsHex": "probe/fixture-1.json.gz.hex",
+     "hexSha256": "78037fcce6c7916be5c7a0dcbd430291d3f97c91c9ad3abe9ada8150abb6dbda"
+    },
+    {
+     "path": "silent-writers.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9b37e17ce26b6b92e7026c33143283565a723784",
+     "sha256": "d23439d81b409686e34742022d5d365c2ce25ce2cba70a9490184f9761f361e6",
+     "bytes": 1716,
+     "baseBlob": null
+    },
+    {
+     "path": "sources/deployed/MANIFEST.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5e42852641d06d9b77bd2e1abef4500e3fd8daa7",
+     "sha256": "706cee63320971764722b0110bab5a6f2f3e4d64cb5188473dcc5203bcf496a5",
+     "bytes": 3497,
+     "baseBlob": null
+    },
+    {
+     "path": "sources/deployed/catalog--EnclaveAppCatalog.sol",
+     "status": "A",
+     "mode": "100644",
+     "blob": "018e4bffc6ac99f87b7b6087a6c4628a53e7a1e9",
+     "sha256": "b31744361efbb43fcf60152a5eaaa185d1af07bdc27f077af0a2b48e7de3b191",
+     "bytes": 54872,
+     "baseBlob": null
+    },
+    {
+     "path": "sources/deployed/connectivity--EnclaveConnectivity.sol",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c0fb0bed725c7eba45eb4a6abc44ba9ee96f3b3e",
+     "sha256": "da607b8a38546b8f535f28fb622344ebedf9e9ac908a8777e0fea53dc9d2615f",
+     "bytes": 17742,
+     "baseBlob": null
+    },
+    {
+     "path": "sources/deployed/connectivity--EnclaveDeployments.sol",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3f3d2c3ac155be4c108531b247b3f95a5c9ccdd4",
+     "sha256": "2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1",
+     "bytes": 121794,
+     "baseBlob": null
+    },
+    {
+     "path": "sources/deployed/key-attestations--EnclaveKeyAttestations.sol",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c294ea829317184aa6224ec7a9631bb08c186bce",
+     "sha256": "4afb43a58e4b44de1fc0aae81bfa6acb019011fefc22d0cd3930247970621d8a",
+     "bytes": 8224,
+     "baseBlob": null
+    },
+    {
+     "path": "sources/deployed/ledger-rev16d--EnclaveDeployments.sol",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3f3d2c3ac155be4c108531b247b3f95a5c9ccdd4",
+     "sha256": "2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1",
+     "bytes": 121794,
+     "baseBlob": null
+    },
+    {
+     "path": "sources/deployed/legacy-sessions-v2--SessionVault.sol",
+     "status": "A",
+     "mode": "100644",
+     "blob": "46ac1ed0ebc824ac4e1aa9819c15baa713c63480",
+     "sha256": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c",
+     "bytes": 62599,
+     "baseBlob": null
+    },
+    {
+     "path": "sources/deployed/pay--EnclavePay.sol",
+     "status": "A",
+     "mode": "100644",
+     "blob": "68cb3ec3e55458b6424d93253f992f5ef116019f",
+     "sha256": "a0411962c8286a7655dbe6691e028dbf00ebeea42c1183dad323944e67a130f6",
+     "bytes": 7299,
+     "baseBlob": null
+    },
+    {
+     "path": "sources/deployed/payment-router--PaymentRouter.sol",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b1211335f8fe77ac99f1a02391b31ae1f75a2626",
+     "sha256": "8f28d3e4a313ea66a2dda511fca1194933c845a81756806f9f011ebe3e912ed0",
+     "bytes": 4647,
+     "baseBlob": null
+    },
+    {
+     "path": "sources/deployed/proof-of-time--EnclaveProofOfTime.sol",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a2affef0f4c6083f04f5c1167602f17c7c02ef71",
+     "sha256": "6ec89dc59bd58f7ff4f6b60d0477c3b5166066255c1b808f184213e5b866f019",
+     "bytes": 25671,
+     "baseBlob": null
+    },
+    {
+     "path": "sources/deployed/registry-schema4--EnclaveRegistry.sol",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d7fb9740a29cc3d6dc7c197ddf62937112b22a6c",
+     "sha256": "e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360",
+     "bytes": 17386,
+     "baseBlob": null
+    },
+    {
+     "path": "sources/deployed/verification-fees--EnclaveVerificationFees.sol",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cd38195c3289926a6e4a812a264a7dc69b950093",
+     "sha256": "a0db02fd901cd27b7646fa4312a387c5eb1079b654308a1c87a95cbebcc07d22",
+     "bytes": 13735,
+     "baseBlob": null
+    },
+    {
+     "path": "verifier/cmd/witness-verify/main.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "52eb39b32f1964ce6423ae7bfdbbb1915b75eadf",
+     "sha256": "efabb5612ce04c18196478062feff40213cf52618cb0c442c27029a1fa08fbe0",
+     "bytes": 1465,
+     "baseBlob": null
+    },
+    {
+     "path": "verifier/go.mod",
+     "status": "A",
+     "mode": "100644",
+     "blob": "584fbee15f7eddb670499fd5b96073576b1a60fe",
+     "sha256": "5f6122a51c6073fec8c99db8120a00c55601d257cbce1c28513949069da05932",
+     "bytes": 1866,
+     "baseBlob": null
+    },
+    {
+     "path": "verifier/go.sum",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7bc6420f205aae1298826f4d3f7d5771bbb671eb",
+     "sha256": "7f0653323242de1e862c10fd61065fbcfd9947ea6514c602547277c1e7049688",
+     "bytes": 7922,
+     "baseBlob": null
+    },
+    {
+     "path": "verifier/run-tests.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "6c324aa0f5bec934d6169fcd2748c20321bbb827",
+     "sha256": "fbcd3cbf388204e8870d6f5c5eefd1e3eb95b415ec3828ec5e26ff4615405494",
+     "bytes": 1136,
+     "baseBlob": null
+    },
+    {
+     "path": "verifier/verifier.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1f2c0f8a9f0e83cefabd4a6e273bd208741147e2",
+     "sha256": "16a9d8ecd81947dec373bf82daa8bddbb658479e198695543850eb342bf510ca",
+     "bytes": 14328,
+     "baseBlob": null
+    },
+    {
+     "path": "verifier/verifier_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "217d8a818a0f597832069fa54f6d9930f56f7b1e",
+     "sha256": "a192cb2b8643d366f68d02a8d233002fcdc0fe9e55bc72e8a81bca318648fde0",
+     "bytes": 10925,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "e-receipt-witness-b84c5a11/patches/0001-Receipt-witness-audit-event-completeness-of-deployed.patch",
+     "sha256": "9d9665fe0cbc208f06aa5d31a258050a3c128f2321c559ac625580ee9fe038b5"
+    }
+   ]
+  },
+  "p-history-enclave": {
+   "repo": "work/resume-after-checkpoint-20261022/witness-failover/repo",
+   "branch": "witness-failover",
+   "headReachableFromBranch": true,
+   "base": "bfbd649d8c416922691a6dd1eaada8a81765bba5",
+   "baseProvenance": "bfbd649d preserved in 552fb9f5 as frozen-0318-export/witness-enclave-bfbd649d (2 patches on 9fdc1418c)",
+   "head": "ce7c1b7309dbc1cb65bedbdf7db5a173c977208c",
+   "headTree": "9dc123ddf8c55e9e7d1f6ff54c70ad9fc791649c",
+   "commits": [
+    {
+     "commit": "cf5cc363b30792694d2fd2a8efd31c342a6dcecf",
+     "parent": "bfbd649d8c416922691a6dd1eaada8a81765bba5",
+     "tree": "ea2d5c997ce0824c9939e6e627ac749996b4b347",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:24:44-07:00",
+     "subject": "Recover missed state roots by authenticated ancestry; let head sources push"
+    },
+    {
+     "commit": "ce7c1b7309dbc1cb65bedbdf7db5a173c977208c",
+     "parent": "cf5cc363b30792694d2fd2a8efd31c342a6dcecf",
+     "tree": "9dc123ddf8c55e9e7d1f6ff54c70ad9fc791649c",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:24:44-07:00",
+     "subject": "Test ancestry recovery on real Base headers and end to end with Helios"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "network/witness-gateway.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "c10261d80266b9b7912b0824d790c616fd7aa06f",
+     "sha256": "60f55f3e65baa1dd040c2ee49da0843b1bd75c9828b03418e11a251ed81ec5ca",
+     "bytes": 19363,
+     "baseBlob": "233045a384ad7b3113ce3e30fdeb0437d1ce2ad0"
+    },
+    {
+     "path": "network/witness-verify.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "8b9850d490c607341441787dc8bbfeb943778838",
+     "sha256": "9219b1d3d93f7eaa3c5f48ff85b28587a4187261bdc89f00f02b29196c522bdd",
+     "bytes": 12528,
+     "baseBlob": "1cf4dbb7064a4f53fc77533051834e2b4f5d10b2"
+    },
+    {
+     "path": "test/fixtures/base-header-52965249.synthetic.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6d344fa61cc74e2e651fd8e80e249ae8cbba7c20",
+     "sha256": "13b67f65dd20d0b73fc2d73f8625c2d7af271077773fc158b69d7f738a084d8e",
+     "bytes": 3250,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/base-headers-52965055-52965106.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "602ed1df58625d2f5b4fe101387a9e287f4356a9",
+     "sha256": "11be29552f4c3426affd03161b0d39f5ff508f8cc1827b591d135f58a9ca1236",
+     "bytes": 116973,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/derive-base-headers.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "842b8c6984ecd6f6018ccc7df782b688a1304a68",
+     "sha256": "b98d22a4163e68d56e8171055279d2c786157acf0df504d7e7c9cc3e3ab35390",
+     "bytes": 6327,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-witness-failover.e2e.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d96ce0d5a21a5029fdcc93bd0f0fadcf45e02b1f",
+     "sha256": "d74fcd059be8bf84bef9bcf32a371a5f3c2077d70a30faa28297ddb5a4148fdc",
+     "bytes": 14086,
+     "baseBlob": "7a34bda8267d6666f539f24b3979153638d992f5"
+    },
+    {
+     "path": "test/witness-ancestry.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d1efb257ec30de246c14e6b06e2c1b31e7394e8e",
+     "sha256": "df24cf53a1f2a8292bebaca74a549120fd371ace04ffa55a02c03a421b8dd8b2",
+     "bytes": 12698,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "p-history-enclave-ce7c1b73/patches/0001-Recover-missed-state-roots-by-authenticated-ancestry.patch",
+     "sha256": "59ede3c14b066450b7410e05ca7a79a154c4807a6ffa1efb73bf7727ecf9a566"
+    },
+    {
+     "file": "p-history-enclave-ce7c1b73/patches/0002-Test-ancestry-recovery-on-real-Base-headers-and-end-.patch",
+     "sha256": "dd7e1b71cd10f1570e950b876812ba282491c0ba9e8be5881a72e97d0e15aafe"
+    }
+   ]
+  },
+  "p-history-helios": {
+   "repo": "work/resume-after-checkpoint-20261022/witness-failover/helios",
+   "branch": "enclave-witness-check",
+   "headReachableFromBranch": true,
+   "base": "1ec2c1a52399b6a8d0fc1eb7658bf030987e132a",
+   "baseProvenance": "1ec2c1a5 preserved in 552fb9f5 as frozen-0318-export/witness-helios-1ec2c1a5 (1 patch on eeffcc9)",
+   "head": "aca81764f1d41a34829a3b408cea11c5c186e9e9",
+   "headTree": "082c719ec1d63ea923f65cb14598f78efff07e5c",
+   "commits": [
+    {
+     "commit": "aca81764f1d41a34829a3b408cea11c5c186e9e9",
+     "parent": "1ec2c1a52399b6a8d0fc1eb7658bf030987e132a",
+     "tree": "082c719ec1d63ea923f65cb14598f78efff07e5c",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:24:29-07:00",
+     "subject": "witness-check: authenticated headers for roots a gateway missed"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "opstack/bin/witness-check.rs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "337a012b5da3f194ac83c29ac456ada55fb488c6",
+     "sha256": "0b3ab9ac492f35b2a0e06e14512bd8a16e721f58605a004e1ec108b7671f51cd",
+     "bytes": 8204,
+     "baseBlob": "96ce1fb210f525d4a061826bbabaa014eb2200e7"
+    },
+    {
+     "path": "opstack/src/witness_check.rs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "26de45a83552ce556f956a74713556557f69633c",
+     "sha256": "c7393332ff30aea7b97f78de84de8e933da1361b9be2de618163dcb45b571e5d",
+     "bytes": 20428,
+     "baseBlob": "a6861159bd8a0e30fc393a32b3334a6b4d4393e5"
+    }
+   ],
+   "patches": [
+    {
+     "file": "p-history-helios-aca81764/patches/0001-witness-check-authenticated-headers-for-roots-a-gate.patch",
+     "sha256": "9b6717a855ba9052d4a633d8cd785db87a7644b9e0a06980ca5aff42ef132797"
+    }
+   ]
+  },
+  "a-verifier-authority": {
+   "repo": "work/resume-after-checkpoint-20261022/rpc-priority/repo",
+   "branch": "rpc-priority",
+   "headReachableFromBranch": true,
+   "base": "9fdc1418caff88d1baa5c5967ac7eaaf9cf2a368",
+   "baseProvenance": "9fdc1418c = A's finished candidate, preserved in 9f40daae as rpc-base-evm-export",
+   "head": "921d60c2b37ec8ae64e1fd22d7bc7b408939bd70",
+   "headTree": "c5be3e08c9b616be0dafea1c8b1761d5cf1d4d9f",
+   "commits": [
+    {
+     "commit": "921d60c2b37ec8ae64e1fd22d7bc7b408939bd70",
+     "parent": "9fdc1418caff88d1baa5c5967ac7eaaf9cf2a368",
+     "tree": "c5be3e08c9b616be0dafea1c8b1761d5cf1d4d9f",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T19:29:11-07:00",
+     "subject": "Give LeaseReader an explicit local-verifier chain authority"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "network/directory-server.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "faea688658ae4eb7b269c6b3bc030c57910f4c2b",
+     "sha256": "6e1a2281335f4ba1eed7e3f169dc98618edc2cc62b5e568cab656b373ab20f28",
+     "bytes": 7249,
+     "baseBlob": "28758284fba9f1af61ef16fba8e978726f5753a4"
+    },
+    {
+     "path": "network/host-admission-runtime.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "94e59e989355fecb8c51fef3b86f35f53b8a9897",
+     "sha256": "db9b0738f84921cf1333e9f0381d2a27f0f4b069be4b90ad9d27ccdf02dded5c",
+     "bytes": 10575,
+     "baseBlob": "43d54c3be812579f970acdada76deeff61877e83"
+    },
+    {
+     "path": "network/lease-reader.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "0a05b9a760b02d4c3db8492cbc9fd02a012e5143",
+     "sha256": "3d1850b2ca7161e6efbe35976e9b5050ad56abf67b94ee8c1acc5b0e5a71e37d",
+     "bytes": 44498,
+     "baseBlob": "0a4bc01f9a89c9303abbc6b99e1456d8e781cedd"
+    },
+    {
+     "path": "network/management-host.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "b81049659804f88a393369684b50a521b04139d5",
+     "sha256": "1998c241ab1f1d67467f508018d4827bbd7d37a1afd984a477aa8268b03604d4",
+     "bytes": 10000,
+     "baseBlob": "b4be47acfcd34decadbd1a430dc7630a488e9e4a"
+    },
+    {
+     "path": "network/provider-settlement.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "95db9e4f7e430af633d6c14103feeeaa8a31906a",
+     "sha256": "dad131831db37c2ac1a060c969ec120ef1742f6c23840e8264e23dd32939b49c",
+     "bytes": 7158,
+     "baseBlob": "7d3d68bde9b13e068af4348a36368613163f5368"
+    },
+    {
+     "path": "network/usdc-bandwidth.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "b97600c687450eac1e9a50e7686b81508464fc6a",
+     "sha256": "15c0e6869a3a1d5ff4dfd9eb1c11800b515f885ba40479e433f0b2255b534512",
+     "bytes": 15166,
+     "baseBlob": "30cc94a372790975120573a116bae6dcc9e50a38"
+    },
+    {
+     "path": "network/wg-provider/main.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2e9633b868d574d57653db4348337f3def6aacab",
+     "sha256": "0bde499e9b30ab561f2b20bfe4867517e30f07ba5f6c19df41e13f591db0d864",
+     "bytes": 13892,
+     "baseBlob": "1b93d048e916a62726f2a52f20b8587264148106"
+    },
+    {
+     "path": "test/lease-reader-verifier.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c19c063cc66f3574a0dce60e7a45045ec1ab7bf8",
+     "sha256": "7fa565f1ee26d37e8bacdc23b50cc0bf0e27fd3c4243a11b1a5af93cbf9e6109",
+     "bytes": 12729,
+     "baseBlob": null
+    },
+    {
+     "path": "test/lease-reader-verifier.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "eec9cf3c1949af1752d9be97bfdd81c298d24124",
+     "sha256": "0e37a9378987d8b6664cad89edbdaf1f6693ece0a6129870252cddd7fdaf24e5",
+     "bytes": 17381,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "a-verifier-authority-921d60c2/patches/0001-Give-LeaseReader-an-explicit-local-verifier-chain-au.patch",
+     "sha256": "e82df626880771e90e002bc7bcefafb93f671d5f5cb96c17a45c96110685d718"
+    }
+   ]
+  }
+ },
+ "frozenSources": {
+  "witness-failover/RESULT-HISTORY.md": "1a70e588956e45a9dfb9638e3f769221c95bb5d4203cb1f17e14b1b17a4c7beb",
+  "witness-failover/PROVENANCE-HISTORY.json": "5da30d86139dd76be3ff7bd83fb841dbff5ed4cfb324dd22f153ef64c6df8938",
+  "witness-failover/TEST-EVIDENCE-HISTORY.txt": "9a5baf9860109e253f500bb9cdf695d846cdc48fbd6d89c080982afcea9c28c3"
+ },
+ "rootEvidence": {
+  "sia-whole-restore-bounded-reviewed/ROOT-REVIEW.json": "035e7702b1432cc1683af4d3acba9fdf6f284378ffeaf50d775922bfc650c507"
+ },
+ "notPreserved": [
+  "worktrees and anything after the exported heads: A 0c43e4db8 (Reth positives) and A's untracked contracts/foundry/out + node_modules; P's new bounded real-proof recording; E's compose work against P; D/C active work; B deadline 62fe (in progress)",
+  "S: runs/ (generated load reports), logs/, mutants/, d.txt/m1.txt, batch.sh, q.sh, bridge.patch, recovered/restored data, binaries; root's sia-whole-restore-bounded-reviewed/start-reviewed.sh, its runner/whole_restore copies (identical to the tree) and prepare log (remote handles / private paths)",
+  "rpc-sia-cache RESULT.md, compose/, jobs/, logs/, tmp/ and its .patch (exact Git only)",
+  "rpc-receipt-witness untracked probe/bloom-*.out/guard logs",
+  "witness-failover target/, bin/, cargo-home/, logs/, test-scratch/, jobs/, patches/",
+  "all binaries, cargo caches, vendor downloads and private keys/credentials"
+ ]
+}

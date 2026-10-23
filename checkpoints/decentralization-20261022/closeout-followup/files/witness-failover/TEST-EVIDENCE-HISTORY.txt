@@ -1,0 +1,214 @@
+# witness-failover AUTHENTICATED-HISTORY stage: terminal test evidence (digest of logs/; full logs stay local).
+# Per run: sha256/size of the full log, then summary/test/stats/pin lines. Exit 98 runs (never started) are not listed.
+
+## helper-build-test-r3.out  sha256 8881136644b5205af24c210a7c54b071f4ad6376a5d83f92f3918efed1b0b4d6  bytes 2176  -- FAILED BEFORE BUILD: adding base-common-rpc-types-engine as a path dependency needs bytes ^1.12.1 (lock: 1.12.0, offline cache lacks 1.12.1); dependency dropped
+    [queue] START available=24729MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+    rustc 1.96.0 (ac68faa20 2026-05-25)
+    error: failed to select a version for `bytes`.
+    [memory-guard] exit=101 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [memory-guard] at peak: 
+    [queue] EXIT 101
+
+## helper-build-test-r3b.out  sha256 3bdd2b095f00e32d1877fe4028947f4939ea09190bc0abc213933b1917f677d3  bytes 2183  -- Rust 8/8, helper 3ac1a083; exit 1 = only the job script's trailing grep on an empty Cargo.lock diff (script fixed in r4)
+    [queue] START available=24484MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+    rustc 1.96.0 (ac68faa20 2026-05-25)
+    test server::objects::tests::a_real_base_gossip_object_verifies_against_the_base_signer ... ok
+    test server::objects::tests::wrong_signer_chain_name_or_bytes_are_refused ... ok
+    test witness_check::tests::a_real_base_head_has_a_canonical_header_that_hashes_to_its_signed_block_hash ... ok
+    test witness_check::tests::a_real_base_head_verifies_with_the_real_signer_and_nothing_else ... ok
+    test witness_check::tests::a_recorded_real_proof_verifies_bound_to_its_exact_request ... ok
+    test witness_check::tests::invalid_or_unbound_proofs_are_refused ... ok
+    test witness_check::tests::recorded_real_code_verifies_against_the_proven_code_hash_only ... ok
+    test witness_check::tests::untrusted_headers_that_do_not_bind_are_refused ... ok
+    test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 1.98s
+    3ac1a08369ae6e862b20c392e8d70104a47a580bd27874931302c594cc68fa9d  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/target/debug/witness-check
+    [memory-guard] exit=1 peakTreeRssMiB=1155 minHostAvailableMiB=24040
+    [memory-guard] at peak: rustc:973 cargo:172 helper-build-te:6 timeout:4
+    [queue] EXIT 1
+
+## derive-headers-1.out  sha256 dea1371d066b5bb2c7b62b38ffbe97dd6ab76c69c202e1eda81cfb0eada8ddb3  bytes 1009  -- on 3ac1a083: 52 real headers derived; call fixture strict export REFUSED (no txs, zero parent beacon root) -> synthetic export added
+    [queue] START available=24743MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    Error: call fixture: canonical header hash 0xd6596e1626527b1fee449c3bd4a958064b8ec6c3a60e0cf4d709bb26a4802a56 is not the signed block hash 0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5
+    [memory-guard] exit=1 peakTreeRssMiB=96 minHostAvailableMiB=24622
+    [memory-guard] at peak: node:85 witness-check:7 timeout:4
+    [queue] EXIT 1
+
+## helper-build-test-r4.out  sha256 62e27dec9a6f796ad6a7990fb22f1bacb6087cc4b01ce92580cb3da5430b6431  bytes 2252  -- FINAL helper fab2f1ce: Rust 8/8, Cargo.lock unchanged
+    [queue] START available=24873MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    rustc 1.96.0 (ac68faa20 2026-05-25)
+    test server::objects::tests::a_real_base_gossip_object_verifies_against_the_base_signer ... ok
+    test server::objects::tests::wrong_signer_chain_name_or_bytes_are_refused ... ok
+    test witness_check::tests::a_real_base_head_has_a_canonical_header_that_hashes_to_its_signed_block_hash ... ok
+    test witness_check::tests::a_real_base_head_verifies_with_the_real_signer_and_nothing_else ... ok
+    test witness_check::tests::a_recorded_real_proof_verifies_bound_to_its_exact_request ... ok
+    test witness_check::tests::invalid_or_unbound_proofs_are_refused ... ok
+    test witness_check::tests::recorded_real_code_verifies_against_the_proven_code_hash_only ... ok
+    test witness_check::tests::untrusted_headers_that_do_not_bind_are_refused ... ok
+    test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 1.92s
+    fab2f1cea2f69a8b2e676f8ffb51d0014408f99b5f92397566772e96e1c1ae93  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/target/debug/witness-check
+    Cargo.lock unchanged
+    HELPER_BUILD_TEST_OK
+    [memory-guard] exit=0 peakTreeRssMiB=1183 minHostAvailableMiB=24170
+    [memory-guard] at peak: rust-lld:589 rustc:407 cargo:171 helper-build-te:6 timeout:4 cc:3 collect2:3
+    [queue] EXIT 0
+
+## derive-headers-2.out  sha256 60d2081becc1fdfc84728cd4db9f32b9a0069b2f78c787e7309725541d98f7d0  bytes 477  -- FINAL fixture derivation on fab2f1ce
+    [queue] START available=24602MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    {"realHeaders":52,"first":52965055,"last":52965106,"syntheticCallBlock":52965249,"syntheticHash":"0xd6596e1626527b1fee449c3bd4a958064b8ec6c3a60e0cf4d709bb26a4802a56"}
+    [memory-guard] exit=0 peakTreeRssMiB=96 minHostAvailableMiB=24474
+    [memory-guard] at peak: node:85 witness-check:7 timeout:4
+    [queue] EXIT 0
+
+## js-ancestry-r1.out  sha256 67cae5e8768917aaed5f5f1281fbf102cb0b5fdc9949023bf00a510135ad9d2a  bytes 8181  -- 23/24: the wrong-signer test saw one guide-header fetch with no bound head -> recover() now refuses before asking any source
+    [queue] START available=24765MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    external network: unreachable (as intended)
+    ok 1 - fixture: the 52 canonical headers re-derive from the exact signed gossip objects, hash to their signed block hashes and link
+    ok 2 - cold start: only the latest head was seen; a missed confirmed block is recovered by authenticated ancestry and a forged first header costs only that try
+    ok 3 - skipped polls: a gap between two seen heads is filled from the nearer one, within maxAncestry; deeper history is refused
+    ok 4 - missing history and hostile or hung sources fail closed: refusal, never a guess
+    ok 5 - a fork, a number gap or a later parent never binds (TEST-key heads: synthetic authority)
+    ok 6 - concurrent requests for one missed block share one walk
+    ok 7 - push interface: heads offered by a head source (e.g. the gossip bridge) are verified independently, then anchor recovery
+    not ok 8 - roots come only from a signed head verified by the native helper; a wrong signer yields no root and a refusal
+    ok 9 - root's probe: a malformed first answer costs only that try; the second source's valid proof is served and cached
+    ok 10 - cryptographically invalid but well-formed answers are refused, each in favour of the next source
+    ok 11 - valid proofs need not be byte-identical: a differently encoded valid answer is accepted on its merits
+    ok 12 - the cache: a bad first write never shadows a verified entry; cache-only later serves verified data and quarantines the rest
+    ok 13 - cache entries are content-addressed, create-only and bound to their request
+    ok 14 - requests not pinned by block hash are refused; every refusal is an error, never an unchecked answer
+    ok 15 - bounds: oversized bodies are cut off while reading, hung sources cost one timeout, the request deadline holds
+    ok 16 - bounds: upstream requests in flight are capped across a batch
+    ok 17 - an unavailable or hung verifier fails closed: refusal, never the unverified answer
+    ok 18 - only block-hash-pinned proof and code requests are cache keys
+    ok 19 - methods outside the witness allowlist are refused without touching an upstream
+    ok 20 - upstreams are tried in order; a failed or erroring one costs a try, not the answer
+    ok 21 - witness methods and a cache are refused without a verifier: there is no unverified witness mode
+    ok 22 - a transaction goes to every upstream; with every upstream down nothing is sent and the caller is told
+    ok 23 - the HTTP endpoint is loopback-only, bounds bodies and answers batches
+    ok 24 - configuration refuses plain-http public upstreams and duplicates
+    # tests 24
+    # pass 23
+    # fail 1
+    # skipped 0
+    # duration_ms 51030.043339
+    [memory-guard] exit=1 peakTreeRssMiB=181 minHostAvailableMiB=24633
+    [memory-guard] at peak: node:105 node:58 witness-check:7 witness-check:6 timeout:4
+    [queue] EXIT 1
+
+## js-ancestry-r2.out  sha256 2ce891a7601e7e043312d80a8c5af088722b6e5cfde75096ae90c86e8953ec8d  bytes 7285  -- unit suites 24/24 after that change
+    [queue] START available=24921MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    external network: unreachable (as intended)
+    ok 1 - fixture: the 52 canonical headers re-derive from the exact signed gossip objects, hash to their signed block hashes and link
+    ok 2 - cold start: only the latest head was seen; a missed confirmed block is recovered by authenticated ancestry and a forged first header costs only that try
+    ok 3 - skipped polls: a gap between two seen heads is filled from the nearer one, within maxAncestry; deeper history is refused
+    ok 4 - missing history and hostile or hung sources fail closed: refusal, never a guess
+    ok 5 - a fork, a number gap or a later parent never binds (TEST-key heads: synthetic authority)
+    ok 6 - concurrent requests for one missed block share one walk
+    ok 7 - push interface: heads offered by a head source (e.g. the gossip bridge) are verified independently, then anchor recovery
+    ok 8 - roots come only from a signed head verified by the native helper; a wrong signer yields no root and a refusal
+    ok 9 - root's probe: a malformed first answer costs only that try; the second source's valid proof is served and cached
+    ok 10 - cryptographically invalid but well-formed answers are refused, each in favour of the next source
+    ok 11 - valid proofs need not be byte-identical: a differently encoded valid answer is accepted on its merits
+    ok 12 - the cache: a bad first write never shadows a verified entry; cache-only later serves verified data and quarantines the rest
+    ok 13 - cache entries are content-addressed, create-only and bound to their request
+    ok 14 - requests not pinned by block hash are refused; every refusal is an error, never an unchecked answer
+    ok 15 - bounds: oversized bodies are cut off while reading, hung sources cost one timeout, the request deadline holds
+    ok 16 - bounds: upstream requests in flight are capped across a batch
+    ok 17 - an unavailable or hung verifier fails closed: refusal, never the unverified answer
+    ok 18 - only block-hash-pinned proof and code requests are cache keys
+    ok 19 - methods outside the witness allowlist are refused without touching an upstream
+    ok 20 - upstreams are tried in order; a failed or erroring one costs a try, not the answer
+    ok 21 - witness methods and a cache are refused without a verifier: there is no unverified witness mode
+    ok 22 - a transaction goes to every upstream; with every upstream down nothing is sent and the caller is told
+    ok 23 - the HTTP endpoint is loopback-only, bounds bodies and answers batches
+    ok 24 - configuration refuses plain-http public upstreams and duplicates
+    # tests 24
+    # pass 24
+    # fail 0
+    # skipped 0
+    # duration_ms 51138.888306
+    [memory-guard] exit=0 peakTreeRssMiB=181 minHostAvailableMiB=24715
+    [memory-guard] at peak: node:105 node:58 witness-check:7 witness-check:6 timeout:4
+    [queue] EXIT 0
+
+## js-all-r3.out  sha256 e440adf5490bfd255e7f154a09a9d6a94757f5d27c990340ede92f74ce3073be  bytes 13809  -- FINAL: all 6 JS files on fab2f1ce, offline
+    [queue] START available=24671MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    external network: unreachable (as intended)
+    ok 1 - the fixture is what it claims: two providers agreed on the block and on every call both answered
+    ok 2 - offline, from verified witnesses only, the Base EVM reproduces every provider eth_call result
+    ok 3 - a call whose witnesses were never recorded fails closed: no unchecked answer, no provider
+    ok 4 - control: the earlier compat build (op-revm, Prague rules) still refuses Base execution
+    ok 5 - shipped default of the Base build: execution follows the configured fork horizon
+    ok 6 - a lying first source cannot deny service: every real call still matches the providers, and only verified witnesses are cached
+    # gateway stats: {"upstream":{"http://127.0.0.1:35131":{"ok":0,"failed":0,"invalid":49,"headerOk":0,"headerInvalid":0},"http://127.0.0.1:44467":{"ok":49,"failed":0,"invalid":0,"headerOk":0,"headerInvalid":0}},"cacheHits":0,"cachePuts":49,"cacheInvalid":49,"refused":{"eth_createAccessList":5},"unavai
+    ok 7 - every source gone: a fresh cache-only gateway serves the verified witnesses and refuses everything else
+    # gateway stats: {"upstream":{},"cacheHits":49,"cachePuts":0,"cacheInvalid":0,"refused":{"eth_createAccessList":5},"unavailable":0,"unauthenticatedBlock":0,"verifierUnavailable":0,"quarantined":0}
+    ok 8 - with only the lying source, Helios gets refusals and nothing is cached
+    ok 9 - cold gateway, missed confirmed block: the root is recovered by authenticated ancestry and real proofs verify (synthetic authority)
+    # gateway stats: {"upstream":{"http://127.0.0.1:39249":{"ok":0,"failed":0,"invalid":49,"headerOk":0,"headerInvalid":1},"http://127.0.0.1:40747":{"ok":49,"failed":0,"invalid":0,"headerOk":1,"headerInvalid":0}},"cacheHits":0,"cachePuts":49,"cacheInvalid":0,"refused":{"eth_createAccessList":5},"unavail
+    ok 10 - patched Helios follows the signed head and returns proof-verified Enclave contract state
+    ok 11 - a tampered witness is rejected by the verifier, never returned
+    ok 12 - wrong-signer heads are ignored; a signed head with a 0x79 transaction is refused without killing the patched verifier
+    ok 13 - a Denim-era block (beyond the validated Base horizon) refuses execution while proof reads still work
+    ok 14 - stock Helios 0.12.0 (comparison only): executes eth_call under the wrong spec and dies on a 0x79 transaction # SKIP HELIOS_STOCK_BIN not set
+    ok 15 - outage of EVERY execution source: a restarted verifier still proves state for the pinned block from the witness cache; anything else and any tx refuse
+    # gateway stats: {"upstream":{"http://127.0.0.1:33455":{"ok":17,"failed":2,"invalid":0,"headerOk":0,"headerInvalid":0}},"cacheHits":3,"cachePuts":16,"cacheInvalid":0,"refused":{},"unavailable":2,"unauthenticatedBlock":0,"verifierUnavailable":0,"quarantined":0}
+    ok 16 - fixture: the 52 canonical headers re-derive from the exact signed gossip objects, hash to their signed block hashes and link
+    ok 17 - cold start: only the latest head was seen; a missed confirmed block is recovered by authenticated ancestry and a forged first header costs only that try
+    ok 18 - skipped polls: a gap between two seen heads is filled from the nearer one, within maxAncestry; deeper history is refused
+    ok 19 - missing history and hostile or hung sources fail closed: refusal, never a guess
+    ok 20 - a fork, a number gap or a later parent never binds (TEST-key heads: synthetic authority)
+    ok 21 - concurrent requests for one missed block share one walk
+    ok 22 - push interface: heads offered by a head source (e.g. the gossip bridge) are verified independently, then anchor recovery
+    ok 23 - roots come only from a signed head verified by the native helper; a wrong signer yields no root and a refusal
+    ok 24 - root's probe: a malformed first answer costs only that try; the second source's valid proof is served and cached
+    ok 25 - cryptographically invalid but well-formed answers are refused, each in favour of the next source
+    ok 26 - valid proofs need not be byte-identical: a differently encoded valid answer is accepted on its merits
+    ok 27 - the cache: a bad first write never shadows a verified entry; cache-only later serves verified data and quarantines the rest
+    ok 28 - cache entries are content-addressed, create-only and bound to their request
+    ok 29 - requests not pinned by block hash are refused; every refusal is an error, never an unchecked answer
+    ok 30 - bounds: oversized bodies are cut off while reading, hung sources cost one timeout, the request deadline holds
+    ok 31 - bounds: upstream requests in flight are capped across a batch
+    ok 32 - an unavailable or hung verifier fails closed: refusal, never the unverified answer
+    ok 33 - only block-hash-pinned proof and code requests are cache keys
+    ok 34 - methods outside the witness allowlist are refused without touching an upstream
+    ok 35 - upstreams are tried in order; a failed or erroring one costs a try, not the answer
+    ok 36 - witness methods and a cache are refused without a verifier: there is no unverified witness mode
+    ok 37 - a transaction goes to every upstream; with every upstream down nothing is sent and the caller is told
+    ok 38 - the HTTP endpoint is loopback-only, bounds bodies and answers batches
+    ok 39 - configuration refuses plain-http public upstreams and duplicates
+    # tests 39
+    # pass 38
+    # fail 0
+    # skipped 1
+    # duration_ms 63175.599131
+    [memory-guard] exit=0 peakTreeRssMiB=251 minHostAvailableMiB=24624
+    [memory-guard] at peak: node:84 node:59 helios-eeffcc9:45 anvil:28 anvil:25 witness-check:6 timeout:4
+    [queue] EXIT 0
+
+## scan-2.out  sha256 dd4b74a13005f2e3f3e83600248f470f4ebe3ae76af4c35c08ef6233b0856e57  bytes 1263  -- range scans of the two new ranges
+    [queue] START available=24862MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    8:25PM INF 2 commits scanned.
+    8:25PM INF no leaks found
+    [scan] repo scan-crypto-keys=0 gitleaks=0
+    8:25PM INF 1 commits scanned.
+    8:25PM INF no leaks found
+    [scan] helios scan-crypto-keys=0 gitleaks=0
+    [memory-guard] exit=0 peakTreeRssMiB=57 minHostAvailableMiB=24823
+    [memory-guard] at peak: gitleaks:47 scan-history.sh:6 timeout:4
+    [queue] EXIT 0

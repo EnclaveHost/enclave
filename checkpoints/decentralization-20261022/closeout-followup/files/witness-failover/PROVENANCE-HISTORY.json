@@ -1,0 +1,114 @@
+{
+ "format": "witness-failover-history-provenance/v1",
+ "label": "SOURCE CANDIDATE + OFFLINE TESTS ONLY: not deployed, merged, published or pushed. Isolated clones; A/B/E trees untouched.",
+ "enclave": {
+  "base": "bfbd649d8c416922691a6dd1eaada8a81765bba5",
+  "head": "ce7c1b7309dbc1cb65bedbdf7db5a173c977208c",
+  "tree": "9dc123ddf8c55e9e7d1f6ff54c70ad9fc791649c",
+  "commits": [
+   "cf5cc363b30792694d2fd2a8efd31c342a6dcecf Recover missed state roots by authenticated ancestry; let head sources push",
+   "ce7c1b7309dbc1cb65bedbdf7db5a173c977208c Test ancestry recovery on real Base headers and end to end with Helios"
+  ],
+  "changedFiles": [
+   {
+    "path": "network/witness-gateway.mjs",
+    "blob": "c10261d80266b9b7912b0824d790c616fd7aa06f",
+    "sha256": "60f55f3e65baa1dd040c2ee49da0843b1bd75c9828b03418e11a251ed81ec5ca"
+   },
+   {
+    "path": "network/witness-verify.mjs",
+    "blob": "8b9850d490c607341441787dc8bbfeb943778838",
+    "sha256": "9219b1d3d93f7eaa3c5f48ff85b28587a4187261bdc89f00f02b29196c522bdd"
+   },
+   {
+    "path": "test/fixtures/base-header-52965249.synthetic.json",
+    "blob": "6d344fa61cc74e2e651fd8e80e249ae8cbba7c20",
+    "sha256": "13b67f65dd20d0b73fc2d73f8625c2d7af271077773fc158b69d7f738a084d8e"
+   },
+   {
+    "path": "test/fixtures/base-headers-52965055-52965106.json",
+    "blob": "602ed1df58625d2f5b4fe101387a9e287f4356a9",
+    "sha256": "11be29552f4c3426affd03161b0d39f5ff508f8cc1827b591d135f58a9ca1236"
+   },
+   {
+    "path": "test/fixtures/derive-base-headers.mjs",
+    "blob": "842b8c6984ecd6f6018ccc7df782b688a1304a68",
+    "sha256": "b98d22a4163e68d56e8171055279d2c786157acf0df504d7e7c9cc3e3ab35390"
+   },
+   {
+    "path": "test/helios-witness-failover.e2e.test.mjs",
+    "blob": "d96ce0d5a21a5029fdcc93bd0f0fadcf45e02b1f",
+    "sha256": "d74fcd059be8bf84bef9bcf32a371a5f3c2077d70a30faa28297ddb5a4148fdc"
+   },
+   {
+    "path": "test/witness-ancestry.test.mjs",
+    "blob": "d1efb257ec30de246c14e6b06e2c1b31e7394e8e",
+    "sha256": "df24cf53a1f2a8292bebaca74a549120fd371ace04ffa55a02c03a421b8dd8b2"
+   }
+  ]
+ },
+ "helios": {
+  "base": "1ec2c1a52399b6a8d0fc1eb7658bf030987e132a",
+  "head": "aca81764f1d41a34829a3b408cea11c5c186e9e9",
+  "tree": "082c719ec1d63ea923f65cb14598f78efff07e5c",
+  "commits": [
+   "aca81764f1d41a34829a3b408cea11c5c186e9e9 witness-check: authenticated headers for roots a gateway missed"
+  ],
+  "changedFiles": [
+   {
+    "path": "opstack/bin/witness-check.rs",
+    "blob": "337a012b5da3f194ac83c29ac456ada55fb488c6",
+    "sha256": "0b3ab9ac492f35b2a0e06e14512bd8a16e721f58605a004e1ec108b7671f51cd"
+   },
+   {
+    "path": "opstack/src/witness_check.rs",
+    "blob": "26de45a83552ce556f956a74713556557f69633c",
+    "sha256": "c7393332ff30aea7b97f78de84de8e933da1361b9be2de618163dcb45b571e5d"
+   }
+  ],
+  "cargoLockChanged": false,
+  "newDependencies": []
+ },
+ "binaries": {
+  "witness-check": "fab2f1cea2f69a8b2e676f8ffb51d0014408f99b5f92397566772e96e1c1ae93",
+  "helios-eeffcc9": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+  "helios-compat-0a02256": "0929f7f383a082b8aa7fda97c3058e72a4acc93cbf250a24c7a08ae4e1df98fc"
+ },
+ "fixtureDerivation": {
+  "tool": "repo/test/fixtures/derive-base-headers.mjs via jobs/derive-headers.sh (offline, unshare -r -n), helper fab2f1ce",
+  "inputs": {
+   "gossipObjects": {
+    "copiedFrom": "rpc-priority/fixtures/base-heads-b-live-20261023T013719Z/objects (copy of the rpc-peer-audit head listener run live-20261023T013719Z)",
+    "count": 52,
+    "namesAreContentSha256": true,
+    "sha256OfSortedNames": "6ad2ebecdead665263847d140b6eb8975a05c6f5f3479830de97e9ca74385e02"
+   },
+   "headsJsonl": "26292cec62c0c9e4d605733ae602326bf5ef45143478cbdd898d50ef1a5049d3",
+   "bListenerFixtures": {
+    "base-mainnet-52965074.head.json": "14fc7bb54d479e4dc2b2bb921bcf9c888403422906582e501b200535b10a0ca2",
+    "base-mainnet-52965074.v4.snappy.hex": "b06394b42f810c93c30104492775d14f955b1a9120fe31b0fb57bb788af45015",
+    "base-mainnet-52965075.head.json": "915453065b5d390f018490f6d7ffd1ced7dcdd58be2943237195a964ea31e0d9",
+    "base-mainnet-52965075.v4.snappy.hex": "e55130dc6f67e67cad3e033c1ab29b4be4e0eb5ed4ad29bc4f5d7107e80251b5",
+    "base-mainnet-52965076.head.json": "62f4b8b4e08834ca3708e9b128da05801614868fc184d01d3b1fafb383eda389",
+    "base-mainnet-52965076.v4.snappy.hex": "02beaa24c8cc9e7ab7b68fb01dbc3e76bd737af2190c318f528482a9a6da7590"
+   },
+   "bListenerFixturesFrom": "rpc-gossip-bridge/listener/crates/enclave-base-head-listener/tests/fixtures (52965074..76; objects identical to 3 of the 52)",
+   "callFixture": "fixtures/base-calls-20261023T014412Z (copy of the rpc-priority fixture; hash set 1ddcb4da)"
+  },
+  "outputs": {
+   "test/fixtures/base-headers-52965055-52965106.json": "11be29552f4c3426affd03161b0d39f5ff508f8cc1827b591d135f58a9ca1236",
+   "test/fixtures/base-header-52965249.synthetic.json": "13b67f65dd20d0b73fc2d73f8625c2d7af271077773fc158b69d7f738a084d8e"
+  },
+  "checks": [
+   "helper exportHeader: real-signer signature, Helios payload_to_block + Base envelope header fields, alloy hash_slow == signed block hash",
+   "each header == listener record (hash, parentHash, stateRoot, number)",
+   "consecutive parent-linked chain 52965055..52965106",
+   "call fixture: strict export refused (recorded); synthetic export labelled, real state root, synthetic block hash 0xd6596e16"
+  ]
+ },
+ "patches": {
+  "patches/history/enclave/0001-Recover-missed-state-roots-by-authenticated-ancestry.patch": "59ede3c14b066450b7410e05ca7a79a154c4807a6ffa1efb73bf7727ecf9a566",
+  "patches/history/enclave/0002-Test-ancestry-recovery-on-real-Base-headers-and-end-.patch": "dd7e1b71cd10f1570e950b876812ba282491c0ba9e8be5881a72e97d0e15aafe",
+  "patches/history/helios/0001-witness-check-authenticated-headers-for-roots-a-gate.patch": "9b6717a855ba9052d4a633d8cd785db87a7644b9e0a06980ca5aff42ef132797"
+ }
+}

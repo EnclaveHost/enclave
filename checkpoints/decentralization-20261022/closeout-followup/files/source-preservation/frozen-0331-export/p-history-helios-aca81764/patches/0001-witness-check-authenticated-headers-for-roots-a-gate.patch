@@ -1,0 +1,373 @@
+From aca81764f1d41a34829a3b408cea11c5c186e9e9 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 20:24:29 -0700
+Subject: [PATCH] witness-check: authenticated headers for roots a gateway
+ missed
+
+A gateway that never saw a block's signed head (a poll gap, a cold start, an older confirmed block) needs that block's
+state root without trusting any source's claim. Built from maintained code only; no new dependency, Cargo.lock
+unchanged:
+
+* canonical_head / rebuild_header: the canonical header of a signed head. Helios's payload_to_block, plus the three
+  header fields Base takes from the envelope, as base/base v1.5.1 does (BaseExecutionPayloadV4::into_block_raw;
+  BlockHandler::block_valid):
+  - the L2 withdrawals root;
+  - the parent beacon block root;
+  - EMPTY_REQUESTS_HASH from Isthmus.
+  alloy hash_slow() must equal the signed block hash. Base's own base-common-rpc-types-engine was not added as a
+  path dependency: resolving it offline would have bumped `bytes` across Helios's lock.
+* verify_header: an UNTRUSTED header (eth_getBlockByHash JSON) whose alloy hash_slow() equals an expected hash and
+  its claimed hash field. With a verified child, it must be exactly one block lower and not later, and the child's
+  parent hash must equal it. Base rules: post-merge constants, a base fee, and the Isthmus fields.
+* witness-check ops:
+  - exportHeader (commitment, or a raw snappy gossip object with a bounded declared size);
+  - header {header, expectHash, child|null};
+  - exportHeader {synthetic: true}, for TEST FIXTURES ONLY: it returns a rebuilt header that does not hash to the
+    signed hash, labelled. The gateway never sends it.
+
+Tests:
+- The real gossip object for block 52965074 rebuilds to its signed hash. Its RPC JSON verifies as the parent of the
+  real block 52965075 (signed parent hash, number and timestamp as recorded by the head listener).
+- Refused: tampered state root, a forged hash field, the wrong expected hash, a non-linking child (parent hash,
+  number gap, earlier timestamp), a malformed header, an unknown chain.
+---
+ opstack/bin/witness-check.rs |  50 +++++++-
+ opstack/src/witness_check.rs | 223 ++++++++++++++++++++++++++++++++++-
+ 2 files changed, 270 insertions(+), 3 deletions(-)
+
+diff --git a/opstack/bin/witness-check.rs b/opstack/bin/witness-check.rs
+index 96ce1fb210f525d4a061826bbabaa014eb2200e7..337a012b5da3f194ac83c29ac456ada55fb488c6 100644
+--- a/opstack/bin/witness-check.rs
++++ b/opstack/bin/witness-check.rs
+@@ -9,6 +9,12 @@
+ //!       -> {"id":2,"ok":true,"address":..,"codeHash":..}
+ //!   {"id":3,"op":"getCode","blockHash":..,"stateRoot":..,"params":[address,blockHash],"result":"0x..","account":{..}}
+ //!       -> {"id":3,"ok":true}
++//!   {"id":4,"op":"exportHeader","commitment":{..}}  or  {"id":4,"op":"exportHeader","object":"0x<snappy gossip object>"}
++//!       -> {"id":4,"ok":true,"head":{verified head},"header":{canonical RPC header},"commitment":{..}}
++//!       (with "synthetic":true: TEST FIXTURES ONLY, the rebuilt header even if it does not hash to the signed block
++//!       hash, plus "signedBlockHash" and "signedHashMatches"; the gateway never sends this)
++//!   {"id":5,"op":"header","header":{untrusted header JSON},"expectHash":"0x..","child":{"number","timestamp","parentHash"}|null}
++//!       -> {"id":5,"ok":true,"blockHash":..,"parentHash":..,"number":..,"timestamp":..,"stateRoot":..}
+ //!   any failure -> {"id":..,"ok":false,"error":"..."}
+ //!
+ //! A line longer than MAX_LINE bytes is answered with an error (id null) and skipped without being buffered.
+@@ -19,10 +25,14 @@ use clap::Parser;
+ use eyre::{eyre, Result};
+ use serde_json::{json, Value};
+ 
+-use helios_opstack::witness_check::{verify_get_code, verify_get_proof, verify_head};
++use helios_opstack::witness_check::{
++    canonical_head, rebuild_header, verify_get_code, verify_get_proof, verify_head, verify_header,
++    Child,
++};
+ use helios_opstack::SequencerCommitment;
+ 
+ const MAX_LINE: usize = 48 << 20;
++const MAX_OBJECT: usize = 16 << 20;
+ 
+ #[derive(Parser)]
+ struct Cli {
+@@ -71,6 +81,44 @@ fn answer(cli: &Cli, req: &Value) -> Result<Value> {
+             verify_get_code(root, hash, &params()?, &result()?, &account)?;
+             Ok(json!({}))
+         }
++        Some("exportHeader") => {
++            let commitment: SequencerCommitment = match req.get("object") {
++                // a raw gossip object (snappy, as B's listener stores it): the declared decompressed size is
++                // checked before anything is allocated (Base's MAX_DECOMPRESSED_ENVELOPE_BYTES is the same idea)
++                Some(_) => {
++                    let object: alloy::primitives::Bytes = field(req, "object")?;
++                    if snap::raw::decompress_len(&object)? > MAX_OBJECT {
++                        return Err(eyre!("gossip object too large"));
++                    }
++                    SequencerCommitment::new(&object)?
++                }
++                None => field(req, "commitment")?,
++            };
++            if req.get("synthetic") == Some(&Value::Bool(true)) {
++                // TEST FIXTURES ONLY: report the rebuilt header and whether it hashes to the signed block hash
++                let (head, header, signed) = rebuild_header(&commitment, cli.signer, cli.chain_id)?;
++                let matches = header.hash == signed;
++                return Ok(
++                    json!({ "head": head, "header": header, "commitment": commitment, "synthetic": true,
++                    "signedBlockHash": signed, "signedHashMatches": matches }),
++                );
++            }
++            let (head, header) = canonical_head(&commitment, cli.signer, cli.chain_id)?;
++            Ok(json!({ "head": head, "header": header, "commitment": commitment }))
++        }
++        Some("header") => {
++            let header = req
++                .get("header")
++                .cloned()
++                .ok_or_else(|| eyre!("missing header"))?;
++            let child: Option<Child> = field(req, "child")?;
++            Ok(serde_json::to_value(verify_header(
++                &header,
++                field(req, "expectHash")?,
++                child,
++                cli.chain_id,
++            )?)?)
++        }
+         Some("version") => Ok(
+             json!({ "version": env!("CARGO_PKG_VERSION"), "chainId": cli.chain_id, "signer": cli.signer }),
+         ),
+diff --git a/opstack/src/witness_check.rs b/opstack/src/witness_check.rs
+index a6861159bd8a0e30fc393a32b3334a6b4d4393e5..26de45a83552ce556f956a74713556557f69633c 100644
+--- a/opstack/src/witness_check.rs
++++ b/opstack/src/witness_check.rs
+@@ -9,18 +9,24 @@
+ //!   storage keys and nothing else, the block hash), with Helios's account and storage MPT proof checks.
+ //! * `verify_get_code`: an `eth_getCode` answer against the code hash of a verified account proof for the same address
+ //!   and block (Helios's `verify_code_hash_proof`).
++//! * `canonical_head` / `verify_header`: the CANONICAL header of a signed head (Helios's payload conversion plus
++//!   Base's three envelope header fields, checked by recomputing the block hash), and an untrusted header bound to an already authenticated hash (alloy `hash_slow`) - for a
++//!   block a gateway missed, the parent hash of a verified child authenticates the ancestor's header and state root.
+ //!
+ //! Proofs are checked semantically: two providers may encode a valid proof differently, and both pass.
+ 
++use alloy::consensus::constants::EMPTY_OMMER_ROOT_HASH;
++use alloy::eips::eip7685::EMPTY_REQUESTS_HASH;
+ use alloy::eips::BlockId;
+ use alloy::primitives::{Address, Bytes, B256};
+-use alloy::rpc::types::EIP1186AccountProofResponse;
++use alloy::rpc::types::{EIP1186AccountProofResponse, Header as RpcHeader};
+ use alloy::serde::JsonStorageKey;
++use base_common_chains::{ChainUpgrades, Upgrades};
+ use eyre::{bail, eyre, Result};
+ use helios_core::execution::proof::{
+     verify_account_proof, verify_code_hash_proof, verify_storage_proof,
+ };
+-use serde::Serialize;
++use serde::{Deserialize, Serialize};
+ use serde_json::Value;
+ 
+ use crate::{consensus::payload_to_block, types::ExecutionPayload, SequencerCommitment};
+@@ -53,6 +59,133 @@ pub fn verify_head(
+     })
+ }
+ 
++/// The fork schedule the header rules below follow (base/base v1.5.1 `ChainUpgrades`).
++fn upgrades(chain_id: u64) -> Result<ChainUpgrades> {
++    match chain_id {
++        8453 => Ok(ChainUpgrades::mainnet()),
++        84532 => Ok(ChainUpgrades::sepolia()),
++        _ => bail!("no Base fork schedule for chain {chain_id}"),
++    }
++}
++
++/// A verified head with its CANONICAL header. Helios's own `payload_to_block` (the conversion its opstack consensus
++/// applies) with the three header fields Base sets from the envelope rather than the payload list, exactly as
++/// base/base v1.5.1 does (`BaseExecutionPayloadV4::into_block_raw`: the L2 withdrawals root;
++/// `BlockHandler::block_valid`: the envelope's parent beacon block root and, from Isthmus, `EMPTY_REQUESTS_HASH`).
++/// alloy's `hash_slow()` of the result must equal the signed payload's block hash, so every header field (such as
++/// the state root) is bound to that hash by recomputation, not by assertion; a mismatch is an error.
++pub fn canonical_head(
++    commitment: &SequencerCommitment,
++    signer: Address,
++    chain_id: u64,
++) -> Result<(VerifiedHead, RpcHeader)> {
++    let (head, header, signed) = rebuild_header(commitment, signer, chain_id)?;
++    if header.hash != signed || header.hash != head.block_hash {
++        bail!(
++            "canonical header hash {} is not the signed block hash {signed}",
++            header.hash
++        );
++    }
++    Ok((head, header))
++}
++
++/// TEST FIXTURES ONLY (never a binding): the header `canonical_head` rebuilds and the signed block hash, WITHOUT
++/// requiring them to be equal. A synthetic commitment (e.g. real header fields signed by a test key without the
++/// block's transactions) yields a header whose recomputed hash is a synthetic block identity; the caller must label it.
++pub fn rebuild_header(
++    commitment: &SequencerCommitment,
++    signer: Address,
++    chain_id: u64,
++) -> Result<(VerifiedHead, RpcHeader, B256)> {
++    let head = verify_head(commitment, signer, chain_id)?;
++    let payload = ExecutionPayload::try_from(commitment)?;
++    let (signed, withdrawals_root) = (payload.block_hash, payload.withdrawals_root);
++    let mut header = payload_to_block(payload)?.header.inner;
++    // signed data = parent beacon block root (32 bytes) || SSZ payload (lib.rs: ExecutionPayload::try_from)
++    header.parent_beacon_block_root = Some(B256::from_slice(&commitment.data[..32]));
++    if upgrades(chain_id)?.is_isthmus_active_at_timestamp(header.timestamp) {
++        header.withdrawals_root = Some(withdrawals_root);
++        header.requests_hash = Some(EMPTY_REQUESTS_HASH);
++    }
++    if header.state_root != head.state_root {
++        bail!("rebuilt header state root differs from the verified head");
++    }
++    let hash = header.hash_slow();
++    let rpc = RpcHeader {
++        hash,
++        inner: header,
++        total_difficulty: None,
++        size: None,
++    };
++    Ok((head, rpc, signed))
++}
++
++/// The verified child an ancestor header is bound to: its signed (or already bound) parent hash.
++#[derive(Debug, Clone, Copy, Deserialize)]
++#[serde(rename_all = "camelCase")]
++pub struct Child {
++    pub number: u64,
++    pub timestamp: u64,
++    pub parent_hash: B256,
++}
++
++/// An UNTRUSTED header (eth_getBlockByHash/eth_getHeaderByHash JSON; extra block fields are ignored) checked
++/// against `expect`: alloy's `hash_slow()` of the decoded consensus header must equal it (and the claimed
++/// `hash` field). With `child` (a verified block whose parent hash is `expect`) the header is an
++/// authenticated ancestor: one block lower and not later. Base header rules: post-merge constants, a base
++/// fee, and from Isthmus the L2 withdrawals root, parent beacon root and empty requests hash.
++pub fn verify_header(
++    header: &Value,
++    expect: B256,
++    child: Option<Child>,
++    chain_id: u64,
++) -> Result<VerifiedHead> {
++    let h: RpcHeader =
++        serde_json::from_value(header.clone()).map_err(|e| eyre!("malformed header: {e}"))?;
++    let hash = h.inner.hash_slow();
++    if hash != expect {
++        bail!("header hashes to {hash}, not {expect}");
++    }
++    if h.hash != hash {
++        bail!("header claims hash {}, but hashes to {hash}", h.hash);
++    }
++    let c = &h.inner;
++    if c.ommers_hash != EMPTY_OMMER_ROOT_HASH
++        || !c.difficulty.is_zero()
++        || !c.nonce.is_zero()
++        || c.base_fee_per_gas.is_none()
++    {
++        bail!("not a post-merge OP-stack header");
++    }
++    if upgrades(chain_id)?.is_isthmus_active_at_timestamp(c.timestamp)
++        && (c.withdrawals_root.is_none()
++            || c.parent_beacon_block_root.is_none()
++            || c.requests_hash != Some(EMPTY_REQUESTS_HASH))
++    {
++        bail!("header lacks the Isthmus fields");
++    }
++    if let Some(child) = child {
++        if child.parent_hash != hash
++            || c.number.checked_add(1) != Some(child.number)
++            || c.timestamp > child.timestamp
++        {
++            bail!(
++                "header is not the parent of block {} (number {}, timestamp {})",
++                child.number,
++                c.number,
++                c.timestamp
++            );
++        }
++    }
++    Ok(VerifiedHead {
++        block_hash: hash,
++        parent_hash: c.parent_hash,
++        number: c.number,
++        timestamp: c.timestamp,
++        state_root: c.state_root,
++    })
++}
++
+ /// The block an `eth_getProof`/`eth_getCode` request is pinned to: only a block hash pins a witness.
+ fn pinned_hash(at: &Value) -> Result<B256> {
+     match serde_json::from_value::<BlockId>(at.clone())
+@@ -159,6 +292,92 @@ mod tests {
+     // Base mainnet's unsafe block signer (the real signer of the test object).
+     const BASE_SIGNER: Address = address!("Af6E19BE0F9cE7f8afd49a1824851023A8249e8a");
+ 
++    // Block 52965075, the real child of the test object: its signed parent hash, number and timestamp, as recorded by
++    // the rpc-peer-audit head listener (tests/fixtures/base-mainnet-52965075.head.json, signer 0xaf6e…9e8a).
++    fn child_75() -> Child {
++        Child {
++            number: 52965075,
++            timestamp: 1792719497,
++            parent_hash: B256::from_str(
++                "0x39aa5527e39d83183030676fd86b70a2ce3fa9d0896e7cfbe19a272d80e9e172",
++            )
++            .unwrap(),
++        }
++    }
++
++    #[test]
++    fn a_real_base_head_has_a_canonical_header_that_hashes_to_its_signed_block_hash() {
++        let (head, header) = canonical_head(&real_commitment(), BASE_SIGNER, 8453).unwrap();
++        assert_eq!(header.hash, child_75().parent_hash);
++        assert_eq!(header.inner.hash_slow(), head.block_hash);
++        assert_eq!(header.inner.state_root, head.state_root);
++        assert!(
++            header.inner.requests_hash.is_some() && header.inner.parent_beacon_block_root.is_some()
++        );
++        assert!(
++            canonical_head(&real_commitment(), Address::ZERO, 8453).is_err(),
++            "wrong signer"
++        );
++        // the RPC JSON form round-trips: it is an authenticated ancestor of its real child
++        let json = serde_json::to_value(&header).unwrap();
++        let verified = verify_header(&json, head.block_hash, Some(child_75()), 8453).unwrap();
++        assert_eq!(verified, head);
++        assert_eq!(
++            verify_header(&json, head.block_hash, None, 8453).unwrap(),
++            head
++        );
++    }
++
++    #[test]
++    fn untrusted_headers_that_do_not_bind_are_refused() {
++        let (head, header) = canonical_head(&real_commitment(), BASE_SIGNER, 8453).unwrap();
++        let json = serde_json::to_value(&header).unwrap();
++        let h = head.block_hash;
++        // tampered state root (hash field left as is), a claimed hash that is not the content hash, another block's hash
++        let mut t = json.clone();
++        t["stateRoot"] = json!(B256::repeat_byte(1));
++        assert!(verify_header(&t, h, Some(child_75()), 8453).is_err());
++        let mut t = json.clone();
++        t["hash"] = json!(B256::repeat_byte(2));
++        assert!(verify_header(&t, h, Some(child_75()), 8453).is_err());
++        assert!(verify_header(&json, B256::repeat_byte(3), None, 8453).is_err());
++        // the child does not link: another parent hash, a number gap, a parent from the future
++        let c = child_75();
++        assert!(verify_header(
++            &json,
++            h,
++            Some(Child {
++                parent_hash: B256::repeat_byte(4),
++                ..c
++            }),
++            8453
++        )
++        .is_err());
++        assert!(verify_header(
++            &json,
++            h,
++            Some(Child {
++                number: c.number + 1,
++                ..c
++            }),
++            8453
++        )
++        .is_err());
++        assert!(verify_header(
++            &json,
++            h,
++            Some(Child {
++                timestamp: head.timestamp - 1,
++                ..c
++            }),
++            8453
++        )
++        .is_err());
++        // a malformed header, and a chain without a Base fork schedule
++        assert!(verify_header(&json!({ "hash": h }), h, None, 8453).is_err());
++        assert!(verify_header(&json, h, None, 10).is_err());
++    }
++
+     #[test]
+     fn a_real_base_head_verifies_with_the_real_signer_and_nothing_else() {
+         let c = real_commitment();

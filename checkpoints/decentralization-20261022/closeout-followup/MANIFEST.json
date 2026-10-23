@@ -7410,6 +7410,622 @@
       "stored": "files/source-preservation/frozen-0318-q.sh",
       "sha256": "8dc6db0d8e9c0deb71c6800c0a881784f893f959ede28bc59aacc5d75b427760",
       "bytes": 391
+    },
+    {
+      "label": "FROZEN 03:31Z commits exported from Git objects (never worktrees); every base rebuilt from pushed 552fb9f5 material and every commit tree reproduced exactly (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/INVENTORY.json",
+      "stored": "files/source-preservation/frozen-0331-export/INVENTORY.json",
+      "sha256": "eb5de68020d3606fa77462ede8592466d0e162cc8917b31d2712781a50ec1e6d",
+      "bytes": 32555
+    },
+    {
+      "label": "FROZEN 03:31Z commits exported from Git objects (never worktrees); every base rebuilt from pushed 552fb9f5 material and every commit tree reproduced exactly (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/REBUILD.md",
+      "stored": "files/source-preservation/frozen-0331-export/REBUILD.md",
+      "sha256": "74357668f37d0ea05cee5da2d3e426e8f89b35c62bf466abf0840c97d75745e0",
+      "bytes": 3863
+    },
+    {
+      "label": "FROZEN 03:31Z commits exported from Git objects (never worktrees); every base rebuilt from pushed 552fb9f5 material and every commit tree reproduced exactly (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/REPRODUCE-CHECK.txt",
+      "stored": "files/source-preservation/frozen-0331-export/REPRODUCE-CHECK.txt",
+      "sha256": "714c460252eff074b052ace05a5fa4f25bacc75520802419149bb92b799a7eae",
+      "bytes": 1630
+    },
+    {
+      "label": "S bounded single-thread selector bridge f98786e9 on 0d7e6b8 (the frozen harness imported unchanged): runner 6d243858 + whole_restore 724cb639 as root reviewed. Fixes the old per-connection-thread memory growth, half-close truncation/eviction and missing stall deadlines; offline bridge tests 17/17 + harness 18/18; a 420 s loopback load fixture moved 211,648,774,144 B with 0 mismatches at unit peak 232,480,768 B. A LOAD FIXTURE IS NEVER A RESTORE PASS: the old OOM remains the latest terminal full restore; a new attempt was prepared but not started at 03:31Z. RESULT-BRIDGE.md (in the tree) holds root's recipe with local path/placeholder arguments only, as already published in the harness RESULT.md; no keys, recovered data, load outputs or binaries",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/s-bridge-f98786e9/patches/0001-Bounded-single-thread-selector-bridge-for-the-isolat.patch",
+      "stored": "files/source-preservation/frozen-0331-export/s-bridge-f98786e9/patches/0001-Bounded-single-thread-selector-bridge-for-the-isolat.patch",
+      "sha256": "5b0f368ed9ef90f08159c4d101e0941c818d08894950f35099039cb89023f721",
+      "bytes": 119965
+    },
+    {
+      "label": "S bounded single-thread selector bridge f98786e9 on 0d7e6b8 (the frozen harness imported unchanged): runner 6d243858 + whole_restore 724cb639 as root reviewed. Fixes the old per-connection-thread memory growth, half-close truncation/eviction and missing stall deadlines; offline bridge tests 17/17 + harness 18/18; a 420 s loopback load fixture moved 211,648,774,144 B with 0 mismatches at unit peak 232,480,768 B. A LOAD FIXTURE IS NEVER A RESTORE PASS: the old OOM remains the latest terminal full restore; a new attempt was prepared but not started at 03:31Z. RESULT-BRIDGE.md (in the tree) holds root's recipe with local path/placeholder arguments only, as already published in the harness RESULT.md; no keys, recovered data, load outputs or binaries",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/.gitignore",
+      "stored": "files/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/.gitignore",
+      "sha256": "32dae3052f331ee34d628ef535709b301259a45df7c7522c4d35dcf49873f00b",
+      "bytes": 13
+    },
+    {
+      "label": "S bounded single-thread selector bridge f98786e9 on 0d7e6b8 (the frozen harness imported unchanged): runner 6d243858 + whole_restore 724cb639 as root reviewed. Fixes the old per-connection-thread memory growth, half-close truncation/eviction and missing stall deadlines; offline bridge tests 17/17 + harness 18/18; a 420 s loopback load fixture moved 211,648,774,144 B with 0 mismatches at unit peak 232,480,768 B. A LOAD FIXTURE IS NEVER A RESTORE PASS: the old OOM remains the latest terminal full restore; a new attempt was prepared but not started at 03:31Z. RESULT-BRIDGE.md (in the tree) holds root's recipe with local path/placeholder arguments only, as already published in the harness RESULT.md; no keys, recovered data, load outputs or binaries",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/RESULT-BRIDGE.md",
+      "stored": "files/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/RESULT-BRIDGE.md",
+      "sha256": "9dd20d6e94994d00c4af3e33347364aeab19c82f4a8022e76b1662f42d014e5f",
+      "bytes": 17772
+    },
+    {
+      "label": "S bounded single-thread selector bridge f98786e9 on 0d7e6b8 (the frozen harness imported unchanged): runner 6d243858 + whole_restore 724cb639 as root reviewed. Fixes the old per-connection-thread memory growth, half-close truncation/eviction and missing stall deadlines; offline bridge tests 17/17 + harness 18/18; a 420 s loopback load fixture moved 211,648,774,144 B with 0 mismatches at unit peak 232,480,768 B. A LOAD FIXTURE IS NEVER A RESTORE PASS: the old OOM remains the latest terminal full restore; a new attempt was prepared but not started at 03:31Z. RESULT-BRIDGE.md (in the tree) holds root's recipe with local path/placeholder arguments only, as already published in the harness RESULT.md; no keys, recovered data, load outputs or binaries",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/load/run-measure.sh",
+      "stored": "files/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/load/run-measure.sh",
+      "sha256": "94a82e947d3ce26a35d31e9c0c017ec97598d5447e418e6316d5a135a0dbb760",
+      "bytes": 721
+    },
+    {
+      "label": "S bounded single-thread selector bridge f98786e9 on 0d7e6b8 (the frozen harness imported unchanged): runner 6d243858 + whole_restore 724cb639 as root reviewed. Fixes the old per-connection-thread memory growth, half-close truncation/eviction and missing stall deadlines; offline bridge tests 17/17 + harness 18/18; a 420 s loopback load fixture moved 211,648,774,144 B with 0 mismatches at unit peak 232,480,768 B. A LOAD FIXTURE IS NEVER A RESTORE PASS: the old OOM remains the latest terminal full restore; a new attempt was prepared but not started at 03:31Z. RESULT-BRIDGE.md (in the tree) holds root's recipe with local path/placeholder arguments only, as already published in the harness RESULT.md; no keys, recovered data, load outputs or binaries",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/load/siaload.py",
+      "stored": "files/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/load/siaload.py",
+      "sha256": "20d4805138a99abac35308635b7ca69430adaebdc3a14cefe10bc35ff85d7baf",
+      "bytes": 22122
+    },
+    {
+      "label": "S bounded single-thread selector bridge f98786e9 on 0d7e6b8 (the frozen harness imported unchanged): runner 6d243858 + whole_restore 724cb639 as root reviewed. Fixes the old per-connection-thread memory growth, half-close truncation/eviction and missing stall deadlines; offline bridge tests 17/17 + harness 18/18; a 420 s loopback load fixture moved 211,648,774,144 B with 0 mismatches at unit peak 232,480,768 B. A LOAD FIXTURE IS NEVER A RESTORE PASS: the old OOM remains the latest terminal full restore; a new attempt was prepared but not started at 03:31Z. RESULT-BRIDGE.md (in the tree) holds root's recipe with local path/placeholder arguments only, as already published in the harness RESULT.md; no keys, recovered data, load outputs or binaries",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/load/unit-load.py",
+      "stored": "files/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/load/unit-load.py",
+      "sha256": "217387055fb1fe0eec85bf05a233300f2f0f924c0ef8d7a889e9b6be252ee3d1",
+      "bytes": 10537
+    },
+    {
+      "label": "S bounded single-thread selector bridge f98786e9 on 0d7e6b8 (the frozen harness imported unchanged): runner 6d243858 + whole_restore 724cb639 as root reviewed. Fixes the old per-connection-thread memory growth, half-close truncation/eviction and missing stall deadlines; offline bridge tests 17/17 + harness 18/18; a 420 s loopback load fixture moved 211,648,774,144 B with 0 mismatches at unit peak 232,480,768 B. A LOAD FIXTURE IS NEVER A RESTORE PASS: the old OOM remains the latest terminal full restore; a new attempt was prepared but not started at 03:31Z. RESULT-BRIDGE.md (in the tree) holds root's recipe with local path/placeholder arguments only, as already published in the harness RESULT.md; no keys, recovered data, load outputs or binaries",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/run-tests.sh",
+      "stored": "files/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/run-tests.sh",
+      "sha256": "c327248f8803d5cfea18ff451db5d6606ea55caa8a7b71012b5a62bc0b6b8633",
+      "bytes": 747
+    },
+    {
+      "label": "S bounded single-thread selector bridge f98786e9 on 0d7e6b8 (the frozen harness imported unchanged): runner 6d243858 + whole_restore 724cb639 as root reviewed. Fixes the old per-connection-thread memory growth, half-close truncation/eviction and missing stall deadlines; offline bridge tests 17/17 + harness 18/18; a 420 s loopback load fixture moved 211,648,774,144 B with 0 mismatches at unit peak 232,480,768 B. A LOAD FIXTURE IS NEVER A RESTORE PASS: the old OOM remains the latest terminal full restore; a new attempt was prepared but not started at 03:31Z. RESULT-BRIDGE.md (in the tree) holds root's recipe with local path/placeholder arguments only, as already published in the harness RESULT.md; no keys, recovered data, load outputs or binaries",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/runner.py",
+      "stored": "files/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/runner.py",
+      "sha256": "6d2438580b14b1b2beb29ee0b6cc51d74d9a6a10517296836089d3812dc937f2",
+      "bytes": 33837
+    },
+    {
+      "label": "S bounded single-thread selector bridge f98786e9 on 0d7e6b8 (the frozen harness imported unchanged): runner 6d243858 + whole_restore 724cb639 as root reviewed. Fixes the old per-connection-thread memory growth, half-close truncation/eviction and missing stall deadlines; offline bridge tests 17/17 + harness 18/18; a 420 s loopback load fixture moved 211,648,774,144 B with 0 mismatches at unit peak 232,480,768 B. A LOAD FIXTURE IS NEVER A RESTORE PASS: the old OOM remains the latest terminal full restore; a new attempt was prepared but not started at 03:31Z. RESULT-BRIDGE.md (in the tree) holds root's recipe with local path/placeholder arguments only, as already published in the harness RESULT.md; no keys, recovered data, load outputs or binaries",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/test/mutate.py",
+      "stored": "files/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/test/mutate.py",
+      "sha256": "df2f7734d89243c5025f988d560ff3d6b3f00a4579ce98beff4b79b91808cb43",
+      "bytes": 4773
+    },
+    {
+      "label": "S bounded single-thread selector bridge f98786e9 on 0d7e6b8 (the frozen harness imported unchanged): runner 6d243858 + whole_restore 724cb639 as root reviewed. Fixes the old per-connection-thread memory growth, half-close truncation/eviction and missing stall deadlines; offline bridge tests 17/17 + harness 18/18; a 420 s loopback load fixture moved 211,648,774,144 B with 0 mismatches at unit peak 232,480,768 B. A LOAD FIXTURE IS NEVER A RESTORE PASS: the old OOM remains the latest terminal full restore; a new attempt was prepared but not started at 03:31Z. RESULT-BRIDGE.md (in the tree) holds root's recipe with local path/placeholder arguments only, as already published in the harness RESULT.md; no keys, recovered data, load outputs or binaries",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/test/test_bridge.py",
+      "stored": "files/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/test/test_bridge.py",
+      "sha256": "300a84d5b0a9a4251cd7edd86dc36dd60d219bdbe20dbfe7d328738bcc75abe3",
+      "bytes": 23214
+    },
+    {
+      "label": "S bounded single-thread selector bridge f98786e9 on 0d7e6b8 (the frozen harness imported unchanged): runner 6d243858 + whole_restore 724cb639 as root reviewed. Fixes the old per-connection-thread memory growth, half-close truncation/eviction and missing stall deadlines; offline bridge tests 17/17 + harness 18/18; a 420 s loopback load fixture moved 211,648,774,144 B with 0 mismatches at unit peak 232,480,768 B. A LOAD FIXTURE IS NEVER A RESTORE PASS: the old OOM remains the latest terminal full restore; a new attempt was prepared but not started at 03:31Z. RESULT-BRIDGE.md (in the tree) holds root's recipe with local path/placeholder arguments only, as already published in the harness RESULT.md; no keys, recovered data, load outputs or binaries",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/test/test_harness.py",
+      "stored": "files/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/test/test_harness.py",
+      "sha256": "a44f14598b675837b0ea681fbb88cdfd4e6495eefcfbb2d8f1b39a5f551d46ad",
+      "bytes": 26725
+    },
+    {
+      "label": "S bounded single-thread selector bridge f98786e9 on 0d7e6b8 (the frozen harness imported unchanged): runner 6d243858 + whole_restore 724cb639 as root reviewed. Fixes the old per-connection-thread memory growth, half-close truncation/eviction and missing stall deadlines; offline bridge tests 17/17 + harness 18/18; a 420 s loopback load fixture moved 211,648,774,144 B with 0 mismatches at unit peak 232,480,768 B. A LOAD FIXTURE IS NEVER A RESTORE PASS: the old OOM remains the latest terminal full restore; a new attempt was prepared but not started at 03:31Z. RESULT-BRIDGE.md (in the tree) holds root's recipe with local path/placeholder arguments only, as already published in the harness RESULT.md; no keys, recovered data, load outputs or binaries",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/whole_restore.py",
+      "stored": "files/source-preservation/frozen-0331-export/s-bridge-f98786e9/files/whole_restore.py",
+      "sha256": "724cb63918e07d7d3954c7ca577a8431f6da22f87f4a56537cc31161a806adc2",
+      "bytes": 31311
+    },
+    {
+      "label": "E optional S3 (Sia-S3) backend for the witness gateway cache, b71c8261 on 9fdc1418c: 10 new files only (curl --aws-sigv4, create-only). MinIO unit 11 + real-Helios replay 3 offline; NOT live Sia. First-writer poisoning availability gap STILL OPEN; E is composing against P's proof-aware API elsewhere (not captured). The aws-sigv4 vectors are AWS's public example credentials (awslabs/aws-c-auth 84a26ea1)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/patches/0001-Optional-S3-Sia-S3-backend-for-the-witness-gateway-s.patch",
+      "stored": "files/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/patches/0001-Optional-S3-Sia-S3-backend-for-the-witness-gateway-s.patch",
+      "sha256": "abe64c8b11580605fc034386ba68514f3f66087c0479f4fae1269b36fce681e3",
+      "bytes": 50206
+    },
+    {
+      "label": "E optional S3 (Sia-S3) backend for the witness gateway cache, b71c8261 on 9fdc1418c: 10 new files only (curl --aws-sigv4, create-only). MinIO unit 11 + real-Helios replay 3 offline; NOT live Sia. First-writer poisoning availability gap STILL OPEN; E is composing against P's proof-aware API elsewhere (not captured). The aws-sigv4 vectors are AWS's public example credentials (awslabs/aws-c-auth 84a26ea1)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/network/s3-witness-cache.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/network/s3-witness-cache.mjs",
+      "sha256": "a7f3ea7d22af980799da33030e300e5a793ddc418a6c81a2c3ccb76ef656ef99",
+      "bytes": 13743
+    },
+    {
+      "label": "E optional S3 (Sia-S3) backend for the witness gateway cache, b71c8261 on 9fdc1418c: 10 new files only (curl --aws-sigv4, create-only). MinIO unit 11 + real-Helios replay 3 offline; NOT live Sia. First-writer poisoning availability gap STILL OPEN; E is composing against P's proof-aware API elsewhere (not captured). The aws-sigv4 vectors are AWS's public example credentials (awslabs/aws-c-auth 84a26ea1)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/SOURCE.txt",
+      "stored": "files/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/SOURCE.txt",
+      "sha256": "e7c307a102d121ae622df22fa80f2e5a8c9c000eae0fc3a64548b064c1630b9d",
+      "bytes": 952
+    },
+    {
+      "label": "E optional S3 (Sia-S3) backend for the witness gateway cache, b71c8261 on 9fdc1418c: 10 new files only (curl --aws-sigv4, create-only). MinIO unit 11 + real-Helios replay 3 offline; NOT live Sia. First-writer poisoning availability gap STILL OPEN; E is composing against P's proof-aware API elsewhere (not captured). The aws-sigv4 vectors are AWS's public example credentials (awslabs/aws-c-auth 84a26ea1)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/get-header-value-trim/context.json",
+      "stored": "files/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/get-header-value-trim/context.json",
+      "sha256": "5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1",
+      "bytes": 318
+    },
+    {
+      "label": "E optional S3 (Sia-S3) backend for the witness gateway cache, b71c8261 on 9fdc1418c: 10 new files only (curl --aws-sigv4, create-only). MinIO unit 11 + real-Helios replay 3 offline; NOT live Sia. First-writer poisoning availability gap STILL OPEN; E is composing against P's proof-aware API elsewhere (not captured). The aws-sigv4 vectors are AWS's public example credentials (awslabs/aws-c-auth 84a26ea1)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/get-header-value-trim/header-signed-request.txt",
+      "stored": "files/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/get-header-value-trim/header-signed-request.txt",
+      "sha256": "5a08e8c4caa69eb8521e06ebe0eaa62d4d93ecaa78fd13b83dc8eadede437784",
+      "bytes": 337
+    },
+    {
+      "label": "E optional S3 (Sia-S3) backend for the witness gateway cache, b71c8261 on 9fdc1418c: 10 new files only (curl --aws-sigv4, create-only). MinIO unit 11 + real-Helios replay 3 offline; NOT live Sia. First-writer poisoning availability gap STILL OPEN; E is composing against P's proof-aware API elsewhere (not captured). The aws-sigv4 vectors are AWS's public example credentials (awslabs/aws-c-auth 84a26ea1)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/get-header-value-trim/request.txt",
+      "stored": "files/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/get-header-value-trim/request.txt",
+      "sha256": "3ca569dba28e15df4200ca1619c6909645ad0259f6121827e099c46c66e9dc87",
+      "bytes": 85
+    },
+    {
+      "label": "E optional S3 (Sia-S3) backend for the witness gateway cache, b71c8261 on 9fdc1418c: 10 new files only (curl --aws-sigv4, create-only). MinIO unit 11 + real-Helios replay 3 offline; NOT live Sia. First-writer poisoning availability gap STILL OPEN; E is composing against P's proof-aware API elsewhere (not captured). The aws-sigv4 vectors are AWS's public example credentials (awslabs/aws-c-auth 84a26ea1)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/get-vanilla/context.json",
+      "stored": "files/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/get-vanilla/context.json",
+      "sha256": "5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1",
+      "bytes": 318
+    },
+    {
+      "label": "E optional S3 (Sia-S3) backend for the witness gateway cache, b71c8261 on 9fdc1418c: 10 new files only (curl --aws-sigv4, create-only). MinIO unit 11 + real-Helios replay 3 offline; NOT live Sia. First-writer poisoning availability gap STILL OPEN; E is composing against P's proof-aware API elsewhere (not captured). The aws-sigv4 vectors are AWS's public example credentials (awslabs/aws-c-auth 84a26ea1)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/get-vanilla/header-signed-request.txt",
+      "stored": "files/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/get-vanilla/header-signed-request.txt",
+      "sha256": "f94281f97a281169827bbd016b1454eec132260d77c505405c558b7d21a177bc",
+      "bytes": 272
+    },
+    {
+      "label": "E optional S3 (Sia-S3) backend for the witness gateway cache, b71c8261 on 9fdc1418c: 10 new files only (curl --aws-sigv4, create-only). MinIO unit 11 + real-Helios replay 3 offline; NOT live Sia. First-writer poisoning availability gap STILL OPEN; E is composing against P's proof-aware API elsewhere (not captured). The aws-sigv4 vectors are AWS's public example credentials (awslabs/aws-c-auth 84a26ea1)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/get-vanilla/request.txt",
+      "stored": "files/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/fixtures/aws-sigv4/get-vanilla/request.txt",
+      "sha256": "9b87a0709187548ccac04f6d06a8cba1fc85273003efcda670e9f3ca1ad63e4f",
+      "bytes": 42
+    },
+    {
+      "label": "E optional S3 (Sia-S3) backend for the witness gateway cache, b71c8261 on 9fdc1418c: 10 new files only (curl --aws-sigv4, create-only). MinIO unit 11 + real-Helios replay 3 offline; NOT live Sia. First-writer poisoning availability gap STILL OPEN; E is composing against P's proof-aware API elsewhere (not captured). The aws-sigv4 vectors are AWS's public example credentials (awslabs/aws-c-auth 84a26ea1)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/helios-s3-replay.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/helios-s3-replay.e2e.test.mjs",
+      "sha256": "5c54c18e2fc48249e4d66771263ffe877990cad9c0cf8e5ad70fbfdb81837e64",
+      "bytes": 10073
+    },
+    {
+      "label": "E optional S3 (Sia-S3) backend for the witness gateway cache, b71c8261 on 9fdc1418c: 10 new files only (curl --aws-sigv4, create-only). MinIO unit 11 + real-Helios replay 3 offline; NOT live Sia. First-writer poisoning availability gap STILL OPEN; E is composing against P's proof-aware API elsewhere (not captured). The aws-sigv4 vectors are AWS's public example credentials (awslabs/aws-c-auth 84a26ea1)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/s3-witness-cache.test.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/e-sia-cache-b71c8261/files/test/s3-witness-cache.test.mjs",
+      "sha256": "e56f5fa3a6fb3d68945e05983252bd31e5b4b3431eda0d6fdf73a7e5ae52c0b8",
+      "bytes": 17718
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/patches/0001-Receipt-witness-audit-event-completeness-of-deployed.patch",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/patches/0001-Receipt-witness-audit-event-completeness-of-deployed.patch",
+      "sha256": "9d9665fe0cbc208f06aa5d31a258050a3c128f2321c559ac625580ee9fe038b5",
+      "bytes": 608024
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/ALLOWLIST.sha256",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/ALLOWLIST.sha256",
+      "sha256": "393c8d8a897bddd5ca926641b4220cf71dd68319d9e0bb010deb4f644f124f02",
+      "bytes": 2732
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/ALLOWLIST.txt",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/ALLOWLIST.txt",
+      "sha256": "c4e492d2a4952ca080f5c2b64da2440012e39f7093dd852913fa75f2ebafc172",
+      "bytes": 1305
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/RESULT.md",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/RESULT.md",
+      "sha256": "3dacb49edc51dc29cbb981122a8464300db056472f118397f8cbaead66dab986",
+      "bytes": 26556
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/inventory/consumer-reads.json",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/inventory/consumer-reads.json",
+      "sha256": "07a37bd9a16f468f414e5686233d71761fb376d88f29b734e56ac0d609d7a1f4",
+      "bytes": 45038
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/probe/bloom-density-4.json",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/probe/bloom-density-4.json",
+      "sha256": "a923fc87acd82b94b9f0cd7d160f162048814390105e24e4cdfd6d2bfd90959c",
+      "bytes": 329
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/probe/bloom-density-5.json",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/probe/bloom-density-5.json",
+      "sha256": "6560ee96dc774f28dbf5bd23eb2dfaa5cc5cc7ec6d47604eb3c9681ace2a0505",
+      "bytes": 3060
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/probe/bloom-density.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/probe/bloom-density.mjs",
+      "sha256": "919a2ec35eb96ea8889031315625ee0ebedec8c040e4d41934027654a81ec31b",
+      "bytes": 4602
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/probe/capture.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/probe/capture.mjs",
+      "sha256": "1e0bf61484825964c055f4f2198b901da0b50cbebb51d7a6bfa3a234f09c5183",
+      "bytes": 3963
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/probe/fixture-1.json.gz.hex",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/probe/fixture-1.json.gz.hex",
+      "sha256": "78037fcce6c7916be5c7a0dcbd430291d3f97c91c9ad3abe9ada8150abb6dbda",
+      "bytes": 1934573
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/silent-writers.py",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/silent-writers.py",
+      "sha256": "d23439d81b409686e34742022d5d365c2ce25ce2cba70a9490184f9761f361e6",
+      "bytes": 1716
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/MANIFEST.json",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/MANIFEST.json",
+      "sha256": "706cee63320971764722b0110bab5a6f2f3e4d64cb5188473dcc5203bcf496a5",
+      "bytes": 3497
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/catalog--EnclaveAppCatalog.sol",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/catalog--EnclaveAppCatalog.sol",
+      "sha256": "b31744361efbb43fcf60152a5eaaa185d1af07bdc27f077af0a2b48e7de3b191",
+      "bytes": 54872
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/connectivity--EnclaveConnectivity.sol",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/connectivity--EnclaveConnectivity.sol",
+      "sha256": "da607b8a38546b8f535f28fb622344ebedf9e9ac908a8777e0fea53dc9d2615f",
+      "bytes": 17742
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/connectivity--EnclaveDeployments.sol",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/connectivity--EnclaveDeployments.sol",
+      "sha256": "2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1",
+      "bytes": 121794
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/key-attestations--EnclaveKeyAttestations.sol",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/key-attestations--EnclaveKeyAttestations.sol",
+      "sha256": "4afb43a58e4b44de1fc0aae81bfa6acb019011fefc22d0cd3930247970621d8a",
+      "bytes": 8224
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/ledger-rev16d--EnclaveDeployments.sol",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/ledger-rev16d--EnclaveDeployments.sol",
+      "sha256": "2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1",
+      "bytes": 121794
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/legacy-sessions-v2--SessionVault.sol",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/legacy-sessions-v2--SessionVault.sol",
+      "sha256": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c",
+      "bytes": 62599
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/pay--EnclavePay.sol",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/pay--EnclavePay.sol",
+      "sha256": "a0411962c8286a7655dbe6691e028dbf00ebeea42c1183dad323944e67a130f6",
+      "bytes": 7299
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/payment-router--PaymentRouter.sol",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/payment-router--PaymentRouter.sol",
+      "sha256": "8f28d3e4a313ea66a2dda511fca1194933c845a81756806f9f011ebe3e912ed0",
+      "bytes": 4647
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/proof-of-time--EnclaveProofOfTime.sol",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/proof-of-time--EnclaveProofOfTime.sol",
+      "sha256": "6ec89dc59bd58f7ff4f6b60d0477c3b5166066255c1b808f184213e5b866f019",
+      "bytes": 25671
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/registry-schema4--EnclaveRegistry.sol",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/registry-schema4--EnclaveRegistry.sol",
+      "sha256": "e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360",
+      "bytes": 17386
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/verification-fees--EnclaveVerificationFees.sol",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/sources/deployed/verification-fees--EnclaveVerificationFees.sol",
+      "sha256": "a0db02fd901cd27b7646fa4312a387c5eb1079b654308a1c87a95cbebcc07d22",
+      "bytes": 13735
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/verifier/cmd/witness-verify/main.go",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/verifier/cmd/witness-verify/main.go",
+      "sha256": "efabb5612ce04c18196478062feff40213cf52618cb0c442c27029a1fa08fbe0",
+      "bytes": 1465
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/verifier/go.mod",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/verifier/go.mod",
+      "sha256": "5f6122a51c6073fec8c99db8120a00c55601d257cbce1c28513949069da05932",
+      "bytes": 1866
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/verifier/go.sum",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/verifier/go.sum",
+      "sha256": "7f0653323242de1e862c10fd61065fbcfd9947ea6514c602547277c1e7049688",
+      "bytes": 7922
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/verifier/run-tests.sh",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/verifier/run-tests.sh",
+      "sha256": "fbcd3cbf388204e8870d6f5c5eefd1e3eb95b415ec3828ec5e26ff4615405494",
+      "bytes": 1136
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/verifier/verifier.go",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/verifier/verifier.go",
+      "sha256": "16a9d8ecd81947dec373bf82daa8bddbb658479e198695543850eb342bf510ca",
+      "bytes": 14328
+    },
+    {
+      "label": "E receipt-witness audit b84c5a11 (root commit), complete: report, inventory, deployed-source copies, verifier, probes and the public-chain fixture (probe/fixture-1.json.gz stored as hex; untrusted public RPC capture). DIAGNOSTIC ONLY, NOT policy authority",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/verifier/verifier_test.go",
+      "stored": "files/source-preservation/frozen-0331-export/e-receipt-witness-b84c5a11/files/verifier/verifier_test.go",
+      "sha256": "a192cb2b8643d366f68d02a8d233002fcdc0fe9e55bc72e8a81bca318648fde0",
+      "bytes": 10925
+    },
+    {
+      "label": "P authenticated-ancestry root recovery ce7c1b73 (2 commits on bfbd649d): 52 real canonical Base header fixtures, 51 links. The combined 49-proof-call test uses a SYNTHETIC block identity (TEST-key authority), NOT real history + proof from one fixture. Fresh witness availability NOT solved. Offline only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/patches/0001-Recover-missed-state-roots-by-authenticated-ancestry.patch",
+      "stored": "files/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/patches/0001-Recover-missed-state-roots-by-authenticated-ancestry.patch",
+      "sha256": "59ede3c14b066450b7410e05ca7a79a154c4807a6ffa1efb73bf7727ecf9a566",
+      "bytes": 19259
+    },
+    {
+      "label": "P authenticated-ancestry root recovery ce7c1b73 (2 commits on bfbd649d): 52 real canonical Base header fixtures, 51 links. The combined 49-proof-call test uses a SYNTHETIC block identity (TEST-key authority), NOT real history + proof from one fixture. Fresh witness availability NOT solved. Offline only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/patches/0002-Test-ancestry-recovery-on-real-Base-headers-and-end-.patch",
+      "stored": "files/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/patches/0002-Test-ancestry-recovery-on-real-Base-headers-and-end-.patch",
+      "sha256": "dd7e1b71cd10f1570e950b876812ba282491c0ba9e8be5881a72e97d0e15aafe",
+      "bytes": 151935
+    },
+    {
+      "label": "P authenticated-ancestry root recovery ce7c1b73 (2 commits on bfbd649d): 52 real canonical Base header fixtures, 51 links. The combined 49-proof-call test uses a SYNTHETIC block identity (TEST-key authority), NOT real history + proof from one fixture. Fresh witness availability NOT solved. Offline only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/network/witness-gateway.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/network/witness-gateway.mjs",
+      "sha256": "60f55f3e65baa1dd040c2ee49da0843b1bd75c9828b03418e11a251ed81ec5ca",
+      "bytes": 19363
+    },
+    {
+      "label": "P authenticated-ancestry root recovery ce7c1b73 (2 commits on bfbd649d): 52 real canonical Base header fixtures, 51 links. The combined 49-proof-call test uses a SYNTHETIC block identity (TEST-key authority), NOT real history + proof from one fixture. Fresh witness availability NOT solved. Offline only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/network/witness-verify.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/network/witness-verify.mjs",
+      "sha256": "9219b1d3d93f7eaa3c5f48ff85b28587a4187261bdc89f00f02b29196c522bdd",
+      "bytes": 12528
+    },
+    {
+      "label": "P authenticated-ancestry root recovery ce7c1b73 (2 commits on bfbd649d): 52 real canonical Base header fixtures, 51 links. The combined 49-proof-call test uses a SYNTHETIC block identity (TEST-key authority), NOT real history + proof from one fixture. Fresh witness availability NOT solved. Offline only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/test/fixtures/base-header-52965249.synthetic.json",
+      "stored": "files/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/test/fixtures/base-header-52965249.synthetic.json",
+      "sha256": "13b67f65dd20d0b73fc2d73f8625c2d7af271077773fc158b69d7f738a084d8e",
+      "bytes": 3250
+    },
+    {
+      "label": "P authenticated-ancestry root recovery ce7c1b73 (2 commits on bfbd649d): 52 real canonical Base header fixtures, 51 links. The combined 49-proof-call test uses a SYNTHETIC block identity (TEST-key authority), NOT real history + proof from one fixture. Fresh witness availability NOT solved. Offline only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/test/fixtures/base-headers-52965055-52965106.json",
+      "stored": "files/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/test/fixtures/base-headers-52965055-52965106.json",
+      "sha256": "11be29552f4c3426affd03161b0d39f5ff508f8cc1827b591d135f58a9ca1236",
+      "bytes": 116973
+    },
+    {
+      "label": "P authenticated-ancestry root recovery ce7c1b73 (2 commits on bfbd649d): 52 real canonical Base header fixtures, 51 links. The combined 49-proof-call test uses a SYNTHETIC block identity (TEST-key authority), NOT real history + proof from one fixture. Fresh witness availability NOT solved. Offline only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/test/fixtures/derive-base-headers.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/test/fixtures/derive-base-headers.mjs",
+      "sha256": "b98d22a4163e68d56e8171055279d2c786157acf0df504d7e7c9cc3e3ab35390",
+      "bytes": 6327
+    },
+    {
+      "label": "P authenticated-ancestry root recovery ce7c1b73 (2 commits on bfbd649d): 52 real canonical Base header fixtures, 51 links. The combined 49-proof-call test uses a SYNTHETIC block identity (TEST-key authority), NOT real history + proof from one fixture. Fresh witness availability NOT solved. Offline only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/test/helios-witness-failover.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/test/helios-witness-failover.e2e.test.mjs",
+      "sha256": "d74fcd059be8bf84bef9bcf32a371a5f3c2077d70a30faa28297ddb5a4148fdc",
+      "bytes": 14086
+    },
+    {
+      "label": "P authenticated-ancestry root recovery ce7c1b73 (2 commits on bfbd649d): 52 real canonical Base header fixtures, 51 links. The combined 49-proof-call test uses a SYNTHETIC block identity (TEST-key authority), NOT real history + proof from one fixture. Fresh witness availability NOT solved. Offline only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/test/witness-ancestry.test.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/p-history-enclave-ce7c1b73/files/test/witness-ancestry.test.mjs",
+      "sha256": "df24cf53a1f2a8292bebaca74a549120fd371ace04ffa55a02c03a421b8dd8b2",
+      "bytes": 12698
+    },
+    {
+      "label": "Helios witness-check aca81764 on 1ec2c1a5: authenticated header ops (alloy hash_slow, Base header rules); Rust 8 pass debug; helper binary not stored, no cargo cache",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/p-history-helios-aca81764/patches/0001-witness-check-authenticated-headers-for-roots-a-gate.patch",
+      "stored": "files/source-preservation/frozen-0331-export/p-history-helios-aca81764/patches/0001-witness-check-authenticated-headers-for-roots-a-gate.patch",
+      "sha256": "9b6717a855ba9052d4a633d8cd785db87a7644b9e0a06980ca5aff42ef132797",
+      "bytes": 17626
+    },
+    {
+      "label": "Helios witness-check aca81764 on 1ec2c1a5: authenticated header ops (alloy hash_slow, Base header rules); Rust 8 pass debug; helper binary not stored, no cargo cache",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/p-history-helios-aca81764/files/opstack/bin/witness-check.rs",
+      "stored": "files/source-preservation/frozen-0331-export/p-history-helios-aca81764/files/opstack/bin/witness-check.rs",
+      "sha256": "0b3ab9ac492f35b2a0e06e14512bd8a16e721f58605a004e1ec108b7671f51cd",
+      "bytes": 8204
+    },
+    {
+      "label": "Helios witness-check aca81764 on 1ec2c1a5: authenticated header ops (alloy hash_slow, Base header rules); Rust 8 pass debug; helper binary not stored, no cargo cache",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/p-history-helios-aca81764/files/opstack/src/witness_check.rs",
+      "stored": "files/source-preservation/frozen-0331-export/p-history-helios-aca81764/files/opstack/src/witness_check.rs",
+      "sha256": "c7393332ff30aea7b97f78de84de8e933da1361b9be2de618163dcb45b571e5d",
+      "bytes": 20428
+    },
+    {
+      "label": "A LeaseReader explicit local-verifier chain authority 921d60c2 on 9fdc1418c (lease-reader.mjs 3d1850b2 = the source root's deadline probe ran on). Whole-operation deadline gap IDENTIFIED (ROOT-VERIFIER-DEADLINE-REVIEW), B fix in progress. A's later Reth positive E2E (0c43e4db8) is NOT part of this commit and is not captured; this commit is not final",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/patches/0001-Give-LeaseReader-an-explicit-local-verifier-chain-au.patch",
+      "stored": "files/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/patches/0001-Give-LeaseReader-an-explicit-local-verifier-chain-au.patch",
+      "sha256": "e82df626880771e90e002bc7bcefafb93f671d5f5cb96c17a45c96110685d718",
+      "bytes": 65775
+    },
+    {
+      "label": "A LeaseReader explicit local-verifier chain authority 921d60c2 on 9fdc1418c (lease-reader.mjs 3d1850b2 = the source root's deadline probe ran on). Whole-operation deadline gap IDENTIFIED (ROOT-VERIFIER-DEADLINE-REVIEW), B fix in progress. A's later Reth positive E2E (0c43e4db8) is NOT part of this commit and is not captured; this commit is not final",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/directory-server.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/directory-server.mjs",
+      "sha256": "6e1a2281335f4ba1eed7e3f169dc98618edc2cc62b5e568cab656b373ab20f28",
+      "bytes": 7249
+    },
+    {
+      "label": "A LeaseReader explicit local-verifier chain authority 921d60c2 on 9fdc1418c (lease-reader.mjs 3d1850b2 = the source root's deadline probe ran on). Whole-operation deadline gap IDENTIFIED (ROOT-VERIFIER-DEADLINE-REVIEW), B fix in progress. A's later Reth positive E2E (0c43e4db8) is NOT part of this commit and is not captured; this commit is not final",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/host-admission-runtime.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/host-admission-runtime.mjs",
+      "sha256": "db9b0738f84921cf1333e9f0381d2a27f0f4b069be4b90ad9d27ccdf02dded5c",
+      "bytes": 10575
+    },
+    {
+      "label": "A LeaseReader explicit local-verifier chain authority 921d60c2 on 9fdc1418c (lease-reader.mjs 3d1850b2 = the source root's deadline probe ran on). Whole-operation deadline gap IDENTIFIED (ROOT-VERIFIER-DEADLINE-REVIEW), B fix in progress. A's later Reth positive E2E (0c43e4db8) is NOT part of this commit and is not captured; this commit is not final",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/lease-reader.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/lease-reader.mjs",
+      "sha256": "3d1850b2ca7161e6efbe35976e9b5050ad56abf67b94ee8c1acc5b0e5a71e37d",
+      "bytes": 44498
+    },
+    {
+      "label": "A LeaseReader explicit local-verifier chain authority 921d60c2 on 9fdc1418c (lease-reader.mjs 3d1850b2 = the source root's deadline probe ran on). Whole-operation deadline gap IDENTIFIED (ROOT-VERIFIER-DEADLINE-REVIEW), B fix in progress. A's later Reth positive E2E (0c43e4db8) is NOT part of this commit and is not captured; this commit is not final",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/management-host.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/management-host.mjs",
+      "sha256": "1998c241ab1f1d67467f508018d4827bbd7d37a1afd984a477aa8268b03604d4",
+      "bytes": 10000
+    },
+    {
+      "label": "A LeaseReader explicit local-verifier chain authority 921d60c2 on 9fdc1418c (lease-reader.mjs 3d1850b2 = the source root's deadline probe ran on). Whole-operation deadline gap IDENTIFIED (ROOT-VERIFIER-DEADLINE-REVIEW), B fix in progress. A's later Reth positive E2E (0c43e4db8) is NOT part of this commit and is not captured; this commit is not final",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/provider-settlement.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/provider-settlement.mjs",
+      "sha256": "dad131831db37c2ac1a060c969ec120ef1742f6c23840e8264e23dd32939b49c",
+      "bytes": 7158
+    },
+    {
+      "label": "A LeaseReader explicit local-verifier chain authority 921d60c2 on 9fdc1418c (lease-reader.mjs 3d1850b2 = the source root's deadline probe ran on). Whole-operation deadline gap IDENTIFIED (ROOT-VERIFIER-DEADLINE-REVIEW), B fix in progress. A's later Reth positive E2E (0c43e4db8) is NOT part of this commit and is not captured; this commit is not final",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/usdc-bandwidth.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/usdc-bandwidth.mjs",
+      "sha256": "15c0e6869a3a1d5ff4dfd9eb1c11800b515f885ba40479e433f0b2255b534512",
+      "bytes": 15166
+    },
+    {
+      "label": "A LeaseReader explicit local-verifier chain authority 921d60c2 on 9fdc1418c (lease-reader.mjs 3d1850b2 = the source root's deadline probe ran on). Whole-operation deadline gap IDENTIFIED (ROOT-VERIFIER-DEADLINE-REVIEW), B fix in progress. A's later Reth positive E2E (0c43e4db8) is NOT part of this commit and is not captured; this commit is not final",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/wg-provider/main.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/network/wg-provider/main.mjs",
+      "sha256": "0bde499e9b30ab561f2b20bfe4867517e30f07ba5f6c19df41e13f591db0d864",
+      "bytes": 13892
+    },
+    {
+      "label": "A LeaseReader explicit local-verifier chain authority 921d60c2 on 9fdc1418c (lease-reader.mjs 3d1850b2 = the source root's deadline probe ran on). Whole-operation deadline gap IDENTIFIED (ROOT-VERIFIER-DEADLINE-REVIEW), B fix in progress. A's later Reth positive E2E (0c43e4db8) is NOT part of this commit and is not captured; this commit is not final",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/test/lease-reader-verifier.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/test/lease-reader-verifier.e2e.test.mjs",
+      "sha256": "7fa565f1ee26d37e8bacdc23b50cc0bf0e27fd3c4243a11b1a5af93cbf9e6109",
+      "bytes": 12729
+    },
+    {
+      "label": "A LeaseReader explicit local-verifier chain authority 921d60c2 on 9fdc1418c (lease-reader.mjs 3d1850b2 = the source root's deadline probe ran on). Whole-operation deadline gap IDENTIFIED (ROOT-VERIFIER-DEADLINE-REVIEW), B fix in progress. A's later Reth positive E2E (0c43e4db8) is NOT part of this commit and is not captured; this commit is not final",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/test/lease-reader-verifier.test.mjs",
+      "stored": "files/source-preservation/frozen-0331-export/a-verifier-authority-921d60c2/files/test/lease-reader-verifier.test.mjs",
+      "sha256": "0e37a9378987d8b6664cad89edbdaf1f6693ece0a6129870252cddd7fdaf24e5",
+      "bytes": 17381
+    },
+    {
+      "label": "P history report files at their stable bytes (hash-frozen at export): describe exactly ce7c1b73 / aca81764; source + offline tests only; proof-call test identity SYNTHETIC; not production or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/witness-failover/RESULT-HISTORY.md",
+      "stored": "files/witness-failover/RESULT-HISTORY.md",
+      "sha256": "1a70e588956e45a9dfb9638e3f769221c95bb5d4203cb1f17e14b1b17a4c7beb",
+      "bytes": 13454
+    },
+    {
+      "label": "P history report files at their stable bytes (hash-frozen at export): describe exactly ce7c1b73 / aca81764; source + offline tests only; proof-call test identity SYNTHETIC; not production or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/witness-failover/PROVENANCE-HISTORY.json",
+      "stored": "files/witness-failover/PROVENANCE-HISTORY.json",
+      "sha256": "5da30d86139dd76be3ff7bd83fb841dbff5ed4cfb324dd22f153ef64c6df8938",
+      "bytes": 5844
+    },
+    {
+      "label": "P history report files at their stable bytes (hash-frozen at export): describe exactly ce7c1b73 / aca81764; source + offline tests only; proof-call test identity SYNTHETIC; not production or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/witness-failover/TEST-EVIDENCE-HISTORY.txt",
+      "stored": "files/witness-failover/TEST-EVIDENCE-HISTORY.txt",
+      "sha256": "9a5baf9860109e253f500bb9cdf695d846cdc48fbd6d89c080982afcea9c28c3",
+      "bytes": 18652
+    },
+    {
+      "label": "ROOT review (03:24Z) of S f98786e9 (runner 6d243858, whole_restore 724cb639) and the settings for a NEW isolated full-restore attempt (maxConns 128, 768 MiB, no limit increase). Review + plan only: no attempt result; the old OOM remains the latest terminal full restore",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-restore-bounded-reviewed/ROOT-REVIEW.json",
+      "stored": "files/sia-whole-restore-bounded-reviewed/ROOT-REVIEW.json",
+      "sha256": "035e7702b1432cc1683af4d3acba9fdf6f284378ffeaf50d775922bfc650c507",
+      "bytes": 1138
+    },
+    {
+      "label": "frozen-0331 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-frozen-0331.py",
+      "stored": "files/source-preservation/export-frozen-0331.py",
+      "sha256": "3b570b071a3face59cee25f0ea390546e941787fff608b12b82dac7dd1cfaf3c",
+      "bytes": 13558
+    },
+    {
+      "label": "frozen-0331 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-frozen-0331-export.py",
+      "stored": "files/source-preservation/verify-frozen-0331-export.py",
+      "sha256": "a8eefbf10d6ad3ebefdd44429b6693a91c8f720687dedadc60485fc995831847",
+      "bytes": 6982
+    },
+    {
+      "label": "frozen-0331 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-frozen-0331.py",
+      "stored": "files/source-preservation/capture-frozen-0331.py",
+      "sha256": "bcaeb86a62a2f91bc8be6eb3955eb8f3150e07c2fecd740fa78bffd0ccdd66ba",
+      "bytes": 6915
+    },
+    {
+      "label": "frozen-0331 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-pins.json",
+      "stored": "files/source-preservation/frozen-0331-pins.json",
+      "sha256": "263a934122cf696199233d0a41ece67ba450840c4c78302af7d81faafdd87513",
+      "bytes": 265
+    },
+    {
+      "label": "frozen-0331 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-export.sh",
+      "stored": "files/source-preservation/frozen-0331-export.sh",
+      "sha256": "cc26a34df60c74c3ae0bb055b16b6cbfad18c4182c3d80a647387f01dcac7d9b",
+      "bytes": 1092
+    },
+    {
+      "label": "frozen-0331 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-capture.sh",
+      "stored": "files/source-preservation/frozen-0331-capture.sh",
+      "sha256": "a619abe0c52fae3d99c600d094c22aef757330c5c88fba5e292c1a0e5671a132",
+      "bytes": 1933
+    },
+    {
+      "label": "frozen-0331 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0331-labels.json",
+      "stored": "files/source-preservation/frozen-0331-labels.json",
+      "sha256": "2a6708b646f02a6da01e32e513eb82864bbebc51f3dd3e3e2a61f0e8c7e1598a",
+      "bytes": 3672
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -7455,6 +8071,15 @@
       "entriesBefore": 1085,
       "added": 59,
       "bytes": 1370196,
+      "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run"
+    },
+    {
+      "at": "2026-10-23T03:37:01.850819+00:00",
+      "by": "source-preservation/capture-frozen-0331.py",
+      "onCheckpoint": "552fb9f5460b996c30a69c2600c60c5e38b7d83f",
+      "entriesBefore": 1144,
+      "added": 88,
+      "bytes": 4233254,
       "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run"
     }
   ]

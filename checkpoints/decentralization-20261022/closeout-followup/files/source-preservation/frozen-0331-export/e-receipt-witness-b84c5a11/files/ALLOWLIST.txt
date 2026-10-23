@@ -1,0 +1,30 @@
+# rpc-receipt-witness: files for source control (paths relative to this directory). EXCLUDED: verifier/logs/, probe/*.out,
+# probe/*.guard.log, probe/bloom-density-{1..3}.json (failed/rate-limited attempts), verifier/cli-ok.json, built binaries.
+# probe/fixture-1.json.gz is BINARY (gzip of public Base mainnet JSON-RPC data; the verifier tests read it).
+RESULT.md
+ALLOWLIST.txt
+silent-writers.py
+sources/deployed/MANIFEST.json
+sources/deployed/catalog--EnclaveAppCatalog.sol
+sources/deployed/connectivity--EnclaveConnectivity.sol
+sources/deployed/connectivity--EnclaveDeployments.sol
+sources/deployed/key-attestations--EnclaveKeyAttestations.sol
+sources/deployed/ledger-rev16d--EnclaveDeployments.sol
+sources/deployed/legacy-sessions-v2--SessionVault.sol
+sources/deployed/pay--EnclavePay.sol
+sources/deployed/payment-router--PaymentRouter.sol
+sources/deployed/proof-of-time--EnclaveProofOfTime.sol
+sources/deployed/registry-schema4--EnclaveRegistry.sol
+sources/deployed/verification-fees--EnclaveVerificationFees.sol
+inventory/consumer-reads.json
+probe/bloom-density.mjs
+probe/capture.mjs
+probe/bloom-density-4.json
+probe/bloom-density-5.json
+probe/fixture-1.json.gz
+verifier/go.mod
+verifier/go.sum
+verifier/verifier.go
+verifier/verifier_test.go
+verifier/cmd/witness-verify/main.go
+verifier/run-tests.sh

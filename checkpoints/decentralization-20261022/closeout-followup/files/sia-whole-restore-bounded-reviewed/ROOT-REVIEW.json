@@ -1,0 +1,21 @@
+{
+  "sourceCommit": "f98786e90e83c66da6f593315faea83e717caeed",
+  "files": {
+    "runner.py": "6d2438580b14b1b2beb29ee0b6cc51d74d9a6a10517296836089d3812dc937f2",
+    "whole_restore.py": "724cb63918e07d7d3954c7ca577a8431f6da22f87f4a56537cc31161a806adc2"
+  },
+  "reviewedAt": "2026-10-23T03:24:00Z",
+  "tests": "18 harness +17 bridge +real systemd all pass; 420s sustained 211648774144 bytes, zero mismatch,232480768B peak",
+  "scope": "Isolated read-only Sia full-snapshot recovery, not production service replacement or physical-host-loss proof",
+  "settings": {
+    "memoryMaxMiB": 768,
+    "cpuQuota": 100,
+    "deadlineSecs": 14400,
+    "maxTotalBytes": 23000000000,
+    "bridge": {
+      "maxConns": 128
+    }
+  },
+  "reasonForConnectionCap": "50 snapshot host endpoints; observed sustained test max74 active.128 bounds aggregate socket memory further without altering healthy established connections. New arrivals over cap refuse; restore may fail/retry if actual concurrency exceeds capacity. No memory-limit increase.",
+  "oldAttempt": "Already terminal OOM and staging removed; keep prior partial data. New directory required."
+}
