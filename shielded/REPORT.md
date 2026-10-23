@@ -3,6 +3,12 @@
 Date: 2026-08-14. Companion to [docs/shielded-inference.md](../docs/shielded-inference.md)
 (design) and [SECURITY.md](SECURITY.md) (leakage argument).
 
+**Reading this historical log (2026-10-23):** the dated sections preserve successive
+experiments, including conclusions later superseded. For the corrected refill ceiling,
+27B isolated-guest/native measurements, baseline comparison and sparse/dealt-pad status,
+start with the [current evidence summary](../docs/shielded-inference.md#performance-and-pad-modes-evidence-update-2026-10-23).
+The August primitive figures below are not end-to-end application throughput.
+
 **Bottom line up front.** The confidentiality design holds, and as of 2026-08-25 it also
 RUNS: a real GGUF model generates real tokens with every linear op masked and executed on
 an untrusted GPU, and the output is bit-identical to the same model run entirely in-TEE.

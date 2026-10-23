@@ -6,8 +6,49 @@ Status: DESIGN (2026-08-14), **RUNNING END TO END (2026-08-25)**, **IN PRODUCTIO
 As of 2026-10-14 Shield GPU offload is live on two hosts: metal0 (one SEV-SNP guest per app,
 two NVIDIA V100-class cards with no confidential-computing mode, reached over AF_VSOCK, serving
 `qwen3.8-27b-mtp-q4-vl-gguf`; `isolation/m4/SHIELDED-GPU.md`) and nucbox-k11-4 (Hyper-V
-partition per app, AMD Radeon 780M via Vulkan, `qwen2.5-0.5b`). The design text below is
-kept as written; dated notes mark where it has been overtaken.
+partition per app, AMD Radeon 780M via Vulkan, `qwen2.5-0.5b`). Much of the design text
+below is historical; the throughput and pad-mode summary below supersedes its original
+performance estimates. Deployment dates describe recorded rollouts, not live availability.
+
+## Performance and pad modes: evidence update (2026-10-23)
+
+**The old ~7 tok/s 8B refill ceiling and blanket exclusion of 32B-class models are
+superseded.** That ceiling used stock fp64 BLAS on a contended CPU. Exact int8/VNNI
+refill, background pad pools and later engine optimizations changed the economics.
+The implemented 27B path has measured approximately 19–21 tok/s in isolated SNP guests
+on two V100-class GPUs. These are configuration-specific decode measurements:
+
+| Recorded test | Decode rate | Scope |
+| --- | ---: | --- |
+| 2026-10-01, 27B ordinary decode in a 56 GiB SNP guest | **19.03 tok/s** | Short public probe: 31 timed tokens in 1,629 ms; no speculative decoding. |
+| 2026-09-27, 27B isolated 60 GiB guest, pool 128/unit 32 and cost-priority refill | **21.34 tok/s** | Aggregate of two 384-token MTP requests; individual rates 22.85 and 20.02 tok/s. |
+| 2026-09-30, 27B compact weights, refill unit 64, native process with production CPU settings | **19.44 tok/s overall; 18.61 warm** | Three 64-token rounds; not an SNP-guest or application HTTP measurement. |
+
+Sources: [ordinary SNP probe](operations/dynamic-model-ram-20261001.md#successful-larger-allocation-generation),
+[isolated/native qualification](../isolation/m4/evidence/shield-target25-2026-09-27/README.md),
+and [compact-weight qualification](operations/shield-compact-weights.md#2026-09-30-qualification).
+The October 1 production activation at a smaller 45,440 MiB allocation exhausted its
+model-memory budget and recovered without the inference graph; the successful 56 GiB
+probe must not be presented as throughput at that smaller allocation.
+
+**State the baseline when quoting a percentage.** The recorded same-model unmasked
+llama.cpp comparison is 30.20 tok/s on two V100s (30.36 on one), in
+[REPORT.md §16.7](../shielded/REPORT.md#167-the-unmasked-baseline-what-the-shielding-costs).
+20 tok/s is about 66% of that historical native baseline. A claim of “75% of baseline”
+needs its own identified, matched baseline; the guest and native results above are
+different execution environments and should not be combined into a controlled overhead
+measurement.
+
+**Metal self-minting and dealt pads have different trust assumptions.** The documented
+metal0 path generates fresh pads inside the SNP guest; it does not depend on an external
+dealer. Dealt mode shares the mask seed with a platform-run dealer and therefore requires
+that dealer not to collude with the accelerator. The separate sparse-v3 work reduces
+unneeded pad cells in offline shipments; it is not integrated into the live dealer or
+consumer and does not explain the measured inference rates. See
+[throughput](#what-actually-binds-throughput), [dealt pads](#dealt-pads-the-mask-work-off-the-trusted-half)
+and [sparse delivery](#sparse-pad-delivery-status).
+
+## Original design and implementation history
 
 The oracle in `shielded/reference/` still exists to prove the constructions. Since 2026-08-25
 there is also a working implementation: `shielded/worker.py` (the untrusted GPU half),
@@ -180,9 +221,10 @@ actually used):
 - Online: send `x + r mod p`; GPU returns `(x+r)·W`; TEE computes `y = (x+r)·W − u`.
   TEE online cost is O(|x|+|y|) additions. One-shot masks, strictly.
 
-**The precompute economics are the honest core of this design.** `u = r·W` costs the same
-MACs as the offloaded product itself, so at 100% duty cycle sustained throughput is capped
-by TEE mask-refill rate, not by the GPU. Three things rescue this:
+Self-minted pads still require `u = r·W`: one corresponding trusted linear product per
+pad, with the residue-plane cost of the chosen implementation. This imposes a refill
+capacity requirement, but does not establish that refill is slower than the GPU or the
+online CPU path. Three implementation choices make that distinction material:
 
 1. Mask generation is a *batched, offline* GEMM (`R_bank · W` for thousands of future
    masks in one streaming pass) — an order of magnitude more MAC-efficient on CPU than
@@ -382,44 +424,34 @@ on the token critical path.
 
 ### What actually binds throughput
 
-Three ceilings, and the honest answer is that they are all in the same order of magnitude:
+Throughput depends on the online TEE work, GPU compute/weight streaming and transport,
+and whether background refill can supply pads at the required rate. The limiting term
+must be measured for the model, context, batch, CPU allocation and pad-pool configuration.
 
-- **TEE serial** (bandwidth-bound): KV streaming for attention, ~9 ms/token at 8k GQA →
-  ~110 tok/s.
-- **TEE background** (throughput-bound): mask refill costs `u = r·W`, i.e. *exactly* the
-  linear MACs the GPU performs, multiplied by the number of RNS channels. **Now measured
-  (`shielded/bench/refill_bench.py`) and it is worse than this document previously
-  estimated.** On 16 physical EPYC 9115 cores the best *verified-exact* GEMM is fp64 at
-  159 G-MAC/s, which sustains only ~7 tok/s for an 8B model at RNS-3. bf16 is faster but
-  the exactness probe says it is **not** exact, so that rate is unusable. The path that
-  rescues it is int8 via `torch._int_mm` (FBGEMM/oneDNN, AVX-512 VNNI), verified exact for
-  byte primes and roughly an order of magnitude faster than fp64 — so refill is a solved
-  *engineering* problem, not an open research one, but it must actually be built into the
-  TEE side. Current figures in `shielded/REPORT.md`.
-- **GPU**: linear MACs in field arithmetic with limb inflation.
+The corrected primitive benchmark in [REPORT.md §3](../shielded/REPORT.md#3-cpu-the-mask-refill-rate-benchrefill_benchpy)
+measured **4,830 G-MAC/s with exact int8/VNNI** on an idle 16-core EPYC 9115. At RNS-3,
+that implies refill capacities of **214.5 tok/s for Llama-3-8B** and **50.3 tok/s for a
+Qwen3-32B-class geometry**. These are arithmetic projections from a refill benchmark,
+not end-to-end inference rates. The 8B unprotected GPU baseline was 79.3 tok/s, so refill
+had 2.7× headroom in that comparison. The earlier ~7 tok/s conclusion used stock fp64
+and a CPU contended by concurrent builds; it is not the current refill ceiling. bf16
+failed the exactness probe and is not an acceptable substitute.
 
-**Refill is the binding constraint.** The GPU leg costs 2.6-3.6x fp16 and TEE attention
-costs ~9 ms/token at 8k, but refill sets the sustained ceiling. Two things have to be true,
-and neither is optional:
+The fast refill is implemented. The later 27B gains include batched exact integer/vector
+refill, background pools, cost-priority scheduling, column splitting across both GPUs,
+and overlap of verification with the worker exchange. The compact-weight runtime adds
+lossless private weight packing and exact oneDNN integer GEMMs for 32–64-row refill
+batches. These retain fresh one-use masks and per-product verification; they do not
+remove the trusted `r·W` work or export its seed. Evidence is in
+[REPORT.md §§16–18](../shielded/REPORT.md#16-20-toks-on-the-27b-what-156-got-wrong-2026-09-21),
+[pool/refill qualification](../isolation/m4/evidence/shield-target25-2026-09-27/README.md)
+and [compact weights](operations/shield-compact-weights.md).
 
-1. **An int8/VNNI GEMM on the TEE side.** This is the single highest-priority engineering
-   dependency of the whole tier, ahead of the GPU kernel, which is already fast enough.
-   The primitive exists and is verified exact (`torch._int_mm` via FBGEMM/oneDNN); what does
-   not exist is its integration into the executor.
-2. **A wide CVM.** Refill parallelises cleanly, so a 64-128 core fleet box is worth 4-8x the
-   16-core development machine. Ceilings are reported per-physical-core in
-   `shielded/REPORT.md` precisely so they extrapolate.
-
-Model-size policy follows directly: 1.5B-class models are comfortable today, 8B is viable
-with VNNI or a wide CVM, and 32B-class models are out of reach on anything resembling this
-hardware. That is a catalog decision the measurement makes for us.
-
-(2026-10-14: that policy was set by the 2026-08 measurement above and has since been
-overtaken. The int8/VNNI refill is integrated (see Open risks, item 0), and a 27B model,
-`qwen3.8-27b-mtp-q4-vl-gguf`, has served in production on metal0 since 2026-09-27 at
-11.75 tok/s aggregate warm masked decode (peak 12.45), in a per-app SNP guest with two
-V100-class cards: `isolation/m4/SHIELDED-GPU.md` and
-`isolation/m4/evidence/shield-27b-production-2026-09-27/README.md`.)
+The implemented 27B results in the [summary](#performance-and-pad-modes-evidence-update-2026-10-23)
+supersede the old blanket claim that models in this size range are out of reach. They do
+not establish performance for every 32B model or context. Pad misses, memory capacity,
+CPU contention and guest scheduling still matter; a short buffered burst is not a
+sustained refill measurement, and native timings are not deployed application timings.
 
 ### The per-token loop
 
@@ -457,12 +489,13 @@ friendly regime, as is diffusion (per-step batched denoiser, seconds-tolerant us
 
 ## Dealt pads: the mask work off the trusted half
 
-Everything above has the trusted half mint its own pads: `u = r·W` for every
+The self-minting path above has the trusted half compute `u = r·W` for every
 row it will ever mask, three residue planes of the model's MACs, on cores,
-inside the boundary. Measured on a 27B (2026-09-06) that is the binding
-resource for every shape of load: one chat keeps the refill threads 85%
-busy through speculation, prefill rides the same pads, and the accelerators
-sit at a few percent. The dealt-pad construction moves that work to a party
+inside the boundary. In the early 27B measurement (2026-09-06), one chat kept the
+refill threads 85% busy through speculation, prefill used the same pads, and the
+accelerators sat at a few percent. That historical result motivated dealt pads;
+the later self-minting improvements above do not require a dealer. Dealt mode moves
+the work to a party
 that never sees `x + r`, and keeps the masking construction exactly as it is.
 
 **Parties.** The *dealer* holds a seed the trusted half also holds, derives
@@ -478,6 +511,31 @@ runs the dealer, so dealt-pad privacy means trusting the platform not to collude
 with the GPU operator. As of 2026-10-14 dealt pads are verified on CPU and on a
 Pixel 8 Pro pVM and are not in production on metal boxes: the pad-bank transport
 for a metal box is not built, so metal0 mints its own pads.
+
+In the implementation, `SHIELDED_PAD_SOURCE` selects dealt mode and requires the
+associated `SHIELDED_PAD_SEED`, seed identity and pad-decryption key
+([`shielded-tee.c`](../wasm/ggml-shielded/shielded-tee.c)). Those deployment inputs are
+specific to dealt mode; they are not evidence that the self-minted metal path exposes
+its mask seed. Encrypting shipments does not remove the dealer's knowledge of `r`:
+an operator who controls both the dealer and accelerator can recover `x` from `x + r`.
+Dealt mode therefore does not provide confidentiality against that combined adversary.
+
+### Sparse pad delivery status
+
+Sparse v3 implements per-group requested pad ranges, avoiding the unused cells of a
+rectangular shipment. It does **not** make individual masks sparse, weaken their
+distribution, or remove `r·W` for cells that are actually needed. The
+[standalone 27B comparison](research-archive-2026-09/shielded-27b/sparse-mint-27b-measurement.md)
+measured 4.522 s versus 5.543 s median CPU mint time (18.4% less) and 26.5% fewer shipment
+bytes across three pairs with synthetic per-group demand. All 20,992 requested cells
+matched the v2 values in the first pair. This measures pad generation, not tok/s.
+
+The [v3 implementation status](../shielded/dealer/SPARSE-DELIVERY.md) records standalone
+file/mint APIs and tests, with no live dealer, relay or consumer integration. It cannot
+be credited for the measured near-20 tok/s inference results, and does not change the
+dealer/accelerator non-collusion requirement.
+
+### Dealt-pad format and lifecycle
 
 **The pad.** `r = ChaCha20(seed, (group << 48) | (index << 24) | block)`
 reduced to `[0, M)` exactly as the mask bank draws; `u` ships as 3 bytes per
@@ -888,18 +946,22 @@ in force. These checks add no adaptive scaling or secret-dependent wire metadata
 
 ## Open risks, ranked
 
-0. **Mask refill on the TEE side is the tier's throughput ceiling.** It costs one TEE MAC
-   per GPU MAC and cannot be offloaded (a GPU computing `r·W` learns the pad). The fast
-   exact primitive exists (int8/VNNI, verified) and is now integrated and exactness-probed
-   (`tee.refill`, one stacked GEMM over the three residue planes). Figures:
-   `shielded/REPORT.md`.
+0. **Refill capacity and burst provisioning.** Trusted `r·W` work remains, but refill is
+   not a universal throughput ceiling: exact integer refill is implemented, and its
+   corrected 8B primitive capacity exceeds the measured GPU baseline. Larger models,
+   prefill and speculation still need adequate CPU, pool depth and memory; shortages
+   can put minting back on the request path. See [throughput](#what-actually-binds-throughput)
+   for the measured limits and the separate trust assumption of dealt mode.
 
 
-1. **Field-GEMM throughput on commodity GPUs** — the whole tier's economics. int8-limb
-   kernels are the load-bearing bet; Phase 1 measures before more is built on it.
-2. **Decode against a q4_K baseline sits at the kill line** — RNS-3 is 1.5x fp16 but 6x
-   q4_K on weight bandwidth, and q4_K is what the fleet serves. Batching amortises it;
-   batch-1 decode does not. Needs the bespoke small-M kernel (int8 TC refuses M<=16).
+1. **Performance across GPU families and model shapes.** Exact field kernels and
+   end-to-end inference are implemented; the original primitive estimates no longer
+   describe the running engine. Qualify each GPU/model combination, including its
+   weight-memory footprint and transport, rather than extrapolating the V100 results.
+2. **Comparable end-to-end baselines.** Report the model, quantization, hardware,
+   context, batching, speculation and execution environment for both protected and
+   unprotected runs. The original 6× q4_K weight-bandwidth estimate is not a measured
+   decode penalty for the implemented engine. See the evidence summary above.
 3. ~~**Field magnitude guard**~~ — **RESOLVED 2026-08-25, and the margin was not there.**
    At the design's fixed `l = 8`, `ffn_down` on a real model reaches 1.81× M/2 and WRAPS
    (REPORT.md §10.2). Two changes, both implemented: detection is now Freivalds over the
