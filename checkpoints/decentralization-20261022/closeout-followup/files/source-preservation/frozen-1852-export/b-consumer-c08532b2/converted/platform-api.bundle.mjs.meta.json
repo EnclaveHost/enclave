@@ -1,0 +1,12 @@
+{
+  "bundle": "metal/guest/platform-api.bundle.mjs",
+  "entry": "metal/guest/platform-api-entry.mjs",
+  "sha256": "ae9d88db9329e5aa0f7a68d3a75cf4235b724378336a69ef1a586f1d5718816b",
+  "bytes": 8878598,
+  "sidecars": {
+    "fixtures/tpm-roots.pem": {
+      "source": "relay/fixtures/tpm-roots.pem",
+      "sha256": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+    }
+  }
+}

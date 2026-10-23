@@ -1,0 +1,161 @@
+From 675a1a17bc4f7d0b91f65d49e6cbb5d0751e96e9 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 10:32:50 -0700
+Subject: [PATCH] Chain authority: what the end-to-end runs found on the real
+ verifier
+
+- Request bodies are serialized with viem's own stringify (as its http transport does); plain JSON.stringify failed on
+  the BigInt fields viem leaves to the transport, so no transaction could be prepared.
+- "latest"/"pending" blocks are read by NUMBER (the verifier's eth_blockNumber, then that block): the pinned Helios fails
+  to validate its tag-addressed latest block on the dev chain, while numbered blocks are the path the verified snapshots
+  already use. Same meaning: the newest block of its signed head chain. safe/finalized are refused by name (no such tier).
+- The own backend is bound at the verifier's HEAD block (it must hold that exact block). A block below the head can be one
+  the verifier only recovered by ancestry, whose full-block validation the dev chain fails; it adds nothing to the binding.
+- eth_getTransactionByHash is answered by the verifier: Helios takes the transaction from the validated body of its block
+  (transactions root); none is no evidence. The app-funded landing check (verifyLeaseReceipt) needs it, and refused, it
+  fell through to the nonce fence ("consumed") instead of verifying the landing.
+- The gate's words name the endpoint that failed and keep the RPC details.
+---
+ docs/network/supervisor-chain-authority.md |  1 +
+ network/chain-authority.mjs                | 35 +++++++++++++++-------
+ test/chain-authority.test.mjs              |  3 +-
+ 3 files changed, 28 insertions(+), 11 deletions(-)
+
+diff --git a/docs/network/supervisor-chain-authority.md b/docs/network/supervisor-chain-authority.md
+index 7cff9fac8c0ba965c898b8f1b05e296270817f64..9ff1e50e86adcd77d346d02ce138381ad9975db8 100644
+--- a/docs/network/supervisor-chain-authority.md
++++ b/docs/network/supervisor-chain-authority.md
+@@ -20,6 +20,7 @@
+ | `eth_getBalance`, `eth_getCode`, `eth_getStorageAt`, `eth_getTransactionCount` (a block) | local verifier | account/storage/code proof |
+ | `eth_blockNumber`, `eth_getBlockByNumber`, `eth_getBlockByHash`, `eth_chainId` | local verifier | the sequencer-signed head chain (signed head or authenticated ancestry) |
+ | `eth_getTransactionReceipt`, `eth_getBlockReceipts` | local verifier | the receipts root of a verified block. "Not found" means only *no evidence* (never absence), so callers decide by the proven nonce |
++| `eth_getTransactionByHash` | local verifier | the transaction taken from the validated body of its block (transactions root). None is no evidence |
+ | `eth_getLogs` | local verifier | each log proven against its block's receipts. **Inclusion only: completeness is not proven** |
+ | `eth_getTransactionCount` (`pending`) | own backend | pool hint |
+ | `eth_sendRawTransaction` | own backend, **after** binding it to the verifier (same chain id, same hash at the verifier's confirmed block) and a fresh head | submission only: inclusion is shown solely by a receipt the verifier checks |
+diff --git a/network/chain-authority.mjs b/network/chain-authority.mjs
+index 481e3b0a85dfd32dd4df85adab625755d1745590..98386f6f1aa724706d575bbf3f007da005021561 100644
+--- a/network/chain-authority.mjs
++++ b/network/chain-authority.mjs
+@@ -10,12 +10,12 @@
+ //   * the operator's OWN TRANSACTION BACKEND (ENCLAVE_CHAIN_TX_BACKEND: the operator's own Base node on a loopback or
+ //     private address literal, never a name), for what no proof can answer: submission, the pending-pool nonce and fee
+ //     hints. It is never asked for state, and before any submission its chain is BOUND to the verifier's (same chain id,
+-//     the same hash at the verifier's confirmed block). A submission proves nothing: inclusion is shown only by a receipt
++//     the same hash at the verifier's head block). A submission proves nothing: inclusion is shown only by a receipt
+ //     the verifier checks. Without a backend nothing can be sent (refused in words, never via any other server);
+ //   * anything else is REFUSED by name. There is no provider pool, no fallback, and no quorum of aliases: a consumer that
+ //     needs agreement treats this client as ONE authority (VERIFIER_CLIENT).
+ // An invalid selection yields an authority that refuses everything (refusingChainAuthority), never the provider path.
+-import { createPublicClient, custom, RpcRequestError } from 'viem';
++import { createPublicClient, custom, RpcRequestError, stringify } from 'viem';
+ import { verifierEndpoint } from './verified-chain.mjs';
+ 
+ export const AUTHORITY_ENV = 'ENCLAVE_CHAIN_AUTHORITY', VERIFIER_ENV = 'ENCLAVE_CHAIN_VERIFIER', TX_BACKEND_ENV = 'ENCLAVE_CHAIN_TX_BACKEND';
+@@ -37,6 +37,7 @@
+   eth_getStorageAt: [V, 'storage proof against the block state root'],
+   eth_getTransactionReceipt: [V, 'receipt checked against the receipts root of a verified block'],
+   eth_getBlockReceipts: [V, 'receipts checked against the receipts root of a verified block'],
++  eth_getTransactionByHash: [V, 'the transaction taken from the validated body of its block (transactions root); none is no evidence'],
+   eth_getLogs: [V, 'each log checked against its block\'s receipts: INCLUSION only, completeness not proven'],
+   eth_getTransactionCount: [V, 'account proof against the block state root (pending: the own backend\'s pool hint)'],
+   eth_sendRawTransaction: [B, 'submission only: inclusion is shown solely by a receipt the verifier checks'],
+@@ -84,7 +85,7 @@
+   return async (method, params) => {
+     const body = { jsonrpc: '2.0', id: ++id, method, params };
+     let r;
+-    try { r = await fetchImpl(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(timeoutMs) }); }
++    try { r = await fetchImpl(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: stringify(body), redirect: 'error', signal: AbortSignal.timeout(timeoutMs) }); }
+     catch (e) { throw Object.assign(new Error(`${label} unreachable: ${String(e?.message || e).slice(0, 200)}`), { authorityUnavailable: true }); }
+     if (!r.ok) throw Object.assign(new Error(`${label} HTTP ${r.status}`), { authorityUnavailable: true });
+     const j = JSON.parse(await readBounded(r, MAX_RESPONSE));
+@@ -110,7 +111,7 @@
+ }
+ 
+ /**
+- * createChainAuthority({verifier, backend?, chain, maxHeadAgeMs, futureSkewMs, confirmations, bindTtlMs, timeoutMs, fetch, now})
++ * createChainAuthority({verifier, backend?, chain, maxHeadAgeMs, futureSkewMs, bindTtlMs, timeoutMs, fetch, now})
+  *   .client         a viem public client (marked VERIFIER_CLIENT) over the routed transport
+  *   .transport      the same transport, for a wallet client (writeContract prepares through it, sends to the backend)
+  *   .describe()     what is used, with the trust labels (logs and status)
+@@ -118,7 +119,7 @@
+  *                   backend is configured and bound to the verifier's chain. Throws {code, status 503} otherwise.
+  *   .status()       the last gate result (for /health and logs; never evidence)
+  */
+-export function createChainAuthority({ verifier, backend = null, chain, maxHeadAgeMs = 60_000, futureSkewMs = 5_000, confirmations = 2,
++export function createChainAuthority({ verifier, backend = null, chain, maxHeadAgeMs = 60_000, futureSkewMs = 5_000,
+   bindTtlMs = 15_000, timeoutMs = 20_000, fetch: fetchImpl = globalThis.fetch, now = Date.now } = {}) {
+   if (!chain || !Number.isSafeInteger(chain.id)) throw new Error('chain authority needs the chain (viem chain object)');
+   const vEnd = verifierEndpoint(verifier);                 // loopback only; a remote "verifier" is refused here
+@@ -134,9 +135,10 @@
+     if (bound && now() - bound.at < bindTtlMs) return bound;
+     const want = BigInt(chain.id);
+     if (BigInt(await callB('eth_chainId', [])) !== want) throw fail('chain_backend_wrong_chain', `the own backend ${own.label} follows another chain`);
+-    const head = BigInt(await callV('eth_blockNumber', []));
+-    const n = head - BigInt(confirmations);
+-    if (n < 0n) throw fail('chain_unconfirmed', 'the verifier has no confirmed block yet');
++    // bound at the verifier's HEAD: the block its signed head chain ends in (the backend must hold that exact block; a
++    // backend behind it refuses until it catches up). A block below the head may be one the verifier only recovered by
++    // ancestry, which is not needed to prove the backend follows the same chain.
++    const n = BigInt(await callV('eth_blockNumber', []));
+     const tag = '0x' + n.toString(16);
+     const [vb, bb] = await Promise.all([callV('eth_getBlockByNumber', [tag, false]), callB('eth_getBlockByNumber', [tag, false])]);
+     if (!vb?.hash) throw fail('chain_unconfirmed', `the verifier has no block ${n}`);
+@@ -148,21 +150,34 @@
+   }
+   async function actionGate({ what = 'action', submit = false } = {}) {
+     try {
+-      const blk = await callV('eth_getBlockByNumber', ['latest', false]);
++      const blk = await headBlock();
+       let ts; try { ts = Number(BigInt(blk.timestamp)) * 1000; } catch { throw fail('chain_unconfirmed', 'the verifier has no head block'); }
+       if (ts > now() + futureSkewMs) throw fail('chain_future', 'the verifier\'s head is ahead of this host\'s clock');
+       if (now() - ts > maxHeadAgeMs) throw fail('chain_stale', `the verifier's head is ${Math.round((now() - ts) / 1000)} s old (more than ${Math.round(maxHeadAgeMs / 1000)} s)`);
+       if (submit) await bindBackend();
+       last = { at: now(), ok: true, why: null, head: String(BigInt(blk.number)) };
+     } catch (e) {
+-      const err = e?.code && e.status ? e : fail('chain_unavailable', `the local verifier cannot answer (${String(e?.message || e).slice(0, 200)})`);
++      // the endpoint that failed and its own words (an RpcRequestError keeps them in details; its message is generic)
++      const where = /own backend/.test(String(e?.url || e?.message)) ? 'the own backend' : 'the local verifier';
++      const err = e?.code && e.status ? e : fail('chain_unavailable', `${where} cannot answer (${String(e?.details || e?.shortMessage || e?.message || e).slice(0, 300)})`);
+       last = { at: now(), ok: false, why: err.message, code: err.code };
+       throw Object.assign(err, { message: `${what} not done: ${err.message}` });
+     }
+   }
+ 
++  // The verifier's head block, by NUMBER: its own head (eth_blockNumber), then that numbered block. ("latest" by tag is not
++  // relied on: the pinned Helios fails to validate its tag-addressed block on a dev chain, while numbered blocks are the
++  // path every verified snapshot already uses.) Same meaning: the newest block of its signed head chain.
++  async function headBlock(full = false) {
++    const n = await callV('eth_blockNumber', []);
++    return callV('eth_getBlockByNumber', [n, full]);
++  }
+   async function request({ method, params = [] }) {
+     const route = METHODS[method];
++    if (method === 'eth_getBlockByNumber' && ['latest', 'pending'].includes(params[0])) return headBlock(!!params[1]);
++    if ((method === 'eth_getBlockByNumber' || method === 'eth_getTransactionCount' || method === 'eth_call' || method === 'eth_getBalance')
++        && params.some((x) => x === 'safe' || x === 'finalized'))
++      throw refused(method, 'the local verifier has no safe or finalized tier (its head chain is the sequencer-signed unsafe tier)');
+     if (!route) throw refused(method, `not a proof-backed or own-backend method (verified: ${VERIFIED_METHODS.join(', ')}; own backend: ${BACKEND_METHODS.join(', ')})`);
+     if (method === 'eth_getTransactionCount' && (params[1] === 'pending')) {
+       if (!callB) throw refused(method, `the pending pool is only known to an own transaction backend (${TX_BACKEND_ENV} unset)`);
+diff --git a/test/chain-authority.test.mjs b/test/chain-authority.test.mjs
+index 032302aa1104136f29fa221423ffc5c5860d9e20..c09f0e1e5d99c2decb8b626765444d50a7f3e3cd 100644
+--- a/test/chain-authority.test.mjs
++++ b/test/chain-authority.test.mjs
+@@ -86,6 +86,7 @@
+   assert.equal(METHODS.eth_getLogs[1].includes('completeness not proven'), true);
+   assert.deepEqual(BACKEND_METHODS, ['eth_sendRawTransaction', 'eth_maxPriorityFeePerGas', 'eth_feeHistory', 'eth_gasPrice']);
+   assert.ok(!VERIFIED_METHODS.includes('eth_sendRawTransaction'));
++  assert.ok(VERIFIED_METHODS.includes('eth_getTransactionByHash'), 'a transaction is read from its verified block body (the lease receipt check needs it)');
+ });
+ 
+ test('the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees', () => {
+@@ -108,7 +109,7 @@
+   assert.deepEqual([...new Set(v.methods())].sort(), ['eth_blockNumber', 'eth_call', 'eth_getTransactionCount', 'eth_getTransactionReceipt']);
+   assert.deepEqual(b.methods(), ['eth_getTransactionCount'], 'the backend saw only the pending-pool question');
+   const before = v.calls.length + b.calls.length;
+-  for (const m of ['eth_sign', 'eth_accounts', 'debug_traceTransaction', 'eth_getProof', 'eth_newFilter', 'txpool_content', 'eth_getTransactionByHash'])
++  for (const m of ['eth_sign', 'eth_accounts', 'debug_traceTransaction', 'eth_getProof', 'eth_newFilter', 'txpool_content', 'eth_getTransactionByBlockHashAndIndex'])
+     await assert.rejects(a.client.request({ method: m, params: [] }), (e) => /refused by the local chain authority/.test(String(e.details || e.message)), m);
+   assert.equal(v.calls.length + b.calls.length, before, 'a refused method reaches no server');
+ });

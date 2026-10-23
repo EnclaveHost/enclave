@@ -1,0 +1,112 @@
+binary /home/steven/Documents/Codex/2026-10-18/wo/work/resource-guest-lineage-20261023/scratch/f86fb512/monitor: 69 enclave.host functions
+  tree old: match 38 mismatch 1 missing 30
+    missing enclave.host/isolation/contract.(*Lifecycle).FinishStart.deferwrap1
+    missing enclave.host/isolation/contract.(*Lifecycle).RequestEnd.deferwrap1
+    missing enclave.host/isolation/contract.(*Lifecycle).State.deferwrap1
+    missing enclave.host/isolation/contract.(*State).String
+    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
+    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
+    line enclave.host/isolation/contract.State.String binary 29 tree 28
+    missing enclave.host/isolation/contract.UIDOf.deferwrap1
+    ... 23 more
+  tree t-33f7e73fe: match 37 mismatch 2 missing 30
+    missing enclave.host/isolation/contract.(*Lifecycle).FinishStart.deferwrap1
+    missing enclave.host/isolation/contract.(*Lifecycle).RequestEnd.deferwrap1
+    missing enclave.host/isolation/contract.(*Lifecycle).State.deferwrap1
+    missing enclave.host/isolation/contract.(*State).String
+    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
+    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
+    line enclave.host/isolation/contract.State.String binary 29 tree 28
+    missing enclave.host/isolation/contract.UIDOf.deferwrap1
+    ... 24 more
+  tree t-d2ef66631: match 37 mismatch 1 missing 31
+    missing enclave.host/isolation/contract.(*Lifecycle).FinishStart.deferwrap1
+    missing enclave.host/isolation/contract.(*Lifecycle).RequestEnd.deferwrap1
+    missing enclave.host/isolation/contract.(*Lifecycle).State.deferwrap1
+    missing enclave.host/isolation/contract.(*State).String
+    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
+    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
+    line enclave.host/isolation/contract.State.String binary 29 tree 28
+    missing enclave.host/isolation/contract.UIDOf.deferwrap1
+    ... 24 more
+  tree t-65818c239: match 37 mismatch 1 missing 31
+    missing enclave.host/isolation/contract.(*Lifecycle).FinishStart.deferwrap1
+    missing enclave.host/isolation/contract.(*Lifecycle).RequestEnd.deferwrap1
+    missing enclave.host/isolation/contract.(*Lifecycle).State.deferwrap1
+    missing enclave.host/isolation/contract.(*State).String
+    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
+    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
+    line enclave.host/isolation/contract.State.String binary 29 tree 28
+    missing enclave.host/isolation/contract.UIDOf.deferwrap1
+    ... 24 more
+  tree t-28d642888: match 37 mismatch 1 missing 31
+    missing enclave.host/isolation/contract.(*Lifecycle).FinishStart.deferwrap1
+    missing enclave.host/isolation/contract.(*Lifecycle).RequestEnd.deferwrap1
+    missing enclave.host/isolation/contract.(*Lifecycle).State.deferwrap1
+    missing enclave.host/isolation/contract.(*State).String
+    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
+    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
+    line enclave.host/isolation/contract.State.String binary 29 tree 28
+    missing enclave.host/isolation/contract.UIDOf.deferwrap1
+    ... 24 more
+binary /home/steven/Documents/Codex/2026-10-18/wo/work/resource-guest-lineage-20261023/scratch/f86fb512/plat/front: 148 enclave.host functions
+  tree old: match 88 mismatch 0 missing 60
+    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
+    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
+    missing enclave.host/isolation/contract.UIDOf.deferwrap1
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Addr.deferwrap1
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Close.deferwrap1
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Listeners.deferwrap1
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Start.gowrap1
+    missing enclave.host/isolation/m2/egress.(*Forwarder).forward.deferwrap1
+    ... 52 more
+  tree t-33f7e73fe: match 86 mismatch 2 missing 60
+    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
+    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
+    missing enclave.host/isolation/contract.UIDOf.deferwrap1
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Addr.deferwrap1
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Close.deferwrap1
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Listeners.deferwrap1
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Start.gowrap1
+    missing enclave.host/isolation/m2/egress.(*Forwarder).forward.deferwrap1
+    ... 54 more
+  tree t-d2ef66631: match 55 mismatch 20 missing 73
+    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
+    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
+    missing enclave.host/isolation/contract.UIDOf.deferwrap1
+    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 83
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Addr.deferwrap1
+    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 90
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Close.deferwrap1
+    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 52
+    ... 85 more
+  tree t-65818c239: match 55 mismatch 20 missing 73
+    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
+    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
+    missing enclave.host/isolation/contract.UIDOf.deferwrap1
+    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 83
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Addr.deferwrap1
+    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 90
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Close.deferwrap1
+    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 52
+    ... 85 more
+  tree t-28d642888: match 55 mismatch 20 missing 73
+    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
+    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
+    missing enclave.host/isolation/contract.UIDOf.deferwrap1
+    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 83
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Addr.deferwrap1
+    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 90
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Close.deferwrap1
+    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 52
+    ... 85 more
+binary /home/steven/Documents/Codex/2026-10-18/wo/work/resource-guest-lineage-20261023/scratch/f86fb512/plat/secretrun: 9 enclave.host functions
+  tree old: match 9 mismatch 0 missing 0
+  tree t-33f7e73fe: match 8 mismatch 1 missing 0
+    line enclave.host/isolation/m2/shieldconfig.PublicWebMarked binary 13 tree 40
+  tree t-d2ef66631: match 8 mismatch 0 missing 1
+    missing enclave.host/isolation/m2/shieldconfig.PublicWebMarked
+  tree t-65818c239: match 8 mismatch 0 missing 1
+    missing enclave.host/isolation/m2/shieldconfig.PublicWebMarked
+  tree t-28d642888: match 8 mismatch 0 missing 1
+    missing enclave.host/isolation/m2/shieldconfig.PublicWebMarked

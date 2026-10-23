@@ -1,0 +1,14 @@
+{
+  "scheduler": {
+    "time": "2026-10-23T08:29:16.8840441Z",
+    "message": "Hypervisor scheduler type is 0x4.",
+    "xml": "<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Microsoft-Windows-Hyper-V-Hypervisor' Guid='{52fc89f8-995e-434c-a91e-199986449890}'/><EventID>2</EventID><Version>0</Version><Level>4</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x8000400000000000</Keywords><TimeCreated SystemTime='2026-10-23T08:29:16.8840441Z'/><EventRecordID>29047</EventRecordID><Correlation/><Execution ProcessID='4' ThreadID='8'/><Channel>System</Channel><Computer>NucBox_k11</Computer><Security UserID='S-1-5-18'/></System><EventData><Data Name='SchedulerType'>0x4</Data></EventData></Event>"
+  },
+  "os": {
+    "caption": "Microsoft Windows 11 Pro",
+    "build": "26200",
+    "version": "10.0.26200",
+    "productType": 1
+  },
+  "at": "2026-10-23T18:48:41.3936001Z"
+}

@@ -32757,6 +32757,1154 @@
       "stored": "files/source-preservation/make-frozen-1806-snapshots.py",
       "sha256": "1187a8f0ecabec810574b76038380219a3812af6c8ac3ec0d54ce9e1e027b29a",
       "bytes": 861
+    },
+    {
+      "label": "FROZEN 1852 batch exported from Git objects (never worktrees; ignored files never read); bases rebuilt from pushed 7422efe6 material and every recorded tree reproduced (derivative trees for b-consumer and guest-lineage; touched files only for m-durability) - see REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: not merged, imaged, activated or deployed by this capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/INVENTORY.json",
+      "stored": "files/source-preservation/frozen-1852-export/INVENTORY.json",
+      "sha256": "4ee403b8b41892de81928f45171964e4c51b9e0195cb4f30489f47e3fe1e81e6",
+      "bytes": 61212
+    },
+    {
+      "label": "FROZEN 1852 batch exported from Git objects (never worktrees; ignored files never read); bases rebuilt from pushed 7422efe6 material and every recorded tree reproduced (derivative trees for b-consumer and guest-lineage; touched files only for m-durability) - see REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: not merged, imaged, activated or deployed by this capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/REBUILD.md",
+      "stored": "files/source-preservation/frozen-1852-export/REBUILD.md",
+      "sha256": "9bff75c2b2e9e328762b6e1699ed9c60c81f10f1af05ff4338230afa27b2e4ed",
+      "bytes": 4249
+    },
+    {
+      "label": "FROZEN 1852 batch exported from Git objects (never worktrees; ignored files never read); bases rebuilt from pushed 7422efe6 material and every recorded tree reproduced (derivative trees for b-consumer and guest-lineage; touched files only for m-durability) - see REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: not merged, imaged, activated or deployed by this capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/REPRODUCE-CHECK.txt",
+      "stored": "files/source-preservation/frozen-1852-export/REPRODUCE-CHECK.txt",
+      "sha256": "d7c3642f860597dd1a3f2794bddd769d2f70d3ff5b270c6460698a14d1ac3117",
+      "bytes": 2380
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/patches/0001-8afbf879.patch",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/patches/0001-8afbf879.patch",
+      "sha256": "f9f2c96b3681f8394dbfca639420e4b9e6ae46d91160b4a94ffce78cc72d592e",
+      "bytes": 392365
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/.gitignore",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/.gitignore",
+      "sha256": "097627fb9c8b9f2e5822087d4c43c57f146ad493eb38d42c4eb17fc8736eb6de",
+      "bytes": 25
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/WORKLOAD-RESULT.json",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/WORKLOAD-RESULT.json",
+      "sha256": "af74f61e4743113740a341c8a3655e5697f39980d69a8b0cf1937984873c5a56",
+      "bytes": 1730
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/activation-snapshot.json",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/activation-snapshot.json",
+      "sha256": "ac347b457c074da59fc6e775b8836c41ccf43499c0b22a00d33679ef187a405c",
+      "bytes": 13130
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/frozen-scan.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/frozen-scan.guard.log",
+      "sha256": "ac48b041c476d38d216d55d6d7b24fe168977388992861df4c5f997c21256cd0",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/network-policy-entry.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/network-policy-entry.guard.log",
+      "sha256": "32e6c4c65e7b966d88d4d2e15c54a6d610b8fc576b3a0b3e3fa032eb52cff59c",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/network-policy-entry.json",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/network-policy-entry.json",
+      "sha256": "1606665171ff28165cdef30310c919620086df4e5f36c58ef9d73dddc6838c74",
+      "bytes": 2800
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/network-policy.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/network-policy.guard.log",
+      "sha256": "65aa70993f6d665635fba9102fe05e67364ba28a2c74c39b7b4adc76822bbd60",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/network-policy.json",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/network-policy.json",
+      "sha256": "19bbcc711c3992cc850cb4b8ac355af3320775ec414bc1d00487ab5a72ac2d11",
+      "bytes": 2449
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/prepare-workload-retry.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/prepare-workload-retry.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/prepare-workload-retry.py",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/prepare-workload-retry.py",
+      "sha256": "f8ab8621fbace329cb1f870a5128ae6075fa16b6cb89769f0195181e3a6c00a1",
+      "bytes": 2265
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/prepare-workload.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/prepare-workload.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/prepare-workload.py",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/prepare-workload.py",
+      "sha256": "5572539b18b1506210395b477218525a6652cfdf637a9e25de434ca4d2ce8eda",
+      "bytes": 2617
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/queue-owners-1805.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/queue-owners-1805.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/read-network-policy-entry.py",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/read-network-policy-entry.py",
+      "sha256": "02d556f8a3b7cb141bfaa0375502b1513beab48555eddb4671b4d00d6418ac97",
+      "bytes": 1457
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/read-network-policy.py",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/read-network-policy.py",
+      "sha256": "92d078c8f891220d862d6637ecdb57e89c2a48a18dc7f1a5b1c452522a7b72a1",
+      "bytes": 1324
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/read-scheduler.py",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/read-scheduler.py",
+      "sha256": "fd3f69ae231f979441dc35300d3a2b2621999e6045e357a22ad41d9eaa14b04e",
+      "bytes": 817
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/run-workload-ready.ps1",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/run-workload-ready.ps1",
+      "sha256": "1a6c793aaabb7c933f461359765ce269c48fab4307a6e98e1186d415289b8dfc",
+      "bytes": 5798
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/run-workload-sustained.ps1",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/run-workload-sustained.ps1",
+      "sha256": "cc14aef1cdc12b9cc61834d01716ff20c21348e698b3ff766d4c458e1f0b9073",
+      "bytes": 5804
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/run-workload.ps1",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/run-workload.ps1",
+      "sha256": "c0e1d97e1b440de6c7e77580c914d93ae1decf784c4a2ff5a6558d34b9205970",
+      "bytes": 5792
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/scan-frozen.sh",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/scan-frozen.sh",
+      "sha256": "16b5e8a7af634545036f59752944e6a2ca50e4101d5c1e9557933bb346f3e47c",
+      "bytes": 348
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/scheduler.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/scheduler.guard.log",
+      "sha256": "982ae945b8704ca8530b0781cb1dd978e3d1725f852482a40f5678e372bc98db",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/scheduler.json",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/scheduler.json",
+      "sha256": "16b59da06d3e8f96f811518924e32ed35e01658ac5f5072791eaed3a869238b9",
+      "bytes": 917
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/snapshot-activation.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/snapshot-activation.guard.log",
+      "sha256": "65c9b035d0a474245bc2317f2f9360be5a4d8f40a0015689628a30384b6dfb12",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/snapshot-activation.py",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/snapshot-activation.py",
+      "sha256": "9cafc261ebb8d6e98d1f02d081085cdcfb35f4eaad10673590e82204e681746b",
+      "bytes": 1944
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/manifest.json",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/manifest.json",
+      "sha256": "97ade84e95d046d6a1eef350c65ba687ae91084d5fcacb940eb597f7786e0c3c",
+      "bytes": 2799
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/cpu-share.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/cpu-share.mjs",
+      "sha256": "50ca362649a1b53486b9ad9906e9cb51890b1a4a4973babeb09098a7dfcf6bf0",
+      "bytes": 3044
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/derive.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/derive.mjs",
+      "sha256": "504342510c09dadeac0ec925bf071ff9378a56c5c9cc6990c29bbaf85635ad4e",
+      "bytes": 10120
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/egress.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/egress.mjs",
+      "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05",
+      "bytes": 10148
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/ops/workload-canary.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/ops/workload-canary.mjs",
+      "sha256": "7a120a7610c79a5a8a5cc2615128b5752219ec639455bfa1e470276d04d7f032",
+      "bytes": 7989
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/psrun.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/psrun.mjs",
+      "sha256": "39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6",
+      "bytes": 2341
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/wmi-launcher.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/wmi-launcher.mjs",
+      "sha256": "2573e9963904446d0fdd3706fef6c115cb47258d2df3e1c5c0b59750f7107606",
+      "bytes": 91817
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/wmiserve-run.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/manager/wmiserve-run.mjs",
+      "sha256": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
+      "bytes": 13831
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/verify/boot-statements.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-kit/windows/vbslike/verify/boot-statements.mjs",
+      "sha256": "f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3",
+      "bytes": 1712
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/manifest.json",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/manifest.json",
+      "sha256": "07811df71bffa6d9b45799a324f1fa57934930544223c9cd7e7adab5bb8aa239",
+      "bytes": 3023
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/cpu-share.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/cpu-share.mjs",
+      "sha256": "50ca362649a1b53486b9ad9906e9cb51890b1a4a4973babeb09098a7dfcf6bf0",
+      "bytes": 3044
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/derive.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/derive.mjs",
+      "sha256": "504342510c09dadeac0ec925bf071ff9378a56c5c9cc6990c29bbaf85635ad4e",
+      "bytes": 10120
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/egress.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/egress.mjs",
+      "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05",
+      "bytes": 10148
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/ops/workload-canary.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/ops/workload-canary.mjs",
+      "sha256": "961ec3b2e7f3030c2974da4833008651de3c70441b74d4c00f858c477f2c9f15",
+      "bytes": 8592
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/psrun.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/psrun.mjs",
+      "sha256": "39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6",
+      "bytes": 2341
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/wmi-launcher.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/wmi-launcher.mjs",
+      "sha256": "2573e9963904446d0fdd3706fef6c115cb47258d2df3e1c5c0b59750f7107606",
+      "bytes": 91817
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/wmiserve-run.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/manager/wmiserve-run.mjs",
+      "sha256": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
+      "bytes": 13831
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/verify/boot-statements.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-kit/windows/vbslike/verify/boot-statements.mjs",
+      "sha256": "f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3",
+      "bytes": 1712
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-run.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-run.guard.log",
+      "sha256": "742ef22aae01901cbbbfeae2dcdd88af4d0701bf4ff563176c8c867a7ab86182",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-run.json",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-run.json",
+      "sha256": "fb7f2bbfa7065ab4f3ac99bea68c52bbca2898c338df02c581dcca080be4b662",
+      "bytes": 6049
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-stage.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-stage.guard.log",
+      "sha256": "beed6e4dd0863a55d4d5b35653e337b18658cd33eedb2474e316a4afd530f73d",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-stage.json",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready-stage.json",
+      "sha256": "2d2e2ef48facd4cb27574901e771b5938499d39a8129da752cc5aaba1af78fef",
+      "bytes": 72
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready.py",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-ready.py",
+      "sha256": "0067fafde0aec0951adc5376f90a3fb2a5ed67662507d1a7109acbb1a7509801",
+      "bytes": 2949
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-run.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-run.guard.log",
+      "sha256": "03d0506b88747a9ae87e6dfa1df6049bd1715354d4a5896bc0a4e298b32cc2f1",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-run.json",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-run.json",
+      "sha256": "6e68d8f6d20cd235ba367f43ab1a6d6a73b36b3d98d36d5de371df04e2947938",
+      "bytes": 5581
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-stage.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-stage.guard.log",
+      "sha256": "526c487a2153999395db51c38a4fa352f7e85cb8dda3fc7aa8b011889dfeca45",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-stage.json",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-stage.json",
+      "sha256": "4b79e4d5701da4b2862e66675e7959a2167886c1340f6524df4f1f8b55f3dda4",
+      "bytes": 72
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-sustained-run.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-sustained-run.guard.log",
+      "sha256": "22a74d55cdd44a233ac148fa2c6d5c7da5fb646b2ac071951ebb064117db51e3",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-sustained-run.json",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-sustained-run.json",
+      "sha256": "b6c04ae420fd7ae788c6fd999e54ec6d7e4e9960da95faa31dd0e36960898ee1",
+      "bytes": 5962
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-sustained-stage.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-sustained-stage.guard.log",
+      "sha256": "d1ed1ce532b59000c404718b1c73e553730794bb6f4d9712b5b1fcbd3d0e52c9",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-sustained-stage.json",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-sustained-stage.json",
+      "sha256": "05e90a6b77e98c9fb4c711ea62f978b52c6c1bfce86431e443cb9bd0f0415d9e",
+      "bytes": 72
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-sustained.py",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload-sustained.py",
+      "sha256": "1bdd4c7030bd6d785652d40f15e0f408391bd04f911045f2d45dbc3ccd6a2f81",
+      "bytes": 2973
+    },
+    {
+      "label": "ROOT root-validation on c57a5f47: actual Windows read-only policy/scheduler reads and 3 native CPU canaries. RESULT = FAILURE of the Hyper-V cap (Windows 11 root scheduler 0x4 ignores WMI caps; a 1% share still used a full guest CPU). No CPU production activation; the new source fix is pending. Text only; ignored *.exe/*.bin/*.wasm not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload.py",
+      "stored": "files/source-preservation/frozen-1852-export/root-cpu-quota-8afbf879/files/workload.py",
+      "sha256": "2b3078e80cc31d83e840e901d7788e563e357116dffd1efb487ff6ff37d035a7",
+      "bytes": 2907
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/patches/0001-a90f8339.patch",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/patches/0001-a90f8339.patch",
+      "sha256": "d4697ce1f4caacc4e1e53cbef2b9622157d3fa97440289c3790f28a99f5296f6",
+      "bytes": 37982
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/.gitignore",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/.gitignore",
+      "sha256": "f464e00544cb287c4f9ae3722c582f68c392174b49a58f3277e888021eb8bea6",
+      "bytes": 44
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/README.md",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/README.md",
+      "sha256": "23c9aeba780ff07f510ced7120810a46cb19cef9d6d809aa3533b26d2cd1edf8",
+      "bytes": 2438
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/discover-delta.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/discover-delta.guard.log",
+      "sha256": "a2fb1eaee1d3d54455f7ef9928477855769d709c18e4650c67c7a01cbddda887",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/discover-delta.json",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/discover-delta.json",
+      "sha256": "cac825420c86393992ae78eda3cc61bb66f469c079ff3a1a640c6b0c0d892a13",
+      "bytes": 1490
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/fresh-quote.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/fresh-quote.guard.log",
+      "sha256": "8e5fc1ccb3da7651dbc6374dd937b714423e472ec1b566e649f2e5fb70c07ae9",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/fresh-quote.json",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/fresh-quote.json",
+      "sha256": "93851d0ad8fd19435116e1369394321dcde1fe58324dcbc5ae2f467773d71f88",
+      "bytes": 2386
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/known-state-2.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/known-state-2.guard.log",
+      "sha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/known-state-3.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/known-state-3.guard.log",
+      "sha256": "17daeed51ca3237a9f8e6156a561b8bd05094c6e111abd0c234911b73753f414",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/known-state.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/known-state.guard.log",
+      "sha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/known-state.json",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/known-state.json",
+      "sha256": "eae3cae02fdfba19fdfbf395ad8793d5eadaf673c014792b84a0b2c24fc8aa36",
+      "bytes": 2604
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/local-runtime.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/local-runtime.guard.log",
+      "sha256": "7e008079d797e2e624ea4c8785df8fff3ef883b019b27c0d44c96768713990f1",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/local-runtime.json",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/local-runtime.json",
+      "sha256": "22e040ab903c2ec113d4b1940acef91bdd9c7856bd93d634d0d28fa94341ebf1",
+      "bytes": 1549
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/public-info.guard.log",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/public-info.guard.log",
+      "sha256": "75d9a9fcff66dd8c6b6b7a4da4e354d8b7bd076b6c57566738c73944f332b798",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/public-info.json",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/evidence/public-info.json",
+      "sha256": "9e359c38dccbb2b907b92925c5d10dbf13b01f0985976dfb79d98a37e47083d9",
+      "bytes": 510
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/lib/live.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/lib/live.mjs",
+      "sha256": "a89bc5f66cb0574083eca1726a4aa3cd9505273c7c2dde47bf2db33fc50f310c",
+      "bytes": 7588
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/probes/discover-delta.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/probes/discover-delta.mjs",
+      "sha256": "398dbf9985b3a42c274cbb8e2c8b9cdad6722b44de3b4bedc0026fa68bfa0b04",
+      "bytes": 3154
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/probes/fresh-quote.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/probes/fresh-quote.mjs",
+      "sha256": "0d7fd0de9668d23dfc319cbda9f14ce0db3130847fea338348cce72c8220a717",
+      "bytes": 2208
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/probes/known-state.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/probes/known-state.mjs",
+      "sha256": "6d129c33f2d97ba3fcebd29d7744c47e58ccdf08fc4d76121fd920cf10b7296a",
+      "bytes": 3353
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/probes/local-runtime.py",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/probes/local-runtime.py",
+      "sha256": "bf9aadf181ffd4e9042e99a59f9a95b7a520dd4ff6d09594392e4d62f311cf11",
+      "bytes": 2003
+    },
+    {
+      "label": "ROOT fresh read-only custody v2 verification (root commit a90f8339): 2-RPC known state, delta event discovery, signed-nonce AMD quote verdict, local runtime image hashes. No secrets/private keys read; original single-seat bootstrap confirmed (NOT decentralized); no secret lifecycle or rollout; address book unset; metal0 accepted/pending owner zero. Tracked files only: the raw quote (raw chip ID) and node_modules were never read or captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/custody-live-a90f8339/files/probes/public-info.py",
+      "stored": "files/source-preservation/frozen-1852-export/custody-live-a90f8339/files/probes/public-info.py",
+      "sha256": "464b1af476c8f8fa7f64790850f9feca735b0f5dda12b4693af5240302e121b1",
+      "bytes": 793
+    },
+    {
+      "label": "M custody v2 durability initial fix on c635fd68: ed0c536d sealed-state writer extraction (no behaviour change), 415483ff persist-before-ack barrier + test. SOURCE ONLY (not built/imaged/measured; RESULT records an e2e constructor fixture failure). Base c635fd68 is not in pushed material: base-files/ + patches reproduce the TOUCHED files only; the full tree is not claimed. Phase-2 follow-up not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/m-durability-415483ff/patches/0001-ed0c536d.patch",
+      "stored": "files/source-preservation/frozen-1852-export/m-durability-415483ff/patches/0001-ed0c536d.patch",
+      "sha256": "07f1614e28ebba3f0218f77a7114eba5ae8da76a4fbab674a90f78615ed15548",
+      "bytes": 6517
+    },
+    {
+      "label": "M custody v2 durability initial fix on c635fd68: ed0c536d sealed-state writer extraction (no behaviour change), 415483ff persist-before-ack barrier + test. SOURCE ONLY (not built/imaged/measured; RESULT records an e2e constructor fixture failure). Base c635fd68 is not in pushed material: base-files/ + patches reproduce the TOUCHED files only; the full tree is not claimed. Phase-2 follow-up not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/m-durability-415483ff/patches/0002-415483ff.patch",
+      "stored": "files/source-preservation/frozen-1852-export/m-durability-415483ff/patches/0002-415483ff.patch",
+      "sha256": "bb7103e11b451d594b0c720e30a1056c81ff1169012eea267e6e35633fb09d54",
+      "bytes": 31997
+    },
+    {
+      "label": "M custody v2 durability initial fix on c635fd68: ed0c536d sealed-state writer extraction (no behaviour change), 415483ff persist-before-ack barrier + test. SOURCE ONLY (not built/imaged/measured; RESULT records an e2e constructor fixture failure). Base c635fd68 is not in pushed material: base-files/ + patches reproduce the TOUCHED files only; the full tree is not claimed. Phase-2 follow-up not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/m-durability-415483ff/files/custody/v2/daemon.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/m-durability-415483ff/files/custody/v2/daemon.mjs",
+      "sha256": "0a45f360240972ad3806339b1ec5b11d85d9b68cef843aa4d4f53875efd5617b",
+      "bytes": 15454
+    },
+    {
+      "label": "M custody v2 durability initial fix on c635fd68: ed0c536d sealed-state writer extraction (no behaviour change), 415483ff persist-before-ack barrier + test. SOURCE ONLY (not built/imaged/measured; RESULT records an e2e constructor fixture failure). Base c635fd68 is not in pushed material: base-files/ + patches reproduce the TOUCHED files only; the full tree is not claimed. Phase-2 follow-up not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/m-durability-415483ff/files/custody/v2/member.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/m-durability-415483ff/files/custody/v2/member.mjs",
+      "sha256": "d896251cb607fe7957b56146351c977e960887d9b577a30f0384123b53414798",
+      "bytes": 44828
+    },
+    {
+      "label": "M custody v2 durability initial fix on c635fd68: ed0c536d sealed-state writer extraction (no behaviour change), 415483ff persist-before-ack barrier + test. SOURCE ONLY (not built/imaged/measured; RESULT records an e2e constructor fixture failure). Base c635fd68 is not in pushed material: base-files/ + patches reproduce the TOUCHED files only; the full tree is not claimed. Phase-2 follow-up not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/m-durability-415483ff/files/custody/v2/sealed-state.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/m-durability-415483ff/files/custody/v2/sealed-state.mjs",
+      "sha256": "d58165607cba6c043a399af0150aeaba2b1656eddf401ea773568fe6563e5c45",
+      "bytes": 1894
+    },
+    {
+      "label": "M custody v2 durability initial fix on c635fd68: ed0c536d sealed-state writer extraction (no behaviour change), 415483ff persist-before-ack barrier + test. SOURCE ONLY (not built/imaged/measured; RESULT records an e2e constructor fixture failure). Base c635fd68 is not in pushed material: base-files/ + patches reproduce the TOUCHED files only; the full tree is not claimed. Phase-2 follow-up not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/m-durability-415483ff/files/test/custody-v2-persist-barrier.test.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/m-durability-415483ff/files/test/custody-v2-persist-barrier.test.mjs",
+      "sha256": "a5acb99b334a728bc0682aa674223f2f7ebc2e2f33f2ab3f5e260c00fbb08a3f",
+      "bytes": 17479
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0001-1a6559a7.patch",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0001-1a6559a7.patch",
+      "sha256": "a6cdba57b936fd6ef84e32fb658872d8afa51d025b6bc4b9b9159edf206cf03f",
+      "bytes": 3693
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0002-70c6c2b8.patch",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0002-70c6c2b8.patch",
+      "sha256": "4e6811a9b8035683f3f2c0441319b4a46eb26a218b214c06b8895d1e496d503b",
+      "bytes": 57269
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0003-03d504f4.patch",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0003-03d504f4.patch",
+      "sha256": "dd6cfdf6d2ff3f1bc2590562f593c02cd244f866951934e5d49608383461cf98",
+      "bytes": 21574
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0004-6db741fb.patch",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0004-6db741fb.patch",
+      "sha256": "96a79c13978a98144f540124c720c71e28abbcf0f5915206887d8d26c6711462",
+      "bytes": 25790
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0005-502a93ee.patch",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0005-502a93ee.patch",
+      "sha256": "109e1495f1ce9a0ac61352977b95f174e6b214c4b8e4193d43ee3be677698733",
+      "bytes": 84228
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0006-675a1a17.patch",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0006-675a1a17.patch",
+      "sha256": "3f51ee0421870345d3f9370dc11f9bf2f78b59fdb02cc1ac542b667e47846d6f",
+      "bytes": 13627
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0007-d2965749.patch",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0007-d2965749.patch",
+      "sha256": "038d0d809243e300dd9e2fd884868e6cee0cfbde7dcec85ac293db4eba3bfeb1",
+      "bytes": 22913
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0008-98206e64.patch",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0008-98206e64.patch",
+      "sha256": "538fea8a84ec4801492482d1620dadc0081df77cd1ce8ae4801babeb898c5090",
+      "bytes": 11559
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0009-c08532b2.patch",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/patches/0009-c08532b2.patch",
+      "sha256": "39450a1107d0045994eb66202e17606a40243b6293a68a1a4945d2c495d4cb7b",
+      "bytes": 29402
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/addressbook.js",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/addressbook.js",
+      "sha256": "1f46ff9109d9a1409a8357ac1b57635952abb62f1674eb999a07f30593bbbc7d",
+      "bytes": 6138
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/client/lease-executor-authority.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/client/lease-executor-authority.mjs",
+      "sha256": "0dff0df7d8d8b06fa197cc92e5bec12d83b89a0baaf4fb7af852742ac180b6ca",
+      "bytes": 10288
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/docs/network/local-chain-verifier.md",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/docs/network/local-chain-verifier.md",
+      "sha256": "484df7fba4c9039f30474aba5ce3b064e61d738e367904c2d286440fff84708f",
+      "bytes": 15078
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/docs/network/supervisor-chain-authority.md",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/docs/network/supervisor-chain-authority.md",
+      "sha256": "414b7f18368b19ef9dc6973e1366240ab132a79af7a45c89eebda75ab0cbc1d2",
+      "bytes": 8086
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/metal/enclave-metal.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/metal/enclave-metal.mjs",
+      "sha256": "c71fb232e58d06a37a0a43e0dcd3133d45d8a11ee0f9c4b8197576033d6dec8c",
+      "bytes": 53659
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/metal/guest/chain-verifier.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/metal/guest/chain-verifier.mjs",
+      "sha256": "868bba6221f0bab59e6cd38740b7bd1101f9ebe162bc3c197c4288e255570a11",
+      "bytes": 13371
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/metal/guest/gsup.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/metal/guest/gsup.mjs",
+      "sha256": "f02bea87554211fc1c5920b9690d3d9412510e6f950904708366bcae39bd4d2b",
+      "bytes": 55913
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/metal/guest/lease-gas-conduit.bundle.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/metal/guest/lease-gas-conduit.bundle.mjs",
+      "sha256": "48bd059a57356fed542c3a6a8c0b4ddd7fdf6bca42ad7729754234445b746fd5",
+      "bytes": 41371
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/metal/guest/measured-control.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/metal/guest/measured-control.mjs",
+      "sha256": "230a32869ae30b2eb76da67517a16c5e65e2cffd91a76e799559af15160b43d2",
+      "bytes": 92755
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/network/chain-authority.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/network/chain-authority.mjs",
+      "sha256": "d4a4f14e2799f81839f430e0752687c3aad044af1632babb9f0c60b899094788",
+      "bytes": 19606
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/network/lease-executor-authority.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/network/lease-executor-authority.mjs",
+      "sha256": "0dff0df7d8d8b06fa197cc92e5bec12d83b89a0baaf4fb7af852742ac180b6ca",
+      "bytes": 10288
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/network/lease-gas-runtime.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/network/lease-gas-runtime.mjs",
+      "sha256": "eb78a2e6838f9b04d79017ea77a7e4e4cbd06c2af21e6aa77a000e2d6229ec77",
+      "bytes": 11255
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/supervisor.js",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/supervisor.js",
+      "sha256": "593fd2cd91160b48446a95c97fd57603e3f8f68fd190de87cf4a6b2365339c4a",
+      "bytes": 856473
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/chain-authority.test.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/chain-authority.test.mjs",
+      "sha256": "7ccde3bfc68a7ec2b742d9ea13bcfd15e9063e7b9cb2fd955d4d6de761032fc8",
+      "bytes": 22187
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/chain-consumer-closure.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/chain-consumer-closure.e2e.test.mjs",
+      "sha256": "911f272ea3a99ed964e41a7c5ac716669b3b9c737b29b26a74d9508d7d472f71",
+      "bytes": 24699
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/helpers/cli-independent-rig.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/helpers/cli-independent-rig.mjs",
+      "sha256": "b2fa3388f63d652b280caf47190ff74a2bf6b2d120080479cdf07904388cfc45",
+      "bytes": 38396
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/helpers/lease-gas-world.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/helpers/lease-gas-world.mjs",
+      "sha256": "f4f478a17b48654aa485cc40c0bb2cfbd34e996a7da0b3e24d65339fc77e7442",
+      "bytes": 9469
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/helpers/record-network-origins.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/helpers/record-network-origins.mjs",
+      "sha256": "0122c9b27a0bcf732ab6f507cfd3f17e373a857e8e5960bf072e646f5fe9da11",
+      "bytes": 918
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/helpers/supervisor-wallet-fixture.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/helpers/supervisor-wallet-fixture.mjs",
+      "sha256": "9c446b8d402ec64be131f48255dac49451e536c1ca99ccdc9cc9a4ae94508cc9",
+      "bytes": 10256
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/helpers/verifier-runtime.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/helpers/verifier-runtime.mjs",
+      "sha256": "2f732aea8eb5ddea3146659d4cb7d7e2aa058471b5c645b03bb1f10f2234fe33",
+      "bytes": 4002
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/lease-gas-verifier.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/lease-gas-verifier.e2e.test.mjs",
+      "sha256": "d20a10027deb736ebf7b8a4a9a2ca4d6d7b5a0bdbe4c486738e51eac2c55f9d5",
+      "bytes": 10064
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/metal-measured-control.test.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/metal-measured-control.test.mjs",
+      "sha256": "0704204925c83be450980850fb6b0c1789cbf461401f3547ae60fac4cf2b0d5d",
+      "bytes": 40119
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/owner-nomination.test.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/files/test/owner-nomination.test.mjs",
+      "sha256": "27834c7f8483757f581fc847d901411c88e45d8d9aad093872d933548a2dd132",
+      "bytes": 20401
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/patches/0001-02863ae1.patch",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/patches/0001-02863ae1.patch",
+      "sha256": "f2b1cab6febada80d227b1e4a3d2f43dc060b8b43ba1e2863453a31e95d4454e",
+      "bytes": 52852
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/f86fb512-go-buildinfo.txt",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/f86fb512-go-buildinfo.txt",
+      "sha256": "757263f2e768cb709c62f524e87734922dc285638539d8a26aac2bacb4ac038e",
+      "bytes": 2124
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/f86fb512-initrd-inventory.json",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/f86fb512-initrd-inventory.json",
+      "sha256": "4eef41fba0e84a6473ecee9c75327bc144a855b8d6cefe556d0713fcb34252da",
+      "bytes": 4419
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/initrd-identity-repack.txt",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/initrd-identity-repack.txt",
+      "sha256": "1f3a3a0f5c4f5bcb4c0dee6cc8cc477fd7d16cdc020798f1035e120bef2f4e5e",
+      "bytes": 327
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/kit-inputs-embedded-in-5fbfb947.txt",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/kit-inputs-embedded-in-5fbfb947.txt",
+      "sha256": "11a4ed0f704705321ca267502ac4c2723e01dd395d0cb39775ecd385dcf828d1",
+      "bytes": 550
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/monitor-port-go-test.txt",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/monitor-port-go-test.txt",
+      "sha256": "5056c075013e5940ae1529979c158e876c469846a236c66d881e603a1463f904",
+      "bytes": 727
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/pclntab-vs-trees-run1.txt",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/pclntab-vs-trees-run1.txt",
+      "sha256": "06b5ca59d76e8d085167eacdcdfd420b1c3afff7a376acf12d1402906ba5fc9a",
+      "bytes": 7336
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/pclntab-vs-trees-run2-with-main.txt",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/pclntab-vs-trees-run2-with-main.txt",
+      "sha256": "4addc9f1ed6a50cf21d5d229b71f20dbfa5d38c732b329a6dd6e6ca956e1bf54",
+      "bytes": 9486
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/q-monitor-670a753e0..ea6717d27.patch",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/evidence/q-monitor-670a753e0..ea6717d27.patch",
+      "sha256": "719dbaf7b049cd095e954719e68288e6e143e313acfb356d0480f0dbd1e2383e",
+      "bytes": 10406
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/embed.py",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/embed.py",
+      "sha256": "8cda12720ffb45610dca83d92f378872b521c187481bb815899abb45155e04e6",
+      "bytes": 755
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/extract.py",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/extract.py",
+      "sha256": "5ba68620aecc69ee339f48045139a93ef8d386013d7421f9ab2a354f27538748",
+      "bytes": 1208
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/pcline.sh",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/pcline.sh",
+      "sha256": "5877cc981a20453bdc2293fa609f664dde11e37f300e7227138c34c99c33cc51",
+      "bytes": 576
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/porttest.sh",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/porttest.sh",
+      "sha256": "5e155d5b1bd21875f908fe2603e90e6e2acfdf58bcc130dcb7d18cf2568496d4",
+      "bytes": 686
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/probe1.sh",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/probe1.sh",
+      "sha256": "79fbc0b1bdb72a5bc0be77fce8146e7a841c32734ff538ce7e30a601d40369fc",
+      "bytes": 631
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/repack-id.sh",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/repack-id.sh",
+      "sha256": "df34e7f6ff3b332f1e44452ed7619c0a24b22ff5cbd257d2ff700904996c90bc",
+      "bytes": 421
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/repack.py",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/jobs/repack.py",
+      "sha256": "4e91948366f84cf38c94402767c367a07cd74892cf217dfd4a0bd1c60ae2ac14",
+      "bytes": 1869
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/tools/pcline/go.mod",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/tools/pcline/go.mod",
+      "sha256": "32d676c0c3ec715276f2aad24f9a4bb6b2cc54c59a103329bca2cc0751529ced",
+      "bytes": 31
+    },
+    {
+      "label": "R frozen report/source evidence (root commit 02863ae1): production guest 5fbfb947 lineage, binaries from clean c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence. SOURCE-ONLY DERIVATIVE: REPORT.md omitted (it names an existing directory carrying the lowercase rewritten literal); restore from R's repository",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/tools/pcline/main.go",
+      "stored": "files/source-preservation/frozen-1852-export/guest-lineage-02863ae1/files/tools/pcline/main.go",
+      "sha256": "b2b571324d4f3b68ae6e2d5ea3c931e037b4f863454fc26a4055e4a13a7f5909",
+      "bytes": 3912
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/converted/lease-gas-conduit.bundle.mjs.inputs.sha256sums",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/converted/lease-gas-conduit.bundle.mjs.inputs.sha256sums",
+      "sha256": "63f56b49291120dc4511068a42b13053d443477fef56a46ce076fda90810b10a",
+      "bytes": 48679
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/converted/lease-gas-conduit.bundle.mjs.meta.json",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/converted/lease-gas-conduit.bundle.mjs.meta.json",
+      "sha256": "da48fa7ec6f27e20335603c3df2a799bbfa11f0155f84e6639365b78045a155c",
+      "bytes": 201
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/converted/mcp-server.bundle.mjs.inputs.sha256sums",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/converted/mcp-server.bundle.mjs.inputs.sha256sums",
+      "sha256": "c8fe2ad9fc1caa5e7bf76231096eac4ca851dde6b087d0cf6688216ccebebd6f",
+      "bytes": 307877
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/converted/mcp-server.bundle.mjs.meta.json",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/converted/mcp-server.bundle.mjs.meta.json",
+      "sha256": "08b9be05125541034c58bc3bc1edfd093b50148089b6865b13db8a32c9b2c058",
+      "bytes": 652
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/converted/platform-api.bundle.mjs.inputs.sha256sums",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/converted/platform-api.bundle.mjs.inputs.sha256sums",
+      "sha256": "454d8736c0c55e33a71c0b1d4db785401403e2bb9e0b23a9f528fef68543124a",
+      "bytes": 274919
+    },
+    {
+      "label": "B Linux RPC consumer closure on 673601e5 (9 commits -> c08532b2, original tree b578d56b): supervisor and direct guests on the local verifier / own backend, chain authority, e2e tests. SOURCE-ONLY DERIVATIVE: compiled platform-api + mcp-server bundles held at 673601e5 bytes (not rebuilt by D), three bundle manifests held and published converted. Source/test only; NOT production provider independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/b-consumer-c08532b2/converted/platform-api.bundle.mjs.meta.json",
+      "stored": "files/source-preservation/frozen-1852-export/b-consumer-c08532b2/converted/platform-api.bundle.mjs.meta.json",
+      "sha256": "0e91b7668affcf5df2caa79062a664d6cf1bfdb0d5cbf28fc6bf99d3fdd0799b",
+      "bytes": 393
+    },
+    {
+      "label": "M custody v2 durability initial fix on c635fd68: ed0c536d sealed-state writer extraction (no behaviour change), 415483ff persist-before-ack barrier + test. SOURCE ONLY (not built/imaged/measured; RESULT records an e2e constructor fixture failure). Base c635fd68 is not in pushed material: base-files/ + patches reproduce the TOUCHED files only; the full tree is not claimed. Phase-2 follow-up not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/m-durability-415483ff/base-files/custody/v2/daemon.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/m-durability-415483ff/base-files/custody/v2/daemon.mjs",
+      "sha256": "557b6e40958fa05cc7547a6d7d77152c7135aae32dd736dcd6bbede281521d1d",
+      "bytes": 15719
+    },
+    {
+      "label": "M custody v2 durability initial fix on c635fd68: ed0c536d sealed-state writer extraction (no behaviour change), 415483ff persist-before-ack barrier + test. SOURCE ONLY (not built/imaged/measured; RESULT records an e2e constructor fixture failure). Base c635fd68 is not in pushed material: base-files/ + patches reproduce the TOUCHED files only; the full tree is not claimed. Phase-2 follow-up not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export/m-durability-415483ff/base-files/custody/v2/member.mjs",
+      "stored": "files/source-preservation/frozen-1852-export/m-durability-415483ff/base-files/custody/v2/member.mjs",
+      "sha256": "2d3adbdc6ce61b4d9e0be2909bc116bfc242288bc07c73b46f68db2f42e40998",
+      "bytes": 42549
+    },
+    {
+      "label": "B consumer closure outer report: RESULT.md and handoff/HANDOFFS.md (root confirmed terminal 0); source/test only, not production independence",
+      "source": "work/linux-rpc-consumer-closure-20261023/RESULT.md",
+      "stored": "files/work/linux-rpc-consumer-closure-20261023/RESULT.md",
+      "sha256": "c466319b588a80ec5065ae925488fed4945879514f096f97e5997972ede0d09b",
+      "bytes": 15155
+    },
+    {
+      "label": "B consumer closure outer report: RESULT.md and handoff/HANDOFFS.md (root confirmed terminal 0); source/test only, not production independence",
+      "source": "work/linux-rpc-consumer-closure-20261023/handoff/HANDOFFS.md",
+      "stored": "files/work/linux-rpc-consumer-closure-20261023/handoff/HANDOFFS.md",
+      "sha256": "ebc64f1c4c3d4344946a7c92653c9438d43ecd748847f21d26db479b037c039b",
+      "bytes": 5443
+    },
+    {
+      "label": "M initial durability RESULT (source only; e2e constructor fixture failure recorded); RESULT-FOLLOWUP and phase-2 work not captured",
+      "source": "work/custody-v2-durability-20261023/RESULT.md",
+      "stored": "files/work/custody-v2-durability-20261023/RESULT.md",
+      "sha256": "51eea09d8782182999842294872c45d5c0efc8cdf3b5d7c56ee983fc3d1b58f3",
+      "bytes": 10750
+    },
+    {
+      "label": "D receipt of the 1806 batch (7422efe6, committed 18:08:27Z, pushed by 18:08:47Z; root verified remote): root CPU launcher build evidence + custody v2 rollout audit",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/RESULT-frozen-1806-checkpoint.md",
+      "stored": "files/source-preservation/RESULT-frozen-1806-checkpoint.md",
+      "sha256": "9dd7e4cd7ae4d44262e15b99681571821e4d2f0fdcee6dc926015ffa66f87fa2",
+      "bytes": 5320
+    },
+    {
+      "label": "Dated SNAPSHOTS (taken 2026-10-23T18:54:24Z) of root's journals ROOT-PENDING-LATEST.txt and ROOT-CONTINUE-LATEST.txt and effective-goal-requirements.txt as coordination evidence (the external human admin clarification supersedes the stale goal text)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-1852/ROOT-PENDING-LATEST.snapshot-1852.txt",
+      "stored": "files/source-preservation/snapshots-1852/ROOT-PENDING-LATEST.snapshot-1852.txt",
+      "sha256": "e241bff32b51ea2654ef373a038c523c097fd0d04ddc69024fa17b3e1d6906dc",
+      "bytes": 39582
+    },
+    {
+      "label": "Dated SNAPSHOTS (taken 2026-10-23T18:54:24Z) of root's journals ROOT-PENDING-LATEST.txt and ROOT-CONTINUE-LATEST.txt and effective-goal-requirements.txt as coordination evidence (the external human admin clarification supersedes the stale goal text)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-1852/ROOT-CONTINUE-LATEST.snapshot-1852.txt",
+      "stored": "files/source-preservation/snapshots-1852/ROOT-CONTINUE-LATEST.snapshot-1852.txt",
+      "sha256": "fca991f371dc21777e83d894c22c5b7e060107293c57dc5e236be4c40ec83206",
+      "bytes": 165992
+    },
+    {
+      "label": "Dated SNAPSHOTS (taken 2026-10-23T18:54:24Z) of root's journals ROOT-PENDING-LATEST.txt and ROOT-CONTINUE-LATEST.txt and effective-goal-requirements.txt as coordination evidence (the external human admin clarification supersedes the stale goal text)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-1852/effective-goal-requirements.snapshot-1852.txt",
+      "stored": "files/source-preservation/snapshots-1852/effective-goal-requirements.snapshot-1852.txt",
+      "sha256": "344bfcfe1d48a8af5d6b8dab2416dd5fc51cd78eb4616f37eb2a668a5ad4e8d2",
+      "bytes": 20300
+    },
+    {
+      "label": "ROOT receipt: CPU/RAM accounting live; CPU enforcement rollout WITHHELD after the native counterexample (1% share consumed a full guest CPU); no production CPU activation or scheduler change",
+      "source": "outputs/decentralization-audit/nucbox-cpu-enforcement-counterexample-20261023.json",
+      "stored": "files/outputs/decentralization-audit/nucbox-cpu-enforcement-counterexample-20261023.json",
+      "sha256": "af74f61e4743113740a341c8a3655e5697f39980d69a8b0cf1937984873c5a56",
+      "bytes": 1730
+    },
+    {
+      "label": "ROOT receipt: production custody v2 read-only reconciliation (existing single-seat bootstrap only; quote verification, not a secret lifecycle test; corrected image not activated)",
+      "source": "outputs/decentralization-audit/custody-v2-live-verification-20261023.md",
+      "stored": "files/outputs/decentralization-audit/custody-v2-live-verification-20261023.md",
+      "sha256": "23c9aeba780ff07f510ced7120810a46cb19cef9d6d809aa3533b26d2cd1edf8",
+      "bytes": 2438
+    },
+    {
+      "label": "frozen-1852 checkpoint tooling (\"1852\" = batch start 2026-10-23T18:52Z, an identifier): first-parent Git-object export, source-only derivative with converted manifests, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-frozen-1852.py",
+      "stored": "files/source-preservation/export-frozen-1852.py",
+      "sha256": "7fa9560015ba6094a9ad3e9e4806c98ae90d951491385fd97e9a67d965a11147",
+      "bytes": 23704
+    },
+    {
+      "label": "frozen-1852 checkpoint tooling (\"1852\" = batch start 2026-10-23T18:52Z, an identifier): first-parent Git-object export, source-only derivative with converted manifests, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-frozen-1852-export.py",
+      "stored": "files/source-preservation/verify-frozen-1852-export.py",
+      "sha256": "9ab51adaf0ee83b1a97d4cf3ec999067168c4e5fcbdc1dfbd05fa417fd05a958",
+      "bytes": 6667
+    },
+    {
+      "label": "frozen-1852 checkpoint tooling (\"1852\" = batch start 2026-10-23T18:52Z, an identifier): first-parent Git-object export, source-only derivative with converted manifests, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-frozen-1852.py",
+      "stored": "files/source-preservation/capture-frozen-1852.py",
+      "sha256": "69eca8075b2c01c4f3a58fe09252b4b256940dff36fec92782bbe7e69c3c4b01",
+      "bytes": 8031
+    },
+    {
+      "label": "frozen-1852 checkpoint tooling (\"1852\" = batch start 2026-10-23T18:52Z, an identifier): first-parent Git-object export, source-only derivative with converted manifests, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-pins.json",
+      "stored": "files/source-preservation/frozen-1852-pins.json",
+      "sha256": "4f009a742ff9969a7008c6ca49adb38c4f118ce500dee145e493119fc8cfe2e8",
+      "bytes": 265
+    },
+    {
+      "label": "frozen-1852 checkpoint tooling (\"1852\" = batch start 2026-10-23T18:52Z, an identifier): first-parent Git-object export, source-only derivative with converted manifests, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-q.sh",
+      "stored": "files/source-preservation/frozen-1852-q.sh",
+      "sha256": "bbbfb210e345627bd854a6b2e0d882d0ef6a5d298aeb16acc2fdc8aebd5e22b7",
+      "bytes": 742
+    },
+    {
+      "label": "frozen-1852 checkpoint tooling (\"1852\" = batch start 2026-10-23T18:52Z, an identifier): first-parent Git-object export, source-only derivative with converted manifests, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-export.sh",
+      "stored": "files/source-preservation/frozen-1852-export.sh",
+      "sha256": "1440aa9a8475dd06c33506ff89695abb87586056d77396f7029d195fdbc37bf9",
+      "bytes": 2770
+    },
+    {
+      "label": "frozen-1852 checkpoint tooling (\"1852\" = batch start 2026-10-23T18:52Z, an identifier): first-parent Git-object export, source-only derivative with converted manifests, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-capture.sh",
+      "stored": "files/source-preservation/frozen-1852-capture.sh",
+      "sha256": "174c83bf2c41997cb5419ca80d833e0cede7c4562447dac917e80f25ef018423",
+      "bytes": 2427
+    },
+    {
+      "label": "frozen-1852 checkpoint tooling (\"1852\" = batch start 2026-10-23T18:52Z, an identifier): first-parent Git-object export, source-only derivative with converted manifests, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1852-labels.json",
+      "stored": "files/source-preservation/frozen-1852-labels.json",
+      "sha256": "c65fa0e373b4bbda2aac4c72c47747b818b3164cf9dd0217a62cc5d9ff8e5cd5",
+      "bytes": 4385
+    },
+    {
+      "label": "frozen-1852 checkpoint tooling (\"1852\" = batch start 2026-10-23T18:52Z, an identifier): first-parent Git-object export, source-only derivative with converted manifests, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/make-frozen-1852-snapshots.py",
+      "stored": "files/source-preservation/make-frozen-1852-snapshots.py",
+      "sha256": "b75cd3a6ae5cb9b8d6c1c63627bc919e422526f066fd7faa0f62603e1875d002",
+      "bytes": 1008
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -32920,6 +34068,15 @@
       "added": 76,
       "bytes": 354142,
       "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"1806\" is a batch identifier (start 18:06Z), not this time"
+    },
+    {
+      "at": "2026-10-23T18:59:11.057635+00:00",
+      "by": "source-preservation/capture-frozen-1852.py",
+      "onCheckpoint": "7422efe6e2a5a3a132c622091b1ab619f280c2bc",
+      "entriesBefore": 4765,
+      "added": 164,
+      "bytes": 3762992,
+      "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"1852\" is a batch identifier (start 18:52Z), not this time"
     }
   ]
 }

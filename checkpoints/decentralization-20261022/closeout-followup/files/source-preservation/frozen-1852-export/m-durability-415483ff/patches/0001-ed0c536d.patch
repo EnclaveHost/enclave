@@ -1,0 +1,85 @@
+From ed0c536dde2bab4de8414fee74f7c45f94adfc87 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 11:05:40 -0700
+Subject: [PATCH] custody v2: extract the daemon's sealed-state writer (no
+ behavior change)
+
+The serialized host writes (saveNow), the chain checkpoint store, the member store and the platform host-policy store
+move verbatim into custody/v2/sealed-state.mjs so the exact persist path can be tested. Same semantics: the member and
+host-policy saves are still fire-and-forget; the next commit adds the durability barrier.
+---
+ custody/v2/daemon.mjs       | 11 ++++++-----
+ custody/v2/sealed-state.mjs | 16 ++++++++++++++++
+ 2 files changed, 22 insertions(+), 5 deletions(-)
+ create mode 100644 custody/v2/sealed-state.mjs
+
+diff --git a/custody/v2/daemon.mjs b/custody/v2/daemon.mjs
+index 3ae7d7bf1bad072a8e9b02d0dac8c1279edaf330..a2c2dbc00b63e86246fae2a1f31ea0393ed5ccea 100644
+--- a/custody/v2/daemon.mjs
++++ b/custody/v2/daemon.mjs
+@@ -38,6 +38,7 @@
+ import { shieldCustodyFor, validateShieldOperator } from "./shield-operator.mjs";
+ import { createPlatformHostGate } from "../../network/platform-host-policy.mjs";
+ import { httpPolicyMirrors } from "../../network/host-policy-mirrors.mjs";
++import { createSealedStateWriter } from "./sealed-state.mjs";
+ 
+ const log = (...a) => console.log(new Date().toISOString(), ...a);
+ const FW = "/sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.custody/raw";
+@@ -110,8 +111,8 @@
+   // Serialize snapshots so an older asynchronous member save cannot overwrite
+   // a newer DKG phase. DKG awaits persistence before it emits a phase response.
+   let hostGate = null;                                 // the platform host policy gate (below), read by the chain reader's hostPolicy
+-  let writes=Promise.resolve();
+-  const saveNow = () => { const blob=seal(key,state);const next=writes.catch(()=>{}).then(()=>hostPut(hc.hostUrl,"/state",blob));writes=next;return next; };
++  const sealed = createSealedStateWriter({ seal: (s) => seal(key, s), put: (blob) => hostPut(hc.hostUrl, "/state", blob), state, log });
++  const saveNow = sealed.saveNow;
+   const chain = createChainReaderV2({ chainId:MEASURED.chainId, hostOwnership:MEASURED.hostOwnership,
+     vaultKind:MEASURED.vaultKind||"pinned", book:MEASURED.book||null,
+     // the platform host policy facts are read with every release/authorization snapshot, including the current book owner's
+@@ -119,13 +120,13 @@
+     hostPolicy:MEASURED.hostPolicy ? { ...MEASURED.hostPolicy, check1271: () => (hostGate ? hostGate.currentAuthorityChecks() : []) } : null,
+     rpcs:MEASURED.rpcs, vault:MEASURED.vault, minAgree:MEASURED.minAgree, maxAgeSec:MEASURED.maxAgeSec,
+     confirmations:MEASURED.confirmations,
+-    checkpoint:{load:()=>state.chainCheckpoint,save:async mark=>{state.chainCheckpoint=mark;await saveNow();}} });
++    checkpoint: sealed.checkpoint });
+   if (MEASURED.vaultKind === "book") {                 // the measured book-bound vault's code and immutables, at an agreed block
+     const idn = await chain.readVaultIdentity();
+     if (idn.codeHash !== String(MEASURED.vaultCodeHash).toLowerCase() || idn.book !== String(MEASURED.book).toLowerCase() || idn.enclaveOwner !== String(MEASURED.enclaveOwner).toLowerCase())
+       throw new Error("the vault's code or immutables differ from the measured book-bound vault");
+   }
+-  const store = { load: () => state.member, save: (m) => { state.member = m; saveNow().catch((e) => log(`STATE SAVE FAILED: ${e.message}`)); } };
++  const store = sealed.memberStore;
+   const submit = async (fn, args) => {
+     const r = await fetch(hc.hostUrl + "/submit", { method: "POST", headers: { "content-type": "application/json" },
+       body: JSON.stringify({ fn, args }, (k, v) => (typeof v === "bigint" ? v.toString() : v)) });
+@@ -150,7 +151,7 @@
+   // and host facts at agreed blocks, loads the anchored document from the measured mirrors and keeps it in sealed state.
+   hostGate = MEASURED.hostPolicy ? createPlatformHostGate({ book: MEASURED.hostPolicy.book, hostOwnership: MEASURED.hostPolicy.hostOwnership,
+     snapshot: chain.snapshot, mirrors: httpPolicyMirrors(MEASURED.hostPolicy.mirrors), log,
+-    store: { load: () => state.hostPolicy || null, save: (v) => { state.hostPolicy = v; saveNow().catch((e) => log(`STATE SAVE FAILED: ${e.message}`)); } } }) : null;
++    store: sealed.hostPolicyStore }) : null;
+   if (hostGate) {
+     const tick = () => hostGate.refresh().then((p) => log(`platform host policy #${p.policy.sequence} ${p.digest.slice(0, 18)}...`), (e) => log(`platform host policy refresh: ${e.code || ""} ${e.message}`));
+     await tick(); setInterval(tick, 5 * 60_000).unref();
+diff --git a/custody/v2/sealed-state.mjs b/custody/v2/sealed-state.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..625bc751aa86d5eed6827f38ebc352d70b6da0a5
+--- /dev/null
++++ b/custody/v2/sealed-state.mjs
+@@ -0,0 +1,16 @@
++// The custodian's sealed-state writes to its host (custody/v2/daemon.mjs), extracted so the exact write path can be tested.
++// Each write seals the WHOLE state at the moment it is requested and the writes run one after another in request order,
++// so an older snapshot never lands after a newer one: a newer member save cannot be overwritten by an older DKG phase.
++//   seal(state) -> sealed blob (the daemon's AES-GCM under the SNP derived key)
++//   put(blob)   -> promise: the host's PUT /state (it keeps history and fsyncs: custody/v2/host.mjs)
++export function createSealedStateWriter({ seal, put, state, log = () => {} }) {
++  let writes = Promise.resolve();
++  const saveNow = () => { const blob = seal(state); const next = writes.catch(() => {}).then(() => put(blob)); writes = next; return next; };
++  // the chain reader's block checkpoint: awaited by the reader
++  const checkpoint = { load: () => state.chainCheckpoint, save: async (mark) => { state.chainCheckpoint = mark; await saveNow(); } };
++  // the member engine's state (custody/v2/member.mjs)
++  const memberStore = { load: () => state.member, save: (m) => { state.member = m; saveNow().catch((e) => log(`STATE SAVE FAILED: ${e.message}`)); } };
++  // the platform host gate's accepted policy (network/platform-host-policy.mjs)
++  const hostPolicyStore = { load: () => state.hostPolicy || null, save: (v) => { state.hostPolicy = v; saveNow().catch((e) => log(`STATE SAVE FAILED: ${e.message}`)); } };
++  return { saveNow, checkpoint, memberStore, hostPolicyStore };
++}

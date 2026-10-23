@@ -1,0 +1,17 @@
+{
+  "bundle": "metal/guest/mcp-server.bundle.mjs",
+  "entry": "mcp/server.mjs",
+  "bundleEntry": "metal/guest/mcp-server-entry.mjs",
+  "sha256": "94e10fe5a67e23ea2445109931b08f9fcedad8df8e182503c6d3f331d4ca13c9",
+  "bytes": 4384354,
+  "runtimeFiles": {
+    "opt/metal/fixtures/tpm-roots.pem": {
+      "source": "relay/fixtures/tpm-roots.pem",
+      "sha256": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+    },
+    "opt/contracts/deployments/contract-pins-base.json": {
+      "source": "contracts/deployments/contract-pins-base.json",
+      "sha256": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d"
+    }
+  }
+}

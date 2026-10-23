@@ -1,0 +1,53 @@
+{
+  "at": "2026-10-23T18:51:16.502099+00:00",
+  "status": "CPU/RAM accounting is live; CPU enforcement rollout withheld after native counterexample",
+  "productionUnchanged": {
+    "originalVMs": true,
+    "manager": true,
+    "orphanCanaries": 0
+  },
+  "scheduler": {
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "build": "26200",
+      "version": "10.0.26200",
+      "productType": 1
+    },
+    "type": 4,
+    "source": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/manage/manage-hyper-v-scheduler-types#vm-cpu-resource-controls-and-the-root-scheduler"
+  },
+  "nativeSustainedResults": [
+    {
+      "share": 0.0625,
+      "vcpus": 1,
+      "hyperVLimit": 100000,
+      "guestQuotaPercent": 100,
+      "singleMs": 4813,
+      "parallelMs": 4813,
+      "parallelism": 1,
+      "speedup": 1
+    },
+    {
+      "share": 0.01,
+      "vcpus": 1,
+      "hyperVLimit": 16000,
+      "guestQuotaPercent": 100,
+      "singleMs": 4824,
+      "parallelMs": 4824,
+      "parallelism": 1,
+      "speedup": 1
+    },
+    {
+      "share": 0.21,
+      "vcpus": 4,
+      "hyperVLimit": 84000,
+      "guestQuotaPercent": 336,
+      "singleMs": 4803,
+      "parallelMs": 5930,
+      "parallelism": 4,
+      "speedup": 3.24
+    }
+  ],
+  "conclusion": "Hyper-V Limit readback does not prove enforcement under the Windows client root scheduler. A 1% share still consumed a full guest CPU in this candidate. Explicit guest cgroup quotas below one CPU must be enforced before deployment. Above-one-CPU guest quota and parallel execution passed.",
+  "next": "Source fix delegated in cpu-root-scheduler-quota-20261023; then rebuild and repeat native canary. No production CPU activation or scheduler change."
+}

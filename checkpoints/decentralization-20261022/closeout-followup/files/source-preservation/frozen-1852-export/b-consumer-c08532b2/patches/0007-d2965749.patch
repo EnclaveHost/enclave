@@ -1,0 +1,307 @@
+From d2965749a040843e4ad1e8558af419913f97d140 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 10:33:01 -0700
+Subject: [PATCH] Tests: app-funded leases on the local verifier end to end;
+ two test-environment fixes
+
+test/lease-gas-verifier.e2e.test.mjs (reth --dev, the REAL verifier runtime, the real reserve/executor, the REAL relay
+service, the real lease client given ONLY the verifier's client): the host's lease reads are one local-verifier authority;
+an app-funded claim lands through the relay and is verified by the verifier (charged once); with the relay's answer lost
+after landing, the lease is posted exactly once and a restarted client resolves its journal as landed from the chain;
+with no proof source the claim refuses before anything is signed or posted, and resumes after. Helpers:
+test/helpers/verifier-runtime.mjs (the runtime launcher, shared with the consumer E2E) and lease-gas-world.mjs
+startWorldOn (the same world on an existing reth chain: funding by transfer, no anvil calls).
+test/helpers/supervisor-wallet-fixture.mjs: its sliced supervisor context gets chainActionGate (a no-op, as in legacy
+mode); without it the sliced sendLeaseTx threw and the real-lease-client cases failed.
+test/owner-nomination.test.mjs: "a state file that cannot be written" used a 0500 directory, which root writes into (the
+queued runner runs suites as root in a user namespace): the case failed identically on the 673601e54 baseline. The state
+path's parent is now a regular file (ENOTDIR for any user); the assertions are unchanged.
+---
+ test/helpers/lease-gas-world.mjs           |  17 ++-
+ test/helpers/supervisor-wallet-fixture.mjs |   2 +-
+ test/helpers/verifier-runtime.mjs          |  53 ++++++++
+ test/lease-gas-verifier.e2e.test.mjs       | 140 +++++++++++++++++++++
+ test/owner-nomination.test.mjs             |   7 +-
+ 5 files changed, 214 insertions(+), 5 deletions(-)
+ create mode 100644 test/helpers/verifier-runtime.mjs
+ create mode 100644 test/lease-gas-verifier.e2e.test.mjs
+
+diff --git a/test/helpers/lease-gas-world.mjs b/test/helpers/lease-gas-world.mjs
+index 79274ab8c6520b079d03fbcc3e702e1e61e9bac6..291c6ddc886502fc56aacb8ef4bd97151fd68689 100644
+--- a/test/helpers/lease-gas-world.mjs
++++ b/test/helpers/lease-gas-world.mjs
+@@ -31,7 +31,7 @@
+   try { return await setupWorld({ anvil, rpcUrl, rpc }); }
+   catch (e) { anvil.kill("SIGKILL"); throw e; }   // a failed setup must not leave anvil holding this test process
+ }
+-async function setupWorld({ anvil, rpcUrl, rpc }) {
++async function setupWorld({ anvil, rpcUrl, rpc, fundImpl = null }) {
+   for (let i = 0; i < 100; i++) { try { await rpc("eth_chainId"); break; } catch { await new Promise((r) => setTimeout(r, 200)); } }
+   const chain = viem.defineChain({ id: 8453, name: "local-8453", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } });
+   const pc = viem.createPublicClient({ chain, transport: viem.http(rpcUrl) });
+@@ -57,7 +57,7 @@
+     return { reserve, executor, reserveCodeHash: viem.keccak256(await pc.getCode({ address: reserve })), executorCodeHash: viem.keccak256(await pc.getCode({ address: executor })) };
+   };
+   Object.assign(addr, await newReserve());
+-  const fund = (a, wei = 10n ** 18n) => rpc("anvil_setBalance", [a, viem.toHex(wei)]);
++  const fund = fundImpl ? (a, wei = 10n ** 18n) => fundImpl({ send, a, wei }) : (a, wei = 10n ** 18n) => rpc("anvil_setBalance", [a, viem.toHex(wei)]);
+   /** a zero-ETH host operator registered at `endpoint` (fixture shortcut: temporary ETH for register(), then 0) */
+   async function operator(endpoint, { proofKey = "0x000000000000000000000000000000000000bEEF", key = generatePrivateKey() } = {}) {
+     const account = privateKeyToAccount(key);
+@@ -92,3 +92,16 @@
+   return { rpcUrl, chain, rpc, pc, wc, send, deploy, write, A, addr, newReserve, fund, operator, owner, create, enable, row, reserveOf, warpTo,
+            stop: () => anvil.kill("SIGKILL") };
+ }
++
++/** The same world on an EXISTING chain (a reth --dev node: no anvil_* or evm_* calls, the anvil dev keys funded at genesis):
++ *  funding is a transfer from the deployer up to `wei` (a balance is never lowered, so a "zero-ETH" operator keeps dust);
++ *  warpTo is unavailable. The caller owns the chain process (stop() is a no-op here). */
++export async function startWorldOn({ rpcUrl }) {
++  const rpc = async (m, p = []) => { const r = await fetch(rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: m, params: p }) }); const j = await r.json(); if (j.error) throw new Error(j.error.message); return j.result; };
++  const fundImpl = async ({ send, a, wei }) => {
++    const have = BigInt(await rpc("eth_getBalance", [a, "latest"]));
++    if (wei > have) await send(DEPLOYER, { to: a, value: wei - have, gas: 21_000n });
++  };
++  const w = await setupWorld({ anvil: { kill() {} }, rpcUrl, rpc, fundImpl });
++  return { ...w, warpTo: () => { throw new Error("warpTo needs anvil"); }, stop: () => {} };
++}
+diff --git a/test/helpers/supervisor-wallet-fixture.mjs b/test/helpers/supervisor-wallet-fixture.mjs
+index 4a16470feab258514a3a346df26e297fc318cb3c..19ee28c53b0fbe5125b8676473181af4351e47c8 100644
+--- a/test/helpers/supervisor-wallet-fixture.mjs
++++ b/test/helpers/supervisor-wallet-fixture.mjs
+@@ -55,7 +55,7 @@
+    if(q.functionName==='getVersion')return {cid:'cid',version:'1',active:true,yanked:false,approval:1,config:'{}'};
+    if(q.functionName==='versionFee')return 0n;if(q.functionName==='versionConfigCid')return '';throw Error('unexpected read');}},
+   _reach:{tripped:false},RENEW_MARGIN_SEC:900,tenantProvisions:new Map(),_releaseIntents:new Map(),
+-  HOST_POLICY_GATE:{enabled:false,serviceRefusal:()=>null,status:()=>({})},_stateCorrupt:null,leaseGasActive:()=>false,leaseGasRenewDue:async()=>true,
++  HOST_POLICY_GATE:{enabled:false,serviceRefusal:()=>null,status:()=>({})},_stateCorrupt:null,chainActionGate:async()=>{},leaseGasActive:()=>false,leaseGasRenewDue:async()=>true,
+   TERMINAL_STATUSES:new Set(['expired','failed','terminated','stopping']),lc:v=>String(v||'').toLowerCase(),
+   placementRefusal:()=>null,readLedgerContract:async()=>row(),
+ reconcileInstancesSoon:()=>{},egress:{closeDeployment:id=>{s.egressClosed.push(id);return 0;}},
+diff --git a/test/helpers/verifier-runtime.mjs b/test/helpers/verifier-runtime.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..06e96d74b642a790f90767de324dca62b6af70dc
+--- /dev/null
++++ b/test/helpers/verifier-runtime.mjs
+@@ -0,0 +1,53 @@
++// Test-only: the REAL local verifier runtime (network/rpc-runtime.mjs through test/fixtures/rpc-runtime-launcher.mjs, as
++// test/rpc-runtime.e2e.test.mjs launches it) in front of a local reth --dev chain: the pinned Helios and witness helper
++// from $RUNTIME_BIN_DIR, the listener's `listen` replaced by the reth stand-in (its commitment step is the real pinned
++// listener), heads signed by a TEST sequencer key, proofs from the given UNTRUSTED sources.
++import fs from 'node:fs';
++import path from 'node:path';
++import http from 'node:http';
++import { spawn } from 'node:child_process';
++import { createHash } from 'node:crypto';
++import { privateKeyToAccount } from 'viem/accounts';
++import { CONFIG_FORMAT } from '../../network/rpc-runtime.mjs';
++
++const HERE = path.dirname(new URL(import.meta.url).pathname), FIX = path.join(HERE, '..', 'fixtures');
++const STANDIN = path.join(FIX, 'reth-gossip-listener.mjs'), LAUNCHER = path.join(FIX, 'rpc-runtime-launcher.mjs');
++export const SEQ_KEY = '0x' + '5e'.repeat(32);
++export const seqSigner = privateKeyToAccount(SEQ_KEY).address;
++const sha = (f) => createHash('sha256').update(fs.readFileSync(f)).digest('hex');
++
++/** an UNTRUSTED proof source in front of the chain: st.mode ok | down */
++export function startProofSource(chainRpc) {
++  const st = { mode: 'ok', hits: 0 };
++  const srv = http.createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', async () => {
++    st.hits++;
++    if (st.mode === 'down') { res.writeHead(503); return res.end(); }
++    try { res.end(JSON.stringify(await (await fetch(chainRpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: b })).json())); }
++    catch { res.writeHead(502); res.end(); }
++  }); });
++  return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, st, url: `http://127.0.0.1:${srv.address().port}/` })));
++}
++
++/** -> {child, url, stateDir, out(), setControl(c), ready(ms), stop()} */
++export function launchVerifierRuntime({ chainRpc, proofSources, port, dir, binDir = process.env.RUNTIME_BIN_DIR }) {
++  const bin = (n) => path.join(binDir, n);
++  const stateDir = path.join(dir, 'state'), controlFile = path.join(dir, 'control.json');
++  fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(controlFile, '{}');
++  const config = { format: CONFIG_FORMAT, chain: { chainId: 8453, unsafeSigner: seqSigner },
++    binaries: { listener: { path: STANDIN, sha256: sha(STANDIN) }, helios: { path: bin('helios-eeffcc9'), sha256: sha(bin('helios-eeffcc9')) },
++      witnessCheck: { path: bin('witness-check'), sha256: sha(bin('witness-check')) } },
++    proofSources: { untrusted: proofSources }, verifier: { port }, stateDir, gossip: { discovery: 'off', sessionSecs: 3600 },
++    hostTools: { flock: '/usr/bin/flock' } };
++  const cfgFile = path.join(dir, 'rpc-runtime.json'); fs.writeFileSync(cfgFile, JSON.stringify(config, null, 1));
++  const child = spawn(process.execPath, [LAUNCHER, cfgFile], { detached: true, stdio: ['ignore', 'pipe', 'pipe'],
++    env: { PATH: process.env.PATH, LAUNCH_LISTENER_SHA256: sha(STANDIN),
++      LAUNCH_LISTENER_ENV: JSON.stringify({ REAL_LISTENER: bin('enclave-base-head-listener'), FIXTURES_DIR: FIX, RIG_RPC: chainRpc, FEED_CONTROL: controlFile }) } });
++  let out = ''; child.stdout.on('data', (d) => { out = (out + d).slice(-40000); }); child.stderr.on('data', (d) => { out = (out + d).slice(-40000); });
++  const ready = async (ms = 300000) => {
++    const end = Date.now() + ms;
++    while (Date.now() < end) { if (fs.existsSync(path.join(stateDir, 'ready.json'))) return; if (child.exitCode !== null) break; await new Promise((r) => setTimeout(r, 250)); }
++    throw new Error('the verifier runtime did not become ready:\n' + out.slice(-2000));
++  };
++  const stop = () => { if (child.exitCode === null) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} } };
++  return { child, url: `http://127.0.0.1:${port}/`, stateDir, out: () => out, setControl: (c) => fs.writeFileSync(controlFile, JSON.stringify(c)), ready, stop };
++}
+diff --git a/test/lease-gas-verifier.e2e.test.mjs b/test/lease-gas-verifier.e2e.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6a9da3f5e834251c937a4573aacef49e8630eafd
+--- /dev/null
++++ b/test/lease-gas-verifier.e2e.test.mjs
+@@ -0,0 +1,140 @@
++// END-TO-END: app-funded lease gas (design B) with the HOST reading ONLY through its local verifier (network/chain-authority.mjs):
++// the real EnclaveLeaseGasReserve + EnclaveLeaseExecutor (test/helpers/lease-gas-world.mjs on a reth --dev chain, built from
++// source), the REAL relay service (network/lease-relay-service.mjs: a separate relay operator with its own key and its own
++// chain access, as in production), and the REAL lease client (client/lease-executor-client.mjs) given exactly ONE client,
++// the verifier's. Every authority read, receipt check, nonce fence and landing search of the host is proven by the verifier
++// runtime (the pinned Helios behind the witness gateway). A proxy in front of the relay can lose the relay's answer after
++// the lease landed: the app's reserve is charged once, the host never posts it twice, before or after a restart.
++// SYNTHETIC head authority (a TEST sequencer key); fixture keys only; nothing leaves loopback.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import net from 'node:net';
++import path from 'node:path';
++import http from 'node:http';
++import crypto from 'node:crypto';
++import { spawn } from 'node:child_process';
++import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
++import { parseEventLogs } from 'viem';
++import * as B from '../client/lease-executor-client.mjs';
++import { leaseRpcSet } from '../client/lease-executor-authority.mjs';
++import { startRelayService } from '../network/lease-relay-service.mjs';
++import { createChainAuthority } from '../network/chain-authority.mjs';
++import { startWorldOn, haveAnvil } from './helpers/lease-gas-world.mjs';
++import { launchVerifierRuntime, startProofSource } from './helpers/verifier-runtime.mjs';
++
++const { RUNTIME_BIN_DIR, RIG_RETH_BIN, RIG_RETH_GENESIS } = process.env;
++const skip = (!haveAnvil && 'needs forge (the lease-gas contracts are built from source)') || (!RUNTIME_BIN_DIR && 'RUNTIME_BIN_DIR not set')
++  || ((!RIG_RETH_BIN || !RIG_RETH_GENESIS) && 'needs RIG_RETH_BIN and RIG_RETH_GENESIS (a canonical-trie chain for proofs)');
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'lease-gas-verifier-'));
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const freePort = () => new Promise((ok) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); });
++let reth, rpcUrl, W, svc, proxy, proxyUrl, proof, rt, A;
++const seen = { posts: 0, mode: 'ok', lost: 0 };
++
++test.before(async () => {
++  if (skip) return;
++  const port = await freePort(), data = fs.mkdtempSync(path.join('/tmp', 'lgv-reth-'));
++  reth = spawn(RIG_RETH_BIN, ['node', '--dev', '--dev.block-time', '2s', '--chain', RIG_RETH_GENESIS, '--datadir', data, '--http', '--http.addr', '127.0.0.1',
++    '--http.port', String(port), '--http.api', 'eth,net,web3', '--disable-discovery', '--ipcdisable', '--port', '0', '--authrpc.port', String(await freePort()),
++    '--rpc.eth-proof-window', '1024'], { stdio: 'ignore' });
++  reth.dataDir = data;
++  rpcUrl = `http://127.0.0.1:${port}`;
++  for (let i = 0; i < 600; i++) { try { const r = await fetch(rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' }); if (r.ok) break; } catch {} await sleep(100); }
++  W = await startWorldOn({ rpcUrl });
++  const bytes = Buffer.from(JSON.stringify({ format: 'enclave-lease-gas-deployment/v1', chainId: 8453,
++    ...Object.fromEntries(['reserve', 'executor', 'ledger', 'registry', 'reserveCodeHash', 'executorCodeHash'].map((k) => [k, W.addr[k]])) }));
++  const rec = path.join(TMP, 'record.json'); fs.writeFileSync(rec, bytes);
++  const key = generatePrivateKey(), kf = path.join(TMP, 'relay.key'); fs.writeFileSync(kf, key + '\n', { mode: 0o600 });
++  await W.fund(privateKeyToAccount(key).address, 10n ** 16n);
++  // the RELAY operator's own service and chain access (not the host's): it submits, the reserve pays it back
++  svc = await startRelayService({ recordFile: rec, digest: 'sha256:' + crypto.createHash('sha256').update(bytes).digest('hex'), keyFile: kf,
++    rpcs: [rpcUrl], allowLoopbackHttp: true, maxFloatEth: '0.02', log: () => {} });
++  proxy = http.createServer(async (req, res) => {
++    const chunks = []; for await (const c of req) chunks.push(c);
++    if (req.method === 'POST') seen.posts++;
++    const r = await fetch(svc.url + req.url, { method: req.method, headers: { 'content-type': req.headers['content-type'] || 'application/json' },
++      body: req.method === 'POST' ? Buffer.concat(chunks) : undefined });
++    const body = Buffer.from(await r.arrayBuffer());
++    if (req.method === 'POST' && seen.mode === 'lose-answer') { seen.mode = 'ok'; seen.lost++; return res.destroy(); }   // it landed; the answer is lost
++    res.writeHead(r.status, { 'content-type': r.headers.get('content-type') || 'application/json' }); res.end(body);
++  });
++  await new Promise((r) => proxy.listen(0, '127.0.0.1', r));
++  proxyUrl = `http://127.0.0.1:${proxy.address().port}`;
++  proof = await startProofSource(rpcUrl);
++  rt = launchVerifierRuntime({ chainRpc: rpcUrl, proofSources: [proof.url], port: await freePort(), dir: path.join(TMP, 'runtime') });
++  await rt.ready();
++  A = createChainAuthority({ verifier: rt.url, chain: W.chain });
++});
++test.after(async () => {
++  rt?.stop(); proxy?.close(); proof?.srv.close(); await svc?.close();
++  try { reth?.kill('SIGKILL'); } catch {}
++  if (reth?.dataDir) fs.rmSync(reth.dataDir, { recursive: true, force: true });
++  fs.rmSync(TMP, { recursive: true, force: true });
++});
++const T = { skip, timeout: 600000 };
++const journal = [];
++const clientFor = (op) => B.createLeaseClient({ client: A.client, clients: [A.client], account: op.account, reserve: W.addr.reserve,
++  deployment: { chainId: 8453, ...W.addr }, relays: [proxyUrl], allowLoopbackHttp: true, consumedRecheckMs: [4000, 8000, 16000],
++  onSigned: (s) => { journal.push(JSON.parse(JSON.stringify(s, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)))); } });
++const claimedEvents = async (id) => parseEventLogs({ abi: W.A.ledger.abi, logs: await W.pc.getLogs({ address: W.addr.ledger, fromBlock: 0n, toBlock: 'latest' }) })
++  .filter((e) => e.eventName === 'Claimed' && e.args.id.toLowerCase() === id.toLowerCase());
++async function fresh() {
++  const owner = await W.owner(), id = await W.create(owner); await W.enable(owner, id);
++  const op = await W.operator(`https://lease-gas-verifier-${crypto.randomBytes(4).toString('hex')}.test`);
++  return { id, op };
++}
++const settleFrom = (s) => [{ id: s.lease.id, kind: Number(s.lease.kind), enclaveId: s.lease.enclaveId, nonce: BigInt(s.nonce), deadline: BigInt(s.deadline),
++  maxChargeWei: BigInt(s.lease.maxChargeWei) }, BigInt(s.fromBlock), [s.payee], { operator: s.operator, chainId: s.chainId, reserve: s.reserve, executor: s.executor, ledger: s.ledger }];
++
++test('the host\'s lease reads are ONE local-verifier authority (no provider anywhere in its configuration)', T, () => {
++  const set = leaseRpcSet([A.client], { quorum: 2 });
++  assert.equal(set.authority, 'local-verifier'); assert.equal(set.required, 1);
++});
++
++test('an app-funded claim through the real relay, verified by the verifier: landed, charged to the app\'s reserve once', T, async () => {
++  const { id, op } = await fresh();
++  const posts = seen.posts, c = clientFor(op);
++  const r = await c.claim(id, op.enclaveId);
++  assert.match(r.hash, /^0x[0-9a-f]{64}$/); assert.equal(r.receipt.status, 'success');
++  assert.equal(seen.posts - posts, 1, 'one lease handed to the relay');
++  assert.equal((await W.row(id)).runnerOperator, op.address, 'claimed on chain by this operator');
++  assert.equal((await claimedEvents(id)).length, 1);
++});
++
++test('the relay\'s answer is lost after the lease landed: decided from the chain through the verifier; nothing is posted twice; a restarted client resolves the journal as landed', T, async () => {
++  const { id, op } = await fresh();
++  const posts = seen.posts, j0 = journal.length;
++  seen.mode = 'lose-answer';
++  let out = null, err = null;
++  try { out = await clientFor(op).claim(id, op.enclaveId); } catch (e) { err = e; }
++  assert.equal(seen.lost, 1, 'the answer was lost');
++  assert.equal(seen.posts - posts, 1, 'the signed lease was posted exactly once');
++  assert.equal(journal.length - j0, 1, 'one signed lease, journaled before the relay saw it');
++  // the landing is found on chain (verified), or - when the verifier was still behind - the intent stays for resolution
++  if (out) assert.equal(out.receipt.status, 'success'); else assert.ok(err, 'a lost answer is never silent');
++  // "restart": a NEW client (no memory of the operation) settles the journaled intent from the chain alone
++  const s = journal[journal.length - 1];
++  let settled = null;
++  for (let i = 0; i < 30 && settled?.state !== 'landed'; i++) { settled = await clientFor(op).resolveSigned(...settleFrom(s)); if (settled.state !== 'landed') await sleep(2000); }
++  assert.equal(settled.state, 'landed', JSON.stringify(settled, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)));
++  assert.equal(settled.verified.receipt?.status ?? (await settled.verified.receiptP).status, 'success');
++  await sleep(6000);
++  assert.equal(seen.posts - posts, 1, 'still exactly one post');
++  assert.equal((await claimedEvents(id)).length, 1, 'claimed exactly once');
++});
++
++test('no proof source answers: the claim refuses before anything is signed or posted', T, async () => {
++  const { id, op } = await fresh();
++  const posts = seen.posts, j0 = journal.length;
++  proof.st.mode = 'down';
++  try {
++    await sleep(3000);
++    await assert.rejects(clientFor(op).claim(id, op.enclaveId));
++    assert.equal(seen.posts, posts, 'nothing posted');
++    assert.equal(journal.length, j0, 'nothing signed');
++    assert.match((await W.row(id)).runnerOperator, /^0x0{40}$/i);
++  } finally { proof.st.mode = 'ok'; }
++  const r = await clientFor(op).claim(id, op.enclaveId);
++  assert.equal(r.receipt.status, 'success', 'claims resume once a proof source answers');
++});
+diff --git a/test/owner-nomination.test.mjs b/test/owner-nomination.test.mjs
+index eaa668a58e9d668dbf10d0285d75c7d8148d380e..c9eaa9d489ea9bf05fa304a1c0f567d7c9bd1806 100644
+--- a/test/owner-nomination.test.mjs
++++ b/test/owner-nomination.test.mjs
+@@ -219,12 +219,15 @@
+ test("a state file that cannot be written: nothing is broadcast; writable again: the nomination goes out once", T, async () => {
+   setModes("ok", "ok", "ok");
+   const h = await host("journal-readonly"), from = await pc.getBlockNumber();
+-  const ro = path.join(tmp, "readonly"); fs.mkdirSync(ro); fs.chmodSync(ro, 0o500);
++  // unwritable for ANY user: the state path's parent is a regular file (ENOTDIR). A 0500 directory is not enough where
++  // the suite runs as root (a user namespace, as the queued runner does): root writes into it, and the case passed vacuously
++  // nowhere but failed there - the same on the baseline (673601e54) as here
++  const ro = path.join(tmp, "readonly"); fs.writeFileSync(ro, "not a directory");
+   const a = await nominate(h, { state: path.join(ro, "state.json"), selftest: { passes: 3, gapMs: 500 } });
+   assert.equal(a.out.status.status, "pending-check", JSON.stringify(a.out)); assert.match(a.out.status.why, /could not be made durable: dropped, nothing broadcast/);
+   assert.equal(a.out.status.sends, 0); assert.equal(a.out.status.tx, null);
+   assert.deepEqual(await operatorTxs(from), [], "no transaction reached the chain");
+-  fs.chmodSync(ro, 0o700);
++  fs.rmSync(ro); fs.mkdirSync(ro);   // writable again
+   const b = await nominate(h, { state: path.join(ro, "state.json") });
+   assert.equal(b.out.status.status, "done", JSON.stringify(b.out)); assert.equal(proposes(await operatorTxs(from)).length, 1);
+ });

@@ -1,0 +1,4 @@
+import importlib.util,pathlib,json
+p=pathlib.Path(__file__).resolve().parent;s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+r=m.ps(r'''$os=Get-CimInstance Win32_OperatingSystem;$e=Get-WinEvent -FilterHashtable @{ProviderName='Microsoft-Windows-Hyper-V-Hypervisor';ID=2} -MaxEvents 1 -ErrorAction SilentlyContinue;@{at=(Get-Date).ToUniversalTime().ToString('o');os=@{caption=$os.Caption;version=$os.Version;build=$os.BuildNumber;productType=$os.ProductType};scheduler=if($e){@{time=$e.TimeCreated.ToUniversalTime().ToString('o');message=$e.Message;xml=$e.ToXml()}}else{$null}}|ConvertTo-Json -Depth 4 -Compress''',35)
+(p/'scheduler.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

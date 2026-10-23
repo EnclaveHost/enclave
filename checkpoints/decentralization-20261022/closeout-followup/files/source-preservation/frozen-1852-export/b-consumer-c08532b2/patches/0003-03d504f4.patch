@@ -1,0 +1,273 @@
+From 03d504f4977197aa484702798876f3defd6188df Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 06:05:08 -0700
+Subject: [PATCH] Supervisor on the local verifier: every chain read, receipt,
+ nonce and submission through the selected authority
+
+supervisor.js: with the operator's explicit verifier selection, its one chainClient and its operator wallet use the
+chain-authority transport (CHAIN_AUTHORITY) instead of the provider pool, so the claim decision, ledger mirror, catalog
+moderation, sessions, prices, registry, bond, proofs/settlement/payouts, receipts, the release resolver and the boot nonce
+fence are all answered by the verifier, and every transaction is submitted only through the own backend; BASE_RPC(S) and
+the public defaults are never contacted. Before anything is signed - sendOperatorTx, sendLeaseTx, signAndSendRelease,
+fenceNonce - actionGate requires a fresh verified head (and, to submit, a backend bound to the verifier's chain): a failing
+gate signs nothing and consumes no nonce. App-funded leases and the owner nomination read through the same ONE authority.
+/v1/health reports the authority and its last gate. An invalid selection refuses every chain operation; unset is the
+provider pool exactly as before (legacy, never claimed as independent).
+addressbook.js: under the verifier the admin AddressBook is read from block-pinned verified snapshots, so the
+administrator's migrations still reach the host with no provider (book polling kept; pins mode unchanged).
+docs/network/supervisor-chain-authority.md: the routing, the trust of each answer and the path-by-path inventory, with the
+one remaining gate (G1: payment-event completeness: inclusion is proven, omission is not detectable).
+---
+ addressbook.js                             | 22 +++++-
+ docs/network/supervisor-chain-authority.md | 81 ++++++++++++++++++++++
+ supervisor.js                              | 38 ++++++++--
+ 3 files changed, 133 insertions(+), 8 deletions(-)
+ create mode 100644 docs/network/supervisor-chain-authority.md
+
+diff --git a/addressbook.js b/addressbook.js
+index 8ba217b39f8710746ca5d97ec7fd957db9ade677..e557435a92c18a6759d8ebbc0c5f2af85e9ce176 100644
+--- a/addressbook.js
++++ b/addressbook.js
+@@ -17,6 +17,7 @@
+ import { createPublicClient, http, fallback, getAddress } from "viem";
+ import { base } from "viem/chains";
+ import {loadContractPins} from './windows/node/host-admission.bundle.mjs';
++import { chainVerifierOf, createVerifiedSnapshot } from "./network/verified-chain.mjs";
+ 
+ export const CONTRACT_PINS=loadContractPins();
+ 
+@@ -49,8 +50,20 @@
+   const address=CONTRACT_PINS[name];set(address);process.env[env]=address;
+ }
+ 
+-let client = null;
+-async function readBook() {
++let client = null, snapshot = null;
++// Under the operator's explicit local verifier (ENCLAVE_CHAIN_AUTHORITY=verifier, network/verified-chain.mjs): the book is
++// read from ONE proof-backed snapshot at a fresh block of the verifier's signed head chain (never below a block already
++// accepted), so the platform administrator's migrations still reach this host with no provider. An invalid selection
++// throws (the read fails; the current bindings stay): never the provider pool.
++function bookVerifier() {
++  return chainVerifierOf({ chainAuthority: process.env.ENCLAVE_CHAIN_AUTHORITY || undefined, chainVerifier: process.env.ENCLAVE_CHAIN_VERIFIER || undefined }, "address book");
++}
++async function readEntries() {
++  const verifier = bookVerifier();
++  if (verifier) {
++    if (!snapshot) snapshot = createVerifiedSnapshot({ verifier, chainId: base.id });
++    return (await snapshot((c) => c.readContract({ address: getAddress(BOOK), abi: ABI, functionName: "all" }))).value;
++  }
+   // same multi-provider pool as supervisor.js RPC_POOL: the address book is
+   // the root of contract resolution — a throttled single RPC must not pin the
+   // fleet to stale addresses or block boot
+@@ -58,7 +71,10 @@
+     transport: fallback([...new Set([process.env.BASE_RPC || "https://mainnet.base.org",
+       "https://base-rpc.publicnode.com", "https://base.drpc.org",
+       "https://1rpc.io/base", "https://mainnet.base.org"])].map((u) => http(u, { retryCount: 2, retryDelay: 500 }))) });
+-  const [keysHex, values] = await client.readContract({ address: getAddress(BOOK), abi: ABI, functionName: "all" });
++  return client.readContract({ address: getAddress(BOOK), abi: ABI, functionName: "all" });
++}
++async function readBook() {
++  const [keysHex, values] = await readEntries();
+   const changed = [];
+   keysHex.forEach((kh, i) => {
+     let key = "";
+diff --git a/docs/network/supervisor-chain-authority.md b/docs/network/supervisor-chain-authority.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..7cff9fac8c0ba965c898b8f1b05e296270817f64
+--- /dev/null
++++ b/docs/network/supervisor-chain-authority.md
+@@ -0,0 +1,81 @@
++# The Linux supervisor's chain consumers on the local verifier
++
++`network/chain-authority.mjs`. This document lists what the operator's explicit selection of the local verifier changes in
++`supervisor.js` and in the readers it runs, path by path, and the trust each answer actually has. It applies to relay-mode
++guests (fw_cfg `chainVerifier`) and to direct control guests (the HOST_DATA-bound `chainVerifier` member);
++`docs/network/local-chain-verifier.md` describes the runtime itself.
++
++**Selection.** It is selected only with `ENCLAVE_CHAIN_AUTHORITY=verifier` plus `ENCLAVE_CHAIN_VERIFIER` (loopback). The
++optional `ENCLAVE_CHAIN_TX_BACKEND` is the operator's own Base node at a loopback or private address literal.
++- In a guest these names come only from gsup (`withChainVerifierEnv`), and from no other channel.
++- An invalid selection gives an authority that refuses every method and action.
++- Unset: the provider pool (`BASE_RPC(S)`, `RPC_POOL`) exactly as before. That is the legacy mode, kept for compatibility
++  and never claimed as independent.
++
++## Routing (`METHODS` in the module; everything else is refused by name)
++
++| method | answered by | trust |
++|---|---|---|
++| `eth_call`, `eth_estimateGas` | local verifier | executed locally over state proven against the block state root |
++| `eth_getBalance`, `eth_getCode`, `eth_getStorageAt`, `eth_getTransactionCount` (a block) | local verifier | account/storage/code proof |
++| `eth_blockNumber`, `eth_getBlockByNumber`, `eth_getBlockByHash`, `eth_chainId` | local verifier | the sequencer-signed head chain (signed head or authenticated ancestry) |
++| `eth_getTransactionReceipt`, `eth_getBlockReceipts` | local verifier | the receipts root of a verified block. "Not found" means only *no evidence* (never absence), so callers decide by the proven nonce |
++| `eth_getLogs` | local verifier | each log proven against its block's receipts. **Inclusion only: completeness is not proven** |
++| `eth_getTransactionCount` (`pending`) | own backend | pool hint |
++| `eth_sendRawTransaction` | own backend, **after** binding it to the verifier (same chain id, same hash at the verifier's confirmed block) and a fresh head | submission only: inclusion is shown solely by a receipt the verifier checks |
++| `eth_maxPriorityFeePerGas`, `eth_feeHistory`, `eth_gasPrice` | own backend | fee hint (cost, never validity) |
++
++**Tier.** Everything is the **unsafe tier** (the sequencer-signed head chain), the same tier the provider path's "latest"
++gave. No supervisor path asks for `safe` or `finalized`, and none is claimed. L1-derived finality would come from E's
++full-node adapters (`createBaseNodeSource` + `createL1PairSource`, in-process evidence only). No supervisor decision
++needs it.
++
++**Freshness.** Helios refuses a stale head for "latest" reads. On top of that, `actionGate` requires a head no older than
++60 s and, to submit, a bound backend:
++- **Before signing**, in `sendOperatorTx`, `sendLeaseTx`, `signAndSendRelease` and `fenceNonce`. If the gate fails,
++  nothing is signed, so no nonce is consumed.
++- **Before every submission** (`eth_sendRawTransaction`), including the owner nominator's broadcast. The nominator signs
++  first, as before, so for it only the broadcast refuses; its journal then retries.
++
++## Path inventory (supervisor.js and its closure)
++
++| path | reads | writes | under the verifier |
++|---|---|---|---|
++| ledger mirror: `syncLedger`/`fullResync`/`fetchLedger`, `readLedgerCount`, `readLedgerRowChunk` (multicall), `pinnedLedgerRow`, `openForUs`, `depsAbi` | `eth_call` | – | proven state. Held rows are re-read every tick, and a full state pass runs every `LEDGER_FULL_SEC` |
++| ledger delta: `scanLedgerLogs` | `eth_getLogs` | – | inclusion-proven **hints**. A withheld log only delays discovery until the next proven full pass |
++| claim decision: `claimHintAnswer` (simulate), `rateCapRefusal`, `priceFloorRefusal`, `feeGate`, `deny`/catalog (`catSchemaRev`), `registryEntry`/`registryRev` | `eth_call` | – | proven |
++| host wallet admission (`hostAdmissionFromEnv`), platform host policy gate | the bundle's verifier authority | – | proven (already verifier-aware) |
++| sessions (`createSessionApiAuth` pc) | `eth_call` | – | proven |
++| admin AddressBook (`addressbook.js`) | a block-pinned verified snapshot | – | proven. **Book polling and admin migration are kept**; pins mode is unchanged |
++| claim / renew / release (operator-paid) | prepare: pending nonce (backend), estimate (verifier), base fee (verifier), tip (backend) | `writeContract` → backend | gated; the receipt is verified |
++| `awaitReceipt`, `resolveReleaseTx`, `checkBootTxFence` | receipt, nonce at a block (verifier), pending nonce (backend) | `fenceNonce` → backend | "no receipt" is decided by the **proven** nonce, never by absence |
++| app-funded claim / renew / release (`loadLeaseGasConfig`, `createLeaseClient`, `resolveSigned`) | ONE verifier authority (`leaseRpcSet`: required 1, never mixed or repeated) | relays submit | landing = verified receipt; withheld logs fall to the proven nonce/deadline fences (consumed/expired, never success). The configured lease-gas `RPCS` are never contacted |
++| owner nomination (`createOwnerNominator`) | the verifier (`clients: [chainClient]`) | broadcast → backend | gated |
++| registry: `registerOnChain`, `syncRegisteredPrice`/`ProofKey`, heartbeat seam | `eth_call` | `sendOperatorTx` → backend | gated |
++| claim bond: `claimBondReady` | `eth_call` | approve/postBond → backend | gated |
++| proofs / settlement / payouts: `buildCheckpoints`/`planCheckpoints`, `proveLeases`, `proveFinalPeriod`, `payoutTick`, `settleLapsedLeases`, `stage` | `eth_call`, `getBlock` | `sendOperatorTx` → backend | gated |
++| yank sweep / catalog moderation (`yankSweep`) | `eth_call` | releases (as above) | proven |
++| prices: `ethUsdPrice8`, `refreshUsdcDomain` | `eth_call` | – | proven |
++| payments: `pollPayments` (EnclavePay forwarder `Paid`/`PaidEth`) | `eth_getLogs` | – | inclusion-proven. **GATE G1:** a withheld payment event cannot be detected (a deployment stays awaiting payment: denial, never forgery or double credit). The forwarder keeps no per-payment state to read instead; closing it needs a log-completeness proof or a state-bearing payment record |
++
++## Direct control guests
++
++- **Binding.** The bound `chainVerifier` member is checked with the relay-mode checker. Its port must be in
++  50000..57999 and distinct from every other port of the config, and it is bound by HOST_DATA.
++- **Startup.** `planDirectBoot` refuses to boot if the image carries no runtime. Otherwise gsup starts the runtime before
++  the direct supervisor.
++- **Names.** The direct env's chain-authority names come only from that member.
++- **MCP.** The hosted MCP adapter's profile gets the same verifier.
++- **Statement.** It names the runtime record (`runtime.chainVerifierImageSha256`).
++- **Unchanged:**
++  - the config's required `rpcs`, which the supervisor does not use under the verifier;
++  - the identity, admission and pins (direct guests have no address book by design);
++  - the platform API member's `relayEnv`, which is identical on every member, so a per-host verifier cannot live there.
++
++## Not provided here
++
++- An L1-final tier for receipts.
++- Log completeness: gate G1, payment detection.
++- Submission independent of the operator's own Base node and the sequencer: E's forced-inclusion path is separate and
++  not app-funded.
++- Fresh proofs without a reachable state holder.
+diff --git a/supervisor.js b/supervisor.js
+index 7ba9dde0b77e774843b281505db921e84fd860b7..6f972118b3b5c9da461130c39a8ae9750a338ddd 100644
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -58,6 +58,7 @@
+ import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender } from "./network/lease-gas-runtime.mjs";
+ import { checkOwnerNomination, OWNER_NOMINATION_ENV } from "./metal/guest/owner-nomination.mjs";
+ import { createOwnerNominator } from "./network/host-owner-nomination.mjs";
++import { chainAuthorityFromEnv, refusingChainAuthority } from "./network/chain-authority.mjs";
+ // the public raw attestation document's paths (canonical + the wire-compatibility alias): named in one module
+ import { RAD_PATHS, ADVERTISED_RAD_PATH } from "./relay/attestation-paths.mjs";
+ // Wallet sessions (SessionVault) as owner credentials, verified on chain: shared with the Windows node.
+@@ -319,7 +320,23 @@
+   : [...new Set([BASE_RPC,
+   "https://base-rpc.publicnode.com", "https://base.drpc.org",
+   "https://1rpc.io/base", "https://mainnet.base.org"])];
+-const rpcTransport = () => viemFallback(RPC_POOL.map((u) => viemHttp(u, { retryCount: 2, retryDelay: 500 })));
++// THE LOCAL VERIFIER (the operator's explicit ENCLAVE_CHAIN_AUTHORITY=verifier + ENCLAVE_CHAIN_VERIFIER, network/chain-authority.mjs):
++// every chain read is proven by the local verifier (the unsafe tier: its sequencer-signed head chain), submissions and
++// pending-pool/fee hints go to the operator's OWN backend (ENCLAVE_CHAIN_TX_BACKEND) only, and nothing - not RPC_POOL, not a
++// public default - is ever contacted; an invalid selection refuses every chain operation. Unset: the provider pool, unchanged.
++const CHAIN_AUTHORITY = (() => {
++  try { return chainAuthorityFromEnv(process.env, { chain: base }); }
++  catch (e) { console.error(`[chain] the chain authority selection is INVALID (${e.message}): every chain read and transaction refuses; no provider is used`);
++              return refusingChainAuthority(e.message, { chain: base }); }
++})();
++const rpcTransport = () => CHAIN_AUTHORITY ? CHAIN_AUTHORITY.transport : viemFallback(RPC_POOL.map((u) => viemHttp(u, { retryCount: 2, retryDelay: 500 })));
++if (CHAIN_AUTHORITY) { const d = CHAIN_AUTHORITY.describe();
++  console.log(`[chain] authority: ${d.authority === "refusing" ? "REFUSING (" + d.why + ")" : `local verifier ${d.verifier} (unsafe tier, no L1 finality); `
++    + (d.backend ? `submissions and pool/fee hints via the own backend ${d.backend.label} (bound to the verifier's chain before each send)` : "no own transaction backend: nothing is submitted")
++    + "; logs prove inclusion only; no provider RPC is used"}`); }
++// Before an action that signs or submits (submit) or decides on chain state: the verifier's head is fresh and, to submit, the
++// own backend is bound to its chain. Legacy (no authority): nothing here, exactly as before.
++const chainActionGate = (what, submit = false) => (CHAIN_AUTHORITY ? CHAIN_AUTHORITY.actionGate({ what, submit }) : Promise.resolve());
+ const SESSION_TTL    = parseInt(process.env.SESSION_TTL || "604800", 10); // 7d: SIWE is lazy now (only logs/attestation/private data need it) - make the one signature rare
+ const DEFAULT_IMAGE  = process.env.DEFAULT_IMAGE || "debian:bookworm-slim"; // any stock image
+ // --- worker launch: tenants run as the manager's wasmtime/CUDA processes ------
+@@ -5898,6 +5915,8 @@
+ // system
+ // ============================================================================
+ app.get("/v1/health", (_req, res) => res.json({ status: "ok", deployments: deployments.size, platformHostPolicy: HOST_POLICY_GATE.status(),
++  // the selected chain authority (only when the operator selected the local verifier): what is used, and the last action gate
++  ...(CHAIN_AUTHORITY ? { chainAuthority: { ...CHAIN_AUTHORITY.describe(), lastGate: CHAIN_AUTHORITY.status() } } : {}),
+   // the operator's owner nomination, only when configured (public: contract, host, proposed owner, tx hash, state)
+   ...(OWNER_NOMINATION ? { ownerNomination: ownerNominationStatus() } : {}),
+   // watcher freshness is billing-critical: while it's stale, funded clocks are frozen
+@@ -9972,9 +9991,10 @@
+   }
+ }
+ function sendOperatorTx(address, abi, functionName, args, { gate = null } = {}) {
+-  const p = _txChain.then(() => {
++  const p = _txChain.then(async () => {
+     const stale = gate?.();   // the caller's local permission, re-checked when the queue reaches this send (sendLeaseTx)
+     if (stale) throw Object.assign(new Error(`${functionName} not sent: ${stale}`), { superseded: true });
++    await chainActionGate(functionName, true);   // a fresh verifier and a bound own backend, before anything is signed
+     return claimSigner().wallet.writeContract({ address: getAddress(address), abi, functionName, args });
+   });
+   const rcptP = p.then((hash) => awaitReceipt(hash));
+@@ -10006,6 +10026,8 @@
+   _ownerNominator = createOwnerNominator({ nomination: OWNER_NOMINATION.config,
+     local: { chainId: CHAIN_ID, registry: REGISTRY_ADDRESS, endpoint: _advertisedEndpoint, operator: account.address, hostId: _enclaveId },
+     queue: operatorQueue, allowLoopbackHttp: !!process.env.OWNER_NOMINATION_SELFTEST,
++    // under the local verifier: its reads use that ONE authority (never the nomination's own RPCs), the broadcast the own backend
++    ...(CHAIN_AUTHORITY ? { clients: [chainClient] } : {}),
+     signer: { address: account.address, prepare: (r) => wallet.prepareTransactionRequest({ account, ...r }), sign: (r) => wallet.signTransaction(r),
+               broadcast: (raw) => (_ownerNominationBroadcastHook ? _ownerNominationBroadcastHook(raw, broadcast) : broadcast(raw)) },
+     store: { load: () => _ownerNominationRecord, save: (r) => { _ownerNominationRecord = r; saveStateNow(); },
+@@ -10093,15 +10115,17 @@
+ }
+ function leaseGasSender() {
+   if (!_leaseGas) {
+-    const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
++    const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings(), chainAuthority: CHAIN_AUTHORITY });
+     _leaseGas = configuredLeaseSender({ config, account: claimSigner().account, getBindings: leaseBindings, relayPolicy: leaseRelayPolicy(HOST_POLICY_GATE),
+       log: (m) => console.log(m), onSigned: (s) => (_onLeaseSigned ? _onLeaseSigned(s) : undefined) });
+   }
+   return _leaseGas;
+ }
+ if (leaseGasActive()) {
+-  try { const c = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
+-        console.log(`[lease-gas] app-funded leases ON: reserve ${c.reserve}, ${c.relays.length} relay(s), ${c.clients.length} RPC(s) (quorum ${c.quorum}); this key's ETH is never used for claim/renew/release`); }
++  try { const c = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings(), chainAuthority: CHAIN_AUTHORITY });
++        console.log(`[lease-gas] app-funded leases ON: reserve ${c.reserve}, ${c.relays.length} relay(s), `
++          + (c.authority === "local-verifier" ? "reads through the local verifier (configured RPCs unused)" : `${c.clients.length} RPC(s) (quorum ${c.quorum})`)
++          + "; this key's ETH is never used for claim/renew/release"); }
+   catch (e) { console.warn(`[lease-gas] app-funded leases are configured but cannot be loaded now (${e.message}); every claim/renew/release refuses until they can`); }
+ }
+ function leaseGasError(fn, id, e) {
+@@ -10121,6 +10145,8 @@
+     const stale = gate?.();
+     if (stale) throw Object.assign(new Error(`app-funded ${functionName} not sent: ${stale}`), { superseded: true });
+     if (_stateCorrupt) throw leaseGasError(functionName, args[0], new Error(`the release journal failed to load (${_stateCorrupt})`));
++    try { await chainActionGate(`app-funded ${functionName}`); }   // relays submit; this host signs only on a fresh verified head
++    catch (e) { throw leaseGasError(functionName, args[0], e); }
+     // ...and asked AGAIN once the lease is signed, before any relay has it (the client's onSigned: a throw there sends it to
+     // no relay): the sponsored client reads and admits relays first, and a withdrawal meanwhile must not spend the reserve
+     let tripped = null;
+@@ -10511,6 +10537,7 @@
+ function signAndSendRelease(it) {
+   if (leaseGasActive()) return sponsoredRelease(it);   // never this key's ETH once app-funded leases are configured
+   const signed = _txChain.then(async () => {
++    await chainActionGate("release", true);              // nothing is signed on a stale verifier or an unbound backend
+     const { account, wallet } = claimSigner();
+     const request = await wallet.prepareTransactionRequest({ account, to: getAddress(DEPLOYMENTS_ADDRESS),
+       data: encodeFunctionData({ abi: CLAIM_TX_ABI, functionName: "release", args: [it.id] }) });
+@@ -10534,6 +10561,7 @@
+ function fenceNonce(it, tx) {
+   tx.fence = { at: Date.now() };
+   const p = _txChain.then(async () => {
++    await chainActionGate("nonce fence", true);
+     const { account, wallet } = claimSigner();
+     tx.fence.hash = await wallet.sendTransaction({ account, to: account.address, value: 0n, nonce: tx.nonce });
+     saveStateNow();

@@ -1,0 +1,90 @@
+{
+  "policy": {
+    "sha256": "efee77a65fe904ac1d315effecf7fa3a62dd147a9be83fbe5fe944572f3dea41",
+    "path": "C:\\Program Files\\Enclave\\network\\admitted-shield-policy.json",
+    "keys": [
+      "schema",
+      "marketEnabled",
+      "hosts",
+      "ekRoots",
+      "platforms",
+      "images",
+      "cpu",
+      "gpu",
+      "witness"
+    ],
+    "images": [
+      {
+        "measurement": "4b19e8f04a1ba77882176854f14e0a816154711c509cd69cc4b1c8b9f276ca22",
+        "tier": null,
+        "hostExcluded": null
+      },
+      {
+        "measurement": "0bd3c1e381ca9174d2b532f2f9914de4306d42acf50ebb9be9f537731de7d80e",
+        "tier": null,
+        "hostExcluded": null
+      },
+      {
+        "measurement": "88d6ff18ed7d9a20528cf89e35c15405229e0bae1ceaa11b0e9074cc141ca036",
+        "tier": null,
+        "hostExcluded": null
+      },
+      {
+        "measurement": "b3c884314679db245198d8d645971fbfcf2ffd29a06c91d8704e944cb9cde254",
+        "tier": null,
+        "hostExcluded": null
+      },
+      {
+        "measurement": "8610cf53bde2207d062a4bb29e893a6f47d888188f9db4874374f4d99c047452",
+        "tier": null,
+        "hostExcluded": null
+      },
+      {
+        "measurement": "5a107a0261423cb20ad9193da96c923b0975473cfcfb437fc0fe0e501a761c95",
+        "tier": null,
+        "hostExcluded": null
+      },
+      {
+        "measurement": "04f669057be85fcb1874003e383a2c782a5d89c6be30bf78056c1ba5ce7f52a6",
+        "tier": null,
+        "hostExcluded": null
+      },
+      {
+        "measurement": "e978da0b486fbd65bd1d8bea8f038a90ee6a4f412b6658dad0871c1d823b90eb",
+        "tier": null,
+        "hostExcluded": null
+      },
+      {
+        "measurement": "0d546c0c0bbd2ca080dcde003b3d78629ebafa15654164a874fbc03961ad6dc4",
+        "tier": null,
+        "hostExcluded": null
+      },
+      {
+        "measurement": "2bfa3021db923238720aaae14f2dc9b1940725dbc3299c09695b9bd6a0242aa0",
+        "tier": null,
+        "hostExcluded": null
+      },
+      {
+        "measurement": "8414496cd0d2af2a49ec0476f69b901bef04cea5d3b52b2347b81e1ef3f14b23",
+        "tier": null,
+        "hostExcluded": null
+      }
+    ],
+    "currentImage": [
+      {
+        "measurement": "8414496cd0d2af2a49ec0476f69b901bef04cea5d3b52b2347b81e1ef3f14b23",
+        "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+        "configBundleV5": true,
+        "secretsV1": true,
+        "configSocketServer": true,
+        "protectedPorts": true
+      }
+    ],
+    "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8"
+  },
+  "selectedConfig": {
+    "ENCLAVE_NETWORK_AGENT_DIR": "C:\\ProgramData\\Enclave\\network",
+    "ENCLAVE_NETWORK_SHIELD_POLICY": "C:\\Program Files\\Enclave\\network\\admitted-shield-policy.json"
+  },
+  "at": "2026-10-23T18:17:32.2893551Z"
+}

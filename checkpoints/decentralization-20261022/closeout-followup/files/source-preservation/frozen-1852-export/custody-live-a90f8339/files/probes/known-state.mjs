@@ -1,0 +1,16 @@
+// READ ONLY: known deployed vault/committee/policies; no event discovery and no secret values emitted.
+import fs from 'node:fs';
+import {keccak256,parseAbi,stringToHex} from 'viem';
+import {pinBlock,readMany,codeAt,LIVE} from '../lib/live.mjs';
+const old=JSON.parse(fs.readFileSync(new URL('../../existing-custody-audit/evidence/live-custody.json',import.meta.url)));
+const V='0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5', B='0xab214342d5A490150A4A977063A2f88E21F80907';
+const abi=parseAbi(['function book() view returns(address)','function enclaveOwner() view returns(address)','function committeeOf(bytes32) view returns(bytes Y,uint32 epoch,uint8 t,uint8 W,uint64 activatedAt)','function machinesOf(bytes32,uint32) view returns((address identity,bytes32 encKey,string endpoint,bytes32 chipId,bytes32 registryId,bytes32 measurement)[] machines,bool[] enclave)','function policyOf(bytes32) view returns(address owner,uint64 policyRev,uint64 secretRev,bytes32 committeeId,bool paused,bytes rules)','function bundleOf(bytes32) view returns(bytes32 committeeId,uint64 secretRev,bytes bundle)']);
+const bk=parseAbi(['function addr(bytes32) view returns(address)','function owner() view returns(address)']);
+const block=await pinBlock(); const codeHash=keccak256(await codeAt(block,V));
+const keys=['secretVaultV2','secretVault','hostOwnership','registry','deployments'];
+const vals=await readMany(block,[...keys.map(k=>({address:B,abi:bk,functionName:'addr',args:[stringToHex(k,{size:32})]})),{address:B,abi:bk,functionName:'owner'},{address:V,abi,functionName:'book'},{address:V,abi,functionName:'enclaveOwner'}]);
+const out={at:new Date().toISOString(),readOnly:true,scope:'Known original vault/committees/policies only; no discovery of new consumers',block,providers:LIVE.state,codeHash,codeMatchesPreviousVerifiedRuntime:codeHash===old.contracts.originalVaultV2.codeHash,book:{address:B,entries:Object.fromEntries(keys.map((k,i)=>[k,vals[i].value])),owner:vals[5].value},vault:{address:V,book:vals[6].value,enclaveOwner:vals[7].value},committees:[],policies:[]};
+for(const prev of old.committees){const id=prev.committeeId;const [Y,epoch,t,W,activatedAt]=(await readMany(block,[{address:V,abi,functionName:'committeeOf',args:[id]}]))[0].value;const [ms,enc]=(await readMany(block,[{address:V,abi,functionName:'machinesOf',args:[id,epoch]}]))[0].value;out.committees.push({id,epoch,t,W,activatedAt,YBytes:(Y.length-2)/2,machines:ms.map((m,i)=>({...m,enclaveSeat:enc[i]}))});}
+for(const prev of old.policies){const id=prev.id;const r=await readMany(block,[{address:V,abi,functionName:'policyOf',args:[id]},{address:V,abi,functionName:'bundleOf',args:[id]}]);const [owner,policyRev,secretRev,committeeId,paused,rules]=r[0].value;const [bcid,rev,bundle]=r[1].value;out.policies.push({id,owner,policyRev,secretRev,committeeId,paused,rulesBytes:(rules.length-2)/2,bundle:{committeeId:bcid,secretRev:rev,bytes:(bundle.length-2)/2}});}
+fs.writeFileSync(new URL('../evidence/known-state.json',import.meta.url),JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n');
+console.log(JSON.stringify({at:out.at,block:block.number.toString(),codeMatchesPreviousVerifiedRuntime:out.codeMatchesPreviousVerifiedRuntime,book:out.book,committees:out.committees.map(c=>({id:c.id,n:c.machines.length,t:c.t,epoch:c.epoch})),knownPolicies:out.policies.length}));

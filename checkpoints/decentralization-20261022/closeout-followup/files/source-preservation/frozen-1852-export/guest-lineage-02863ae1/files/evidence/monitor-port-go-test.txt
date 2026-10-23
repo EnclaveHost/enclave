@@ -1,0 +1,17 @@
+=== rw: go vet + go test ./monitor ./secretrun (isolation/m3)
+ok  	enclave.host/isolation/m3/monitor	20.806s
+?   	enclave.host/isolation/m3/secretrun	[no test files]
+rc=0
+=== port: go vet + go test ./monitor ./secretrun (isolation/m3)
+ok  	enclave.host/isolation/m3/monitor	20.810s
+?   	enclave.host/isolation/m3/secretrun	[no test files]
+rc=0
+=== port: focused CPU tests verbose
+=== RUN   TestCPUAllowanceRaisesCatalogShare
+--- PASS: TestCPUAllowanceRaisesCatalogShare (0.00s)
+=== RUN   TestCPUAllowanceReachesCgroup
+--- PASS: TestCPUAllowanceReachesCgroup (0.00s)
+=== RUN   TestLoadAppliesTheLaunchersCPUAllocation
+--- PASS: TestLoadAppliesTheLaunchersCPUAllocation (0.00s)
+PASS
+ok  	enclave.host/isolation/m3/monitor	0.003s

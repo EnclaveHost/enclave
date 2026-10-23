@@ -1,0 +1,64 @@
+{
+  "source": "ea6717d2725b8acd1b19837cdc6355421a94972d",
+  "files": [
+    {
+      "path": "windows/vbslike/manager/cpu-share.mjs",
+      "sha256": "50ca362649a1b53486b9ad9906e9cb51890b1a4a4973babeb09098a7dfcf6bf0",
+      "origin": "ea6717d2725b8acd1b19837cdc6355421a94972d"
+    },
+    {
+      "path": "windows/vbslike/manager/derive.mjs",
+      "sha256": "504342510c09dadeac0ec925bf071ff9378a56c5c9cc6990c29bbaf85635ad4e",
+      "origin": "ea6717d2725b8acd1b19837cdc6355421a94972d"
+    },
+    {
+      "path": "windows/vbslike/manager/egress.mjs",
+      "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05",
+      "origin": "ea6717d2725b8acd1b19837cdc6355421a94972d"
+    },
+    {
+      "path": "windows/vbslike/manager/psrun.mjs",
+      "sha256": "39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6",
+      "origin": "ea6717d2725b8acd1b19837cdc6355421a94972d"
+    },
+    {
+      "path": "windows/vbslike/manager/wmi-launcher.mjs",
+      "sha256": "2573e9963904446d0fdd3706fef6c115cb47258d2df3e1c5c0b59750f7107606",
+      "origin": "ea6717d2725b8acd1b19837cdc6355421a94972d"
+    },
+    {
+      "path": "windows/vbslike/manager/wmiserve-run.mjs",
+      "sha256": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
+      "origin": "ea6717d2725b8acd1b19837cdc6355421a94972d"
+    },
+    {
+      "path": "windows/vbslike/verify/boot-statements.mjs",
+      "sha256": "f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3",
+      "origin": "ea6717d2725b8acd1b19837cdc6355421a94972d"
+    },
+    {
+      "path": "windows/vbslike/manager/ops/workload-canary.mjs",
+      "sha256": "7a120a7610c79a5a8a5cc2615128b5752219ec639455bfa1e470276d04d7f032",
+      "origin": "Root reviewed derivative of Q workload source 30904113bcde6328357274ce73b4680e4a0db24967f02b22ee41fad014178715",
+      "changes": "Enable canonical explicit allowance; require actual guest echo; bound request timeout"
+    },
+    {
+      "path": "runtime.bin",
+      "sha256": "7090c5a51c531ca9cdcfb8f5dcd519b400d9aef5c622ca46335a434b036b4a8e",
+      "bytes": 78220892,
+      "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/coupled-cpu-enforcement-20261023/build/out/img-a/runtime.bin"
+    },
+    {
+      "path": "shield-host.exe",
+      "sha256": "e4eeb994292dcd71653243da1e64d23988ec8a7f45f2b3742a517dda3d46feb2",
+      "bytes": 1147904,
+      "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/coupled-cpu-enforcement-20261023/root-validation/candidate-shield-host.exe"
+    },
+    {
+      "path": "cpu-probe.wasm",
+      "sha256": "5d8f8d195709fcc5320f49291b94d16ea5dc48c895ed44e7478ca076fed31d38",
+      "bytes": 59578,
+      "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/coupled-cpu-enforcement-20261023/build/out/cpu-probe.wasm"
+    }
+  ]
+}

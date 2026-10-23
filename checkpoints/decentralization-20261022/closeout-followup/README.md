@@ -41,6 +41,8 @@ Frozen 1726 append (2026-10-23; "1726" = the batch start 17:26Z, an identifier):
 
 Frozen 1806 append (2026-10-23; "1806" = the batch start 18:06Z, an identifier): ROOT native CPU launcher build evidence c57a5f47 (6ac5e111 launcher pin; offline MSVC build from the ea6717d2 source closure; candidate e4eeb994 STAGED ONLY, binaries and source zip not captured; the whole CPU fix is incomplete) and M custody v2 rollout audit 8df7139d (source/historical record, no fresh production verification; one seat is not decentralized); root receipts and journal/requirements snapshots. See `MANIFEST.json` `appends`.
 
+Frozen 1852 append (2026-10-23; "1852" = the batch start 18:52Z, an identifier): ROOT native CPU quota COUNTEREXAMPLE 8afbf879 (the Hyper-V cap FAILED under the Windows root scheduler: a 1% share still used a full guest CPU; no CPU activation; source fix pending), ROOT fresh read-only custody v2 verification a90f8339 (single-seat bootstrap, not decentralized; raw quote not captured), R guest lineage 02863ae1, B Linux RPC consumer closure c08532b2 (SOURCE-ONLY: compiled bundles held, manifests converted; source/test only), M custody v2 durability 415483ff (source only; touched-file reproduction, base not published); root receipts and snapshots. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

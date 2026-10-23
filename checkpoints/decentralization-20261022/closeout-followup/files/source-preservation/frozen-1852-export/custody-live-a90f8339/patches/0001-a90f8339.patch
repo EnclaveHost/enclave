@@ -1,0 +1,628 @@
+From a90f8339e7225e185393a646a879feaf4853c5b1 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 11:51:16 -0700
+Subject: [PATCH] Verify the October 14 custody bootstrap against live chain
+ and SNP evidence
+
+---
+ .gitignore                        |   2 +
+ README.md                         |  13 ++++
+ evidence/discover-delta.guard.log |   1 +
+ evidence/discover-delta.json      |  40 ++++++++++
+ evidence/fresh-quote.guard.log    |   1 +
+ evidence/fresh-quote.json         |  49 ++++++++++++
+ evidence/known-state-2.guard.log  |   1 +
+ evidence/known-state-3.guard.log  |   1 +
+ evidence/known-state.guard.log    |   1 +
+ evidence/known-state.json         |  70 ++++++++++++++++++
+ evidence/local-runtime.guard.log  |   1 +
+ evidence/local-runtime.json       |  45 +++++++++++
+ evidence/public-info.guard.log    |   1 +
+ evidence/public-info.json         |  21 ++++++
+ lib/live.mjs                      | 119 ++++++++++++++++++++++++++++++
+ probes/discover-delta.mjs         |  19 +++++
+ probes/fresh-quote.mjs            |  20 +++++
+ probes/known-state.mjs            |  16 ++++
+ probes/local-runtime.py           |  27 +++++++
+ probes/public-info.py             |  11 +++
+ 20 files changed, 459 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 README.md
+ create mode 100644 evidence/discover-delta.guard.log
+ create mode 100644 evidence/discover-delta.json
+ create mode 100644 evidence/fresh-quote.guard.log
+ create mode 100644 evidence/fresh-quote.json
+ create mode 100644 evidence/known-state-2.guard.log
+ create mode 100644 evidence/known-state-3.guard.log
+ create mode 100644 evidence/known-state.guard.log
+ create mode 100644 evidence/known-state.json
+ create mode 100644 evidence/local-runtime.guard.log
+ create mode 100644 evidence/local-runtime.json
+ create mode 100644 evidence/public-info.guard.log
+ create mode 100644 evidence/public-info.json
+ create mode 100644 lib/live.mjs
+ create mode 100644 probes/discover-delta.mjs
+ create mode 100644 probes/fresh-quote.mjs
+ create mode 100644 probes/known-state.mjs
+ create mode 100644 probes/local-runtime.py
+ create mode 100644 probes/public-info.py
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..cd8d3b6e4bc369448fc7c02c9501dfe8471e628e
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,2 @@
++node_modules/
++evidence/fresh-quote-raw.json
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..87f2e89cec8f9339eccb82e93bc40c4ea8052916
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,13 @@
++# Production custody v2 read-only reconciliation, 2026-10-23
++
++Current evidence is limited to the existing bootstrap. No new secret, rotation, migration, outage, rollback, or corrected-image activation has been performed by these probes.
++
++At 18:10 UTC, two Base RPC state providers agreed on block52994819 and the original vault's deployed code hash. The address-book entries secretVaultV2, secretVault, and hostOwnership were all zero. The previously inventoried committee remains epoch1 with one machine and threshold1. The known policy remains policyRev2/secretRev2, unpaused. These are known-ID reads, not an exhaustive current consumer inventory. At18:47 UTC, an additional event scan from block52849852 to a fresh agreed block found no new events on the original vault. Discovery uses one archive provider, so it is not independently exhaustive. Fresh quorum state reads also found the metal0 host active with no accepted or pending owner in the configured ownership registry; owner enrollment remains required for the corrected image.
++
++At 18:15 UTC, a fresh random-nonce SNP evidence request passed AMD chain/signature, measured image, debug-disabled, VMPL, and identity/key binding checks. The full measurement is c8663742359ae1895dee9c8c18e801c524fc7e9e028663e9eca9cb73ac7aa0831bd6610cfc6bd7c22c50e1ad27da396b. It matches the on-chain machine measurement hash2530eda0 and the October14 release manifest. This is quote verification, not a secret lifecycle test.
++
++At 18:16 UTC, the local production enclave-custodian-v2 user service was active. QEMU PID3817658 and service PID3817646 still used the original custodian-v2-9d43e63e8 directory, started October14. The kernel/initrd hashes matched that directory's manifest. No sealed state, credentials, or private configuration were read by the runtime probe.
++
++The running committee is one Enclave-operated seat, not decentralized custody. Current defects and rollout prerequisites are separately recorded in the source audit. The corrected image has not been activated. Address-book activation will require the administrator's signing authority; exact transactions are not yet prepared.
++
++Public evidence JSON and read-only probe sources are preserved here. The raw hardware quote/collateral is excluded from source control to avoid unnecessarily publishing the raw chip identifier. Its digest and verifier verdict are retained. No canary secret values are present in this directory.
+diff --git a/evidence/discover-delta.guard.log b/evidence/discover-delta.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..708ca24b2fb412db081c842ed0b996f381d5016b
+--- /dev/null
++++ b/evidence/discover-delta.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=88 minHostAvailableMiB=26071
+diff --git a/evidence/discover-delta.json b/evidence/discover-delta.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..fa6417fdf3d4cbef19313410fd75f43893291fa7
+--- /dev/null
++++ b/evidence/discover-delta.json
+@@ -0,0 +1,40 @@
++{
++  "at": "2026-10-23T18:47:01.426Z",
++  "readOnly": true,
++  "block": {
++    "number": "52995913",
++    "hash": "0xda7dfd7f20e0571c6f800bb0d94eba3953584561ffc7dcf0bfde38b8ccb997c8",
++    "timestamp": "1792781173",
++    "baseFeePerGas": "5000000"
++  },
++  "baselineBlock": {
++    "number": "52849851",
++    "hash": "0xdce5ae887a2e3d3bf26fe2187a8ec3b3d0e3ad38ccd7d0609f7c82c779ee9fab"
++  },
++  "fromBlock": "52849852",
++  "discoveryProvider": "https://base.public.blockpi.network/v1/rpc/public",
++  "discoveryLimit": "Delta logs from one provider can omit events. This is not independently exhaustive discovery.",
++  "stateProviders": [
++    "https://mainnet.base.org",
++    "https://base.public.blockpi.network/v1/rpc/public"
++  ],
++  "events": [],
++  "committees": [
++    "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3"
++  ],
++  "policies": [
++    "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e"
++  ],
++  "host": {
++    "registryId": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++    "owner": "0x0000000000000000000000000000000000000000",
++    "pendingOwner": "0x0000000000000000000000000000000000000000",
++    "revision": "0",
++    "policyHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
++    "payoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++    "active": true,
++    "lastSeen": "1792570833",
++    "endpoint": "https://api.enclave.host/t/metal0"
++  }
++}
+diff --git a/evidence/fresh-quote.guard.log b/evidence/fresh-quote.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..100f30acd4a8a4efa2db57b9f7379809eb3a250d
+--- /dev/null
++++ b/evidence/fresh-quote.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=81 minHostAvailableMiB=26043
+diff --git a/evidence/fresh-quote.json b/evidence/fresh-quote.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..ffed2e5ddbabfd843ebefc489a583a835d80c736
+--- /dev/null
++++ b/evidence/fresh-quote.json
+@@ -0,0 +1,49 @@
++{
++  "at": "2026-10-23T18:15:08.436Z",
++  "scope": "Fresh attestation of existing production custodian only; not a secret release or rollout test",
++  "chainBlock": {
++    "number": "52994819",
++    "hash": "0x845d2b804fc95d5227a0449f1fc1e8c2b2a560631bffd84d8de4734449502887",
++    "timestamp": "1792778985",
++    "baseFeePerGas": "5000000"
++  },
++  "nonce": "71e352c322d5e977505f396671330a1574acd6a7c310bb13a43006ca58b92640",
++  "evidenceSha256": "39b3d22c97ec8c5fb24aeca62b0b1bb7bf37ee8f9590ec8118ee8a0e4d97c738",
++  "machineMatchesPinnedChain": true,
++  "verdict": {
++    "ok": true,
++    "reasons": [],
++    "expected": {
++      "measurement": "c8663742359ae1895dee9c8c18e801c524fc7e9e028663e9eca9cb73ac7aa0831bd6610cfc6bd7c22c50e1ad27da396b",
++      "measurementSha256": "0x2530eda0796a9d16eac8e2bb3b1f02abb58a816d4a54ebbbcbfb738a9cf966cf",
++      "commit": "9d43e63e84e1799467a0202c0cf1cdc5a8aabca5"
++    },
++    "verifier": {
++      "ok": true,
++      "reasons": [
++        "report is from VMPL0 (full privilege inside the CVM)",
++        "guest policy 0x30000: DEBUG off, MIGRATE_MA off",
++        "measurement on Metal release allowlist",
++        "report_data binds the caller's expected binding (transport key + fresh challenge + runtime identity)",
++        "AMD signature chain verified (VCEK auxblob → ASK → ARK, Turin)",
++        "VCEK chip ID and TCB extensions match the report",
++        "reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)"
++      ]
++    },
++    "observed": {
++      "measurement": "c8663742359ae1895dee9c8c18e801c524fc7e9e028663e9eca9cb73ac7aa0831bd6610cfc6bd7c22c50e1ad27da396b",
++      "hostData": "0000000000000000000000000000000000000000000000000000000000000000",
++      "policy": "0x30000",
++      "vmpl": 0,
++      "chipIdSha256": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
++      "machine": {
++        "identity": "0xf0f8078459c051a89197fac73ff689c6df96506a",
++        "encKey": "0x3f3d0595ca94db5e5062c98fa0c16a037374598db8525e271e01321580252034",
++        "endpoint": "https://api.enclave.host/t/custody-metal0",
++        "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
++        "registryId": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++        "measurement": "0x2530eda0796a9d16eac8e2bb3b1f02abb58a816d4a54ebbbcbfb738a9cf966cf"
++      }
++    }
++  }
++}
+diff --git a/evidence/known-state-2.guard.log b/evidence/known-state-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d66a239c7c881d3a9f39e8a35a2403360d00af30
+--- /dev/null
++++ b/evidence/known-state-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/evidence/known-state-3.guard.log b/evidence/known-state-3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..7de18267a2728a70a137ad3f2d1ee20dfb55ebc8
+--- /dev/null
++++ b/evidence/known-state-3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=81 minHostAvailableMiB=25693
+diff --git a/evidence/known-state.guard.log b/evidence/known-state.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d66a239c7c881d3a9f39e8a35a2403360d00af30
+--- /dev/null
++++ b/evidence/known-state.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/evidence/known-state.json b/evidence/known-state.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..93ea65cefd6ace6972dc47e5d440ab4f63c7fb9f
+--- /dev/null
++++ b/evidence/known-state.json
+@@ -0,0 +1,70 @@
++{
++  "at": "2026-10-23T18:10:11.040Z",
++  "readOnly": true,
++  "scope": "Known original vault/committees/policies only; no discovery of new consumers",
++  "block": {
++    "number": "52994819",
++    "hash": "0x845d2b804fc95d5227a0449f1fc1e8c2b2a560631bffd84d8de4734449502887",
++    "timestamp": "1792778985",
++    "baseFeePerGas": "5000000"
++  },
++  "providers": [
++    "https://mainnet.base.org",
++    "https://base.public.blockpi.network/v1/rpc/public"
++  ],
++  "codeHash": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b",
++  "codeMatchesPreviousVerifiedRuntime": true,
++  "book": {
++    "address": "0xab214342d5A490150A4A977063A2f88E21F80907",
++    "entries": {
++      "secretVaultV2": "0x0000000000000000000000000000000000000000",
++      "secretVault": "0x0000000000000000000000000000000000000000",
++      "hostOwnership": "0x0000000000000000000000000000000000000000",
++      "registry": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC",
++      "deployments": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B"
++    },
++    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61"
++  },
++  "vault": {
++    "address": "0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5",
++    "book": "0xab214342d5A490150A4A977063A2f88E21F80907",
++    "enclaveOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61"
++  },
++  "committees": [
++    {
++      "id": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
++      "epoch": 1,
++      "t": 1,
++      "W": 1,
++      "activatedAt": "1792017007",
++      "YBytes": 33,
++      "machines": [
++        {
++          "identity": "0xF0F8078459c051a89197fac73Ff689c6DF96506a",
++          "encKey": "0x3f3d0595ca94db5e5062c98fa0c16a037374598db8525e271e01321580252034",
++          "endpoint": "https://api.enclave.host/t/custody-metal0",
++          "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
++          "registryId": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++          "measurement": "0x2530eda0796a9d16eac8e2bb3b1f02abb58a816d4a54ebbbcbfb738a9cf966cf",
++          "enclaveSeat": true
++        }
++      ]
++    }
++  ],
++  "policies": [
++    {
++      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++      "owner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
++      "policyRev": "2",
++      "secretRev": "2",
++      "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
++      "paused": false,
++      "rulesBytes": 451,
++      "bundle": {
++        "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
++        "secretRev": "2",
++        "bytes": 272
++      }
++    }
++  ]
++}
+diff --git a/evidence/local-runtime.guard.log b/evidence/local-runtime.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e5e6724a5cb77f89d63a0d0a5b60379e96b397ba
+--- /dev/null
++++ b/evidence/local-runtime.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=23 minHostAvailableMiB=25863
+diff --git a/evidence/local-runtime.json b/evidence/local-runtime.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..fe60f21698a3684b99dd44f2e6003116c4e2ffb2
+--- /dev/null
++++ b/evidence/local-runtime.json
+@@ -0,0 +1,45 @@
++{
++  "at": "2026-10-23T18:16:57.431711+00:00",
++  "readOnly": true,
++  "unitReturnCode": 0,
++  "unit": {
++    "ActiveState": "active",
++    "SubState": "running",
++    "FragmentPath": "/home/steven/.config/systemd/user/enclave-custodian-v2.service",
++    "MainPID": "3817646",
++    "ExecMainStartTimestamp": "Wed 2026-10-14 16:34:35 MST"
++  },
++  "unitError": "",
++  "vms": [
++    {
++      "pid": 3817658,
++      "startTicks": "32598976",
++      "selectedArguments": {
++        "-kernel": "/home/steven/enclave-prod/custodian-v2-9d43e63e8/vmlinuz",
++        "-initrd": "/home/steven/enclave-prod/custodian-v2-9d43e63e8/initramfs.cpio.gz",
++        "-m": "3072",
++        "-smp": "2"
++      }
++    }
++  ],
++  "imageFiles": [
++    {
++      "path": "/home/steven/enclave-prod/custodian-v2-9d43e63e8/vmlinuz",
++      "bytes": 17232384,
++      "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
++      "matchesManifest": true
++    },
++    {
++      "path": "/home/steven/enclave-prod/custodian-v2-9d43e63e8/initramfs.cpio.gz",
++      "bytes": 280038092,
++      "sha256": "691400ca954c0807725ef7c0ee7ba7b28e7be5c298bb9c1ea8294dd23685e650",
++      "matchesManifest": true
++    }
++  ],
++  "manifestMeasurement": "c8663742359ae1895dee9c8c18e801c524fc7e9e028663e9eca9cb73ac7aa0831bd6610cfc6bd7c22c50e1ad27da396b",
++  "manifestCommit": "9d43e63e84e1799467a0202c0cf1cdc5a8aabca5",
++  "limits": [
++    "No sealed state or private configuration was read.",
++    "File pins and running VM arguments are host observations; separate fresh SNP quote binds the measured guest."
++  ]
++}
+diff --git a/evidence/public-info.guard.log b/evidence/public-info.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..772b37ef505db9ea65bc5d17d6f3d2950e97d3cf
+--- /dev/null
++++ b/evidence/public-info.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=28 minHostAvailableMiB=25698
+diff --git a/evidence/public-info.json b/evidence/public-info.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..b2c9e4c420a100d188ecaeb563267fc064771a1a
+--- /dev/null
++++ b/evidence/public-info.json
+@@ -0,0 +1,21 @@
++{
++  "at": "2026-10-23T18:10:44.667842+00:00",
++  "url": "https://api.enclave.host/t/custody-metal0/v2/custody/info",
++  "readOnly": true,
++  "status": 200,
++  "fields": [
++    "chainId",
++    "encKey",
++    "epochs",
++    "hostSig",
++    "identity",
++    "machine",
++    "v",
++    "vault"
++  ],
++  "publicInfo": {
++    "identity": "0xf0f8078459c051a89197fac73ff689c6df96506a",
++    "encKey": "0x3f3d0595ca94db5e5062c98fa0c16a037374598db8525e271e01321580252034",
++    "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5"
++  }
++}
+diff --git a/lib/live.mjs b/lib/live.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6de37cbcd59f1c70026522c340ca460c674a0891
+--- /dev/null
++++ b/lib/live.mjs
+@@ -0,0 +1,119 @@
++// READ-ONLY access to live Base for the rev-17 migration (gates G1 + G3 in ../../ledger17-migration-interface.txt).
++// - An explicit allowlist of public endpoints; https only; no credentials, query or fragment.
++// - An explicit allowlist of READ methods. There is no eth_send*, eth_sign*, personal_* or anvil_* path here at all:
++//   this module cannot submit anything to Base.
++// - eth_chainId must answer 8453 on every endpoint before anything else is read.
++// - State reads are made AT ONE PINNED BLOCK (by number, with its hash agreed) on every state endpoint, and must be
++//   byte-identical on at least two of them. Logs (discovery only) come from the log endpoints; anything they
++//   discover is re-read as state at the pinned block before it counts.
++import { encodeFunctionData, decodeFunctionResult, parseAbi } from 'viem';
++
++export const BASE_CHAIN_ID = 8453;
++export const LIVE = Object.freeze({
++  // archive state on both (probed 2026-10-20: historical eth_call at -200k blocks answered by both)
++  state: Object.freeze(['https://mainnet.base.org', 'https://base.public.blockpi.network/v1/rpc/public']),
++  // archive logs: blockpi; publicnode answers recent ranges only and is used as a second source where it can
++  logs: Object.freeze(['https://base.public.blockpi.network/v1/rpc/public', 'https://base-rpc.publicnode.com']),
++});
++const READ_METHODS = new Set(['eth_chainId', 'eth_blockNumber', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_call',
++  'eth_getCode', 'eth_getStorageAt', 'eth_getLogs', 'eth_getBalance', 'eth_getTransactionByHash', 'eth_getTransactionReceipt', 'eth_getTransactionCount']);
++const ALLOWED_HOSTS = new Set([...LIVE.state, ...LIVE.logs].map((u) => new URL(u).host));
++export const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
++const MC_ABI = parseAbi(['function aggregate3((address target,bool allowFailure,bytes callData)[] calls) payable returns ((bool success,bytes returnData)[] returnData)']);
++
++export function assertLiveUrl(u) {
++  let url; try { url = new URL(u); } catch { throw Error(`not a URL: ${u}`); }
++  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw Error(`refused endpoint ${url.host}: https, no credentials/query/fragment`);
++  if (!ALLOWED_HOSTS.has(url.host)) throw Error(`refused endpoint ${url.host}: not in the live allowlist`);
++  return url.href.replace(/\/$/, '');
++}
++
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++let calls = 0;
++/** One JSON-RPC READ to one allowlisted endpoint, with bounded retries on rate limits. */
++export async function rpc(url, method, params, { tries = 2 } = {}) {
++  if (!READ_METHODS.has(method)) throw Error(`refused method ${method}: the live layer is read-only`);
++  const u = assertLiveUrl(url);
++  let last;
++  for (let i = 0; i < tries; i++) {
++    calls++;
++    try {
++      const r = await fetch(u, { method: 'POST', headers: { 'content-type': 'application/json' }, redirect: 'error',
++        body: JSON.stringify({ jsonrpc: '2.0', id: calls, method, params }), signal: AbortSignal.timeout(10000) });
++      const text = await r.text();
++      let j; try { j = JSON.parse(text); } catch { throw Object.assign(Error(`non-JSON ${r.status}`), { retry: true }); }
++      if (j.error) {
++        const m = String(j.error.message || '');
++        if (/rate|limit|too many|busy|timeout|temporar|capacity/i.test(m) || r.status === 429) throw Object.assign(Error(m), { retry: true });
++        throw Object.assign(Error(m), { rpcError: j.error });
++      }
++      return j.result;
++    } catch (e) {
++      last = e;
++      if (!e.retry && !(e.name === 'TimeoutError' || /fetch failed|ECONN|socket/i.test(e.message))) throw e;
++      await sleep(Math.min(20000, 800 * 2 ** i));
++    }
++  }
++  throw Error(`${new URL(u).host} ${method}: ${last?.message}`);
++}
++export const rpcCalls = () => calls;
++
++export async function assertChain(urls) {
++  for (const u of urls) { const id = Number(await rpc(u, 'eth_chainId', [])); if (id !== BASE_CHAIN_ID) throw Error(`${new URL(u).host} is chain ${id}, not ${BASE_CHAIN_ID}`); }
++}
++
++/** Pin a block every state endpoint has: min(heads) - depth, with the same hash on all of them. */
++export async function pinBlock({ depth = 12 } = {}) {
++  await assertChain([...LIVE.state, ...LIVE.logs]);
++  const heads = await Promise.all(LIVE.state.map(async (u) => BigInt(await rpc(u, 'eth_blockNumber', []))));
++  const n = heads.reduce((a, b) => (a < b ? a : b)) - BigInt(depth);
++  const blocks = await Promise.all(LIVE.state.map((u) => rpc(u, 'eth_getBlockByNumber', ['0x' + n.toString(16), false])));
++  if (blocks.some((b) => !b || b.hash !== blocks[0].hash)) throw Error(`no agreed block at ${n}: ${blocks.map((b) => b?.hash).join(' vs ')}`);
++  return { number: n, hash: blocks[0].hash, timestamp: BigInt(blocks[0].timestamp), baseFeePerGas: BigInt(blocks[0].baseFeePerGas || 0) };
++}
++
++/** The same READ on every state endpoint; returns the result only if all agree byte for byte. */
++export async function agree(method, params) {
++  const rs = await Promise.all(LIVE.state.map((u) => rpc(u, method, params)));
++  const s0 = JSON.stringify(rs[0]);
++  for (let i = 1; i < rs.length; i++) if (JSON.stringify(rs[i]) !== s0)
++    throw Error(`endpoints disagree on ${method} ${JSON.stringify(params).slice(0, 160)}`);
++  return rs[0];
++}
++
++/** Agreed, batched contract reads at the pinned block. calls: [{address, abi, functionName, args, allowFailure}] */
++export async function readMany(block, calls, { batch = 60 } = {}) {
++  const out = [];
++  for (let i = 0; i < calls.length; i += batch) {
++    const part = calls.slice(i, i + batch);
++    const data = encodeFunctionData({ abi: MC_ABI, functionName: 'aggregate3', args: [part.map((c) => ({ target: c.address, allowFailure: !!c.allowFailure,
++      callData: encodeFunctionData({ abi: c.abi, functionName: c.functionName, args: c.args || [] }) }))] });
++    const ret = await agree('eth_call', [{ to: MULTICALL3, data }, '0x' + block.number.toString(16)]);
++    const res = decodeFunctionResult({ abi: MC_ABI, functionName: 'aggregate3', data: ret });
++    res.forEach((r, j) => {
++      const c = part[j];
++      if (!r.success) { if (!c.allowFailure) throw Error(`${c.functionName} reverted at ${c.address}`); out.push({ ok: false }); return; }
++      // a probe that "succeeds" with no data (a fallback, an EOA) or undecodable data is "no such getter", never a value
++      try { out.push({ ok: true, value: decodeFunctionResult({ abi: c.abi, functionName: c.functionName, data: r.returnData }) }); }
++      catch (e) { if (!c.allowFailure) throw Error(`${c.functionName} at ${c.address}: ${e.shortMessage || e.message}`); out.push({ ok: false }); }
++    });
++  }
++  return out;
++}
++export const readOne = async (block, c) => (await readMany(block, [c]))[0].value;
++
++/** Agreed code and storage at the pinned block. */
++export const codeAt = (block, address) => agree('eth_getCode', [address, '0x' + block.number.toString(16)]);
++export const storageAt = (block, address, slot) => agree('eth_getStorageAt', [address, slot, '0x' + block.number.toString(16)]);
++
++/** Logs for discovery: chunked ranges on the archive log endpoint, up to the pinned block. */
++export async function logs({ addresses, fromBlock, toBlock, span = 5000n, onProgress }) {
++  const out = [];
++  for (let f = BigInt(fromBlock); f <= toBlock; f += span) {
++    const t = f + span - 1n > toBlock ? toBlock : f + span - 1n;
++    const r = await rpc(LIVE.logs[0], 'eth_getLogs', [{ address: addresses, fromBlock: '0x' + f.toString(16), toBlock: '0x' + t.toString(16) }]);
++    out.push(...r);
++    onProgress?.(t);
++  }
++  return out;
++}
+diff --git a/probes/discover-delta.mjs b/probes/discover-delta.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..9303c5c77d2b2c9e70ed2245a19665c8e8b9286f
+--- /dev/null
++++ b/probes/discover-delta.mjs
+@@ -0,0 +1,19 @@
++// READ ONLY. Discovery supplements the frozen October20 inventory; discovered state is quorum-read separately.
++import fs from 'node:fs';
++import {decodeEventLog,parseAbi} from 'viem';
++import {pinBlock,logs,LIVE,readMany} from '../lib/live.mjs';
++const old=JSON.parse(fs.readFileSync(new URL('../../existing-custody-audit/evidence/live-custody.json',import.meta.url)));
++const V='0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5',HO='0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7',REG='0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC';
++const abi=parseAbi(['event CommitteeCreated(bytes32 indexed committeeId,address indexed identity,bytes Y)','event PolicyUpdated(bytes32 indexed id,address indexed owner,uint64 policyRev,bytes32 committeeId,bool paused)','event BundlePut(bytes32 indexed id,uint64 secretRev,bytes32 committeeId,uint256 bundleBytes)','event PolicyClaimed(bytes32 indexed id,address indexed previousOwner,address indexed newOwner,uint64 policyRev)']);
++const block=await pinBlock();const fromBlock=BigInt(old.block.number)+1n;
++const raw=await logs({addresses:[V],fromBlock,toBlock:block.number});
++const events=raw.map(l=>{try{const e=decodeEventLog({abi,data:l.data,topics:l.topics});return {block:l.blockNumber,tx:l.transactionHash,name:e.eventName,id:e.args.id||null,committeeId:e.args.committeeId||null,identity:e.args.identity||null};}catch{return {block:l.blockNumber,tx:l.transactionHash,name:'other',topic:l.topics[0]};}});
++const committees=[...new Set([...old.committees.map(c=>c.committeeId),...events.filter(e=>e.name==='CommitteeCreated').map(e=>e.committeeId)])];
++const policies=[...new Set([...old.policies.map(c=>c.id),...events.map(e=>e.id).filter(Boolean)])];
++const hAbi=parseAbi(['function authority(bytes32) view returns(address owner,address pendingOwner,uint64 revision,bytes32 policyHash)']);
++const rAbi=parseAbi(['function get(bytes32) view returns((string endpoint,string repo,bytes32 measurement,address operator,uint64 registeredAt,uint64 lastSeen,bool active,uint64 cpuPricePerSec6,uint64 gpuPricePerSec6,address proofKey,address payoutWallet))']);
++const registryId='0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be';
++const vals=await readMany(block,[{address:HO,abi:hAbi,functionName:'authority',args:[registryId]},{address:REG,abi:rAbi,functionName:'get',args:[registryId]}]);
++const [owner,pendingOwner,revision,policyHash]=vals[0].value;const h=vals[1].value;
++const out={at:new Date().toISOString(),readOnly:true,block,baselineBlock:old.block,fromBlock,discoveryProvider:LIVE.logs[0],discoveryLimit:'Delta logs from one provider can omit events. This is not independently exhaustive discovery.',stateProviders:LIVE.state,events,committees,policies,host:{registryId,owner,pendingOwner,revision,policyHash,operator:h.operator,payoutWallet:h.payoutWallet,active:h.active,lastSeen:h.lastSeen,endpoint:h.endpoint}};
++fs.writeFileSync(new URL('../evidence/discover-delta.json',import.meta.url),JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n');console.log(JSON.stringify({at:out.at,events:events.length,committees:committees.length,policies:policies.length,owner,pendingOwner,active:h.active}));
+diff --git a/probes/fresh-quote.mjs b/probes/fresh-quote.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..2e5182dcabb37227ec785214b6cc4021e1967ce6
+--- /dev/null
++++ b/probes/fresh-quote.mjs
+@@ -0,0 +1,20 @@
++// Existing production guest: fresh public attestation only. No secret, signer, guest restart, or chain mutation.
++import fs from 'node:fs';
++import {randomBytes,createHash} from 'node:crypto';
++import {verifyCustodianQuote} from '../../custody-release/canary/verify-custodian-quote.mjs';
++const state=JSON.parse(fs.readFileSync(new URL('../evidence/known-state.json',import.meta.url)));
++const manifest=JSON.parse(fs.readFileSync('/home/steven/enclave-prod/custodian-v2-9d43e63e8/manifest.json'));
++const machine=state.committees[0].machines[0];
++if(manifest.measurementSha256.toLowerCase()!==machine.measurement.toLowerCase())throw Error('Manifest does not match chain machine measurement');
++const nonce=randomBytes(32).toString('hex');
++const res=await fetch('https://api.enclave.host/t/custody-metal0/v2/custody/evidence',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({nonce}),signal:AbortSignal.timeout(20000),redirect:'error'});
++if(!res.ok)throw Error(`Evidence HTTP ${res.status}`);
++const raw=await res.text();if(Buffer.byteLength(raw)>1048576)throw Error('Evidence too large');
++const evidence=JSON.parse(raw);
++for(const key of ['identity','encKey','endpoint','chipId','registryId','measurement']){const a=String(evidence.machine?.[key]),b=String(machine[key]);if((key==='endpoint'?a:a.toLowerCase())!==(key==='endpoint'?b:b.toLowerCase()))throw Error(`Evidence machine differs from chain: ${key}`);}
++const verdict=await verifyCustodianQuote({manifest,evidence,nonce});
++const out={at:new Date().toISOString(),scope:'Fresh attestation of existing production custodian only; not a secret release or rollout test',chainBlock:state.block,nonce,evidenceSha256:createHash('sha256').update(raw).digest('hex'),machineMatchesPinnedChain:true,verdict};
++fs.writeFileSync(new URL('../evidence/fresh-quote.json',import.meta.url),JSON.stringify(out,null,2)+'\n');
++fs.writeFileSync(new URL('../evidence/fresh-quote-raw.json',import.meta.url),raw,{mode:0o600});
++console.log(JSON.stringify({at:out.at,ok:verdict.ok,reasons:verdict.reasons,measurement:verdict.observed?.measurement,chipIdSha256:verdict.observed?.chipIdSha256,machineMatchesPinnedChain:true}));
++process.exitCode=verdict.ok?0:1;
+diff --git a/probes/known-state.mjs b/probes/known-state.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..9330e1dcb0b8110e809c5bb111d81771fb5efb70
+--- /dev/null
++++ b/probes/known-state.mjs
+@@ -0,0 +1,16 @@
++// READ ONLY: known deployed vault/committee/policies; no event discovery and no secret values emitted.
++import fs from 'node:fs';
++import {keccak256,parseAbi,stringToHex} from 'viem';
++import {pinBlock,readMany,codeAt,LIVE} from '../lib/live.mjs';
++const old=JSON.parse(fs.readFileSync(new URL('../../existing-custody-audit/evidence/live-custody.json',import.meta.url)));
++const V='0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5', B='0xab214342d5A490150A4A977063A2f88E21F80907';
++const abi=parseAbi(['function book() view returns(address)','function enclaveOwner() view returns(address)','function committeeOf(bytes32) view returns(bytes Y,uint32 epoch,uint8 t,uint8 W,uint64 activatedAt)','function machinesOf(bytes32,uint32) view returns((address identity,bytes32 encKey,string endpoint,bytes32 chipId,bytes32 registryId,bytes32 measurement)[] machines,bool[] enclave)','function policyOf(bytes32) view returns(address owner,uint64 policyRev,uint64 secretRev,bytes32 committeeId,bool paused,bytes rules)','function bundleOf(bytes32) view returns(bytes32 committeeId,uint64 secretRev,bytes bundle)']);
++const bk=parseAbi(['function addr(bytes32) view returns(address)','function owner() view returns(address)']);
++const block=await pinBlock(); const codeHash=keccak256(await codeAt(block,V));
++const keys=['secretVaultV2','secretVault','hostOwnership','registry','deployments'];
++const vals=await readMany(block,[...keys.map(k=>({address:B,abi:bk,functionName:'addr',args:[stringToHex(k,{size:32})]})),{address:B,abi:bk,functionName:'owner'},{address:V,abi,functionName:'book'},{address:V,abi,functionName:'enclaveOwner'}]);
++const out={at:new Date().toISOString(),readOnly:true,scope:'Known original vault/committees/policies only; no discovery of new consumers',block,providers:LIVE.state,codeHash,codeMatchesPreviousVerifiedRuntime:codeHash===old.contracts.originalVaultV2.codeHash,book:{address:B,entries:Object.fromEntries(keys.map((k,i)=>[k,vals[i].value])),owner:vals[5].value},vault:{address:V,book:vals[6].value,enclaveOwner:vals[7].value},committees:[],policies:[]};
++for(const prev of old.committees){const id=prev.committeeId;const [Y,epoch,t,W,activatedAt]=(await readMany(block,[{address:V,abi,functionName:'committeeOf',args:[id]}]))[0].value;const [ms,enc]=(await readMany(block,[{address:V,abi,functionName:'machinesOf',args:[id,epoch]}]))[0].value;out.committees.push({id,epoch,t,W,activatedAt,YBytes:(Y.length-2)/2,machines:ms.map((m,i)=>({...m,enclaveSeat:enc[i]}))});}
++for(const prev of old.policies){const id=prev.id;const r=await readMany(block,[{address:V,abi,functionName:'policyOf',args:[id]},{address:V,abi,functionName:'bundleOf',args:[id]}]);const [owner,policyRev,secretRev,committeeId,paused,rules]=r[0].value;const [bcid,rev,bundle]=r[1].value;out.policies.push({id,owner,policyRev,secretRev,committeeId,paused,rulesBytes:(rules.length-2)/2,bundle:{committeeId:bcid,secretRev:rev,bytes:(bundle.length-2)/2}});}
++fs.writeFileSync(new URL('../evidence/known-state.json',import.meta.url),JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n');
++console.log(JSON.stringify({at:out.at,block:block.number.toString(),codeMatchesPreviousVerifiedRuntime:out.codeMatchesPreviousVerifiedRuntime,book:out.book,committees:out.committees.map(c=>({id:c.id,n:c.machines.length,t:c.t,epoch:c.epoch})),knownPolicies:out.policies.length}));
+diff --git a/probes/local-runtime.py b/probes/local-runtime.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ae35ae5d47b6e37d4294fe9585625f461e726cc
+--- /dev/null
++++ b/probes/local-runtime.py
+@@ -0,0 +1,27 @@
++import pathlib,subprocess,hashlib,json,datetime
++base=pathlib.Path('/home/steven/enclave-prod/custodian-v2-9d43e63e8')
++manifest=json.loads((base/'manifest.json').read_text())
++def sha(p):
++ h=hashlib.sha256()
++ with p.open('rb') as f:
++  for b in iter(lambda:f.read(1048576),b''):h.update(b)
++ return h.hexdigest()
++unit=subprocess.run(['systemctl','--user','show','enclave-custodian-v2.service','-p','MainPID','-p','ActiveState','-p','SubState','-p','ExecMainStartTimestamp','-p','FragmentPath'],capture_output=True,text=True,timeout=10)
++vms=[]
++for d in pathlib.Path('/proc').iterdir():
++ if not d.name.isdigit():continue
++ try:
++  if not (d/'comm').read_text().startswith('qemu'):continue
++  args=(d/'cmdline').read_bytes().decode().split('\0')
++  if not any(str(base) in a for a in args):continue
++  fields={}
++  for k in ['-name','-kernel','-initrd','-m','-smp']:
++   if k in args and args.index(k)+1<len(args):fields[k]=args[args.index(k)+1]
++  stat=(d/'stat').read_text();start=stat[stat.rfind(')')+2:].split()[19]
++  vms.append({'pid':int(d.name),'startTicks':start,'selectedArguments':fields})
++ except (OSError,UnicodeError):continue
++files=[]
++for name,key in [('vmlinuz','kernel'),('initramfs.cpio.gz','initramfs')]:
++ p=base/name;actual=sha(p);files.append({'path':str(p),'bytes':p.stat().st_size,'sha256':actual,'matchesManifest':actual==manifest[key]['sha256']})
++out={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'readOnly':True,'unitReturnCode':unit.returncode,'unit':dict(x.split('=',1) for x in unit.stdout.splitlines() if '=' in x),'unitError':unit.stderr[:1000],'vms':vms,'imageFiles':files,'manifestMeasurement':manifest['measurement'],'manifestCommit':manifest['commit'],'limits':['No sealed state or private configuration was read.','File pins and running VM arguments are host observations; separate fresh SNP quote binds the measured guest.']}
++pathlib.Path('work/custody-v2-live-20261023/evidence/local-runtime.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out))
+diff --git a/probes/public-info.py b/probes/public-info.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..6a5eb2e8e2f788ee4aff28a4f554273a8e4c6120
+--- /dev/null
++++ b/probes/public-info.py
+@@ -0,0 +1,11 @@
++import urllib.request,json,datetime,pathlib
++url='https://api.enclave.host/t/custody-metal0/v2/custody/info'
++out={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'url':url,'readOnly':True}
++try:
++ with urllib.request.urlopen(url,timeout=12) as r:
++  raw=r.read(262145)
++  if len(raw)>262144:raise ValueError('response exceeds 256 KiB')
++  data=json.loads(raw)
++  out.update(status=r.status,fields=sorted(data.keys()),publicInfo={k:data[k] for k in ['identity','encKey','endpoint','vault','committeeId','epoch','measurement','chipId','registryId','version'] if k in data})
++except Exception as e:out.update(error=str(e),status=getattr(e,'code',None))
++pathlib.Path('work/custody-v2-live-20261023/evidence/public-info.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out))

@@ -1,0 +1,40 @@
+{
+  "at": "2026-10-23T18:47:01.426Z",
+  "readOnly": true,
+  "block": {
+    "number": "52995913",
+    "hash": "0xda7dfd7f20e0571c6f800bb0d94eba3953584561ffc7dcf0bfde38b8ccb997c8",
+    "timestamp": "1792781173",
+    "baseFeePerGas": "5000000"
+  },
+  "baselineBlock": {
+    "number": "52849851",
+    "hash": "0xdce5ae887a2e3d3bf26fe2187a8ec3b3d0e3ad38ccd7d0609f7c82c779ee9fab"
+  },
+  "fromBlock": "52849852",
+  "discoveryProvider": "https://base.public.blockpi.network/v1/rpc/public",
+  "discoveryLimit": "Delta logs from one provider can omit events. This is not independently exhaustive discovery.",
+  "stateProviders": [
+    "https://mainnet.base.org",
+    "https://base.public.blockpi.network/v1/rpc/public"
+  ],
+  "events": [],
+  "committees": [
+    "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3"
+  ],
+  "policies": [
+    "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e"
+  ],
+  "host": {
+    "registryId": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+    "owner": "0x0000000000000000000000000000000000000000",
+    "pendingOwner": "0x0000000000000000000000000000000000000000",
+    "revision": "0",
+    "policyHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
+    "payoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "active": true,
+    "lastSeen": "1792570833",
+    "endpoint": "https://api.enclave.host/t/metal0"
+  }
+}

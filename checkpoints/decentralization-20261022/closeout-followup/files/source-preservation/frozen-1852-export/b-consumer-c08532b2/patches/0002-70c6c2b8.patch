@@ -1,0 +1,728 @@
+From 70c6c2b814ad26ba53cbb64b6dcf24dab2169b0a Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 06:04:53 -0700
+Subject: [PATCH] Chain authority: a host's chain reads through its local
+ verifier, submissions through its own backend, nothing else
+
+network/chain-authority.mjs: under the operator's explicit ENCLAVE_CHAIN_AUTHORITY=verifier + ENCLAVE_CHAIN_VERIFIER, a
+viem transport that routes every method by name with the trust it actually has (METHODS):
+  * the local verifier (Helios on its sequencer-signed head chain, the unsafe tier): eth_call/estimateGas executed over
+    proven state; balance, code, storage and nonce proofs; blocks; receipts against the receipts root ("not found" is no
+    evidence, mapped to null as a provider's null is, so callers decide by the proven nonce); logs proven for INCLUSION
+    only, never completeness;
+  * the operator's OWN backend (ENCLAVE_CHAIN_TX_BACKEND: a loopback or private IPv4 literal, never a name): submission,
+    the pending-pool nonce and fee hints only; before each submission it is bound to the verifier's chain (chain id and
+    the hash at the verifier's confirmed block) on a fresh head. A submission proves nothing; a verified receipt does.
+    Without it nothing is submitted;
+  * anything else is refused by name; an invalid selection refuses everything (refusingChainAuthority); no provider, no
+    public default, no fallback. actionGate({what, submit}) is the freshness/binding check callers run before signing.
+leaseRpcSet (client/ and network/ copies, kept identical): a client marked by this module (an in-process symbol, never
+from configuration) is ONE authority - required 1, never mixed with RPC peers, never repeated into a quorum; RPC quorums
+keep their exact rules. network/lease-gas-runtime.mjs: under the verifier the app-funded lease reads use it alone and the
+configured RPCS are never contacted (kept accepted, so the reviewed lease-gas configuration stays byte-identical).
+metal/guest/chain-verifier.mjs (the guest opt-in checker, dependency-free): optional txBackend under the same address rule
+(checkTxBackendUrl; a parity test holds the two rules equal), and ENCLAVE_CHAIN_TX_BACKEND joins the names only this
+channel supplies, set only with a usable verifier (a refusing verifier submits nothing).
+---
+ client/lease-executor-authority.mjs  |  39 +++--
+ metal/guest/chain-verifier.mjs       |  33 +++-
+ network/chain-authority.mjs          | 205 +++++++++++++++++++++++++
+ network/lease-executor-authority.mjs |  39 +++--
+ network/lease-gas-runtime.mjs        |  17 ++-
+ test/chain-authority.test.mjs        | 217 +++++++++++++++++++++++++++
+ 6 files changed, 512 insertions(+), 38 deletions(-)
+ create mode 100644 network/chain-authority.mjs
+ create mode 100644 test/chain-authority.test.mjs
+
+diff --git a/client/lease-executor-authority.mjs b/client/lease-executor-authority.mjs
+index f9cbf90e5ae9868ff29da5557761c19a331c53d2..a70b8e060f9bbd983c8dad2420504ce9b6243e64 100644
+--- a/client/lease-executor-authority.mjs
++++ b/client/lease-executor-authority.mjs
+@@ -36,23 +36,36 @@
+ // Distinct configured endpoints are not proof of independent organizations. This uses the repository's shared URL
+ // identity rule to prevent counting one public host's paths or ports as several votes. A single local fixture node is
+ // allowed only with explicit loopback permission AND an actual loopback transport URL.
++//
++// The host's LOCAL VERIFIER (a client network/chain-authority.mjs built for the operator's explicit
++// ENCLAVE_CHAIN_AUTHORITY=verifier; marked in-process, never from configuration) is ONE proof-checking authority, not a
++// vote: it is used alone (required 1, whatever quorum a provider configuration names), and never mixed with provider
++// peers or repeated to make up a quorum. Its answers are proven against its sequencer-signed head chain (the unsafe tier).
++const LOCAL_VERIFIER = Symbol.for("enclave.chain-authority.local-verifier");
+ export function leaseRpcSet(clients, { quorum, allowLoopbackHttp = false, timeoutMs = 15_000 } = {}) {
+   if (!Array.isArray(clients) || !clients.length || clients.length > 16)
+     throw new Error("lease-gas requires 1..16 explicit RPC clients");
+-  const peers = clients.map((client) => {
+-    const endpoint = rpcEndpoint(client?.transport?.url);
+-    if (endpoint.url.protocol === "http:" && !allowLoopbackHttp)
+-      throw new Error("lease-gas plain HTTP RPC needs explicit loopback permission");
+-    return { client, endpoint };
+-  });
+-  if (new Set(peers.map((p) => p.endpoint.identity)).size !== peers.length)
+-    throw new Error("lease-gas RPCs repeat a provider");
+-  const localFixture = peers.length === 1 && peers[0].endpoint.loopback && allowLoopbackHttp;
+-  const required = quorum ?? Math.floor(peers.length / 2) + 1;
+-  if (!Number.isInteger(required) || required > peers.length || required <= peers.length / 2 || (required < 2 && !localFixture))
+-    throw new Error("lease-gas RPC quorum must be a strict majority of at least two peers");
+   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000)
+     throw new Error("lease-gas RPC timeout must be 1..60000 ms");
++  let peers, required, localFixture = false, authority = "rpc-quorum";
++  if (clients.some((c) => c && c[LOCAL_VERIFIER])) {
++    if (clients.length !== 1) throw new Error("lease-gas: the local verifier is one authority, never a quorum member (not mixed with RPCs, not repeated)");
++    peers = [{ client: clients[0], endpoint: { label: "local verifier", identity: "local-verifier", loopback: true } }];
++    required = 1; authority = "local-verifier";
++  } else {
++    peers = clients.map((client) => {
++      const endpoint = rpcEndpoint(client?.transport?.url);
++      if (endpoint.url.protocol === "http:" && !allowLoopbackHttp)
++        throw new Error("lease-gas plain HTTP RPC needs explicit loopback permission");
++      return { client, endpoint };
++    });
++    if (new Set(peers.map((p) => p.endpoint.identity)).size !== peers.length)
++      throw new Error("lease-gas RPCs repeat a provider");
++    localFixture = peers.length === 1 && peers[0].endpoint.loopback && allowLoopbackHttp;
++    required = quorum ?? Math.floor(peers.length / 2) + 1;
++    if (!Number.isInteger(required) || required > peers.length || required <= peers.length / 2 || (required < 2 && !localFixture))
++      throw new Error("lease-gas RPC quorum must be a strict majority of at least two peers");
++  }
+   async function request(client, method, params) {
+     let timer;
+     try {
+@@ -83,7 +96,7 @@
+     if (!winner) throw new Error(`lease-gas RPC quorum did not agree on ${what}`);
+     return winner;
+   }
+-  return { peers, required, localFixture, request, agree };
++  return { peers, required, localFixture, authority, request, agree };
+ }
+ 
+ /** A fresh, hash-bound read client, backed ONLY by peers that verified the pinned deployment at that same hash. */
+diff --git a/metal/guest/chain-verifier.mjs b/metal/guest/chain-verifier.mjs
+index bf4954e3212a5dcd59c96841bb40e21a07ef2651..755260cc4be7b94de5101c0dd9129c333fc1fca5 100644
+--- a/metal/guest/chain-verifier.mjs
++++ b/metal/guest/chain-verifier.mjs
+@@ -9,7 +9,9 @@
+ //     "unsafeSigner": "0x…",                       the administrator's pin of the Base sequencer key
+ //     "proofSources": ["https://…", …],            1..16 EXPLICIT, untrusted state holders (every witness is verified)
+ //     "port": 50546,                               the verifier's loopback port inside the guest: 50000..57999
+-//     "gossip"?: { "maxPeers", "discovery", "sessionSecs" }, "limits"?: { "firstHeadTimeoutMs", "heliosReadyTimeoutMs" } }
++//     "gossip"?: { "maxPeers", "discovery", "sessionSecs" }, "limits"?: { "firstHeadTimeoutMs", "heliosReadyTimeoutMs" },
++//     "txBackend"?: "http://10.0.2.2:8545/" }      the operator's OWN Base node, for submission and pool/fee hints only
++//                                                   (a loopback or private IPv4 literal; never a name; never asked for state)
+ //
+ // Absent: nothing changes (the supervisor's names are not set; its readers keep the provider quorum, exactly as before).
+ // Present and valid: gsup starts the runtime BEFORE the supervisor and gives the supervisor exactly two names
+@@ -26,7 +28,7 @@
+ export const CHAIN_VERIFIER_FORMAT = 'enclave-chain-verifier/v1';
+ export const CHAIN_VERIFIER_IMAGE_FORMAT = 'enclave-chain-verifier-image/v1';
+ export const CHAIN_VERIFIER_IMAGE_FILE = '/opt/rpc-runtime/IMAGE.json';
+-export const CHAIN_AUTHORITY_NAMES = Object.freeze(['ENCLAVE_CHAIN_AUTHORITY', 'ENCLAVE_CHAIN_VERIFIER']);
++export const CHAIN_AUTHORITY_NAMES = Object.freeze(['ENCLAVE_CHAIN_AUTHORITY', 'ENCLAVE_CHAIN_VERIFIER', 'ENCLAVE_CHAIN_TX_BACKEND']);
+ // the guest's own listeners (supervisor 8080, wasm manager 8091, RAD 8443, direct control 8444) and the host link ports
+ export const GUEST_RESERVED_PORTS = Object.freeze([8080, 8091, 8443, 8444, 8095, 8096]);
+ // The verifier's port lies between the tenants' declarable ports (wasm_manager.py PORT_MAX_DECL 49999; a free declared
+@@ -35,7 +37,22 @@
+ export const VERIFIER_PORT_RANGE = Object.freeze([50000, 57999]);
+ /** Where a configured-but-unusable verifier points: TCP discard, nothing in the guest serves it, every verified read refuses. */
+ export const REFUSING_VERIFIER = 'http://127.0.0.1:9/';
+-const KEYS = ['format', 'unsafeSigner', 'proofSources', 'port', 'gossip', 'limits'];
++const KEYS = ['format', 'unsafeSigner', 'proofSources', 'port', 'gossip', 'limits', 'txBackend'];
++const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
++/** The own transaction backend: the SAME rule as network/chain-authority.mjs checkOwnBackend (a parity test holds them
++ *  equal; this module stays dependency-free): http(s) at [::1] or a loopback/private IPv4 literal; no name, credentials,
++ *  query or fragment. -> the normalized href, or throws. */
++export function checkTxBackendUrl(raw) {
++  let u; try { u = new URL(String(raw)); } catch { bad('txBackend must be a URL'); }
++  if (u.protocol !== 'http:' && u.protocol !== 'https:') bad('txBackend must be http(s)');
++  if (u.username || u.password || u.search || u.hash || String(raw).includes('#') || String(raw).includes('?')) bad('txBackend: no credentials, query or fragment');
++  if (u.hostname !== '[::1]') {
++    const m = IPV4.exec(u.hostname), o = m ? m.slice(1).map(Number) : null;
++    if (!o || o.some((x) => x > 255) || !(o[0] === 127 || o[0] === 10 || (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || (o[0] === 192 && o[1] === 168)))
++      bad('txBackend must be a loopback or private IPv4 address literal: a name or public address is not the operator\'s own backend');
++  }
++  return u.href;
++}
+ const ADDR = /^0x[0-9a-fA-F]{40}$/;
+ 
+ function bad(m) { throw new Error(`chainVerifier: ${m}`); }
+@@ -78,8 +95,9 @@
+     if (raw.limits.heliosReadyTimeoutMs !== undefined) limits.heliosReadyTimeoutMs = int(raw.limits.heliosReadyTimeoutMs, 5000, 600000, 'limits.heliosReadyTimeoutMs');
+     limits = Object.freeze(limits);
+   }
++  const txBackend = raw.txBackend === undefined || raw.txBackend === null ? null : checkTxBackendUrl(raw.txBackend);
+   return Object.freeze({ format: CHAIN_VERIFIER_FORMAT, unsafeSigner: raw.unsafeSigner.toLowerCase(), proofSources: Object.freeze(proofSources), port,
+-    ...(gossip ? { gossip } : {}), ...(limits ? { limits } : {}) });
++    ...(gossip ? { gossip } : {}), ...(limits ? { limits } : {}), ...(txBackend ? { txBackend } : {}) });
+ }
+ 
+ /** The measured image's verifier record (/opt/rpc-runtime/IMAGE.json, installed by metal/overlay-control-image.py from the
+@@ -120,6 +138,7 @@
+     argv: (configFile) => [img.node, img.entry, 'run', configFile],
+     env: { PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', HOME: img.configDir },
+     message: `chain verifier configured: ${v.proofSources.length} proof source(s), loopback port ${v.port}, signer ${v.unsafeSigner}; `
++      + (v.txBackend ? `own transaction backend ${new URL(v.txBackend).host} (submission and pool/fee hints only); ` : 'no own transaction backend (nothing is submitted); ')
+       + 'verified readers refuse until it is ready (unsafe-head tier, no finality)' };
+ }
+ 
+@@ -133,9 +152,11 @@
+   return file;
+ }
+ 
+-/** env with the two chain-authority names ONLY from this channel (any other source of them is dropped). */
++/** env with the chain-authority names ONLY from this channel (any other source of them is dropped); the own backend only
++ *  with a usable verifier (a refusing verifier submits nothing). */
+ export function withChainVerifierEnv(env, cv) {
+   const out = Object.fromEntries(Object.entries(env).filter(([k]) => !CHAIN_AUTHORITY_NAMES.includes(k)));
+   if (!cv?.configured) return out;
+-  return { ...out, ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: cv.ok ? cv.url : REFUSING_VERIFIER };
++  return { ...out, ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: cv.ok ? cv.url : REFUSING_VERIFIER,
++    ...(cv.ok && cv.verifier?.txBackend ? { ENCLAVE_CHAIN_TX_BACKEND: cv.verifier.txBackend } : {}) };
+ }
+diff --git a/network/chain-authority.mjs b/network/chain-authority.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..481e3b0a85dfd32dd4df85adab625755d1745590
+--- /dev/null
++++ b/network/chain-authority.mjs
+@@ -0,0 +1,205 @@
++// The host's chain authority when its operator EXPLICITLY selected the local verifier (ENCLAVE_CHAIN_AUTHORITY=verifier,
++// ENCLAVE_CHAIN_VERIFIER=<loopback URL>), for consumers that speak JSON-RPC through viem (supervisor.js's chainClient and
++// operator wallet, the lease-gas and owner-nomination readers through client/lease-executor-authority.mjs).
++//
++// Every method is routed by name to exactly one place, with the trust it actually has (METHODS below):
++//   * the LOCAL VERIFIER (the patched Helios behind network/rpc-runtime.mjs): state is executed or proven against the state
++//     root of a block on its sequencer-signed head chain (the UNSAFE tier; no L1 finality), receipts are checked against
++//     the block's receipts root, a log is checked against its block's receipts. A log the sources leave out cannot be
++//     detected: getLogs proves INCLUSION, never completeness, and its callers must treat logs as hints;
++//   * the operator's OWN TRANSACTION BACKEND (ENCLAVE_CHAIN_TX_BACKEND: the operator's own Base node on a loopback or
++//     private address literal, never a name), for what no proof can answer: submission, the pending-pool nonce and fee
++//     hints. It is never asked for state, and before any submission its chain is BOUND to the verifier's (same chain id,
++//     the same hash at the verifier's confirmed block). A submission proves nothing: inclusion is shown only by a receipt
++//     the verifier checks. Without a backend nothing can be sent (refused in words, never via any other server);
++//   * anything else is REFUSED by name. There is no provider pool, no fallback, and no quorum of aliases: a consumer that
++//     needs agreement treats this client as ONE authority (VERIFIER_CLIENT).
++// An invalid selection yields an authority that refuses everything (refusingChainAuthority), never the provider path.
++import { createPublicClient, custom, RpcRequestError } from 'viem';
++import { verifierEndpoint } from './verified-chain.mjs';
++
++export const AUTHORITY_ENV = 'ENCLAVE_CHAIN_AUTHORITY', VERIFIER_ENV = 'ENCLAVE_CHAIN_VERIFIER', TX_BACKEND_ENV = 'ENCLAVE_CHAIN_TX_BACKEND';
++/** In-process mark of a client built here (a JSON value can never carry it): consumers treat it as one authority. */
++export const VERIFIER_CLIENT = Symbol.for('enclave.chain-authority.local-verifier');
++export const isVerifierClient = (c) => !!c && typeof c === 'object' && !!c[VERIFIER_CLIENT];
++
++const V = 'verifier', B = 'backend';
++/** method -> [where, trust]. eth_getTransactionCount routes by its block parameter (below). */
++export const METHODS = Object.freeze({
++  eth_chainId: [V, 'the verifier\'s configured chain'],
++  eth_blockNumber: [V, 'the verifier\'s sequencer-signed unsafe head'],
++  eth_getBlockByNumber: [V, 'a block of the verifier\'s signed head chain (signed head or authenticated ancestry)'],
++  eth_getBlockByHash: [V, 'a block of the verifier\'s signed head chain (signed head or authenticated ancestry)'],
++  eth_call: [V, 'executed locally over state proven against the block state root'],
++  eth_estimateGas: [V, 'executed locally over state proven against the block state root'],
++  eth_getBalance: [V, 'account proof against the block state root'],
++  eth_getCode: [V, 'code proven against the account\'s code hash'],
++  eth_getStorageAt: [V, 'storage proof against the block state root'],
++  eth_getTransactionReceipt: [V, 'receipt checked against the receipts root of a verified block'],
++  eth_getBlockReceipts: [V, 'receipts checked against the receipts root of a verified block'],
++  eth_getLogs: [V, 'each log checked against its block\'s receipts: INCLUSION only, completeness not proven'],
++  eth_getTransactionCount: [V, 'account proof against the block state root (pending: the own backend\'s pool hint)'],
++  eth_sendRawTransaction: [B, 'submission only: inclusion is shown solely by a receipt the verifier checks'],
++  eth_maxPriorityFeePerGas: [B, 'fee hint from the own backend (cost, not validity)'],
++  eth_feeHistory: [B, 'fee hint from the own backend (cost, not validity)'],
++  eth_gasPrice: [B, 'fee hint from the own backend (cost, not validity)'],
++});
++export const VERIFIED_METHODS = Object.freeze(Object.keys(METHODS).filter((m) => METHODS[m][0] === V));
++export const BACKEND_METHODS = Object.freeze(Object.keys(METHODS).filter((m) => METHODS[m][0] === B));
++
++const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
++/** The operator's own backend: http(s) at a loopback or private IPv4 literal (10/8 incl. the guest host link 10.0.2.2,
++ *  172.16/12, 192.168/16, 127/8) or [::1]; no name (a name could be anyone's), no credentials, query or fragment. */
++export function checkOwnBackend(raw) {
++  const bad = (m) => { throw new Error(`${TX_BACKEND_ENV}: ${m}`); };
++  let u; try { u = new URL(String(raw)); } catch { bad('must be a URL'); }
++  if (u.protocol !== 'http:' && u.protocol !== 'https:') bad('must be http(s)');
++  if (u.username || u.password || u.search || u.hash || String(raw).includes('#') || String(raw).includes('?')) bad('no credentials, query or fragment');
++  let scope = null;
++  if (u.hostname === '[::1]') scope = 'loopback';
++  else {
++    const m = IPV4.exec(u.hostname);
++    if (!m) bad('must be a loopback or private IPv4 address literal: a name or public address is not the operator\'s own backend');
++    const o = m.slice(1).map(Number);
++    if (o.some((x) => x > 255)) bad('malformed IPv4 address');
++    if (o[0] === 127) scope = 'loopback';
++    else if (o[0] === 10 || (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || (o[0] === 192 && o[1] === 168)) scope = 'private';
++    else bad('must be a loopback or private IPv4 address literal: a public address is not the operator\'s own backend');
++  }
++  const port = u.port || (u.protocol === 'https:' ? '443' : '80');
++  return Object.freeze({ url: u.href, scope, label: `${u.protocol}//${u.hostname}:${port}` });
++}
++
++const MAX_RESPONSE = 32 << 20;
++async function readBounded(r, max) {
++  const len = Number(r.headers.get('content-length') || 0);
++  if (len > max) throw new Error(`response larger than ${max} bytes`);
++  const chunks = []; let n = 0;
++  for await (const c of r.body) { n += c.length; if (n > max) throw new Error(`response larger than ${max} bytes`); chunks.push(c); }
++  return Buffer.concat(chunks).toString('utf8');
++}
++/** One JSON-RPC call; a JSON-RPC error keeps its code, message and data (viem decodes reverts from them). */
++function rpcCaller(url, label, timeoutMs, fetchImpl) {
++  let id = 0;
++  return async (method, params) => {
++    const body = { jsonrpc: '2.0', id: ++id, method, params };
++    let r;
++    try { r = await fetchImpl(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(timeoutMs) }); }
++    catch (e) { throw Object.assign(new Error(`${label} unreachable: ${String(e?.message || e).slice(0, 200)}`), { authorityUnavailable: true }); }
++    if (!r.ok) throw Object.assign(new Error(`${label} HTTP ${r.status}`), { authorityUnavailable: true });
++    const j = JSON.parse(await readBounded(r, MAX_RESPONSE));
++    if (j?.error) throw new RpcRequestError({ body, url: label, error: { code: Number(j.error.code) || -32603, message: String(j.error.message || 'error').slice(0, 2000), data: j.error.data } });
++    return j?.result;
++  };
++}
++const refused = (method, why) => new RpcRequestError({ body: { method }, url: 'chain-authority', error: { code: -32601, message: `${method} refused by the local chain authority: ${why}` } });
++
++/**
++ * -> null when the operator did not select the verifier (the legacy provider path is the caller's, unchanged), or the
++ * authority. Throws on an invalid selection: callers then use refusingChainAuthority(why), never the provider path.
++ */
++export function chainAuthorityFromEnv(env = process.env, opts = {}) {
++  const a = String(env[AUTHORITY_ENV] || '').trim(), v = String(env[VERIFIER_ENV] || '').trim(), b = String(env[TX_BACKEND_ENV] || '').trim();
++  if (!a || a === 'quorum') {
++    if (v || b) throw new Error(`${v ? VERIFIER_ENV : TX_BACKEND_ENV} is set but ${AUTHORITY_ENV} is not verifier`);
++    return null;
++  }
++  if (a !== 'verifier') throw new Error(`${AUTHORITY_ENV} must be quorum or verifier`);
++  if (!v) throw new Error(`${AUTHORITY_ENV}=verifier needs ${VERIFIER_ENV} (the local verifier URL)`);
++  return createChainAuthority({ verifier: v, backend: b || null, ...opts });
++}
++
++/**
++ * createChainAuthority({verifier, backend?, chain, maxHeadAgeMs, futureSkewMs, confirmations, bindTtlMs, timeoutMs, fetch, now})
++ *   .client         a viem public client (marked VERIFIER_CLIENT) over the routed transport
++ *   .transport      the same transport, for a wallet client (writeContract prepares through it, sends to the backend)
++ *   .describe()     what is used, with the trust labels (logs and status)
++ *   .actionGate(w)  before any action that writes or signs: the verifier's head is fresh, and (when `w.submit`) the
++ *                   backend is configured and bound to the verifier's chain. Throws {code, status 503} otherwise.
++ *   .status()       the last gate result (for /health and logs; never evidence)
++ */
++export function createChainAuthority({ verifier, backend = null, chain, maxHeadAgeMs = 60_000, futureSkewMs = 5_000, confirmations = 2,
++  bindTtlMs = 15_000, timeoutMs = 20_000, fetch: fetchImpl = globalThis.fetch, now = Date.now } = {}) {
++  if (!chain || !Number.isSafeInteger(chain.id)) throw new Error('chain authority needs the chain (viem chain object)');
++  const vEnd = verifierEndpoint(verifier);                 // loopback only; a remote "verifier" is refused here
++  const own = backend ? checkOwnBackend(backend) : null;
++  const callV = rpcCaller(typeof verifier === 'string' ? verifier : verifier.url, vEnd.label, timeoutMs, fetchImpl);
++  const callB = own ? rpcCaller(own.url, `own backend ${own.label}`, timeoutMs, fetchImpl) : null;
++  let bound = null;                                        // {at, number, hash} of the last successful binding
++  let last = { at: 0, ok: false, why: 'not checked yet' };
++  const fail = (code, message) => Object.assign(new Error(message), { code, status: 503 });
++
++  async function bindBackend() {
++    if (!callB) throw fail('chain_no_backend', `no own transaction backend is configured (${TX_BACKEND_ENV}): nothing is submitted through any other server`);
++    if (bound && now() - bound.at < bindTtlMs) return bound;
++    const want = BigInt(chain.id);
++    if (BigInt(await callB('eth_chainId', [])) !== want) throw fail('chain_backend_wrong_chain', `the own backend ${own.label} follows another chain`);
++    const head = BigInt(await callV('eth_blockNumber', []));
++    const n = head - BigInt(confirmations);
++    if (n < 0n) throw fail('chain_unconfirmed', 'the verifier has no confirmed block yet');
++    const tag = '0x' + n.toString(16);
++    const [vb, bb] = await Promise.all([callV('eth_getBlockByNumber', [tag, false]), callB('eth_getBlockByNumber', [tag, false])]);
++    if (!vb?.hash) throw fail('chain_unconfirmed', `the verifier has no block ${n}`);
++    if (!bb?.hash) throw fail('chain_backend_behind', `the own backend ${own.label} has no block ${n} (behind the verifier)`);
++    if (String(bb.hash).toLowerCase() !== String(vb.hash).toLowerCase())
++      throw fail('chain_backend_unbound', `the own backend ${own.label} has another block ${n} than the verifier's signed head chain: not submitting through it`);
++    bound = { at: now(), number: n, hash: String(vb.hash).toLowerCase() };
++    return bound;
++  }
++  async function actionGate({ what = 'action', submit = false } = {}) {
++    try {
++      const blk = await callV('eth_getBlockByNumber', ['latest', false]);
++      let ts; try { ts = Number(BigInt(blk.timestamp)) * 1000; } catch { throw fail('chain_unconfirmed', 'the verifier has no head block'); }
++      if (ts > now() + futureSkewMs) throw fail('chain_future', 'the verifier\'s head is ahead of this host\'s clock');
++      if (now() - ts > maxHeadAgeMs) throw fail('chain_stale', `the verifier's head is ${Math.round((now() - ts) / 1000)} s old (more than ${Math.round(maxHeadAgeMs / 1000)} s)`);
++      if (submit) await bindBackend();
++      last = { at: now(), ok: true, why: null, head: String(BigInt(blk.number)) };
++    } catch (e) {
++      const err = e?.code && e.status ? e : fail('chain_unavailable', `the local verifier cannot answer (${String(e?.message || e).slice(0, 200)})`);
++      last = { at: now(), ok: false, why: err.message, code: err.code };
++      throw Object.assign(err, { message: `${what} not done: ${err.message}` });
++    }
++  }
++
++  async function request({ method, params = [] }) {
++    const route = METHODS[method];
++    if (!route) throw refused(method, `not a proof-backed or own-backend method (verified: ${VERIFIED_METHODS.join(', ')}; own backend: ${BACKEND_METHODS.join(', ')})`);
++    if (method === 'eth_getTransactionCount' && (params[1] === 'pending')) {
++      if (!callB) throw refused(method, `the pending pool is only known to an own transaction backend (${TX_BACKEND_ENV} unset)`);
++      return callB(method, params);
++    }
++    if (route[0] === B) {
++      if (!callB) throw refused(method, `no own transaction backend is configured (${TX_BACKEND_ENV}): nothing is sent or asked elsewhere`);
++      if (method === 'eth_sendRawTransaction') {
++        try { await actionGate({ what: 'submission', submit: true }); }
++        catch (e) { throw refused(method, e.message); }
++      }
++      return callB(method, params);
++    }
++    try { return await callV(method, params); }
++    catch (e) {
++      // Helios answers an unknown receipt with an error; a provider answers null. Both mean only "no receipt evidence"
++      // (absence is never proven): callers resolve such a transaction by its proven account nonce instead.
++      if (method === 'eth_getTransactionReceipt' && e instanceof RpcRequestError && /receipt not found/i.test(String(e.details || e.message))) return null;
++      throw e;
++    }
++  }
++  const transport = custom({ request }, { key: 'local-verifier', name: 'Local verifier', retryCount: 0 });
++  const client = createPublicClient({ chain, transport });
++  const describe = () => ({ authority: 'local-verifier', tier: 'unsafe', finality: 'none', verifier: vEnd.label,
++    backend: own ? { label: own.label, scope: own.scope, use: BACKEND_METHODS.concat('eth_getTransactionCount(pending)') } : null,
++    logs: 'inclusion only (completeness not proven)' });
++  Object.defineProperty(client, VERIFIER_CLIENT, { value: Object.freeze({ describe }), enumerable: false });
++  return Object.freeze({ mode: 'verifier', client, transport, describe, actionGate, bindBackend, status: () => ({ ...last }) });
++}
++
++/** The authority a host gets when its selection is invalid: every method refuses with the reason; nothing falls back. */
++export function refusingChainAuthority(why, { chain } = {}) {
++  const request = async ({ method }) => { throw refused(method, `the chain authority selection is invalid (${why})`); };
++  const transport = custom({ request }, { key: 'refusing', name: 'Refusing chain authority', retryCount: 0 });
++  const client = createPublicClient({ chain, transport });
++  const describe = () => ({ authority: 'refusing', why });
++  Object.defineProperty(client, VERIFIER_CLIENT, { value: Object.freeze({ describe }), enumerable: false });
++  const gate = async ({ what = 'action' } = {}) => { throw Object.assign(new Error(`${what} not done: the chain authority selection is invalid (${why})`), { code: 'chain_misconfigured', status: 503 }); };
++  return Object.freeze({ mode: 'refusing', client, transport, describe, actionGate: gate, bindBackend: gate, status: () => ({ ok: false, why }) });
++}
+diff --git a/network/lease-executor-authority.mjs b/network/lease-executor-authority.mjs
+index f9cbf90e5ae9868ff29da5557761c19a331c53d2..a70b8e060f9bbd983c8dad2420504ce9b6243e64 100644
+--- a/network/lease-executor-authority.mjs
++++ b/network/lease-executor-authority.mjs
+@@ -36,23 +36,36 @@
+ // Distinct configured endpoints are not proof of independent organizations. This uses the repository's shared URL
+ // identity rule to prevent counting one public host's paths or ports as several votes. A single local fixture node is
+ // allowed only with explicit loopback permission AND an actual loopback transport URL.
++//
++// The host's LOCAL VERIFIER (a client network/chain-authority.mjs built for the operator's explicit
++// ENCLAVE_CHAIN_AUTHORITY=verifier; marked in-process, never from configuration) is ONE proof-checking authority, not a
++// vote: it is used alone (required 1, whatever quorum a provider configuration names), and never mixed with provider
++// peers or repeated to make up a quorum. Its answers are proven against its sequencer-signed head chain (the unsafe tier).
++const LOCAL_VERIFIER = Symbol.for("enclave.chain-authority.local-verifier");
+ export function leaseRpcSet(clients, { quorum, allowLoopbackHttp = false, timeoutMs = 15_000 } = {}) {
+   if (!Array.isArray(clients) || !clients.length || clients.length > 16)
+     throw new Error("lease-gas requires 1..16 explicit RPC clients");
+-  const peers = clients.map((client) => {
+-    const endpoint = rpcEndpoint(client?.transport?.url);
+-    if (endpoint.url.protocol === "http:" && !allowLoopbackHttp)
+-      throw new Error("lease-gas plain HTTP RPC needs explicit loopback permission");
+-    return { client, endpoint };
+-  });
+-  if (new Set(peers.map((p) => p.endpoint.identity)).size !== peers.length)
+-    throw new Error("lease-gas RPCs repeat a provider");
+-  const localFixture = peers.length === 1 && peers[0].endpoint.loopback && allowLoopbackHttp;
+-  const required = quorum ?? Math.floor(peers.length / 2) + 1;
+-  if (!Number.isInteger(required) || required > peers.length || required <= peers.length / 2 || (required < 2 && !localFixture))
+-    throw new Error("lease-gas RPC quorum must be a strict majority of at least two peers");
+   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000)
+     throw new Error("lease-gas RPC timeout must be 1..60000 ms");
++  let peers, required, localFixture = false, authority = "rpc-quorum";
++  if (clients.some((c) => c && c[LOCAL_VERIFIER])) {
++    if (clients.length !== 1) throw new Error("lease-gas: the local verifier is one authority, never a quorum member (not mixed with RPCs, not repeated)");
++    peers = [{ client: clients[0], endpoint: { label: "local verifier", identity: "local-verifier", loopback: true } }];
++    required = 1; authority = "local-verifier";
++  } else {
++    peers = clients.map((client) => {
++      const endpoint = rpcEndpoint(client?.transport?.url);
++      if (endpoint.url.protocol === "http:" && !allowLoopbackHttp)
++        throw new Error("lease-gas plain HTTP RPC needs explicit loopback permission");
++      return { client, endpoint };
++    });
++    if (new Set(peers.map((p) => p.endpoint.identity)).size !== peers.length)
++      throw new Error("lease-gas RPCs repeat a provider");
++    localFixture = peers.length === 1 && peers[0].endpoint.loopback && allowLoopbackHttp;
++    required = quorum ?? Math.floor(peers.length / 2) + 1;
++    if (!Number.isInteger(required) || required > peers.length || required <= peers.length / 2 || (required < 2 && !localFixture))
++      throw new Error("lease-gas RPC quorum must be a strict majority of at least two peers");
++  }
+   async function request(client, method, params) {
+     let timer;
+     try {
+@@ -83,7 +96,7 @@
+     if (!winner) throw new Error(`lease-gas RPC quorum did not agree on ${what}`);
+     return winner;
+   }
+-  return { peers, required, localFixture, request, agree };
++  return { peers, required, localFixture, authority, request, agree };
+ }
+ 
+ /** A fresh, hash-bound read client, backed ONLY by peers that verified the pinned deployment at that same hash. */
+diff --git a/network/lease-gas-runtime.mjs b/network/lease-gas-runtime.mjs
+index d73dff44f3c6f345ff31b2dfc2c4cfe039b5aee1..711893bd3f173450958e6e959703f5d9e3c2b823 100644
+--- a/network/lease-gas-runtime.mjs
++++ b/network/lease-gas-runtime.mjs
+@@ -8,6 +8,7 @@
+ import { discoverLeaseRelays, cachedRelayDiscovery, relayPolicyDecider, relayAdmission } from "./lease-relay-discovery.mjs";
+ import { validateIndexPin } from "./service-index.mjs";
+ import { chainVerifierOf } from "./verified-chain.mjs";
++import { chainAuthorityFromEnv } from "./chain-authority.mjs";
+ 
+ // Where a host's lease operations are submitted (at least one): LOCAL_RELAY, an OPTIONAL relay of the host's own on this
+ // machine (loopback only); RELAYS, configured relays; SERVICE_INDEX (<index address>@<runtime code hash>), DESIGNATED relays
+@@ -47,19 +48,23 @@
+ }
+ 
+ /** `chain`, `ledger`, and `registry` are the host's existing reviewed binding. The record digest is a trusted local
+- * setting, not downloaded with its file or accepted from a relay. Calling this function performs no RPC or signing. */
++ * setting, not downloaded with its file or accepted from a relay. Calling this function performs no RPC or signing.
++ * Under the host's explicit local-verifier authority (ENCLAVE_CHAIN_AUTHORITY=verifier: network/chain-authority.mjs, or
++ * `chainAuthority` passed in by a caller that already holds it) every lease read goes to that ONE authority; configured
++ * RPCS are then never contacted (they may stay in the reviewed configuration, unused). */
+ export function loadLeaseGasConfig({ env = process.env, chain, ledger, registry, readFile = fs.readFileSync,
+-  allowLoopbackHttp = false, rpcTimeoutMs = 10_000 } = {}) {
++  allowLoopbackHttp = false, rpcTimeoutMs = 10_000, chainAuthority } = {}) {
+   if (!leaseGasConfigured(env)) return null;
+   const file = required(env, "FILE"), digest = required(env, "DIGEST");
+-  const rpcs = list(required(env, "RPCS"));
++  const authority = chainAuthority !== undefined ? chainAuthority : chainAuthorityFromEnv(env, { chain });
++  const rpcs = authority ? [] : list(required(env, "RPCS"));
+   const localRaw = setting(env, "LOCAL_RELAY");
+   const localRelays = localRaw ? [validateLocalRelayUrl(localRaw)] : [];
+   const indexRaw = setting(env, "SERVICE_INDEX");
+   const pinnedRaw = setting(env, "PINNED_RELAYS");
+   const pinnedRelays = pinnedRaw ? parsePinnedRelays(pinnedRaw) : Object.freeze([]);
+   const relays = list(localRelays.length || indexRaw || pinnedRelays.length ? setting(env, "RELAYS") : required(env, "RELAYS")).map((url) => validateRelayUrl(url, { allowLoopbackHttp }));
+-  if (!rpcs.length || !(relays.length + localRelays.length + pinnedRelays.length) && !indexRaw) throw new Error("app-funded leases require nonempty RPC and relay lists");
++  if (!authority && !rpcs.length || !(relays.length + localRelays.length + pinnedRelays.length) && !indexRaw) throw new Error("app-funded leases require nonempty RPC and relay lists");
+   const excludeRaw = list(setting(env, "RELAY_EXCLUDE"));
+   if (excludeRaw.length && !indexRaw) throw new Error("RELAY_EXCLUDE applies to relays found in the service index: set SERVICE_INDEX too");
+   if (new Set([...localRelays, ...relays, ...pinnedRelays.map((r) => r.origin)]).size !== relays.length + localRelays.length + pinnedRelays.length) throw new Error("lease-gas relays repeat an origin");
+@@ -88,10 +93,10 @@
+   const rawQuorum = setting(env, "QUORUM");
+   if (rawQuorum && !/^[1-9][0-9]*$/.test(rawQuorum)) throw new Error("lease-gas quorum must be an integer");
+   const quorum = rawQuorum ? Number(rawQuorum) : undefined;
+-  const clients = rpcs.map((url) => createPublicClient({ chain, transport: http(url, { retryCount: 0, timeout: rpcTimeoutMs }) }));
++  const clients = authority ? [authority.client] : rpcs.map((url) => createPublicClient({ chain, transport: http(url, { retryCount: 0, timeout: rpcTimeoutMs }) }));
+   // Validate identities and the threshold now, before a caller can mistake configuration failure for feature-off.
+   const peers = leaseRpcSet(clients, { quorum, allowLoopbackHttp, timeoutMs: rpcTimeoutMs });
+-  return Object.freeze({ deployment, reserve: deployment.reserve, clients: Object.freeze(clients),
++  return Object.freeze({ deployment, reserve: deployment.reserve, clients: Object.freeze(clients), authority: peers.authority,
+     relays: Object.freeze(relays), localRelays: Object.freeze(localRelays), ...(pinnedRelays.length ? { pinnedRelays } : {}), relayDiscovery, quorum: peers.required, allowLoopbackHttp, rpcTimeoutMs });
+ }
+ 
+diff --git a/test/chain-authority.test.mjs b/test/chain-authority.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..032302aa1104136f29fa221423ffc5c5860d9e20
+--- /dev/null
++++ b/test/chain-authority.test.mjs
+@@ -0,0 +1,217 @@
++// network/chain-authority.mjs: the local-verifier chain authority of supervisor.js and its lease/nomination readers, with
++// SCRIPTED loopback stand-ins for the verifier and the own backend (each records every request it gets), so routing,
++// refusals and "nothing was contacted" are observed directly. What the verifier PROVES is shown against the real
++// runtime and chain in test/chain-consumer-closure.e2e.test.mjs; here only where each method goes and what refuses.
++import test, { after } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import http from 'node:http';
++import { createHash } from 'node:crypto';
++import { createPublicClient, http as viemHttp, parseAbi, encodeErrorResult, keccak256 } from 'viem';
++import { base } from 'viem/chains';
++import { privateKeyToAccount } from 'viem/accounts';
++import { createWalletClient } from 'viem';
++import { chainAuthorityFromEnv, createChainAuthority, refusingChainAuthority, checkOwnBackend, isVerifierClient, METHODS, VERIFIED_METHODS, BACKEND_METHODS }
++  from '../network/chain-authority.mjs';
++import { leaseRpcSet, verifiedLeaseAuthority } from '../client/lease-executor-authority.mjs';
++import * as NET_AUTH from '../network/lease-executor-authority.mjs';
++import { loadLeaseGasConfig } from '../network/lease-gas-runtime.mjs';
++import { checkChainVerifier, checkTxBackendUrl, guestChainVerifier, withChainVerifierEnv, CHAIN_AUTHORITY_NAMES, REFUSING_VERIFIER } from '../metal/guest/chain-verifier.mjs';
++
++const tmp = fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 'chain-authority-'));
++const servers = [];
++after(() => { for (const s of servers) { s.closeAllConnections?.(); s.close(); } fs.rmSync(tmp, { recursive: true, force: true }); });
++const NOW = 1_800_000_000_000;
++const blockAt = (n, { ts = NOW / 1000 - 4, hash } = {}) => ({ number: '0x' + n.toString(16), hash: hash || '0x' + n.toString(16).padStart(64, 'a'),
++  stateRoot: '0x' + '5'.repeat(64), timestamp: '0x' + Math.floor(ts).toString(16), baseFeePerGas: '0x3b9aca00', parentHash: '0x' + '0'.repeat(64),
++  transactions: [], gasLimit: '0x1c9c380', gasUsed: '0x0', miner: '0x' + '0'.repeat(40), extraData: '0x', logsBloom: '0x' + '0'.repeat(512),
++  difficulty: '0x0', nonce: '0x0000000000000000', receiptsRoot: '0x' + '6'.repeat(64), sha3Uncles: '0x' + '7'.repeat(64), size: '0x1', transactionsRoot: '0x' + '8'.repeat(64), uncles: [] });
++/** a scripted JSON-RPC server: answer(method, params) -> {result} | {error}; every call recorded */
++async function scripted(answer) {
++  const calls = [];
++  const srv = http.createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => {
++    const q = JSON.parse(b); calls.push({ method: q.method, params: q.params });
++    const a = answer(q.method, q.params) ?? { error: { code: -32601, message: 'not scripted' } };
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: q.id, ...a }));
++  }); });
++  servers.push(srv);
++  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
++  return { calls, url: `http://127.0.0.1:${srv.address().port}/`, methods: () => calls.map((c) => c.method) };
++}
++const HEAD = 100;
++const verifierScript = (over = {}) => (method, params) => {
++  if (over[method]) return over[method](params);
++  switch (method) {
++    case 'eth_chainId': return { result: '0x2105' };
++    case 'eth_blockNumber': return { result: '0x' + HEAD.toString(16) };
++    case 'eth_getBlockByNumber': return { result: blockAt(params[0] === 'latest' ? HEAD : Number(BigInt(params[0]))) };
++    case 'eth_call': return { result: '0x' + '0'.repeat(63) + '7' };
++    case 'eth_getTransactionCount': return { result: '0x5' };
++    case 'eth_getTransactionReceipt': return { error: { code: -32000, message: 'receipt not found' } };
++    case 'eth_estimateGas': return { result: '0x5208' };
++    default: return null;
++  }
++};
++const backendScript = (over = {}) => (method, params) => {
++  if (over[method]) return over[method](params);
++  switch (method) {
++    case 'eth_chainId': return { result: '0x2105' };
++    case 'eth_getBlockByNumber': return { result: blockAt(Number(BigInt(params[0]))) };
++    case 'eth_getTransactionCount': return { result: '0x6' };
++    case 'eth_maxPriorityFeePerGas': return { result: '0xf4240' };
++    case 'eth_sendRawTransaction': return { result: keccak256(params[0]) };
++    default: return null;
++  }
++};
++const authority = (v, b, opts = {}) => createChainAuthority({ verifier: v.url, backend: b?.url ?? null, chain: base, now: () => NOW, ...opts });
++const ABI = parseAbi(['function count() view returns (uint256)', 'error NotYours(address who)', 'function take() returns (uint256)']);
++
++test('the selection: unset or quorum is the legacy path; verifier needs a local URL; anything ambiguous refuses', () => {
++  assert.equal(chainAuthorityFromEnv({}, { chain: base }), null);
++  assert.equal(chainAuthorityFromEnv({ ENCLAVE_CHAIN_AUTHORITY: 'quorum' }, { chain: base }), null);
++  assert.throws(() => chainAuthorityFromEnv({ ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:1/' }, { chain: base }), /not verifier/);
++  assert.throws(() => chainAuthorityFromEnv({ ENCLAVE_CHAIN_TX_BACKEND: 'http://127.0.0.1:1/' }, { chain: base }), /not verifier/, 'a backend alone is never an authority');
++  assert.throws(() => chainAuthorityFromEnv({ ENCLAVE_CHAIN_AUTHORITY: 'verifier' }, { chain: base }), /needs ENCLAVE_CHAIN_VERIFIER/);
++  assert.throws(() => chainAuthorityFromEnv({ ENCLAVE_CHAIN_AUTHORITY: 'helios' }, { chain: base }), /quorum or verifier/);
++  assert.throws(() => chainAuthorityFromEnv({ ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'https://mainnet.base.org/' }, { chain: base }), /local endpoint/);
++  const a = chainAuthorityFromEnv({ ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:50546/', ENCLAVE_CHAIN_TX_BACKEND: 'http://10.0.2.2:8545/' }, { chain: base });
++  assert.equal(a.mode, 'verifier');
++  assert.deepEqual(a.describe().backend, { label: 'http://10.0.2.2:8545', scope: 'private', use: [...BACKEND_METHODS, 'eth_getTransactionCount(pending)'] });
++  assert.equal(isVerifierClient(a.client), true);
++  assert.equal(isVerifierClient(JSON.parse(JSON.stringify({ ...a.client }))), false, 'the mark never survives JSON');
++  // every routed method has exactly one place, and the trust table names each
++  for (const [m, [where, trust]] of Object.entries(METHODS)) { assert.ok(['verifier', 'backend'].includes(where), m); assert.ok(trust.length > 10, m); }
++  assert.equal(METHODS.eth_getLogs[1].includes('completeness not proven'), true);
++  assert.deepEqual(BACKEND_METHODS, ['eth_sendRawTransaction', 'eth_maxPriorityFeePerGas', 'eth_feeHistory', 'eth_gasPrice']);
++  assert.ok(!VERIFIED_METHODS.includes('eth_sendRawTransaction'));
++});
++
++test('the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees', () => {
++  const ok = ['http://127.0.0.1:8545/', 'http://10.0.2.2:8545', 'https://192.168.1.20:8545/', 'http://172.16.0.9:8545', 'http://172.31.255.1:1', 'http://[::1]:8545/'];
++  const bad = ['https://mainnet.base.org/', 'https://base-rpc.publicnode.com', 'http://localhost:8545/', 'http://8.8.8.8:8545/', 'http://172.32.0.1:8545/',
++    'http://user:pw@10.0.0.2:8545/', 'http://10.0.0.2:8545/?key=x', 'http://10.0.0.2:8545/#x', 'ws://10.0.0.2:8546/', 'http://10.0.0.256:1/', 'not a url'];
++  for (const u of ok) { assert.ok(checkOwnBackend(u).url, u); assert.equal(checkTxBackendUrl(u), checkOwnBackend(u).url, `parity: ${u}`); }
++  for (const u of bad) { assert.throws(() => checkOwnBackend(u), /TX_BACKEND/, u); assert.throws(() => checkTxBackendUrl(u), /txBackend/, `parity: ${u}`); }
++});
++
++test('routing: state, receipts, logs and nonces go to the verifier only; unlisted methods refuse by name and reach no server', async () => {
++  const v = await scripted(verifierScript()), b = await scripted(backendScript());
++  const a = authority(v, b);
++  assert.equal(await a.client.readContract({ address: '0x' + '11'.repeat(20), abi: ABI, functionName: 'count' }), 7n);
++  assert.equal(await a.client.getTransactionCount({ address: '0x' + '22'.repeat(20) }), 5, 'latest: proven by the verifier');
++  assert.equal(await a.client.getTransactionCount({ address: '0x' + '22'.repeat(20), blockTag: 'pending' }), 6, 'pending: the own backend\'s pool');
++  assert.equal(await a.client.getBlockNumber({ cacheTime: 0 }), BigInt(HEAD));
++  await assert.rejects(a.client.getTransactionReceipt({ hash: '0x' + '33'.repeat(32) }), /could not be found/,
++    'Helios "receipt not found" is a plain absence of evidence (viem TransactionReceiptNotFound), as a provider null is');
++  assert.deepEqual([...new Set(v.methods())].sort(), ['eth_blockNumber', 'eth_call', 'eth_getTransactionCount', 'eth_getTransactionReceipt']);
++  assert.deepEqual(b.methods(), ['eth_getTransactionCount'], 'the backend saw only the pending-pool question');
++  const before = v.calls.length + b.calls.length;
++  for (const m of ['eth_sign', 'eth_accounts', 'debug_traceTransaction', 'eth_getProof', 'eth_newFilter', 'txpool_content', 'eth_getTransactionByHash'])
++    await assert.rejects(a.client.request({ method: m, params: [] }), (e) => /refused by the local chain authority/.test(String(e.details || e.message)), m);
++  assert.equal(v.calls.length + b.calls.length, before, 'a refused method reaches no server');
++});
++
++test('a revert keeps its data through the verifier (simulate/readContract decode it); errors keep their code', async () => {
++  const data = encodeErrorResult({ abi: ABI, errorName: 'NotYours', args: ['0x' + '44'.repeat(20)] });
++  const v = await scripted(verifierScript({ eth_call: () => ({ error: { code: 3, message: 'execution reverted', data } }) }));
++  const a = authority(v, null);
++  await assert.rejects(a.client.simulateContract({ address: '0x' + '11'.repeat(20), abi: ABI, functionName: 'take', account: '0x' + '55'.repeat(20) }),
++    (e) => e.walk((x) => x.name === 'ContractFunctionRevertedError')?.data?.errorName === 'NotYours');
++});
++
++test('submission: only through a backend BOUND to the verifier\'s chain on a fresh head; otherwise refused before anything is sent', async () => {
++  const key = '0x' + '61'.repeat(32), account = privateKeyToAccount(key);
++  const send = async (a) => { const w = createWalletClient({ account, chain: base, transport: a.transport });
++    return w.sendTransaction({ to: account.address, value: 0n, gas: 21000n, maxFeePerGas: 2_000_000_000n, maxPriorityFeePerGas: 1_000_000n, nonce: 6 }); };
++  // bound: same hash at the verifier's confirmed block
++  const v = await scripted(verifierScript()), b = await scripted(backendScript());
++  const hash = await send(authority(v, b));
++  assert.match(hash, /^0x[0-9a-f]{64}$/);
++  assert.ok(b.methods().includes('eth_sendRawTransaction'));
++  assert.ok(!v.methods().includes('eth_sendRawTransaction'), 'the verifier is never a submission path');
++  // no backend: refused in words, nothing sent anywhere
++  const v2 = await scripted(verifierScript());
++  await assert.rejects(send(authority(v2, null)), (e) => /no own transaction backend/.test(String(e.details || e.message)));
++  // a backend on another chain (a different block at the confirmed height): refused, it never gets the transaction
++  const v3 = await scripted(verifierScript()), b3 = await scripted(backendScript({ eth_getBlockByNumber: (p) => ({ result: blockAt(Number(BigInt(p[0])), { hash: '0x' + 'f'.repeat(64) }) }) }));
++  await assert.rejects(send(authority(v3, b3)), (e) => /another block .* than the verifier's signed head chain/.test(String(e.details || e.message)));
++  assert.ok(!b3.methods().includes('eth_sendRawTransaction'));
++  // a backend for another chain id
++  const v4 = await scripted(verifierScript()), b4 = await scripted(backendScript({ eth_chainId: () => ({ result: '0x1' }) }));
++  await assert.rejects(send(authority(v4, b4)), (e) => /follows another chain/.test(String(e.details || e.message)));
++  assert.ok(!b4.methods().includes('eth_sendRawTransaction'));
++  // a stale verifier head: nothing is submitted (and the gate says why)
++  const v5 = await scripted(verifierScript({ eth_getBlockByNumber: (p) => ({ result: blockAt(p[0] === 'latest' ? HEAD : Number(BigInt(p[0])), { ts: NOW / 1000 - 600 }) }) }));
++  const b5 = await scripted(backendScript()), a5 = authority(v5, b5);
++  await assert.rejects(send(a5), (e) => /head is 600 s old/.test(String(e.details || e.message)));
++  assert.ok(!b5.methods().includes('eth_sendRawTransaction'));
++  await assert.rejects(a5.actionGate({ what: 'claim' }), (e) => e.code === 'chain_stale' && /^claim not done/.test(e.message));
++  assert.equal(a5.status().ok, false);
++});
++
++test('an invalid selection refuses every method and every action: nothing falls back', async () => {
++  const a = refusingChainAuthority('ENCLAVE_CHAIN_VERIFIER: the verifier must be a local endpoint', { chain: base });
++  await assert.rejects(a.client.getBlockNumber(), (e) => /selection is invalid/.test(String(e.details || e.message)));
++  await assert.rejects(a.actionGate({ what: 'renew' }), (e) => e.code === 'chain_misconfigured');
++  assert.equal(isVerifierClient(a.client), true, 'a refusing client is still one authority (never mixed into a quorum)');
++});
++
++test('lease readers: the verifier is ONE authority (required 1), never mixed with RPCs, never repeated; RPC quorums are unchanged', async () => {
++  const v = await scripted(verifierScript());
++  const a = authority(v, null);
++  for (const M of [{ leaseRpcSet }, NET_AUTH]) {
++    const set = M.leaseRpcSet([a.client], { quorum: 3 });
++    assert.equal(set.required, 1); assert.equal(set.authority, 'local-verifier'); assert.equal(set.localFixture, false);
++    const rpcClient = createPublicClient({ chain: base, transport: viemHttp('https://rpc-a.example/') });
++    assert.throws(() => M.leaseRpcSet([a.client, rpcClient], {}), /one authority, never a quorum member/);
++    assert.throws(() => M.leaseRpcSet([a.client, a.client], {}), /one authority/);
++    const plain = M.leaseRpcSet([rpcClient, createPublicClient({ chain: base, transport: viemHttp('https://rpc-b.example/') })], {});
++    assert.equal(plain.required, 2); assert.equal(plain.authority, 'rpc-quorum');
++    assert.throws(() => M.leaseRpcSet([rpcClient], {}), /strict majority/, 'one provider is still never a quorum');
++  }
++  // the agreed authority block comes from the verifier alone, at its head minus the confirmation depth
++  const pins = { chainId: 8453, reserve: '0x' + '0a'.repeat(20), executor: '0x' + '0b'.repeat(20), ledger: '0x' + '0c'.repeat(20), registry: '0x' + '0d'.repeat(20),
++    reserveCodeHash: keccak256('0x01'), executorCodeHash: keccak256('0x02') };
++  await assert.rejects(verifiedLeaseAuthority({ clients: [a.client], deployment: pins, now: () => NOW }), /unreviewed runtime code|lease-gas/);
++  const asked = v.calls.filter((c) => c.method === 'eth_getBlockByNumber').map((c) => c.params[0]);
++  assert.ok(asked.includes('0x' + (HEAD - 2).toString(16)), 'the authority block is the verifier head minus 2');
++});
++
++test('app-funded lease config under the verifier: reads use it alone, the configured RPCs are never contacted (kept for byte-identical config)', async () => {
++  const v = await scripted(verifierScript()), rpcStub = await scripted(() => ({ result: '0x2105' }));
++  // a reviewed deployment record, as test/lease-gas-runtime.test.mjs builds it
++  const addr = (x) => '0x' + x.repeat(20);
++  const fixture = { format: 'enclave-lease-gas-deployment/v1', chainId: 8453, reserve: addr('11'), executor: addr('22'), ledger: addr('33'), registry: addr('44'),
++    reserveCodeHash: '0x' + '55'.repeat(32), executorCodeHash: '0x' + '66'.repeat(32) };
++  const bytes = Buffer.from(JSON.stringify(fixture)), recordFile = 'reviewed-deployment.json';
++  const digest = 'sha256:' + createHash('sha256').update(bytes).digest('hex');
++  const readFile = (f) => { assert.equal(f, recordFile); return bytes; };
++  const env = { ENCLAVE_LEASE_GAS_FILE: recordFile, ENCLAVE_LEASE_GAS_DIGEST: digest, ENCLAVE_LEASE_GAS_RPCS: rpcStub.url, ENCLAVE_LEASE_GAS_RELAYS: 'https://relay-a.example',
++    ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: v.url };
++  const c = loadLeaseGasConfig({ env, chain: base, ledger: fixture.ledger, registry: fixture.registry, readFile, allowLoopbackHttp: true });
++  assert.equal(c.authority, 'local-verifier'); assert.equal(c.clients.length, 1); assert.equal(isVerifierClient(c.clients[0]), true); assert.equal(c.quorum, 1);
++  const noRpcs = { ...env }; delete noRpcs.ENCLAVE_LEASE_GAS_RPCS;
++  assert.equal(loadLeaseGasConfig({ env: noRpcs, chain: base, ledger: fixture.ledger, registry: fixture.registry, readFile }).authority, 'local-verifier',
++    'no RPCS needed under the verifier');
++  assert.throws(() => loadLeaseGasConfig({ env: { ...env, ENCLAVE_CHAIN_VERIFIER: 'https://mainnet.base.org/' }, chain: base, ledger: fixture.ledger, registry: fixture.registry, readFile }),
++    /local endpoint/, 'an invalid selection refuses the lease config; never the RPCs');
++  assert.equal(rpcStub.calls.length, 0, 'the configured RPC was never contacted');
++});
++
++test('guest opt-in: txBackend is checked and reaches the supervisor only with a usable verifier, from this channel only', () => {
++  const RAW = { format: 'enclave-chain-verifier/v1', unsafeSigner: '0x' + '9a'.repeat(20), proofSources: ['https://holder.example.net/'], port: 50546 };
++  assert.equal(checkChainVerifier({ ...RAW, txBackend: 'http://10.0.2.2:8545' }).txBackend, 'http://10.0.2.2:8545/');
++  assert.equal('txBackend' in checkChainVerifier(RAW), false, 'absent stays absent');
++  assert.throws(() => checkChainVerifier({ ...RAW, txBackend: 'https://mainnet.base.org' }), /txBackend must be a loopback or private/);
++  assert.ok(CHAIN_AUTHORITY_NAMES.includes('ENCLAVE_CHAIN_TX_BACKEND'));
++  const image = JSON.parse(fs.readFileSync(new URL('../metal/chain-verifier-image.json', import.meta.url), 'utf8'));   // the committed image record
++  const ok = guestChainVerifier({ ...RAW, txBackend: 'http://10.0.2.2:8545' }, { image });
++  const env = withChainVerifierEnv({ ENCLAVE_CHAIN_TX_BACKEND: 'https://mainnet.base.org/', X: '1' }, ok);
++  assert.deepEqual(env, { X: '1', ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:50546/', ENCLAVE_CHAIN_TX_BACKEND: 'http://10.0.2.2:8545/' });
++  const noImage = guestChainVerifier({ ...RAW, txBackend: 'http://10.0.2.2:8545' }, { imageFile: path.join(tmp, 'absent.json') });
++  assert.deepEqual(withChainVerifierEnv({ ENCLAVE_CHAIN_TX_BACKEND: 'http://10.0.2.2:1/' }, noImage), { ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: REFUSING_VERIFIER },
++    'a refusing verifier gets no backend: nothing is submitted');
++  assert.deepEqual(withChainVerifierEnv({ ENCLAVE_CHAIN_TX_BACKEND: 'http://10.0.2.2:1/', Y: '2' }, null), { Y: '2' }, 'absent: every name dropped, nothing added');
++});

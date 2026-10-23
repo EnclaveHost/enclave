@@ -1,0 +1,222 @@
+{
+  "at": "2026-10-23T18:31:01.7980551Z",
+  "shieldPid": 2376,
+  "before": [
+    {
+      "id": "99581b30-de5f-450b-ac23-90d0735f3487",
+      "Name": "enclave-app-hv255b5ea98b99cf-ea9d4773",
+      "state": "Running"
+    },
+    {
+      "id": "3b8a3271-757c-4d96-9685-508af3e90fd4",
+      "Name": "enclave-app-hv2dd42ee0ca9d66-46de1836",
+      "state": "Running"
+    },
+    {
+      "id": "8a745c7d-4da8-4ba6-9690-c87f924fb3a9",
+      "Name": "enclave-app-hv3c8e73d2d9c235-322c5206",
+      "state": "Running"
+    },
+    {
+      "id": "29b799d0-98e6-43bb-9adf-5274dfe89e19",
+      "Name": "enclave-app-hv5e00a0f0dfae61-3dfcbff8",
+      "state": "Running"
+    },
+    {
+      "id": "f38952e3-537b-4271-85cd-6c14e993ee5c",
+      "Name": "enclave-app-hvba429ebb1c40a9-10c44a8a",
+      "state": "Running"
+    },
+    {
+      "id": "2f48ce4f-c8e0-4de9-ac7b-18d8c13bdf07",
+      "Name": "enclave-app-hvc18d297da5a21b-a79db30f",
+      "state": "Running"
+    },
+    {
+      "id": "c4ac6e3d-9482-4e84-8f6a-8227edcb9e3d",
+      "Name": "enclave-app-hvc6c4073c817dad-ad0f596e",
+      "state": "Running"
+    },
+    {
+      "id": "07097d0e-65e3-4a84-8756-cc984cee2f1a",
+      "Name": "enclave-app-hvdc425d67f2b0e1-3f770400",
+      "state": "Running"
+    },
+    {
+      "id": "dd22abf9-4ec1-4159-90fd-56b7115e986a",
+      "Name": "enclave-app-hvdd8cb84cf13a4e-f4322953",
+      "state": "Running"
+    },
+    {
+      "id": "14df250c-65f8-4218-8838-086d4f77cb6a",
+      "Name": "enclave-app-hve60d223d27d01b-9e2053bc",
+      "state": "Running"
+    },
+    {
+      "id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+      "Name": "enclave-control",
+      "state": "Running"
+    },
+    {
+      "id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+      "Name": "enclave-storage",
+      "state": "Running"
+    }
+  ],
+  "initialFreeKiB": 26480920,
+  "ok": false,
+  "childPid": 12416,
+  "exit": null,
+  "minFreeKiB": 23876228,
+  "cases": [
+    {
+      "step": "case",
+      "share": 0.0625,
+      "want": {
+        "vcpus": 1,
+        "limit": 100000,
+        "reservation": 100000
+      },
+      "readback": {
+        "reservation": 100000,
+        "weight": 100,
+        "count": 1,
+        "maximum": 100,
+        "limit": 100000,
+        "vcpus": 1,
+        "reserve": 100,
+        "units": "percent / 1000"
+      },
+      "guestOnlineVcpus": 1,
+      "appCpuRequested": null,
+      "appCpuPercent": 100,
+      "ok": false,
+      "error": "burn timed out after 90000 ms",
+      "cleanup": null,
+      "removed": true
+    },
+    {
+      "step": "case",
+      "share": 0.01,
+      "want": {
+        "vcpus": 1,
+        "limit": 16000,
+        "reservation": 16000
+      },
+      "readback": {
+        "reservation": 16000,
+        "weight": 100,
+        "count": 1,
+        "maximum": 16,
+        "limit": 16000,
+        "vcpus": 1,
+        "reserve": 16,
+        "units": "percent / 1000"
+      },
+      "guestOnlineVcpus": 1,
+      "appCpuRequested": null,
+      "appCpuPercent": 100,
+      "ok": false,
+      "error": "burn timed out after 90000 ms",
+      "cleanup": null,
+      "removed": true
+    },
+    {
+      "step": "case",
+      "share": 0.21,
+      "want": {
+        "vcpus": 4,
+        "limit": 84000,
+        "reservation": 84000
+      },
+      "readback": {
+        "reservation": 84000,
+        "weight": 100,
+        "count": 4,
+        "maximum": 84,
+        "limit": 84000,
+        "vcpus": 4,
+        "reserve": 84,
+        "units": "percent / 1000"
+      },
+      "guestOnlineVcpus": 4,
+      "appCpuRequested": 336,
+      "appCpuPercent": 336,
+      "t1Ms": 121,
+      "tnMs": 134,
+      "concurrency": 4,
+      "speedup": 3.626,
+      "sameAnswer": true,
+      "ok": true,
+      "removed": true
+    }
+  ],
+  "onePercentSlowdown": 0,
+  "leftBeforeCleanup": 0,
+  "after": [
+    {
+      "id": "99581b30-de5f-450b-ac23-90d0735f3487",
+      "Name": "enclave-app-hv255b5ea98b99cf-ea9d4773",
+      "state": "Running"
+    },
+    {
+      "id": "3b8a3271-757c-4d96-9685-508af3e90fd4",
+      "Name": "enclave-app-hv2dd42ee0ca9d66-46de1836",
+      "state": "Running"
+    },
+    {
+      "id": "8a745c7d-4da8-4ba6-9690-c87f924fb3a9",
+      "Name": "enclave-app-hv3c8e73d2d9c235-322c5206",
+      "state": "Running"
+    },
+    {
+      "id": "29b799d0-98e6-43bb-9adf-5274dfe89e19",
+      "Name": "enclave-app-hv5e00a0f0dfae61-3dfcbff8",
+      "state": "Running"
+    },
+    {
+      "id": "f38952e3-537b-4271-85cd-6c14e993ee5c",
+      "Name": "enclave-app-hvba429ebb1c40a9-10c44a8a",
+      "state": "Running"
+    },
+    {
+      "id": "2f48ce4f-c8e0-4de9-ac7b-18d8c13bdf07",
+      "Name": "enclave-app-hvc18d297da5a21b-a79db30f",
+      "state": "Running"
+    },
+    {
+      "id": "c4ac6e3d-9482-4e84-8f6a-8227edcb9e3d",
+      "Name": "enclave-app-hvc6c4073c817dad-ad0f596e",
+      "state": "Running"
+    },
+    {
+      "id": "07097d0e-65e3-4a84-8756-cc984cee2f1a",
+      "Name": "enclave-app-hvdc425d67f2b0e1-3f770400",
+      "state": "Running"
+    },
+    {
+      "id": "dd22abf9-4ec1-4159-90fd-56b7115e986a",
+      "Name": "enclave-app-hvdd8cb84cf13a4e-f4322953",
+      "state": "Running"
+    },
+    {
+      "id": "14df250c-65f8-4218-8838-086d4f77cb6a",
+      "Name": "enclave-app-hve60d223d27d01b-9e2053bc",
+      "state": "Running"
+    },
+    {
+      "id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+      "Name": "enclave-control",
+      "state": "Running"
+    },
+    {
+      "id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+      "Name": "enclave-storage",
+      "state": "Running"
+    }
+  ],
+  "leftAfter": 0,
+  "originalVmsUnchanged": true,
+  "shieldUnchanged": true,
+  "finishedAt": "2026-10-23T18:37:55.9844070Z"
+}

@@ -1,0 +1,1180 @@
+From 02863ae1e0e41167d6abfa7d7b31871d3387cc5a Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 11:12:29 -0700
+Subject: [PATCH] Production guest 5fbfb947 lineage: binaries from clean
+ c85e0c592 (rewritten eac520ae2), minimal-delta monitor recipe, evidence
+
+---
+ evidence/f86fb512-go-buildinfo.txt            |  50 ++++
+ evidence/f86fb512-initrd-inventory.json       | 176 ++++++++++++
+ evidence/initrd-identity-repack.txt           |   4 +
+ evidence/kit-inputs-embedded-in-5fbfb947.txt  |   4 +
+ evidence/monitor-port-go-test.txt             |  17 ++
+ evidence/pclntab-vs-trees-run1.txt            | 112 ++++++++
+ evidence/pclntab-vs-trees-run2-with-main.txt  | 158 +++++++++++
+ evidence/q-monitor-670a753e0..ea6717d27.patch | 253 ++++++++++++++++++
+ jobs/embed.py                                 |  14 +
+ jobs/extract.py                               |  21 ++
+ jobs/pcline.sh                                |  11 +
+ jobs/porttest.sh                              |  10 +
+ jobs/probe1.sh                                |  11 +
+ jobs/repack-id.sh                             |   7 +
+ jobs/repack.py                                |  31 +++
+ tools/pcline/go.mod                           |   3 +
+ tools/pcline/main.go                          | 152 +++++++++++
+ 17 files changed, 1034 insertions(+)
+ create mode 100644 evidence/f86fb512-go-buildinfo.txt
+ create mode 100644 evidence/f86fb512-initrd-inventory.json
+ create mode 100644 evidence/initrd-identity-repack.txt
+ create mode 100644 evidence/kit-inputs-embedded-in-5fbfb947.txt
+ create mode 100644 evidence/monitor-port-go-test.txt
+ create mode 100644 evidence/pclntab-vs-trees-run1.txt
+ create mode 100644 evidence/pclntab-vs-trees-run2-with-main.txt
+ create mode 100644 evidence/q-monitor-670a753e0..ea6717d27.patch
+ create mode 100644 jobs/embed.py
+ create mode 100644 jobs/extract.py
+ create mode 100755 jobs/pcline.sh
+ create mode 100755 jobs/porttest.sh
+ create mode 100755 jobs/probe1.sh
+ create mode 100755 jobs/repack-id.sh
+ create mode 100644 jobs/repack.py
+ create mode 100644 tools/pcline/go.mod
+ create mode 100644 tools/pcline/main.go
+
+diff --git a/evidence/f86fb512-go-buildinfo.txt b/evidence/f86fb512-go-buildinfo.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..a93f43bfb9098d72c7f200afab161111eebc3cc0
+--- /dev/null
++++ b/evidence/f86fb512-go-buildinfo.txt
+@@ -0,0 +1,50 @@
++29 entries
++=== init c723cbfa58c61762 ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked, BuildID[sha1]
++(no go buildinfo)
++=== monitor 82af9d870678f425 ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, Go BuildID=VV5eKNV
++monitor: go1.27.1-X:nodwarf5
++	path	enclave.host/isolation/m3/monitor
++	mod	enclave.host/isolation/m3	(devel)	
++	dep	enclave.host/isolation/contract	v0.0.0
++	=>	../contract	(devel)	
++	
++	dep	enclave.host/isolation/m2	v0.0.0
++	=>	../m2	(devel)	
++	
++	build	-buildmode=exe
++	build	-compiler=gc
++	build	-trimpath=true
++	build	DefaultGODEBUG=containermaxprocs=0,cryptocustomrand=1,decoratemappings=0,tlssecpmlkem=0,tlssha1=1,tracebacklabels=0,updatemaxprocs=0,urlstrictcolons=0,x509sha256skid=0,x509sslcertoverrideplatform=0
++	build	CGO_ENABLED=0
++	build	GOARCH=amd64
++	build	GOEXPERIMENT=nodwarf5
++	build	GOOS=linux
++	build	GOAMD64=v1
++	build	vcs=git
++	build	vcs.revision=c85e0c592353096f0710b1735d337ce6783c9fc0
++	build	vcs.time=2026-10-05T07:41:44Z
++	build	vcs.modified=false
++=== plat/domexec fa68aa230d9df25c ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked, BuildID[sha1]
++(no go buildinfo)
++=== plat/front 206de185f5fa8119 ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, Go BuildID=xRjbHH6
++plat/front: go1.27.1-X:nodwarf5
++	path	enclave.host/isolation/m2/front
++	mod	enclave.host/isolation/m2	(devel)	
++	dep	enclave.host/isolation/contract	v0.0.0
++	=>	../contract	(devel)	
++	
++	build	-buildmode=exe
++	build	-compiler=gc
++	build	-trimpath=true
++	build	DefaultGODEBUG=containermaxprocs=0,cryptocustomrand=1,decoratemappings=0,tlssecpmlkem=0,tlssha1=1,tracebacklabels=0,updatemaxprocs=0,urlstrictcolons=0,x509sha256skid=0,x509sslcertoverrideplatform=0
++	build	CGO_ENABLED=0
++	build	GOARCH=amd64
++	build	GOEXPERIMENT=nodwarf5
++	build	GOOS=linux
++	build	GOAMD64=v1
++	build	vcs=git
++	build	vcs.revision=c85e0c592353096f0710b1735d337ce6783c9fc0
++	build	vcs.time=2026-10-05T07:41:44Z
++	build	vcs.modified=false
++=== plat/domprobe 650caedea6d2fe3d ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked, BuildID[sha1]
++(no go buildinfo)
+diff --git a/evidence/f86fb512-initrd-inventory.json b/evidence/f86fb512-initrd-inventory.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..ccbcc463306cb7076e89efc813f2c76e3dbf7cdf
+--- /dev/null
++++ b/evidence/f86fb512-initrd-inventory.json
+@@ -0,0 +1,176 @@
++[
++ {
++  "path": ".",
++  "mode": "0o40755",
++  "bytes": 0,
++  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++ },
++ {
++  "path": "dev",
++  "mode": "0o40755",
++  "bytes": 0,
++  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++ },
++ {
++  "path": "domains",
++  "mode": "0o40755",
++  "bytes": 0,
++  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++ },
++ {
++  "path": "enclave_openhcl_tpm.ko",
++  "mode": "0o100644",
++  "bytes": 305680,
++  "sha256": "b1bedd82412789580a1fd85aa650ccbe9c79d51913ab05c8eda306ecc730d31d"
++ },
++ {
++  "path": "init",
++  "mode": "0o100755",
++  "bytes": 862016,
++  "sha256": "c723cbfa58c61762ad929f7cfaa30f4bf6885032dd5996100daa243a4c231cbd"
++ },
++ {
++  "path": "monitor",
++  "mode": "0o100755",
++  "bytes": 4135448,
++  "sha256": "82af9d870678f42505791c619b5962e27e2c24dc3c5bfdbd76427fc346925181"
++ },
++ {
++  "path": "plat",
++  "mode": "0o40755",
++  "bytes": 0,
++  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++ },
++ {
++  "path": "plat/domexec",
++  "mode": "0o100755",
++  "bytes": 1052216,
++  "sha256": "fa68aa230d9df25c2eb978779ff283523f0043b5ac11515605da3ed3cc707b2e"
++ },
++ {
++  "path": "plat/domprobe",
++  "mode": "0o100755",
++  "bytes": 863152,
++  "sha256": "650caedea6d2fe3d5bfbd77884789322a7d6cd89fab78db52cd1d241134d55ba"
++ },
++ {
++  "path": "plat/front",
++  "mode": "0o100755",
++  "bytes": 8287256,
++  "sha256": "206de185f5fa81197c666f5c1f075fb0ec287af9bc5b51dd64cd7a3b68370d04"
++ },
++ {
++  "path": "plat/rt",
++  "mode": "0o40755",
++  "bytes": 0,
++  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++ },
++ {
++  "path": "plat/rt/ld-linux-x86-64.so.2",
++  "mode": "0o100755",
++  "bytes": 263152,
++  "sha256": "d011113b7054c641c8ca064f58bcc23804fd2654a3dff2444dad06ddeda61bfb"
++ },
++ {
++  "path": "plat/rt/libc.so.6",
++  "mode": "0o100755",
++  "bytes": 2215072,
++  "sha256": "e221b10fee9ee4776d8f0f1701253bc06817f7a4dbe6c5292487277d0bf8ffff"
++ },
++ {
++  "path": "plat/rt/libgcc_s.so.1",
++  "mode": "0o100644",
++  "bytes": 182512,
++  "sha256": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a"
++ },
++ {
++  "path": "plat/rt/libm.so.6",
++  "mode": "0o100755",
++  "bytes": 1268336,
++  "sha256": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d"
++ },
++ {
++  "path": "plat/rt/mem64.enabled",
++  "mode": "0o100644",
++  "bytes": 2,
++  "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
++ },
++ {
++  "path": "plat/rt/runtime.json",
++  "mode": "0o100644",
++  "bytes": 158,
++  "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0"
++ },
++ {
++  "path": "plat/rt/set.enabled",
++  "mode": "0o100644",
++  "bytes": 2,
++  "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
++ },
++ {
++  "path": "plat/rt/wasmtime",
++  "mode": "0o100755",
++  "bytes": 57045080,
++  "sha256": "485d6d734a0d1a2d0c1f2d7bc2ab992f018d79b1da138bb6c563eca7ecc8f642"
++ },
++ {
++  "path": "plat/secretrun",
++  "mode": "0o100755",
++  "bytes": 2874296,
++  "sha256": "4e2f5bedfeba878e0eab424f7a1ba0ee293e72269a9b8ddba350d1739bdfefaa"
++ },
++ {
++  "path": "proc",
++  "mode": "0o40755",
++  "bytes": 0,
++  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++ },
++ {
++  "path": "run",
++  "mode": "0o40755",
++  "bytes": 0,
++  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++ },
++ {
++  "path": "sev-guest.ko.zst",
++  "mode": "0o100644",
++  "bytes": 9294,
++  "sha256": "528c57721813d4cf7dd74f65d9deea82cee7af0bc4d6b15f15064370ef84caa0"
++ },
++ {
++  "path": "sys",
++  "mode": "0o40755",
++  "bytes": 0,
++  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++ },
++ {
++  "path": "tmp",
++  "mode": "0o40755",
++  "bytes": 0,
++  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++ },
++ {
++  "path": "tsm_report.ko.zst",
++  "mode": "0o100644",
++  "bytes": 6983,
++  "sha256": "41f36ca242ed64095f140303ae6c05066d043ef37d1c9f6841216469bb009151"
++ },
++ {
++  "path": "vmw_vsock_virtio_transport.ko.zst",
++  "mode": "0o100644",
++  "bytes": 10496,
++  "sha256": "6fe99263330f3abe3371eebb5ad8f9be35a47e57faab0f96c0729c29cb95bcc9"
++ },
++ {
++  "path": "vmw_vsock_virtio_transport_common.ko.zst",
++  "mode": "0o100644",
++  "bytes": 22109,
++  "sha256": "4b9aee6ec87e6b5322df1f2fbff60ccd8862df113e5010e006e563971a083991"
++ },
++ {
++  "path": "vsock.ko.zst",
++  "mode": "0o100644",
++  "bytes": 27051,
++  "sha256": "d41ae5d80296ef9220531413899abd4e95d1d877e7957d80e035c621aa8f1aaa"
++ }
++]
+\ No newline at end of file
+diff --git a/evidence/initrd-identity-repack.txt b/evidence/initrd-identity-repack.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..8f7575c7dd817b312253f9c0ae8ca5c9108ea23b
+--- /dev/null
++++ b/evidence/initrd-identity-repack.txt
+@@ -0,0 +1,4 @@
++uncompressed identical to baseline: True trailing pad bytes: 144
++output sha256: 75afe138f7765c9314f13f87f5b8b54c5cb03b657dc124862f06c39370322e79 22766164
++gzip -n -9 identity: f86fb512a552554217769a347c8f5b1e3eb5b3a95dfecd9d3a5d0680e808d227  (baseline f86fb512a552554217769a347c8f5b1e3eb5b3a95dfecd9d3a5d0680e808d227)
++gzip 1.15
+diff --git a/evidence/kit-inputs-embedded-in-5fbfb947.txt b/evidence/kit-inputs-embedded-in-5fbfb947.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..58f9926e6f18b85ec9f8731c8574214a5c057346
+--- /dev/null
++++ b/evidence/kit-inputs-embedded-in-5fbfb947.txt
+@@ -0,0 +1,4 @@
++runtime.bin 5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d 76288988
++runtime-baseline.cpio.gz f86fb512a552554217769a347c8f5b1e3eb5b3a95dfecd9d3a5d0680e808d227 22704732 window offsets in runtime.bin: [40813532, 49894364, 58975196]
++kernel-vtpm.elf 6bbd7340f7505cffb4d00cfa84604052b394f2d6467918e24d4c44935783e0c0 70445968 window offsets in runtime.bin: [5784540, 31155164, -1]
++openhcl-shield.cpio.gz 71a91101f8f9b870199946076db2b220c68167e029539d4619a6b7600432124e 7552961 window offsets in runtime.bin: [69452764, 72471516, 75494364]
+diff --git a/evidence/monitor-port-go-test.txt b/evidence/monitor-port-go-test.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..024a70d8b24af80e2ea7de183068d261e6a88ae3
+--- /dev/null
++++ b/evidence/monitor-port-go-test.txt
+@@ -0,0 +1,17 @@
++=== rw: go vet + go test ./monitor ./secretrun (isolation/m3)
++ok  	enclave.host/isolation/m3/monitor	20.806s
++?   	enclave.host/isolation/m3/secretrun	[no test files]
++rc=0
++=== port: go vet + go test ./monitor ./secretrun (isolation/m3)
++ok  	enclave.host/isolation/m3/monitor	20.810s
++?   	enclave.host/isolation/m3/secretrun	[no test files]
++rc=0
++=== port: focused CPU tests verbose
++=== RUN   TestCPUAllowanceRaisesCatalogShare
++--- PASS: TestCPUAllowanceRaisesCatalogShare (0.00s)
++=== RUN   TestCPUAllowanceReachesCgroup
++--- PASS: TestCPUAllowanceReachesCgroup (0.00s)
++=== RUN   TestLoadAppliesTheLaunchersCPUAllocation
++--- PASS: TestLoadAppliesTheLaunchersCPUAllocation (0.00s)
++PASS
++ok  	enclave.host/isolation/m3/monitor	0.003s
+diff --git a/evidence/pclntab-vs-trees-run1.txt b/evidence/pclntab-vs-trees-run1.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..b72dbd137371cf5cf346c12147b16d07d4f92a30
+--- /dev/null
++++ b/evidence/pclntab-vs-trees-run1.txt
+@@ -0,0 +1,112 @@
++binary /home/steven/Documents/Codex/2026-10-18/wo/work/resource-guest-lineage-20261023/scratch/f86fb512/monitor: 69 enclave.host functions
++  tree old: match 38 mismatch 1 missing 30
++    missing enclave.host/isolation/contract.(*Lifecycle).FinishStart.deferwrap1
++    missing enclave.host/isolation/contract.(*Lifecycle).RequestEnd.deferwrap1
++    missing enclave.host/isolation/contract.(*Lifecycle).State.deferwrap1
++    missing enclave.host/isolation/contract.(*State).String
++    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
++    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
++    line enclave.host/isolation/contract.State.String binary 29 tree 28
++    missing enclave.host/isolation/contract.UIDOf.deferwrap1
++    ... 23 more
++  tree t-33f7e73fe: match 37 mismatch 2 missing 30
++    missing enclave.host/isolation/contract.(*Lifecycle).FinishStart.deferwrap1
++    missing enclave.host/isolation/contract.(*Lifecycle).RequestEnd.deferwrap1
++    missing enclave.host/isolation/contract.(*Lifecycle).State.deferwrap1
++    missing enclave.host/isolation/contract.(*State).String
++    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
++    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
++    line enclave.host/isolation/contract.State.String binary 29 tree 28
++    missing enclave.host/isolation/contract.UIDOf.deferwrap1
++    ... 24 more
++  tree t-d2ef66631: match 37 mismatch 1 missing 31
++    missing enclave.host/isolation/contract.(*Lifecycle).FinishStart.deferwrap1
++    missing enclave.host/isolation/contract.(*Lifecycle).RequestEnd.deferwrap1
++    missing enclave.host/isolation/contract.(*Lifecycle).State.deferwrap1
++    missing enclave.host/isolation/contract.(*State).String
++    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
++    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
++    line enclave.host/isolation/contract.State.String binary 29 tree 28
++    missing enclave.host/isolation/contract.UIDOf.deferwrap1
++    ... 24 more
++  tree t-65818c239: match 37 mismatch 1 missing 31
++    missing enclave.host/isolation/contract.(*Lifecycle).FinishStart.deferwrap1
++    missing enclave.host/isolation/contract.(*Lifecycle).RequestEnd.deferwrap1
++    missing enclave.host/isolation/contract.(*Lifecycle).State.deferwrap1
++    missing enclave.host/isolation/contract.(*State).String
++    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
++    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
++    line enclave.host/isolation/contract.State.String binary 29 tree 28
++    missing enclave.host/isolation/contract.UIDOf.deferwrap1
++    ... 24 more
++  tree t-28d642888: match 37 mismatch 1 missing 31
++    missing enclave.host/isolation/contract.(*Lifecycle).FinishStart.deferwrap1
++    missing enclave.host/isolation/contract.(*Lifecycle).RequestEnd.deferwrap1
++    missing enclave.host/isolation/contract.(*Lifecycle).State.deferwrap1
++    missing enclave.host/isolation/contract.(*State).String
++    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
++    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
++    line enclave.host/isolation/contract.State.String binary 29 tree 28
++    missing enclave.host/isolation/contract.UIDOf.deferwrap1
++    ... 24 more
++binary /home/steven/Documents/Codex/2026-10-18/wo/work/resource-guest-lineage-20261023/scratch/f86fb512/plat/front: 148 enclave.host functions
++  tree old: match 88 mismatch 0 missing 60
++    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
++    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
++    missing enclave.host/isolation/contract.UIDOf.deferwrap1
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Addr.deferwrap1
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Close.deferwrap1
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Listeners.deferwrap1
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Start.gowrap1
++    missing enclave.host/isolation/m2/egress.(*Forwarder).forward.deferwrap1
++    ... 52 more
++  tree t-33f7e73fe: match 86 mismatch 2 missing 60
++    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
++    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
++    missing enclave.host/isolation/contract.UIDOf.deferwrap1
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Addr.deferwrap1
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Close.deferwrap1
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Listeners.deferwrap1
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Start.gowrap1
++    missing enclave.host/isolation/m2/egress.(*Forwarder).forward.deferwrap1
++    ... 54 more
++  tree t-d2ef66631: match 55 mismatch 20 missing 73
++    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
++    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
++    missing enclave.host/isolation/contract.UIDOf.deferwrap1
++    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 83
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Addr.deferwrap1
++    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 90
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Close.deferwrap1
++    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 52
++    ... 85 more
++  tree t-65818c239: match 55 mismatch 20 missing 73
++    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
++    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
++    missing enclave.host/isolation/contract.UIDOf.deferwrap1
++    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 83
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Addr.deferwrap1
++    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 90
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Close.deferwrap1
++    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 52
++    ... 85 more
++  tree t-28d642888: match 55 mismatch 20 missing 73
++    missing enclave.host/isolation/contract.FirstWXMapping.deferwrap1
++    missing enclave.host/isolation/contract.SeccompMode.deferwrap1
++    missing enclave.host/isolation/contract.UIDOf.deferwrap1
++    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 83
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Addr.deferwrap1
++    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 90
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Close.deferwrap1
++    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 52
++    ... 85 more
++binary /home/steven/Documents/Codex/2026-10-18/wo/work/resource-guest-lineage-20261023/scratch/f86fb512/plat/secretrun: 9 enclave.host functions
++  tree old: match 9 mismatch 0 missing 0
++  tree t-33f7e73fe: match 8 mismatch 1 missing 0
++    line enclave.host/isolation/m2/shieldconfig.PublicWebMarked binary 13 tree 40
++  tree t-d2ef66631: match 8 mismatch 0 missing 1
++    missing enclave.host/isolation/m2/shieldconfig.PublicWebMarked
++  tree t-65818c239: match 8 mismatch 0 missing 1
++    missing enclave.host/isolation/m2/shieldconfig.PublicWebMarked
++  tree t-28d642888: match 8 mismatch 0 missing 1
++    missing enclave.host/isolation/m2/shieldconfig.PublicWebMarked
+diff --git a/evidence/pclntab-vs-trees-run2-with-main.txt b/evidence/pclntab-vs-trees-run2-with-main.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..1951117bf72daaca7f0c81c8414ad9a11d3f81a6
+--- /dev/null
++++ b/evidence/pclntab-vs-trees-run2-with-main.txt
+@@ -0,0 +1,158 @@
++binary -main: 112 enclave.host functions
++  tree old: match 87 mismatch 1 missing 24
++    missing enclave.host/isolation/contract.(*State).String
++    line enclave.host/isolation/contract.State.String binary 29 tree 28
++    missing enclave.host/isolation/m2/vsock.(*Addr).Network
++    missing enclave.host/isolation/m2/vsock.(*Addr).String
++    missing enclave.host/isolation/m2/vsock.(*Conn).Close
++    missing enclave.host/isolation/m2/vsock.(*Conn).Name
++    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
++    missing enclave.host/isolation/m2/vsock.(*Conn).SetDeadline
++    ... 17 more
++  tree t-33f7e73fe: match 86 mismatch 2 missing 24
++    missing enclave.host/isolation/contract.(*State).String
++    line enclave.host/isolation/contract.State.String binary 29 tree 28
++    line enclave.host/isolation/m2/shieldconfig.PublicWebMode binary 23 tree 26
++    missing enclave.host/isolation/m2/vsock.(*Addr).Network
++    missing enclave.host/isolation/m2/vsock.(*Addr).String
++    missing enclave.host/isolation/m2/vsock.(*Conn).Close
++    missing enclave.host/isolation/m2/vsock.(*Conn).Name
++    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
++    ... 18 more
++  tree t-d2ef66631: match 41 mismatch 46 missing 25
++    missing enclave.host/isolation/contract.(*State).String
++    line enclave.host/isolation/contract.State.String binary 29 tree 28
++    missing enclave.host/isolation/m2/shieldconfig.PublicWebMode
++    missing enclave.host/isolation/m2/vsock.(*Addr).Network
++    missing enclave.host/isolation/m2/vsock.(*Addr).String
++    missing enclave.host/isolation/m2/vsock.(*Conn).Close
++    missing enclave.host/isolation/m2/vsock.(*Conn).Name
++    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
++    ... 63 more
++  tree t-65818c239: match 41 mismatch 46 missing 25
++    missing enclave.host/isolation/contract.(*State).String
++    line enclave.host/isolation/contract.State.String binary 29 tree 28
++    missing enclave.host/isolation/m2/shieldconfig.PublicWebMode
++    missing enclave.host/isolation/m2/vsock.(*Addr).Network
++    missing enclave.host/isolation/m2/vsock.(*Addr).String
++    missing enclave.host/isolation/m2/vsock.(*Conn).Close
++    missing enclave.host/isolation/m2/vsock.(*Conn).Name
++    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
++    ... 63 more
++  tree t-28d642888: match 41 mismatch 46 missing 25
++    missing enclave.host/isolation/contract.(*State).String
++    line enclave.host/isolation/contract.State.String binary 29 tree 28
++    missing enclave.host/isolation/m2/shieldconfig.PublicWebMode
++    missing enclave.host/isolation/m2/vsock.(*Addr).Network
++    missing enclave.host/isolation/m2/vsock.(*Addr).String
++    missing enclave.host/isolation/m2/vsock.(*Conn).Close
++    missing enclave.host/isolation/m2/vsock.(*Conn).Name
++    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
++    ... 63 more
++  tree qbase: match 42 mismatch 46 missing 24
++    missing enclave.host/isolation/contract.(*State).String
++    line enclave.host/isolation/contract.State.String binary 29 tree 28
++    missing enclave.host/isolation/m2/vsock.(*Addr).Network
++    missing enclave.host/isolation/m2/vsock.(*Addr).String
++    missing enclave.host/isolation/m2/vsock.(*Conn).Close
++    missing enclave.host/isolation/m2/vsock.(*Conn).Name
++    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
++    missing enclave.host/isolation/m2/vsock.(*Conn).SetDeadline
++    ... 62 more
++  tree qe: match 42 mismatch 46 missing 24
++    missing enclave.host/isolation/contract.(*State).String
++    line enclave.host/isolation/contract.State.String binary 29 tree 28
++    missing enclave.host/isolation/m2/vsock.(*Addr).Network
++    missing enclave.host/isolation/m2/vsock.(*Addr).String
++    missing enclave.host/isolation/m2/vsock.(*Conn).Close
++    missing enclave.host/isolation/m2/vsock.(*Conn).Name
++    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
++    missing enclave.host/isolation/m2/vsock.(*Conn).SetDeadline
++    ... 62 more
++binary -main: 202 enclave.host functions
++  tree old: match 147 mismatch 0 missing 55
++    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
++    missing enclave.host/isolation/m2/egress.(*Forwarder).publicConnect-fm
++    missing enclave.host/isolation/m2/egress.(*Forwarder).serveDNS-fm
++    missing enclave.host/isolation/m2/egress.(*Origin).String
++    missing enclave.host/isolation/m2/egress.(*bufConn).Close
++    missing enclave.host/isolation/m2/egress.(*bufConn).LocalAddr
++    missing enclave.host/isolation/m2/egress.(*bufConn).RemoteAddr
++    missing enclave.host/isolation/m2/egress.(*bufConn).SetDeadline
++    ... 47 more
++  tree t-33f7e73fe: match 145 mismatch 2 missing 55
++    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
++    missing enclave.host/isolation/m2/egress.(*Forwarder).publicConnect-fm
++    missing enclave.host/isolation/m2/egress.(*Forwarder).serveDNS-fm
++    missing enclave.host/isolation/m2/egress.(*Origin).String
++    missing enclave.host/isolation/m2/egress.(*bufConn).Close
++    missing enclave.host/isolation/m2/egress.(*bufConn).LocalAddr
++    missing enclave.host/isolation/m2/egress.(*bufConn).RemoteAddr
++    missing enclave.host/isolation/m2/egress.(*bufConn).SetDeadline
++    ... 49 more
++  tree t-d2ef66631: match 100 mismatch 34 missing 68
++    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 83
++    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 90
++    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 52
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Listeners
++    line enclave.host/isolation/m2/egress.(*Forwarder).Start binary 70 tree 63
++    line enclave.host/isolation/m2/egress.(*Forwarder).forward binary 139 tree 109
++    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic
++    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
++    ... 94 more
++  tree t-65818c239: match 100 mismatch 34 missing 68
++    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 83
++    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 90
++    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 52
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Listeners
++    line enclave.host/isolation/m2/egress.(*Forwarder).Start binary 70 tree 63
++    line enclave.host/isolation/m2/egress.(*Forwarder).forward binary 139 tree 109
++    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic
++    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
++    ... 94 more
++  tree t-28d642888: match 100 mismatch 34 missing 68
++    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 83
++    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 90
++    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 52
++    missing enclave.host/isolation/m2/egress.(*Forwarder).Listeners
++    line enclave.host/isolation/m2/egress.(*Forwarder).Start binary 70 tree 63
++    line enclave.host/isolation/m2/egress.(*Forwarder).forward binary 139 tree 109
++    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic
++    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
++    ... 94 more
++  tree qbase: match 81 mismatch 65 missing 56
++    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 119
++    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 126
++    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 56
++    line enclave.host/isolation/m2/egress.(*Forwarder).Listeners binary 102 tree 108
++    line enclave.host/isolation/m2/egress.(*Forwarder).Start binary 70 tree 67
++    line enclave.host/isolation/m2/egress.(*Forwarder).forward binary 139 tree 145
++    line enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic binary 273 tree 272
++    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
++    ... 113 more
++  tree qe: match 81 mismatch 65 missing 56
++    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 119
++    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 126
++    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 56
++    line enclave.host/isolation/m2/egress.(*Forwarder).Listeners binary 102 tree 108
++    line enclave.host/isolation/m2/egress.(*Forwarder).Start binary 70 tree 67
++    line enclave.host/isolation/m2/egress.(*Forwarder).forward binary 139 tree 145
++    line enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic binary 273 tree 272
++    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
++    ... 113 more
++binary -main: 11 enclave.host functions
++  tree old: match 11 mismatch 0 missing 0
++  tree t-33f7e73fe: match 10 mismatch 1 missing 0
++    line enclave.host/isolation/m2/shieldconfig.PublicWebMarked binary 13 tree 40
++  tree t-d2ef66631: match 10 mismatch 0 missing 1
++    missing enclave.host/isolation/m2/shieldconfig.PublicWebMarked
++  tree t-65818c239: match 10 mismatch 0 missing 1
++    missing enclave.host/isolation/m2/shieldconfig.PublicWebMarked
++  tree t-28d642888: match 10 mismatch 0 missing 1
++    missing enclave.host/isolation/m2/shieldconfig.PublicWebMarked
++  tree qbase: match 9 mismatch 2 missing 0
++    line main.main binary 15 tree 16
++    line main.run binary 20 tree 21
++  tree qe: match 9 mismatch 2 missing 0
++    line main.main binary 15 tree 16
++    line main.run binary 20 tree 21
+diff --git a/evidence/q-monitor-670a753e0..ea6717d27.patch b/evidence/q-monitor-670a753e0..ea6717d27.patch
+new file mode 100644
+index 0000000000000000000000000000000000000000..75ea28d0970483e3965c278fc3956b006619cb1b
+--- /dev/null
++++ b/evidence/q-monitor-670a753e0..ea6717d27.patch
+@@ -0,0 +1,253 @@
++diff --git a/isolation/m3/monitor/cpu_allowance_test.go b/isolation/m3/monitor/cpu_allowance_test.go
++new file mode 100644
++index 000000000..d3e3313f1
++--- /dev/null
+++++ b/isolation/m3/monitor/cpu_allowance_test.go
++@@ -0,0 +1,78 @@
+++package main
+++
+++import (
+++	"os"
+++	"path/filepath"
+++	"strings"
+++	"testing"
+++
+++	"enclave.host/isolation/contract"
+++)
+++
+++// The launcher's CPU allocation RAISES a bundle domain's cgroup quota above the catalog cpuPercent, as its RAM allocation
+++// raises memory.max; it never lowers the catalog minimum, never exceeds the processors online, and is never ignored.
+++func TestCPUAllowanceRaisesCatalogShare(t *testing.T) {
+++	man := &contract.Manifest{Policy: contract.Policy{CPUPercent: 100, MemMiB: 512, Vcpus: 1}}
+++	ok := []struct {
+++		req      request
+++		cpus     int
+++		cpu, mem int
+++	}{
+++		{request{}, 4, 100, 512},                          // nothing asked: the catalog's share, exactly as before
+++		{request{CPU: 336, MemMiB: 20643}, 4, 336, 20643}, // a 21% share of 16 VPs: 4 VPs at 84%
+++		{request{CPU: 400}, 4, 400, 512},                  // every online processor
+++		{request{CPU: 100}, 1, 100, 512},                  // the catalog share itself is always allowed
+++		{request{CPU: 208}, 3, 208, 512},                  // 13%: 3 VPs at 69.333%, quota rounded UP so the VM cap binds
+++	}
+++	for _, c := range ok {
+++		pol, err := allocatedPolicy(man, c.req, c.cpus)
+++		if err != nil || pol.CPUPercent != c.cpu || pol.MemMiB != c.mem || pol.Vcpus != 1 {
+++			t.Fatalf("%+v on %d CPUs: %+v %v", c.req, c.cpus, pol, err)
+++		}
+++	}
+++	if man.Policy.CPUPercent != 100 {
+++		t.Fatalf("the hashed manifest's policy was changed: %+v", man.Policy)
+++	}
+++	for _, c := range []struct {
+++		req  request
+++		cpus int
+++	}{{request{CPU: 16}, 16}, {request{CPU: -5}, 4}, {request{CPU: 401}, 4}, {request{CPU: 200}, 1}, {request{MemMiB: 256}, 4}} {
+++		if pol, err := allocatedPolicy(man, c.req, c.cpus); err == nil {
+++			t.Fatalf("%+v on %d CPUs was accepted: %+v", c.req, c.cpus, pol)
+++		}
+++	}
+++	// a bare artifact (no manifest) keeps the request's numbers, exactly as before
+++	if pol, err := allocatedPolicy(nil, request{CPU: 50, MemMiB: 128}, 1); err != nil || pol.CPUPercent != 50 || pol.MemMiB != 128 {
+++		t.Fatalf("bare artifact: %+v %v", pol, err)
+++	}
+++}
+++
+++// What was allocated is what the domain's cgroup gets: cpu.max quota per 100000 us period.
+++func TestCPUAllowanceReachesCgroup(t *testing.T) {
+++	man := &contract.Manifest{Policy: contract.Policy{CPUPercent: 100, MemMiB: 512, Vcpus: 1}}
+++	pol, err := allocatedPolicy(man, request{CPU: 336}, 4)
+++	if err != nil {
+++		t.Fatal(err)
+++	}
+++	m := &monitor{}
+++	d := &domain{CPU: pol.CPUPercent, MemMiB: pol.MemMiB, cgroup: filepath.Join(t.TempDir(), "dom1")}
+++	// cgroupfs creates the control files with the directory; a plain directory needs them made first
+++	if err := os.MkdirAll(d.cgroup, 0o755); err != nil {
+++		t.Fatal(err)
+++	}
+++	for _, f := range []string{"cpu.max", "memory.max", "pids.max"} {
+++		if err := os.WriteFile(filepath.Join(d.cgroup, f), nil, 0o644); err != nil {
+++			t.Fatal(err)
+++		}
+++	}
+++	if err := m.cgroup(d); err != nil {
+++		t.Fatal(err)
+++	}
+++	got, err := os.ReadFile(filepath.Join(d.cgroup, "cpu.max"))
+++	if err != nil {
+++		t.Fatal(err)
+++	}
+++	if strings.TrimSpace(string(got)) != "336000 100000" {
+++		t.Fatalf("cpu.max = %q", got)
+++	}
+++}
++diff --git a/isolation/m3/monitor/cpu_load_test.go b/isolation/m3/monitor/cpu_load_test.go
++new file mode 100644
++index 000000000..8b99bdbe3
++--- /dev/null
+++++ b/isolation/m3/monitor/cpu_load_test.go
++@@ -0,0 +1,80 @@
+++package main
+++
+++import (
+++	"bufio"
+++	"bytes"
+++	"encoding/json"
+++	"os"
+++	"path/filepath"
+++	"runtime"
+++	"strings"
+++	"testing"
+++
+++	"enclave.host/isolation/contract"
+++)
+++
+++// THE REAL LOAD PATH, without root: a catalog bundle (cpuPercent 100) is loaded with the launcher's cpu, through m.load's
+++// own read, hash, parse and policy, and startDomain is replaced only to stop before any process exists and to point the
+++// domain's cgroup writer at a temporary directory. Uses only load, cgroup and the startDomain seam, so the same file runs
+++// on the pre-fix monitor, where the request's cpu was ignored and the domain kept cpu.max "100000 100000".
+++func loadWithCPU(t *testing.T, cpu int) (*domain, string, error) {
+++	t.Helper()
+++	if runtime.NumCPU() < 4 {
+++		t.Skip("needs 4 online processors for a 336% allocation")
+++	}
+++	component := append([]byte{0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00}, []byte("cpu-load-test")...)
+++	bundle, err := contract.Build(contract.Manifest{Policy: contract.Policy{CPUPercent: 100, MemMiB: 512, Vcpus: 1}}, component)
+++	if err != nil {
+++		t.Fatal(err)
+++	}
+++	cg := filepath.Join(t.TempDir(), "dom")
+++	orig := startDomain
+++	t.Cleanup(func() { startDomain = orig })
+++	startDomain = func(m *monitor, d *domain, _ []byte) error {
+++		d.cgroup = cg // cgroupfs makes the control files with the directory; a plain one needs them first
+++		if err := os.MkdirAll(cg, 0o755); err != nil {
+++			return err
+++		}
+++		for _, f := range []string{"cpu.max", "memory.max", "pids.max"} {
+++			if err := os.WriteFile(filepath.Join(cg, f), nil, 0o644); err != nil {
+++				return err
+++			}
+++		}
+++		return m.cgroup(d)
+++	}
+++	m := newMonitor(false, "/plat", t.TempDir(), 40000, 5000)
+++	m.noDomains = ""
+++	d, err := m.load(bufio.NewReader(bytes.NewReader(bundle)), request{Cmd: "load", Label: "cpu", Size: len(bundle), CPU: cpu})
+++	if err != nil {
+++		return nil, "", err
+++	}
+++	got, err := os.ReadFile(filepath.Join(cg, "cpu.max"))
+++	if err != nil {
+++		t.Fatal(err)
+++	}
+++	return d, strings.TrimSpace(string(got)), nil
+++}
+++
+++func TestLoadAppliesTheLaunchersCPUAllocation(t *testing.T) {
+++	d, cpuMax, err := loadWithCPU(t, 336)
+++	if err != nil {
+++		t.Fatalf("a 336%% allocation over a catalog 100%% was refused: %v", err)
+++	}
+++	ans, _ := json.Marshal(d) // the load answer is this domain, encoded
+++	if d.CPU != 336 || cpuMax != "336000 100000" || !bytes.Contains(ans, []byte(`"cpuPercent":336`)) {
+++		t.Fatalf("asked 336: domain cpuPercent %d, cgroup cpu.max %q, answer %s", d.CPU, cpuMax, ans)
+++	}
+++}
+++
+++func TestLoadWithoutAllocationKeepsTheCatalogShare(t *testing.T) {
+++	d, cpuMax, err := loadWithCPU(t, 0)
+++	if err != nil || d.CPU != 100 || cpuMax != "100000 100000" {
+++		t.Fatalf("no allocation: %v %v %q", d, err, cpuMax)
+++	}
+++}
+++
+++func TestLoadRefusesAnAllocationBelowTheCatalogShare(t *testing.T) {
+++	if d, cpuMax, err := loadWithCPU(t, 16); err == nil {
+++		t.Fatalf("16%% under a catalog 100%% was loaded (cpuPercent %d, cpu.max %q) instead of refused", d.CPU, cpuMax)
+++	}
+++}
++diff --git a/isolation/m3/monitor/main.go b/isolation/m3/monitor/main.go
++index 0951a9dfd..35acdf3f0 100644
++--- a/isolation/m3/monitor/main.go
+++++ b/isolation/m3/monitor/main.go
++@@ -49,6 +49,7 @@ import (
++ 	"os"
++ 	"os/exec"
++ 	"path/filepath"
+++	"runtime"
++ 	"strconv"
++ 	"strings"
++ 	"sync"
++@@ -483,14 +484,9 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
++ 			return nil, err
++ 		}
++ 	}
++-	pol := contract.EffectivePolicy(manifest, contract.Request{CPU: req.CPU, MemMiB: req.MemMiB})
++-	// Physical RAM is an availability allocation, separate from the immutable
++-	// catalog minimum in the hashed bundle. The launcher may raise that limit.
++-	if manifest != nil && req.MemMiB != 0 {
++-		if req.MemMiB < pol.MemMiB || req.MemMiB > 1048576 {
++-			return nil, fmt.Errorf("memory allocation is below the catalog minimum or outside host bounds")
++-		}
++-		pol.MemMiB = req.MemMiB
+++	pol, perr := allocatedPolicy(manifest, req, runtime.NumCPU())
+++	if perr != nil {
+++		return nil, perr
++ 	}
++ 	var inference *contract.Inference
++ 	if manifest != nil {
++@@ -535,7 +531,7 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
++ 	if manifest != nil {
++ 		d.Ports = append([]string(nil), manifest.Ports...)
++ 	}
++-	if err := m.start(d, artifact); err != nil {
+++	if err := startDomain(m, d, artifact); err != nil {
++ 		return nil, err // start() has already released whatever it managed to take
++ 	}
++ 	fmt.Printf("MON domain %d loaded label=%s app_sha256=%s port=%d uid=%d front_uid=%d cpu=%d%% mem=%dMiB mode=%s http=%d\n",
++@@ -543,6 +539,10 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
++ 	return d, nil
++ }
++ 
+++// startDomain is load's call into start: a test seam only (a load test without root replaces it to stop before any process
+++// or real cgroup exists). Production never reassigns it.
+++var startDomain = (*monitor).start
+++
++ // start builds the domain's root, its share, and the process tree that runs it. The domain is in the
++ // table BEFORE its first instruction, so however it ends — including during startup — the reaper can
++ // find it and retire it.
++@@ -1511,6 +1511,32 @@ func (m *monitor) hostReport(rd []byte) ([]byte, []byte, error) {
++ 
++ // certNameOK: <8 lowercase hex>.<zone>, the app-zone name shape (isolation/m2/front certs.go nameFromHostData), at
++ // most 253 bytes, zone labels of lowercase letters, digits and hyphens.
+++// allocatedPolicy is a domain's share: the catalog's (EffectivePolicy: the hashed bundle wins), RAISED where the launcher
+++// allocates more. Physical RAM and CPU are availability allocations, separate from the immutable catalog minimum in the
+++// hashed bundle: the AppID and every report still name the bundle's own policy. An allocation may never go below that
+++// minimum, and CPU (percent of one processor, cgroup cpu.max) never past the processors this guest has online, so one
+++// the guest cannot honour is refused rather than ignored. The load answer states what was applied (cpuPercent, memMiB).
+++func allocatedPolicy(manifest *contract.Manifest, req request, onlineCPUs int) (contract.Policy, error) {
+++	pol := contract.EffectivePolicy(manifest, contract.Request{CPU: req.CPU, MemMiB: req.MemMiB})
+++	if manifest == nil {
+++		return pol, nil
+++	}
+++	if req.MemMiB != 0 {
+++		if req.MemMiB < pol.MemMiB || req.MemMiB > 1048576 {
+++			return pol, fmt.Errorf("memory allocation is below the catalog minimum or outside host bounds")
+++		}
+++		pol.MemMiB = req.MemMiB
+++	}
+++	if req.CPU != 0 {
+++		if req.CPU < pol.CPUPercent || req.CPU > onlineCPUs*100 {
+++			return pol, fmt.Errorf("cpu allocation %d%% is below the catalog cpuPercent %d or above this guest's %d online processors",
+++				req.CPU, pol.CPUPercent, onlineCPUs)
+++		}
+++		pol.CPUPercent = req.CPU
+++	}
+++	return pol, nil
+++}
+++
++ func certNameOK(n string) bool {
++ 	if len(n) > 253 || len(n) < 10 || n[8] != '.' {
++ 		return false
+diff --git a/jobs/embed.py b/jobs/embed.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ba8ab14cbff3826e8efcc8555d2ab32abc6397d
+--- /dev/null
++++ b/jobs/embed.py
+@@ -0,0 +1,14 @@
++#!/usr/bin/env python3
++# embed.py: hashes the kit inputs and checks whether 64 KiB windows from each appear verbatim in the production runtime.bin
++import hashlib, sys
++K='/home/steven/Documents/Codex/2026-10-18/wo/work/certificate-release-prep/image-kit/inputs/'
++B=open('/home/steven/enclave-bench/nucbox-public-web-20261005/runtime.bin','rb').read()
++print('runtime.bin', hashlib.sha256(B).hexdigest(), len(B))
++for name in ['runtime-baseline.cpio.gz','kernel-vtpm.elf','openhcl-shield.cpio.gz']:
++    x=open(K+name,'rb').read()
++    hits=[]
++    for frac in (0.1,0.5,0.9):
++        o=int(len(x)*frac)&~0xfff; w=x[o:o+65536]
++        hits.append(B.find(w))
++    print(name, hashlib.sha256(x).hexdigest(), len(x), 'window offsets in runtime.bin:', hits)
++    del x
+diff --git a/jobs/extract.py b/jobs/extract.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..63b71b825eafb3776161e5fe9e042fa152001934
+--- /dev/null
++++ b/jobs/extract.py
+@@ -0,0 +1,21 @@
++#!/usr/bin/env python3
++# usage: extract.py <cpio.gz> <outdir>: newc cpio, regular files + dirs only, never follows paths outside outdir
++import gzip, hashlib, json, os, sys, stat
++src, out = sys.argv[1], sys.argv[2]
++data = gzip.open(src).read()
++o, rows = 0, []
++while True:
++    h = data[o:o+110]; assert h[:6] in (b"070701", b"070702"), h[:6]
++    f = [int(h[6+8*i:14+8*i], 16) for i in range(13)]
++    mode, fsize, nsize = f[1], f[6], f[11]
++    name = data[o+110:o+110+nsize-1].decode(); o = (o + 110 + nsize + 3) & ~3
++    body = data[o:o+fsize]; o = (o + fsize + 3) & ~3
++    if name == "TRAILER!!!": break
++    p = os.path.normpath(os.path.join(out, name)); assert p.startswith(os.path.abspath(out)) or p.startswith(out)
++    if stat.S_ISDIR(mode): os.makedirs(p, exist_ok=True)
++    elif stat.S_ISREG(mode):
++        os.makedirs(os.path.dirname(p), exist_ok=True); open(p, "wb").write(body)
++    rows.append({"path": name, "mode": oct(mode), "bytes": fsize, "sha256": hashlib.sha256(body).hexdigest(),
++                 **({"link": body.decode()} if stat.S_ISLNK(mode) else {})})
++json.dump(rows, open(os.path.join(os.path.dirname(out.rstrip("/")), "f86fb512-files.json"), "w"), indent=1)
++print(len(rows), "entries")
+diff --git a/jobs/pcline.sh b/jobs/pcline.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..03c250298248dde3ddd7d13b6f8eebd97f482727
+--- /dev/null
++++ b/jobs/pcline.sh
+@@ -0,0 +1,11 @@
++#!/bin/bash
++set -euo pipefail
++D=/home/steven/Documents/Codex/2026-10-18/wo/work/resource-guest-lineage-20261023
++export GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOCACHE=$D/scratch/gocache GOMAXPROCS=1 GOMEMLIMIT=256MiB
++cd $D/tools/pcline
++go vet . && go build -o $D/scratch/pcline .
++S=$D/scratch
++T="$S/old $S/t-33f7e73fe $S/t-d2ef66631 $S/t-65818c239 $S/t-28d642888 $S/qbase $S/qe"
++$S/pcline -main isolation/m3/monitor $S/f86fb512/monitor $T
++$S/pcline -main isolation/m2/front $S/f86fb512/plat/front $T
++$S/pcline -main isolation/m3/secretrun $S/f86fb512/plat/secretrun $T
+diff --git a/jobs/porttest.sh b/jobs/porttest.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..08534a8b7a26b48f256d5dce29fa2ea6752303f0
+--- /dev/null
++++ b/jobs/porttest.sh
+@@ -0,0 +1,10 @@
++#!/bin/bash
++set -uo pipefail
++D=/home/steven/Documents/Codex/2026-10-18/wo/work/resource-guest-lineage-20261023
++export GOTOOLCHAIN=local GOPROXY=off GOFLAGS=-mod=mod GOCACHE=$D/scratch/gocache GOMAXPROCS=2 GOMEMLIMIT=512MiB CGO_ENABLED=0
++for t in rw port; do
++  echo "=== $t: go vet + go test ./monitor ./secretrun (isolation/m3)"
++  (cd $D/scratch/$t/isolation/m3 && gofmt -l monitor secretrun; go vet ./monitor && go test -count=1 ./monitor ./secretrun 2>&1 | tail -15); echo "rc=$?"
++done
++echo "=== port: focused CPU tests verbose"
++(cd $D/scratch/port/isolation/m3 && go test -count=1 -run 'CPU|Allowance|Allocated' -v ./monitor 2>&1 | grep -E "^(=== RUN|--- |ok|FAIL|PASS)" | head -40)
+diff --git a/jobs/probe1.sh b/jobs/probe1.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..9a9fe387c7bac02679ff830db8c6284dfdfb60d2
+--- /dev/null
++++ b/jobs/probe1.sh
+@@ -0,0 +1,11 @@
++#!/bin/bash
++set -euo pipefail
++D=/home/steven/Documents/Codex/2026-10-18/wo/work/resource-guest-lineage-20261023
++rm -rf $D/scratch/f86fb512; mkdir -p $D/scratch/f86fb512
++python3 -I $D/jobs/extract.py /home/steven/enclave-bench/nucbox-public-web-20261005/runtime-public-web.cpio.gz $D/scratch/f86fb512
++cd $D/scratch/f86fb512
++for f in init monitor plat/domexec plat/front plat/domprobe $(find . -type f -perm -u+x | sed 's|^\./||' | grep -v '^plat/rt/' | sort -u); do
++  [ -f "$f" ] || continue
++  echo "=== $f $(sha256sum < $f | cut -c1-16) $(file -b $f | cut -c1-90)"
++  go version -m "$f" 2>/dev/null || echo "(no go buildinfo)"
++done
+diff --git a/jobs/repack-id.sh b/jobs/repack-id.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..9b13d1589dc29d13e07f0a11e39971c30df03093
+--- /dev/null
++++ b/jobs/repack-id.sh
+@@ -0,0 +1,7 @@
++#!/bin/bash
++set -euo pipefail
++D=/home/steven/Documents/Codex/2026-10-18/wo/work/resource-guest-lineage-20261023
++B=/home/steven/enclave-bench/nucbox-public-web-20261005/runtime-public-web.cpio.gz
++python3 -I $D/jobs/repack.py $B $D/scratch/identity.cpio
++echo "gzip -n -9 identity: $(gzip -n -9 -c $D/scratch/identity.cpio | sha256sum | cut -d' ' -f1)  (baseline $(sha256sum < $B | cut -d' ' -f1))"
++gzip --version | head -1
+diff --git a/jobs/repack.py b/jobs/repack.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..78459ebff13ced56f7f7720a3f186816c61c57c7
+--- /dev/null
++++ b/jobs/repack.py
+@@ -0,0 +1,31 @@
++#!/usr/bin/env python3
++# repack.py <baseline.cpio.gz> <out.cpio.gz|out.cpio|-> [path=replacement-file ...]  (.cpio = uncompressed, for gzip -n -9)
++# The f86fb512 initrd convention: newc with UPPERCASE hex fields, entries in the baseline's own order, ino = index from 0, uid/gid/mtime/dev 0,
++# nlink as the baseline, gzip -n -9 (mtime 0, OS 3). With no replacements the output must equal the baseline.
++import gzip, hashlib, sys, zlib
++src, out, reps = sys.argv[1], sys.argv[2], dict(a.split("=", 1) for a in sys.argv[3:])
++data = gzip.decompress(open(src, "rb").read())
++o, entries, tail = 0, [], b""
++while True:
++    f = [int(data[o+6+8*i:o+14+8*i], 16) for i in range(13)]
++    ns = f[11]; name = data[o+110:o+110+ns-1].decode(); o2 = (o + 110 + ns + 3) & ~3
++    body = data[o2:o2+f[6]]; nxt = (o2 + f[6] + 3) & ~3
++    entries.append((f, name, body)); o = nxt
++    if name == "TRAILER!!!": tail = data[o:]; break
++seen = set()
++raw = bytearray()
++for i, (f, name, body) in enumerate(entries):
++    if name in reps:
++        body = open(reps[name], "rb").read(); seen.add(name)
++    g = list(f); g[0] = i if name != "TRAILER!!!" else 0; g[6] = len(body)
++    nb = name.encode() + b"\0"; g[11] = len(nb)
++    h = b"070701" + "".join(f"{v:08X}" for v in g).encode() + nb
++    raw += h + b"\0" * ((-len(h)) % 4) + body + b"\0" * ((-len(body)) % 4)
++raw += tail
++assert seen == set(reps), (seen, reps)
++c = zlib.compressobj(9, zlib.DEFLATED, -15, 9)
++gz = b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x02\x03" + c.compress(bytes(raw)) + c.flush() + zlib.crc32(raw).to_bytes(4, "little") + (len(raw) & 0xffffffff).to_bytes(4, "little")
++print("uncompressed identical to baseline:", bytes(raw) == data, "trailing pad bytes:", len(tail))
++print("output sha256:", hashlib.sha256(gz).hexdigest(), len(gz))
++if out.endswith(".cpio"): open(out, "wb").write(bytes(raw))
++elif out != "-": open(out, "wb").write(gz)
+diff --git a/tools/pcline/go.mod b/tools/pcline/go.mod
+new file mode 100644
+index 0000000000000000000000000000000000000000..b1e4916f1ae49f97c7858a583d3a2e91cd24b92f
+--- /dev/null
++++ b/tools/pcline/go.mod
+@@ -0,0 +1,3 @@
++module lineage/pcline
++
++go 1.27
+diff --git a/tools/pcline/main.go b/tools/pcline/main.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec71251bca964b72626046c1096cf6ad9c82b465
+--- /dev/null
++++ b/tools/pcline/main.go
+@@ -0,0 +1,152 @@
++// pcline: for every function of the enclave.host packages in a Go binary, the declaration line its pclntab states,
++// compared with the declaration line in each candidate source tree. Read-only; standard library only.
++//
++//	pcline <binary> <tree>...   (tree = a directory holding isolation/{m2,m3,contract})
++package main
++
++import (
++	"debug/elf"
++	"debug/gosym"
++	"fmt"
++	"go/ast"
++	"go/parser"
++	"go/token"
++	"os"
++	"path/filepath"
++	"sort"
++	"strings"
++)
++
++// mainDir: the binary's own package "main" (pcline -main isolation/m3/monitor ...)
++var mainDir string
++
++func dirOf(pkg string) (string, bool) {
++	if pkg == "main" && mainDir != "" {
++		return mainDir, true
++	}
++	for _, p := range []string{"enclave.host/isolation/m2", "enclave.host/isolation/m3", "enclave.host/isolation/contract"} {
++		if pkg == p || strings.HasPrefix(pkg, p+"/") {
++			return "isolation/" + strings.TrimPrefix(pkg, "enclave.host/isolation/"), true
++		}
++	}
++	return "", false
++}
++
++// decls: "pkgpath.Func" or "pkgpath.(*T).M" / "pkgpath.T.M" -> line, from the non-test files of the package dir.
++func decls(tree, pkg string, cache map[string]map[string]int) map[string]int {
++	if m, ok := cache[pkg]; ok {
++		return m
++	}
++	m := map[string]int{}
++	cache[pkg] = m
++	dir, _ := dirOf(pkg)
++	fs := token.NewFileSet()
++	files, _ := filepath.Glob(filepath.Join(tree, dir, "*.go"))
++	for _, f := range files {
++		if strings.HasSuffix(f, "_test.go") {
++			continue
++		}
++		af, err := parser.ParseFile(fs, f, nil, parser.SkipObjectResolution)
++		if err != nil {
++			continue
++		}
++		for _, d := range af.Decls {
++			fd, ok := d.(*ast.FuncDecl)
++			if !ok {
++				continue
++			}
++			name := fd.Name.Name
++			if fd.Recv != nil && len(fd.Recv.List) == 1 {
++				t := fd.Recv.List[0].Type
++				ptr := false
++				if s, ok := t.(*ast.StarExpr); ok {
++					ptr, t = true, s.X
++				}
++				if ix, ok := t.(*ast.IndexExpr); ok {
++					t = ix.X
++				}
++				id, ok := t.(*ast.Ident)
++				if !ok {
++					continue
++				}
++				if ptr {
++					name = "(*" + id.Name + ")." + name
++				} else {
++					name = id.Name + "." + name
++				}
++			}
++			key := pkg + "." + name
++			if name == "init" {
++				continue // several per package
++			}
++			m[key] = fs.Position(fd.Pos()).Line
++		}
++	}
++	return m
++}
++
++func main() {
++	args := os.Args[1:]
++	if len(args) > 2 && args[0] == "-main" {
++		mainDir, args = args[1], args[2:]
++	}
++	f, err := elf.Open(args[0])
++	if err != nil {
++		panic(err)
++	}
++	pcln := f.Section(".gopclntab")
++	text := f.Section(".text")
++	if pcln == nil || text == nil {
++		panic("no .gopclntab/.text")
++	}
++	data, _ := pcln.Data()
++	tab, err := gosym.NewTable(nil, gosym.NewLineTable(data, text.Addr))
++	if err != nil {
++		panic(err)
++	}
++	type fn struct {
++		pkg, key string
++		line     int
++	}
++	var fns []fn
++	for _, s := range tab.Funcs {
++		pkg := s.PackageName()
++		if _, ok := dirOf(pkg); !ok {
++			continue
++		}
++		name := strings.TrimPrefix(s.Name, pkg+".")
++		if strings.Contains(name, ".func") || strings.Contains(name, "[") || strings.Contains(name, "wrap") || strings.HasPrefix(name, "init") {
++			continue
++		}
++		_, line, _ := tab.PCToLine(s.Entry)
++		fns = append(fns, fn{pkg, pkg + "." + name, line})
++	}
++	sort.Slice(fns, func(i, j int) bool { return fns[i].key < fns[j].key })
++	fmt.Printf("binary %s: %d enclave.host functions\n", os.Args[1], len(fns))
++	for _, tree := range args[1:] {
++		cache := map[string]map[string]int{}
++		match, mismatch, missing := 0, 0, 0
++		var bad []string
++		for _, x := range fns {
++			want, ok := decls(tree, x.pkg, cache)[x.key]
++			switch {
++			case !ok:
++				missing++
++				bad = append(bad, "missing "+x.key)
++			case want == x.line:
++				match++
++			default:
++				mismatch++
++				bad = append(bad, fmt.Sprintf("line %s binary %d tree %d", x.key, x.line, want))
++			}
++		}
++		fmt.Printf("  tree %s: match %d mismatch %d missing %d\n", filepath.Base(tree), match, mismatch, missing)
++		for i, b := range bad {
++			if i == 8 {
++				fmt.Printf("    ... %d more\n", len(bad)-8)
++				break
++			}
++			fmt.Println("    " + b)
++		}
++	}
++}

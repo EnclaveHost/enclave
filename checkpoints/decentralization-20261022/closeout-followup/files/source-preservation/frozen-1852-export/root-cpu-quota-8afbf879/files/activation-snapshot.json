@@ -1,0 +1,447 @@
+{
+  "nativeVms": [
+    {
+      "Id": "99581b30-de5f-450b-ac23-90d0735f3487",
+      "Name": "enclave-app-hv255b5ea98b99cf-ea9d4773",
+      "State": 2
+    },
+    {
+      "Id": "3b8a3271-757c-4d96-9685-508af3e90fd4",
+      "Name": "enclave-app-hv2dd42ee0ca9d66-46de1836",
+      "State": 2
+    },
+    {
+      "Id": "8a745c7d-4da8-4ba6-9690-c87f924fb3a9",
+      "Name": "enclave-app-hv3c8e73d2d9c235-322c5206",
+      "State": 2
+    },
+    {
+      "Id": "29b799d0-98e6-43bb-9adf-5274dfe89e19",
+      "Name": "enclave-app-hv5e00a0f0dfae61-3dfcbff8",
+      "State": 2
+    },
+    {
+      "Id": "f38952e3-537b-4271-85cd-6c14e993ee5c",
+      "Name": "enclave-app-hvba429ebb1c40a9-10c44a8a",
+      "State": 2
+    },
+    {
+      "Id": "2f48ce4f-c8e0-4de9-ac7b-18d8c13bdf07",
+      "Name": "enclave-app-hvc18d297da5a21b-a79db30f",
+      "State": 2
+    },
+    {
+      "Id": "c4ac6e3d-9482-4e84-8f6a-8227edcb9e3d",
+      "Name": "enclave-app-hvc6c4073c817dad-ad0f596e",
+      "State": 2
+    },
+    {
+      "Id": "07097d0e-65e3-4a84-8756-cc984cee2f1a",
+      "Name": "enclave-app-hvdc425d67f2b0e1-3f770400",
+      "State": 2
+    },
+    {
+      "Id": "dd22abf9-4ec1-4159-90fd-56b7115e986a",
+      "Name": "enclave-app-hvdd8cb84cf13a4e-f4322953",
+      "State": 2
+    },
+    {
+      "Id": "14df250c-65f8-4218-8838-086d4f77cb6a",
+      "Name": "enclave-app-hve60d223d27d01b-9e2053bc",
+      "State": 2
+    },
+    {
+      "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+      "Name": "enclave-control",
+      "State": 2
+    },
+    {
+      "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+      "Name": "enclave-storage",
+      "State": 2
+    }
+  ],
+  "managerCpu": null,
+  "managerMemory": {
+    "rule": "cpu-share",
+    "poolMiB": 98304
+  },
+  "config": {
+    "ENCLAVE_WMISERVE_EXE": "C:\\Program Files\\Enclave\\bin\\shield-host.exe",
+    "NODE_APP_RAM_GB": "96",
+    "ENCLAVE_RUNTIME_IDENTITY": "C:\\Program Files\\Enclave\\guest\\runtime.json",
+    "ENCLAVE_GUEST_IGVM_SHA256": "5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "ENCLAVE_WMISERVE_EXE_SHA256": "4feb0adffdd412358d3d67437e096ff5001d38d85fbbc79c9ba73f01dd5242a8",
+    "ENCLAVE_GUEST_IGVM": "C:\\Program Files\\Enclave\\guest\\runtime.bin",
+    "ENCLAVE_NETWORK_SHIELD_POLICY": "C:\\Program Files\\Enclave\\network\\admitted-shield-policy.json"
+  },
+  "at": "2026-10-23T18:46:03.0369064Z",
+  "managerVms": [
+    {
+      "id": "hvc18d297da5a21bc3cbae5836531b00c2",
+      "name": "shield-readiness-v1",
+      "status": "running",
+      "memory": null,
+      "cpu": null,
+      "recovered": null
+    },
+    {
+      "id": "hvc6c4073c817dadf1d692f67b6f9222e3",
+      "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "running",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.01,
+        "appMiB": 983,
+        "vmMiB": 2048
+      },
+      "cpu": null,
+      "recovered": null
+    },
+    {
+      "id": "hvba429ebb1c40a95c27186168f7669f74",
+      "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "status": "running",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.02,
+        "appMiB": 1966,
+        "vmMiB": 2606
+      },
+      "cpu": null,
+      "recovered": null
+    },
+    {
+      "id": "hvdc425d67f2b0e16d83e393766f786d10",
+      "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "status": "running",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.01,
+        "appMiB": 983,
+        "vmMiB": 2048
+      },
+      "cpu": null,
+      "recovered": null
+    },
+    {
+      "id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d",
+      "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "status": "running",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.25,
+        "appMiB": 24576,
+        "vmMiB": 25216
+      },
+      "cpu": null,
+      "recovered": null
+    },
+    {
+      "id": "hv5e00a0f0dfae6122912103ad8361ce22",
+      "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "status": "running",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.01,
+        "appMiB": 983,
+        "vmMiB": 2048
+      },
+      "cpu": null,
+      "recovered": null
+    },
+    {
+      "id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c",
+      "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "status": "running",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.01,
+        "appMiB": 983,
+        "vmMiB": 2048
+      },
+      "cpu": null,
+      "recovered": null
+    },
+    {
+      "id": "hv255b5ea98b99cf19c2e420f6a5a271ca",
+      "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "status": "running",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.21,
+        "appMiB": 20643,
+        "vmMiB": 21284
+      },
+      "cpu": null,
+      "recovered": null
+    },
+    {
+      "id": "hve60d223d27d01b8bcacb65a8e46f2e78",
+      "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "running",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.04,
+        "appMiB": 3932,
+        "vmMiB": 4572
+      },
+      "cpu": null,
+      "recovered": null
+    },
+    {
+      "id": "hv2dd42ee0ca9d667ebb314782286900d0",
+      "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "status": "running",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.02,
+        "appMiB": 1966,
+        "vmMiB": 2606
+      },
+      "cpu": null,
+      "recovered": null
+    }
+  ],
+  "availability": {
+    "nodeRamGb": 96,
+    "ramGbFree": 16.3,
+    "cpuShareFree": 0.17,
+    "maxShare": 0.17
+  },
+  "files": {
+    "cpu-share.mjs": "absent",
+    "wmiserve-run.mjs": "8107f272741c40a3d6ea51c0054d5fdc0904cd277346265cd01ca9de1c74ed17",
+    "node-config.cmd": "67192775312d507a99e7094eb0101f8a7c28884830ea0e82ee241ceb7a8b9ff1",
+    "main.mjs": "11b42b3a3c66967fa4b260f9adca288f618e2e2b4f28e7487f2632ebcd6cb876",
+    "server.mjs": "58b5d7fd76e7d3bbd3c64780a27e8475dce4dd1aa21753f1e44aaee9c5ea8beb",
+    "shield-config.cmd": "5e7f983d7897308345344b117bf2388f64a838cda06416423c0f8aa8287df518",
+    "wmi-launcher.mjs": "33ef5f0e57755e596a50a11a256d8a4b831a90dfd4cda6a9699f8761be4a4592"
+  },
+  "tasks": [
+    {
+      "actions": [
+        {
+          "Execute": "cmd.exe",
+          "Arguments": "/c \"C:\\ProgramData\\Enclave\\run-card.cmd\""
+        }
+      ],
+      "name": "Card",
+      "state": "Running"
+    },
+    {
+      "actions": [
+        {
+          "Execute": "C:\\Program Files\\Enclave\\host-services\\hs2\\bin\\hostsvc-supervisor.exe",
+          "Arguments": "run \"C:\\ProgramData\\Enclave\\host-services\\hs2\\config\\supervisor.json\""
+        }
+      ],
+      "name": "enclave-host-services-hs2",
+      "state": "Ready"
+    },
+    {
+      "actions": [
+        {
+          "Execute": "cmd.exe",
+          "Arguments": "/c \"C:\\ProgramData\\Enclave\\run-network.cmd\""
+        }
+      ],
+      "name": "Network",
+      "state": "Running"
+    },
+    {
+      "actions": [
+        {
+          "Execute": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+          "Arguments": "\"C:\\ProgramData\\Enclave\\network-checker\\run-checker.mjs\""
+        }
+      ],
+      "name": "NetworkChecker",
+      "state": "Running"
+    },
+    {
+      "actions": [
+        {
+          "Execute": "cmd.exe",
+          "Arguments": "/c \"C:\\ProgramData\\Enclave\\run-node.cmd\""
+        }
+      ],
+      "name": "Node",
+      "state": "Running"
+    },
+    {
+      "actions": [
+        {
+          "Execute": "cmd.exe",
+          "Arguments": "/c \"C:\\ProgramData\\Enclave\\run-relay.cmd\""
+        }
+      ],
+      "name": "Relay",
+      "state": "Running"
+    },
+    {
+      "actions": [
+        {
+          "Execute": "cmd.exe",
+          "Arguments": "/c \"C:\\ProgramData\\Enclave\\run-shield.cmd\""
+        }
+      ],
+      "name": "Shield",
+      "state": "Running"
+    },
+    {
+      "actions": [
+        {
+          "Execute": "powershell.exe",
+          "Arguments": "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \"C:\\Program Files\\Enclave\\update-host.ps1\""
+        }
+      ],
+      "name": "Update",
+      "state": "Ready"
+    }
+  ],
+  "deployments": [
+    {
+      "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+      "status": "queued",
+      "reason": "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no (this box charges 84/sec per whole node, 1% of it here)",
+      "cpuShare": null,
+      "memMb": null
+    },
+    {
+      "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+      "status": "refused",
+      "reason": "This version requires catalog approval; pending versions may only be deployed PRIVATE for testing.",
+      "cpuShare": null,
+      "memMb": null
+    },
+    {
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "status": "running",
+      "reason": null,
+      "cpuShare": 0.02,
+      "memMb": 1024
+    },
+    {
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "status": "running",
+      "reason": null,
+      "cpuShare": 0.01,
+      "memMb": 128
+    },
+    {
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "status": "running",
+      "reason": null,
+      "cpuShare": 0.25,
+      "memMb": 12288
+    },
+    {
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "status": "running",
+      "reason": null,
+      "cpuShare": 0.01,
+      "memMb": 128
+    },
+    {
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "status": "running",
+      "reason": null,
+      "cpuShare": 0.01,
+      "memMb": 128
+    },
+    {
+      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "status": "running",
+      "reason": null,
+      "cpuShare": 0.02,
+      "memMb": 512
+    },
+    {
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "running",
+      "reason": null,
+      "cpuShare": 0.04,
+      "memMb": 256
+    },
+    {
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "status": "running",
+      "reason": null,
+      "cpuShare": 0.21,
+      "memMb": 2048
+    },
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "running",
+      "reason": null,
+      "cpuShare": 0.01,
+      "memMb": 128
+    },
+    {
+      "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
+      "status": "stopped",
+      "reason": "the lease expired; a new claim must pass the current funding and hosting policy",
+      "cpuShare": null,
+      "memMb": null
+    },
+    {
+      "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
+      "status": "stopped",
+      "reason": "the lease expired; a new claim must pass the current funding and hosting policy",
+      "cpuShare": null,
+      "memMb": null
+    },
+    {
+      "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
+      "status": "refused",
+      "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer",
+      "cpuShare": null,
+      "memMb": null
+    },
+    {
+      "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
+      "status": "refused",
+      "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer",
+      "cpuShare": null,
+      "memMb": null
+    },
+    {
+      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+      "status": "refused",
+      "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
+      "cpuShare": null,
+      "memMb": null
+    },
+    {
+      "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
+      "status": "refused",
+      "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
+      "cpuShare": null,
+      "memMb": null
+    },
+    {
+      "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
+      "status": "refused",
+      "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
+      "cpuShare": null,
+      "memMb": null
+    },
+    {
+      "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
+      "status": "refused",
+      "reason": "Pinned to host 0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658; fallback is disabled.",
+      "cpuShare": null,
+      "memMb": null
+    }
+  ]
+}

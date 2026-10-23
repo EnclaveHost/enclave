@@ -1,0 +1,158 @@
+binary -main: 112 enclave.host functions
+  tree old: match 87 mismatch 1 missing 24
+    missing enclave.host/isolation/contract.(*State).String
+    line enclave.host/isolation/contract.State.String binary 29 tree 28
+    missing enclave.host/isolation/m2/vsock.(*Addr).Network
+    missing enclave.host/isolation/m2/vsock.(*Addr).String
+    missing enclave.host/isolation/m2/vsock.(*Conn).Close
+    missing enclave.host/isolation/m2/vsock.(*Conn).Name
+    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
+    missing enclave.host/isolation/m2/vsock.(*Conn).SetDeadline
+    ... 17 more
+  tree t-33f7e73fe: match 86 mismatch 2 missing 24
+    missing enclave.host/isolation/contract.(*State).String
+    line enclave.host/isolation/contract.State.String binary 29 tree 28
+    line enclave.host/isolation/m2/shieldconfig.PublicWebMode binary 23 tree 26
+    missing enclave.host/isolation/m2/vsock.(*Addr).Network
+    missing enclave.host/isolation/m2/vsock.(*Addr).String
+    missing enclave.host/isolation/m2/vsock.(*Conn).Close
+    missing enclave.host/isolation/m2/vsock.(*Conn).Name
+    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
+    ... 18 more
+  tree t-d2ef66631: match 41 mismatch 46 missing 25
+    missing enclave.host/isolation/contract.(*State).String
+    line enclave.host/isolation/contract.State.String binary 29 tree 28
+    missing enclave.host/isolation/m2/shieldconfig.PublicWebMode
+    missing enclave.host/isolation/m2/vsock.(*Addr).Network
+    missing enclave.host/isolation/m2/vsock.(*Addr).String
+    missing enclave.host/isolation/m2/vsock.(*Conn).Close
+    missing enclave.host/isolation/m2/vsock.(*Conn).Name
+    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
+    ... 63 more
+  tree t-65818c239: match 41 mismatch 46 missing 25
+    missing enclave.host/isolation/contract.(*State).String
+    line enclave.host/isolation/contract.State.String binary 29 tree 28
+    missing enclave.host/isolation/m2/shieldconfig.PublicWebMode
+    missing enclave.host/isolation/m2/vsock.(*Addr).Network
+    missing enclave.host/isolation/m2/vsock.(*Addr).String
+    missing enclave.host/isolation/m2/vsock.(*Conn).Close
+    missing enclave.host/isolation/m2/vsock.(*Conn).Name
+    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
+    ... 63 more
+  tree t-28d642888: match 41 mismatch 46 missing 25
+    missing enclave.host/isolation/contract.(*State).String
+    line enclave.host/isolation/contract.State.String binary 29 tree 28
+    missing enclave.host/isolation/m2/shieldconfig.PublicWebMode
+    missing enclave.host/isolation/m2/vsock.(*Addr).Network
+    missing enclave.host/isolation/m2/vsock.(*Addr).String
+    missing enclave.host/isolation/m2/vsock.(*Conn).Close
+    missing enclave.host/isolation/m2/vsock.(*Conn).Name
+    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
+    ... 63 more
+  tree qbase: match 42 mismatch 46 missing 24
+    missing enclave.host/isolation/contract.(*State).String
+    line enclave.host/isolation/contract.State.String binary 29 tree 28
+    missing enclave.host/isolation/m2/vsock.(*Addr).Network
+    missing enclave.host/isolation/m2/vsock.(*Addr).String
+    missing enclave.host/isolation/m2/vsock.(*Conn).Close
+    missing enclave.host/isolation/m2/vsock.(*Conn).Name
+    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
+    missing enclave.host/isolation/m2/vsock.(*Conn).SetDeadline
+    ... 62 more
+  tree qe: match 42 mismatch 46 missing 24
+    missing enclave.host/isolation/contract.(*State).String
+    line enclave.host/isolation/contract.State.String binary 29 tree 28
+    missing enclave.host/isolation/m2/vsock.(*Addr).Network
+    missing enclave.host/isolation/m2/vsock.(*Addr).String
+    missing enclave.host/isolation/m2/vsock.(*Conn).Close
+    missing enclave.host/isolation/m2/vsock.(*Conn).Name
+    missing enclave.host/isolation/m2/vsock.(*Conn).ReadFrom
+    missing enclave.host/isolation/m2/vsock.(*Conn).SetDeadline
+    ... 62 more
+binary -main: 202 enclave.host functions
+  tree old: match 147 mismatch 0 missing 55
+    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
+    missing enclave.host/isolation/m2/egress.(*Forwarder).publicConnect-fm
+    missing enclave.host/isolation/m2/egress.(*Forwarder).serveDNS-fm
+    missing enclave.host/isolation/m2/egress.(*Origin).String
+    missing enclave.host/isolation/m2/egress.(*bufConn).Close
+    missing enclave.host/isolation/m2/egress.(*bufConn).LocalAddr
+    missing enclave.host/isolation/m2/egress.(*bufConn).RemoteAddr
+    missing enclave.host/isolation/m2/egress.(*bufConn).SetDeadline
+    ... 47 more
+  tree t-33f7e73fe: match 145 mismatch 2 missing 55
+    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
+    missing enclave.host/isolation/m2/egress.(*Forwarder).publicConnect-fm
+    missing enclave.host/isolation/m2/egress.(*Forwarder).serveDNS-fm
+    missing enclave.host/isolation/m2/egress.(*Origin).String
+    missing enclave.host/isolation/m2/egress.(*bufConn).Close
+    missing enclave.host/isolation/m2/egress.(*bufConn).LocalAddr
+    missing enclave.host/isolation/m2/egress.(*bufConn).RemoteAddr
+    missing enclave.host/isolation/m2/egress.(*bufConn).SetDeadline
+    ... 49 more
+  tree t-d2ef66631: match 100 mismatch 34 missing 68
+    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 83
+    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 90
+    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 52
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Listeners
+    line enclave.host/isolation/m2/egress.(*Forwarder).Start binary 70 tree 63
+    line enclave.host/isolation/m2/egress.(*Forwarder).forward binary 139 tree 109
+    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic
+    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
+    ... 94 more
+  tree t-65818c239: match 100 mismatch 34 missing 68
+    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 83
+    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 90
+    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 52
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Listeners
+    line enclave.host/isolation/m2/egress.(*Forwarder).Start binary 70 tree 63
+    line enclave.host/isolation/m2/egress.(*Forwarder).forward binary 139 tree 109
+    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic
+    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
+    ... 94 more
+  tree t-28d642888: match 100 mismatch 34 missing 68
+    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 83
+    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 90
+    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 52
+    missing enclave.host/isolation/m2/egress.(*Forwarder).Listeners
+    line enclave.host/isolation/m2/egress.(*Forwarder).Start binary 70 tree 63
+    line enclave.host/isolation/m2/egress.(*Forwarder).forward binary 139 tree 109
+    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic
+    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
+    ... 94 more
+  tree qbase: match 81 mismatch 65 missing 56
+    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 119
+    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 126
+    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 56
+    line enclave.host/isolation/m2/egress.(*Forwarder).Listeners binary 102 tree 108
+    line enclave.host/isolation/m2/egress.(*Forwarder).Start binary 70 tree 67
+    line enclave.host/isolation/m2/egress.(*Forwarder).forward binary 139 tree 145
+    line enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic binary 273 tree 272
+    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
+    ... 113 more
+  tree qe: match 81 mismatch 65 missing 56
+    line enclave.host/isolation/m2/egress.(*Forwarder).Addr binary 113 tree 119
+    line enclave.host/isolation/m2/egress.(*Forwarder).Close binary 120 tree 126
+    line enclave.host/isolation/m2/egress.(*Forwarder).HostsFile binary 59 tree 56
+    line enclave.host/isolation/m2/egress.(*Forwarder).Listeners binary 102 tree 108
+    line enclave.host/isolation/m2/egress.(*Forwarder).Start binary 70 tree 67
+    line enclave.host/isolation/m2/egress.(*Forwarder).forward binary 139 tree 145
+    line enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic binary 273 tree 272
+    missing enclave.host/isolation/m2/egress.(*Forwarder).lookupPublic-fm
+    ... 113 more
+binary -main: 11 enclave.host functions
+  tree old: match 11 mismatch 0 missing 0
+  tree t-33f7e73fe: match 10 mismatch 1 missing 0
+    line enclave.host/isolation/m2/shieldconfig.PublicWebMarked binary 13 tree 40
+  tree t-d2ef66631: match 10 mismatch 0 missing 1
+    missing enclave.host/isolation/m2/shieldconfig.PublicWebMarked
+  tree t-65818c239: match 10 mismatch 0 missing 1
+    missing enclave.host/isolation/m2/shieldconfig.PublicWebMarked
+  tree t-28d642888: match 10 mismatch 0 missing 1
+    missing enclave.host/isolation/m2/shieldconfig.PublicWebMarked
+  tree qbase: match 9 mismatch 2 missing 0
+    line main.main binary 15 tree 16
+    line main.run binary 20 tree 21
+  tree qe: match 9 mismatch 2 missing 0
+    line main.main binary 15 tree 16
+    line main.run binary 20 tree 21

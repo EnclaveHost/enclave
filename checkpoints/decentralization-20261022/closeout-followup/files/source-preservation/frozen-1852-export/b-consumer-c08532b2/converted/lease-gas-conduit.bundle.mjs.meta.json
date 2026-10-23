@@ -1,0 +1,6 @@
+{
+  "bundle": "metal/guest/lease-gas-conduit.bundle.mjs",
+  "entry": "network/lease-gas-conduit.mjs",
+  "sha256": "48bd059a57356fed542c3a6a8c0b4ddd7fdf6bca42ad7729754234445b746fd5",
+  "bytes": 41371
+}

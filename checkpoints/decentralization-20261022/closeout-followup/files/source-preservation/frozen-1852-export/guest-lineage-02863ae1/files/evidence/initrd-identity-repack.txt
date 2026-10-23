@@ -1,0 +1,4 @@
+uncompressed identical to baseline: True trailing pad bytes: 144
+output sha256: 75afe138f7765c9314f13f87f5b8b54c5cb03b657dc124862f06c39370322e79 22766164
+gzip -n -9 identity: f86fb512a552554217769a347c8f5b1e3eb5b3a95dfecd9d3a5d0680e808d227  (baseline f86fb512a552554217769a347c8f5b1e3eb5b3a95dfecd9d3a5d0680e808d227)
+gzip 1.15

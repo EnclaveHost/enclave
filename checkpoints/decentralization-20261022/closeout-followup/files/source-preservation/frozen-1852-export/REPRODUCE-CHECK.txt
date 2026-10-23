@@ -1,0 +1,24 @@
+root-cpu-quota base rebuilt from empty + 3 stored patch(es) in 7422efe6e: tree ec62bb6bc78cf441958cb7f68eb360a0145154dc OK
+root-cpu-quota 8afbf879a: tree 56f0e35c1634abc562a3770db2fc06c2612c74c6 OK
+custody-live base rebuilt from empty + 0 stored patch(es) in 7422efe6e: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+custody-live a90f8339e: tree b48a5ff5963de710ba4f550ffec8fc6d121f1525 OK
+m-durability base file custody/v2/daemon.mjs: blob 3ae7d7bf1 OK
+m-durability base file custody/v2/member.mjs: blob 8f69b82e9 OK
+m-durability ed0c536dd: 4 touched path blobs OK
+m-durability 415483ff9: 4 touched path blobs OK
+m-durability: full tree c1366cf9c on base c635fd685 NOT reproduced (base not in pushed material; see baseTreeNotReproduced)
+b-consumer base rebuilt from 493ee9ee0 + 50 stored patch(es) in 7422efe6e: tree ea4b9cac641e61b2b743972cfd1f579d01577699 OK
+b-consumer 1a6559a78: tree f313212e9f9e4dc55ee442e6856a51b9584f8768 OK
+b-consumer 70c6c2b81: tree 6b6ba6844f18077a602b02aaa5f3114ad01f784a OK
+b-consumer 03d504f49: tree ce8580250face98861b76a856249b870725acdae OK
+b-consumer 6db741fbd: tree 9ecb8c53cd2a3b302ec5ca8dd5fcc58c2cdd139f OK
+b-consumer 502a93ee4: tree 5406dfaf38e1e4169c646e1cb6a61170a9a0ec16 OK
+b-consumer 675a1a17b: tree 08c6848cc621c4a06f8445b4c7c88f4bea167330 OK
+b-consumer d2965749a: tree 9b425b65c8aef3af4d07f096f466282be315408e OK
+b-consumer 98206e643: tree dd0d1756d3e61124e3130d7e38ee45b622046fee OK
+b-consumer c08532b28: tree 59f5e7ec6ff8c606849222be32d45226c1771548 OK
+guest-lineage base rebuilt from empty + 0 stored patch(es) in 7422efe6e: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+guest-lineage 02863ae1e: tree 68eee2a669fd03fc600c4e3bbba7a265a90f14c5 OK
+b-consumer trees are the ORIGINAL trees minus ['metal/guest/platform-api.bundle.mjs', 'metal/guest/mcp-server.bundle.mjs', 'metal/guest/lease-gas-conduit.bundle.mjs.manifest.json', 'metal/guest/mcp-server.bundle.mjs.manifest.json', 'metal/guest/platform-api.bundle.mjs.manifest.json'] held at the base (head original b578d56b8); exact originals NOT reproduced
+guest-lineage trees are the ORIGINAL trees minus ['REPORT.md'] held at the base (head original bb656d873); exact originals NOT reproduced
+RESULT root-cpu-quota reproduced: True, custody-live reproduced: True, m-durability reproduced: True (touched files only), b-consumer reproduced: True, guest-lineage reproduced: True

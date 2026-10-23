@@ -1,0 +1,301 @@
+From 6db741fbd0b9d9f7eabce4e7b135f94cd8b4159a Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 06:05:16 -0700
+Subject: [PATCH] Direct control guests: the local chain verifier as a
+ HOST_DATA-bound config member, started before the direct supervisor
+
+metal/guest/measured-control.mjs: canonicalDirectConfig takes an optional chainVerifier member (the relay-mode checker:
+explicit https proof sources, the sequencer pin, port 50000..57999 distinct from every other port of the config, optional
+own txBackend). Absent, every earlier config keeps its exact canonical bytes and digest; present, it is bound by HOST_DATA.
+directSupervisorEnv gives the supervisor the chain-authority names from that member only (flavor and host-policy input
+for them is dropped). planDirectBoot refuses the boot when the image carries no verifier runtime, and otherwise returns
+the launch; the hosted MCP adapter's profile gets the same verifier (A's existing chainVerifier field); the statement
+names the image's runtime record (runtime.chainVerifierImageSha256, the existing runtime-hash convention).
+metal/guest/gsup.mjs: the direct branch starts the bound verifier as its supervised child before the direct supervisor.
+metal/enclave-metal.mjs: a host-level chainVerifier for a direct guest still refuses, now saying it belongs in the bound
+direct config. The controller identity, admission, pins and the required rpcs field are unchanged; nothing goes through
+a relay.
+docs/network/local-chain-verifier.md: the guest section covers direct guests, the own backend and the consumers.
+---
+ docs/network/local-chain-verifier.md | 22 ++++++----
+ metal/enclave-metal.mjs              |  5 ++-
+ metal/guest/gsup.mjs                 | 12 +++++-
+ metal/guest/measured-control.mjs     | 36 +++++++++++++---
+ test/metal-measured-control.test.mjs | 61 ++++++++++++++++++++++++++++
+ 5 files changed, 121 insertions(+), 15 deletions(-)
+
+diff --git a/docs/network/local-chain-verifier.md b/docs/network/local-chain-verifier.md
+index 819e541f473368fa7f3c6e5a7b4759d254893122..184ed93c4954d89ae7f2b0a19f899c4154565ce1 100644
+--- a/docs/network/local-chain-verifier.md
++++ b/docs/network/local-chain-verifier.md
+@@ -155,34 +155,42 @@
+ the legacy provider quorum, unchanged. Then stop the runtime. The runtime never falls back to provider agreement by
+ itself.
+ 
+-## Inside the Linux metal guest (relay mode)
++## Inside the Linux metal guest (relay mode and direct control)
+ 
+ A host operator opts in with a `chainVerifier` member in the host controller's `config.json`.
+ `metal/guest/chain-verifier.mjs` is the one checker: the launcher checks the member, then the guest checks it again.
+ 
+ ```json
+ "chainVerifier": { "format": "enclave-chain-verifier/v1", "unsafeSigner": "0x<the administrator's sequencer pin>",
+-                   "proofSources": ["https://<explicit state holder>/"], "port": 50546 }
++                   "proofSources": ["https://<explicit state holder>/"], "port": 50546,
++                   "txBackend": "http://10.0.2.2:8545/" }
+ ```
+ 
+ - **Fields:**
+   - 1..16 https proof sources;
+   - optional `gossip` / `limits`;
+   - `port` in **50000..57999**. That is above every tenant-declarable port and below the ephemeral range init pins, so
+-    no tenant can hold it.
++    no tenant can hold it;
++  - optional `txBackend`: the operator's OWN Base node, at a loopback or private address literal (never a name). It is
++    used only for submission and pool/fee hints, after being bound to the verifier's chain (`ENCLAVE_CHAIN_TX_BACKEND`).
++    Without it, nothing is submitted.
+ - **Refused fields:**
+   - `witnessArchive` (the base has no curl with `--aws-sigv4`);
+   - `witnessCache`;
+   - anything unknown.
+-- **Direct control guests** refuse the member for now.
++- **Direct control guests** take the member only inside their HOST_DATA-bound direct config (a host-level setting is
++  refused). gsup's direct branch starts it before the direct supervisor, and a boot whose image lacks the runtime is
++  refused.
+ - **The launcher** passes the checked member through fw_cfg.
+ - **gsup** builds the runtime config from the image's pin record (`/opt/rpc-runtime/IMAGE.json` =
+   `metal/chain-verifier-image.json`). It starts the runtime as its supervised child `chain-verifier` before the
+   supervisor, restarting it with backoff, and gives the supervisor exactly `ENCLAVE_CHAIN_AUTHORITY=verifier` and
+   `ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:<port>/`. No other channel may supply those names.
+-- **Consumers:** the supervisor's verified readers (host wallet admission and the platform host policy gate) refuse
+-  until the runtime is ready, and whenever no proof source can supply a fresh witness. Its other chain reads (claims and
+-  lease records over `BASE_RPCS`) are unchanged.
++- **Consumers:** EVERY chain read of the supervisor, and of the lease-gas and owner-nomination readers, goes through
++  the verifier (`network/chain-authority.mjs`). That covers claims, leases, receipts, nonces, admission and policy, the
++  admin AddressBook, settlement and prices. They refuse until the runtime is ready, and whenever no proof source can
++  supply a fresh witness. Logs prove inclusion only. Path by path, with the remaining gate (payment-event completeness):
++  `docs/network/supervisor-chain-authority.md`.
+ - **Failure states:**
+   - Present but invalid, or an image without the runtime (`metal/overlay-control-image.py` without
+     `--chain-verifier-dir`): the supervisor gets the verifier authority at a URL nothing serves, so verified reads
+diff --git a/metal/enclave-metal.mjs b/metal/enclave-metal.mjs
+index a48d5a2ebd6c910aa8672bb703cd7c55f9e2e21e..166900d65984e56dcbe9bd17f40f369668609edf 100644
+--- a/metal/enclave-metal.mjs
++++ b/metal/enclave-metal.mjs
+@@ -258,9 +258,10 @@
+ // administrator's sequencer pin, 1..16 explicit proof sources and its loopback port. Public, the host controller's own
+ // config; checked here (written to fw_cfg in its checked form) and again in the guest against the image's pinned runtime.
+ // Absent: nothing changes (the guest's readers keep the provider quorum). Invalid: REFUSES the launch. A direct control
+-// guest does not launch the verifier (not in its bound config yet): a host-level setting refuses rather than being ignored.
++// guest takes its verifier ONLY inside the bound direct config (measured-control.mjs canonicalDirectConfig chainVerifier,
++// bound by HOST_DATA): a host-level setting for it refuses rather than being ignored or passed unbound.
+ if (DIRECT && cfg.chainVerifier !== undefined && cfg.chainVerifier !== null)
+-  throw new Error('control: "direct" does not launch the local chain verifier (relay mode only for now); remove chainVerifier');
++  throw new Error('control: "direct" takes chainVerifier only inside the bound direct config; remove the host-level chainVerifier');
+ const CHAIN_VERIFIER = DIRECT || cfg.chainVerifier === undefined || cfg.chainVerifier === null ? null : checkChainVerifier(cfg.chainVerifier);
+ if (CHAIN_VERIFIER) console.log(`[enclave-metal] local chain verifier: ${CHAIN_VERIFIER.proofSources.length} proof source(s), guest loopback port ${CHAIN_VERIFIER.port}`);
+ const cmdline = [
+diff --git a/metal/guest/gsup.mjs b/metal/guest/gsup.mjs
+index 58682f901293a1de924b61bc8da435c4a081c7f4..be54f607862701bd49e7b02dc168151a812c1cbb 100644
+--- a/metal/guest/gsup.mjs
++++ b/metal/guest/gsup.mjs
+@@ -427,7 +427,9 @@
+   const st = MC.controlStatement({ config: plan.config, digest: plan.digest, hostData: plan.hostData, mode: MODE, keys,
+     runtime: { gsupSha256: fileSha('/opt/metal/gsup.mjs'), helperSha256: fileSha('/opt/metal/measured-control.mjs'), supervisorSha256: fileSha('/app/supervisor.js'),
+       ...(plan.mcp ? { mcpSha256: fileSha(MC.MCP_BUNDLE) } : {}),
+-      ...(plan.platformApi ? { platformApiSha256: fileSha(MC.PLATFORM_API_BUNDLE) } : {}) } });
++      ...(plan.platformApi ? { platformApiSha256: fileSha(MC.PLATFORM_API_BUNDLE) } : {}),
++      // the bound local chain verifier: the image's pinned runtime record it runs (binaries, glibc runtime, staging)
++      ...(plan.chainVerifier ? { chainVerifierImageSha256: fileSha(P.chainVerifierImage) } : {}) } });
+   fs.writeFileSync(P.statement, st.text, { mode: 0o644 });
+   fs.writeFileSync(P.serveConfig, JSON.stringify({ statement: P.statement, tlsKey: P.tlsKey, tlsCert: P.tlsCert, port: plan.config.controlPort,
+     upstream: { host: '127.0.0.1', port: 8080 }, mode: MODE, vcekB64: typeof fw.vcek === 'string' ? fw.vcek : '',
+@@ -440,6 +442,14 @@
+     + `(TLS sha256:${keys.controlTls.spkiSha256.slice(0, 16)}…); front on :${plan.config.controlPort}`
+     + (plan.native ? `; native names ${plan.native.names.join(', ')} wait for a native CA leaf over that key` : ''));
+   status({ ok: true, configDigest: plan.digest, hostData: plan.hostData, bound: plan.bound, controlPort: plan.config.controlPort, controlTlsSpkiSha256: keys.controlTls.spkiSha256 });
++  // the bound local chain verifier, BEFORE the supervisor, as its own supervised child (the same start() and runtime as the
++  // relay-mode block below); the supervisor's names came from the same bound member (plan.env). If it cannot be started the
++  // supervisor's chain reads refuse (no provider fallback); serving of what runs is unaffected.
++  if (plan.chainVerifier) {
++    log(plan.chainVerifier.message);
++    try { start('chain-verifier', plan.chainVerifier.argv(writeChainVerifierConfig(plan.chainVerifier)), plan.chainVerifier.env, { cwd: '/app' }); }
++    catch (e) { log(`chain verifier could not be started (${e.code || e.message}): every verified chain read refuses; no provider fallback`); }
++  }
+   start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], plan.env, { cwd: '/app' });
+   // the agent serves the loopback RAD the supervisor's claim gate reads (teeOk); no relay, no tunnel, no token
+   start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
+diff --git a/metal/guest/measured-control.mjs b/metal/guest/measured-control.mjs
+index 2922ed57123e8dcfca6edc5d793aacceaf31b054..9ac322aa5327c004df3c9ebcc81abe8a23762939 100644
+--- a/metal/guest/measured-control.mjs
++++ b/metal/guest/measured-control.mjs
+@@ -71,6 +71,7 @@
+ import { fileURLToPath, pathToFileURL } from 'node:url';
+ import { checkTransit, leaseGasGuest, withLeaseGasEnv } from './lease-gas-conduit.bundle.mjs';
+ import { boundOwnerNomination, ownerNominationEnv } from './owner-nomination.mjs';
++import { checkChainVerifier, guestChainVerifier, withChainVerifierEnv, CHAIN_VERIFIER_IMAGE_FILE } from './chain-verifier.mjs';
+ 
+ export const CONFIG_FORMAT = 'enclave-direct-control-config/v1';
+ export const STATEMENT_FORMAT = 'enclave-measured-control-statement/v1';
+@@ -119,7 +120,7 @@
+ /** The owner's config, strictly validated and canonical. Nothing is defaulted except controlPort. -> frozen object */
+ export function canonicalDirectConfig(raw) {
+   // every field is required except the optional leaseGas (checked below when present)
+-  const OPTIONAL_MEMBERS = ['leaseGas', 'mcp', 'platformApi', 'ownerNomination', 'platformPolicyCarriers', 'nativeControl'];
++  const OPTIONAL_MEMBERS = ['leaseGas', 'mcp', 'platformApi', 'ownerNomination', 'platformPolicyCarriers', 'nativeControl', 'chainVerifier'];
+   const fields = raw && typeof raw === 'object' && !Array.isArray(raw) && OPTIONAL_MEMBERS.some((k) => Object.hasOwn(raw, k))
+     ? Object.fromEntries(Object.entries(raw).filter(([k]) => !OPTIONAL_MEMBERS.includes(k))) : raw;
+   only(fields, ['format', 'chainId', 'contracts', 'profileDigest', 'rpcs', 'quorum', 'releaseId', 'replicas', 'identity', 'selling', 'isolation',
+@@ -184,6 +185,14 @@
+   if (mcp && platformApi && [platformApi.apiPort, platformApi.peerPort].includes(mcp.port)) bad('mcp.port must differ from both platformApi ports');
+   const platformPolicyCarriers = raw.platformPolicyCarriers !== undefined ? checkPolicyCarriers(raw.platformPolicyCarriers, { publicUrl: raw.identity.publicUrl }) : null;
+   const nativeControl = raw.nativeControl !== undefined ? directNativeControl(raw.nativeControl, { platformApi }) : null;
++  // the owner's LOCAL chain verifier for this guest (metal/guest/chain-verifier.mjs: the same checker as a relay-mode host's
++  // fw_cfg setting, bound here by HOST_DATA): its loopback port is in the reserved 50000..57999 range, distinct from every
++  // other port this config names
++  let chainVerifier = null;
++  if (raw.chainVerifier !== undefined) {
++    try { chainVerifier = checkChainVerifier(raw.chainVerifier); } catch (e) { bad(e.message); }
++    if ([controlPort, mcp?.port, platformApi?.apiPort, platformApi?.peerPort].includes(chainVerifier.port)) bad('chainVerifier.port must differ from every other port of this config');
++  }
+   return deepFreeze({
+     format: CONFIG_FORMAT, chainId: CHAIN_ID, contracts, profileDigest: raw.profileDigest, rpcs, quorum, releaseId: raw.releaseId,
+     replicas: { gateways, storagePlan: storagePlan === null ? null : JSON.parse(canonicalJson(storagePlan)) },
+@@ -198,6 +207,7 @@
+     ...(ownerNomination ? { ownerNomination } : {}),
+     ...(platformPolicyCarriers ? { platformPolicyCarriers } : {}),
+     ...(nativeControl ? { nativeControl } : {}),
++    ...(chainVerifier ? { chainVerifier: JSON.parse(JSON.stringify(chainVerifier)) } : {}),
+   });
+ }
+ // The bound native control member (see the header): which native control names this guest serves, and the native CA whose
+@@ -323,7 +333,9 @@
+   const profile = { contractPins: paths.mcpPins, rpcs: cfg.rpcs, quorum: cfg.quorum, managementDirectories: m.managementDirectories,
+     capacityDirectories: m.capacityDirectories, capacityCold: m.capacityCold, maxHosts: m.maxHosts,
+     ...(m.storagePlan ? { storagePlan: paths.mcpStoragePlan } : {}), ...(m.grantFrontend ? { grantFrontend: m.grantFrontend } : {}),
+-    ...(m.usdc ? { usdc: m.usdc } : {}), sessionScan: m.sessionScan, stateDir: paths.mcpState };
++    ...(m.usdc ? { usdc: m.usdc } : {}), sessionScan: m.sessionScan, stateDir: paths.mcpState,
++    // a bound local chain verifier decides the adapter's chain reads too (mcp/independent.mjs profile chainVerifier: no fallback)
++    ...(cfg.chainVerifier ? { chainVerifier: `http://127.0.0.1:${cfg.chainVerifier.port}/` } : {}) };
+   const files = { [paths.mcpPins]: JSON.stringify(contractPinsDoc(cfg)),
+     [paths.mcpConfig]: JSON.stringify({ format: 'enclave-mcp-independent/v1', profiles: { [MCP_PROFILE]: profile } }),
+     ...(m.storagePlan ? { [paths.mcpStoragePlan]: JSON.stringify(m.storagePlan) } : {}) };
+@@ -457,6 +469,8 @@
+   nativeCertificate: '/run/measured-control/native-certificate.pem',
+   // the supervisor image's shared host-admission bundle (supervisor.js imports it): checked only when the config names carriers
+   hostAdmissionBundle: '/app/windows/node/host-admission.bundle.mjs',
++  // the image's pinned chain verifier runtime record (metal/chain-verifier-image.json), used only with a bound chainVerifier
++  chainVerifierImage: CHAIN_VERIFIER_IMAGE_FILE,
+ });
+ // The baked flavor env (enclaves/cpu/config.yml) is the HOSTED fleet's: it names the Enclave address book, Enclave's own
+ // payout wallet, SIWE/CORS origins at enclave.host. A direct guest inherits only these authority-free tunables from it.
+@@ -499,9 +513,13 @@
+   delete env[CARRIERS_ENV];
+   if (cfg.platformPolicyCarriers) env[CARRIERS_ENV] = canonicalJson(cfg.platformPolicyCarriers);
+   // app-funded lease gas: only from the bound config (never flavor or host policy), absent = none of these names at all
+-  return { ...withLeaseGasEnv(env, cfg.leaseGas ? leaseGasGuest(cfg.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null),
++  const out = { ...withLeaseGasEnv(env, cfg.leaseGas ? leaseGasGuest(cfg.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null),
+     // the owner nomination: only from the bound config, absent = no such name
+     ...ownerNominationEnv(cfg.ownerNomination || null) };
++  // the chain authority: ONLY from the bound chainVerifier (the local verifier this guest starts before the supervisor, and
++  // the owner's own transaction backend); absent = none of these names. The supervisor then reads only through the verifier
++  // (the configured rpcs stay for the members that name them, and are never used by the supervisor for its chain).
++  return withChainVerifierEnv(out, cfg.chainVerifier ? { configured: true, ok: true, url: `http://127.0.0.1:${cfg.chainVerifier.port}/`, verifier: cfg.chainVerifier } : null);
+ }
+ /** The rules supervisor.js directOnlyProblems applies at startup, plus this guest's own (no Enclave origin, keys present). */
+ export function directEnvProblems(env) {
+@@ -655,7 +673,14 @@
+   if (platformApi && platformApi.refused) return { ok: false, reasons: [platformApi.refused], mode, digest, hostData };
+   if (platformApi) Object.assign(files, platformApi.files);
+   const native = directNativeLaunch(config, { paths });
+-  return { ok: true, config, digest, hostData, bound, mode, env, files, operator, selling: !!fw.registryKey, mcp, platformApi, native };
++  // the bound local chain verifier: this image must carry its pinned runtime, or the guest refuses to boot (the config the
++  // hardware attests to names a verifier this image cannot start; the supervisor never falls back to the rpcs)
++  let chainVerifier = null;
++  if (config.chainVerifier) {
++    chainVerifier = guestChainVerifier(config.chainVerifier, { imageFile: paths.chainVerifierImage || CHAIN_VERIFIER_IMAGE_FILE });
++    if (!chainVerifier.ok) return { ok: false, reasons: [`chainVerifier: ${chainVerifier.message}`], mode, digest, hostData };
++  }
++  return { ok: true, config, digest, hostData, bound, mode, env, files, operator, selling: !!fw.registryKey, mcp, platformApi, native, chainVerifier };
+ }
+ 
+ // ---- keys minted in the guest ---------------------------------------------------------------------------------------------
+@@ -725,7 +750,8 @@
+     ...(config.nativeControl ? { native: { names: [...config.nativeControl.names], caSha256: config.nativeControl.caSha256 } } : {}),
+     runtime: { gsupSha256: runtime.gsupSha256 ?? null, helperSha256: runtime.helperSha256 ?? null, supervisorSha256: runtime.supervisorSha256 ?? null,
+       ...(runtime.mcpSha256 !== undefined ? { mcpSha256: runtime.mcpSha256 } : {}),
+-      ...(runtime.platformApiSha256 !== undefined ? { platformApiSha256: runtime.platformApiSha256 } : {}) },
++      ...(runtime.platformApiSha256 !== undefined ? { platformApiSha256: runtime.platformApiSha256 } : {}),
++      ...(runtime.chainVerifierImageSha256 !== undefined ? { chainVerifierImageSha256: runtime.chainVerifierImageSha256 } : {}) },
+     bootId };
+   const text = canonicalJson(obj);
+   if (Buffer.byteLength(text) > MAX_STATEMENT_BYTES) bad('control statement too large');
+diff --git a/test/metal-measured-control.test.mjs b/test/metal-measured-control.test.mjs
+index bc5ed96327ada892368965211dd464b090a5a145..2cd69e4b91a14de58bf3350c24743be95de5da8c 100644
+--- a/test/metal-measured-control.test.mjs
++++ b/test/metal-measured-control.test.mjs
+@@ -387,3 +387,64 @@
+   const o = fs.readFileSync(path.join(REPO, "metal/overlay-control-image.py"), "utf8");
+   assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs', 'owner-nomination\.mjs', 'chain-verifier\.mjs'\]/);
+ });
++
++// ---- the bound local chain verifier (metal/guest/chain-verifier.mjs, network/chain-authority.mjs) -----------------------------
++const CV = () => ({ format: "enclave-chain-verifier/v1", unsafeSigner: "0x" + "9a".repeat(20), proofSources: ["https://holder.example.net/"], port: 50546,
++  txBackend: "http://10.0.2.2:8545" });
++test("chainVerifier in the bound direct config: optional (absent keeps every earlier digest), checked, bound by HOST_DATA, distinct ports", () => {
++  assert.equal(MC.configDigest(MC.canonicalDirectConfig(RAW())), DIGEST, "absent: the exact earlier canonical bytes and digest");
++  const cfg = MC.canonicalDirectConfig({ ...RAW(), chainVerifier: CV() });
++  assert.notEqual(MC.configDigest(cfg), DIGEST, "present: part of the bound config (HOST_DATA names it)");
++  assert.deepEqual(cfg.chainVerifier, { format: "enclave-chain-verifier/v1", unsafeSigner: "0x" + "9a".repeat(20), proofSources: ["https://holder.example.net/"], port: 50546,
++    txBackend: "http://10.0.2.2:8545/" });
++  const refuse = (cv, re) => assert.throws(() => MC.canonicalDirectConfig({ ...RAW(), chainVerifier: cv }), re);
++  refuse({ ...CV(), port: 8444 }, /guest's own ports/);
++  refuse({ ...CV(), port: 49999 }, /50000\.\.57999/);
++  refuse({ ...CV(), port: 58000 }, /50000\.\.57999/);
++  refuse({ ...CV(), txBackend: "https://mainnet.base.org" }, /txBackend must be a loopback or private/);
++  refuse({ ...CV(), witnessArchive: {} }, /witnessArchive is not offered/);
++  refuse({ ...CV(), proofSources: [] }, /explicit proof source/);
++  assert.throws(() => MC.canonicalDirectConfig({ ...RAW(), controlPort: 50546, chainVerifier: CV() }), /differ from every other port/);
++});
++
++test("planDirectBoot with a bound chainVerifier: the image's pinned runtime is started before the supervisor, whose ONLY chain authority names come from it; no runtime in the image refuses the boot", async () => {
++  const raw = { ...RAW(), chainVerifier: CV() }, cfg = MC.canonicalDirectConfig(raw), hd = MC.hostDataHex(MC.configDigest(cfg));
++  const P = guestPaths(), imageFile = path.join(P.runDir, "IMAGE.json");
++  fs.copyFileSync(path.join(REPO, "metal/chain-verifier-image.json"), imageFile);
++  const plan = await MC.planDirectBoot({ cmdline: CMDLINE, fw: fwFor({ direct: raw }), reportHostData: hd, viem, paths: { ...P, chainVerifierImage: imageFile } });
++  assert.equal(plan.ok, true, plan.reasons?.join("; "));
++  assert.equal(plan.chainVerifier.ok, true);
++  assert.deepEqual(plan.chainVerifier.argv("/c/rpc-runtime.json"), ["/usr/local/bin/node", "/app/network/rpc-runtime-main.mjs", "run", "/c/rpc-runtime.json"]);
++  assert.equal(plan.chainVerifier.runtimeConfig.verifier.port, 50546);
++  assert.equal(plan.chainVerifier.runtimeConfig.binaryStaging, "copy");
++  assert.equal(plan.env.ENCLAVE_CHAIN_AUTHORITY, "verifier");
++  assert.equal(plan.env.ENCLAVE_CHAIN_VERIFIER, "http://127.0.0.1:50546/");
++  assert.equal(plan.env.ENCLAVE_CHAIN_TX_BACKEND, "http://10.0.2.2:8545/");
++  assert.deepEqual(MC.directEnvProblems(plan.env), []);
++  const { directOnlyEnvProblems } = await import("../cli/host-independent-lifecycle.mjs");
++  assert.deepEqual(directOnlyEnvProblems(plan.env), [], "the real supervisor's direct-only rules accept it");
++  // the derived env is the bound member's alone: a flavor or host-policy value for these names never survives
++  const sneaky = MC.directSupervisorEnv(cfg, { flavorEnv: { ENCLAVE_CHAIN_TX_BACKEND: "https://mainnet.base.org/" }, hostPolicyEnv: { ENCLAVE_CHAIN_VERIFIER: "http://127.0.0.1:1/" } });
++  assert.equal(sneaky.ENCLAVE_CHAIN_VERIFIER, "http://127.0.0.1:50546/"); assert.equal(sneaky.ENCLAVE_CHAIN_TX_BACKEND, "http://10.0.2.2:8545/");
++  const none = MC.directSupervisorEnv(CONFIG, { hostPolicyEnv: { ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: "http://127.0.0.1:1/" } });
++  for (const k of ["ENCLAVE_CHAIN_AUTHORITY", "ENCLAVE_CHAIN_VERIFIER", "ENCLAVE_CHAIN_TX_BACKEND"]) assert.equal(k in none, false, `${k}: no bound member, no such name`);
++  // the hosted MCP adapter's profile is decided by the same verifier (mcp/independent.mjs chainVerifier)
++  const mcp = { port: 8710, managementDirectories: [], capacityDirectories: [], capacityCold: [], maxHosts: 8, sessionScan: { fromBlock: 1 } };
++  const launch = MC.directMcpLaunch({ ...cfg, mcp });
++  assert.equal(JSON.parse(launch.files[MC.GUEST_PATHS.mcpConfig]).profiles.host.chainVerifier, "http://127.0.0.1:50546/");
++  assert.equal("chainVerifier" in JSON.parse(MC.directMcpLaunch({ ...CONFIG, mcp }).files[MC.GUEST_PATHS.mcpConfig]).profiles.host, false);
++  // an image that carries no verifier runtime cannot start the bound verifier: the boot refuses (never the rpcs)
++  const refused = await MC.planDirectBoot({ cmdline: CMDLINE, fw: fwFor({ direct: raw }), reportHostData: hd, viem, paths: { ...guestPaths(), chainVerifierImage: path.join(P.runDir, "absent.json") } });
++  assert.equal(refused.ok, false); assert.match(refused.reasons.join("\n"), /chainVerifier: chain verifier REFUSED \(this image carries no chain verifier runtime\)/);
++  // the statement names the image's runtime record it runs (the existing runtime-hash convention); parsers accept it
++  const keys = MC.mintControlKeys({ paths: guestPaths() });
++  const st = MC.controlStatement({ config: cfg, digest: plan.digest, hostData: hd, mode: "snp", keys, runtime: { chainVerifierImageSha256: "cd".repeat(32) } });
++  assert.equal(MC.parseStatement(st.text).runtime.chainVerifierImageSha256, "cd".repeat(32));
++  // gsup's direct branch starts it as a supervised child BEFORE the supervisor, from the plan
++  const g = fs.readFileSync(path.join(REPO, "metal/guest/gsup.mjs"), "utf8");
++  const d = g.slice(g.indexOf("async function startDirectControl"), g.indexOf("if (CONTROL === 'direct') await startDirectControl()"));
++  const cvAt = d.indexOf("start('chain-verifier', plan.chainVerifier.argv(writeChainVerifierConfig(plan.chainVerifier)), plan.chainVerifier.env, { cwd: '/app' });");
++  const supAt = d.indexOf("start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], plan.env, { cwd: '/app' });");
++  assert.ok(cvAt > 0 && supAt > cvAt, "the verifier starts before the direct supervisor");
++  assert.match(d, /\.\.\.\(plan\.chainVerifier \? \{ chainVerifierImageSha256: fileSha\(P\.chainVerifierImage\) \} : \{\}\)/);
++});
