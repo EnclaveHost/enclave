@@ -1,0 +1,390 @@
+From a177ce8ce6081cfe603e2b346af17dc44a2f37f3 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 20:23:28 -0700
+Subject: [PATCH 15/19] Bound the whole verified read, its callback included,
+ and close its client
+
+Under authority 'verifier', verifiedRead (agreed), readAt and blockHashIs each run as ONE operation:
+- one deadline settles the operation even when the caller's read callback never settles (root probe: 100 ms
+  budget, still pending after 401 ms). JavaScript cannot abort the callback; it is no longer waited for and
+  anything it does later is refused;
+- when the operation settles (answer, refusal or deadline) it is closed: the AbortSignal handed to the
+  transport is aborted (the loopback HTTP verifier cancels its fetch; an in-process verifier receives it as a
+  4th argument), pending requests reject at once, the deadline timer is cleared, and a client the callback
+  kept cannot send again;
+- every request re-checks closure and the deadline when the transport is actually invoked, not only when it
+  is queued;
+- a body that outlived its deadline never moves lastBlock/lastEvidence; readAt stays history (never fresh
+  authority).
+
+Block-hash pinning, freshness, monotonicity, admin-pinned authorities, no provider fallback and the legacy
+quorum path are unchanged.
+
+(cherry picked from commit 62feb3aaff22dcb5cb3ba674cb22c052aa6f4ddd)
+---
+ network/lease-reader.mjs                     |  86 ++++++--
+ test/lease-reader-verifier-deadline.test.mjs | 202 +++++++++++++++++++
+ 2 files changed, 267 insertions(+), 21 deletions(-)
+ create mode 100644 test/lease-reader-verifier-deadline.test.mjs
+
+diff --git a/network/lease-reader.mjs b/network/lease-reader.mjs
+index 0a05b9a760b02d4c3db8492cbc9fd02a012e5143..7a315f472d5de3a9dfa3e294661fc3c7608efe2c 100644
+--- a/network/lease-reader.mjs
++++ b/network/lease-reader.mjs
+@@ -27,6 +27,16 @@ function timed(promise,ms) {
+   let timer;
+   return Promise.race([promise,new Promise((_r,reject)=>{timer=setTimeout(()=>reject(new Error('chain request timed out')),ms);})]).finally(()=>clearTimeout(timer));
+ }
++// The verifier authority's per-request bound: like timed(), and also ended at once when its operation closes (signal
++// aborted). Both the timer and the abort listener are removed when the request settles either way.
++function bounded(promise,ms,signal,message) {
++  let timer,onAbort;
++  return Promise.race([promise,new Promise((_r,reject)=>{
++    timer=setTimeout(()=>reject(new Error(message)),ms);
++    onAbort=()=>reject(signal.reason instanceof Error?signal.reason:new Error('the verified operation was closed'));
++    if(signal.aborted)onAbort();else signal.addEventListener('abort',onAbort,{once:true});
++  })]).finally(()=>{clearTimeout(timer);signal.removeEventListener('abort',onAbort);});
++}
+ // an RPC library's error can name the URL it called, API key and all: only a safe label of it is kept
+ const errText=e=>redactUrls(String(e?.shortMessage||e?.message||e)).slice(0,400);
+ const rateLimited=t=>/rate limit|over rate|too many requests|compute units per second|\b429\b/i.test(t);
+@@ -94,17 +104,21 @@ export function chainAuthorityOptions({chainAuthority,chainVerifier}={}) {
+ /** The same from the environment: ENCLAVE_CHAIN_AUTHORITY=verifier and ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:<port>/ */
+ export const chainAuthorityFromEnv=(env=process.env)=>chainAuthorityOptions({chainAuthority:env.ENCLAVE_CHAIN_AUTHORITY||undefined,chainVerifier:env.ENCLAVE_CHAIN_VERIFIER||undefined});
+ // The local validating endpoint behind authority 'verifier': a loopback JSON-RPC URL (the Helios process on this host)
+-// or, in-process, an object with request(method, params, timeoutMs). A remote URL is refused: a remote "verifier" would
+-// be one unverified server, exactly what this authority must never be.
++// or, in-process, an object with request(method, params, timeoutMs, signal). A remote URL is refused: a remote
++// "verifier" would be one unverified server, exactly what this authority must never be.
++// `signal` is the AbortSignal of the operation the request belongs to (aborted at its deadline or when it finishes).
++// The HTTP transport aborts its fetch (connection and body) with it; an in-process transport receives it and may honour
++// it. One that ignores it cannot be force-stopped (running JavaScript cannot be aborted): its late answer is ignored.
+ function verifierEndpoint(v) {
+-  if(v&&typeof v==='object'&&typeof v.request==='function')return {request:(m,p,ms)=>v.request(m,p,ms),label:'verifier'};
++  if(v&&typeof v==='object'&&typeof v.request==='function')return {request:(m,p,ms,signal)=>v.request(m,p,ms,signal),label:'verifier'};
+   const url=typeof v==='string'?v:v?.url;
+   let e;try{e=rpcEndpoint(url);}catch(err){throw new Error('verifier endpoint: '+err.message);}
+   if(!e.loopback)throw new Error('the verifier must be a local endpoint (loopback); a remote server is not a verifier');
+   let id=0;
+-  return {label:'verifier '+e.label,request:async(method,params,ms)=>{
++  return {label:'verifier '+e.label,request:async(method,params,ms,signal)=>{
++    const timeout=AbortSignal.timeout(Math.max(1,ms));
+     const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:++id,method,params}),
+-      redirect:'error',signal:AbortSignal.timeout(Math.max(1,ms))});
++      redirect:'error',signal:signal?AbortSignal.any([signal,timeout]):timeout});
+     if(!r.ok)throw Object.assign(new Error(`verifier HTTP ${r.status}`),{status:r.status});
+     const j=await r.json();
+     if(j?.error)throw Object.assign(new Error('verifier: '+String(j.error.message||'error').slice(0,300)),{code:j.error.code});
+@@ -352,14 +366,15 @@ export class LeaseReader {
+   //  * the caller's read, through a client pinned to that block HASH whose every answer is proof-backed;
+   //  * the header again (same hash and timestamp: no reorganization underneath), still fresh, still not older than a
+   //    block accepted meanwhile.
+-  // Any failure refuses the whole read. There is no other source to fall back to.
++  // Any failure refuses the whole read. There is no other source to fall back to. ONE deadline (`deadlineMs`) bounds
++  // the WHOLE read, the caller's callback included, and the read's client is closed once it settles (verifiedOperation).
+   verifiedRead(read, failures=[]) {
+     const policy=policyProblem(this);
+     if(policy)return Promise.reject(new Error(policy));
+     if(typeof read!=='function')return Promise.reject(new Error('agreed() needs a read function'));
+-    const call=this.deadlineCall();
++    const op=this.verifiedOperation('read'),call=op.call;
+     const fresh=ts=>ts+this.maxBlockAgeMs>this.now()&&ts<=this.now()+5000;
+-    return (async()=>{
++    return op.run(async()=>{
+       const chainId=Number(BigInt(await call('eth_chainId',[])));
+       if(chainId!==this.chainId)throw new Error('the verifier follows another chain');
+       const head=BigInt(await call('eth_blockNumber',[]));
+@@ -376,24 +391,49 @@ export class LeaseReader {
+       const again=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
+       if(again.hash!==first.hash||again.timestamp!==first.timestamp)throw new Error('chain reorganized during read');
+       if(!fresh(first.timestamp))throw new Error('chain block became stale during the read');
++      op.assertOpen();   // a body that outlived its deadline (a late callback) never answers or touches reader state
+       if(b<this.lastBlock)throw new Error(`block ${b} is older than block ${this.lastBlock} accepted meanwhile`);
+       this.lastBlock=b;
+       this.lastEvidence={authority:'local-verifier',tier:'unsafe',blockNumber:String(b),blockHash:first.hash,stateRoot:first.stateRoot,timestamp:first.timestamp};
+       return {...value,hash:first.hash,blockNumber:String(b),timestamp:first.timestamp};
+-    })().catch(e=>{
++    }).catch(e=>{
+       if(e?.readerBug)throw e;
+       failures.push(failureText(this.verifier.label,'read',e));
+       throw Object.assign(new Error('no fresh verified chain state: '+errText(e)),{cause:e});
+     });
+   }
+-  // A request function bounded by ONE total deadline for everything issued through it.
+-  deadlineCall() {
+-    const endAt=performance.now()+this.deadlineMs;
+-    return (method,params)=>{
+-      const left=Math.floor(endAt-performance.now());
+-      if(left<=0)return Promise.reject(new Error('the verified read deadline has passed'));
+-      return timed(Promise.resolve().then(()=>this.verifier.request(method,params,left)),left);
++  // ONE verified operation (a read, a pinned history read, a block-hash check): ONE deadline for everything in it, the
++  // caller's callback included, and ONE closure.
++  //  * run(fn) settles at the deadline even if fn (e.g. a read callback) never settles. JavaScript cannot abort running
++  //    code: such a callback is simply no longer waited for, and anything it does later is refused.
++  //  * The moment run() settles (answer, refusal or deadline) the operation is closed: the AbortSignal every transport
++  //    request got is aborted (the HTTP verifier cancels its fetch), every pending request of it rejects at once, and the
++  //    deadline timer is cleared. A client the callback kept cannot send anything afterwards.
++  //  * call() refuses once closed or past the deadline, and checks both again at the moment the transport is invoked (a
++  //    microtask later), not only when the request is queued. Each request waits at most the time left.
++  verifiedOperation(kind) {
++    const endAt=performance.now()+this.deadlineMs,controller=new AbortController();
++    let closed=null,timer;
++    const close=reason=>{if(closed)return;closed=reason;clearTimeout(timer);controller.abort(reason);};
++    const expired=new Promise((_r,reject)=>{
++      timer=setTimeout(()=>{const e=new Error(`the verified ${kind} deadline of ${this.deadlineMs} ms has passed`);close(e);reject(e);},this.deadlineMs);
++      timer.unref?.();
++    });
++    expired.catch(()=>{});
++    const refusal=()=>closed?new Error(`the verified ${kind} is closed (${closed.message}): no new request`)
++      :performance.now()>=endAt?new Error(`the verified ${kind} deadline has passed`):null;
++    const call=(method,params)=>{
++      const no=refusal();
++      if(no)return Promise.reject(no);
++      return bounded(Promise.resolve().then(()=>{
++        const late=refusal();   // re-checked when the transport is actually invoked
++        if(late)throw late;
++        return this.verifier.request(method,params,Math.max(1,Math.floor(endAt-performance.now())),controller.signal);
++      }),Math.max(1,Math.floor(endAt-performance.now())),controller.signal,`the verified ${kind} deadline has passed`);
+     };
++    const run=fn=>Promise.race([Promise.resolve().then(fn),expired]).finally(()=>close(new Error(`the verified ${kind} has finished`)));
++    const assertOpen=()=>{const no=refusal();if(no)throw no;};
++    return {call,run,assertOpen};
+   }
+   // The only client a read callback sees under the verifier: every answer is AT the verified block (by hash) and
+   // proof-backed; a read at any other block, or any method outside PINNED_METHODS, refuses by name.
+@@ -435,7 +475,8 @@ export class LeaseReader {
+   async blockHashIs(number,hash) {
+     const b=BigInt(number);
+     if(this.authority==='verifier'){
+-      try{return verifiedHeader(await this.deadlineCall()('eth_getBlockByNumber',[hexBlock(b),false]),b).hash===String(hash).toLowerCase();}
++      const op=this.verifiedOperation('block hash check');
++      try{return await op.run(async()=>verifiedHeader(await op.call('eth_getBlockByNumber',[hexBlock(b),false]),b).hash===String(hash).toLowerCase());}
+       catch{return false;}
+     }
+     const hashes=await Promise.all(this.clients.map(client=>client.getBlock({blockNumber:b}).then(x=>x.hash).catch(()=>null)));
+@@ -448,10 +489,13 @@ export class LeaseReader {
+   async readAt({blockNumber,blockHash},read) {
+     const b=BigInt(blockNumber);
+     if(this.authority==='verifier'){
+-      const call=this.deadlineCall();
+-      const h=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
+-      if(blockHash!==undefined&&h.hash!==String(blockHash).toLowerCase())throw new Error('the pinned block is no longer canonical at '+b);
+-      return read(this.pinnedClient(b,h.hash,call),b);
++      // history: bounded and closed like every verified operation, and it never moves lastBlock/lastEvidence
++      const op=this.verifiedOperation('pinned read');
++      return op.run(async()=>{
++        const h=verifiedHeader(await op.call('eth_getBlockByNumber',[hexBlock(b),false]),b);
++        if(blockHash!==undefined&&h.hash!==String(blockHash).toLowerCase())throw new Error('the pinned block is no longer canonical at '+b);
++        return read(this.pinnedClient(b,h.hash,op.call),b);
++      });
+     }
+     const key=v=>JSON.stringify(v,(_k,x)=>typeof x==='bigint'?x.toString():x);
+     const values=await Promise.all(this.clients.map(client=>Promise.resolve().then(()=>read(client,b)).catch(()=>null)));
+diff --git a/test/lease-reader-verifier-deadline.test.mjs b/test/lease-reader-verifier-deadline.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..e853a5d4bf3001cb8f5aff2e8df3638cb2f40447
+--- /dev/null
++++ b/test/lease-reader-verifier-deadline.test.mjs
+@@ -0,0 +1,202 @@
++// LeaseReader authority 'verifier': ONE deadline and ONE closure for each whole operation (agreed/verifiedRead, readAt,
++// blockHashIs), including a caller callback that never settles. Real LeaseReader methods, driven by scripted in-process
++// transports and a real loopback HTTP verifier; no chain, no network beyond 127.0.0.1.
++import test, { after } from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import { pad, toHex, parseAbi } from 'viem';
++import { LeaseReader } from '../network/lease-reader.mjs';
++
++const BOOK = '0x' + '33'.repeat(20), ADDR = '0x' + '44'.repeat(20);
++const HASH = (n) => pad(toHex(BigInt(n) * 1000n + 1n), { size: 32 });
++const T = { timeout: 5000 };
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const BAL_ABI = parseAbi(['function balanceOf(address) view returns (uint256)']);
++// Keeps the event loop alive so that, on code WITHOUT a whole-operation deadline (the base-failure control), a
++// never-settling read fails by its own 5 s test timeout instead of draining the loop and cancelling every later test.
++const keepAlive = setInterval(() => {}, 1000);
++after(() => clearInterval(keepAlive));
++
++// A scripted in-process verifier. `hang` lists methods that never answer; every request records its AbortSignal.
++function scripted({ hang = [], head = 100n } = {}) {
++  const st = { calls: [], signals: [] };
++  const verifier = {
++    request: (method, params, _ms, signal) => {
++      st.calls.push(method); st.signals.push(signal);
++      if (hang.includes(method)) return new Promise(() => {});
++      switch (method) {
++        case 'eth_chainId': return Promise.resolve('0x2105');
++        case 'eth_blockNumber': return Promise.resolve(toHex(head));
++        case 'eth_getBlockByNumber': {
++          const n = BigInt(params[0]);
++          return Promise.resolve({ number: toHex(n), hash: HASH(n), stateRoot: pad('0x22', { size: 32 }), timestamp: toHex(Math.floor(Date.now() / 1000)) });
++        }
++        case 'eth_getStorageAt': return Promise.resolve(pad('0x2a', { size: 32 }));
++        case 'eth_getBalance': return Promise.resolve('0x10');
++        case 'eth_call': return Promise.resolve(pad('0x05', { size: 32 }));
++        default: return Promise.reject(new Error('method not supported'));
++      }
++    },
++  };
++  return { st, verifier };
++}
++const reader = (verifier, opts = {}) => new LeaseReader({ authority: 'verifier', verifier, addressBook: BOOK, confirmations: 2, deadlineMs: 100, ...opts });
++const sends = (st) => st.calls.length;
++
++test('a callback that never settles is rejected at the deadline; reader state is untouched', T, async () => {
++  const { st, verifier } = scripted();
++  const r = reader(verifier), failures = [];
++  const t0 = performance.now();
++  await assert.rejects(r.agreed(() => new Promise(() => {}), failures), /no fresh verified chain state: .*deadline/);
++  const took = performance.now() - t0;
++  assert.ok(took >= 90 && took < 300, `rejected after ${Math.round(took)} ms (deadline 100 ms)`);
++  assert.equal(r.lastBlock, 0n);
++  assert.equal(r.lastEvidence, null);
++  assert.equal(failures.length, 1);
++  assert.ok(st.signals.every((s) => s?.aborted), 'every transport signal is aborted when the operation closes');
++});
++
++test('a callback that resolves after the deadline cannot answer, change state or send', T, async () => {
++  const { st, verifier } = scripted();
++  const r = reader(verifier);
++  let late = null;
++  const p = r.agreed(async (c) => {
++    await sleep(250);
++    late = await c.getStorageAt({ address: ADDR, slot: '0x0' }).then(() => 'sent', (e) => e.message);
++    return { ok: true };
++  });
++  await assert.rejects(p, /deadline/);
++  const before = sends(st);
++  await sleep(350);
++  assert.match(late, /closed|deadline/);
++  assert.equal(sends(st), before, 'the late attempt sends nothing');
++  assert.equal(r.lastBlock, 0n);
++  assert.equal(r.lastEvidence, null);
++});
++
++test('a hung RPC inside the callback is bounded and its transport signal is aborted', T, async () => {
++  const { st, verifier } = scripted({ hang: ['eth_getBalance'] });
++  const r = reader(verifier);
++  const t0 = performance.now();
++  await assert.rejects(r.agreed(async (c) => ({ v: String(await c.getBalance({ address: ADDR })) })), /deadline|timed out/);
++  assert.ok(performance.now() - t0 < 300);
++  const i = st.calls.indexOf('eth_getBalance');
++  assert.ok(i >= 0 && st.signals[i].aborted, 'the hung request was told to abort');
++});
++
++test('retained clients cannot send after success, failure or timeout', T, async () => {
++  for (const outcome of ['success', 'failure', 'timeout']) {
++    const { st, verifier } = scripted();
++    const r = reader(verifier);
++    let kept;
++    const p = r.agreed(async (c) => {
++      kept = c;
++      if (outcome === 'failure') throw new Error('callback failed');
++      if (outcome === 'timeout') return new Promise(() => {});
++      return { ok: true };
++    });
++    if (outcome === 'success') assert.equal((await p).ok, true); else await assert.rejects(p);
++    const before = sends(st);
++    await assert.rejects(kept.getStorageAt({ address: ADDR, slot: '0x0' }), /closed|deadline/, outcome);
++    await assert.rejects(kept.readContract({ address: ADDR, abi: BAL_ABI, functionName: 'balanceOf', args: [ADDR] }), /closed|deadline/, outcome);
++    await sleep(5);
++    assert.equal(sends(st), before, `${outcome}: retained client sent nothing`);
++  }
++});
++
++test('the deadline is re-checked when the transport is actually invoked, not only when the request is queued', T, async () => {
++  const { st, verifier } = scripted();
++  const r = reader(verifier);
++  let queued;
++  const p = r.agreed((c) => {
++    queued = c.getStorageAt({ address: ADDR, slot: '0x0' }).then(() => 'sent', (e) => e.message);
++    const until = performance.now() + 130;   // block the event loop past the 100 ms deadline before the microtask runs
++    while (performance.now() < until) { /* busy */ }
++    return { ok: true };
++  });
++  await assert.rejects(p, /deadline/);
++  assert.match(await queued, /deadline|closed/);
++  assert.equal(st.calls.filter((m) => m === 'eth_getStorageAt').length, 0, 'the expired request never reached the transport');
++});
++
++test('normal completion: callback-created pending requests are aborted, no timers stay behind', T, async () => {
++  const { st, verifier } = scripted({ hang: ['eth_getBalance'] });
++  const r = reader(verifier, { deadlineMs: 2000 });
++  const timeouts = () => process.getActiveResourcesInfo().filter((x) => x === 'Timeout').length;
++  const base = timeouts();
++  let orphan;
++  const out = await r.agreed(async (c) => {
++    orphan = c.getBalance({ address: ADDR }).then(() => 'answered', (e) => e.message);   // never awaited by the callback
++    return { v: (await c.getStorageAt({ address: ADDR, slot: '0x0' })).slice(0, 4) };
++  });
++  assert.equal(out.v, '0x00');
++  assert.match(await orphan, /closed|finished/);
++  const i = st.calls.indexOf('eth_getBalance');
++  assert.ok(st.signals[i].aborted, 'the orphaned request was aborted at completion');
++  await sleep(0);
++  assert.equal(timeouts(), base, 'no per-request or deadline timer outlives the operation');
++  assert.equal(r.lastEvidence.tier, 'unsafe');
++});
++
++test('readAt (history) is bounded and closed the same way, and never becomes fresh authority', T, async () => {
++  const { st, verifier } = scripted();
++  const r = reader(verifier);
++  const t0 = performance.now();
++  await assert.rejects(r.readAt({ blockNumber: 98n, blockHash: HASH(98) }, () => new Promise(() => {})), /deadline/);
++  assert.ok(performance.now() - t0 < 300);
++  let kept;
++  const v = await r.readAt({ blockNumber: 98n, blockHash: HASH(98) }, async (c) => { kept = c; return { s: await c.getStorageAt({ address: ADDR, slot: '0x1' }) }; });
++  assert.ok(v.s);
++  const before = sends(st);
++  await assert.rejects(kept.getBalance({ address: ADDR }), /closed/);
++  assert.equal(sends(st), before);
++  assert.equal(r.lastBlock, 0n, 'a history read does not move the accepted block');
++  assert.equal(r.lastEvidence, null, 'a history read is not fresh evidence');
++  await assert.rejects(r.readAt({ blockNumber: 98n, blockHash: HASH(97) }, () => ({})), /no longer canonical/);
++});
++
++test('blockHashIs: true/false as before, a hung verifier answers false within the deadline and is aborted', T, async () => {
++  const ok = scripted();
++  assert.equal(await reader(ok.verifier).blockHashIs(98n, HASH(98)), true);
++  assert.equal(await reader(ok.verifier).blockHashIs(98n, HASH(97)), false);
++  const hung = scripted({ hang: ['eth_getBlockByNumber'] });
++  const t0 = performance.now();
++  assert.equal(await reader(hung.verifier).blockHashIs(98n, HASH(98)), false);
++  assert.ok(performance.now() - t0 < 300);
++  assert.ok(hung.st.signals[0].aborted);
++});
++
++test('the loopback HTTP verifier: a hung request is cancelled on the wire at the deadline', T, async () => {
++  const closedAt = [];
++  const server = http.createServer((req, res) => {
++    let body = '';
++    req.on('data', (d) => { body += d; });
++    req.on('end', () => {
++      const { id, method, params } = JSON.parse(body);
++      const reply = (result) => res.end(JSON.stringify({ jsonrpc: '2.0', id, result }));
++      if (method === 'eth_chainId') return reply('0x2105');
++      if (method === 'eth_blockNumber') return reply('0x64');
++      if (method === 'eth_getBlockByNumber') return reply({ number: params[0], hash: HASH(BigInt(params[0])), stateRoot: pad('0x22', { size: 32 }), timestamp: toHex(Math.floor(Date.now() / 1000)) });
++      res.on('close', () => { if (!res.writableEnded) closedAt.push(performance.now()); });   // eth_call: never answered
++    });
++  });
++  await new Promise((r) => server.listen(0, '127.0.0.1', r));
++  try {
++    const r = new LeaseReader({ authority: 'verifier', verifier: `http://127.0.0.1:${server.address().port}/`, addressBook: BOOK, confirmations: 2, deadlineMs: 200 });
++    const t0 = performance.now();
++    await assert.rejects(r.agreed(async (c) => ({ v: String(await c.readContract({ address: ADDR, abi: BAL_ABI, functionName: 'balanceOf', args: [ADDR] })) })), /deadline|timed out/);
++    await sleep(100);
++    assert.equal(closedAt.length, 1, 'the server saw the hung request aborted');
++    assert.ok(closedAt[0] - t0 < 400, `aborted ${Math.round(closedAt[0] - t0)} ms after start (deadline 200 ms)`);
++  } finally {
++    server.closeAllConnections?.();
++    await new Promise((r) => server.close(r));
++  }
++});
++
++test('policy is unchanged: the deadline bound and legacy quorum construction', () => {
++  const { verifier } = scripted();
++  assert.throws(() => reader(verifier, { deadlineMs: 99 }), /invalid chain policy/);
++  assert.throws(() => reader(verifier, { deadlineMs: 300001 }), /invalid chain policy/);
++  assert.equal(reader(verifier, { deadlineMs: 300000 }).deadlineMs, 300000);
++});

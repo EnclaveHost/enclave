@@ -1,0 +1,23 @@
+From 4a35bec015c28acc8fd86f10b88389751048e819 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 18:12:15 -0700
+Subject: [PATCH 07/19] Keep the e2e setup assertion message serializable
+
+(cherry picked from commit 36a83c89bfe9cf5bfd1045da3a3c1595c690a258)
+---
+ test/helios-witness.e2e.test.mjs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/test/helios-witness.e2e.test.mjs b/test/helios-witness.e2e.test.mjs
+index 7eccc5c52abf6a9256ceead444a7e1c85c15c429..bbe7f4c88512033fcdaff054fd6c8d0d81230eca 100644
+--- a/test/helios-witness.e2e.test.mjs
++++ b/test/helios-witness.e2e.test.mjs
+@@ -79,7 +79,7 @@ test.before(async () => {
+   head = { number: BigInt(b.number), hash: b.hash, stateRoot: b.stateRoot, txs };
+   relay = createHeadRelay({ chainId: 8453, signer: seqSigner, maxAgeMs: 300000 });
+   const offered = await relay.offer(await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs }));
+-  assert.equal(offered.accepted, true, JSON.stringify(offered));
++  assert.equal(offered.accepted, true, String(offered.reason));
+   relayUrl = await relay.listen(0);
+   gateway = createWitnessGateway({ upstreams: [anvilUrl], cache: dirWitnessCache(path.join(TMP, 'witness-cache')) });
+   gatewayUrl = await gateway.listen(0);

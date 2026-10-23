@@ -1,0 +1,38 @@
+d-linux-carrier base fec43a6a0 rebuilt from 493ee9ee0 + 4 stored patch(es) in 871e21975 + 0 patch(es) of this export: tree 13e18b0895e37a7baa5bc9e11ad1fdcf337daac0 OK
+d-linux-carrier 4cdd46221: tree 884989c683b98ae40db4e739c242ebac92d42f51 OK
+d-linux-carrier 9a00b9838: tree 00356c0ffeaef3150ad9e556fffb23e85abbd36c OK
+d-linux-carrier 65f3fb982: tree 6856eb434a09d7f637326a5d30443ebc732c619b OK
+d-linux-carrier 95d86a59d: tree e4120cbfa6dba4c8488970c6a067d65b293d06c7 OK
+d-linux-carrier d292b930e: tree 9de87e0aa88d4759902223ff65cdd401d25c6db8 OK
+d-linux-carrier 1d3f2e4f8: tree 784e6a9567ff85e7a035d297e8ee143027570384 OK
+d-linux-carrier 4a35bec01: tree e2ab342a0d35299cce308171a252b7bceea12a95 OK
+d-linux-carrier ea336bc31: tree 9230953021f88f9ead7e826c45610de122cd3c27 OK
+d-linux-carrier 2afb9d5c6: tree 40a6c96eefbe41b7ca150150c3bbf73f6465648f OK
+d-linux-carrier 25a3dffd4: tree 122da1bb0dbc90890051c5dd0adf731075931cf6 OK
+d-linux-carrier 03d588e42: tree 6c921bd92fa19f3af8b8142dc864b25b9fa99f79 OK
+d-linux-carrier 4f5a789e4: tree 3d514daa7f2818f5130740995fd09b2a47ad1da4 OK
+d-linux-carrier b6bc6b6cb: tree d1d348ddce87bfe7e60b885618b325fa0e83de6c OK
+d-linux-carrier b6fd6a00b: tree 229a698d485bc3ecc608586021181f89c6981822 OK
+d-linux-carrier a177ce8ce: tree 652f1f80917a958f36b169494c9819042da15464 OK
+d-linux-carrier a76a86ee4: tree 05072b35476839cc4c2ce9a70437bc5f0a27a0bc OK
+d-linux-carrier 280d28497: tree 39b9594d5a29125d6e77b83cae81756cd605ccae OK
+d-linux-carrier 714aa0dcd: tree b2510b92ca6ea9a22dd6d318d9072fcb7726a1e2 OK
+d-linux-carrier fad657bc5: tree 5e2e43319e1041d45ee1ab313ddb7e48e4cdbfd1 OK
+s-holder-final base f6de2364a rebuilt from empty + 4 stored patch(es) in 871e21975 + 0 patch(es) of this export: tree 5222f1ea449e3892cf93d271295e87be012af586 OK
+s-holder-final ea504aaba: tree dc25d2a143269e4d62f9c10329a6010ecb28f3e0 OK
+s-holder-final 08f2efed6: tree 6473a32ebc2c627d59ca02b31b3cb4edfa51ca5c OK
+s-holder-final 1a509577b: tree f73295ea3ec944f6a691e050ebddeaef33bd4e93 OK
+s-holder-final fd0134d44: tree 19e53385fd37e10c855c43b2ac6adabafc96f689 OK
+s-holder-final eb3289446: tree 1e8836e770bbbb4abce0d9e2f7e0dbd1a5f4b761 OK
+s-holder-final 6b9dae92d: tree 19bf9c51d8e3ca0b08a24e9881d3694fdbff6619 OK
+s-holder-final 2681e8a60: tree 9f846919ea740dce2d3809197d7c0c40866a5511 OK
+s-holder-final 9f1492fb3: tree 491aa40011732d03ddc39cbbd3a84c07c318367f OK
+s-holder-final 959e56fd7: tree 7660a471ec3751843e65fa7990e26006f616c85e OK
+s-holder-final 47c2f71f4: tree 00e10586e210c2a2c176658efbdbf7865d1ebee9 OK
+root-wallet-fix base none (root commit) rebuilt from empty + 0 stored patch(es) in 871e21975 + 0 patch(es) of this export: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-wallet-fix ed071dcdc: tree 614a484947be0d40c8e575dfc8d3f159682f9c6e OK
+root-wallet-fix 320d7e9fd: tree 3ba92a28cc666c686afda145daa46fa67a03e165 OK
+root-cache-budget base none (root commit) rebuilt from empty + 0 stored patch(es) in 871e21975 + 0 patch(es) of this export: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-cache-budget 08fffd5aa: tree 81cf0a432d367d5f6241bb389a52100cb810fdb6 OK
+493ee9ee is an ancestor of dfe020abf (checked in the checkpoint repo)
+RESULT d-linux-carrier head tree reproduced: True, s-holder-final head tree reproduced: True, root-wallet-fix head tree reproduced: True, root-cache-budget head tree reproduced: True

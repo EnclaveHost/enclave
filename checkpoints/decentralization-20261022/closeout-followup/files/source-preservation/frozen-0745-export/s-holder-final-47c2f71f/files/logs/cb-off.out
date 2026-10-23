@@ -1,0 +1,115 @@
+[queue] START available=24256MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+adc6d65f5a501ae555dd96305818a4badbe857f2100dac90277c176e89bbf3b6  holder.py
+a82192bc30715f94cb86934507430ab2956a6962e0b51b3bf85071030ce21bcd  budget.py
+b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00  BINARY.json
+eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00  holder-storage.sh.in
+743acde5c8a6d1a01cc37a7428a3152b34b93582c800954a5405d322363238f1  drill-cache.sh
+7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
+8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a  holder.example.json
+46d0426109a3b4eeff7f7f83d0784fbe3a30dbe7a97fbd80cc03cd7bf3ad0d87  test/mutate.py
+111893d22ae200dd6b79e6f844a07fb06445eecadc1332347dddbfa78dc0933e  test/standin-base.py
+83a5b35709882992cbc6b7eb3dae6666e95b502c2f11a98054e0cc9089167f72  test/test_base_offline.py
+a7850c3325df0554cbe56415f61a90746759fb5438c5729144485bc9d9613b62  test/test_budget.py
+f6c8ea8b306088222db2481658c289f1abe956f09b48b952124e77e9cd0d61c6  test/test_holder.py
+d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
+197becf05243ba8fb01fa7b0c84ce0ee35831c0aa9f8c6e2995c4ccbd29b47c4  test/test_storage.py
+ffd3b43524dc84e3d95b2932232489629fb0894dc8a86c44a3445f2a97902437  test/stubs/stubcmd.py
+=== test/test_base_offline.py
+test_rendered_argv_on_the_official_binary_without_l1 (__main__.OfficialBinaryOffline.test_rendered_argv_on_the_official_binary_without_l1) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 5.717s
+
+OK
+{
+ "binarySha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+ "exitCode": 1,
+ "ranSeconds": 5.5,
+ "stoppedByTestAfter240s": false,
+ "executionRpcChainId": "0x2105",
+ "executionRpcAnsweredAfterSec": 1.3,
+ "listeners": [
+  "0.0.0.0:34175",
+  "127.0.0.1:32977",
+  "127.0.0.1:43183"
+ ],
+ "l1LogLines": [
+  "\u001b[2m2026-10-23T07:01:38.069233Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mupgrade_signal\u001b[0m\u001b[2m:\u001b[0m execution upgrade signal metrics observer spawned",
+  "\u001b[2m2026-10-23T07:01:38.069314Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m\ud83c\udf74 Scheduled Upgrades:",
+  "\u001b[2m2026-10-23T07:01:38.069321Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Regolith Activation Time: 1686789347",
+  "\u001b[2m2026-10-23T07:01:38.069322Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Canyon Activation Time: 1704992401",
+  "\u001b[2m2026-10-23T07:01:38.069323Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Delta Activation Time: 1708560000",
+  "\u001b[2m2026-10-23T07:01:38.069324Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Ecotone Activation Time: 1710374401",
+  "\u001b[2m2026-10-23T07:01:38.069324Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Fjord Activation Time: 1720627201",
+  "\u001b[2m2026-10-23T07:01:38.069325Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Granite Activation Time: 1726070401",
+  "\u001b[2m2026-10-23T07:01:38.069326Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Holocene Activation Time: 1736445601",
+  "\u001b[2m2026-10-23T07:01:38.069326Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> PectraBlobSchedule Activation Time: Not scheduled",
+  "\u001b[2m2026-10-23T07:01:38.069327Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Isthmus Activation Time: 1746806401",
+  "\u001b[2m2026-10-23T07:01:38.069328Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Jovian Activation Time: 1764691201",
+  "\u001b[2m2026-10-23T07:01:38.069328Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Azul Activation Time: 1779991200",
+  "\u001b[2m2026-10-23T07:01:38.069329Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Beryl Activation Time: 1782410400",
+  "\u001b[2m2026-10-23T07:01:38.069330Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Cobalt Activation Time: 1790791200",
+  "\u001b[2m2026-10-23T07:01:38.069331Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Denim Activation Time: 1793901600",
+  "\u001b[2m2026-10-23T07:01:38.069331Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Everest Activation Time: Not scheduled",
+  "\u001b[2m2026-10-23T07:01:38.070325Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mupgrade_signal\u001b[0m\u001b[2m:\u001b[0m reinstalled P2P fork filter after runtime schedule change \u001b[3mfork_id\u001b[0m\u001b[2m=\u001b[0mForkId { hash: ForkHash(\"67da0260\"), next: 1704992401 }",
+  "\u001b[2m2026-10-23T07:01:38.070689Z\u001b[0m \u001b[33m WARN\u001b[0m \u001b[2mupgrade_signal\u001b[0m\u001b[2m:\u001b[0m failed to read live L1 upgrade signal schedule \u001b[3merror\u001b[0m\u001b[2m=\u001b[0mget L1 block failed: error sending request for url (http://127.0.0.1:38155/)",
+  "\u001b[2m2026-10-23T07:01:38.073227Z\u001b[0m \u001b[33m WARN\u001b[0m \u001b[2mp2p::flags\u001b[0m\u001b[2m:\u001b[0m Retrying L1 latest block number lookup for unsafe block signer resolution \u001b[3merror\u001b[0m\u001b[2m=\u001b[0merror sending request for url (http://127.0.0.1:38155/) \u001b[3mdelay\u001b[0m\u001b[2m=\u001b[0m172.298624ms",
+  "\u001b[2m2026-10-23T07:01:38.246731Z\u001b[0m \u001b[33m WARN\u001b[0m \u001b[2mp2p::flags\u001b[0m\u001b[2m:\u001b[0m Retrying L1 latest block number lookup for unsafe block signer resolution \u001b[3merror\u001b[0m\u001b[2m=\u001b[0merror sending request for url (http://127.0.0.1:38155/) \u001b[3mdelay\u001b[0m\u001b[2m=\u001b[0m235.760026ms",
+  "\u001b[2m2026-10-23T07:01:38.484291Z\u001b[0m \u001b[33m WARN\u001b[0m \u001b[2mp2p::flags\u001b[0m\u001b[2m:\u001b[0m Retrying L1 latest block number lookup for unsafe block signer resolution \u001b[3merror\u001b[0m\u001b[2m=\u001b[0merror sending request for url (http://127.0.0.1:38155/) \u001b[3mdelay\u001b[0m\u001b[2m=\u001b[0m590.06156ms",
+  "\u001b[2m2026-10-23T07:01:39.076184Z\u001b[0m \u001b[33m WARN\u001b[0m \u001b[2mp2p::flags\u001b[0m\u001b[2m:\u001b[0m Retrying L1 latest block number lookup for unsafe block signer resolution \u001b[3merror\u001b[0m\u001b[2m=\u001b[0merror sending request for url (http://127.0.0.1:38155/) \u001b[3mdelay\u001b[0m\u001b[2m=\u001b[0m1.227021813s",
+  "\u001b[2m2026-10-23T07:01:40.305263Z\u001b[0m \u001b[33m WARN\u001b[0m \u001b[2mp2p::flags\u001b[0m\u001b[2m:\u001b[0m Retrying L1 latest block number lookup for unsafe block signer resolution \u001b[3merror\u001b[0m\u001b[2m=\u001b[0merror sending request for url (http://127.0.0.1:38155/) \u001b[3mdelay\u001b[0m\u001b[2m=\u001b[0m1.668202885s"
+ ],
+ "datadirApparentBytes": 4295614880,
+ "datadirAllocatedBytes": 1331200,
+ "datadirFiles": [
+  "data/db/database.version",
+  "data/db/mdbx.dat",
+  "data/db/mdbx.lck",
+  "data/discovery-secret",
+  "data/jwt.hex",
+  "data/known-peers.json",
+  "data/l2_jwt.hex",
+  "data/reth.toml",
+  "data/rocksdb/000004.log",
+  "data/rocksdb/000008.log",
+  "data/rocksdb/000009.sst",
+  "data/rocksdb/CURRENT",
+  "data/rocksdb/IDENTITY",
+  "data/rocksdb/LOCK",
+  "data/rocksdb/LOG",
+  "data/rocksdb/MANIFEST-000005",
+  "data/rocksdb/OPTIONS-000007",
+  "data/static_files/static_file_account-change-sets_0_499999",
+  "data/static_files/static_file_account-change-sets_0_499999.conf",
+  "data/static_files/static_file_account-change-sets_0_499999.csoff",
+  "data/static_files/static_file_account-change-sets_0_499999.off",
+  "data/static_files/static_file_headers_0_499999",
+  "data/static_files/static_file_headers_0_499999.conf",
+  "data/static_files/static_file_headers_0_499999.off",
+  "data/static_files/static_file_receipts_0_499999",
+  "data/static_files/static_file_receipts_0_499999.conf",
+  "data/static_files/static_file_receipts_0_499999.off",
+  "data/static_files/static_file_storage-change-sets_0_499999",
+  "data/static_files/static_file_storage-change-sets_0_499999.conf",
+  "data/static_files/static_file_storage-change-sets_0_499999.csoff",
+  "data/static_files/static_file_storage-change-sets_0_499999.off",
+  "data/static_files/static_file_transaction-senders_0_499999",
+  "data/static_files/static_file_transaction-senders_0_499999.conf",
+  "data/static_files/static_file_transaction-senders_0_499999.off",
+  "data/static_files/static_file_transactions_0_499999",
+  "data/static_files/static_file_transactions_0_499999.conf",
+  "data/static_files/static_file_transactions_0_499999.off"
+ ],
+ "wildcardPorts": {
+  "executionPort": 34175
+ },
+ "publicIpcSocket": false,
+ "nodeWroteRethToml": true,
+ "l2JwtInDatadir": true,
+ "defaultRethTomlRefused": "datadir/reth.toml prune segments are not the `minimal` download profile (a default/archive config?)",
+ "rethTomlPrune": "[prune]\nblock_interval = 5\nminimum_pruning_distance = 10064\n\n[prune.segments]\n\n[peers]\nrefill_slots_interval = \"5s\"\ntrusted_nodes = []\ntrusted_nodes_only = false\ntrusted_nodes_resolution_interval = \"1h\"\nmax_backoff_count = 5\nban_duration = \"12h\"\nincoming_ip_throttle_duration = \"30s\"\nenforce_enr_fork_id = false\npeer_rotation_interval = \"5m\"\n\n[peers.connection_info]\nmax_outbound = 100\nmax_inbound = ",
+ "rethTomlStaticFiles": "[static_files.blocks_per_file]\n"
+}
+[memory-guard] exit=0 peakTreeRssMiB=256 minHostAvailableMiB=24048
+[memory-guard] at peak: base:189 python3:30 python3:27 sh:6 timeout:4
+[queue] EXIT 0

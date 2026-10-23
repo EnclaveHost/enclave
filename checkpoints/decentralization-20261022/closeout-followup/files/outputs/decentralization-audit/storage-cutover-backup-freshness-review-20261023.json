@@ -1,0 +1,40 @@
+{
+  "checkedAt": "2026-10-23T06:34:50.094701+00:00",
+  "sourceSha256": "4ba0763833f0dda2f7300a3d53964f51eedf75605710efbdd80619591c9dca64",
+  "finding": "Backup age is computed from verifiedAt; missing or old capturedAt passes. The existing archive verifier emits a new verifiedAt when rechecking an old archive and omits the authenticated manifest capturedAt.",
+  "cases": [
+    {
+      "case": "missing-capture-time",
+      "capturedAt": null,
+      "verifiedAt": "2026-10-23T05:59:00Z",
+      "verdict": "GO",
+      "reasons": [],
+      "release": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
+      "schema": "28"
+    },
+    {
+      "case": "fresh-capture",
+      "capturedAt": "2026-10-23T05:30:00Z",
+      "verifiedAt": "2026-10-23T05:59:00Z",
+      "verdict": "GO",
+      "reasons": [],
+      "release": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
+      "schema": "28"
+    },
+    {
+      "case": "old-capture-reverified",
+      "capturedAt": "2026-01-01T00:00:00Z",
+      "verifiedAt": "2026-10-23T05:59:00Z",
+      "verdict": "GO",
+      "reasons": [],
+      "release": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
+      "schema": "28"
+    }
+  ],
+  "labels": [
+    "The receipt is a derived v28 test input based on a public v26 receipt. No actual v28 archive is claimed, modified, or decrypted.",
+    "The real frozen preflight function ran offline. This proves its acceptance logic, not a live data-loss event."
+  ],
+  "productionChanged": false,
+  "required": "Expose capturedAt and source/run/archive binding from the verified archive manifest; enforce capture age separately from verification age. Keep a writer-stopped capture in the enrollment sequence and do not treat not-ready as proof that CAS enrollment has not occurred."
+}

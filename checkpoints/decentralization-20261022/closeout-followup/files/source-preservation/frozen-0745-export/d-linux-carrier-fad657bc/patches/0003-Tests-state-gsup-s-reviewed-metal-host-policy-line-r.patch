@@ -1,0 +1,75 @@
+From 65f3fb9822b73eddecb9ccf708fa50c72a079fb7 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 00:26:16 -0700
+Subject: [PATCH 03/19] Tests: state gsup's reviewed metal-host-policy line;
+ refuse the four former fleet mirrors explicitly
+
+Two existing tests failed on every tree of the 493ee9ee lineage (pre-existing, unrelated to the carriers):
+- metal-measured-control compares gsup's legacy launch with main 7752a423 byte for byte after removing the reviewed wrappers;
+  6f2c7da4 added `...HOST_POLICY_ENV,` (the metal host policy's fw_cfg names) there, which the comparison never listed. It is
+  now asserted once, after the flavor, and removed like the other reviewed changes; everything else still compares exactly.
+- hosted-policy-cold-start configured `[...PRODUCTION_MIRRORS]` and asserted the gate tried `PRODUCTION_MIRRORS[0]`; the shipped
+  default (40e8ba71) names no mirror, so the assertion read `undefined` and the ban/stale cases cascaded. The test now
+  configures the four former fleet fronts explicitly (all still refused at the transport) and asserts the shipped default is
+  empty.
+---
+ test/hosted-policy-cold-start.test.mjs | 9 +++++++--
+ test/metal-measured-control.test.mjs   | 5 ++++-
+ 2 files changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/test/hosted-policy-cold-start.test.mjs b/test/hosted-policy-cold-start.test.mjs
+index 753e8d325d9cd86ab25306f9dbc39aea03ca861d..d0098e580fa71d44b513978e0061513186f38b0b 100644
+--- a/test/hosted-policy-cold-start.test.mjs
++++ b/test/hosted-policy-cold-start.test.mjs
+@@ -45,6 +45,10 @@ const compileIndexInChild = () => JSON.parse(execFileSync(process.execPath, ['--
+ const OUT = path.join(REPO, 'contracts/foundry/out');
+ const skip = haveTools() || (!fs.existsSync(path.join(PKG, 'policy-mirror.package.json')) ? 'needs the built packages (scripts/build-host-service-packages.mjs)' : false);
+ const DO = { name: 'digitalocean', addresses: ['134.199.235.187', '134.209.248.172', '165.245.191.129', '146.190.246.39'] };
++// the production-shaped mirror list this test refuses: the four former fleet fronts. The shipped production default
++// (network/platform-host-policy-config.mjs, host-admission bundle 40e8ba71) names NO mirror at all; configuring the former
++// fleet set here keeps the test's point - every such front refused at the transport - explicit rather than vacuous.
++const FLEET_MIRRORS = DO.addresses.map((ip) => `https://${ip}/platform-policy`);
+ const pin = (role) => 'sha256:' + createHash('sha256').update(fs.readFileSync(path.join(PKG, `${role}.package.json`))).digest('hex');
+ const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, name + '.json'), 'utf8')); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
+ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-policy-'));
+@@ -70,7 +74,7 @@ const wait = async (f, ms = 30000, what = 'condition') => { const end = Date.now
+ const up = (port) => fetch(`http://127.0.0.1:${port}/health`).then((r) => r.ok, () => false);
+ 
+ let rig, index, indexPin, book, ownership, bookAbi, registryAddr, hosts = {}, docs = [];
+-const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...PRODUCTION_MIRRORS], activation: 'required' });
++const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...FLEET_MIRRORS], activation: 'required' });
+ 
+ async function sign(deny, signer = admin) {
+   const prev = docs.length ? docs[docs.length - 1].digest : Z32;
+@@ -131,13 +135,14 @@ after(async () => {
+ });
+ 
+ test('fresh hosts with empty caches start under an ACTIVATED anchor with every fleet policy mirror refused; a fleet-only host never does', { skip }, async () => {
++  assert.deepEqual(PRODUCTION_MIRRORS, [], 'the shipped production default names no fleet mirror');
+   // host A: the first carrier, from an operator-imported copy of the signed document (untrusted bytes; verified on chain)
+   hosts.a = await startHost('a', { importDoc: docs[0], carriers: { importDir: path.join(tmp, 'host-a', 'import') }, policyMirror: true });
+   await wait(() => up(hosts.a.ports.dir), 30000, 'host A directory (admitted by the real gate)');
+   const sa = hosts.a.running.status();
+   assert.equal(sa.refusal, null); assert.equal(sa.platformHostPolicy.serving, true, JSON.stringify(sa.platformHostPolicy));
+   assert.equal(sa.platformHostPolicy.runtime.accepted.digest, docs[0].digest); assert.equal(sa.platformHostPolicy.runtime.anchor, 'anchored');
+-  assert.ok(denied.some((u) => u.startsWith(PRODUCTION_MIRRORS[0])), 'the gate did try the fleet mirrors, and they were refused');
++  assert.ok(denied.some((u) => u.startsWith(FLEET_MIRRORS[0])), 'the gate did try the fleet mirrors, and they were refused');
+   const served = await wait(() => netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy/${docs[0].digest}.json`).then((r) => r.ok && r.json()), 20000, 'host A policy mirror serves the anchored document');
+   assert.equal(served.signature, docs[0].signature);
+   assert.equal((await netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy/latest.json`)).status, 404, 'no unanchored latest');
+diff --git a/test/metal-measured-control.test.mjs b/test/metal-measured-control.test.mjs
+index ebc1b5847f00d6dfa13aa75dcd0519951cd50f8f..e9a1d56a3ee3c6c1f0d05ac32089e86824bc6415 100644
+--- a/test/metal-measured-control.test.mjs
++++ b/test/metal-measured-control.test.mjs
+@@ -129,7 +129,10 @@ test("gsup: the legacy path is untouched; the direct branch runs only for metal.
+   // and the third: the platform policy carriers' name, from fw_cfg only, applied last (measured-control.mjs withPolicyCarriersEnv)
+   const CARRIED = "MC_LEGACY.withPolicyCarriersEnv(" + NOMINATED + ", POLICY_CARRIERS)";
+   assert.equal(legacy(now).split(CARRIED).length, 2, "...wrapped once, last, by the policy carriers' env");
+-  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(CARRIED, "supEnv"), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical, only wrapped in if (!CONTROL)");
++  // and the reviewed metal host policy (6f2c7da4, network/metal-host-policy.mjs): the fw_cfg wallet-policy names, after the flavor
++  const HOSTED = "  ...HOST_POLICY_ENV,\n";
++  assert.equal(legacy(now).split(HOSTED).length, 2, "...the metal host policy's names, once, right after the flavor");
++  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(CARRIED, "supEnv").replace(HOSTED, ""), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical, only wrapped in if (!CONTROL)");
+   assert.match(now, /if \(CONTROL === 'direct'\) await startDirectControl\(\)/);
+   assert.match(now, /if \(!CONTROL\) \{\nconst supEnv = \{/);
+   assert.match(now, /const MODE {9}= CONTROL \? \(cmdMode \|\| 'snp'\) : \(fw\.mode \|\| cmdMode \|\| 'snp'\);/);

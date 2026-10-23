@@ -1,0 +1,819 @@
+/* ============================================================
+   Wallet + auth - EIP-6963 discovery, SIWE sign-in, session
+   persistence, the header wallet button and popover, deposits.
+
+   Page-facing signals (see util.js): every state change emits
+   `enclave:wallet`; sign-in/out edges also emit `enclave:auth`. Pages
+   never get called into directly - they subscribe.
+
+   Wallets here are the user's OWN - injected extensions, plus
+   WalletConnect when config.js carries a project id (the only way
+   to reach a wallet that is NOT an extension: a Trezor Safe 7 on
+   Bluetooth lives behind Trezor Suite, a native app). Still the
+   user's own keys either way. There is no embedded/custodial
+   wallet and no card-to-crypto purchase on this site: cards go
+   through the order checkout (hosted Stripe page, zero crypto
+   exposure) and crypto payments come from the user's wallet.
+   Account-level sign-in (passkeys + SIWE against the relay) lives
+   in account.js; the wallet SESSION (sessions.js) signs the owner
+   calls hosts serve. This module keeps the per-host ENCLAVE token
+   (the in-CVM SIWE token), now only the fallback for a host that
+   hasn't learned sessions yet, or a wallet with no session.
+   ============================================================ */
+import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID, INDEPENDENT, APP_CATALOG_RPCS } from "./config.js";
+
+/* A read the wallet could not answer. Hosted: Base's public RPC. Independent mode: only the profile's RPCs (the
+   rotating pool; nothing else is contacted), and no profile RPC means no answer rather than a default origin. */
+async function fallbackRead(method, params){
+  if (INDEPENDENT.state !== "off") return baseRpc(method, params);
+  const r = await fetch("https://mainnet.base.org", { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
+  const j = await r.json(); return j && j.result;
+}
+// what the wallet is asked to use for Base when it does not know the chain yet
+const addChainRpcs = () => INDEPENDENT.state !== "off"
+  ? APP_CATALOG_RPCS.filter((u) => u.startsWith("https://")).slice(0, 3)
+  : ["https://mainnet.base.org"];
+import { Enclave, EnclaveError } from "./api.js";
+import { baseRpc } from "./chain.js";
+// Measured from what Base actually includes (3,569 txs / 30 blocks: largest
+// per-tx gas limit 15.0M, nothing over 16M). Asking for more is accepted by
+// some RPCs and then never mined.
+const MAX_TX_GAS = 15_000_000n;
+import { $, $$, esc, short, lsGet, lsSet, copyText, showToast, emit } from "./util.js";
+import { qrSvg } from "../lib/qr.js";
+import { runlog } from "./runlog.js";
+
+/* ---- wallet discovery: EIP-6963 multi-wallet, EIP-1193 fallback ---- */
+export const Wallet = {
+  found: [],
+  started: false,
+  init(){
+    if (this.started) return; this.started = true;
+    window.addEventListener("eip6963:announceProvider", (e) => {
+      const d = e.detail; if (!d || !d.info || !d.provider) return;
+      const i = this.found.findIndex(x => x.info.uuid === d.info.uuid);
+      if (i === -1) this.found.push(d); else this.found[i] = d;
+    });
+    this.request();
+  },
+  request(){ try { window.dispatchEvent(new Event("eip6963:requestProvider")); } catch(e){} },
+  async discover(){
+    // wallets that weren't ready at page-load announce when we re-ask
+    this.request(); await new Promise(r => setTimeout(r, 180));
+    this.request(); await new Promise(r => setTimeout(r, 80));
+    return this.list();
+  },
+  list(){
+    const arr = this.found.slice();
+    const seen = new Set(arr.map(w => w.provider));
+    if (typeof window !== "undefined" && window.ethereum){
+      const eth = window.ethereum;
+      const provs = (eth.providers && eth.providers.length) ? eth.providers : [eth];
+      provs.forEach((p, i) => { if (p && !seen.has(p)){ seen.add(p); arr.push({
+        info: { uuid: "injected-" + i, name: p.isMetaMask ? "MetaMask" : p.isRabby ? "Rabby" : p.isCoinbaseWallet ? "Coinbase Wallet" : p.isBraveWallet ? "Brave Wallet" : "Injected wallet", icon: null },
+        provider: p
+      }); } });
+    }
+    return arr;
+  }
+};
+
+/* ---- WalletConnect: the transport for wallets that aren't extensions ----
+   EIP-6963/1193 discovery above can only ever find browser extensions, and an
+   extension reaches a Trezor over WebUSB or the bridge — both USB. A Safe 7's
+   Bluetooth link is held by Trezor Suite (a native app), so the ONLY way it
+   signs here is WalletConnect: Suite is the wallet, this page is the dApp.
+
+   Deliberately kept out of Wallet.list(): that list answers "is an extension
+   present?" for the silent restore, and that question should never be
+   answered "yes" by a transport that needs a QR scan. It is appended in
+   pickWallet() (a human is choosing) and re-opened in restoreSession() only
+   when the SAVED session was itself WalletConnect — so the 1.3MB bundle
+   never loads for an injected-wallet user. */
+export const WC_RDNS = "org.walletconnect";
+const WC_ENTRY = { info: { uuid: "walletconnect", name: "WalletConnect", rdns: WC_RDNS, icon: null }, wc: true };
+
+let _wcInit = null, _wcLockRelease = null;
+/* One WC provider per ORIGIN, not per tab. Every tab that inits a provider on
+   the same saved pairing subscribes to the same relay topic, and whichever
+   tab's socket consumes a response first wins it: the tab that actually sent
+   eth_sendTransaction then waits forever (the click looks dead - "I can't
+   approve apps") while a sibling tab logs "emitting session_request:<id>
+   without any listeners". A reload mid-request orphans the response the same
+   way. The Web Lock makes ownership explicit: the first tab holds it until
+   sign-out or close; any other tab is told to go sign there. No Locks API
+   (very old browsers) falls back to the racy-but-working single-tab behavior. */
+async function wcOwnerLock(){
+  if (typeof navigator === "undefined" || !navigator.locks) return true;
+  if (_wcLockRelease) return true;                 // this tab already owns the session
+  return await new Promise((resolve) => {
+    navigator.locks.request("enclave.wc-owner", { ifAvailable: true }, (lock) => {
+      if (!lock){ resolve(false); return; }        // another tab owns it
+      resolve(true);
+      return new Promise((release) => { _wcLockRelease = release; });   // held until sign-out / tab close
+    }).catch(() => resolve(true));                 // a Locks hiccup must not block the wallet
+  });
+}
+function wcProvider(){
+  // one in-flight init shared by every caller: pickWallet and restoreSession
+  // must never race two providers onto the same relay session
+  if (_wcInit) return _wcInit;
+  _wcInit = (async () => {
+    // A profile must be confirmed before its wallet transport can make reads.
+    // Keep WalletConnect on the same explicit RPC as the independent page.
+    if (INDEPENDENT.state !== "off" && INDEPENDENT.state !== "on")
+      throw new EnclaveError("Confirm a valid independent profile before connecting WalletConnect.", 0);
+    const rpc = INDEPENDENT.state === "off" ? "https://mainnet.base.org" : APP_CATALOG_RPCS[0];
+    if (!rpc)
+      throw new EnclaveError("The independent profile has no Base RPC for WalletConnect.", 0);
+    if (!(await wcOwnerLock()))
+      throw new EnclaveError("Your WalletConnect session is live in another enclave.host tab - sign there, or close that tab and try again here.", 0);
+    const { EthereumProvider } = await import("/vendor/walletconnect.js");
+    const p = await EthereumProvider.init({
+      projectId: WALLETCONNECT_PROJECT_ID,
+      chains: [BASE_CHAIN],            // Base only: this site signs nothing else
+      showQrModal: false,              // we render the pairing code ourselves (qr.js)
+      rpcMap: { [BASE_CHAIN]: rpc },
+      metadata: {
+        name: "Enclave",
+        description: "Verifiable confidential compute",
+        url: location.origin,
+        icons: [location.origin + "/assets/logo-512.png"],
+      },
+    });
+    p._enclaveWc = true;   // marks the transport for disconnect/event handling
+    return p;
+  })().catch((e) => { _wcInit = null; throw e; });
+  return _wcInit;
+}
+
+/* the pairing code. Same overlay as the wallet chooser, but every dismissal
+   path (backdrop, Cancel, Escape) has to reach onCancel — an abandoned modal
+   that left connect() hanging would look like a frozen Sign in button. */
+function wcQrModal(uri, onCancel){
+  const host = $("#walletPick"); if (!host) return null;
+  host.innerHTML = '<div class="wp-card">' +
+    '<div class="wp-h">Connect a wallet</div>' +
+    // Desktop wallets PASTE, they do not scan - Trezor Suite takes the link at
+    // Settings > Connected apps. Saying "scan this code" sends the one user
+    // this was built for (Suite on this machine, holding a Safe 7 over
+    // Bluetooth) looking for a phone they do not need.
+    '<div class="wp-note"><b>On a phone:</b> scan this code.<br><b>Trezor Suite on this computer:</b> use <i>Copy pairing link</i> below, then in Suite open <b>Settings → Connected apps → Add with WalletConnect</b> and paste it. Suite holds the Bluetooth link to a Safe 7, so it signs with no cable and no phone.</div>' +
+    '<div class="wp-qr" aria-label="WalletConnect pairing code as a QR code">' + qrSvg(uri) + '</div>' +
+    '<button class="wp-item wp-go" id="wcCopy" type="button">Copy pairing link</button>' +
+    '<button class="wp-cancel" type="button">Cancel</button></div>';
+  host.hidden = false;
+  let done = false;
+  const close = () => { if (done) return; done = true; unmodal(); host.hidden = true; host.innerHTML = ""; host.onclick = null; host.onpointerdown = null; };
+  const dismiss = () => { close(); onCancel(); };
+  const unmodal = modalize(host, dismiss);
+  host.onpointerdown = (e) => { if (e.target === host) dismiss(); };
+  host.onclick = (e) => { if (e.target.closest(".wp-cancel")) dismiss(); };
+  const b = $("#wcCopy"); if (b) b.addEventListener("click", () => copyText(uri, b));
+  return { close };
+}
+
+// connect over WalletConnect: show the QR, wait for the wallet, hand back the
+// same {provider, accounts} shape the injected path produces.
+async function wcConnect(){
+  const provider = await wcProvider();
+  let modal = null, onCancel;
+  const cancelled = new Promise((_, rej) => {
+    // `cancelled` = human backed out of the pairing (see pickWallet): the
+    // sign-in modal reopens itself on it
+    onCancel = () => rej(Object.assign(new EnclaveError("WalletConnect connection cancelled.", 0), { cancelled: true }));
+  });
+  const onUri = (uri) => { modal = wcQrModal(uri, onCancel); };
+  provider.on("display_uri", onUri);
+  try {
+    // enable() resolves instantly when a session is already live (no QR shown)
+    const accounts = await Promise.race([provider.enable(), cancelled]);
+    if (!accounts || !accounts.length) throw new EnclaveError("WalletConnect returned no accounts.", 0);
+    return { provider, accounts };
+  } finally {
+    try { provider.removeListener("display_uri", onUri); } catch(e){}
+    if (modal) modal.close();
+  }
+}
+
+/* ---- the server's challenge, checked before a wallet ever sees it ----
+   The endpoint hands us a string and we ask the user's key to sign it. A wallet
+   does render the text, which is a real backstop the CLI does not have — but
+   "the user might read it" is not a control. This key also authorizes
+   `enclave-upload:…`, `enclave-secrets:put:…` (a secrets WRITE) and the
+   encrypted-volume message whose signature IS the volume key, so a challenge
+   that is not a SIWE login for THIS wallet is refused here rather than shown.
+   Mirrors cli/enclave.mjs assertSiweLogin; the grammar check is what stops a
+   second directive riding along as an extra line. */
+const SIWE_FIELD_RE = /^(URI|Version|Chain ID|Nonce|Issued At|Expiration Time|Not Before|Request ID|Resources): ?(.*)$/;
+export function assertSiweLogin(message, address){
+  const bad = (why) => { throw new EnclaveError(
+    "Refusing to sign: the sign-in challenge is not a SIWE login for this wallet (" + why + "). Nothing was signed.", 0); };
+  if (typeof message !== "string" || message.length > 4096) bad("not a string, or absurdly long");
+  const L = message.split("\n");
+  if (!/^\S+ wants you to sign in with your Ethereum account:$/.test(L[0] || "")) bad("first line is not the SIWE preamble");
+  if ((L[1] || "").toLowerCase() !== String(address || "").toLowerCase()) bad("it asks a different address to sign");
+  if (L[2] !== "") bad("malformed header");
+  // EIP-4361: the statement is OPTIONAL, and when it is absent the blank line
+  // after it is absent too — fields follow the address directly. Tell the two
+  // apart by whether line 3 already parses as a field.
+  let i = 3;
+  if (L[i] !== undefined && L[i] !== "" && !SIWE_FIELD_RE.test(L[i])){
+    i++; if (L[i] !== "") bad("statement is not a single line"); i++;
+  }
+  const seen = {};
+  for (; i < L.length; i++){
+    if (L[i] === "" && i === L.length - 1) continue;
+    if (/^- \S+$/.test(L[i]) && seen["Resources"]) continue;
+    const f = SIWE_FIELD_RE.exec(L[i]);
+    if (!f) bad("line " + (i + 1) + " is not a SIWE field");
+    seen[f[1]] = f[2];
+  }
+  if (!seen["Nonce"]) bad("no Nonce");
+  if (seen["Version"] !== "1") bad("not SIWE version 1");
+  if (seen["Chain ID"] !== String(BASE_CHAIN)) bad("chain " + seen["Chain ID"] + ", expected " + BASE_CHAIN);
+  if (seen["Expiration Time"] && Date.parse(seen["Expiration Time"]) <= Date.now()) bad("already expired");
+  return message;
+}
+
+/* ---- assemble a canonical SIWE message only if the server didn't send one ----
+   (exported: account.js signs the same shape against the relay) */
+export function buildSiwe(ch){
+  const L = [];
+  L.push((ch.domain || location.host) + " wants you to sign in with your Ethereum account:");
+  L.push(ch.address);
+  L.push("");
+  if (ch.statement) L.push(ch.statement);
+  L.push("");
+  L.push("URI: " + (ch.uri || location.origin));
+  L.push("Version: " + (ch.version || "1"));
+  L.push("Chain ID: " + (ch.chainId != null ? ch.chainId : BASE_CHAIN));
+  L.push("Nonce: " + ch.nonce);
+  if (ch.issuedAt) L.push("Issued At: " + ch.issuedAt);
+  if (ch.expirationTime) L.push("Expiration Time: " + ch.expirationTime);
+  return L.join("\n");
+}
+
+function noWalletReason(){
+  if (typeof location !== "undefined" && location.protocol === "file:")
+    return "This page is open as a local file (file://). Wallet extensions don't inject there. Serve it over http(s): run a local server, or open it from your enclave.host / IPFS gateway.";
+  let framed = false; try { framed = window.top !== window.self; } catch(e){ framed = true; }
+  if (framed)
+    return "This page is in a sandboxed preview frame, where wallets can't be injected. Open it in its own browser tab.";
+  return "No Ethereum wallet detected. Install MetaMask, Rabby, Coinbase, or any EIP-6963 wallet, unlock it, and reload.";
+}
+
+/* modal a11y for every #walletPick use: dialog semantics, focus moved in,
+   Tab trapped, Escape = dismiss, focus restored on close. Returns the
+   teardown; the caller's close() must run it. (Exported: account.js renders
+   the sign-in chooser through the same overlay.) */
+export function modalize(host, onDismiss){
+  host.setAttribute("role", "dialog");
+  host.setAttribute("aria-modal", "true");
+  const h = host.querySelector(".wp-h");
+  if (h){ h.id = h.id || "wpTitle"; host.setAttribute("aria-labelledby", h.id); }
+  const prev = document.activeElement;
+  const focusables = () => [...host.querySelectorAll("button,input,select,textarea,a[href]")].filter(el => !el.disabled && el.offsetParent !== null);
+  // content may be rendered a tick after open: retry once
+  const f0 = focusables()[0];
+  if (f0) f0.focus(); else requestAnimationFrame(() => { const f = focusables()[0]; if (f) f.focus(); });
+  const onKey = (e) => {
+    if (e.key === "Escape"){ e.preventDefault(); onDismiss(); return; }
+    if (e.key !== "Tab") return;
+    const f = focusables(); if (!f.length) return;
+    const i = f.indexOf(document.activeElement);
+    if (e.shiftKey && i <= 0){ e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && (i === -1 || i === f.length - 1)){ e.preventDefault(); f[0].focus(); }
+  };
+  document.addEventListener("keydown", onKey, true);
+  return () => {
+    document.removeEventListener("keydown", onKey, true);
+    host.removeAttribute("role"); host.removeAttribute("aria-modal"); host.removeAttribute("aria-labelledby");
+    if (prev && prev.focus) try { prev.focus(); } catch(e){}
+  };
+}
+
+/* ---- deposits ----
+   small modal reusing the #walletPick overlay; backdrop / .wp-cancel close it
+   (exported: account.js and the checkout page reuse the same shell) */
+export function fundModal(inner){
+  const host = $("#walletPick"); if (!host) return null;
+  host.innerHTML = '<div class="wp-card">' + inner + '</div>';
+  host.hidden = false;
+  const close = () => { unmodal(); host.hidden = true; host.innerHTML = ""; host.onclick = null; host.onpointerdown = null; };
+  const unmodal = modalize(host, close);
+  // backdrop closes on pointerDOWN so a text selection started inside the
+  // card and released over the backdrop doesn't dismiss; buttons stay on click
+  host.onpointerdown = (e) => { if (e.target === host) close(); };
+  host.onclick = (e) => { if (e.target.closest(".wp-cancel")) close(); };
+  return { host, close };
+}
+
+export function openDepositModal(){
+  if (!Enclave.address) return;
+  const m = fundModal(
+    '<div class="wp-h">Deposit</div>' +
+    '<div class="wp-note">Send <b>USDC on the Base network</b> to your address below - from Coinbase, Kraken, Binance, or any wallet. It shows up here once the transfer confirms, usually under a minute.</div>' +
+    '<div class="wp-qr" aria-label="deposit address as a QR code">' + qrSvg(Enclave.address) + '</div>' +
+    '<div class="wp-addr-full">' + esc(Enclave.address) + '</div>' +
+    '<button class="wp-item wp-go" id="depCopy" type="button">Copy address</button>' +
+    '<div class="wp-err">Base network only - transfers sent on other networks are lost.</div>' +
+    '<button class="wp-cancel" type="button">Close</button>');
+  if (!m) return;
+  const b = $("#depCopy"); if (b) b.addEventListener("click", () => copyText(Enclave.address, b));
+}
+
+export async function usdcBalanceOf(addr){
+  const call = { to: USDC_BASE, data: "0x70a08231" + addr.toLowerCase().replace(/^0x/, "").padStart(64, "0") };
+  try {
+    const hex = await Enclave.provider.request({ method: "eth_call", params: [call, "latest"] });
+    if (hex && hex !== "0x") return parseInt(hex, 16) / 1e6;
+  } catch(_){}
+  const hex = await fallbackRead("eth_call", [call, "latest"]);
+  return (hex && hex !== "0x") ? parseInt(hex, 16) / 1e6 : 0;
+}
+export async function ethBalanceOf(addr){
+  const params = [addr, "latest"];
+  try {
+    const hex = await Enclave.provider.request({ method: "eth_getBalance", params });
+    if (hex && hex !== "0x") return Number(BigInt(hex)) / 1e18;
+  } catch(_){}
+  const hex = await fallbackRead("eth_getBalance", params);
+  return (hex && hex !== "0x") ? Number(BigInt(hex)) / 1e18 : 0;
+}
+
+async function pickWallet(){
+  let wallets = Wallet.list();
+  if (!wallets.length) wallets = await Wallet.discover();
+  // WalletConnect is offered to a HUMAN choosing, never to auto-detection
+  if (WALLETCONNECT_PROJECT_ID) wallets = wallets.concat([WC_ENTRY]);
+  if (!wallets.length) throw new EnclaveError(noWalletReason(), 0);
+  if (wallets.length === 1) return wallets[0];
+  return await new Promise((resolve, reject) => {
+    const host = $("#walletPick"); if (!host){ resolve(wallets[0]); return; }
+    // `cancelled` marks a human backing out, as opposed to a failure: the
+    // sign-in modal (account.js) reopens itself on it instead of erroring
+    const bail = () => reject(Object.assign(new EnclaveError("Wallet selection cancelled.", 0), { cancelled: true }));
+    host.innerHTML = '<div class="wp-card"><div class="wp-h">Choose a wallet</div>' +
+      wallets.map((w, i) => '<button class="wp-item" data-i="' + i + '">' +
+        (w.info.icon ? '<img src="' + esc(w.info.icon) + '" alt=""/>' : '<span class="wp-dot"></span>') +
+        esc(w.info.name) + '</button>').join("") +
+      '<button class="wp-cancel">Cancel</button></div>';
+    host.hidden = false;
+    const close = () => { unmodal(); host.hidden = true; host.innerHTML = ""; };
+    const unmodal = modalize(host, () => { close(); bail(); });
+    // backdrop dismissal on pointerDOWN (see fundModal): selection drags out
+    // of the card must not cancel the wallet pick
+    host.onpointerdown = (e) => {
+      if (e.target === host){ close(); bail(); }
+    };
+    host.onclick = (e) => {
+      const it = e.target.closest(".wp-item");
+      if (it && it.dataset.i != null){ const w = wallets[+it.dataset.i]; close(); resolve(w); return; }
+      if (e.target.closest(".wp-cancel")){ close(); bail(); }
+    };
+  });
+}
+
+async function ensureBaseChainOnConnect(provider){
+  let cid;
+  try { cid = await provider.request({ method: "eth_chainId" }); } catch(e){ return; }
+  if (parseInt(cid, 16) === BASE_CHAIN) return;
+  try {
+    await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: BASE_CHAIN_HEX }] });
+  } catch(e){
+    if (e && e.code === 4902){
+      try {
+        await provider.request({ method: "wallet_addEthereumChain", params: [{
+          chainId: BASE_CHAIN_HEX, chainName: "Base",
+          nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+          rpcUrls: addChainRpcs(), blockExplorerUrls: ["https://basescan.org"]
+        }] });
+      } catch(_){}
+    }
+  }
+}
+
+// wire provider events once per provider (survives silent reconnect on refresh)
+function wireProviderEvents(provider){
+  if (!provider || !provider.on || provider._enclaveWired) return;
+  provider._enclaveWired = true;
+  provider.on("accountsChanged", (acc) => {
+    if (!acc || !acc.length){ disconnectWallet(); }
+    else { Enclave.address = acc[0]; Enclave.token = null; Enclave.tokenBase = null; saveSession(); refreshWallet(); }
+  });
+  provider.on("chainChanged", (c) => { Enclave.chainId = parseInt(c, 16); refreshWallet(); });
+  // WalletConnect only: the session can be ended from the WALLET side (closing
+  // Suite, revoking the pairing), and nothing else would tell us. Not wired for
+  // injected providers - there EIP-1193 "disconnect" means lost chain
+  // connectivity, not a revoked wallet, and signing the user out on it is wrong.
+  if (provider._enclaveWc) provider.on("disconnect", () => { disconnectWallet(); });
+}
+
+export async function connectWallet(){
+  const chosen = await pickWallet();
+  let provider, accounts;
+  if (chosen.wc){
+    ({ provider, accounts } = await wcConnect());
+  } else {
+    provider = chosen.provider;
+    accounts = await provider.request({ method: "eth_requestAccounts" });
+  }
+  if (!accounts || !accounts.length) throw new EnclaveError("Wallet returned no accounts.", 0);
+  await ensureBaseChainOnConnect(provider);
+  let cid; try { cid = await provider.request({ method: "eth_chainId" }); } catch(e){}
+  Enclave.provider = provider; Enclave.address = accounts[0]; Enclave.chainId = cid ? parseInt(cid, 16) : null;
+  Enclave.walletRdns = (chosen.info && chosen.info.rdns) || null;
+  wireProviderEvents(provider);
+  saveSession();
+  refreshWallet();
+  return provider;
+}
+
+export async function authenticate(opts){
+  // `opts.enclave` pins the whole SIWE round trip (nonce AND login) to one box.
+  // Sessions are per-enclave by design — each enclave signs with its own key
+  // and honors no other kid — so acting on a deployment hosted somewhere other
+  // than the sticky sign-in box needs a session FROM that box. One signature
+  // per enclave you touch; there is no way around it without letting one box
+  // mint tokens another box trusts, which is exactly what the design forbids.
+  const enclave = String((opts && opts.enclave) || "").trim();
+  if (!Enclave.provider) await connectWallet();
+  const ch = await Enclave.getNonce(Enclave.address, enclave);
+  const message = assertSiweLogin((ch && ch.message) ? ch.message : buildSiwe(ch), Enclave.address);
+  let signature;
+  try {
+    signature = await personalSign(message);
+  } catch(e){
+    throw new EnclaveError((e && e.code === 4001) ? "Signature rejected." : ("Could not sign in: " + (e.message || e)), 0);
+  }
+  const sess = await Enclave.login(message, signature, enclave);
+  const token = sess && sess.token;
+  if (!token) throw new EnclaveError("Login did not return a token.", 0);
+  if (enclave) Enclave.setSessionFor(enclave, token);
+  else { Enclave.token = token; Enclave.tokenBase = Enclave.base; }   // bound to the enclave that minted it (api.js `base`)
+  saveSession();
+  refreshWallet();
+  emit("enclave:auth", { authed: true, spinner: true });
+  return sess;
+}
+
+/* Run an owner call against the box hosting a deployment (`enclave`, its fleet name; "" = the sticky box).
+   The wallet session signs it when it can (api.js _sessionReq), so nothing is asked. A 401 means no session
+   or cached per-host token could make the call: no session at all, a host that hasn't learned sessions yet
+   (api.js remembers it for this page load), or a stale token the box rejected (api.js drops it). Only THEN
+   does the wallet sign in to that host - the per-host SIWE, one signature per box, cached - and the call
+   runs once more. `prompt: false` never asks the wallet: the 401 goes back to the caller, for panels that
+   offer their own unlock button instead of a wallet prompt nobody clicked for. */
+export async function asHostOwner(enclave, call, { prompt = true } = {}){
+  const host = String(enclave || "").trim();
+  try { return await call(host); }
+  catch(e){
+    if (!e || e.status !== 401 || !prompt) throw e;
+    await authenticate(host ? { enclave: host } : undefined);
+    return await call(host);
+  }
+}
+
+export function disconnectWallet(){
+  // sign-out IS ending the browser's session (there is no separate "end"): its key signs the
+  // terminate (no wallet prompt), the unspent budget returns to the owner, API access ends in
+  // the same flow. Returned so a caller can wait for the refund before it re-renders.
+  const ended = import("./sessions.js").then((S) => S.endSession()).catch(() => {});
+  const wasWc = !!(Enclave.provider && Enclave.provider._enclaveWc) || Enclave.walletRdns === WC_RDNS;
+  // end the relay session too, or "Sign out" leaves the pairing live in the
+  // wallet and the next sign-in silently reuses it
+  try { if (Enclave.provider && Enclave.provider._enclaveWc) Enclave.provider.disconnect(); } catch(e){}
+  _wcInit = null;
+  if (_wcLockRelease){ try { _wcLockRelease(); } catch(e){} _wcLockRelease = null; }   // hand the WC session to the next tab that wants it
+  // A DEAD relay session survives sign-out inside WalletConnect's own
+  // IndexedDB: disconnect() ends the live session, but a session that already
+  // desynced (Suite restarted; a pre-lock sibling tab consumed its keys) is
+  // exactly the one disconnect() can't reach - and the next connect's
+  // enable() restores it silently, skips the pairing code, and then errors
+  // every request. Sign-out means "forget the pairing": delete the WC
+  // databases outright so the next connect starts from a fresh code. Delayed
+  // a beat so disconnect()'s own storage writes land first; best-effort on
+  // browsers without indexedDB.databases().
+  if (wasWc) setTimeout(() => {
+    try { indexedDB.databases().then(dbs => (dbs || []).forEach(d =>
+      d && /wallet_?connect/i.test(d.name || "") && indexedDB.deleteDatabase(d.name))).catch(() => {}); } catch(e){}
+  }, 400);
+  Enclave.token = null; Enclave.tokenBase = null; Enclave.enclaveTokens = {}; Enclave.address = null; Enclave.provider = null; Enclave.chainId = null; Enclave.walletRdns = null;
+  clearSession();
+  Enclave.clearAccountSession();   // "Sign out" means BOTH domains: wallet/enclave session and the relay account
+  runlog.clear();   // don't leave the prior user's deploy narratives in localStorage / on-screen
+  const pop = $("#walletPop"); if (pop){ pop.hidden = true; pop.innerHTML = ""; popExpanded(false); }
+  refreshWallet();
+  emit("enclave:auth", { authed: false });
+  return ended;
+}
+
+/* ---- session persistence: survive a page refresh (localStorage bearer token) ---- */
+export function saveSession(){
+  if (!Enclave.address){ lsSet("enclave_session", ""); return; }
+  try { lsSet("enclave_session", JSON.stringify({ address: Enclave.address, rdns: Enclave.walletRdns || null,
+    token: Enclave.token || null, base: Enclave.tokenBase || Enclave.base,
+    // per-enclave sessions ride along so a refresh doesn't re-ask for one
+    // signature per box the user has already signed in to
+    enclaveTokens: Enclave.enclaveTokens || {} })); } catch(e){}
+}
+export function clearSession(){ lsSet("enclave_session", ""); }
+// pull the exp (seconds) out of a JWT; null if not a JWT / no exp
+// (exported: account.js expiry-checks its own token the same way)
+export function jwtExp(token){
+  try {
+    let s = String(token).split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    s += "=".repeat((4 - s.length % 4) % 4);
+    const p = JSON.parse(atob(s));
+    return typeof p.exp === "number" ? p.exp : null;
+  } catch(e){ return null; }
+}
+// on load: silently reconnect the prior wallet (no popup) and restore a still-valid token
+export async function restoreSession(){
+  // one-time migration from the pre-rename key so signed-in users stay signed in
+  try { const old = lsGet("nan_session"); if (old && !lsGet("enclave_session")) { lsSet("enclave_session", old); lsSet("nan_session", ""); } } catch(e){}
+  let raw; try { raw = lsGet("enclave_session"); } catch(e){ return; }
+  if (!raw) return;
+  let s; try { s = JSON.parse(raw); } catch(e){ clearSession(); return; }
+  if (!s || !s.address) return;
+  if (s.token){ const exp = jwtExp(s.token); if (exp && exp * 1000 <= Date.now()) s.token = null; }  // drop an expired token
+  // paint the header button IMMEDIATELY from the cached session - the real
+  // restore below can take seconds (wallet discovery + the extension
+  // round-trip) and the button said "Sign in" the whole time. Render the
+  // EXACT final connected look, so the later refreshWallet repaint is
+  // pixel-identical and the header stays still through view transitions. In
+  // production the page's inline wallet-paint script (scripts/build-site.mjs)
+  // already did this during parse - don't repaint over it.
+  const early = $("#walletBtn");
+  if (early && s.address && !early.dataset.painted){
+    early.classList.add("connected");
+    early.innerHTML = '<span class="wdot"></span>' + esc(short(s.address));
+  }
+  try {
+  let chosen = null;
+  if (s.rdns === WC_RDNS){
+    // the saved session WAS WalletConnect: re-open it only if the relay session
+    // is still alive, and never fall through to an extension. Gated on the
+    // saved rdns, so an injected-wallet user never loads the 1.3MB bundle.
+    if (!WALLETCONNECT_PROJECT_ID) return;
+    try { const p = await wcProvider(); if (p && p.session) chosen = { info: { rdns: WC_RDNS }, provider: p }; } catch(e){}
+    if (!chosen) return;
+  } else {
+    let wallets = Wallet.list(); if (!wallets.length) wallets = await Wallet.discover();
+    chosen = s.rdns ? wallets.find(w => w.info && w.info.rdns === s.rdns) : null;
+    if (!chosen && wallets.length === 1) chosen = wallets[0];
+  }
+  if (!chosen) return;                                          // can't reconnect silently; leave it to a manual Connect
+  const provider = chosen.provider;
+  let accounts = []; try { accounts = await provider.request({ method: "eth_accounts" }); } catch(e){ return; }
+  const addr = accounts && accounts[0];
+  if (!addr || addr.toLowerCase() !== String(s.address).toLowerCase()) return;   // permission revoked / different account
+  let cid; try { cid = await provider.request({ method: "eth_chainId" }); } catch(e){}
+  Enclave.provider = provider; Enclave.address = addr; Enclave.chainId = cid ? parseInt(cid, 16) : null;
+  Enclave.walletRdns = (chosen.info && chosen.info.rdns) || null;
+  Enclave.token = s.token || null;
+  Enclave.tokenBase = s.base || null;   // absent on a pre-binding session: default endpoint only
+  // per-enclave sessions, expired ones dropped the same way the default is
+  Enclave.enclaveTokens = {};
+  for (const [name, v] of Object.entries((s.enclaveTokens && typeof s.enclaveTokens === "object") ? s.enclaveTokens : {})){
+    if (!v || !v.token) continue;
+    const exp = jwtExp(v.token);
+    if (exp && exp * 1000 <= Date.now()) continue;
+    Enclave.enclaveTokens[String(name).toLowerCase()] = { token: v.token, base: v.base || null };
+  }
+  wireProviderEvents(provider);
+  saveSession();                                                  // re-persist (drops any expired token, refreshes rdns)
+  if (Enclave.token) emit("enclave:auth", { authed: true, spinner: true });
+  } finally { refreshWallet(); }   // settles the early paint whether restore connected or not
+}
+
+/* ---- wallet button + popover ---- */
+// disclosure state of the account popover, mirrored on the button (WCAG 4.1.2)
+function popExpanded(open){ const b = $("#walletBtn"); if (b) b.setAttribute("aria-expanded", String(!!open)); }
+export function refreshWallet(){
+  const btn = $("#walletBtn");
+  if (btn){
+    if (Enclave.address){
+      btn.classList.add("connected");
+      btn.innerHTML = '<span class="wdot"></span>' + esc(short(Enclave.address)) + '<span class="wsess" id="wbSess"></span>';
+      if (!btn.hasAttribute("aria-expanded")) btn.setAttribute("aria-expanded", "false");
+      sessionBadge();
+    } else if (Enclave.accountAuthed()){
+      // account-only (passkey user, no wallet connected): still signed in
+      btn.classList.add("connected");
+      btn.innerHTML = '<span class="wdot"></span>Signed in';
+      if (!btn.hasAttribute("aria-expanded")) btn.setAttribute("aria-expanded", "false");
+    } else {
+      btn.classList.remove("connected");
+      btn.removeAttribute("aria-expanded");   // signed out: the button starts sign-in, no popover
+      btn.innerHTML = 'Sign in <span class="arr">→</span>';
+    }
+  }
+  emit("enclave:wallet", { address: Enclave.address, authed: Enclave.authed() });
+}
+
+/* the persistent session indicator on the wallet button: balance · time left */
+let _badgeTimer = 0;
+async function sessionBadge(){
+  clearTimeout(_badgeTimer);
+  try {
+    const S = await import("./sessions.js");
+    const st = await S.sessionStatus();
+    const el = $("#wbSess");
+    if (!el) return;
+    if (!st || st.error || !st.live || (st.owner && Enclave.address && st.owner.toLowerCase() !== Enclave.address.toLowerCase())){ el.textContent = ""; return; }
+    el.textContent = " · " + S.fmtUsd(st.balance6) + " · " + S.fmtLeft(Number(st.expiresAt) - Math.floor(Date.now() / 1000));
+    el.title = "Session: " + S.fmtUsd(st.balance6) + " left, " + S.fmtUsd(st.spent6) + " spent";
+    _badgeTimer = setTimeout(sessionBadge, 60_000);
+  } catch(e){}
+}
+if (typeof document !== "undefined") document.addEventListener("enclave:session", () => sessionBadge());
+
+export function toggleWalletPop(){
+  const pop = $("#walletPop"); if (!pop) return;
+  if (!pop.hidden){ pop.hidden = true; pop.innerHTML = ""; popExpanded(false); return; }
+  renderWalletPop();
+}
+
+// the little green up-arrow on a value you can raise (Balance -> Deposit, the session's budget -> Top up, its time -> Extend)
+const UP = '<svg class="wp-up" viewBox="0 0 10 12" aria-hidden="true"><path d="M5 11V1.5M1.5 5 5 1.5 8.5 5"/></svg>';
+
+export async function renderWalletPop(){
+  const pop = $("#walletPop"); if (!pop) return;
+  if (!Enclave.address){
+    // account-only popover (passkey user, no wallet): account card, the credit
+    // balance (the account's vault - same slot wallet users' USDC fills), sign out
+    if (!Enclave.accountAuthed()) return;
+    pop.innerHTML =
+      '<div class="wp-row"><span class="wp-k">Account</span><span class="wp-v">signed in' + (Enclave.accountMethod ? " · " + esc(Enclave.accountMethod) : "") + '</span></div>' +
+      '<div class="wp-bal"><div class="bl"><span>Credit</span><span id="wpBalCredit">…</span></div></div>' +
+      '<div class="wp-fund">' +
+        '<button class="wp-mini" id="wpOrders">Add credit</button>' +
+        // the same vault, operated with only the passkey and chain endpoints the owner picks (site/credit/)
+        '<a class="wp-mini" href="/credit/" title="Spend or manage your credit with only your passkey, without this service">Use directly</a>' +
+      '</div>' +
+      '<button class="wp-disc" id="wpDisc">Sign out</button>';
+    pop.hidden = false;
+    popExpanded(true);
+    const o = $("#wpOrders"); if (o) o.addEventListener("click", async () => {
+      pop.hidden = true; popExpanded(false);
+      (await import("../boot.js")).navigate("checkout", { push: true });
+    });
+    const d = $("#wpDisc"); if (d) d.addEventListener("click", disconnectWallet);
+    import("./vault.js").then(({ getVault }) => getVault()).then(
+      (v) => { const el = $("#wpBalCredit"); if (el) el.textContent = v ? "$" + v.balanceUsd : "unavailable"; },
+      ()  => { const el = $("#wpBalCredit"); if (el) el.textContent = "unavailable"; });
+    return;
+  }
+  const offBase = Enclave.chainId && Enclave.chainId !== BASE_CHAIN;
+  pop.innerHTML =
+    '<div class="wp-row wp-row-addr"><span class="wp-k">Wallet</span><button class="wp-addr" id="wpCopy" title="Copy address"><span class="wp-addr-txt">' + esc(Enclave.address) + '</span><span aria-hidden="true">⧉</span></button></div>' +
+    '<div class="wp-row"><span class="wp-k">Network</span><span class="wp-v">' + (Enclave.chainId === BASE_CHAIN
+      ? '<a class="wp-link" href="https://basescan.org/address/' + esc(Enclave.address) + '" target="_blank" rel="noopener" title="Your wallet on Basescan">Base</a>'
+      : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
+    '<div class="wp-row"><span class="wp-k">Balance</span><button class="wp-v wp-link" id="wpBal" type="button" title="Deposit"><span id="wpBalUsdc">…</span>' + UP + '</button></div>' +
+    '<hr class="wp-sep">' +   // the wallet above, this browser's session below
+    // the session row ends the popover: its budget and time, then All (every session) and Sign out, right-aligned
+    '<div class="wp-row wp-row-sess"><span class="wp-k">Session</span><span class="wp-sess-r"><span class="wp-v" id="wpSess">…</span>' +
+      '<span class="wp-sess-btns"><a class="wp-mini" id="wpSessions" href="sessions" title="All sessions">All</a>' +
+      '<button class="wp-disc" id="wpDisc">Sign out</button></span></span></div>';
+  pop.hidden = false;
+  popExpanded(true);
+  const c = $("#wpCopy"); if (c) c.addEventListener("click", () => copyText(Enclave.address));
+  const d = $("#wpDisc"); if (d) d.addEventListener("click", disconnectWallet);
+  // the balance is the way in to Deposit
+  const bal = $("#wpBal"); if (bal) bal.addEventListener("click", () => { pop.hidden = true; popExpanded(false); openDepositModal(); });
+  const ss = $("#wpSessions"); if (ss) ss.addEventListener("click", () => { pop.hidden = true; popExpanded(false); });   // boot.js navigates
+  usdcBalanceOf(Enclave.address).then(
+    (b) => { const u = $("#wpBalUsdc"); if (u) u.textContent = b.toFixed(2) + " USDC"; },
+    ()  => { const u = $("#wpBalUsdc"); if (u) u.textContent = "unavailable"; });
+  const s = $("#wpSwitch"); if (s) s.addEventListener("click", () => Enclave.provider && ensureBaseChainOnConnect(Enclave.provider).then(renderWalletPop));
+  renderSessionRow();
+}
+
+/* the popover's session row: the budget left (click it to top up) and the time left (click it to extend), or
+   "start". The full list is All, beside it; ending this browser's session is Sign out, beside that. */
+async function renderSessionRow(){
+  const el = $("#wpSess"); if (!el) return;
+  let S;
+  try { S = await import("./sessions.js"); } catch(e){ el.textContent = "unavailable"; return; }
+  if (!(await S.sessionsAvailable())){ el.textContent = "not on this endpoint"; return; }
+  const st = await S.sessionStatus();
+  const mine = st && !st.error && st.live && st.owner && Enclave.address && st.owner.toLowerCase() === Enclave.address.toLowerCase();
+  if (!mine){
+    el.innerHTML = '<button class="wp-mini" id="wpSessStart">start</button>';
+    const b = $("#wpSessStart"); if (b) b.addEventListener("click", async () => { if (await S.openSessionModal()) renderWalletPop(); });
+    return;
+  }
+  const left = Number(st.expiresAt) - Math.floor(Date.now() / 1000);
+  el.innerHTML = '<button class="wp-link ok" id="wpSessBal" type="button" title="Top up this session">' + esc(S.fmtUsd(st.balance6)) + UP + '</button> · '
+    + '<button class="wp-link" id="wpSessLeft" type="button" title="Extend this session">' + esc(S.fmtLeft(left)) + UP + '</button>';
+  const t = $("#wpSessBal"); if (t) t.addEventListener("click", async () => { if (await S.openTopUpModal()) renderWalletPop(); });
+  const x = $("#wpSessLeft"); if (x) x.addEventListener("click", async () => { if (await S.openExtendModal(st.sid, st.expiresAt)) renderWalletPop(); });
+}
+
+/* ---- on-chain tx helpers used by both the deploy console and the store ---- */
+// A WalletConnect wallet lives in ANOTHER APP (Trezor Suite, or a phone): the
+// pending request is invisible until the user goes there, and this page shows
+// nothing while it waits - a silent wait reads as a dead button, and the
+// natural response (reload, retry in a second tab) orphans the in-flight
+// request, which is exactly the "session_request … without any listeners"
+// failure. Say where to look and what not to do.
+export function wcNudge(){
+  if (Enclave.provider && Enclave.provider._enclaveWc)
+    showToast("Sent to your wallet - open Trezor Suite (or your WalletConnect wallet) to confirm. Keep this tab open until it answers.");
+}
+/* personal_sign, spec-shaped. EIP-1193 defines params[0] as the 0x-hex of the
+   message BYTES; MetaMask accepts a bare string as a courtesy and every
+   extension followed suit, so the site sent text for years. The first
+   spec-strict signer to arrive (Trezor Suite over WalletConnect) answers a
+   bare-string request with "personal_sign error" - same reason the e2e wallet
+   stub already hex-normalizes before handing anvil the message. The signature
+   covers the same bytes either way, so no verifier anywhere notices. Every
+   message-signature call site goes through here; the nudge rides along
+   because a message signature is a trip to another app on WalletConnect. */
+export async function personalSign(message){
+  wcNudge();
+  const hex = "0x" + [...new TextEncoder().encode(message)].map(b => b.toString(16).padStart(2, "0")).join("");
+  return await Enclave.provider.request({ method: "personal_sign", params: [hex, Enclave.address] });
+}
+export async function personalSignBytes(hex){
+  if(!/^0x[0-9a-f]{64}$/i.test(hex))throw new Error("Expected a 32-byte signing digest");
+  wcNudge();return Enclave.provider.request({method:"personal_sign",params:[hex,Enclave.address]});
+}
+export async function ensureBaseChain(){
+  // no wallet, and a passkey account that pays its own gas through its bundler (independent mode): nothing to switch
+  if (!Enclave.provider && INDEPENDENT.state === "on" && await import("./account-transport.js").then((m) => m.accountPaysOwnGas()).catch(() => false)) return;
+  let cur;
+  try { cur = await Enclave.provider.request({ method: "eth_chainId" }); } catch { cur = null; }
+  if (cur && String(cur).toLowerCase() === BASE_CHAIN_HEX) return;
+  try { await Enclave.provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: BASE_CHAIN_HEX }] }); }
+  catch(e){ throw new EnclaveError("Switch your wallet to Base to pay.", 0); }
+}
+export async function sendTx(to, data, value, gasLimit){
+  await (await import("./platform-addresses.js")).assertPlatformTransactionCurrent(to, data);
+  const tx = { from: Enclave.address, data, value: value || "0x0" };
+  if (to) tx.to = to; // omitted = contract creation
+  // A caller that KNOWS the cost passes it and we skip estimation entirely.
+  // This is not an optimization, it is the only way to send a big transaction:
+  // public Base RPCs cap eth_estimateGas at ~11M gas, and above that the
+  // estimate does not come back large — it ERRORS. The fallback below then
+  // leaves `gas` unset, the wallet estimates for itself, hits the same ceiling,
+  // and the tx is dropped at broadcast with a hash already handed back. Base's
+  // real block limit is 400M, so the ceiling is the estimator's, not the
+  // chain's, and a caller with a calibrated number should not be held to it.
+  // (Over-providing is free — unused gas is refunded — so callers pad.)
+  if (gasLimit) {
+    // Pad hard. The two directions are NOT symmetric: unused gas is refunded,
+    // so over-providing costs nothing, while under-providing means the batch
+    // runs out of gas and reverts — and with MetaMask smart transactions that
+    // is caught in simulation and CANCELLED before broadcast
+    // (FAILED_WOULD_REVERT), which is indistinguishable from an endpoint
+    // refusing the transaction. A caller's estimate being 2.8x low is exactly
+    // how that happened, so do not send an estimate at face value.
+    // MEASURE before trusting the caller. A model can be wrong in either
+    // direction and both hurt: too low reverts (or gets cancelled by a wallet
+    // pre-flight), too high inflates batches past what the chain will include.
+    // eth_estimateGas is authoritative when it answers; it refuses above its
+    // own cap, and then the caller's number stands.
+    let use = BigInt(gasLimit);
+    try {
+      const est = await baseRpc("eth_estimateGas", [{ ...tx, from: tx.from }]);
+      if (est) use = BigInt(est);
+    } catch(_){ /* over the estimator's cap, or unreachable: keep the estimate */ }
+    use = use + use / 4n;                       // 25% headroom on a measured number
+    if (use > MAX_TX_GAS) use = MAX_TX_GAS;     // never ask for more than the chain includes
+    tx.gas = "0x" + use.toString(16);
+    wcNudge();
+    return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
+  }
+  // Otherwise: estimate (provider first, public Base RPC as fallback) and pad
+  // 25% so a wallet that trusts our limit never under-provisions. A failed
+  // estimate falls through - the wallet estimates for itself.
+  let est = null;
+  try { est = await Enclave.provider.request({ method: "eth_estimateGas", params: [tx] }); }
+  catch(_){ try { est = await baseRpc("eth_estimateGas", [tx]); } catch(_2){} }
+  if (est) tx.gas = "0x" + (BigInt(est) + BigInt(est) / 4n).toString(16);
+  else {
+    // Both estimators refused a tx we have no calibrated number for. On this
+    // branch (small, ordinary txs - the big-batch callers pass gasLimit) that
+    // near-always means WOULD REVERT, and handing it to the wallet buries the
+    // reason: the wallet's own estimate fails too, some (Trezor Suite) fall
+    // back to the BLOCK gas limit (140M on Base), and their backend then
+    // refuses the broadcast on a per-tx gas cap - a gas error for a tx whose
+    // problem was never gas (exactly how a sealImports "!owner" surfaced as
+    // "exceeds maximum per-tx gas limit: 140000000 > 25000000"). eth_call the
+    // same payload: a revert throws its actual reason here instead; only a tx
+    // that calls clean (the estimators were just unreachable) still falls
+    // through to the wallet's estimator.
+    try { await baseRpc("eth_call", [tx, "latest"]); }
+    catch(e){
+      throw new EnclaveError("this transaction would revert - nothing was sent ("
+        + ((e && e.message) || e) + ")", 0);
+    }
+  }
+  wcNudge();
+  return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
+}

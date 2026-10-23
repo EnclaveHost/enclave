@@ -1,0 +1,66 @@
+[queue] START available=22635MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+=== sh:verify-bypassed KILLED
+  ERROR: test_verify_cap_charges_maxima_and_bounds_every_local_file (__main__.Storage.test_verify_cap_charges_maxima_and_bounds_every_local_file)
+=== sh:admit-bypassed KILLED
+  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) (needle='differ from this configuration')
+  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) (needle='host shares sum')
+  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) (needle='not hard-bounded')
+  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) (needle='belongs to host')
+  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating)
+=== b:no-share-sum KILLED
+  ERROR: test_ledger_rules (__main__.Rules.test_ledger_rules)
+  FAIL: test_example_share_split_across_hosts_never_exceeds_cap (__main__.Rules.test_example_share_split_across_hosts_never_exceeds_cap)
+  FAIL: test_ledger_rules (__main__.Rules.test_ledger_rules) (needle='host shares sum')
+=== b:no-per-host KILLED
+  ERROR: test_ledger_rules (__main__.Rules.test_ledger_rules)
+  FAIL: test_root_probe_one_byte_zero_slack_refused_before_any_marker_or_file (__main__.Accounting.test_root_probe_one_byte_zero_slack_refused_before_any_marker_or_file) (needle='plus bookkeeping')
+  FAIL: test_root_probe_one_byte_zero_slack_refused_before_any_marker_or_file (__main__.Accounting.test_root_probe_one_byte_zero_slack_refused_before_any_marker_or_file)
+  FAIL: test_old_concurrent_creates_both_pass_and_exceed_the_cap (__main__.OldBehaviorControls.test_old_concurrent_creates_both_pass_and_exceed_the_cap)
+  FAIL: test_old_missing_path_counts_zero_and_growth_is_unbounded (__main__.OldBehaviorControls.test_old_missing_path_counts_zero_and_growth_is_unbounded)
+  FAIL: test_headroom_is_exact_and_bookkeeping_is_charged (__main__.Rules.test_headroom_is_exact_and_bookkeeping_is_charged)
+  FAIL: test_ledger_rules (__main__.Rules.test_ledger_rules) (needle='exceed its share')
+=== b:allow-directory KILLED
+  ERROR: test_ledger_rules (__main__.Rules.test_ledger_rules)
+  FAIL: test_ledger_rules (__main__.Rules.test_ledger_rules) (needle='not hard-bounded')
+=== b:missing-ok KILLED
+  FAIL: test_verify_bounds (__main__.Allocation.test_verify_bounds)
+=== b:allow-sparse KILLED
+  FAIL: test_verify_bounds (__main__.Allocation.test_verify_bounds)
+=== b:adopt-foreign KILLED
+  FAIL: test_foreign_file_refused_untouched (__main__.Allocation.test_foreign_file_refused_untouched)
+=== b:no-alignment KILLED
+  ERROR: test_ledger_rules (__main__.Rules.test_ledger_rules)
+  FAIL: test_root_probe_one_byte_zero_slack_refused_before_any_marker_or_file (__main__.Accounting.test_root_probe_one_byte_zero_slack_refused_before_any_marker_or_file) (needle='multiple of blockBytes')
+  FAIL: test_ledger_rules (__main__.Rules.test_ledger_rules) (needle='multiple of blockBytes')
+=== b:no-headroom KILLED
+  ERROR: test_ledger_rules (__main__.Rules.test_ledger_rules)
+  FAIL: test_root_probe_one_byte_zero_slack_refused_before_any_marker_or_file (__main__.Accounting.test_root_probe_one_byte_zero_slack_refused_before_any_marker_or_file) (needle='required headroom')
+  FAIL: test_headroom_is_exact_and_bookkeeping_is_charged (__main__.Rules.test_headroom_is_exact_and_bookkeeping_is_charged)
+  FAIL: test_ledger_rules (__main__.Rules.test_ledger_rules) (needle='required headroom')
+=== b:no-bookkeeping KILLED
+  ERROR: test_ledger_rules (__main__.Rules.test_ledger_rules)
+  FAIL: test_headroom_is_exact_and_bookkeeping_is_charged (__main__.Rules.test_headroom_is_exact_and_bookkeeping_is_charged)
+  FAIL: test_ledger_rules (__main__.Rules.test_ledger_rules) (needle='plus bookkeeping')
+=== b:markers-uncharged KILLED
+  FAIL: test_allocation_stops_inside_the_maximum_when_the_filesystem_overallocates (__main__.Accounting.test_allocation_stops_inside_the_maximum_when_the_filesystem_overallocates)
+  FAIL: test_correctly_budgeted_small_files_pass_exactly_counted (__main__.Accounting.test_correctly_budgeted_small_files_pass_exactly_counted)
+=== b:no-prewrite-bound KILLED
+  FAIL: test_present_overallocation_refuses_before_writing_the_rest (__main__.Accounting.test_present_overallocation_refuses_before_writing_the_rest)
+=== b:no-step-bound KILLED
+  FAIL: test_allocation_stops_inside_the_maximum_when_the_filesystem_overallocates (__main__.Accounting.test_allocation_stops_inside_the_maximum_when_the_filesystem_overallocates)
+=== b:no-final-bound KILLED
+  FAIL: test_last_step_overrun_is_caught_after_allocation_and_unwound (__main__.Accounting.test_last_step_overrun_is_caught_after_allocation_and_unwound)
+=== b:no-verify-actual KILLED
+  FAIL: test_files_and_markers_together_cannot_exceed_the_reservation (__main__.Accounting.test_files_and_markers_together_cannot_exceed_the_reservation)
+=== b:any-block-size KILLED
+  FAIL: test_filesystem_must_be_supported_with_the_declared_block_size (__main__.Accounting.test_filesystem_must_be_supported_with_the_declared_block_size)
+=== b:any-fs KILLED
+  FAIL: test_filesystem_must_be_supported_with_the_declared_block_size (__main__.Accounting.test_filesystem_must_be_supported_with_the_declared_block_size)
+=== b:no-lock KILLED
+  FAIL: test_allocation_waits_for_a_ledger_edit_and_sees_its_result (__main__.Concurrency.test_allocation_waits_for_a_ledger_edit_and_sees_its_result)
+=== cap-off-by-slack KILLED
+  FAIL: test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting)
+killed 20/20
+[memory-guard] exit=0 peakTreeRssMiB=113 minHostAvailableMiB=22515
+[memory-guard] at peak: python3:33 python3:17 python3:15 python3:15 python3:15 python3:15 timeout:4
+[queue] EXIT 0

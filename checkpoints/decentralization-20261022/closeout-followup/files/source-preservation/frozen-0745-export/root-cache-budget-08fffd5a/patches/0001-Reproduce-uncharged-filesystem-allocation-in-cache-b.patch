@@ -1,0 +1,352 @@
+From 08fffd5aa26e9eb8f50fbc90f61efcac569df16d Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 00:05:33 -0700
+Subject: [PATCH] Reproduce uncharged filesystem allocation in cache budget
+ admission
+
+---
+ PIN.json         |   5 +
+ budget.frozen.py | 289 +++++++++++++++++++++++++++++++++++++++++++++++
+ probe.guard.log  |   1 +
+ probe.py         |  16 +++
+ 4 files changed, 311 insertions(+)
+ create mode 100644 PIN.json
+ create mode 100644 budget.frozen.py
+ create mode 100644 probe.guard.log
+ create mode 100644 probe.py
+
+diff --git a/PIN.json b/PIN.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..f0f6847f52847470fb1618f5fc17503ca020d8e4
+--- /dev/null
++++ b/PIN.json
+@@ -0,0 +1,5 @@
++{
++  "source": "work/fresh-witness-supply/holder/budget.py",
++  "sha256": "a82192bc30715f94cb86934507430ab2956a6962e0b51b3bf85071030ce21bcd",
++  "status": "point-in-time working source; no final commit claim"
++}
+diff --git a/budget.frozen.py b/budget.frozen.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..e90ac80a61edb4fb3b0fa837c8d7e5066c3f6851
+--- /dev/null
++++ b/budget.frozen.py
+@@ -0,0 +1,289 @@
++#!/usr/bin/env python3
++"""The shared NVMe cache budget of the RPC/storage work: ONE root-owned ledger for every package and host.
++
++  budget.py validate LEDGER                     the ledger's own rules (no filesystem access)
++  budget.py admit LEDGER RESERVATION_ID PATH=BYTES...
++                                                (create preflight) the reservation exists for this host and names exactly
++                                                 these files; present ones are its own (interrupted creates are adopted)
++  budget.py allocate LEDGER RESERVATION_ID      (holder-storage.sh create) lock, re-validate, allocate this reservation's
++                                                 fixed-size files; prints "created PATH" for files it made
++  budget.py verify LEDGER RESERVATION_ID        (assemble / verify-cap) lock (shared), re-validate, check every local
++                                                 reservation's files against its declared bound; exit 3 when out of bounds
++
++Canonical identity: /etc/enclave-rpc-cache/nvme-cache-budget.json (format enclave-rpc-nvme-cache-budget/v1); the lock is
++the sibling file <ledger>.lock (this budget only, never a host-wide lock).
++
++Why a ledger of MAXIMA rather than measured usage:
++  * every reservation is charged its declared maxBytes whether or not its files exist yet. A missing file is never
++    counted as zero, and a participant that later grows cannot be fitted under an earlier measurement;
++  * only HARD-BOUNDED kinds are admitted ("preallocated-files": fixed-size, fully allocated files whose size cannot grow
++    through the consumer, e.g. dm-cache data/metadata, or a fixed image holding a cache filesystem). Directory entries
++    are refused, because nothing bounds them;
++  * per-host shares are fixed in the ledger and must sum to <= the 250,000,000,000-byte cap, so hosts that do not share
++    a lock still cannot exceed the aggregate. A host may only use reservations assigned to its own machine id.
++Nothing here measures or bounds caches that are NOT in the ledger: an unlisted allocation is a policy violation that
++root's inventory must prevent. This is source logic; real kernel/device enforcement is not proven by it."""
++import fcntl
++import json
++import os
++import re
++import stat
++import sys
++from pathlib import Path
++
++FORMAT = 'enclave-rpc-nvme-cache-budget/v1'
++CANONICAL_PATH = '/etc/enclave-rpc-cache/nvme-cache-budget.json'
++CAP = 250_000_000_000          # direct human limit: ALL cache allocations of this work, all hosts together
++TARGET = 200_000_000_000
++KINDS = ('preallocated-files',)
++MARKER = '.enclave-budget-owner'   # <file>.enclave-budget-owner: O_EXCL ownership marker written before the file
++EXTENT_SLACK_MAX = 64 << 20        # allocated may exceed the declared size by at most this (extent metadata)
++
++
++class BudgetError(Exception):
++    pass
++
++
++def fail(m):
++    raise BudgetError(m)
++
++
++def _abs(p, where):
++    if not isinstance(p, str) or not p.startswith('/') or p != os.path.normpath(p) or '\0' in p:
++        fail(f'{where}: a normalized absolute path is required')
++    return p
++
++
++def _int(v, where, lo=0, hi=CAP):
++    if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
++        fail(f'{where} must be an integer in [{lo}, {hi}]')
++    return v
++
++
++def validate(raw):
++    """-> the ledger, or BudgetError. Pure: no filesystem access."""
++    if not isinstance(raw, dict) or set(raw) != {'format', 'capBytes', 'targetBytes', 'hosts', 'reservations'}:
++        fail('ledger fields: exactly format, capBytes, targetBytes, hosts, reservations')
++    if raw['format'] != FORMAT:
++        fail(f'format must be {FORMAT}')
++    if raw['capBytes'] != CAP:
++        fail(f'capBytes must be {CAP} (the user cap; it is not configurable)')
++    _int(raw['targetBytes'], 'targetBytes', 0, CAP)
++    hosts = {}
++    for i, h in enumerate(raw['hosts']):
++        if not isinstance(h, dict) or set(h) != {'machineId', 'label', 'shareBytes'}:
++            fail(f'hosts[{i}]: exactly machineId, label, shareBytes')
++        if not re.fullmatch(r'[0-9a-f]{32}', str(h['machineId'])) or h['machineId'] in hosts:
++            fail(f'hosts[{i}].machineId must be a unique 32-hex /etc/machine-id')
++        hosts[h['machineId']] = _int(h['shareBytes'], f'hosts[{i}].shareBytes')
++    if sum(hosts.values()) > CAP:
++        fail(f'host shares sum to {sum(hosts.values())} > cap {CAP}: every participating host needs an explicit share, no host gets 250 GB')
++    used, ids, paths = {m: 0 for m in hosts}, set(), []
++    for i, r in enumerate(raw['reservations']):
++        w = f'reservations[{i}]'
++        if not isinstance(r, dict) or set(r) != {'id', 'host', 'owner', 'kind', 'maxBytes', 'slackBytes', 'files'}:
++            fail(f'{w}: exactly id, host, owner, kind, maxBytes, slackBytes, files')
++        if not re.fullmatch(r'[a-z0-9][a-z0-9._-]{0,63}', str(r['id'])) or r['id'] in ids:
++            fail(f'{w}.id must be unique')
++        ids.add(r['id'])
++        if r['host'] not in hosts:
++            fail(f'{w}.host is not a ledger host (unaccounted reservation)')
++        if r['kind'] not in KINDS:
++            fail(f'{w}.kind {r["kind"]!r} is not hard-bounded (allowed: {KINDS}); directory-only entries are refused')
++        if not isinstance(r['files'], list) or not r['files']:
++            fail(f'{w}.files must list the fixed-size files')
++        total = 0
++        for j, f in enumerate(r['files']):
++            if not isinstance(f, dict) or set(f) != {'path', 'bytes'}:
++                fail(f'{w}.files[{j}]: exactly path, bytes')
++            paths.append((_abs(f['path'], f'{w}.files[{j}].path'), r['host']))
++            total += _int(f['bytes'], f'{w}.files[{j}].bytes', 1)
++        slack = _int(r['slackBytes'], f'{w}.slackBytes', 0, 4 << 30)
++        if _int(r['maxBytes'], f'{w}.maxBytes', 1) != total + slack:
++            fail(f'{w}.maxBytes must equal its files plus slackBytes ({total + slack})')
++        used[r['host']] += r['maxBytes']
++    for m, u in used.items():
++        if u > hosts[m]:
++            fail(f'host {m}: reservations {u} exceed its share {hosts[m]}')
++    seen = set()
++    for p, m in paths:
++        for q, n in seen:
++            if m == n and (p == q or p.startswith(q + '/') or q.startswith(p + '/')):
++                fail(f'reservation paths overlap: {p} / {q}')
++        seen.add((p, m))
++    return raw
++
++
++def machine_id(path='/etc/machine-id'):
++    v = Path(path).read_text().strip()
++    if not re.fullmatch(r'[0-9a-f]{32}', v):
++        fail('/etc/machine-id is not a 32-hex id')
++    return v
++
++
++def load(ledger, require_root_owned=True):
++    """Read the ledger file. It must be a regular file, not a symlink, and not writable by group or other (root-owned
++    in deployment)."""
++    st = os.lstat(ledger)
++    if not stat.S_ISREG(st.st_mode) or st.st_mode & 0o022 or (require_root_owned and st.st_uid != 0):
++        fail(f'{ledger} must be a root-owned regular file, not group/other writable')
++    return validate(json.loads(Path(ledger).read_text()))
++
++
++class Lock:
++    """flock on <ledger>.lock: exclusive for allocation and ledger edits, shared for verification."""
++    def __init__(self, ledger, exclusive):
++        self.path, self.mode = ledger + '.lock', fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
++
++    def __enter__(self):
++        self.fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
++        fcntl.flock(self.fd, self.mode)
++        return self
++
++    def __exit__(self, *a):
++        fcntl.flock(self.fd, fcntl.LOCK_UN)
++        os.close(self.fd)
++
++
++def reservation(ledger_doc, rid, host):
++    r = next((r for r in ledger_doc['reservations'] if r['id'] == rid), None)
++    if r is None:
++        fail(f'reservation {rid!r} is not in the ledger: an unreserved allocation is refused')
++    if r['host'] != host:
++        fail(f'reservation {rid!r} belongs to host {r["host"]}, not this host {host}')
++    return r
++
++
++def check_file(f, rid, must_exist):
++    """-> 'absent' | 'ok'. A present file must be ours (marker), a regular file of EXACTLY the declared size and fully
++    allocated (not sparse) within the extent slack."""
++    p = f['path']
++    try:
++        st = os.lstat(p)
++    except FileNotFoundError:
++        if must_exist:
++            fail(f'{p} (reservation {rid}) is missing')
++        return 'absent'
++    if not stat.S_ISREG(st.st_mode):
++        fail(f'{p} is not a regular file')
++    if not os.path.isfile(p + MARKER) or json.loads(Path(p + MARKER).read_text()).get('reservation') != rid:
++        fail(f'{p} exists without this reservation\'s ownership marker: not adopting it')
++    if st.st_size != f['bytes']:
++        fail(f'{p} is {st.st_size} bytes, declared {f["bytes"]}')
++    alloc = st.st_blocks * 512
++    if alloc < f['bytes'] or alloc > f['bytes'] + EXTENT_SLACK_MAX:
++        fail(f'{p} allocates {alloc} bytes for a declared {f["bytes"]} (sparse or over-allocated)')
++    return 'ok'
++
++
++def allocate(ledger, rid, host=None, require_root_owned=True):
++    """Under the exclusive lock: re-validate, then create this reservation's files (marker first, O_EXCL; then a full
++    posix_fallocate). Files already present must be ours and complete (recovery from an interrupted create adopts them
++    and never grants new budget: the reservation's maxBytes is fixed in the ledger). -> list of created paths."""
++    host = host or machine_id()
++    created = []
++    with Lock(ledger, exclusive=True):
++        doc = load(ledger, require_root_owned)
++        r = reservation(doc, rid, host)
++        for f in r['files']:
++            p = f['path']
++            if os.path.exists(p) and not os.path.exists(p + MARKER):
++                fail(f'{p} exists without this reservation\'s ownership marker: refusing (no reuse of foreign files)')
++        try:
++            for f in r['files']:
++                p = f['path']
++                if not os.path.exists(p + MARKER):
++                    fd = os.open(p + MARKER, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
++                    with os.fdopen(fd, 'w') as m:
++                        m.write(json.dumps({'reservation': rid, 'path': p, 'bytes': f['bytes']}) + '\n')
++                        m.flush()
++                        os.fsync(m.fileno())
++                    created.append(p + MARKER)
++                if not os.path.exists(p):
++                    fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
++                    created.append(p)
++                else:
++                    if os.lstat(p).st_size > f['bytes']:
++                        fail(f'{p} is larger than its reservation')
++                    fd = os.open(p, os.O_WRONLY)       # ours (marker) and interrupted: complete it in place
++                try:
++                    os.posix_fallocate(fd, 0, f['bytes'])
++                    os.fsync(fd)
++                finally:
++                    os.close(fd)
++                check_file(f, rid, must_exist=True)
++        except BaseException:
++            for p in reversed(created):            # only what THIS call created
++                try:
++                    os.remove(p)
++                except FileNotFoundError:
++                    pass
++            raise
++    return created
++
++
++def admit(ledger, rid, expected, host=None, require_root_owned=True):
++    """Shared lock: the reservation exists for this host, its files are exactly `expected` ({path: bytes}), and each is
++    absent or ours (marker; an owned file may be incomplete after an interrupted create). Nothing is allocated."""
++    host = host or machine_id()
++    with Lock(ledger, exclusive=False):
++        r = reservation(load(ledger, require_root_owned), rid, host)
++        if {f['path']: f['bytes'] for f in r['files']} != expected:
++            fail(f'reservation {rid!r} files {[(f["path"], f["bytes"]) for f in r["files"]]} differ from this configuration {sorted(expected.items())}')
++        for f in r['files']:
++            p = f['path']
++            if os.path.exists(p):
++                if not os.path.isfile(p + MARKER) or json.loads(Path(p + MARKER).read_text()).get('reservation') != rid:
++                    fail(f'{p} exists without this reservation\'s ownership marker: refusing')
++                if os.lstat(p).st_size > f['bytes']:
++                    fail(f'{p} is larger than its reservation')
++        return r
++
++
++def verify(ledger, rid, host=None, require_root_owned=True):
++    """Shared lock: the ledger is valid; this host's reservations are within their shares; every present file of every
++    local reservation is ours and exactly bounded; THIS reservation's files exist. -> summary dict."""
++    host = host or machine_id()
++    with Lock(ledger, exclusive=False):
++        doc = load(ledger, require_root_owned)
++        mine = reservation(doc, rid, host)
++        local = [r for r in doc['reservations'] if r['host'] == host]
++        share = next(h['shareBytes'] for h in doc['hosts'] if h['machineId'] == host)
++        for r in local:
++            for f in r['files']:
++                check_file(f, r['id'], must_exist=(r is mine))
++        charged = sum(r['maxBytes'] for r in local)
++        return {'host': host, 'shareBytes': share, 'chargedBytes': charged, 'reservation': rid, 'reservationBytes': mine['maxBytes'],
++                'ledgerHostShares': sum(h['shareBytes'] for h in doc['hosts']), 'capBytes': CAP, 'targetBytes': doc['targetBytes']}
++
++
++def main(argv):
++    try:
++        if len(argv) == 2 and argv[0] == 'validate':
++            validate(json.loads(Path(argv[1]).read_text()))
++            print(json.dumps({'valid': True}))
++        elif len(argv) >= 4 and argv[0] == 'admit':
++            exp = {}
++            for a in argv[3:]:
++                p, sep, n = a.rpartition('=')
++                if not sep or not n.isdigit():
++                    fail('admit takes PATH=BYTES arguments')
++                exp[p] = int(n)
++            r = admit(argv[1], argv[2], exp)
++            print(json.dumps({'admitted': r['id'], 'maxBytes': r['maxBytes']}))
++        elif len(argv) == 3 and argv[0] == 'allocate':
++            for p in allocate(argv[1], argv[2]):
++                print(f'created {p}')
++        elif len(argv) == 3 and argv[0] == 'verify':
++            print(json.dumps(verify(argv[1], argv[2])))
++        else:
++            print(__doc__, file=sys.stderr)
++            return 64
++    except (BudgetError, OSError, ValueError) as e:
++        print(json.dumps({'refused': f'{type(e).__name__}: {e}' if not isinstance(e, BudgetError) else str(e)}), file=sys.stderr)
++        return 3
++    return 0
++
++
++if __name__ == '__main__':
++    sys.exit(main(sys.argv[1:]))
+diff --git a/probe.guard.log b/probe.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/probe.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/probe.py b/probe.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..242d2719420738db5c3724949f3f2d8db64e71d0
+--- /dev/null
++++ b/probe.py
+@@ -0,0 +1,16 @@
++import importlib.util, pathlib,tempfile,json,os,hashlib,datetime
++base=pathlib.Path(__file__).resolve().parent
++pin=json.loads((base/'PIN.json').read_text()); assert hashlib.sha256((base/'budget.frozen.py').read_bytes()).hexdigest()==pin['sha256']
++s=importlib.util.spec_from_file_location('frozen_budget',base/'budget.frozen.py');b=importlib.util.module_from_spec(s);s.loader.exec_module(b)
++with tempfile.TemporaryDirectory(prefix='enclave-budget-review-') as tmp:
++ p=pathlib.Path(tmp);f=p/'tiny.img';ledger=p/'ledger.json';host='ab'*16
++ doc={'format':b.FORMAT,'capBytes':b.CAP,'targetBytes':b.TARGET,'hosts':[{'machineId':host,'label':'fixture','shareBytes':1},{'machineId':'cd'*16,'label':'declared only, no remote allocation','shareBytes':b.CAP-1}],'reservations':[{'id':'test','host':host,'owner':'fixture','kind':'preallocated-files','maxBytes':1,'slackBytes':0,'files':[{'path':str(f),'bytes':1}]}]}
++ ledger.write_text(json.dumps(doc));os.chmod(ledger,0o600)
++ b.validate(doc);made=b.allocate(str(ledger),'test',host,require_root_owned=False)
++ summary=b.verify(str(ledger),'test',host,require_root_owned=False)
++ allocated={pathlib.Path(x).name:os.stat(x).st_blocks*512 for x in made}
++ total=sum(allocated.values())
++ assert summary['chargedBytes']==1 and total>summary['shareBytes']
++ result={'observedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source':pin,'fixture':'Real small temporary files; ledger root-ownership check disabled through test seam only. No privileged commands, devices, actual node-cache allocation or remote allocation. Temporary files removed.','ledgerHostShares':sum(h['shareBytes'] for h in doc['hosts']),'declaredLocalShareBytes':1,'chargedBytes':summary['chargedBytes'],'actualCreatedFileAllocationBytes':allocated,'actualCreatedBytes':total,'verifyAccepted':True,'finding':'Per-file extent allowance is not charged to reservation slack or host share; zero-slack non-block-aligned allocations and marker files can exceed a declared hard maximum. This does not assert a live 250 GB overrun.'}
++ pathlib.Path('/home/steven/Documents/Codex/2026-10-18/wo/outputs/decentralization-audit/cache-budget-allocation-accounting-20261023.json').write_text(json.dumps(result,indent=2)+'\n')
++ print(json.dumps(result))

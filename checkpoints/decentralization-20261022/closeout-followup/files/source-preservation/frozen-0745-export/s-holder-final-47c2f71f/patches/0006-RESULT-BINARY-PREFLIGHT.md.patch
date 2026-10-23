@@ -1,0 +1,231 @@
+From 6b9dae92dcae815a59b4a6d3edd26ebb682f43d8 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 23:32:42 -0700
+Subject: [PATCH 06/10] RESULT-BINARY-PREFLIGHT.md
+
+---
+ RESULT-BINARY-PREFLIGHT.md | 215 +++++++++++++++++++++++++++++++++++++
+ 1 file changed, 215 insertions(+)
+ create mode 100644 RESULT-BINARY-PREFLIGHT.md
+
+diff --git a/RESULT-BINARY-PREFLIGHT.md b/RESULT-BINARY-PREFLIGHT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec383d0d7cfa3e8bbd15eea7c6d3ab8d3c54385f
+--- /dev/null
++++ b/RESULT-BINARY-PREFLIGHT.md
+@@ -0,0 +1,215 @@
++# Official Base v1.5.1 binary: staged, verified, validated offline (RESULT-BINARY-PREFLIGHT, 2026-10-23 ~06:35Z)
++
++**Status:** the pinned official binary is staged and verified. Every rendered argument and environment semantic was
++checked against it offline, and the launcher was fixed where the real binary disagreed with it.
++
++**Not done:** no installation, no system unit, no mount, no cache allocation, no chain sync, no snapshot or state
++download, no SSH, no sudo, no production change and no push.
++
++**Not activation-ready.** The open gates are in §6. **This is not RPC independence.**
++
++**Commits** (`work/fresh-witness-supply`, all SteveDeFacto; root's two are cherry-picked with `-x`):
++
++| Commit | Content |
++|---|---|
++| `ea504aa` | binary staging, flag validation, removal of `--minimal`, review mode, the offline fixture. Amended before any push to drop a stray test `l2_jwt.hex`; it is in no commit |
++| `08f2efe` | root's `b1b6f184`: mount/mapping ownership validated before shutdown |
++| `1a50957` | the child runs in its datadir |
++| `fd0134d` | root's `c3efff41`: unwind stops at the first failed cleanup |
++| `eb32894` | review render refresh; RESULT-HOLDER correction |
++| HEAD | this file |
++
++## 1. The binary (actual bytes)
++
++**Source of truth.** The asset URL and size come from the already-recorded GitHub release metadata
++(`evidence/upstream-20261023T043317Z/base-releases.json`, sha256 `9def1621…`; release id 421013843, tag v1.5.1).
++
++| Item | Value |
++|---|---|
++| tarball | `base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz`, **53,031,200 B**, sha256 **`6779c45dbc6041205cc4e52bc2cd9d40746a5a4366a309899bf6533fccebe2b7`** (= the published asset digest; the `.sha256` sidecar agrees) |
++| sidecars | `.sha256` (110 B, `dd50e081…`); `.asc` (833 B, `bcd3c7c0…`). **The signature was NOT verified**: no Base release key is established |
++| archive members | exactly one: `base`, a regular file, mode 0755, 153,601,320 B |
++| **binary** | **`base`, 153,601,320 B, sha256 `9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f`** |
++| version | `base 1.5.1` (run offline) |
++| linkage | glibc 2.44 host; brotli, zstd and other system libraries (`evidence/binary-help-…/ldd.txt`) |
++
++**How it was staged** (`tools/stage_release.py` `9e29d2bc…`, queue 256, peak 37 MiB):
++- streamed to a NEW gitignored directory, `staging/base-v1.5.1-20261023T053947Z/`;
++- size refused above the recorded size, with a 1 GiB total cap;
++- the digest compared against the recorded one;
++- only the single `base` member extracted, after path and size limits;
++- no install script run, and nothing written to `/opt` or any system directory.
++
++**Records:** `evidence/staged-base-v1.5.1.json`, and the pin file `holder/BINARY.json` (`b05bb8d8…`). The launcher now
++refuses any `binary.sha256` other than this one.
++
++## 2. Arguments and environment checked against the real binary
++
++The help surfaces (`--version`, `--help`, `--chain mainnet rpc --help`) were run in `unshare -rn` with an empty
++environment (`evidence/binary-help-20261023T054215Z/`, all rc 0).
++
++**Flags.**
++- **All 27 execution and consensus flags the launcher can render appear in `rpc --help`** (`BINARY.json
++  flagsInRpcHelp`). That includes the conditional `--datadir.static-files` and `--rpc.forwarding-endpoint`, and the
++  no-longer-rendered `--minimal`/`--full`. **`-c, --chain` is in the root help.**
++- `preflight` re-checks this, plus `--version`, on the installed bytes.
++
++**Defaults the real binary shows, and why the overrides are needed:**
++
++| Flag | Default | What it means here |
++|---|---|---|
++| `--rpc.addr` (consensus RPC) | 0.0.0.0 | the launcher must override it (it does: 127.0.0.1) |
++| `--http.addr` | 127.0.0.1 | |
++| `--http.port` | 8545 | conflicts with B's verifier, so the holder uses 18545 |
++| `--rpc.max-connections` | 500 | the holder uses 32 |
++| `--rpc.eth-proof-window` | 0 | |
++| `--l1.rpc-timeout-ms` | 15000 | the holder renders 10000 |
++| `--upgrade-signal.mode` | `metrics-only` | the possible values match the source |
++
++**Environment-variable aliases.**
++- `--rpc.forwarding-endpoint` reads env `OP_RETH_SEQUENCER_HTTP` (confirmed in help). The launcher's closed environment
++  is therefore required to keep that hidden sequencer route out.
++- `--l1-trust-rpc` is a bare flag (SetTrue) with env `BASE_NODE_L1_TRUST_RPC`; the source default is `true`. The
++  launcher sets the env to `false`.
++- **Not observed:** I could not see the effective trust value in the logs.
++
++**`--minimal`: a real semantic error, now fixed.**
++- **What the help says:** it "configures … Using 10,000 blocks per static file segment".
++- **What the source says:**
++  - **Segment size:** CLI static-file settings take priority over `reth.toml` (`launch/common.rs:183`,
++    `args/static_files.rs:46-52`).
++  - **Prune config:** a CLI prune profile REWRITES `reth.toml`'s prune config (`save_pruning_config`).
++  - **Without prune flags:** the node logs "Pruning configuration is present in the config file, but no CLI arguments
++    are provided. Using config from file."
++- **Why it mattered:** Base's snapshot uses 500,000-block segments, and `snapshot download --minimal` writes exactly
++  that, plus the minimal prune modes, into `reth.toml`.
++- **Fix:** the launcher no longer passes `--minimal`/`--full`. The config's `prune` names the restored download
++  profile, and preflight `check_reth_toml` requires that profile's segments.
++
++**Unified engine/auth (observed in §3).**
++- **Engine API:** reached over IPC in the datadir (`engine.ipc`).
++- **Auth server:** bound to **127.0.0.1** on an ephemeral port.
++- **JWT:** the binary creates its own `jwt.hex` in the datadir. No sample JWT is used.
++
++**Required L1.** `--l1-eth-rpc` and `--l1-beacon` have no default. Their startup effect is observed in §3.
++
++## 3. Real-binary fixture under the real launcher (what it proves, and what it does not)
++
++**Setup.** `holder/test/test_base_offline.py` runs `holder.py run` on the **official binary**, inside `unshare -rn`
++(loopback only), with:
++- an empty temporary datadir;
++- the rendered argv and closed environment;
++- L1 URLs that point at closed loopback ports.
++
++Evidence: `evidence/official-binary-offline-20261023.json` (`0b4b0d79…`). The final run was `bp-off3`, queue 768,
++peak 257 MiB; earlier runs were `bp-off1` and `bp-off2`.
++
++**Observed:**
++- **Execution RPC:** answered **`eth_chainId = 0x2105` 1.3 s after start**, on **127.0.0.1** only.
++- **Listeners:**
++  - the execution RPC (127.0.0.1);
++  - the auth server (127.0.0.1, ephemeral);
++  - **one wildcard listener, the configured execution P2P TCP port.**
++- **Consensus never got far enough to bind:** it failed first, so neither its RPC nor its P2P listener bound.
++- **No public IPC socket** (`--ipcdisable`).
++- **Startup without L1:**
++  - `p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution` 5 times (backoff 0.17 s →
++    2.4 s);
++  - the node then **exited with code 1, after 6.6 s**;
++  - the supervisor propagated the exit code;
++  - the upgrade-signal metrics observer only warned.
++  - This confirms the source trace: **the holder cannot start without a reachable L1 execution endpoint.**
++- **The node writes a DEFAULT `reth.toml` into an empty datadir:** empty `[prune.segments]` (archive) and empty
++  `[static_files.blocks_per_file]`. **`check_reth_toml` refuses it.** That closes a gap where a failed first start
++  could have satisfied a bare "reth.toml exists" check.
++- **Stray secret:** the consensus side writes **`l2_jwt.hex` into its working directory**.
++  - **Found by:** the first run left one in `holder/`; it was removed from the commit and is in none.
++  - **Fix:** the launcher now starts the child with **cwd = datadir**. The final run asserts the file is inside the
++    datadir and nowhere else.
++- **Datadir footprint:** 4.3 GB apparent (MDBX geometry, sparse) but **1.3 MB allocated**: genesis, empty static files
++  at 500,000-block segments, RocksDB, discovery secret. It was removed.
++
++**What it does NOT prove:**
++- sync, state, proofs or P2P behaviour (there was no network);
++- L1-up behaviour;
++- the effective trust setting.
++
++Upstream reth `--dev` (`holder-reth2`) remains *lifecycle-only* evidence and validates no Base flag.
++
++## 4. Tests and controls (queue; logs in `logs/`)
++
++| Run | Lane | Result |
++|---|---|---|
++| `stage-1` | 256 | download, digests, single-member extract: OK |
++| `help-1` | 512 | version and help offline: rc 0 ×4 |
++| `bp-t3` | 256 | `test_holder.py` **18/18** (new: `RethToml`; the child's cwd), `test_storage.py` 20/20, mutants **15/15** killed (new: `cli-prune-flag`, `toml-exists-only`) |
++| `bp-t4` | 256 | after root's `c3efff41`: `test_storage.py` **23/23** (17 mine + 3 from `b1b6f184` + 3 from `c3efff41`), storage-script mutants **5/5** killed |
++| `bp-off3` | 768 | the official-binary fixture: OK (§3) |
++| `bp-render3` | 256 | REVIEW-ONLY render (`evidence/render-review/`, manifest `7a024ff5…`, `reviewOnly: true`). It carries the real pin and `.invalid` L1 placeholders; `validate` and `preflight` without `--review` refuse it |
++
++**Changed code since the previous terminal turn:**
++- `holder.py` `30cd71a5…`
++- `BINARY.json` `b05bb8d8…`
++- `holder.example.json` `b2e8a260…`
++- `operator-preflight.sh` `07fe915f…`
++- `test_base_offline.py` `416add6c…`
++- `test_holder.py` `fd3fc8e6…`
++- `standin-base.py` `111893d2…`
++- root's `holder-storage.sh.in` `823aa8a0…` → the `c3efff41` version (identical to root's commit)
++- root's `test_storage.py` and `stubcmd.py` (identical to root's except the binary-pin line in the test)
++
++## 5. Operator preflight (reproducible, read-only, root-run)
++
++`holder/operator-preflight.sh CONFIG RENDER_DIR [RELEASE_TARBALL]` checks, changing nothing:
++
++1. **Tarball:** size and sha256 against `BINARY.json`.
++2. **Binary:** the installed binary equals the pin, `--version` is `base 1.5.1`, and every rendered flag appears in its
++   help.
++3. **Config:** `validate`, which refuses a review config or placeholder L1 endpoints.
++4. **`preflight`:**
++   - placement: an HDD-backed datadir, or an HDD origin plus an NVMe cache;
++   - a download-generated `reth.toml` with the profile's prune segments and segment sizes;
++   - free space;
++   - **current MemAvailable ≥ `limits.memoryMaxBytes`**;
++   - ports.
++5. **Cap:** the rendered storage script's `verify-cap`, the measured aggregate with the shared inventory.
++
++## 6. Remaining gates (exact)
++
++- **RAM: unsatisfied.** About 24 GB is available against the 32 GiB `MemoryMax` (Base's recommended minimum is 32 GB).
++  Preflight refuses this. No guest VM is killed or resized, and the requirement is not lowered.
++- **Root: required for every step.**
++  - installing the binary and units;
++  - creating the HDD origin image and filesystem;
++  - loop and dm-cache modules;
++  - the shared NVMe inventory;
++  - `drill-cache.sh`.
++- **No `sudo -n`** for this worker.
++- **Kernel cache proof: pending.**
++  - **Not yet shown:** the real dm-cache boundary, writethrough mode, and invalidation drill. The root storage fixes
++    are seam-tested only.
++  - **The cap:** the 250,000,000,000 B aggregate (200 GB target) is enforced in source by measured inventory plus
++    fixed preallocation. It is **not yet proven against a real device**, and nothing is allocated.
++- **Snapshot/state:** not downloaded or restored (minimal profile: 820 GB download, 1,258 GB on disk). That needs
++  explicit authorization.
++- **L1:**
++  - **Startup:** a reachable L1 execution endpoint is required, proven here.
++  - **Signer:** the signer read from it is unverified.
++  - **Derivation:** needs L1 and beacon continuously.
++  - **Public L1 RPC:** removing it needs a self-hosted L1 execution and beacon pair, which is not done.
++- **Fresh witnesses:** available only while a synced holder is reachable. B fails closed otherwise. Whether any Base
++  peer serves proofs is UNKNOWN.
++- **Transactions:** incomplete. There is no forwarding unless an explicit sequencer endpoint is configured, and an L1
++  deposit is not a transparent replacement.
++- **Release signature:** the `.asc` is not verified.
++
++## 7. Next concrete action
++
++Root reviews `eb32894` and HEAD, then decides two things before any activation step:
++
++1. **RAM:** reserve ≥ 32 GiB, or explicitly accept a reviewed different limit. Do not lower it silently.
++2. **Shared NVMe inventory:** write it.
++
++Then run `drill-cache.sh` as root on two empty scratch directories (`/vm` and `/mnt/usb`), and
++`operator-preflight.sh` with the downloaded tarball. **The holder stays inactive** until the drill passes, a snapshot
++restore is authorized, and the bounded follow test measures throughput.

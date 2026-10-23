@@ -1,0 +1,869 @@
+From 25a3dffd494c7777357465824870a8ea85f89ce3 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 19:29:11 -0700
+Subject: [PATCH 10/19] Give LeaseReader an explicit local-verifier chain
+ authority
+
+authority 'verifier' reads through ONE local validating endpoint (patched Helios:
+sequencer-signed unsafe head, proof-backed state, maintained Base EVM): a
+confirmed block below the verifier head, never behind an accepted block, fresh by
+maxBlockAgeMs, read through a client pinned to that block hash that offers only
+proof-backed methods and refuses everything else by name, re-checked for
+reorganization, all within one deadline. No provider client exists in this mode,
+so failures refuse. Legacy quorum stays the default and is labelled as provider
+agreement. Settlement and bandwidth reads at a snapshot's own block go through
+new reader primitives (blockHashIs, readAt) that keep the two-client rule in
+quorum mode. Host admission, wg-provider, directory and management hosts accept
+chainAuthority/chainVerifier (or ENCLAVE_CHAIN_AUTHORITY/ENCLAVE_CHAIN_VERIFIER).
+
+(cherry picked from commit 921d60c2b37ec8ae64e1fd22d7bc7b408939bd70)
+---
+ network/directory-server.mjs            |   4 +-
+ network/host-admission-runtime.mjs      |  10 +-
+ network/lease-reader.mjs                | 191 ++++++++++++++++++-
+ network/management-host.mjs             |   4 +-
+ network/provider-settlement.mjs         |  10 +-
+ network/usdc-bandwidth.mjs              |  23 ++-
+ network/wg-provider/main.mjs            |   4 +-
+ test/lease-reader-verifier.e2e.test.mjs | 184 +++++++++++++++++++
+ test/lease-reader-verifier.test.mjs     | 234 ++++++++++++++++++++++++
+ 9 files changed, 639 insertions(+), 25 deletions(-)
+ create mode 100644 test/lease-reader-verifier.e2e.test.mjs
+ create mode 100644 test/lease-reader-verifier.test.mjs
+
+diff --git a/network/directory-server.mjs b/network/directory-server.mjs
+index 28758284fba9f1af61ef16fba8e978726f5753a4..faea688658ae4eb7b269c6b3bc030c57910f4c2b 100644
+--- a/network/directory-server.mjs
++++ b/network/directory-server.mjs
+@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
+ import {pathToFileURL} from 'node:url';
+ import {PublicDirectory} from './public-directory.mjs';
+ import {DirectoryClient} from './directory-client.mjs';
+-import {LeaseReader} from './lease-reader.mjs';
++import {LeaseReader,chainAuthorityOptions} from './lease-reader.mjs';
+ import {verifyOwnerSignature} from './owner-signature.mjs';
+ 
+ export function createDirectoryServer(directory,{maxInFlight=32,log=()=>{}}={}){
+@@ -47,7 +47,7 @@ export function createDirectoryServer(directory,{maxInFlight=32,log=()=>{}}={}){
+ // reader: an injected chain reader with the LeaseReader interface (refresh, registryEntries, bookAddress); tests only.
+ export async function runDirectory(config,{reader:injected}={}){
+   const log=m=>console.log(new Date().toISOString(),m);
+-  const reader=injected||new LeaseReader({rpc:config.rpc,addressBook:config.addressBook,authorityPins:config.authorityPins,includeHostPayout:true});
++  const reader=injected||new LeaseReader({rpc:config.rpc,addressBook:config.addressBook,authorityPins:config.authorityPins,includeHostPayout:true,...chainAuthorityOptions(config)});
+   const leases=new Map(),operators=new Map();let registry=null,registryAt=0,refreshLeases=null;
+   const leaseOf=async id=>{
+     const cached=leases.get(id);if(cached&&cached.at+15000>Date.now())return cached.row;
+diff --git a/network/host-admission-runtime.mjs b/network/host-admission-runtime.mjs
+index 43d54c3be812579f970acdada76deeff61877e83..94e59e989355fecb8c51fef3b86f35f53b8a9897 100644
+--- a/network/host-admission-runtime.mjs
++++ b/network/host-admission-runtime.mjs
+@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
+ import {constants} from 'node:fs';
+ import path from 'node:path';
+ import {parseAbi} from 'viem';
+-import {LeaseReader} from './lease-reader.mjs';
++import {LeaseReader,chainAuthorityOptions,chainAuthorityFromEnv} from './lease-reader.mjs';
+ import {readHostAdmissionPolicy,hostAdmissionRefusal,hostAdmissionPolicyHash} from './host-admission-policy.mjs';
+ import {loadContractPins} from './contract-pins.mjs';
+ import {boundedJSON,directoryOrigins} from './directory-client.mjs';
+@@ -73,11 +73,12 @@ export function publicHostPolicyLoader({directory,origins=[],fetch=globalThis.fe
+ }
+ 
+ export function createHostAdmission({hostId,ownershipContract,registry,catalog,rpc,addressBook,policyDirectory,policyOrigins,
+-  reader,loadPolicy,now=Date.now,cacheMs=15000}) {
++  reader,loadPolicy,now=Date.now,cacheMs=15000,chainAuthority,chainVerifier}) {
+   if(!id.test(hostId)||![ownershipContract,registry,catalog].every(nonzero))throw Error('explicit host, ownership, registry and catalog pins required');
+   if(!Number.isSafeInteger(cacheMs)||cacheMs<0||cacheMs>15000)throw Error('invalid host policy cache lifetime');
+   // the wallet admission's own reader rides out short public-RPC 429 windows (10 s budget inside the 30 s deadline)
+-  reader ||= new LeaseReader({rpc,addressBook,now,rateLimitRetryMs:10000});
++  // (authority 'verifier': the local proof-backed verifier instead; rpc is then never used)
++  reader ||= new LeaseReader({rpc,addressBook,now,rateLimitRetryMs:10000,...chainAuthorityOptions({chainAuthority,chainVerifier})});
+   loadPolicy ||= publicHostPolicyLoader({directory:policyDirectory||'',origins:policyOrigins});
+   let cached=null,pending=null;
+   const policy=async()=>{
+@@ -142,5 +143,6 @@ export function hostAdmissionFromEnv({hostId,rpc,addressBook,env=process.env}) {
+     throw Error('wallet host admission requires matching immutable contract pins');
+   return createHostAdmission({hostId,ownershipContract:env.ENCLAVE_HOST_OWNERSHIP.toLowerCase(),
+     registry:env.ENCLAVE_HOST_REGISTRY_PIN.toLowerCase(),catalog:env.ENCLAVE_HOST_CATALOG_PIN.toLowerCase(),
+-    policyDirectory:env.ENCLAVE_HOST_POLICY_DIR,policyOrigins:env.ENCLAVE_HOST_POLICY_ORIGINS?JSON.parse(env.ENCLAVE_HOST_POLICY_ORIGINS):[],rpc,addressBook});
++    policyDirectory:env.ENCLAVE_HOST_POLICY_DIR,policyOrigins:env.ENCLAVE_HOST_POLICY_ORIGINS?JSON.parse(env.ENCLAVE_HOST_POLICY_ORIGINS):[],rpc,addressBook,
++    ...(chainAuthorityFromEnv(env).authority?{chainAuthority:'verifier',chainVerifier:env.ENCLAVE_CHAIN_VERIFIER}:{})});
+ }
+diff --git a/network/lease-reader.mjs b/network/lease-reader.mjs
+index 0a4bc01f9a89c9303abbc6b99e1456d8e781cedd..0a05b9a760b02d4c3db8492cbc9fd02a012e5143 100644
+--- a/network/lease-reader.mjs
++++ b/network/lease-reader.mjs
+@@ -1,6 +1,12 @@
+-// Serving authorization comes from two independently configured chain RPCs at
+-// the same recent block. Nan is neither a bootstrap nor an admission dependency.
+-import {createPublicClient, http, stringToHex} from 'viem';
++// Serving authorization comes from one of two EXPLICIT chain authorities (never mixed, never a fallback for each other):
++//  * 'quorum' (default, legacy): two independently configured chain RPCs agree at the same recent block. Agreement of
++//    providers is not proof and not independence from them.
++//  * 'verifier': ONE local validating endpoint (Helios, branch enclave-base-evm) that follows a sequencer-signed Base
++//    head and answers every read from proofs verified against that block's state root, executing calls with the
++//    maintained Base EVM. Its tier is the UNSAFE head (sequencer-signed, not L1-final). It is never a quorum vote, and
++//    with it no provider client exists, so a failed proof or missing fresh evidence can only refuse.
++// Nan is neither a bootstrap nor an admission dependency.
++import {createPublicClient, http, stringToHex, encodeFunctionData, decodeFunctionResult} from 'viem';
+ import {base} from 'viem/chains';
+ import {canonical} from './route-record.mjs';
+ import {readConnectivity} from './connectivity-chain.mjs';
+@@ -72,14 +78,70 @@ function header(block,blockNumber) {
+   if(!Number.isSafeInteger(ms))throw new Error('malformed chain block timestamp');
+   return {number:blockNumber,hash:hash.toLowerCase(),timestamp:ms};
+ }
++/**
++ * Explicit chain-authority options for a LeaseReader from a runtime config ({chainAuthority, chainVerifier}): {} (the
++ * legacy provider quorum, unchanged) unless chainAuthority is 'verifier', which needs the local verifier URL.
++ */
++export function chainAuthorityOptions({chainAuthority,chainVerifier}={}) {
++  if(chainAuthority===undefined||chainAuthority===null||chainAuthority==='quorum'){
++    if(chainVerifier!==undefined&&chainVerifier!==null)throw new Error('chainVerifier is set but chainAuthority is not verifier');
++    return {};
++  }
++  if(chainAuthority!=='verifier')throw new Error('chainAuthority must be quorum or verifier');
++  if(!chainVerifier)throw new Error('chainAuthority verifier needs chainVerifier (the local verifier URL)');
++  return {authority:'verifier',verifier:chainVerifier};
++}
++/** The same from the environment: ENCLAVE_CHAIN_AUTHORITY=verifier and ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:<port>/ */
++export const chainAuthorityFromEnv=(env=process.env)=>chainAuthorityOptions({chainAuthority:env.ENCLAVE_CHAIN_AUTHORITY||undefined,chainVerifier:env.ENCLAVE_CHAIN_VERIFIER||undefined});
++// The local validating endpoint behind authority 'verifier': a loopback JSON-RPC URL (the Helios process on this host)
++// or, in-process, an object with request(method, params, timeoutMs). A remote URL is refused: a remote "verifier" would
++// be one unverified server, exactly what this authority must never be.
++function verifierEndpoint(v) {
++  if(v&&typeof v==='object'&&typeof v.request==='function')return {request:(m,p,ms)=>v.request(m,p,ms),label:'verifier'};
++  const url=typeof v==='string'?v:v?.url;
++  let e;try{e=rpcEndpoint(url);}catch(err){throw new Error('verifier endpoint: '+err.message);}
++  if(!e.loopback)throw new Error('the verifier must be a local endpoint (loopback); a remote server is not a verifier');
++  let id=0;
++  return {label:'verifier '+e.label,request:async(method,params,ms)=>{
++    const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:++id,method,params}),
++      redirect:'error',signal:AbortSignal.timeout(Math.max(1,ms))});
++    if(!r.ok)throw Object.assign(new Error(`verifier HTTP ${r.status}`),{status:r.status});
++    const j=await r.json();
++    if(j?.error)throw Object.assign(new Error('verifier: '+String(j.error.message||'error').slice(0,300)),{code:j.error.code});
++    return j?.result;
++  }};
++}
++const hexBlock=b=>'0x'+b.toString(16);
++// A block the verifier returned for number b (from its signed head chain): that number, a 32-byte hash and state root,
++// a whole-second timestamp. -> {number, hash, stateRoot, timestamp (ms)}
++function verifiedHeader(block,b) {
++  if(!block||typeof block!=='object')throw new Error('the verifier has no block '+b);
++  let number;try{number=BigInt(block.number);}catch{throw new Error('malformed verified block number');}
++  if(number!==b)throw new Error('verified block number differs from the one requested');
++  if(!/^0x[0-9a-fA-F]{64}$/.test(block.hash||'')||!/^0x[0-9a-fA-F]{64}$/.test(block.stateRoot||''))throw new Error('malformed verified block hash or state root');
++  let ts;try{ts=Number(BigInt(block.timestamp))*1000;}catch{throw new Error('malformed verified block timestamp');}
++  if(!Number.isSafeInteger(ts)||ts<0)throw new Error('malformed verified block timestamp');
++  return {number:b,hash:block.hash.toLowerCase(),stateRoot:block.stateRoot.toLowerCase(),timestamp:ts};
++}
++const PINNED_METHODS=['getChainId','getBlockNumber','getBlock','readContract','getCode','getBytecode','getStorageAt','getBalance'];
+ // The fields agreed() itself puts on every answer; a read callback returning one is a bug, refused loudly.
+ const reservedFields=['hash','blockNumber','timestamp'];
+ export class LeaseReader {
+-  constructor({rpc,chainId=8453,addressBook,authorityPins,maxBlockAgeMs=90000,confirmations=2,deadlineMs=30000,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now,rateLimitRetryMs=0}) {
++  constructor({rpc,chainId=8453,addressBook,authorityPins,maxBlockAgeMs=90000,confirmations=2,deadlineMs=30000,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now,rateLimitRetryMs=0,authority='quorum',verifier}) {
+     if (!/^0x[0-9a-fA-F]{40}$/.test(addressBook||'')) throw new Error('invalid chain policy');
+     Object.assign(this,{chainId,addressBook,maxBlockAgeMs,confirmations,deadlineMs,includeHostPayout,includeConnectivity,now});
+     this.retryDelayMs=400;this.headGraceMs=250;
+     const policy=policyProblem(this);if(policy)throw new Error(policy);
++    if(authority!=='quorum'&&authority!=='verifier')throw new Error('chain authority must be quorum or verifier');
++    if(authority==='quorum'&&verifier!==undefined)throw new Error('a verifier is configured but the chain authority is quorum: say authority: verifier');
++    Object.defineProperty(this,'authority',{value:authority,enumerable:true});
++    if(authority==='verifier'){
++      // rpc/clients (spread in from a shared chain config) are deliberately NOT turned into clients: no fallback exists
++      this.verifier=verifierEndpoint(verifier);
++      Object.defineProperty(this,'authorityPins',{value:authorityPins===undefined?null:validateNetworkAuthorities(authorityPins),enumerable:true});
++      this.clients=Object.freeze([]);this.labels=[];this.lastBlock=0n;this.cache=new Map();this.rateLimitRetryMs=0;this.lastEvidence=null;
++      return;
++    }
+     if (!clients) {
+       // one vote per public host: case, a trailing dot, the port and the path do not make another one
+       if (!Array.isArray(rpc) || rpc.length<2 || rpc.length>maxClients) throw new Error('at least two independent HTTPS RPC origins required');
+@@ -156,7 +218,14 @@ export class LeaseReader {
+   //  * ONE deadline (`deadlineMs`) bounds the whole call. Each request is waited for at most the time left, and once the
+   //    outcome is decided, a round is superseded, or the deadline has passed, no further request is sent.
+   //  * One RPC never wins alone; there is no fallback to a first answer.
++  // What this reader's answers are worth, for evidence and status pages (never "independent").
++  authorityInfo() {
++    return this.authority==='verifier'
++      ?{authority:'local-verifier',head:'sequencer-signed Base unsafe head',tier:'unsafe',finality:'none',execution:'proof-backed (maintained Base EVM)',providerQuorum:false,last:this.lastEvidence}
++      :{authority:'provider-quorum',head:'provider-reported',tier:'provider-reported',finality:'none',execution:'provider eth_call',providerQuorum:true,independentOfProviders:false};
++  }
+   agreed(read, failures=[]) {
++    if(this.authority==='verifier')return this.verifiedRead(read,failures);
+     const problem=clientProblem(this.clients);
+     if(problem)return Promise.reject(new Error('invalid chain clients: '+problem));
+     const policy=policyProblem(this);
+@@ -275,6 +344,120 @@ export class LeaseReader {
+       },e=>{if(!closed)failures.push(failureText(this.labels[this.clients.indexOf(c)]||'rpc','head',e));}).finally(()=>{headsOutstanding--;headsSettled();});
+     });
+   }
++  // ---- authority 'verifier' ------------------------------------------------------------------------------------------
++  // One read of verified state at ONE block, within ONE deadline:
++  //  * the verifier's head (Helios refuses a head older than 60 s) minus `confirmations`, never below the block this
++  //    reader already accepted (monotonic), and never a head behind it;
++  //  * that block's header as the verifier holds it (hash, state root, timestamp), fresh by `maxBlockAgeMs`;
++  //  * the caller's read, through a client pinned to that block HASH whose every answer is proof-backed;
++  //  * the header again (same hash and timestamp: no reorganization underneath), still fresh, still not older than a
++  //    block accepted meanwhile.
++  // Any failure refuses the whole read. There is no other source to fall back to.
++  verifiedRead(read, failures=[]) {
++    const policy=policyProblem(this);
++    if(policy)return Promise.reject(new Error(policy));
++    if(typeof read!=='function')return Promise.reject(new Error('agreed() needs a read function'));
++    const call=this.deadlineCall();
++    const fresh=ts=>ts+this.maxBlockAgeMs>this.now()&&ts<=this.now()+5000;
++    return (async()=>{
++      const chainId=Number(BigInt(await call('eth_chainId',[])));
++      if(chainId!==this.chainId)throw new Error('the verifier follows another chain');
++      const head=BigInt(await call('eth_blockNumber',[]));
++      if(head<this.lastBlock)throw new Error(`the verifier head ${head} is behind block ${this.lastBlock} already accepted`);
++      let b=head-BigInt(this.confirmations);
++      if(b<0n)throw new Error('the verifier head is too young');
++      if(b<this.lastBlock)b=this.lastBlock;
++      const first=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
++      if(!fresh(first.timestamp))throw new Error('stale chain block');
++      const value=await read(this.pinnedClient(b,first.hash,call),b);
++      if(!value||typeof value!=='object'||Array.isArray(value))throw Object.assign(new Error('the chain read function must return an object'),{readerBug:true});
++      const reserved=reservedFields.find(k=>Object.hasOwn(value,k));
++      if(reserved)throw Object.assign(new Error('the chain read function returned the reserved field '+reserved),{readerBug:true});
++      const again=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
++      if(again.hash!==first.hash||again.timestamp!==first.timestamp)throw new Error('chain reorganized during read');
++      if(!fresh(first.timestamp))throw new Error('chain block became stale during the read');
++      if(b<this.lastBlock)throw new Error(`block ${b} is older than block ${this.lastBlock} accepted meanwhile`);
++      this.lastBlock=b;
++      this.lastEvidence={authority:'local-verifier',tier:'unsafe',blockNumber:String(b),blockHash:first.hash,stateRoot:first.stateRoot,timestamp:first.timestamp};
++      return {...value,hash:first.hash,blockNumber:String(b),timestamp:first.timestamp};
++    })().catch(e=>{
++      if(e?.readerBug)throw e;
++      failures.push(failureText(this.verifier.label,'read',e));
++      throw Object.assign(new Error('no fresh verified chain state: '+errText(e)),{cause:e});
++    });
++  }
++  // A request function bounded by ONE total deadline for everything issued through it.
++  deadlineCall() {
++    const endAt=performance.now()+this.deadlineMs;
++    return (method,params)=>{
++      const left=Math.floor(endAt-performance.now());
++      if(left<=0)return Promise.reject(new Error('the verified read deadline has passed'));
++      return timed(Promise.resolve().then(()=>this.verifier.request(method,params,left)),left);
++    };
++  }
++  // The only client a read callback sees under the verifier: every answer is AT the verified block (by hash) and
++  // proof-backed; a read at any other block, or any method outside PINNED_METHODS, refuses by name.
++  pinnedClient(b,hash,call) {
++    const at=(blockNumber,blockTag)=>{
++      if(blockTag!==undefined)throw new Error('verified reads are pinned to block '+b+' (no block tags)');
++      if(blockNumber!==undefined&&BigInt(blockNumber)!==b)throw new Error('verified reads are pinned to block '+b);
++      return {blockHash:hash};
++    };
++    const code=async({address,blockNumber,blockTag})=>{const c=await call('eth_getCode',[address,at(blockNumber,blockTag)]);return c&&c!=='0x'?c:undefined;};
++    const methods={
++      getChainId:async()=>this.chainId,
++      getBlockNumber:async()=>b,
++      getBlock:async({blockNumber,blockTag,blockHash}={})=>{
++        if(blockHash!==undefined&&String(blockHash).toLowerCase()!==hash)throw new Error('verified reads are pinned to block '+b);
++        at(blockNumber,blockTag);
++        const h=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
++        if(h.hash!==hash)throw new Error('chain reorganized during read');
++        return {number:b,hash:h.hash,stateRoot:h.stateRoot,timestamp:BigInt(h.timestamp/1000)};
++      },
++      readContract:async({address,abi,functionName,args,blockNumber,blockTag,account})=>{
++        const data=encodeFunctionData({abi,functionName,args});
++        const from=typeof account==='string'?account:account?.address;
++        const out=await call('eth_call',[{to:address,data,...(from?{from}:{})},at(blockNumber,blockTag)]);
++        return decodeFunctionResult({abi,functionName,data:out});
++      },
++      getCode:code,getBytecode:code,
++      getStorageAt:async({address,slot,blockNumber,blockTag})=>call('eth_getStorageAt',[address,slot,at(blockNumber,blockTag)]),
++      getBalance:async({address,blockNumber,blockTag})=>BigInt(await call('eth_getBalance',[address,at(blockNumber,blockTag)])),
++    };
++    return new Proxy(Object.freeze({}),{get(_t,key){
++      if(Object.hasOwn(methods,key))return methods[key];
++      if(typeof key==='symbol'||key==='then'||key==='toJSON')return undefined;
++      return ()=>{throw new Error(`client.${String(key)} is not available under the verifier authority (proof-backed reads only: ${PINNED_METHODS.join(', ')})`);};
++    }});
++  }
++  // Is `hash` the canonical hash of block `number`? quorum: two clients report exactly that hash (the original rule).
++  // verifier: the verifier's own block at that number (its signed head chain, or verified history) has that hash.
++  async blockHashIs(number,hash) {
++    const b=BigInt(number);
++    if(this.authority==='verifier'){
++      try{return verifiedHeader(await this.deadlineCall()('eth_getBlockByNumber',[hexBlock(b),false]),b).hash===String(hash).toLowerCase();}
++      catch{return false;}
++    }
++    const hashes=await Promise.all(this.clients.map(client=>client.getBlock({blockNumber:b}).then(x=>x.hash).catch(()=>null)));
++    return hashes.filter(h=>h===hash).length>=2;
++  }
++  // `read(client, blockNumber)` at a block this reader already accepted (pin = {blockNumber, blockHash} from a snapshot):
++  // history bound to an accepted snapshot, never new fresh authority. quorum: the first value two clients return
++  // identically (the original rule; null when none). verifier: proof-backed at that block, refused if the block's hash
++  // is no longer the pinned one.
++  async readAt({blockNumber,blockHash},read) {
++    const b=BigInt(blockNumber);
++    if(this.authority==='verifier'){
++      const call=this.deadlineCall();
++      const h=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
++      if(blockHash!==undefined&&h.hash!==String(blockHash).toLowerCase())throw new Error('the pinned block is no longer canonical at '+b);
++      return read(this.pinnedClient(b,h.hash,call),b);
++    }
++    const key=v=>JSON.stringify(v,(_k,x)=>typeof x==='bigint'?x.toString():x);
++    const values=await Promise.all(this.clients.map(client=>Promise.resolve().then(()=>read(client,b)).catch(()=>null)));
++    for(const v of values)if(v!==null&&values.filter(x=>x!==null&&key(x)===key(v)).length>=2)return v;
++    return null;
++  }
+   async readSnapshot(ids) {
+     if(!Array.isArray(ids)||ids.length>256||ids.some(id=>!/^0x[0-9a-f]{64}$/.test(id))) throw new Error('exact deployment ids required');
+     this.failures=[];
+diff --git a/network/management-host.mjs b/network/management-host.mjs
+index b4be47acfcd34decadbd1a430dc7630a488e9e4a..b81049659804f88a393369684b50a521b04139d5 100644
+--- a/network/management-host.mjs
++++ b/network/management-host.mjs
+@@ -13,7 +13,7 @@ import {X509Certificate, createHash} from 'node:crypto';
+ import {isIP} from 'node:net';
+ import {pathToFileURL} from 'node:url';
+ import {privateKeyToAccount} from 'viem/accounts';
+-import {LeaseReader} from './lease-reader.mjs';
++import {LeaseReader,chainAuthorityOptions} from './lease-reader.mjs';
+ import {DurableState} from './durable-state.mjs';
+ import {directoryOrigins} from './directory-client.mjs';
+ import {validateNetworkAuthorities} from './network-authorities.mjs';
+@@ -76,7 +76,7 @@ export async function startManagementHost(config, {account, reader, fetch = glob
+   validateManagementRecord(probe, probe.issuedAt);   // the record (and browser origin) must be valid before listening
+   const state = config.stateDir ? new DurableState(config.stateDir) : null;
+   let last = Number((await state?.get('management-sequence'))?.sequence || 0);
+-  reader ||= new LeaseReader({rpc: config.rpc, chainId, addressBook: '0x' + '0'.repeat(40), authorityPins: pins, includeHostPayout: true});
++  reader ||= new LeaseReader({rpc: config.rpc, chainId, addressBook: '0x' + '0'.repeat(40), authorityPins: pins, includeHostPayout: true, ...chainAuthorityOptions(config)});
+   if (typeof reader?.agreed !== 'function' || reader.chainId !== chainId) throw Error('management host needs an agreeing chain reader for its chain');
+   // The secret the supervisor requires (MANAGEMENT_GATEWAY_TOKEN) before it accepts this runner's management base.
+   const upstreamToken = config.upstreamTokenFile ? await readPrivateHex(config.upstreamTokenFile) : null;
+diff --git a/network/provider-settlement.mjs b/network/provider-settlement.mjs
+index 7d3d68bde9b13e068af4348a36368613163f5368..95db9e4f7e430af633d6c14103feeeaa8a31906a 100644
+--- a/network/provider-settlement.mjs
++++ b/network/provider-settlement.mjs
+@@ -53,6 +53,10 @@ export class ProviderUSDCSettlement extends USDCBandwidthSettlement {
+ // Provider-side co-signer. observedBytes must read its own durable transport
+ // meter for this app, runner and policy; it must never read the peer's claim.
+ // No customer balance or signature is trusted from the request.
++// LeaseReader.blockHashIs (quorum: two clients report the hash; verifier: the local verifier's block). An injected reader
++// without it keeps the original two-client rule.
++const anchorIs=(reader,n,hash)=>typeof reader.blockHashIs==='function'?reader.blockHashIs(n,hash)
++  :Promise.all(reader.clients.map(client=>client.getBlock({blockNumber:BigInt(n)}).then(b=>b.hash).catch(()=>null))).then(hashes=>hashes.filter(h=>h===hash).length>=2);
+ export class ProviderReceiptSigner {
+  constructor({providerId,proofAccount,leaseReader,observedBytes,now=Date.now}){
+   if(!/^0x[0-9a-f]{64}$/.test(providerId||'')||typeof observedBytes!=='function')throw Error('provider transport meter required');
+@@ -63,9 +67,9 @@ export class ProviderReceiptSigner {
+   const {lease,c,provider}=providerContext(this.leaseReader.get(r.id),this.providerId,r.policyNonce,r.pricePerGiB6,this.now());
+   if(r.providerId!==this.providerId||r.runnerId!==lease.runner||BigInt(r.leaseUntil)!==BigInt(Math.floor(lease.leaseUntil/1000))||provider.proofKey.toLowerCase()!==this.proofAccount.address.toLowerCase()||
+     BigInt(r.issuedAt)>BigInt(Math.floor(this.now()/1000))||BigInt(r.issuedAt)<BigInt(Math.floor(this.now()/1000)-30)||BigInt(r.anchor)>BigInt(lease.blockNumber)||BigInt(lease.blockNumber)-BigInt(r.anchor)>128n)throw Error('stale or misbound provider receipt');
+-  // Quorum on the receipt's exact anchor, even when this provider has a newer lease snapshot.
+-  const hashes=await Promise.all(this.leaseReader.clients.map(client=>client.getBlock({blockNumber:BigInt(r.anchor)}).then(b=>b.hash).catch(()=>null)));
+-  if(hashes.filter(h=>h===anchorHash).length<2)throw Error('receipt anchor quorum unavailable');
++  // The receipt's exact anchor, even when this provider has a newer lease snapshot: two agreeing clients (quorum) or the
++  // local verifier's own block at that number (verifier authority). Never a single unverified answer.
++  if(!await anchorIs(this.leaseReader,r.anchor,anchorHash))throw Error(this.leaseReader.authority==='verifier'?'receipt anchor not verified at its block':'receipt anchor quorum unavailable');
+   const digest=providerReceiptDigest({chainId:lease.chainId,connectivity:c.address,ledger:lease.deployments,receipt:r,anchorHash});
+   if((await recoverMessageAddress({message:{raw:digest},signature:runnerSignature})).toLowerCase()!==lease.runnerProofKey?.toLowerCase())throw Error('runner receipt signature mismatch');
+   const observed=await this.observedBytes({deploymentId:r.id,runnerId:r.runnerId,providerId:this.providerId,nonce:String(r.policyNonce)});
+diff --git a/network/usdc-bandwidth.mjs b/network/usdc-bandwidth.mjs
+index 30cc94a372790975120573a116bae6dcc9e50a38..b97600c687450eac1e9a50e7686b81508464fc6a 100644
+--- a/network/usdc-bandwidth.mjs
++++ b/network/usdc-bandwidth.mjs
+@@ -24,6 +24,13 @@ export function meterKey(id,hostId,nonce){return keccak256(encodeAbiParameters([
+ // admitting each charge; a positive cap batches settlement off the packet path.
+ // Outstanding credit can be lost on owner revocation/lease loss, just as unpaid
+ // native TUNA traffic can be lost. It is never a second customer balance.
++// LeaseReader.readAt at a snapshot's own block (quorum: the first value two clients return; verifier: proof-backed at that
++// block). An injected reader without it keeps the original two-client rule.
++const readAtBlock=(reader,pin,read)=>typeof reader.readAt==='function'?reader.readAt(pin,read):(async()=>{
++  const values=await Promise.all(reader.clients.map(client=>Promise.resolve().then(()=>read(client,BigInt(pin.blockNumber))).catch(()=>null)));
++  for(const v of values)if(v!==null&&values.filter(x=>x===v).length>=2)return v;
++  return null;
++})();
+ export class USDCBandwidthSettlement {
+  constructor({directory,transactionDirectory,leaseReader,proofAccount,wallet,client,maxPending6,intervalMs=10000,now=Date.now,log=()=>{}}){
+   if(!/^(0|[1-9]\d{0,11})$/.test(maxPending6||'')||intervalMs<1000||intervalMs>20000)throw Error('explicit bounded provider credit required');
+@@ -41,10 +48,11 @@ export class USDCBandwidthSettlement {
+  async chainBytes(lease,c){
+   const cacheKey=lease.id+':'+this.meterHost(lease)+':'+c.nonce+':'+lease.blockHash;
+   if(this.confirmed.has(cacheKey))return this.confirmed.get(cacheKey);
+-  const args={address:c.address,abi:bandwidthABI,functionName:'bytesServed',args:[meterKey(lease.id,this.meterHost(lease),c.nonce)],blockNumber:BigInt(lease.blockNumber)};
+-  const values=await Promise.all(this.leaseReader.clients.map(client=>client.readContract(args).then(String).catch(()=>null)));
+-  for(const value of values)if(value!==null&&values.filter(v=>v===value).length>=2){if(this.confirmed.size>1024)this.confirmed.clear();this.confirmed.set(cacheKey,BigInt(value));return BigInt(value);}
+-  throw Error('bandwidth payment quorum unavailable');
++  // Read at the lease snapshot's own block: two agreeing clients (quorum) or proof-backed at that block (verifier).
++  const args={address:c.address,abi:bandwidthABI,functionName:'bytesServed',args:[meterKey(lease.id,this.meterHost(lease),c.nonce)]};
++  const value=await readAtBlock(this.leaseReader,{blockNumber:lease.blockNumber,blockHash:lease.blockHash},(client,blockNumber)=>client.readContract({...args,blockNumber}).then(String)).catch(()=>null);
++  if(value!==null){if(this.confirmed.size>1024)this.confirmed.clear();this.confirmed.set(cacheKey,BigInt(value));return BigInt(value);}
++  throw Error(this.leaseReader.authority==='verifier'?'bandwidth payment state unverified':'bandwidth payment quorum unavailable');
+  }
+  async authorizeDebit({deploymentId,policyHash,cumulativeBytes,cumulativeCost6,pricePerGiB6,nonce,counters}){
+   const key=deploymentId.slice(2)+'-'+nonce;this.apps.set(key,{deploymentId,nonce,pricePerGiB6});
+@@ -111,10 +119,9 @@ export class USDCBandwidthSettlement {
+      const lease=this.leaseReader.get(prior.deploymentId),c=lease?.connectivity;
+      if(!c)throw Error('bandwidth transaction state unknown');
+      const host=(prior.meter||'direct')==='direct'?lease.runner:prior.meter;
+-     const args={address:c.address,abi:bandwidthABI,functionName:'bytesServed',args:[meterKey(lease.id,host,prior.nonce)],blockNumber:BigInt(lease.blockNumber)};
+-     const values=(await Promise.all(this.leaseReader.clients.map(cl=>cl.readContract(args).then(String).catch(()=>null)))).filter(v=>v!==null);
+-     const agreed=values.find(v=>values.filter(x=>x===v).length>=2);
+-     if(agreed===undefined)throw Error('bandwidth transaction state unknown');
++     const args={address:c.address,abi:bandwidthABI,functionName:'bytesServed',args:[meterKey(lease.id,host,prior.nonce)]};
++     const agreed=await readAtBlock(this.leaseReader,{blockNumber:lease.blockNumber,blockHash:lease.blockHash},(cl,blockNumber)=>cl.readContract({...args,blockNumber}).then(String)).catch(()=>null);
++     if(agreed===null)throw Error('bandwidth transaction state unknown');
+      await this.transactions.set(key,{...prior,state:BigInt(agreed)>=BigInt(prior.bytes)?'confirmed':'dropped'});
+      return this.sendReceipt(id,s);
+     }
+diff --git a/network/wg-provider/main.mjs b/network/wg-provider/main.mjs
+index 1b93d048e916a62726f2a52f20b8587264148106..2e9633b868d574d57653db4348337f3def6aacab 100644
+--- a/network/wg-provider/main.mjs
++++ b/network/wg-provider/main.mjs
+@@ -13,7 +13,7 @@ import {privateKeyToAccount} from 'viem/accounts';
+ import {createPublicClient,http} from 'viem';
+ import {base} from 'viem/chains';
+ import {DirectoryClient} from '../directory-client.mjs';
+-import {LeaseReader} from '../lease-reader.mjs';
++import {LeaseReader,chainAuthorityOptions} from '../lease-reader.mjs';
+ import {WgProvider} from './provider.mjs';
+ import {Kernel} from './kernel.mjs';
+ import {createRouter} from './router.mjs';
+@@ -49,7 +49,7 @@ if(!Array.isArray(cfg.rpc)||cfg.rpc.length<2)throw new Error('two or more RPC en
+ // A paid provider charges through the on-chain connectivity contract: it must be a registry host that can sign receipts.
+ const paid=(cfg.pricePerGiB6||0)>0;
+ if(paid&&(cfg.kind!=='community'||!/^0x[0-9a-f]{64}$/.test(cfg.hostId||'')||!cfg.proofKeyFile))throw new Error('a paid provider is a community provider (kind community, hostId) with its host\'s proofKeyFile');
+-const leases=new LeaseReader({rpc:cfg.rpc,addressBook:boot.addressBook,authorityPins:boot.authorityPins,includeHostPayout:true,...(paid?{includeConnectivity:'auto'}:{})});
++const leases=new LeaseReader({rpc:cfg.rpc,addressBook:boot.addressBook,authorityPins:boot.authorityPins,includeHostPayout:true,...(paid?{includeConnectivity:'auto'}:{}),...chainAuthorityOptions(cfg)});
+ const clients=cfg.rpc.map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
+ // Owner signatures use the same fresh chain quorum and explicit factory binding.
+ const verifyOwner=(owner,message,signature)=>verifyOwnerSignature({reader:leases,owner,message,signature,addressBook:boot.addressBook,sessionVaultFactory:leases.authorityPins?.sessionVaultFactory});
+diff --git a/test/lease-reader-verifier.e2e.test.mjs b/test/lease-reader-verifier.e2e.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..c19c063cc66f3574a0dce60e7a45045ec1ab7bf8
+--- /dev/null
++++ b/test/lease-reader-verifier.e2e.test.mjs
+@@ -0,0 +1,184 @@
++// END-TO-END: LeaseReader authority 'verifier' against the REAL platform contracts on a local chain (the
++// cli-independent rig: schema-16 ledger, catalog with published apps, schema-4 registry; chain id 8453), through the
++// patched Helios (branch enclave-base-evm: Base EVM over proof-backed state) and the witness gateway. Real consumers:
++// deployment/lease snapshots, host admission + catalog moderation (createHostAdmission), admin AddressBook migration,
++// settlement pinned reads; plus tampered proofs, missing witnesses, a stale head and unknown state.
++// SYNTHETIC HEAD AUTHORITY: the local chain's blocks are signed by a TEST sequencer key (helios.toml override). The real
++// Base head path is tested separately (helios-base-head.e2e) and real Base execution by helios-base-replay.e2e.
++//   env: HELIOS_BASE_BIN, TEST_TMP. Needs anvil and contracts/foundry/out (as the rig does). Run inside `unshare -r -n`.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { spawn } from 'node:child_process';
++import fs from 'node:fs';
++import path from 'node:path';
++import http from 'node:http';
++import { stringToHex, pad, toHex } from 'viem';
++import { privateKeyToAccount } from 'viem/accounts';
++import { startRig, haveTools, KEYS, freePort } from './helpers/cli-independent-rig.mjs';
++import { LeaseReader } from '../network/lease-reader.mjs';
++import { createHostAdmission } from '../network/host-admission-runtime.mjs';
++import { hostAdmissionPolicyHash } from '../network/host-admission-policy.mjs';
++import { createWitnessGateway } from '../network/witness-gateway.mjs';
++import { makeCommitment, blockFields } from './fixtures/op-commitment.mjs';
++
++const { HELIOS_BASE_BIN } = process.env;
++const skip = haveTools() || (!HELIOS_BASE_BIN && 'HELIOS_BASE_BIN not set');
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'verifier-e2e-'));
++const SEQ_KEY = '0x' + '5e'.repeat(32), seqSigner = privateKeyToAccount(SEQ_KEY).address;
++const OUT = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'contracts/foundry/out');
++const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, `${name}.json`), 'utf8')); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++let rig, helios, heliosUrl, feed, proxy, gateway, reader, book, bookAbi, leaseId, miner;
++const proxyMode = { value: 'ok' };
++
++async function rpc(url, method, params = []) {
++  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(30000) });
++  const j = await r.json(); if (j.error) throw new Error(j.error.message); return j.result;
++}
++const heliosHead = async () => BigInt(await rpc(heliosUrl, 'eth_blockNumber'));
++async function untilHelios(n, ms = 90000) {
++  const end = Date.now() + ms;
++  while (Date.now() < end) { try { if (await heliosHead() >= BigInt(n)) return; } catch {} await sleep(300); }
++  throw new Error(`helios did not reach block ${n}`);
++}
++// the head source: every block of the local chain, in order, one per /latest poll, signed by the test sequencer key
++function startFeed() {
++  let served = 0n, current = null, frozen = false;
++  const srv = http.createServer(async (q, res) => {
++    if (q.url === '/chain_id') return res.end('8453');
++    try {
++      const latest = BigInt(await rig.rpcCall('eth_blockNumber'));
++      if (!frozen && served < latest) {
++        const n = served + 1n;
++        const b = await rig.rpcCall('eth_getBlockByNumber', [toHex(n), false]);
++        const txs = await Promise.all(b.transactions.map((h) => rig.rpcCall('eth_getRawTransactionByHash', [h])));
++        current = await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs });
++        served = n;
++      }
++    } catch {}
++    res.end(JSON.stringify(current));
++  });
++  return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, url: `http://127.0.0.1:${srv.address().port}/`, freeze: (v) => { frozen = v; } })));
++}
++// the only witness source: forwards to the chain, or tampers with proven values, or is down
++function startProxy() {
++  const srv = http.createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', async () => {
++    if (proxyMode.value === 'down') { res.writeHead(503); return res.end(); }
++    const up = await fetch(rig.rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: b });
++    const j = await up.json();
++    if (proxyMode.value === 'tamper') for (const x of [j].flat()) if (x?.result?.storageProof) for (const s of x.result.storageProof) s.value = '0x' + 'beef'.padStart(40, '1');
++    res.end(JSON.stringify(j));
++  }); });
++  return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, url: `http://127.0.0.1:${srv.address().port}/` })));
++}
++
++test.before(async () => {
++  if (skip) return;
++  rig = await startRig();
++  // blocks come only from this test: automine for writes, plus one block every 2 s (the head feed serves 1 block/s)
++  await rig.setMining(false); await rig.rpcCall('evm_setAutomine', [true]);
++  miner = setInterval(() => rig.mine(), 2000);
++  const B = art('EnclaveAddressBook.sol', 'EnclaveAddressBook'); bookAbi = B.abi;
++  book = await rig.deploy(B);
++  const dep = rig.wc(KEYS.deployer);
++  await rig.write(dep, book, bookAbi, 'set', [stringToHex('deployments', { size: 32 }), rig.addresses.ledger]);
++  await rig.write(dep, book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry]);
++  leaseId = rig.createdId(await rig.create(KEYS.owner));
++  feed = await startFeed(); proxy = await startProxy();
++  gateway = createWitnessGateway({ upstreams: [proxy.url] }); const gUrl = await gateway.listen(0);
++  const home = path.join(TMP, 'home'); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
++  fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${seqSigner}"\n`);
++  const port = await freePort();
++  helios = spawn(HELIOS_BASE_BIN, ['opstack', '--network', 'base', '--consensus-rpc', feed.url, '--execution-rpc', gUrl, '--rpc-port', String(port)], { env: { HOME: home, PATH: process.env.PATH }, stdio: 'ignore' });
++  heliosUrl = `http://127.0.0.1:${port}/`;
++  await untilHelios(BigInt(await rig.rpcCall('eth_blockNumber')));
++  reader = new LeaseReader({ authority: 'verifier', verifier: heliosUrl, addressBook: book, confirmations: 1, maxBlockAgeMs: 60000, deadlineMs: 30000 });
++});
++test.after(async () => {
++  clearInterval(miner);
++  helios?.kill('SIGKILL');
++  await gateway?.close(); feed?.srv.close(); proxy?.srv.close();
++  await rig?.stop();
++  fs.rmSync(TMP, { recursive: true, force: true });
++});
++const T = { skip, timeout: 240000 };
++const waitTx = async (rc) => untilHelios(rc.blockNumber + 2n);
++
++test('deployment/lease snapshot through the verifier equals the chain record at the same block', T, async () => {
++  const [lease] = await reader.refresh([leaseId]);
++  assert.ok(lease, 'the deployment was read');
++  assert.equal(lease.deployments, rig.addresses.ledger.toLowerCase(), 'resolved through the AddressBook');
++  const direct = await rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.A.ledger.abi, functionName: 'get', args: [leaseId], blockNumber: BigInt(lease.blockNumber) });
++  assert.equal(lease.owner.toLowerCase(), direct.owner.toLowerCase());
++  assert.equal(lease.appRef, direct.appRef);
++  assert.equal(lease.active, direct.active);
++  assert.equal(String(lease.leaseUntil / 1000), String(direct.leaseUntil));
++  const block = await rig.rpcCall('eth_getBlockByNumber', [toHex(BigInt(lease.blockNumber)), false]);
++  assert.equal(lease.blockHash, block.hash);
++  assert.equal(reader.lastEvidence.stateRoot, block.stateRoot.toLowerCase());
++  assert.equal(reader.authorityInfo().tier, 'unsafe');
++});
++
++test('host admission and catalog moderation through the verifier follow owner policy, yanking and delisting', T, async () => {
++  const own = await rig.deploy(art('EnclaveHostOwnership.sol', 'EnclaveHostOwnership'), [rig.addresses.registry]);
++  const ownAbi = art('EnclaveHostOwnership.sol', 'EnclaveHostOwnership').abi;
++  await rig.write(rig.wc(KEYS.operator), own, ownAbi, 'proposeOwner', [rig.runner, rig.owner]);
++  await waitTx(await rig.write(rig.wc(KEYS.owner), own, ownAbi, 'acceptOwner', [rig.runner]));
++  const doc = { version: 1, chainId: 8453, ownershipContract: own.toLowerCase(), hostId: rig.runner, requireCatalogApproval: false, denyDeployments: [leaseId.toLowerCase()], denyAppRefs: [] };
++  const admission = createHostAdmission({ hostId: rig.runner, ownershipContract: own.toLowerCase(), registry: rig.addresses.registry.toLowerCase(), catalog: rig.addresses.catalog.toLowerCase(),
++    reader, loadPolicy: async () => doc, cacheMs: 0 });
++  const request = { deploymentId: leaseId, appRef: `catalog://${rig.appId}/1` };
++  assert.equal(await admission.refusal(request), null, 'approved app, default owner policy');
++  await waitTx(await rig.write(rig.wc(KEYS.owner), own, ownAbi, 'setPolicy', [rig.runner, hostAdmissionPolicyHash(doc)]));
++  assert.equal(await admission.refusal(request), 'this host owner declines this deployment');
++  await waitTx(await rig.write(rig.wc(KEYS.owner), own, ownAbi, 'setPolicy', [rig.runner, pad('0x', { size: 32 })]));
++  assert.equal(await admission.refusal(request), null);
++  await waitTx(await rig.write(rig.wc(KEYS.deployer), rig.addresses.catalog, rig.A.catalog.abi, 'yankVersion', ['hello', 1n]));
++  assert.match(await admission.refusal(request), /yanked/);
++  await waitTx(await rig.write(rig.wc(KEYS.deployer), rig.addresses.catalog, rig.A.catalog.abi, 'setActive', ['hello', false]));
++  assert.match(await admission.refusal(request), /delisted/);
++});
++
++test('admin-directed AddressBook migration is followed; an outsider cannot repoint it', T, async () => {
++  assert.equal(await reader.bookAddress('registry'), rig.addresses.registry.toLowerCase());
++  await assert.rejects(rig.write(rig.wc(KEYS.other), book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry5]));
++  assert.equal(await reader.bookAddress('registry'), rig.addresses.registry.toLowerCase());
++  await waitTx(await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry5]));
++  assert.equal(await reader.bookAddress('registry'), rig.addresses.registry5.toLowerCase());
++});
++
++test('settlement pinned reads: anchor hashes and reads at the snapshot block are proof-backed', T, async () => {
++  const [lease] = await reader.refresh([leaseId]);
++  const n = BigInt(lease.blockNumber) - 1n;
++  const real = (await rig.rpcCall('eth_getBlockByNumber', [toHex(n), false])).hash;
++  assert.equal(await reader.blockHashIs(n, real), true);
++  assert.equal(await reader.blockHashIs(n, pad('0x1234', { size: 32 })), false);
++  const owner = await reader.readAt({ blockNumber: lease.blockNumber, blockHash: lease.blockHash },
++    (c, b) => c.readContract({ address: rig.addresses.ledger, abi: rig.A.ledger.abi, functionName: 'get', args: [leaseId], blockNumber: b }).then((d) => d.owner.toLowerCase()));
++  assert.equal(owner, rig.owner.toLowerCase());
++});
++
++test('tampered proofs and a missing witness source refuse; the last verified lease stands; nothing new is admitted', T, async () => {
++  const [lease] = await reader.refresh([leaseId]);
++  const before = reader.get(leaseId);
++  for (const mode of ['tamper', 'down']) {
++    proxyMode.value = mode;
++    await untilHelios(BigInt(lease.blockNumber) + 3n);           // a NEW block: its witnesses must come from the source
++    await assert.rejects(reader.refresh([leaseId]), /no fresh verified chain state/, mode);
++    await assert.rejects(reader.bookAddress('deployments'), /no fresh verified chain state/, mode);
++    assert.equal(reader.get(leaseId)?.blockHash, before.blockHash, 'unchanged');
++    assert.equal(reader.get('0x' + '77'.repeat(32)), null, 'never verified, never admitted');
++    proxyMode.value = 'ok';
++  }
++  assert.ok((await reader.refresh([leaseId]))[0], 'recovers once the source is honest again');
++});
++
++test('a stale head refuses fresh authority while the chain keeps moving', T, async () => {
++  const strict = new LeaseReader({ authority: 'verifier', verifier: heliosUrl, addressBook: book, confirmations: 1, maxBlockAgeMs: 5000, deadlineMs: 20000 });
++  assert.ok((await strict.refresh([leaseId]))[0]);
++  feed.freeze(true);
++  try {
++    await sleep(8000);                                           // blocks keep being mined; the verifier sees none of them
++    await assert.rejects(strict.refresh([leaseId]), /stale chain block/);
++  } finally { feed.freeze(false); }
++});
+diff --git a/test/lease-reader-verifier.test.mjs b/test/lease-reader-verifier.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..eec9cf3c1949af1752d9be97bfdd81c298d24124
+--- /dev/null
++++ b/test/lease-reader-verifier.test.mjs
+@@ -0,0 +1,234 @@
++// LeaseReader authority 'verifier': the reader's semantics (block selection, freshness, monotonicity, reorg, one
++// deadline, pinned proof-backed client, explicit refusals) and REAL consumers driven through it (deployment/lease
++// snapshots, host admission + catalog moderation, admin-directed AddressBook migration, settlement pinned reads), with
++// proof failure, missing witness, stale head and unknown state. The verifier here is an in-process stand-in that
++// answers like the patched Helios (eth_* methods; errors where Helios refuses). Real Helios: lease-reader-verifier.e2e.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { parseAbi, encodeFunctionResult, decodeFunctionData, pad, toHex, stringToHex } from 'viem';
++import { LeaseReader, chainAuthorityOptions, chainAuthorityFromEnv } from '../network/lease-reader.mjs';
++import { createHostAdmission } from '../network/host-admission-runtime.mjs';
++import { hostAdmissionPolicyHash } from '../network/host-admission-policy.mjs';
++import { USDCBandwidthSettlement } from '../network/usdc-bandwidth.mjs';
++
++const BOOK = '0x' + 'b0'.repeat(20), LEDGER = '0x' + '1e'.repeat(20), LEDGER2 = '0x' + '2e'.repeat(20), CATALOG = '0x' + 'ca'.repeat(20);
++const OWNERSHIP = '0x' + '0e'.repeat(20), REGISTRY = '0x' + 'ee'.repeat(20), METER = '0x' + 'ae'.repeat(20);
++const HOST = '0x' + 'ab'.repeat(32), APP = '0x' + 'ef'.repeat(32), DEP = '0x' + 'cd'.repeat(32), OWNER = '0x' + '44'.repeat(20);
++const fields = [['id','bytes32'],['owner','address'],['appRef','string'],['ports','string'],['configCid','string'],['gpuMilli','uint16'],['cpuMilli','uint16'],['appPort','uint32'],['isPublic','bool'],['active','bool'],['createdAt','uint64'],['rate','uint256'],['balance6','uint256'],['spent6','uint256'],['runner','bytes32'],['runnerOperator','address'],['leaseUntil','uint64']];
++const ABI = {
++  book: parseAbi(['function addr(bytes32) view returns (address)']),
++  ledger: [{ type: 'function', name: 'get', stateMutability: 'view', inputs: [{ type: 'bytes32' }], outputs: [{ type: 'tuple', components: fields.map(([name, type]) => ({ name, type })) }] },
++    ...parseAbi(['function deploymentsSchema() view returns (uint256)'])],
++  ownership: parseAbi(['function registry() view returns (address)', 'function authority(bytes32) view returns (address owner,address pendingOwner,uint64 revision,bytes32 policyHash)']),
++  catalog: parseAbi(['function getApp(bytes32) view returns ((bytes32 appId,address publisher,string slug,string name,string description,uint32 versionCount,uint64 createdAt,uint64 updatedAt,bool active))',
++    'function getVersion(bytes32,uint256) view returns ((string cid,string version,uint32 vramMb,uint32 gpuGflops,uint32 memMb,uint32 cpuGflops,uint64 createdAt,bool verified,bool yanked,string ports,uint8 approval,string config))']),
++  meter: parseAbi(['function bytesServed(bytes32) view returns (uint256)']),
++};
++const NOW = 1_800_000_000_000;
++const hash = (n, salt = 0) => pad(toHex(BigInt(n) * 1000n + BigInt(salt)), { size: 32 });
++
++// A chain the stand-in verifier "proves": state can change at a block (admin repoints the book, moderation yanks).
++function chain() {
++  const st = { head: 100n, now: NOW, salt: new Map(), calls: [], mode: {}, at: {}, bookLedger: [[0n, LEDGER]], yankedFrom: null, deniedFrom: null, bytes: 7n };
++  const numberOf = (h) => { for (let n = 0n; n <= st.head + 5n; n++) if (hash(n, st.salt.get(n) || 0) === h) return n; throw new Error('unknown block hash'); };
++  const block = (n) => ({ number: toHex(n), hash: hash(n, st.salt.get(n) || 0), stateRoot: pad(toHex(n + 7n), { size: 32 }),
++    timestamp: toHex(Math.floor(st.now / 1000) - Number(st.head - n) * 2 + (st.mode.future ? 3600 : 0) - (st.mode.oldBlocks ? 600 : 0)) });
++  const current = (list, n) => list.filter(([from]) => from <= n).at(-1)[1];
++  const answer = (to, data, n) => {
++    const t = to.toLowerCase();
++    const find = (abi) => { const d = decodeFunctionData({ abi, data }); return [abi, d]; };
++    if (t === BOOK) { const [abi] = find(ABI.book); return encodeFunctionResult({ abi, functionName: 'addr', result: current(st.bookLedger, n) }); }
++    if (t === LEDGER || t === LEDGER2) {
++      const [abi, d] = find(ABI.ledger);
++      if (d.functionName === 'deploymentsSchema') return encodeFunctionResult({ abi, functionName: 'deploymentsSchema', result: 15n });
++      return encodeFunctionResult({ abi, functionName: 'get', result: { id: d.args[0], owner: OWNER, appRef: `catalog://${APP}/1`, ports: 'http:8080', configCid: '', gpuMilli: 0, cpuMilli: 100,
++        appPort: 8080, isPublic: true, active: true, createdAt: 1n, rate: 0n, balance6: 5n, spent6: 0n, runner: HOST, runnerOperator: OWNER, leaseUntil: BigInt(Math.floor(st.now / 1000) + 3600) } });
++    }
++    if (t === OWNERSHIP) {
++      const [abi, d] = find(ABI.ownership);
++      if (d.functionName === 'registry') return encodeFunctionResult({ abi, functionName: 'registry', result: REGISTRY });
++      const denied = st.deniedFrom !== null && n >= st.deniedFrom;
++      return encodeFunctionResult({ abi, functionName: 'authority', result: [OWNER, '0x' + '00'.repeat(20), denied ? 2n : 1n, denied ? st.policyHash : pad('0x', { size: 32 })] });
++    }
++    if (t === CATALOG) {
++      const [abi, d] = find(ABI.catalog);
++      if (d.functionName === 'getApp') return encodeFunctionResult({ abi, functionName: 'getApp', result: { appId: APP, publisher: OWNER, slug: 'a', name: 'A', description: '', versionCount: 2, createdAt: 1n, updatedAt: 1n, active: true } });
++      const yanked = st.yankedFrom !== null && n >= st.yankedFrom;
++      return encodeFunctionResult({ abi, functionName: 'getVersion', result: { cid: 'bafy', version: '1', vramMb: 0, gpuGflops: 0, memMb: 64, cpuGflops: 1, createdAt: 1n, verified: false, yanked, ports: 'http:8080', approval: 1, config: '{}' } });
++    }
++    if (t === METER) { const [abi] = find(ABI.meter); return encodeFunctionResult({ abi, functionName: 'bytesServed', result: st.bytes }); }
++    throw new Error('execution reverted');
++  };
++  const verifier = {
++    request: async (method, params) => {
++      st.calls.push({ method, params });
++      if (st.mode.hang) return new Promise(() => {});
++      if (st.mode.down) throw new Error('verifier HTTP 502');
++      switch (method) {
++        case 'eth_chainId': return toHex(st.mode.wrongChain ? 10 : 8453);
++        case 'eth_blockNumber': if (st.mode.stale) throw new Error('verifier: out of sync: 125 seconds behind'); return toHex(st.head);
++        case 'eth_getBlockByNumber': {
++          const n = BigInt(params[0]);
++          if (st.mode.reorgOnce && st.calls.filter((c) => c.method === 'eth_getBlockByNumber').length === 2) { st.salt.set(n, 9); st.mode.reorgOnce = false; }
++          return n <= st.head ? block(n) : null;
++        }
++        case 'eth_call': {
++          if (st.mode.proofFail) throw new Error('verifier: invalid account proof for address ' + params[0].to);
++          if (st.mode.missing) throw new Error('verifier: no witness source answered');
++          assert.ok(params[1]?.blockHash, 'calls are pinned by block hash');
++          return answer(params[0].to, params[0].data, numberOf(params[1].blockHash));
++        }
++        case 'eth_getCode': return '0x6000';
++        case 'eth_getStorageAt': return pad('0x2a', { size: 32 });
++        case 'eth_getBalance': return '0x10';
++        default: throw new Error('method not supported');
++      }
++    },
++  };
++  return { st, verifier };
++}
++const reader = (verifier, opts = {}) => new LeaseReader({ authority: 'verifier', verifier, addressBook: BOOK, now: () => NOW, confirmations: 2, ...opts });
++const T = { timeout: 20000 };
++
++test('construction: the verifier is explicit, local, exclusive, and never mixed with provider clients', () => {
++  const { verifier } = chain();
++  assert.throws(() => new LeaseReader({ verifier, addressBook: BOOK }), /authority is quorum/);
++  assert.throws(() => new LeaseReader({ authority: 'verifier', verifier: 'https://rpc.example.org', addressBook: BOOK }), /local endpoint/);
++  assert.throws(() => new LeaseReader({ authority: 'verifier', addressBook: BOOK }), /verifier endpoint/);
++  // a shared chain config that also lists provider RPCs: they are ignored, no client exists
++  const r = new LeaseReader({ authority: 'verifier', verifier, rpc: ['https://a.example.org', 'https://b.example.org'], addressBook: BOOK });
++  assert.equal(r.clients.length, 0);
++  assert.equal(r.authorityInfo().authority, 'local-verifier');
++  assert.equal(r.authorityInfo().tier, 'unsafe');
++  const q = new LeaseReader({ rpc: ['https://a.example.org', 'https://b.example.org'], addressBook: BOOK });
++  assert.equal(q.authority, 'quorum');
++  assert.equal(q.authorityInfo().independentOfProviders, false);
++  assert.deepEqual(chainAuthorityOptions({}), {});
++  assert.deepEqual(chainAuthorityOptions({ chainAuthority: 'verifier', chainVerifier: 'http://127.0.0.1:8545/' }), { authority: 'verifier', verifier: 'http://127.0.0.1:8545/' });
++  assert.throws(() => chainAuthorityOptions({ chainVerifier: 'http://127.0.0.1:8545/' }), /not verifier/);
++  assert.throws(() => chainAuthorityOptions({ chainAuthority: 'verifier' }), /needs chainVerifier/);
++  assert.deepEqual(chainAuthorityFromEnv({ ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:1/' }).authority, 'verifier');
++});
++
++test('deployment/lease snapshot: one confirmed block, pinned by hash, fresh, with verified evidence', T, async () => {
++  const { st, verifier } = chain();
++  const r = reader(verifier);
++  const [lease] = await r.refresh([DEP]);
++  assert.equal(lease.id, DEP);
++  assert.equal(lease.blockNumber, '98');
++  assert.equal(lease.blockHash, hash(98n));
++  assert.equal(lease.deployments, LEDGER);
++  assert.equal(r.lastEvidence.stateRoot, pad(toHex(105n), { size: 32 }));
++  for (const c of st.calls.filter((x) => x.method === 'eth_call')) assert.deepEqual(c.params[1], { blockHash: hash(98n) });
++  assert.ok(!st.calls.some((c) => c.method === 'eth_call' && c.params[1] === 'latest'));
++});
++
++test('admin-directed migration: a repointed AddressBook entry is followed at the next fresh read', T, async () => {
++  const { st, verifier } = chain();
++  const r = reader(verifier);
++  assert.equal(await r.bookAddress('deployments'), LEDGER);
++  st.bookLedger.push([101n, LEDGER2]); st.head = 104n;            // the admin repointed at block 101
++  assert.equal(await r.bookAddress('deployments'), LEDGER2);
++  const [lease] = await r.refresh([DEP]);
++  assert.equal(lease.deployments, LEDGER2);
++});
++
++test('freshness, monotonicity, chain, reorganization and the single deadline all refuse', T, async () => {
++  let { st, verifier } = chain();
++  let r = reader(verifier);
++  st.mode.oldBlocks = true;
++  await assert.rejects(r.refresh([DEP]), /stale chain block/);
++  st.mode.oldBlocks = false; st.mode.future = true;
++  await assert.rejects(r.refresh([DEP]), /stale chain block/);
++  st.mode.future = false; st.mode.stale = true;                      // Helios check_head_age: head older than 60 s
++  await assert.rejects(r.refresh([DEP]), /out of sync/);
++  st.mode.stale = false; st.mode.wrongChain = true;
++  await assert.rejects(r.refresh([DEP]), /another chain/);
++  st.mode.wrongChain = false;
++  await r.refresh([DEP]);
++  st.head = 90n;                                                     // a verifier that went backwards
++  await assert.rejects(r.refresh([DEP]), /behind block 98/);
++  ({ st, verifier } = chain()); r = reader(verifier);
++  st.mode.reorgOnce = true;
++  await assert.rejects(r.refresh([DEP]), /reorganized/);
++  ({ st, verifier } = chain()); r = reader(verifier, { deadlineMs: 300 });
++  st.mode.hang = true;
++  const t0 = Date.now();
++  await assert.rejects(r.refresh([DEP]), /timed out|deadline/);
++  assert.ok(Date.now() - t0 < 2000, 'one total deadline');
++});
++
++test('inside a read: only proof-backed methods at the pinned block; anything else refuses by name', T, async () => {
++  const { verifier } = chain();
++  const r = reader(verifier);
++  for (const bad of [(c) => c.getLogs({}), (c) => c.multicall({ contracts: [] }), (c) => c.request({ method: 'eth_call' }), (c) => c.call({}), (c) => c.getTransactionReceipt({})])
++    await assert.rejects(r.agreed(async (c) => ({ x: await bad(c) })), /not available under the verifier authority/);
++  await assert.rejects(r.agreed(async (c, b) => ({ x: await c.readContract({ address: BOOK, abi: ABI.book, functionName: 'addr', args: [stringToHex('registry', { size: 32 })], blockNumber: b - 1n }) })), /pinned to block/);
++  await assert.rejects(r.agreed(async (c) => ({ x: await c.getCode({ address: BOOK, blockTag: 'latest' }) })), /no block tags/);
++  const ok = await r.agreed(async (c, b) => ({ code: await c.getCode({ address: BOOK, blockNumber: b }), word: await c.getStorageAt({ address: BOOK, slot: '0x0', blockNumber: b }), bal: String(await c.getBalance({ address: OWNER, blockNumber: b })) }));
++  assert.deepEqual([ok.code, ok.bal], ['0x6000', '16']);
++});
++
++test('proof failure, missing witness or an unreachable verifier: refused, cache untouched, nothing newly admitted', T, async () => {
++  const { st, verifier } = chain();
++  const r = reader(verifier);
++  const [lease] = await r.refresh([DEP]);
++  for (const mode of ['proofFail', 'missing', 'down']) {
++    st.mode = { [mode]: true };
++    await assert.rejects(r.refresh([DEP]), /no fresh verified chain state/);
++    assert.equal(r.get(DEP).blockHash, lease.blockHash, 'the last verified answer stands, unchanged');
++    await assert.rejects(r.refresh(['0x' + '99'.repeat(32)]));
++    assert.equal(r.get('0x' + '99'.repeat(32)), null, 'never-verified deployment is not admitted');
++  }
++  // unknown state: the existing outage hold is bounded by the lease and the grace, and only for leases already verified
++  assert.deepEqual(r.hold(60000), [DEP]);
++});
++
++test('host admission + catalog moderation through the verifier: approve, yank, owner policy, and failures refuse', T, async () => {
++  const { st, verifier } = chain();
++  const r = reader(verifier);
++  const doc = { version: 1, chainId: 8453, ownershipContract: OWNERSHIP, hostId: HOST, requireCatalogApproval: false, denyDeployments: [DEP], denyAppRefs: [] };
++  st.policyHash = hostAdmissionPolicyHash(doc);
++  const admission = createHostAdmission({ hostId: HOST, ownershipContract: OWNERSHIP, registry: REGISTRY, catalog: CATALOG, reader: r, loadPolicy: async () => doc, now: () => NOW, cacheMs: 0 });
++  const request = { deploymentId: DEP, appRef: `catalog://${APP}/1` };
++  assert.equal(await admission.refusal(request), null);
++  st.yankedFrom = 101n; st.head = 103n;                                       // platform moderation: the version is yanked
++  assert.match(await admission.refusal(request), /yank/i);
++  st.yankedFrom = null; st.deniedFrom = 104n; st.head = 106n;                 // the host owner commits a deny policy
++  assert.equal(await admission.refusal(request), 'this host owner declines this deployment');
++  st.mode = { proofFail: true }; st.head = 108n;
++  await assert.rejects(admission.refusal(request), /no fresh verified chain state/);
++  st.mode = { missing: true };
++  await assert.rejects(admission.refusal(request), /no fresh verified chain state/);
++  st.mode = { stale: true };
++  await assert.rejects(admission.refusal(request), /out of sync/);
++});
++
++test('settlement pinned reads: anchors and metered bytes at the snapshot block, verified or refused', T, async () => {
++  const { st, verifier } = chain();
++  const r = reader(verifier);
++  const [lease] = await r.refresh([DEP]);
++  assert.equal(await r.blockHashIs(95n, hash(95n)), true);
++  assert.equal(await r.blockHashIs(95n, hash(95n, 1)), false);
++  st.mode = { down: true };
++  assert.equal(await r.blockHashIs(95n, hash(95n)), false, 'unverifiable is not verified');
++  st.mode = {};
++  // USDCBandwidthSettlement.chainBytes is the actual consumer code: it reads bytesServed at lease.blockNumber through readAt
++  const ctx = { leaseReader: r, confirmed: new Map(), meterHost: () => HOST };
++  const c = { address: METER, nonce: 3 };
++  assert.equal(await USDCBandwidthSettlement.prototype.chainBytes.call(ctx, { ...lease }, c), 7n);
++  ctx.confirmed.clear(); st.mode = { proofFail: true };
++  await assert.rejects(USDCBandwidthSettlement.prototype.chainBytes.call(ctx, { ...lease }, c), /bandwidth payment state unverified/);
++  ctx.confirmed.clear(); st.mode = {}; st.salt.set(98n, 5);                    // the snapshot block was reorganized away
++  await assert.rejects(USDCBandwidthSettlement.prototype.chainBytes.call(ctx, { ...lease }, c), /unverified/);
++});
++
++test('legacy quorum mode is unchanged by the new primitives (two agreeing clients, never one)', T, async () => {
++  const blockOf = (h) => ({ getBlock: async () => ({ hash: h }), readContract: async () => 5n, getChainId: async () => 8453, getBlockNumber: async () => 100n });
++  const q = new LeaseReader({ clients: [blockOf('0xaa'), blockOf('0xaa'), blockOf('0xbb')], addressBook: BOOK });
++  assert.equal(await q.blockHashIs(9n, '0xaa'), true);
++  assert.equal(await q.blockHashIs(9n, '0xbb'), false);
++  assert.equal(await q.readAt({ blockNumber: 9n }, (cl, b) => cl.readContract({ blockNumber: b }).then(String)), '5');
++  const one = new LeaseReader({ clients: [blockOf('0xaa'), { ...blockOf('0xaa'), readContract: async () => { throw new Error('down'); } }], addressBook: BOOK });
++  assert.equal(await one.readAt({ blockNumber: 9n }, (cl, b) => cl.readContract({ blockNumber: b }).then(String)), null);
++});

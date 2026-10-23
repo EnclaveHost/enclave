@@ -1,0 +1,85 @@
+{
+  "binary": {
+    "path": "/opt/enclave-base-holder/bin/base",
+    "release": "v1.5.1",
+    "releaseTarballSha256": "6779c45dbc6041205cc4e52bc2cd9d40746a5a4366a309899bf6533fccebe2b7",
+    "sha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f"
+  },
+  "consensusRpc": {
+    "port": 19545
+  },
+  "datadir": "/srv/enclave-base-holder/data",
+  "format": "enclave-base-holder/v1",
+  "l1": {
+    "beacon": "https://L1-BEACON-ENDPOINT.invalid/",
+    "executionRpc": "https://L1-EXECUTION-ENDPOINT.invalid/",
+    "rpcTimeoutMs": 10000,
+    "selfHosted": false,
+    "trustRpc": false
+  },
+  "limits": {
+    "memoryHighBytes": 30923764531,
+    "memoryMaxBytes": 34359738368,
+    "nofile": 65536,
+    "readyTimeoutSec": 7200,
+    "stopTimeoutSec": 600,
+    "tasksMax": 4096
+  },
+  "p2p": {
+    "consensusTcpPort": 9222,
+    "consensusUdpPort": 9223,
+    "discoveryV5Port": 9200,
+    "executionPort": 30303,
+    "listenIp": "0.0.0.0"
+  },
+  "prune": "minimal",
+  "review": true,
+  "rpc": {
+    "api": [
+      "eth",
+      "net",
+      "web3"
+    ],
+    "maxConnections": 32,
+    "port": 18545,
+    "proofWindowBlocks": 1800
+  },
+  "serviceUser": "enclave-holder",
+  "staticFilesDir": null,
+  "storage": {
+    "cache": {
+      "blockBytes": 262144,
+      "dataBytes": 197999984640,
+      "dataImagePath": "/vm/enclave-base-holder-cache/cache-data.img",
+      "mechanism": "dm-cache",
+      "metadataBytes": 1073741824,
+      "metadataImagePath": "/vm/enclave-base-holder-cache/cache-meta.img",
+      "mode": "writethrough",
+      "policy": "smq",
+      "slackBytes": 67108864
+    },
+    "layout": "loop-ext4-image",
+    "mountPoint": "/srv/enclave-base-holder",
+    "nvmeAccounting": {
+      "capBytes": 250000000000,
+      "enforcedBy": "shared ledger /etc/enclave-rpc-cache/nvme-cache-budget.json reservation base-holder-dm-cache (maxBytes must equal holderBytes)",
+      "holderBytes": 199140835328,
+      "targetBytes": 200000000000
+    },
+    "nvmeBudget": {
+      "ledgerPath": "/etc/enclave-rpc-cache/nvme-cache-budget.json",
+      "reservationId": "base-holder-dm-cache"
+    },
+    "nvmeFreeMarginBytes": 200000000000,
+    "origin": {
+      "bytes": 3100000000000,
+      "imagePath": "/mnt/usb/enclave-base-holder/origin.img"
+    },
+    "originFreeMarginBytes": 500000000000
+  },
+  "txForwarding": {
+    "endpoint": null
+  },
+  "upgradeSignalMode": "metrics-only",
+  "verifierPort": 8545
+}

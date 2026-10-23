@@ -1,0 +1,15 @@
+# rendered by holder.py (enclave-base-holder/v1); root-run storage assembly for the holder (no reformatting at boot).
+[Unit]
+Description=Enclave Base holder storage (HDD origin image, optional writethrough NVMe cache)
+DefaultDependencies=no
+After=local-fs.target
+Before=enclave-base-holder.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/enclave-base-holder/holder-storage.sh assemble
+ExecStop=/opt/enclave-base-holder/holder-storage.sh disassemble
+
+[Install]
+WantedBy=multi-user.target

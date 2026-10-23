@@ -1,0 +1,15 @@
+# ROOT doc-only correction dc767fc3c9b4b1cbfed98b41ce0b9062bd64db07 on S 47c2f71f (fresh-witness-supply), CONTENT ONLY.
+# The commit's author/committer identity is not the project's noreply identity, so its commit object/patch is not published
+# here (no personal email in the checkpoint). Root: re-commit as SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> if the
+# commit itself should be preserved. The diff below is exactly git diff 47c2f71f dc767fc3 (one line of RESULT-CACHE-BUDGET.md).
+# RESULT-CACHE-BUDGET.md blob at dc767fc3: dff3c45d17683d69f2f2148723db81b06064a711
+
+diff --git a/RESULT-CACHE-BUDGET.md b/RESULT-CACHE-BUDGET.md
+--- a/RESULT-CACHE-BUDGET.md
++++ b/RESULT-CACHE-BUDGET.md
+@@ -1,4 +1,4 @@
+-# Shared NVMe cache budget: a hard aggregate bound in source (RESULT-CACHE-BUDGET, 2026-10-23, rounding fix ~08:40Z)
++# Shared NVMe cache budget: a hard aggregate bound in source (RESULT-CACHE-BUDGET, 2026-10-23; rounding-fix report committed at 07:20:58Z)
+ 
+ **Status: SOURCE + SEAM-TESTED. NOT kernel-proven, NOT allocated, NOT activated.**
+ - **Not done:** no SSH, no sudo, no mount, no allocation, no sync, no production or VM change, no push.

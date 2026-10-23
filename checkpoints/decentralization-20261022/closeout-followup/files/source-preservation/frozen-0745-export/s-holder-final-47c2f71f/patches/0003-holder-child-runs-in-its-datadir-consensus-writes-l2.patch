@@ -1,0 +1,582 @@
+From 1a509577bcbf2660f866d0f46c26dbb527ba379c Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 23:29:31 -0700
+Subject: [PATCH 03/10] holder: child runs in its datadir (consensus writes
+ l2_jwt.hex to cwd); offline fixture asserts it; review render refreshed
+
+---
+ ROOT-UNWIND-FIX-FINAL.txt                     |   1 +
+ .../official-binary-offline-20261023.json     |  65 +++++-----
+ evidence/render-review/holder-storage.sh      |  14 ++-
+ evidence/render-review/manifest.json          |   4 +-
+ holder/holder.py                              |   8 +-
+ holder/test/standin-base.py                   |   2 +
+ holder/test/test_base_offline.py              |   3 +
+ holder/test/test_holder.py                    |   1 +
+ logs/bp-off3.guard.log                        |   1 +
+ logs/bp-off3.out                              | 113 ++++++++++++++++++
+ logs/bp-off3.rc                               |   1 +
+ logs/bp-render2.guard.log                     |   1 +
+ logs/bp-render2.out                           |  42 +++++++
+ logs/bp-t3.guard.log                          |   1 +
+ logs/bp-t3.out                                | 111 +++++++++++++++++
+ 15 files changed, 330 insertions(+), 38 deletions(-)
+ create mode 100644 ROOT-UNWIND-FIX-FINAL.txt
+ create mode 100644 logs/bp-off3.guard.log
+ create mode 100644 logs/bp-off3.out
+ create mode 100644 logs/bp-off3.rc
+ create mode 100644 logs/bp-render2.guard.log
+ create mode 100644 logs/bp-render2.out
+ create mode 100644 logs/bp-t3.guard.log
+ create mode 100644 logs/bp-t3.out
+
+diff --git a/ROOT-UNWIND-FIX-FINAL.txt b/ROOT-UNWIND-FIX-FINAL.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..e4bf6064e9b4b1c27c0f46a88dc10056371cfde5
+--- /dev/null
++++ b/ROOT-UNWIND-FIX-FINAL.txt
+@@ -0,0 +1 @@
++ROOT SECOND HOLDER FIX, TESTED/COMMITTED: root-holder-stop-ownership nowc3efff41337bba272fa7186a2585e5eb7ff852a7 on prior b1b6f1847f5fc3f32928c1127ace3243f777f3d2. Both required before activation. The new commit fixes unwind(): it ignored failed umount/dmsetup remove/losetup detach, then continued destroying dependencies or unlinking attached image. Stops at first failed cleanup, leaves remaining devices/images, retains original rc and explicit incomplete-cleanup message. New3cases ALLFAIL on b1b6 oldunwind; fixed23/23 storage suitepass, smallqueue256peak55, actualbash/real smallfiles but privilegedcommandsstate-machine seam. No realkernel/production/cacheallocation. Patch root-holder-unwind-failure.patch is only the new unwind fix; root-holder-stop-ownership.patch remains previousb1. Sourcecommitclean andSteveDeFacto. Report outputs/decentralization-audit/holder-unwind-failure-20261023.json. S active files not edited; integrate/reconcile newstubfailureinjection and6totalrootcases with your currentbinarytests at nextterminal. Rootkerneldeviceboundarystillpending, no hardaggregatequota claim.
+diff --git a/evidence/official-binary-offline-20261023.json b/evidence/official-binary-offline-20261023.json
+index 3321984ef0b8ba60918229697e27e6a45b8084d3..4cbf84de72ba65a62c55c26e2826d2023ae2d3a7 100644
+--- a/evidence/official-binary-offline-20261023.json
++++ b/evidence/official-binary-offline-20261023.json
+@@ -1,43 +1,44 @@
+ {
+  "binarySha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+  "exitCode": 1,
+- "ranSeconds": 6.3,
++ "ranSeconds": 6.6,
+  "stoppedByTestAfter240s": false,
+  "executionRpcChainId": "0x2105",
+  "executionRpcAnsweredAfterSec": 1.3,
+  "listeners": [
+-  "0.0.0.0:58127",
+-  "127.0.0.1:35533",
+-  "127.0.0.1:38459"
++  "0.0.0.0:56583",
++  "127.0.0.1:36359",
++  "127.0.0.1:59205"
+  ],
+  "l1LogLines": [
+-  "2026-10-23T06:02:16.735923Z  INFO upgrade_signal: execution upgrade signal metrics observer spawned",
+-  "2026-10-23T06:02:16.736008Z  INFO rollup_node: upgrade upgrade=\ud83c\udf74 Scheduled Upgrades:",
+-  "2026-10-23T06:02:16.736015Z  INFO rollup_node: upgrade upgrade=-> Regolith Activation Time: 1686789347",
+-  "2026-10-23T06:02:16.736016Z  INFO rollup_node: upgrade upgrade=-> Canyon Activation Time: 1704992401",
+-  "2026-10-23T06:02:16.736017Z  INFO rollup_node: upgrade upgrade=-> Delta Activation Time: 1708560000",
+-  "2026-10-23T06:02:16.736018Z  INFO rollup_node: upgrade upgrade=-> Ecotone Activation Time: 1710374401",
+-  "2026-10-23T06:02:16.736019Z  INFO rollup_node: upgrade upgrade=-> Fjord Activation Time: 1720627201",
+-  "2026-10-23T06:02:16.736020Z  INFO rollup_node: upgrade upgrade=-> Granite Activation Time: 1726070401",
+-  "2026-10-23T06:02:16.736022Z  INFO rollup_node: upgrade upgrade=-> Holocene Activation Time: 1736445601",
+-  "2026-10-23T06:02:16.736023Z  INFO rollup_node: upgrade upgrade=-> PectraBlobSchedule Activation Time: Not scheduled",
+-  "2026-10-23T06:02:16.736024Z  INFO rollup_node: upgrade upgrade=-> Isthmus Activation Time: 1746806401",
+-  "2026-10-23T06:02:16.736025Z  INFO rollup_node: upgrade upgrade=-> Jovian Activation Time: 1764691201",
+-  "2026-10-23T06:02:16.736026Z  INFO rollup_node: upgrade upgrade=-> Azul Activation Time: 1779991200",
+-  "2026-10-23T06:02:16.736027Z  INFO rollup_node: upgrade upgrade=-> Beryl Activation Time: 1782410400",
+-  "2026-10-23T06:02:16.736028Z  INFO rollup_node: upgrade upgrade=-> Cobalt Activation Time: 1790791200",
+-  "2026-10-23T06:02:16.736030Z  INFO rollup_node: upgrade upgrade=-> Denim Activation Time: 1793901600",
+-  "2026-10-23T06:02:16.736031Z  INFO rollup_node: upgrade upgrade=-> Everest Activation Time: Not scheduled",
+-  "2026-10-23T06:02:16.737320Z  INFO upgrade_signal: reinstalled P2P fork filter after runtime schedule change fork_id=ForkId { hash: ForkHash(\"67da0260\"), next: 1704992401 }",
+-  "2026-10-23T06:02:16.737646Z  WARN upgrade_signal: failed to read live L1 upgrade signal schedule error=get L1 block failed: error sending request for url (http://127.0.0.1:46081/)",
+-  "2026-10-23T06:02:16.739646Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:46081/) delay=171.219258ms",
+-  "2026-10-23T06:02:16.912818Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:46081/) delay=377.551287ms",
+-  "2026-10-23T06:02:17.291556Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:46081/) delay=758.072674ms",
+-  "2026-10-23T06:02:18.051647Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:46081/) delay=1.002466977s",
+-  "2026-10-23T06:02:19.055014Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:46081/) delay=2.382382453s"
++  "2026-10-23T06:28:17.688949Z  INFO reth::cli: Opening database path=\"/tmp/hbo-v9hdll1n/mnt/data/db\"",
++  "2026-10-23T06:28:17.692009Z  INFO reth::cli: Configuration loaded path=\"/tmp/hbo-v9hdll1n/mnt/data/reth.toml\"",
++  "2026-10-23T06:28:18.775543Z  INFO reth::cli: Creating JWT auth secret file path=\"/tmp/hbo-v9hdll1n/mnt/data/jwt.hex\"",
++  "2026-10-23T06:28:18.777937Z  INFO reth::cli: RPC auth server started url=127.0.0.1:36359 ipc_endpoint=/tmp/hbo-v9hdll1n/mnt/data/engine.ipc",
++  "2026-10-23T06:28:18.781397Z  INFO upgrade_signal: execution upgrade signal metrics observer spawned",
++  "2026-10-23T06:28:18.781509Z  INFO rollup_node: upgrade upgrade=\ud83c\udf74 Scheduled Upgrades:",
++  "2026-10-23T06:28:18.781517Z  INFO rollup_node: upgrade upgrade=-> Regolith Activation Time: 1686789347",
++  "2026-10-23T06:28:18.781518Z  INFO rollup_node: upgrade upgrade=-> Canyon Activation Time: 1704992401",
++  "2026-10-23T06:28:18.781520Z  INFO rollup_node: upgrade upgrade=-> Delta Activation Time: 1708560000",
++  "2026-10-23T06:28:18.781521Z  INFO rollup_node: upgrade upgrade=-> Ecotone Activation Time: 1710374401",
++  "2026-10-23T06:28:18.781522Z  INFO rollup_node: upgrade upgrade=-> Fjord Activation Time: 1720627201",
++  "2026-10-23T06:28:18.781523Z  INFO rollup_node: upgrade upgrade=-> Granite Activation Time: 1726070401",
++  "2026-10-23T06:28:18.781524Z  INFO rollup_node: upgrade upgrade=-> Holocene Activation Time: 1736445601",
++  "2026-10-23T06:28:18.781526Z  INFO rollup_node: upgrade upgrade=-> PectraBlobSchedule Activation Time: Not scheduled",
++  "2026-10-23T06:28:18.781527Z  INFO rollup_node: upgrade upgrade=-> Isthmus Activation Time: 1746806401",
++  "2026-10-23T06:28:18.781528Z  INFO rollup_node: upgrade upgrade=-> Jovian Activation Time: 1764691201",
++  "2026-10-23T06:28:18.781529Z  INFO rollup_node: upgrade upgrade=-> Azul Activation Time: 1779991200",
++  "2026-10-23T06:28:18.781530Z  INFO rollup_node: upgrade upgrade=-> Beryl Activation Time: 1782410400",
++  "2026-10-23T06:28:18.781531Z  INFO rollup_node: upgrade upgrade=-> Cobalt Activation Time: 1790791200",
++  "2026-10-23T06:28:18.781533Z  INFO rollup_node: upgrade upgrade=-> Denim Activation Time: 1793901600",
++  "2026-10-23T06:28:18.781534Z  INFO rollup_node: upgrade upgrade=-> Everest Activation Time: Not scheduled",
++  "2026-10-23T06:28:18.782753Z  INFO upgrade_signal: reinstalled P2P fork filter after runtime schedule change fork_id=ForkId { hash: ForkHash(\"67da0260\"), next: 1704992401 }",
++  "2026-10-23T06:28:18.783128Z  WARN upgrade_signal: failed to read live L1 upgrade signal schedule error=get L1 block failed: error sending request for url (http://127.0.0.1:45053/)",
++  "2026-10-23T06:28:18.785289Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:45053/) delay=196.306637ms",
++  "2026-10-23T06:28:18.982845Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:45053/) delay=215.481049ms"
+  ],
+- "datadirApparentBytes": 4295586748,
+- "datadirAllocatedBytes": 1298432,
++ "datadirApparentBytes": 4295586812,
++ "datadirAllocatedBytes": 1302528,
+  "datadirFiles": [
+   "data/db/database.version",
+   "data/db/mdbx.dat",
+@@ -45,6 +46,7 @@
+   "data/discovery-secret",
+   "data/jwt.hex",
+   "data/known-peers.json",
++  "data/l2_jwt.hex",
+   "data/reth.toml",
+   "data/rocksdb/000004.log",
+   "data/rocksdb/000008.log",
+@@ -76,10 +78,11 @@
+   "data/static_files/static_file_transactions_0_499999.off"
+  ],
+  "wildcardPorts": {
+-  "executionPort": 58127
++  "executionPort": 56583
+  },
+  "publicIpcSocket": false,
+  "nodeWroteRethToml": true,
++ "l2JwtInDatadir": true,
+  "defaultRethTomlRefused": "datadir/reth.toml prune segments are not the `minimal` download profile (a default/archive config?)",
+  "rethTomlPrune": "[prune]\nblock_interval = 5\nminimum_pruning_distance = 10064\n\n[prune.segments]\n\n[peers]\nrefill_slots_interval = \"5s\"\ntrusted_nodes = []\ntrusted_nodes_only = false\ntrusted_nodes_resolution_interval = \"1h\"\nmax_backoff_count = 5\nban_duration = \"12h\"\nincoming_ip_throttle_duration = \"30s\"\nenforce_enr_fork_id = false\npeer_rotation_interval = \"5m\"\n\n[peers.connection_info]\nmax_outbound = 100\nmax_inbound = ",
+  "rethTomlStaticFiles": "[static_files.blocks_per_file]\n"
+diff --git a/evidence/render-review/holder-storage.sh b/evidence/render-review/holder-storage.sh
+index ff1369420d66903ead89fa24f17e3ced2fc025bc..b48191ea134609e897fb1060a9e9e0f14705e3e8 100755
+--- a/evidence/render-review/holder-storage.sh
++++ b/evidence/render-review/holder-storage.sh
+@@ -122,12 +122,24 @@ assemble)
+   ;;
+ disassemble)
+   trap - EXIT
+-  if findmnt -n "$MNT" >/dev/null; then umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"; fi
++  # Validate the complete ownership chain BEFORE the first destructive action.
++  # A configured path alone does not identify the filesystem mounted there.
+   O=$(loopof "$ORIGIN")
++  DEV=; REMOVE_MAPPING=
+   if cached && dmsetup info "$NAME" >/dev/null 2>&1; then
+     D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
+     [ -n "$O" ] && [ -n "$D" ] && [ -n "$M" ] || die "mapping $NAME exists but its loops are not ours: leaving it"
+     [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    DEV=/dev/mapper/$NAME; REMOVE_MAPPING=1
++  elif ! cached; then
++    DEV=$O
++  fi
++  if findmnt -n "$MNT" >/dev/null; then
++    [ -n "$DEV" ] || die "$MNT is mounted but this holder's device is absent: leaving it"
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++    umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"
++  fi
++  if [ -n "$REMOVE_MAPPING" ]; then
+     dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
+   fi
+   for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
+diff --git a/evidence/render-review/manifest.json b/evidence/render-review/manifest.json
+index fc8813e93b9704966a0a5d0922893cbe84223b0c..3d730dabe6c957ce2b9a5459326cd93b40975a53 100644
+--- a/evidence/render-review/manifest.json
++++ b/evidence/render-review/manifest.json
+@@ -8,7 +8,7 @@
+     "b-proof-source.json": "6f7d43a858bc8909b766bafb8662a4014b3a15286d750addd957aa55b09ff1c5",
+     "enclave-base-holder-storage.service": "fd7c7eab14269cffca6786989c13d349cf8506314fe4fea573c1b0a03c914285",
+     "enclave-base-holder.service": "94907e882ac01759ecc70a321cde331a2cd49a9f8b7af5cb9d2462aba29c9f51",
+-    "holder-storage.sh": "7635f245d54cde26dda22161c99b4bba4927dc5b4c697f6164785774b70ed3f7",
++    "holder-storage.sh": "241a0c767fb67b4f3fe22a8f3fe5058f868cad3872e95a3388257a85305807ee",
+     "holder.argv.json": "3702d87943b0346ddbba3e9b80ff47d6658cbba7ce6aadad9b3488c5dce9714c",
+     "holder.env.json": "c4df8ce27b4d7c43d13c606ccd7ee5613a7edeb1fcacd94953f93978407ef6d5",
+     "holder.json": "eba8bb91db88ab502e26db13309f27182a56d320ebb5a39389953e81ac875b3d",
+@@ -16,7 +16,7 @@
+   },
+   "flagsSha256": "7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59",
+   "format": "enclave-base-holder/v1-render",
+-  "holderSha256": "458de2064ccafa23046017f7e05f61210e2c05009d83de9474111f9c6ac26bcc",
++  "holderSha256": "30cd71a5520d824070dc21cbd5b6fd9372ba120294f8a80a259c5af40b057674",
+   "labels": {
+     "flags": "every rendered flag is in the pinned official binary help (BINARY.json, executed offline); preflight re-checks the installed bytes",
+     "freshness": "proofs are only as fresh as this node; B refuses anything not at a verified fresh head",
+diff --git a/holder/holder.py b/holder/holder.py
+index 6eac58b5aefdf500d38685afd30d56c5147ad177..340dfd5ab5cb125cae86c83e95497ac471a890e7 100644
+--- a/holder/holder.py
++++ b/holder/holder.py
+@@ -619,8 +619,8 @@ class Supervisor:
+     """ONE child in its own process group. Stop = SIGTERM to the group, then SIGKILL after the grace period; the child
+     also gets SIGKILL if the supervisor dies (PDEATHSIG). Readiness = the loopback RPC answers the expected chain id."""
+ 
+-    def __init__(self, argv, env, port, chain_id_hex, stop_timeout, ready_timeout, nofile, status_path=None, log=print):
+-        self.argv, self.env, self.port, self.chain = argv, env, port, chain_id_hex
++    def __init__(self, argv, env, port, chain_id_hex, stop_timeout, ready_timeout, nofile, status_path=None, log=print, cwd=None):
++        self.argv, self.env, self.port, self.chain, self.cwd = argv, env, port, chain_id_hex, cwd
+         self.stop_timeout, self.ready_timeout, self.nofile = stop_timeout, ready_timeout, nofile
+         self.status_path, self.log = status_path, log
+         self.proc, self.stopping, self.ready, self.never_ready = None, False, False, False
+@@ -652,7 +652,7 @@ class Supervisor:
+         if install_signals:                 # the process entry (main thread); embedded/test callers use stop()
+             signal.signal(signal.SIGTERM, self.stop)
+             signal.signal(signal.SIGINT, self.stop)
+-        self.proc = subprocess.Popen(self.argv, env=self.env, stdin=subprocess.DEVNULL, close_fds=True,
++        self.proc = subprocess.Popen(self.argv, env=self.env, cwd=self.cwd, stdin=subprocess.DEVNULL, close_fds=True,
+                                      start_new_session=True, preexec_fn=_child_setup(self.nofile))
+         self.log(json.dumps({'event': 'started', 'pid': self.proc.pid, 'argvSha256': hashlib.sha256('\0'.join(self.argv).encode()).hexdigest()}))
+         self._status(state='starting')
+@@ -701,7 +701,7 @@ def run(c):
+     sup = Supervisor(argv(c), child_env(c), c['rpc']['port'], CHAIN_ID_HEX, c['limits']['stopTimeoutSec'],
+                      c['limits']['readyTimeoutSec'], c['limits']['nofile'],
+                      status_path=status if os.path.isdir(os.path.dirname(status)) else None,
+-                     log=lambda m: print(m, flush=True))
++                     log=lambda m: print(m, flush=True), cwd=c['datadir'])   # the consensus side writes l2_jwt.hex into its cwd
+     return sup.run(install_signals=True)
+ 
+ 
+diff --git a/holder/test/standin-base.py b/holder/test/standin-base.py
+index a2504a1f13abd267fc4db8820e7ecbe2d5d936c7..a004e31cc4106f627106a84bb48464ee25424f05 100755
+--- a/holder/test/standin-base.py
++++ b/holder/test/standin-base.py
+@@ -24,6 +24,8 @@ with open(os.path.join(out, 'argv.json'), 'w') as f:
+     json.dump(sys.argv, f)
+ with open(os.path.join(out, 'env.json'), 'w') as f:
+     json.dump(dict(os.environ), f)
++with open(os.path.join(out, 'cwd.txt'), 'w') as f:
++    f.write(os.getcwd())
+ 
+ 
+ class H(BaseHTTPRequestHandler):
+diff --git a/holder/test/test_base_offline.py b/holder/test/test_base_offline.py
+index dab19e46bd13a6bfbd48e8b9cfad6fe0ea25630b..9049c76a8d46c861cb033952929dad4cfa436cbe 100644
+--- a/holder/test/test_base_offline.py
++++ b/holder/test/test_base_offline.py
+@@ -102,6 +102,7 @@ class OfficialBinaryOffline(unittest.TestCase):
+             # the reth.toml the binary itself wrote into the empty datadir must NOT pass the download-profile preflight
+             toml = tmp / 'mnt' / 'data' / 'reth.toml'
+             report['nodeWroteRethToml'] = toml.is_file()
++            report['l2JwtInDatadir'] = (tmp / 'mnt' / 'data' / 'l2_jwt.hex').is_file()
+             if toml.is_file():
+                 try:
+                     H.check_reth_toml(v)
+@@ -123,6 +124,8 @@ class OfficialBinaryOffline(unittest.TestCase):
+                 self.assertEqual(chain, '0x2105')
+                 self.assertIn(('127.0.0.1', rpc), seen)
+             self.assertFalse(report['publicIpcSocket'], '--ipcdisable: no public IPC socket')
++            self.assertFalse((HERE.parent / 'l2_jwt.hex').exists() or (HERE.parent.parent / 'l2_jwt.hex').exists(), 'no engine secret outside the datadir')
++            self.assertTrue(report['l2JwtInDatadir'], 'the consensus engine secret is written inside the datadir (child cwd)')
+             self.assertNotEqual(rc, 0, 'without L1 the node must not report a clean run')
+             if report['nodeWroteRethToml']:
+                 self.assertTrue(report['defaultRethTomlRefused'], 'a node-written default reth.toml is not a snapshot profile')
+diff --git a/holder/test/test_holder.py b/holder/test/test_holder.py
+index f5de69e53b4ee0305929484e6b8b0db9891313d6..824b81e90c4d8e031697ceee721665aa49744131 100644
+--- a/holder/test/test_holder.py
++++ b/holder/test/test_holder.py
+@@ -323,6 +323,7 @@ class Lifecycle(unittest.TestCase):
+         self.assertEqual(json.loads((self.rec / 'argv.json').read_text()), self.H.argv(self.c))
+         env = json.loads((self.rec / 'env.json').read_text())
+         self.assertEqual({k: v for k, v in env.items() if k not in ('PWD',)}, self.H.child_env(self.c), 'nothing inherited')
++        self.assertEqual((self.rec / 'cwd.txt').read_text(), self.c['datadir'], 'the child runs in its datadir (engine secrets land there)')
+         st = json.loads((self.tmp / 'run' / 'status.json').read_text())
+         self.assertEqual((st['state'], st['ready'], st['pid']), ('ready', True, child))
+         p.send_signal(signal.SIGTERM)
+diff --git a/logs/bp-off3.guard.log b/logs/bp-off3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..8ec9294b5b0f0f62df5b959866b9340d72bc16d0
+--- /dev/null
++++ b/logs/bp-off3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=257 minHostAvailableMiB=24539
+diff --git a/logs/bp-off3.out b/logs/bp-off3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..218ada0faac140e047cb14f40bb02d2d28af5907
+--- /dev/null
++++ b/logs/bp-off3.out
+@@ -0,0 +1,113 @@
++[queue] START available=24713MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
++30cd71a5520d824070dc21cbd5b6fd9372ba120294f8a80a259c5af40b057674  holder.py
++b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00  BINARY.json
++823aa8a036f62ba57ded9b34748e3fcf41bdc4af493899dcf2843c9e97d0e290  holder-storage.sh.in
++743acde5c8a6d1a01cc37a7428a3152b34b93582c800954a5405d322363238f1  drill-cache.sh
++7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
++b2e8a260d33bc0882f5f8967973c177735ae2745b49934153517a7cef6c976ec  holder.example.json
++c07d2337eea3231db0529f1d1db0ed7176a90aaa76bbfc8323315c8c28d2c8ba  test/mutate.py
++111893d22ae200dd6b79e6f844a07fb06445eecadc1332347dddbfa78dc0933e  test/standin-base.py
++416add6c3a3a347062a5e5af42ec608d44fa03e9473901844ee82dd831bca19b  test/test_base_offline.py
++fd3fc8e62f782f3e779748a9e824a34087c057ce1504786820430872b657adca  test/test_holder.py
++d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
++743b0f4e02241cbcb607426f55ef8b59060867df35e1caaa7b954a6f14ad577e  test/test_storage.py
++4de226a548e8f8f432a5909c21efb6940871d6ed0651279604620969bb45bb0a  test/stubs/stubcmd.py
++=== test/test_base_offline.py
++test_rendered_argv_on_the_official_binary_without_l1 (__main__.OfficialBinaryOffline.test_rendered_argv_on_the_official_binary_without_l1) ... ok
++
++----------------------------------------------------------------------
++Ran 1 test in 6.739s
++
++OK
++{
++ "binarySha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
++ "exitCode": 1,
++ "ranSeconds": 6.6,
++ "stoppedByTestAfter240s": false,
++ "executionRpcChainId": "0x2105",
++ "executionRpcAnsweredAfterSec": 1.3,
++ "listeners": [
++  "0.0.0.0:56583",
++  "127.0.0.1:36359",
++  "127.0.0.1:59205"
++ ],
++ "l1LogLines": [
++  "\u001b[2m2026-10-23T06:28:17.688949Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mreth::cli\u001b[0m\u001b[2m:\u001b[0m Opening database \u001b[3mpath\u001b[0m\u001b[2m=\u001b[0m\"/tmp/hbo-v9hdll1n/mnt/data/db\"",
++  "\u001b[2m2026-10-23T06:28:17.692009Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mreth::cli\u001b[0m\u001b[2m:\u001b[0m Configuration loaded \u001b[3mpath\u001b[0m\u001b[2m=\u001b[0m\"/tmp/hbo-v9hdll1n/mnt/data/reth.toml\"",
++  "\u001b[2m2026-10-23T06:28:18.775543Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mreth::cli\u001b[0m\u001b[2m:\u001b[0m Creating JWT auth secret file \u001b[3mpath\u001b[0m\u001b[2m=\u001b[0m\"/tmp/hbo-v9hdll1n/mnt/data/jwt.hex\"",
++  "\u001b[2m2026-10-23T06:28:18.777937Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mreth::cli\u001b[0m\u001b[2m:\u001b[0m RPC auth server started \u001b[3murl\u001b[0m\u001b[2m=\u001b[0m127.0.0.1:36359 \u001b[3mipc_endpoint\u001b[0m\u001b[2m=\u001b[0m/tmp/hbo-v9hdll1n/mnt/data/engine.ipc",
++  "\u001b[2m2026-10-23T06:28:18.781397Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mupgrade_signal\u001b[0m\u001b[2m:\u001b[0m execution upgrade signal metrics observer spawned",
++  "\u001b[2m2026-10-23T06:28:18.781509Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m\ud83c\udf74 Scheduled Upgrades:",
++  "\u001b[2m2026-10-23T06:28:18.781517Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Regolith Activation Time: 1686789347",
++  "\u001b[2m2026-10-23T06:28:18.781518Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Canyon Activation Time: 1704992401",
++  "\u001b[2m2026-10-23T06:28:18.781520Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Delta Activation Time: 1708560000",
++  "\u001b[2m2026-10-23T06:28:18.781521Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Ecotone Activation Time: 1710374401",
++  "\u001b[2m2026-10-23T06:28:18.781522Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Fjord Activation Time: 1720627201",
++  "\u001b[2m2026-10-23T06:28:18.781523Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Granite Activation Time: 1726070401",
++  "\u001b[2m2026-10-23T06:28:18.781524Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Holocene Activation Time: 1736445601",
++  "\u001b[2m2026-10-23T06:28:18.781526Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> PectraBlobSchedule Activation Time: Not scheduled",
++  "\u001b[2m2026-10-23T06:28:18.781527Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Isthmus Activation Time: 1746806401",
++  "\u001b[2m2026-10-23T06:28:18.781528Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Jovian Activation Time: 1764691201",
++  "\u001b[2m2026-10-23T06:28:18.781529Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Azul Activation Time: 1779991200",
++  "\u001b[2m2026-10-23T06:28:18.781530Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Beryl Activation Time: 1782410400",
++  "\u001b[2m2026-10-23T06:28:18.781531Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Cobalt Activation Time: 1790791200",
++  "\u001b[2m2026-10-23T06:28:18.781533Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Denim Activation Time: 1793901600",
++  "\u001b[2m2026-10-23T06:28:18.781534Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Everest Activation Time: Not scheduled",
++  "\u001b[2m2026-10-23T06:28:18.782753Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mupgrade_signal\u001b[0m\u001b[2m:\u001b[0m reinstalled P2P fork filter after runtime schedule change \u001b[3mfork_id\u001b[0m\u001b[2m=\u001b[0mForkId { hash: ForkHash(\"67da0260\"), next: 1704992401 }",
++  "\u001b[2m2026-10-23T06:28:18.783128Z\u001b[0m \u001b[33m WARN\u001b[0m \u001b[2mupgrade_signal\u001b[0m\u001b[2m:\u001b[0m failed to read live L1 upgrade signal schedule \u001b[3merror\u001b[0m\u001b[2m=\u001b[0mget L1 block failed: error sending request for url (http://127.0.0.1:45053/)",
++  "\u001b[2m2026-10-23T06:28:18.785289Z\u001b[0m \u001b[33m WARN\u001b[0m \u001b[2mp2p::flags\u001b[0m\u001b[2m:\u001b[0m Retrying L1 latest block number lookup for unsafe block signer resolution \u001b[3merror\u001b[0m\u001b[2m=\u001b[0merror sending request for url (http://127.0.0.1:45053/) \u001b[3mdelay\u001b[0m\u001b[2m=\u001b[0m196.306637ms",
++  "\u001b[2m2026-10-23T06:28:18.982845Z\u001b[0m \u001b[33m WARN\u001b[0m \u001b[2mp2p::flags\u001b[0m\u001b[2m:\u001b[0m Retrying L1 latest block number lookup for unsafe block signer resolution \u001b[3merror\u001b[0m\u001b[2m=\u001b[0merror sending request for url (http://127.0.0.1:45053/) \u001b[3mdelay\u001b[0m\u001b[2m=\u001b[0m215.481049ms"
++ ],
++ "datadirApparentBytes": 4295586812,
++ "datadirAllocatedBytes": 1302528,
++ "datadirFiles": [
++  "data/db/database.version",
++  "data/db/mdbx.dat",
++  "data/db/mdbx.lck",
++  "data/discovery-secret",
++  "data/jwt.hex",
++  "data/known-peers.json",
++  "data/l2_jwt.hex",
++  "data/reth.toml",
++  "data/rocksdb/000004.log",
++  "data/rocksdb/000008.log",
++  "data/rocksdb/CURRENT",
++  "data/rocksdb/IDENTITY",
++  "data/rocksdb/LOCK",
++  "data/rocksdb/LOG",
++  "data/rocksdb/MANIFEST-000005",
++  "data/rocksdb/OPTIONS-000007",
++  "data/static_files/static_file_account-change-sets_0_499999",
++  "data/static_files/static_file_account-change-sets_0_499999.conf",
++  "data/static_files/static_file_account-change-sets_0_499999.csoff",
++  "data/static_files/static_file_account-change-sets_0_499999.off",
++  "data/static_files/static_file_headers_0_499999",
++  "data/static_files/static_file_headers_0_499999.conf",
++  "data/static_files/static_file_headers_0_499999.off",
++  "data/static_files/static_file_receipts_0_499999",
++  "data/static_files/static_file_receipts_0_499999.conf",
++  "data/static_files/static_file_receipts_0_499999.off",
++  "data/static_files/static_file_storage-change-sets_0_499999",
++  "data/static_files/static_file_storage-change-sets_0_499999.conf",
++  "data/static_files/static_file_storage-change-sets_0_499999.csoff",
++  "data/static_files/static_file_storage-change-sets_0_499999.off",
++  "data/static_files/static_file_transaction-senders_0_499999",
++  "data/static_files/static_file_transaction-senders_0_499999.conf",
++  "data/static_files/static_file_transaction-senders_0_499999.off",
++  "data/static_files/static_file_transactions_0_499999",
++  "data/static_files/static_file_transactions_0_499999.conf",
++  "data/static_files/static_file_transactions_0_499999.off"
++ ],
++ "wildcardPorts": {
++  "executionPort": 56583
++ },
++ "publicIpcSocket": false,
++ "nodeWroteRethToml": true,
++ "l2JwtInDatadir": true,
++ "defaultRethTomlRefused": "datadir/reth.toml prune segments are not the `minimal` download profile (a default/archive config?)",
++ "rethTomlPrune": "[prune]\nblock_interval = 5\nminimum_pruning_distance = 10064\n\n[prune.segments]\n\n[peers]\nrefill_slots_interval = \"5s\"\ntrusted_nodes = []\ntrusted_nodes_only = false\ntrusted_nodes_resolution_interval = \"1h\"\nmax_backoff_count = 5\nban_duration = \"12h\"\nincoming_ip_throttle_duration = \"30s\"\nenforce_enr_fork_id = false\npeer_rotation_interval = \"5m\"\n\n[peers.connection_info]\nmax_outbound = 100\nmax_inbound = ",
++ "rethTomlStaticFiles": "[static_files.blocks_per_file]\n"
++}
++[memory-guard] exit=0 peakTreeRssMiB=257 minHostAvailableMiB=24539
++[memory-guard] at peak: base:191 python3:29 python3:27 sh:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/bp-off3.rc b/logs/bp-off3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/bp-off3.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/bp-render2.guard.log b/logs/bp-render2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/logs/bp-render2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/logs/bp-render2.out b/logs/bp-render2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..db0eeaa9e624cf2b3a8438ddfdb03a93f6265593
+--- /dev/null
++++ b/logs/bp-render2.out
+@@ -0,0 +1,42 @@
++[queue] START available=24416MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++{
++ "format": "enclave-base-holder/v1-render",
++ "files": {
++  "holder.json": "eba8bb91db88ab502e26db13309f27182a56d320ebb5a39389953e81ac875b3d",
++  "holder.argv.json": "3702d87943b0346ddbba3e9b80ff47d6658cbba7ce6aadad9b3488c5dce9714c",
++  "holder.env.json": "c4df8ce27b4d7c43d13c606ccd7ee5613a7edeb1fcacd94953f93978407ef6d5",
++  "enclave-base-holder.service": "94907e882ac01759ecc70a321cde331a2cd49a9f8b7af5cb9d2462aba29c9f51",
++  "enclave-base-holder-storage.service": "fd7c7eab14269cffca6786989c13d349cf8506314fe4fea573c1b0a03c914285",
++  "holder-storage.sh": "241a0c767fb67b4f3fe22a8f3fe5058f868cad3872e95a3388257a85305807ee",
++  "nvme-cache-inventory.example.tsv": "56bb1ebdf26707822fab8c058b25590284e7f0262e8a4ce45d46d8a4f074434c",
++  "b-proof-source.json": "6f7d43a858bc8909b766bafb8662a4014b3a15286d750addd957aa55b09ff1c5"
++ },
++ "flagsSha256": "7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59",
++ "holderSha256": "30cd71a5520d824070dc21cbd5b6fd9372ba120294f8a80a259c5af40b057674",
++ "nvmeAccounting": {
++  "holderBytes": 199140835328,
++  "otherBytes": 0,
++  "totalBytes": 199140835328,
++  "capBytes": 250000000000,
++  "targetBytes": 200000000000,
++  "overTarget": false
++ },
++ "labels": {
++  "role": "private untrusted witness source (B proofSources.untrusted); not a host-service role; no public serving",
++  "freshness": "proofs are only as fresh as this node; B refuses anything not at a verified fresh head",
++  "l1": "startup needs the declared L1 execution endpoint (unsafe-block signer read with 5 bounded retries); derivation (safe/finalized) needs L1 + beacon continuously; L1 watcher retry exhaustion stops the node (source, unexecuted)",
++  "tx": "transaction submission incomplete: no forwarding unless txForwarding.endpoint is set (hosted sequencer); P2P tx gossip is disabled by base-reth; L1 deposits are not a transparent replacement",
++  "flags": "every rendered flag is in the pinned official binary help (BINARY.json, executed offline); preflight re-checks the installed bytes"
++ },
++ "binary": {
++  "member": "base",
++  "sha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
++  "size": 153601320
++ },
++ "reviewOnly": true
++}
++{"refused": "l1.executionRpc is a placeholder (l1-execution-endpoint.invalid): name the real L1 endpoint (review renders only with --review)"}
++{"refused": "l1.executionRpc is a placeholder (l1-execution-endpoint.invalid): name the real L1 endpoint (review renders only with --review)"}
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/bp-t3.guard.log b/logs/bp-t3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d796acec8d1d1111dd734bb90f23abcc48b1d73d
+--- /dev/null
++++ b/logs/bp-t3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=115 minHostAvailableMiB=22672
+diff --git a/logs/bp-t3.out b/logs/bp-t3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..740d03c98de2897e36bb2c3a1ea67f9e077d887f
+--- /dev/null
++++ b/logs/bp-t3.out
+@@ -0,0 +1,111 @@
++[queue] START available=24538MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++30cd71a5520d824070dc21cbd5b6fd9372ba120294f8a80a259c5af40b057674  holder.py
++b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00  BINARY.json
++823aa8a036f62ba57ded9b34748e3fcf41bdc4af493899dcf2843c9e97d0e290  holder-storage.sh.in
++743acde5c8a6d1a01cc37a7428a3152b34b93582c800954a5405d322363238f1  drill-cache.sh
++7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
++b2e8a260d33bc0882f5f8967973c177735ae2745b49934153517a7cef6c976ec  holder.example.json
++c07d2337eea3231db0529f1d1db0ed7176a90aaa76bbfc8323315c8c28d2c8ba  test/mutate.py
++111893d22ae200dd6b79e6f844a07fb06445eecadc1332347dddbfa78dc0933e  test/standin-base.py
++416add6c3a3a347062a5e5af42ec608d44fa03e9473901844ee82dd831bca19b  test/test_base_offline.py
++fd3fc8e62f782f3e779748a9e824a34087c057ce1504786820430872b657adca  test/test_holder.py
++d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
++743b0f4e02241cbcb607426f55ef8b59060867df35e1caaa7b954a6f14ad577e  test/test_storage.py
++4de226a548e8f8f432a5909c21efb6940871d6ed0651279604620969bb45bb0a  test/stubs/stubcmd.py
++=== test/test_holder.py
++test_b_accepts_the_rendered_proof_source (__main__.BInterface.test_b_accepts_the_rendered_proof_source) ... ok
++test_child_failure_propagates_exit_code_and_its_group_is_reaped (__main__.Lifecycle.test_child_failure_propagates_exit_code_and_its_group_is_reaped) ... ok
++test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports) ... ok
++test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop) ... ok
++test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child) ... ok
++test_tampered_binary_never_starts (__main__.Lifecycle.test_tampered_binary_never_starts) ... ok
++test_term_ignoring_child_is_killed_after_grace (__main__.Lifecycle.test_term_ignoring_child_is_killed_after_grace) ... ok
++test_wrong_chain_never_ready_is_a_failure (__main__.Lifecycle.test_wrong_chain_never_ready_is_a_failure) ... ok
++test_real_devices (__main__.Placement.test_real_devices) ... ok
++test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned) ... ok
++test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed) ... ok
++test_render_files (__main__.Render.test_render_files) ... ok
++test_download_like_config_passes_and_default_or_missing_fails (__main__.RethToml.test_download_like_config_passes_and_default_or_missing_fails) ... ok
++test_cap_boundary_counts_metadata_slack_and_other_allocations (__main__.Validation.test_cap_boundary_counts_metadata_slack_and_other_allocations) ... ok
++test_example_is_review_only (__main__.Validation.test_example_is_review_only) ... ok
++test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting) ... ok
++test_no_cache_layout (__main__.Validation.test_no_cache_layout) ... ok
++test_refusals (__main__.Validation.test_refusals) ... ok
++
++----------------------------------------------------------------------
++Ran 18 tests in 14.909s
++
++OK
++=== test/test_storage.py
++test_assemble_failure_keeps_preexisting_loops (__main__.Storage.test_assemble_failure_keeps_preexisting_loops) ... ok
++test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical (__main__.Storage.test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical) ... ok
++test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops) ... ok
++test_assemble_refuses_foreign_mount (__main__.Storage.test_assemble_refuses_foreign_mount) ... ok
++test_assemble_refuses_origin_mounted_without_cache (__main__.Storage.test_assemble_refuses_origin_mounted_without_cache) ... ok
++test_cache_loss_invalidates_before_touching_origin (__main__.Storage.test_cache_loss_invalidates_before_touching_origin) ... ok
++test_create_failure_unwinds_only_its_own_resources (__main__.Storage.test_create_failure_unwinds_only_its_own_resources) ... ok
++test_create_preallocates_exact_sizes_and_leaves_nothing_attached (__main__.Storage.test_create_preallocates_exact_sizes_and_leaves_nothing_attached) ... /home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_storage.py:72: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/hs-s4wmxpvc/nvme/cache-meta.img'>
++  self.assertEqual(open(self.nvme / 'cache-meta.img', 'rb').read(8 * MiB), bytes(8 * MiB))
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++ok
++test_create_refuses_existing_targets_and_touches_nothing (__main__.Storage.test_create_refuses_existing_targets_and_touches_nothing) ... ok
++test_create_refuses_over_aggregate_cap_using_measured_inventory (__main__.Storage.test_create_refuses_over_aggregate_cap_using_measured_inventory) ... ok
++test_create_refuses_wrong_media_before_allocating (__main__.Storage.test_create_refuses_wrong_media_before_allocating) ... ok
++test_disassemble_checks_mapping_before_unmount (__main__.Storage.test_disassemble_checks_mapping_before_unmount) ... ok
++test_disassemble_clean (__main__.Storage.test_disassemble_clean) ... ok
++test_disassemble_no_cache_refuses_foreign_mount (__main__.Storage.test_disassemble_no_cache_refuses_foreign_mount) ... ok
++test_disassemble_refuses_foreign_mapping (__main__.Storage.test_disassemble_refuses_foreign_mapping) ... ok
++test_disassemble_refuses_foreign_mount_without_mutation (__main__.Storage.test_disassemble_refuses_foreign_mount_without_mutation) ... ok
++test_disassemble_stops_at_failed_unmap (__main__.Storage.test_disassemble_stops_at_failed_unmap) ... ok
++test_disassemble_stops_at_failed_unmount (__main__.Storage.test_disassemble_stops_at_failed_unmount) ... ok
++test_no_cache_layout_mounts_origin_loop (__main__.Storage.test_no_cache_layout_mounts_origin_loop) ... ok
++test_verify_cap_measures_allocated_bytes (__main__.Storage.test_verify_cap_measures_allocated_bytes) ... ok
++
++----------------------------------------------------------------------
++Ran 20 tests in 11.394s
++
++OK
++SUITE_RC=0
++=== inherit-env KILLED
++  FAIL: test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop)
++  FAIL: test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed)
++=== sh:adopt-any-mapping KILLED
++  FAIL: test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops)
++=== sh:no-invalidate KILLED
++  FAIL: test_cache_loss_invalidates_before_touching_origin (__main__.Storage.test_cache_loss_invalidates_before_touching_origin)
++=== sh:no-unwind KILLED
++  FAIL: test_assemble_failure_keeps_preexisting_loops (__main__.Storage.test_assemble_failure_keeps_preexisting_loops)
++  FAIL: test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops)
++  FAIL: test_assemble_refuses_foreign_mount (__main__.Storage.test_assemble_refuses_foreign_mount)
++  FAIL: test_create_failure_unwinds_only_its_own_resources (__main__.Storage.test_create_failure_unwinds_only_its_own_resources)
++=== sh:continue-after-failed-umount KILLED
++  FAIL: test_disassemble_stops_at_failed_unmount (__main__.Storage.test_disassemble_stops_at_failed_unmount)
++=== sh:measured-cap-ignored KILLED
++  FAIL: test_create_refuses_over_aggregate_cap_using_measured_inventory (__main__.Storage.test_create_refuses_over_aggregate_cap_using_measured_inventory)
++  FAIL: test_verify_cap_measures_allocated_bytes (__main__.Storage.test_verify_cap_measures_allocated_bytes)
++=== public-http KILLED
++  FAIL: test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned)
++=== allow-writeback KILLED
++  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='writethrough')
++=== cap-off-by-slack KILLED
++  FAIL: test_cap_boundary_counts_metadata_slack_and_other_allocations (__main__.Validation.test_cap_boundary_counts_metadata_slack_and_other_allocations)
++  FAIL: test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting)
++=== no-group-reap KILLED
++  FAIL: test_child_failure_propagates_exit_code_and_its_group_is_reaped (__main__.Lifecycle.test_child_failure_propagates_exit_code_and_its_group_is_reaped)
++=== no-pdeathsig KILLED
++  FAIL: test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child)
++=== trust-l1 KILLED
++  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='trustRpc')
++=== verifier-port KILLED
++  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='local verifier')
++  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='local verifier')
++=== cli-prune-flag KILLED
++  FAIL: test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned)
++=== toml-exists-only KILLED
++  FAIL: test_download_like_config_passes_and_default_or_missing_fails (__main__.RethToml.test_download_like_config_passes_and_default_or_missing_fails) (needle='prune segments')
++  FAIL: test_download_like_config_passes_and_default_or_missing_fails (__main__.RethToml.test_download_like_config_passes_and_default_or_missing_fails) (needle='prune segments')
++killed 15/15
++MUT_RC=0
++[memory-guard] exit=0 peakTreeRssMiB=115 minHostAvailableMiB=22672
++[memory-guard] at peak: python3:34 python3:26 python3:24 python3:17 bash:6 sleep:4 timeout:4
++[queue] EXIT 0

@@ -1,0 +1,20 @@
+{
+  "observedAt": "2026-10-23T06:59:44.160628+00:00",
+  "source": {
+    "source": "work/fresh-witness-supply/holder/budget.py",
+    "sha256": "a82192bc30715f94cb86934507430ab2956a6962e0b51b3bf85071030ce21bcd",
+    "status": "point-in-time working source; no final commit claim"
+  },
+  "fixture": "Real small temporary files; ledger root-ownership check disabled through test seam only. No privileged commands, devices, actual node-cache allocation or remote allocation. Temporary files removed.",
+  "ledgerHostShares": 250000000000,
+  "declaredLocalShareBytes": 1,
+  "chargedBytes": 1,
+  "actualCreatedFileAllocationBytes": {
+    "tiny.img.enclave-budget-owner": 4096,
+    "tiny.img": 4096
+  },
+  "actualCreatedBytes": 8192,
+  "verifyAccepted": true,
+  "finding": "Per-file extent allowance is not charged to reservation slack or host share; zero-slack non-block-aligned allocations and marker files can exceed a declared hard maximum. This does not assert a live 250 GB overrun.",
+  "reviewCommit": "08fffd5aa26e9eb8f50fbc90f61efcac569df16d"
+}

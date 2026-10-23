@@ -1,0 +1,38 @@
+{
+ "bad": [],
+ "composed": "HEAD",
+ "multi": {
+  "metal/guest/measured-control.mjs": {
+   "lines": 60,
+   "ok": true,
+   "sides": [
+    "ours",
+    "A"
+   ]
+  },
+  "network/lease-reader.mjs": {
+   "ok": true,
+   "sides": [
+    "A",
+    "B"
+   ],
+   "stacked": true
+  },
+  "network/verified-chain.mjs": {
+   "ok": true,
+   "sides": [
+    "A",
+    "ROOT"
+   ],
+   "stacked": true
+  }
+ },
+ "ok": false,
+ "oursHead": "65f3fb9822b73eddecb9ccf708fa50c72a079fb7",
+ "rootReviews": {
+  "ROOT-REVIEW.md == 1086cf23": false,
+  "renamed == fd6a1762 ROOT-REVIEW.md": true
+ },
+ "single": 71,
+ "unexpected": []
+}

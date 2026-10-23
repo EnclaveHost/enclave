@@ -1,0 +1,2181 @@
+{
+ "format": "enclave-frozen-0745-export/v1",
+ "checkpointHeadAtExport": "871e21975828c0b9aea463ba6c7affd249a71732",
+ "label": "SOURCE + OFFLINE TESTS ONLY. Nothing here is merged into the normal tree, imaged, deployed or activated. D's Linux carrier closure + A/B/ROOT composition fad657bc (ready for final composition; needs B's final runtime), S's final cache budget v2 47c2f71f (source accepted for composition, NOT device proof), ROOT's WalletConnect fix 320d7e9f and ROOT's cache-budget review 08fffd5a. Active trees past these heads are not captured.",
+ "sides": {
+  "d-linux-carrier": {
+   "repo": "work/resume-after-checkpoint-20261022/linux-carrier-closure/repo",
+   "branch": "linux-carrier-closure",
+   "headReachableFromBranch": true,
+   "base": "fec43a6a08da2ac287fb3a5c42de89f096f4f678",
+   "baseProvenance": "fec43a6a preserved in 871e2197 as frozen-0630-export/d-linux-fec43a6a (on 493ee9ee)",
+   "head": "fad657bc5626166bde1bde4454ec4f73d23dde47",
+   "headTree": "5e2e43319e1041d45ee1ab313ddb7e48e4cdbfd1",
+   "commits": [
+    {
+     "commit": "4cdd4622150019f2764d79142afc462bc7e9ed8c",
+     "parent": "fec43a6a08da2ac287fb3a5c42de89f096f4f678",
+     "tree": "884989c683b98ae40db4e739c242ebac92d42f51",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:07:05-07:00",
+     "subject": "Relay-mode Linux guests: carry the platform policy carriers from the host config to the supervisor's gate"
+    },
+    {
+     "commit": "9a00b98384b32b8d1850a74bc55c5c21f9f39367",
+     "parent": "4cdd4622150019f2764d79142afc462bc7e9ed8c",
+     "tree": "00356c0ffeaef3150ad9e556fffb23e85abbd36c",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:07:05-07:00",
+     "subject": "tenant-provision-race: give the adopt() harness its real module-scope dependencies"
+    },
+    {
+     "commit": "65f3fb9822b73eddecb9ccf708fa50c72a079fb7",
+     "parent": "9a00b98384b32b8d1850a74bc55c5c21f9f39367",
+     "tree": "6856eb434a09d7f637326a5d30443ebc732c619b",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:16-07:00",
+     "subject": "Tests: state gsup's reviewed metal-host-policy line; refuse the four former fleet mirrors explicitly"
+    },
+    {
+     "commit": "95d86a59d78755de3ff6031c301afe1aebfcc5e3",
+     "parent": "65f3fb9822b73eddecb9ccf708fa50c72a079fb7",
+     "tree": "e4120cbfa6dba4c8488970c6a067d65b293d06c7",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:17-07:00",
+     "subject": "Verify admin targets with AMD collateral and send packages only to the attested key"
+    },
+    {
+     "commit": "d292b930e7e1730ea6fa385b4716abc24bd24bc8",
+     "parent": "95d86a59d78755de3ff6031c301afe1aebfcc5e3",
+     "tree": "9de87e0aa88d4759902223ff65cdd401d25c6db8",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:17-07:00",
+     "subject": "Let the admin tool's status command send its body-less GET"
+    },
+    {
+     "commit": "1d3f2e4f89c82d072a9133d9cce89c2f670815a3",
+     "parent": "d292b930e7e1730ea6fa385b4716abc24bd24bc8",
+     "tree": "784e6a9567ff85e7a035d297e8ee143027570384",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:17-07:00",
+     "subject": "Feed a pinned Helios verifier a signed OP head and untrusted state witnesses"
+    },
+    {
+     "commit": "4a35bec015c28acc8fd86f10b88389751048e819",
+     "parent": "1d3f2e4f89c82d072a9133d9cce89c2f670815a3",
+     "tree": "e2ab342a0d35299cce308171a252b7bceea12a95",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:17-07:00",
+     "subject": "Keep the e2e setup assertion message serializable"
+    },
+    {
+     "commit": "ea336bc314afa8aec93d630493d3d2a1ba15e86b",
+     "parent": "4a35bec015c28acc8fd86f10b88389751048e819",
+     "tree": "9230953021f88f9ead7e826c45610de122cd3c27",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:17-07:00",
+     "subject": "Replay real Base calls through the verifier's Base EVM from pinned witnesses"
+    },
+    {
+     "commit": "2afb9d5c6ca409a52bfc0f8effb8cdcfeecb38ad",
+     "parent": "ea336bc314afa8aec93d630493d3d2a1ba15e86b",
+     "tree": "40a6c96eefbe41b7ca150150c3bbf73f6465648f",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:17-07:00",
+     "subject": "Test the head path with real Base gossip objects and the real signer"
+    },
+    {
+     "commit": "25a3dffd494c7777357465824870a8ea85f89ce3",
+     "parent": "2afb9d5c6ca409a52bfc0f8effb8cdcfeecb38ad",
+     "tree": "122da1bb0dbc90890051c5dd0adf731075931cf6",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:17-07:00",
+     "subject": "Give LeaseReader an explicit local-verifier chain authority"
+    },
+    {
+     "commit": "03d588e42721b8449b6b7afdc8f4f96fbe21ad60",
+     "parent": "25a3dffd494c7777357465824870a8ea85f89ce3",
+     "tree": "6c921bd92fa19f3af8b8142dc864b25b9fa99f79",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:17-07:00",
+     "subject": "Test the verifier authority on real contracts over a canonical-trie chain"
+    },
+    {
+     "commit": "4f5a789e419b8dce8b605ec193d327203ca435d4",
+     "parent": "03d588e42721b8449b6b7afdc8f4f96fbe21ad60",
+     "tree": "3d514daa7f2818f5130740995fd09b2a47ad1da4",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:17-07:00",
+     "subject": "Read the service index and platform host policy through the local verifier when chosen"
+    },
+    {
+     "commit": "b6bc6b6cbc71a2367e8d2e84c92ec46e535c2c23",
+     "parent": "4f5a789e419b8dce8b605ec193d327203ca435d4",
+     "tree": "d1d348ddce87bfe7e60b885618b325fa0e83de6c",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:17-07:00",
+     "subject": "Let independent CLI/MCP, management and native callers choose the local verifier"
+    },
+    {
+     "commit": "b6fd6a00b1e16777945e9f49bb6af1c6ab24fa03",
+     "parent": "b6bc6b6cbc71a2367e8d2e84c92ec46e535c2c23",
+     "tree": "229a698d485bc3ecc608586021181f89c6981822",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:17-07:00",
+     "subject": "Carry the explicit local verifier through the relay, native issuer and host-service launch boundaries"
+    },
+    {
+     "commit": "a177ce8ce6081cfe603e2b346af17dc44a2f37f3",
+     "parent": "b6fd6a00b1e16777945e9f49bb6af1c6ab24fa03",
+     "tree": "652f1f80917a958f36b169494c9819042da15464",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:17-07:00",
+     "subject": "Bound the whole verified read, its callback included, and close its client"
+    },
+    {
+     "commit": "a76a86ee474ae61565a553476a9ba7c2f58afd3e",
+     "parent": "a177ce8ce6081cfe603e2b346af17dc44a2f37f3",
+     "tree": "05072b35476839cc4c2ce9a70437bc5f0a27a0bc",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:17-07:00",
+     "subject": "Keep the verified-operation deadline timer referenced so it fires when nothing else holds the event loop"
+    },
+    {
+     "commit": "280d28497492ab789d15bdfe08d90f2e9e0ee3f1",
+     "parent": "a76a86ee474ae61565a553476a9ba7c2f58afd3e",
+     "tree": "39b9594d5a29125d6e77b83cae81756cd605ccae",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:26:28-07:00",
+     "subject": "Close verified policy snapshots before late responses can mutate authority state (cherry picked from commit fd6a1762ed1218d5d32fb43df2ccb97caa2b17e4)"
+    },
+    {
+     "commit": "714aa0dcdfc3d6e67e3c875ab4751193473c53d5",
+     "parent": "280d28497492ab789d15bdfe08d90f2e9e0ee3f1",
+     "tree": "b2510b92ca6ea9a22dd6d318d9072fcb7726a1e2",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:34:40-07:00",
+     "subject": "Rebuild the host-admission and metal host-policy bundles for the composed sources"
+    },
+    {
+     "commit": "fad657bc5626166bde1bde4454ec4f73d23dde47",
+     "parent": "714aa0dcdfc3d6e67e3c875ab4751193473c53d5",
+     "tree": "5e2e43319e1041d45ee1ab313ddb7e48e4cdbfd1",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:41:16-07:00",
+     "subject": "Relay carriers test: the composed chain-authority names are bound authority too"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "ROOT-REVIEW-verified-snapshot-lifecycle.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6ea0dd6b4b64026f8f4a6d86a47a2a501b962f6b",
+     "sha256": "fd16755a920dddedaf5902095b2c549ff838d20596dec2a2d19bb832543f621d",
+     "bytes": 2614,
+     "baseBlob": null
+    },
+    {
+     "path": "cli/enclave.mjs",
+     "status": "M",
+     "mode": "100755",
+     "blob": "4ef7f7a15904a2279d3cfdda872ac4aafeb7f786",
+     "sha256": "cc080e6a534ea544767f800ebc19a363bb5de01fb20c6e31604eb0d6810b899b",
+     "bytes": 422590,
+     "baseBlob": "cf48a8da6dfd2acfca3452c8d9ece3596c2aca03"
+    },
+    {
+     "path": "cli/independent-host.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "241ef833d87797fffeadc61d37663efe28b66059",
+     "sha256": "2efd94d8dc0dd33c717f41c07165cd17080b3b2145f36be3a40819268b01d101",
+     "bytes": 4365,
+     "baseBlob": "5e775d8dac52e9f9f03399c99ef7875aa4b9e4a5"
+    },
+    {
+     "path": "cli/independent.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "7f25ca280bd8e4db6b66ff6e9e3ecc410f8e42ac",
+     "sha256": "12245443fff2fc345ed654de7303258168018ae674f0dd1b11631a006dd18453",
+     "bytes": 37411,
+     "baseBlob": "32058357f023130e795c364758838920d579104c"
+    },
+    {
+     "path": "docs/network/hosted-platform-api.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "39d91395c2397fb1a6d318f318fa5e9ef4d330d1",
+     "sha256": "f3fc46bbda6d21d38505b6455fbacb50e7a65ff7852de629f560050e5b00abee",
+     "bytes": 13176,
+     "baseBlob": "0514c3ce7b3f719de152fc0de3fcf1e2be3a89d9"
+    },
+    {
+     "path": "mcp/independent-tools.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "a65dabc73e37da69036e099327a3203b842411e6",
+     "sha256": "f559cb737d26fda5ff28174aaa25e20333b73c86f0cde362ca5b90b9a76ea0fa",
+     "bytes": 55355,
+     "baseBlob": "79b5a1d0d67d2a32af11c37220290f0fea3c68c5"
+    },
+    {
+     "path": "mcp/independent.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "7224bd370754cea6bf5e10961865792810df21ab",
+     "sha256": "62fbcff321c4bcf01256651bbb58abb7a18f9a7bdb2f41207918031a4afbcfd1",
+     "bytes": 31934,
+     "baseBlob": "93d0d1ae00212c03e5423ab2c643d374b8a1d5ef"
+    },
+    {
+     "path": "metal/enclave-metal.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "3c75f143ecfba9c2ce0412b4709661773afa40d3",
+     "sha256": "ec72d3bbdeadd1f63d35971db7045e756079f47329bbdbfb5badd07d9683d235",
+     "bytes": 52167,
+     "baseBlob": "d44710bfb07243495637b99ca5d1bd52969963fd"
+    },
+    {
+     "path": "metal/guest/gsup.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "c1f69a7d03fb3a6779741f8d727f84321f42d914",
+     "sha256": "b48e26c9aba597ef0349c6ae29272cf8e511f88ff1a85335bec668dbf45a2349",
+     "bytes": 53530,
+     "baseBlob": "ce9e070442b681afddb8db20b88458da0d36dc21"
+    },
+    {
+     "path": "metal/guest/host-policy.bundle.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "5ec4922c1d882e2210e8789935458c40b33e6980",
+     "sha256": "9a6aa25a1995384aa8bf6cccacd5fedc0af61d0b641c67819b0c639d0d2b1b59",
+     "bytes": 35337,
+     "baseBlob": "071309f1f2975a542e51dd000c3dca284ecbd674"
+    },
+    {
+     "path": "metal/guest/measured-control.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2922ed57123e8dcfca6edc5d793aacceaf31b054",
+     "sha256": "9220919c3f8092d887190e768734916197b87c433b71ce69d87ed2a957febd04",
+     "bytes": 90226,
+     "baseBlob": "97c62fb317bcc453eaac1271eba57ab726b5075f"
+    },
+    {
+     "path": "metal/guest/platform-api-role.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "504018493a5220d38319b0c68e2b8612cb58e623",
+     "sha256": "3993eb3cebe7723c37c746ba02750b4ea213ef27a16bb7ce91266138aa535dd4",
+     "bytes": 39902,
+     "baseBlob": "7310fa10d57f360155b9f8ab6bf22c02ec2bcce4"
+    },
+    {
+     "path": "network/challenge-replica-host.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "1ff35ac2144365cd80dd96f8511de5f852d13961",
+     "sha256": "f025324b36592acffab698e16b2ef357df63357ebe1ae6a53e466295c9a1bb01",
+     "bytes": 32077,
+     "baseBlob": "74beb76d723485b2c43440a37a8d961b347cc1d0"
+    },
+    {
+     "path": "network/cold-bootstrap.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "6a279f35e150442d0c381083d40ef5e2f443239e",
+     "sha256": "2ee2cd8c63861466408d31f55fe9610a9facf045b23e954ed67c14fa1cf557ec",
+     "bytes": 8940,
+     "baseBlob": "bd9b832d8689810d2655fef49145be0ed41ba94d"
+    },
+    {
+     "path": "network/directory-server.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "c48d1908606b92d2ad7671689f21122b1409bae1",
+     "sha256": "b99b7ee80e1d015846153f013927b5c55e946160d60ccf564ff46d405a30e1e4",
+     "bytes": 7424,
+     "baseBlob": "28758284fba9f1af61ef16fba8e978726f5753a4"
+    },
+    {
+     "path": "network/host-admission-runtime.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "94e59e989355fecb8c51fef3b86f35f53b8a9897",
+     "sha256": "db9b0738f84921cf1333e9f0381d2a27f0f4b069be4b90ad9d27ccdf02dded5c",
+     "bytes": 10575,
+     "baseBlob": "43d54c3be812579f970acdada76deeff61877e83"
+    },
+    {
+     "path": "network/host-policy-runtime.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "95930152ebc12331d0dddc6f9cad57384df3b84b",
+     "sha256": "6d4a9b5a75abccf7d566bee75375fd16bf86428e427c4744140be9f3055d9139",
+     "bytes": 9869,
+     "baseBlob": "7eb8bdec66217dc54976b9c40575644f0d784e52"
+    },
+    {
+     "path": "network/host-service-gate-carriers.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "128903936c14be20e314f5365251cfeed1871c91",
+     "sha256": "053923fcdae3e68b4ff362b2d5681a2b95b3573674d46eaa92c650340bf8b00c",
+     "bytes": 7198,
+     "baseBlob": "e70a0a81eae25972cd493428bb59f0ad2466f5d6"
+    },
+    {
+     "path": "network/host-services/policy-mirror.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d393150e7eb499f249f63355f1318aa2c4de538a",
+     "sha256": "b0c1dc28b4365c5f1a1d35194cd49e0afd847d295f07aebf257d31b01d6001a0",
+     "bytes": 9188,
+     "baseBlob": "fa8dd4de0bc757095bfe2b4fddbbf3f71909b0f2"
+    },
+    {
+     "path": "network/host-services/roles.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2a7304cf7573446565f918c43158361a5ac340ce",
+     "sha256": "38ae3befc07ac110b907ab37f0d33fda5e770aa4d0740820ca0ce8f48f2f3fa5",
+     "bytes": 18175,
+     "baseBlob": "79a8cf16a06c4b9e2f65dfd1c777043760901132"
+    },
+    {
+     "path": "network/host-services/runner.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "3d7d934608641628f539b623f4ddf58039075f06",
+     "sha256": "dae2fc81919b410c49e4d2e00f497f0921d4b75b47e3d6700004789adcd10c5a",
+     "bytes": 25465,
+     "baseBlob": "be3b88233a048b12a6ae8c6c510bbb07959937d8"
+    },
+    {
+     "path": "network/host-services/storage-indexer-host.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "6a769ad0809ceabf4f609dc33e575dc4be4171fc",
+     "sha256": "ef565f7ee9161f06fe6554e9440efc0fdae80714fbe2ddf090417692b2e07178",
+     "bytes": 31935,
+     "baseBlob": "befaa5361f8bac5a410ed654ff0f613e66dd2add"
+    },
+    {
+     "path": "network/lease-gas-runtime.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d73dff44f3c6f345ff31b2dfc2c4cfe039b5aee1",
+     "sha256": "4ab0d467ab523f4a81b3e987b3292c4caea2e0d1ba0e7f23e57f8e018dc83d75",
+     "bytes": 10647,
+     "baseBlob": "8d50889f1dbcbfa46076e3af97bc94bb62198d29"
+    },
+    {
+     "path": "network/lease-reader.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "92d7126ad7780bcc18a8b932adecdcc747b8f630",
+     "sha256": "7c01e53b17fb97c65a2043d2703caa2ccc9bbec1e9236d7b11c0c3559e4d060a",
+     "bytes": 48380,
+     "baseBlob": "0a4bc01f9a89c9303abbc6b99e1456d8e781cedd"
+    },
+    {
+     "path": "network/management-client.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "bb3c5056f715e8ebe1119d7c1ecd36fe95c5c076",
+     "sha256": "8715250a3af57f03f8be952c2321c2652f5545538eeec2c3fe3203907fce2c33",
+     "bytes": 19385,
+     "baseBlob": "60c5bdf57947219b5aaa298861887b5c68c1478e"
+    },
+    {
+     "path": "network/management-host.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "b81049659804f88a393369684b50a521b04139d5",
+     "sha256": "1998c241ab1f1d67467f508018d4827bbd7d37a1afd984a477aa8268b03604d4",
+     "bytes": 10000,
+     "baseBlob": "b4be47acfcd34decadbd1a430dc7630a488e9e4a"
+    },
+    {
+     "path": "network/native-client.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "9b268d7941dec10263f9fff16b6fd6801ad344f6",
+     "sha256": "2323211bba89270b241a55961c918a5196d984ee06493438969e24f94d4cc926",
+     "bytes": 36228,
+     "baseBlob": "57632de047c9fc948d1c22aa7f90007f058d5585"
+    },
+    {
+     "path": "network/native-control-routes.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "1f58a76efdefb26eb44ed051de30e46670bd3b5e",
+     "sha256": "e224aaf4b7e1f8c61087ed479f683ea926bae4d2bec72fb62f3b1c4306278126",
+     "bytes": 24251,
+     "baseBlob": "3ba6a6cd2446ba51e0129426a95828aba288dba0"
+    },
+    {
+     "path": "network/op-head-relay.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6bd88dade452a32e08e50559efb5277b7f79c92a",
+     "sha256": "ed71c0695230c9400d759e792ae44da3a8fc27cf065abe9dddd9bec09411fe27",
+     "bytes": 13783,
+     "baseBlob": null
+    },
+    {
+     "path": "network/platform-host-policy-config.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "1bc4609e74d248b455f82c9b010bf3bddaa500ab",
+     "sha256": "8a151bc08892c154bbb4023329f002b33627030ca987108fc1abfe69fefd4a06",
+     "bytes": 6760,
+     "baseBlob": "f2340dff6a5e21462fda8313d59a81db933e73e2"
+    },
+    {
+     "path": "network/policy-carriers.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "0fe205e0de294f30184b57eb1243b21102a93274",
+     "sha256": "0c08837e91f317fce81585b484091362bbd6af1444d38f4b26be414358a31691",
+     "bytes": 11918,
+     "baseBlob": "7f56e0bceaf31191bc4b4113c570037ca5ad4b1e"
+    },
+    {
+     "path": "network/provider-settlement.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "95db9e4f7e430af633d6c14103feeeaa8a31906a",
+     "sha256": "dad131831db37c2ac1a060c969ec120ef1742f6c23840e8264e23dd32939b49c",
+     "bytes": 7158,
+     "baseBlob": "7d3d68bde9b13e068af4348a36368613163f5368"
+    },
+    {
+     "path": "network/service-index.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d7350364a4802743415057f3c8bc32bcbd666d4d",
+     "sha256": "0c38f700aed373a037157ab5e0635e19ea15b5b75e493a87e94249f4b0fa0221",
+     "bytes": 45551,
+     "baseBlob": "4475fbd63ac89f98b4c8c442224e8a8a7e3acf2c"
+    },
+    {
+     "path": "network/usdc-bandwidth.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "b97600c687450eac1e9a50e7686b81508464fc6a",
+     "sha256": "15c0e6869a3a1d5ff4dfd9eb1c11800b515f885ba40479e433f0b2255b534512",
+     "bytes": 15166,
+     "baseBlob": "30cc94a372790975120573a116bae6dcc9e50a38"
+    },
+    {
+     "path": "network/verified-chain.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e55f0359eb26d65d7fa0c809ccfc3de320c55797",
+     "sha256": "cc1f88706d1e4da9fe9048ba3e4b6dbd755edca0752ef39c8a873aaaf9427df4",
+     "bytes": 13544,
+     "baseBlob": null
+    },
+    {
+     "path": "network/wg-provider/main.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2e9633b868d574d57653db4348337f3def6aacab",
+     "sha256": "0bde499e9b30ab561f2b20bfe4867517e30f07ba5f6c19df41e13f591db0d864",
+     "bytes": 13892,
+     "baseBlob": "1b93d048e916a62726f2a52f20b8587264148106"
+    },
+    {
+     "path": "network/witness-gateway.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "82bf203b1ae7e19501ed0071038ccc674194a162",
+     "sha256": "d1944b1f1e6f4aaf1e914309a9f2c68d05be9f5d93141f2a8b7d400e2c1c24c6",
+     "bytes": 9215,
+     "baseBlob": null
+    },
+    {
+     "path": "relay/api-relay.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "61bbbc7da0afd34e752a0c24303fe4c6d34d31df",
+     "sha256": "a70d7331af3f376afc6590e29707e3e1c33e1866aba1ea9ec143095c97b14a1a",
+     "bytes": 226549,
+     "baseBlob": "71bd8634765205de21327df56f4f8a07051be0d3"
+    },
+    {
+     "path": "relay/chain-sources.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "40fcbc2a387dcf37c0da5c96c401524926f4c77b",
+     "sha256": "ae191bb84d9e057df3ac9ad98f336a5ed59fa5cd8c69fccfda51953d50955468",
+     "bytes": 3853,
+     "baseBlob": "d391b45d8298af88484175debeb8909f89877203"
+    },
+    {
+     "path": "relay/dns-relay.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "c683f96811a8055f02a481bd84398e1a7a77e60b",
+     "sha256": "ac493f6cd72c0e22946b7f270ab56fe9df83a8bf141824878e2bd27180b06f94",
+     "bytes": 72577,
+     "baseBlob": "d1c4cf5aef417d707c8c6659a2ce5f75c96ec21e"
+    },
+    {
+     "path": "relay/network-runtime.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "39624111969499987dec9bb26963350964233818",
+     "sha256": "8c39faa3594dbfb8559fa7b9e1fb1417964de6a998682f939a30c4ec7014aa54",
+     "bytes": 1848,
+     "baseBlob": "bc9c87478b7861cf0d1f02a40ce672302e39a3d0"
+    },
+    {
+     "path": "scripts/network/native-profile.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "54abe9b9a0e3464267255dec45e41fd760c343a4",
+     "sha256": "be6338dd7b6328e7295e3e374d209cf5757f95a09fb428dd9d813eeb2401ca7f",
+     "bytes": 8086,
+     "baseBlob": "dfc209cde81aaac9224bfb801d4d0220eebc069e"
+    },
+    {
+     "path": "scripts/platform-api-admin.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "a616a431adc5f5905bee4f771a7e816cc0b08add",
+     "sha256": "3b41b2668afeb0daf3da7bab04ef23ea899e4823904e55e9bda396a89027833e",
+     "bytes": 15405,
+     "baseBlob": "8ed3cab152fd53a1812c05d5b019f80593a1360b"
+    },
+    {
+     "path": "test/caller-verifier-wiring.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bd9fffe9a689994d79e3232cd17b2b704b1ae28c",
+     "sha256": "72eb44c7381433f729b99e1d79a83999654bb937d1dfd7e4f20cbcb20e1866d6",
+     "bytes": 6237,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/op-commitment.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8481f00de19a1f91c9a71a52b06d0a484ebe9e9e",
+     "sha256": "13263acfb371966888b11158fefb80a82c1d0d1b739bf8203eed0a5d2b1d98b3",
+     "bytes": 3239,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-base-head.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c197b4cfbe742c88afcc6b1c7ee960d257ab4a5c",
+     "sha256": "3594e1bb52f6be22f93f0be9c79f5fb46f0f50ff368902bb2e00f55aab59e162",
+     "bytes": 6227,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-base-replay.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a87d9381a0ff34aa3878b3281fa7257bf3e07d72",
+     "sha256": "a8d9c3a66b58a33ca47c58c8f61718267ba9f84ff6ce90fc73712605d2375a13",
+     "bytes": 7565,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-witness.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fa753d192a03abec45c4accbd5832ea61c9be696",
+     "sha256": "e9b716a56403091f1e5f8b5da2c6e765414970466dee04d026ef8cd584738363",
+     "bytes": 17064,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helpers/cli-independent-rig.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "74986134075ca17526c40e2f0d337fb5705e4455",
+     "sha256": "53d66648494ea3b99c848a58a9cd305e4374ce37fef65d5813251d0f07cd015e",
+     "bytes": 38375,
+     "baseBlob": "aff0109b5c6c02cffda85713eebc29158524ee4c"
+    },
+    {
+     "path": "test/helpers/relay-flat.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ddeb2cba153cecaaf55d10dc0793cf5959fce715",
+     "sha256": "756d32053fba6fa52442a83d2473e20b870a02f787a35603fb126d90d56b853e",
+     "bytes": 1345,
+     "baseBlob": null
+    },
+    {
+     "path": "test/hosted-policy-cold-start.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d0098e580fa71d44b513978e0061513186f38b0b",
+     "sha256": "501b84cef3a8ca3a6f3ce0a12aac64d9c4bc367c881e4a42c3ef85df09930561",
+     "bytes": 25447,
+     "baseBlob": "753e8d325d9cd86ab25306f9dbc39aea03ca861d"
+    },
+    {
+     "path": "test/lease-reader-verifier-deadline.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4c92a00b80b60e7a3f542d52f9c6a741b6edca2c",
+     "sha256": "f3e99df4438467529c41eeb0f784ef5b7d24002892bcafdd7a5179d7df72668d",
+     "bytes": 11811,
+     "baseBlob": null
+    },
+    {
+     "path": "test/lease-reader-verifier.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a21ec016919ff3a6f3a7fca609c15f21b8640412",
+     "sha256": "9078673b98eafb878aaa4094e44f341fa7eb152f92e806985dd21dc2579a14c0",
+     "bytes": 16683,
+     "baseBlob": null
+    },
+    {
+     "path": "test/lease-reader-verifier.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "eec9cf3c1949af1752d9be97bfdd81c298d24124",
+     "sha256": "0e37a9378987d8b6664cad89edbdaf1f6693ece0a6129870252cddd7fdaf24e5",
+     "bytes": 17381,
+     "baseBlob": null
+    },
+    {
+     "path": "test/metal-lease-gas-conduit.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d616f4ffc3552d6014cb3e62d34036f99db17229",
+     "sha256": "cb294249fffdab5c0d1c5b8e6a004becbf9bac9f86ce273da3bd46bd60b80f13",
+     "bytes": 25109,
+     "baseBlob": "a9ab9c2bb9affbf4e9b0f8c09ee382838b183a0e"
+    },
+    {
+     "path": "test/metal-measured-control.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "e9a1d56a3ee3c6c1f0d05ac32089e86824bc6415",
+     "sha256": "bdb22aeecfd049acee54dad2e6eec8025a8bd4a56c5e073dbd537858aeaf76ab",
+     "bytes": 32908,
+     "baseBlob": "77bfb654cca2129be12734d813898dd1ea6296bb"
+    },
+    {
+     "path": "test/native-profile.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "6eaa31a13f51307d3231276cb1036e528bb11368",
+     "sha256": "d640a8d4755c4318dd90445c88b58f1b89dcfd4d85819b301e2ec80321d0a67e",
+     "bytes": 5712,
+     "baseBlob": "78257241517c39608737e20675a3ba9fca2f2443"
+    },
+    {
+     "path": "test/native-relay-chain-authority.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "96deafa9e0b9557184248501db33505bf355c448",
+     "sha256": "b55c4351504b33c3f57842758846bbaf92b9825eb4996c28a852cd789eb9b233",
+     "bytes": 20479,
+     "baseBlob": null
+    },
+    {
+     "path": "test/op-head-relay.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3d0aa896ae179647f4b3d11e0d4e8d7456a9607b",
+     "sha256": "33706d34b467838f6fe90ab3853ec2a0651c38554614cf6134b70d8a50e042c0",
+     "bytes": 8704,
+     "baseBlob": null
+    },
+    {
+     "path": "test/platform-api-admin-cli.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4b5b69747fcadfda46bb448e3eec70747898451f",
+     "sha256": "772e4119788b277f5d29f61cd9bab056ef46e0d999d11f278d97030f74177da7",
+     "bytes": 26108,
+     "baseBlob": null
+    },
+    {
+     "path": "test/platform-api-admin-status.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7161c3f6b7edd2e2eb17c2b0f8671f9230c52fa7",
+     "sha256": "bd4535ded740161845a89939f4c17fcdb0b8ee91d3d2564bbce8c9a5589a275e",
+     "bytes": 2739,
+     "baseBlob": null
+    },
+    {
+     "path": "test/policy-verifier.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "29ff602b68238d10b6123896592dabbbfd3a4949",
+     "sha256": "9ab730eb42a2cec1269586b7640d708d623d330c57e8e5c5f0a307b89eb4d2c3",
+     "bytes": 20825,
+     "baseBlob": null
+    },
+    {
+     "path": "test/relay-policy-carriers.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a9946cbb83175d1246e3c71cc7539e949a49e69c",
+     "sha256": "bcabc5ab9c49452f003c523f3abb1740575ed8adfeb89a19801ebce9b0f7a54b",
+     "bytes": 30720,
+     "baseBlob": null
+    },
+    {
+     "path": "test/tenant-provision-race.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "18baa93eee95824033543114a99b406c16a12316",
+     "sha256": "94722b9e36fa5e824e6dcb8ee7ce94677d6be92463aeaace927b0874845c648c",
+     "bytes": 6041,
+     "baseBlob": "e8b69d7e235fd1a52e0933ede2db154764a90e69"
+    },
+    {
+     "path": "test/verified-chain-lifecycle.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f1d0b20d7876dbcd3a646d8a671aa0b938e78900",
+     "sha256": "9b399f2595d2d226862ad21637a2e5f3acb2e16c505d25eac156e9e4d6df26d0",
+     "bytes": 3467,
+     "baseBlob": null
+    },
+    {
+     "path": "test/verified-chain.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "774a4273d05db8b1e1a590c38748c6c56f8dcad2",
+     "sha256": "9bc7d8167874335e23a0467ee8e12bfaab6a7282d78464109c31e51cc391dfd5",
+     "bytes": 14188,
+     "baseBlob": null
+    },
+    {
+     "path": "test/witness-gateway.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b994da1f2e147b27c813002235fa82617827fa77",
+     "sha256": "ab1168def01c2036dfb5256452f44173fe39f36bb8db17d0ff0eb7c1d863bf9e",
+     "bytes": 7022,
+     "baseBlob": null
+    },
+    {
+     "path": "windows/node/host-admission.bundle.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "37311dbdfd190ab83f73fbffc47460ad28cb755d",
+     "sha256": "2dba0cebe450eeaeee39db6a2344f7790d549ccc6f9774f4f1bc6b5a8f39278b",
+     "bytes": 402456,
+     "baseBlob": "eba9ec3baa4d1bbaa23bb515e36296342c6967be"
+    }
+   ],
+   "patches": [
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0001-Relay-mode-Linux-guests-carry-the-platform-policy-ca.patch",
+     "sha256": "a072c6cadc43388472583410386f4ef82bb34403374a279c0788f826f9984f51"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0002-tenant-provision-race-give-the-adopt-harness-its-rea.patch",
+     "sha256": "0b849212f5dff3510e17d0eae78a4e67d46576527afc78c4fea9e089e18e0135"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0003-Tests-state-gsup-s-reviewed-metal-host-policy-line-r.patch",
+     "sha256": "cbe0fd62046fb4799d7a8c1f38db4f7ef90f9233247ea1a30a0518e9975bfa4e"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0004-Verify-admin-targets-with-AMD-collateral-and-send-pa.patch",
+     "sha256": "9c01defa828c52c2db971679245e99b98b8e063866bcc62f3659234ea70d83e4"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0005-Let-the-admin-tool-s-status-command-send-its-body-le.patch",
+     "sha256": "d12d46356a2622e2c0d0e1da5ebe022eb80e18933ad16324b872c59146a2dd4d"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0006-Feed-a-pinned-Helios-verifier-a-signed-OP-head-and-u.patch",
+     "sha256": "29575f84724e67becdb608334e6d3425d93ccaacda11282496346c954a592eac"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0007-Keep-the-e2e-setup-assertion-message-serializable.patch",
+     "sha256": "17bcfd121942f57dd785ebe12264eab127d3749ef2b2b0ec77ad653e3b4cb143"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0008-Replay-real-Base-calls-through-the-verifier-s-Base-E.patch",
+     "sha256": "10c055ffd3c2296f11df886605bcbe355680133793ccc2030ba823575ef1da90"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0009-Test-the-head-path-with-real-Base-gossip-objects-and.patch",
+     "sha256": "930af8936bb1a22127b8ff05ff11b6cf7d36167a4faf4b3d952c1ad28db4bd58"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0010-Give-LeaseReader-an-explicit-local-verifier-chain-au.patch",
+     "sha256": "4015e3d050aed2a6b865ddbfaed0152ec9021aa280e1c5491d0abbcb89511fb2"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0011-Test-the-verifier-authority-on-real-contracts-over-a.patch",
+     "sha256": "51d372661ad661a82adaed90d571a509a5a028f894eec7012593d94abcc48003"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0012-Read-the-service-index-and-platform-host-policy-thro.patch",
+     "sha256": "aabf05720332760dad695df32bf70a75bcbb86a077397a1d288477d9fca53c91"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0013-Let-independent-CLI-MCP-management-and-native-caller.patch",
+     "sha256": "e191b9b23f7bafe8950e23ac5b0b2be87a04fadea0353a6b0c37448f9d1bc767"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0014-Carry-the-explicit-local-verifier-through-the-relay-.patch",
+     "sha256": "11719cd06771e26553930e4af7c1f6c2d602758ed36815270dd7c301b7bfbcb0"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0015-Bound-the-whole-verified-read-its-callback-included-.patch",
+     "sha256": "9db43d92ebe82423da105093a9155ca0864ed83a5e5b4656597fce6d0336537b"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0016-Keep-the-verified-operation-deadline-timer-reference.patch",
+     "sha256": "33c211c3c19fc0e6329d7f0721da6adbf3ca9baba9a9c316d3b5a2b2d432c80b"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0017-Close-verified-policy-snapshots-before-late-response.patch",
+     "sha256": "e48c4699b61e114c9c923a5559470f680751dd8ff50870a239d720311240e1ca"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0018-Rebuild-the-host-admission-and-metal-host-policy-bun.patch",
+     "sha256": "394955e756be2d205a7c2f2f0a925f8486a363a8f8fd954b4823108e2d2fcf19"
+    },
+    {
+     "file": "d-linux-carrier-fad657bc/patches/0019-Relay-carriers-test-the-composed-chain-authority-nam.patch",
+     "sha256": "c9e7941c8a5dae24c30a0f7754b63a0a470e9dd5c6b621ea593055d1b272ad5a"
+    }
+   ]
+  },
+  "s-holder-final": {
+   "repo": "work/fresh-witness-supply",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "f6de2364a593bc4f49ea8bbe98fc0b44f4adb71a",
+   "baseProvenance": "f6de2364 preserved in 871e2197 as frozen-0630-export/s-holder-f6de2364",
+   "head": "47c2f71f472c973593702b310017f9fd4744e6d1",
+   "headTree": "00e10586e210c2a2c176658efbdbf7865d1ebee9",
+   "commits": [
+    {
+     "commit": "ea504aaba8fa55cc85bde3a5a4ec2739b17ef6b8",
+     "parent": "f6de2364a593bc4f49ea8bbe98fc0b44f4adb71a",
+     "tree": "dc25d2a143269e4d62f9c10329a6010ecb28f3e0",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T23:03:08-07:00",
+     "subject": "holder: official base v1.5.1 binary staged+verified (tarball 6779c45d, binary 9c44836d) and validated offline"
+    },
+    {
+     "commit": "08f2efed6d93ca4bd8010bae34c231769e14c363",
+     "parent": "ea504aaba8fa55cc85bde3a5a4ec2739b17ef6b8",
+     "tree": "6473a32ebc2c627d59ca02b31b3cb4edfa51ca5c",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T23:03:59-07:00",
+     "subject": "Verify holder mount ownership before storage shutdown changes"
+    },
+    {
+     "commit": "1a509577bcbf2660f866d0f46c26dbb527ba379c",
+     "parent": "08f2efed6d93ca4bd8010bae34c231769e14c363",
+     "tree": "f73295ea3ec944f6a691e050ebddeaef33bd4e93",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T23:29:31-07:00",
+     "subject": "holder: child runs in its datadir (consensus writes l2_jwt.hex to cwd); offline fixture asserts it; review render refreshed"
+    },
+    {
+     "commit": "fd0134d44db3135161768fd1c3789307c27493a5",
+     "parent": "1a509577bcbf2660f866d0f46c26dbb527ba379c",
+     "tree": "19e53385fd37e10c855c43b2ac6adabafc96f689",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T23:29:45-07:00",
+     "subject": "Stop storage rollback at failed teardown and preserve attached images"
+    },
+    {
+     "commit": "eb3289446354c603f1cb744d3d8dd49363d20eb4",
+     "parent": "fd0134d44db3135161768fd1c3789307c27493a5",
+     "tree": "1e8836e770bbbb4abce0d9e2f7e0dbd1a5f4b761",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T23:31:34-07:00",
+     "subject": "Review render after root unwind fix; RESULT-HOLDER disassemble correction"
+    },
+    {
+     "commit": "6b9dae92dcae815a59b4a6d3edd26ebb682f43d8",
+     "parent": "eb3289446354c603f1cb744d3d8dd49363d20eb4",
+     "tree": "19bf9c51d8e3ca0b08a24e9881d3694fdbff6619",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T23:32:42-07:00",
+     "subject": "RESULT-BINARY-PREFLIGHT.md"
+    },
+    {
+     "commit": "2681e8a606041b4bdfd5829d6cb530a1cae846ff",
+     "parent": "6b9dae92dcae815a59b4a6d3edd26ebb682f43d8",
+     "tree": "9f846919ea740dce2d3809197d7c0c40866a5511",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T23:58:21-07:00",
+     "subject": "Shared NVMe cache budget ledger: reservations of fixed maxima, hard-bounded kinds only, per-host shares <= cap"
+    },
+    {
+     "commit": "9f1492fb38818522a57f2809721a99f8d235cb25",
+     "parent": "2681e8a606041b4bdfd5829d6cb530a1cae846ff",
+     "tree": "491aa40011732d03ddc39cbbd3a84c07c318367f",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:02:49-07:00",
+     "subject": "RESULT-CACHE-BUDGET.md and P handoff note (canonical shared budget identity, vendor pins 2681e8a)"
+    },
+    {
+     "commit": "959e56fd7ea191bfcc7eb94b26a20d4795856bd3",
+     "parent": "9f1492fb38818522a57f2809721a99f8d235cb25",
+     "tree": "7660a471ec3751843e65fa7990e26006f616c85e",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:19:08-07:00",
+     "subject": "Budget v2: charge ACTUAL allocation (files + markers + entries) against maxBytes"
+    },
+    {
+     "commit": "47c2f71f472c973593702b310017f9fd4744e6d1",
+     "parent": "959e56fd7ea191bfcc7eb94b26a20d4795856bd3",
+     "tree": "00e10586e210c2a2c176658efbdbf7865d1ebee9",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:20:58-07:00",
+     "subject": "RESULT-CACHE-BUDGET \u00a70 correction + handoff pins 959e56f (budget v2 actual-allocation accounting)"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "M",
+     "mode": "100644",
+     "blob": "63eef4372266b54ede9f26d872a03f9fe0f2db13",
+     "sha256": "c90f89c56630dd755319a495c41fbad1b1ce65df3ffc80a31ef99f6edd9657cc",
+     "bytes": 36,
+     "baseBlob": "cde9d8cc5bb1a6a8d3237d06db33a7a19fd4d281"
+    },
+    {
+     "path": "HANDOFF-P-CACHE-BUDGET.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "91d77d0d96797ab59e0ab5ec72a38234214506a8",
+     "sha256": "c952b7c6f479941356b9bf2dbeb3e4731d1a5fc1da5a879a12e880b56152435d",
+     "bytes": 6351,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT-BINARY-PREFLIGHT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ec383d0d7cfa3e8bbd15eea7c6d3ab8d3c54385f",
+     "sha256": "3fbb5f3841df1150c897ce66b6379fa12d29e29c72e3b589090f20c3b5903d09",
+     "bytes": 12572,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT-CACHE-BUDGET.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "77147503e580de17936fca4a766e3644a3b9e17e",
+     "sha256": "b4499ea72757c5a0b48e7fabbc325349816727f2e499af84181b0881be5aaa36",
+     "bytes": 19496,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT-HOLDER.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "115e8a9cf70ebc047fc85d810cd033d84f153d73",
+     "sha256": "ee9ae85269e4f4ce4abb577a6a98169204dac1f18c3d804b3fa241cf3b074232",
+     "bytes": 22998,
+     "baseBlob": "8fce83e34b7397bc5add73ebc4091aa40079d57c"
+    },
+    {
+     "path": "ROOT-BUDGET-ROUNDING-REVIEW.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "994a801d04b34ae4989852ead0a9a2cf9f65abfc",
+     "sha256": "c41c2baa934a24123554483d4b18f63e21f8bdaf20c068f4c64da840a481bf10",
+     "bytes": 1682,
+     "baseBlob": null
+    },
+    {
+     "path": "ROOT-STOP-OWNERSHIP-FIX-FINAL.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3fa9761a67cb1e523d56dd34bf418712faf715ea",
+     "sha256": "2cf43ea042448f62a91be9e5bee1dc2d04b83a1287bdbdaf3cd6ef217ad53863",
+     "bytes": 890,
+     "baseBlob": null
+    },
+    {
+     "path": "ROOT-UNWIND-FIX-FINAL.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e4bf6064e9b4b1c27c0f46a88dc10056371cfde5",
+     "sha256": "e2c2092121650152343596b48b57775d985f8690261bb6df246f9a324ff0ac6f",
+     "bytes": 1109,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/binary-help-20261023T054215Z/SHA256SUMS",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ab593f950e41e2facb3374a43a5d82ca56ba4695",
+     "sha256": "6f83b8d3b43121789f0f722f93bebf4f93422ba073a341885e608787442b3c37",
+     "bytes": 466,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/binary-help-20261023T054215Z/binary.sha256",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c34d8873a2e7b0daec3008e2e5b47098159d1dd8",
+     "sha256": "2e5cb91751b97d39c3b141681772e7ae4e1ce628cb87bef0d20d9a0e9ccecd2f",
+     "bytes": 177,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/binary-help-20261023T054215Z/help.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e9a1cf3a12d5f6474cebee174957390e3febb326",
+     "sha256": "c3af92d829ac36cbb6608b20052cf49b0f26221ed9873f58ca6290380466fbfb",
+     "bytes": 6016,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/binary-help-20261023T054215Z/ldd.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a1814b938babfe5b26551e2278b35b21209cb977",
+     "sha256": "99866acace317b77cbd3f02572dda2d8a18cbacf693e086702200039ebaabf34",
+     "bytes": 829,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/binary-help-20261023T054215Z/rc.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "03252a0255c11aafc0ed3019b9ef45ce3c92a58e",
+     "sha256": "849faa7e4a02ce87e7fca3448f05662db15ef02e1cc190018bceb709d41a2b61",
+     "bytes": 59,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/binary-help-20261023T054215Z/rpc-help-default.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d8e2c58a277cd4c10a8c08cb1691d5a47c08fc37",
+     "sha256": "93d563ae682b0a73ae38f97ed0f98762d70c5bc50a5ad7306b2e666680da017a",
+     "bytes": 80865,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/binary-help-20261023T054215Z/rpc-help.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d8e2c58a277cd4c10a8c08cb1691d5a47c08fc37",
+     "sha256": "93d563ae682b0a73ae38f97ed0f98762d70c5bc50a5ad7306b2e666680da017a",
+     "bytes": 80865,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/binary-help-20261023T054215Z/version.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "474f33820e09000ccab15b1021aedb80d153fb0c",
+     "sha256": "84c1147f423968323bbade54de8da8090021f56ef89c938d36d433a170076957",
+     "bytes": 11,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/official-binary-offline-20261023.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4cbf84de72ba65a62c55c26e2826d2023ae2d3a7",
+     "sha256": "0b4b0d7937f6549a4e27f3a868401fdd664196d996eb8d35d50e9fc676186b45",
+     "bytes": 5943,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/render-review.validate.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ce292bcac5b831119073f4d13b079ae4a152ea85",
+     "sha256": "5ae7edc7a1116a3271510a87c9f11409a394ac5aa33d5be7e4b4f3961eba01b0",
+     "bytes": 4247,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/render-review/b-proof-source.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "08a73d7ac38eb1ea448196639cedca78efa9af8e",
+     "sha256": "6f7d43a858bc8909b766bafb8662a4014b3a15286d750addd957aa55b09ff1c5",
+     "bytes": 161,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/render-review/enclave-base-holder-storage.service",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f4b8cf730585ab3a9240e369f6c44500bc07b617",
+     "sha256": "fd7c7eab14269cffca6786989c13d349cf8506314fe4fea573c1b0a03c914285",
+     "bytes": 506,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/render-review/enclave-base-holder.service",
+     "status": "A",
+     "mode": "100644",
+     "blob": "67d20bd8f8f726770fdf8cefbb83fe2f15997aab",
+     "sha256": "94907e882ac01759ecc70a321cde331a2cd49a9f8b7af5cb9d2462aba29c9f51",
+     "bytes": 1221,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/render-review/holder-storage.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "121b0a95c29ea266bb30585c1f09fbd90df8ed5e",
+     "sha256": "047290ecf59462c663a83f41ef66ed5d9df16a8af64892815ed68cf93644c6b6",
+     "bytes": 9908,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/render-review/holder.argv.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8f216605e09dad3b5426b914d607c901d8e7a2c9",
+     "sha256": "3702d87943b0346ddbba3e9b80ff47d6658cbba7ce6aadad9b3488c5dce9714c",
+     "bytes": 822,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/render-review/holder.env.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6c25ddcbf2ed34e60337f90c681788bac5708f18",
+     "sha256": "c4df8ce27b4d7c43d13c606ccd7ee5613a7edeb1fcacd94953f93978407ef6d5",
+     "bytes": 170,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/render-review/holder.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "29f39adf36c91a2349733ffe6b579a9b2307c55a",
+     "sha256": "b66f33814cccd4b3e011aefaa79a8885a39964c654a194a7ded835ace0d01fd1",
+     "bytes": 2408,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/render-review/manifest.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bc184f0149f6701350143710e13e62bee20a1bc5",
+     "sha256": "0cd8555a36eada03f8be8334990b00deaab21c0735e796634d47fcb57bcdef4f",
+     "bytes": 2283,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/render-review/nvme-cache-budget.example.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b4b58eb2d71234fd1f43c89c40e9435d45f21ca9",
+     "sha256": "6a4199f932dbdef55cecced973160bb042c7dd2e0c922f628433bb15d3de632e",
+     "bytes": 722,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/render-sample.config.json",
+     "status": "D",
+     "baseBlob": "a6e6eac2131e4fc25e399b8ba05ca09838de96af"
+    },
+    {
+     "path": "evidence/render-sample.validate.json",
+     "status": "D",
+     "baseBlob": "74d0e182999d3029ad680db412e34244486d9310"
+    },
+    {
+     "path": "evidence/render-sample/b-proof-source.json",
+     "status": "D",
+     "baseBlob": "08a73d7ac38eb1ea448196639cedca78efa9af8e"
+    },
+    {
+     "path": "evidence/render-sample/enclave-base-holder-storage.service",
+     "status": "D",
+     "baseBlob": "f4b8cf730585ab3a9240e369f6c44500bc07b617"
+    },
+    {
+     "path": "evidence/render-sample/enclave-base-holder.service",
+     "status": "D",
+     "baseBlob": "67d20bd8f8f726770fdf8cefbb83fe2f15997aab"
+    },
+    {
+     "path": "evidence/render-sample/holder-storage.sh",
+     "status": "D",
+     "baseBlob": "ff1369420d66903ead89fa24f17e3ced2fc025bc"
+    },
+    {
+     "path": "evidence/render-sample/holder.argv.json",
+     "status": "D",
+     "baseBlob": "a2a0fb1387abcd3e56425feb34e55a8cf177284d"
+    },
+    {
+     "path": "evidence/render-sample/holder.env.json",
+     "status": "D",
+     "baseBlob": "6c25ddcbf2ed34e60337f90c681788bac5708f18"
+    },
+    {
+     "path": "evidence/render-sample/holder.json",
+     "status": "D",
+     "baseBlob": "8524bee0a24d69210d839f02a0a8397456e514c1"
+    },
+    {
+     "path": "evidence/render-sample/manifest.json",
+     "status": "D",
+     "baseBlob": "c81e49733edddca5fe55cbf229c9fd057c8661ed"
+    },
+    {
+     "path": "evidence/render-sample/nvme-cache-inventory.example.tsv",
+     "status": "D",
+     "baseBlob": "bb4ba3bb3f42b8ac4b5f844f09fd8b97707d1318"
+    },
+    {
+     "path": "evidence/staged-base-v1.5.1.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cb1a65133296eb82f730bf6692ddd19ca44f8fae",
+     "sha256": "1ec53a1407d2a1fa35cd0c4df6f6a523feb9bc12c3b5447af9dc274d365693d1",
+     "bytes": 1366,
+     "baseBlob": null
+    },
+    {
+     "path": "holder/BINARY.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "27f38b272cc3a3fdd7a6c7d96782a325f72ddff6",
+     "sha256": "b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00",
+     "bytes": 1517,
+     "baseBlob": null
+    },
+    {
+     "path": "holder/budget.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6e00797a9e1cf337432f659f1bbc2529fd509979",
+     "sha256": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24",
+     "bytes": 23859,
+     "baseBlob": null
+    },
+    {
+     "path": "holder/holder-storage.sh.in",
+     "status": "M",
+     "mode": "100644",
+     "blob": "46e1533d6c2efc75a573194507af0fec98bd1b64",
+     "sha256": "eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00",
+     "bytes": 9295,
+     "baseBlob": "5a5f4ce05411bc2745e9df9d16fcca6328333c98"
+    },
+    {
+     "path": "holder/holder.example.json",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2c5847969d3ff40ca472164ee8001ff792d55b37",
+     "sha256": "8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a",
+     "bytes": 1861,
+     "baseBlob": "0a324b71a1db67a7f12796eeaed9988223f90c91"
+    },
+    {
+     "path": "holder/holder.py",
+     "status": "M",
+     "mode": "100644",
+     "blob": "7e3417a9f29b2be19a28480eca592166b7d12ced",
+     "sha256": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
+     "bytes": 41908,
+     "baseBlob": "7318ac7aedcf7279a360151e3c458307baacd456"
+    },
+    {
+     "path": "holder/operator-preflight.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "46e3d1a521b38817f998abb38026342c1c1a57fb",
+     "sha256": "07fe915fa0752278fa715713c9affc47d293ae619ee1dbba2d1aa43598b9c593",
+     "bytes": 1615,
+     "baseBlob": null
+    },
+    {
+     "path": "holder/run-mutants.sh",
+     "status": "M",
+     "mode": "100755",
+     "blob": "39cfa2ab904292cccc3565dd711a2834bfb483d1",
+     "sha256": "75577801d2da50fe71f49a20f94c78d1478ee8be2d20aeeb65c48dd519fc39a5",
+     "bytes": 578,
+     "baseBlob": "d54a5647f882dfff5be3333fca5d1916d905958f"
+    },
+    {
+     "path": "holder/run-tests.sh",
+     "status": "M",
+     "mode": "100755",
+     "blob": "e990f8ea989f7682145ca38eea32bc2e7ffe30bb",
+     "sha256": "99c8ff2f62c86099504c62543df4e650baf7b2272e2b28c101b4067928918162",
+     "bytes": 1484,
+     "baseBlob": "142f09d04bba6c6b0ff8d5126575bd82391bde98"
+    },
+    {
+     "path": "holder/test/mutate.py",
+     "status": "M",
+     "mode": "100755",
+     "blob": "f235d9ba697877e725adcd421b47a9adf5948181",
+     "sha256": "8b8e19e8b332298dff81b00d624e1f8312421beae06cb865e3cfaa37175f1adf",
+     "bytes": 6198,
+     "baseBlob": "396ca47bcdef552ccf9c31a3352e6dc2d5ff59bb"
+    },
+    {
+     "path": "holder/test/standin-base.py",
+     "status": "M",
+     "mode": "100755",
+     "blob": "a004e31cc4106f627106a84bb48464ee25424f05",
+     "sha256": "111893d22ae200dd6b79e6f844a07fb06445eecadc1332347dddbfa78dc0933e",
+     "bytes": 2567,
+     "baseBlob": "a2504a1f13abd267fc4db8820e7ecbe2d5d936c7"
+    },
+    {
+     "path": "holder/test/stubs/stubcmd.py",
+     "status": "M",
+     "mode": "100755",
+     "blob": "8bc135acec1bd6ba5c20b839a6ffe0d758115526",
+     "sha256": "ffd3b43524dc84e3d95b2932232489629fb0894dc8a86c44a3445f2a97902437",
+     "bytes": 3392,
+     "baseBlob": "56b0ce63c7de11cda8924c118aefed8487d72ee6"
+    },
+    {
+     "path": "holder/test/test_base_offline.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e509094d6c8ccb13cba25f74a376b0e843723b54",
+     "sha256": "83a5b35709882992cbc6b7eb3dae6666e95b502c2f11a98054e0cc9089167f72",
+     "bytes": 8070,
+     "baseBlob": null
+    },
+    {
+     "path": "holder/test/test_budget.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6737f3673cc6fcc075233651b61fcb5e1bd5f17e",
+     "sha256": "e6c1bbe74137a69ef0d9bef55fb99d05c42e569e5e4b61afff93a6fe705546eb",
+     "bytes": 26127,
+     "baseBlob": null
+    },
+    {
+     "path": "holder/test/test_holder.py",
+     "status": "M",
+     "mode": "100644",
+     "blob": "a1a583000702a9ba503b9449f1d62b9283e5cfd5",
+     "sha256": "6ba4f784faaa7505ab7d40af97d48861ef39f593252e07c44063a76747fb333c",
+     "bytes": 24652,
+     "baseBlob": "9e423dfb353296c1d471f96ea73e9fa2a4922ff9"
+    },
+    {
+     "path": "holder/test/test_storage.py",
+     "status": "M",
+     "mode": "100644",
+     "blob": "ded527271cc29b3e65eafd3cb56e40e9b04978fe",
+     "sha256": "f50400198f6fe3d8e0e522bbe81c37c12ef87b71725ce498a29537261065f396",
+     "bytes": 18750,
+     "baseBlob": "a0f6eb9c245385a3be30cf8a6b1b8defb3ade29b"
+    },
+    {
+     "path": "jobs/binary-help.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "25be541e4bdba6c3ca53180c8f1b59096425fe6d",
+     "sha256": "60e08ee85dbf34b6b3b22df89b6b6a613dbf81ae26b4c6aa321ea51c5a877c56",
+     "bytes": 710,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/render-review.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "dc9ec744c4cc65d13326108a255924060b4290cb",
+     "sha256": "3e7312a5562dad479d42b3f5b24a61beb52006a651381116deb1e7a94d64a368",
+     "bytes": 543,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/render-sample.sh",
+     "status": "D",
+     "baseBlob": "8188d5bfbfc753d0e55d155d78445d897781ed8f"
+    },
+    {
+     "path": "jobs/stage-release.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "a5d219560d45c8a1326a9963ed7e759f0bbc28f2",
+     "sha256": "9a5890a38438a562f27b0b4a3fee96ca63cdc109d44594439c63966e556a0354",
+     "bytes": 201,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-off1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8f9136f37144a9b8b76895ec66b3cd93166d8100",
+     "sha256": "a5fc14555ee770cabdeb33a6bb280dfa92c8681e8498788662264a922d6eb1e6",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-off1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c94789197522bcd602902b38d8d91cba0ad63cd5",
+     "sha256": "3ff74a182e1e63cf24c3b81a0e1e39d8e8b588f069ce62d3323a00a31216aaf3",
+     "bytes": 8911,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-off1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-off2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3dc1bf9d0308c7138c74b4186b48973015d19a73",
+     "sha256": "3f15585db762dbc3cbe9ad5a4bba714968182fddb15679b46358bf8c088c5da8",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-off2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "01fcfc9bc7efa71d9e4efebf5869012eadf99e9d",
+     "sha256": "4cbcc6710ff26f60da5881598393ccde3a43b3384ca2b2afa3cd98df7075f57a",
+     "bytes": 10401,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-off2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-off3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8ec9294b5b0f0f62df5b959866b9340d72bc16d0",
+     "sha256": "3c8edcb39a627f7fb65d8739c7aa887bba758675574b68b1e9d31a6fc988b53f",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-off3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "218ada0faac140e047cb14f40bb02d2d28af5907",
+     "sha256": "460d803420db6010c812a45069dcc7ec359310a1a33c97d9e47b35f85e5252af",
+     "bytes": 10358,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-off3.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-render.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9fd9095dfff67b2fcf3d142dfe24d8e22fcd2996",
+     "sha256": "c787e92d87d1bde2c7c2e032d095303f64d94fb2b41a8a4ec3710031072c4628",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-render.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6ebe25d0cbcc32a17e5e5315a74135fbbe1da4d2",
+     "sha256": "b4f1e289cefe5307abd50166404b32cc462a5f453d368aaa672a1dbca4a4f19e",
+     "bytes": 3274,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-render2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-render2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "db0eeaa9e624cf2b3a8438ddfdb03a93f6265593",
+     "sha256": "57aebf6d0e6224ce294e5fa7257d0b695c1fc1838d528461660968915b667882",
+     "bytes": 2656,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-render3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-render3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "86d05df3bf85aaedbee4a33f2ff9ab18bf5b0543",
+     "sha256": "5d8c9c6e875c1d1da4415eb5df1398c2c0b2e553ab575d616c938fa01a1547df",
+     "bytes": 2656,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-t1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "138f4b70a25da0bf1f6af069eb9117a3ce64fcca",
+     "sha256": "159bb23ed4ff3a22e464a7114fafe48657e9e5b7c5675192e78edcd4e519f038",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-t1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d144cf1d5b625754e002e90d4339ea1a5610ebc2",
+     "sha256": "f2b1ffa7632d8901b42006389cec42ed55993d5a00aece8728c5653e1f142d89",
+     "bytes": 5881,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-t2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9a30b1dbd00d7dc504f21635bb745d37d4983db8",
+     "sha256": "fdf0c1df3cb62ca43ae0822cd4d7e16a1fd05fb43b5caea7453ed0cb34122066",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-t2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a3f48bafa305df6c7580a5adbd47046baf3f8290",
+     "sha256": "c0b5bdb60e27037837ac31b96948b14c2d6f332ee6d754c6ec69de73483fb940",
+     "bytes": 8784,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-t3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d796acec8d1d1111dd734bb90f23abcc48b1d73d",
+     "sha256": "e059ee38a35362eb7972e3989671c5aa4ed8226c78dcb766dfced78bfc377955",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-t3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "740d03c98de2897e36bb2c3a1ea67f9e077d887f",
+     "sha256": "bcd051e9b743ff8e91d7b63b3c39c0fa1838be9eff7e5acd603737b74b5c897b",
+     "bytes": 9707,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-t4.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d949f407fde748ae1cc8f2edaf58a1992122de83",
+     "sha256": "82d3c50cbc5789fe735a5873735cd7288c1fa1cc3fcd3124e5ac1e678b4a17be",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/bp-t4.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e9f645ff9f85333b1fe3cf24bfc6c6bc0bb79638",
+     "sha256": "d0bdb82d831cb9abfb79a0b37606b6c59561a73f7d1643399f22f8b1add9f59e",
+     "bytes": 5212,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-m1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0aa660e5715a5eb73af71d70a8373ee96f02a3c4",
+     "sha256": "bf91be9e9fe2ba4de0c3c17759c1b716b128e6f118d1310fcdae3458b2e661ff",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-m1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a30ca29786ee03759239bd69a2edd7414822f3b4",
+     "sha256": "62b3401d145fc507b9a1b04ec23ecb41f17250cece65e0331136a1a0ece31f84",
+     "bytes": 4556,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-m2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ad72c5a9c3bbf16853e7408ce8c03db1aadb6822",
+     "sha256": "aaf9d9bd4ca2709f5b0d27d3561c53069300945341f56701b231445b0a2fc500",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-m2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3c036f9d470269c47c2c20596e3b17666ad62867",
+     "sha256": "aa6d942d13a3efa5fdd25ca81693299827015454ba54ba2c456078f72536aa49",
+     "bytes": 3740,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-m3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "57c1168183996aa76163eb54b9b3af4f63a0a760",
+     "sha256": "644ce04507c12a1f9beb16d27c634e58e9335821b3472dc4e0d439de94371aea",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-m3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c59e864cb8578216711f7ad22aa1030d24f733e1",
+     "sha256": "7ec99b252f412203dabaeef52ce6fd185673d428f890590c1873c05d301e8c8e",
+     "bytes": 5009,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-off.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "994d789d69ed9bf258c8be742e88038168342d92",
+     "sha256": "227cfb41f47ac20043a7632438f0de3a3c92956d47396fd032ee07dceab3fab7",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-off.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9aeafc7964ba11e2fd71865462a850da23d79898",
+     "sha256": "7e0029e09556ffa908bbbd9cef82e20ad774278e9fc0027f17835df661643fdf",
+     "bytes": 10637,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-off.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-render.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-render.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "32a834ea28021c1436ab554a75f25c5440762dd5",
+     "sha256": "2e3ff909b51eacf8a8436ca8d4535c7b499d8130ac4ed1f09ce0fb3f9673796d",
+     "bytes": 2728,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-t1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b623dc2be271c7c612bef2fd36d45e0b50726351",
+     "sha256": "e7f42c5a6ce4449dab5eb7bf775b23b70ee3c1b1cc430a02461ebaeaeb4e9451",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-t1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e8bdb3f360ffc32777e357cf0add21268cda9abc",
+     "sha256": "2224254aa6112ff21e85e1ddabda1e55529aedad79bf1c5030ef8ff0c45af6fc",
+     "bytes": 25830,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-t2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ec56eb02b52b714ab2e6133f90189cc70e4b1414",
+     "sha256": "8e30aa9bc2e79abff3454b83d6cf2e37a3f5e3349bcd16c0260ebed1ab8da7c8",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/cb-t2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "674a77a5abe89587f8f22ca3cc0996cae18cf11d",
+     "sha256": "b8cf87afe7802bff9700cf41a6da9e08e942ede9cadf36f537b6d6aeed44e45b",
+     "bytes": 10050,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/help-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/help-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0dea92fcaaea05e9ae80e6249225f83222bf4c19",
+     "sha256": "d6424c56d744d027df699d3db9b11e9061eea140461b630d37c4728e68a9edb3",
+     "bytes": 437,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/ra-m1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8a78a1502b57fff9253a3b93175e2530b904b044",
+     "sha256": "0d1e3d73b5b588d738e70d4710e27a5d6548aeaa7a928e8b4798f6ccc5d041ec",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/ra-m1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4efbbaebaaff9e403311e6284ff647353ae50ebb",
+     "sha256": "f6484eebe644b450277bfcb17c63190571f52084da0f5146e50e4858b6158d88",
+     "bytes": 6187,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/ra-m1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/ra-render.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/ra-render.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "abdc0e97a50956cf23d5140a6d2c9e4fabafe212",
+     "sha256": "a940175f706aef47952617dd17fd599663a4e9865769710d42c4ad6ef7e22eeb",
+     "bytes": 2728,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/ra-render.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/ra-t1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2a5ba8c9fb726df7fe30806668e0924b091b2d66",
+     "sha256": "aee2fb89ca336f2f9e92440ce2ff3d3a443628f6d6dd2dee4479b9deea528e82",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/ra-t1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6f32e854c891dd6549eefe52c8521e09a31424a6",
+     "sha256": "e95d547c94f1cb0694f4ff01e12546c1376a1cd669a8b1e3eaba3a27916ce47a",
+     "bytes": 11383,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/ra-t1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/stage-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d0c89fda3370126c3d4bfae5d0ee0fa1a93d7597",
+     "sha256": "0406bc8c00ea70fe63768e6daf22a4477fabb8da229ded6ab8d02e929a8d2832",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/stage-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0dd3d910e251aff8fd629b309687488fe12514c7",
+     "sha256": "63f6013246cbe7781be4a61243cb9000f7076f5f2df2691010ace924e92c9562",
+     "bytes": 1601,
+     "baseBlob": null
+    },
+    {
+     "path": "tools/record_binary.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e50feb530412249b598e0a2e26d9389e53730a5f",
+     "sha256": "b3bf913cfcee3b70deeb81164278112380c333099df81133ea725d0ac73c79fe",
+     "bytes": 1242,
+     "baseBlob": null
+    },
+    {
+     "path": "tools/stage_release.py",
+     "status": "A",
+     "mode": "100755",
+     "blob": "492ff8b6f9a04d05b36c7655310195c0a7f9195a",
+     "sha256": "9e29d2bcc5b35c97f7129646963a04d68f2f399a7c6343e63243c51de642245c",
+     "bytes": 3351,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "s-holder-final-47c2f71f/patches/0001-holder-official-base-v1.5.1-binary-staged-verified-t.patch",
+     "sha256": "9df1ea1e3aa68515a96303ef59e9f7fcbb1ac6dab109a7fa78a59f6d4d003015"
+    },
+    {
+     "file": "s-holder-final-47c2f71f/patches/0002-Verify-holder-mount-ownership-before-storage-shutdow.patch",
+     "sha256": "d00f8a698080e3756fab328ea935a71760f5e8da49e0e0c139142aae3cd3ab2c"
+    },
+    {
+     "file": "s-holder-final-47c2f71f/patches/0003-holder-child-runs-in-its-datadir-consensus-writes-l2.patch",
+     "sha256": "4c9e92354f396b3ca33d1f4eee5ff4818b79749442cf2be1afa01fc57999eeb5"
+    },
+    {
+     "file": "s-holder-final-47c2f71f/patches/0004-Stop-storage-rollback-at-failed-teardown-and-preserv.patch",
+     "sha256": "21509b444debbed8f5bffe0d43ac7a793aca38f7b67cd26d09d9cdbb5cf3ed52"
+    },
+    {
+     "file": "s-holder-final-47c2f71f/patches/0005-Review-render-after-root-unwind-fix-RESULT-HOLDER-di.patch",
+     "sha256": "a5ed5805a5bf55030fda74f10ea03094a88364fefc0c7d8213fa353d7e3389af"
+    },
+    {
+     "file": "s-holder-final-47c2f71f/patches/0006-RESULT-BINARY-PREFLIGHT.md.patch",
+     "sha256": "a91fc38eb2c81806a7844b45d86c1f54ee8e812da630f37bc9439d200666932c"
+    },
+    {
+     "file": "s-holder-final-47c2f71f/patches/0007-Shared-NVMe-cache-budget-ledger-reservations-of-fixe.patch",
+     "sha256": "31a9b9aa599003e40bb50e6e842539dc2f59b8fe57d020da2249cb75db6c4e7c"
+    },
+    {
+     "file": "s-holder-final-47c2f71f/patches/0008-RESULT-CACHE-BUDGET.md-and-P-handoff-note-canonical-.patch",
+     "sha256": "a947b4e507da67bc80302f7d1d8972721f657c7899089ca3517d9b1e894ddb4e"
+    },
+    {
+     "file": "s-holder-final-47c2f71f/patches/0009-Budget-v2-charge-ACTUAL-allocation-files-markers-ent.patch",
+     "sha256": "74b18f9560a572e1323d71c8831fd5dd470b45f0f13c3f58278fdf11de0991ff"
+    },
+    {
+     "file": "s-holder-final-47c2f71f/patches/0010-RESULT-CACHE-BUDGET-0-correction-handoff-pins-959e56.patch",
+     "sha256": "59baf3879144a975cbf4d270a76f4736cab6743142c09102a868193bc0632aac"
+    }
+   ]
+  },
+  "root-wallet-fix": {
+   "repo": "work/resume-after-checkpoint-20261022/root-wallet-rpc-fix",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (ROOT standalone repo; ed071dc captures the wallet module from e820e2405)",
+   "head": "320d7e9fdbb14b7297225802023ce0b471cc205f",
+   "headTree": "3ba92a28cc666c686afda145daa46fa67a03e165",
+   "commits": [
+    {
+     "commit": "ed071dcdc4ef9a55eb40922a45cbd057fb220cd0",
+     "parent": "",
+     "tree": "614a484947be0d40c8e575dfc8d3f159682f9c6e",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T23:51:25-07:00",
+     "subject": "Capture wallet module from e820e2405 for isolated RPC routing fix"
+    },
+    {
+     "commit": "320d7e9fdbb14b7297225802023ce0b471cc205f",
+     "parent": "ed071dcdc4ef9a55eb40922a45cbd057fb220cd0",
+     "tree": "3ba92a28cc666c686afda145daa46fa67a03e165",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T23:55:29-07:00",
+     "subject": "Keep WalletConnect reads on the confirmed independent RPC profile"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "site/js/core/wallet.js",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b330924264f077d691b72bdb904c35a0dc4b597d",
+     "sha256": "7f53c1f10c742645ffbad916390c33e14842db2aec8a3be2bfe45e98304c490c",
+     "bytes": 47848,
+     "baseBlob": null
+    },
+    {
+     "path": "test/walletconnect-independent-rpc.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fddfa0ed172f7809f04d0e64f76ce6687eb08ea7",
+     "sha256": "26af82aae6b7afa66e83b4d451c1cdf44c2a152de7a52484eb46fe3483ba074f",
+     "bytes": 4003,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "root-wallet-fix-320d7e9f/patches/0001-Capture-wallet-module-from-e820e2405-for-isolated-RP.patch",
+     "sha256": "c8d380d0e4245d12f75fa45cedebc648302bea3e7b4eb113243a30709997738e"
+    },
+    {
+     "file": "root-wallet-fix-320d7e9f/patches/0002-Keep-WalletConnect-reads-on-the-confirmed-independen.patch",
+     "sha256": "246fa11bc1db2ef5c61cc2b708cd4ad47967e03771a133513f04b3d6507c51c7"
+    }
+   ]
+  },
+  "root-cache-budget": {
+   "repo": "work/resume-after-checkpoint-20261022/root-cache-budget-review",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (ROOT standalone review repo)",
+   "head": "08fffd5aa26e9eb8f50fbc90f61efcac569df16d",
+   "headTree": "81cf0a432d367d5f6241bb389a52100cb810fdb6",
+   "commits": [
+    {
+     "commit": "08fffd5aa26e9eb8f50fbc90f61efcac569df16d",
+     "parent": "",
+     "tree": "81cf0a432d367d5f6241bb389a52100cb810fdb6",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:05:33-07:00",
+     "subject": "Reproduce uncharged filesystem allocation in cache budget admission"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "PIN.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f0f6847f52847470fb1618f5fc17503ca020d8e4",
+     "sha256": "87cf6d412fdee8ef6f2d3a2fb1231441cdd98d174c0646bf9b0ae74543c051ff",
+     "bytes": 208,
+     "baseBlob": null
+    },
+    {
+     "path": "budget.frozen.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e90ac80a61edb4fb3b0fa837c8d7e5066c3f6851",
+     "sha256": "a82192bc30715f94cb86934507430ab2956a6962e0b51b3bf85071030ce21bcd",
+     "bytes": 14404,
+     "baseBlob": null
+    },
+    {
+     "path": "probe.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "probe.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "242d2719420738db5c3724949f3f2d8db64e71d0",
+     "sha256": "c1889a762c7fa1fb0e06099a8e6f55f3da64885763a626628fc5a2e1512faf06",
+     "bytes": 2250,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "root-cache-budget-08fffd5a/patches/0001-Reproduce-uncharged-filesystem-allocation-in-cache-b.patch",
+     "sha256": "ab7072f3d472b081deed5f0eedd2741e84c22a87145e6b002373f3a23b636d55"
+    }
+   ]
+  }
+ },
+ "frozenSources": {
+  "linux-carrier-closure/RESULT.md": "ffa93ab813cc7570e91ab5cb6e3fd63551b30b8e9e058f9ba601cf881d0b2cde",
+  "linux-carrier-closure/TEST-EVIDENCE.txt": "a04eb462d3f498a4382b524ecfdd59badaeb4a549088d649a5249fbff210d70f",
+  "linux-carrier-closure/PROGRESS.txt": "b5c1ad5c45a4ccaaaca176cc44a8acd219000738c8a27d80c1f356a3931b3f82",
+  "linux-carrier-closure/tools/env.sh": "40928ef7e41ed79c42994829007dfff412e4e653d9df0c1f3c2fa25f4a8e9c28",
+  "linux-carrier-closure/tools/q.sh": "d058486a1abf8fe5a9a3ce0bab1889c4e079223cf24b1c8cc450a73611b2eb76",
+  "linux-carrier-closure/tools/c0-repo.sh": "723138d7f0ff68d9e5e00a04a77c0cd5ae74b624ac8cd096a74d8e53b37e00ca",
+  "linux-carrier-closure/tools/t1-tests.sh": "be47852afb17a6a31c0407485c71f1910299259873abd3bb750f6a20faf4d19c",
+  "linux-carrier-closure/tools/t2-compose.sh": "3ad46b9c909aaa909c7f56f677381a84a8a625a99b53af8ab6ec849b60bc1fed",
+  "linux-carrier-closure/tools/b2-bundles.sh": "1d2da476194f12a590ef4f2ca4ef540d7f11e5a3963e8a0f3de8406dfa596b1d",
+  "linux-carrier-closure/tools/union-check.py": "8e28e5c007fe4707d0557b0237dccbd0234efee1f94e6fdadf3f4d67dc8a06c9",
+  "linux-carrier-closure/tools/input-closure.py": "482997e0c6604654817fa0e3858cb04f3c2983fd2a00fbf22458ba007a1864a0",
+  "linux-carrier-closure/tools/t3-final.sh": "837afcf85bf91a92496d08ed5e0d29dc81bb88ac57c3d11550e4ed7e221d2c9a",
+  "linux-carrier-closure/tools/t4-head.sh": "58c423fc69335b8a646ed92fbd9e16e08dc5482b9e3190e0ad1052fe18fc4898",
+  "linux-carrier-closure/tools/make-test-evidence.py": "cf523ee0922beadb46dfceb3a53e8c922801b3a85a0948a5e7fdd08e0d1fa04c",
+  "linux-carrier-closure/receipts/union-check.json": "aca408a6439f889e224259cebfbf8580e83680dd88e991e28c13d10928ce75a2",
+  "linux-carrier-closure/receipts/union-check-final.json": "727a8be82b0e96b022b29b87685e107b52507e52b575a4a8b5504a5f832d9141",
+  "linux-carrier-closure/receipts/input-closure-head.json": "5c73bdfb5d0deeef5021f09728ce8e66062081c12eaed4aa99b7e8acbde81607",
+  "linux-carrier-closure/receipts/input-closure-carrier-only.json": "dc07c52354b17790d706a17f89dc1c598444760baf5f1bc1a8494ea7e696438a",
+  "linux-carrier-closure/receipts/gitleaks-range.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+  "linux-carrier-closure/receipts/patches.sha256": "58337da6bd91dfc5b1b99563d22ae9ae27ab49e400f6834faae8884efef8bade",
+  "linux-carrier-closure/receipts/commits.txt": "247114221fa3e33cdb571167ee5a78f93fe2ac66857fadc1f9957b107202fbc4",
+  "source-preservation/frozen-0745-dc767fc3-doc-correction.txt": "67d78c94372ac8325aba8f623942ffc6cd5872234930d6b0ea7db1c06d17bea2",
+  "linux-carrier-closure/receipts/t1-C1-control-old-harness.rc": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+  "linux-carrier-closure/receipts/t1-F-forge-subset.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "linux-carrier-closure/receipts/t1-G1-relay-carriers.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "linux-carrier-closure/receipts/t1-G2a-measured-control.rc": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+  "linux-carrier-closure/receipts/t1-G2b-affected.rc": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+  "linux-carrier-closure/receipts/t1-G3-launchers.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "linux-carrier-closure/receipts/t1-G4-adopt-race.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "linux-carrier-closure/receipts/t2-B-bundles.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "linux-carrier-closure/receipts/t2-K1-control-fec-measured-control.rc": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+  "linux-carrier-closure/receipts/t2-K2-control-fec-hosted-cold-start.rc": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+  "linux-carrier-closure/receipts/t2-K3-fixed-measured-control.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "linux-carrier-closure/receipts/t2-K4-fixed-hosted-cold-start.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "linux-carrier-closure/receipts/t2-S1-carriers-gate.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "linux-carrier-closure/receipts/t2-S2-A-B-root.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "linux-carrier-closure/receipts/t2-S3-guest-launcher.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "linux-carrier-closure/receipts/t2-S4-measured-control.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "linux-carrier-closure/receipts/t2-S5-supervisor.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "linux-carrier-closure/receipts/t2-U-union.rc": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+  "linux-carrier-closure/receipts/t4-H1-carriers.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+ },
+ "rootEvidence": {
+  "root-wallet-rpc-review/PIN.json": "37ce0e76ff0cd3094b8a4e49991ff60653925f8ddf2c6edab692e630b7ed0a72",
+  "root-wallet-rpc-review/fixed.guard.log": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+  "root-wallet-rpc-review/negative-check.guard.log": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+  "root-wallet-rpc-review/negative-control.py": "250a4a0733412edd3e3b847036dd56c09910430dfad8f177595513d21dd0c251",
+  "root-wallet-rpc-review/negative.out": "c3537961d7431e46585bae756634a0dcc3c476bbdaca33db632ec74ca311949f",
+  "root-wallet-rpc-review/probe-and-checkpoint.guard.log": "fae7508c02993638f58a92789a54b9029d417478f22c88111b2cd4df62dd4f4f",
+  "root-wallet-rpc-review/probe.mjs": "a026a07eccece57ca617ff54422cca6c2fea442858e4f3b5a44bd3b8eec7cf92",
+  "root-wallet-rpc-review/run.sh": "97a7c6a41b1396e66355b9605f4f7211fba2efd737869459dcaf734036b3debb",
+  "root-wallet-rpc-review/standard-runner.guard.log": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+  "root-wallet-rpc-review/standard-runner.out": "5a47ad2886241769a5939bb98c2db7297ff722cfa098f8caea4d7324f7302d79",
+  "root-wallet-rpc-review/wallet.frozen.js": "e1d20822d89c0b3d5d28e8908f594c87a323b03f9a3f73290f1b55901d8d4d34",
+  "root-wallet-rpc-review/walletconnect-profile.patch": "eb539a1cb2e7ddb082e84366ffd3d56486ae2e8dd7ea2ea133d179728d3d78b2",
+  "root-storage-cutover-review/base-public-receipt.json": "b6322448797d2d5151aa4a2937b904d48a11111ef32ca25edcdad179d9cbcc5d",
+  "root-storage-cutover-review/frozen-cutover.py": "4ba0763833f0dda2f7300a3d53964f51eedf75605710efbdd80619591c9dca64",
+  "root-storage-cutover-review/probe.guard.log": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+  "root-storage-cutover-review/probe.py": "cefa89d3ba515c1bcc5b348daa500469a4e049741e2b37a5bae0d8cfb68caa36",
+  "root-storage-cutover-review/vm-state.txt": "1224f8c0173338e4480f55f9d3ca9db0b041b848c7580b6e51a207982e0b96a4",
+  "storage-write-release/ROOT-CUTOVER-FRESHNESS-REVIEW.txt": "053fc472c4b4eafe1029d083aa77b3cbae683d00c51ca644a4072b6f52b3c367",
+  "rpc-priority/ROOT-BROWSER-RPC-NEXT.txt": "6872f4e4a7ed7aecdb5e7382025355529b12d8fb9c865473484642f741f6f65f",
+  "../fresh-witness-supply/ROOT-BUDGET-ROUNDING-REVIEW.txt": "c41c2baa934a24123554483d4b18f63e21f8bdaf20c068f4c64da840a481bf10",
+  "node-updater-readonly/check-0713.py": "d2df07acb1af9f1a644973e91734d6c4914e600a6d0373b7503023b5a39a3cbe",
+  "node-updater-readonly/check-0713.guard.log": "6ecf96c3bc4397bf154a14689f74d8b5976d78a95e5ad980b7fa1af7a94629df",
+  "../../outputs/decentralization-audit/browser-wallet-rpc-bypass-20261023.json": "4a1619bc413e9646667d92b423a55d2f1668262e8fe7b409f11f159f71fd6ca3",
+  "../../outputs/decentralization-audit/browser-wallet-rpc-fix-20261023.json": "7326daa0f3c3d1a659c722c5980dd2452b00b9c2b489999b3e8b6eeebe44bd97",
+  "../../outputs/decentralization-audit/cache-budget-allocation-accounting-20261023.json": "2a7b657aa459a561f2f85cc7361337efd7ed373faff3532dc21d29cb19f2a75f",
+  "../../outputs/decentralization-audit/cache-budget-v2-review-20261023.json": "470ba562fe35b3f56f09deec69545c5dae283d77cdf62408c68b7d91394aeec9",
+  "../../outputs/decentralization-audit/checkpoint-verified-0650-20261023.json": "de5fc82f18ec705a7480da6b7ebec4571ee55c9ff18f3dde70e715f1711f9f06",
+  "../../outputs/decentralization-audit/storage-cutover-backup-freshness-review-20261023.json": "1ff69d32b0c0f1e1d7d37e3c9bf6fc6e11e0494d6f50160353df62b67c2305df",
+  "../../outputs/decentralization-audit/windows-node-updater-0713-postcheck-20261023.json": "9ac8fb078ae829ae72a7f3a532ccd878b7ff7852d1ebaacf528800e2e7ed0da4"
+ },
+ "notPreserved": [
+  "ROOT dc767fc3 commit object/patch (non-noreply identity): content only, frozen-0745-dc767fc3-doc-correction.txt",
+  "E initial L1 transaction head a460c36c/159fd1480ddab9652043cce5163348ff4fa6996b (rpc-transaction-independence): its commits carry 7 compiled contract artifacts (fixtures/artifacts/*.json, ABI + bytecode); build outputs are not archived, so root decides how to preserve it (e.g. the artifacts by hash plus the recipe)",
+  "every active tree past the exported heads (E rpc-transaction-closure, S browser-rpc-closure, B, C storage-write-release, F)",
+  "linux-carrier-closure rawlogs/, tmp/, draft/, stub/ and repo/ worktree; the patches/ dir (= this export's patches)",
+  "raw logs outside committed history, run handles, keys, binaries, images, node_modules, build caches"
+ ]
+}

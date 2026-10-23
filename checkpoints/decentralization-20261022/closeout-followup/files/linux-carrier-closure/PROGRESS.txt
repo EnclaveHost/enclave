@@ -1,0 +1,15 @@
+2026-10-23T06:38Z CHECKPOINT RECEIPT (source preservation finished first, as directed):
+checkpoint/decentralization-20261022 8ac1aa51c -> 871e21975828c0b9aea463ba6c7affd249a71732 (normal fast-forward, ls-remote verified);
+main 7752a4239b3bec2cf452491cd1b95164a8c2bdb8 unchanged; manifest 1351 -> 1752 (+401, 16.68 MB); 11 Git-object series, every
+commit tree reproduced from pushed material; scans: prescan/range scan-crypto-keys 0/gitleaks no leaks; hooks passed.
+Details: ../source-preservation/RESULT-frozen-0630-checkpoint.md. Post-push: 2 root living notes (ROOT-PENDING-LATEST,
+effective-goal-requirements) were appended after export; captured at export bytes.
+NEXT: linux-carrier-closure from immutable fec43a6a (relay-mode carrier pass-through, tenant-provision-race harness).
+2026-10-23T07:45Z carrier closure on fec43a6a: 4cdd4622 (relay-mode carriers: launcher -> fw_cfg -> gsup -> supervisor gate, shared measured-control
+schema, self-carrier refusal), 9a00b983 (tenant-provision-race harness: real module-scope deps + pending-adopt cases), 65f3fb98 (two stale
+pre-existing test expectations fixed). t1 (1024, peak see log): new carrier suite 12/12 incl. real-chain anchor/ban/readmit with the 4 former DO
+mirrors refused + old-source negative control; launchers 17/17; adopt/race 50/50; old harness control fails as before (expected). Two
+pre-existing failures found (measured-control gsup text, hosted cold-start PRODUCTION_MIRRORS[0]) -> fixed in 65f3fb98; control+fix run in t2.
+Composition trial (tmp/compose): admin-CLI 0eac0d60b/dfe020abf + A dfe..71448f63 (9) + B 62feb3aa/8d110101 + ROOT fd6a1762 cherry-picked -x,
+only conflict ROOT-REVIEW.md (both kept byte-exact). t2 queued: union proof, bundle currency/rebuild, composed suites.
+B final runtime NOT available (rpc-runtime-composition HEAD b9a0eb6d mutable, tests running) -> missing pin for the final image.

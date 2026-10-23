@@ -1,0 +1,38 @@
+[queue] START available=23763MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+=== b:no-share-sum KILLED
+  ERROR: test_old_concurrent_creates_both_pass_and_exceed_the_cap (__main__.OldBehaviorControls.test_old_concurrent_creates_both_pass_and_exceed_the_cap)
+  ERROR: test_old_missing_path_counts_zero_and_growth_is_unbounded (__main__.OldBehaviorControls.test_old_missing_path_counts_zero_and_growth_is_unbounded)
+  ERROR: test_ledger_rules (__main__.Rules.test_ledger_rules)
+  FAIL: test_example_share_split_across_hosts_never_exceeds_cap (__main__.Rules.test_example_share_split_across_hosts_never_exceeds_cap)
+  FAIL: test_ledger_rules (__main__.Rules.test_ledger_rules) (needle='host shares sum')
+=== b:no-per-host KILLED
+  ERROR: test_old_concurrent_creates_both_pass_and_exceed_the_cap (__main__.OldBehaviorControls.test_old_concurrent_creates_both_pass_and_exceed_the_cap)
+  ERROR: test_old_missing_path_counts_zero_and_growth_is_unbounded (__main__.OldBehaviorControls.test_old_missing_path_counts_zero_and_growth_is_unbounded)
+  ERROR: test_ledger_rules (__main__.Rules.test_ledger_rules)
+  FAIL: test_ledger_rules (__main__.Rules.test_ledger_rules) (needle='exceed its share')
+=== b:allow-directory KILLED
+  ERROR: test_old_concurrent_creates_both_pass_and_exceed_the_cap (__main__.OldBehaviorControls.test_old_concurrent_creates_both_pass_and_exceed_the_cap)
+  ERROR: test_old_missing_path_counts_zero_and_growth_is_unbounded (__main__.OldBehaviorControls.test_old_missing_path_counts_zero_and_growth_is_unbounded)
+  ERROR: test_ledger_rules (__main__.Rules.test_ledger_rules)
+  FAIL: test_ledger_rules (__main__.Rules.test_ledger_rules) (needle='not hard-bounded')
+=== b:missing-ok KILLED
+  ERROR: test_old_concurrent_creates_both_pass_and_exceed_the_cap (__main__.OldBehaviorControls.test_old_concurrent_creates_both_pass_and_exceed_the_cap)
+  ERROR: test_old_missing_path_counts_zero_and_growth_is_unbounded (__main__.OldBehaviorControls.test_old_missing_path_counts_zero_and_growth_is_unbounded)
+  FAIL: test_verify_bounds (__main__.Allocation.test_verify_bounds)
+=== b:allow-sparse KILLED
+  ERROR: test_old_concurrent_creates_both_pass_and_exceed_the_cap (__main__.OldBehaviorControls.test_old_concurrent_creates_both_pass_and_exceed_the_cap)
+  ERROR: test_old_missing_path_counts_zero_and_growth_is_unbounded (__main__.OldBehaviorControls.test_old_missing_path_counts_zero_and_growth_is_unbounded)
+  FAIL: test_verify_bounds (__main__.Allocation.test_verify_bounds)
+=== b:adopt-foreign KILLED
+  ERROR: test_old_concurrent_creates_both_pass_and_exceed_the_cap (__main__.OldBehaviorControls.test_old_concurrent_creates_both_pass_and_exceed_the_cap)
+  ERROR: test_old_missing_path_counts_zero_and_growth_is_unbounded (__main__.OldBehaviorControls.test_old_missing_path_counts_zero_and_growth_is_unbounded)
+  FAIL: test_foreign_file_refused_untouched (__main__.Allocation.test_foreign_file_refused_untouched)
+=== b:no-lock KILLED
+  ERROR: test_old_concurrent_creates_both_pass_and_exceed_the_cap (__main__.OldBehaviorControls.test_old_concurrent_creates_both_pass_and_exceed_the_cap)
+  ERROR: test_old_missing_path_counts_zero_and_growth_is_unbounded (__main__.OldBehaviorControls.test_old_missing_path_counts_zero_and_growth_is_unbounded)
+  FAIL: test_allocation_waits_for_a_ledger_edit_and_sees_its_result (__main__.Concurrency.test_allocation_waits_for_a_ledger_edit_and_sees_its_result)
+  FAIL: test_concurrent_allocations_of_one_reservation_grant_once (__main__.Concurrency.test_concurrent_allocations_of_one_reservation_grant_once)
+killed 7/7
+[memory-guard] exit=0 peakTreeRssMiB=62 minHostAvailableMiB=23594
+[memory-guard] at peak: python3:27 python3:17 python3:15 timeout:4
+[queue] EXIT 0

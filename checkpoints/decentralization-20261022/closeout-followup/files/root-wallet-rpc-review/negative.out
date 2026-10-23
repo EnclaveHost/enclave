@@ -1,0 +1,129 @@
+TAP version 13
+# (node:2976465) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: WalletConnect uses the confirmed profile RPC and shares one initialization
+not ok 1 - WalletConnect uses the confirmed profile RPC and shares one initialization
+  ---
+  duration_ms: 5.128331
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/root-wallet-rpc-review/negative/test/walletconnect-independent-rpc.test.mjs:28:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   '8453': 'https://mainnet.base.org'
+    -   '8453': 'https://rpc.operator.example'
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    8453: 'https://rpc.operator.example'
+  actual:
+    8453: 'https://mainnet.base.org'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/root-wallet-rpc-review/negative/test/walletconnect-independent-rpc.test.mjs:31:43)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: WalletConnect refuses invalid profile before SDK or lock
+not ok 2 - WalletConnect refuses invalid profile before SDK or lock
+  ---
+  duration_ms: 3.068717
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/root-wallet-rpc-review/negative/test/walletconnect-independent-rpc.test.mjs:33:46'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/root-wallet-rpc-review/negative/test/walletconnect-independent-rpc.test.mjs:34:62)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: WalletConnect refuses unconfirmed profile before SDK or lock
+not ok 3 - WalletConnect refuses unconfirmed profile before SDK or lock
+  ---
+  duration_ms: 1.948396
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/root-wallet-rpc-review/negative/test/walletconnect-independent-rpc.test.mjs:33:46'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/root-wallet-rpc-review/negative/test/walletconnect-independent-rpc.test.mjs:34:62)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: empty independent RPC list refuses without a hidden default
+not ok 4 - empty independent RPC list refuses without a hidden default
+  ---
+  duration_ms: 1.952135
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/root-wallet-rpc-review/negative/test/walletconnect-independent-rpc.test.mjs:37:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/root-wallet-rpc-review/negative/test/walletconnect-independent-rpc.test.mjs:38:31)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: SDK retry stays on the selected independent RPC
+not ok 5 - SDK retry stays on the selected independent RPC
+  ---
+  duration_ms: 2.814618
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/root-wallet-rpc-review/negative/test/walletconnect-independent-rpc.test.mjs:40:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+    +   'https://mainnet.base.org',
+    +   'https://mainnet.base.org'
+    -   'https://rpc.operator.example',
+    -   'https://rpc.operator.example'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'https://rpc.operator.example'
+    1: 'https://rpc.operator.example'
+  actual:
+    0: 'https://mainnet.base.org'
+    1: 'https://mainnet.base.org'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/root-wallet-rpc-review/negative/test/walletconnect-independent-rpc.test.mjs:42:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: hosted mode retains its existing WalletConnect endpoint
+ok 6 - hosted mode retains its existing WalletConnect endpoint
+  ---
+  duration_ms: 1.724867
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 1
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 76.752945

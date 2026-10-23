@@ -1,0 +1,13 @@
+{
+  "observedAt": "2026-10-23T06:50:04.708793+00:00",
+  "readOnly": true,
+  "remote": "https://github.com/EnclaveHost/enclave",
+  "refs": {
+    "refs/heads/checkpoint/decentralization-20261022": "871e21975828c0b9aea463ba6c7affd249a71732",
+    "refs/heads/main": "7752a4239b3bec2cf452491cd1b95164a8c2bdb8"
+  },
+  "checkpointParent": "8ac1aa51c36ec4e8a1fa3d5a60c0438a721190ab",
+  "checkpointTree": "0b471a62fc33c9be6f38e338d284f6f57919f226",
+  "authorAndCommitter": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>|SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+  "scope": "Remote refs and local exact checkpoint commit metadata verified. Publication, not deployment or complete decentralization. Export reproduction and leak scans remain separately recorded by publication worker."
+}

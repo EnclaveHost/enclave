@@ -1,0 +1,40 @@
+{
+ "release": {
+  "tag": "v1.5.1",
+  "id": 421013843,
+  "url": "https://github.com/base/base/releases/tag/v1.5.1",
+  "metadataSha256": "9def16211ac83436630ddc17b536245f8a169614d091e8be277b049d85cb6ae3"
+ },
+ "assets": {
+  "base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz": {
+   "url": "https://github.com/base/base/releases/download/v1.5.1/base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz",
+   "size": 53031200,
+   "sha256": "6779c45dbc6041205cc4e52bc2cd9d40746a5a4366a309899bf6533fccebe2b7"
+  },
+  "base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.sha256": {
+   "url": "https://github.com/base/base/releases/download/v1.5.1/base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.sha256",
+   "size": 110,
+   "sha256": "dd50e081b0d2ccfac6ccb32297223e472f59f7c4d978558a38c5bb01bc716d11"
+  },
+  "base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.asc": {
+   "url": "https://github.com/base/base/releases/download/v1.5.1/base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.asc",
+   "size": 833,
+   "sha256": "bcd3c7c0f4ae79c2deab0bb71f176559dc3d07ff60f41eb4c4c0ec11ff479397"
+  }
+ },
+ "sidecarSha256Matches": true,
+ "members": [
+  {
+   "name": "base",
+   "type": "file",
+   "size": 153601320,
+   "mode": "0o755"
+  }
+ ],
+ "binary": {
+  "member": "base",
+  "size": 153601320,
+  "sha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+  "path": "staging/base-v1.5.1-20261023T053947Z/base"
+ }
+}

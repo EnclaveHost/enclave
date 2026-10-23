@@ -1,0 +1,111 @@
+[queue] START available=24538MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+30cd71a5520d824070dc21cbd5b6fd9372ba120294f8a80a259c5af40b057674  holder.py
+b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00  BINARY.json
+823aa8a036f62ba57ded9b34748e3fcf41bdc4af493899dcf2843c9e97d0e290  holder-storage.sh.in
+743acde5c8a6d1a01cc37a7428a3152b34b93582c800954a5405d322363238f1  drill-cache.sh
+7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
+b2e8a260d33bc0882f5f8967973c177735ae2745b49934153517a7cef6c976ec  holder.example.json
+c07d2337eea3231db0529f1d1db0ed7176a90aaa76bbfc8323315c8c28d2c8ba  test/mutate.py
+111893d22ae200dd6b79e6f844a07fb06445eecadc1332347dddbfa78dc0933e  test/standin-base.py
+416add6c3a3a347062a5e5af42ec608d44fa03e9473901844ee82dd831bca19b  test/test_base_offline.py
+fd3fc8e62f782f3e779748a9e824a34087c057ce1504786820430872b657adca  test/test_holder.py
+d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
+743b0f4e02241cbcb607426f55ef8b59060867df35e1caaa7b954a6f14ad577e  test/test_storage.py
+4de226a548e8f8f432a5909c21efb6940871d6ed0651279604620969bb45bb0a  test/stubs/stubcmd.py
+=== test/test_holder.py
+test_b_accepts_the_rendered_proof_source (__main__.BInterface.test_b_accepts_the_rendered_proof_source) ... ok
+test_child_failure_propagates_exit_code_and_its_group_is_reaped (__main__.Lifecycle.test_child_failure_propagates_exit_code_and_its_group_is_reaped) ... ok
+test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports) ... ok
+test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop) ... ok
+test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child) ... ok
+test_tampered_binary_never_starts (__main__.Lifecycle.test_tampered_binary_never_starts) ... ok
+test_term_ignoring_child_is_killed_after_grace (__main__.Lifecycle.test_term_ignoring_child_is_killed_after_grace) ... ok
+test_wrong_chain_never_ready_is_a_failure (__main__.Lifecycle.test_wrong_chain_never_ready_is_a_failure) ... ok
+test_real_devices (__main__.Placement.test_real_devices) ... ok
+test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned) ... ok
+test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed) ... ok
+test_render_files (__main__.Render.test_render_files) ... ok
+test_download_like_config_passes_and_default_or_missing_fails (__main__.RethToml.test_download_like_config_passes_and_default_or_missing_fails) ... ok
+test_cap_boundary_counts_metadata_slack_and_other_allocations (__main__.Validation.test_cap_boundary_counts_metadata_slack_and_other_allocations) ... ok
+test_example_is_review_only (__main__.Validation.test_example_is_review_only) ... ok
+test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting) ... ok
+test_no_cache_layout (__main__.Validation.test_no_cache_layout) ... ok
+test_refusals (__main__.Validation.test_refusals) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 14.909s
+
+OK
+=== test/test_storage.py
+test_assemble_failure_keeps_preexisting_loops (__main__.Storage.test_assemble_failure_keeps_preexisting_loops) ... ok
+test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical (__main__.Storage.test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical) ... ok
+test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops) ... ok
+test_assemble_refuses_foreign_mount (__main__.Storage.test_assemble_refuses_foreign_mount) ... ok
+test_assemble_refuses_origin_mounted_without_cache (__main__.Storage.test_assemble_refuses_origin_mounted_without_cache) ... ok
+test_cache_loss_invalidates_before_touching_origin (__main__.Storage.test_cache_loss_invalidates_before_touching_origin) ... ok
+test_create_failure_unwinds_only_its_own_resources (__main__.Storage.test_create_failure_unwinds_only_its_own_resources) ... ok
+test_create_preallocates_exact_sizes_and_leaves_nothing_attached (__main__.Storage.test_create_preallocates_exact_sizes_and_leaves_nothing_attached) ... /home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_storage.py:72: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/hs-s4wmxpvc/nvme/cache-meta.img'>
+  self.assertEqual(open(self.nvme / 'cache-meta.img', 'rb').read(8 * MiB), bytes(8 * MiB))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_create_refuses_existing_targets_and_touches_nothing (__main__.Storage.test_create_refuses_existing_targets_and_touches_nothing) ... ok
+test_create_refuses_over_aggregate_cap_using_measured_inventory (__main__.Storage.test_create_refuses_over_aggregate_cap_using_measured_inventory) ... ok
+test_create_refuses_wrong_media_before_allocating (__main__.Storage.test_create_refuses_wrong_media_before_allocating) ... ok
+test_disassemble_checks_mapping_before_unmount (__main__.Storage.test_disassemble_checks_mapping_before_unmount) ... ok
+test_disassemble_clean (__main__.Storage.test_disassemble_clean) ... ok
+test_disassemble_no_cache_refuses_foreign_mount (__main__.Storage.test_disassemble_no_cache_refuses_foreign_mount) ... ok
+test_disassemble_refuses_foreign_mapping (__main__.Storage.test_disassemble_refuses_foreign_mapping) ... ok
+test_disassemble_refuses_foreign_mount_without_mutation (__main__.Storage.test_disassemble_refuses_foreign_mount_without_mutation) ... ok
+test_disassemble_stops_at_failed_unmap (__main__.Storage.test_disassemble_stops_at_failed_unmap) ... ok
+test_disassemble_stops_at_failed_unmount (__main__.Storage.test_disassemble_stops_at_failed_unmount) ... ok
+test_no_cache_layout_mounts_origin_loop (__main__.Storage.test_no_cache_layout_mounts_origin_loop) ... ok
+test_verify_cap_measures_allocated_bytes (__main__.Storage.test_verify_cap_measures_allocated_bytes) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 11.394s
+
+OK
+SUITE_RC=0
+=== inherit-env KILLED
+  FAIL: test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop)
+  FAIL: test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed)
+=== sh:adopt-any-mapping KILLED
+  FAIL: test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops)
+=== sh:no-invalidate KILLED
+  FAIL: test_cache_loss_invalidates_before_touching_origin (__main__.Storage.test_cache_loss_invalidates_before_touching_origin)
+=== sh:no-unwind KILLED
+  FAIL: test_assemble_failure_keeps_preexisting_loops (__main__.Storage.test_assemble_failure_keeps_preexisting_loops)
+  FAIL: test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops)
+  FAIL: test_assemble_refuses_foreign_mount (__main__.Storage.test_assemble_refuses_foreign_mount)
+  FAIL: test_create_failure_unwinds_only_its_own_resources (__main__.Storage.test_create_failure_unwinds_only_its_own_resources)
+=== sh:continue-after-failed-umount KILLED
+  FAIL: test_disassemble_stops_at_failed_unmount (__main__.Storage.test_disassemble_stops_at_failed_unmount)
+=== sh:measured-cap-ignored KILLED
+  FAIL: test_create_refuses_over_aggregate_cap_using_measured_inventory (__main__.Storage.test_create_refuses_over_aggregate_cap_using_measured_inventory)
+  FAIL: test_verify_cap_measures_allocated_bytes (__main__.Storage.test_verify_cap_measures_allocated_bytes)
+=== public-http KILLED
+  FAIL: test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned)
+=== allow-writeback KILLED
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='writethrough')
+=== cap-off-by-slack KILLED
+  FAIL: test_cap_boundary_counts_metadata_slack_and_other_allocations (__main__.Validation.test_cap_boundary_counts_metadata_slack_and_other_allocations)
+  FAIL: test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting)
+=== no-group-reap KILLED
+  FAIL: test_child_failure_propagates_exit_code_and_its_group_is_reaped (__main__.Lifecycle.test_child_failure_propagates_exit_code_and_its_group_is_reaped)
+=== no-pdeathsig KILLED
+  FAIL: test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child)
+=== trust-l1 KILLED
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='trustRpc')
+=== verifier-port KILLED
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='local verifier')
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='local verifier')
+=== cli-prune-flag KILLED
+  FAIL: test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned)
+=== toml-exists-only KILLED
+  FAIL: test_download_like_config_passes_and_default_or_missing_fails (__main__.RethToml.test_download_like_config_passes_and_default_or_missing_fails) (needle='prune segments')
+  FAIL: test_download_like_config_passes_and_default_or_missing_fails (__main__.RethToml.test_download_like_config_passes_and_default_or_missing_fails) (needle='prune segments')
+killed 15/15
+MUT_RC=0
+[memory-guard] exit=0 peakTreeRssMiB=115 minHostAvailableMiB=22672
+[memory-guard] at peak: python3:34 python3:26 python3:24 python3:17 bash:6 sleep:4 timeout:4
+[queue] EXIT 0

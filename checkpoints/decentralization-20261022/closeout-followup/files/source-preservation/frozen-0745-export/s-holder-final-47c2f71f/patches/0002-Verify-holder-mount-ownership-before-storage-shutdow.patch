@@ -1,0 +1,90 @@
+From 08f2efed6d93ca4bd8010bae34c231769e14c363 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 22:43:39 -0700
+Subject: [PATCH 02/10] Verify holder mount ownership before storage shutdown
+ changes
+
+(cherry picked from commit b1b6f1847f5fc3f32928c1127ace3243f777f3d2)
+---
+ holder/holder-storage.sh.in | 14 +++++++++++++-
+ holder/test/test_storage.py | 37 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 50 insertions(+), 1 deletion(-)
+
+diff --git a/holder/holder-storage.sh.in b/holder/holder-storage.sh.in
+index 5a5f4ce05411bc2745e9df9d16fcca6328333c98..c50824859fc3c61786412e57466ab6688aed9bef 100644
+--- a/holder/holder-storage.sh.in
++++ b/holder/holder-storage.sh.in
+@@ -105,12 +105,24 @@ assemble)
+   ;;
+ disassemble)
+   trap - EXIT
+-  if findmnt -n "$MNT" >/dev/null; then umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"; fi
++  # Validate the complete ownership chain BEFORE the first destructive action.
++  # A configured path alone does not identify the filesystem mounted there.
+   O=$(loopof "$ORIGIN")
++  DEV=; REMOVE_MAPPING=
+   if cached && dmsetup info "$NAME" >/dev/null 2>&1; then
+     D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
+     [ -n "$O" ] && [ -n "$D" ] && [ -n "$M" ] || die "mapping $NAME exists but its loops are not ours: leaving it"
+     [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    DEV=/dev/mapper/$NAME; REMOVE_MAPPING=1
++  elif ! cached; then
++    DEV=$O
++  fi
++  if findmnt -n "$MNT" >/dev/null; then
++    [ -n "$DEV" ] || die "$MNT is mounted but this holder's device is absent: leaving it"
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++    umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"
++  fi
++  if [ -n "$REMOVE_MAPPING" ]; then
+     dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
+   fi
+   for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
+diff --git a/holder/test/test_storage.py b/holder/test/test_storage.py
+index d8d32d6f8d464d5d72fbb13d3a506933f6351564..3c7ed2ebd29445f2fd72abdae7eb10b52c7c8c03 100644
+--- a/holder/test/test_storage.py
++++ b/holder/test/test_storage.py
+@@ -183,6 +183,43 @@ class Storage(unittest.TestCase):
+         s = self.st()
+         self.assertEqual((s['dm'], s['loops'], s['mounts']), (before['dm'], before['loops'], before['mounts']))
+ 
++    def test_disassemble_refuses_foreign_mount_without_mutation(self):
++        self.assembled()
++        self.seed(mounts={str(self.mnt): '8:17'})
++        before = self.st()
++        r = self.run_sh('disassemble')
++        self.assertEqual(r.returncode, 2, r.stderr)
++        self.assertIn('another device', r.stderr)
++        after = self.st()
++        self.assertEqual((after['dm'], after['loops'], after['mounts']),
++                         (before['dm'], before['loops'], before['mounts']))
++        self.assertFalse(any(c[0] == 'umount' for c in after['calls'][len(before['calls']):]))
++
++    def test_disassemble_checks_mapping_before_unmount(self):
++        self.assembled()
++        self.seed(dm={'enclave-base-holder': '0 100 linear 8:1 0'})
++        before = self.st()
++        r = self.run_sh('disassemble')
++        self.assertEqual(r.returncode, 2, r.stderr)
++        self.assertIn('not this holder', r.stderr)
++        after = self.st()
++        self.assertEqual((after['dm'], after['loops'], after['mounts']),
++                         (before['dm'], before['loops'], before['mounts']))
++        self.assertFalse(any(c[0] == 'umount' for c in after['calls'][len(before['calls']):]))
++
++    def test_disassemble_no_cache_refuses_foreign_mount(self):
++        c = copy.deepcopy(self.c)
++        c['storage']['cache'] = {'mechanism': 'none'}
++        self.assertEqual(self.run_sh('create', c=c).returncode, 0)
++        self.assertEqual(self.run_sh('assemble', c=c).returncode, 0)
++        self.seed(mounts={str(self.mnt): '8:17'})
++        before = self.st()
++        r = self.run_sh('disassemble', c=c)
++        self.assertEqual(r.returncode, 2, r.stderr)
++        after = self.st()
++        self.assertEqual((after['loops'], after['mounts']), (before['loops'], before['mounts']))
++        self.assertFalse(any(c[0] == 'umount' for c in after['calls'][len(before['calls']):]))
++
+     def test_disassemble_stops_at_failed_unmap(self):
+         self.assembled()
+         loops = self.st()['loops']

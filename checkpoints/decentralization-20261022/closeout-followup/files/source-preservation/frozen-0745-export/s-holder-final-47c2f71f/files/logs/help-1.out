@@ -1,0 +1,9 @@
+[queue] START available=24475MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f  /home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/staging/base-v1.5.1-20261023T053947Z/base
+version rc=0
+help rc=0
+rpc-help rc=0
+rpc-help-default rc=0
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

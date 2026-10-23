@@ -1,0 +1,18 @@
+{
+  "observedAt": "2026-10-23T07:29:34.630055+00:00",
+  "sourceCommit": "959e56fd7ea191bfcc7eb94b26a20d4795856bd3",
+  "workerReportCommit": "47c2f71f472c973593702b310017f9fd4744e6d1",
+  "timestampCorrectionCommit": "dc767fc3c9b4b1cbfed98b41ce0b9062bd64db07",
+  "status": "reviewed source and reported test evidence; real device boundary unproven; not activated",
+  "testsReported": {
+    "holder": 18,
+    "storage": 23,
+    "budget": 19,
+    "mutantsKilled": 20
+  },
+  "review": "Actual reservation accounting includes files and markers, conservative directory charge, block alignment, bounded allocation steps and per-host bookkeeping. Prior one-byte counterexample reproduced against immutable v1 and refused by v2 before cache marker/file writes. Root reviewed accounting code and report; root has not independently run a kernel/device drill.",
+  "nvmeCacheAllocated": false,
+  "capBytes": 250000000000,
+  "targetBytes": 200000000000,
+  "remaining": "Privileged bounded kernel drill, concrete host resource/storage readiness, and final P composition. Source accepts ext4/tmpfs under explicit accounting assumptions."
+}

@@ -1,0 +1,8 @@
+{
+ "proofSources": {
+  "untrusted": [
+   "http://127.0.0.1:18545/"
+  ]
+ },
+ "note": "fragment for B's enclave-rpc-runtime/v1 config; B verifies every witness"
+}

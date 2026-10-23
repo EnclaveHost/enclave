@@ -1,0 +1,208 @@
+[queue] START available=23914MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+adc6d65f5a501ae555dd96305818a4badbe857f2100dac90277c176e89bbf3b6  holder.py
+a82192bc30715f94cb86934507430ab2956a6962e0b51b3bf85071030ce21bcd  budget.py
+b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00  BINARY.json
+eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00  holder-storage.sh.in
+743acde5c8a6d1a01cc37a7428a3152b34b93582c800954a5405d322363238f1  drill-cache.sh
+7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
+8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a  holder.example.json
+46d0426109a3b4eeff7f7f83d0784fbe3a30dbe7a97fbd80cc03cd7bf3ad0d87  test/mutate.py
+111893d22ae200dd6b79e6f844a07fb06445eecadc1332347dddbfa78dc0933e  test/standin-base.py
+83a5b35709882992cbc6b7eb3dae6666e95b502c2f11a98054e0cc9089167f72  test/test_base_offline.py
+7ca2d0537ed435610dab8077484e7dc5bb6b3378dc3c4d7a66bea0c99f776d28  test/test_budget.py
+3ff682fe3ec18130b304f83445bdbab1ef9d6de0ae7a02b82464f872f2928c8a  test/test_holder.py
+d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
+197becf05243ba8fb01fa7b0c84ce0ee35831c0aa9f8c6e2995c4ccbd29b47c4  test/test_storage.py
+ffd3b43524dc84e3d95b2932232489629fb0894dc8a86c44a3445f2a97902437  test/stubs/stubcmd.py
+=== test/test_holder.py
+test_b_accepts_the_rendered_proof_source (__main__.BInterface.test_b_accepts_the_rendered_proof_source) ... ok
+test_child_failure_propagates_exit_code_and_its_group_is_reaped (__main__.Lifecycle.test_child_failure_propagates_exit_code_and_its_group_is_reaped) ... Traceback (most recent call last):
+  File "/tmp/hl-jj7iph35/pkg/holder.py", line 54, in <module>
+    import budget as BUDGET   # noqa: E402  the shared NVMe cache budget ledger (budget.py, same directory)
+    ^^^^^^^^^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'budget'
+FAIL
+test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports) ... ok
+test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop) ... Traceback (most recent call last):
+  File "/tmp/hl-0h25h1xo/pkg/holder.py", line 54, in <module>
+    import budget as BUDGET   # noqa: E402  the shared NVMe cache budget ledger (budget.py, same directory)
+    ^^^^^^^^^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'budget'
+ERROR
+test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child) ... Traceback (most recent call last):
+  File "/tmp/hl-yzgwbl8s/pkg/holder.py", line 54, in <module>
+    import budget as BUDGET   # noqa: E402  the shared NVMe cache budget ledger (budget.py, same directory)
+    ^^^^^^^^^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'budget'
+ERROR
+test_tampered_binary_never_starts (__main__.Lifecycle.test_tampered_binary_never_starts) ... Traceback (most recent call last):
+  File "/tmp/hl-s3y47jmc/pkg/holder.py", line 54, in <module>
+    import budget as BUDGET   # noqa: E402  the shared NVMe cache budget ledger (budget.py, same directory)
+    ^^^^^^^^^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'budget'
+FAIL
+test_term_ignoring_child_is_killed_after_grace (__main__.Lifecycle.test_term_ignoring_child_is_killed_after_grace) ... ok
+test_wrong_chain_never_ready_is_a_failure (__main__.Lifecycle.test_wrong_chain_never_ready_is_a_failure) ... Traceback (most recent call last):
+  File "/tmp/hl-lohpgi1y/pkg/holder.py", line 54, in <module>
+    import budget as BUDGET   # noqa: E402  the shared NVMe cache budget ledger (budget.py, same directory)
+    ^^^^^^^^^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'budget'
+FAIL
+test_real_devices (__main__.Placement.test_real_devices) ... ok
+test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned) ... ok
+test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed) ... ok
+test_render_files (__main__.Render.test_render_files) ... FAIL
+test_download_like_config_passes_and_default_or_missing_fails (__main__.RethToml.test_download_like_config_passes_and_default_or_missing_fails) ... ok
+test_budget_example_is_a_valid_ledger_once_root_fills_the_host (__main__.Validation.test_budget_example_is_a_valid_ledger_once_root_fills_the_host) ... ok
+test_example_is_review_only (__main__.Validation.test_example_is_review_only) ... ok
+test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting) ... ok
+test_no_cache_layout (__main__.Validation.test_no_cache_layout) ... ok
+test_refusals (__main__.Validation.test_refusals) ... 
+  test_refusals (__main__.Validation.test_refusals) (needle='operational target') ... FAIL
+
+======================================================================
+ERROR: test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_holder.py", line 327, in test_ready_notify_exact_argv_closed_env_and_clean_stop
+    msg = self.notify.recv(4096).decode()
+          ~~~~~~~~~~~~~~~~^^^^^^
+TimeoutError: timed out
+
+======================================================================
+ERROR: test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_holder.py", line 366, in test_supervisor_death_kills_the_child
+    self.notify.recv(4096)
+    ~~~~~~~~~~~~~~~~^^^^^^
+TimeoutError: timed out
+
+======================================================================
+FAIL: test_child_failure_propagates_exit_code_and_its_group_is_reaped (__main__.Lifecycle.test_child_failure_propagates_exit_code_and_its_group_is_reaped)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_holder.py", line 345, in test_child_failure_propagates_exit_code_and_its_group_is_reaped
+    self.assertEqual(p.wait(30), 3)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+AssertionError: 1 != 3
+
+======================================================================
+FAIL: test_tampered_binary_never_starts (__main__.Lifecycle.test_tampered_binary_never_starts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_holder.py", line 359, in test_tampered_binary_never_starts
+    self.assertEqual(p.wait(30), 2)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_wrong_chain_never_ready_is_a_failure (__main__.Lifecycle.test_wrong_chain_never_ready_is_a_failure)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_holder.py", line 351, in test_wrong_chain_never_ready_is_a_failure
+    self.assertEqual(p.wait(40), 70)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 1 != 70
+
+======================================================================
+FAIL: test_render_files (__main__.Render.test_render_files)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_holder.py", line 192, in test_render_files
+    self.assertIn('fallocate -l "$CDATA_BYTES" -- "$CDATA"', script)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'fallocate -l "$CDATA_BYTES" -- "$CDATA"' not found in '#!/bin/bash\n# Enclave Base holder storage (rendered by holder.py from holder-storage.sh.in; ROOT ONLY; review before use).\n# Durable data: ONE new ext4 filesystem inside ONE new image file on the HDD (ORIGIN). Optional cache: dm-cache in\n# WRITETHROUGH mode (smq) on two new fixed-size image files on NVMe (CDATA, CMETA). Existing filesystems, partitions and\n# mappings are never formatted, changed, adopted or removed unless they are provably this holder\'s own.\n#   create        once, with root\'s approval: preflight EVERYTHING, then allocate; unwinds only what it created\n#   assemble      at boot: attach and map (or adopt an IDENTICAL existing mapping), mount; unwinds only what it did\n#   disassemble   at stop: unmount, unmap, detach; stops at the first failure (never detaches under a live user)\n#   verify-cap    the shared NVMe cache budget ledger (budget.py verify): this host\'s reservations charged at their\n#                 declared MAXIMA within its fixed share of the 250,000,000,000-byte cap, every present file exactly\n#                 bounded and owned, this reservation\'s files present; exit 3 otherwise\n#   cache-loss    holder stopped: unmap, INVALIDATE the cache metadata first, then a read-only check of the origin. Any\n#                 later assemble starts from an empty cache. A cache is never reattached after uncached origin access.\nset -euo pipefail\numask 077\nMECHANISM=\'dm-cache\'\nORIGIN=\'/mnt/usb/enclave-base-holder/origin.img\'\nORIGIN_BYTES=\'3100000000000\'\nORIGIN_FREE_MARGIN=\'500000000000\'\nMNT=\'/srv/enclave-base-holder\'\nDATADIR=\'/srv/enclave-base-holder/data\'\nOWNER=\'enclave-holder\'\nNAME=\'enclave-base-holder\'\nPY=\'/usr/bin/python3\'\nBUDGET_TOOL=\'/opt/enclave-base-holder/budget.py\'\nLEDGER=\'/etc/enclave-rpc-cache/nvme-cache-budget.json\'\nRESERVATION=\'base-holder-dm-cache\'\nCDATA=\'/vm/enclave-base-holder-cache/cache-data.img\'\nCDATA_BYTES=\'197999984640\'\nCMETA=\'/vm/enclave-base-holder-cache/cache-meta.img\'\nCMETA_BYTES=\'1073741824\'\nBLOCK_SECTORS=\'512\'\nNVME_FREE_MARGIN=\'200000000000\'\nlog() { echo "holder-storage: $*" >&2; }\ndie() { log "$*"; exit 2; }\nrot() { lsblk -nso ROTA "$(findmnt -no SOURCE --target "$(dirname "$1")")" | tail -1 | tr -d \' \'; }\navail() { df --output=avail -B1 "$(dirname "$1")" | tail -1 | tr -d \' \'; }\nmm() { lsblk -dno MAJ:MIN "$1" | tr -d \' \'; }\nloopof() { losetup -j "$1" -O NAME -n | head -1; }          # the loop bound to exactly this backing file, if any\nCREATED=(); ATTACHED=(); MAPPED=; MOUNTED=\nunwind() {\n  local rc=$?\n  [ "$rc" -eq 0 ] && return 0\n  trap - EXIT\n  set +e\n  # Ownership alone is not enough: a failed teardown leaves its dependencies live.\n  # Preserve the remaining devices/files for recovery and the original failure code.\n  if [ -n "$MOUNTED" ] && ! umount "$MNT"; then\n    log "cleanup stopped: cannot unmount $MNT; mapping, loops and images kept (original rc=$rc)"\n    exit "$rc"\n  fi\n  if [ -n "$MAPPED" ] && ! dmsetup remove "$NAME"; then\n    log "cleanup stopped: cannot remove mapping $NAME; loops and images kept (original rc=$rc)"\n    exit "$rc"\n  fi\n  for l in "${ATTACHED[@]}"; do\n    if ! losetup -d "$l"; then\n      log "cleanup stopped: cannot detach $l; remaining loops and images kept (original rc=$rc)"\n      exit "$rc"\n    fi\n  done\n  for f in "${CREATED[@]}"; do\n    if ! rm -f -- "$f"; then\n      log "cleanup stopped: cannot remove $f; remaining images kept (original rc=$rc)"\n      exit "$rc"\n    fi\n  done\n  log "failed (rc=$rc): undid only what this run created/attached/mapped/mounted"\n  exit "$rc"\n}\ntrap unwind EXIT\nattach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one\n  local l; l=$(loopof "$1")\n  if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi\n  printf -v "$2" \'%s\' "$l"\n}\nexpected_table() { echo "0 $(blockdev --getsz "$O") cache $(mm "$M") $(mm "$D") $(mm "$O") $BLOCK_SECTORS 1 writethrough smq 0"; }\ncached() { [ "$MECHANISM" = dm-cache ]; }\nholder_dev() {   # the device the mount must come from; sets DEV\n  if cached; then DEV=/dev/mapper/$NAME; else DEV=$O; fi\n}\nown_mapping() {  # 0 = absent, 1 = present AND identical to ours; anything else refuses\n  dmsetup info "$NAME" >/dev/null 2>&1 || return 0\n  local have want; have=$(dmsetup table "$NAME"); want=$(expected_table)\n  [ "$have" = "$want" ] || die "mapping $NAME exists but is not this holder\'s (have: $have; want: $want); leaving it untouched"\n  return 1\n}\n\ncase "${1:-}" in\ncreate)\n  # 1. preflight every resource BEFORE allocating anything\n  test ! -e "$ORIGIN" || die "$ORIGIN exists: refusing to overwrite or reuse"\n  for f in "$ORIGIN" ${CDATA:+"$CDATA"} ${CMETA:+"$CMETA"}; do\n    test -d "$(dirname "$f")" || die "$(dirname "$f") does not exist"\n  done\n  [ "$(rot "$ORIGIN")" = 1 ] || die "origin must be on a rotational (HDD) device"\n  [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"\n  if cached; then\n    for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done\n    [ "$(avail "$CDATA")" -ge $(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN )) ] || die "not enough NVMe free space for the cache plus margin"\n    # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must\n    # be this reservation\'s own (an interrupted earlier create is adopted, never granted twice)\n    "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \\\n      || die "NVMe cache budget reservation refused"\n  fi\n  # 2. allocate, tracking ownership for unwind\n  CREATED+=("$ORIGIN"); fallocate -l "$ORIGIN_BYTES" -- "$ORIGIN"\n  attach "$ORIGIN" O\n  mkfs.ext4 -q -L enclave-holder -E lazy_itable_init=0,lazy_journal_init=0 "$O"   # NEW filesystem in the NEW image\n  if cached; then\n    ALLOC=$("$PY" -I "$BUDGET_TOOL" allocate "$LEDGER" "$RESERVATION") || die "NVMe cache budget allocation refused"\n    while read -r w p; do [ "$w" = created ] && CREATED+=("$p"); done <<< "$ALLOC"\n    dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none   # zeroed: dm-cache formats an empty cache\n  fi\n  losetup -d "$O"; ATTACHED=()\n  CREATED=()\n  log "created (not assembled)"\n  ;;\nassemble)\n  modprobe loop\n  test -f "$ORIGIN" || die "origin image missing"\n  if cached; then modprobe dm-cache; modprobe dm-cache-smq; test -f "$CDATA" && test -f "$CMETA" || die "cache images missing"; fi\n  attach "$ORIGIN" O\n  if cached; then\n    "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION" >/dev/null || die "NVMe cache budget verification failed"\n    attach "$CDATA" D; attach "$CMETA" M\n    if own_mapping; then\n      [ -z "$(lsblk -nro MOUNTPOINTS "$O" | tr -d \'[:space:]\')" ] || die "origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)"\n      dmsetup create "$NAME" --table "$(expected_table)"; MAPPED=1\n    fi\n    dmsetup status "$NAME" | grep -qw writethrough || die "mapping $NAME is not writethrough"\n  fi\n  holder_dev\n  mkdir -p "$MNT"\n  if findmnt -n "$MNT" >/dev/null; then\n    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d \' \')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"\n  else\n    mount -o noatime,nodev,nosuid "$DEV" "$MNT"; MOUNTED=1\n  fi\n  chown "$OWNER:$OWNER" "$MNT"; chmod 0700 "$MNT"\n  for d in "$DATADIR" "$MNT/tmp"; do mkdir -p "$d"; chown "$OWNER:$OWNER" "$d"; chmod 0700 "$d"; done\n  ATTACHED=(); MAPPED=; MOUNTED=\n  log "assembled: $DEV on $MNT"\n  ;;\ndisassemble)\n  trap - EXIT\n  # Validate the complete ownership chain BEFORE the first destructive action.\n  # A configured path alone does not identify the filesystem mounted there.\n  O=$(loopof "$ORIGIN")\n  DEV=; REMOVE_MAPPING=\n  if cached && dmsetup info "$NAME" >/dev/null 2>&1; then\n    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")\n    [ -n "$O" ] && [ -n "$D" ] && [ -n "$M" ] || die "mapping $NAME exists but its loops are not ours: leaving it"\n    [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder\'s: leaving it"\n    DEV=/dev/mapper/$NAME; REMOVE_MAPPING=1\n  elif ! cached; then\n    DEV=$O\n  fi\n  if findmnt -n "$MNT" >/dev/null; then\n    [ -n "$DEV" ] || die "$MNT is mounted but this holder\'s device is absent: leaving it"\n    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d \' \')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"\n    umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"\n  fi\n  if [ -n "$REMOVE_MAPPING" ]; then\n    dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"\n  fi\n  for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do\n    l=$(loopof "$f"); [ -z "$l" ] || losetup -d "$l" || die "detach of $l ($f) failed"\n  done\n  log "disassembled"\n  ;;\nverify-cap)\n  trap - EXIT\n  if cached; then exec "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION"; fi\n  echo \'{"cache": "none", "nvmeBytes": 0}\'\n  ;;\ncache-loss)\n  cached || die "no cache configured"\n  ! findmnt -n "$MNT" >/dev/null || die "$MNT is mounted: stop the holder and run disassemble first"\n  O=$(loopof "$ORIGIN"); [ -n "$O" ] || attach "$ORIGIN" O\n  if dmsetup info "$NAME" >/dev/null 2>&1; then\n    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")\n    [ -n "$D" ] && [ -n "$M" ] && [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder\'s: leaving it"\n    dmsetup remove "$NAME" || die "dmsetup remove failed"\n  fi\n  # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost\n  dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none\n  e2fsck -fn "$O"\n  ATTACHED=()\n  log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"\n  ;;\n*) echo "usage: $0 create|assemble|disassemble|verify-cap|cache-loss" >&2; trap - EXIT; exit 64;;\nesac\n'
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) (needle='operational target')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_holder.py", line 124, in test_refusals
+    self.refused(mutate, needle)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_holder.py", line 50, in refused
+    with self.assertRaises(H.Refused) as e:
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+AssertionError: Refused not raised
+
+----------------------------------------------------------------------
+Ran 18 tests in 32.181s
+
+FAILED (failures=5, errors=2)
+=== test/test_storage.py
+test_assemble_failure_keeps_preexisting_loops (__main__.Storage.test_assemble_failure_keeps_preexisting_loops) ... ok
+test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical (__main__.Storage.test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical) ... ok
+test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops) ... ok
+test_assemble_refuses_foreign_mount (__main__.Storage.test_assemble_refuses_foreign_mount) ... ok
+test_assemble_refuses_origin_mounted_without_cache (__main__.Storage.test_assemble_refuses_origin_mounted_without_cache) ... ok
+test_cache_loss_invalidates_before_touching_origin (__main__.Storage.test_cache_loss_invalidates_before_touching_origin) ... ok
+test_create_failure_unwinds_only_its_own_resources (__main__.Storage.test_create_failure_unwinds_only_its_own_resources) ... ok
+test_create_preallocates_exact_sizes_and_leaves_nothing_attached (__main__.Storage.test_create_preallocates_exact_sizes_and_leaves_nothing_attached) ... /home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_storage.py:84: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/hs-e3dbovyi/nvme/cache-meta.img'>
+  self.assertEqual(open(self.nvme / 'cache-meta.img', 'rb').read(8 * MiB), bytes(8 * MiB))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_create_refuses_existing_targets_and_touches_nothing (__main__.Storage.test_create_refuses_existing_targets_and_touches_nothing) ... ok
+test_create_refuses_wrong_media_before_allocating (__main__.Storage.test_create_refuses_wrong_media_before_allocating) ... ok
+test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) ... ok
+test_disassemble_checks_mapping_before_unmount (__main__.Storage.test_disassemble_checks_mapping_before_unmount) ... ok
+test_disassemble_clean (__main__.Storage.test_disassemble_clean) ... ok
+test_disassemble_no_cache_refuses_foreign_mount (__main__.Storage.test_disassemble_no_cache_refuses_foreign_mount) ... ok
+test_disassemble_refuses_foreign_mapping (__main__.Storage.test_disassemble_refuses_foreign_mapping) ... ok
+test_disassemble_refuses_foreign_mount_without_mutation (__main__.Storage.test_disassemble_refuses_foreign_mount_without_mutation) ... ok
+test_disassemble_stops_at_failed_unmap (__main__.Storage.test_disassemble_stops_at_failed_unmap) ... ok
+test_disassemble_stops_at_failed_unmount (__main__.Storage.test_disassemble_stops_at_failed_unmount) ... ok
+test_no_cache_layout_mounts_origin_loop (__main__.Storage.test_no_cache_layout_mounts_origin_loop) ... ok
+test_unwind_keeps_image_when_detach_fails (__main__.Storage.test_unwind_keeps_image_when_detach_fails) ... ok
+test_unwind_stops_when_mapping_removal_fails (__main__.Storage.test_unwind_stops_when_mapping_removal_fails) ... ok
+test_unwind_stops_when_unmount_fails (__main__.Storage.test_unwind_stops_when_unmount_fails) ... ok
+test_verify_cap_charges_maxima_and_bounds_every_local_file (__main__.Storage.test_verify_cap_charges_maxima_and_bounds_every_local_file) ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 17.337s
+
+OK
+=== test/test_budget.py
+test_allocate_exact_non_sparse_then_idempotent (__main__.Allocation.test_allocate_exact_non_sparse_then_idempotent) ... ok
+test_failure_unwinds_only_what_this_call_created (__main__.Allocation.test_failure_unwinds_only_what_this_call_created) ... ok
+test_foreign_file_refused_untouched (__main__.Allocation.test_foreign_file_refused_untouched) ... ok
+test_interrupted_create_is_completed_not_regranted (__main__.Allocation.test_interrupted_create_is_completed_not_regranted) ... ok
+test_verify_bounds (__main__.Allocation.test_verify_bounds) ... ok
+test_allocation_waits_for_a_ledger_edit_and_sees_its_result (__main__.Concurrency.test_allocation_waits_for_a_ledger_edit_and_sees_its_result) ... ok
+test_concurrent_allocations_of_one_reservation_grant_once (__main__.Concurrency.test_concurrent_allocations_of_one_reservation_grant_once) ... ok
+test_old_concurrent_creates_both_pass_and_exceed_the_cap (__main__.OldBehaviorControls.test_old_concurrent_creates_both_pass_and_exceed_the_cap) ... /usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=11>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=8>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=9>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=6>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=7 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=4 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=5 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=3 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_old_missing_path_counts_zero_and_growth_is_unbounded (__main__.OldBehaviorControls.test_old_missing_path_counts_zero_and_growth_is_unbounded) ... ok
+test_example_share_split_across_hosts_never_exceeds_cap (__main__.Rules.test_example_share_split_across_hosts_never_exceeds_cap) ... ok
+test_ledger_rules (__main__.Rules.test_ledger_rules) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 6.078s
+
+OK
+[memory-guard] exit=1 peakTreeRssMiB=81 minHostAvailableMiB=23667
+[memory-guard] at peak: python3:31 python3:11 python3:10 sh:6 timeout:4 bash:4 bash:4 bash:2
+[queue] EXIT 1

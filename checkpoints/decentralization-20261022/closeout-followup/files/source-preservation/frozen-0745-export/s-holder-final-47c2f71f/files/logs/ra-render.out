@@ -1,0 +1,40 @@
+[queue] START available=23204MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+{
+ "format": "enclave-base-holder/v1-render",
+ "files": {
+  "holder.json": "b66f33814cccd4b3e011aefaa79a8885a39964c654a194a7ded835ace0d01fd1",
+  "holder.argv.json": "3702d87943b0346ddbba3e9b80ff47d6658cbba7ce6aadad9b3488c5dce9714c",
+  "holder.env.json": "c4df8ce27b4d7c43d13c606ccd7ee5613a7edeb1fcacd94953f93978407ef6d5",
+  "enclave-base-holder.service": "94907e882ac01759ecc70a321cde331a2cd49a9f8b7af5cb9d2462aba29c9f51",
+  "enclave-base-holder-storage.service": "fd7c7eab14269cffca6786989c13d349cf8506314fe4fea573c1b0a03c914285",
+  "holder-storage.sh": "047290ecf59462c663a83f41ef66ed5d9df16a8af64892815ed68cf93644c6b6",
+  "nvme-cache-budget.example.json": "6a4199f932dbdef55cecced973160bb042c7dd2e0c922f628433bb15d3de632e",
+  "b-proof-source.json": "6f7d43a858bc8909b766bafb8662a4014b3a15286d750addd957aa55b09ff1c5"
+ },
+ "flagsSha256": "7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59",
+ "holderSha256": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
+ "nvmeAccounting": {
+  "holderBytes": 199140835328,
+  "capBytes": 250000000000,
+  "targetBytes": 200000000000,
+  "enforcedBy": "shared ledger /etc/enclave-rpc-cache/nvme-cache-budget.json reservation base-holder-dm-cache (maxBytes must equal holderBytes)"
+ },
+ "labels": {
+  "role": "private untrusted witness source (B proofSources.untrusted); not a host-service role; no public serving",
+  "freshness": "proofs are only as fresh as this node; B refuses anything not at a verified fresh head",
+  "l1": "startup needs the declared L1 execution endpoint (unsafe-block signer read with 5 bounded retries); derivation (safe/finalized) needs L1 + beacon continuously; L1 watcher retry exhaustion stops the node (source, unexecuted)",
+  "tx": "transaction submission incomplete: no forwarding unless txForwarding.endpoint is set (hosted sequencer); P2P tx gossip is disabled by base-reth; L1 deposits are not a transparent replacement",
+  "flags": "every rendered flag is in the pinned official binary help (BINARY.json, executed offline); preflight re-checks the installed bytes"
+ },
+ "binary": {
+  "member": "base",
+  "sha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+  "size": 153601320
+ },
+ "reviewOnly": true
+}
+{"refused": "l1.executionRpc is a placeholder (l1-execution-endpoint.invalid): name the real L1 endpoint (review renders only with --review)"}
+{"refused": "l1.executionRpc is a placeholder (l1-execution-endpoint.invalid): name the real L1 endpoint (review renders only with --review)"}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

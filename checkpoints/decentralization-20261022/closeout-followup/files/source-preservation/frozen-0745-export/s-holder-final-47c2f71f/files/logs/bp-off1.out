@@ -1,0 +1,75 @@
+[queue] START available=24701MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+8c3a62b51afa9f4a2ce3678f052150d1493aa09fa0ad4df485531d04c1b18c90  holder.py
+b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00  BINARY.json
+802cfb1d338c709bcfab7dcd9c0a85224a9d42b30ac197fc0eeb3dcc83c4d604  holder-storage.sh.in
+743acde5c8a6d1a01cc37a7428a3152b34b93582c800954a5405d322363238f1  drill-cache.sh
+7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
+b2e8a260d33bc0882f5f8967973c177735ae2745b49934153517a7cef6c976ec  holder.example.json
+8ebed72d8523d84d97dd1b74125c5f4195085d62bd8ec823f7d583b6b76b06cf  test/mutate.py
+6e588766c745dc51f997eb515dbf85646357b118356c5e7f6cdebd64cb6547cf  test/standin-base.py
+9844b1ae34fd3b5f3c9d869251fb378b0b13a971e308ad130a60a5519738bf06  test/test_base_offline.py
+9a68cd121a748711d571ce510c90f40f10318984f55a8e58452cf33187e17c87  test/test_holder.py
+d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
+3d78f18a3dcad778d6014a6e7427313bdafad7509892bf737b520f3fb54be606  test/test_storage.py
+4de226a548e8f8f432a5909c21efb6940871d6ed0651279604620969bb45bb0a  test/stubs/stubcmd.py
+=== test/test_base_offline.py
+test_rendered_argv_on_the_official_binary_without_l1 (__main__.OfficialBinaryOffline.test_rendered_argv_on_the_official_binary_without_l1) ... /home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_base_offline.py:27: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/net/tcp' mode='r' encoding='UTF-8'>
+  rows = open(f).read().splitlines()[1:]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_base_offline.py:27: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/net/tcp6' mode='r' encoding='UTF-8'>
+  rows = open(f).read().splitlines()[1:]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_base_offline.py:68: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/hbo-__jl18ol/out.log' mode='w' encoding='UTF-8'>
+  p = subprocess.Popen([sys.executable, '-I', str(HERE.parent / 'holder.py'), 'run', str(cfg)],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 5.937s
+
+OK
+{
+ "binarySha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+ "exitCode": 1,
+ "ranSeconds": 5.8,
+ "stoppedByTestAfter240s": false,
+ "executionRpcChainId": "0x2105",
+ "executionRpcAnsweredAfterSec": 1.3,
+ "listeners": [
+  "0.0.0.0:60813",
+  "127.0.0.1:33721",
+  "127.0.0.1:52077"
+ ],
+ "l1LogLines": [
+  "\u001b[2m2026-10-23T05:55:17.733656Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mreth::cli\u001b[0m\u001b[2m:\u001b[0m Opening database \u001b[3mpath\u001b[0m\u001b[2m=\u001b[0m\"/tmp/hbo-__jl18ol/mnt/data/db\"",
+  "\u001b[2m2026-10-23T05:55:17.736620Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mreth::cli\u001b[0m\u001b[2m:\u001b[0m Configuration loaded \u001b[3mpath\u001b[0m\u001b[2m=\u001b[0m\"/tmp/hbo-__jl18ol/mnt/data/reth.toml\"",
+  "\u001b[2m2026-10-23T05:55:18.817954Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mreth::cli\u001b[0m\u001b[2m:\u001b[0m Creating JWT auth secret file \u001b[3mpath\u001b[0m\u001b[2m=\u001b[0m\"/tmp/hbo-__jl18ol/mnt/data/jwt.hex\"",
+  "\u001b[2m2026-10-23T05:55:18.819870Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mreth::cli\u001b[0m\u001b[2m:\u001b[0m RPC auth server started \u001b[3murl\u001b[0m\u001b[2m=\u001b[0m127.0.0.1:33721 \u001b[3mipc_endpoint\u001b[0m\u001b[2m=\u001b[0m/tmp/hbo-__jl18ol/mnt/data/engine.ipc",
+  "\u001b[2m2026-10-23T05:55:18.823216Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mupgrade_signal\u001b[0m\u001b[2m:\u001b[0m execution upgrade signal metrics observer spawned",
+  "\u001b[2m2026-10-23T05:55:18.823288Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m\ud83c\udf74 Scheduled Upgrades:",
+  "\u001b[2m2026-10-23T05:55:18.823293Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Regolith Activation Time: 1686789347",
+  "\u001b[2m2026-10-23T05:55:18.823294Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Canyon Activation Time: 1704992401",
+  "\u001b[2m2026-10-23T05:55:18.823295Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Delta Activation Time: 1708560000",
+  "\u001b[2m2026-10-23T05:55:18.823296Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Ecotone Activation Time: 1710374401",
+  "\u001b[2m2026-10-23T05:55:18.823297Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Fjord Activation Time: 1720627201",
+  "\u001b[2m2026-10-23T05:55:18.823297Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Granite Activation Time: 1726070401",
+  "\u001b[2m2026-10-23T05:55:18.823298Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Holocene Activation Time: 1736445601",
+  "\u001b[2m2026-10-23T05:55:18.823299Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> PectraBlobSchedule Activation Time: Not scheduled",
+  "\u001b[2m2026-10-23T05:55:18.823300Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Isthmus Activation Time: 1746806401",
+  "\u001b[2m2026-10-23T05:55:18.823300Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Jovian Activation Time: 1764691201",
+  "\u001b[2m2026-10-23T05:55:18.823301Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Azul Activation Time: 1779991200",
+  "\u001b[2m2026-10-23T05:55:18.823302Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Beryl Activation Time: 1782410400",
+  "\u001b[2m2026-10-23T05:55:18.823302Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Cobalt Activation Time: 1790791200",
+  "\u001b[2m2026-10-23T05:55:18.823303Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Denim Activation Time: 1793901600",
+  "\u001b[2m2026-10-23T05:55:18.823304Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mrollup_node\u001b[0m\u001b[2m:\u001b[0m upgrade \u001b[3mupgrade\u001b[0m\u001b[2m=\u001b[0m-> Everest Activation Time: Not scheduled",
+  "\u001b[2m2026-10-23T05:55:18.824280Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mupgrade_signal\u001b[0m\u001b[2m:\u001b[0m reinstalled P2P fork filter after runtime schedule change \u001b[3mfork_id\u001b[0m\u001b[2m=\u001b[0mForkId { hash: ForkHash(\"67da0260\"), next: 1704992401 }",
+  "\u001b[2m2026-10-23T05:55:18.824630Z\u001b[0m \u001b[33m WARN\u001b[0m \u001b[2mupgrade_signal\u001b[0m\u001b[2m:\u001b[0m failed to read live L1 upgrade signal schedule \u001b[3merror\u001b[0m\u001b[2m=\u001b[0mget L1 block failed: error sending request for url (http://127.0.0.1:57217/)",
+  "\u001b[2m2026-10-23T05:55:18.826356Z\u001b[0m \u001b[33m WARN\u001b[0m \u001b[2mp2p::flags\u001b[0m\u001b[2m:\u001b[0m Retrying L1 latest block number lookup for unsafe block signer resolution \u001b[3merror\u001b[0m\u001b[2m=\u001b[0merror sending request for url (http://127.0.0.1:57217/) \u001b[3mdelay\u001b[0m\u001b[2m=\u001b[0m118.74397ms",
+  "\u001b[2m2026-10-23T05:55:18.946679Z\u001b[0m \u001b[33m WARN\u001b[0m \u001b[2mp2p::flags\u001b[0m\u001b[2m:\u001b[0m Retrying L1 latest block number lookup for unsafe block signer resolution \u001b[3merror\u001b[0m\u001b[2m=\u001b[0merror sending request for url (http://127.0.0.1:57217/) \u001b[3mdelay\u001b[0m\u001b[2m=\u001b[0m314.713255ms"
+ ],
+ "datadirBytes": 4295586766,
+ "publicIpcSocket": false
+}
+[memory-guard] exit=0 peakTreeRssMiB=266 minHostAvailableMiB=24088
+[memory-guard] at peak: base:200 python3:30 python3:26 sh:6 timeout:4
+[queue] EXIT 0

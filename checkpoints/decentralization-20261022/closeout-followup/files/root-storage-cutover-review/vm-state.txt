@@ -1,0 +1,18 @@
+current=2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7
+currentSha=2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7
+unit.MainPID=4242
+unit.NRestarts=0
+unit.ActiveState=active
+unit.SubState=running
+unit.NeedDaemonReload=no
+runningExeSha=2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7
+writerPids=4242
+containerTimeout=timeout (GNU coreutils) 9.7
+dbVersion=28
+fsync=on synchronous_commit=on
+fencedAccounts=0
+casEnrolledAccounts=0
+scratchDatabases=
+controllerSessions=
+toolSessions=
+lockHeld=no

@@ -1,0 +1,243 @@
+# linux-carrier-closure test evidence digest, generated from rawlogs/ (full logs stay local).
+# Per job: sha256 and size of the full .out, exit code, guard line, then only queue/group/summary/failure/skip/scan lines.
+
+## c0-repo  out-sha256 68d8fc4ebacefdc0d4afddbaca996a3b49338e86b85d056c073197129d304a51  bytes 868  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=114 minHostAvailableMiB=23996
+    [queue] START available=24027MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+    [ok] fetched 71448f63ba189b1f61153e7df766f9421b350205 from rpc-priority/repo (objects only)
+    [ok] fetched 8d110101f6cdd5a03ffa16f52e6afb1ea8c6f346 from rpc-verifier-deadline/repo (objects only)
+    [ok] fetched fd6a1762ed1218d5d32fb43df2ccb97caa2b17e4 from verified-snapshot-lifecycle-fix (objects only)
+    [ok] clean
+    C0-OK
+    [memory-guard] exit=0 peakTreeRssMiB=114 minHostAvailableMiB=23996
+    [memory-guard] at peak: git:109 bash:6
+    [queue] EXIT 0
+
+## t1-tests  out-sha256 f4c2d531b2ccf049ec1342945b4ee24c90c9ea95822fca3c3c23d8437b003527  bytes 96620  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=648 minHostAvailableMiB=23198
+    [queue] START available=23792MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    [ok] repo clean
+    [ok] tree HEAD 9a00b98384b32b8d1850a74bc55c5c21f9f39367
+    [ok] package.json identical to the D candidate's
+    [ok] package-lock.json identical to the D candidate's
+    [ok] network/package.json identical to the D candidate's
+    [ok] network/package-lock.json identical to the D candidate's
+    [ok] relay/package.json identical to the D candidate's
+    [ok] relay/package-lock.json identical to the D candidate's
+    === F-forge-subset
+    [forge] contracts/EnclaveRegistry.sol contracts/PaymentRouter.sol contracts/PinnedSessionVaultFactory.sol
+    [forge] contracts/EnclaveDeployments.sol
+    [forge] contracts/EnclaveAppCatalog.sol contracts/foundry/test/mocks/SessionMocks.sol contracts/foundry/test/EnclaveDeployments.multicallValue.t.sol
+    [forge] contracts/EnclaveAddressBook.sol contracts/EnclaveHostOwnership.sol
+    [t1] F-forge-subset exit=0
+    === G1-relay-carriers
+    ℹ tests 12
+    ℹ pass 12
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [t1] G1-relay-carriers exit=0
+    === G2a-measured-control
+    ✖ gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct (7.42585ms)
+    ℹ tests 13
+    ℹ pass 12
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    [t1] G2a-measured-control exit=1
+    === G2b-affected
+    ✖ fresh hosts with empty caches start under an ACTIVATED anchor with every fleet policy mirror refused; a fleet-only host never does (4016.652223ms)
+    ✖ the admin bans host B (new anchored document, published only to an Enclave host carrier): B stops every role; the next authenticated policy unbans it (40124.303453ms)
+    ✖ stale, substituted and wrongly signed documents are refused by the carrier and, independently, by the gate; an anchored rollback is refused (1.013902ms)
+    ℹ tests 28
+    ℹ pass 25
+    ℹ fail 3
+    ℹ cancelled 0
+    ℹ skipped 0
+      Error: timed out: host B stops every role
+    [t1] G2b-affected exit=1
+    === G3-launchers
+    ℹ tests 17
+    ℹ pass 17
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [t1] G3-launchers exit=0
+    === G4-adopt-race
+    ℹ tests 50
+    ℹ pass 50
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [t1] G4-adopt-race exit=0
+    === C1-control-old-harness
+    ✖ a delayed second claim cannot replace an adopted or running record (1.802096ms)
+    ℹ tests 3
+    ℹ pass 2
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    [t1] C1-control-old-harness exit=1
+    [ok] repo still clean
+    === summary
+    [ok] no ssh/scp/sftp invocation (0)
+    T1-DONE
+    [memory-guard] exit=0 peakTreeRssMiB=648 minHostAvailableMiB=23198
+    [memory-guard] at peak: node:70 node:61 node:56 wasmtime:14 wasmtime:14 wasmtime:14 wasmtime:14 wasmtime:14
+    [queue] EXIT 0
+
+## t2-compose  out-sha256 c5d2e96842922dc5e687bc9d7df6d6b1e149d4ec533170c900121303935f736d  bytes 125797  rc 9
+    [memory-guard] exit=9 peakTreeRssMiB=696 minHostAvailableMiB=22860
+    [queue] START available=23799MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    [ok] repo clean
+    [ok] compose tree clean
+    == 1 the two pre-existing failures: CONTROL on fec43a6a, then the fix on the carrier head
+    === K1-control-fec-measured-control (7752a4239)
+    ✖ gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct (7.043475ms)
+    ℹ tests 13
+    ℹ pass 12
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    [t2] K1-control-fec-measured-control exit=1
+    === K2-control-fec-hosted-cold-start (fec43a6a0)
+    ✖ fresh hosts with empty caches start under an ACTIVATED anchor with every fleet policy mirror refused; a fleet-only host never does (4096.785721ms)
+    ✖ the admin bans host B (new anchored document, published only to an Enclave host carrier): B stops every role; the next authenticated policy unbans it (40114.148127ms)
+    ✖ stale, substituted and wrongly signed documents are refused by the carrier and, independently, by the gate; an anchored rollback is refused (1.018622ms)
+    ℹ tests 5
+    ℹ pass 2
+    ℹ fail 3
+    ℹ cancelled 0
+    ℹ skipped 0
+      Error: timed out: host B stops every role
+    [t2] K2-control-fec-hosted-cold-start exit=1
+    === K3-fixed-measured-control (7752a4239)
+    ℹ tests 13
+    ℹ pass 13
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [t2] K3-fixed-measured-control exit=0
+    === K4-fixed-hosted-cold-start (65f3fb982)
+    ℹ tests 5
+    ℹ pass 5
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [t2] K4-fixed-hosted-cold-start exit=0
+    == 2 the composition: exact union
+    [t2] U-union exit=6
+    == 3 bundle currency + rebuild of the Linux image's bundles (in the compose tree, left uncommitted)
+    == 1 checks before
+    [before] scripts/build-host-admission.mjs --check rc=1 ::  Node.js v22.23.3
+    [before] scripts/build-metal-lease-gas.mjs --check rc=0 :: metal lease-gas conduit bundle: 41371 bytes, sha256:421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6 (verified)
+    [before] scripts/build-windows-lease-runtime.mjs --check rc=1 ::  Node.js v22.23.3
+    [before] scripts/build-mcp-guest-bundle.mjs --check rc=1 ::  Node.js v22.23.3
+    [before] scripts/build-platform-api-guest-bundle.mjs --check rc=1 ::  Node.js v22.23.3
+    [before] scripts/build-host-service-packages.mjs --check rc=1 ::  Node.js v22.23.3
+    == 2 rebuild the Linux image's bundles
+    == 3 checks after
+    [after] scripts/build-host-admission.mjs --check rc=0 ::
+    [after] scripts/build-metal-lease-gas.mjs --check rc=0 :: metal lease-gas conduit bundle: 41371 bytes, sha256:421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6 (verified)
+    [after] scripts/build-windows-lease-runtime.mjs --check rc=1 ::  Node.js v22.23.3
+    [after] scripts/build-mcp-guest-bundle.mjs --check rc=1 ::  Node.js v22.23.3
+    [after] scripts/build-platform-api-guest-bundle.mjs --check rc=1 ::  Node.js v22.23.3
+    [after] scripts/build-host-service-packages.mjs --check rc=1 ::  Node.js v22.23.3
+    B2-DONE
+    [t2] B-bundles exit=0
+    == 4 the composed tree's affected suites (rebuilt bundles in place)
+    === S1-carriers-gate (280d28497)
+    ℹ tests 22
+    ℹ pass 22
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [t2] S1-carriers-gate exit=0
+    === S2-A-B-root (280d28497)
+    ℹ tests 53
+    ℹ pass 53
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [t2] S2-A-B-root exit=0
+    === S3-guest-launcher (280d28497)
+    ℹ tests 35
+    ℹ pass 35
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [t2] S3-guest-launcher exit=0
+    === S4-measured-control (7752a4239)
+    ℹ tests 13
+    ℹ pass 13
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [t2] S4-measured-control exit=0
+    === S5-supervisor (280d28497)
+    ℹ tests 54
+    ℹ pass 54
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [t2] S5-supervisor exit=0
+    [ok] repo still clean
+    === summary
+    [FAIL] no ssh/scp/sftp invocation (1)
+    [memory-guard] exit=9 peakTreeRssMiB=696 minHostAvailableMiB=22860
+    [memory-guard] at peak: solc-0.8.35:462 node:88 node:59 forge:50 anvil:23 bash:6 timeout:4 unshare:4
+    [queue] EXIT 9
+
+## t3-final  out-sha256 523c91805e59c116f27c0d885df4325b7b380e7d6f0e58bb275224da822cce6b  bytes 5432  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=325 minHostAvailableMiB=23235
+    [queue] START available=23776MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [ok] repo clean
+    == 1 union
+    [ok] the rebuild commit changes exactly the two policy bundles
+    == 2 bundle currency at HEAD (full output)
+    --- scripts/build-host-admission.mjs --check rc=0
+    --- scripts/build-metal-lease-gas.mjs --check rc=0
+    --- scripts/build-windows-lease-runtime.mjs --check rc=1
+    Error: Windows shared lease bundle is stale
+    --- scripts/build-mcp-guest-bundle.mjs --check rc=1
+    Error: the hosted MCP guest bundle is stale; run node scripts/build-mcp-guest-bundle.mjs
+    --- scripts/build-platform-api-guest-bundle.mjs --check rc=1
+    Error: Build failed with 1 error:
+    --- scripts/build-host-service-packages.mjs --check rc=1
+    Error: directory-replica.mjs is stale; run node scripts/build-host-service-packages.mjs
+    [ok] the checks wrote nothing
+    == 3 image-input closure
+    [t3] closure HEAD rc=0
+    [t3] closure carrier-only rc=0
+    == 4 scans of fec43a6a08da2ac287fb3a5c42de89f096f4f678..714aa0dcdfc3d6e67e3c875ab4751193473c53d5
+    [scan] scan-crypto-keys rc=0
+    12:38AM INF no leaks found
+    [scan] gitleaks rc=0
+    == 5 review patches
+    [ok] no ssh/scp/sftp invocation (0)
+    T3-DONE
+    [memory-guard] exit=0 peakTreeRssMiB=325 minHostAvailableMiB=23235
+    [memory-guard] at peak: esbuild:232 node:81 bash:6 timeout:4 bash:2
+    [queue] EXIT 0
+
+## t4-head  out-sha256 1c12ab6bc02bd6e3ef9578637f28277d95d61fc73a048f7510f2a880dc32ec79  bytes 23484  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=388 minHostAvailableMiB=23331
+    [queue] START available=23744MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    [ok] repo clean
+    === H1-carriers (fad657bc5626166bde1bde4454ec4f73d23dde47)
+    ℹ tests 12
+    ℹ pass 12
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [t4] H1-carriers exit=0
+    [scan] scan-crypto-keys rc=0
+    12:42AM INF no leaks found
+    [scan] gitleaks rc=0
+    [ok] no ssh/scp/sftp invocation (0)
+    T4-DONE
+    [memory-guard] exit=0 peakTreeRssMiB=388 minHostAvailableMiB=23331
+    [memory-guard] at peak: node:210 node:87 node:55 anvil:23 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0

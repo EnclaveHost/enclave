@@ -1,0 +1,75 @@
+From d292b930e7e1730ea6fa385b4716abc24bd24bc8 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 15:40:30 -0700
+Subject: [PATCH 05/19] Let the admin tool's status command send its body-less
+ GET
+
+postJson(url) built Buffer.from(JSON.stringify(undefined)) before deciding on GET, so
+`platform-api-admin.mjs status` threw a TypeError before any request. The body is now encoded only
+when there is one. status stays an advisory, unauthenticated read.
+
+(cherry picked from commit dfe020abf1794bedc42943e43fe85eb02593dd8d)
+---
+ scripts/platform-api-admin.mjs          |  2 +-
+ test/platform-api-admin-status.test.mjs | 39 +++++++++++++++++++++++++
+ 2 files changed, 40 insertions(+), 1 deletion(-)
+ create mode 100644 test/platform-api-admin-status.test.mjs
+
+diff --git a/scripts/platform-api-admin.mjs b/scripts/platform-api-admin.mjs
+index 1ff85629f9137049381ae42bd8f3c42bf1735ed0..a616a431adc5f5905bee4f771a7e816cc0b08add 100644
+--- a/scripts/platform-api-admin.mjs
++++ b/scripts/platform-api-admin.mjs
+@@ -82,7 +82,7 @@ export async function recover({ platformApi, targetStatementText, account = null
+ 
+ // ---- the command line ------------------------------------------------------------------------------------------------------
+ function postJson(url, body) {
+-  const u = new URL(url), data = Buffer.from(JSON.stringify(body)), lib = u.protocol === "https:" ? https : http;
++  const u = new URL(url), data = body === undefined ? null : Buffer.from(JSON.stringify(body)), lib = u.protocol === "https:" ? https : http;
+   return new Promise((ok, no) => {
+     const r = lib.request({ host: u.hostname, port: u.port, method: body === undefined ? "GET" : "POST", path: u.pathname, rejectUnauthorized: false, timeout: 30000,
+       headers: body === undefined ? {} : { "content-type": "application/json", "content-length": data.length } }, (res) => {
+diff --git a/test/platform-api-admin-status.test.mjs b/test/platform-api-admin-status.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..7161c3f6b7edd2e2eb17c2b0f8671f9230c52fa7
+--- /dev/null
++++ b/test/platform-api-admin-status.test.mjs
+@@ -0,0 +1,39 @@
++// `scripts/platform-api-admin.mjs status`: an ADVISORY, unauthenticated read of a member's role status (nothing is verified,
++// signed or sent). Against a local HTTP fixture that records exactly what arrives, the tool must issue a body-less GET of
++// STATUS_PATH and print the answer, both in process (main with injected io) and through the real command-line entry.
++import test, { after } from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import path from 'node:path';
++import { execFile } from 'node:child_process';
++import { fileURLToPath } from 'node:url';
++import { STATUS_PATH } from '../metal/guest/platform-api-role.mjs';
++import * as ADMIN_CLI from '../scripts/platform-api-admin.mjs';
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const STATUS = { format: 'enclave-platform-api-role/v1', member: 1, role: 'follower', haveKey: true, leader: 0 };
++const seen = [];
++const srv = http.createServer((req, res) => {
++  const c = []; req.on('data', (d) => c.push(d));
++  req.on('end', () => {
++    seen.push({ method: req.method, url: req.url, bodyBytes: Buffer.concat(c).length, contentType: req.headers['content-type'] ?? null,
++      contentLength: req.headers['content-length'] ?? null, chunked: /chunked/i.test(req.headers['transfer-encoding'] || '') });
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(STATUS));
++  });
++});
++after(() => { srv.closeAllConnections?.(); srv.close(); });
++
++test('status: one body-less GET of the status path; the answer is printed as is (in process and through the real entry)', { timeout: 30000 }, async () => {
++  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
++  const target = `http://127.0.0.1:${srv.address().port}`, expected = JSON.stringify(STATUS, null, 1) + '\n';
++  const out = [], err = [];
++  const code = await ADMIN_CLI.main(['node', 'platform-api-admin.mjs', 'status', '--target', target], { io: { out: (s) => out.push(s), err: (s) => err.push(s) } });
++  assert.equal(code, 0);
++  assert.equal(out.join(''), expected, 'the status answer is the output');
++  assert.deepEqual(err, []);
++  const child = await new Promise((resolve) => execFile(process.execPath, [path.join(REPO, 'scripts/platform-api-admin.mjs'), 'status', '--target', target], { timeout: 20000 },
++    (e, stdout, stderr) => resolve({ code: e ? (e.code ?? 1) : 0, stdout, stderr })));
++  assert.equal(child.code, 0, child.stderr); assert.equal(child.stdout, expected); assert.equal(child.stderr, '');
++  assert.equal(seen.length, 2, 'exactly one request per run');
++  for (const s of seen) assert.deepEqual(s, { method: 'GET', url: STATUS_PATH, bodyBytes: 0, contentType: null, contentLength: null, chunked: false });
++});

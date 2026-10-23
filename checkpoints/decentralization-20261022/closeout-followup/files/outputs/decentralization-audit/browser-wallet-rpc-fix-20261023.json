@@ -1,0 +1,24 @@
+{
+  "observedAt": "2026-10-23T06:55:29.251215+00:00",
+  "sourceCommit": "320d7e9fdbb14b7297225802023ce0b471cc205f",
+  "upstreamFileCommit": "e820e2405af91010c18913acf4740f651618c644",
+  "sourcePath": "site/js/core/wallet.js",
+  "fixedLeafTests": {
+    "passed": 6,
+    "failed": 0,
+    "command": "node --experimental-vm-modules --test test/walletconnect-independent-rpc.test.mjs",
+    "toolEvidence": "451d18"
+  },
+  "oldSourceControl": {
+    "passed": 1,
+    "failed": 5,
+    "expectedExit": 1,
+    "toolEvidence": "d48627"
+  },
+  "ordinaryNodeTestWrapper": {
+    "passed": true,
+    "verifiedAt": "2026-10-23T06:56:52.909823+00:00",
+    "command": "node --test test/walletconnect-independent-rpc.test.mjs"
+  },
+  "scope": "Whole wallet module evaluated; SDK/browser imports stubbed to capture initialization. Source fix committed, not integrated or deployed. Hosted default still uses public RPC; browser-wide independence is incomplete."
+}

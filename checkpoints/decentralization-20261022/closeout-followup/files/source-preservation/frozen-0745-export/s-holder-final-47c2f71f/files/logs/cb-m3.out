@@ -1,0 +1,67 @@
+[queue] START available=23778MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+test_allocate_exact_non_sparse_then_idempotent (__main__.Allocation.test_allocate_exact_non_sparse_then_idempotent) ... ok
+test_failure_unwinds_only_what_this_call_created (__main__.Allocation.test_failure_unwinds_only_what_this_call_created) ... ok
+test_foreign_file_refused_untouched (__main__.Allocation.test_foreign_file_refused_untouched) ... ok
+test_interrupted_create_is_completed_not_regranted (__main__.Allocation.test_interrupted_create_is_completed_not_regranted) ... ok
+test_verify_bounds (__main__.Allocation.test_verify_bounds) ... ok
+test_allocation_waits_for_a_ledger_edit_and_sees_its_result (__main__.Concurrency.test_allocation_waits_for_a_ledger_edit_and_sees_its_result) ... ok
+test_concurrent_allocations_of_one_reservation_grant_once (__main__.Concurrency.test_concurrent_allocations_of_one_reservation_grant_once) ... ok
+test_old_concurrent_creates_both_pass_and_exceed_the_cap (__main__.OldBehaviorControls.test_old_concurrent_creates_both_pass_and_exceed_the_cap) ... /usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=11>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=8>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=9>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=6>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=7 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=4 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=5 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=3 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_old_missing_path_counts_zero_and_growth_is_unbounded (__main__.OldBehaviorControls.test_old_missing_path_counts_zero_and_growth_is_unbounded) ... ok
+test_example_share_split_across_hosts_never_exceeds_cap (__main__.Rules.test_example_share_split_across_hosts_never_exceeds_cap) ... ok
+test_ledger_rules (__main__.Rules.test_ledger_rules) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 5.903s
+
+OK
+SUITE_RC=0
+=== b:no-share-sum KILLED
+  ERROR: test_ledger_rules (__main__.Rules.test_ledger_rules)
+  FAIL: test_example_share_split_across_hosts_never_exceeds_cap (__main__.Rules.test_example_share_split_across_hosts_never_exceeds_cap)
+  FAIL: test_ledger_rules (__main__.Rules.test_ledger_rules) (needle='host shares sum')
+=== b:no-per-host KILLED
+  ERROR: test_ledger_rules (__main__.Rules.test_ledger_rules)
+  FAIL: test_old_concurrent_creates_both_pass_and_exceed_the_cap (__main__.OldBehaviorControls.test_old_concurrent_creates_both_pass_and_exceed_the_cap)
+  FAIL: test_old_missing_path_counts_zero_and_growth_is_unbounded (__main__.OldBehaviorControls.test_old_missing_path_counts_zero_and_growth_is_unbounded)
+  FAIL: test_ledger_rules (__main__.Rules.test_ledger_rules) (needle='exceed its share')
+=== b:allow-directory KILLED
+  ERROR: test_ledger_rules (__main__.Rules.test_ledger_rules)
+  FAIL: test_ledger_rules (__main__.Rules.test_ledger_rules) (needle='not hard-bounded')
+=== b:missing-ok KILLED
+  FAIL: test_verify_bounds (__main__.Allocation.test_verify_bounds)
+=== b:allow-sparse KILLED
+  FAIL: test_verify_bounds (__main__.Allocation.test_verify_bounds)
+=== b:adopt-foreign KILLED
+  FAIL: test_foreign_file_refused_untouched (__main__.Allocation.test_foreign_file_refused_untouched)
+=== b:no-lock KILLED
+  FAIL: test_allocation_waits_for_a_ledger_edit_and_sees_its_result (__main__.Concurrency.test_allocation_waits_for_a_ledger_edit_and_sees_its_result)
+  FAIL: test_concurrent_allocations_of_one_reservation_grant_once (__main__.Concurrency.test_concurrent_allocations_of_one_reservation_grant_once)
+killed 7/7
+[memory-guard] exit=0 peakTreeRssMiB=112 minHostAvailableMiB=23104
+[memory-guard] at peak: python3:27 python3:17 python3:15 python3:15 python3:15 python3:15 bash:6 timeout:4
+[queue] EXIT 0

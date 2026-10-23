@@ -1,0 +1,33 @@
+{
+ "format": "enclave-rpc-nvme-cache-budget/v2",
+ "capBytes": 250000000000,
+ "targetBytes": 200000000000,
+ "hosts": [
+  {
+   "machineId": "<32-hex /etc/machine-id of the cache host>",
+   "label": "workstation",
+   "shareBytes": 200000000000
+  }
+ ],
+ "reservations": [
+  {
+   "id": "base-holder-dm-cache",
+   "host": "<this host: /etc/machine-id>",
+   "owner": "enclave-base-holder",
+   "kind": "preallocated-files",
+   "blockBytes": 4096,
+   "maxBytes": 199140835328,
+   "slackBytes": 67108864,
+   "files": [
+    {
+     "path": "/vm/enclave-base-holder-cache/cache-data.img",
+     "bytes": 197999984640
+    },
+    {
+     "path": "/vm/enclave-base-holder-cache/cache-meta.img",
+     "bytes": 1073741824
+    }
+   ]
+  }
+ ]
+}

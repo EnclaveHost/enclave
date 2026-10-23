@@ -1,0 +1,43 @@
+# rendered by holder.py (enclave-base-holder/v1); review before install. Private: loopback RPC only, not a host-service role.
+[Unit]
+Description=Enclave private Base state holder (stock base rpc v1.5.1; untrusted witness source)
+Wants=network-online.target
+After=network-online.target enclave-base-holder-storage.service
+Requires=enclave-base-holder-storage.service
+RequiresMountsFor=/srv/enclave-base-holder
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=enclave-holder
+Group=enclave-holder
+ExecStart=/usr/bin/python3 -I /opt/enclave-base-holder/holder.py run /etc/enclave-base-holder/holder.json
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStartSec=7260
+TimeoutStopSec=630
+Restart=on-failure
+RestartSec=60
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+MemoryMax=34359738368
+MemoryHigh=30923764531
+MemorySwapMax=0
+TasksMax=4096
+LimitNOFILE=65536
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+ReadWritePaths=/srv/enclave-base-holder
+RuntimeDirectory=enclave-base-holder
+RuntimeDirectoryMode=0750
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

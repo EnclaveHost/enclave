@@ -1,0 +1,50 @@
+[queue] START available=23805MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+=== inherit-env KILLED
+  FAIL: test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop)
+  FAIL: test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed)
+=== sh:adopt-any-mapping KILLED
+  FAIL: test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops)
+=== sh:no-invalidate KILLED
+  FAIL: test_cache_loss_invalidates_before_touching_origin (__main__.Storage.test_cache_loss_invalidates_before_touching_origin)
+=== sh:no-unwind KILLED
+  FAIL: test_assemble_failure_keeps_preexisting_loops (__main__.Storage.test_assemble_failure_keeps_preexisting_loops)
+  FAIL: test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops)
+  FAIL: test_assemble_refuses_foreign_mount (__main__.Storage.test_assemble_refuses_foreign_mount)
+  FAIL: test_create_failure_unwinds_only_its_own_resources (__main__.Storage.test_create_failure_unwinds_only_its_own_resources)
+  FAIL: test_unwind_keeps_image_when_detach_fails (__main__.Storage.test_unwind_keeps_image_when_detach_fails)
+  FAIL: test_unwind_stops_when_mapping_removal_fails (__main__.Storage.test_unwind_stops_when_mapping_removal_fails)
+  FAIL: test_unwind_stops_when_unmount_fails (__main__.Storage.test_unwind_stops_when_unmount_fails)
+=== sh:continue-after-failed-umount KILLED
+  FAIL: test_disassemble_stops_at_failed_unmount (__main__.Storage.test_disassemble_stops_at_failed_unmount)
+=== sh:verify-bypassed KILLED
+  ERROR: test_verify_cap_charges_maxima_and_bounds_every_local_file (__main__.Storage.test_verify_cap_charges_maxima_and_bounds_every_local_file)
+=== sh:admit-bypassed KILLED
+  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) (needle='differ from this configuration')
+  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) (needle='host shares sum')
+  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) (needle='not hard-bounded')
+  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) (needle='belongs to host')
+  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating)
+=== public-http KILLED
+  FAIL: test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned)
+=== allow-writeback KILLED
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='writethrough')
+=== cap-off-by-slack KILLED
+  FAIL: test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting)
+=== no-group-reap KILLED
+  FAIL: test_child_failure_propagates_exit_code_and_its_group_is_reaped (__main__.Lifecycle.test_child_failure_propagates_exit_code_and_its_group_is_reaped)
+=== no-pdeathsig KILLED
+  FAIL: test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child)
+=== trust-l1 KILLED
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='trustRpc')
+=== verifier-port KILLED
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='local verifier')
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='local verifier')
+=== cli-prune-flag KILLED
+  FAIL: test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned)
+=== toml-exists-only KILLED
+  FAIL: test_download_like_config_passes_and_default_or_missing_fails (__main__.RethToml.test_download_like_config_passes_and_default_or_missing_fails) (needle='prune segments')
+  FAIL: test_download_like_config_passes_and_default_or_missing_fails (__main__.RethToml.test_download_like_config_passes_and_default_or_missing_fails) (needle='prune segments')
+killed 16/16
+[memory-guard] exit=0 peakTreeRssMiB=110 minHostAvailableMiB=23374
+[memory-guard] at peak: python3:33 python3:27 python3:24 python3:17 sleep:4 timeout:4
+[queue] EXIT 0

@@ -1,0 +1,55 @@
+[queue] START available=24510MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+test_assemble_failure_keeps_preexisting_loops (__main__.Storage.test_assemble_failure_keeps_preexisting_loops) ... ok
+test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical (__main__.Storage.test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical) ... ok
+test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops) ... ok
+test_assemble_refuses_foreign_mount (__main__.Storage.test_assemble_refuses_foreign_mount) ... ok
+test_assemble_refuses_origin_mounted_without_cache (__main__.Storage.test_assemble_refuses_origin_mounted_without_cache) ... ok
+test_cache_loss_invalidates_before_touching_origin (__main__.Storage.test_cache_loss_invalidates_before_touching_origin) ... ok
+test_create_failure_unwinds_only_its_own_resources (__main__.Storage.test_create_failure_unwinds_only_its_own_resources) ... ok
+test_create_preallocates_exact_sizes_and_leaves_nothing_attached (__main__.Storage.test_create_preallocates_exact_sizes_and_leaves_nothing_attached) ... /home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_storage.py:72: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/hs-j4e2vjz9/nvme/cache-meta.img'>
+  self.assertEqual(open(self.nvme / 'cache-meta.img', 'rb').read(8 * MiB), bytes(8 * MiB))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_create_refuses_existing_targets_and_touches_nothing (__main__.Storage.test_create_refuses_existing_targets_and_touches_nothing) ... ok
+test_create_refuses_over_aggregate_cap_using_measured_inventory (__main__.Storage.test_create_refuses_over_aggregate_cap_using_measured_inventory) ... ok
+test_create_refuses_wrong_media_before_allocating (__main__.Storage.test_create_refuses_wrong_media_before_allocating) ... ok
+test_disassemble_checks_mapping_before_unmount (__main__.Storage.test_disassemble_checks_mapping_before_unmount) ... ok
+test_disassemble_clean (__main__.Storage.test_disassemble_clean) ... ok
+test_disassemble_no_cache_refuses_foreign_mount (__main__.Storage.test_disassemble_no_cache_refuses_foreign_mount) ... ok
+test_disassemble_refuses_foreign_mapping (__main__.Storage.test_disassemble_refuses_foreign_mapping) ... ok
+test_disassemble_refuses_foreign_mount_without_mutation (__main__.Storage.test_disassemble_refuses_foreign_mount_without_mutation) ... ok
+test_disassemble_stops_at_failed_unmap (__main__.Storage.test_disassemble_stops_at_failed_unmap) ... ok
+test_disassemble_stops_at_failed_unmount (__main__.Storage.test_disassemble_stops_at_failed_unmount) ... ok
+test_no_cache_layout_mounts_origin_loop (__main__.Storage.test_no_cache_layout_mounts_origin_loop) ... ok
+test_unwind_keeps_image_when_detach_fails (__main__.Storage.test_unwind_keeps_image_when_detach_fails) ... ok
+test_unwind_stops_when_mapping_removal_fails (__main__.Storage.test_unwind_stops_when_mapping_removal_fails) ... ok
+test_unwind_stops_when_unmount_fails (__main__.Storage.test_unwind_stops_when_unmount_fails) ... ok
+test_verify_cap_measures_allocated_bytes (__main__.Storage.test_verify_cap_measures_allocated_bytes) ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 13.104s
+
+OK
+SUITE_RC=0
+=== sh:adopt-any-mapping KILLED
+  FAIL: test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops)
+=== sh:no-invalidate KILLED
+  FAIL: test_cache_loss_invalidates_before_touching_origin (__main__.Storage.test_cache_loss_invalidates_before_touching_origin)
+=== sh:no-unwind KILLED
+  FAIL: test_assemble_failure_keeps_preexisting_loops (__main__.Storage.test_assemble_failure_keeps_preexisting_loops)
+  FAIL: test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops)
+  FAIL: test_assemble_refuses_foreign_mount (__main__.Storage.test_assemble_refuses_foreign_mount)
+  FAIL: test_create_failure_unwinds_only_its_own_resources (__main__.Storage.test_create_failure_unwinds_only_its_own_resources)
+  FAIL: test_unwind_keeps_image_when_detach_fails (__main__.Storage.test_unwind_keeps_image_when_detach_fails)
+  FAIL: test_unwind_stops_when_mapping_removal_fails (__main__.Storage.test_unwind_stops_when_mapping_removal_fails)
+  FAIL: test_unwind_stops_when_unmount_fails (__main__.Storage.test_unwind_stops_when_unmount_fails)
+=== sh:continue-after-failed-umount KILLED
+  FAIL: test_disassemble_stops_at_failed_unmount (__main__.Storage.test_disassemble_stops_at_failed_unmount)
+=== sh:measured-cap-ignored KILLED
+  FAIL: test_create_refuses_over_aggregate_cap_using_measured_inventory (__main__.Storage.test_create_refuses_over_aggregate_cap_using_measured_inventory)
+  FAIL: test_verify_cap_measures_allocated_bytes (__main__.Storage.test_verify_cap_measures_allocated_bytes)
+killed 5/5
+MUT_RC=0
+[memory-guard] exit=0 peakTreeRssMiB=83 minHostAvailableMiB=23836
+[memory-guard] at peak: python3:31 python3:17 python3:14 bash:6 timeout:4 bash:4 bash:2 bash:2
+[queue] EXIT 0

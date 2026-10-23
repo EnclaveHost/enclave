@@ -1,0 +1,47 @@
+{
+  "observedAt": "2026-10-23T06:50:02.022Z",
+  "source": {
+    "commit": "e820e2405af91010c18913acf4740f651618c644",
+    "path": "site/js/core/wallet.js",
+    "sha256": "e1d20822d89c0b3d5d28e8908f594c87a323b03f9a3f73290f1b55901d8d4d34"
+  },
+  "scope": "Actual frozen wallet module evaluated in VM; imports and WalletConnect SDK stubbed to capture initialization. Only a test export appended; production function unchanged. No browser, wallet, signing, network requests or production writes.",
+  "observations": [
+    {
+      "state": "on",
+      "profileRpcs": [
+        "https://rpc.operator.example"
+      ],
+      "initCalls": 1,
+      "rpcMap": {
+        "8453": "https://mainnet.base.org"
+      },
+      "error": null
+    },
+    {
+      "state": "invalid",
+      "profileRpcs": [],
+      "initCalls": 1,
+      "rpcMap": {
+        "8453": "https://mainnet.base.org"
+      },
+      "error": null
+    },
+    {
+      "state": "off",
+      "profileRpcs": [
+        "https://mainnet.base.org"
+      ],
+      "initCalls": 1,
+      "rpcMap": {
+        "8453": "https://mainnet.base.org"
+      },
+      "error": null
+    }
+  ],
+  "findings": [
+    "An independent profile RPC is ignored by WalletConnect rpcMap.",
+    "An invalid independent profile still initializes WalletConnect with the public RPC."
+  ],
+  "fixed": false
+}

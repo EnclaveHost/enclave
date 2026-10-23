@@ -1,0 +1,4 @@
+version rc=0
+help rc=0
+rpc-help rc=0
+rpc-help-default rc=0

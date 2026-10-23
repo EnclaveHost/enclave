@@ -1,0 +1,84 @@
+From 9a00b98384b32b8d1850a74bc55c5c21f9f39367 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 00:07:05 -0700
+Subject: [PATCH 02/19] tenant-provision-race: give the adopt() harness its
+ real module-scope dependencies
+
+adopt() reads walletVerdicts (ROOT 1086cf23's withdrawal snapshot) and releaseHold (the release journal) before it decides;
+the harness sliced adopt() without them, so "a delayed second claim cannot replace an adopted or running record" failed with
+a ReferenceError on every lineage (releaseHold before 1086cf23, walletVerdicts after). The harness now slices the actual
+supervisor statements and functions (_walletWithdrawn, walletVerdicts, noteWalletWithdrawn, _stateCorrupt, _releaseIntents,
+releaseHold); the existing assertions are unchanged. New pending-adopt cases: a pending stop, a wallet hold, an unresolved
+release or a corrupt release journal never lets a second adoption replace the record, free or allocate its slice.
+---
+ test/tenant-provision-race.test.mjs | 42 ++++++++++++++++++++++++++---
+ 1 file changed, 39 insertions(+), 3 deletions(-)
+
+diff --git a/test/tenant-provision-race.test.mjs b/test/tenant-provision-race.test.mjs
+index e8b69d7e235fd1a52e0933ede2db154764a90e69..18baa93eee95824033543114a99b406c16a12316 100644
+--- a/test/tenant-provision-race.test.mjs
++++ b/test/tenant-provision-race.test.mjs
+@@ -8,6 +8,12 @@ function body(name) {
+   assert.ok(found, `supervisor function ${name} exists`);
+   return found[0];
+ }
++// one top-level supervisor statement, by its exact opening text (a module-scope const/let the sliced functions read)
++function line(start) {
++  const at = source.indexOf('\n' + start);
++  assert.ok(at >= 0, `supervisor statement ${start} exists`);
++  return source.slice(at + 1, source.indexOf('\n', at + 1));
++}
+ function harness(spawnContainer) {
+   const deployments = new Map();
+   let freed = 0;
+@@ -15,13 +21,18 @@ function harness(spawnContainer) {
+     acmeReconcileSoon() {}, releaseGpu() { freed++; },
+     claimSigner: () => ({ account: { address: 'operator' } }),
+     CLAIM_TERMINAL: new Set(['failed', 'expired', 'terminated']),
+-    console: { error() {} } };
++    console: { error() {}, log() {}, warn() {} } };
+   const api = new Function('deps', `
+     const {deployments,spawnContainer,launchSpec,acmeReconcileSoon,releaseGpu,
+            claimSigner,CLAIM_TERMINAL,console}=deps;
+     const tenantProvisions = new WeakMap();
+-    ${['revokeLeasePermits', 'provisionTenant', 'performTenantProvision', 'auditClaims', 'adopt'].map(body).join('\n')}
+-    return {provisionTenant,auditClaims,adopt,tenantProvisions};
++    // adopt()'s module-scope dependencies, as supervisor.js defines them (ROOT 1086cf23's withdrawal snapshot, the release
++    // journal's hold): the real statements and functions, never stand-ins
++    ${['let _stateCorrupt = null;', 'const _releaseIntents = new Map();', 'const _walletWithdrawn=new Map();',
++       'const walletVerdicts=', 'function noteWalletWithdrawn('].map(line).join('\n')}
++    ${['revokeLeasePermits', 'releaseHold', 'provisionTenant', 'performTenantProvision', 'auditClaims', 'adopt'].map(body).join('\n')}
++    return {provisionTenant,auditClaims,adopt,tenantProvisions,noteWalletWithdrawn,walletVerdicts,releaseIntents:_releaseIntents,
++            corrupt:(why)=>{_stateCorrupt=why;}};
+   `)(deps);
+   return { ...api, deployments, freed: () => freed };
+ }
+@@ -77,3 +88,28 @@ test('a delayed second claim cannot replace an adopted or running record', async
+     assert.equal(h.freed(), 0);
+   }
+ });
++
++// pending-adopt races (ROOT 1086cf23's guard in the same harness): a record whose stop is pending, whose wallet answer is
++// held, or a release of this host that is still unresolved is never replaced or re-allocated by a second adoption
++test('a pending stop, a wallet hold or an unresolved release blocks a re-adoption: the record stays, nothing is allocated or freed', async () => {
++  for (const mark of ['stopPending', 'walletHeld']) {
++    const h = harness(async () => { throw new Error('must not spawn'); });
++    const rec = { id: 'test', status: 'failed', _gpu: {}, ...(mark === 'stopPending' ? { _stopPending: { since: 'test' } } : { walletHeld: { stopConfirmed: false } }) };
++    h.deployments.set(rec.id, rec);
++    assert.equal(await h.adopt({ id: rec.id }, {}, [], { cpu: true }), false, mark);
++    assert.equal(h.deployments.get(rec.id), rec, `${mark}: the terminal record is kept, not deleted for a re-adopt`);
++    assert.deepEqual(rec._gpu, {}, `${mark}: its slice is not released`);
++    assert.equal(h.freed(), 0, mark);
++  }
++  const h = harness(async () => { throw new Error('must not spawn'); });
++  const rec = { id: 'test', status: 'failed', _gpu: {} };
++  h.deployments.set(rec.id, rec);
++  h.releaseIntents.set('test', { txs: [{ state: 'pending', sponsored: true, leaseNonce: 7, deadline: 1 }] });
++  assert.equal(await h.adopt({ id: rec.id }, {}, [], { cpu: true }), undefined);
++  assert.equal(h.deployments.get(rec.id), rec, 'an unresolved release keeps the record');
++  assert.equal(h.freed(), 0);
++  h.releaseIntents.clear(); h.corrupt('bad journal');
++  assert.equal(await h.adopt({ id: rec.id }, {}, [], { cpu: true }), undefined);
++  assert.equal(h.deployments.get(rec.id), rec, 'a corrupt release journal resumes and claims nothing');
++  assert.equal(h.freed(), 0);
++});

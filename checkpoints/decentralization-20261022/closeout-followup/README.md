@@ -23,6 +23,8 @@ Frozen 04:20Z append (2026-10-23): A policy readers + callers choosing the local
 
 Frozen 06:30Z append (2026-10-23): ROOT kernel lock 794d2ff3/336ea56a, ROOT verified-snapshot lifecycle fd6a1762, A native relay closure 71448f63, P deadline d0775541 and P FINAL composition 9e838ba7 (E history afc443e0 kept as prior), C carriers 0757085e, F lifecycle 6c38c048, S holder f6de2364 + ROOT holder fixes b1b6f184/c3efff41, the D+ROOT Linux package fec43a6a (image 3043f6ff, local only) and root receipts incl. the SUCCESSFUL whole-bucket Sia recovery (1488 objects, 04:58:01Z), the unanchored policy preflight and the corrected control-admission inventory. Source + offline tests only; nothing deployed. The Sia SUCCESS receipt supersedes the earlier OOM failure as the latest terminal full-restore status. See `MANIFEST.json` `appends`.
 
+Frozen 07:45Z append (2026-10-23): D Linux carrier closure + A/B/ROOT composition fad657bc (ready for final composition; needs B's final runtime), S final cache budget v2 47c2f71f (source accepted, not device proof), ROOT WalletConnect fix 320d7e9f, ROOT cache-budget review 08fffd5a and root receipts (06:50 checkpoint verification, 07:13 updater, storage cutover freshness review). Source + offline tests only; nothing deployed. ROOT dc767fc3 is content-only. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC
