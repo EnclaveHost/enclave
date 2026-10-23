@@ -88,31 +88,53 @@ export function createWitnessChecker({ bin, chainId, signer, timeoutMs = 10000, 
 }
 
 /**
- * checker: createWitnessChecker. consensusUrl: the consensus head API (https, or http on loopback). -> {rootFor(hash),
- * addCommitment(commitment), refresh(), start(pollMs), stop(), stats()}. Keeps at most maxRoots bindings (oldest by
- * insertion dropped). A block hash seen with two different state roots is never served (it cannot happen for a valid
- * hash; if it does, the store refuses rather than choose).
+ * checker: createWitnessChecker. consensusUrl: the consensus head API (https, or http on loopback); optional when heads
+ * are pushed with offer(). -> {rootFor(hash, {headers, deadline}), offer(commitment), addCommitment (= offer),
+ * refresh(), start(pollMs), stop(), stats()}.
+ *
+ * Two ways a (block hash -> state root) binding enters the store, both verified by the helper:
+ *   * 'signed-head': a sequencer commitment (polled from consensusUrl, or pushed with offer() by a head source such as
+ *     the native gossip bridge) that recovers to the pinned signer.
+ *   * 'ancestor': an UNTRUSTED header (from `headers`, e.g. the gateway's execution upstreams) whose alloy hash_slow()
+ *     equals the parent hash of an already bound child, one block lower and not later (helper op `header`). Walking
+ *     down from the nearest bound descendant recovers a block the store never saw (a poll gap, a cold start, a
+ *     confirmed block older than the first head seen). A source's claim about a hash is never taken as is.
+ * rootFor(hash) without a binding: poll once (coalesced), then, given `headers(hash, child, deadline)` -> {head,
+ * header} | null, recover by ancestry: the requested header is fetched first only to learn its claimed number, the
+ * walk goes down from the nearest bound block above that number (at most maxAncestry links), and the requested hash is
+ * bound only if the walk arrives at its child and that child's parent hash IS the requested hash. Otherwise (unavailable
+ * history, too deep, newer than every bound head, a fork/orphan, a deadline) the answer is null: the caller refuses.
+ * A binding is history for that block, never freshness (Helios's own head checks decide what is fresh). Concurrent
+ * recoveries of one hash share one walk. At most maxRoots bindings (oldest first out). A hash seen with two different
+ * state roots is never served.
  */
-export function createRootStore({ checker, consensusUrl, fetch = globalThis.fetch, timeoutMs = 5000, maxRoots = 8192, maxCommitmentBytes = 8 << 20 } = {}) {
+export function createRootStore({ checker, consensusUrl, fetch = globalThis.fetch, timeoutMs = 5000, maxRoots = 8192, maxCommitmentBytes = 8 << 20,
+  maxAncestry = 256 } = {}) {
   if (!checker?.check) throw new Error('checker required');
+  if (!Number.isSafeInteger(maxAncestry) || maxAncestry < 1 || maxAncestry > 8191) throw new Error('invalid maxAncestry');
   const base = consensusUrl === undefined ? null : rpcEndpoint(consensusUrl).url.href.replace(/\/?$/, '/');
-  const roots = new Map(), conflicted = new Set();
-  const stats = { verified: 0, refused: 0, conflicts: 0, polls: 0, pollFailures: 0 };
+  const roots = new Map(), conflicted = new Set(), recovering = new Map();
+  const stats = { verified: 0, refused: 0, conflicts: 0, polls: 0, pollFailures: 0, ancestors: 0, ancestryRefused: {} };
   let inflight = null, timer = null;
+  const lower = (x) => String(x).toLowerCase();
 
-  async function addCommitment(commitment) {
-    const r = await checker.check({ op: 'head', commitment });
-    if (!r.ok) { stats.refused++; return null; }
-    const hash = String(r.blockHash).toLowerCase(), stateRoot = String(r.stateRoot).toLowerCase();
-    if (!HASH.test(hash) || !HASH.test(stateRoot)) { stats.refused++; return null; }
+  function bind(r, via, boundTo) {
+    const hash = lower(r.blockHash), stateRoot = lower(r.stateRoot), parentHash = lower(r.parentHash);
+    if (![hash, stateRoot, parentHash].every((x) => HASH.test(x)) || !Number.isSafeInteger(r.number) || !Number.isSafeInteger(r.timestamp)) return null;
     const had = roots.get(hash);
     if (had && had.stateRoot !== stateRoot) { conflicted.add(hash); stats.conflicts++; return null; }
-    if (!had) {
-      stats.verified++;
-      roots.set(hash, { blockHash: hash, stateRoot, number: r.number, timestamp: r.timestamp });
-      if (roots.size > maxRoots) roots.delete(roots.keys().next().value);
-    }
-    return roots.get(hash);
+    if (had) return had;
+    const entry = Object.freeze({ blockHash: hash, stateRoot, parentHash, number: r.number, timestamp: r.timestamp, via, ...(boundTo ? { boundTo } : {}) });
+    roots.set(hash, entry);
+    if (via === 'ancestor') stats.ancestors++; else stats.verified++;
+    if (roots.size > maxRoots) roots.delete(roots.keys().next().value);
+    return entry;
+  }
+  /** Push a sequencer commitment (verified independently here; the pusher is not trusted). */
+  async function offer(commitment) {
+    const r = await checker.check({ op: 'head', commitment });
+    if (!r.ok) { stats.refused++; return null; }
+    return bind(r, 'signed-head');
   }
   async function poll() {
     if (!base) return null;
@@ -121,18 +143,55 @@ export function createRootStore({ checker, consensusUrl, fetch = globalThis.fetc
       const res = await fetch(base + 'latest', { redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(timeoutMs) });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const c = JSON.parse(await readBounded(res, maxCommitmentBytes));
-      return c ? await addCommitment(c) : null;     // null: the source has no head to offer (e.g. stale)
+      return c ? await offer(c) : null;     // null: the source has no head to offer (e.g. stale)
     } catch { stats.pollFailures++; return null; }
   }
   /** One coalesced poll of the head source. */
   function refresh() { return (inflight ??= poll().finally(() => { inflight = null; })); }
-  async function rootFor(blockHash) {
-    const h = String(blockHash).toLowerCase();
+  const refuse = (why) => { stats.ancestryRefused[why] = (stats.ancestryRefused[why] || 0) + 1; return null; };
+  const child = (e) => ({ number: e.number, timestamp: e.timestamp, parentHash: e.parentHash });
+
+  async function recover(h, headers, deadline) {
+    if (!roots.size) return refuse('no-bound-head');       // nothing can anchor a walk: no source is asked
+    const guide = await headers(h, null, deadline);        // self-consistent header for h: only its NUMBER is used
+    if (!guide) return refuse('unavailable');
+    const n = guide.head.number;
+    let above = null;                                      // the nearest bound block above n
+    for (const e of roots.values()) if (e.number > n && (!above || e.number < above.number)) above = e;
+    if (!above) return refuse('newer-than-every-bound-head');
+    if (above.number - n > maxAncestry) return refuse('too-deep');
+    let cur = above;
+    while (cur.number > n + 1) {
+      if (Date.now() > deadline) return refuse('deadline');
+      let parent = roots.get(cur.parentHash);
+      if (!parent) {
+        const got = await headers(cur.parentHash, child(cur), deadline);
+        if (!got) return refuse('unavailable');
+        parent = bind(got.head, 'ancestor', cur.blockHash);
+        if (!parent) return refuse('conflict');
+      }
+      if (parent.number + 1 !== cur.number) return refuse('mismatched-link');
+      cur = parent;
+    }
+    if (cur.parentHash !== h) return refuse('not-an-ancestor');   // h is not on the bound chain (fork, orphan or a lie)
+    const r = await checker.check({ op: 'header', header: guide.header, expectHash: h, child: child(cur) });
+    if (!r.ok) return refuse('mismatched-link');
+    return bind(r, 'ancestor', cur.blockHash) ?? refuse('conflict');
+  }
+  /** The binding for a block hash, or null (the caller must refuse). See above for `headers` and `deadline`. */
+  async function rootFor(blockHash, { headers = null, deadline = Date.now() + 30000 } = {}) {
+    const h = lower(blockHash);
     if (conflicted.has(h)) return null;
     if (!roots.has(h)) await refresh();             // a head Helios just adopted may be newer than our last poll
+    if (!roots.has(h) && headers && HASH.test(h) && !conflicted.has(h)) {
+      let p = recovering.get(h);
+      if (!p) { p = recover(h, headers, deadline).finally(() => recovering.delete(h)); recovering.set(h, p); }
+      await p;
+    }
     return conflicted.has(h) ? null : roots.get(h) || null;
   }
   function start(pollMs = 1000) { stop(); timer = setInterval(() => { refresh(); }, pollMs); timer.unref?.(); }
   function stop() { if (timer) clearInterval(timer); timer = null; }
-  return { rootFor, addCommitment, refresh, start, stop, stats: () => ({ ...stats, roots: roots.size, conflicted: conflicted.size }) };
+  return { rootFor, offer, addCommitment: offer, refresh, start, stop,
+    stats: () => ({ ...stats, ancestryRefused: { ...stats.ancestryRefused }, roots: roots.size, conflicted: conflicted.size, recovering: recovering.size }) };
 }

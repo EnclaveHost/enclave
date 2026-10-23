@@ -9,6 +9,11 @@
 //     answer costs its source the try: the next source is asked. One lying source therefore cannot deny a witness
 //     another source can prove, and nothing unverified is ever returned. Without an authenticated root for the block
 //     (or with the verifier unavailable) the request is REFUSED; it is never passed through unchecked.
+//   * A block whose signed head the root store never saw (a poll gap, a cold start, an older confirmed block) is
+//     recovered by AUTHENTICATED ANCESTRY: untrusted headers from the same upstreams (eth_getBlockByHash), each bound by
+//     its recomputed hash to the parent hash of an already bound child, walking down from the nearest signed head
+//     (network/witness-verify.mjs createRootStore). A forged or tampered header costs its source the try. Missing or
+//     too-deep history is refused, and a recovered root is history for that block, never freshness.
 //   * The witness cache is content-addressed and create-only: each verified answer is one immutable entry named by
 //     the sha256 of its content, so a bad entry (an older unverified write, or a tampered or shared store such as a
 //     Sia bucket) can never shadow a good one. Every cache read is re-verified before use, a failing entry is
@@ -120,10 +125,10 @@ function limiter(max) {
  * store with only {get, put} works, but a single-slot store can still be shadowed by a bad first write.
  * Bounds: timeoutMs per try, deadlineMs per request (all tries and checks), maxResponseBytes per answer (while
  * reading), maxInFlight upstream requests at once.
- * -> {handle(request) -> response, listen(port) -> url (127.0.0.1 only), close(), stats()}
+ * -> {handle(request) -> response, root(blockHash) -> binding | null, listen(port) -> url (127.0.0.1 only), close(), stats()}
  */
 export function createWitnessGateway({ upstreams = [], cache = null, proofs = null, timeoutMs = 8000, deadlineMs = 30000, maxResponseBytes = 16 << 20,
-  maxInFlight = 8, fetch = globalThis.fetch, methods = WITNESS_METHODS } = {}) {
+  maxHeaderBytes = 1 << 20, maxInFlight = 8, fetch = globalThis.fetch, methods = WITNESS_METHODS } = {}) {
   if (!Array.isArray(methods) || methods.some((m) => !WITNESS_METHODS.includes(m))) throw new Error('methods must be a subset of WITNESS_METHODS');
   if (!Array.isArray(upstreams) || upstreams.length > 16) throw new Error('0 to 16 upstreams');
   const ids = upstreams.map((u) => rpcEndpoint(u).identity);
@@ -132,9 +137,10 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
   if (!Number.isSafeInteger(deadlineMs) || deadlineMs < timeoutMs || deadlineMs > 300000) throw new Error('invalid deadlineMs');
   if (!Number.isSafeInteger(maxResponseBytes) || maxResponseBytes < 1024 || maxResponseBytes > 64 << 20) throw new Error('invalid maxResponseBytes');
   if (!Number.isSafeInteger(maxInFlight) || maxInFlight < 1 || maxInFlight > 64) throw new Error('invalid maxInFlight');
+  if (!Number.isSafeInteger(maxHeaderBytes) || maxHeaderBytes < 1024 || maxHeaderBytes > maxResponseBytes) throw new Error('invalid maxHeaderBytes');
   if ((methods.some((m) => PINNED.has(m)) || cache) && !(proofs?.checker?.check && proofs?.roots?.rootFor))
     throw new Error('eth_getProof/eth_getCode and the witness cache need proofs: {checker, roots} (no unverified witness serving)');
-  const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0, invalid: 0 }])), cacheHits: 0, cachePuts: 0,
+  const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0, invalid: 0, headerOk: 0, headerInvalid: 0 }])), cacheHits: 0, cachePuts: 0,
     cacheInvalid: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0 };
   const slot = limiter(maxInFlight);
   const quarantine = new Set(), accounts = new Map();   // bounded: known-bad cache contents; recent verified account proofs
@@ -143,17 +149,38 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
   const err = (id, code, message) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } });
   const ok = (id, result) => ({ jsonrpc: '2.0', id: id ?? null, result });
 
-  async function ask(u, body, deadline) {
+  async function ask(u, body, deadline, maxBytes = maxResponseBytes) {
     const left = deadline - Date.now();
     if (left <= 0) throw new Error('request deadline exceeded');
-    return slot(() => call(u, body, fetch, Math.max(1, Math.min(timeoutMs, left)), maxResponseBytes));
+    return slot(() => call(u, body, fetch, Math.max(1, Math.min(timeoutMs, left)), maxBytes));
+  }
+
+  /** An untrusted header for `hash` from the upstreams in order, checked by the helper (bound to `child` when given):
+   *  -> {head, header} | null. A header that does not hash to `hash` (or does not link) costs its source the try. */
+  async function headers(hash, child, deadline) {
+    const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBlockByHash', params: [hash, false] });
+    for (const u of upstreams) {
+      const s = stats.upstream[rpcLabel(u)];
+      let j;
+      try { j = await ask(u, body, deadline, maxHeaderBytes); } catch { s.failed++; continue; }
+      if (j.error || !j.result) { s.failed++; continue; }
+      const v = await proofs.checker.check({ op: 'header', header: j.result, expectHash: hash, child });
+      if (!v.ok) { s.headerInvalid++; continue; }
+      s.headerOk++;
+      return { head: v, header: j.result };
+    }
+    return null;
   }
 
   /** A verified answer for a block-hash-pinned witness request -> {result} | {error}. */
   async function witness(method, params, deadline) {
     const w = witnessKey(method, params);
     if (!w) return { error: 'witness requests must be pinned by block hash', code: -32602 };
-    const root = await proofs.roots.rootFor(w.blockHash);
+    let root;
+    try { root = await proofs.roots.rootFor(w.blockHash, { headers, deadline }); } catch (e) {
+      stats.verifierUnavailable++;
+      return { error: `witness verifier unavailable (${String(e?.message || e).slice(0, 80)}): refused` };
+    }
     if (!root) { stats.unauthenticatedBlock++; return { error: `no authenticated state root for block ${w.blockHash}: refused, not passed through` }; }
     const at = { blockHash: root.blockHash, stateRoot: root.stateRoot }, who = `${root.blockHash}:${String(params[0]).toLowerCase()}`;
     let verify;
@@ -244,5 +271,8 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
     return `http://127.0.0.1:${server.address().port}/`;
   }
   async function close() { if (server) { server.closeAllConnections?.(); await new Promise((r) => server.close(() => r())); server = null; } }
-  return { handle, listen, close, stats: () => structuredClone({ ...stats, quarantined: quarantine.size }) };
+  /** The authenticated (block hash -> state root) binding the gateway would verify witnesses against, recovering a
+   *  missed block by ancestry through the upstreams; null = refused. History for that block, never freshness. */
+  const root = (hash) => (proofs ? proofs.roots.rootFor(hash, { headers, deadline: Date.now() + deadlineMs }) : Promise.resolve(null));
+  return { handle, root, listen, close, stats: () => structuredClone({ ...stats, quarantined: quarantine.size }) };
 }
