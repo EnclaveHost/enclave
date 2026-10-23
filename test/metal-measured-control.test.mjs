@@ -126,7 +126,10 @@ test("gsup: the legacy path is untouched; the direct branch runs only for metal.
   // and the second reviewed change: the operator's checked owner nomination name, from fw_cfg only (owner-nomination.mjs)
   const NOMINATED = "withOwnerNominationEnv(" + LEASED + ", OWNER_NOMINATION.nomination)";
   assert.equal(legacy(now).split(NOMINATED).length, 2, "...wrapped once by the owner nomination's env");
-  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(NOMINATED, "supEnv"), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical, only wrapped in if (!CONTROL)");
+  // and the third: the platform policy carriers' name, from fw_cfg only, applied last (measured-control.mjs withPolicyCarriersEnv)
+  const CARRIED = "MC_LEGACY.withPolicyCarriersEnv(" + NOMINATED + ", POLICY_CARRIERS)";
+  assert.equal(legacy(now).split(CARRIED).length, 2, "...wrapped once, last, by the policy carriers' env");
+  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(CARRIED, "supEnv"), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical, only wrapped in if (!CONTROL)");
   assert.match(now, /if \(CONTROL === 'direct'\) await startDirectControl\(\)/);
   assert.match(now, /if \(!CONTROL\) \{\nconst supEnv = \{/);
   assert.match(now, /const MODE {9}= CONTROL \? \(cmdMode \|\| 'snp'\) : \(fw\.mode \|\| cmdMode \|\| 'snp'\);/);

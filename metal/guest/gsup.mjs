@@ -490,6 +490,18 @@ if (LEASE_GAS?.configured && LEASE_GAS.ok) {
 const OWNER_NOMINATION = CONTROL ? { nomination: null, message: null } : guestOwnerNomination(fw.ownerNomination);
 if (OWNER_NOMINATION.message) log(OWNER_NOMINATION.message);
 
+// --- the platform host policy carriers (metal/guest/measured-control.mjs, the measured guest's own schema) ----------------------
+// fw_cfg `platformPolicyCarriers`, from the host controller's own config (metal/enclave-metal.mjs checked it), checked again
+// here: how this guest's platform host policy gate (supervisor.js, the shipped host-admission bundle's createHostServiceGate)
+// obtains the administrator's ANCHORED document without a fleet mirror - other hosts' policy-mirror roles (peers) and/or the
+// pinned service index. It becomes exactly ONE supervisor name (measured-control CARRIERS_ENV), applied last, which no
+// other channel may supply. Untrusted transport: the gate admits only the digest the book anchors, signed by its current owner,
+// at a fresh agreed block. Absent: no such name, exactly as before. Invalid, or a bundle that cannot honour it: a value the
+// gate refuses, so the supervisor refuses work and service. A direct control guest takes it only from its HOST_DATA-bound config.
+const MC_LEGACY = CONTROL ? null : await import('./measured-control.mjs');
+const POLICY_CARRIERS = CONTROL ? null : await MC_LEGACY.guestPolicyCarriers(fw.platformPolicyCarriers, { publicUrl: PUBLIC_URL });
+if (POLICY_CARRIERS?.message) log(POLICY_CARRIERS.message);
+
 // --- supervisor (base root) --------------------------------------------------
 if (!CONTROL) {
 const supEnv = {
@@ -579,7 +591,7 @@ const supEnv = {
   ADMIN_TOKEN,
   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
 };
-start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], withOwnerNominationEnv(withLeaseGasEnv(supEnv, LEASE_GAS), OWNER_NOMINATION.nomination), { cwd: '/app' });
+start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], MC_LEGACY.withPolicyCarriersEnv(withOwnerNominationEnv(withLeaseGasEnv(supEnv, LEASE_GAS), OWNER_NOMINATION.nomination), POLICY_CARRIERS), { cwd: '/app' });
 
 // --- metal-agent -------------------------------------------------------------
 start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {

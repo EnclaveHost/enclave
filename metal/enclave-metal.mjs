@@ -241,6 +241,18 @@ if (OWNER_NOMINATION) {
   }
   console.log(`[enclave-metal] owner nomination: propose ${OWNER_NOMINATION.owner} on ${OWNER_NOMINATION.ownershipContract} for host ${OWNER_NOMINATION.hostId.slice(0, 10)}… (operator ${OWNER_NOMINATION.operator})`);
 }
+// The platform host policy CARRIERS of a relay-mode guest (metal/guest/measured-control.mjs checkPolicyCarriers: the measured
+// guest's own schema): how its supervisor's gate obtains the administrator's anchored policy document without a fleet mirror,
+// from other hosts' policy-mirror roles (peers) and/or the pinned service index. Public, untrusted transport, the host
+// controller's own explicit config; checked here (written to fw_cfg in its checked form), again in the guest, and every
+// document it carries is verified by the supervisor's gate against the book's anchor and current owner. Absent: nothing
+// changes. Invalid, or naming this host itself: REFUSES the launch. A direct control guest takes them only inside its
+// HOST_DATA-bound direct config.
+if (DIRECT && cfg.platformPolicyCarriers !== undefined && cfg.platformPolicyCarriers !== null)
+  throw new Error('control: "direct" takes platformPolicyCarriers only inside the bound direct config (HOST_DATA binds it there), not from the host config');
+const POLICY_CARRIERS = DIRECT || cfg.platformPolicyCarriers === undefined || cfg.platformPolicyCarriers === null ? null
+  : (await import('./guest/measured-control.mjs')).checkPolicyCarriers(cfg.platformPolicyCarriers, { publicUrl: String(cfg.publicUrl || '') });
+if (POLICY_CARRIERS) console.log(`[enclave-metal] platform policy carriers: ${(await import('./guest/measured-control.mjs')).policyCarriersLaunchSummary(POLICY_CARRIERS)}`);
 const cmdline = [
   'console=ttyS0', 'root=/dev/ram0', 'rootfstype=ramfs', 'quiet',
   `metal.mode=${MODE}`,
@@ -267,6 +279,8 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: DIRECT ? DIRECT.config.i
   ...(LEASE_GAS ? { leaseGas: LEASE_GAS } : {}),
   // the operator's explicit owner nomination (OWNER_NOMINATION above): public, checked again in the guest and by the supervisor
   ...(OWNER_NOMINATION ? { ownerNomination: OWNER_NOMINATION } : {}),
+  // the platform host policy carriers (POLICY_CARRIERS above): public, untrusted transport, checked again in the guest
+  ...(POLICY_CARRIERS ? { platformPolicyCarriers: POLICY_CARRIERS } : {}),
   // the referral code this machine was set up with (`enclave host init --referral`): attribution only; the guest agent
   // says it when it attaches (x-metal-referral, relay/referrals.mjs). fw_cfg, so it never changes the measurement
   referral: cfg.referral || '',

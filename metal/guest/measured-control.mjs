@@ -182,7 +182,7 @@ export function canonicalDirectConfig(raw) {
   const ownerNomination = raw.ownerNomination !== undefined ? directOwnerNomination(raw.ownerNomination, {
     operator: raw.identity.operator.toLowerCase(), publicUrl: raw.identity.publicUrl, registry: contracts.registry }) : null;
   if (mcp && platformApi && [platformApi.apiPort, platformApi.peerPort].includes(mcp.port)) bad('mcp.port must differ from both platformApi ports');
-  const platformPolicyCarriers = raw.platformPolicyCarriers !== undefined ? directPolicyCarriers(raw.platformPolicyCarriers) : null;
+  const platformPolicyCarriers = raw.platformPolicyCarriers !== undefined ? checkPolicyCarriers(raw.platformPolicyCarriers, { publicUrl: raw.identity.publicUrl }) : null;
   const nativeControl = raw.nativeControl !== undefined ? directNativeControl(raw.nativeControl, { platformApi }) : null;
   return deepFreeze({
     format: CONFIG_FORMAT, chainId: CHAIN_ID, contracts, profileDigest: raw.profileDigest, rpcs, quorum, releaseId: raw.releaseId,
@@ -214,13 +214,19 @@ function directNativeControl(raw, { platformApi }) {
   if (typeof raw.caSha256 !== 'string' || !HEX64.test(raw.caSha256)) bad('nativeControl.caSha256: sha256 (64 lowercase hex) of the native CA certificate (DER)');
   return { names, caSha256: raw.caSha256 };
 }
-// The bound policy-carrier member (see the header). The shape is the runner's / the host bundle's carrier setting
-// (network/policy-carriers.mjs validateCarrierBases, network/service-index.mjs validateIndexPin), restricted to what a measured
-// guest can reach: network carriers only. Strict, nothing defaulted, written in its canonical form.
+// The policy-carrier setting (see the header), for BOTH control guests: the measured direct guest's bound member and the
+// relay-mode (legacy) guest's fw_cfg `platformPolicyCarriers` (metal/enclave-metal.mjs checks it, gsup checks it again with
+// guestPolicyCarriers below). The shape is the runner's / the host bundle's carrier setting (network/policy-carriers.mjs
+// validateCarrierBases, network/service-index.mjs validateIndexPin), restricted to what a control guest can reach: network
+// carriers only. Strict, nothing defaulted, written in its canonical form. A carrier is ANOTHER host's policy-mirror role:
+// this host itself (its own public origin, the QEMU host link 10.0.2.2, a loopback name) is refused, because its own roles
+// serve only once it is admitted, so a cold start under an anchored policy would wait on itself.
 export const CARRIERS_ENV = 'ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS';
 const CARRIER_BASE = /^https?:\/\/[A-Za-z0-9.-]{1,200}(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~-]{1,64}){0,8}$/;   // policy-carriers.mjs BASE
 const MAX_CARRIERS = 16;                                                                                     // policy-carriers.mjs MAX_CARRIERS
-function directPolicyCarriers(raw) {
+const SELF_CARRIER = /^(10\.0\.2\.2|127(\.[0-9]{1,3}){3}|0\.0\.0\.0|localhost)$/i;
+export function checkPolicyCarriers(raw, { publicUrl = null } = {}) {
+  let self = null; try { self = publicUrl ? new URL(String(publicUrl)).origin : null; } catch {}
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) bad('platformPolicyCarriers must be an object');
   for (const k of ['importDir', 'policyMirrorStateDir'])
     if (Object.hasOwn(raw, k)) bad(`platformPolicyCarriers.${k}: a host directory is not visible inside the measured guest (use peers or serviceIndex)`);
@@ -234,6 +240,8 @@ function directPolicyCarriers(raw) {
       const what = `platformPolicyCarriers.peers[${i}]`;
       if (typeof p !== 'string' || !CARRIER_BASE.test(p)) bad(`${what} must be an http(s) base URL without credentials, query, fragment or trailing slash`);
       if (/(^|\.)enclave\.host$/i.test(hostOf(url(p, what)))) bad(`${what} names an Enclave origin: a policy carrier is another host's policy-mirror role`);
+      const pu = url(p, what);
+      if (SELF_CARRIER.test(hostOf(pu)) || (self && pu.origin === self)) bad(`${what} is this host itself: a policy carrier is ANOTHER host's policy-mirror role (this host's own roles serve only once it is admitted)`);
       if (seen.has(p.toLowerCase())) bad(`${what} repeats a carrier`); seen.add(p.toLowerCase());
       return p;
     });
@@ -502,7 +510,7 @@ export function directEnvProblems(env) {
   for (const [k, val] of Object.entries(env)) if (/enclave\.host/i.test(String(val))) out.push(`${k} names an Enclave origin`);
   if (CARRIERS_ENV in env) {
     let c = null; try { c = JSON.parse(String(env[CARRIERS_ENV])); } catch {}
-    try { if (canonicalJson(directPolicyCarriers(c)) !== String(env[CARRIERS_ENV])) out.push(`${CARRIERS_ENV} must be the canonical bound carrier setting`); }
+    try { if (canonicalJson(checkPolicyCarriers(c)) !== String(env[CARRIERS_ENV])) out.push(`${CARRIERS_ENV} must be the canonical bound carrier setting`); }
     catch (e) { out.push(`${CARRIERS_ENV}: ${e.message}`); }
     if (v('ENCLAVE_PLATFORM_HOST_POLICY') !== 'production') out.push(`${CARRIERS_ENV} needs the platform host policy on (production)`);
   }
@@ -523,6 +531,37 @@ export async function supervisorCarrierProblem(env, bundleFile) {
       || JSON.stringify(got.serviceIndex) !== JSON.stringify(want.serviceIndex || null)) return 'the supervisor would read a different carrier setting than the bound one';
   return null;
 }
+
+// ---- the relay-mode (legacy) guest: the same carrier setting from fw_cfg ------------------------------------------------------
+// gsup's legacy branch hands its supervisor exactly ONE carrier name, from fw_cfg `platformPolicyCarriers` only (the launcher
+// checked it; it is checked here again with the same schema, and must arrive in that checked form), and only when the image's
+// own host-admission bundle honours it (supervisorCarrierProblem). Absent: no such name. Present but unusable: a value the
+// bundle's parser refuses, so the supervisor's gate REFUSES work and service (supervisor.js HOST_POLICY_GATE) - never an
+// admission, and never a silent run without the carriers the operator configured. Carriers convey untrusted signed documents
+// only: the gate still admits nothing but the digest the admin's book anchors, signed by its CURRENT owner, at its own quorum.
+const carriersRefused = (why) => canonicalJson({ refused: String(why).slice(0, 300) });
+const carrierSummary = (c) => [c.peers ? `${c.peers.length} peer(s)` : null, c.serviceIndex ? `service index ${c.serviceIndex.address}` : null].filter(Boolean).join(', ');
+export async function guestPolicyCarriers(value, { publicUrl = '', bundleFile = GUEST_PATHS.hostAdmissionBundle } = {}) {
+  if (value === undefined || value === null) return { configured: false, ok: false, env: {}, carriers: null, message: null };
+  const refused = (why) => ({ configured: true, ok: false, env: { [CARRIERS_ENV]: carriersRefused(why) }, carriers: null,
+    message: `platform policy carriers REFUSED (${why}): the supervisor refuses work and service until the host config is fixed` });
+  let c;
+  try {
+    c = checkPolicyCarriers(value, { publicUrl });
+    if (canonicalJson(c) !== canonicalJson(value)) bad('platformPolicyCarriers must arrive in its checked form (the launcher writes it)');
+  } catch (e) { return refused(e.message); }
+  const env = { [CARRIERS_ENV]: canonicalJson(c) };
+  const problem = await supervisorCarrierProblem(env, bundleFile);
+  if (problem) return refused(problem);
+  return { configured: true, ok: true, env, carriers: c, message: `platform policy carriers: ${carrierSummary(c)} (untrusted transport; each document verified by the supervisor's gate)` };
+}
+/** env with the carrier name ONLY from the checked fw_cfg setting (any other source of that name - flavor, lease gas, owner
+ *  nomination - is dropped); applied LAST, so nothing composed before it can supply or override the name. */
+export function withPolicyCarriersEnv(env, carriers) {
+  const out = Object.fromEntries(Object.entries(env).filter(([k]) => k !== CARRIERS_ENV));
+  return { ...out, ...(carriers?.env || {}) };
+}
+export const policyCarriersLaunchSummary = carrierSummary;
 
 // ---- viem from the supervisor image (keccak for an address) ----------------------------------------------------------------
 let _viem = null;
