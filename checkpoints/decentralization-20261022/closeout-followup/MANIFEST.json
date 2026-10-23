@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-23T01:15:48.027627+00:00",
+  "capturedAt": "2026-10-23T01:18:44.138065+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -794,8 +794,8 @@
       "label": "lineage of a2b8fabd (parent ad074e2): no normal-tree conflict (the normal tree holds the parent bytes); not applied there",
       "source": "work/resume-after-checkpoint-20261022/dns-tls-publication/LINEAGE.json",
       "stored": "files/dns-tls-publication/LINEAGE.json",
-      "sha256": "30c00eb1a3dc4437a0048f5eec954f024f0ec54e0881869c0b6ba32972775aa1",
-      "bytes": 3680
+      "sha256": "a98d888175e23e0086e2ef04232e374b842ba61ae2dc4cf6ace72704fba42ecc",
+      "bytes": 4633
     },
     {
       "label": "lineage of a2b8fabd (parent ad074e2): no normal-tree conflict (the normal tree holds the parent bytes); not applied there",

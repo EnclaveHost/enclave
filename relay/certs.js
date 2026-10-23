@@ -126,6 +126,13 @@ const CERT_FETCH_TRIES = parseInt(env("CERTS_CERT_FETCH_TRIES") || "3", 10);
 // elsewhere). 8 s leaves the enclave's 30 s room for two chain reads and a
 // slow TLS handshake on top.
 const SYNC_WAIT_MS   = parseInt(env("CERTS_SYNC_WAIT_MS") || "8000", 10);
+// How long one request waits for the app-evidence verification of a Shield host (6c) before answering 202: under the
+// Windows node's 60-s abort of this POST (windows/node/apptls.mjs requestCert). An abort counted as a refusal there and
+// doubled its back-off (2026-10-23 0x59f1273d: 480 s, then 960 s, with the certificate already cached here). The 202
+// issues and serves nothing; the verification keeps running for the requests that join it (one per endpoint, deployment
+// and key) and its verdict answers only a request that is waiting on it - a late result is never kept for a later one.
+const EVIDENCE_WAIT_MS = parseInt(env("CERTS_EVIDENCE_WAIT_MS") || "40000", 10);
+const evidenceInflight = new Map();  // `${epId} ${deployment} ${spkiHash}` -> Promise<proof|null>
 // A persisted `processing` order is kept this long; past it the next ask
 // starts afresh (the CA has long since given up on it too).
 const ORDER_TTL_MS   = 3600_000;
@@ -980,11 +987,20 @@ export async function handleCerts(req, res, u, ctx) {
   // A Shield host's boot attachment is not proof of this app's key custody.
   // Require fresh relay-verified guest evidence before cache/order handling.
   if (el?.appEvidenceRequired === true) {
-    let proof = null;
-    try {
-      if (typeof ctx.verifyAppCertificate === 'function')
-        proof = await ctx.verifyAppCertificate(epId, d, spkiHash);
-    } catch { /* unknown evidence is a refusal */ }
+    const ek = `${epId} ${String(d.id).toLowerCase()} ${spkiHash}`;
+    let pending = evidenceInflight.get(ek);
+    if (!pending) {
+      // unknown evidence is a refusal: a throw or a missing verifier settles as null
+      pending = (async () => typeof ctx.verifyAppCertificate === 'function' ? await ctx.verifyAppCertificate(epId, d, spkiHash) : null)().catch(() => null);
+      evidenceInflight.set(ek, pending);
+      pending.finally(() => { if (evidenceInflight.get(ek) === pending) evidenceInflight.delete(ek); });
+    }
+    const WAITING = Symbol('waiting');
+    const proof = await Promise.race([pending, sleepMs(EVIDENCE_WAIT_MS).then(() => WAITING)]);
+    if (proof === WAITING) {
+      console.log(`[certs] ${endpoint} ${name}: 202 (app evidence still being verified, retry in 30s)`);
+      return ctx.json(res, 202, { name, retryAfterSec: 30 }, req);
+    }
     if (proof?.ok !== true || proof.spkiSha256 !== spkiHash)
       return bad(ctx, res, req, 403, 'app_evidence_required',
         'This certificate key has not passed the app isolation policy. Retry after the guest evidence is available.');

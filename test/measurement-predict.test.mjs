@@ -388,6 +388,33 @@ test("fetchVerified: a config CID through the platform's fetcher; a raw-CID answ
   assert.equal(tools.calls.filter((c) => c.script === "expected-measurement.sh").length, 0, "no measurement ran");
 });
 
+test("fetchVerified: a DAG CID's verified bytes are kept and served again only while they hash to what THIS process verified", async () => {
+  const cid = "bafybeisyntheticdagcomponentforcachetests", bytes = Buffer.from("an 11-block UnixFS component, verified by its CAR");
+  let down = false, served = bytes;
+  const work = fs.mkdtempSync(path.join(TMP, "work-dag-"));
+  const make = () => predictor({ opts: { work }, tools: {
+    "fetch-cid.py": (a) => (a[2] === cid ? (down ? { code: 1, out: "", err: "gateway down" } : (fs.writeFileSync(a[3], served), { code: 0, out: "ok", err: "" })) : null) } });
+  const { p, tools } = make();
+  const fetched = () => tools.calls.filter((c) => c.script === "fetch-cid.py" && c.args[2] === cid).length;
+  assert.deepEqual((await p.fetchVerified(cid, 1 << 20)).bytes, bytes);
+  down = true;
+  const again = await p.fetchVerified(cid, 1 << 20);
+  assert.equal(again.ok, true, "the kept copy, with the gateway down"); assert.deepEqual(again.bytes, bytes); assert.equal(fetched(), 1);
+  // a copy changed on disk is never served: it is fetched (and CAR-verified) again, or refused
+  fs.writeFileSync(path.join(work, "components", cid), "tampered bytes");
+  assert.equal((await p.fetchVerified(cid, 1 << 20)).ok, false, "gateway down + changed copy = unavailable, never the changed bytes");
+  down = false;
+  assert.deepEqual((await p.fetchVerified(cid, 1 << 20)).bytes, bytes); assert.equal(fetched(), 3);
+  // a smaller bound than the kept copy is not served from it
+  down = true;
+  assert.equal((await p.fetchVerified(cid, 4)).ok, false);
+  // a restart (a new predictor on the same work directory) trusts nothing it did not verify itself: it fetches again
+  down = false;
+  const second = make();
+  assert.deepEqual((await second.p.fetchVerified(cid, 1 << 20)).bytes, bytes);
+  assert.equal(second.tools.calls.filter((c) => c.script === "fetch-cid.py" && c.args[2] === cid).length, 1, "not served from disk after a restart");
+});
+
 test("config gateway: preferred source and verified fallback preserve CID and size checks", async () => {
   const bytes = Buffer.from('{"draft_p_min":0}');
   const raw = Buffer.concat([Buffer.from([1, 0x55, 0x12, 0x20]), createHash("sha256").update(bytes).digest()]);

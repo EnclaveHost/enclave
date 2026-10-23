@@ -626,13 +626,29 @@ export function makePredictor(o) {
     return value.ok ? value : refuse(value.code, value.reason);
   }
 
+  // A non-raw CID (a UnixFS DAG, e.g. a catalog component bafybei...) names its bytes only through the DAG, so a kept copy
+  // cannot be re-verified from the CID alone. THIS process remembers the sha256 of the exact bytes it fetched and
+  // CAR-verified for such a CID (never read from disk: a restart forgets it and fetches again), keeps the bytes in
+  // `components`, and serves them again only when they still hash to that digest. A CID names one immutable content, so
+  // this changes no authorization: every caller still reads the catalog, the ledger and its policy itself, and only asks
+  // for the bytes of a CID that read named. Without it, every Shield app verification re-fetched an 11-block component
+  // through the gateways (up to timeoutMs), which held certificate requests past the node's 60-s abort (2026-10-23).
+  const dagVerified = new Map();    // cid -> sha256 hex of the verified bytes (insertion-ordered, at most cacheMax)
+  function heldDag(cid, max) {
+    const want = dagVerified.get(cid);
+    if (!want || !components) return null;
+    let b; try { b = fs.readFileSync(path.join(components, cid)); } catch { dagVerified.delete(cid); return null; }
+    if (b.length > max || sha256hex(b) !== want) { dagVerified.delete(cid); return null; }
+    return b;
+  }
   // the bytes a CID names, fetched and VERIFIED against it by the platform's own fetcher (guestd's fetch-cid.py ->
   // wasm/ipfs_fetch.py, from the pinned toolchain), or a refusal. For a config CID (the release's resolveConfigCid); raw-CID
-  // answers are kept like components (re-verified on every read). Not gated on the known-answer test: it measures nothing.
+  // answers are kept like components (re-verified on every read), DAG answers as above. Not gated on the known-answer test:
+  // it measures nothing.
   async function fetchVerified(cid, maxBytes = 1 << 20) {
     if (!/^[A-Za-z0-9]{10,100}$/.test(String(cid || ""))) return { ok: false, code: "bad_cid", reason: "not a CID" };
-    const digest = rawCidDigest(cid), kept = digest && components && path.join(components, cid);
-    const held = digest ? heldComponent(cid, digest, maxBytes) : null;
+    const digest = rawCidDigest(cid), kept = components && path.join(components, cid);
+    const held = digest ? heldComponent(cid, digest, maxBytes) : heldDag(cid, maxBytes);
     if (held) return { ok: true, bytes: held };
     let tc;
     try { tc = await extract(); } catch (e) { return { ok: false, code: "unavailable", reason: e.message }; }
@@ -655,8 +671,11 @@ export function makePredictor(o) {
         b = candidate; break;
       }
       if (!b) return { ok: false, code: "unavailable", reason: `${cid} did not fetch and verify: ${reason}` };
-      if (digest && sha256hex(b) === digest) {
-        try { fs.mkdirSync(components, { recursive: true, mode: 0o700 }); const tmp = `${kept}.${randomBytes(6).toString("hex")}`; fs.writeFileSync(tmp, b, { mode: 0o600 }); fs.renameSync(tmp, kept); } catch {}
+      if (kept && (!digest || sha256hex(b) === digest)) {
+        try {
+          fs.mkdirSync(components, { recursive: true, mode: 0o700 }); const tmp = `${kept}.${randomBytes(6).toString("hex")}`; fs.writeFileSync(tmp, b, { mode: 0o600 }); fs.renameSync(tmp, kept);
+          if (!digest) { dagVerified.delete(cid); dagVerified.set(cid, sha256hex(b)); while (dagVerified.size > cacheMax) dagVerified.delete(dagVerified.keys().next().value); }
+        } catch {}
       }
       return { ok: true, bytes: b };
     } finally { fs.rmSync(job, { recursive: true, force: true }); }

@@ -260,7 +260,7 @@ Object.assign(process.env, {
   ACME_EAB_KID: EAB.kid, ACME_EAB_HMAC: EAB.hmac, ACME_CONTACT: "certs@example.test",
   ACME_DIRECTORY: ca1.url + "/directory", ACME_DIRECTORY_2: ca2.url + "/directory",
   CERTS_HTTP_TIMEOUT_MS: "400", CERTS_CA_COOLDOWN_MS: "1500", CERTS_ACME_READ_RETRY_MS: "50", CERTS_DNS_SETTLE_MS: "0",
-  CERTS_POLL_MS: "20", CERTS_POLL_TIMEOUT_MS: "3000", CERTS_SYNC_WAIT_MS: "10000",
+  CERTS_POLL_MS: "20", CERTS_POLL_TIMEOUT_MS: "3000", CERTS_SYNC_WAIT_MS: "10000", CERTS_EVIDENCE_WAIT_MS: "300",
 });
 const { initCerts, handleCerts, certsEnabled, issueSig, issueMessage, parseCsr, authorizeName, _internals } =
   await import("../relay/certs.js");
@@ -1046,6 +1046,31 @@ test('Shield requires matching per-app key evidence before cached certificates o
     r=await call(await body());assert.equal(r.code,403);
     assert.equal(ca1.calls.newOrder,issued);
   } finally {ctx.hostEligibility=saved;ctx.verifyAppCertificate=savedVerify;}
+});
+
+test('Shield: a slow evidence verification answers 202 (no certificate, cached or new); requests for the same key join it; a late verdict is never kept', async () => {
+  EP='https://enclave98.example';rows=[leaseRow()];
+  const saved=ctx.hostEligibility, savedVerify=ctx.verifyAppCertificate;
+  ctx.hostEligibility=()=>({eligible:true,appEvidenceRequired:true});
+  const issued=ca1.calls.newOrder, csr=await csrFor(NAME), spki=await spkiHashOf(csr);
+  let calls=0, release;
+  try {
+    // a verification that outlasts the 300-ms wait (production: 40 s, under the node's 60-s abort)
+    ctx.verifyAppCertificate=async()=>{calls++;await new Promise(r=>{release=r;setTimeout(r,1000);});return {ok:true,spkiSha256:spki};};   // settles by itself after 1 s, so the unbounded base fails on the assertion, not on a hang
+    let r=await call(await body({csr}));
+    assert.equal(r.code,202,JSON.stringify(r.body));assert.equal(r.body.retryAfterSec,30);assert.equal(r.body.certPem,undefined);
+    assert.equal(ca1.calls.newOrder,issued,'nothing ordered while the evidence is unverified');
+    // the node's retry (same key) joins the SAME verification rather than starting a second one
+    const second=call(await body({csr}));
+    await new Promise(r=>setTimeout(r,50));release();
+    r=await second;
+    assert.equal(calls,1,'one verification for both requests');
+    assert.equal(r.code,200,JSON.stringify(r.body));assert.ok(r.body.certPem);
+    // settled: the next request verifies AFRESH (the earlier verdict is not kept for it)
+    ctx.verifyAppCertificate=async()=>{calls++;return {ok:false,reason:'catalog version rejected'};};
+    r=await call(await body({csr}));
+    assert.equal(calls,2);assert.equal(r.code,403);assert.equal(r.body.error,'app_evidence_required','even with a certificate now cached for this key');
+  } finally {release?.();ctx.hostEligibility=saved;ctx.verifyAppCertificate=savedVerify;await settle();}
 });
 
 // ---- RETENTION (2026-10-21): an order the CA may have acted on survives an UNCERTAIN failure -----------------------------
