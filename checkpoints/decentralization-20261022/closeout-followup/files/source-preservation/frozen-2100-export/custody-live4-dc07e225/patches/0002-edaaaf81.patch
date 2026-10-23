@@ -1,0 +1,390 @@
+From edaaaf81c5662f2fe199523490209169e38ba86b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:46:34 -0700
+Subject: [PATCH] Verify relay factory pin and prepare isolated custody ingress
+
+---
+ README.md                                    |  13 ++
+ evidence/canary-caddy-validate.json          |  12 ++
+ evidence/recipient-runtime-capabilities.json | 135 +++++++++++++++++++
+ evidence/recipient-runtime-inventory.json    |  54 ++++++++
+ evidence/relay-session-authority.json        |  41 ++++++
+ probes/canary-caddy-validate.py              |  11 ++
+ probes/recipient-runtime-inventory.py        |  30 +++++
+ probes/relay-session-authority.py            |  21 +++
+ 8 files changed, 317 insertions(+)
+ create mode 100644 evidence/canary-caddy-validate.json
+ create mode 100644 evidence/recipient-runtime-capabilities.json
+ create mode 100644 evidence/recipient-runtime-inventory.json
+ create mode 100644 evidence/relay-session-authority.json
+ create mode 100644 probes/canary-caddy-validate.py
+ create mode 100644 probes/recipient-runtime-inventory.py
+ create mode 100644 probes/relay-session-authority.py
+
+diff --git a/README.md b/README.md
+index 55f413c75d2f9546ca4139e9c0925e26dc8e7808..7c1b4c26a4451c9941ee571716d907f9fc16edb0 100644
+--- a/README.md
++++ b/README.md
+@@ -53,3 +53,16 @@
+ ### Signing authority still required
+ 
+ The existing operator must first propose the Enclave admin as metal0's owner, then the admin wallet must accept. Operator gas funding remains unresolved without disturbing its lease delegation. After hardware lifecycle tests and consumer review pass, separate admin signatures activate `secretVaultV2` and, if safe, `sessionVaultFactory`. Owners sign their own policy changes/migrations. No admin controls are removed and no existing smart contract is modified by these proposed calls.
++
++
++## Consumer and ingress follow-up at 20:42 UTC
++
++A subsequent two-provider state inventory enumerated **all 98 deployment IDs in the current ledger** at block 52,999,031. Both vaults have exactly one policy in this inventory, the existing EOA-owned canary. None would be stranded by factory activation at that block. Four deployments owned by the known administrator SessionVault have no policy in either vault; activation changes their first authorized custody writer to the admin wallet. This closes the current-state coverage gap; historical event discovery remains partial and is not represented as complete. Recheck the full inventory immediately before signing because state can change.
++
++At 20:35 UTC, the live relay already had `SESSIONS_FACTORY` pinned to the same original factory. Its bundled source hash was unchanged from the earlier inspection. Therefore setting that address-book key does not enable a different factory in this relay. Other unpinned owner-signature readers gain the intended wallet-owner authorization, while explicitly pinned readers retain their pins. Factory activation remains a separate admin-signed step, not part of the website release.
++
++The canary ingress forwarder passes real HTTP tests against exact public routes and more than 250 malformed/private-path attempts. Root review found and fixed a client-disconnect cancellation race. Its example Caddy snippet also passed adaptation/provisioning validation with the installed control-VM binary at 20:39 UTC; the first attempt failed only because the test wrapper used invalid one-line Caddy syntax. No production Caddy file, listener, tunnel or service was changed. This is preparatory evidence, not a live ingress or secret-release test.
++
++At 20:41 UTC, metal0's public `/availability` reported `snp-guest-per-app` and claiming enabled; its production image manifest declares the same isolation backend. Its `/v1/health` answered `ok`. This establishes an advertised recipient path to investigate, not a fresh attestation or proof that its measured supervisor can authorize this v2 vault. Those checks and a dedicated recipient canary remain required.
++
++The site package preserves the currently served logo-hotfix release and its cached assets. The publisher's current public status is HTTP-only, sequence zero, with an empty local value; that alone does not prove the network IPNS record is absent. Publication is gated on reconciling its key, latest valid signed record and current site CID without rolling its sequence backward.
+diff --git a/evidence/canary-caddy-validate.json b/evidence/canary-caddy-validate.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..a4123d14beff133b1ef2d69fe7dc05994575d4d8
+--- /dev/null
++++ b/evidence/canary-caddy-validate.json
+@@ -0,0 +1,12 @@
++{
++  "at": "2026-10-23T20:39:16.832308+00:00",
++  "scope": "standalone syntax/provisioning validation only; no listener, live config write or reload",
++  "snippetSha256": "28352d301e612ee73019b9eb130c46792388b9c5468726556d0408be37ec9cac",
++  "inputSha256": "0867d38a1972018f1008fb760b1ff4e758f131f33188a2e14f9de1b02ab40a97",
++  "exit": 0,
++  "diagnostics": "{\"level\":\"warn\",\"ts\":1792787956.7905257,\"logger\":\"caddyfile\",\"msg\":\"Caddyfile input is not formatted; run 'caddy fmt --overwrite' to fix inconsistencies\",\"file\":\"/dev/stdin\",\"line\":2}\n{\"level\":\"info\",\"ts\":1792787956.7908134,\"logger\":\"tls.cache.maintenance\",\"msg\":\"started background certificate maintenance\",\"cache\":\"0x30a1c1d5c980\"}\n{\"level\":\"info\",\"ts\":1792787956.7910712,\"logger\":\"http\",\"msg\":\"servers shutting down with eternal grace period\"}\n{\"level\":\"info\",\"ts\":1792787956.791122,\"logger\":\"tls.cache.maintenance\",\"msg\":\"stopped background certificate maintenance\",\"cache\":\"0x30a1c1d5c980\"}\n",
++  "adaptedSha256": "935ae86f3d07783c455b46e2e6dd4adad26a2fe2630d62e06d4641c2ac845574",
++  "servers": [
++    "srv0"
++  ]
++}
+diff --git a/evidence/recipient-runtime-capabilities.json b/evidence/recipient-runtime-capabilities.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..579788d363b7d704d6d23ce8087f66bedf3eaea6
+--- /dev/null
++++ b/evidence/recipient-runtime-capabilities.json
+@@ -0,0 +1,135 @@
++{
++  "at": "2026-10-23T20:41:58.630006+00:00",
++  "readOnly": true,
++  "publicConfiguration": {
++    "dist": "/home/steven/enclave-prod/dist-leasegas-deabf8f90",
++    "mode": "snp",
++    "name": "metal0",
++    "cpus": 4,
++    "memMiB": 4096,
++    "publicUrl": "https://api.enclave.host/t/metal0",
++    "wasmtimeBin": "/usr/bin/wasmtime",
++    "isolation": {}
++  },
++  "manifest": {
++    "path": "/home/steven/enclave-prod/dist-leasegas-deabf8f90/manifest.json",
++    "sha256": "c7cb436db609f361a07d5f32a8a0d71f4fc399f329d244ff2512da8ca34dfca4",
++    "fields": [
++      "builtWith",
++      "cmdlineTemplate",
++      "controlOverlay",
++      "controlOverlayHistory",
++      "flavor",
++      "images",
++      "initramfs",
++      "isolation",
++      "isolationMinTcb",
++      "kernel",
++      "modules",
++      "note",
++      "reproducible",
++      "shielded",
++      "shieldedBuild",
++      "supervisorOverlay",
++      "volumeBinding"
++    ],
++    "isolation": "snp-guest-per-app"
++  },
++  "http": [
++    {
++      "url": "https://api.enclave.host/t/metal0/v1/health",
++      "httpStatus": 200,
++      "bytes": 1076,
++      "sha256": "d6e70b8ba9c8e33ce67edb5870eca92a437de11299bff2ae9eb00c81dbcfd31d",
++      "fields": [
++        "claimBond",
++        "deployments",
++        "earnings",
++        "platformHostPolicy",
++        "proofOfTime",
++        "reach",
++        "status",
++        "watcher"
++      ],
++      "status": "ok"
++    },
++    {
++      "url": "https://api.enclave.host/t/metal0/availability",
++      "httpStatus": 200,
++      "bytes": 3416,
++      "sha256": "441da7e2865a4514a22aa868f5ef7dad533cedc34edc82f1f3f9568b48777421",
++      "fields": [
++        "askCpuPricePerSec6",
++        "askGpuPricePerSec6",
++        "askShieldedPricePerSec6",
++        "cardTflops",
++        "cardVramGb",
++        "cardVramSource",
++        "cards",
++        "claimEnabled",
++        "configCid",
++        "configCidOverride",
++        "configEdit",
++        "configOverride",
++        "cpuFallback",
++        "cpuGflopsFree",
++        "cpuShareFree",
++        "customDomains",
++        "devDeploy",
++        "fullService",
++        "gpu",
++        "gpuOptional",
++        "gpuPool",
++        "gpuShareFree",
++        "gpuTflopsFree",
++        "guestPool",
++        "instanceSweep",
++        "isolation",
++        "ledgerSync",
++        "maxShare",
++        "mem64",
++        "networkOptions",
++        "nodeGflops",
++        "nodeRamGb",
++        "nodeVcpus",
++        "payoutWallet",
++        "physicalGpuCount",
++        "proofOfTime",
++        "ramGbFree",
++        "rateCap",
++        "secrets",
++        "secretsInConfig",
++        "selfHostFree",
++        "set",
++        "shareResize",
++        "shielded",
++        "shieldedCards",
++        "smFree",
++        "smTotal",
++        "source",
++        "teeCpu",
++        "tenantVouch",
++        "type",
++        "updatedAt",
++        "usedCpuShare",
++        "usedGpuShare",
++        "vcpusFree",
++        "volumes",
++        "vramFreeGb",
++        "waf"
++      ],
++      "isolation": "snp-guest-per-app",
++      "fullService": false,
++      "claimEnabled": true,
++      "ramGbFree": 0,
++      "nodeRamGb": 96,
++      "nodeVcpus": 24,
++      "cpuShareFree": 0,
++      "secrets": false,
++      "teeCpu": "amd-sev-snp"
++    }
++  ],
++  "limits": [
++    "Public configuration/HTTP metadata only; no secret keys, raw environment, sealed state or secret records read or emitted. No service or configuration changed."
++  ]
++}
+diff --git a/evidence/recipient-runtime-inventory.json b/evidence/recipient-runtime-inventory.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..e4f7ff2abc9aa0323bba726817d708c6908d0146
+--- /dev/null
++++ b/evidence/recipient-runtime-inventory.json
+@@ -0,0 +1,54 @@
++{
++  "at": "2026-10-23T20:40:33.083637+00:00",
++  "readOnly": true,
++  "publicConfiguration": {
++    "dist": "/home/steven/enclave-prod/dist-leasegas-deabf8f90",
++    "mode": "snp",
++    "name": "metal0",
++    "cpus": 4,
++    "memMiB": 4096,
++    "publicUrl": "https://api.enclave.host/t/metal0",
++    "wasmtimeBin": "/usr/bin/wasmtime",
++    "isolation": {}
++  },
++  "manifest": {
++    "path": "/home/steven/enclave-prod/dist-leasegas-deabf8f90/manifest.json",
++    "sha256": "c7cb436db609f361a07d5f32a8a0d71f4fc399f329d244ff2512da8ca34dfca4",
++    "fields": [
++      "builtWith",
++      "cmdlineTemplate",
++      "controlOverlay",
++      "controlOverlayHistory",
++      "flavor",
++      "images",
++      "initramfs",
++      "isolation",
++      "isolationMinTcb",
++      "kernel",
++      "modules",
++      "note",
++      "reproducible",
++      "shielded",
++      "shieldedBuild",
++      "supervisorOverlay",
++      "volumeBinding"
++    ]
++  },
++  "http": [
++    {
++      "url": "https://api.enclave.host/t/metal0/info",
++      "error": "HTTP Error 404: Not Found"
++    },
++    {
++      "url": "https://api.enclave.host/t/metal0/health",
++      "error": "HTTP Error 404: Not Found"
++    },
++    {
++      "url": "https://api.enclave.host/t/metal0/api/status",
++      "error": "HTTP Error 404: Not Found"
++    }
++  ],
++  "limits": [
++    "Public configuration/HTTP metadata only; no secret keys, raw environment, sealed state or secret records read or emitted. No service or configuration changed."
++  ]
++}
+diff --git a/evidence/relay-session-authority.json b/evidence/relay-session-authority.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..41379b1a4fa0782a2e5084d1b412d73c5f4a8e57
+--- /dev/null
++++ b/evidence/relay-session-authority.json
+@@ -0,0 +1,41 @@
++{
++  "at": "2026-10-23T20:35:16.121674+00:00",
++  "readOnly": true,
++  "pid": 22148,
++  "publicEnvironment": {
++    "CUSTODY_VAULT_V2": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++    "SESSIONS_FACTORY": "0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C",
++    "ADDRESS_BOOK_ADDRESS": "0xab214342d5A490150A4A977063A2f88E21F80907",
++    "CUSTODY_VAULT": "0x08074300f75e78212ae10ebd14984f78e17811a6"
++  },
++  "sourceHashes": [
++    {
++      "path": "api-relay.js",
++      "exists": true,
++      "sha256": "481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d"
++    },
++    {
++      "path": "sessions.js",
++      "exists": false,
++      "sha256": null
++    },
++    {
++      "path": "network-api.js",
++      "exists": false,
++      "sha256": null
++    },
++    {
++      "path": "relay/sessions.mjs",
++      "exists": false,
++      "sha256": null
++    },
++    {
++      "path": "network/owner-signature.mjs",
++      "exists": false,
++      "sha256": null
++    }
++  ],
++  "limits": [
++    "Only public address settings emitted; no secret values, raw environment or private configuration printed. No restart or configuration change."
++  ]
++}
+diff --git a/probes/canary-caddy-validate.py b/probes/canary-caddy-validate.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..f5cbb3f6d9a3c772db1567b47a9b9c9d8272cd49
+--- /dev/null
++++ b/probes/canary-caddy-validate.py
+@@ -0,0 +1,11 @@
++"""Validate a standalone canary snippet with the control VM's installed Caddy; no serving/reload/config edit."""
++import pathlib,subprocess,json,datetime,hashlib
++p=pathlib.Path('work/custody-v2-ingress-forwarder-20261023/examples/Caddyfile.canary-snippet')
++snippet=p.read_text().replace('<R>','18902')
++config='http://127.0.0.1:18903 {\n'+snippet+'\nhandle {\n respond "Not found" 404\n}\n}\n'
++cmd=['ssh','-p32423','-o','BatchMode=yes','-o','ConnectTimeout=10','-o','UserKnownHostsFile=/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts','-i','/home/steven/.ssh/minipc','controladmin@127.0.0.1','caddy adapt --config /dev/stdin --adapter caddyfile --validate']
++r=subprocess.run(cmd,input=config,text=True,capture_output=True,timeout=35)
++result={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'scope':'standalone syntax/provisioning validation only; no listener, live config write or reload','snippetSha256':hashlib.sha256(p.read_bytes()).hexdigest(),'inputSha256':hashlib.sha256(config.encode()).hexdigest(),'exit':r.returncode,'diagnostics':r.stderr[-2000:]}
++if r.returncode==0:
++ d=json.loads(r.stdout);result['adaptedSha256']=hashlib.sha256(r.stdout.encode()).hexdigest();result['servers']=list(d.get('apps',{}).get('http',{}).get('servers',{}))
++pathlib.Path('work/custody-v2-live-20261023/evidence/canary-caddy-validate.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result));raise SystemExit(r.returncode)
+diff --git a/probes/recipient-runtime-inventory.py b/probes/recipient-runtime-inventory.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..53490c84c2cecd08d058f331e95df47b9cf0d54c
+--- /dev/null
++++ b/probes/recipient-runtime-inventory.py
+@@ -0,0 +1,30 @@
++"""Read selected public metal runner configuration and HTTP capabilities; no credentials or state mutation."""
++import json,pathlib,hashlib,urllib.request,datetime,subprocess
++p=pathlib.Path('/home/steven/Projects/enclave/metal/config.json');d=json.loads(p.read_text())
++public={k:d.get(k) for k in ['dist','mode','name','cpus','memMiB','publicUrl','wasmtimeBin']}
++iso=d.get('isolation'); public['isolation']={k:(iso[k] if isinstance(iso[k],(str,int,bool)) else {'configured':True,'type':type(iso[k]).__name__}) for k in ['mode','guestd','root','enabled'] if k in iso} if isinstance(iso,dict) else (iso if isinstance(iso,(str,int,bool)) else None)
++# Emit only types/names for paths that may carry a config object.
++for k,v in list(public.items()):
++ if isinstance(v,(dict,list)) and k!='isolation':public[k]={'configured':True,'type':type(v).__name__}
++dist=pathlib.Path(public['dist']);mp=dist/'manifest.json';manifest=None
++if mp.is_file():
++ data=json.loads(mp.read_text());manifest={'path':str(mp),'sha256':hashlib.sha256(mp.read_bytes()).hexdigest(),'fields':sorted(data)}
++ for k in ['commit','measurement','runtimeId','mode','transport','isolation']:
++  if isinstance(data.get(k),(str,int,bool)):manifest[k]=data[k]
++responses=[]
++for suffix in ['/v1/health','/availability']:
++ url='https://api.enclave.host/t/metal0'+suffix
++ row={'url':url}
++ try:
++  with urllib.request.urlopen(url,timeout=10) as r:
++   body=r.read(131073);row.update(httpStatus=r.status,bytes=len(body),sha256=hashlib.sha256(body).hexdigest())
++   if len(body)>131072:raise ValueError('oversize public response')
++   obj=json.loads(body);row['fields']=sorted(obj) if isinstance(obj,dict) else []
++   if isinstance(obj,dict):
++    for k in ['mode','isolation','capabilities','custody','custodyV2','version','status','runtimeId','measurement','fullService','claimEnabled','memMb','cpuAvailable','cpuTotal','ramGbFree','nodeRamGb','nodeVcpus','cpuShareFree','maxShare','secrets','teeCpu']:
++     v=obj.get(k)
++     if isinstance(v,(str,int,bool,list,dict)):row[k]=v
++ except Exception as e:row['error']=str(e)[:180]
++ responses.append(row)
++out={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'readOnly':True,'publicConfiguration':public,'manifest':manifest,'http':responses,'limits':['Public configuration/HTTP metadata only; no secret keys, raw environment, sealed state or secret records read or emitted. No service or configuration changed.']}
++pathlib.Path('work/custody-v2-live-20261023/evidence/recipient-runtime-capabilities.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out))
+diff --git a/probes/relay-session-authority.py b/probes/relay-session-authority.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..2b21aa7da2d16a70f01ab7550fb52b1fe9b97f60
+--- /dev/null
++++ b/probes/relay-session-authority.py
+@@ -0,0 +1,21 @@
++"""Read only the relay's public factory/book settings and source hashes, never secret values."""
++import subprocess,json,pathlib,datetime
++ssh=['ssh','-p32423','-o','BatchMode=yes','-o','ConnectTimeout=10','-o','UserKnownHostsFile=/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts','-i','/home/steven/.ssh/minipc','controladmin@127.0.0.1','sudo python3 -']
++remote=r'''
++import subprocess,pathlib,json,hashlib,re,datetime
++pid=int(subprocess.check_output(['systemctl','show','enclave-api-relay','-p','MainPID','--value'],text=True).strip());assert pid>1
++allowed={'SESSIONS_FACTORY','ADDRESS_BOOK_ADDRESS','CUSTODY_VAULT','CUSTODY_VAULT_V2'}
++public={k:None for k in allowed}
++for entry in pathlib.Path(f'/proc/{pid}/environ').read_bytes().split(b'\0'):
++ key,sep,val=entry.partition(b'=')
++ if sep and key.decode() in allowed:
++  value=val.decode();public[key.decode()]=value if re.fullmatch(r'0x[0-9a-fA-F]{40}',value) else {'present':True,'validAddress':False}
++root=pathlib.Path('/opt/nan-relay');hashes=[]
++for name in ['api-relay.js','sessions.js','network-api.js','relay/sessions.mjs','network/owner-signature.mjs']:
++ p=root/name
++ hashes.append({'path':name,'exists':p.is_file(),'sha256':hashlib.file_digest(open(p,'rb'),'sha256').hexdigest() if p.is_file() else None})
++print(json.dumps({'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'readOnly':True,'pid':pid,'publicEnvironment':public,'sourceHashes':hashes,'limits':['Only public address settings emitted; no secret values, raw environment or private configuration printed. No restart or configuration change.']}))
++'''
++r=subprocess.run(ssh,input=remote,text=True,capture_output=True,timeout=40)
++if r.returncode:raise SystemExit('Read-only relay probe failed: '+r.stderr[-250:])
++out=json.loads(r.stdout);pathlib.Path('work/custody-v2-live-20261023/evidence/relay-session-authority.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out))

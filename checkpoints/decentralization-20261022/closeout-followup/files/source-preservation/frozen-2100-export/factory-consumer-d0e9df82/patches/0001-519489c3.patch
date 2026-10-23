@@ -1,0 +1,3711 @@
+From 519489c34d25fba71df825b4e38b5c17334afe81 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:34:50 -0700
+Subject: [PATCH] Review: effects of activating the original book's
+ sessionVaultFactory entry (read-only)
+
+The contract rules (v1/v2 beneficialOwnerOf, _apply, _claim; SessionVault ownerCall
+and release) show that a policy pinned to a SessionVault would be stranded by
+activation. The state probe (one agreed block, 16 requests) reads every id in the
+current ledger: 98 ids; 0 stranded policies in either vault. The 4 ids owned by
+the admin's SessionVault have no policy, so only their first writer changes
+(0xb794 -> 0x0b2d); the existing 0x4e62 policies are EOA-owned and unchanged.
+Bounded, resumable log discovery (2 attempts, <=20 requests each, exact topics)
+covered 52605914-52728413 on the only allowlisted archive-log provider (5000-block
+limit); 52728414-52999031 is recorded as uncovered.
+CONSUMERS.md lists every runtime reader of the key; the relay's SESSIONS_FACTORY
+setting is not determined from public evidence. No transaction, key or SSH.
+---
+ .gitignore                 |    3 +
+ CONSUMERS.md               |   41 +
+ PROGRESS.txt               |   10 +
+ RESULT.md                  |  153 +++
+ evidence/log-cursor.json   |  335 ++++++
+ evidence/policy-logs.json  |   85 ++
+ evidence/state-impact.json | 2326 ++++++++++++++++++++++++++++++++++++
+ lib/review.mjs             |  146 +++
+ package-lock.json          |  217 ++++
+ package.json               |    3 +
+ probes/policy-logs.mjs     |   59 +
+ probes/state-impact.mjs    |   98 ++
+ qrun.sh                    |   10 +
+ run-tests.sh               |    4 +
+ test/review.test.mjs       |   81 ++
+ 15 files changed, 3571 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 CONSUMERS.md
+ create mode 100644 PROGRESS.txt
+ create mode 100644 RESULT.md
+ create mode 100644 evidence/log-cursor.json
+ create mode 100644 evidence/policy-logs.json
+ create mode 100644 evidence/state-impact.json
+ create mode 100644 lib/review.mjs
+ create mode 100644 package-lock.json
+ create mode 100644 package.json
+ create mode 100644 probes/policy-logs.mjs
+ create mode 100644 probes/state-impact.mjs
+ create mode 100755 qrun.sh
+ create mode 100755 run-tests.sh
+ create mode 100644 test/review.test.mjs
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..51bb937e5a68a0e94ad8e23a09cf5c22a9588bd3
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,3 @@
++node_modules/
++logs/
++ROOT-*.txt
+diff --git a/CONSUMERS.md b/CONSUMERS.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..ee426251bc79ea17818ce07c570a4129fe45bc52
+--- /dev/null
++++ b/CONSUMERS.md
+@@ -0,0 +1,41 @@
++# Source consumers of the original book key `sessionVaultFactory` (non-test; work/enclave e762a9c5, custody repo ab589bf8)
++
++**How this was made.** A read-only source sweep, by a sub-search with my spot-checks. The class A code is the same in
++both trees; the release tree lacks `mcp/`, `metal/guest/measured-control.mjs`, `session-factories.mjs`,
++`lease-gas-owner.mjs` and the bundles. Line numbers are main's.
++
++**A — read the ORIGINAL mutable book key at runtime**
++
++| consumer | book from | today (key 0) | after activation |
++|---|---|---|---|
++| `network/owner-signature.mjs` 19 `oneClient` (only when the caller passes no factory) | the caller's addressBook | a vault-held owner's signature is refused | the vault's owner signature verifies |
++| ↳ `relay/network-api.mjs` 36 | `ADDRESS_BOOK_ADDRESS` env | owner network policy / BYO 403 for vault-held | accepted for the vault owner |
++| ↳ `network/enclave-network-host.mjs` 80 (no `authorityPins`) | privacy agent `cfg.chain.addressBook` | refused | accepted |
++| ↳ `network/wg-provider/main.mjs` 55 (legacy bootstrap) | `boot.addressBook` (install default 0xab21…) | refused | accepted |
++| ↳ `network/directory-server.mjs` 75 (unpinned LeaseReader) | configured book | refused | accepted into the directory |
++| ↳ `scripts/network/owner-policy.mjs` 27 | default 0xab21… | refused | accepted |
++| `relay/sessions.mjs` 421-426 sessions service (only if `SESSIONS_FACTORY` unset) | `SESSIONS_BOOK` or 0xab21… | 503 `sessions_disabled` | sessions API on; indexer starts at about the last 5000 blocks unless `SESSIONS_START_BLOCK` |
++| `relay/sessions.mjs` 1111-1119 custody gate (only if `SESSIONS_FACTORY` unset), wired at `api-relay.js` 584 | `ADDRESS_BOOK_ADDRESS` | the vault itself is the owner; no wallet signs for vault-held secrets/domains/placement; vault payments land in billing review | the vault owner signs; payments are classed as session fees; stricter `held()` gating for recognized vaults |
++| `windows/node/session-api-auth.mjs` 250-259 (supervisor 3732, Windows agent 99; bypassed by contract pins) | `ADDRESS_BOOK_ADDRESS` / 0xab21… | the zero entry is skipped; `DEFAULT_FACTORIES` already has 0x1F5c… | no change, unless an operator's `SESSIONS_FACTORIES` omits 0x1F5c… |
++| `cli/enclave.mjs` 4312 `session delegate` (unpinned) | book | falls back to `DEFAULTS.SESSION_VAULT_FACTORY_ADDRESS` = 0x1F5c… | no change |
++| `scripts/network/capture-network-authorities.mjs` 10-17, `capture-contract-pins.mjs` 12 | book | pins capture 0 (sessions off in new pins) | pins capture 0x1f5c… |
++
++**B — pinned or independent value (unaffected)**
++- `network/reconcile-core.mjs` 15: compares chain `authorityPins` with the pin document.
++- `management-auth.mjs`, `management-gateway.mjs`, `native-client.mjs`.
++- `service-index.mjs` explicit bootstrap; `relay/dns-relay.js` 111 (pinned zero).
++- `cli/enclave.mjs` pinned/independent paths; `cli/lease-gas.mjs`, `lease-gas-owner.mjs`.
++- `mcp/independent*.mjs` (pinned factory; reads `implementation.book()` for other keys only).
++- `metal/guest/measured-control.mjs` 85/190-195: requires a PINNED `contracts.sessionVaultFactory` for MCP and never
++  reads the book.
++- Site config and independent site, `browser-profile.mjs`, custody v2 (`custody/v2/*`, `cli/custody-independent.mjs`).
++
++**C — validation and pins only:** `contract-pins.mjs`, `network-authorities.mjs`, `authority-profile.mjs`,
++`session-factories.mjs` (0x1f5c… listed as kind "book", book 0xab21…), `verify-profile.mjs`, site independent UI,
++`cli/independent-host.mjs`.
++
++**Contracts** (my reading): v1/v2 vaults `beneficialOwnerOf`, and `SessionVault.release` 838. `PinnedSessionVaultFactory`
++and the pinned vault variant use immutables.
++
++**Not determined from public evidence:** whether the production relay sets `SESSIONS_FACTORY`. That decides whether the
++relay rows above change.
+diff --git a/PROGRESS.txt b/PROGRESS.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..143fcd645448fa6d1f8c34eb373f61c91cc201f0
+--- /dev/null
++++ b/PROGRESS.txt
+@@ -0,0 +1,10 @@
++2026-10-23T20:34:50Z sessionVaultFactory activation consumer review: read-only, finite.
++- State (complete for the current ledger, block 52999031, 16 requests):
++  - 98 ids; 0 policies stranded in v1 or v2;
++  - the 4 ids owned by SessionVault 0xb794 have no policy (first writer 0xb794 -> 0x0b2d);
++  - 0x4e62 policies (EOA owner) unchanged.
++- Logs: blockpi only, 5000-block limit, 2 attempts x 18 requests; covered 52605914-52728413; UNCOVERED 52728414-52999031.
++- Consumers: CONSUMERS.md. The relay SESSIONS_FACTORY setting is not determined from public evidence.
++- Verdict: existing policies are NOT blocked. Activation stays root/admin-gated: re-run the state probe before signing;
++  confirm the relay setting; never toggle back.
++- Tests 5/5 (256 lane). Scans: scan-crypto-keys and gitleaks clean.
+diff --git a/RESULT.md b/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..3445dd2c6d8d637e16c1ab7ed4238f07750382f0
+--- /dev/null
++++ b/RESULT.md
+@@ -0,0 +1,153 @@
++# Original book `sessionVaultFactory` activation: consumer review (2026-10-23)
++
++**The question.** What changes if the admin sets the original EnclaveAddressBook `0xab214342…` key `sessionVaultFactory`
++from 0 to the original factory `0x1f5c887c…`? Root's unsigned activation plan is
++`custody-v2-live-20261023/evidence/factory-activation-unsigned-20261023.json`.
++
++**Status.**
++- Read-only. Public RPC reads only, through root's allowlist (`custody-v2-live-20261023/lib/live.mjs` hosts), counted
++  and capped.
++- No SSH, key, signature or book transaction. Root's evidence files are unedited.
++
++## Verdict
++
++**Existing v1/v2 custody policies: NOT BLOCKED. No existing policy is stranded.** This is state-complete for every
++deployment id in the current ledger at block 52,999,031 (`evidence/state-impact.json`).
++
++**Activation is still a gated admin decision.** It grants new authority to the wallet that owns
++SessionVault `0xb794…` (the admin `0x0b2d…`) in several off-chain paths, and one relay path depends on configuration not
++visible in public evidence (§3). Root's activation gating stays as is. Conditions:
++1. **Re-run `probes/state-impact.mjs` immediately before signing** (16 requests).
++   - A policy pinned to a SessionVault can still be created today: the vault's owner calls `ownerCall(vault.update)`.
++     It would be stranded by activation.
++   - The result is exact only for its block.
++2. Root confirms the relay's `SESSIONS_FACTORY` setting (§3). It is not in the public environment capture.
++3. **Do not toggle the key back** after wallet-owned policies are created on SessionVault-held deployments. Unsetting it
++   would strand them the other way.
++
++## 1. Contract rules (source; identical in work/enclave e762a9c5 and the custody repo ab589bf8)
++
++**v1 and v2 vaults** (`EnclaveSecretVault.sol` 199-209, `EnclaveSecretVaultV2.sol` 466-475): `beneficialOwnerOf(id)` is
++the CURRENT ledger owner, unwrapped to `SessionVault.owner()` only when the book's factory is non-zero and `isVault`.
++The book is read on every call, so activation is immediate in both vaults.
++- `_ownerFor`: a policy with `policyRev ≠ 0` is pinned to `p.owner`.
++- `_apply`: after the first write, `beneficialOwnerOf(id) != p.owner` reverts `NotOwner` for every update.
++- `_claim`: only the new beneficial owner may `claimPolicy`, which destroys the bundle.
++
++**Stranding exists in principle.** `SessionVault.ownerCall(target, data)` (`SessionVault.sol` 851) lets a vault owner
++make the vault itself call `update`, so a policy can be pinned to a SessionVault while the key is 0. After activation
++that policy can never be updated again, only claimed.
++
++**Not affected:** releases do not read the owner.
++
++**`SessionVault.release`** (838) also reads the key. Today a held deployment can be released only to the owner's
++wallet; after activation it can also go to the owner's vault at the factory. That adds a destination and removes none.
++
++**Factories:** `PinnedSessionVaultFactory` and the pinned-variant vault use immutable pins, not this key. Vaults of the
++older factory `0x00bB59c4…` are not recognized by `0x1f5c…`'s `isVault`, so they are unaffected.
++
++## 2. On-chain impact (`evidence/state-impact.json`, block 52,999,031 `0x9f296ee3…`, 16 of 20 requests)
++
++**Method:** both state endpoints answered byte-identically.
++
++**Pre-state:**
++- book `sessionVaultFactory` = 0;
++- `deployments` = `0xb1783b61…`;
++- book owner `0x0b2d…`;
++- `0xb794…` is a vault of `0x1f5c…` (owner `0x0b2d…`, book `0xab21…`).
++
++**Ledger enumeration** (`count()`/`idAt`):
++- 98 ids, 9 distinct owners.
++- Owners: 0x2947… ×43, 0x3977… ×20, 0x0b2d… ×15, 0x3e98… ×7, 0x14b3… ×4, **0xb794… (SessionVault) ×4**, 0x271a… ×2,
++  0x389c… ×2, 0x081c… ×1.
++- `0xb794` is the only owner recognized by `0x1f5c`.
++
++**Per id × vault** (`effectOf` in `lib/review.mjs`; before = the ledger owner, after = the unwrapped owner):
++
++| effect | v1 | v2 |
++|---|---|---|
++| STRANDED (policy pinned to a SessionVault that activation unwraps) | **0** | **0** |
++| restored / claimant changes | 0 | 0 |
++| no policy; the first writer changes `0xb794…` → `0x0b2d…` | 4 | 4 |
++| unchanged | 94 | 94 |
++
++- **Existing policies:**
++  - one in each vault, both on `0x4e62e60d…`, owner EOA `0x29479Bf0…` (v1 policyRev 1, v2 policyRev 2);
++  - unchanged.
++- **The four `0xb794` deployments** (`0xcab8fb59…`, `0xa62e13de…`, `0x59f1273d…`, `0x87508b95…`): no policy in either
++  vault. Activation lets `0x0b2d…` write their first policy, which is the intended effect.
++- **Ids outside the current ledger:** their `beneficialOwnerOf` is 0 before and after, so activation cannot change them.
++  Policies on old-ledger ids are therefore unaffected by construction.
++
++## 3. Off-chain consumers of the key (non-test source; see `CONSUMERS.md`)
++
++**Read the original book key at runtime:**
++- `network/owner-signature.mjs` 19 (unpinned callers: relay `network-api.mjs`, `enclave-network-host.mjs` without pins,
++  `wg-provider` legacy bootstrap, `directory-server.mjs`, `scripts/network/owner-policy.mjs`):
++  - **Today:** a SessionVault owner's signature for a vault-held deployment is refused.
++  - **After:** the vault's owner (`0x0b2d` for the four deployments) is accepted for network policies and BYO requests.
++  - Pinned hosts with a zero pin keep refusing, so pinned and unpinned hosts would disagree for vault-held deployments.
++- `relay/sessions.mjs` 421-426 (sessions service) and 1111-1119 (custody gate), only when `SESSIONS_FACTORY` is unset.
++  **Not determined:** root's public relay environment (`evidence/relay-public-config.json`) lists 7 keys and none for
++  sessions.
++  - If unset, activation turns the sessions API on, and moves authority over secrets, domains and placement for
++    vault-held records from "nobody can sign" to the vault owner.
++  - It also changes billing classification of vault payments.
++  - If pinned to `0x1f5c…`, there is no change.
++- `windows/node/session-api-auth.mjs` 250-259 (supervisor and Windows node, unless contract pins exist): no change. The
++  default list already contains `0x1f5c…`.
++- `cli/enclave.mjs` 4312 (`session delegate`, unpinned): no change; it already defaults to `0x1f5c…`.
++- `scripts/network/capture-network-authorities.mjs` / `capture-contract-pins.mjs`: pin capture would record `0x1f5c…`
++  instead of 0.
++
++**Not affected:**
++- pinned/independent-profile consumers (management auth, native client, MCP independent, site independent, lease-gas
++  owner, `reconcile-core.mjs` 15);
++- `metal/guest/measured-control.mjs` 85/190-195, which requires a PINNED `contracts.sessionVaultFactory` for MCP and
++  never reads the book;
++- custody v2 custodians and readers (vault immutables and pins).
++
++**Caching after a later change:** the relay sessions service caches the factory until restart; the custody gate
++re-reads after about 10× its TTL.
++
++## 4. Policy event discovery (`evidence/policy-logs.json`, `evidence/log-cursor.json`) — PARTIAL, as bounded
++
++**Filter:** one filter, addresses v1 `0x0807…` and v2 `0xe486…`, exact topics `PolicyUpdated(bytes32,address,uint64,bytes32,bool)`
++`0x512a1b53…ec87` and `PolicyClaimed(bytes32,address,address,uint64)` `0x6b930fd9…334d` (identical declarations in both vault sources). The range runs
++from v1's deployment block 52,605,914 (v2's is 52,613,511) to 52,999,031.
++
++**Provider:** `base.public.blockpi.network`, the only allowlisted archive-log source. It states "eth_getLogs is limited
++to 5000 block range".
++
++**Attempts** (2 allowed, both used; at most 20 requests each; each counted):
++
++| attempt | requests | covered |
++|---|---|---|
++| 1 | 18 | 52,605,914–52,643,413 (span probing 100000→…→3125) |
++| 2 | 18 | 52,643,414–52,728,413 (the provider's stated 5000) |
++
++**Coverage:**
++- **Covered:** 52,605,914–52,728,413, from one provider; no second log source agreed.
++- **UNCOVERED:** **52,728,414–52,999,031** (270,618 blocks; about 55 more requests at 5000). No completeness is claimed
++  there, and no broad retry was made.
++- **Found:** 3 events, all on `0x4e62e60d…`. That id is in the current ledger and state-read above.
++
++**Conclusion:** this inventory is not needed for the verdict (§2 is exhaustive over every id activation can affect),
++but it is incomplete as a history of all policies.
++
++## 5. Tests and scans
++- `test/review.test.mjs`: 5/5 through the queue at 256 MiB.
++  - It covers the effect classifier against the vault rules.
++  - It covers the log cursor: range halving, the provider's stated limit, a rate-limit stop with no retry, a budget
++    stop, resume, exact uncovered ranges, and refusal of out-of-filter answers.
++  - It also checks that the budgeted reader refuses write methods.
++- Scans: see PROGRESS.txt.
++
++## 6. Limits
++- **Point in time:** the state result holds at block 52,999,031 only (see condition 1).
++- **Not rechecked here:** factory, implementation and vault code hashes. They come from root's verified evidence
++  (`factory-activation-unsigned`, `known-state`).
++- **Inventory method:** the consumer inventory is a source sweep (the sub-search plus my spot-checks of
++  `owner-signature.mjs` 15-22, `relay/sessions.mjs` 418-428/1108-1121 and `session-api-auth.mjs` 246-260). Deployed
++  binaries are assumed to match these trees.
++- **Logs:** single-provider, partial (§4).
+diff --git a/evidence/log-cursor.json b/evidence/log-cursor.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..1642f8c7966da8567f87e794ef74fbb1cb236fe8
+--- /dev/null
++++ b/evidence/log-cursor.json
+@@ -0,0 +1,335 @@
++{
++ "provider": "https://base.public.blockpi.network/v1/rpc/public",
++ "addresses": [
++  "0x08074300f75e78212ae10ebd14984f78e17811a6",
++  "0xe48699b8401564aace7a814ae4569b67a3f7eef5"
++ ],
++ "topics": [
++  "0x512a1b5328e1be2d7d9f0d989b4f18232c3f3e2df7862122b7b76169c943ec87",
++  "0x6b930fd91b7b82b75ba955af6c27473a31be50ee09894eebe31923d5a96e334d"
++ ],
++ "start": "52605914",
++ "next": "52728414",
++ "to": "52999031",
++ "span": "5000",
++ "covered": [
++  [
++   "52605914",
++   "52728413"
++  ]
++ ],
++ "events": [
++  {
++   "address": "0x08074300f75e78212ae10ebd14984f78e17811a6",
++   "event": "PolicyUpdated",
++   "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++   "block": "52608770",
++   "tx": "0xa3ab30132c17412832e825bc97b94a208b0ebae5b9eb3278e613e12e1f3eed97",
++   "logIndex": "298",
++   "removed": false
++  },
++  {
++   "address": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++   "event": "PolicyUpdated",
++   "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++   "block": "52615057",
++   "tx": "0x9899c9fb6eca80158ea475aff3af8a5d0d4203094e115b6975540b014d27f320",
++   "logIndex": "353",
++   "removed": false
++  },
++  {
++   "address": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++   "event": "PolicyUpdated",
++   "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++   "block": "52617714",
++   "tx": "0xf6fbb8cfc2f91b94f2d564e0537ced4b3f86d6f4b30a10a5cb84ec6187825816",
++   "logIndex": "1270",
++   "removed": false
++  }
++ ],
++ "stops": [
++  {
++   "at": "52605914",
++   "reason": "range refused at span 100000: halved",
++   "message": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference"
++  },
++  {
++   "at": "52605914",
++   "reason": "range refused at span 50000: halved",
++   "message": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference"
++  },
++  {
++   "at": "52605914",
++   "reason": "range refused at span 25000: halved",
++   "message": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference"
++  },
++  {
++   "at": "52605914",
++   "reason": "range refused at span 12500: halved",
++   "message": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference"
++  },
++  {
++   "at": "52605914",
++   "reason": "range refused at span 6250: halved",
++   "message": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference"
++  },
++  {
++   "at": "52643414",
++   "reason": "budget"
++  },
++  {
++   "at": "52728414",
++   "reason": "budget"
++  }
++ ],
++ "attempts": [
++  {
++   "n": 1,
++   "at": "2026-10-23T20:32:22.489Z",
++   "budget": 20,
++   "idsOutsideCurrentLedger": [],
++   "outcome": "budget",
++   "discoveryRequests": 17,
++   "totalRequests": 18,
++   "requests": [
++    {
++     "n": 1,
++     "host": "base.public.blockpi.network",
++     "method": "eth_chainId",
++     "ms": 294
++    },
++    {
++     "n": 1,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 266,
++     "error": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference",
++     "kind": "range"
++    },
++    {
++     "n": 2,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 211,
++     "error": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference",
++     "kind": "range"
++    },
++    {
++     "n": 3,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 211,
++     "error": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference",
++     "kind": "range"
++    },
++    {
++     "n": 4,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 205,
++     "error": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference",
++     "kind": "range"
++    },
++    {
++     "n": 5,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 208,
++     "error": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference",
++     "kind": "range"
++    },
++    {
++     "n": 6,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 708
++    },
++    {
++     "n": 7,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 543
++    },
++    {
++     "n": 8,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 537
++    },
++    {
++     "n": 9,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 681
++    },
++    {
++     "n": 10,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 750
++    },
++    {
++     "n": 11,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 613
++    },
++    {
++     "n": 12,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 632
++    },
++    {
++     "n": 13,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 531
++    },
++    {
++     "n": 14,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 536
++    },
++    {
++     "n": 15,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 361
++    },
++    {
++     "n": 16,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 572
++    },
++    {
++     "n": 17,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 1035
++    }
++   ]
++  },
++  {
++   "n": 2,
++   "at": "2026-10-23T20:33:15.291Z",
++   "budget": 20,
++   "idsOutsideCurrentLedger": [],
++   "outcome": "budget",
++   "discoveryRequests": 17,
++   "totalRequests": 18,
++   "requests": [
++    {
++     "n": 1,
++     "host": "base.public.blockpi.network",
++     "method": "eth_chainId",
++     "ms": 294
++    },
++    {
++     "n": 1,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 919
++    },
++    {
++     "n": 2,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 691
++    },
++    {
++     "n": 3,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 477
++    },
++    {
++     "n": 4,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 543
++    },
++    {
++     "n": 5,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 567
++    },
++    {
++     "n": 6,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 489
++    },
++    {
++     "n": 7,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 454
++    },
++    {
++     "n": 8,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 914
++    },
++    {
++     "n": 9,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 941
++    },
++    {
++     "n": 10,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 1087
++    },
++    {
++     "n": 11,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 774
++    },
++    {
++     "n": 12,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 552
++    },
++    {
++     "n": 13,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 497
++    },
++    {
++     "n": 14,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 485
++    },
++    {
++     "n": 15,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 525
++    },
++    {
++     "n": 16,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 474
++    },
++    {
++     "n": 17,
++     "host": "base.public.blockpi.network",
++     "method": "eth_getLogs",
++     "ms": 783
++    }
++   ]
++  }
++ ]
++}
+diff --git a/evidence/policy-logs.json b/evidence/policy-logs.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..17280b6c1a09e214300aa9dbb27ea93d52d6fd71
+--- /dev/null
++++ b/evidence/policy-logs.json
+@@ -0,0 +1,85 @@
++{
++ "at": "2026-10-23T20:33:26.767Z",
++ "readOnly": true,
++ "provider": "base.public.blockpi.network",
++ "addresses": [
++  "0x08074300f75e78212ae10ebd14984f78e17811a6",
++  "0xe48699b8401564aace7a814ae4569b67a3f7eef5"
++ ],
++ "topics": [
++  "0x512a1b5328e1be2d7d9f0d989b4f18232c3f3e2df7862122b7b76169c943ec87",
++  "0x6b930fd91b7b82b75ba955af6c27473a31be50ee09894eebe31923d5a96e334d"
++ ],
++ "range": [
++  "52605914",
++  "52999031"
++ ],
++ "complete": false,
++ "covered": [
++  [
++   "52605914",
++   "52728413"
++  ]
++ ],
++ "uncovered": [
++  [
++   "52728414",
++   "52999031"
++  ]
++ ],
++ "events": [
++  {
++   "address": "0x08074300f75e78212ae10ebd14984f78e17811a6",
++   "event": "PolicyUpdated",
++   "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++   "block": "52608770",
++   "tx": "0xa3ab30132c17412832e825bc97b94a208b0ebae5b9eb3278e613e12e1f3eed97",
++   "logIndex": "298",
++   "removed": false
++  },
++  {
++   "address": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++   "event": "PolicyUpdated",
++   "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++   "block": "52615057",
++   "tx": "0x9899c9fb6eca80158ea475aff3af8a5d0d4203094e115b6975540b014d27f320",
++   "logIndex": "353",
++   "removed": false
++  },
++  {
++   "address": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++   "event": "PolicyUpdated",
++   "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++   "block": "52617714",
++   "tx": "0xf6fbb8cfc2f91b94f2d564e0537ced4b3f86d6f4b30a10a5cb84ec6187825816",
++   "logIndex": "1270",
++   "removed": false
++  }
++ ],
++ "ids": [
++  "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e"
++ ],
++ "attempts": [
++  {
++   "n": 1,
++   "at": "2026-10-23T20:32:22.489Z",
++   "budget": 20,
++   "idsOutsideCurrentLedger": [],
++   "outcome": "budget",
++   "discoveryRequests": 17,
++   "totalRequests": 18,
++   "requests": 18
++  },
++  {
++   "n": 2,
++   "at": "2026-10-23T20:33:15.291Z",
++   "budget": 20,
++   "idsOutsideCurrentLedger": [],
++   "outcome": "budget",
++   "discoveryRequests": 17,
++   "totalRequests": 18,
++   "requests": 18
++  }
++ ],
++ "note": "PARTIAL: events outside `covered` were not observed; no completeness is claimed for them"
++}
+diff --git a/evidence/state-impact.json b/evidence/state-impact.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..16cab0d76ec2c4efc222679eea559167df3d2879
+--- /dev/null
++++ b/evidence/state-impact.json
+@@ -0,0 +1,2326 @@
++{
++ "at": "2026-10-23T20:30:34.278Z",
++ "readOnly": true,
++ "budget": 20,
++ "complete": true,
++ "block": {
++  "number": "52999031",
++  "hash": "0x9f296ee394a6b376e75bfbe2391d6629a184be39f59752a290da656c6df381fc",
++  "timestamp": 1792787409
++ },
++ "book": {
++  "address": "0xab214342d5a490150a4a977063a2f88e21f80907",
++  "sessionVaultFactory": "0x0000000000000000000000000000000000000000",
++  "deployments": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++  "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
++ },
++ "adminSessionVault": {
++  "address": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
++  "isVaultAtFactory": true,
++  "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++  "factory": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
++  "book": "0xab214342d5a490150a4a977063a2f88e21f80907"
++ },
++ "ledger": {
++  "address": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++  "count": 98
++ },
++ "requestPlan": {
++  "used": 8,
++  "need": 8,
++  "max": 20
++ },
++ "rows": [
++  {
++   "id": "0xcc1f4f3fada6c3cd8ad0dc4ed03823470639ad2c59edf0a1e1be93ee20241352",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x9024841272f80600459960ff9daad5740e6918cc780a720db8943b2bb726b441",
++   "ledgerOwner": "0x271a59b4b1ee756e0e46d84aa4c9c26a8d48f44d",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x271a59b4b1ee756e0e46d84aa4c9c26a8d48f44d",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xa025ed600611b591ebbfefb04293c2b7d8ebba93d71d04d319689bfb19cb43e3",
++   "ledgerOwner": "0x271a59b4b1ee756e0e46d84aa4c9c26a8d48f44d",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x271a59b4b1ee756e0e46d84aa4c9c26a8d48f44d",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x9ce56ebb8beb8c3702a7da3d7bce9222ea4a0fd35b4a2ecd0dc2c6f717e10283",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x9f8947ecf851683622cedbb0503cf864d4e0d8fd34905bf94ae1fac56c0ce6e8",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x91e26cd752b356b561168647b843c2cd994559ac8796c1befb1bbbe342f2bcc7",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x8e0d023cb8bd68b39cc813836690e363032388d214c2a700682383081c50fe3b",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xe263d2e385568908d380a1c1c8ef8cf08d43fe212e65be48a26faacbe07a8423",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xed05dd0468e32a3a379f33b1ef5f11224d49d8dd550dd40351edde04676e045d",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xfe24ba00f507cbc342cae7216d330746d0c638bc126696f45ebe5609ea5f95ea",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x5c2dcc4b6efe67319276aacf784ffa66008465197986e73e1a9960d9c348cbf1",
++   "ledgerOwner": "0x081c60c7c1c72d469ee27ca5142c26a2ad57ff3c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x081c60c7c1c72d469ee27ca5142c26a2ad57ff3c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xd6041bab81f657bdfbb45b9a3f27b8a90268f2188851ebf5b23de8323f0588b3",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xcbcaac8feb176888090f172a34920be7ae47e15cb0ebe7c258150ca6cb703d8a",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x4c8c436586749f95edf041d1a5619ea57b0757fd1083c29c721cec910c5dfeb2",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x8b9e4cca08f9518ce7a6b9ec8977660d42e03f86a0030a6edf76c0f53d6bdfb7",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x16f99ddbb20f8fce09ba53b221646bc40aa7d89c8f3bf723d90408e099c07ac3",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x2403c002742c36a07e2ec5d67e61c0efea819518ca89af69fac068365812c775",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x115de07aa7680f71e008beff644da9912b4a00f3c9bbc0c1979cd608e6e347a3",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x90f2f53074009a0774391db220dc65e9e78832cee1819b74a2d9efd48a954cac",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x458a63b9469f0b8f064d0ea4d95710d856a4695f9a76a2e38c4fee7704a7254e",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xaf1829c1917db203ae28a2510d56c84793fa4d6c931f3b684bc339c3e0cd71c5",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x985d9b3cff4d94be6853181de99d92b1ded3fc517c637309187c7f7f71ac5ffe",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x4da45a80ee6da0e588831ec125f5ed41f691858a2555bded36e3acc2a0555c1d",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x6c415ce6cde9883df3bda0a0d5f69bfc13e899ca26dce9449c01340b2ec38604",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xcc5cd64e2475677e0b4d6c6a58c55f3f739573d82de8b6fac67d6b04360be125",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x157cf55b533e8e565a4fd8e9fa78db822d195767997c01bfa2732aa5d9b3aecf",
++   "ledgerOwner": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xa90ad39ea366c3bd67afb4db8eab315768efda84ba633afb716171be327040c6",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xcc4dfac7a513a65888f3b09ea265eb21d70aca4306b517fc25389faed8c0dc97",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xc50ea18e7741b75d1cab70232aa3063faacfc014e864ae7dfae3452f51561ee6",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xa425fb9e5e91155e04a24cd77d9f24cdeb12356446c1217c404fff7c611886e1",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x0ceac270916d4947df85a4231ef85fe480bf4d1edac4bb1e5d2bae1cf0bb50f3",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xe9e0764ccd332b4886935b1be424afbc20ea2b776b544814a85a2aae41eeed62",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x4bf4a6858d9f9e07084835980bc511bf58c6b5427a7cff4794d01d4c0eb3f900",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x792d8ca1832befd20264fe02d36c253a5be7ca9ad2b9085a71cf8746d80d1733",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xd3a610e641e1b181dc17b66d679d4ebd3adaac07604d897f8ce99a09e58d2f98",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xc63ce1af5d48ee2e50150de834cb2b200babfcdde8d0305f2493a7459017045f",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x67eda9b9d9c545f51ed9bc1a19da6310e9e2ac38d8e7c2f27e97d4ef13dc1a75",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x9d0cd4a1cb3752ba4bfc4164804a8ce922801ae84ba2fac3bab3bf3a77276357",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x5871682b8d8cc3d979f21a795028b5c2e39683be16a91e0f4c965b6158653f09",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x5a93b6c9ca239fe80fc25810b8963e4b41eb7e4744b4aa12d3388e05cadbcdc3",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xc34499ee0e252ef82a97b219f941b54732113c9d0b7ced1d1503604d3fe152d8",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xd35d50e59d4516de68e04929f905e8907b2bb14fdfe61aeaf60f1865fe2d93e5",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x7c4149ee08e14b76cc1fe3f417cc844cfed19b987c81f79425009e6a7279810b",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xca1416656682bf6b4ab19c1c2c388d483fa6f83b1b79a00dd8ec2295ee4b74a3",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++    "policyRev": "1",
++    "secretRev": "1",
++    "committeeId": "0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b727dbfc8bf0de07fe4f9c",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++    "policyRev": "2",
++    "secretRev": "2",
++    "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x9ee69e3d38a2302109c183af5e268f47f6cfddf875adad60b4d9f98ed146d42f",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x0f46406d2e53babe99258c603168b68b3a4a56ff624dbd224eec8e60776ee41c",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x9796942b6b9fea6f76073cd2189e171804a81187ac731f5a559df6a7055bf261",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x6b1781ff95a6fdf54afc69795c4e47fa1973a597848edfa61b32722c271a0286",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
++   "ledgerOwner": "0x389c3f030a209d04d026228d2d053feb75dbadca",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x389c3f030a209d04d026228d2d053feb75dbadca",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x958ae6e9d6cb638901d97d2f29d9775d8143b14fa46f6c37aaa4e3f2c78cdd42",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xf19ec75397dc1a691bbbcdc2bb7fc53778deabc7f633a919d6dca4f28a521246",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x23ff439acb34a1cb6bdb86f58f8c56cae893998ee0c5fb7cdb65c2f5af2d411b",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xfa8d0ea575a59c6c8a6866bf7ef8320e65f685132791fe8be13bdd2a06471956",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x2bad651cc9aacab826721d9f8168df17a069e881d17a7186191b07dc40269c96",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xa8f5cc4624cf99bec7ba67095757ddb8cd4e3a5b68fbf3e121144252bbdf4545",
++   "ledgerOwner": "0x389c3f030a209d04d026228d2d053feb75dbadca",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x389c3f030a209d04d026228d2d053feb75dbadca",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x7f45af3e9e9bf1261048ff24e81d589d91b7fff33f941466db190ca90b30a5fd",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xf14fa92153ade6398ec2f05d9870b03d9397086970c6c2108467bc7721d4a0e7",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x77e75476aa253516171e2312187de7baee1836dfe06c70384d14937f7678265b",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x9fe4c606ec4bd8f73985e081f45a589d59c8f36f1434f8d7e5395888bc4b6057",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xd529188f4e5e3015fa89cba78b061fa990f2e048e7161e8d48f1eaa78dcfb50f",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x0afdfc7d448971793f35d602f50b488bd249b0c71751b343a712a9d9bceab9a5",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x5ece7c2e86a0ce4e0aebd1994f6f2348196ecf38e96660beba23c1d54108c730",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x942555baa666245d77e00bd0b6327567fadad03643ee466a7f9474d1c5a03c31",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++   "ledgerOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xc8cbab52b9b8d28604d92da49a4b6a859c03b726a54f9a803cf788c3241cbe27",
++   "ledgerOwner": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xd5691e3f1c188435832c4c5012d7a4a50e1336a56759f02539570d647842ae13",
++   "ledgerOwner": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x7154c324c8ecbb8843d9b04b08a6ac6a8e37c3afe03f5212356a4697e3ddcfb7",
++   "ledgerOwner": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xd738ef8023e862ad941464b120b128902712c5b17691d46830f0c078cb6443ab",
++   "ledgerOwner": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x3e6781ac15a9a77fd829087c636d862d4ad39b93fb827d61d94d6742f35a6a04",
++   "ledgerOwner": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xb9528fd33555c826f0a88a9bbb6e891c16d7924023438a9e9ee3c338c7bcd97a",
++   "ledgerOwner": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xfe63875d23aa1586d991b3ae4e98ecdf3fe7fdf65d6167164a999d04721e3da7",
++   "ledgerOwner": "0x14b37ee3c06b047bb3a3f7fe54d29a8e67091428",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x14b37ee3c06b047bb3a3f7fe54d29a8e67091428",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x791d078e3d105ee1926fbf39a9e2de7084b44c04cb7698c6370d1332e648abd6",
++   "ledgerOwner": "0x14b37ee3c06b047bb3a3f7fe54d29a8e67091428",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x14b37ee3c06b047bb3a3f7fe54d29a8e67091428",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xcab8fb59882d976bf4005448701149d734b0dab536d9bf46f2b5159b0b0819e9",
++   "ledgerOwner": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
++   "ownerIsFactoryVault": true,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "no_policy_first_writer_changes"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "no_policy_first_writer_changes"
++   }
++  },
++  {
++   "id": "0xa62e13de22559ee9a6ce1798891ab3506ac8e1b1eca296ff749cfcd7ab4fc640",
++   "ledgerOwner": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
++   "ownerIsFactoryVault": true,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "no_policy_first_writer_changes"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "no_policy_first_writer_changes"
++   }
++  },
++  {
++   "id": "0x8a0c1dc0d336a90ece9a52bc1633178b940f5fabbd2781b5b8202d843bb6091a",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
++   "ledgerOwner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++   "ledgerOwner": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
++   "ownerIsFactoryVault": true,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "no_policy_first_writer_changes"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "no_policy_first_writer_changes"
++   }
++  },
++  {
++   "id": "0x5b0c79e8604f1e799e91469854cc716339ec46933378aeac390c06cdb233bb85",
++   "ledgerOwner": "0x14b37ee3c06b047bb3a3f7fe54d29a8e67091428",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x14b37ee3c06b047bb3a3f7fe54d29a8e67091428",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x8c96fc23aea107c9f99b17f462d4a5ec693e5730ed0016fa9c1c2cc542be0417",
++   "ledgerOwner": "0x14b37ee3c06b047bb3a3f7fe54d29a8e67091428",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x14b37ee3c06b047bb3a3f7fe54d29a8e67091428",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x2902da20d7f51cd04f4de13e6d5729391ad541d96d22b930dbb55ded71d92ace",
++   "ledgerOwner": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "ownerIsFactoryVault": false,
++   "ownerAfter": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "unchanged"
++   }
++  },
++  {
++   "id": "0x87508b958c4d14381b58fe05a781efbd3f185a36d5239abdf37e8f242f944538",
++   "ledgerOwner": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
++   "ownerIsFactoryVault": true,
++   "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "v1": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "no_policy_first_writer_changes"
++   },
++   "v2": {
++    "owner": "0x0000000000000000000000000000000000000000",
++    "policyRev": "0",
++    "secretRev": "0",
++    "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "paused": false,
++    "effect": "no_policy_first_writer_changes"
++   }
++  }
++ ],
++ "summary": {
++  "ids": 98,
++  "distinctOwners": 9,
++  "idsOwnedByFactoryVaults": 4,
++  "factoryVaultOwners": [
++   "0xb794c4dd0e1c5e6b72281799f282bfde7654345d"
++  ],
++  "policies": {
++   "v1": 1,
++   "v2": 1
++  },
++  "effects": {
++   "STRANDED": {
++    "v1": 0,
++    "v2": 0
++   },
++   "restored": {
++    "v1": 0,
++    "v2": 0
++   },
++   "claimant_changes": {
++    "v1": 0,
++    "v2": 0
++   },
++   "no_policy_first_writer_changes": {
++    "v1": 4,
++    "v2": 4
++   },
++   "unchanged": {
++    "v1": 94,
++    "v2": 94
++   }
++  },
++  "policiesPinnedToAContractOwner": []
++ },
++ "scope": "every id in the CURRENT ledger at this block; ids absent from it have beneficialOwnerOf 0 before and after (unaffected)",
++ "requestsUsed": 16,
++ "requests": [
++  {
++   "n": 1,
++   "host": "mainnet.base.org",
++   "method": "eth_chainId",
++   "ms": 179
++  },
++  {
++   "n": 2,
++   "host": "base.public.blockpi.network",
++   "method": "eth_chainId",
++   "ms": 247
++  },
++  {
++   "n": 4,
++   "host": "mainnet.base.org",
++   "method": "eth_blockNumber",
++   "ms": 88
++  },
++  {
++   "n": 4,
++   "host": "base.public.blockpi.network",
++   "method": "eth_blockNumber",
++   "ms": 270
++  },
++  {
++   "n": 6,
++   "host": "mainnet.base.org",
++   "method": "eth_getBlockByNumber",
++   "ms": 101
++  },
++  {
++   "n": 6,
++   "host": "base.public.blockpi.network",
++   "method": "eth_getBlockByNumber",
++   "ms": 211
++  },
++  {
++   "n": 8,
++   "host": "mainnet.base.org",
++   "method": "eth_call",
++   "ms": 89
++  },
++  {
++   "n": 8,
++   "host": "base.public.blockpi.network",
++   "method": "eth_call",
++   "ms": 217
++  },
++  {
++   "n": 10,
++   "host": "mainnet.base.org",
++   "method": "eth_call",
++   "ms": 135
++  },
++  {
++   "n": 10,
++   "host": "base.public.blockpi.network",
++   "method": "eth_call",
++   "ms": 266
++  },
++  {
++   "n": 12,
++   "host": "mainnet.base.org",
++   "method": "eth_call",
++   "ms": 129
++  },
++  {
++   "n": 12,
++   "host": "base.public.blockpi.network",
++   "method": "eth_call",
++   "ms": 307
++  },
++  {
++   "n": 14,
++   "host": "mainnet.base.org",
++   "method": "eth_call",
++   "ms": 93
++  },
++  {
++   "n": 14,
++   "host": "base.public.blockpi.network",
++   "method": "eth_call",
++   "ms": 223
++  },
++  {
++   "n": 16,
++   "host": "mainnet.base.org",
++   "method": "eth_call",
++   "ms": 163
++  },
++  {
++   "n": 16,
++   "host": "base.public.blockpi.network",
++   "method": "eth_call",
++   "ms": 373
++  }
++ ]
++}
+diff --git a/lib/review.mjs b/lib/review.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..f181164793cbd236dfef49ad79988c3440fd2f89
+--- /dev/null
++++ b/lib/review.mjs
+@@ -0,0 +1,146 @@
++// READ-ONLY review of setting the ORIGINAL EnclaveAddressBook's "sessionVaultFactory" entry (0 -> the original factory).
++// Network access goes ONLY through root's allowlist (../custody-v2-live-20261023/lib/live.mjs: https, allowlisted hosts) and
++// a read-method allowlist; every request is counted against a hard per-attempt budget; nothing is retried here.
++import { encodeFunctionData, decodeFunctionResult, parseAbi, toEventSelector } from "viem";
++import { LIVE, assertLiveUrl } from "../../custody-v2-live-20261023/lib/live.mjs";
++
++export { LIVE };
++export const ZERO = "0x0000000000000000000000000000000000000000";
++export const CHAIN_ID = 8453;
++const READ = new Set(["eth_chainId", "eth_blockNumber", "eth_getBlockByNumber", "eth_call", "eth_getCode", "eth_getLogs"]);
++
++export class BudgetExhausted extends Error {}
++/** A counted, budgeted, single-try JSON-RPC reader. transport(url, body) -> parsed JSON (injectable for tests). */
++export function budgetedRpc({ max, transport = httpTransport, check = assertLiveUrl }) {
++  let used = 0;
++  const log = [];
++  async function rpc(url, method, params) {
++    if (!READ.has(method)) throw new Error(`refused method ${method}: read-only`);
++    const u = check(url);
++    if (used >= max) throw new BudgetExhausted(`request budget ${max} exhausted before ${method}`);
++    used++;
++    const t0 = Date.now();
++    let j;
++    try { j = await transport(u, { jsonrpc: "2.0", id: used, method, params }); }
++    catch (e) { log.push({ n: used, host: new URL(u).host, method, ms: Date.now() - t0, error: String(e.message).slice(0, 200) }); throw classify(e); }
++    if (j.error) { const e = classify(new Error(String(j.error.message || j.error.code))); log.push({ n: used, host: new URL(u).host, method, ms: Date.now() - t0, error: e.message.slice(0, 200), kind: e.kind }); throw e; }
++    log.push({ n: used, host: new URL(u).host, method, ms: Date.now() - t0 });
++    return j.result;
++  }
++  return { rpc, used: () => used, log, max };
++}
++export async function httpTransport(url, body) {
++  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), redirect: "error", signal: AbortSignal.timeout(20000) });
++  const text = await r.text();
++  try { return JSON.parse(text); } catch { throw new Error(`HTTP ${r.status} non-JSON`); }
++}
++// a provider's refusal: a RANGE limit (retryable with a smaller range) vs a RATE limit (stop; never storm)
++export function classify(e) {
++  const m = e.message || "";
++  if (/range|too many (blocks|results)|block limit|max.*block|exceed.*(block|10000|5000|results)|query returned more than|response size/i.test(m) && !/rate limit|request limit|RU package|too many requests/i.test(m)) e.kind = "range";
++  else if (/rate|request limit|too many requests|429|RU package|capacity|busy/i.test(m)) e.kind = "rate";
++  else e.kind = e.kind || "other";
++  return e;
++}
++
++/** One block both state endpoints agree on: min(head) - depth. */
++export async function pinBlock(rpc, { depth = 12 } = {}) {
++  for (const u of LIVE.state) if (Number(await rpc(u, "eth_chainId", [])) !== CHAIN_ID) throw new Error(`${u} is not Base`);
++  const heads = await Promise.all(LIVE.state.map(async (u) => BigInt(await rpc(u, "eth_blockNumber", []))));
++  const n = (heads[0] < heads[1] ? heads[0] : heads[1]) - BigInt(depth);
++  const bs = await Promise.all(LIVE.state.map((u) => rpc(u, "eth_getBlockByNumber", ["0x" + n.toString(16), false])));
++  if (!bs[0] || !bs[1] || bs[0].hash !== bs[1].hash) throw new Error(`no agreed block at ${n}`);
++  return { number: n, hash: bs[0].hash, timestamp: Number(bs[0].timestamp) };
++}
++
++export const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11";
++const MC = parseAbi(["function aggregate3((address target,bool allowFailure,bytes callData)[] calls) payable returns ((bool success,bytes returnData)[] returnData)"]);
++/** Agreed (byte-identical on both state endpoints) batched reads at the pinned block. calls: [{address, abi, functionName, args}] */
++export async function readAgreed(rpc, block, calls) {
++  const data = encodeFunctionData({ abi: MC, functionName: "aggregate3", args: [calls.map((c) => ({ target: c.address, allowFailure: true,
++    callData: encodeFunctionData({ abi: c.abi, functionName: c.functionName, args: c.args || [] }) }))] });
++  const at = "0x" + block.number.toString(16);
++  const rs = await Promise.all(LIVE.state.map((u) => rpc(u, "eth_call", [{ to: MULTICALL3, data }, at])));
++  if (rs[0] !== rs[1]) throw new Error(`state endpoints disagree on a batch of ${calls.length} reads`);
++  return decodeFunctionResult({ abi: MC, functionName: "aggregate3", data: rs[0] }).map((r, i) => {
++    if (!r.success) return { ok: false };
++    try { return { ok: true, value: decodeFunctionResult({ abi: calls[i].abi, functionName: calls[i].functionName, data: r.returnData }) }; }
++    catch { return { ok: false }; }
++  });
++}
++export async function codeAgreed(rpc, block, address) {
++  const at = "0x" + block.number.toString(16);
++  const rs = await Promise.all(LIVE.state.map((u) => rpc(u, "eth_getCode", [address, at])));
++  if (rs[0] !== rs[1]) throw new Error(`state endpoints disagree on the code of ${address}`);
++  return rs[0];
++}
++
++// ---- the ABIs (from the vault, ledger, book and SessionVault sources; v1 and v2 declare identical events/getters) ----
++export const ABI = {
++  book: parseAbi(["function addr(bytes32) view returns (address)", "function owner() view returns (address)"]),
++  ledger: parseAbi(["function count() view returns (uint256)", "function idAt(uint256) view returns (bytes32)"]),
++  vault: parseAbi(["function beneficialOwnerOf(bytes32) view returns (address)",
++    "function policyOf(bytes32) view returns (address owner, uint64 policyRev, uint64 secretRev, bytes32 committeeId, bool paused, bytes rules)"]),
++  factory: parseAbi(["function isVault(address) view returns (bool)"]),
++  sv: parseAbi(["function owner() view returns (address)", "function book() view returns (address)", "function factory() view returns (address)"]),
++};
++export const EVENTS = Object.freeze({
++  PolicyUpdated: toEventSelector("PolicyUpdated(bytes32,address,uint64,bytes32,bool)"),
++  PolicyClaimed: toEventSelector("PolicyClaimed(bytes32,address,address,uint64)"),
++});
++const lc = (a) => String(a).toLowerCase();
++
++/**
++ * The exact effect of the factory entry on one id in one vault (EnclaveSecretVault[V2] beneficialOwnerOf/_ownerFor/_apply/_claim):
++ *   before = the ledger owner (the factory entry is zero), after = isVault(ledger owner) ? that vault's owner() : the ledger owner.
++ */
++export function effectOf({ before, after, policy }) {
++  const b = lc(before), a = lc(after);
++  if (!policy || BigInt(policy.policyRev) === 0n) return b === a ? "unchanged" : "no_policy_first_writer_changes";
++  const o = lc(policy.owner);
++  if (b === a) return "unchanged";
++  if (o === b) return "STRANDED";                 // updates now revert NotOwner; only claimPolicy by `after`, which destroys the bundle
++  if (o === a) return "restored";                 // a policy already detached from its ledger owner becomes updatable again
++  return "claimant_changes";                      // already claimable; the claimant becomes `after` instead of `before`
++}
++
++/**
++ * Bounded, resumable log discovery for exact topics on fixed addresses. cursor = { next, to, span, covered: [[a,b]],
++ * events: [], stops: [] }. Each request covers [next, next+span-1]; a RANGE refusal halves the span (down to minSpan);
++ * a RATE refusal, a budget stop or any other error ends the attempt with the cursor saved. Never claims completeness
++ * beyond `covered`.
++ */
++export async function discoverLogs({ rpc, url, addresses, topics, cursor, minSpan = 500n, onStep }) {
++  const B = (x) => BigInt(x);
++  while (B(cursor.next) <= B(cursor.to)) {
++    const from = B(cursor.next), span = B(cursor.span);
++    const to = from + span - 1n > B(cursor.to) ? B(cursor.to) : from + span - 1n;
++    let res;
++    try { res = await rpc(url, "eth_getLogs", [{ address: addresses, topics: [topics], fromBlock: "0x" + from.toString(16), toBlock: "0x" + to.toString(16) }]); }
++    catch (e) {
++      if (e instanceof BudgetExhausted) { cursor.stops.push({ at: from.toString(), reason: "budget" }); return "budget"; }
++      const stated = /limited to (\d+) block range/i.exec(e.message || "");          // a provider's own stated limit
++      if (e.kind === "range" && stated && BigInt(stated[1]) < span && BigInt(stated[1]) >= minSpan) { cursor.span = stated[1]; cursor.stops.push({ at: from.toString(), reason: `range refused at span ${span}: provider limit ${stated[1]}` }); continue; }
++      if (e.kind === "range" && span / 2n >= minSpan) { cursor.span = (span / 2n).toString(); cursor.stops.push({ at: from.toString(), reason: `range refused at span ${span}: halved`, message: e.message.slice(0, 160) }); continue; }
++      cursor.stops.push({ at: from.toString(), reason: e.kind === "rate" ? "rate_limited" : e.kind === "range" ? "range_refused_at_min_span" : "error", message: e.message.slice(0, 200) });
++      return e.kind === "rate" ? "rate_limited" : "error";
++    }
++    if (!Array.isArray(res)) { cursor.stops.push({ at: from.toString(), reason: "non-array answer" }); return "error"; }
++    for (const l of res) {
++      if (!addresses.map(lc).includes(lc(l.address)) || !topics.includes(l.topics?.[0])) { cursor.stops.push({ at: from.toString(), reason: "provider returned a log outside the filter" }); return "error"; }
++      cursor.events.push({ address: lc(l.address), event: l.topics[0] === EVENTS.PolicyUpdated ? "PolicyUpdated" : "PolicyClaimed", id: l.topics[1],
++        block: B(l.blockNumber).toString(), tx: l.transactionHash, logIndex: B(l.logIndex).toString(), removed: !!l.removed });
++    }
++    const last = cursor.covered[cursor.covered.length - 1];
++    if (last && B(last[1]) + 1n === from) last[1] = to.toString(); else cursor.covered.push([from.toString(), to.toString()]);
++    cursor.next = (to + 1n).toString();
++    onStep?.(cursor);
++  }
++  return "complete";
++}
++export function uncovered(cursor, start) {
++  const out = []; let at = BigInt(start);
++  for (const [a, b] of cursor.covered) { if (BigInt(a) > at) out.push([at.toString(), (BigInt(a) - 1n).toString()]); at = BigInt(b) + 1n; }
++  if (at <= BigInt(cursor.to)) out.push([at.toString(), cursor.to.toString()]);
++  return out;
++}
+diff --git a/package-lock.json b/package-lock.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..8331dce01347cff54d65a28712eac9f13114e246
+--- /dev/null
++++ b/package-lock.json
+@@ -0,0 +1,217 @@
++{
++  "name": "custody-factory-consumer-review",
++  "lockfileVersion": 3,
++  "requires": true,
++  "packages": {
++    "": {
++      "name": "custody-factory-consumer-review",
++      "dependencies": {
++        "viem": "2.53.1"
++      }
++    },
++    "node_modules/@adraffy/ens-normalize": {
++      "version": "1.11.1",
++      "resolved": "https://registry.npmjs.org/@adraffy/ens-normalize/-/ens-normalize-1.11.1.tgz",
++      "integrity": "sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ==",
++      "license": "MIT"
++    },
++    "node_modules/@noble/ciphers": {
++      "version": "1.3.0",
++      "resolved": "https://registry.npmjs.org/@noble/ciphers/-/ciphers-1.3.0.tgz",
++      "integrity": "sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==",
++      "license": "MIT",
++      "engines": {
++        "node": "^14.21.3 || >=16"
++      },
++      "funding": {
++        "url": "https://paulmillr.com/funding/"
++      }
++    },
++    "node_modules/@noble/curves": {
++      "version": "1.9.1",
++      "resolved": "https://registry.npmjs.org/@noble/curves/-/curves-1.9.1.tgz",
++      "integrity": "sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA==",
++      "license": "MIT",
++      "dependencies": {
++        "@noble/hashes": "1.8.0"
++      },
++      "engines": {
++        "node": "^14.21.3 || >=16"
++      },
++      "funding": {
++        "url": "https://paulmillr.com/funding/"
++      }
++    },
++    "node_modules/@noble/hashes": {
++      "version": "1.8.0",
++      "resolved": "https://registry.npmjs.org/@noble/hashes/-/hashes-1.8.0.tgz",
++      "integrity": "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==",
++      "license": "MIT",
++      "engines": {
++        "node": "^14.21.3 || >=16"
++      },
++      "funding": {
++        "url": "https://paulmillr.com/funding/"
++      }
++    },
++    "node_modules/@scure/base": {
++      "version": "1.2.6",
++      "resolved": "https://registry.npmjs.org/@scure/base/-/base-1.2.6.tgz",
++      "integrity": "sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==",
++      "license": "MIT",
++      "funding": {
++        "url": "https://paulmillr.com/funding/"
++      }
++    },
++    "node_modules/@scure/bip32": {
++      "version": "1.7.0",
++      "resolved": "https://registry.npmjs.org/@scure/bip32/-/bip32-1.7.0.tgz",
++      "integrity": "sha512-E4FFX/N3f4B80AKWp5dP6ow+flD1LQZo/w8UnLGYZO674jS6YnYeepycOOksv+vLPSpgN35wgKgy+ybfTb2SMw==",
++      "license": "MIT",
++      "dependencies": {
++        "@noble/curves": "~1.9.0",
++        "@noble/hashes": "~1.8.0",
++        "@scure/base": "~1.2.5"
++      },
++      "funding": {
++        "url": "https://paulmillr.com/funding/"
++      }
++    },
++    "node_modules/@scure/bip39": {
++      "version": "1.6.0",
++      "resolved": "https://registry.npmjs.org/@scure/bip39/-/bip39-1.6.0.tgz",
++      "integrity": "sha512-+lF0BbLiJNwVlev4eKelw1WWLaiKXw7sSl8T6FvBlWkdX+94aGJ4o8XjUdlyhTCjd8c+B3KT3JfS8P0bLRNU6A==",
++      "license": "MIT",
++      "dependencies": {
++        "@noble/hashes": "~1.8.0",
++        "@scure/base": "~1.2.5"
++      },
++      "funding": {
++        "url": "https://paulmillr.com/funding/"
++      }
++    },
++    "node_modules/abitype": {
++      "version": "1.2.3",
++      "resolved": "https://registry.npmjs.org/abitype/-/abitype-1.2.3.tgz",
++      "integrity": "sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==",
++      "license": "MIT",
++      "funding": {
++        "url": "https://github.com/sponsors/wevm"
++      },
++      "peerDependencies": {
++        "typescript": ">=5.0.4",
++        "zod": "^3.22.0 || ^4.0.0"
++      },
++      "peerDependenciesMeta": {
++        "typescript": {
++          "optional": true
++        },
++        "zod": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/eventemitter3": {
++      "version": "5.0.1",
++      "resolved": "https://registry.npmjs.org/eventemitter3/-/eventemitter3-5.0.1.tgz",
++      "integrity": "sha512-GWkBvjiSZK87ELrYOSESUYeVIc9mvLLf/nXalMOS5dYrgZq9o5OVkbZAVM06CVxYsCwH9BDZFPlQTlPA1j4ahA==",
++      "license": "MIT"
++    },
++    "node_modules/isows": {
++      "version": "1.0.7",
++      "resolved": "https://registry.npmjs.org/isows/-/isows-1.0.7.tgz",
++      "integrity": "sha512-I1fSfDCZL5P0v33sVqeTDSpcstAg/N+wF5HS033mogOVIp4B+oHC7oOCsA3axAbBSGTJ8QubbNmnIRN/h8U7hg==",
++      "funding": [
++        {
++          "type": "github",
++          "url": "https://github.com/sponsors/wevm"
++        }
++      ],
++      "license": "MIT",
++      "peerDependencies": {
++        "ws": "*"
++      }
++    },
++    "node_modules/ox": {
++      "version": "0.14.29",
++      "resolved": "https://registry.npmjs.org/ox/-/ox-0.14.29.tgz",
++      "integrity": "sha512-M5j87Ec4V99MQdRct/g09eWXW60g6zhHTUs1lr4deUtrPDnezBdCJTgKd7pxqTpSZBFveV0ALi9jMMuT1qKyNg==",
++      "funding": [
++        {
++          "type": "github",
++          "url": "https://github.com/sponsors/wevm"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "@adraffy/ens-normalize": "^1.11.0",
++        "@noble/ciphers": "^1.3.0",
++        "@noble/curves": "1.9.1",
++        "@noble/hashes": "^1.8.0",
++        "@scure/bip32": "^1.7.0",
++        "@scure/bip39": "^1.6.0",
++        "abitype": "^1.2.3",
++        "eventemitter3": "5.0.1"
++      },
++      "peerDependencies": {
++        "typescript": ">=5.4.0"
++      },
++      "peerDependenciesMeta": {
++        "typescript": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/viem": {
++      "version": "2.53.1",
++      "resolved": "https://registry.npmjs.org/viem/-/viem-2.53.1.tgz",
++      "integrity": "sha512-FhfJ/SW73CVosiyVLmIMVgKDRKYV1AGCLzZoHYvmNayyVff63Qi1ocPCk59LqC/cNw244RbBJjHnmxqXkE7NpA==",
++      "funding": [
++        {
++          "type": "github",
++          "url": "https://github.com/sponsors/wevm"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "@noble/curves": "1.9.1",
++        "@noble/hashes": "1.8.0",
++        "@scure/bip32": "1.7.0",
++        "@scure/bip39": "1.6.0",
++        "abitype": "1.2.3",
++        "isows": "1.0.7",
++        "ox": "0.14.29",
++        "ws": "8.20.1"
++      },
++      "peerDependencies": {
++        "typescript": ">=5.0.4"
++      },
++      "peerDependenciesMeta": {
++        "typescript": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/ws": {
++      "version": "8.20.1",
++      "resolved": "https://registry.npmjs.org/ws/-/ws-8.20.1.tgz",
++      "integrity": "sha512-It4dO0K5v//JtTXuPkfEOaI3uUN87iYPnqo/ZzqCoG3g8uhA66QUMs/SrM0YK7/NAu+r4LMh/9dq2A7k+rHs+w==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=10.0.0"
++      },
++      "peerDependencies": {
++        "bufferutil": "^4.0.1",
++        "utf-8-validate": ">=5.0.2"
++      },
++      "peerDependenciesMeta": {
++        "bufferutil": {
++          "optional": true
++        },
++        "utf-8-validate": {
++          "optional": true
++        }
++      }
++    }
++  }
++}
+diff --git a/package.json b/package.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..6bb940022f5c8e3c9a5cbeb71dfdef2ff9976e66
+--- /dev/null
++++ b/package.json
+@@ -0,0 +1,3 @@
++{ "name": "custody-factory-consumer-review", "private": true, "type": "module",
++  "description": "READ-ONLY review: effects of setting the original EnclaveAddressBook sessionVaultFactory entry",
++  "dependencies": { "viem": "2.53.1" } }
+diff --git a/probes/policy-logs.mjs b/probes/policy-logs.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..72cabd48475ec76dde5bbb6be14a03d50ba843b6
+--- /dev/null
++++ b/probes/policy-logs.mjs
+@@ -0,0 +1,59 @@
++// READ-ONLY, bounded, resumable discovery of PolicyUpdated/PolicyClaimed on the original v1 and v2 vaults, from their
++// pinned deployment blocks (contracts/deployments/secret-vault-base.json 52605914, secret-vault-v2-base.json 52613511)
++// to the state-impact block. At most 20 requests per attempt and 2 attempts in total (persisted). One filter with both
++// addresses and both exact topics; a RANGE refusal halves the span; a RATE refusal stops the attempt (no retry storm).
++// Ids found that the state probe did not cover are re-read as state (agreed, pinned block) within the same budget.
++//   node probes/policy-logs.mjs   -> evidence/log-cursor.json (resumable), evidence/policy-logs.json
++import fs from "node:fs";
++import { budgetedRpc, discoverLogs, uncovered, readAgreed, LIVE, EVENTS, ABI, CHAIN_ID, BudgetExhausted } from "../lib/review.mjs";
++
++const V1 = "0x08074300f75e78212ae10ebd14984f78e17811a6", V2 = "0xe48699b8401564aace7a814ae4569b67a3f7eef5";
++const START = "52605914";                     // the earlier (v1) deployment block; v2 deployed at 52613511
++const MAX = 20, ATTEMPTS = 2, CONFIRM_RESERVE = 2, INITIAL_SPAN = "100000";
++const ev = (f) => new URL(`../evidence/${f}`, import.meta.url);
++const state = JSON.parse(fs.readFileSync(ev("state-impact.json"), "utf8"));
++if (!state.complete) throw new Error("run the state probe first");
++const block = { number: BigInt(state.block.number), hash: state.block.hash };
++let cursor = fs.existsSync(ev("log-cursor.json")) ? JSON.parse(fs.readFileSync(ev("log-cursor.json"), "utf8"))
++  : { provider: LIVE.logs[0], addresses: [V1, V2], topics: [EVENTS.PolicyUpdated, EVENTS.PolicyClaimed], start: START, next: START, to: state.block.number,
++      span: INITIAL_SPAN, covered: [], events: [], stops: [], attempts: [] };
++if (cursor.attempts.length >= ATTEMPTS) { console.log(JSON.stringify({ refused: `the ${ATTEMPTS}-attempt limit is used up`, uncovered: uncovered(cursor, cursor.start) })); process.exit(2); }
++// resume at the provider's own stated limit when an earlier attempt recorded one (not a guess, its message)
++const statedLimits = cursor.stops.map((x) => /limited to (\d+) block range/i.exec(x.message || "")?.[1]).filter(Boolean).map(BigInt);
++if (statedLimits.length) { const lim = statedLimits.reduce((a, x) => (x < a ? x : a)); if (lim > BigInt(cursor.span)) cursor.span = lim.toString(); }
++const b = budgetedRpc({ max: MAX });
++const attempt = { n: cursor.attempts.length + 1, at: new Date().toISOString(), budget: MAX };
++let outcome, r = null;
++try {
++  if (Number(await b.rpc(cursor.provider, "eth_chainId", [])) !== CHAIN_ID) throw new Error("the log provider is not Base");
++  r = budgetedRpc({ max: MAX - b.used() - CONFIRM_RESERVE });          // discovery's share of this attempt's budget
++  outcome = await discoverLogs({ rpc: r.rpc, url: cursor.provider, addresses: cursor.addresses, topics: cursor.topics, cursor,
++    onStep: (c) => fs.writeFileSync(ev("log-cursor.json"), JSON.stringify(c, null, 1) + "\n") });
++  // state-confirm ids the state probe did not already read (agreed, at the pinned block)
++  const known = new Set(state.rows.map((x) => x.id));
++  const fresh = [...new Set(cursor.events.map((e) => e.id))].filter((id) => !known.has(id));
++  attempt.idsOutsideCurrentLedger = fresh;
++  if (fresh.length) {
++    const calls = fresh.flatMap((id) => [{ address: V1, abi: ABI.vault, functionName: "policyOf", args: [id] }, { address: V2, abi: ABI.vault, functionName: "policyOf", args: [id] },
++                                         { address: V2, abi: ABI.vault, functionName: "beneficialOwnerOf", args: [id] }]);
++    const res = await readAgreed(b.rpc, block, calls);
++    attempt.confirmed = fresh.map((id, i) => ({ id, v1: res[3 * i].ok ? { owner: res[3 * i].value[0], policyRev: res[3 * i].value[1].toString() } : null,
++      v2: res[3 * i + 1].ok ? { owner: res[3 * i + 1].value[0], policyRev: res[3 * i + 1].value[1].toString() } : null,
++      beneficialOwnerNow: res[3 * i + 2].ok ? res[3 * i + 2].value : null }));
++  }
++} catch (e) {
++  outcome = e instanceof BudgetExhausted ? "budget" : "error"; attempt.error = String(e.message).slice(0, 300);
++} finally {
++  attempt.outcome = outcome; attempt.discoveryRequests = r ? r.used() : 0; attempt.totalRequests = b.used() + attempt.discoveryRequests;
++  attempt.requests = [...b.log, ...(r ? r.log : [])];
++  cursor.attempts.push(attempt);
++  fs.writeFileSync(ev("log-cursor.json"), JSON.stringify(cursor, null, 1) + "\n");
++  const gaps = uncovered(cursor, cursor.start);
++  const ids = [...new Set(cursor.events.map((e) => e.id))];
++  fs.writeFileSync(ev("policy-logs.json"), JSON.stringify({ at: new Date().toISOString(), readOnly: true, provider: new URL(cursor.provider).host,
++    addresses: cursor.addresses, topics: cursor.topics, range: [cursor.start, cursor.to], complete: gaps.length === 0, covered: cursor.covered, uncovered: gaps,
++    events: cursor.events, ids, attempts: cursor.attempts.map(({ requests, ...a }) => ({ ...a, requests: requests?.length })),
++    note: gaps.length ? "PARTIAL: events outside `covered` were not observed; no completeness is claimed for them" : "every block of the range answered by this ONE provider (no second log source agreed)" }, null, 1) + "\n");
++  console.log(JSON.stringify({ attempt: attempt.n, outcome, requests: attempt.totalRequests, span: cursor.span, covered: cursor.covered, uncovered: gaps, events: cursor.events.length, ids, stops: cursor.stops.slice(-3) }, null, 1));
++  if (gaps.length) process.exitCode = 3;
++}
+diff --git a/probes/state-impact.mjs b/probes/state-impact.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..4248df0fbc418821f618ffef0369130e7a883412
+--- /dev/null
++++ b/probes/state-impact.mjs
+@@ -0,0 +1,98 @@
++// READ-ONLY, at ONE block both state endpoints agree on, at most 20 requests: for EVERY deployment id in the CURRENT
++// ledger the book names, the owner before (the ledger owner: the factory entry is zero, which this probe re-reads) and
++// after activation (isVault(owner) at the original factory ? that SessionVault's owner() : the ledger owner), and the
++// v1 and v2 policy of that id, classified by lib/review.mjs effectOf. No bundle or rules bytes are emitted.
++//   node probes/state-impact.mjs   -> evidence/state-impact.json
++import fs from "node:fs";
++import { budgetedRpc, pinBlock, readAgreed, ABI, effectOf, ZERO } from "../lib/review.mjs";
++import { stringToHex } from "viem";
++
++const BOOK = "0xab214342d5a490150a4a977063a2f88e21f80907";
++const FACTORY = "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c";                 // root session-factory-state / activation plan
++const LEDGER_EXPECTED = "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b";          // root known-state: book "deployments"
++const V1 = "0x08074300f75e78212ae10ebd14984f78e17811a6", V2 = "0xe48699b8401564aace7a814ae4569b67a3f7eef5";
++const ADMIN_SV = "0xb794c4dd0e1c5e6b72281799f282bfde7654345d";
++const MAX = 20;
++const lc = (a) => String(a).toLowerCase();
++const key = (s) => stringToHex(s, { size: 32 });
++const out = { at: new Date().toISOString(), readOnly: true, budget: MAX, complete: false };
++const b = budgetedRpc({ max: MAX });
++const save = () => fs.writeFileSync(new URL("../evidence/state-impact.json", import.meta.url),
++  JSON.stringify({ ...out, requests: b.log }, (_, v) => (typeof v === "bigint" ? v.toString() : v), 1) + "\n");
++const plan = (n, size) => Math.ceil(n / size) * 2;
++try {
++  const block = await pinBlock(b.rpc); out.block = block;
++  const head = await readAgreed(b.rpc, block, [
++    { address: BOOK, abi: ABI.book, functionName: "addr", args: [key("sessionVaultFactory")] },
++    { address: BOOK, abi: ABI.book, functionName: "addr", args: [key("deployments")] },
++    { address: BOOK, abi: ABI.book, functionName: "owner" },
++    { address: LEDGER_EXPECTED, abi: ABI.ledger, functionName: "count" },
++    { address: FACTORY, abi: ABI.factory, functionName: "isVault", args: [ADMIN_SV] },
++    { address: ADMIN_SV, abi: ABI.sv, functionName: "owner" },
++    { address: ADMIN_SV, abi: ABI.sv, functionName: "factory" },
++    { address: ADMIN_SV, abi: ABI.sv, functionName: "book" },
++  ]);
++  const v = head.map((r) => (r.ok ? (Array.isArray(r.value) ? r.value[0] : r.value) : null));
++  out.book = { address: BOOK, sessionVaultFactory: lc(v[0]), deployments: lc(v[1]), owner: lc(v[2]) };
++  out.adminSessionVault = { address: ADMIN_SV, isVaultAtFactory: v[4], owner: v[5] && lc(v[5]), factory: v[6] && lc(v[6]), book: v[7] && lc(v[7]) };
++  if (out.book.sessionVaultFactory !== ZERO) throw new Error(`the factory entry is no longer zero (${out.book.sessionVaultFactory}): this review's "before" no longer holds`);
++  if (out.book.deployments !== LEDGER_EXPECTED) throw new Error(`the book's ledger is ${out.book.deployments}, not the expected ${LEDGER_EXPECTED}`);
++  if (v[3] === null) throw new Error("the ledger has no count(): ids cannot be enumerated by state");
++  const n = Number(v[3]); out.ledger = { address: LEDGER_EXPECTED, count: n };
++  const ID_BATCH = 1500, OWN_BATCH = 300, POL_BATCH = 300;
++  const need = plan(n, ID_BATCH) + plan(n, OWN_BATCH) + plan(n * 2, POL_BATCH) + 2;
++  out.requestPlan = { used: b.used(), need, max: MAX };
++  if (b.used() + need > MAX) throw new Error(`${n} ids need ${need} more requests: over this attempt's budget (no partial claim)`);
++  // ids
++  const ids = [];
++  for (let i = 0; i < n; i += ID_BATCH) {
++    const r = await readAgreed(b.rpc, block, Array.from({ length: Math.min(ID_BATCH, n - i) }, (_, j) => ({ address: LEDGER_EXPECTED, abi: ABI.ledger, functionName: "idAt", args: [BigInt(i + j)] })));
++    for (const x of r) { if (!x.ok) throw new Error("idAt failed"); ids.push(lc(x.value)); }
++  }
++  if (new Set(ids).size !== ids.length) throw new Error("duplicate ids in the ledger enumeration");
++  // ledger owners (v2.beneficialOwnerOf == the ledger owner while the factory entry is zero)
++  const owners = [];
++  for (let i = 0; i < n; i += OWN_BATCH) {
++    const r = await readAgreed(b.rpc, block, ids.slice(i, i + OWN_BATCH).map((id) => ({ address: V2, abi: ABI.vault, functionName: "beneficialOwnerOf", args: [id] })));
++    for (const x of r) { if (!x.ok) throw new Error("beneficialOwnerOf failed"); owners.push(lc(x.value)); }
++  }
++  // per distinct owner: isVault at the original factory and, if a contract answers, its owner()
++  const distinct = [...new Set(owners)];
++  const ownerInfo = new Map();
++  const r1 = await readAgreed(b.rpc, block, distinct.flatMap((o) => [{ address: FACTORY, abi: ABI.factory, functionName: "isVault", args: [o] }, { address: o, abi: ABI.sv, functionName: "owner" }]));
++  distinct.forEach((o, i) => { const iv = r1[2 * i], ow = r1[2 * i + 1]; if (!iv.ok) throw new Error("isVault failed"); ownerInfo.set(o, { isVault: iv.value, svOwner: ow.ok ? lc(ow.value) : null }); });
++  // policies in both vaults for every id
++  const pol = new Map();
++  const polCalls = ids.flatMap((id) => [{ address: V1, abi: ABI.vault, functionName: "policyOf", args: [id] }, { address: V2, abi: ABI.vault, functionName: "policyOf", args: [id] }]);
++  for (let i = 0; i < polCalls.length; i += POL_BATCH) {
++    const r = await readAgreed(b.rpc, block, polCalls.slice(i, i + POL_BATCH));
++    r.forEach((x, j) => { if (!x.ok) throw new Error("policyOf failed"); const [owner, policyRev, secretRev, committeeId, paused] = x.value;
++      pol.set(`${polCalls[i + j].address}:${polCalls[i + j].args[0]}`, { owner: lc(owner), policyRev: policyRev.toString(), secretRev: secretRev.toString(), committeeId, paused }); });
++  }
++  out.rows = ids.map((id, i) => {
++    const before = owners[i], info = ownerInfo.get(before), after = info.isVault ? info.svOwner : before;
++    if (info.isVault && (!after || after === ZERO)) throw new Error(`a recognized SessionVault ${before} has no owner()`);
++    const v1 = pol.get(`${V1}:${id}`), v2 = pol.get(`${V2}:${id}`);
++    return { id, ledgerOwner: before, ownerIsFactoryVault: info.isVault, ownerAfter: after,
++             v1: { ...v1, effect: effectOf({ before, after, policy: v1 }) }, v2: { ...v2, effect: effectOf({ before, after, policy: v2 }) } };
++  });
++  const count = (f) => out.rows.filter(f).length;
++  out.summary = {
++    ids: n, distinctOwners: distinct.length,
++    idsOwnedByFactoryVaults: count((r) => r.ownerIsFactoryVault),
++    factoryVaultOwners: distinct.filter((o) => ownerInfo.get(o).isVault),
++    policies: { v1: count((r) => r.v1.policyRev !== "0"), v2: count((r) => r.v2.policyRev !== "0") },
++    effects: Object.fromEntries(["STRANDED", "restored", "claimant_changes", "no_policy_first_writer_changes", "unchanged"].map((k) =>
++      [k, { v1: count((r) => r.v1.effect === k), v2: count((r) => r.v2.effect === k) }])),
++    policiesPinnedToAContractOwner: out.rows.flatMap((r) => [["v1", r.v1], ["v2", r.v2]].filter(([, p]) => p.policyRev !== "0" && p.owner === r.ledgerOwner && r.ownerIsFactoryVault).map(([vv]) => `${vv}:${r.id}`)),
++  };
++  out.complete = true;
++  out.scope = "every id in the CURRENT ledger at this block; ids absent from it have beneficialOwnerOf 0 before and after (unaffected)";
++} catch (e) {
++  out.error = String(e.message).slice(0, 300);
++} finally {
++  out.requestsUsed = b.used();
++  save();
++  console.log(JSON.stringify({ complete: out.complete, error: out.error || null, block: out.block?.number?.toString(), ids: out.ledger?.count, summary: out.summary || null, requests: b.used() }, null, 1));
++  if (!out.complete) process.exitCode = 2;
++}
+diff --git a/qrun.sh b/qrun.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..3bb88b436186b3fb43b4da44c57c051beaa9033d
+--- /dev/null
++++ b/qrun.sh
+@@ -0,0 +1,10 @@
++#!/bin/bash
++# qrun.sh <label> <mib> <command...>: ONE queue job, retried only while NOT STARTED (98). logs/<label>.out, logs/<label>.rc
++here=$(cd "$(dirname "$0")" && pwd); label=$1 mib=$2; shift 2
++Q=/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py
++rm -f "$here/logs/$label.rc"
++for n in $(seq 1 300); do
++  python3 -u "$Q" --mib "$mib" --log "$here/logs/$label.guard.log" -- "$@" > "$here/logs/$label.out" 2>&1; c=$?
++  [ $c != 98 ] && break; sleep 20
++done
++echo "exit $c" > "$here/logs/$label.rc"
+diff --git a/run-tests.sh b/run-tests.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..53a67835dc16c9f560ba376552bcbc66436618ae
+--- /dev/null
++++ b/run-tests.sh
+@@ -0,0 +1,4 @@
++#!/bin/bash
++cd "$(dirname "$0")" && mkdir -p logs
++node --test --test-concurrency=1 --test-reporter=tap test/review.test.mjs > "logs/$1.tap" 2>&1; rc=$?
++grep -E "^(not )?ok |^# (tests|pass|fail)" "logs/$1.tap"; echo "node exit=$rc"; exit $rc
+diff --git a/test/review.test.mjs b/test/review.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..442d70832fb6ad2c2fba018ba08b72d68f21df22
+--- /dev/null
++++ b/test/review.test.mjs
+@@ -0,0 +1,81 @@
++// lib/review.mjs: the ownership-effect classifier (against the vault's beneficialOwnerOf/_apply/_claim rules) and the
++// bounded, resumable log cursor (range halving, rate-limit stop, budget stop, resume, uncovered ranges). No network.
++import test from "node:test";
++import assert from "node:assert/strict";
++import { effectOf, discoverLogs, uncovered, budgetedRpc, BudgetExhausted, EVENTS, classify } from "../lib/review.mjs";
++
++const SV = "0x" + "aa".repeat(20), EOA = "0x" + "bb".repeat(20), X = "0x" + "cc".repeat(20);
++const P = (owner, rev = 1) => ({ owner, policyRev: String(rev) });
++
++test("effectOf follows the vault rules", () => {
++  assert.equal(effectOf({ before: EOA, after: EOA, policy: P(EOA) }), "unchanged", "EOA-owned deployments are untouched");
++  assert.equal(effectOf({ before: SV, after: EOA, policy: P(SV) }), "STRANDED", "a policy pinned to the SessionVault: _apply reverts NotOwner after activation");
++  assert.equal(effectOf({ before: SV, after: EOA, policy: P(EOA) }), "restored", "pinned to the vault's owner: updatable again");
++  assert.equal(effectOf({ before: SV, after: EOA, policy: P(X) }), "claimant_changes");
++  assert.equal(effectOf({ before: SV, after: EOA, policy: P(ZERO_(), 0) }), "no_policy_first_writer_changes");
++  assert.equal(effectOf({ before: EOA, after: EOA, policy: P(ZERO_(), 0) }), "unchanged");
++});
++function ZERO_() { return "0x" + "00".repeat(20); }
++
++function fakeLogs({ maxSpan = 10_000n, rateAfter = Infinity, events = [] }) {
++  let calls = 0;
++  return async (url, body) => {
++    calls++;
++    if (calls > rateAfter) return { error: { message: "Due to the high consumption or frequency of RPC requests, you have exceeded the rate limit" } };
++    const f = body.params[0], from = BigInt(f.fromBlock), to = BigInt(f.toBlock);
++    if (to - from + 1n > maxSpan) return { error: { message: `block range is too large, max ${maxSpan}` } };
++    return { result: events.filter((e) => BigInt(e.blockNumber) >= from && BigInt(e.blockNumber) <= to) };
++  };
++}
++const ADDR = "0x" + "11".repeat(20);
++const ev = (n, id) => ({ address: ADDR, topics: [EVENTS.PolicyUpdated, id, "0x" + "00".repeat(32)], blockNumber: "0x" + n.toString(16), transactionHash: "0x" + "ee".repeat(32), logIndex: "0x0" });
++
++test("the cursor halves on range refusals, stops on rate limits and budget, resumes, and reports uncovered ranges", async () => {
++  const events = [ev(1500, "0x" + "01".repeat(32)), ev(35_000, "0x" + "02".repeat(32)), ev(90_000, "0x" + "03".repeat(32))];
++  const cursor = { next: "1000", to: "100000", span: "40000", covered: [], events: [], stops: [] };
++  const run = (b) => discoverLogs({ rpc: b.rpc, url: "https://logs.test", addresses: [ADDR], topics: [EVENTS.PolicyUpdated, EVENTS.PolicyClaimed], cursor });
++  // attempt 1, budget 4: one range refusal (span 40000 -> 20000), three answered ranges, then the budget stop
++  let b = budgetedRpc({ max: 4, transport: fakeLogs({ maxSpan: 20_000n, events }), check: (u) => u });
++  assert.equal(await run(b), "budget");
++  assert.equal(cursor.span, "20000");
++  assert.deepEqual(cursor.covered, [["1000", "60999"]]);
++  assert.deepEqual(uncovered(cursor, "1000"), [["61000", "100000"]], "nothing past the answered ranges is claimed");
++  assert.equal(cursor.events.length, 2);
++  // attempt 2: rate limited after one answered range -> stops at once, no retry
++  b = budgetedRpc({ max: 20, transport: fakeLogs({ maxSpan: 20_000n, rateAfter: 1, events }), check: (u) => u });
++  assert.equal(await run(b), "rate_limited");
++  assert.equal(b.used(), 2, "one answer, one refusal, stop");
++  assert.deepEqual(uncovered(cursor, "1000"), [["81000", "100000"]]);
++  assert.equal(cursor.stops.at(-1).reason, "rate_limited");
++  // a later attempt resumes from the cursor and completes
++  b = budgetedRpc({ max: 20, transport: fakeLogs({ maxSpan: 20_000n, events }), check: (u) => u });
++  assert.equal(await run(b), "complete");
++  assert.deepEqual(uncovered(cursor, "1000"), []);
++  assert.deepEqual(cursor.events.map((x) => x.block), ["1500", "35000", "90000"]);
++});
++
++test("a provider's stated block limit is adopted exactly", async () => {
++  const cursor = { next: "0", to: "20000", span: "100000", covered: [], events: [], stops: [] };
++  const transport = async (url, body) => { const f = body.params[0]; return BigInt(f.toBlock) - BigInt(f.fromBlock) + 1n > 5000n
++    ? { error: { message: "eth_getLogs is limited to 5000 block range. Please check the parameter requirements" } } : { result: [] }; };
++  const b = budgetedRpc({ max: 10, transport, check: (u) => u });
++  assert.equal(await discoverLogs({ rpc: b.rpc, url: "https://logs.test", addresses: [ADDR], topics: [EVENTS.PolicyUpdated], cursor }), "complete");
++  assert.equal(cursor.span, "5000"); assert.equal(b.used(), 6, "one refusal, then 4 full 5000-block ranges + 1 tail");
++});
++
++test("a provider answer outside the filter is an error, not an event", async () => {
++  const bad = { address: "0x" + "99".repeat(20), topics: [EVENTS.PolicyUpdated, "0x" + "01".repeat(32)], blockNumber: "0x10", transactionHash: "0x", logIndex: "0x0" };
++  const cursor = { next: "0", to: "100", span: "1000", covered: [], events: [], stops: [] };
++  const b = budgetedRpc({ max: 5, transport: async () => ({ result: [bad] }), check: (u) => u });
++  assert.equal(await discoverLogs({ rpc: b.rpc, url: "https://logs.test", addresses: [ADDR], topics: [EVENTS.PolicyUpdated], cursor }), "error");
++  assert.deepEqual(cursor.covered, []);
++});
++
++test("the budgeted reader refuses writes and counts every request", async () => {
++  const b = budgetedRpc({ max: 1, transport: async () => ({ result: "0x1" }), check: (u) => u });
++  await assert.rejects(b.rpc("https://x.test", "eth_sendRawTransaction", ["0x"]), /read-only/);
++  assert.equal(await b.rpc("https://x.test", "eth_chainId", []), "0x1");
++  await assert.rejects(b.rpc("https://x.test", "eth_chainId", []), BudgetExhausted);
++  assert.equal(classify(new Error("request limit reached")).kind, "rate");
++  assert.equal(classify(new Error("query returned more than 10000 results")).kind, "range");
++});

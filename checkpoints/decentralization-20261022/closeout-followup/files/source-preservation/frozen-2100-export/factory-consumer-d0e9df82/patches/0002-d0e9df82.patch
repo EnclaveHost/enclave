@@ -1,0 +1,74 @@
+From d0e9df8206414edf715e154f1903c4b6421af754 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:36:50 -0700
+Subject: [PATCH] Consumer review: the running relay pins SESSIONS_FACTORY
+ (root evidence); its network API still reads the book key
+
+Root's read-only check (custody-v2-live-20261023/evidence/relay-session-authority.json,
+20:35Z): SESSIONS_FACTORY = 0x1F5c887c (the original factory), api-relay.js
+sha256 481f0041. That file equals nucbox-tls-20261021/combined/payload/api-relay.js:
+- the custody gate and the sessions service use the pin, so they are unchanged;
+- createNetworkApi passes only addressBook, so owner network-policy/BYO signatures
+  for the four 0xb794 deployments start verifying for 0x0b2d after activation.
+No private configuration is copied.
+---
+ CONSUMERS.md |  6 ++++--
+ RESULT.md    | 20 +++++++++++---------
+ 2 files changed, 15 insertions(+), 11 deletions(-)
+
+diff --git a/CONSUMERS.md b/CONSUMERS.md
+index ee426251bc79ea17818ce07c570a4129fe45bc52..6b06a4c15096e22ae22658ba5983b6e4dadb0e3a 100644
+--- a/CONSUMERS.md
++++ b/CONSUMERS.md
+@@ -37,5 +37,7 @@
+ **Contracts** (my reading): v1/v2 vaults `beneficialOwnerOf`, and `SessionVault.release` 838. `PinnedSessionVaultFactory`
+ and the pinned vault variant use immutables.
+ 
+-**Not determined from public evidence:** whether the production relay sets `SESSIONS_FACTORY`. That decides whether the
+-relay rows above change.
++**Running relay (root, 20:35Z, `custody-v2-live-20261023/evidence/relay-session-authority.json`; `api-relay.js` sha256
++`481f0041…` = `nucbox-tls-20261021/combined/payload/api-relay.js`):**
++- `SESSIONS_FACTORY` = `0x1F5c887c…`, so both `relay/sessions.mjs` rows are unchanged by activation.
++- Its network API (2656-2657) passes only `addressBook`, so the `relay/network-api.mjs` row DOES change.
+diff --git a/RESULT.md b/RESULT.md
+index 3445dd2c6d8d637e16c1ab7ed4238f07750382f0..0cf00a8432da74756d60aea2308b2c1a5d16e84b 100644
+--- a/RESULT.md
++++ b/RESULT.md
+@@ -15,13 +15,14 @@
+ deployment id in the current ledger at block 52,999,031 (`evidence/state-impact.json`).
+ 
+ **Activation is still a gated admin decision.** It grants new authority to the wallet that owns
+-SessionVault `0xb794…` (the admin `0x0b2d…`) in several off-chain paths, and one relay path depends on configuration not
+-visible in public evidence (§3). Root's activation gating stays as is. Conditions:
++SessionVault `0xb794…` (the admin `0x0b2d…`) in several off-chain paths, including the running relay's network-API path
++(§3). Root's activation gating stays as is. Conditions:
+ 1. **Re-run `probes/state-impact.mjs` immediately before signing** (16 requests).
+    - A policy pinned to a SessionVault can still be created today: the vault's owner calls `ownerCall(vault.update)`.
+      It would be stranded by activation.
+    - The result is exact only for its block.
+-2. Root confirms the relay's `SESSIONS_FACTORY` setting (§3). It is not in the public environment capture.
++2. RESOLVED (root, 2026-10-23 20:35Z, `custody-v2-live-20261023/evidence/relay-session-authority.json`): the running
++   relay sets `SESSIONS_FACTORY` = `0x1F5c887c…` (the original factory), and its `api-relay.js` sha256 is `481f0041…`.
+ 3. **Do not toggle the key back** after wallet-owned policies are created on SessionVault-held deployments. Unsetting it
+    would strand them the other way.
+ 
+@@ -88,12 +89,13 @@
+   - **After:** the vault's owner (`0x0b2d` for the four deployments) is accepted for network policies and BYO requests.
+   - Pinned hosts with a zero pin keep refusing, so pinned and unpinned hosts would disagree for vault-held deployments.
+ - `relay/sessions.mjs` 421-426 (sessions service) and 1111-1119 (custody gate), only when `SESSIONS_FACTORY` is unset.
+-  **Not determined:** root's public relay environment (`evidence/relay-public-config.json`) lists 7 keys and none for
+-  sessions.
+-  - If unset, activation turns the sessions API on, and moves authority over secrets, domains and placement for
+-    vault-held records from "nobody can sign" to the vault owner.
+-  - It also changes billing classification of vault payments.
+-  - If pinned to `0x1f5c…`, there is no change.
++  **The running relay pins it:** root's read-only check (`custody-v2-live-20261023/evidence/relay-session-authority.json`,
++  20:35Z) shows `SESSIONS_FACTORY` = `0x1F5c887c…` and `api-relay.js` sha256 `481f0041…`. That file is byte-identical to
++  `nucbox-tls-20261021/combined/payload/api-relay.js`, where line 563 passes `SESSIONS_FACTORY` to the custody gate.
++  - So the relay's sessions service and custody gate already use `0x1f5c…`: **no change on activation.**
++  - **The same relay's network API does change.** `createNetworkApi` (that file, 2656-2657) passes `addressBook` and no
++    factory, so `verifyOwnerSignature` reads the book key. After activation, `0x0b2d`'s signatures for the four
++    `0xb794` deployments verify for owner network policies and BYO requests; today they are refused.
+ - `windows/node/session-api-auth.mjs` 250-259 (supervisor and Windows node, unless contract pins exist): no change. The
+   default list already contains `0x1f5c…`.
+ - `cli/enclave.mjs` 4312 (`session delegate`, unpinned): no change; it already defaults to `0x1f5c…`.

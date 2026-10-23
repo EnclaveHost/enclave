@@ -1,0 +1,85 @@
+{
+ "at": "2026-10-23T20:33:26.767Z",
+ "readOnly": true,
+ "provider": "base.public.blockpi.network",
+ "addresses": [
+  "0x08074300f75e78212ae10ebd14984f78e17811a6",
+  "0xe48699b8401564aace7a814ae4569b67a3f7eef5"
+ ],
+ "topics": [
+  "0x512a1b5328e1be2d7d9f0d989b4f18232c3f3e2df7862122b7b76169c943ec87",
+  "0x6b930fd91b7b82b75ba955af6c27473a31be50ee09894eebe31923d5a96e334d"
+ ],
+ "range": [
+  "52605914",
+  "52999031"
+ ],
+ "complete": false,
+ "covered": [
+  [
+   "52605914",
+   "52728413"
+  ]
+ ],
+ "uncovered": [
+  [
+   "52728414",
+   "52999031"
+  ]
+ ],
+ "events": [
+  {
+   "address": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+   "event": "PolicyUpdated",
+   "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+   "block": "52608770",
+   "tx": "0xa3ab30132c17412832e825bc97b94a208b0ebae5b9eb3278e613e12e1f3eed97",
+   "logIndex": "298",
+   "removed": false
+  },
+  {
+   "address": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+   "event": "PolicyUpdated",
+   "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+   "block": "52615057",
+   "tx": "0x9899c9fb6eca80158ea475aff3af8a5d0d4203094e115b6975540b014d27f320",
+   "logIndex": "353",
+   "removed": false
+  },
+  {
+   "address": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+   "event": "PolicyUpdated",
+   "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+   "block": "52617714",
+   "tx": "0xf6fbb8cfc2f91b94f2d564e0537ced4b3f86d6f4b30a10a5cb84ec6187825816",
+   "logIndex": "1270",
+   "removed": false
+  }
+ ],
+ "ids": [
+  "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e"
+ ],
+ "attempts": [
+  {
+   "n": 1,
+   "at": "2026-10-23T20:32:22.489Z",
+   "budget": 20,
+   "idsOutsideCurrentLedger": [],
+   "outcome": "budget",
+   "discoveryRequests": 17,
+   "totalRequests": 18,
+   "requests": 18
+  },
+  {
+   "n": 2,
+   "at": "2026-10-23T20:33:15.291Z",
+   "budget": 20,
+   "idsOutsideCurrentLedger": [],
+   "outcome": "budget",
+   "discoveryRequests": 17,
+   "totalRequests": 18,
+   "requests": 18
+  }
+ ],
+ "note": "PARTIAL: events outside `covered` were not observed; no completeness is claimed for them"
+}

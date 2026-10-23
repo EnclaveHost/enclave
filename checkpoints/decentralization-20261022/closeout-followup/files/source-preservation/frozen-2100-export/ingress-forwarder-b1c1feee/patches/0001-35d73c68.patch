@@ -1,0 +1,1964 @@
+From 35d73c68c355b716ac6a361cca837d580cabda0b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:33:11 -0700
+Subject: [PATCH] Custody v2 canary ingress forwarder: exact raw-target
+ allowlist from the reviewed ab589bf8 ingress, bounded loopback forwarding,
+ adversarial HTTP tests and mutation check (source only)
+
+---
+ RESULT.md                          | 128 ++++++++++++++++++
+ examples/Caddyfile.canary-snippet  |  33 +++++
+ examples/forwarder.canary.json     |  12 ++
+ examples/reverse-tunnel.canary.txt |  26 ++++
+ forwarder.mjs                      | 207 +++++++++++++++++++++++++++++
+ logs/debug-1.guard.log             |   1 +
+ logs/debug-1.out                   |   5 +
+ logs/debug-1.rc                    |   1 +
+ logs/mutants-1.guard.log           |   1 +
+ logs/mutants-1.out                 |  30 +++++
+ logs/mutants-1.rc                  |   1 +
+ logs/mutants-2.guard.log           |   1 +
+ logs/mutants-2.out                 |  30 +++++
+ logs/mutants-2.rc                  |   1 +
+ logs/mutants-3.guard.log           |   1 +
+ logs/mutants-3.out                 |  30 +++++
+ logs/mutants-3.rc                  |   1 +
+ logs/scan-1.guard.log              |   1 +
+ logs/scan-1.out                    |   8 ++
+ logs/scan-1.rc                     |   1 +
+ logs/scan-gitleaks.json            |   1 +
+ logs/test-1.guard.log              |   1 +
+ logs/test-1.out                    |  41 ++++++
+ logs/test-1.rc                     |   1 +
+ logs/test-2.guard.log              |   1 +
+ logs/test-2.out                    | 164 +++++++++++++++++++++++
+ logs/test-2.rc                     |   1 +
+ logs/test-3.guard.log              |   1 +
+ logs/test-3.out                    | 113 ++++++++++++++++
+ logs/test-3.rc                     |   1 +
+ logs/test-4.guard.log              |   1 +
+ logs/test-4.out                    |  80 +++++++++++
+ logs/test-4.rc                     |   1 +
+ logs/test-5.guard.log              |   1 +
+ logs/test-5.out                    |  80 +++++++++++
+ logs/test-5.rc                     |   1 +
+ logs/test-6.guard.log              |   1 +
+ logs/test-6.out                    |  86 ++++++++++++
+ logs/test-6.rc                     |   1 +
+ logs/test-6.try2.out               |   1 +
+ pinned/PROVENANCE.json             |   7 +
+ pinned/ingress.mjs                 |  31 +++++
+ q.sh                               |  11 ++
+ scan.sh                            |  14 ++
+ test/allowlist.test.mjs            |  67 ++++++++++
+ test/forwarder.test.mjs            | 200 ++++++++++++++++++++++++++++
+ test/helpers.mjs                   |  76 +++++++++++
+ test/run-mutants.mjs               |  67 ++++++++++
+ 48 files changed, 1570 insertions(+)
+ create mode 100644 RESULT.md
+ create mode 100644 examples/Caddyfile.canary-snippet
+ create mode 100644 examples/forwarder.canary.json
+ create mode 100644 examples/reverse-tunnel.canary.txt
+ create mode 100644 forwarder.mjs
+ create mode 100644 logs/debug-1.guard.log
+ create mode 100644 logs/debug-1.out
+ create mode 100644 logs/debug-1.rc
+ create mode 100644 logs/mutants-1.guard.log
+ create mode 100644 logs/mutants-1.out
+ create mode 100644 logs/mutants-1.rc
+ create mode 100644 logs/mutants-2.guard.log
+ create mode 100644 logs/mutants-2.out
+ create mode 100644 logs/mutants-2.rc
+ create mode 100644 logs/mutants-3.guard.log
+ create mode 100644 logs/mutants-3.out
+ create mode 100644 logs/mutants-3.rc
+ create mode 100644 logs/scan-1.guard.log
+ create mode 100644 logs/scan-1.out
+ create mode 100644 logs/scan-1.rc
+ create mode 100644 logs/scan-gitleaks.json
+ create mode 100644 logs/test-1.guard.log
+ create mode 100644 logs/test-1.out
+ create mode 100644 logs/test-1.rc
+ create mode 100644 logs/test-2.guard.log
+ create mode 100644 logs/test-2.out
+ create mode 100644 logs/test-2.rc
+ create mode 100644 logs/test-3.guard.log
+ create mode 100644 logs/test-3.out
+ create mode 100644 logs/test-3.rc
+ create mode 100644 logs/test-4.guard.log
+ create mode 100644 logs/test-4.out
+ create mode 100644 logs/test-4.rc
+ create mode 100644 logs/test-5.guard.log
+ create mode 100644 logs/test-5.out
+ create mode 100644 logs/test-5.rc
+ create mode 100644 logs/test-6.guard.log
+ create mode 100644 logs/test-6.out
+ create mode 100644 logs/test-6.rc
+ create mode 100644 logs/test-6.try2.out
+ create mode 100644 pinned/PROVENANCE.json
+ create mode 100644 pinned/ingress.mjs
+ create mode 100755 q.sh
+ create mode 100755 scan.sh
+ create mode 100644 test/allowlist.test.mjs
+ create mode 100644 test/forwarder.test.mjs
+ create mode 100644 test/helpers.mjs
+ create mode 100644 test/run-mutants.mjs
+
+diff --git a/RESULT.md b/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..040d1a0a73c6862248673add9bea835e5a9621b5
+--- /dev/null
++++ b/RESULT.md
+@@ -0,0 +1,128 @@
++# Custody v2 canary ingress forwarder: source and tests only (2026-10-23)
++
++This is the follow-up to `work/custody-v2-direct-route-20261023` (root accepted Option A).
++
++**Scope.**
++- This is a reusable forwarder for the isolated canary ingress on metal0, with real-HTTP adversarial tests, a mutation check, and
++  canary-only example configs.
++- Nothing was started, configured or deployed. There was no production, SSH, key, chain or config action, and the original
++  custodian and the frozen image are untouched.
++- The forwarder was not run against a real custodian guest. The upstream in the tests is a stand-in that dispatches the way the
++  guest does.
++- This is NOT final routing and NOT decentralized custody. The permanent Linux host-role route stays deferred.
++
++## What it is
++
++`forwarder.mjs` uses Node only, with no dependencies (Node v22.23.3 here).
++- It listens on loopback only, as the reverse tunnel's target behind the control-VM HTTPS prefix.
++- It forwards to ONE fixed loopback port: the canary custodian's `mgmtPort`.
++
++**Allowlist.**
++- The allowlist is the reviewed one: `pinned/ingress.mjs` is a byte copy of `custody/v2/ingress.mjs` at **ab589bf8** (blob
++  ebacbcc6), the corrected-image source root named.
++- The test parses that file's generated Caddy site. It does not re-type the routes.
++- There are 12 method+path pairs: `GET /v2/custody/info` and 11 `POST` routes.
++- Private routes (host-binding, `/health`, `/`) and the host's state/submit port are unreachable by construction.
++
++**Matching.**
++- The RAW request target must equal `<prefix><route>` byte for byte, with that route's one method.
++- Nothing is decoded, normalised or case-folded, so any encoded, dotted, backslash, double-slash, query, `;`, trailing-slash,
++  case-variant or absolute-form spelling gets 404.
++- The upstream path is the allowlist's own constant.
++- Why: the guest uses WHATWG `new URL()`, which resolves `/v2/custody/x/%2e%2e/host-binding` or `…\..\host-binding` to the
++  private route. The tests assert that hazard exists, and that no such request reaches the upstream.
++
++**Headers.**
++- Nothing from the client is forwarded: no Host, X-Forwarded-*, Forwarded, Cookie, Authorization or hop-by-hop headers.
++- Upstream gets only host, accept, connection: close, and for POST content-type: application/json plus content-length.
++- The client gets only content-type, content-length, cache-control: no-store, nosniff, connection: close and a numeric
++  Retry-After. There is no keep-alive or pipelining, and Upgrade and CONNECT are destroyed.
++
++**Bounds (defaults).**
++
++| Bound | Default | Result when exceeded |
++|---|---|---|
++| Body | 262144 B (the guest's `MAX_BODY`): declared size checked before reading, then counted | 413 |
++| Whole body | within 10 s | 408 |
++| Body on GET | not allowed; conflicting or duplicate framing is refused by Node's parser | 400 |
++| Headers | 8 KiB, within 10 s; whole request 45 s | 431 / 408 |
++| Concurrent requests | 16 | 503 |
++| Whole upstream exchange, including the response body | within 30 s | 504 |
++| Response body | 1 MiB | 502 |
++
++- The upstream must answer 2xx, 4xx or 5xx with JSON. 3xx and non-JSON give 502, so no redirect is followed or passed on.
++- A truncated or reset upstream gives 502.
++- A client that disconnects aborts the upstream request.
++- The response is **buffered up to its cap, not streamed byte by byte**. That way a failure becomes a clean 502 or 504, never a
++  truncated success. Custody responses (quotes, ciphertexts, signatures) are small.
++
++**Configuration** (`validateConfig`):
++- `listen.host` must be 127.0.0.1 or ::1.
++- `upstreamPort` is an integer port; there is no host or URL setting.
++- `prefix` is 1–3 lowercase segments, not under `/t/` (the relay's tunnels) or `/v2`.
++- Limits are bounded, and unknown keys are refused.
++
++## Tests (all through the unchanged queue, 256 MiB lane; logs in `logs/`)
++
++- **`logs/test-6.out` (final):** 12/12 pass (`node --test test/allowlist.test.mjs test/forwarder.test.mjs`). Peak 132 MiB.
++  - **Pin:** the pin equals the ab589bf8 blob (also checked against the durability repo's git object).
++  - **Allowlist:** it equals `directCustodyIngress()` output exactly, and the example config and Caddy snippet match it.
++  - **Config:** 21 invalid configs are refused.
++  - **Allowed routes:** each of the 12 is forwarded with its own method, exact path and body. The upstream sees only the 3–5
++    allowed headers, and the client gets only the allowed response headers.
++  - **Adversarial targets:** more than 250, each sent as both GET and POST over a raw socket, return 400/404, and the upstream
++    hit log stays empty.
++    - Private routes, with every %-encoding, double-encoding, `..`/`.`/`%2e`, backslash, NUL, bidi, full-width, case, query,
++      `;`, trailing-slash, double-slash and prefix variant.
++    - Encoded spellings of the public routes themselves.
++    - Absolute-form targets and truncated routes.
++  - **Methods:** HEAD, OPTIONS, PUT, DELETE, PATCH, TRACE, WebDAV methods, the wrong method per route and a lowercase method are
++    refused. CONNECT and Upgrade are closed.
++  - **Request limits:** declared and chunked oversize, a GET body, TE+CL, duplicate CL, oversize headers, a slow body (408 near
++    the 400 ms deadline) and slow headers. Exactly the cap passes. `Expect: 100-continue` is answered only after the checks.
++  - **Upstream failures:** refused (502), hung (504), redirect (502, Location dropped), non-JSON or no type (502), declared or
++    streamed oversize (502), slow body (504), truncated or reset (502). 1xx then 200 works, and 429 and 422 pass through
++    (Retry-After kept, Set-Cookie dropped).
++  - **Client abort:** it aborts the upstream request.
++  - **In flight:** the in-flight limit gives 503.
++  - **Connections:** the only outbound connection is to `127.0.0.1:<upstreamPort>`.
++- **`logs/mutants-3.out` (final):** `node test/run-mutants.mjs` runs 24 mutants; **all 24 are killed**, and the unmutated control
++  passes. Peak 191 MiB.
++  - The mutants include the required **unsafe wildcard** (`/v2/custody/*` with any method). It is killed by the private-route and
++    method tests.
++  - The others: case-insensitive, percent-decode, WHATWG-normalise, ignore-query, strip-trailing-slash, method-agnostic,
++    forwarding client headers, passing upstream headers, each size, time and response cap removed, passing redirects, no JSON
++    check, accepting truncated responses, no client-abort, no in-flight limit, non-loopback listen, a prefix under `/t/`, no
++    Upgrade/CONNECT guard, and Expect-continue before the checks.
++- **Earlier runs, kept:**
++  - test-1 (a bad test-path argument), test-2 and test-3. They caught a test regex bug, Node's automatic Date header (now off), a
++    400-instead-of-431 header-overflow mapping, and a real forwarder bug: a Buffer upstream body was JSON-encoded, not passed
++    through. All are fixed.
++  - mutants-1: 2 survivors (percent-decode and no-body-deadline) exposed two weak tests. The tests were strengthened, and
++    mutants-2 and mutants-3 kill all 24.
++
++## Example configs (canary only, placeholders; not applied anywhere)
++
++- **`examples/forwarder.canary.json`:** forwarder on 127.0.0.1:18901 to canary mgmtPort 18787, prefix `/custody-v2-canary/metal0`.
++- **`examples/Caddyfile.canary-snippet`:** inside the existing api.enclave.host site on the control VM.
++  - The exact 12 method+prefixed-path pairs go to `127.0.0.1:<R>`, with a 262144-byte body cap.
++  - Everything else under `/custody-v2-canary` returns 404.
++- **`examples/reverse-tunnel.canary.txt`:**
++  - The metal0 `ssh -N -R 127.0.0.1:<R>:127.0.0.1:<F>`. The target is the forwarder, never `<MGMT>`.
++  - The control-VM authorized_keys line: `restrict,port-forwarding,permitopen="none",permitlisten="127.0.0.1:<R>",command="/bin/false"`.
++  - Negative checks, and teardown.
++
++## Limits (honest scope)
++
++- **Not tested against real infrastructure.** There was no real custodian guest, Caddy, SSH tunnel, TLS or SNP in these tests.
++  Caddy is not installed on this workstation, so the Caddy snippet is checked only textually against the allowlist.
++  - Its path matching (Caddy normalises before matching) is the first layer only. The forwarder's raw-target check is the
++    authority.
++- **Rate limiting:** behind this hop every client shares the guest's one per-TCP-peer rate bucket. That is acceptable for a
++  canary. Per-client limits need an image measured with `--trusted-proxy` plus a forwarded client address, and that is
++  deliberately not implemented here: the forwarder never sets X-Forwarded-For.
++- **Shield attest bodies** larger than `maxBodyBytes` are refused (413). The corrected image measures no Shield recipients, so
++  these routes answer 404 in the guest. If a Shield image is canaried, set `maxBodyBytes` to its measured `maxAttestBytes`.
++- **Responses:** buffered up to the cap, not streamed byte by byte (see above).
++- **Corrected image:** per root, it is ab589bf8, measurement 70aadf…, with fresh/reopen AMD quotes and the storage-503
++  no-identity-replacement hardware test passed. D did not verify any of that; it is root's record.
+diff --git a/examples/Caddyfile.canary-snippet b/examples/Caddyfile.canary-snippet
+new file mode 100644
+index 0000000000000000000000000000000000000000..cf3fae03178a5119c368360fc981d131da97a06b
+--- /dev/null
++++ b/examples/Caddyfile.canary-snippet
+@@ -0,0 +1,33 @@
++# EXAMPLE ONLY - CANARY, NOT FINAL ROUTING, NOT DECENTRALIZED CUSTODY. Not applied anywhere by this repository.
++# Goes INSIDE the existing api.enclave.host site block on the control VM, before the relay's catch-all handle.
++# <R> = the control VM loopback port the metal0 reverse tunnel listens on (placeholder).
++# The metal0 forwarder re-checks every request on the RAW target; this layer is the first of the two allowlists.
++@custody_canary_info {
++	method GET
++	path /custody-v2-canary/metal0/v2/custody/info
++}
++@custody_canary_protocol {
++	method POST
++	path /custody-v2-canary/metal0/v2/custody/evidence /custody-v2-canary/metal0/v2/custody/challenge /custody-v2-canary/metal0/v2/custody/release /custody-v2-canary/metal0/v2/custody/join /custody-v2-canary/metal0/v2/custody/approve /custody-v2-canary/metal0/v2/custody/independent-genesis /custody-v2-canary/metal0/v2/custody/code-approve /custody-v2-canary/metal0/v2/custody/owner-read/challenge /custody-v2-canary/metal0/v2/custody/owner-read /custody-v2-canary/metal0/v2/custody/shield-session/challenge /custody-v2-canary/metal0/v2/custody/shield-session/attest
++}
++@custody_canary_rest path /custody-v2-canary /custody-v2-canary/*
++handle @custody_canary_info {
++	reverse_proxy 127.0.0.1:<R> {
++		transport http {
++			response_header_timeout 35s
++		}
++	}
++}
++handle @custody_canary_protocol {
++	request_body {
++		max_size 262144
++	}
++	reverse_proxy 127.0.0.1:<R> {
++		transport http {
++			response_header_timeout 35s
++		}
++	}
++}
++handle @custody_canary_rest {
++	respond "Not found" 404
++}
+diff --git a/examples/forwarder.canary.json b/examples/forwarder.canary.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..1732946083f7947e5e7794ca3cf86ca29eb252ac
+--- /dev/null
++++ b/examples/forwarder.canary.json
+@@ -0,0 +1,12 @@
++{
++  "listen": { "host": "127.0.0.1", "port": 18901 },
++  "prefix": "/custody-v2-canary/metal0",
++  "upstreamPort": 18787,
++  "maxBodyBytes": 262144,
++  "maxResponseBytes": 1048576,
++  "bodyTimeoutMs": 10000,
++  "upstreamTimeoutMs": 30000,
++  "headersTimeoutMs": 10000,
++  "requestTimeoutMs": 45000,
++  "maxInFlight": 16
++}
+diff --git a/examples/reverse-tunnel.canary.txt b/examples/reverse-tunnel.canary.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..e7f8524e741c8cd446eaf0bdd023b568d3dc9906
+--- /dev/null
++++ b/examples/reverse-tunnel.canary.txt
+@@ -0,0 +1,26 @@
++EXAMPLE ONLY - CANARY, NOT FINAL ROUTING. Not applied anywhere by this repository. Placeholders in <angle brackets>.
++
++<R>    control VM loopback port (Caddy's reverse_proxy target)
++<F>    metal0 forwarder port (forwarder.canary.json listen.port)
++<MGMT> the canary custodian's management port (custody/v2/host.mjs mgmtPort; forwarder.canary.json upstreamPort).
++       This must be the CANARY instance's port, never the original custodian's.
++
++1. metal0: the forwarder (loopback only; it refuses any other listen address)
++   node forwarder.mjs examples/forwarder.canary.json
++
++2. metal0 -> control VM: a reverse tunnel whose only effect is "control VM 127.0.0.1:<R> -> metal0 127.0.0.1:<F>"
++   ssh -N -T -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
++       -i <dedicated canary key> -R 127.0.0.1:<R>:127.0.0.1:<F> <canary user>@<control VM>
++   The -R target is the FORWARDER (<F>), never <MGMT>: anything on the control VM's loopback can reach <R>.
++
++3. control VM: the canary key's authorized_keys line (one dedicated key, nothing else allowed)
++   restrict,port-forwarding,permitopen="none",permitlisten="127.0.0.1:<R>",command="/bin/false" <public key> custody-v2-canary-metal0
++   and sshd keeps GatewayPorts no (the default), so <R> binds loopback only.
++
++4. control VM: examples/Caddyfile.canary-snippet inside the api.enclave.host site, then a reviewed reload.
++
++5. Negative checks before any lifecycle use (both layers must 404): host-binding, /health, /, every %2e/%2f/backslash/
++   double-slash/case/query/trailing-slash spelling (test/forwarder.test.mjs lists them), HEAD/OPTIONS/PUT, and a GET body.
++
++Teardown: remove the Caddy snippet, stop the tunnel, remove the key line, stop the forwarder. The original custodian
++(/t/custody-metal0 via the relay tunnel) and every app are not touched by any of these steps.
+diff --git a/forwarder.mjs b/forwarder.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..d4e101fdf94232e2655b21686b420542de80cf41
+--- /dev/null
++++ b/forwarder.mjs
+@@ -0,0 +1,207 @@
++#!/usr/bin/env node
++// Custody v2 CANARY ingress forwarder (metal0). It sits behind a control-VM HTTPS prefix and a loopback reverse tunnel, and
++// forwards ONLY the corrected custodian's public protocol, from the reviewed allowlist of custody/v2/ingress.mjs (ab589bf8;
++// pinned/ingress.mjs), to ONE fixed loopback custody management port (custody/v2/host.mjs mgmtPort -> guest :8787).
++//
++// Why exact matching on the RAW request target. The guest dispatches on new URL(req.url).pathname (custody/v2/http.mjs).
++// WHATWG resolution turns /v2/custody/x/../host-binding, /v2/custody/x/%2e%2e/host-binding and backslash forms into the
++// PRIVATE host-binding route. Here the raw target must equal <prefix><route> byte for byte, for one of the 12 routes and with
++// its one method. Nothing is decoded, normalised or case-folded. The upstream path is the allowlist's own constant, never a
++// client string. Private routes (host-binding, /health, /) and the host's state/submit port are unreachable by construction.
++//
++// Bounds. Request body: Content-Length checked before reading, then counted (413), and the whole body within bodyTimeoutMs
++// (408). GET carries no body. Headers: Node's headersTimeout, requestTimeout and maxHeaderSize. In flight: maxInFlight (503).
++// The upstream exchange, including its response body, must finish within upstreamTimeoutMs (504). The response body is capped
++// at maxResponseBytes (502). The upstream must answer 2xx, 4xx or 5xx JSON (3xx and non-JSON -> 502: no redirects are
++// followed or passed on). A client that goes away aborts the upstream request.
++//
++// Headers. Nothing the client sends is forwarded: no Host, X-Forwarded-*, Forwarded, Cookie, Authorization or hop-by-hop
++// headers. The upstream request carries only host, content-type: application/json, content-length, accept and connection:
++// close. The client gets only content-type, content-length, cache-control, nosniff, connection: close and a numeric
++// Retry-After. Every connection closes after one response, so there is no keep-alive or pipelining state. Upgrade and CONNECT
++// are destroyed.
++//
++// Not this file's job: TLS (the control-VM Caddy), client identity or rate limits (the guest's own, per TCP peer: behind this
++// hop every client shares one bucket), and anything permanent (the Linux host-role route is deferred).
++import fs from 'node:fs';
++import http from 'node:http';
++import { fileURLToPath } from 'node:url';
++
++/** The reviewed public allowlist (pinned/ingress.mjs directCustodyIngress at ab589bf8): route -> its one method. */
++export const ROUTES = Object.freeze(new Map([
++  ['/v2/custody/info', 'GET'],
++  ['/v2/custody/evidence', 'POST'],
++  ['/v2/custody/challenge', 'POST'],
++  ['/v2/custody/release', 'POST'],
++  ['/v2/custody/join', 'POST'],
++  ['/v2/custody/approve', 'POST'],
++  ['/v2/custody/independent-genesis', 'POST'],
++  ['/v2/custody/code-approve', 'POST'],
++  ['/v2/custody/owner-read/challenge', 'POST'],
++  ['/v2/custody/owner-read', 'POST'],
++  ['/v2/custody/shield-session/challenge', 'POST'],
++  ['/v2/custody/shield-session/attest', 'POST'],
++]));
++export const GUEST_MAX_BODY = 262144;   // custody/v2/http.mjs MAX_BODY at ab589bf8
++
++const DEFAULTS = Object.freeze({
++  maxBodyBytes: GUEST_MAX_BODY, maxResponseBytes: 1048576, bodyTimeoutMs: 10000, upstreamTimeoutMs: 30000,
++  headersTimeoutMs: 10000, requestTimeoutMs: 45000, maxInFlight: 16, maxHeaderBytes: 8192,
++});
++const KEYS = ['listen', 'prefix', 'upstreamPort', ...Object.keys(DEFAULTS)];
++const PREFIX = /^(\/[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?){1,3}$/;   // 1-3 lowercase segments, no dots, encodings or slashes
++const LOOPBACK = new Set(['127.0.0.1', '::1']);
++const isPort = (p) => Number.isInteger(p) && p >= 1 && p <= 65535;
++
++/** -> the validated configuration (defaults filled in); throws on anything else. */
++export function validateConfig(c) {
++  if (!c || typeof c !== 'object' || Array.isArray(c)) throw new Error('config must be an object');
++  for (const k of Object.keys(c)) if (!KEYS.includes(k)) throw new Error(`unknown config key ${JSON.stringify(k)}`);
++  const l = c.listen;
++  if (!l || typeof l !== 'object' || Object.keys(l).some((k) => !['host', 'port'].includes(k))) throw new Error('listen must be {host, port}');
++  if (!LOOPBACK.has(l.host)) throw new Error('listen.host must be a loopback address (127.0.0.1 or ::1): the reverse tunnel is the only client');
++  if (!(l.port === 0 || isPort(l.port))) throw new Error('listen.port must be a TCP port');
++  if (!isPort(c.upstreamPort)) throw new Error('upstreamPort must be the custody management port (loopback, fixed)');
++  if (l.port !== 0 && l.port === c.upstreamPort) throw new Error('listen.port and upstreamPort must differ');
++  if (typeof c.prefix !== 'string' || !PREFIX.test(c.prefix) || c.prefix.startsWith('/t/') || c.prefix === '/t' || c.prefix.startsWith('/v2'))
++    throw new Error('prefix must be 1-3 lowercase segments, not under /t/ (the relay\'s tunnels) or /v2');
++  const out = { listen: { host: l.host, port: l.port }, prefix: c.prefix, upstreamPort: c.upstreamPort };
++  const range = { maxBodyBytes: [1, 16777216], maxResponseBytes: [1024, 16777216], bodyTimeoutMs: [100, 120000], upstreamTimeoutMs: [100, 300000],
++                  headersTimeoutMs: [100, 60000], requestTimeoutMs: [200, 300000], maxInFlight: [1, 1024], maxHeaderBytes: [1024, 65536] };
++  for (const [k, [lo, hi]] of Object.entries(range)) {
++    const v = c[k] ?? DEFAULTS[k];
++    if (!Number.isSafeInteger(v) || v < lo || v > hi) throw new Error(`${k}: an integer from ${lo} to ${hi}`);
++    out[k] = v;
++  }
++  if (out.requestTimeoutMs <= out.headersTimeoutMs) throw new Error('requestTimeoutMs must exceed headersTimeoutMs');
++  return out;
++}
++
++const JSON_HEADERS = { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', connection: 'close' };
++function send(res, status, body, extra = {}) {
++  if (res.headersSent || res.destroyed) return;
++  const b = Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));   // upstream bytes pass unchanged
++  res.sendDate = false;
++  res.writeHead(status, { ...JSON_HEADERS, 'content-length': b.length, ...extra });
++  res.end(b);
++}
++const refuse = (res, status, error, message) => send(res, status, { error, message });
++
++/** -> the allowlisted route for this exact raw request target and method under `prefix`, or null. */
++export function routeOf(prefix, method, target) {
++  if (typeof target !== 'string' || !target.startsWith(prefix + '/')) return null;
++  const route = target.slice(prefix.length);
++  return ROUTES.has(route) && ROUTES.get(route) === method ? route : null;
++}
++
++/**
++ * createForwarder(config, { log }) -> { server, listen() -> Promise<{host, port}>, close() -> Promise, stats }
++ * log(event) receives { status, reason, route?, ms } per request: never a body, header or raw target.
++ */
++export function createForwarder(config, { log = () => {} } = {}) {
++  const c = validateConfig(config);
++  const stats = { inFlight: 0, forwarded: 0, refused: 0 };
++  const server = http.createServer({ maxHeaderSize: c.maxHeaderBytes, requestTimeout: c.requestTimeoutMs, headersTimeout: c.headersTimeoutMs,
++                                     keepAliveTimeout: 1000, joinDuplicateHeaders: false,
++                                     connectionsCheckingInterval: Math.max(50, Math.min(1000, Math.floor(c.headersTimeoutMs / 4))) });
++
++  async function handle(req, res, expectContinue) {
++    const t0 = Date.now();
++    let reason = 'ok', route = null;
++    const done = (_status, why) => { reason = why; stats.refused++; };
++    stats.inFlight++;
++    res.once('close', () => { stats.inFlight--; log({ status: res.statusCode, reason, ...(route ? { route } : {}), ms: Date.now() - t0 }); });
++    if (stats.inFlight > c.maxInFlight) { done(503, 'busy'); return refuse(res, 503, 'busy', 'Too many requests in progress; retry shortly.'); }
++    route = routeOf(c.prefix, req.method, req.url);
++    if (!route) { done(404, 'not_allowlisted'); return refuse(res, 404, 'not_found', 'Not found'); }
++    const method = ROUTES.get(route);
++    const declared = req.headers['content-length'];
++    const chunked = req.headers['transfer-encoding'] !== undefined;
++    if (method === 'GET' && (chunked || (declared !== undefined && declared !== '0'))) { done(400, 'get_body'); return refuse(res, 400, 'bad_request', 'GET carries no body.'); }
++    if (declared !== undefined && !(/^\d{1,12}$/.test(declared) && Number(declared) <= c.maxBodyBytes)) { done(413, 'declared_too_large'); return refuse(res, 413, 'too_large', 'Body too large.'); }
++
++    // the body, bounded in size and time; a client that goes away aborts everything after this point
++    const ac = new AbortController();
++    const onGone = () => { if (!res.writableEnded) ac.abort(); };
++    res.once('close', onGone);
++    let body = Buffer.alloc(0);
++    if (method === 'POST') {
++      if (expectContinue) res.writeContinue();
++      const got = await new Promise((resolve) => {
++        const chunks = []; let n = 0;
++        const timer = setTimeout(() => finish('timeout'), c.bodyTimeoutMs);
++        function finish(v) { clearTimeout(timer); req.off('data', onData); req.off('end', onEnd); req.off('error', onErr); resolve(v); }
++        function onData(d) { n += d.length; if (n > c.maxBodyBytes) return finish('too_large'); chunks.push(d); }
++        function onEnd() { finish(Buffer.concat(chunks, n)); }
++        function onErr() { finish('aborted'); }
++        req.on('data', onData); req.once('end', onEnd); req.once('error', onErr);
++        ac.signal.addEventListener('abort', () => finish('aborted'), { once: true });
++      });
++      if (got === 'too_large') { done(413, 'too_large'); return refuse(res, 413, 'too_large', 'Body too large.'); }
++      if (got === 'timeout') { done(408, 'body_timeout'); return refuse(res, 408, 'timeout', 'The request body did not arrive in time.'); }
++      if (got === 'aborted') { done(499, 'client_gone'); return; }
++      body = got;
++    }
++
++    // one upstream exchange to the fixed loopback port, with the allowlist's own path and method, under one deadline
++    const result = await new Promise((resolve) => {
++      let settled = false;
++      const timer = setTimeout(() => end({ fail: 504 }), c.upstreamTimeoutMs);
++      const up = http.request({ host: '127.0.0.1', port: c.upstreamPort, method, path: route, agent: false,
++        headers: { host: `127.0.0.1:${c.upstreamPort}`, accept: 'application/json', connection: 'close',
++                   ...(method === 'POST' ? { 'content-type': 'application/json', 'content-length': body.length } : {}) } });
++      function end(v) { if (settled) return; settled = true; clearTimeout(timer); if (v.fail || v.gone) up.destroy(); resolve(v); }
++      ac.signal.addEventListener('abort', () => end({ gone: true }), { once: true });
++      up.once('error', () => end({ fail: 502 }));
++      up.once('response', (r) => {
++        const s = r.statusCode, type = String(r.headers['content-type'] || '');
++        if (!(s >= 200 && s < 300) && !(s >= 400 && s < 600)) { r.resume(); return end({ fail: 502 }); }   // no 1xx/3xx passed on
++        if (!/^application\/json(\s*;|$)/i.test(type)) { r.resume(); return end({ fail: 502 }); }
++        const declaredUp = r.headers['content-length'];
++        if (declaredUp !== undefined && !(Number(declaredUp) <= c.maxResponseBytes)) { r.resume(); return end({ fail: 502 }); }
++        const chunks = []; let n = 0;
++        r.on('data', (d) => { n += d.length; if (n > c.maxResponseBytes) return end({ fail: 502 }); chunks.push(d); });
++        r.once('end', () => { if (r.complete) end({ status: s, body: Buffer.concat(chunks, n), retryAfter: r.headers['retry-after'] }); else end({ fail: 502 }); });
++        r.once('aborted', () => end({ fail: 502 }));
++        r.once('error', () => end({ fail: 502 }));
++      });
++      up.end(method === 'POST' ? body : undefined);
++    });
++    if (result.gone) { done(499, 'client_gone'); return; }
++    if (result.fail) {
++      reason = result.fail === 504 ? 'upstream_timeout' : 'upstream_failed';
++      return refuse(res, result.fail, result.fail === 504 ? 'upstream_timeout' : 'upstream_unavailable',
++                    result.fail === 504 ? 'The custodian did not answer in time.' : 'The custodian is unavailable.');
++    }
++    stats.forwarded++;
++    const retry = /^\d{1,5}$/.test(String(result.retryAfter || '')) ? { 'retry-after': String(result.retryAfter) } : {};
++    send(res, result.status, result.body, retry);
++  }
++
++  server.on('request', (req, res) => { handle(req, res, false).catch(() => refuse(res, 500, 'internal', 'Internal error.')); });
++  server.on('checkContinue', (req, res) => { handle(req, res, true).catch(() => refuse(res, 500, 'internal', 'Internal error.')); });
++  server.on('upgrade', (_req, socket) => socket.destroy());
++  server.on('connect', (_req, socket) => socket.destroy());
++  server.on('clientError', (err, socket) => {
++    const line = err?.code === 'ERR_HTTP_REQUEST_TIMEOUT' ? '408 Request Timeout' : err?.code === 'HPE_HEADER_OVERFLOW' ? '431 Request Header Fields Too Large' : '400 Bad Request';
++    if (socket.writable && !socket.destroyed) socket.end(`HTTP/1.1 ${line}\r\nconnection: close\r\ncontent-length: 0\r\n\r\n`);
++    else socket.destroy();
++  });
++  return {
++    server, stats, config: c,
++    listen: () => new Promise((resolve, reject) => {
++      server.once('error', reject);
++      server.listen(c.listen.port, c.listen.host, () => { server.off('error', reject); const a = server.address(); resolve({ host: a.address, port: a.port }); });
++    }),
++    close: () => new Promise((resolve) => { server.close(() => resolve()); server.closeAllConnections?.(); }),
++  };
++}
++
++if (process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1])) {
++  const file = process.argv[2];
++  if (!file) { console.error('usage: node forwarder.mjs CONFIG.json'); process.exit(2); }
++  const f = createForwarder(JSON.parse(fs.readFileSync(file, 'utf8')), { log: (e) => console.log(JSON.stringify({ at: new Date().toISOString(), ...e })) });
++  const a = await f.listen();
++  console.log(JSON.stringify({ listening: `${a.host}:${a.port}`, prefix: f.config.prefix, upstream: `127.0.0.1:${f.config.upstreamPort}`, routes: ROUTES.size }));
++  for (const sig of ['SIGINT', 'SIGTERM']) process.once(sig, () => f.close().then(() => process.exit(0)));
++}
+diff --git a/logs/debug-1.guard.log b/logs/debug-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/logs/debug-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/logs/debug-1.out b/logs/debug-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..843a7abac839c98e9a4400eaf29f1a8c464b4a66
+--- /dev/null
++++ b/logs/debug-1.out
+@@ -0,0 +1,5 @@
++[queue] START available=23866MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncache-control: no-store\r\nx-content-type-options: nosniff\r\nconnection: close\r\ncontent-length: 248\r\n\r\n{\"type\":\"Buffer\",\"data\":[123,34,111,107,34,58,116,114,117,101,44,34,114,111,117,116,101,34,58,34,47,118,50,47,99,117,115,116,111,100,121,47,105,110,102,111,34,44,34,109,101,116,104,111,100,34,58,34,71,69,84,34,44,34,101,99,104,111,34,58,34,34,125]}"
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/debug-1.rc b/logs/debug-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/debug-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/mutants-1.guard.log b/logs/mutants-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..39b1d751a03f1dcefdad284405365fe0e7a629a2
+--- /dev/null
++++ b/logs/mutants-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=190 minHostAvailableMiB=22632
+diff --git a/logs/mutants-1.out b/logs/mutants-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..ae63515a6f7cd25a8ca332bc02d73ae8f03b3de0
+--- /dev/null
++++ b/logs/mutants-1.out
+@@ -0,0 +1,30 @@
++[queue] START available=24057MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++control (unmutated): exit 0
++KILLED   unsafe-wildcard: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream | unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++KILLED   case-insensitive: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++SURVIVED percent-decode: exit 0; failing tests: -
++KILLED   whatwg-normalize: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++KILLED   ignore-query: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++KILLED   strip-trailing-slash: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++KILLED   method-agnostic: exit 1; failing tests: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++KILLED   forward-client-headers: exit 1; failing tests: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++KILLED   pass-upstream-headers: exit 1; failing tests: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers | upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   no-declared-size-check: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++KILLED   no-streamed-size-cap: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++SURVIVED no-body-deadline: exit 0; failing tests: -
++KILLED   get-body-allowed: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++KILLED   no-upstream-deadline: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   pass-redirects: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   no-json-check: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   no-response-cap: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   accept-truncated: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   no-abort-on-client-gone: exit 1; failing tests: a client that goes away aborts the upstream request
++KILLED   no-in-flight-limit: exit 1; failing tests: in-flight limit: excess requests get 503 without reaching the upstream
++KILLED   non-loopback-listen: exit 1; failing tests: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++KILLED   prefix-under-relay-tunnels: exit 1; failing tests: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++KILLED   no-upgrade-guard: exit 1; failing tests: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++KILLED   expect-continue-before-checks: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++mutants 24, killed 22, survived 2; control passed
++[memory-guard] exit=1 peakTreeRssMiB=190 minHostAvailableMiB=22632
++[memory-guard] at peak: node:74 node:59 node:58
++[queue] EXIT 1
+diff --git a/logs/mutants-1.rc b/logs/mutants-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/mutants-1.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/mutants-2.guard.log b/logs/mutants-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..59925e61b60ac0fdd8c293edabd6eb258e05afc9
+--- /dev/null
++++ b/logs/mutants-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=191 minHostAvailableMiB=23735
+diff --git a/logs/mutants-2.out b/logs/mutants-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..52cac9b09deedc09a6e37e573fd7be10ac273792
+--- /dev/null
++++ b/logs/mutants-2.out
+@@ -0,0 +1,30 @@
++[queue] START available=23859MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++control (unmutated): exit 0
++KILLED   unsafe-wildcard: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream | unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++KILLED   case-insensitive: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++KILLED   percent-decode: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++KILLED   whatwg-normalize: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++KILLED   ignore-query: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++KILLED   strip-trailing-slash: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++KILLED   method-agnostic: exit 1; failing tests: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++KILLED   forward-client-headers: exit 1; failing tests: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++KILLED   pass-upstream-headers: exit 1; failing tests: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers | upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   no-declared-size-check: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++KILLED   no-streamed-size-cap: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++KILLED   no-body-deadline: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++KILLED   get-body-allowed: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++KILLED   no-upstream-deadline: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   pass-redirects: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   no-json-check: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   no-response-cap: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   accept-truncated: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   no-abort-on-client-gone: exit 1; failing tests: a client that goes away aborts the upstream request
++KILLED   no-in-flight-limit: exit 1; failing tests: in-flight limit: excess requests get 503 without reaching the upstream
++KILLED   non-loopback-listen: exit 1; failing tests: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++KILLED   prefix-under-relay-tunnels: exit 1; failing tests: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++KILLED   no-upgrade-guard: exit 1; failing tests: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++KILLED   expect-continue-before-checks: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++mutants 24, killed 24, survived 0; control passed
++[memory-guard] exit=0 peakTreeRssMiB=191 minHostAvailableMiB=23735
++[memory-guard] at peak: node:74 node:59 node:58
++[queue] EXIT 0
+diff --git a/logs/mutants-2.rc b/logs/mutants-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/mutants-2.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/mutants-3.guard.log b/logs/mutants-3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..9271575ec2d71542e8cd923aa3351a118190e417
+--- /dev/null
++++ b/logs/mutants-3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=191 minHostAvailableMiB=23796
+diff --git a/logs/mutants-3.out b/logs/mutants-3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..4361ef2c813b8e497d3531c5d013e8a2ec5be35b
+--- /dev/null
++++ b/logs/mutants-3.out
+@@ -0,0 +1,30 @@
++[queue] START available=23879MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++control (unmutated): exit 0
++KILLED   unsafe-wildcard: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream | unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++KILLED   case-insensitive: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++KILLED   percent-decode: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++KILLED   whatwg-normalize: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++KILLED   ignore-query: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++KILLED   strip-trailing-slash: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++KILLED   method-agnostic: exit 1; failing tests: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++KILLED   forward-client-headers: exit 1; failing tests: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++KILLED   pass-upstream-headers: exit 1; failing tests: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers | upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   no-declared-size-check: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++KILLED   no-streamed-size-cap: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++KILLED   no-body-deadline: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++KILLED   get-body-allowed: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++KILLED   no-upstream-deadline: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   pass-redirects: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   no-json-check: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   no-response-cap: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   accept-truncated: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++KILLED   no-abort-on-client-gone: exit 1; failing tests: a client that goes away aborts the upstream request
++KILLED   no-in-flight-limit: exit 1; failing tests: in-flight limit: excess requests get 503 without reaching the upstream
++KILLED   non-loopback-listen: exit 1; failing tests: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++KILLED   prefix-under-relay-tunnels: exit 1; failing tests: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++KILLED   no-upgrade-guard: exit 1; failing tests: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++KILLED   expect-continue-before-checks: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++mutants 24, killed 24, survived 0; control passed
++[memory-guard] exit=0 peakTreeRssMiB=191 minHostAvailableMiB=23796
++[memory-guard] at peak: node:75 node:59 node:58
++[queue] EXIT 0
+diff --git a/logs/mutants-3.rc b/logs/mutants-3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/mutants-3.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-1.guard.log b/logs/scan-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e309edff432aadda5c589ff04480ebd223601a79
+--- /dev/null
++++ b/logs/scan-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=68 minHostAvailableMiB=23942
+diff --git a/logs/scan-1.out b/logs/scan-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..583408c6c05217cd130ea204f0e34afad74907af
+--- /dev/null
++++ b/logs/scan-1.out
+@@ -0,0 +1,8 @@
++[queue] START available=24017MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++1:33PM INF scanned ~93540 bytes (93.54 KB) in 12ms
++1:33PM INF no leaks found
++literal files []
++[scan] gitleaks=0 scan-crypto-keys=0 literal=0
++[memory-guard] exit=0 peakTreeRssMiB=68 minHostAvailableMiB=23942
++[memory-guard] at peak: gitleaks:58 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-1.rc b/logs/scan-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-gitleaks.json b/logs/scan-gitleaks.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..fe51488c7066f6687ef680d6bfaa4f7768ef205c
+--- /dev/null
++++ b/logs/scan-gitleaks.json
+@@ -0,0 +1 @@
++[]
+diff --git a/logs/test-1.guard.log b/logs/test-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d66a239c7c881d3a9f39e8a35a2403360d00af30
+--- /dev/null
++++ b/logs/test-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/logs/test-1.out b/logs/test-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..7e5e363bb16049129799f80ccf39d66d5a86d66b
+--- /dev/null
++++ b/logs/test-1.out
+@@ -0,0 +1,41 @@
++[queue] START available=23935MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++TAP version 13
++# node:internal/modules/cjs/loader:1433
++#   throw err;
++#   ^
++# Error: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test'
++#     at Function._resolveFilename (node:internal/modules/cjs/loader:1430:15)
++#     at defaultResolveImpl (node:internal/modules/cjs/loader:1040:19)
++#     at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1045:22)
++#     at Function._load (node:internal/modules/cjs/loader:1216:25)
++#     at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
++#     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
++#     at node:internal/main/run_main_module:36:49 {
++#   code: 'MODULE_NOT_FOUND',
++#   requireStack: []
++# }
++# Node.js v22.23.3
++# Subtest: test
++not ok 1 - test
++  ---
++  duration_ms: 26.858676
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test:1:1'
++  failureType: 'testCodeFailure'
++  exitCode: 1
++  signal: ~
++  error: 'test failed'
++  code: 'ERR_TEST_FAILURE'
++  ...
++1..1
++# tests 1
++# suites 0
++# pass 0
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 32.948563
++[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 1
+diff --git a/logs/test-1.rc b/logs/test-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/test-1.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/test-2.guard.log b/logs/test-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..6a1587fa733ffa8a4108e3b35fa389173c219228
+--- /dev/null
++++ b/logs/test-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=132 minHostAvailableMiB=23119
+diff --git a/logs/test-2.out b/logs/test-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..494c64ddd4335ae4842e56a0b954c0f287fcdd71
+--- /dev/null
++++ b/logs/test-2.out
+@@ -0,0 +1,164 @@
++[queue] START available=23611MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: pinned/ingress.mjs is the reviewed ab589bf8 blob
++ok 1 - pinned/ingress.mjs is the reviewed ab589bf8 blob
++  ---
++  duration_ms: 5.84822
++  type: 'test'
++  ...
++# Subtest: the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
++not ok 2 - the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
++  ---
++  duration_ms: 2.424945
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/allowlist.test.mjs:36:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly deep-equal:
++    + actual - expected
++    
++      [
++        'public_info',
++    -   'public_info',
++        'public_protocol',
++    -   'public_protocol'
++      ]
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected:
++    0: 'public_info'
++    1: 'public_info'
++    2: 'public_protocol'
++    3: 'public_protocol'
++  actual:
++    0: 'public_info'
++    1: 'public_protocol'
++  operator: 'deepStrictEqual'
++  stack: |-
++    allowlistOf (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/allowlist.test.mjs:31:10)
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/allowlist.test.mjs:37:17)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
++    Test.postRun (node:internal/test_runner/test:1173:19)
++    Test.run (node:internal/test_runner/test:1101:12)
++    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
++  ...
++# Subtest: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++ok 3 - config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++  ---
++  duration_ms: 1.04823
++  type: 'test'
++  ...
++# Subtest: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++not ok 4 - every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++  ---
++  duration_ms: 29.199864
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:14:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly deep-equal:
++    + actual - expected
++    
++      [
++        'cache-control',
++        'connection',
++        'content-length',
++        'content-type',
++    +   'date',
++        'x-content-type-options'
++      ]
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected:
++    0: 'cache-control'
++    1: 'connection'
++    2: 'content-length'
++    3: 'content-type'
++    4: 'x-content-type-options'
++  actual:
++    0: 'cache-control'
++    1: 'connection'
++    2: 'content-length'
++    3: 'content-type'
++    4: 'date'
++    5: 'x-content-type-options'
++  operator: 'deepStrictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:30:12)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
++  ...
++# Subtest: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++ok 5 - private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++  ---
++  duration_ms: 286.539182
++  type: 'test'
++  ...
++# Subtest: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++ok 6 - unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++  ---
++  duration_ms: 12.84119
++  type: 'test'
++  ...
++# Subtest: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++not ok 7 - request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++  ---
++  duration_ms: 5.492994
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:97:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly equal:
++    
++    400 !== 431
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: 431
++  actual: 400
++  operator: 'strictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:107:10)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++ok 8 - upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++  ---
++  duration_ms: 1277.185322
++  type: 'test'
++  ...
++# Subtest: a client that goes away aborts the upstream request
++ok 9 - a client that goes away aborts the upstream request
++  ---
++  duration_ms: 350.449955
++  type: 'test'
++  ...
++# Subtest: in-flight limit: excess requests get 503 without reaching the upstream
++ok 10 - in-flight limit: excess requests get 503 without reaching the upstream
++  ---
++  duration_ms: 504.677251
++  type: 'test'
++  ...
++# Subtest: the module never opens a listener outside loopback and only ever connects to the fixed upstream port
++ok 11 - the module never opens a listener outside loopback and only ever connects to the fixed upstream port
++  ---
++  duration_ms: 2.617864
++  type: 'test'
++  ...
++1..11
++# tests 11
++# suites 0
++# pass 8
++# fail 3
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 2637.323394
++[memory-guard] exit=1 peakTreeRssMiB=132 minHostAvailableMiB=23119
++[memory-guard] at peak: node:73 node:59
++[queue] EXIT 1
+diff --git a/logs/test-2.rc b/logs/test-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/test-2.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/test-3.guard.log b/logs/test-3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..69937e5221821a07410e63ab91aa0c7f8c1810ae
+--- /dev/null
++++ b/logs/test-3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=132 minHostAvailableMiB=23733
+diff --git a/logs/test-3.out b/logs/test-3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..d6908074e0ec729c52c2baee6ac1a03be6b4607c
+--- /dev/null
++++ b/logs/test-3.out
+@@ -0,0 +1,113 @@
++[queue] START available=23802MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: pinned/ingress.mjs is the reviewed ab589bf8 blob
++ok 1 - pinned/ingress.mjs is the reviewed ab589bf8 blob
++  ---
++  duration_ms: 4.98861
++  type: 'test'
++  ...
++# Subtest: the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
++ok 2 - the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
++  ---
++  duration_ms: 1.505785
++  type: 'test'
++  ...
++# Subtest: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++ok 3 - config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++  ---
++  duration_ms: 0.924861
++  type: 'test'
++  ...
++# Subtest: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++not ok 4 - every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++  ---
++  duration_ms: 19.482634
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:14:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly equal:
++    + actual - expected
++    
++    + undefined
++    - '/v2/custody/info'
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: '/v2/custody/info'
++  operator: 'strictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:31:12)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
++  ...
++# Subtest: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++ok 5 - private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++  ---
++  duration_ms: 232.221787
++  type: 'test'
++  ...
++# Subtest: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++ok 6 - unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++  ---
++  duration_ms: 10.212467
++  type: 'test'
++  ...
++# Subtest: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++not ok 7 - request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++  ---
++  duration_ms: 904.146609
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:97:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly equal:
++    
++    4095 !== 4096
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: 4096
++  actual: 4095
++  operator: 'strictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:118:10)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++ok 8 - upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++  ---
++  duration_ms: 1272.028893
++  type: 'test'
++  ...
++# Subtest: a client that goes away aborts the upstream request
++ok 9 - a client that goes away aborts the upstream request
++  ---
++  duration_ms: 352.554755
++  type: 'test'
++  ...
++# Subtest: in-flight limit: excess requests get 503 without reaching the upstream
++ok 10 - in-flight limit: excess requests get 503 without reaching the upstream
++  ---
++  duration_ms: 504.215118
++  type: 'test'
++  ...
++# Subtest: the module never opens a listener outside loopback and only ever connects to the fixed upstream port
++ok 11 - the module never opens a listener outside loopback and only ever connects to the fixed upstream port
++  ---
++  duration_ms: 2.226248
++  type: 'test'
++  ...
++1..11
++# tests 11
++# suites 0
++# pass 9
++# fail 2
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 3417.93408
++[memory-guard] exit=1 peakTreeRssMiB=132 minHostAvailableMiB=23733
++[memory-guard] at peak: node:73 node:59
++[queue] EXIT 1
+diff --git a/logs/test-3.rc b/logs/test-3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/test-3.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/test-4.guard.log b/logs/test-4.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..76e01a7e47660414f54495194755326b7856d82e
+--- /dev/null
++++ b/logs/test-4.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=131 minHostAvailableMiB=23904
+diff --git a/logs/test-4.out b/logs/test-4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..8eddeeba05f48a21e75a4d092473e93e7e4c8778
+--- /dev/null
++++ b/logs/test-4.out
+@@ -0,0 +1,80 @@
++[queue] START available=23951MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: pinned/ingress.mjs is the reviewed ab589bf8 blob
++ok 1 - pinned/ingress.mjs is the reviewed ab589bf8 blob
++  ---
++  duration_ms: 5.252928
++  type: 'test'
++  ...
++# Subtest: the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
++ok 2 - the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
++  ---
++  duration_ms: 1.468346
++  type: 'test'
++  ...
++# Subtest: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++ok 3 - config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++  ---
++  duration_ms: 0.907051
++  type: 'test'
++  ...
++# Subtest: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++ok 4 - every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++  ---
++  duration_ms: 41.077368
++  type: 'test'
++  ...
++# Subtest: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++ok 5 - private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++  ---
++  duration_ms: 232.201811
++  type: 'test'
++  ...
++# Subtest: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++ok 6 - unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++  ---
++  duration_ms: 10.727792
++  type: 'test'
++  ...
++# Subtest: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++ok 7 - request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++  ---
++  duration_ms: 1059.009502
++  type: 'test'
++  ...
++# Subtest: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++ok 8 - upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++  ---
++  duration_ms: 1267.571716
++  type: 'test'
++  ...
++# Subtest: a client that goes away aborts the upstream request
++ok 9 - a client that goes away aborts the upstream request
++  ---
++  duration_ms: 350.896565
++  type: 'test'
++  ...
++# Subtest: in-flight limit: excess requests get 503 without reaching the upstream
++ok 10 - in-flight limit: excess requests get 503 without reaching the upstream
++  ---
++  duration_ms: 503.793432
++  type: 'test'
++  ...
++# Subtest: the module never opens a listener outside loopback and only ever connects to the fixed upstream port
++ok 11 - the module never opens a listener outside loopback and only ever connects to the fixed upstream port
++  ---
++  duration_ms: 2.081759
++  type: 'test'
++  ...
++1..11
++# tests 11
++# suites 0
++# pass 11
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 3586.321012
++[memory-guard] exit=0 peakTreeRssMiB=131 minHostAvailableMiB=23904
++[memory-guard] at peak: node:72 node:59
++[queue] EXIT 0
+diff --git a/logs/test-4.rc b/logs/test-4.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/test-4.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/test-5.guard.log b/logs/test-5.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ca0920c6890d3472aa0d33d9d1ec7b9cea23300
+--- /dev/null
++++ b/logs/test-5.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=133 minHostAvailableMiB=23840
+diff --git a/logs/test-5.out b/logs/test-5.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..d7e684c45cd815485273629bbb29d5260a155407
+--- /dev/null
++++ b/logs/test-5.out
+@@ -0,0 +1,80 @@
++[queue] START available=23891MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: pinned/ingress.mjs is the reviewed ab589bf8 blob
++ok 1 - pinned/ingress.mjs is the reviewed ab589bf8 blob
++  ---
++  duration_ms: 5.115291
++  type: 'test'
++  ...
++# Subtest: the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
++ok 2 - the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
++  ---
++  duration_ms: 1.455466
++  type: 'test'
++  ...
++# Subtest: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++ok 3 - config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++  ---
++  duration_ms: 0.903381
++  type: 'test'
++  ...
++# Subtest: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++ok 4 - every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++  ---
++  duration_ms: 44.61327
++  type: 'test'
++  ...
++# Subtest: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++ok 5 - private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++  ---
++  duration_ms: 284.064952
++  type: 'test'
++  ...
++# Subtest: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++ok 6 - unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++  ---
++  duration_ms: 10.678987
++  type: 'test'
++  ...
++# Subtest: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++ok 7 - request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++  ---
++  duration_ms: 1057.795717
++  type: 'test'
++  ...
++# Subtest: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++ok 8 - upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++  ---
++  duration_ms: 1270.790828
++  type: 'test'
++  ...
++# Subtest: a client that goes away aborts the upstream request
++ok 9 - a client that goes away aborts the upstream request
++  ---
++  duration_ms: 351.240317
++  type: 'test'
++  ...
++# Subtest: in-flight limit: excess requests get 503 without reaching the upstream
++ok 10 - in-flight limit: excess requests get 503 without reaching the upstream
++  ---
++  duration_ms: 504.452372
++  type: 'test'
++  ...
++# Subtest: the module never opens a listener outside loopback and only ever connects to the fixed upstream port
++ok 11 - the module never opens a listener outside loopback and only ever connects to the fixed upstream port
++  ---
++  duration_ms: 1.977251
++  type: 'test'
++  ...
++1..11
++# tests 11
++# suites 0
++# pass 11
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 3653.134473
++[memory-guard] exit=0 peakTreeRssMiB=133 minHostAvailableMiB=23840
++[memory-guard] at peak: node:74 node:59
++[queue] EXIT 0
+diff --git a/logs/test-5.rc b/logs/test-5.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/test-5.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/test-6.guard.log b/logs/test-6.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..b050ba35badf07721c8d13d7ccbc4b866862164b
+--- /dev/null
++++ b/logs/test-6.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=132 minHostAvailableMiB=23803
+diff --git a/logs/test-6.out b/logs/test-6.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..c11cf607cf9653f39d22352fc5674f12ed89f6ad
+--- /dev/null
++++ b/logs/test-6.out
+@@ -0,0 +1,86 @@
++[queue] START available=23847MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: pinned/ingress.mjs is the reviewed ab589bf8 blob
++ok 1 - pinned/ingress.mjs is the reviewed ab589bf8 blob
++  ---
++  duration_ms: 4.402138
++  type: 'test'
++  ...
++# Subtest: the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
++ok 2 - the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
++  ---
++  duration_ms: 1.285848
++  type: 'test'
++  ...
++# Subtest: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++ok 3 - config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++  ---
++  duration_ms: 0.869482
++  type: 'test'
++  ...
++# Subtest: the example canary config validates and the example Caddy snippet lists exactly prefix + the 12 routes
++ok 4 - the example canary config validates and the example Caddy snippet lists exactly prefix + the 12 routes
++  ---
++  duration_ms: 0.554045
++  type: 'test'
++  ...
++# Subtest: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++ok 5 - every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++  ---
++  duration_ms: 42.084956
++  type: 'test'
++  ...
++# Subtest: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++ok 6 - private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++  ---
++  duration_ms: 281.063389
++  type: 'test'
++  ...
++# Subtest: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++ok 7 - unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++  ---
++  duration_ms: 10.181055
++  type: 'test'
++  ...
++# Subtest: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++ok 8 - request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++  ---
++  duration_ms: 1057.735979
++  type: 'test'
++  ...
++# Subtest: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++ok 9 - upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++  ---
++  duration_ms: 1267.778495
++  type: 'test'
++  ...
++# Subtest: a client that goes away aborts the upstream request
++ok 10 - a client that goes away aborts the upstream request
++  ---
++  duration_ms: 351.864467
++  type: 'test'
++  ...
++# Subtest: in-flight limit: excess requests get 503 without reaching the upstream
++ok 11 - in-flight limit: excess requests get 503 without reaching the upstream
++  ---
++  duration_ms: 503.367061
++  type: 'test'
++  ...
++# Subtest: the module never opens a listener outside loopback and only ever connects to the fixed upstream port
++ok 12 - the module never opens a listener outside loopback and only ever connects to the fixed upstream port
++  ---
++  duration_ms: 2.14481
++  type: 'test'
++  ...
++1..12
++# tests 12
++# suites 0
++# pass 12
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 3642.768087
++[memory-guard] exit=0 peakTreeRssMiB=132 minHostAvailableMiB=23803
++[memory-guard] at peak: node:73 node:59
++[queue] EXIT 0
+diff --git a/logs/test-6.rc b/logs/test-6.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/test-6.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/test-6.try2.out b/logs/test-6.try2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0585c28d141b45e7a9cfee66355eb3b9d46b49b
+--- /dev/null
++++ b/logs/test-6.try2.out
+@@ -0,0 +1 @@
++[queue] NOT STARTED: small allocation held
+diff --git a/pinned/PROVENANCE.json b/pinned/PROVENANCE.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..df07d535400f75f1568f17dc72f4329f6b0e5ca1
+--- /dev/null
++++ b/pinned/PROVENANCE.json
+@@ -0,0 +1,7 @@
++{
++ "file": "pinned/ingress.mjs",
++ "source": "work/custody-v2-durability-20261023/repo custody/v2/ingress.mjs",
++ "commit": "ab589bf80b669c9671b53573d489b6c6c45779ea",
++ "blob": "ebacbcc6c6d0016c9bc498ae774bc2a3fc1f1772",
++ "note": "the corrected custodian image source root names (measurement 70aadf...); byte copy, unmodified; test/allowlist.test.mjs derives the forwarder's allowlist check from directCustodyIngress() output"
++}
+diff --git a/pinned/ingress.mjs b/pinned/ingress.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..ebacbcc6c6d0016c9bc498ae774bc2a3fc1f1772
+--- /dev/null
++++ b/pinned/ingress.mjs
+@@ -0,0 +1,31 @@
++// TLS is owned by this host operator. The proxy sees public protocol messages
++// and HPKE ciphertext, never the sealed guest state or plaintext secret shares.
++// The Shield host-session routes are forwarded too: on an image without the measured Shield opt-in the custodian answers
++// them 404 itself (custody/v2/http.mjs). reverse_proxy sets X-Forwarded-For to the client address it saw; the custodian
++// reads it only when measured with --trusted-proxy for its forwarder (custody/v2/http.mjs clientKeyFor).
++export function directCustodyIngress({endpoint,mgmtPort}) {
++  if(typeof endpoint!=='string'||!/^https:\/\/[a-z0-9.-]+\/?$/.test(endpoint))throw Error('direct endpoint must be an HTTPS origin');
++  const u=new URL(endpoint);
++  if(u.hostname.length>253||u.hostname.split('.').some(label=>!/^([a-z0-9]|[a-z0-9][a-z0-9-]{0,61}[a-z0-9])$/.test(label)))throw Error('invalid endpoint hostname');
++  if(!Number.isInteger(mgmtPort)||mgmtPort<1||mgmtPort>65535)throw Error('invalid guest forwarding port');
++  return `${u.origin} {
++  @public_info {
++    method GET
++    path /v2/custody/info
++  }
++  @public_protocol {
++    method POST
++    path /v2/custody/evidence /v2/custody/challenge /v2/custody/release /v2/custody/join /v2/custody/approve /v2/custody/independent-genesis /v2/custody/code-approve /v2/custody/owner-read/challenge /v2/custody/owner-read /v2/custody/shield-session/challenge /v2/custody/shield-session/attest
++  }
++  handle @public_info {
++    reverse_proxy 127.0.0.1:${mgmtPort}
++  }
++  handle @public_protocol {
++    reverse_proxy 127.0.0.1:${mgmtPort}
++  }
++  handle {
++    respond "Not found" 404
++  }
++}
++`;
++}
+diff --git a/q.sh b/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..f69b7de1730e7634fb481a8924488479d2eeeeba
+--- /dev/null
++++ b/q.sh
+@@ -0,0 +1,11 @@
++#!/bin/bash
++# q.sh MIB NAME CMD... : run CMD through the unchanged shared queue, retrying only on exit 98 (NOT STARTED); keeps every try.
++mib=$1; name=$2; shift 2
++d=$(cd "$(dirname "$0")" && pwd)/logs
++[ ! -e "$d/$name.rc" ] || { echo "$name.rc exists"; exit 2; }
++for i in $(seq 2 200); do
++  python3 -u /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib "$mib" --log "$d/$name.guard.log" -- "$@" > "$d/$name.out" 2>&1
++  rc=$?; [ $rc -ne 98 ] && break
++  mv "$d/$name.out" "$d/$name.try$i.out"; sleep 10
++done
++echo $rc > "$d/$name.rc"; exit $rc
+diff --git a/scan.sh b/scan.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..c348833de9665764a3ca0f06e1ab2adb9e9ada29
+--- /dev/null
++++ b/scan.sh
+@@ -0,0 +1,14 @@
++#!/bin/bash
++# Secret scans of every file to be committed, with the checkpoint's own scanners/config (unchanged), plus the rewritten-literal check.
++set -uo pipefail
++cd "$(dirname "$0")"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++cfg=$(mktemp); git -C "$CKR" show HEAD:.gitleaks.toml > "$cfg"
++timeout -k 5 120 /home/steven/.local/bin/gitleaks dir . --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path logs/scan-gitleaks.json; g=$?; rm -f "$cfg"
++find . -path ./.git -prune -o -type f -print0 | xargs -0 timeout -k 5 120 python3 "$CKR/.githooks/scan-crypto-keys.py" --files; k=$?
++python3 - <<'PY'; l=$?
++import pathlib, sys
++OLD = bytes.fromhex('54696e666f696c'); bad = [str(p) for p in pathlib.Path('.').rglob('*') if p.is_file() and '.git' not in p.parts and (OLD in p.read_bytes() or OLD.lower() in p.read_bytes())]
++print('literal files', bad); sys.exit(1 if bad else 0)
++PY
++echo "[scan] gitleaks=$g scan-crypto-keys=$k literal=$l"; [ $g -eq 0 ] && [ $k -eq 0 ] && [ $l -eq 0 ]
+diff --git a/test/allowlist.test.mjs b/test/allowlist.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..0d2cc573200c74fbc963e072141e5646f944c6ed
+--- /dev/null
++++ b/test/allowlist.test.mjs
+@@ -0,0 +1,67 @@
++// The forwarder's allowlist IS the reviewed custodian ingress allowlist: pinned/ingress.mjs is the byte copy of
++// custody/v2/ingress.mjs at ab589bf8 (blob ebacbcc6), and its generated Caddy site is parsed here, not re-typed.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import crypto from 'node:crypto';
++import fs from 'node:fs';
++import { execFileSync } from 'node:child_process';
++import { F } from './helpers.mjs';
++import { directCustodyIngress } from '../pinned/ingress.mjs';
++
++const PIN = JSON.parse(fs.readFileSync(new URL('../pinned/PROVENANCE.json', import.meta.url)));
++const gitBlob = (b) => crypto.createHash('sha1').update(`blob ${b.length}\0`).update(b).digest('hex');
++
++test('pinned/ingress.mjs is the reviewed ab589bf8 blob', () => {
++  const bytes = fs.readFileSync(new URL('../pinned/ingress.mjs', import.meta.url));
++  assert.equal(gitBlob(bytes), PIN.blob);
++  assert.equal(PIN.commit, 'ab589bf80b669c9671b53573d489b6c6c45779ea');
++  // when the durability repository is present, the pin still equals the commit's blob (read-only git object read)
++  const repo = new URL('../../custody-v2-durability-20261023/repo', import.meta.url).pathname;
++  if (fs.existsSync(repo)) {
++    const blob = execFileSync('git', ['-C', repo, 'rev-parse', `${PIN.commit}:custody/v2/ingress.mjs`], { env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }).toString().trim();
++    assert.equal(blob, PIN.blob);
++  }
++});
++
++function allowlistOf(caddy) {
++  const pairs = new Set();
++  for (const m of caddy.matchAll(/@(\w+) \{\s*method (\S+)\s*path ([^\n]+)\n\s*\}/g)) for (const p of m[3].trim().split(/\s+/)) pairs.add(`${m[2]} ${p}`);
++  // only those matchers are proxied, and everything else answers 404
++  const handled = [...caddy.matchAll(/handle @(\w+) \{\s*reverse_proxy 127\.0\.0\.1:(\d+)\s*\}/g)].map((m) => m[1]).sort();
++  assert.deepEqual(handled, [...caddy.matchAll(/^\s*@(\w+) \{/gm)].map((m) => m[1]).sort());
++  assert.match(caddy, /handle \{\s*respond "Not found" 404\s*\}/);
++  return pairs;
++}
++
++test('the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)', () => {
++  const pairs = allowlistOf(directCustodyIngress({ endpoint: 'https://canary.example', mgmtPort: 18787 }));
++  assert.equal(pairs.size, 12);
++  assert.deepEqual([...F.ROUTES].map(([p, m]) => `${m} ${p}`).sort(), [...pairs].sort());
++  for (const priv of ['/v2/custody/host-binding', '/health', '/']) assert.equal(F.ROUTES.has(priv), false);
++});
++
++test('config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits', () => {
++  const ok = { listen: { host: '127.0.0.1', port: 18900 }, prefix: '/custody-v2-canary/metal0', upstreamPort: 18787 };
++  assert.equal(F.validateConfig(ok).maxBodyBytes, F.GUEST_MAX_BODY);
++  const bad = [
++    { ...ok, listen: { host: '0.0.0.0', port: 18900 } }, { ...ok, listen: { host: '192.168.1.5', port: 18900 } },
++    { ...ok, listen: { host: '127.0.0.1', port: 18787 } }, { ...ok, upstreamPort: 0 }, { ...ok, upstreamPort: '18787' },
++    { ...ok, upstream: 'http://evil' }, { ...ok, upstreamHost: '10.0.0.1' },
++    { ...ok, prefix: '/t/custody-metal0' }, { ...ok, prefix: '/v2' }, { ...ok, prefix: '/Custody' }, { ...ok, prefix: '/a/../b' },
++    { ...ok, prefix: '/a%2fb' }, { ...ok, prefix: '/a/' }, { ...ok, prefix: 'custody' }, { ...ok, prefix: '/a/b/c/d' }, { ...ok, prefix: '' },
++    { ...ok, maxBodyBytes: 0 }, { ...ok, maxBodyBytes: 1e9 }, { ...ok, upstreamTimeoutMs: 0 }, { ...ok, maxInFlight: 0 },
++    { ...ok, headersTimeoutMs: 5000, requestTimeoutMs: 4000 },
++  ];
++  for (const c of bad) assert.throws(() => F.validateConfig(c), undefined, JSON.stringify(c));
++});
++
++test('the example canary config validates and the example Caddy snippet lists exactly prefix + the 12 routes', () => {
++  const cfg = JSON.parse(fs.readFileSync(new URL('../examples/forwarder.canary.json', import.meta.url)));
++  const v = F.validateConfig(cfg);
++  const caddy = fs.readFileSync(new URL('../examples/Caddyfile.canary-snippet', import.meta.url), 'utf8');
++  const pairs = new Set();
++  for (const m of caddy.matchAll(/^@(custody_canary_\w+) \{\s*method (\S+)\s*path ([^\n]+)\n\s*\}/gm)) for (const p of m[3].trim().split(/\s+/)) pairs.add(`${m[2]} ${p}`);
++  assert.deepEqual([...pairs].sort(), [...F.ROUTES].map(([p, m]) => `${m} ${v.prefix}${p}`).sort());
++  assert.match(caddy, /handle @custody_canary_rest \{\s*respond "Not found" 404\s*\}/);
++  assert.match(caddy, /max_size 262144/);
++});
+diff --git a/test/forwarder.test.mjs b/test/forwarder.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..0fa12f0ae44da1e3d25d146fc8e2d49b5a09311b
+--- /dev/null
++++ b/test/forwarder.test.mjs
+@@ -0,0 +1,200 @@
++// Real HTTP: a raw-socket client -> the forwarder -> a guest-like custodian upstream that dispatches with WHATWG URL
++// resolution (as custody/v2/http.mjs), so any target that would resolve to a private route is caught by the upstream's
++// hit log, not just by a status code.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import { F, PREFIX, fakeCustodian, forwarder, raw, request, headersOf } from './helpers.mjs';
++
++const ROUTES = [...F.ROUTES];
++let up, fw;
++test.beforeEach(async () => { up = await fakeCustodian(); fw = await forwarder(up.port); });
++test.afterEach(async () => { await fw.close(); await up.close(); });
++
++test('every allowlisted route is forwarded with its own method, exact path, the body, and no client headers', async () => {
++  for (const [route, method] of ROUTES) {
++    up.hits.length = 0;
++    const body = method === 'POST' ? JSON.stringify({ nonce: 'ab'.repeat(16) }) : null;
++    const r = await request(fw.port, method, PREFIX + route, body, {
++      'x-forwarded-for': '6.6.6.6', forwarded: 'for=6.6.6.6', 'x-real-ip': '6.6.6.6', cookie: 'sid=1', authorization: 'Bearer z',
++      'x-forwarded-host': 'evil', 'x-custom': '1', 'content-type': 'text/plain' });
++    assert.equal(r.status, 200, `${method} ${route}: ${r.text}`);
++    assert.equal(up.hits.length, 1);
++    const h = up.hits[0];
++    assert.equal(h.method, method); assert.equal(h.raw, route); assert.equal(h.pathname, route);
++    assert.equal(h.body, body ?? '');
++    assert.deepEqual(Object.keys(h.headers).sort(), (method === 'POST' ? ['accept', 'connection', 'content-length', 'content-type', 'host'] : ['accept', 'connection', 'host']));
++    assert.equal(h.headers.host, `127.0.0.1:${up.port}`);
++    if (method === 'POST') assert.equal(h.headers['content-type'], 'application/json');
++    const rh = headersOf(r.head);
++    assert.deepEqual(Object.keys(rh).sort(), ['cache-control', 'connection', 'content-length', 'content-type', 'x-content-type-options']);
++    assert.equal(JSON.parse(r.body).route, route);
++  }
++});
++
++// every way to spell a private route, or a public one ambiguously, under or around the prefix
++function adversarialTargets() {
++  const out = new Set();
++  const P = PREFIX;
++  for (const priv of ['/v2/custody/host-binding', '/health', '/', '', '/state', '/submit', '/v2/custody/host-binding/']) {
++    out.add(P + priv); out.add(priv || '/');
++  }
++  const hb = 'host-binding';
++  const encodings = [
++    '/v2/custody/challenge/../host-binding', '/v2/custody/challenge/%2e%2e/host-binding', '/v2/custody/challenge/%2E%2E/host-binding',
++    '/v2/custody/challenge/.%2e/host-binding', '/v2/custody/challenge/%2e./host-binding', '/v2/custody/./host-binding',
++    '/v2/custody/%2e/host-binding', '/v2/custody%2fhost-binding', '/v2/custody%2Fhost-binding', '/v2/custody/%68ost-binding',
++    '/v2/custody/host%2dbinding', '/v2/custody/%252e%252e/host-binding', '/v2/custody/info/..%2fhost-binding',
++    '/v2/custody/info/..\\host-binding', '/v2\\custody\\host-binding', '/v2/custody/info\\..\\host-binding',
++    '/v2/custody//host-binding', '//v2/custody/host-binding', '/v2/custody/host-binding;x', '/v2/custody/host-binding?x',
++    '/v2/custody/host-binding#x', '/v2/custody/HOST-BINDING', '/V2/custody/host-binding', '/v2/custody/host-binding%00',
++    '/v2/custody/host-binding.', '/v2/custody/host-binding%20', '/v2/custody/info/../../health', '/v2/custody/info/%2e%2e/%2e%2e/health',
++    '/v2/custody/%E2%80%AEhost-binding', '/v2/custody/ｈost-binding'.replace('ｈ', '%EF%BD%88'),
++  ];
++  for (const e of encodings) { out.add(P + e); out.add(e); }
++  for (const [route] of ROUTES) {
++    out.add(route);                                   // without the prefix
++    out.add(P + route + '/'); out.add(P + route + '?a=1'); out.add(P + route + ';a'); out.add(P + route + '%2f');
++    out.add(P + route.toUpperCase()); out.add(P.toUpperCase() + route); out.add(P + '/' + route); out.add(P + route.replace(/\//g, '%2F'));
++    out.add(P + route.replace('/custody/', '/custody/./')); out.add(P + route.replace('/custody/', '/x/../custody/'));
++    out.add(P + 'x' + route); out.add(P + '/..' + P + route); out.add('/custody-v2-canary/./metal0' + route); out.add(P + route + '/..');
++    out.add(`http://127.0.0.1:1${P}${route}`);       // absolute-form
++    out.add(P + route.slice(0, -1));                  // a truncated route
++    // percent-encoded spellings of the PUBLIC route itself (a decoding forwarder would accept them): fail closed
++    out.add(P + route.replace(/\/(?=[^/]*$)/, '%2F')); out.add(P + route.replace(/\/(?=[^/]*$)/, '%2f'));
++    out.add(P + route.replace(/[a-z]$/, (ch) => '%' + ch.charCodeAt(0).toString(16)));
++    out.add(P + route.replace(/[a-z]$/, (ch) => '%' + ch.charCodeAt(0).toString(16).toUpperCase()));
++    out.add(P + route.replace('/v2/', '/%76%32/')); out.add(P.replace('metal0', 'metal%30') + route);
++  }
++  out.add(P); out.add(P + '/'); out.add('*'); out.add(P + '/v2/custody'); out.add(P + '/v2/custody/');
++  return [...out];
++}
++
++test('private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream', async () => {
++  const targets = adversarialTargets();
++  assert.ok(targets.length > 250, String(targets.length));
++  // the hazard this guards against is real: the guest would resolve these to the private route
++  assert.equal(new URL('/v2/custody/challenge/%2e%2e/host-binding', 'http://x').pathname, '/v2/custody/host-binding');
++  assert.equal(new URL('/v2/custody/info/..\\host-binding', 'http://x').pathname, '/v2/custody/host-binding');
++  for (const t of targets) for (const m of ['GET', 'POST']) {
++    const r = await request(fw.port, m, t, m === 'POST' ? '{}' : null);
++    assert.ok([400, 404].includes(r.status), `${m} ${JSON.stringify(t)} -> ${r.status} ${r.text.slice(0, 120)}`);
++  }
++  assert.deepEqual(up.hits, []);
++});
++
++test('unknown or wrong methods, CONNECT and Upgrade never reach the upstream', async () => {
++  const info = PREFIX + '/v2/custody/info', ch = PREFIX + '/v2/custody/challenge';
++  for (const m of ['HEAD', 'OPTIONS', 'PUT', 'DELETE', 'PATCH', 'TRACE', 'PROPFIND', 'MKCOL', 'PURGE']) for (const t of [info, ch]) {
++    const r = await request(fw.port, m, t, m === 'PUT' || m === 'PATCH' ? '{}' : null);
++    assert.ok([400, 404].includes(r.status) || (m === 'HEAD' && r.status === 404), `${m} ${t} -> ${r.status}`);
++  }
++  assert.equal((await request(fw.port, 'POST', info, '{}')).status, 404);
++  assert.equal((await request(fw.port, 'GET', ch)).status, 404);
++  assert.ok([0, 400].includes((await raw(fw.port, `post ${ch} HTTP/1.1\r\nhost: x\r\ncontent-length: 2\r\n\r\n{}`)).status));
++  const c = await raw(fw.port, `CONNECT 127.0.0.1:${up.port} HTTP/1.1\r\nhost: 127.0.0.1:${up.port}\r\n\r\n`);
++  assert.ok(c.closed && c.status !== 200, c.text);
++  const u = await raw(fw.port, `GET ${info} HTTP/1.1\r\nhost: x\r\nconnection: upgrade\r\nupgrade: websocket\r\n\r\n`);
++  assert.ok(u.closed && u.status !== 200, u.text);
++  assert.deepEqual(up.hits, []);
++});
++
++test('request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers', async () => {
++  const ch = PREFIX + '/v2/custody/challenge';
++  assert.equal((await raw(fw.port, `POST ${ch} HTTP/1.1\r\nhost: x\r\ncontent-length: 4097\r\n\r\n`)).status, 413);
++  assert.equal((await raw(fw.port, `POST ${ch} HTTP/1.1\r\nhost: x\r\ncontent-length: 99999999999999999\r\n\r\n`)).status, 413);
++  const big = 'a'.repeat(5000);
++  assert.equal((await raw(fw.port, `POST ${ch} HTTP/1.1\r\nhost: x\r\ntransfer-encoding: chunked\r\n\r\n${big.length.toString(16)}\r\n${big}\r\n0\r\n\r\n`)).status, 413);
++  assert.equal((await request(fw.port, 'GET', PREFIX + '/v2/custody/info', '{}')).status, 400);
++  assert.equal((await raw(fw.port, `GET ${PREFIX}/v2/custody/info HTTP/1.1\r\nhost: x\r\ntransfer-encoding: chunked\r\n\r\n0\r\n\r\n`)).status, 400);
++  assert.equal((await raw(fw.port, `POST ${ch} HTTP/1.1\r\nhost: x\r\ncontent-length: 2\r\ntransfer-encoding: chunked\r\n\r\n0\r\n\r\n`)).status, 400);
++  assert.equal((await raw(fw.port, `POST ${ch} HTTP/1.1\r\nhost: x\r\ncontent-length: 2\r\ncontent-length: 3\r\n\r\n{}`)).status, 400);
++  assert.equal((await raw(fw.port, `GET ${PREFIX}/v2/custody/info HTTP/1.1\r\nhost: x\r\nx-big: ${'b'.repeat(9000)}\r\n\r\n`)).status, 431);
++  // a body that completes only after bodyTimeoutMs (400 ms) but well before Node's requestTimeout (1500 ms): only the
++  // forwarder's own body deadline can refuse it, and it must do so near 400 ms, not when the body finally arrives
++  const s0 = Date.now();
++  const slow = await raw(fw.port, null, { writes: [[0, `POST ${ch} HTTP/1.1\r\nhost: x\r\ncontent-length: 2\r\n\r\n{`], [900, '}']], ms: 2500 });
++  assert.equal(slow.status, 408, slow.text);
++  assert.ok(Date.now() - s0 < 1400);
++  assert.match(slow.text, /"error":"timeout"/);
++  // headers that never finish: the server's headersTimeout (400 ms) closes the connection
++  const t0 = Date.now();
++  const hs = await raw(fw.port, null, { writes: [[0, `GET ${PREFIX}/v2/custody/info HTTP/1.1\r\nhost: x\r\n`]], ms: 3000 });
++  assert.ok(hs.closed && [0, 408].includes(hs.status) && Date.now() - t0 < 2500, `${hs.status} ${Date.now() - t0}`);
++  assert.deepEqual(up.hits, []);
++  // exactly the cap passes, and Expect: 100-continue is answered only for an acceptable request
++  const ok = JSON.stringify({ pad: 'x'.repeat(4096 - 10) });
++  assert.equal(Buffer.byteLength(ok), 4096);
++  assert.equal((await request(fw.port, 'POST', ch, ok)).status, 200);
++  assert.equal(up.hits.length, 1);
++  const e1 = await raw(fw.port, `POST ${ch} HTTP/1.1\r\nhost: x\r\nexpect: 100-continue\r\ncontent-length: 5000\r\n\r\n`);
++  assert.equal(e1.status, 413);
++  assert.doesNotMatch(e1.text, /100 Continue/);
++  const e2 = await raw(fw.port, null, { writes: [[0, `POST ${ch} HTTP/1.1\r\nhost: x\r\nexpect: 100-continue\r\ncontent-length: 2\r\n\r\n`], [150, '{}']] });
++  assert.match(e2.text, /^HTTP\/1\.1 100 Continue/);
++  assert.match(e2.text, /HTTP\/1\.1 200/);
++  assert.equal(up.hits.length, 2);
++});
++
++test('upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses', async () => {
++  const info = PREFIX + '/v2/custody/info';
++  const cases = [
++    ['redirect', (q, s) => { s.writeHead(302, { location: 'http://evil/', 'content-type': 'application/json', 'content-length': 2 }); s.end('{}'); }, 502],
++    ['html', (q, s) => { s.writeHead(200, { 'content-type': 'text/html', 'content-length': 2 }); s.end('<>'); }, 502],
++    ['no type', (q, s) => { s.writeHead(200, { 'content-length': 2 }); s.end('{}'); }, 502],
++    ['declared big', (q, s) => { s.writeHead(200, { 'content-type': 'application/json', 'content-length': 9000 }); s.end('x'.repeat(9000)); }, 502],
++    ['streamed big', (q, s) => { s.writeHead(200, { 'content-type': 'application/json' }); s.write('x'.repeat(5000)); s.end('x'.repeat(5000)); }, 502],
++    ['hang', () => {}, 504],
++    ['slow body', (q, s) => { s.writeHead(200, { 'content-type': 'application/json' }); s.write('{'); setTimeout(() => s.end('}'), 1500); }, 504],
++    ['truncated', (q, s) => { s.writeHead(200, { 'content-type': 'application/json', 'content-length': 100 }); s.write('{"a":'); setTimeout(() => s.destroy(), 50); }, 502],
++    ['reset', (q, s) => { s.socket.destroy(); }, 502],
++    ['1xx then 200', (q, s) => { s.writeProcessing?.(); s.writeHead(200, { 'content-type': 'application/json', 'content-length': 2 }); s.end('{}'); }, 200],
++    ['429 passthrough', (q, s) => { s.writeHead(429, { 'content-type': 'application/json', 'retry-after': '7', 'content-length': 2 }); s.end('{}'); }, 429],
++    ['422 passthrough', (q, s) => { s.writeHead(422, { 'content-type': 'application/json; charset=utf-8', 'content-length': 2 }); s.end('{}'); }, 422],
++  ];
++  for (const [name, b, want] of cases) {
++    up.behavior = b;
++    const t0 = Date.now();
++    const r = await request(fw.port, 'GET', info);
++    assert.equal(r.status, want, `${name}: ${r.text.slice(0, 200)}`);
++    assert.ok(Date.now() - t0 < 1400, `${name} took ${Date.now() - t0} ms (deadline 600)`);
++    const h = headersOf(r.head);
++    assert.equal(h.location, undefined); assert.equal(h['set-cookie'], undefined);
++    if (name === '429 passthrough') assert.equal(h['retry-after'], '7');
++  }
++  // nothing listening on the upstream port
++  const port = up.port; await up.close();
++  const fw2 = await forwarder(port);
++  try { assert.equal((await request(fw2.port, 'GET', info)).status, 502); } finally { await fw2.close(); }
++  up = await fakeCustodian();
++});
++
++test('a client that goes away aborts the upstream request', async () => {
++  up.behavior = () => {};   // hang
++  await raw(fw.port, `POST ${PREFIX}/v2/custody/release HTTP/1.1\r\nhost: x\r\ncontent-length: 2\r\n\r\n{}`, { ms: 150 });
++  await new Promise((r) => setTimeout(r, 200));
++  assert.equal(up.hits.length, 1);
++  assert.equal(up.closed, 1, 'upstream request was not aborted after the client left');
++  assert.equal(fw.f.stats.inFlight, 0);
++});
++
++test('in-flight limit: excess requests get 503 without reaching the upstream', async () => {
++  await fw.close();
++  fw = await forwarder(up.port, { maxInFlight: 2, upstreamTimeoutMs: 1500 });
++  up.behavior = (q, s) => setTimeout(() => { s.writeHead(200, { 'content-type': 'application/json', 'content-length': 2 }); s.end('{}'); }, 500);
++  const info = PREFIX + '/v2/custody/info';
++  const first = [request(fw.port, 'GET', info), request(fw.port, 'GET', info)];
++  await new Promise((r) => setTimeout(r, 150));
++  assert.equal((await request(fw.port, 'GET', info)).status, 503);
++  assert.deepEqual((await Promise.all(first)).map((r) => r.status), [200, 200]);
++  assert.equal(up.hits.length, 2);
++});
++
++test('the module never opens a listener outside loopback and only ever connects to the fixed upstream port', async () => {
++  const seen = [];
++  const orig = http.request;
++  http.request = function (opts, ...rest) { seen.push(`${opts.host}:${opts.port}`); return orig.call(this, opts, ...rest); };
++  try { await request(fw.port, 'GET', `${PREFIX}/v2/custody/info`, null, { host: 'evil.example:1' }); } finally { http.request = orig; }
++  assert.deepEqual(seen, [`127.0.0.1:${up.port}`]);
++  assert.equal(fw.f.server.address().address, '127.0.0.1');
++});
+diff --git a/test/helpers.mjs b/test/helpers.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..93897cfc69e7ff9edb2e294a73a74b626da73293
+--- /dev/null
++++ b/test/helpers.mjs
+@@ -0,0 +1,76 @@
++// Test helpers: a guest-like custodian upstream (WHATWG dispatch, as custody/v2/http.mjs), raw-socket requests, and a
++// forwarder under test. FORWARDER_MODULE selects the module (test/run-mutants.mjs points it at mutated copies).
++import http from 'node:http';
++import net from 'node:net';
++import path from 'node:path';
++import { pathToFileURL } from 'node:url';
++
++const MOD = process.env.FORWARDER_MODULE ? pathToFileURL(path.resolve(process.env.FORWARDER_MODULE)).href : new URL('../forwarder.mjs', import.meta.url).href;
++export const F = await import(MOD);
++export const PREFIX = '/custody-v2-canary/metal0';
++export const PRIVATE_ROUTES = ['/v2/custody/host-binding', '/health', '/'];
++
++/** A custodian stand-in that dispatches like the guest: new URL(req.url).pathname, so dot/backslash forms resolve. */
++export async function fakeCustodian() {
++  const hits = [];
++  const g = { hits, behavior: null, closed: 0 };
++  const server = http.createServer((req, res) => {
++    const chunks = [];
++    req.on('data', (d) => chunks.push(d));
++    req.on('end', () => {
++      const pathname = new URL(req.url, 'http://x').pathname;
++      const hit = { method: req.method, raw: req.url, pathname, headers: { ...req.headers }, body: Buffer.concat(chunks).toString('utf8') };
++      hits.push(hit);
++      res.on('close', () => { if (!res.writableEnded) g.closed++; });
++      if (g.behavior) return g.behavior(req, res, hit);
++      const reply = (s, o) => { const b = JSON.stringify(o); res.writeHead(s, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(b), 'set-cookie': 'x=1', 'x-upstream-secret': 'no' }); res.end(b); };
++      if (pathname === '/v2/custody/host-binding') return reply(200, { reached: 'HOST-BINDING' });
++      if (pathname === '/health' || pathname === '/') return reply(200, { reached: 'HEALTH' });
++      if (pathname.startsWith('/v2/custody/')) return reply(200, { ok: true, route: pathname, method: req.method, echo: hit.body });
++      return reply(404, { error: 'not_found' });
++    });
++  });
++  await new Promise((r) => server.listen(0, '127.0.0.1', r));
++  g.port = server.address().port;
++  g.close = () => new Promise((r) => { server.close(() => r()); server.closeAllConnections(); });
++  return g;
++}
++
++/** Start a forwarder in front of `upstream` with small test limits (overridable). */
++export async function forwarder(upstreamPort, over = {}) {
++  const f = F.createForwarder({ listen: { host: '127.0.0.1', port: 0 }, prefix: PREFIX, upstreamPort, maxBodyBytes: 4096, maxResponseBytes: 8192,
++                                bodyTimeoutMs: 400, upstreamTimeoutMs: 600, headersTimeoutMs: 400, requestTimeoutMs: 1500, maxInFlight: 8, ...over });
++  const a = await f.listen();
++  return { f, port: a.port, close: () => f.close() };
++}
++
++/** Send exact bytes; resolve with the parsed status (0 if none) once the server closes or `ms` passes. */
++export function raw(port, text, { ms = 2500, writes = null } = {}) {
++  return new Promise((resolve) => {
++    const s = net.connect(port, '127.0.0.1');
++    let data = Buffer.alloc(0), closed = false;
++    const done = () => {
++      clearTimeout(t);
++      const str = data.toString('latin1');
++      const m = /^HTTP\/1\.1 (\d{3})/.exec(str);
++      const [head, ...rest] = str.split('\r\n\r\n');
++      resolve({ status: m ? Number(m[1]) : 0, head, body: rest.join('\r\n\r\n'), closed, text: str });
++      s.destroy();
++    };
++    const t = setTimeout(done, ms);
++    s.on('data', (d) => { data = Buffer.concat([data, d]); });
++    s.on('close', () => { closed = true; done(); });
++    s.on('error', () => {});
++    s.on('connect', async () => {
++      if (!writes) return s.write(text);
++      for (const [delay, chunk] of writes) { await new Promise((r) => setTimeout(r, delay)); if (!s.destroyed) s.write(chunk); }
++    });
++  });
++}
++
++export function request(port, method, target, body = null, headers = {}) {
++  const b = body === null ? '' : body;
++  const h = { host: 'api.enclave.host', connection: 'close', ...(body === null ? {} : { 'content-type': 'application/json', 'content-length': Buffer.byteLength(b) }), ...headers };
++  return raw(port, `${method} ${target} HTTP/1.1\r\n${Object.entries(h).map(([k, v]) => `${k}: ${v}`).join('\r\n')}\r\n\r\n${b}`);
++}
++export const headersOf = (head) => Object.fromEntries(head.split('\r\n').slice(1).map((l) => { const i = l.indexOf(':'); return [l.slice(0, i).toLowerCase(), l.slice(i + 1).trim()]; }));
+diff --git a/test/run-mutants.mjs b/test/run-mutants.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..9fc51397b872c45b30c86fa6586e80ee8c1cc2ed
+--- /dev/null
++++ b/test/run-mutants.mjs
+@@ -0,0 +1,67 @@
++// Mutation check: each mutant is forwarder.mjs with one guard weakened (exact text substitutions, each asserted to apply).
++// The full suite runs against every mutant through FORWARDER_MODULE; a mutant that still passes is a SURVIVOR and fails this
++// run. The unmutated module runs first as the control and must pass.
++//   node test/run-mutants.mjs [name ...]
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { spawnSync } from 'node:child_process';
++import { fileURLToPath } from 'node:url';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const SRC = fs.readFileSync(path.join(ROOT, 'forwarder.mjs'), 'utf8');
++const MUTANTS = {
++  'unsafe-wildcard': [["return ROUTES.has(route) && ROUTES.get(route) === method ? route : null;", "return route.startsWith('/v2/custody/') ? route : null;"],
++                      ["const method = ROUTES.get(route);", "const method = req.method;"]],
++  'case-insensitive': [["if (typeof target !== 'string' || !target.startsWith(prefix + '/')) return null;", "if (typeof target !== 'string' || !target.toLowerCase().startsWith(prefix + '/')) return null;"],
++                       ["const route = target.slice(prefix.length);", "const route = target.slice(prefix.length).toLowerCase();"]],
++  'percent-decode': [["const route = target.slice(prefix.length);", "const route = decodeURIComponent(target.slice(prefix.length));"]],
++  'whatwg-normalize': [["const route = target.slice(prefix.length);", "const route = new URL(target.slice(prefix.length), 'http://x').pathname;"]],
++  'ignore-query': [["const route = target.slice(prefix.length);", "const route = target.slice(prefix.length).split('?')[0];"]],
++  'strip-trailing-slash': [["const route = target.slice(prefix.length);", "const route = target.slice(prefix.length).replace(/\\/+$/, '');"]],
++  'method-agnostic': [["ROUTES.get(route) === method ? route : null;", "true ? route : null;"], ["const method = ROUTES.get(route);", "const method = req.method;"]],
++  'forward-client-headers': [["headers: { host: `127.0.0.1:${c.upstreamPort}`,", "headers: { ...req.headers, host: `127.0.0.1:${c.upstreamPort}`,"]],
++  'pass-upstream-headers': [["send(res, result.status, result.body, retry);", "send(res, result.status, result.body, { ...retry, 'set-cookie': 'x=1' });"]],
++  'no-declared-size-check': [["Number(declared) <= c.maxBodyBytes)) { done(413", "true)) { done(413"]],
++  'no-streamed-size-cap': [["if (n > c.maxBodyBytes) return finish('too_large');", ""]],
++  'no-body-deadline': [["setTimeout(() => finish('timeout'), c.bodyTimeoutMs)", "setTimeout(() => finish('timeout'), 1e9)"]],
++  'get-body-allowed': [["if (method === 'GET' && (chunked", "if (false && (chunked"]],
++  'no-upstream-deadline': [["setTimeout(() => end({ fail: 504 }), c.upstreamTimeoutMs)", "setTimeout(() => end({ fail: 504 }), 1e9)"]],
++  'pass-redirects': [["if (!(s >= 200 && s < 300) && !(s >= 400 && s < 600))", "if (!(s >= 200 && s < 400) && !(s >= 400 && s < 600))"]],
++  'no-json-check': [["if (!/^application\\/json(\\s*;|$)/i.test(type))", "if (false)"]],
++  'no-response-cap': [["if (declaredUp !== undefined && !(Number(declaredUp) <= c.maxResponseBytes))", "if (false)"],
++                      ["if (n > c.maxResponseBytes) return end({ fail: 502 });", ""]],
++  'accept-truncated': [["if (r.complete) end({", "if (true) end({"], ["r.once('aborted', () => end({ fail: 502 }));", ""], ["r.once('error', () => end({ fail: 502 }));", "r.once('error', () => end({ status: 200, body: Buffer.from('{}') }));"]],
++  'no-abort-on-client-gone': [["const onGone = () => { if (!res.writableEnded) ac.abort(); };", "const onGone = () => {};"]],
++  'no-in-flight-limit': [["if (stats.inFlight > c.maxInFlight)", "if (false)"]],
++  'non-loopback-listen': [["if (!LOOPBACK.has(l.host))", "if (false)"]],
++  'prefix-under-relay-tunnels': [["c.prefix.startsWith('/t/') || ", ""]],
++  'no-upgrade-guard': [["server.on('upgrade', (_req, socket) => socket.destroy());", ""], ["server.on('connect', (_req, socket) => socket.destroy());", ""]],
++  'expect-continue-before-checks': [["server.on('checkContinue', (req, res) => {", "server.on('checkContinue', (req, res) => { res.writeContinue();"]],
++};
++function mutate(name) {
++  let s = SRC;
++  for (const [a, b] of MUTANTS[name]) { if (!s.includes(a)) throw new Error(`${name}: substitution does not apply: ${a}`); s = s.replace(a, b); }
++  return s;
++}
++function runSuite(file) {
++  const r = spawnSync(process.execPath, ['--test', '--test-concurrency=1', 'test/allowlist.test.mjs', 'test/forwarder.test.mjs'],
++                      { cwd: ROOT, env: { ...process.env, FORWARDER_MODULE: file }, encoding: 'utf8', timeout: 180000 });
++  const failed = [...(r.stdout || '').matchAll(/^not ok \d+ - (.+)$/gm)].map((m) => m[1]);
++  return { code: r.status, signal: r.signal, failed };
++}
++const names = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(MUTANTS);
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fw-mutants-'));
++const control = runSuite(path.join(ROOT, 'forwarder.mjs'));
++console.log(`control (unmutated): exit ${control.code}${control.failed.length ? ' FAILED ' + control.failed.join(' | ') : ''}`);
++let survivors = 0;
++for (const n of names) {
++  const f = path.join(tmp, `${n}.mjs`); fs.writeFileSync(f, mutate(n));
++  const r = runSuite(f);
++  const killed = r.code !== 0;
++  if (!killed) survivors++;
++  console.log(`${killed ? 'KILLED  ' : 'SURVIVED'} ${n}: exit ${r.code}${r.signal ? ' ' + r.signal : ''}; failing tests: ${r.failed.join(' | ') || '-'}`);
++}
++fs.rmSync(tmp, { recursive: true, force: true });
++console.log(`mutants ${names.length}, killed ${names.length - survivors}, survived ${survivors}; control ${control.code === 0 ? 'passed' : 'FAILED'}`);
++process.exit(control.code === 0 && survivors === 0 ? 0 : 1);

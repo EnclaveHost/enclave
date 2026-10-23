@@ -1,0 +1,158 @@
+[queue] START available=24576MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+== /home/steven/enclave-prod/release-16c2999d/release.json sha256 16c2999d7715a38f8a29adcff03d9c3c0e071eb1c0afc207c1f335b654dca0aa
+/cmdline console=ttyS0 rdinit=/init loglevel=3
+/dirs [list 6] ['template', 'template/dev', 'template/proc', 'template/rt', 'template/sys', 'template/tmp']
+/files/firmware.fd/sha256 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
+/files/firmware.fd/size 4194304
+/files/kernel/sha256 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
+/files/kernel/size 17232384
+/files/template/front/sha256 082313e04a16bba42a663be5e80042d8228cb5dd191c5543f517c7452c2bf5b4
+/files/template/front/size 9265276
+/files/template/init/sha256 a8bd7e1a5dede68edd2b3c29e9a8c55b4bedc9b5bbc3b2a5a3e0203b540ba338
+/files/template/init/size 112488
+/files/template/rt/ld-linux-x86-64.so.2/sha256 d011113b7054c641c8ca064f58bcc23804fd2654a3dff2444dad06ddeda61bfb
+/files/template/rt/ld-linux-x86-64.so.2/size 263152
+/files/template/rt/libc.so.6/sha256 e221b10fee9ee4776d8f0f1701253bc06817f7a4dbe6c5292487277d0bf8ffff
+/files/template/rt/libc.so.6/size 2215072
+/files/template/rt/libgcc_s.so.1/sha256 e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a
+/files/template/rt/libgcc_s.so.1/size 182512
+/files/template/rt/libm.so.6/sha256 965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d
+/files/template/rt/libm.so.6/size 1268336
+/files/template/rt/mem64.enabled/sha256 4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865
+/files/template/rt/mem64.enabled/size 2
+/files/template/rt/protected-ports.enabled/sha256 4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865
+/files/template/rt/protected-ports.enabled/size 2
+/files/template/rt/runtime.json/sha256 c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0
+/files/template/rt/runtime.json/size 158
+/files/template/rt/set.enabled/sha256 4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865
+/files/template/rt/set.enabled/size 2
+/files/template/rt/wasmtime/sha256 9caac5e682396f9dd275b1599843d80568bd7067e4abd3136cfa798800b905b9
+/files/template/rt/wasmtime/size 57806632
+/files/template/sev-guest.ko.zst/sha256 528c57721813d4cf7dd74f65d9deea82cee7af0bc4d6b15f15064370ef84caa0
+/files/template/sev-guest.ko.zst/size 9294
+/files/template/tsm_report.ko.zst/sha256 41f36ca242ed64095f140303ae6c05066d043ef37d1c9f6841216469bb009151
+/files/template/tsm_report.ko.zst/size 6983
+/files/template/vmw_vsock_virtio_transport.ko.zst/sha256 6fe99263330f3abe3371eebb5ad8f9be35a47e57faab0f96c0729c29cb95bcc9
+/files/template/vmw_vsock_virtio_transport.ko.zst/size 10496
+/files/template/vmw_vsock_virtio_transport_common.ko.zst/sha256 4b9aee6ec87e6b5322df1f2fbff60ccd8862df113e5010e006e563971a083991
+/files/template/vmw_vsock_virtio_transport_common.ko.zst/size 22109
+/files/template/vsock.ko.zst/sha256 d41ae5d80296ef9220531413899abd4e95d1d877e7957d80e035c621aa8f1aaa
+/files/template/vsock.ko.zst/size 27051
+/format enclave-m4a-domain-release/1
+/measure/mode snp
+/measure/vcpuFamily 26
+/measure/vcpuModel 2
+/measure/vcpuStepping 1
+/measure/vmmType QEMU
+== /home/steven/enclave-prod/release-0181bce3/release.json sha256 5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2
+/cmdline console=ttyS0 rdinit=/init loglevel=3
+/dirs [list 6] ['template', 'template/dev', 'template/proc', 'template/rt', 'template/sys', 'template/tmp']
+/files/firmware.fd/sha256 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
+/files/firmware.fd/size 4194304
+/files/kernel/sha256 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
+/files/kernel/size 17232384
+/files/template/front/sha256 282cb360aa98865a96d269cabaffdad17f122e0e094565e6001c9942529f7081
+/files/template/front/size 7626876
+/files/template/init/sha256 30b660c4bb8d3cbfcb20c3a3c9c73068fe152ed9d9157c68ad8fc655471202fd
+/files/template/init/size 1024704
+/files/template/rt/ld-linux-x86-64.so.2/sha256 d011113b7054c641c8ca064f58bcc23804fd2654a3dff2444dad06ddeda61bfb
+/files/template/rt/ld-linux-x86-64.so.2/size 263152
+/files/template/rt/libc.so.6/sha256 e221b10fee9ee4776d8f0f1701253bc06817f7a4dbe6c5292487277d0bf8ffff
+/files/template/rt/libc.so.6/size 2215072
+/files/template/rt/libgcc_s.so.1/sha256 e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a
+/files/template/rt/libgcc_s.so.1/size 182512
+/files/template/rt/libm.so.6/sha256 965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d
+/files/template/rt/libm.so.6/size 1268336
+/files/template/rt/runtime.json/sha256 8044b26a6ef691e30ef21983829f7c0dfef34b3f15c009072c477e6ea5dd95b6
+/files/template/rt/runtime.json/size 158
+/files/template/rt/wasmtime/sha256 b77aecdb33fbf0262ffefdd4383adedc8235ca214b97335bcd31c1912ebdf451
+/files/template/rt/wasmtime/size 45616736
+/files/template/sev-guest.ko.zst/sha256 528c57721813d4cf7dd74f65d9deea82cee7af0bc4d6b15f15064370ef84caa0
+/files/template/sev-guest.ko.zst/size 9294
+/files/template/tsm_report.ko.zst/sha256 41f36ca242ed64095f140303ae6c05066d043ef37d1c9f6841216469bb009151
+/files/template/tsm_report.ko.zst/size 6983
+/files/template/vmw_vsock_virtio_transport.ko.zst/sha256 6fe99263330f3abe3371eebb5ad8f9be35a47e57faab0f96c0729c29cb95bcc9
+/files/template/vmw_vsock_virtio_transport.ko.zst/size 10496
+/files/template/vmw_vsock_virtio_transport_common.ko.zst/sha256 4b9aee6ec87e6b5322df1f2fbff60ccd8862df113e5010e006e563971a083991
+/files/template/vmw_vsock_virtio_transport_common.ko.zst/size 22109
+/files/template/vsock.ko.zst/sha256 d41ae5d80296ef9220531413899abd4e95d1d877e7957d80e035c621aa8f1aaa
+/files/template/vsock.ko.zst/size 27051
+/format enclave-m4a-domain-release/1
+/measure/mode snp
+/measure/vcpuFamily 26
+/measure/vcpuModel 2
+/measure/vcpuStepping 1
+/measure/vmmType QEMU
+== /home/steven/enclave-prod/release-6757d139/release.json sha256 6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb
+/cmdline console=ttyS0 rdinit=/init loglevel=3
+/dirs [list 6] ['template', 'template/dev', 'template/proc', 'template/rt', 'template/sys', 'template/tmp']
+/files/firmware.fd/sha256 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
+/files/firmware.fd/size 4194304
+/files/kernel/sha256 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
+/files/kernel/size 17232384
+/files/template/front/sha256 840b92457f77e119aa8cac6bb42dfd62365286cdadd2d1cf4ff45f75187c01fd
+/files/template/front/size 7626876
+/files/template/init/sha256 e0e77da23aa74c0e2bcdd93c146ab71debd8907d7bd5d4a564395c1dbc0ab0c1
+/files/template/init/size 886032
+/files/template/rt/ld-linux-x86-64.so.2/sha256 d011113b7054c641c8ca064f58bcc23804fd2654a3dff2444dad06ddeda61bfb
+/files/template/rt/ld-linux-x86-64.so.2/size 263152
+/files/template/rt/libc.so.6/sha256 e221b10fee9ee4776d8f0f1701253bc06817f7a4dbe6c5292487277d0bf8ffff
+/files/template/rt/libc.so.6/size 2215072
+/files/template/rt/libgcc_s.so.1/sha256 e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a
+/files/template/rt/libgcc_s.so.1/size 182512
+/files/template/rt/libm.so.6/sha256 965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d
+/files/template/rt/libm.so.6/size 1268336
+/files/template/rt/runtime.json/sha256 8044b26a6ef691e30ef21983829f7c0dfef34b3f15c009072c477e6ea5dd95b6
+/files/template/rt/runtime.json/size 158
+/files/template/rt/wasmtime/sha256 b77aecdb33fbf0262ffefdd4383adedc8235ca214b97335bcd31c1912ebdf451
+/files/template/rt/wasmtime/size 45616736
+/files/template/sev-guest.ko.zst/sha256 528c57721813d4cf7dd74f65d9deea82cee7af0bc4d6b15f15064370ef84caa0
+/files/template/sev-guest.ko.zst/size 9294
+/files/template/tsm_report.ko.zst/sha256 41f36ca242ed64095f140303ae6c05066d043ef37d1c9f6841216469bb009151
+/files/template/tsm_report.ko.zst/size 6983
+/files/template/vmw_vsock_virtio_transport.ko.zst/sha256 6fe99263330f3abe3371eebb5ad8f9be35a47e57faab0f96c0729c29cb95bcc9
+/files/template/vmw_vsock_virtio_transport.ko.zst/size 10496
+/files/template/vmw_vsock_virtio_transport_common.ko.zst/sha256 4b9aee6ec87e6b5322df1f2fbff60ccd8862df113e5010e006e563971a083991
+/files/template/vmw_vsock_virtio_transport_common.ko.zst/size 22109
+/files/template/vsock.ko.zst/sha256 d41ae5d80296ef9220531413899abd4e95d1d877e7957d80e035c621aa8f1aaa
+/files/template/vsock.ko.zst/size 27051
+/format enclave-m4a-domain-release/1
+/measure/mode snp
+/measure/vcpuFamily 26
+/measure/vcpuModel 2
+/measure/vcpuStepping 1
+/measure/vmmType QEMU
+== receipts naming guestd 9d1562738cde / release 16c2999d
+/home/steven/Documents/Codex/2026-10-18/wo/work/history-checkpoint-transport/tree/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/private-browser-final-release/tree/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/private-browser-final-release/mut/tree/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-20261021/reconciled-candidate/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/offchain-heartbeat/tree/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/measured-control-final-integration/tree/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/hosted-service-placement/tree/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/hosted-service-placement/policy-tree/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/direct-hardware-canary/tree/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-image/src/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/repo/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-front-abort/repo/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-front-abort/base-ca311820/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/preclaim-recheck/candidate/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/preclaim-recheck/tmp/base/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-composition/tree-a/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-composition/tree-c/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-composition/tree-b/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-runtime-final-integration/repo/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-serving-first/candidate/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-handoff-final/base-2a2dd38c/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-sia-cache/history-compose/repo/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-sia-cache/repo/docs/design/paid-capacity-verification.md
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-sia-cache/compose/repo/docs/design/paid-capacity-verification.md
+[memory-guard] exit=0 peakTreeRssMiB=29 minHostAvailableMiB=24381
+[memory-guard] at peak: grep:15 bash:6 grep:4 head:4
+[queue] EXIT 0

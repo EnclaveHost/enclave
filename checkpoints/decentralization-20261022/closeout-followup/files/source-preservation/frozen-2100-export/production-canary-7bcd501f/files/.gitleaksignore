@@ -1,0 +1,3 @@
+# Adjudicated false positive (2026-10-23): the PUBLIC sha256 pin of the public source file relay/secrets.js in the
+# client-repo file list; a file hash, not a credential.
+pins.example.json:generic-api-key:46

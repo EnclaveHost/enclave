@@ -1,0 +1,5 @@
+[queue] START available=23890MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+7681e3f Custody v2 dashboard site release bafybeiax6ngccp7 (from e24a47fb2 on live base bafybeig3rai3): checker, inert smoke, evidence, handoff
+[memory-guard] exit=0 peakTreeRssMiB=42 minHostAvailableMiB=23873
+[memory-guard] at peak: python3:23 git:8 commit.sh:6 bash:6
+[queue] EXIT 0

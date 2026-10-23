@@ -1,0 +1,36 @@
+custody-live4 base rebuilt from empty + 4 stored patch(es) in 619e0e34c: tree b7857703265f1165cd41e3ea6a44f1c764ce092f OK
+custody-live4 bc3f93c08: tree 38438f5218d60ed39f5f245efdaa93feb4263a36 OK
+custody-live4 edaaaf81c: tree 7c4ad373f7c82b724d2a58d4d3c242f63896baea OK
+custody-live4 dc07e225c: tree 986d5fbda68a3a04b13c020a75145833d1a836df OK
+dashboard3 base rebuilt from dfe020abf + 30 stored patch(es) in 619e0e34c: tree 413e76ecc5386f4cd85935372996a30146c1a4d4 OK
+dashboard3 2d3839c54: tree 33d94519c9c25305e38cba1891078ad0f940b0ce OK
+dashboard3 278a28a7e: tree 9773078c108306e07fcb1628b9ac3a12bc38ba55 OK
+dashboard3 a942a61fd: tree b4e78ac2d1885cf58fd49587680721ae2751d937 OK
+dashboard3 9d97b4b00: tree e5f38820113c91c6f45948fff33a76f46cc90390 OK
+ingress-forwarder base rebuilt from empty + 0 stored patch(es) in 619e0e34c: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+ingress-forwarder 35d73c68c: tree d503dfc9cc8e5b7675d738591dc25b7b6659dbd3 OK
+ingress-forwarder b1c1feee7: tree fe9c470a84ead6ad6298776576a4644fc161e068 OK
+factory-consumer base rebuilt from empty + 0 stored patch(es) in 619e0e34c: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+factory-consumer 519489c34: tree a30b69f62b8cd06c850d12f033708f7c4b80fd20 OK
+factory-consumer d0e9df820: tree 2fb41cdb1a4296b2c337045b5775e93b1d3a3272 OK
+factory-wallet base rebuilt from empty + 0 stored patch(es) in 619e0e34c: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+factory-wallet f18404a59: tree e78bc7f68154895a6656fd902ce8b24646751088 OK
+factory-wallet 24aac7358: tree 249513e46c2ad2e4c0eae7001724526993819a84 OK
+production-canary base rebuilt from empty + 0 stored patch(es) in 619e0e34c: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+production-canary 7bcd501f3: tree 9b5a7493e015b0d64b44af46a9fe4b3e6f147088 OK
+publisher-assessment base rebuilt from empty + 0 stored patch(es) in 619e0e34c: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+publisher-assessment b895d295c: tree 6901c766188e12002822fcbe030c1ef2f33eec71 OK
+recipient-provenance base rebuilt from empty + 0 stored patch(es) in 619e0e34c: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+recipient-provenance 8b0c4da2b: tree 5895694da8a0ac8ebb0d3d96313a41788d38f49f OK
+recipient-provenance held-out out/dist-custody-v2-295650320/initramfs-inventory.json: blob 721456d1e OK
+recipient-provenance held-out out/dist-leasegas-deabf8f90/initramfs-inventory.json: blob 2158e64a8 OK
+recipient-provenance ORIGINAL head tree with held-out files restored: 00861e620c995eefda7f239016a23d00ab6929a3 OK (exact)
+site-release base rebuilt from empty + 0 stored patch(es) in 619e0e34c: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+site-release 7681e3fa4: tree 889d0cdf4950cf9061c0a643d5630fe09e778f30 OK
+site-release 3f16d9b18: tree 662139bfee4fa764c99bba1ed3495ba82d2361c0 OK
+site-release-r2 base rebuilt from empty + 0 stored patch(es) in 619e0e34c: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+site-release-r2 82c594ab1: tree 1386151f47def27a4f54f71adda745d69fa35f85 OK
+site-release-r2 14b5f5599: tree ac0897205461568e7de0d30a07962f1395cf16a5 OK
+site-release trees are the ORIGINAL trees minus ['release/bafybeiax6ngccp7bxoiex5pqv2yoz2ekfk227pthlzfrqkv32v6jt7stmi/site-root.block'] held at the base (head original 7802cff9c); exact originals NOT reproduced
+site-release-r2 trees are the ORIGINAL trees minus ['release/bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla/site-root.block', 'RELEASE-HANDOFF.md'] held at the base (head original 7e5af78ca); exact originals NOT reproduced
+RESULT custody-live4 reproduced: True, dashboard3 reproduced: True, ingress-forwarder reproduced: True, factory-consumer reproduced: True, factory-wallet reproduced: True, production-canary reproduced: True, publisher-assessment reproduced: True, recipient-provenance reproduced: True, site-release reproduced: True, site-release-r2 reproduced: True

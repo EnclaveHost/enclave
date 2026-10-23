@@ -1,0 +1,6 @@
+[queue] START available=24182MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+3f16d9b Errata: publisher deployment id typo, IPNS publication blocked wording, config-read ordering; superseded by the r2 package
+82c594a Composed site release bafybeihm7f2mhw6 (a942a61fd = custody v2 panel + docs 2d3839c54 + media 04836638 + config-read r4) on live base bafybeig3rai3
+[memory-guard] exit=0 peakTreeRssMiB=50 minHostAvailableMiB=24064
+[memory-guard] at peak: python3:23 git:8 git:8 bash:6 commit-errata.s:6
+[queue] EXIT 0

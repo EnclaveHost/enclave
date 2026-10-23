@@ -1,0 +1,6 @@
+[queue] START available=23793MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+release tree unchanged: 3e9ce9c689c304842032acf744477c08abf06441dc73ece34644b4047fb796a6  -
+RELEASE-CHECK-OK
+[memory-guard] exit=0 peakTreeRssMiB=89 minHostAvailableMiB=23728
+[memory-guard] at peak: node:84 bash:6
+[queue] EXIT 0

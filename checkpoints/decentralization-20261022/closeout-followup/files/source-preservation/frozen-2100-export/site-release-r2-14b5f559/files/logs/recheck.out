@@ -1,0 +1,78 @@
+{
+ "checker": "release-check r4.1-custody-composed",
+ "composedFeaturesPresent": {
+  "media fallback (04836638)": true,
+  "verified config read (r4 bad58bd8)": true
+ },
+ "custodyV2Chunks": [
+  "js/chunks/chunk-ZQYU6RGM.js"
+ ],
+ "custodyV2Vendor": "e4fe3ebd19a528f51944434857aa6c34fc7258380154e7baf8b0a3f5753db938",
+ "cid": "bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla",
+ "dist": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/src/site/dist",
+ "files": 892,
+ "partition": {
+  "current": 242,
+  "prepareMetadata": [
+   ".well-known/enclave-site-release.json",
+   "get/host.ps1",
+   "get/install.ps1",
+   "get/install.sh"
+  ],
+  "inherited": 646
+ },
+ "baseChunks": {
+  "total": 650,
+  "rebuiltByteIdentical": 4,
+  "inherited": 646
+ },
+ "ledger": {
+  "builtAt": "2026-10-23T20:38:01.354Z",
+  "retained": 802,
+  "retainedUntil": "2026-10-25T20:38:01.354Z",
+  "datedBeforeBuild": 0,
+  "cspHashes": 6
+ },
+ "releaseToolCounts": {
+  "retentionKept": 0,
+  "countsRetainedChunks": 0,
+  "meaning": "ledger entries dated before this build; a base without a ledger is dated to the build (openBase), so inherited chunks do not count here"
+ },
+ "configRead": {
+  "readers": [
+   "js/chunks/chunk-X4LRPLTG.js"
+  ],
+  "car": [
+   "js/chunks/ipfs-car-K7FOKAAL.js"
+  ],
+  "storagePlan": [
+   "js/chunks/storage-plan-RRHH3AF7.js"
+  ]
+ },
+ "oldWording": {
+  "current": [],
+  "inheritedOnly": [
+   "js/chunks/chunk-2EMA4WWG.js",
+   "js/chunks/chunk-2EMA4WWG.js.map",
+   "js/chunks/chunk-2GZZAQJ7.js",
+   "js/chunks/chunk-2GZZAQJ7.js.map",
+   "js/chunks/chunk-5E2SP7VJ.js",
+   "js/chunks/chunk-5E2SP7VJ.js.map",
+   "js/chunks/chunk-SIJWULC6.js",
+   "js/chunks/chunk-SIJWULC6.js.map",
+   "js/chunks/chunk-SNIP7WLG.js",
+   "js/chunks/chunk-SNIP7WLG.js.map",
+   "js/chunks/chunk-V4PGD7L7.js",
+   "js/chunks/chunk-V4PGD7L7.js.map",
+   "js/chunks/chunk-VBGEUAYX.js",
+   "js/chunks/chunk-VBGEUAYX.js.map",
+   "js/chunks/chunk-XLSWSURI.js",
+   "js/chunks/chunk-XLSWSURI.js.map"
+  ]
+ },
+ "localRefsChecked": 3336,
+ "stamp": "a942a61f · 2026-10-23",
+ "originsNotInSources": [],
+ "failures": []
+}
+RELEASE-CHECK-OK

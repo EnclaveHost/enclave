@@ -1,0 +1,16 @@
+ERRATA to RELEASE-HANDOFF.md (commit 7681e3f), recorded 2026-10-23 per ROOT-COMPOSE-FOLLOWUP.txt.
+The earlier commit and its release tree bafybeiax6ngccp7… are unchanged. SUPERSEDED for deployment by
+work/custody-v2-site-release-r2-20261023 (bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla).
+
+1. Wrong publisher deployment ID in §5 step 3.
+   - Written: 0xd9798e4c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a (missing "cd0c": 60 hex, not 32 bytes).
+   - Correct: 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a (0x + 64 hex).
+2. IPNS wording in §1 and §5.
+   - The ipns-publisher reports sequence 0 / value "" / http-only, so IPNS publication is BLOCKED until root repairs it.
+   - That status does not establish what the IPNS name resolves to. Neither release may be called published, and no IPNS
+     pointer may be inferred from /api/status.
+3. §4, config-read r4 "FAILS at catalog.js hunk 2".
+   - Wrong: this was an ordering artefact. r4 is layered on the media-patched catalog.js.
+   - After 04836638, this line's catalog.js (reviewed media base f5e518c9) is byte-identical to the reviewed media result
+     2abe00fe, and r4 applies with no fuzz.
+   - Both patches are now composed: commits 278a28a7e and a942a61fd.

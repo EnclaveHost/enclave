@@ -1,0 +1,49 @@
+{
+  "at": "2026-10-23T20:51:00.534Z",
+  "readOnly": true,
+  "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+  "block": {
+    "number": "52999644",
+    "hash": "0xa8b257e694e555bf5d8c36bc5ad5c8668c2bfad1e6b1a123095757d42889e81c",
+    "timestamp": "1792788635",
+    "baseFeePerGas": "5000000"
+  },
+  "rows": [
+    {
+      "provider": "mainnet.base.org",
+      "codeHash": "0xe4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152",
+      "calls": [
+        {
+          "function": "owner",
+          "selector": "0x8da5cb5b",
+          "selectorPresentInCode": true,
+          "result": "0x0000000000000000000000000b2d009c0c9af05b12100d77f3c815fea822ee61"
+        },
+        {
+          "function": "pendingOwner",
+          "selector": "0xe30c3978",
+          "selectorPresentInCode": false,
+          "error": "execution reverted"
+        }
+      ]
+    },
+    {
+      "provider": "base.public.blockpi.network",
+      "codeHash": "0xe4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152",
+      "calls": [
+        {
+          "function": "owner",
+          "selector": "0x8da5cb5b",
+          "selectorPresentInCode": true,
+          "result": "0x0000000000000000000000000b2d009c0c9af05b12100d77f3c815fea822ee61"
+        },
+        {
+          "function": "pendingOwner",
+          "selector": "0xe30c3978",
+          "selectorPresentInCode": false,
+          "error": "execution reverted"
+        }
+      ]
+    }
+  ]
+}

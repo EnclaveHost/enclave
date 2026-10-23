@@ -1,0 +1,5 @@
+[queue] START available=24123MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+new=0 prior=1
+[memory-guard] exit=0 peakTreeRssMiB=216 minHostAvailableMiB=23872
+[memory-guard] at peak: node:82 esbuild:65 node:53 bash:6 focused-both.sh:6 timeout:4
+[queue] EXIT 0

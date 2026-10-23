@@ -1,0 +1,27 @@
+{
+ "at": "2026-10-23T20:45:05.170Z",
+ "readOnly": true,
+ "requests": 1,
+ "name": "k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52",
+ "reads": {
+  "trustless-gateway.link": {
+   "url": "https://trustless-gateway.link/ipns/k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52?format=ipns-record",
+   "http": 526,
+   "ms": 20063,
+   "bytes": 7759,
+   "sha256": "b0425c1063aeabfd01f35c51cbadef18554690e5117cbcfa968cb1f77937dd08",
+   "contentType": "text/html; charset=UTF-8",
+   "location": null,
+   "etag": null,
+   "lastModified": null,
+   "age": null,
+   "cacheControl": "private, max-age=0, no-store, no-cache, must-revalidate, post-check=0, pre-check=0",
+   "xIpnsSequence": null,
+   "bodyStart": "<!DOCTYPE html>\n<!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 7]>    <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endi"
+  }
+ },
+ "summary": {
+  "validRecords": [],
+  "maxSequence": -1
+ }
+}

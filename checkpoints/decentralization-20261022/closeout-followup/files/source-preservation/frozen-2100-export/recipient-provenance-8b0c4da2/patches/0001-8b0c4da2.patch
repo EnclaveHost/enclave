@@ -1,0 +1,1482 @@
+From 8b0c4da2bf92bc848477b8c5538606b6ae470f3a Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:54:10 -0700
+Subject: [PATCH] metal0 custody recipient provenance: running ed918e4b
+ supervisor has no measured v2 vault (gsup regression from 2857356cd); guestd
+ 9d1562738cde / CPU release 16c2999d inventory (read-only)
+
+---
+ RESULT.md                       | 118 ++++++++++++++
+ buildinfo-scan.py               |  19 +++
+ find-overlay.sh                 |  12 ++
+ guestd-release-meta.sh          |  20 +++
+ host-guestd-meta.sh             |  11 ++
+ logs/buildinfo-1.guard.log      |   1 +
+ logs/buildinfo-1.out            |  62 ++++++++
+ logs/buildinfo-1.rc             |   1 +
+ logs/buildinfo-1.try2.out       |   1 +
+ logs/find-overlay-1.guard.log   |   1 +
+ logs/find-overlay-1.out         | 269 ++++++++++++++++++++++++++++++++
+ logs/find-overlay-1.rc          |   1 +
+ logs/find-overlay-1.try2.out    |   1 +
+ logs/find-overlay-1.try3.out    |   1 +
+ logs/guestd-meta-1.guard.log    |   1 +
+ logs/guestd-meta-1.out          |  84 ++++++++++
+ logs/guestd-meta-1.rc           |   1 +
+ logs/host-meta-1.guard.log      |   1 +
+ logs/host-meta-1.out            |  54 +++++++
+ logs/host-meta-1.rc             |   1 +
+ logs/host-meta-1.try2.out       |   1 +
+ logs/release-meta-1.guard.log   |   1 +
+ logs/release-meta-1.out         | 158 +++++++++++++++++++
+ logs/release-meta-1.rc          |   1 +
+ logs/scan-1.attempt-1.guard.log |   1 +
+ logs/scan-1.attempt-1.out       |   8 +
+ logs/scan-2.guard.log           |   1 +
+ logs/scan-2.out                 |   8 +
+ logs/scan-2.rc                  |   1 +
+ logs/scan-gitleaks.json         |   1 +
+ logs/stream-1.guard.log         |   1 +
+ logs/stream-1.out               |  66 ++++++++
+ logs/stream-1.rc                |   1 +
+ logs/stream-2.guard.log         |   1 +
+ logs/stream-2.out               |  66 ++++++++
+ logs/stream-2.rc                |   1 +
+ logs/vm-start-1.guard.log       |   1 +
+ logs/vm-start-1.out             |  13 ++
+ logs/vm-start-1.rc              |   1 +
+ logs/vm-start-1.try2.out        |   1 +
+ q.sh                            |  11 ++
+ release-meta.sh                 |  18 +++
+ scan.sh                         |  14 ++
+ stream-initramfs.py             |  71 +++++++++
+ vm-start.sh                     |   5 +
+ 45 files changed, 1112 insertions(+)
+ create mode 100644 RESULT.md
+ create mode 100644 buildinfo-scan.py
+ create mode 100755 find-overlay.sh
+ create mode 100755 guestd-release-meta.sh
+ create mode 100755 host-guestd-meta.sh
+ create mode 100644 logs/buildinfo-1.guard.log
+ create mode 100644 logs/buildinfo-1.out
+ create mode 100644 logs/buildinfo-1.rc
+ create mode 100644 logs/buildinfo-1.try2.out
+ create mode 100644 logs/find-overlay-1.guard.log
+ create mode 100644 logs/find-overlay-1.out
+ create mode 100644 logs/find-overlay-1.rc
+ create mode 100644 logs/find-overlay-1.try2.out
+ create mode 100644 logs/find-overlay-1.try3.out
+ create mode 100644 logs/guestd-meta-1.guard.log
+ create mode 100644 logs/guestd-meta-1.out
+ create mode 100644 logs/guestd-meta-1.rc
+ create mode 100644 logs/host-meta-1.guard.log
+ create mode 100644 logs/host-meta-1.out
+ create mode 100644 logs/host-meta-1.rc
+ create mode 100644 logs/host-meta-1.try2.out
+ create mode 100644 logs/release-meta-1.guard.log
+ create mode 100644 logs/release-meta-1.out
+ create mode 100644 logs/release-meta-1.rc
+ create mode 100644 logs/scan-1.attempt-1.guard.log
+ create mode 100644 logs/scan-1.attempt-1.out
+ create mode 100644 logs/scan-2.guard.log
+ create mode 100644 logs/scan-2.out
+ create mode 100644 logs/scan-2.rc
+ create mode 100644 logs/scan-gitleaks.json
+ create mode 100644 logs/stream-1.guard.log
+ create mode 100644 logs/stream-1.out
+ create mode 100644 logs/stream-1.rc
+ create mode 100644 logs/stream-2.guard.log
+ create mode 100644 logs/stream-2.out
+ create mode 100644 logs/stream-2.rc
+ create mode 100644 logs/vm-start-1.guard.log
+ create mode 100644 logs/vm-start-1.out
+ create mode 100644 logs/vm-start-1.rc
+ create mode 100644 logs/vm-start-1.try2.out
+ create mode 100755 q.sh
+ create mode 100755 release-meta.sh
+ create mode 100755 scan.sh
+ create mode 100644 stream-initramfs.py
+ create mode 100755 vm-start.sh
+
+diff --git a/RESULT.md b/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..68d025f82b09520f0f044eef07bb19ffaef7ed2c
+--- /dev/null
++++ b/RESULT.md
+@@ -0,0 +1,118 @@
++# Production custody recipient on metal0: source/provenance inventory (read-only, 2026-10-23)
++
++This was requested in `work/custody-v2-ingress-forwarder-20261023/ROOT-RECIPIENT-PROVENANCE.txt`.
++- **No changes:** no hardware or production change, no rebuild, and no image file modified.
++- **Not read:** private config, `/proc/*/environ`, fw_cfg contents, keys and sealed state.
++- **How:** every probe and extraction ran through the unchanged queue in the 256 MiB lane (peaks ≤ 27 MiB); logs are in `logs/`.
++  - `stream-initramfs.py` reads the gzip'd cpio as one 64 KiB stream.
++  - It hashes the public code members and writes out only `/opt/metal/flavor-env.json`, as key names plus public
++    chain/registry/address-book values.
++
++## Answer
++
++**The running measured supervisor does NOT have a v2 custody vault.** It cannot sign custody v2 releases for the original
++vault 0xE486 through the release-ticket path, and the owner-committed (direct) path is unavailable with the running guestd. So
++this metal0 recipient currently has **no working path to authorize a v2 (or v1) custody release**. This is from source and image
++bytes; no live release was attempted.
++
++### Exact chain
++
++1. **The running control VM** (qemu PID 3483499, started 2026-10-21 01:05:19 -07:00) boots
++   `/home/steven/enclave-prod/dist-leasegas-deabf8f90`.
++   - initramfs `c190c040…`, vmlinuz `1a3a02d5…`, cmdline `d9e04c2c…`, manifest `c7cb436d…`;
++   - MEASUREMENT `ed918e4b…a2ac2`, cmdline `metal.mode=snp metal.isolation=snp-guest-per-app` (no `metal.control`, so the
++     legacy, non-direct control path).
++   - The VM started after the initramfs was written (00:40:04), and the files still hash to the manifest.
++2. **The image is root-reviewed release deabf8f90** (`work/linux-post-adoption-release`, git archive `stage/metal-deabf8f90`).
++   - It is control overlay commit `deabf8f90` (parent `51516b778`, then the `c083e27` lease-activation snapshot), overlaid on
++     base image `dist-sdshield-2857356cd` (measurement b8376e15).
++   - All **40/40** control-overlay files in the image equal the manifest hashes and the staged source bytes
++     (`out/dist-leasegas-deabf8f90/initramfs-inventory.json`).
++3. **The supervisor's v2 rule** (`/app/supervisor.js` `01ac9cb1…`, source `stage/metal-deabf8f90/supervisor.js` L2692–2716):
++   - `authorizeCustody(…, {v: 2, vault, committedVault})` accepts `committedVault || process.env.CUSTODY_VAULT_V2`. With
++     neither, it throws "CUSTODY_VAULT_V2 is not set: this box cannot authorize v2 custody releases".
++   - `committedVault` exists only for DIRECT guests (an owner-committed startup package, `releaseTicketPump` L2771–2774).
++   - Relay-ticket release guests get no `committedVault`.
++4. **`CUSTODY_VAULT_V2` is never set in this image:**
++   - **gsup** (`/opt/metal/gsup.mjs` `c2896d74…`, source `metal/guest/gsup.mjs`) builds the supervisor env (`supEnv`
++     L467–553) from `flavorEnv`, `HOST_POLICY_ENV` and fixed fields, plus `withLeaseGasEnv`. It has **zero** `CUSTODY`
++     occurrences. No file under the release's `metal/` mentions `CUSTODY_VAULT`, so neither host config nor fw_cfg can supply it.
++   - **The baked `/opt/metal/flavor-env.json`** (`9d901ae3…`, measured) has 37 keys and none for custody. Its public values are
++     `CHAIN_ID 8453`, `ADDRESS_BOOK_ADDRESS 0xab214342…0907` and `REGISTRY_ADDRESS 0x868eB7fc…CCAC`. No secret-like key is
++     present.
++   - **`host-policy.bundle.mjs`** has no custody references.
++5. **This is a regression from the previous image.**
++   - **2857356cd overlay, base image b8376e15:** its gsup `4cf28fd2…` (= `git show 2857356cd:metal/guest/gsup.mjs`) **measured**
++     `CUSTODY_VAULT: 0x08074300…11a6`, `CUSTODY_CHAIN_ID: 8453` and `CUSTODY_VAULT_V2: 0xe48699b8401564aace7a814ae4569b67a3f7eef5`.
++     They come from `295650320` (2026-10-14, "the control supervisor signs custody v2 releases … for its measured v2 vault
++     only"), an ancestor of `2857356cd`.
++   - **deabf8f90 overlay:** it replaced that gsup with `c2896d74` from the `c083e27` snapshot lineage, which does not contain
++     295650320.
++   - The 2026-10-14 image `dist-custody-v2-295650320` has the same `flavor-env` (`9d901ae3`) and gsup `4cf28fd2`, so it had the
++     vault only through that gsup. It is not the running image.
++6. **The direct path needs `manager.supports.directBootstrap === true`** (supervisor L2501–2503, L2600). The running guestd
++   cannot provide it (next section). Owner-committed deployments are therefore refused with "the manager does not support
++   owner-committed guest bootstrap".
++
++## Per-app guestd / runtime / CPU release actually used
++
++**guestd** (PID 2223309, started 2026-10-19 13:14:45 -07:00):
++- **Binary:** `/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde`, sha256 `9d1562738cde6d43…` (named by its hash),
++  8,046,584 B, mtime 2026-10-16 12:04:46 -07:00.
++  - It is a go1.27.0 `(devel)` build with **no VCS stamp**.
++  - The binary contains `awaitingCustodyAuth` and `custody-auth`, and **no `directBootstrap` string**.
++- **Probable source:** `/home/steven/Projects/enclave-sdshield-guestd` HEAD `174edbb7` (committed 2026-10-16 12:04:46 -07:00,
++  the binary's exact mtime).
++  - That source implements the custody-auth **v2** handoff (`custody.go`: `custody-auth-v2 0x<vault> 0x<id> <binding>`;
++    `server.go` L302 reports `awaitingCustodyAuth {v:2, vault, binding}`) and has no direct bootstrap.
++  - Without a rebuild this is **strong correlation, not proof**.
++- **Flags** (from argv; paths only, `/proc/*/environ` not read):
++  - `-release`; `-custody-auth-port 9445`;
++  - `-custody-bootstrap-hosts custody-{us-west,ca-east,ap-southeast,eu-central}.app.enclave.host`;
++  - `-isolation …/iso-sdshield-1c3cdbb8/isolation`; legacy `…/iso-03be27d6/isolation`.
++- **CPU release for new guests:** `-cpu-template` / `-isolation-release` = `release-16c2999d` (release.json `16c2999d…`).
++  - front `082313e0…`: Go `enclave.host/isolation/m2/front`, with the `enclave-custody-release-v2` and `v2/custody` protocol
++    strings present;
++  - init `a8bd7e1a…`; wasmtime `9caac5e6…`; runtime.json `c60712e8…`; kernel `1a3a02d5…`; OVMF `142589cc…`.
++- **Legacy releases:** `0181bce3`, `6757d139`. **Shield:** `5cab66e4…` and profile `987b1b9f…`.
++- **Adopted runtimes (`-adopt-runtimes`):** 59 entries, including **`d84fb52b`** (the Oct-14 doc's "CPU"). An already-running guest
++  of that runtime can be adopted; new guests use 16c2999d.
++- **Not running now:** the Oct-14 doc's `guestd.custody2-568ab660bab4` (the file is still in `bin/`) and
++  `dist-custody-v2-295650320`.
++
++**Consequence.** The guest side (front 16c2999d, guestd 9d156) can ask for a v2 authorization. The supervisor in ed918e4b refuses
++to sign it, because no v2 vault is measured, and the direct path is unavailable.
++
++## Root metadata queries to confirm (exact; read-only)
++
++1. **Running measurement:** `GET https://api.enclave.host/t/metal0/v1/attestation`, and check the report's measurement =
++   `ed918e4b393699b3…a2ac2`. That ties the running VM to this dist beyond the process argv.
++2. **guestd capabilities:** `GET http://127.0.0.1:8095/health` on metal0 (guestd control listener), and read `supports.release`,
++   `supports.directBootstrap` and `catalog.runtimeId`. Expected from source: release true, directBootstrap absent. If the endpoint
++   needs the pairing key, root uses its existing authorised client.
++3. **Supervisor journal:** the control VM's journal (root's existing read path) for `custody authorization for` /
++   `CUSTODY_VAULT_V2 is not set` or `custody release authorized`. This is evidence of an actual attempt; none was made here.
++4. **fw_cfg:** **no fw_cfg query is needed for the vault.** This image's gsup never reads any custody value from fw_cfg, so its
++   value cannot change the answer.
++
++## Root prerequisites (no new feature; not done here)
++
++To make metal0 a v2 recipient for 0xE486 again:
++- **Restore the measured constants.** Restore 295650320's measured gsup constants (`CUSTODY_VAULT`, `CUSTODY_CHAIN_ID`,
++  `CUSTODY_VAULT_V2: 0xe486…`) in the deabf8f90 lineage's `metal/guest/gsup.mjs`. A test pins it (295650320's
++  `test/isolation-release-ticket.test.mjs`-style).
++- **Rebuild the control overlay.** This gives a new measurement.
++- **Admit and activate.** Admit that measurement and activate through the existing post-adoption runbook (stage, admit,
++  baseline, gate, keep or rollback).
++- **Order:** a custody canary with that recipient comes after that, not before.
++- **Direct bootstrap is a separate, larger choice.** It needs a guestd and CPU release with `directBootstrap`; it is not the
++  minimal step.
++
++## Limits
++
++- No live custody release, SNP or chain action was taken.
++- The guestd-to-source link is by commit time and capability strings, not a byte-identical rebuild.
++- `d84fb52b` guests may still exist (adoption list); whether any is running is root's `/availability` instanceSweep read.
++- The published inventories (`out/*/initramfs-inventory.json`) omit the image members whose PATHS carry the provider name the
++  2026-10-21 rewrite removed (count recorded in `membersOmittedForRewrittenLiteral`). None of them is a custody, gsup,
++  supervisor or flavor-env file.
+diff --git a/buildinfo-scan.py b/buildinfo-scan.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..bd6ed71f97d08e6288336358fdfe40c1b955d1cc
+--- /dev/null
++++ b/buildinfo-scan.py
+@@ -0,0 +1,19 @@
++"""Read-only byte scan (streamed, 1 MiB windows) of production binaries: the Go build-info lines (vcs.revision/time/modified,
++module path, go version) and the COUNT of a few protocol strings. Prints counts and build metadata only, never content."""
++import re, sys, hashlib, json
++NEEDLES = [b'awaitingCustodyAuth', b'custody-auth', b'enclave-custody-release-v2', b'enclave-custody-release-v1', b'directBootstrap',
++           b'custody/v2', b'"v":2', b'v2/custody', b'bootstrapSha256', b'secretsMode']
++out = {}
++for path in sys.argv[1:]:
++    h = hashlib.sha256(); counts = {n.decode(): 0 for n in NEEDLES}; info = set(); tail = b''
++    with open(path, 'rb') as f:
++        while True:
++            c = f.read(1 << 20)
++            if not c: break
++            h.update(c); w = tail + c
++            for n in NEEDLES: counts[n.decode()] += w.count(n) - tail.count(n)
++            for m in re.finditer(rb'(?:vcs\.(?:revision|time|modified)=[0-9A-Za-z:.\-+TZ]{1,64}|\bgo1\.\d+(?:\.\d+)?\b|path\t[\x21-\x7e]{1,120}|mod\t[\x21-\x7e]{1,120}\t[\x21-\x7e]{1,60})', w):
++                info.add(m.group().decode('ascii', 'replace'))
++            tail = c[-256:]
++    out[path] = {'sha256': h.hexdigest(), 'strings': counts, 'buildInfo': sorted(info)[:40]}
++print(json.dumps(out, indent=1))
+diff --git a/find-overlay.sh b/find-overlay.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..1a43c94a47f188551ac9cb8454211e6208e4c7fa
+--- /dev/null
++++ b/find-overlay.sh
+@@ -0,0 +1,12 @@
++#!/bin/bash
++# Read-only: which local git repositories hold the image's overlay commits, and which receipts name the dist.
++# Object existence checks only (cat-file -e) and a text search limited to small text files; no repository is modified.
++W=/home/steven/Documents/Codex/2026-10-18/wo/work; export GIT_OPTIONAL_LOCKS=0
++for g in $(find $W /home/steven/enclave-prod /home/steven/Projects -maxdepth 4 -name .git \( -type d -o -type f \) -not -path '*/node_modules/*' 2>/dev/null); do
++  r=$(dirname $g)
++  for c in deabf8f90f64902d20d48620fd911d34c445859d 2857356cde9b35c1b9b046c201d74ec8a517bca0 5a4eb9a6c070083e72a7b90f42fc58f6819821c2; do
++    git -C $r cat-file -e $c^{commit} 2>/dev/null && echo "COMMIT ${c:0:9} in $r"
++  done
++done | sort -u
++echo "== receipts naming the dist or the overlay commit"
++grep -rIl --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=target --include='*.json' --include='*.md' --include='*.txt' -e 'dist-leasegas-deabf8f90' -e 'deabf8f90f64' $W /home/steven/Documents/Codex/2026-10-18/wo/outputs 2>/dev/null | head -40
+diff --git a/guestd-release-meta.sh b/guestd-release-meta.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..dd5d31973702760f9b64199c28cb84b4b27e1d84
+--- /dev/null
++++ b/guestd-release-meta.sh
+@@ -0,0 +1,20 @@
++#!/bin/bash
++# Read-only: the running guestd's FULL argv (flag paths only; /proc/*/environ is never read), its binary sha256, and the
++# public manifest fields + file list of the isolation directories it names. No config/key/env/fw_cfg file content is read.
++p=$(pgrep -x -f '/home/steven/enclave-prod/bin/guestd\.[^ ]* .*' | head -1)
++[ -n "$p" ] || p=$(pgrep -f 'enclave-prod/bin/guestd\.' | head -1)
++echo "guestd PID $p started $(ps -o lstart= -p $p)"
++tr '\0' '\n' < /proc/$p/cmdline | sed -E 's/^(.*(key|token|secret|password).*)$/\1   [path only]/I'
++exe=$(readlink /proc/$p/exe); echo "exe $exe sha256 $(sha256sum "$exe" | cut -d' ' -f1) bytes $(stat -c %s "$exe") mtime $(stat -c %y "$exe")"
++for d in $(tr '\0' '\n' < /proc/$p/cmdline | grep -E '^/home/steven/enclave-prod/(iso|metal)-' ); do
++  echo "== $d"; ls -la --time-style=+%FT%T "$d" | head -30
++  for m in "$d"/manifest.json "$d"/MANIFEST.json "$d"/*/manifest.json; do [ -f "$m" ] && { echo "-- $m sha256 $(sha256sum "$m" | cut -d' ' -f1)"; python3 -c "
++import json,sys
++m=json.load(open(sys.argv[1]))
++def walk(o,p=''):
++    if isinstance(o,dict):
++        for k,v in o.items(): walk(v,p+'/'+k)
++    elif isinstance(o,list): print(p, '[list %d]'%len(o), str(o)[:200])
++    else: print(p, str(o)[:200])
++walk(m)" "$m" | head -60; }; done
++done
+diff --git a/host-guestd-meta.sh b/host-guestd-meta.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..837f58c9d9bae47adc03d38d31837cfc577ebe06
+--- /dev/null
++++ b/host-guestd-meta.sh
+@@ -0,0 +1,11 @@
++#!/bin/bash
++# Read-only host metadata: the running guestd / custodian / metal processes' argv (paths only, never /proc/*/environ),
++# their executable link targets, and names of release directories under ~/enclave-prod matching guestd/custody/guest images.
++for p in $(pgrep -f 'guestd|enclave-metal|custodian|qemu-system' 2>/dev/null); do
++  [ -r /proc/$p/cmdline ] || continue
++  a=$(tr '\0' ' ' < /proc/$p/cmdline | sed -E 's/(key|token|secret|password)=[^ ]*/\1=<redacted>/Ig' | cut -c1-400)
++  case "$a" in *pgrep*|*host-guestd-meta*) continue;; esac
++  echo "PID $p exe=$(readlink /proc/$p/exe 2>/dev/null) cwd=$(readlink /proc/$p/cwd 2>/dev/null)"; echo "  argv: $a"
++done
++echo "== ~/enclave-prod directories (names, mtimes)"
++ls -d --time-style=+%FT%T -l /home/steven/enclave-prod/*guestd* /home/steven/enclave-prod/*custody* /home/steven/enclave-prod/*guest-image* /home/steven/enclave-prod/*cpu* 2>/dev/null | awk '{print $6, $7}'
+diff --git a/logs/buildinfo-1.guard.log b/logs/buildinfo-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..95a0703c9d3c14372c2567c43530ac2a856e767b
+--- /dev/null
++++ b/logs/buildinfo-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=23 minHostAvailableMiB=24053
+diff --git a/logs/buildinfo-1.out b/logs/buildinfo-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a4c904c16f938245231d2030f89e6b570bed3ab8
+--- /dev/null
++++ b/logs/buildinfo-1.out
+@@ -0,0 +1,62 @@
++[queue] START available=24059MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++{
++ "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde": {
++  "sha256": "9d1562738cde6d43cef9e58931cb6425542e400b26364986c209e90377759314",
++  "strings": {
++   "awaitingCustodyAuth": 1,
++   "custody-auth": 7,
++   "enclave-custody-release-v2": 0,
++   "enclave-custody-release-v1": 0,
++   "directBootstrap": 0,
++   "custody/v2": 0,
++   "\"v\":2": 0,
++   "v2/custody": 0,
++   "bootstrapSha256": 0,
++   "secretsMode": 0
++  },
++  "buildInfo": [
++   "go1.27.0",
++   "mod\tenclave.host/isolation/m4/guestd\t(devel)",
++   "path\tenclave.host/isolation/m4/guestd"
++  ]
++ },
++ "/home/steven/enclave-prod/release-16c2999d/template/front": {
++  "sha256": "082313e04a16bba42a663be5e80042d8228cb5dd191c5543f517c7452c2bf5b4",
++  "strings": {
++   "awaitingCustodyAuth": 0,
++   "custody-auth": 3,
++   "enclave-custody-release-v2": 1,
++   "enclave-custody-release-v1": 1,
++   "directBootstrap": 0,
++   "custody/v2": 2,
++   "\"v\":2": 0,
++   "v2/custody": 2,
++   "bootstrapSha256": 0,
++   "secretsMode": 0
++  },
++  "buildInfo": [
++   "go1.27.0",
++   "mod\tenclave.host/isolation/m2\t(devel)",
++   "path\tenclave.host/isolation/m2/front"
++  ]
++ },
++ "/home/steven/enclave-prod/release-16c2999d/template/init": {
++  "sha256": "a8bd7e1a5dede68edd2b3c29e9a8c55b4bedc9b5bbc3b2a5a3e0203b540ba338",
++  "strings": {
++   "awaitingCustodyAuth": 0,
++   "custody-auth": 0,
++   "enclave-custody-release-v2": 0,
++   "enclave-custody-release-v1": 0,
++   "directBootstrap": 0,
++   "custody/v2": 0,
++   "\"v\":2": 0,
++   "v2/custody": 0,
++   "bootstrapSha256": 0,
++   "secretsMode": 0
++  },
++  "buildInfo": []
++ }
++}
++[memory-guard] exit=0 peakTreeRssMiB=23 minHostAvailableMiB=24053
++[memory-guard] at peak: python3:23
++[queue] EXIT 0
+diff --git a/logs/buildinfo-1.rc b/logs/buildinfo-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/buildinfo-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/buildinfo-1.try2.out b/logs/buildinfo-1.try2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0585c28d141b45e7a9cfee66355eb3b9d46b49b
+--- /dev/null
++++ b/logs/buildinfo-1.try2.out
+@@ -0,0 +1 @@
++[queue] NOT STARTED: small allocation held
+diff --git a/logs/find-overlay-1.guard.log b/logs/find-overlay-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..ee16fbb6dcc7adcc546ecbe92130c4928ef82165
+--- /dev/null
++++ b/logs/find-overlay-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=25 minHostAvailableMiB=23647
+diff --git a/logs/find-overlay-1.out b/logs/find-overlay-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..4a658a488f08319eb1c941e361e5c4db12acd3d0
+--- /dev/null
++++ b/logs/find-overlay-1.out
+@@ -0,0 +1,269 @@
++[queue] START available=23807MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++COMMIT 2857356cd in /home/steven/Projects/enclave
++COMMIT 2857356cd in /home/steven/Projects/enclave-bridge-review
++COMMIT 2857356cd in /home/steven/Projects/enclave-bridge-slots
++COMMIT 2857356cd in /home/steven/Projects/enclave-build-2492e683
++COMMIT 2857356cd in /home/steven/Projects/enclave-build-6845565a
++COMMIT 2857356cd in /home/steven/Projects/enclave-build-b18f8989
++COMMIT 2857356cd in /home/steven/Projects/enclave-build-b3109929
++COMMIT 2857356cd in /home/steven/Projects/enclave-build-c42612c0
++COMMIT 2857356cd in /home/steven/Projects/enclave-build-f6cbd75a
++COMMIT 2857356cd in /home/steven/Projects/enclave-codex-finish
++COMMIT 2857356cd in /home/steven/Projects/enclave-codex-pkg43
++COMMIT 2857356cd in /home/steven/Projects/enclave-ctl40
++COMMIT 2857356cd in /home/steven/Projects/enclave-ctl41
++COMMIT 2857356cd in /home/steven/Projects/enclave-ctl42
++COMMIT 2857356cd in /home/steven/Projects/enclave-ctl43
++COMMIT 2857356cd in /home/steven/Projects/enclave-ctl44
++COMMIT 2857356cd in /home/steven/Projects/enclave-deploy-exclusion
++COMMIT 2857356cd in /home/steven/Projects/enclave-devboot42
++COMMIT 2857356cd in /home/steven/Projects/enclave-e2efix
++COMMIT 2857356cd in /home/steven/Projects/enclave-eehost-slot-fix
++COMMIT 2857356cd in /home/steven/Projects/enclave-egressfix
++COMMIT 2857356cd in /home/steven/Projects/enclave-eyesoff-config-cors
++COMMIT 2857356cd in /home/steven/Projects/enclave-host-bank
++COMMIT 2857356cd in /home/steven/Projects/enclave-host-egress
++COMMIT 2857356cd in /home/steven/Projects/enclave-hosting-ui
++COMMIT 2857356cd in /home/steven/Projects/enclave-hosting-ui-android
++COMMIT 2857356cd in /home/steven/Projects/enclave-hvroll
++COMMIT 2857356cd in /home/steven/Projects/enclave-isoenforce
++COMMIT 2857356cd in /home/steven/Projects/enclave-isolated-set
++COMMIT 2857356cd in /home/steven/Projects/enclave-m4name
++COMMIT 2857356cd in /home/steven/Projects/enclave-metal0-gflops
++COMMIT 2857356cd in /home/steven/Projects/enclave-metal0-isolation
++COMMIT 2857356cd in /home/steven/Projects/enclave-metal0-referral
++COMMIT 2857356cd in /home/steven/Projects/enclave-metal0-shieldgpu
++COMMIT 2857356cd in /home/steven/Projects/enclave-mgr-judgevm
++COMMIT 2857356cd in /home/steven/Projects/enclave-mgr-restart-test
++COMMIT 2857356cd in /home/steven/Projects/enclave-node-hv-fixes
++COMMIT 2857356cd in /home/steven/Projects/enclave-nucbox-live-panel-20260929
++COMMIT 2857356cd in /home/steven/Projects/enclave-nucbox-sd
++COMMIT 2857356cd in /home/steven/Projects/enclave-nucbox-sd-host
++COMMIT 2857356cd in /home/steven/Projects/enclave-nucbox-shield-20260929
++COMMIT 2857356cd in /home/steven/Projects/enclave-nucbox-vtpm-runtime-20260929
++COMMIT 2857356cd in /home/steven/Projects/enclave-nucbox-witness-20260930
++COMMIT 2857356cd in /home/steven/Projects/enclave-padgov
++COMMIT 2857356cd in /home/steven/Projects/enclave-padgov-init
++COMMIT 2857356cd in /home/steven/Projects/enclave-padspill
++COMMIT 2857356cd in /home/steven/Projects/enclave-padspill-init
++COMMIT 2857356cd in /home/steven/Projects/enclave-paid-capacity-audits-20260930
++COMMIT 2857356cd in /home/steven/Projects/enclave-pkg-review
++COMMIT 2857356cd in /home/steven/Projects/enclave-pkg41
++COMMIT 2857356cd in /home/steven/Projects/enclave-pkg42
++COMMIT 2857356cd in /home/steven/Projects/enclave-pkg43
++COMMIT 2857356cd in /home/steven/Projects/enclave-pkg44
++COMMIT 2857356cd in /home/steven/Projects/enclave-poolacct
++COMMIT 2857356cd in /home/steven/Projects/enclave-ports-relay
++COMMIT 2857356cd in /home/steven/Projects/enclave-pub0181
++COMMIT 2857356cd in /home/steven/Projects/enclave-public-web
++COMMIT 2857356cd in /home/steven/Projects/enclave-public-web-host
++COMMIT 2857356cd in /home/steven/Projects/enclave-pvm
++COMMIT 2857356cd in /home/steven/Projects/enclave-pvm-cand
++COMMIT 2857356cd in /home/steven/Projects/enclave-pvm-cpu-only-dev
++COMMIT 2857356cd in /home/steven/Projects/enclave-pvm-cpuonly
++COMMIT 2857356cd in /home/steven/Projects/enclave-pvm-standalone
++COMMIT 2857356cd in /home/steven/Projects/enclave-pvm-u7
++COMMIT 2857356cd in /home/steven/Projects/enclave-ram-share-20260930
++COMMIT 2857356cd in /home/steven/Projects/enclave-relay-predict
++COMMIT 2857356cd in /home/steven/Projects/enclave-relay-zimage
++COMMIT 2857356cd in /home/steven/Projects/enclave-release
++COMMIT 2857356cd in /home/steven/Projects/enclave-resource-profiles
++COMMIT 2857356cd in /home/steven/Projects/enclave-review-win
++COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield
++COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield-guestd
++COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield-init
++COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield-perf
++COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield-predict
++COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield-relay
++COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield-sup
++COMMIT 2857356cd in /home/steven/Projects/enclave-secrets-custody
++COMMIT 2857356cd in /home/steven/Projects/enclave-sessions
++COMMIT 2857356cd in /home/steven/Projects/enclave-shares-requeue-20261001
++COMMIT 2857356cd in /home/steven/Projects/enclave-shares-tab
++COMMIT 2857356cd in /home/steven/Projects/enclave-shield-27b-wrapup
++COMMIT 2857356cd in /home/steven/Projects/enclave-shielded-test-fixtures
++COMMIT 2857356cd in /home/steven/Projects/enclave-site
++COMMIT 2857356cd in /home/steven/Projects/enclave-site-dashboard-errors
++COMMIT 2857356cd in /home/steven/Projects/enclave-site-glass
++COMMIT 2857356cd in /home/steven/Projects/enclave-siteguard
++COMMIT 2857356cd in /home/steven/Projects/enclave-tee-preference-20261001
++COMMIT 2857356cd in /home/steven/Projects/enclave-tlsfix
++COMMIT 2857356cd in /home/steven/Projects/enclave-txtkey
++COMMIT 2857356cd in /home/steven/Projects/enclave-u7
++COMMIT 2857356cd in /home/steven/Projects/enclave-v100-isolation
++COMMIT 2857356cd in /home/steven/Projects/enclave-v100-scheduler-relay
++COMMIT 2857356cd in /home/steven/Projects/enclave-vbslike
++COMMIT 2857356cd in /home/steven/Projects/enclave-vbspkg
++COMMIT 2857356cd in /home/steven/Projects/enclave-verifier
++COMMIT 2857356cd in /home/steven/Projects/enclave-verifier42
++COMMIT 2857356cd in /home/steven/Projects/enclave-visual
++COMMIT 2857356cd in /home/steven/Projects/enclave-winmgr
++COMMIT 2857356cd in /home/steven/Projects/enclave-wt/enclavedns-option
++COMMIT 2857356cd in /home/steven/enclave-prod/iso-03be27d6
++COMMIT 2857356cd in /home/steven/enclave-prod/iso-0c087de8
++COMMIT 2857356cd in /home/steven/enclave-prod/iso-17e182a8
++COMMIT 2857356cd in /home/steven/enclave-prod/iso-4cd26e58
++COMMIT 2857356cd in /home/steven/enclave-prod/iso-4cdd5169
++COMMIT 2857356cd in /home/steven/enclave-prod/iso-5a4eb9a6
++COMMIT 2857356cd in /home/steven/enclave-prod/iso-aa6c985c
++COMMIT 2857356cd in /home/steven/enclave-prod/iso-b63c2def
++COMMIT 2857356cd in /home/steven/enclave-prod/metal-578be084
++COMMIT 2857356cd in /home/steven/enclave-prod/metal-d760ef58
++COMMIT 2857356cd in /home/steven/enclave-prod/src-metal0-sessions
++COMMIT 5a4eb9a6c in /home/steven/Documents/Codex/2026-10-18/wo/work/enclave
++COMMIT 5a4eb9a6c in /home/steven/Documents/Codex/2026-10-18/wo/work/shield-lineage-integration
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-bridge-review
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-bridge-slots
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-build-2492e683
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-build-6845565a
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-build-b18f8989
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-build-b3109929
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-build-c42612c0
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-build-f6cbd75a
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-codex-finish
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-codex-pkg43
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ctl40
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ctl41
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ctl42
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ctl43
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ctl44
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-deploy-exclusion
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-devboot42
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-e2efix
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-eehost-slot-fix
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-egressfix
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-eyesoff-config-cors
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-host-bank
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-host-egress
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-hosting-ui
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-hosting-ui-android
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-hvroll
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-isoenforce
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-isolated-set
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-m4name
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-metal0-gflops
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-metal0-isolation
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-metal0-referral
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-metal0-shieldgpu
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-mgr-judgevm
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-mgr-restart-test
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-node-hv-fixes
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-nucbox-live-panel-20260929
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-nucbox-sd
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-nucbox-sd-host
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-nucbox-shield-20260929
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-nucbox-vtpm-runtime-20260929
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-nucbox-witness-20260930
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-padgov
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-padgov-init
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-padspill
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-padspill-init
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-paid-capacity-audits-20260930
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pkg-review
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pkg41
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pkg42
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pkg43
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pkg44
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-poolacct
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ports-relay
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pub0181
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-public-web
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-public-web-host
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pvm
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pvm-cand
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pvm-cpu-only-dev
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pvm-cpuonly
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pvm-standalone
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pvm-u7
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ram-share-20260930
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-relay-predict
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-relay-zimage
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-release
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-resource-profiles
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-review-win
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield-guestd
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield-init
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield-perf
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield-predict
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield-relay
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield-sup
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-secrets-custody
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sessions
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-shares-requeue-20261001
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-shares-tab
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-shield-27b-wrapup
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-shielded-test-fixtures
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-site
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-site-dashboard-errors
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-site-glass
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-siteguard
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-tee-preference-20261001
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-tlsfix
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-txtkey
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-u7
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-v100-isolation
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-v100-scheduler-relay
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-vbslike
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-vbspkg
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-verifier
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-verifier42
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-visual
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-winmgr
++COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-wt/enclavedns-option
++COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-03be27d6
++COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-0c087de8
++COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-17e182a8
++COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-4cd26e58
++COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-4cdd5169
++COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-5a4eb9a6
++COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-aa6c985c
++COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-b63c2def
++COMMIT 5a4eb9a6c in /home/steven/enclave-prod/metal-578be084
++COMMIT 5a4eb9a6c in /home/steven/enclave-prod/metal-d760ef58
++COMMIT 5a4eb9a6c in /home/steven/enclave-prod/src-metal0-sessions
++== receipts naming the dist or the overlay commit
++/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/checkpoints/decentralization-20261022/external/MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/manifest.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/activation/README.txt
++/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/out/c/INPUT-MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/checkpoints/decentralization-20261022/closeout-followup/files/measured-image-build/public/BUILD-RECEIPT.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/ROOT-RECIPIENT-PROVENANCE.txt
++/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/checkpoints/decentralization-20261022/external/MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/manifest.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/activation/README.txt
++/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/out/c/INPUT-MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/checkpoints/decentralization-20261022/closeout-followup/files/measured-image-build/public/BUILD-RECEIPT.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-image/public/BUILD-RECEIPT.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/checkpoints/decentralization-20261022/external/MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/manifest.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/activation/README.txt
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/out/c/INPUT-MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/checkpoints/decentralization-20261022/closeout-followup/files/measured-image-build/public/BUILD-RECEIPT.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/checkpoints/decentralization-20261022/external/MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/manifest.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/activation/README.txt
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/out/c/INPUT-MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/checkpoints/decentralization-20261022/closeout-followup/files/measured-image-build/public/BUILD-RECEIPT.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/checkpoints/decentralization-20261022/external/MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/manifest.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/activation/README.txt
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/out/c/INPUT-MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/checkpoints/decentralization-20261022/closeout-followup/files/measured-image-build/public/BUILD-RECEIPT.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-composition/out/c/INPUT-MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-composition/out/b/INPUT-MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-composition/out/a/INPUT-MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate/checkpoints/decentralization-20261022/external/MANIFEST.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/manifest.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/activation/README.txt
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate/checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate/checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/out/c/INPUT-MANIFEST.json
++[memory-guard] exit=0 peakTreeRssMiB=25 minHostAvailableMiB=23647
++[memory-guard] at peak: grep:15 bash:6 head:4
++[queue] EXIT 0
+diff --git a/logs/find-overlay-1.rc b/logs/find-overlay-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/find-overlay-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/find-overlay-1.try2.out b/logs/find-overlay-1.try2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0585c28d141b45e7a9cfee66355eb3b9d46b49b
+--- /dev/null
++++ b/logs/find-overlay-1.try2.out
+@@ -0,0 +1 @@
++[queue] NOT STARTED: small allocation held
+diff --git a/logs/find-overlay-1.try3.out b/logs/find-overlay-1.try3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0585c28d141b45e7a9cfee66355eb3b9d46b49b
+--- /dev/null
++++ b/logs/find-overlay-1.try3.out
+@@ -0,0 +1 @@
++[queue] NOT STARTED: small allocation held
+diff --git a/logs/guestd-meta-1.guard.log b/logs/guestd-meta-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d66a239c7c881d3a9f39e8a35a2403360d00af30
+--- /dev/null
++++ b/logs/guestd-meta-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/logs/guestd-meta-1.out b/logs/guestd-meta-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a99d1a387ee9e64b17ff2525fcb614ce32d90cd4
+--- /dev/null
++++ b/logs/guestd-meta-1.out
+@@ -0,0 +1,84 @@
++[queue] START available=24558MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++guestd PID 2223309 started Mon Oct 19 13:14:45 2026
++/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde
++-isolation
++/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation
++-root
++/home/steven/enclave-prod/guestd-root
++-listen
++127.0.0.1:8095
++-data-listen
++127.0.0.1:8096
++-auth-key   [path only]
++/home/steven/enclave-prod/guestd-pair.key   [path only]
++-gateway
++https://ipfs.enclave.host
++-guest-mem-mib
++98304
++-guest-cpus
++24
++-release
++-legacy-isolation
++/home/steven/enclave-prod/iso-03be27d6/isolation
++-instance-prefix
++gd
++-guest-host-floor-mib
++16384
++-isolation-release
++@/home/steven/enclave-prod/release-16c2999d/release.json
++-legacy-isolation-release
++@/home/steven/enclave-prod/release-0181bce3/release.json,@/home/steven/enclave-prod/release-6757d139/release.json
++-adopt-runtimes
++d4fab4c8727ce0d07cc850d29236ec2365903789dd8c81fb008210934b22f4c8=/home/steven/enclave-prod/release-d4fab4c8/template/rt/runtime.json,ee79c59e6e04394bd26fa489f9fb973145e9e51dcb633e525b490e8ee6026792=/home/steven/enclave-prod/release-ee79c59e/template/rt/runtime.json,e53c01ae44a48380f194221a31b870b69d463563e18e135355b1849e22366e66=/home/steven/enclave-prod/release-e53c01ae/template/rt/runtime.json,fb81c2493173dabfc4371ea688382e297b0ad4510f36964826a303562bccfb2c=/home/steven/enclave-prod/release-fb81c249/template/rt/runtime.json,cbe77ed8ef2691ea196170e033ab05c17bd392c5cd3bd13034ecebbaae4c47fa=/home/steven/enclave-prod/release-cbe77ed8/template/rt/runtime.json,ee973c11eec61f87c1bdf81f03695c10585cb6b9de33acf044ea5252d39c4e53=/home/steven/enclave-prod/release-ee973c11/template/rt/runtime.json,fbb40c8e278acecfd77feb24ab2afb72ff7ddb07ed78a302b4b0d9ee37b9aa23=/home/steven/enclave-prod/release-fbb40c8e/template/rt/runtime.json,e9aae5415ba5fc9ec27b7436a8eed5416f93aad1167b8b37b1c2556b62f44294=/home/steven/enclave-prod/release-e9aae541/template/rt/runtime.json,8a60eff835b7df815576468f4166762de2cc89bb9f12a90f6a5e6f122a95c5f0=/home/steven/enclave-prod/release-8a60eff8/template/rt/runtime.json,e95d2d79d1c1ca4c005b33c852d8d0810b08064896269ab2e14d8c9c2a4592b6=/home/steven/enclave-prod/release-e95d2d79/template/rt/runtime.json,c9fdc728392d3da524a8de72600b78fb79ecc883423afe0ea82e89675614fdc5=/home/steven/enclave-prod/release-c9fdc728/template/rt/runtime.json,9958ac99a4492bc9cf5d3b598dd6a7e4b04d27c99d7f7526b6ccc7042f4c5724=/home/steven/enclave-prod/release-9958ac99/template/rt/runtime.json,057b2c667661f47dadd1b94153896ddd367e03ced7e18f0cf82143285fab19eb=/home/steven/enclave-prod/release-057b2c66/template/rt/runtime.json,ff8ef20e215bc4608bca9ac860b15c31871784138e11e4c7ff49279310639da6=/home/steven/enclave-prod/release-ff8ef20e/template/rt/runtime.json,9b088f90cfbe2284587b255e66cf5885d19209925ef638824a9ee0f61ec51347=/home/steven/enclave-prod/release-9b088f90/template/rt/runtime.json,aee2059ffcc7bd8a459001cba02a7e9139d6a4aa964fd6de68047407f8597532=/home/steven/enclave-prod/release-4cd26e58/template/rt/runtime.json,1d2263e694aa02eef0dd0a262d239d0707c24ecddc9f14ed2507ca43590af002=/home/steven/enclave-prod/release-1d2263e6/template/rt/runtime.json,f7fae72afbddbcb3f8b29782f34ae2ce49410a0a53ad6a6d7bb5a3b988270e43=/home/steven/enclave-prod/release-f7fae72a/template/rt/runtime.json,ba14bafdf06f6287efd13337570df94f97c0362b1ce1ed1ec7f28f05a140b376=/home/steven/enclave-prod/release-ba14bafd/template/rt/runtime.json,e5e1e214162c8ed778383a92d598c638d613c5271105b00631dacc386f4b53ac=/home/steven/enclave-prod/release-e5e1e214/template/rt/runtime.json,16ef43bd8ae21bb220b612f6abe4bd712827059f7a78e969dda27fa2a019d656=/home/steven/enclave-prod/release-16ef43bd/template/rt/runtime.json,4f6fcd616a3d5bb6e22c1628ed3824d06f301d89cfda760d839fb19ea7da7f0d=/home/steven/enclave-prod/release-4f6fcd61/template/rt/runtime.json,1bc7ff92385ad8024e47861a8c86ffa6d40c337b9e15a049899b4bfb7c5a74e7=/home/steven/enclave-prod/release-1bc7ff92/template/rt/runtime.json,f8a5940bddf8e5eb5fa965c4ee466279644a8aec5f39448afeaf8514358b35d1=/home/steven/enclave-prod/release-f8a5940b/template/rt/runtime.json,b6ebfd8dd2997a6966d2473d26bd6bfdf7481aa76ace4d632ac2a31965f84a74=/home/steven/enclave-prod/release-b6ebfd8d/template/rt/runtime.json,83b38d61b87fd2da5b97e8cdf707e26c8bf14d5efe927a14f27f2ffb842259cc=/home/steven/enclave-prod/release-83b38d61/template/rt/runtime.json,b8aaaea96d8ca39bf3da6c0931e7c81c153aa4b25cc388e0190916d4e3d4056a=/home/steven/enclave-prod/release-b8aaaea9/template/rt/runtime.json,4bb9f020d0d3c0760c60f7e3a28e32e4429139c82023785d5415f83bcb054170=/home/steven/enclave-prod/release-38d14410/template/rt/runtime.json,79eb055a74f4b2c440ceaa3fa7c80862a0842d663a78bd5aefddefa79be16347=/home/steven/enclave-prod/release-79eb055a/template/rt/runtime.json,38d14410530da09512344f2dc7a848d54da392d7c15f5b5acc436bc13efd4dc9=/home/steven/enclave-prod/release-38d14410/template/rt/runtime.json,85948b987bcd621d1b47bbaa402ea293720e7cbc77961e4f5dd670b552a72ee0=/home/steven/enclave-prod/release-85948b98/template/rt/runtime.json,52dae5c0166eafda9a242bce4dfde879a9ece8ea207c2e0e06fa5c74ba5c914b=/home/steven/enclave-prod/release-52dae5c0/template/rt/runtime.json,9765244a036ff4249c6fe2fb875ec5e7c92f083d2c8e64fe13cc7c2edf5e879c=/home/steven/enclave-prod/release-9765244a/template/rt/runtime.json,6cac09a6f28a89b235bd24944709714b2132c9b39f77d05783908b31f58b7abb=/home/steven/enclave-prod/release-6cac09a6/template/rt/runtime.json,b9be6a09cc9dadfbb3cc9c0c02f5851be9f506633c244db844e701af6ce5dfbe=/home/steven/enclave-prod/release-b9be6a09/template/rt/runtime.json,8a1514dd30da764d120335b77a96e08608c35693dfe739f3302d846735a44d2d=/home/steven/enclave-prod/release-8a1514dd/template/rt/runtime.json,34e1c76d3ee61ba1c3867ce0835ef2fee1bc6483cccd2b2195e9fda23e65147d=/home/steven/enclave-prod/release-34e1c76d/template/rt/runtime.json,8446c4f5cc30accb2e4df632ede47bfbbedc88da5542c5a3cc1c50599e54b569=/home/steven/enclave-prod/release-8446c4f5/template/rt/runtime.json,bb49554c15e04edede10433b3bef99cfa396fcefee0fdc04dfcec7e45bdd8251=/home/steven/enclave-prod/release-bb49554c/template/rt/runtime.json,07ff8faee665a54a84c578d236b53f47a6ebb5b896a972fd135e818ee849021c=/home/steven/enclave-prod/release-07ff8fae/template/rt/runtime.json,90176a59b986ad4b8c32dcd5eaaa00b843bcf90719c928fd33041c92edcf35b5=/home/steven/enclave-prod/release-90176a59/template/rt/runtime.json,58c05b11b110d6edd334ef8e8d928fc50b44d0111d398478b2fa670cdeacd1ce=/home/steven/enclave-prod/release-58c05b11/template/rt/runtime.json,79c96b71c3737f0f722ecc4e5df723fc776137fd32421429c8d643e1c82ac0dd=/home/steven/enclave-prod/release-79c96b71/template/rt/runtime.json,a6f2d9c10a1706f4786c507239bc10845ac2f50aa4f637c6c49a085906003fe6=/home/steven/enclave-prod/release-a6f2d9c1/template/rt/runtime.json,7a68e62562af62b7b0ecdd430a3a82c703460fcbd6eba79fc74842e98bcc8a77=/home/steven/enclave-prod/release-7a68e625/template/rt/runtime.json,c48e71ea24330041e4220225be4fdb2934f311655312f493f4c39ed9fd4fb975=/home/steven/enclave-prod/release-c48e71ea/template/rt/runtime.json,4c7190511b1b72d083593b4127b2010b975afa0a4835f8dcdd0dbb48d5508f99=/home/steven/enclave-prod/release-4c719051/template/rt/runtime.json,441c835fbbfbdb19b75033cb08bbf5d8adc1eec1acf23c487413cd7203126401=/home/steven/enclave-prod/release-441c835f/template/rt/runtime.json,bca1f7bd99092c12ac2e828340be1433255278fd7c282c471240fc933a008173=/home/steven/enclave-prod/release-bca1f7bd/template/rt/runtime.json,b20b2826926fe49bf7a99ae29bbacb0d9c4c9fba9fd77e3b5903818a4c51605f=/home/steven/enclave-prod/release-b20b2826/template/rt/runtime.json,64469dfddd1867d7bd9e4bf1b600279f2ee256fd6e2b0035a671a4598d298da4=/home/steven/enclave-prod/release-64469dfd/template/rt/runtime.json,d7cf9d7a18e2c7b0a596a8d460ed2b8bce490667f68e43e9bca6f597717724c8=/home/steven/enclave-prod/release-d7cf9d7a/template/rt/runtime.json,58a0e7bdb906b2e5adc9be656cb3d66aab55621d82e031c85403ab79baa9fe58=/home/steven/enclave-prod/release-58a0e7bd/template/rt/runtime.json,5cab66e478a78adf69c5bb6f058117fcd91cddfb72ca3f6c5d47c109cc47ba17=/home/steven/enclave-prod/release-5cab66e4/template/rt/runtime.json,340a09c1e96446e91f3281dd84276fda8911629d24e09b8d82cdc9d9b4797ade=/home/steven/enclave-prod/release-340a09c1/template/rt/runtime.json,987d08c3a2da2327e8eb1616cd680ce726577b8b2982b8788a71a5f70dea7fe2=/home/steven/enclave-prod/release-987d08c3/template/rt/runtime.json,d84fb52b2e1ece9dce1c280fc30027386664959cc3b16f692e64bede961e86e4=/home/steven/enclave-prod/release-d84fb52b/template/rt/runtime.json
++-cpu-template
++/home/steven/enclave-prod/release-16c2999d/template
++-shield-template
++/home/steven/enclave-prod/release-5cab66e4/template
++-shield-release
++5cab66e478a78adf69c5bb6f058117fcd91cddfb72ca3f6c5d47c109cc47ba17
++-shield-model-file
++/home/steven/Projects/enclave-models/qwen3.8-27b-mtp-q4-vl-gguf/Qwen3.8-27B-UD-Q4_K_XL.gguf
++-shield-shm-dir
++/dev/shm/enclave-shield-v100
++-egress-app-routes
++/home/steven/enclave-prod/enclave-network/metal0/state/egress-routes.json
++-release-bootstrap-routes
++/home/steven/enclave-prod/enclave-network/metal0/state/release-bootstrap-routes.json
++-custody-auth-port
++9445
++-custody-bootstrap-hosts
++custody-us-west.app.enclave.host,custody-ca-east.app.enclave.host,custody-ap-southeast.app.enclave.host,custody-eu-central.app.enclave.host
++-shield-profile
++model=z-image-turbo-q4km-sd,template=/home/steven/enclave-prod/release-987b1b9f/template,release=987b1b9f6d526ec88582b986e88a3dfad4de2742b3bbf236e974039585763422,files=/vm/enclave-volumes/.shield/z-image-turbo-q4km-sd/volume.img,preemptible=1
++-preemptible-floor-mib
++8192
++-preempt-below-mib
++12288
++exe /home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde sha256 9d1562738cde6d43cef9e58931cb6425542e400b26364986c209e90377759314 bytes 8046584 mtime 2026-10-16 12:04:46.921075121 -0700
++== /home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation
++total 144
++drwxr-xr-x  8 steven steven  4096 2026-09-27T18:59:38 .
++drwxr-xr-x  6 steven steven  4096 2026-09-27T16:57:29 ..
++-rw-r--r--  1 steven steven 25617 2026-09-27T18:59:38 DEPLOYMENT-PATH.md
++-rw-r--r--  1 steven steven 44563 2026-09-27T18:59:38 DESIGN.md
++-rw-r--r--  1 steven steven 38047 2026-09-27T18:59:38 GUEST-POOL-ROLLOUT.md
++drwxr-xr-x  4 steven steven  4096 2026-10-16T11:22:55 contract
++drwxr-xr-x  2 steven steven  4096 2026-09-27T18:59:38 m1
++drwxr-xr-x 15 steven steven  4096 2026-09-30T23:25:28 m2
++drwxr-xr-x  5 steven steven  4096 2026-09-27T18:59:38 m3
++drwxr-xr-x  7 steven steven  4096 2026-09-27T18:59:38 m4
++drwxr-xr-x  3 steven steven  4096 2026-09-27T18:59:38 restore
++== /home/steven/enclave-prod/iso-03be27d6/isolation
++total 92
++drwxr-xr-x  7 steven steven  4096 2026-09-24T13:45:52 .
++drwxr-xr-x 26 steven steven  4096 2026-09-24T14:17:06 ..
++-rw-r--r--  1 steven steven 17027 2026-09-24T13:45:52 DEPLOYMENT-PATH.md
++-rw-r--r--  1 steven steven 44563 2026-09-24T11:49:27 DESIGN.md
++drwxr-xr-x  4 steven steven  4096 2026-09-24T14:17:06 contract
++drwxr-xr-x  2 steven steven  4096 2026-09-24T11:49:27 m1
++drwxr-xr-x  7 steven steven  4096 2026-09-24T14:17:06 m2
++drwxr-xr-x  4 steven steven  4096 2026-09-24T11:49:27 m3
++drwxr-xr-x  6 steven steven  4096 2026-09-24T14:17:06 m4
++[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 1
+diff --git a/logs/guestd-meta-1.rc b/logs/guestd-meta-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/guestd-meta-1.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/host-meta-1.guard.log b/logs/host-meta-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/logs/host-meta-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/logs/host-meta-1.out b/logs/host-meta-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8bf8fe309cf075c45fb48057c3a29c1de85b4b3
+--- /dev/null
++++ b/logs/host-meta-1.out
+@@ -0,0 +1,54 @@
++[queue] START available=24419MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++PID 307434 exe=/usr/bin/bash cwd=/home/steven/Documents/Codex/2026-10-18/wo
++  argv: /bin/bash -c python3 - <<'PY'
++from pathlib import Path
++p=Path('work/custody-snp-recovery-harness-20261023/ROOT-LIFECYCLE-TASK.txt')
++p.write_text('Your recovery harness passed root hardware run runs/20261023T201449Z all required=true, exit0, protected QEMUs unchanged, private scrubbed, fresh/reopen AMD quote exact70aadf and identity/encKey stable; fault7GET503 noPUT/noHTTPready45.9s. No lifecycle/secret release. New finite source-only task in NEW work/custody-v2-production-canary-20261023: design and implement a bounded product
++PY
++/home/steven/.local/bin/claude -p --resume 4f3f8435-b7fe-4acd-9b8a-f1de58441e56 --permission-mode bypassPermissions "Read /home/steven/Documents/Codex/2026-10-18/wo/work/custody-snp-recovery-harness-20261023/ROOT-LIFECYCLE-TASK.txt and complete the new finite source-only task." > work/custody-snp-recovery-harness-20261023/lifecycle-progress.txt 2> work/custody-snp-recovery-harness-20261023/lifecyc
++PID 351079 exe=/usr/bin/bash cwd=/home/steven/Documents/Codex/2026-10-18/wo
++  argv: /bin/bash -c python3 - <<'PY'
++from pathlib import Path
++Path('work/custody-v2-ingress-forwarder-20261023/ROOT-RECIPIENT-PROVENANCE.txt').write_text('Forwarder b1c1feee reviewed, rootactualCaddyadapt/validate PASS20:39 (no serve/reload). New finite READONLY source/provenance inventory for currentproductionrecipient (nohardware/prodchanges). Rootactualmetadata live/evidence/recipient-runtime-capabilities.json: metal0 /availability HTTP200 isolation=snp-g
++PY
++/home/steven/.local/bin/claude -p --resume 802c4787-5d4e-482d-8760-636cf0aafa70 --permission-mode bypassPermissions "Read /home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/ROOT-RECIPIENT-PROVENANCE.txt and complete the finite read-only task." > work/custody-v2-live-20261023/claude-D-recipient-progress.txt 2> work/custody-v2-live-20261023/claude-D-recipient.err 
++PID 2087833 exe=/usr/bin/qemu-system-x86_64 cwd=/home/steven
++  argv: /usr/bin/qemu-system-x86_64 -machine q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1 -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on,host-data=nrTmAGOqB5zr7TVflrLQSUV653vbzUkIYEAoLh5Lhxw= -object memory-backend-memfd,id=ram1,size=64281M,share=true -cpu host -smp 16 -m 64281M -bios /home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd -kernel /
++PID 2091472 exe=/home/steven/enclave-prod/guestd-root/bin/fwd cwd=/home/steven
++  argv: /home/steven/enclave-prod/guestd-root/bin/fwd -cid 144931 
++PID 2223309 exe=/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde cwd=/home/steven
++  argv: /home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde -isolation /home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation -root /home/steven/enclave-prod/guestd-root -listen 127.0.0.1:8095 -data-listen 127.0.0.1:8096 -auth-key /home/steven/enclave-prod/guestd-pair.key -gateway https://ipfs.enclave.host -guest-mem-mib 98304 -guest-cpus 24 -release -legacy-isolation /home/steven/enclave-prod/i
++PID 3480942 exe=/usr/bin/node cwd=/home/steven/enclave-prod/metal-deabf8f90
++  argv: /usr/bin/node metal/enclave-metal.mjs --config /home/steven/Projects/enclave/metal/config.json 
++PID 3483499 exe=/usr/bin/qemu-system-x86_64 cwd=/home/steven/enclave-prod/metal-deabf8f90
++  argv: qemu-system-x86_64 -machine q35,accel=kvm,confidential-guest-support=cx0,memory-backend=ram0 -cpu host -smp 4 -m 4096 -nographic -no-reboot -kernel /home/steven/enclave-prod/dist-leasegas-deabf8f90/vmlinuz -initrd /home/steven/enclave-prod/dist-leasegas-deabf8f90/initramfs.cpio.gz -append console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app -fw_cfg n
++PID 3817646 exe=/usr/bin/node (deleted) cwd=/home/steven/enclave-prod/custodian-v2
++  argv: /usr/bin/node /home/steven/enclave-prod/custodian-v2/host.mjs /home/steven/enclave-prod/custodian-v2/config.json 
++PID 3817658 exe=/usr/bin/qemu-system-x86_64 (deleted) cwd=/home/steven/enclave-prod/custodian-v2
++  argv: qemu-system-x86_64 -machine q35,accel=kvm,confidential-guest-support=cx0,memory-backend=ram0 -cpu host -smp 2 -m 3072 -nographic -no-reboot -kernel /home/steven/enclave-prod/custodian-v2-9d43e63e8/vmlinuz -initrd /home/steven/enclave-prod/custodian-v2-9d43e63e8/initramfs.cpio.gz -append console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app -fw_cfg nam
++PID 4061343 exe=/usr/bin/qemu-system-x86_64 cwd=/home/steven
++  argv: /usr/bin/qemu-system-x86_64 -machine q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1 -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on,host-data=2gnQ8mSa4q+nZAPx8V2H21j6rrmj1bqw/d+1vES6aNk= -object memory-backend-memfd,id=ram1,size=6144M,share=true -cpu host -smp 8 -m 6144M -bios /home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd -kernel /hom
++PID 4061682 exe=/home/steven/enclave-prod/guestd-root/bin/fwd cwd=/home/steven
++  argv: /home/steven/enclave-prod/guestd-root/bin/fwd -cid 180670 
++== ~/enclave-prod directories (names, mtimes)
++2026-10-14T11:14:11 /home/steven/enclave-prod/custody-backups
++2026-10-14T12:12:43 /home/steven/enclave-prod/dist-custody-9e5fb2028
++2026-10-14T15:27:42 /home/steven/enclave-prod/dist-custody-v2-295650320
++2026-10-16T00:31:24 /home/steven/enclave-prod/eyesoff-cpu650
++2026-10-14T12:13:50 /home/steven/enclave-prod/guestd-argv.before-custody-20261014T191350Z.txt
++2026-10-14T12:13:50 /home/steven/enclave-prod/guestd-argv.before-custody-20261014T191350Z.txt
++2026-09-24T11:49:30 /home/steven/enclave-prod/guestd-pair.key
++2026-10-23T08:43:57 /home/steven/enclave-prod/guestd-root
++2026-10-14T12:26:00 /home/steven/enclave-prod/guestd-zzzzz-custody.conf.before-hosts-20261014T192600Z
++2026-10-14T12:26:00 /home/steven/enclave-prod/guestd-zzzzz-custody.conf.before-hosts-20261014T192600Z
++2026-10-14T17:37:40 /home/steven/enclave-prod/guestd-zzzzz-custody.conf.before-secretenv-20261015T003740Z
++2026-10-14T17:37:40 /home/steven/enclave-prod/guestd-zzzzz-custody.conf.before-secretenv-20261015T003740Z
++2026-10-14T15:47:23 /home/steven/enclave-prod/guestd-zzzzz-custody.conf.before-v2-20261014T224723Z
++2026-10-14T15:47:23 /home/steven/enclave-prod/guestd-zzzzz-custody.conf.before-v2-20261014T224723Z
++2026-10-17T07:23:41 /home/steven/enclave-prod/guestd-zzzzzz-zimage.conf.before-padspill16
++2026-10-19T07:10:24 /home/steven/enclave-prod/guestd-zzzzzz-zimage.conf.before-padspill17
++2026-10-14T08:10:27 /home/steven/enclave-prod/metal-config.before-custody-20261014T191418Z.json
++2026-10-14T12:14:18 /home/steven/enclave-prod/metal-config.before-custody-v2-20261014T224746Z.json
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/host-meta-1.rc b/logs/host-meta-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/host-meta-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/host-meta-1.try2.out b/logs/host-meta-1.try2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0585c28d141b45e7a9cfee66355eb3b9d46b49b
+--- /dev/null
++++ b/logs/host-meta-1.try2.out
+@@ -0,0 +1 @@
++[queue] NOT STARTED: small allocation held
+diff --git a/logs/release-meta-1.guard.log b/logs/release-meta-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..73125e6a19a72f523a22deac2d09ef94d5ca5814
+--- /dev/null
++++ b/logs/release-meta-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=29 minHostAvailableMiB=24381
+diff --git a/logs/release-meta-1.out b/logs/release-meta-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..3b56fa3332e9f225eef90130daa086cbd9be7490
+--- /dev/null
++++ b/logs/release-meta-1.out
+@@ -0,0 +1,158 @@
++[queue] START available=24576MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++== /home/steven/enclave-prod/release-16c2999d/release.json sha256 16c2999d7715a38f8a29adcff03d9c3c0e071eb1c0afc207c1f335b654dca0aa
++/cmdline console=ttyS0 rdinit=/init loglevel=3
++/dirs [list 6] ['template', 'template/dev', 'template/proc', 'template/rt', 'template/sys', 'template/tmp']
++/files/firmware.fd/sha256 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
++/files/firmware.fd/size 4194304
++/files/kernel/sha256 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
++/files/kernel/size 17232384
++/files/template/front/sha256 082313e04a16bba42a663be5e80042d8228cb5dd191c5543f517c7452c2bf5b4
++/files/template/front/size 9265276
++/files/template/init/sha256 a8bd7e1a5dede68edd2b3c29e9a8c55b4bedc9b5bbc3b2a5a3e0203b540ba338
++/files/template/init/size 112488
++/files/template/rt/ld-linux-x86-64.so.2/sha256 d011113b7054c641c8ca064f58bcc23804fd2654a3dff2444dad06ddeda61bfb
++/files/template/rt/ld-linux-x86-64.so.2/size 263152
++/files/template/rt/libc.so.6/sha256 e221b10fee9ee4776d8f0f1701253bc06817f7a4dbe6c5292487277d0bf8ffff
++/files/template/rt/libc.so.6/size 2215072
++/files/template/rt/libgcc_s.so.1/sha256 e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a
++/files/template/rt/libgcc_s.so.1/size 182512
++/files/template/rt/libm.so.6/sha256 965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d
++/files/template/rt/libm.so.6/size 1268336
++/files/template/rt/mem64.enabled/sha256 4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865
++/files/template/rt/mem64.enabled/size 2
++/files/template/rt/protected-ports.enabled/sha256 4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865
++/files/template/rt/protected-ports.enabled/size 2
++/files/template/rt/runtime.json/sha256 c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0
++/files/template/rt/runtime.json/size 158
++/files/template/rt/set.enabled/sha256 4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865
++/files/template/rt/set.enabled/size 2
++/files/template/rt/wasmtime/sha256 9caac5e682396f9dd275b1599843d80568bd7067e4abd3136cfa798800b905b9
++/files/template/rt/wasmtime/size 57806632
++/files/template/sev-guest.ko.zst/sha256 528c57721813d4cf7dd74f65d9deea82cee7af0bc4d6b15f15064370ef84caa0
++/files/template/sev-guest.ko.zst/size 9294
++/files/template/tsm_report.ko.zst/sha256 41f36ca242ed64095f140303ae6c05066d043ef37d1c9f6841216469bb009151
++/files/template/tsm_report.ko.zst/size 6983
++/files/template/vmw_vsock_virtio_transport.ko.zst/sha256 6fe99263330f3abe3371eebb5ad8f9be35a47e57faab0f96c0729c29cb95bcc9
++/files/template/vmw_vsock_virtio_transport.ko.zst/size 10496
++/files/template/vmw_vsock_virtio_transport_common.ko.zst/sha256 4b9aee6ec87e6b5322df1f2fbff60ccd8862df113e5010e006e563971a083991
++/files/template/vmw_vsock_virtio_transport_common.ko.zst/size 22109
++/files/template/vsock.ko.zst/sha256 d41ae5d80296ef9220531413899abd4e95d1d877e7957d80e035c621aa8f1aaa
++/files/template/vsock.ko.zst/size 27051
++/format enclave-m4a-domain-release/1
++/measure/mode snp
++/measure/vcpuFamily 26
++/measure/vcpuModel 2
++/measure/vcpuStepping 1
++/measure/vmmType QEMU
++== /home/steven/enclave-prod/release-0181bce3/release.json sha256 5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2
++/cmdline console=ttyS0 rdinit=/init loglevel=3
++/dirs [list 6] ['template', 'template/dev', 'template/proc', 'template/rt', 'template/sys', 'template/tmp']
++/files/firmware.fd/sha256 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
++/files/firmware.fd/size 4194304
++/files/kernel/sha256 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
++/files/kernel/size 17232384
++/files/template/front/sha256 282cb360aa98865a96d269cabaffdad17f122e0e094565e6001c9942529f7081
++/files/template/front/size 7626876
++/files/template/init/sha256 30b660c4bb8d3cbfcb20c3a3c9c73068fe152ed9d9157c68ad8fc655471202fd
++/files/template/init/size 1024704
++/files/template/rt/ld-linux-x86-64.so.2/sha256 d011113b7054c641c8ca064f58bcc23804fd2654a3dff2444dad06ddeda61bfb
++/files/template/rt/ld-linux-x86-64.so.2/size 263152
++/files/template/rt/libc.so.6/sha256 e221b10fee9ee4776d8f0f1701253bc06817f7a4dbe6c5292487277d0bf8ffff
++/files/template/rt/libc.so.6/size 2215072
++/files/template/rt/libgcc_s.so.1/sha256 e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a
++/files/template/rt/libgcc_s.so.1/size 182512
++/files/template/rt/libm.so.6/sha256 965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d
++/files/template/rt/libm.so.6/size 1268336
++/files/template/rt/runtime.json/sha256 8044b26a6ef691e30ef21983829f7c0dfef34b3f15c009072c477e6ea5dd95b6
++/files/template/rt/runtime.json/size 158
++/files/template/rt/wasmtime/sha256 b77aecdb33fbf0262ffefdd4383adedc8235ca214b97335bcd31c1912ebdf451
++/files/template/rt/wasmtime/size 45616736
++/files/template/sev-guest.ko.zst/sha256 528c57721813d4cf7dd74f65d9deea82cee7af0bc4d6b15f15064370ef84caa0
++/files/template/sev-guest.ko.zst/size 9294
++/files/template/tsm_report.ko.zst/sha256 41f36ca242ed64095f140303ae6c05066d043ef37d1c9f6841216469bb009151
++/files/template/tsm_report.ko.zst/size 6983
++/files/template/vmw_vsock_virtio_transport.ko.zst/sha256 6fe99263330f3abe3371eebb5ad8f9be35a47e57faab0f96c0729c29cb95bcc9
++/files/template/vmw_vsock_virtio_transport.ko.zst/size 10496
++/files/template/vmw_vsock_virtio_transport_common.ko.zst/sha256 4b9aee6ec87e6b5322df1f2fbff60ccd8862df113e5010e006e563971a083991
++/files/template/vmw_vsock_virtio_transport_common.ko.zst/size 22109
++/files/template/vsock.ko.zst/sha256 d41ae5d80296ef9220531413899abd4e95d1d877e7957d80e035c621aa8f1aaa
++/files/template/vsock.ko.zst/size 27051
++/format enclave-m4a-domain-release/1
++/measure/mode snp
++/measure/vcpuFamily 26
++/measure/vcpuModel 2
++/measure/vcpuStepping 1
++/measure/vmmType QEMU
++== /home/steven/enclave-prod/release-6757d139/release.json sha256 6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb
++/cmdline console=ttyS0 rdinit=/init loglevel=3
++/dirs [list 6] ['template', 'template/dev', 'template/proc', 'template/rt', 'template/sys', 'template/tmp']
++/files/firmware.fd/sha256 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
++/files/firmware.fd/size 4194304
++/files/kernel/sha256 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
++/files/kernel/size 17232384
++/files/template/front/sha256 840b92457f77e119aa8cac6bb42dfd62365286cdadd2d1cf4ff45f75187c01fd
++/files/template/front/size 7626876
++/files/template/init/sha256 e0e77da23aa74c0e2bcdd93c146ab71debd8907d7bd5d4a564395c1dbc0ab0c1
++/files/template/init/size 886032
++/files/template/rt/ld-linux-x86-64.so.2/sha256 d011113b7054c641c8ca064f58bcc23804fd2654a3dff2444dad06ddeda61bfb
++/files/template/rt/ld-linux-x86-64.so.2/size 263152
++/files/template/rt/libc.so.6/sha256 e221b10fee9ee4776d8f0f1701253bc06817f7a4dbe6c5292487277d0bf8ffff
++/files/template/rt/libc.so.6/size 2215072
++/files/template/rt/libgcc_s.so.1/sha256 e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a
++/files/template/rt/libgcc_s.so.1/size 182512
++/files/template/rt/libm.so.6/sha256 965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d
++/files/template/rt/libm.so.6/size 1268336
++/files/template/rt/runtime.json/sha256 8044b26a6ef691e30ef21983829f7c0dfef34b3f15c009072c477e6ea5dd95b6
++/files/template/rt/runtime.json/size 158
++/files/template/rt/wasmtime/sha256 b77aecdb33fbf0262ffefdd4383adedc8235ca214b97335bcd31c1912ebdf451
++/files/template/rt/wasmtime/size 45616736
++/files/template/sev-guest.ko.zst/sha256 528c57721813d4cf7dd74f65d9deea82cee7af0bc4d6b15f15064370ef84caa0
++/files/template/sev-guest.ko.zst/size 9294
++/files/template/tsm_report.ko.zst/sha256 41f36ca242ed64095f140303ae6c05066d043ef37d1c9f6841216469bb009151
++/files/template/tsm_report.ko.zst/size 6983
++/files/template/vmw_vsock_virtio_transport.ko.zst/sha256 6fe99263330f3abe3371eebb5ad8f9be35a47e57faab0f96c0729c29cb95bcc9
++/files/template/vmw_vsock_virtio_transport.ko.zst/size 10496
++/files/template/vmw_vsock_virtio_transport_common.ko.zst/sha256 4b9aee6ec87e6b5322df1f2fbff60ccd8862df113e5010e006e563971a083991
++/files/template/vmw_vsock_virtio_transport_common.ko.zst/size 22109
++/files/template/vsock.ko.zst/sha256 d41ae5d80296ef9220531413899abd4e95d1d877e7957d80e035c621aa8f1aaa
++/files/template/vsock.ko.zst/size 27051
++/format enclave-m4a-domain-release/1
++/measure/mode snp
++/measure/vcpuFamily 26
++/measure/vcpuModel 2
++/measure/vcpuStepping 1
++/measure/vmmType QEMU
++== receipts naming guestd 9d1562738cde / release 16c2999d
++/home/steven/Documents/Codex/2026-10-18/wo/work/history-checkpoint-transport/tree/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/private-browser-final-release/tree/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/private-browser-final-release/mut/tree/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-20261021/reconciled-candidate/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/offchain-heartbeat/tree/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/measured-control-final-integration/tree/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/hosted-service-placement/tree/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/hosted-service-placement/policy-tree/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/direct-hardware-canary/tree/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-image/src/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/repo/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-front-abort/repo/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-front-abort/base-ca311820/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/preclaim-recheck/candidate/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/preclaim-recheck/tmp/base/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-composition/tree-a/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-composition/tree-c/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-composition/tree-b/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-runtime-final-integration/repo/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-serving-first/candidate/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-handoff-final/base-2a2dd38c/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-sia-cache/history-compose/repo/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-sia-cache/repo/docs/design/paid-capacity-verification.md
++/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-sia-cache/compose/repo/docs/design/paid-capacity-verification.md
++[memory-guard] exit=0 peakTreeRssMiB=29 minHostAvailableMiB=24381
++[memory-guard] at peak: grep:15 bash:6 grep:4 head:4
++[queue] EXIT 0
+diff --git a/logs/release-meta-1.rc b/logs/release-meta-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/release-meta-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-1.attempt-1.guard.log b/logs/scan-1.attempt-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d7d59e08f7e1fe9f5e78e796ddd70a07010dae40
+--- /dev/null
++++ b/logs/scan-1.attempt-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=97 minHostAvailableMiB=24743
+diff --git a/logs/scan-1.attempt-1.out b/logs/scan-1.attempt-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..91bea71fed9c034d7acdc37fc28c7bca373d518c
+--- /dev/null
++++ b/logs/scan-1.attempt-1.out
+@@ -0,0 +1,8 @@
++[queue] START available=24825MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++1:53PM INF scanned ~5559103 bytes (5.56 MB) in 217ms
++1:53PM INF no leaks found
++literal files ['out/dist-custody-v2-295650320/initramfs-inventory.json', 'out/dist-leasegas-deabf8f90/initramfs-inventory.json']
++[scan] gitleaks=0 scan-crypto-keys=0 literal=1
++[memory-guard] exit=1 peakTreeRssMiB=97 minHostAvailableMiB=24743
++[memory-guard] at peak: gitleaks:87 bash:6 timeout:4
++[queue] EXIT 1
+diff --git a/logs/scan-2.guard.log b/logs/scan-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..fd9885b06455477fe922b2cf31dbe0f6d433bf6f
+--- /dev/null
++++ b/logs/scan-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=101 minHostAvailableMiB=24796
+diff --git a/logs/scan-2.out b/logs/scan-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..3950d5f617c1bbcb6729f44c82a830fc9dca5963
+--- /dev/null
++++ b/logs/scan-2.out
+@@ -0,0 +1,8 @@
++[queue] START available=24985MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++1:53PM INF scanned ~5530022 bytes (5.53 MB) in 223ms
++1:53PM INF no leaks found
++literal files []
++[scan] gitleaks=0 scan-crypto-keys=0 literal=0
++[memory-guard] exit=0 peakTreeRssMiB=101 minHostAvailableMiB=24796
++[memory-guard] at peak: gitleaks:91 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-2.rc b/logs/scan-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-2.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-gitleaks.json b/logs/scan-gitleaks.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..fe51488c7066f6687ef680d6bfaa4f7768ef205c
+--- /dev/null
++++ b/logs/scan-gitleaks.json
+@@ -0,0 +1 @@
++[]
+diff --git a/logs/stream-1.guard.log b/logs/stream-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..31bccf5e9f9786397cf5516db34936f7915e35dd
+--- /dev/null
++++ b/logs/stream-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=27 minHostAvailableMiB=23760
+diff --git a/logs/stream-1.out b/logs/stream-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..2756cbe4df47084bdc52eed9f18c34cf1df7724b
+--- /dev/null
++++ b/logs/stream-1.out
+@@ -0,0 +1,66 @@
++[queue] START available=23792MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++{
++ "source": "/home/steven/enclave-prod/dist-leasegas-deabf8f90/initramfs.cpio.gz",
++ "hashedMembers": 13514,
++ "otherMembers": 15549,
++ "otherBytes": 662568286,
++ "namesMentioningCustodyOrGuestd": [
++  "app/isolation/m4/guestd",
++  "app/isolation/m4/guestd/control-client.mjs",
++  "app/isolation/m4/guestd/supervisor-guestcert.mjs",
++  "app/isolation/m4/guestd/supervisor-splice.mjs",
++  "app/isolation/m4/guestd/supervisor-transport.mjs"
++ ],
++ "flavorEnv": {
++  "sha256": "9d901ae3969f0cadafdd65e8abd4515ae4608dbd890e722294135bbdaec807f5",
++  "keys": [
++   "ACME_CONTACT",
++   "ACME_DIRECTORY_2",
++   "ACME_STORE_DIR",
++   "ADDRESS_BOOK_ADDRESS",
++   "APP_CATALOG_ADDRESS",
++   "APP_CERT_DOMAIN",
++   "AUTO_PROVISION",
++   "AUTO_PROVISION_HOURS",
++   "CERTS_API",
++   "CHAIN_ID",
++   "CLAIM_ENABLED",
++   "CORS_ORIGINS",
++   "DEPLOYMENTS_ADDRESS",
++   "DEP_ADDR_PREFIX",
++   "DNS_API",
++   "EGRESS_DEDICATED_RELAY",
++   "EGRESS_DEFAULT_RELAY",
++   "EGRESS_SOCKS_PORT",
++   "ENCLAVE_REPO",
++   "FORWARDER_ADDRESS",
++   "GPU_COUNT",
++   "GRACE_SEC",
++   "NODE_GFLOPS",
++   "NODE_RAM_GB",
++   "NODE_VCPUS",
++   "PAYMENT_WINDOW_SEC",
++   "PAYOUT_ADDRESS",
++   "PAY_POLL_SEC",
++   "PROVISION_BACKEND",
++   "REGISTRY_ADDRESS",
++   "REGISTRY_ENABLED",
++   "SESSION_TTL",
++   "SIWE_DOMAIN",
++   "SIWE_URI",
++   "TLS_BRIDGE_DOMAIN",
++   "USDC_ADDRESS",
++   "VMMGR_URL"
++  ],
++  "publicValues": {
++   "CHAIN_ID": "8453",
++   "ADDRESS_BOOK_ADDRESS": "0xab214342d5A490150A4A977063A2f88E21F80907",
++   "REGISTRY_ADDRESS": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC"
++  },
++  "secretishKeysPresent": []
++ },
++ "inImageManifestSha256": "544416e1a53daff9a886658b295a112a94f15cce8b5ce83ff534a785804f1ca0"
++}
++[memory-guard] exit=0 peakTreeRssMiB=27 minHostAvailableMiB=23760
++[memory-guard] at peak: python3:27
++[queue] EXIT 0
+diff --git a/logs/stream-1.rc b/logs/stream-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/stream-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/stream-2.guard.log b/logs/stream-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d7ca7c83bb0e9b0de98cc48ee882930dc931c53f
+--- /dev/null
++++ b/logs/stream-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=27 minHostAvailableMiB=24396
+diff --git a/logs/stream-2.out b/logs/stream-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a136732c254e644104ed4ec7b2b92c580a70f076
+--- /dev/null
++++ b/logs/stream-2.out
+@@ -0,0 +1,66 @@
++[queue] START available=24430MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++{
++ "source": "/home/steven/enclave-prod/dist-custody-v2-295650320/initramfs.cpio.gz",
++ "hashedMembers": 13496,
++ "otherMembers": 15539,
++ "otherBytes": 662568286,
++ "namesMentioningCustodyOrGuestd": [
++  "app/isolation/m4/guestd",
++  "app/isolation/m4/guestd/control-client.mjs",
++  "app/isolation/m4/guestd/supervisor-guestcert.mjs",
++  "app/isolation/m4/guestd/supervisor-splice.mjs",
++  "app/isolation/m4/guestd/supervisor-transport.mjs"
++ ],
++ "flavorEnv": {
++  "sha256": "9d901ae3969f0cadafdd65e8abd4515ae4608dbd890e722294135bbdaec807f5",
++  "keys": [
++   "ACME_CONTACT",
++   "ACME_DIRECTORY_2",
++   "ACME_STORE_DIR",
++   "ADDRESS_BOOK_ADDRESS",
++   "APP_CATALOG_ADDRESS",
++   "APP_CERT_DOMAIN",
++   "AUTO_PROVISION",
++   "AUTO_PROVISION_HOURS",
++   "CERTS_API",
++   "CHAIN_ID",
++   "CLAIM_ENABLED",
++   "CORS_ORIGINS",
++   "DEPLOYMENTS_ADDRESS",
++   "DEP_ADDR_PREFIX",
++   "DNS_API",
++   "EGRESS_DEDICATED_RELAY",
++   "EGRESS_DEFAULT_RELAY",
++   "EGRESS_SOCKS_PORT",
++   "ENCLAVE_REPO",
++   "FORWARDER_ADDRESS",
++   "GPU_COUNT",
++   "GRACE_SEC",
++   "NODE_GFLOPS",
++   "NODE_RAM_GB",
++   "NODE_VCPUS",
++   "PAYMENT_WINDOW_SEC",
++   "PAYOUT_ADDRESS",
++   "PAY_POLL_SEC",
++   "PROVISION_BACKEND",
++   "REGISTRY_ADDRESS",
++   "REGISTRY_ENABLED",
++   "SESSION_TTL",
++   "SIWE_DOMAIN",
++   "SIWE_URI",
++   "TLS_BRIDGE_DOMAIN",
++   "USDC_ADDRESS",
++   "VMMGR_URL"
++  ],
++  "publicValues": {
++   "CHAIN_ID": "8453",
++   "ADDRESS_BOOK_ADDRESS": "0xab214342d5A490150A4A977063A2f88E21F80907",
++   "REGISTRY_ADDRESS": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC"
++  },
++  "secretishKeysPresent": []
++ },
++ "inImageManifestSha256": "fe4c2751501c05a3e0287458990906f7fa6cf9855707a1eea341df3935375b1e"
++}
++[memory-guard] exit=0 peakTreeRssMiB=27 minHostAvailableMiB=24396
++[memory-guard] at peak: python3:27
++[queue] EXIT 0
+diff --git a/logs/stream-2.rc b/logs/stream-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/stream-2.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/vm-start-1.guard.log b/logs/vm-start-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/logs/vm-start-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/logs/vm-start-1.out b/logs/vm-start-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..db0c8982bcc0c4f55ca832c416362cdf0f64ecc2
+--- /dev/null
++++ b/logs/vm-start-1.out
+@@ -0,0 +1,13 @@
++[queue] START available=24699MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++metal VM PID 360240 started Fri Oct 23 13:52:09 2026
++metal VM PID 3483499 started Wed Oct 21 01:05:19 2026
++-kernel	/home/steven/enclave-prod/dist-leasegas-deabf8f90/vmlinuz
++-initrd	/home/steven/enclave-prod/dist-leasegas-deabf8f90/initramfs.cpio.gz
++2026-10-21 00:40:04.185745675 -0700 /home/steven/enclave-prod/dist-leasegas-deabf8f90/initramfs.cpio.gz
++2026-10-16 12:02:42.482466767 -0700 /home/steven/enclave-prod/dist-leasegas-deabf8f90/vmlinuz
++c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3  /home/steven/e
++1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  /home/steven/e
++d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  /home/steven/e
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/vm-start-1.rc b/logs/vm-start-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/vm-start-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/vm-start-1.try2.out b/logs/vm-start-1.try2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0585c28d141b45e7a9cfee66355eb3b9d46b49b
+--- /dev/null
++++ b/logs/vm-start-1.try2.out
+@@ -0,0 +1 @@
++[queue] NOT STARTED: small allocation held
+diff --git a/q.sh b/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..f69b7de1730e7634fb481a8924488479d2eeeeba
+--- /dev/null
++++ b/q.sh
+@@ -0,0 +1,11 @@
++#!/bin/bash
++# q.sh MIB NAME CMD... : run CMD through the unchanged shared queue, retrying only on exit 98 (NOT STARTED); keeps every try.
++mib=$1; name=$2; shift 2
++d=$(cd "$(dirname "$0")" && pwd)/logs
++[ ! -e "$d/$name.rc" ] || { echo "$name.rc exists"; exit 2; }
++for i in $(seq 2 200); do
++  python3 -u /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib "$mib" --log "$d/$name.guard.log" -- "$@" > "$d/$name.out" 2>&1
++  rc=$?; [ $rc -ne 98 ] && break
++  mv "$d/$name.out" "$d/$name.try$i.out"; sleep 10
++done
++echo $rc > "$d/$name.rc"; exit $rc
+diff --git a/release-meta.sh b/release-meta.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..feb4a395a89ed577548e09e4e235782c2ba0135d
+--- /dev/null
++++ b/release-meta.sh
+@@ -0,0 +1,18 @@
++#!/bin/bash
++# Read-only: public release.json / runtime.json fields of the guestd CPU release and adopted runtimes, and receipts naming the
++# guestd binary hash or the CPU release (text files only, no node_modules/.git).
++for r in release-16c2999d release-0181bce3 release-6757d139; do
++  f=/home/steven/enclave-prod/$r/release.json; [ -f $f ] || continue
++  echo "== $f sha256 $(sha256sum $f | cut -d' ' -f1)"
++  python3 -c "
++import json,sys
++m=json.load(open(sys.argv[1]))
++def walk(o,p=''):
++    if isinstance(o,dict):
++        for k,v in o.items(): walk(v,p+'/'+k)
++    elif isinstance(o,list): print(p,'[list %d]'%len(o), str(o)[:180])
++    else: print(p,str(o)[:180])
++walk(m)" $f | head -45
++done
++echo "== receipts naming guestd 9d1562738cde / release 16c2999d"
++grep -rIl --exclude-dir=node_modules --exclude-dir=.git --include='*.json' --include='*.md' --include='*.txt' -e '9d1562738cde' -e 'release-16c2999d' -e '16c2999d' /home/steven/Documents/Codex/2026-10-18/wo/work /home/steven/Documents/Codex/2026-10-18/wo/outputs /home/steven/enclave-prod 2>/dev/null | grep -v '/checkpoints/decentralization-20261022/' | head -30
+diff --git a/scan.sh b/scan.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..c348833de9665764a3ca0f06e1ab2adb9e9ada29
+--- /dev/null
++++ b/scan.sh
+@@ -0,0 +1,14 @@
++#!/bin/bash
++# Secret scans of every file to be committed, with the checkpoint's own scanners/config (unchanged), plus the rewritten-literal check.
++set -uo pipefail
++cd "$(dirname "$0")"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++cfg=$(mktemp); git -C "$CKR" show HEAD:.gitleaks.toml > "$cfg"
++timeout -k 5 120 /home/steven/.local/bin/gitleaks dir . --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path logs/scan-gitleaks.json; g=$?; rm -f "$cfg"
++find . -path ./.git -prune -o -type f -print0 | xargs -0 timeout -k 5 120 python3 "$CKR/.githooks/scan-crypto-keys.py" --files; k=$?
++python3 - <<'PY'; l=$?
++import pathlib, sys
++OLD = bytes.fromhex('54696e666f696c'); bad = [str(p) for p in pathlib.Path('.').rglob('*') if p.is_file() and '.git' not in p.parts and (OLD in p.read_bytes() or OLD.lower() in p.read_bytes())]
++print('literal files', bad); sys.exit(1 if bad else 0)
++PY
++echo "[scan] gitleaks=$g scan-crypto-keys=$k literal=$l"; [ $g -eq 0 ] && [ $k -eq 0 ] && [ $l -eq 0 ]
+diff --git a/stream-initramfs.py b/stream-initramfs.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..9158e975af0d57e6695b85780814115b3d4b4d51
+--- /dev/null
++++ b/stream-initramfs.py
+@@ -0,0 +1,71 @@
++"""Bounded, read-only streaming inventory of a gzip'd newc initramfs (the production recipient image is never modified).
++
++  python3 -I stream-initramfs.py <initramfs.cpio.gz> <outdir>
++
++Reads the archive once as a stream (64 KiB chunks, no member held in memory beyond 64 KiB, no full decompression to disk).
++- For every member under app/, opt/metal/, init, etc/ and usr/local/bin/guestd* (the public baked code and init), it records
++  path, mode, size and sha256, and any name mentioning custody or guestd.
++- It writes out ONLY the public, non-secret baked env file opt/metal/flavor-env.json (as KEY NAMES plus the values of
++  custody/vault/chain/contract-address keys) and opt/metal/manifest.json if present. Nothing else is extracted.
++- For the rest (the wasm chroot under opt/roots etc.) it counts members and bytes only.
++"""
++import gzip, hashlib, json, os, re, sys
++
++src, outdir = sys.argv[1], sys.argv[2]
++os.makedirs(outdir, exist_ok=True)
++HASH = re.compile(r'^(app/|opt/metal/|init$|etc/|usr/local/bin/)')
++WANT = {'opt/metal/flavor-env.json', 'opt/metal/manifest.json'}
++f = gzip.open(src, 'rb')
++buf = b''
++def read(n):
++    global buf
++    while len(buf) < n:
++        c = f.read(65536)
++        if not c: raise EOFError('truncated archive')
++        buf += c
++    out, buf = buf[:n], buf[n:]
++    return out
++def skip(n):
++    global buf
++    while n > 0:
++        if not buf:
++            buf = f.read(65536)
++            if not buf: raise EOFError('truncated archive')
++        k = min(n, len(buf)); buf = buf[k:]; n -= k
++members, other, otherBytes, named, wanted = [], 0, 0, [], {}
++while True:
++    h = read(110)
++    if h[:6] not in (b'070701', b'070702'): raise ValueError(f'not newc at member {len(members) + other}: {h[:6]!r}')
++    fld = [int(h[6 + 8 * i: 14 + 8 * i], 16) for i in range(13)]
++    mode, size, namesize = fld[1], fld[6], fld[11]
++    name = read(namesize)[:-1].decode('utf-8', 'replace')
++    pad = (4 - (110 + namesize) % 4) % 4; skip(pad)
++    if name == 'TRAILER!!!': break
++    n = name[2:] if name.startswith('./') else name.lstrip('/')
++    dpad = (4 - size % 4) % 4
++    if 'custody' in n.lower() or 'guestd' in n.lower(): named.append(n)
++    if HASH.match(n) and (mode & 0o170000) in (0o100000, 0o120000):
++        hsh, left, keep = hashlib.sha256(), size, n in WANT
++        chunks = []
++        while left > 0:
++            k = min(65536, left); d = read(k); hsh.update(d); left -= k
++            if keep: chunks.append(d)
++        members.append({'path': '/' + n, 'mode': oct(mode), 'bytes': size, 'sha256': hsh.hexdigest()})
++        if keep: wanted[n] = b''.join(chunks)
++    else:
++        skip(size); other += 1; otherBytes += size
++    skip(dpad)
++inv = {'source': src, 'hashedMembers': len(members), 'otherMembers': other, 'otherBytes': otherBytes,
++       'namesMentioningCustodyOrGuestd': sorted(set(named))[:200], 'members': members}
++fe = wanted.get('opt/metal/flavor-env.json')
++if fe is not None:
++    env = json.loads(fe)
++    KEEP = re.compile(r'(CUSTODY|VAULT|CHAIN_ID|REGISTRY_ADDRESS|LEDGER|ADDRESS_BOOK|HOST_OWNERSHIP)', re.I)
++    SECRETISH = re.compile(r'(SECRET|TOKEN|PASSWORD|PRIVATE|KEY$|HMAC|MNEMONIC|SEED)', re.I)
++    inv['flavorEnv'] = {'sha256': hashlib.sha256(fe).hexdigest(), 'keys': sorted(env),
++                        'publicValues': {k: v for k, v in env.items() if KEEP.search(k) and not SECRETISH.search(k)},
++                        'secretishKeysPresent': sorted(k for k in env if SECRETISH.search(k))}
++if 'opt/metal/manifest.json' in wanted:
++    inv['inImageManifestSha256'] = hashlib.sha256(wanted['opt/metal/manifest.json']).hexdigest()
++json.dump(inv, open(os.path.join(outdir, 'initramfs-inventory.json'), 'w'), indent=1)
++print(json.dumps({k: v for k, v in inv.items() if k != 'members'}, indent=1))
+diff --git a/vm-start.sh b/vm-start.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..d37a463fad4784a05d438ed2b81d7d0ad0aa0356
+--- /dev/null
++++ b/vm-start.sh
+@@ -0,0 +1,5 @@
++#!/bin/bash
++# Read-only: start time of the metal0 control VM and guestd vs the dist files' mtimes (no argv beyond the kernel/initrd paths).
++for p in $(pgrep -f 'dist-leasegas-deabf8f90/vmlinuz'); do echo "metal VM PID $p started $(ps -o lstart= -p $p)"; tr '\0' '\n' < /proc/$p/cmdline | grep -A1 -E '^-(kernel|initrd)$' | paste - -; done
++stat -c '%y %n' /home/steven/enclave-prod/dist-leasegas-deabf8f90/initramfs.cpio.gz /home/steven/enclave-prod/dist-leasegas-deabf8f90/vmlinuz
++sha256sum /home/steven/enclave-prod/dist-leasegas-deabf8f90/initramfs.cpio.gz /home/steven/enclave-prod/dist-leasegas-deabf8f90/vmlinuz /home/steven/enclave-prod/dist-leasegas-deabf8f90/cmdline | cut -c1-80

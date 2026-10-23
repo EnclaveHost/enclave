@@ -1,0 +1,3236 @@
+{
+ "format": "enclave-frozen-2100-export/v1",
+ "checkpointHeadAtExport": "619e0e34ca6321dad2e872a76d4da565969c4e66",
+ "batch": "2100 = the batch start 2026-10-23T21:00:37Z (date -u): an identifier, not a publication time",
+ "label": "SOURCE + EVIDENCE ONLY. Custody v2 rollout work: ROOT live reconciliation dc07e225 (read-only), R dashboard 9d97b4b0 (source/test), site releases (r1 SUPERSEDED, r2 metadata/source; neither published), canary ingress forwarder, factory consumer review and factory activation handoff (its ABI fix WIP not included), production canary driver (NOT mutation-ready), metal0 recipient provenance, ipns-publisher assessment. Root owns all activation and signing; none has occurred. Existing custody is the original single-seat bootstrap: NOT complete and NOT decentralized custody.",
+ "sides": {
+  "custody-live4": {
+   "repo": "work/custody-v2-live-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "3fd6e8ff99dbda1a261d11be00beea3e6549cbe9",
+   "baseProvenance": "3fd6e8ff preserved in 619e0e34 (frozen-2025 custody-live3 head)",
+   "head": "dc07e225c85c21c86af816da8c4515519924cc93",
+   "headTree": "986d5fbda68a3a04b13c020a75145833d1a836df",
+   "commits": [
+    {
+     "commit": "bc3f93c084f26316e7f3e8510be2709a9ec553fb",
+     "tree": "38438f5218d60ed39f5f245efdaa93feb4263a36",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:30:16-07:00",
+     "subject": "Pin the original v1 vault before consumer inventory reads",
+     "parent": "3fd6e8ff99dbda1a261d11be00beea3e6549cbe9",
+     "emptyAfterExclusion": false,
+     "patch": "custody-live4-dc07e225/patches/0001-bc3f93c0.patch"
+    },
+    {
+     "commit": "edaaaf81c5662f2fe199523490209169e38ba86b",
+     "tree": "7c4ad373f7c82b724d2a58d4d3c242f63896baea",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:46:34-07:00",
+     "subject": "Verify relay factory pin and prepare isolated custody ingress",
+     "parent": "bc3f93c084f26316e7f3e8510be2709a9ec553fb",
+     "emptyAfterExclusion": false,
+     "patch": "custody-live4-dc07e225/patches/0002-edaaaf81.patch"
+    },
+    {
+     "commit": "dc07e225c85c21c86af816da8c4515519924cc93",
+     "tree": "986d5fbda68a3a04b13c020a75145833d1a836df",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T14:00:14-07:00",
+     "subject": "Record deployed address-book ABI and missing recipient custody settings",
+     "parent": "edaaaf81c5662f2fe199523490209169e38ba86b",
+     "emptyAfterExclusion": false,
+     "patch": "custody-live4-dc07e225/patches/0003-dc07e225.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "README.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "0915306bd0340db112e12a0280b12053fc523f05",
+     "sha256": "70bd118276ea4fcab3ccf661cb9e4aad6b8b1a9a326af9983c7581d48865a97c",
+     "bytes": 15091,
+     "baseBlob": "55f413c75d2f9546ca4139e9c0925e26dc8e7808"
+    },
+    {
+     "path": "evidence/book-abi-readcheck.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7b4b9d8fad207da1a861950517c914b36fc26ed3",
+     "sha256": "970017cf344ec18b35804c73d620b88787af704af3581024ffbd8c0f5b3c4f29",
+     "bytes": 1446,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/canary-caddy-validate.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a4123d14beff133b1ef2d69fe7dc05994575d4d8",
+     "sha256": "c2140b9e8f3eb8cc1bd788d55c241fc9146a7799f4397bfd4002f07ded900a03",
+     "bytes": 1144,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/publisher-runtime-metadata.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "580e45585aeea69a003ba3c4f736519c8a76e0e4",
+     "sha256": "0959e8ffcb20014714101ea5675acd42f9e319e572fa8a95fb3da4c25261e6fa",
+     "bytes": 1934,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/recipient-live-confirm.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0804ae3bc880fb8bb6ec98c1bcae4c287cfbdfc3",
+     "sha256": "f2ade7e161432a5396b914492aadb0e4b2d1e457e5fc99ce670dffdb4dec46c4",
+     "bytes": 1153,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/recipient-runtime-capabilities.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "579788d363b7d704d6d23ce8087f66bedf3eaea6",
+     "sha256": "e1009e5beddcbdf5f58dfa3b6573b24e12569de35abbc112998bf7fa08dbeefb",
+     "bytes": 3338,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/recipient-runtime-inventory.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e4f7ff2abc9aa0323bba726817d708c6908d0146",
+     "sha256": "13a8636dc14ef07f3180d1454733ef1202516110544218ab8ace2dcaec93c9bf",
+     "bytes": 1452,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/relay-session-authority.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "41379b1a4fa0782a2e5084d1b412d73c5f4a8e57",
+     "sha256": "3e066d25a5ed6ae6f6db62b109a97f191ceb046855c9440b980d90da01b1cb71",
+     "bytes": 1102,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/book-abi-readcheck.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6d0e09826a7d26be1390805aec652466af70a502",
+     "sha256": "50193185b78afac4dcb1fe6e3bc9edd9f34f3980e37d11363ffc9635893fd51d",
+     "bytes": 1306,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/canary-caddy-validate.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f5cbb3f6d9a3c772db1567b47a9b9c9d8272cd49",
+     "sha256": "6a104540dafb20ac7f164c7d56a2a396eb27e2a54d54f1802a5ed865e0eabf84",
+     "bytes": 1465,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/factory-consumer-state.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "34b04554ee79e7a8831569921bdb4fe6056611d5",
+     "sha256": "a4d4aca4a9d94b78d2cb69c3a0952c3768beeb619013638a4ad98dd309ce8231",
+     "bytes": 2077,
+     "baseBlob": "ff00db54221d20c1e1bcf9ec16933ed8090b0c27"
+    },
+    {
+     "path": "probes/publisher-runtime-metadata.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8d562c23024e7213ed4a2d3b6135313be0654bd2",
+     "sha256": "1c5f19fa13fdcd205b6a1f1c99446fe13e8f21b15e59b2d3985af1476292ac40",
+     "bytes": 1709,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/recipient-live-confirm.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "31b5bb5bbc88988f34816716e2bce078cb6fc114",
+     "sha256": "c1d573fe76491c5d84cfc1b60b7f3d5799595f629920e837f31ea22569380029",
+     "bytes": 1709,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/recipient-runtime-inventory.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "53490c84c2cecd08d058f331e95df47b9cf0d54c",
+     "sha256": "2dc8cfb742fc1cda4854eb6b32b5e2cc5e40adad581a0feaa7a690f4839b2cf0",
+     "bytes": 2569,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/relay-session-authority.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2b21aa7da2d16a70f01ab7550fb52b1fe9b97f60",
+     "sha256": "2db94e71b4ea36f6c0cbab17ca80612b658a120c38a8dca04b8a0852799449c5",
+     "bytes": 1935,
+     "baseBlob": null
+    },
+    {
+     "path": "scan-staged.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a0727715fbfb322b522755dc8de1226d2a797b4f",
+     "sha256": "3bab745c12be4de88b7b4f9c4aa5fb8f0ff46305bae3d7b2e4fbbde19d45b26e",
+     "bytes": 238,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "custody-live4-dc07e225/patches/0001-bc3f93c0.patch",
+     "sha256": "047a2b8f80350b1f8ef5e7f3395053fa58ef14fb4ead4193370c8a829fe0f9cc"
+    },
+    {
+     "file": "custody-live4-dc07e225/patches/0002-edaaaf81.patch",
+     "sha256": "75a660baf37520aa06469a0f9b69af1a95beda28847d236f6ac7360d23e22513"
+    },
+    {
+     "file": "custody-live4-dc07e225/patches/0003-dc07e225.patch",
+     "sha256": "a9264e6488ec2dd3a4ec8eafaa56be071cddcb27f96826ee5fc656a79edb827e"
+    }
+   ],
+   "note": "ROOT live custody reconciliation on 3fd6e8ff: original v1 vault pinned before consumer inventory reads (bc3f93c0), relay factory pin verified and isolated custody ingress prepared (edaaaf81), deployed address-book ABI and missing recipient custody configuration recorded (dc07e225). Read-only public evidence; nothing signed or sent; existing single-seat bootstrap (NOT decentralized custody)"
+  },
+  "dashboard3": {
+   "repo": "work/custody-v2-dashboard-20261023/repo",
+   "branch": "custody-v2-dashboard",
+   "headReachableFromBranch": true,
+   "base": "e24a47fb22399b220d25f4e3b8d544083b13fdb0",
+   "baseProvenance": "e24a47fb preserved in 619e0e34 (frozen-2025 dashboard2 head)",
+   "head": "9d97b4b003661ad4832fe703dc5649ca807739ed",
+   "headTree": "e5f38820113c91c6f45948fff33a76f46cc90390",
+   "commits": [
+    {
+     "commit": "2d3839c547bba10d31339a8f165425571782dddc",
+     "tree": "33d94519c9c25305e38cba1891078ad0f940b0ce",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:28:04-07:00",
+     "subject": "Docs: custody v2 current state - corrected image ab589bf8, policy inventory limits, activation still gated",
+     "parent": "e24a47fb22399b220d25f4e3b8d544083b13fdb0",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard3-9d97b4b0/patches/0001-2d3839c5.patch"
+    },
+    {
+     "commit": "278a28a7e50d6ae55a541e61b76f176bb3c65635",
+     "tree": "9773078c108306e07fcb1628b9ac3a12bc38ba55",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:35:04-07:00",
+     "subject": "Site: app media fallback gateways (accepted patch 04836638, applied unchanged)",
+     "parent": "2d3839c547bba10d31339a8f165425571782dddc",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard3-9d97b4b0/patches/0002-278a28a7.patch"
+    },
+    {
+     "commit": "a942a61fde4a07e6237b859f6ca5f0e1e22e8c33",
+     "tree": "b4e78ac2d1885cf58fd49587680721ae2751d937",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:35:04-07:00",
+     "subject": "Site: verified multi-gateway read for pinned configs (accepted patch r4 bad58bd8, applied unchanged)",
+     "parent": "278a28a7e50d6ae55a541e61b76f176bb3c65635",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard3-9d97b4b0/patches/0003-a942a61f.patch"
+    },
+    {
+     "commit": "9d97b4b003661ad4832fe703dc5649ca807739ed",
+     "tree": "e5f38820113c91c6f45948fff33a76f46cc90390",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:47:50-07:00",
+     "subject": "Docs: custody v2 - who holds x in the single-seat bootstrap; goals are targets, admin and business controls kept",
+     "parent": "a942a61fde4a07e6237b859f6ca5f0e1e22e8c33",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard3-9d97b4b0/patches/0004-9d97b4b0.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "docs/security/secret-custody-v2.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "de1dce4b8c4252a3999bcf20f733bf674c3e3b97",
+     "sha256": "84cd9f518e9730081a0edd039922152b1a2b1e6d6ade15c9e658cafacfdc64b3",
+     "bytes": 33891,
+     "baseBlob": "e1d4b5b190b11ece5e363838e51e9087f024e318"
+    },
+    {
+     "path": "site/components/app-card/app-card.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "cb6736647b83a83d9b33e5cb6f11ff9e41a4a3bb",
+     "sha256": "89ebb2a839cb9bbcb4ae292e7c7d0fc7dac958048ff8dff7e176196f92191d16",
+     "bytes": 4778,
+     "baseBlob": "1ae02e0364c1c7e02426b7508e8b7eea01e01622"
+    },
+    {
+     "path": "site/components/app-detail/app-detail.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "003f09a3ebb7d2b3f5b4ccde3f8ff68abb933587",
+     "sha256": "f0d7b056e0afda8ffbaab95ffbf240064463578b958e805279020fe5cd2b03f4",
+     "bytes": 9810,
+     "baseBlob": "ba650ea11495a5d5ff0e93fbdb5d8592ca0b53c3"
+    },
+    {
+     "path": "site/components/deployments/deployments.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "77ea0cd58d4c21ac1375fe63b89e2e9d1136ba28",
+     "sha256": "790a58e206e0db0343dcce5f17604a93fc3c71c20182376e39904441bb8869fd",
+     "bytes": 319534,
+     "baseBlob": "7f66639d57df0d479ad3566b6d460956a4c7e94e"
+    },
+    {
+     "path": "site/js/core/catalog.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2515205801930bdb595d3e9ae09060f5a340d6fa",
+     "sha256": "9c4ef0d1d11286541468e0973db52c5561a9626db53a92de7dddaa53a1803058",
+     "bytes": 47942,
+     "baseBlob": "b97f2e3f6754d55bec58c624ee1aa33f21bd5159"
+    },
+    {
+     "path": "site/js/core/config.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "9217a075569b79a94be0a8de88d65dcdac4ff802",
+     "sha256": "7a0fe211f87315852229cc2452f0d965b0f6a0f9556f4f0d4af51578a432a6a7",
+     "bytes": 18061,
+     "baseBlob": "f8774e9ff035d05dd6e020aaa4e7221c144a1eb6"
+    },
+    {
+     "path": "site/js/core/ipfs-car.js",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2b0e726661e8155ee1c4b236ede5d1d35b87443a",
+     "sha256": "c21ec11c6717575f150809b162a6cef93dead8cf5050aa498e7dba9cc0728585",
+     "bytes": 7992,
+     "baseBlob": null
+    },
+    {
+     "path": "site/js/core/storage-plan.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "852b84eb9c4b799ed964d92deffbad24d156dbe1",
+     "sha256": "6c7d9e618e1fd0e8878ca3d8048c2f5c7f1018721eb5d0f12905d30143bfdbc4",
+     "bytes": 8928,
+     "baseBlob": "47f7e6e03d26156a896f6eaa77fd065f41e84f0e"
+    },
+    {
+     "path": "site/js/core/unixfs.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "307e8e6426c0228ac31c09f74267c68fc2f8c474",
+     "sha256": "a4a5ae0793402e8b07eb5470b1330a45ddcbce3a3b6df64916de81f7d0236485",
+     "bytes": 6409,
+     "baseBlob": "b620effdbce895bb20a4158b91c06b607ac22638"
+    }
+   ],
+   "patches": [
+    {
+     "file": "dashboard3-9d97b4b0/patches/0001-2d3839c5.patch",
+     "sha256": "59b6465811477e5929b7dc49abb5c6dd29bfe5c65621561adf6a7fa183d69dcc"
+    },
+    {
+     "file": "dashboard3-9d97b4b0/patches/0002-278a28a7.patch",
+     "sha256": "6016b14bb20e381b8bb62e2bfde8e9cbb715eeda6f28905c4bb04b7826eb3366"
+    },
+    {
+     "file": "dashboard3-9d97b4b0/patches/0003-a942a61f.patch",
+     "sha256": "eef029f9e7ffa52759458aecca04ad32e1bae6bf5fb4d9f863d8899e788a39da"
+    },
+    {
+     "file": "dashboard3-9d97b4b0/patches/0004-9d97b4b0.patch",
+     "sha256": "82a09236eedfa246462bc1273a7319d7f2167f53ee96da02a337ce59b0ff9898"
+    }
+   ],
+   "note": "R custody v2 dashboard on e24a47fb: current-state docs (corrected image ab589bf8), app media fallback gateways (accepted patch 04836638), verified multi-gateway read for pinned configs, docs on who holds what in the single-seat bootstrap. Source/test only; not deployed"
+  },
+  "ingress-forwarder": {
+   "repo": "work/custody-v2-ingress-forwarder-20261023",
+   "branch": "main",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "b1c1feee70bb5ac7a63468c20a894ce7ca0ab657",
+   "headTree": "fe9c470a84ead6ad6298776576a4644fc161e068",
+   "commits": [
+    {
+     "commit": "35d73c68c355b716ac6a361cca837d580cabda0b",
+     "tree": "d503dfc9cc8e5b7675d738591dc25b7b6659dbd3",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:33:11-07:00",
+     "subject": "Custody v2 canary ingress forwarder: exact raw-target allowlist from the reviewed ab589bf8 ingress, bounded loopback forwarding, adversarial HTTP tests and mutation check (source only)",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "ingress-forwarder-b1c1feee/patches/0001-35d73c68.patch"
+    },
+    {
+     "commit": "b1c1feee70bb5ac7a63468c20a894ce7ca0ab657",
+     "tree": "fe9c470a84ead6ad6298776576a4644fc161e068",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:37:10-07:00",
+     "subject": "Forwarder: a client gone before upstream creation never starts upstream work (ROOT-FOLLOWUP cancellation race), focused test and mutant",
+     "parent": "35d73c68c355b716ac6a361cca837d580cabda0b",
+     "emptyAfterExclusion": false,
+     "patch": "ingress-forwarder-b1c1feee/patches/0002-b1c1feee.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c6a7e3ea4208c6ce562a9da6640e3583a6c54fbf",
+     "sha256": "365e2443340e9e8d51f25b7b595a7e11af7c3f44cb7c4fbdf3b4dc360515fc7f",
+     "bytes": 11564,
+     "baseBlob": null
+    },
+    {
+     "path": "ROOT-FOLLOWUP.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "08a262fbc274c7daab9102ed766cc9d4f404136c",
+     "sha256": "f29bfa0a2876b25d1456772ea2d9242e7e9a0433c7520924010d186a256f4c2a",
+     "bytes": 715,
+     "baseBlob": null
+    },
+    {
+     "path": "examples/Caddyfile.canary-snippet",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cf3fae03178a5119c368360fc981d131da97a06b",
+     "sha256": "28352d301e612ee73019b9eb130c46792388b9c5468726556d0408be37ec9cac",
+     "bytes": 1521,
+     "baseBlob": null
+    },
+    {
+     "path": "examples/forwarder.canary.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1732946083f7947e5e7794ca3cf86ca29eb252ac",
+     "sha256": "63fbcb0b7d8f1f97d3c04e72d7fb579690eba549e78f53aa66d7cb7da8aa60f4",
+     "bytes": 313,
+     "baseBlob": null
+    },
+    {
+     "path": "examples/reverse-tunnel.canary.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e7f8524e741c8cd446eaf0bdd023b568d3dc9906",
+     "sha256": "2da29c604db70a959c23846b632b2cc4760e474c0c61ff9a9703f837e267aae1",
+     "bytes": 1850,
+     "baseBlob": null
+    },
+    {
+     "path": "forwarder.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d909cc55a936b14d9cb512de457b4c04f37171ac",
+     "sha256": "a2a61e67d62b92e0946fe84e7ff04e97c26cc1cef1a685e4bd03bf567f34ae00",
+     "bytes": 15211,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/debug-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/debug-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "843a7abac839c98e9a4400eaf29f1a8c464b4a66",
+     "sha256": "baf47602003a63d156b6222b8816e7e217a0ebbc1d7ebce2ca7acef8cf5fd71f",
+     "bytes": 621,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/debug-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/mutants-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "39b1d751a03f1dcefdad284405365fe0e7a629a2",
+     "sha256": "bc86f9937b71365c2d3c5f90673d5fbb351c75534a89fcb193fab1c8c6d1a068",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/mutants-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ae63515a6f7cd25a8ca332bc02d73ae8f03b3de0",
+     "sha256": "f587d04b53fced577470dc2190037192425566bf65b3b0e06a3a7d64ed42f78a",
+     "bytes": 3761,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/mutants-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/mutants-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "59925e61b60ac0fdd8c293edabd6eb258e05afc9",
+     "sha256": "787da5063b097a57c66a93c7b9e8597360c4d271af3cddb746ff49b37687af85",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/mutants-2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "52cac9b09deedc09a6e37e573fd7be10ac273792",
+     "sha256": "d231f91e36c8d5b830702e01ef66c52228e531cef3442fd78341386aca1724c4",
+     "bytes": 3964,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/mutants-2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/mutants-3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9271575ec2d71542e8cd923aa3351a118190e417",
+     "sha256": "170af3432186709655eff324f013a5271f5b9df2276e84a3602bab0b62f6ffd7",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/mutants-3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4361ef2c813b8e497d3531c5d013e8a2ec5be35b",
+     "sha256": "8dc9fccb642d7e43c2530bfa915be5a0c503d72c50a94929af52a18889c8bf2b",
+     "bytes": 3964,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/mutants-3.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/mutants-4.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b50843fc524f25f3d7b5a1806cfda7ea6c2af0d9",
+     "sha256": "0b15c3373bb01e3f0a8e8d955e969211e00767be43b79c551b8feff4a88af5f5",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/mutants-4.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f7f2df0cca3dabacba4dc70c41e3a7a06fe520ad",
+     "sha256": "4400b31e86a07c2a23b35b558bd58e201c026620e5d7eb525a62d8391c0ea74f",
+     "bytes": 587,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/mutants-4.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e309edff432aadda5c589ff04480ebd223601a79",
+     "sha256": "d65ff1c16265c4f264ef59dec3b4057bd3c5518fe0fdde8b33ecbd4cb32f9be3",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "583408c6c05217cd130ea204f0e34afad74907af",
+     "sha256": "21f85b00fcbc97694d6d9cb2a6f438faeeb75cd9fa60f9cb6946b07928ddb90e",
+     "bytes": 373,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "734e4df69e528292441721554a8d7ce9e5d416fc",
+     "sha256": "7c1f12e81a005d9274cee706970430606c706436854bd35bc866b899f780e5ca",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7f280ae38032e3b0d259632722cc6beb4553397b",
+     "sha256": "5609cc3308a11b577c7db7fb8fa0e3b1b6d6ecd13810234fbeb3731d2c3b6087",
+     "bytes": 377,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-gitleaks.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fe51488c7066f6687ef680d6bfaa4f7768ef205c",
+     "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+     "bytes": 3,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d66a239c7c881d3a9f39e8a35a2403360d00af30",
+     "sha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7e5e363bb16049129799f80ccf39d66d5a86d66b",
+     "sha256": "893f914c8a439355bcdea37234b8c8d32df8e51302e15651e329cf60917a0e7a",
+     "bytes": 1388,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6a1587fa733ffa8a4108e3b35fa389173c219228",
+     "sha256": "98c315d72942fccd3f4812cffb97d52c8fc5659d23e1c0f0a348b28c70404031",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "494c64ddd4335ae4842e56a0b954c0f287fcdd71",
+     "sha256": "71d11b64daa8485b1152dc23527e15bba604d4df7aae5f118187d7daa8ca0a69",
+     "bytes": 5966,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "69937e5221821a07410e63ab91aa0c7f8c1810ae",
+     "sha256": "16f17cf4ff3442d9532af8beb2d81d353e6f95b4151e840ff70b8b575a764750",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d6908074e0ec729c52c2baee6ac1a03be6b4607c",
+     "sha256": "244eede6634009064a85a8c1ff06af453c9c62f6f9823ad67a30d437ccd20679",
+     "bytes": 4309,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-3.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-4.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "76e01a7e47660414f54495194755326b7856d82e",
+     "sha256": "823afb1e4ea504ed255e718be74b5632ae5913099939addfc82c75fd44289d27",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-4.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8eddeeba05f48a21e75a4d092473e93e7e4c8778",
+     "sha256": "e1d0bc5492aff75cf3ca42fddd396819c55e4d720e7b3fa440119a7c8352ce43",
+     "bytes": 2952,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-4.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-5.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0ca0920c6890d3472aa0d33d9d1ec7b9cea23300",
+     "sha256": "79d1b88ed33598a94f278fbbbd37fde329b8b41bed66cd10a3db155ce5304043",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-5.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d7e684c45cd815485273629bbb29d5260a155407",
+     "sha256": "f27f535c052e3db1cf46d2ab6671d63364e130dad010c9f1f7012aa76906266f",
+     "bytes": 2951,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-5.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-6.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b050ba35badf07721c8d13d7ccbc4b866862164b",
+     "sha256": "c809f82596252c6e46a497f20faa43854f84e1ad5cc2c610bf33ece3c9cdb43f",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-6.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c11cf607cf9653f39d22352fc5674f12ed89f6ad",
+     "sha256": "9876115826ddd6947d313909bf0a13851187447db5c29a2f297724059d627bed",
+     "bytes": 3227,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-6.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-6.try2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a0585c28d141b45e7a9cfee66355eb3b9d46b49b",
+     "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+     "bytes": 43,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-7.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ee210cc2a810fd0bece4cc9c8584ea0f775c2b18",
+     "sha256": "901992e1d5da1793b42479ab6d41d82b5c318466b084dce1c1dbaccf3d2dd0b3",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-7.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d57ec6baac1740cfdfbbe6c285172d3c51d16636",
+     "sha256": "0b3edddc496efe757a1a771216556dd3099a000f83e66c30a83ff1f7ae05be0f",
+     "bytes": 3521,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/test-7.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "pinned/PROVENANCE.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "df07d535400f75f1568f17dc72f4329f6b0e5ca1",
+     "sha256": "2bda1b531974a23ed27a57b12b09c0794622f14fe6c29f908727dc0a642beb47",
+     "bytes": 427,
+     "baseBlob": null
+    },
+    {
+     "path": "pinned/ingress.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ebacbcc6c6d0016c9bc498ae774bc2a3fc1f1772",
+     "sha256": "dd5d74d0d6875c379b8cd90cc1ae119a2a5cbc778c47745a6639c1dc391b5460",
+     "bytes": 1614,
+     "baseBlob": null
+    },
+    {
+     "path": "q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "f69b7de1730e7634fb481a8924488479d2eeeeba",
+     "sha256": "b25ca78d460a5a8e3dc553867270b825d09b5d1e640490e26755fd01fd43e196",
+     "bytes": 565,
+     "baseBlob": null
+    },
+    {
+     "path": "scan.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "c348833de9665764a3ca0f06e1ab2adb9e9ada29",
+     "sha256": "2f73b0aab96917501f3d616b7e47fea89369264b12195ce0c2ec228ab1b0fb4e",
+     "bytes": 1054,
+     "baseBlob": null
+    },
+    {
+     "path": "test/allowlist.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0d2cc573200c74fbc963e072141e5646f944c6ed",
+     "sha256": "00006416b5f69a9154fa56a2c2689de087e569bfb9f68988b1f0cb30c95fefef",
+     "bytes": 4441,
+     "baseBlob": null
+    },
+    {
+     "path": "test/forwarder.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "74fe366992b74380e0475118e4732e2d5d8f96a7",
+     "sha256": "692c911a5c8f5649b7b8ba23b8e9f638b57dbe9755b49274fe12ef6612d21fb7",
+     "bytes": 15766,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helpers.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1550a40ff8032c6549cb54a55eae2766dd7d4ea9",
+     "sha256": "c1c9a6d22ccd89f8b508017a819db4f1b28cc9226c72eebcddda9a11a52c7bbe",
+     "bytes": 4491,
+     "baseBlob": null
+    },
+    {
+     "path": "test/run-mutants.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3017dba5058efc7c3a1a9aee6e886cb66126d941",
+     "sha256": "7ed765dc078738d80b9741224c36a3e3e07d209cf6f255c325bd48e50a4272b5",
+     "bytes": 6114,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "ingress-forwarder-b1c1feee/patches/0001-35d73c68.patch",
+     "sha256": "db39575ddcf2414eacd3cb907137ca3ec250c2007ac48f111a77c41a0388e23f"
+    },
+    {
+     "file": "ingress-forwarder-b1c1feee/patches/0002-b1c1feee.patch",
+     "sha256": "2ab204ce517d4a35a56edf0aaa3e608bb4be5d51a4a607143fcb70ecab92711f"
+    }
+   ],
+   "note": "Custody v2 canary ingress forwarder: exact raw-target allowlist for the ab589bf8 routes (35d73c68) and a client gone before upstream creation never starts one (b1c1feee); tests, mutants (all killed) and queue logs. Source/test only; not deployed"
+  },
+  "factory-consumer": {
+   "repo": "work/custody-factory-consumer-review-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "d0e9df8206414edf715e154f1903c4b6421af754",
+   "headTree": "2fb41cdb1a4296b2c337045b5775e93b1d3a3272",
+   "commits": [
+    {
+     "commit": "519489c34d25fba71df825b4e38b5c17334afe81",
+     "tree": "a30b69f62b8cd06c850d12f033708f7c4b80fd20",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:34:50-07:00",
+     "subject": "Review: effects of activating the original book's sessionVaultFactory entry (read-only)",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "factory-consumer-d0e9df82/patches/0001-519489c3.patch"
+    },
+    {
+     "commit": "d0e9df8206414edf715e154f1903c4b6421af754",
+     "tree": "2fb41cdb1a4296b2c337045b5775e93b1d3a3272",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:36:50-07:00",
+     "subject": "Consumer review: the running relay pins SESSIONS_FACTORY (root evidence); its network API still reads the book key",
+     "parent": "519489c34d25fba71df825b4e38b5c17334afe81",
+     "emptyAfterExclusion": false,
+     "patch": "factory-consumer-d0e9df82/patches/0002-d0e9df82.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "51bb937e5a68a0e94ad8e23a09cf5c22a9588bd3",
+     "sha256": "3469fa55a3e5c6148d6130f3423987c12f530e6ae1414a5733ac7f5e6c7c9487",
+     "bytes": 31,
+     "baseBlob": null
+    },
+    {
+     "path": "CONSUMERS.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6b06a4c15096e22ae22658ba5983b6e4dadb0e3a",
+     "sha256": "68e9cb5fe46e7979a4b66a4de324906950fd9375a75e8eb3b56e76a07daccf88",
+     "bytes": 4130,
+     "baseBlob": null
+    },
+    {
+     "path": "PROGRESS.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "143fcd645448fa6d1f8c34eb373f61c91cc201f0",
+     "sha256": "4ed2b54ed3666af4056af3919109dae3e1980acf676a6a43411f516fe0281a7b",
+     "bytes": 799,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0cf00a8432da74756d60aea2308b2c1a5d16e84b",
+     "sha256": "546feeaac11aee6d0e20982680058176b93c5bb54c45fbae5456d438f79bb5cc",
+     "bytes": 9774,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/log-cursor.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1642f8c7966da8567f87e794ef74fbb1cb236fe8",
+     "sha256": "fa991fb3c24ea59c142a25a52c02cbc6d1f0ca7f69914c44886a4ceadf3dffa1",
+     "bytes": 8261,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/policy-logs.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "17280b6c1a09e214300aa9dbb27ea93d52d6fd71",
+     "sha256": "ed1a9cb5f0af765919f12dcc4a192504cab2d452db1645d324201d07e8cb6873",
+     "bytes": 2142,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/state-impact.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "16cab0d76ec2c4efc222679eea559167df3d2879",
+     "sha256": "2146c9ea60df4e2e2961a6c1d2a440c6e4ed16e340cea064a71d29659f463edc",
+     "bytes": 77770,
+     "baseBlob": null
+    },
+    {
+     "path": "lib/review.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f181164793cbd236dfef49ad79988c3440fd2f89",
+     "sha256": "fdf69722a116276c0c3c61bf9bf7d8a4d5f66e8b59733b750c9275adef9373c3",
+     "bytes": 10300,
+     "baseBlob": null
+    },
+    {
+     "path": "package-lock.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8331dce01347cff54d65a28712eac9f13114e246",
+     "sha256": "3a08e9a46c6bca01e5a5be1e6919f7664ba5eec71837d63dd3a0241c9b9e96b1",
+     "bytes": 6928,
+     "baseBlob": null
+    },
+    {
+     "path": "package.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6bb940022f5c8e3c9a5cbeb71dfdef2ff9976e66",
+     "sha256": "5e9719feeb5b90beaa293ea3d5517fa54a427f9cb720d90f9460ea436cf9bf7f",
+     "bytes": 236,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/policy-logs.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72cabd48475ec76dde5bbb6be14a03d50ba843b6",
+     "sha256": "6565c6404b816052915fe5320d29d8022af491a3f40f1ab214b96257e8651af3",
+     "bytes": 5498,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/state-impact.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4248df0fbc418821f618ffef0369130e7a883412",
+     "sha256": "86bd2f76bd550c5829373bcfd5f415496b5dc06c30942a427be370e6476093ad",
+     "bytes": 7649,
+     "baseBlob": null
+    },
+    {
+     "path": "qrun.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "3bb88b436186b3fb43b4da44c57c051beaa9033d",
+     "sha256": "f9ed965ead87a3a1209d4769327f54d4eee61a2df9ffa9d263a2a05af49f2637",
+     "bytes": 515,
+     "baseBlob": null
+    },
+    {
+     "path": "run-tests.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "53a67835dc16c9f560ba376552bcbc66436618ae",
+     "sha256": "a4f2910ef0fd9d2b7103b82c36b4292d7e352092ec515e37a397b542d7c07759",
+     "bytes": 241,
+     "baseBlob": null
+    },
+    {
+     "path": "test/review.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "442d70832fb6ad2c2fba018ba08b72d68f21df22",
+     "sha256": "07f0c908188629508ef27c0de10ce8a36281cb598aec4f111a6d2bff9c71e1e1",
+     "bytes": 6041,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "factory-consumer-d0e9df82/patches/0001-519489c3.patch",
+     "sha256": "1ab34a8b2fade1eb31f4e3d25c33b6fd9b0de38cf712d563b142bd09e6d9a7f0"
+    },
+    {
+     "file": "factory-consumer-d0e9df82/patches/0002-d0e9df82.patch",
+     "sha256": "d41c36903735da0efb57cb2bdaee8559ecda0a3e4b2f31429158825ec56cfd09"
+    }
+   ],
+   "note": "Review of the effects of activating the original book's sessionVaultFactory, and its consumers (the running relay pins SESSIONS_FACTORY). Read-only review with public state evidence; nothing activated"
+  },
+  "factory-wallet": {
+   "repo": "work/custody-factory-wallet-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "24aac735856010db79fd3fd2c51d3a22b81e0a0e",
+   "headTree": "249513e46c2ad2e4c0eae7001724526993819a84",
+   "commits": [
+    {
+     "commit": "f18404a5961258c0fde50209e80625fa2ab4bcf1",
+     "tree": "e78bc7f68154895a6656fd902ce8b24646751088",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:47:19-07:00",
+     "subject": "Book sessionVaultFactory activation: single administrator MetaMask handoff (source only, inactive)",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "factory-wallet-24aac735/patches/0001-f18404a5.patch"
+    },
+    {
+     "commit": "24aac735856010db79fd3fd2c51d3a22b81e0a0e",
+     "tree": "249513e46c2ad2e4c0eae7001724526993819a84",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:52:29-07:00",
+     "subject": "Fee review: bound the L1 data fee for the maximum SIGNED transaction; no all-fee claim",
+     "parent": "f18404a5961258c0fde50209e80625fa2ab4bcf1",
+     "emptyAfterExclusion": false,
+     "patch": "factory-wallet-24aac735/patches/0002-24aac735.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e0991048ea66a163c922f60345892c5ad19d69c1",
+     "sha256": "c6dbfd9fdae686925000fa2641f7a65b993ee6c5cea3654724ea263e510855e9",
+     "bytes": 41,
+     "baseBlob": null
+    },
+    {
+     "path": "PROGRESS.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1501f84a5caf66c9fe05783c8c44a3819261e67d",
+     "sha256": "506a05fc37b43c78e4481367f3fe000a800529847757e4a1fff219efc71237b7",
+     "bytes": 1442,
+     "baseBlob": null
+    },
+    {
+     "path": "README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "208278c7553a3a97cd4d83ed1868a8d79f685f6f",
+     "sha256": "a931da83e57d1b40cb2f5d020b9114edbe58c1da99e7fcce7ab4bcf5d5db6dde",
+     "bytes": 11321,
+     "baseBlob": null
+    },
+    {
+     "path": "activation.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8ccf7593fdcc54bac6435482c25ccf56a1d16f7b",
+     "sha256": "1302679184a551a0de462f55b5482b687921a3f7fa6dbb46e56d36f6e7937942",
+     "bytes": 29043,
+     "baseBlob": null
+    },
+    {
+     "path": "app.css",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7d83a6885c016891d4c5d261ce0da5dda7b02e0b",
+     "sha256": "e20ba2b9793af513baff2533cfa10f539688e0fa77bda525bbbb264824f1e4f9",
+     "bytes": 399,
+     "baseBlob": null
+    },
+    {
+     "path": "app.js",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2ac478fccb784aa5d77b37a9c572cb2a9d074922",
+     "sha256": "8f2d9c3b69110f4b975c501beca3de346b215c223a74d59c19220fd9b41cee7b",
+     "bytes": 8204,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/consumer-review-state-impact.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "16cab0d76ec2c4efc222679eea559167df3d2879",
+     "sha256": "2146c9ea60df4e2e2961a6c1d2a440c6e4ed16e340cea064a71d29659f463edc",
+     "bytes": 77770,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/factory-activation-unsigned-20261023.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "64c25b4869b9371f726ed0311de8045420306d99",
+     "sha256": "3b28b16ff5a10ae6968547f12cca456da522995737eb684a5d922fa3e8f5770b",
+     "bytes": 2246,
+     "baseBlob": null
+    },
+    {
+     "path": "handoff-server.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5c1a2f323baabbc7451b63569db0c9b6f9b7e6e6",
+     "sha256": "fb189e4610c8579739fb59fe385b91b461bc5bfb06d95780e94ec92e53d95b75",
+     "bytes": 4586,
+     "baseBlob": null
+    },
+    {
+     "path": "package-lock.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5852adf3f6237cda3347a91528d9760791eaa925",
+     "sha256": "46b0d90e7036f7a405266a9942c0944c297f21cbf0ac65027fbfa2f068c2fd2b",
+     "bytes": 6910,
+     "baseBlob": null
+    },
+    {
+     "path": "package.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e66ff5936024c00cde60aaed059f83b192b89091",
+     "sha256": "c3d6d805d26d42750ce28cd058f0169ec8f4ac1323fc42b24da798d2ba551a8f",
+     "bytes": 256,
+     "baseBlob": null
+    },
+    {
+     "path": "page.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "92e86382d7ee52eab83d30d08c0ff8126e6b3100",
+     "sha256": "fbe137efb2914336d662100adcf9ed0961f27892d201da0091df36032e95084a",
+     "bytes": 2294,
+     "baseBlob": null
+    },
+    {
+     "path": "preflight.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d10ed5a49f1d0fb69165c55d5f03cf2f258ae5ad",
+     "sha256": "3fd979454d275230bc11755fea0ac8528c40a5d61481199a948fa2a99b629f34",
+     "bytes": 1792,
+     "baseBlob": null
+    },
+    {
+     "path": "q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "52aa447cdd7d1a2cd6e8b858f0abb754dc2ed154",
+     "sha256": "ff0bada86f142e46eebb1ce87134c891c2d0c997e6164afd8b6820c388b2314f",
+     "bytes": 904,
+     "baseBlob": null
+    },
+    {
+     "path": "rpc.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2ea7540555ccf20acefebbe96007fa8802d70eed",
+     "sha256": "df00a18b6c454acaa95f4634dcf64941447bc019dd16d61379ce94f8ff3a86aa",
+     "bytes": 3755,
+     "baseBlob": null
+    },
+    {
+     "path": "run-tests.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "37e7185917e4cae5cdda89a40ef8c0a6894b34a5",
+     "sha256": "e6445f35cea82056c35e08328eb0fc27f63ea8a5e9747b34f0a5158c752e595e",
+     "bytes": 703,
+     "baseBlob": null
+    },
+    {
+     "path": "scan-staged.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "d1032c5ad48716124a765d49e9a247ad044473f2",
+     "sha256": "d9d76195142bc41c73178ae6cf069a840e06f90e1e64775b7f3cca37845e4253",
+     "bytes": 276,
+     "baseBlob": null
+    },
+    {
+     "path": "serve.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ff7f66a9c8b121e95cb9172a9641278736cc1ac8",
+     "sha256": "cbc6e3d3734ad851a52de97b91a8541c243a8a44c1e5c6b0069bbcf413403c49",
+     "bytes": 1477,
+     "baseBlob": null
+    },
+    {
+     "path": "stage-app.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "05dd4ba1c313cad4a42f61da56a302afdcbd7a55",
+     "sha256": "ce4fa91f2cc22d2764f5ea204fa2f7dff7cf0de393fc7818854b07b1e5a173c3",
+     "bytes": 1694,
+     "baseBlob": null
+    },
+    {
+     "path": "stage.html",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5c2b6785be83fdac5e21ed4110f46c5b5016b310",
+     "sha256": "44d8b4694c133eb2de58fd54f03d55af216467097f25368e578fb55212cb213d",
+     "bytes": 1860,
+     "baseBlob": null
+    },
+    {
+     "path": "style.css",
+     "status": "A",
+     "mode": "100644",
+     "blob": "20af0cb15aa6d00df2dc0783d300e84c637c6c90",
+     "sha256": "b055f0427d9b28ef9d10b27593c532755f864413869d2b926136f526af82e3c6",
+     "bytes": 919,
+     "baseBlob": null
+    },
+    {
+     "path": "test/activation.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3700b728fd82f81543ca8dec949424827bd93044",
+     "sha256": "dfa8b32613f15d9c68e64bf5e2ec8d53242c73918efe9134d2f3fcd2e48363ef",
+     "bytes": 21217,
+     "baseBlob": null
+    },
+    {
+     "path": "test/browser.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ae93c4b38084e414fa9b154afe452b0fc2f32666",
+     "sha256": "1fbe879dea100cb6cdcd3001dc32f8caca6483c95da4490746d55862306123c0",
+     "bytes": 8826,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fake-base.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "759b673663daac1e48d24e1e44ceb1d09cf88a24",
+     "sha256": "64034a2502122e624e5cef25c97d419490d12df667e5a8ba0c979fa5d44b19b9",
+     "bytes": 14317,
+     "baseBlob": null
+    },
+    {
+     "path": "trust.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8053daf68ec4461d3ed31dc0ddc8b5cd04818a9d",
+     "sha256": "9f6742c4910e8b744a73c52f10852273155d8f15c4e72b004800d6c04d81db68",
+     "bytes": 3916,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "factory-wallet-24aac735/patches/0001-f18404a5.patch",
+     "sha256": "020ad46b8c18a9d6af8e9e5cb7d6da9a2ccd8d068fb23e352abcd3a01b275e4e"
+    },
+    {
+     "file": "factory-wallet-24aac735/patches/0002-24aac735.patch",
+     "sha256": "e9f81f3bd04fbdaf99900687d58f4979aeb9374c61cd5c00c4ec7491f7356b6b"
+    }
+   ],
+   "note": "Book sessionVaultFactory activation as a single administrator MetaMask handoff, with the L1 data-fee bound review (24aac735). Source/test only; nothing served, signed or sent. Its ABI fix is uncommitted work in progress and is NOT included"
+  },
+  "production-canary": {
+   "repo": "work/custody-v2-production-canary-20261023",
+   "branch": "main",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "7bcd501f39464c335c13834e142319520479b039",
+   "headTree": "9b5a7493e015b0d64b44af46a9fe4b3e6f147088",
+   "commits": [
+    {
+     "commit": "7bcd501f39464c335c13834e142319520479b039",
+     "tree": "9b5a7493e015b0d64b44af46a9fe4b3e6f147088",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:50:33-07:00",
+     "subject": "Bounded custody v2 production canary driver: baseline plan on committee 0x4774 (source only)",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "production-canary-7bcd501f/patches/0001-7bcd501f.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4b1b41f1291306eb49fe6673be01117abeaabfc3",
+     "sha256": "6bd89f4bf936c8db603d1833e7dfb41d778c8695e95071e6ea2eb1f60553467a",
+     "bytes": 54,
+     "baseBlob": null
+    },
+    {
+     "path": ".gitleaksignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7a91979c9d5097ddd413a1dbb3eafc1bbec6a5a4",
+     "sha256": "b995c4bddda5e9ce0e995df972197b338e5f4dac5625d7d6a82cb1618c30ff71",
+     "bytes": 208,
+     "baseBlob": null
+    },
+    {
+     "path": "README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c0bd9a8f857ce63ac5346a135b33843b37044ff1",
+     "sha256": "16c4b8caf9b2abfd0e71763cd3807fddb72f2eaffb820ce7227e6c6cc4d8fa5e",
+     "bytes": 18374,
+     "baseBlob": null
+    },
+    {
+     "path": "driver/assert.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0d1fd133806e0052a92278bcdfc3bc58897756e1",
+     "sha256": "f8ad6e94ca76c36779e767278e51d766e5a1b014ba26bfccbef230cf5fe5eb1a",
+     "bytes": 9637,
+     "baseBlob": null
+    },
+    {
+     "path": "driver/canonical.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3009ae1fb7e1882cf2bdcc21479f412d59ab674a",
+     "sha256": "c1dc48ba8331fd7b3522e47c8c91a9a78e822d601e06c26b709f3326b63d960f",
+     "bytes": 1195,
+     "baseBlob": null
+    },
+    {
+     "path": "driver/cli.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6ec957ab06f815d902b9466688dc7c97d2c814a0",
+     "sha256": "6b91492f6f55edbdc264744bbd52e35414d439448d3e5d794640e8cbcacc2205",
+     "bytes": 22984,
+     "baseBlob": null
+    },
+    {
+     "path": "driver/guard.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "82682437382bff698074b5407e00811c53385cc9",
+     "sha256": "9ce217ab0f2a82beeecf9b08e67cb10f8cd8d84097aff3c19b1be67a726e409b",
+     "bytes": 2582,
+     "baseBlob": null
+    },
+    {
+     "path": "driver/journal.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "04feb444f63b4faa8005527bd6e83fc1af43120a",
+     "sha256": "f398d5bc03048604b71ad6a8276c64f8f3066c8aa6266988425027d56fda23a5",
+     "bytes": 4166,
+     "baseBlob": null
+    },
+    {
+     "path": "driver/markers.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "88c2635af4b882e914a4b1e46075c80977ab30a7",
+     "sha256": "01039cff80f6a4d6bd35e6db042958b6c9c0993a89b49f9f53f06dc48602cbdd",
+     "bytes": 2793,
+     "baseBlob": null
+    },
+    {
+     "path": "driver/plan.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ea8afdc3ada7f11b97c8b45ac7602b79fbb1d6ec",
+     "sha256": "e3b316896c8c94008b8bd110ccb379f2dfbb63d59e4770abd00cd6c39c3b805b",
+     "bytes": 24783,
+     "baseBlob": null
+    },
+    {
+     "path": "driver/prepare.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "47007ce5a2bd3da78d58ae989b5fa2fa0ad408b8",
+     "sha256": "4d46f45d25af4fd53e25322eb4a814913f9449badc18fd4c30eb70f20b1cbfd1",
+     "bytes": 6674,
+     "baseBlob": null
+    },
+    {
+     "path": "driver/probe.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5e640dd4f8b46772b4576e31d9c50963ddaa4d55",
+     "sha256": "ecfc4e915eeca4b05e85e48a35fb85914c57fde6d03865d4a3be3a07253f7ed8",
+     "bytes": 4675,
+     "baseBlob": null
+    },
+    {
+     "path": "driver/relay.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1a7360b99d2f150dbea26e49deb062f519d40c67",
+     "sha256": "e0d2b4a40102d24066bf07ee8a2de62e61cf85f6ce5d4cd9231da801b9bc5c21",
+     "bytes": 5248,
+     "baseBlob": null
+    },
+    {
+     "path": "driver/tx.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c1ee1ef3fb77d6740bbc38c5c694d73c56ea3053",
+     "sha256": "33cac8a0229ca3164bfc5261ef53820dc89bbe1c7197e53b188d9ab4730690fc",
+     "bytes": 6245,
+     "baseBlob": null
+    },
+    {
+     "path": "pins.example.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c30ddeeb001e27540b11719fba0c1921125e3f1f",
+     "sha256": "e236a4f3a3449a84f467e88334df456f10b5c4b50da7e7ce924fb10f29608b6e",
+     "bytes": 3343,
+     "baseBlob": null
+    },
+    {
+     "path": "q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "b5df3903fb47fbf7455d4cec7c5f876e346225d1",
+     "sha256": "3ccf0f03253bff7356cd9ab284f0405aba1afaa45e1ba252c51b201a61ccdbf3",
+     "bytes": 619,
+     "baseBlob": null
+    },
+    {
+     "path": "test/assert.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cdb1ca23de22d32849e95a304368102aa7de713e",
+     "sha256": "ea16472264b6309abf6c2b6a48b6d11e12b339e15b06b185a04a20e62eefd2c4",
+     "bytes": 8250,
+     "baseBlob": null
+    },
+    {
+     "path": "test/cli.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "400641ed56210d4534deece5e24c65c34bef1c13",
+     "sha256": "7371d1822016f92dfab87af7835f4e5d438adb3b46c3ef5869a136ed1d393d6f",
+     "bytes": 3844,
+     "baseBlob": null
+    },
+    {
+     "path": "test/core.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9e8402f1b7296732c584fbce91a0f0bab1a5d30d",
+     "sha256": "80ba56453e4163494758d7b74c9da7dd803d43fbc2489c921e20a25b8534eb51",
+     "bytes": 11700,
+     "baseBlob": null
+    },
+    {
+     "path": "test/limitations.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c61446be976850982d837ae2ddf7bb54c1183e5f",
+     "sha256": "e109ff4240b776c671200f28cb9c8ce1d47e48bd69fe0a93091c98dd1d253916",
+     "bytes": 1935,
+     "baseBlob": null
+    },
+    {
+     "path": "test/mutants.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "bdad5393d0e70958cc809f747ae5fdfa360c80f3",
+     "sha256": "c35f6dc49dfb97faa6616ce5b52315a179c9100a043e945aed838279a8580dd5",
+     "bytes": 1817,
+     "baseBlob": null
+    },
+    {
+     "path": "test/net.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8879be0f69e850b154a4b5231ed58aea0cf544b6",
+     "sha256": "dc93dc950e3e37097619cd5bbec4afaa461b3de188abd1c212d4918451267413",
+     "bytes": 7161,
+     "baseBlob": null
+    },
+    {
+     "path": "test/plan.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c72795e723db010101c12184993257a7371a36bc",
+     "sha256": "5f0c4b3f8cffa08e725093a6831201e15cc3de35c2d56afdc184be28e96d2fe4",
+     "bytes": 7724,
+     "baseBlob": null
+    },
+    {
+     "path": "test/prepare.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "090e11863174afb5ef2eaa4f8e7b32a4af308c40",
+     "sha256": "bdb189f2173be9bfdd145752c972bd95de08df2092a147cc3e18e7ceefc9587c",
+     "bytes": 7082,
+     "baseBlob": null
+    },
+    {
+     "path": "test/run-tests.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "3a36691da006cf909b7cd04dfdcdfa23c11c45b4",
+     "sha256": "8c9eb8e8dd2084edcf1fad70c1a269c893156de7ebe9590a30d299955c876456",
+     "bytes": 1676,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "production-canary-7bcd501f/patches/0001-7bcd501f.patch",
+     "sha256": "d81098a09acf7a494345718d12bce2038d26d72e82e73e89ab0d5ae3090e456b"
+    }
+   ],
+   "note": "Bounded custody v2 production canary driver: baseline plan on committee 0x4774 (7bcd501f). Root's safety-review fixes are work in progress: this head is NOT mutation-ready. Source/test only; nothing run against production. Its committed .gitleaksignore adjudicates one public file-hash pin"
+  },
+  "publisher-assessment": {
+   "repo": "work/custody-publisher-assessment-20261023",
+   "branch": "main",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "b895d295cd8ab7d81d3b66c659db4ead4643c700",
+   "headTree": "6901c766188e12002822fcbe030c1ef2f33eec71",
+   "commits": [
+    {
+     "commit": "b895d295cd8ab7d81d3b66c659db4ead4643c700",
+     "tree": "6901c766188e12002822fcbe030c1ef2f33eec71",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:47:11-07:00",
+     "subject": "ipns-publisher 0xd9798e4c http-only/sequence-0: read-only source-level assessment",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "publisher-assessment-b895d295/patches/0001-b895d295.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3cde0c25a7731c28a46767230ba5fdc77b0511e4",
+     "sha256": "02b431f5812046619d6178e142f19b6f23e36e442bd35d6ea2962db45bc95d3f",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c94b2e124d453b34e3d85f942a86ee9db0b50c3f",
+     "sha256": "dda3eb8e0657fb9e6ad002b58bb5faaa2a77ebd7d4fe412fd866fa68a58e27d9",
+     "bytes": 11092,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/local-provenance.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b406dd9139b192eb65ccdfddd7ada76f8590181c",
+     "sha256": "961684622873e6988a8c3ae60240a07d1e8285b9c4f0a00eb353f3facb3c8174",
+     "bytes": 1495,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/public-read-20261023T204419Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9617eace13f9d3a38b996f991080e666728ee3f7",
+     "sha256": "1139a0a7a8858135acf7c5d1d1baf813487c347b7bc3f5ae0fe37033e9280622",
+     "bytes": 6266,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/public-read-20261023T204505Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5bd0dd012c2edbd68d661ae7e840146067e39774",
+     "sha256": "0644fe64296cf037e7f869f1ffc83d47a31c83043596d12c5795d5d551a03108",
+     "bytes": 965,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/local-provenance.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "3f9143803cfe2b9d2cb62d8ad36155e4e1ef98f2",
+     "sha256": "58152564a1dbc64e4089d0c3fd3e1b75d825aa7868095850b5e4de5b6d642199",
+     "bytes": 1630,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/public-read.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fee4665015cd6cb5c76749ed598d9afbf2641e66",
+     "sha256": "9888747ce0a928ce3ecf2786535317825dc7d6deb9001117112c0d4f3dcc1eff",
+     "bytes": 5505,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/public-read.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "c04408b364f6faa20bd0df59dfb0501a6b4ad754",
+     "sha256": "adaa9a98cf12a5261ad3b13bbfd66483c63dede572d6e8a11e389fbbb6904829",
+     "bytes": 109,
+     "baseBlob": null
+    },
+    {
+     "path": "q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "52aa447cdd7d1a2cd6e8b858f0abb754dc2ed154",
+     "sha256": "ff0bada86f142e46eebb1ce87134c891c2d0c997e6164afd8b6820c388b2314f",
+     "bytes": 904,
+     "baseBlob": null
+    },
+    {
+     "path": "scan-staged.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "8e8652ec6d54dabeb1b224a6d959cc7435a81e7b",
+     "sha256": "1bc926f8fa1d6eb573ba41dd522dc5a2f2f97e5cc6ba00fad69fca50aeed1423",
+     "bytes": 486,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "publisher-assessment-b895d295/patches/0001-b895d295.patch",
+     "sha256": "ed85d57479d87ee33897fa933ae2d9630aabb00e8ef625d0fc74b0dcda256c10"
+    }
+   ],
+   "note": "Read-only assessment of ipns-publisher 0xd9798e4c reporting http-only / sequence 0 (b895d295): source-level reason, the public record still at sequence 1026, root metadata queries and a recovery that keeps key, sequence and old site CID. Nothing published or reset"
+  }
+ },
+ "derivatives": {
+  "recipient-provenance": {
+   "repo": "work/custody-recipient-provenance-20261023",
+   "branch": "main",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "8b0c4da2bf92bc848477b8c5538606b6ae470f3a",
+   "headTree": "5895694da8a0ac8ebb0d3d96313a41788d38f49f",
+   "commits": [
+    {
+     "commit": "8b0c4da2bf92bc848477b8c5538606b6ae470f3a",
+     "tree": "5895694da8a0ac8ebb0d3d96313a41788d38f49f",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:54:10-07:00",
+     "subject": "metal0 custody recipient provenance: running ed918e4b supervisor has no measured v2 vault (gsup regression from 2857356cd); guestd 9d1562738cde / CPU release 16c2999d inventory (read-only)",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "recipient-provenance-8b0c4da2/patches/0001-8b0c4da2.patch",
+     "originalTree": "00861e620c995eefda7f239016a23d00ab6929a3"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "68d025f82b09520f0f044eef07bb19ffaef7ed2c",
+     "sha256": "bfdebf358524b1ca94100bd2e7dbe989ac99412efb8afc22b51ac8b307ecf8e2",
+     "bytes": 9207,
+     "baseBlob": null
+    },
+    {
+     "path": "buildinfo-scan.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bd6ed71f97d08e6288336358fdfe40c1b955d1cc",
+     "sha256": "6e9766473c06a3b848f118b141a8c0dfc040ed2d91ca136c8526f9936708e8b4",
+     "bytes": 1269,
+     "baseBlob": null
+    },
+    {
+     "path": "find-overlay.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "1a43c94a47f188551ac9cb8454211e6208e4c7fa",
+     "sha256": "028777c40787ff5a56808df4c310aa60043a16c8441bf745087ae998339fc17b",
+     "bytes": 1054,
+     "baseBlob": null
+    },
+    {
+     "path": "guestd-release-meta.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "dd5d31973702760f9b64199c28cb84b4b27e1d84",
+     "sha256": "4b90967ab6d4f0923e51f758b0254afeb01f78f4b91bfc98a56ccf840a48fd87",
+     "bytes": 1295,
+     "baseBlob": null
+    },
+    {
+     "path": "host-guestd-meta.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "837f58c9d9bae47adc03d38d31837cfc577ebe06",
+     "sha256": "52be3a7cb74b2a8bf30beb7e2aae11a775b356fc20bf5af1a6ee71f37061266b",
+     "bytes": 933,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/buildinfo-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "95a0703c9d3c14372c2567c43530ac2a856e767b",
+     "sha256": "ed53088b351a01a43c2bdb79f8df58fe46d88cddf7e8409298b38d8af57d4a48",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/buildinfo-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a4c904c16f938245231d2030f89e6b570bed3ab8",
+     "sha256": "269e69d7fbe7bc19cfde6dce9ad41c98dca032b31eaeee89078fed04cff0d5c3",
+     "bytes": 1747,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/buildinfo-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/buildinfo-1.try2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a0585c28d141b45e7a9cfee66355eb3b9d46b49b",
+     "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+     "bytes": 43,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/find-overlay-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ee16fbb6dcc7adcc546ecbe92130c4928ef82165",
+     "sha256": "c557ae005e80168b162e708e04065a77460984db82793bc68be9f21975654539",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/find-overlay-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4a658a488f08319eb1c941e361e5c4db12acd3d0",
+     "sha256": "c9bb99722f664a643c3fcfae4c74965c93565f8911d862de40eefa3467614891",
+     "bytes": 22166,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/find-overlay-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/find-overlay-1.try2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a0585c28d141b45e7a9cfee66355eb3b9d46b49b",
+     "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+     "bytes": 43,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/find-overlay-1.try3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a0585c28d141b45e7a9cfee66355eb3b9d46b49b",
+     "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+     "bytes": 43,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/guestd-meta-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d66a239c7c881d3a9f39e8a35a2403360d00af30",
+     "sha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/guestd-meta-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a99d1a387ee9e64b17ff2525fcb614ce32d90cd4",
+     "sha256": "0ddd5982ce77a7da064fc482c54fccdc59814471beb8e5839fa9541e4ce94a07",
+     "bytes": 11184,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/guestd-meta-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/host-meta-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/host-meta-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f8bf8fe309cf075c45fb48057c3a29c1de85b4b3",
+     "sha256": "35086261a9c98281f528727fe58dab2d4368714029d798631a51d15dd0943d79",
+     "bytes": 6895,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/host-meta-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/host-meta-1.try2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a0585c28d141b45e7a9cfee66355eb3b9d46b49b",
+     "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+     "bytes": 43,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/release-meta-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "73125e6a19a72f523a22deac2d09ef94d5ca5814",
+     "sha256": "f23c5fab9e3eff6ff59beaeeb542edc77493b66c4bc35637fccd9aa5226a7b45",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/release-meta-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3b56fa3332e9f225eef90130daa086cbd9be7490",
+     "sha256": "f1818c5b28232ea476011efc5a92fe6303b644114cba62ad220318642651d889",
+     "bytes": 12909,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/release-meta-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-1.attempt-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d7d59e08f7e1fe9f5e78e796ddd70a07010dae40",
+     "sha256": "7ef1da74d71b96414ec7dda1085c324404ed0a184474d1bdae1ecb8e61a22beb",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-1.attempt-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "91bea71fed9c034d7acdc37fc28c7bca373d518c",
+     "sha256": "59a2b64f5cb1fd887e09913e6e19ee8c113ed1e9998d0381ba8c5161086e432b",
+     "bytes": 487,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fd9885b06455477fe922b2cf31dbe0f6d433bf6f",
+     "sha256": "c323c527f1e2e4ff310f4917ca9f396f5eedd675cbdf60b79b3cbaced2f7ff02",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3950d5f617c1bbcb6729f44c82a830fc9dca5963",
+     "sha256": "15b0a94bf126588a036d3ae365bd66abe6d122b5052ea1618d8053e405e9348b",
+     "bytes": 376,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-gitleaks.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fe51488c7066f6687ef680d6bfaa4f7768ef205c",
+     "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+     "bytes": 3,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/stream-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "31bccf5e9f9786397cf5516db34936f7915e35dd",
+     "sha256": "ad82e7873f519ae3b4e903098b013b961a38985fdda3f138421c383343c7de25",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/stream-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2756cbe4df47084bdc52eed9f18c34cf1df7724b",
+     "sha256": "3da23ccdecf29a99c50d48c862ed29bd5598265ab489f39ab31dbb78f7ab89ec",
+     "bytes": 1849,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/stream-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/stream-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d7ca7c83bb0e9b0de98cc48ee882930dc931c53f",
+     "sha256": "f28355da303af204bafa76f8183551f22b02c2ee2bb52c92e80388fca35cd92b",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/stream-2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a136732c254e644104ed4ec7b2b92c580a70f076",
+     "sha256": "0e9db6316102c7cd5ee10ce30ed2a858b8a04d3d00c2389a560ec77a8a6e379d",
+     "bytes": 1851,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/stream-2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/vm-start-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/vm-start-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "db0c8982bcc0c4f55ca832c416362cdf0f64ecc2",
+     "sha256": "956704caa82544af8ba6d01dc2ba268ce52e86f2882552ef66d566f0784fc5a2",
+     "bytes": 891,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/vm-start-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/vm-start-1.try2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a0585c28d141b45e7a9cfee66355eb3b9d46b49b",
+     "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+     "bytes": 43,
+     "baseBlob": null
+    },
+    {
+     "path": "q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "f69b7de1730e7634fb481a8924488479d2eeeeba",
+     "sha256": "b25ca78d460a5a8e3dc553867270b825d09b5d1e640490e26755fd01fd43e196",
+     "bytes": 565,
+     "baseBlob": null
+    },
+    {
+     "path": "release-meta.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "feb4a395a89ed577548e09e4e235782c2ba0135d",
+     "sha256": "38b401d6f57c69593c6671f0af6707b16fc72f53d2a96e4d17bd2724172700f0",
+     "bytes": 1120,
+     "baseBlob": null
+    },
+    {
+     "path": "scan.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "c348833de9665764a3ca0f06e1ab2adb9e9ada29",
+     "sha256": "2f73b0aab96917501f3d616b7e47fea89369264b12195ce0c2ec228ab1b0fb4e",
+     "bytes": 1054,
+     "baseBlob": null
+    },
+    {
+     "path": "stream-initramfs.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9158e975af0d57e6695b85780814115b3d4b4d51",
+     "sha256": "1886328d3d94818f9245c837eafdee7d0fcc9922b5d7c70324161de425f9608f",
+     "bytes": 3739,
+     "baseBlob": null
+    },
+    {
+     "path": "vm-start.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "d37a463fad4784a05d438ed2b81d7d0ad0aa0356",
+     "sha256": "1bba5aa15c8b228d622ed6d3cf2daa2b062b958fbdc8ae29639aecf1ca3c3ac1",
+     "bytes": 688,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "recipient-provenance-8b0c4da2/patches/0001-8b0c4da2.patch",
+     "sha256": "e66d9e3d27a797e6a5ad5e946bbec8ae208c6b9df16b61296ab533561dd2e615"
+    }
+   ],
+   "originalHeadTree": "00861e620c995eefda7f239016a23d00ab6929a3",
+   "omittedAtHead": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "721456d1ed11a87d73df30f1e6442989df3721e5",
+     "bytes": "2722452",
+     "path": "out/dist-custody-v2-295650320/initramfs-inventory.json",
+     "sha256": "d33c6e6aec6eb7127a1d178b0c86360af6cd00a82bb962d1a92f44c3f9f5ef0a"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "2158e64a8d0b419cb47cc78caf50ecfce1c0186c",
+     "bytes": "2725753",
+     "path": "out/dist-leasegas-deabf8f90/initramfs-inventory.json",
+     "sha256": "467bc53fadd7711b638d94a7a0a3342a05ec90e018ba1b56c06742f490c28155"
+    }
+   ],
+   "excluded": [
+    "out/"
+   ],
+   "sanitized": [],
+   "label": "SOURCE-ONLY DERIVATIVE: metal0 custody recipient provenance: the running ed918e4b supervisor/guestd builds versus their release metadata, with public initramfs file inventories (paths, modes, sizes, sha256; flavor env key names and public values only). Read-only; out/ (two initramfs inventories, ~2.7 MB each) is excluded from the patch, which would exceed the 5 MB stored-file limit, and published BYTE-EXACT under held-out/: nothing is omitted, and the verifier reproduces the original tree",
+   "omittedRecipe": "git apply the patch, then add each held-out file at its path and mode (blobs in heldOut); write-tree == originalHeadTree",
+   "omittedBlockCids": [],
+   "heldOut": [
+    {
+     "path": "out/dist-custody-v2-295650320/initramfs-inventory.json",
+     "mode": "100644",
+     "blob": "721456d1ed11a87d73df30f1e6442989df3721e5",
+     "file": "recipient-provenance-8b0c4da2/held-out/out/dist-custody-v2-295650320/initramfs-inventory.json",
+     "sha256": "d33c6e6aec6eb7127a1d178b0c86360af6cd00a82bb962d1a92f44c3f9f5ef0a"
+    },
+    {
+     "path": "out/dist-leasegas-deabf8f90/initramfs-inventory.json",
+     "mode": "100644",
+     "blob": "2158e64a8d0b419cb47cc78caf50ecfce1c0186c",
+     "file": "recipient-provenance-8b0c4da2/held-out/out/dist-leasegas-deabf8f90/initramfs-inventory.json",
+     "sha256": "467bc53fadd7711b638d94a7a0a3342a05ec90e018ba1b56c06742f490c28155"
+    }
+   ]
+  },
+  "site-release": {
+   "repo": "work/custody-v2-site-release-20261023",
+   "branch": "release",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "3f16d9b18a7fd1b6061705ec555a1ce45628cb41",
+   "headTree": "662139bfee4fa764c99bba1ed3495ba82d2361c0",
+   "commits": [
+    {
+     "commit": "7681e3fa490d372e08c9a85609d827cec39745b7",
+     "tree": "889d0cdf4950cf9061c0a643d5630fe09e778f30",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:30:44-07:00",
+     "subject": "Custody v2 dashboard site release bafybeiax6ngccp7 (from e24a47fb2 on live base bafybeig3rai3): checker, inert smoke, evidence, handoff",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "site-release-3f16d9b1/patches/0001-7681e3fa.patch",
+     "originalTree": "d295421ac143b6392d4e8fe593f795d9e885a50e"
+    },
+    {
+     "commit": "3f16d9b18a7fd1b6061705ec555a1ce45628cb41",
+     "tree": "662139bfee4fa764c99bba1ed3495ba82d2361c0",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:39:40-07:00",
+     "subject": "Errata: publisher deployment id typo, IPNS publication blocked wording, config-read ordering; superseded by the r2 package",
+     "parent": "7681e3fa490d372e08c9a85609d827cec39745b7",
+     "emptyAfterExclusion": false,
+     "patch": "site-release-3f16d9b1/patches/0002-3f16d9b1.patch",
+     "originalTree": "7802cff9cb0727ada80f6cd668bca95a45f13d07"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d420fe42c091e83459f0dea81ae1631890b09d45",
+     "sha256": "40ebcd273e711af03450ef9473db5427ab7541c993f6874894e3b520c61a2185",
+     "bytes": 62,
+     "baseBlob": null
+    },
+    {
+     "path": "ERRATA-20261023.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5c25af06f21c5e78773cf776b4a33940f4f4cd5a",
+     "sha256": "8074e9c1b84fd243bc13991d0e16077e518d7b8d9933f109ec939bda16729a9f",
+     "bytes": 1267,
+     "baseBlob": null
+    },
+    {
+     "path": "RELEASE-HANDOFF.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1b392bb507d0a6fe5d9ced1ad822e7445def1f02",
+     "sha256": "b417dd885256af044177f74a435f004221a8467940ca0f76065d87e0552bbc84",
+     "bytes": 8678,
+     "baseBlob": null
+    },
+    {
+     "path": "ROOT-COMPOSE-FOLLOWUP.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b42d7528db03cb22af51b6caca3b64e9ab7af994",
+     "sha256": "f231462fcc32424b7f4abacdf11b46622c9679b06fdbfc9e84234b41e2737287",
+     "bytes": 1161,
+     "baseBlob": null
+    },
+    {
+     "path": "check/asset-paths.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "070a5dc3d8bd5cb1770dab43c2f5e914971ed0ee",
+     "sha256": "90ffdcd19580a0fad61e95dc1f1bdba9c9984024a00d3387fc4df1247a10eda6",
+     "bytes": 743,
+     "baseBlob": null
+    },
+    {
+     "path": "check/inert-smoke.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3c93e7f6a4c029d597dffcad5bc3abb346c8811b",
+     "sha256": "f44920c8ccdb4a2ea155914e51b6439778f56c8235263abda56765965f3c7037",
+     "bytes": 3180,
+     "baseBlob": null
+    },
+    {
+     "path": "check/release-check.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "dc5b6ba9d014b8c031bed7d5b03490b3dbdf97d0",
+     "sha256": "18447e5de6ae3a13775c14877139a46072854f3e39d3464a6bed2f8e487226d6",
+     "bytes": 1984,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/public-read.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fc73fd95f232bdc395247f5705f69f26beb79a31",
+     "sha256": "171fdc9455b859c0996df46bfc295898a98d2ae58e3398749a64b27ea1dd8004",
+     "bytes": 1721,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/commit.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "d018b69d81b7505b32f87554a272891794a3c241",
+     "sha256": "2f93cf145821061cd2645525e65c7e987d154080416e673f3ee14154807d716b",
+     "bytes": 648,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/public-read.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b6c5ca31f13cbad84d875e0f62bf64a16df960ba",
+     "sha256": "057667be53dff756372fc84c237ecab30f713fbeda4f69c281d5526b3bdd99a6",
+     "bytes": 1582,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/public-read.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "fe2f819666b1b43a4a05947b8d398ac6e4c31d56",
+     "sha256": "896b7e554464cea8b895aaa3fd4ad3eaecac875c8457feb337a5137dfef8505f",
+     "bytes": 211,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "1a087a0196b095c9bbc8ce87f04991a31d9c6127",
+     "sha256": "8cfb3bd8b84c78366cb54bff018703a8726568e2fb67afd7270c540436f26537",
+     "bytes": 459,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/smoke.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "02fefa4ba8c77a1c30ecd1fffb052e36b56ec0ef",
+     "sha256": "13f62d34a55c2f1061962f2b187f4f9b48f3afa0ce175507c2f9fe6cc5273324",
+     "bytes": 290,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build-site.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "97eb29f56bd03560b95d7cf3dcc3c4d6d80c5fbf",
+     "sha256": "faed36a8877c2cbdcd34c84d7fad127b52df5550e6d36367dc15ba5df85d4a00",
+     "bytes": 5095,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e8e2cbd6e7cb07aa3249494165c7f395b7ba1604",
+     "sha256": "501f9cc91463b0ae4cabf31a47535dd81bf94622e3730fce70fe517ed8892f25",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build1.queue.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bd22f8d2882f48b140543d651fe2742b1c87c6d7",
+     "sha256": "e3a58f1e905f293f297d5b9454026c98ab0cf9c9ce454f43f6fdc24246de4f18",
+     "bytes": 2415,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "be9c02720b3a234e9644bd2830b720014e26741c",
+     "sha256": "394f95d827e56c54ee66f177d18028338b9825f41d64883953fcab16b8f17a75",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit1.queue.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a56256397d6f91e1c0a4963d31379a34d1d386bb",
+     "sha256": "cc8d579fa2aadd69da88b3d24abba8b672bbb036fb8a8bb42fe1159f71804ae2",
+     "bytes": 383,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/post-build-diffstat.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "bytes": 0,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/post-build-status.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "bytes": 0,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/prepare.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fa4bfad8c0b838230cdc9157856339e5104377c7",
+     "sha256": "32d5fd3a23462b740961ebba72a48e686f82cac341e7203b4cbbc19c2afc5c9c",
+     "bytes": 1700,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/pub1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "705fa4df2145c16e8efd42c0ebe997a76e6fe6c9",
+     "sha256": "b4d1872777b189baa85fd980b91345f5acd27bd1c52085afa55cb6cc496994ba",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/pub1.queue.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e1aaa01e4a5186b227d1683f4e4dc53dc69cb50f",
+     "sha256": "d511944c9f19693ce9252b72446574143f0bb95d5b62ad5ec5a530257dd6c23b",
+     "bytes": 1952,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/pub1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/release-check.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8d6417eca7114f9b4eaeb18c54496abaef1e4284",
+     "sha256": "22a9dd5d1d7b890ec64f197b20dfc363004da3791f18724a9ca713da1ee3e5b5",
+     "bytes": 2001,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/review.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8f0a65ef0d0c7ded378d222c7c3e1b6e294e1db8",
+     "sha256": "85230e737d02ebe44fde634a6b5b4c7233d787fca9d6c3b95facae96d252e8ec",
+     "bytes": 1447,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/smoke1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a6e69427998f2dbd6679276d406a45002ee01cf9",
+     "sha256": "1fc66169ef30d506314cf022333107754714e6984c85ed39259df7b9e02f03f1",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/smoke1.queue.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ab7991be96b4f354f322245452734a1d479fd76a",
+     "sha256": "41b7da536a30e99f333d064eedd777749171d6e9a60520fbac3189170b9f4e00",
+     "bytes": 2364,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/smoke1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/smoke2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "dc46bbcfbe4d45621066410e5f99015c2a4a2a6a",
+     "sha256": "4502a8be8ee4c1b949fb72e5378800dd9a06e5cd17fac7c87c4b9b89a98abd90",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/smoke2.queue.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0ad22bad754cb358589087ab7205026d5bdbea38",
+     "sha256": "7bfe2dfc5b2080f1843aa840da8bfa05606ef91c81e17f660dae3c7ee082aacb",
+     "bytes": 3451,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/smoke2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/verify.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d5f1a7993a8c75764489e15c0db6941c2f73984d",
+     "sha256": "4b663ff2f9aa18342ca1eccc67c789531b887c5c2f8d74be41935d2cbe9bfd0d",
+     "bytes": 150,
+     "baseBlob": null
+    },
+    {
+     "path": "release/bafybeiax6ngccp7bxoiex5pqv2yoz2ekfk227pthlzfrqkv32v6jt7stmi/headers.caddy",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a547a40994476b67ead1dafec75ab01fd5d40ba4",
+     "sha256": "079b9035eef3758228f094232bef368406632c2233c07c91a6294405a6adcab5",
+     "bytes": 1495,
+     "baseBlob": null
+    },
+    {
+     "path": "release/bafybeiax6ngccp7bxoiex5pqv2yoz2ekfk227pthlzfrqkv32v6jt7stmi/release.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "59fc558a90ebadc66cdada020a3398008459676b",
+     "sha256": "fbcad18437465a7d38ce455097f33054cbe342e07881cc4c859c5db07e7d194a",
+     "bytes": 217421,
+     "baseBlob": null
+    },
+    {
+     "path": "release/bafybeiax6ngccp7bxoiex5pqv2yoz2ekfk227pthlzfrqkv32v6jt7stmi/site-root.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "98c93379f15bf088d87fe8686ba84581c6f095a0",
+     "sha256": "73a6ecfe529c0ce59bdf0529b649399c60d10641b6eb6d64796ee2e4fabffc28",
+     "bytes": 60,
+     "baseBlob": null
+    },
+    {
+     "path": "tools/build-and-check.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "711c3155475fafeee6c62d94194027f704667b9d",
+     "sha256": "beca8d8e63e621050e71f69f8cfa4ce079b4b1c0b40e5d8eafaac8005ae618fa",
+     "bytes": 3393,
+     "baseBlob": null
+    },
+    {
+     "path": "tools/inert-smoke.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5c1cfaf8d7fb1ffa76d6c9c7242dd387cc700f3d",
+     "sha256": "e017f85617cdbab502d7bc5d40ddf75359e997553a1f531a41c2fc3c0463df2a",
+     "bytes": 8989,
+     "baseBlob": null
+    },
+    {
+     "path": "tools/release-check.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cfd06222cd62ce7e93e557b013d19283af262411",
+     "sha256": "b780c65b30d8ab96a6ff75d5b5ab99e56f833afac09d3dbbd7a991721f414541",
+     "bytes": 19608,
+     "baseBlob": null
+    },
+    {
+     "path": "tools/release-check.stage-r2.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "51fa8492982ddda5c689fab7ffe1f74fb3028c9f",
+     "sha256": "98baac2ba3da8c2700b4d02cfa6a11181da4955b0a32566c2ec8ff1c75ffc266",
+     "bytes": 16814,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "site-release-3f16d9b1/patches/0001-7681e3fa.patch",
+     "sha256": "fbfd0911d623fc2d3ce379b87448b8126a1e289df4116b6fa0921bd0b74e5afc"
+    },
+    {
+     "file": "site-release-3f16d9b1/patches/0002-3f16d9b1.patch",
+     "sha256": "d536ff864db01780e7358401ecadec63caa13f1c1738397c05a5e78cf31c2d63"
+    }
+   ],
+   "originalHeadTree": "7802cff9cb0727ada80f6cd668bca95a45f13d07",
+   "omittedAtHead": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "7b2e88fbe3704ca4aeb4d1306ac62e0550660757",
+     "bytes": "1835",
+     "path": "release/bafybeiax6ngccp7bxoiex5pqv2yoz2ekfk227pthlzfrqkv32v6jt7stmi/site-root.block",
+     "sha256": "17f34c213fe1bb904bf5f0aeb0ece88a2ab5afbe675e4b182abbd57c99fe5362"
+    }
+   ],
+   "excluded": [
+    "release/bafybeiax6ngccp7bxoiex5pqv2yoz2ekfk227pthlzfrqkv32v6jt7stmi/site-root.block"
+   ],
+   "sanitized": [],
+   "label": "SOURCE-ONLY DERIVATIVE: SUPERSEDED by site-release-r2: custody v2 dashboard site release bafybeiax6ngccp7 built from e24a47fb2, its checks, smoke and public-read evidence, and the errata (publisher deployment id typo; IPNS publication blocked). NOT published; minus release/bafybeiax6ngccp7bxoiex5pqv2yoz2ekfk227pthlzfrqkv32v6jt7stmi/site-root.block: the 1835-byte binary dag-pb root block of the release (build output). It is content-addressed: its sha256 equals the release CID multihash (asserted), so the CID identifies it exactly",
+   "omittedRecipe": "restore the block from the source repository at the head (blob in omittedAtHead), or fetch /ipfs/<CID>?format=raw from any gateway holding the release and check sha256 == the CID multihash; the full DAG/CAR was never committed and is not captured",
+   "omittedBlockCids": [
+    {
+     "path": "release/bafybeiax6ngccp7bxoiex5pqv2yoz2ekfk227pthlzfrqkv32v6jt7stmi/site-root.block",
+     "cid": "bafybeiax6ngccp7bxoiex5pqv2yoz2ekfk227pthlzfrqkv32v6jt7stmi",
+     "sha256EqualsCidMultihash": true
+    }
+   ]
+  },
+  "site-release-r2": {
+   "repo": "work/custody-v2-site-release-r2-20261023",
+   "branch": "release-r2",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "14b5f5599a4f26591494794fe6a8be1d7bf21d55",
+   "headTree": "ac0897205461568e7de0d30a07962f1395cf16a5",
+   "commits": [
+    {
+     "commit": "82c594ab13417618fbc6c3786f296e67e98d48d2",
+     "tree": "1386151f47def27a4f54f71adda745d69fa35f85",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:39:40-07:00",
+     "subject": "Composed site release bafybeihm7f2mhw6 (a942a61fd = custody v2 panel + docs 2d3839c54 + media 04836638 + config-read r4) on live base bafybeig3rai3",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "site-release-r2-14b5f559/patches/0001-82c594ab.patch",
+     "originalTree": "f6710a4d011e29dfcce9c967065e49bf95c116d2"
+    },
+    {
+     "commit": "14b5f5599a4f26591494794fe6a8be1d7bf21d55",
+     "tree": "ac0897205461568e7de0d30a07962f1395cf16a5",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:48:28-07:00",
+     "subject": "r2 final doc review cleanup: checker report field, base vs new stamp, docs commit 9d97b4b00 (no rebuild)",
+     "parent": "82c594ab13417618fbc6c3786f296e67e98d48d2",
+     "emptyAfterExclusion": false,
+     "patch": "site-release-r2-14b5f559/patches/0002-14b5f559.patch",
+     "originalTree": "7e5af78ca1d16a067b68d60233a3d49c1a012201"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e483fd8a9cdeae417752fd99664eed50e0c44738",
+     "sha256": "f745b666bed6e407b36a74aad9505db07a77e6e3cbb935914a7e08cd0dab6682",
+     "bytes": 70,
+     "baseBlob": null
+    },
+    {
+     "path": "ROOT-FINAL-DOC-REVIEW.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5ac02bb62e8cb3bf5fb27ff75f02b33a42e82279",
+     "sha256": "1c14a38c8a240a77c3705e21216341d285827ff6731039980a2434431852ac7a",
+     "bytes": 936,
+     "baseBlob": null
+    },
+    {
+     "path": "check/asset-paths.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "070a5dc3d8bd5cb1770dab43c2f5e914971ed0ee",
+     "sha256": "90ffdcd19580a0fad61e95dc1f1bdba9c9984024a00d3387fc4df1247a10eda6",
+     "bytes": 743,
+     "baseBlob": null
+    },
+    {
+     "path": "check/inert-smoke.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "51d04567be29b9ab27c1241b7889b6fa0b63a271",
+     "sha256": "3a57ec29d34739e087d60e2f21ae4595e4d1e5074c5bca31f98c229bec0079c8",
+     "bytes": 3578,
+     "baseBlob": null
+    },
+    {
+     "path": "check/release-check.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a51de13c01c82e2788ff66c5600fc9a772ebc5bf",
+     "sha256": "00b491bf64221aa343c5bf30f8f747a4eddf002b6f4f8a6ec0d0370c5130b01f",
+     "bytes": 2118,
+     "baseBlob": null
+    },
+    {
+     "path": "check/release-check.r4.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2d65da6ad14939e80d730cda18c4f4f4603afd24",
+     "sha256": "13fc6f767c6071a5b90837c9ec6051d44eb8a52038f23aa9dd70557262b5a1b2",
+     "bytes": 2112,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/build-and-smoke.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "eaf2824b71cfc1af87a241d3041760a8c503f5b3",
+     "sha256": "a584928fa5f7964f40b539090cdbeb78f04a2178fa30a88c7d0b7c4cabcf26de",
+     "bytes": 171,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/focused-both.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "910e83a7c564d6ed288180cce03a54ad458ee718",
+     "sha256": "bd1052af2397013b3b42081e76ff366c2b8ab2d32326cbf7ea273fb41e7a7a0f",
+     "bytes": 312,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "6c7ca73f08e7c5120621bc49bdc5c3e2a0239c62",
+     "sha256": "758456c72e83f6e7b83dd095734fe166006f5948b51b3804cbb49b917987685d",
+     "bytes": 462,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/smoke.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "e97eab1a9ddb529d9119ff0f7e1d362fb87c91cf",
+     "sha256": "3e38795fe342a5aa1c1176f5240b3ace450c09461534abd5cb3897b233fefc69",
+     "bytes": 245,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build-site.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9312383994b61ae66d14a2873d6f8264c0aeafe7",
+     "sha256": "d1f9975fe0af77a75dbf92175387021fa2b543fa4fa42b7ff6a765e0d5f4ed67",
+     "bytes": 5145,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c259d907b61d77ee6619448df2a40937cd857d92",
+     "sha256": "68a30fe32a956e76ba54b8421e7e1c9a178c83a21f34144579dec8623c490e6f",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build1.queue.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d3ff6215d5a4b0e66fb18809310c81909ebb56fd",
+     "sha256": "555ed949da96fcb8b6a135f90d9ea465ca58ca9d67a79d0cc77e1ccafbdb103f",
+     "bytes": 2484,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/build1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commits.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b15ae610f57eff4082ffeceacca716567e7d94dd",
+     "sha256": "f22b3d5d84be23719ac4e56accb451540195a93cafc7e5ea7031067484ea27e6",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commits.queue.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a9b0973b56f506168688c88cb28d9e8f22d061ca",
+     "sha256": "42d42ddd7ffa81b38bb791ceec290bf29ed7b5fd76452c83e2624b8d06e0bdb8",
+     "bytes": 538,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commits.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/focused-new.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3a1532229b1c116921e05cc54cadc9af1fad9231",
+     "sha256": "91ebd5fcb77cb15798e08be9ea638e975fc4439badecd5f997d6680e2cae4cda",
+     "bytes": 20662,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/focused-prior.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8c6ff67028d8f3540411fe543f7437c1aae8ac1d",
+     "sha256": "fd949661e39c8986ffe32afc15eaaa99e320724aedd11c3cf53516ad2dea3c46",
+     "bytes": 32627,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/focused1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "65fc2ed9550131bfbaf4e9ef5cddc0e2cbf15efd",
+     "sha256": "af9a972a107ee8ff5f6d3ea6ead2e8c2e8980190316b00a888dbcfde346a87e5",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/focused1.queue.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "354c31271bc7befdc5c947610c7c178b6fdc992d",
+     "sha256": "59ecf87c7b793121df282f681c9811ea9674e8525eaae8ebcffc256d62740c38",
+     "bytes": 280,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/focused1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/post-build-diffstat.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "bytes": 0,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/post-build-status.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "bytes": 0,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/prepare.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b8f02b332a70f7266b99a6839f6cc455db68d101",
+     "sha256": "81ff813e45b6efd79d1ed93ca7143b8f81a748c42b89d9a353f2f964fba40077",
+     "bytes": 1703,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/recheck.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "49980cbab275fd6a0e4e4d8a79283d10e8bf655b",
+     "sha256": "8d2530c58e2e9b08fc4b9a88ae86a6946d218a8fd42199b31e4d400722d9c06a",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/recheck.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ed0160036b8e40cdc88a5aaf08ba5ff4d44d7b91",
+     "sha256": "d1612d26b88ade560f69c4dcecd07b8ad4bb3e9d401a565d567bcb1a827a68b1",
+     "bytes": 2135,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/recheck.queue.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "60ed999ea410a34e67a6fca29dffa7548ae4432a",
+     "sha256": "130aab2b36fafb69041e2ededca3b50722f0c06fbcbc3229a7036e84e1ff579c",
+     "bytes": 327,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/recheck.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ab3f8d1909b1cebec53d57df7ddbd7a7eb0220ef",
+     "sha256": "93ff7811a209e2a8479230bbb9b6bc19f7f311d3af383ec350c1db2a7e7d5494",
+     "bytes": 5,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/release-check.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "437a99b1fce59cece731d9668fad873387206990",
+     "sha256": "2312e265b5d9f4fcad0df0b178ca39c9821da4fc89d4ef6498da95e390145f0e",
+     "bytes": 2129,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/review.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2b897d3e6b436f61ca4d8ca0977124b12a41031b",
+     "sha256": "6c8f8e67c9a92295edf96dcea2f91346588ce9ffc61efd08613c5e110d98c26f",
+     "bytes": 1447,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/verify.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e67148d4f44480390a1f14b37a34404fb41b5cbd",
+     "sha256": "88c587b49193418f1db58b453d4df7d09c6dee91758a7a2ef54403bde12aa3d9",
+     "bytes": 150,
+     "baseBlob": null
+    },
+    {
+     "path": "release/bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla/headers.caddy",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a5f0cb9d9b5fd79998824ae5e767cd5453b7b83d",
+     "sha256": "73b78f44d790d655e4c94a46e0e4a801913b58dfecbee0ef88aa457d3e1bd214",
+     "bytes": 1495,
+     "baseBlob": null
+    },
+    {
+     "path": "release/bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla/release.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4c73b12e1cf8b46b33f5f2bd68f482af88b227ef",
+     "sha256": "b00d5acb3384b50178844da14925bc13d39f49b513ac2bcccd42ec36b1ec5022",
+     "bytes": 217909,
+     "baseBlob": null
+    },
+    {
+     "path": "release/bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla/site-root.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "00713d21786d00d3027e2ab2336e7d0aec6c5e68",
+     "sha256": "fbcdceb107ee1533c68e65027a902837f29d431bb4d22b7666502555bf952dd8",
+     "bytes": 60,
+     "baseBlob": null
+    },
+    {
+     "path": "test-inputs/car-fixtures.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a12dad9a3d0a20935bcf3fc7a28d99bd0f7a7056",
+     "sha256": "d8f418fc87f96c7dd5bcd1e71bdfdf8623aacdb13ad5f93b68c014a0ffca1db9",
+     "bytes": 3484,
+     "baseBlob": null
+    },
+    {
+     "path": "test-inputs/car-verify-oracle.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a011d5ab15a6e5e54bf43ce88c72490b6daf2d9d",
+     "sha256": "ea0be01aa040dae932b3e63ec53e83e91ec5ad701b55e1b475b4ec72267b6121",
+     "bytes": 8740,
+     "baseBlob": null
+    },
+    {
+     "path": "test-inputs/config-deadline.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "92cac750aa501f966852172e2a715db0bf00ff8b",
+     "sha256": "28e6d0cfbf3bee7d74b5a9d1e4d717c3e8b3aeaa203fc6e8fd33de86afe9be22",
+     "bytes": 6893,
+     "baseBlob": null
+    },
+    {
+     "path": "test-inputs/config-read-fallback.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ae9b44a30ddfb04d9d027bafb41d054dec48c0c3",
+     "sha256": "79df8fe032ce0b0f79c2d45e4cabdd8ad6df64fe0256847591c856d16d06d0ff",
+     "bytes": 22220,
+     "baseBlob": null
+    },
+    {
+     "path": "test-inputs/media-fallback.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8dcfc0089a058ca7bacb1c57392ecba7a47fa9d1",
+     "sha256": "ffae09027b486f6556f72e5d1330ead75c6bc3137fdbdd4d1b98bc25d405ae0a",
+     "bytes": 9350,
+     "baseBlob": null
+    },
+    {
+     "path": "tools/build-and-check.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "ec368d654422d6aa290eabb3f962a8132ab07e99",
+     "sha256": "26f18fa5e3cf028c002873ad8d9a4b634ae5d42e8ee496457bcf544f15c7af65",
+     "bytes": 3464,
+     "baseBlob": null
+    },
+    {
+     "path": "tools/focused.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "61231e5d244de913dde784804326b488c3c23d9e",
+     "sha256": "c1efadf55fa43637fe54b40bc40a6c10fa962ea408ea27fbe2662d5645cb31fc",
+     "bytes": 1626,
+     "baseBlob": null
+    },
+    {
+     "path": "tools/inert-smoke.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8699a7421e9e9bfe33275418043dc7be205bd809",
+     "sha256": "d958f452527600f8279fd018a369d2f073b8946d8a1e5a2d397e01d10c84534b",
+     "bytes": 9971,
+     "baseBlob": null
+    },
+    {
+     "path": "tools/recheck.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "8a2c6eb3b89e6c2a0535611d14bd19b14b1c2703",
+     "sha256": "8921fd6d703ebf61d5d72d18c2c0b0ebd2c593351f4bbce83e89d3432d40b556",
+     "bytes": 1007,
+     "baseBlob": null
+    },
+    {
+     "path": "tools/release-check.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "054135ca592e5d496a706d5a3eb36210a4dd2365",
+     "sha256": "2866a251730fa5b6c6bf20ab1141170a3984bff346f34019da15f6b6c94a59f8",
+     "bytes": 20950,
+     "baseBlob": null
+    },
+    {
+     "path": "tools/release-check.r3.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cfd06222cd62ce7e93e557b013d19283af262411",
+     "sha256": "b780c65b30d8ab96a6ff75d5b5ab99e56f833afac09d3dbbd7a991721f414541",
+     "bytes": 19608,
+     "baseBlob": null
+    },
+    {
+     "path": "tools/release-check.r4.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bad19ac170dfc4a7ed9ef922a1a5fc629e3be078",
+     "sha256": "31b8202c3d469dae01e796eb2d5e6b35d63c784f0d77062b77e323d421d8a6b5",
+     "bytes": 20444,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "site-release-r2-14b5f559/patches/0001-82c594ab.patch",
+     "sha256": "427a788603118888a4a4d1cda475b6b514b84f9e9279afd990f49ce8cd1bbc37"
+    },
+    {
+     "file": "site-release-r2-14b5f559/patches/0002-14b5f559.patch",
+     "sha256": "b011dec3c82403c9b508bef628c53092f9182172d8402c9364d3e4baba02cd7b"
+    }
+   ],
+   "originalHeadTree": "7e5af78ca1d16a067b68d60233a3d49c1a012201",
+   "omittedAtHead": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "4e27a826deb1fd21e1cd04e760dccfb4ef4aac1c",
+     "bytes": "1835",
+     "path": "release/bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla/site-root.block",
+     "sha256": "ecf974c3dbd06f41b58c702d3814ac9037b2ef26f224fed470724000c3bcd058"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "13ebbd6de4533487bbb1df9dbf25b313cd6c9177",
+     "bytes": "11772",
+     "path": "RELEASE-HANDOFF.md",
+     "sha256": "8c0a47f677966a54ce7b6dc367ea10f2d55974b96d854bd7875c293a29abe39f"
+    }
+   ],
+   "excluded": [
+    "release/bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla/site-root.block",
+    "RELEASE-HANDOFF.md"
+   ],
+   "sanitized": [
+    {
+     "path": "RELEASE-HANDOFF.md",
+     "originalBlob": "13ebbd6de4533487bbb1df9dbf25b313cd6c9177",
+     "originalSha256": "8c0a47f677966a54ce7b6dc367ea10f2d55974b96d854bd7875c293a29abe39f",
+     "file": "site-release-r2-14b5f559/sanitized/RELEASE-HANDOFF.md",
+     "sha256": "92650fc3e332109a3c0bda9267f8b673b910fb18e73e1e41e4ab9fa4d4cedd49",
+     "replacements": 1,
+     "pattern": "(the Secrets panel), (`custody-v2\\.js`)",
+     "replacement": "\\1; \\2",
+     "reversePattern": "(the Secrets panel); (`custody-v2\\.js`)",
+     "reverseReplacement": "\\1, \\2",
+     "reason": "gitleaks generic-api-key on prose (keyword Secret + comma + backquoted file name), not a credential",
+     "originalBlobsByCommit": {
+      "82c594ab13417618fbc6c3786f296e67e98d48d2": "89f603ef5e9f750278182593a582d9aa1d2a8c29",
+      "14b5f5599a4f26591494794fe6a8be1d7bf21d55": "13ebbd6de4533487bbb1df9dbf25b313cd6c9177"
+     },
+     "claim": "CONVERTED copy of the HEAD file, exactly reversible: re.sub(reversePattern, reverseReplacement) gives the original blob (asserted). Earlier versions are recorded by blob only"
+    }
+   ],
+   "label": "SOURCE-ONLY DERIVATIVE: Composed site release r2 bafybeihm7f2mhw6 (from dashboard a942a61f): release metadata, checks, focused tests and logs; metadata/source only (no CAR, no build output beyond the omitted root block). NOT published; minus release/bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla/site-root.block: the 1835-byte binary dag-pb root block of the release (build output). It is content-addressed: its sha256 equals the release CID multihash (asserted), so the CID identifies it exactly; RELEASE-HANDOFF.md is excluded from the patches and published as an exactly reversible CONVERTED head copy (one comma -> semicolon in prose that trips gitleaks generic-api-key)",
+   "omittedRecipe": "restore the block from the source repository at the head (blob in omittedAtHead), or fetch /ipfs/<CID>?format=raw from any gateway holding the release and check sha256 == the CID multihash; the full DAG/CAR was never committed and is not captured",
+   "omittedBlockCids": [
+    {
+     "path": "release/bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla/site-root.block",
+     "cid": "bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla",
+     "sha256EqualsCidMultihash": true
+    }
+   ]
+  }
+ },
+ "lowercaseRewrittenLiteral": {},
+ "frozenSources": {
+  "source-preservation/RESULT-frozen-2025-checkpoint.md": "c160b8ad8dc4fc13be8550d8a2ee6dcb5739ae208be58ee230ae5cce31e51a02",
+  "source-preservation/snapshots-2100/ROOT-CONTINUE-LATEST.snapshot-2100.txt": "760ebb7dd712df4104c249168e408d80e89b0edab6172590a2c9d80aa41cfe73",
+  "source-preservation/snapshots-2100/custody-v2-live-verification-20261023.snapshot-2100.md": "d687b10d162909140ea4aa70af71aa8620f3f7f913be64c3e88601c744f5a935"
+ },
+ "rootEvidence": {},
+ "snapshotsUnchangedSince1852": [
+  "ROOT-PENDING-LATEST.txt",
+  "effective-goal-requirements.txt"
+ ],
+ "rootEvidenceNote": "no new root outputs file besides the dated snapshot of the living custody-v2-live-verification record (its earlier bytes stay stored unchanged)",
+ "evidenceVsSource": "Committed logs, receipts, run outputs and RESULT files inside these repositories are EVIDENCE; the rest is source.",
+ "notPreserved": [
+  "ignored/untracked files in every repo: images, binaries, CARs, build outputs, node_modules, raw quotes, guest console logs, sealed state, private config, keys, canary run directories, task prompts and progress/err files of workers, uncommitted WIP",
+  "commits after these heads and every worktree change",
+  "outer non-repo files of these work directories"
+ ]
+}

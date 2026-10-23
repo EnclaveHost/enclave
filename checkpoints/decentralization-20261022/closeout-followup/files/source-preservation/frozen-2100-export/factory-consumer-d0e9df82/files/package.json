@@ -1,0 +1,3 @@
+{ "name": "custody-factory-consumer-review", "private": true, "type": "module",
+  "description": "READ-ONLY review: effects of setting the original EnclaveAddressBook sessionVaultFactory entry",
+  "dependencies": { "viem": "2.53.1" } }

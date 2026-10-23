@@ -1,0 +1,62 @@
+[queue] START available=24059MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde": {
+  "sha256": "9d1562738cde6d43cef9e58931cb6425542e400b26364986c209e90377759314",
+  "strings": {
+   "awaitingCustodyAuth": 1,
+   "custody-auth": 7,
+   "enclave-custody-release-v2": 0,
+   "enclave-custody-release-v1": 0,
+   "directBootstrap": 0,
+   "custody/v2": 0,
+   "\"v\":2": 0,
+   "v2/custody": 0,
+   "bootstrapSha256": 0,
+   "secretsMode": 0
+  },
+  "buildInfo": [
+   "go1.27.0",
+   "mod\tenclave.host/isolation/m4/guestd\t(devel)",
+   "path\tenclave.host/isolation/m4/guestd"
+  ]
+ },
+ "/home/steven/enclave-prod/release-16c2999d/template/front": {
+  "sha256": "082313e04a16bba42a663be5e80042d8228cb5dd191c5543f517c7452c2bf5b4",
+  "strings": {
+   "awaitingCustodyAuth": 0,
+   "custody-auth": 3,
+   "enclave-custody-release-v2": 1,
+   "enclave-custody-release-v1": 1,
+   "directBootstrap": 0,
+   "custody/v2": 2,
+   "\"v\":2": 0,
+   "v2/custody": 2,
+   "bootstrapSha256": 0,
+   "secretsMode": 0
+  },
+  "buildInfo": [
+   "go1.27.0",
+   "mod\tenclave.host/isolation/m2\t(devel)",
+   "path\tenclave.host/isolation/m2/front"
+  ]
+ },
+ "/home/steven/enclave-prod/release-16c2999d/template/init": {
+  "sha256": "a8bd7e1a5dede68edd2b3c29e9a8c55b4bedc9b5bbc3b2a5a3e0203b540ba338",
+  "strings": {
+   "awaitingCustodyAuth": 0,
+   "custody-auth": 0,
+   "enclave-custody-release-v2": 0,
+   "enclave-custody-release-v1": 0,
+   "directBootstrap": 0,
+   "custody/v2": 0,
+   "\"v\":2": 0,
+   "v2/custody": 0,
+   "bootstrapSha256": 0,
+   "secretsMode": 0
+  },
+  "buildInfo": []
+ }
+}
+[memory-guard] exit=0 peakTreeRssMiB=23 minHostAvailableMiB=24053
+[memory-guard] at peak: python3:23
+[queue] EXIT 0

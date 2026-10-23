@@ -1,0 +1,30 @@
+[queue] START available=24061MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+site/vendor/custody-v2.js and its manifest match a fresh build
+     10.4 KB  dist/js/chunks/chunk-BF6F5NAF.js
+      3.8 KB  dist/js/chunks/chunk-DRRCG5VQ.js
+[build] dist/: 242 files · 29.0 MB
+site release bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla
+  built 2026-10-23T20:38:01.354Z from commit a942a61f; base bafybeig3rai3tyoimbhb32vo6hkkw3o336wluht7owbs7mefhtiridwp6y
+  892 files; CAR 47035092 bytes sha256 aa5d95d4233d79489092d85ab5cb22e32c1ea94379bd96ff23892b7336603798; root block sha256 ecf974c3dbd06f41b58c702d3814ac9037b2ef26f224fed470724000c3bcd058
+  retained for cached tabs: 0 older hashed chunks (48h after their last build)
+  CSP script-src: 6 inline-script hashes (union over 48h)
+  header Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://…
+  header Cross-Origin-Opener-Policy: same-origin-allow-popups
+  header Permissions-Policy: accelerometer=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=…
+  header Referrer-Policy: strict-origin-when-cross-origin
+  header Strict-Transport-Security: max-age=31536000; includeSubDomains
+  header X-Content-Type-Options: nosniff
+  installer install.sh: 9669 bytes sha256 d718236501ba8992fa706feb227aa97fc317895ff246cfc39ad675c714d0f175
+  installer install.ps1: 10200 bytes sha256 9ad7254370329842e42d16298f81925e0ebe45eaa1c55b5c9109fbd0b65d2765
+  installer host.ps1: 24872 bytes sha256 9c396209801be2edeae0d8e55d76d268b495e4755a3a464925843ed21b696488
+  approve it with: --approve bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla
+  this run: 646 chunks inherited from the base; dropped as expired: 0 chunks, 0 CSP hashes
+release dir: /home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/release/bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla
+verified bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla: 892 files, CAR aa5d95d4233d79489092d85ab5cb22e32c1ea94379bd96ff23892b7336603798
+}
+RELEASE-CHECK-OK
+PREPARED bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla (commit a942a61f dirty=0; not uploaded, not published)
+INERT-SMOKE-OK
+[memory-guard] exit=0 peakTreeRssMiB=433 minHostAvailableMiB=22011
+[memory-guard] at peak: chrome-headless:291 node:122 build-and-smoke:6 smoke.sh:6 timeout:4 tail:4
+[queue] EXIT 0

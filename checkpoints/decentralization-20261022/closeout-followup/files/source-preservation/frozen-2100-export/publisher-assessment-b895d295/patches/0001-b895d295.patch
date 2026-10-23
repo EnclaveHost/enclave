@@ -1,0 +1,582 @@
+From b895d295cd8ab7d81d3b66c659db4ead4643c700 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:47:11 -0700
+Subject: [PATCH] ipns-publisher 0xd9798e4c http-only/sequence-0: read-only
+ source-level assessment
+
+The empty /api/status is a fresh 1.0.5 process (started ~19:27:53Z) whose one startup publish round failed:
+recovered null and value empty (the delegate GET and the site-root GET both failed from the app), no
+retry until the next 4 h tick or an authorized POST /publish, and no /data state file (durableState false).
+Key and name unchanged; delegated-ipfs.dev still serves the valid record seq 1026 -> bafybeieuxt6...,
+valid until 2026-10-30T13:03:14Z. 1.0.5 wasm fixture proven = catalog CID bafybeiesjak...; source
+enclave-apps 4514d25 (inferred). RESULT.md: facts vs inferences, exact root metadata queries, and a minimal
+recovery that keeps key, sequence 1026 and the old site CID. 10 public unauthenticated GETs; nothing
+published, reset or signed. Probes and scan ran in the 256 MiB queue lane.
+---
+ .gitignore                                 |   6 +
+ RESULT.md                                  | 141 ++++++++++++++++
+ evidence/local-provenance.log              |  22 +++
+ evidence/public-read-20261023T204419Z.json | 183 +++++++++++++++++++++
+ evidence/public-read-20261023T204505Z.json |  27 +++
+ probes/local-provenance.sh                 |  17 ++
+ probes/public-read.mjs                     |  62 +++++++
+ probes/public-read.sh                      |   4 +
+ q.sh                                       |  17 ++
+ scan-staged.sh                             |   6 +
+ 10 files changed, 485 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 RESULT.md
+ create mode 100644 evidence/local-provenance.log
+ create mode 100644 evidence/public-read-20261023T204419Z.json
+ create mode 100644 evidence/public-read-20261023T204505Z.json
+ create mode 100755 probes/local-provenance.sh
+ create mode 100644 probes/public-read.mjs
+ create mode 100755 probes/public-read.sh
+ create mode 100755 q.sh
+ create mode 100755 scan-staged.sh
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..3cde0c25a7731c28a46767230ba5fdc77b0511e4
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,6 @@
++logs/*.log
++logs/*.rc
++*.err
++*progress*.txt
++TASK*.txt
++ROOT-*.txt
+diff --git a/RESULT.md b/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..c94b2e124d453b34e3d85f942a86ee9db0b50c3f
+--- /dev/null
++++ b/RESULT.md
+@@ -0,0 +1,141 @@
++# ipns-publisher 0xd9798e4c reports `http-only`, sequence 0: source-level assessment (READ-ONLY, 2026-10-23)
++
++This was read only. Nothing was published, reset, restarted, reconfigured or signed. No admin route, API key, SSH, env, private
++config or chain write was used. The reads were exactly 10 public unauthenticated GETs (cap 10, 30 s each), plus local-only
++reads of source, the stored 1.0.5 component and offline kubo verification. Every probe ran in the unchanged queue at 256 MiB.
++
++## Answer in one paragraph
++
++The publisher's key and name are intact: the same peer ID `12D3KooWSHxf…zoZP` and name `k51qzi5uqu5dma8l0…afe9b52` as on 10-20 and
++10-22. The public name still resolves. delegated-ipfs.dev serves a validly signed record, **sequence 1026 →
++`/ipfs/bafybeieuxt6…otzaou`, valid until 2026-10-30T13:03:14Z**. The empty `/api/status` therefore does not mean the record is
++absent: it is a fresh process (started 19:27:53Z) whose startup publish round failed.
++
++In 1.0.5, `mode` reads `"http-only"` whenever the process has no DHT client object. With a delegate configured, that object is
++created only by `do_dht_publish`, which is queued only after a successful sign. A failed round is **not retried** until the next
++4 h republish tick, at about 23:27:53Z, or an authorized `POST /publish`. Two facts show both outbound fetches of that round
++failed: `recovered` is null (the delegate GET for sequence recovery failed) and `value` is empty (the `site-root` fetch failed or
++was unusable). Both URLs answer 200 from here, so the likely cause is the app's outbound HTTPS after the guest relaunch. That is
++an inference: only the app's own log can prove it.
++
++`durableState: false`, while it was true on 10-20, also shows no `/data/ipns-publisher-state.json` existed at startup. Sequence
++safety therefore depends on network recovery alone.
++
++## Direct facts (each with its evidence)
++
++**Running component.**
++- The deployment runs `catalog://0x9afdfb40…65ef/5`, version label "1.0.5", CID `bafybeiesjakstv3l…j6ii`, created 2026-10-13T22:16:21Z.
++  Sources: `work/bootstrap-cas/manifest.json` and `work/ipns-production-cutover/snapshots/production-read-final.json`.
++- Its config (redacted, from that snapshot): value `https://ipfs.enclave.host/site-root`, `lifetimeSecs` 604800,
++  `republishSecs` 14400, `ttlSecs` 300, delegates `["https://delegated-ipfs.dev"]`, `dht: true`, IPNI to cid.contact.
++- The fixture `work/ipns-production-cutover/fixtures/ipns-publisher-1.0.5.wasm` (sha256 59a1cec5…) hashes offline
++  (`ipfs add -n --cid-version=1`) to exactly `bafybeiesjakstv3l…j6ii`. Evidence: `evidence/local-provenance.log`.
++- That wasm contains the status, sign and recovery strings quoted below, plus the favicon string of enclave-apps commit
++  `4514d25` (2026-10-12). It has no `release-anchor` reader.
++
++**Source.** `ipns-publisher` at enclave-apps 4514d25: tree 90b0c84c, `src/main.rs` blob ccde6c3a. It is identical to fca1fea
++(tree f7c6f31d, blob a9dcb933) except one status-page `<link rel=icon>` line. The line numbers below are fca1fea's, and are the
++same at 4514d25 up to line 718. That the 1.0.5 wasm was built from 4514d25 is an inference from the matching strings; it was not
++byte-reproduced.
++- `api_status` (l.628–678): `mode = "dht"` iff `app.dht.is_some()`, else `"http-only"`. `value`, `sequence` and `publishedAt` come
++  from the in-memory last signed record. `last_error` is **not** reported anywhere in `/api/status` or on the status page.
++- `App::new` (l.199–243): `load_state()`, then one `enqueue_publish()`: Recover(each delegate), then Sign. `RecoverDht` is queued
++  only if there are no delegates and no durable state (l.299–315), which does not apply here.
++- `tick` (l.317–330): the timer starts at construction. The first tick only re-arms it to now + `republishSecs` (4 h), because a
++  round is already queued.
++- `do_recover` (l.359–389): one GET `delegated-ipfs.dev/routing/v1/ipns/<name>`. It updates `recovered_seq` only on HTTP 200 with
++  a valid record; any other outcome is just logged.
++- `do_sign` (l.421–477): `resolve_value()` does one GET of the `site-root` URL. If it fails or is non-200, the code logs
++  `publish aborted: …`, sets `last_error` and returns. Nothing is re-queued, and there is no fallback to the recovered value.
++  On success it signs, `save_state()` (durableState → true), then queues the PUT to each delegate and `DhtPublish`; the latter
++  creates `app.dht` and so turns the mode to "dht".
++- **Sequence rule** (l.433–445):
++  - the same value as the recovered record keeps the recovered sequence (EOL extended);
++  - a changed value gets `max(recovered, own) + 1`;
++  - **with nothing recovered and no prior record, the sequence is 0**.
++- `POST /publish` (l.594–603, api-key) queues the same Recover → Sign round.
++
++**Public reads.** `evidence/public-read-20261023T204419Z.json` (9 GETs) and `…T204505Z.json` (the 10th).
++- **`/api/status` at 20:44:19Z:**
++  - peerId and name unchanged; sequence 0, value "", validUntil 0, publishedAt 0;
++  - `recovered: null`, `delegates: []`, `mode: "http-only"`, `dht: null`;
++  - IPNI idle with `durable: false`; `durableState: false`;
++  - `queuedTasks: 0`, `uptimeSecs: 4586`, so the process started at about 19:27:53Z.
++- **Publisher `/routing/v1/ipns/<name>`:** 503 `{"error":"no record signed yet"}`.
++- **`https://ipfs.enclave.host/site-root`:** 200, the first line is `/ipfs/bafybeieuxt6…otzaou`, Last-Modified 2026-10-19T13:31:13Z.
++- **delegated-ipfs.dev:** 200, a valid record (kubo `name inspect --verify`, V1+V2 signature): sequence 1026, value
++  `/ipfs/bafybeieuxt6…`, validity **2026-10-30T13:03:14Z**, TTL 300 s, 379 bytes, sha256 c108729d….
++  - With `lifetimeSecs` 604800, that record was signed at about 2026-10-23T13:03:14Z, by the previous process.
++  - No later republish (at about 17:03Z, or after the relaunch) is visible at this delegate.
++- **ipfs.io and dweb.link** only redirect (301) to trustless-gateway.link, which answered 526. On 10-20 these gateways answered
++  522/525, so this is not specific to this name.
++- **ipfs.enclave.host** `/ipns/<name>?format=ipns-record` and `/ipns/<name>/` both answered 404. That matches 10-20: the Enclave
++  gateway does not resolve IPNS, so it is not a primary IPNS source.
++- **Old site root block:** `ipfs.enclave.host/ipfs/bafybeieuxt6…?format=raw` answered 200, and its sha256 equals the CID
++  multihash, so the root block is present. The whole DAG was not checked.
++
++**Earlier state.**
++- 10-20 06:35Z (cutover snapshot): sequence 1026, `recovered` 1026 from delegated-ipfs.dev, mode "dht" with DHT state "failed",
++  `durableState: true`.
++- 10-22 07:17Z (root postbuild `publisher-status.json`): sequence 1026, mode dht.
++
++## Inferences, not proven
++
++1. **Both outbound HTTPS requests of the 19:27:53Z startup round failed.** This follows from recovered = null plus value = "",
++   while both URLs answer 200 publicly now. The likeliest cause is the relaunched guest's app egress not being ready, or missing.
++   It could also be transient, or specific to those hosts.
++2. **`/data` was not durable across the relaunch:** the 10-20 state was durable and the current state is not. It is also
++   possible that the file exists but was unreadable.
++3. The 1.0.5 wasm is the 4514d25 source; see the string matches above.
++
++## Is a recovery possible without a sequence rollback? Yes, if the delegate GET works when the round runs
++
++- **Recovery succeeds:** `recovered_seq = 1026`. `site-root` is still `bafybeieuxt6…`, so the same value **keeps sequence 1026**
++  and only extends the EOL. Name, key, sequence and old site CID are all preserved.
++- **Recovery fails, but the `site-root` fetch succeeds:** the code signs **sequence 0**. While 1026 stays valid (until
++  2026-10-30T13:03:14Z), resolvers prefer 1026, so the seq-0 record is ineffective but stays published. After 1026 expires it
++  would become the visible record.
++- **A changed `site-root`** (a new reviewed dashboard release) would get `max(recovered, own) + 1`: 1027 if recovered, but **1**
++  if not.
++
++So never trigger a round while the delegate GET from the app is unconfirmed.
++
++## Exact root metadata queries needed (read-only)
++
++1. **App log** of deployment `0xd9798e4c…` since 2026-10-23T19:27:53Z, filtering `[ipns-publisher]`. Look for:
++   - `https://delegated-ipfs.dev: GET failed: …` / `GET answered N` / `knows sequence N`;
++   - `publish aborted: <reason>`;
++   - `state file: sequence …` (absent means no `/data` file);
++   - `IPNI provider ON …`.
++   This decides egress versus value-source versus anything else.
++2. **That partition's egress state** after the relaunch (its egress-routes and egress proof for the new guest): is outbound
++   443 allowed and working to `ipfs.enclave.host` and `delegated-ipfs.dev`?
++3. **Durable storage for this deployment** in the new guest: is `/data` mounted and persistent, and does
++   `/data/ipns-publisher-state.json` exist? Read it if so; it holds only sequence, value and published_at.
++4. **The previous process's log** near 17:03Z: did the 4 h republish after 13:03Z fail? This tells whether egress trouble
++   predates the CPU relaunch.
++5. **On chain, read only:** is the deployment still at appRef `/5` with envelope sha256 `d59dc724…`? This rules out a config
++   change.
++
++## Minimal recovery recommendation (preserves key, sequence 1026 and the old site CID)
++
++1. **Do not** reset, redeploy, rotate the key, change config or start a new name. The current 1026 record stays valid until
++   2026-10-30T13:03:14Z (about 6.7 days from now), and delegated-ipfs.dev also carries stale-if-error.
++2. Use queries 1–3 to find and fix the cause: app egress for those two hosts, and the durable `/data` for this deployment.
++3. Confirm from the app's own log, or an egress proof, that the delegate GET works from the guest. Then either wait for the
++   automatic round (next at about 23:27:53Z, if the process is not restarted) or have root make ONE authorized `POST /publish`.
++4. **Expected result:**
++   - the log shows `knows sequence 1026`, then `signed sequence 1026 for /ipfs/bafybeieuxt6…`;
++   - `/api/status` shows sequence 1026, the value set, `recovered` 1026, and delegates `ok`;
++   - delegated-ipfs.dev's record keeps sequence 1026 with validity now + 7 d.
++   - `mode` turns "dht" once DhtPublish runs, but that only means the DHT client exists; on 10-20 its DHT state was "failed".
++5. **Publish the new custody dashboard only after step 4 holds.** Publishing it means changing `site-root` through the reviewed
++   site release. The next round then signs 1027. Changing `site-root` earlier than step 4 risks a low sequence if recovery
++   still fails.
++6. **If recovery cannot be confirmed:** do not trigger a round; the public name stays correct until 10-30. A seq-0 record
++   signed meanwhile is not catastrophic while 1026 is valid, but it should be avoided.
++
++## Out of scope / not done
++
++No production mutation, no new app release, nothing about the funding approach, and no claim about DHT propagation: no DHT walk
++was run. The whole old site DAG was not re-verified, only its root block.
+diff --git a/evidence/local-provenance.log b/evidence/local-provenance.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..b406dd9139b192eb65ccdfddd7ada76f8590181c
+--- /dev/null
++++ b/evidence/local-provenance.log
+@@ -0,0 +1,22 @@
++[queue] START available=24377MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++fixture sha256 59a1cec5130382260347f285f41475176c5923e0736565ffc2835b4a094ef637 bytes 1345402
++hash-only (--cid-version=1): bafybeiesjakstv3lnkgkbcrj3itenwubnk6wuwpkcrgmjbh64wfkr4j6ii
++hash-only (--cid-version=1 --raw-leaves=false): bafybeihnh22vio6eo5p4zedtidxdgizdz7gnhswi7qnoq4ckcdbueeekqi
++catalog 1.0.5 cid: bafybeiesjakstv3lnkgkbcrj3itenwubnk6wuwpkcrgmjbh64wfkr4j6ii (bootstrap-cas manifest, cutover plan)
++http-only                                     1
++http-only mode (no DHT publish yet)           1
++publish aborted:                              1
++value source answered                         1
++value source returned unusable content        1
++config `value` is not set                     1
++knows sequence                                1
++ipns-publisher-state.json                     1
++ipns-publisher:%20an%20ed25519                1
++release-anchor                                0
++anchor                                        1
++enclave-apps fca1fea ipns-publisher tree f7c6f31d8d80938d0f5e68378a970c1c2cce7960 main.rs a9dcb93313e4f2f1a4173bb0e8db1b5fd8af1017
++enclave-apps 4514d25 ipns-publisher tree 90b0c84ca3dd483f8db00105395d5a6a392d38bd main.rs ccde6c3aebbc78823f0e6cb32e0472be0328ff28
++checked-out HEAD da4beff ipns-publisher tree f7c6f31d8d80938d0f5e68378a970c1c2cce7960 dirty: 0
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/evidence/public-read-20261023T204419Z.json b/evidence/public-read-20261023T204419Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..9617eace13f9d3a38b996f991080e666728ee3f7
+--- /dev/null
++++ b/evidence/public-read-20261023T204419Z.json
+@@ -0,0 +1,183 @@
++{
++ "at": "2026-10-23T20:44:19.754Z",
++ "readOnly": true,
++ "requests": 9,
++ "name": "k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52",
++ "reads": {
++  "publisher-status": {
++   "url": "https://d9798e4c.app.enclave.host/api/status",
++   "http": 200,
++   "ms": 2082,
++   "bytes": 477,
++   "sha256": "ed163c90e594c11a92f2546014a08c5d4ef66f287cec647db39459994209d03b",
++   "contentType": "application/json",
++   "location": null,
++   "etag": null,
++   "lastModified": null,
++   "age": null,
++   "cacheControl": "no-store",
++   "xIpnsSequence": null,
++   "json": {
++    "peerId": "12D3KooWSHxfM6L5zdmTkMh5ho8yPBB2292ug6T46BnkpCwYzoZP",
++    "name": "k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52",
++    "sequence": 0,
++    "value": "",
++    "validUntil": 0,
++    "publishedAt": 0,
++    "recovered": null,
++    "delegates": [],
++    "mode": "http-only",
++    "dht": null,
++    "ipni": {
++     "provider": "12D3KooWSHxfM6L5zdmTkMh5ho8yPBB2292ug6T46BnkpCwYzoZP",
++     "root": null,
++     "blocks": 0,
++     "chainLen": 0,
++     "head": null,
++     "announced": [],
++     "durable": false,
++     "note": "idle"
++    },
++    "durableState": false,
++    "queuedTasks": 0,
++    "uptimeSecs": 4586
++   }
++  },
++  "publisher-record": {
++   "url": "https://d9798e4c.app.enclave.host/routing/v1/ipns/k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52",
++   "http": 503,
++   "ms": 1520,
++   "bytes": 32,
++   "sha256": "372c939c70f812c072a5cae10912a19218371761e8039dd73191c4148d64cb0d",
++   "contentType": "application/json",
++   "location": null,
++   "etag": null,
++   "lastModified": null,
++   "age": null,
++   "cacheControl": "no-store",
++   "xIpnsSequence": null,
++   "bodyStart": "{\"error\":\"no record signed yet\"}"
++  },
++  "value-source": {
++   "url": "https://ipfs.enclave.host/site-root",
++   "http": 200,
++   "ms": 540,
++   "bytes": 66,
++   "sha256": "a321baf8a71f5e5a79c9b71a2d5df612007abcb4dcf0bb8b44c4becd3a0f6617",
++   "contentType": "text/plain; charset=utf-8",
++   "location": null,
++   "etag": "\"dm8uok9txnak1u\"",
++   "lastModified": "Mon, 19 Oct 2026 13:31:13 GMT",
++   "age": null,
++   "cacheControl": null,
++   "xIpnsSequence": null,
++   "firstLine": "/ipfs/bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou"
++  },
++  "delegated-ipfs.dev": {
++   "url": "https://delegated-ipfs.dev/routing/v1/ipns/k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52",
++   "http": 200,
++   "ms": 791,
++   "bytes": 379,
++   "sha256": "c108729d12555d49f772db42782caf35061bbfb414a59fca0b57cbeb9a5cb922",
++   "contentType": "application/vnd.ipfs.ipns-record",
++   "location": null,
++   "etag": "\"f475865e134580a7\"",
++   "lastModified": "Fri, 23 Oct 2026 20:44:24 GMT",
++   "age": null,
++   "cacheControl": "public, max-age=300, stale-while-revalidate=576829, stale-if-error=576829",
++   "xIpnsSequence": null,
++   "record": {
++    "valid": true,
++    "validationReason": null,
++    "sequence": 1026,
++    "value": "/ipfs/bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou",
++    "validity": "2026-10-30T13:03:14Z",
++    "ttlSecs": 300,
++    "signatureType": "V1+V2",
++    "bytes": 379,
++    "sha256": "c108729d12555d49f772db42782caf35061bbfb414a59fca0b57cbeb9a5cb922"
++   }
++  },
++  "ipfs.io": {
++   "url": "https://ipfs.io/ipns/k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52?format=ipns-record",
++   "http": 301,
++   "ms": 370,
++   "bytes": 167,
++   "sha256": "446a6087825fa73eadb045e5a2e9e2adf7df241b571228187728191d961dda1f",
++   "contentType": "text/html; charset=UTF-8",
++   "location": "https://trustless-gateway.link/ipns/k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52?format=ipns-record",
++   "etag": null,
++   "lastModified": null,
++   "age": null,
++   "cacheControl": null,
++   "xIpnsSequence": null,
++   "bodyStart": "<html>\r\n<head><title>301 Moved Permanently</title></head>\r\n<body>\r\n<center><h1>301 Moved Permanently</h1></center>\r\n<hr><center>cloudflare</center>\r\n</body>\r\n</"
++  },
++  "dweb.link": {
++   "url": "https://dweb.link/ipns/k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52?format=ipns-record",
++   "http": 301,
++   "ms": 512,
++   "bytes": 167,
++   "sha256": "446a6087825fa73eadb045e5a2e9e2adf7df241b571228187728191d961dda1f",
++   "contentType": "text/html; charset=UTF-8",
++   "location": "https://trustless-gateway.link/ipns/k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52?format=ipns-record",
++   "etag": null,
++   "lastModified": null,
++   "age": null,
++   "cacheControl": null,
++   "xIpnsSequence": null,
++   "bodyStart": "<html>\r\n<head><title>301 Moved Permanently</title></head>\r\n<body>\r\n<center><h1>301 Moved Permanently</h1></center>\r\n<hr><center>cloudflare</center>\r\n</body>\r\n</"
++  },
++  "ipfs.enclave.host-record": {
++   "url": "https://ipfs.enclave.host/ipns/k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52?format=ipns-record",
++   "http": 404,
++   "ms": 75,
++   "bytes": 0,
++   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++   "contentType": null,
++   "location": null,
++   "etag": null,
++   "lastModified": null,
++   "age": null,
++   "cacheControl": null,
++   "xIpnsSequence": null,
++   "bodyStart": ""
++  },
++  "ipfs.enclave.host-name-path": {
++   "url": "https://ipfs.enclave.host/ipns/k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52/",
++   "http": 404,
++   "ms": 226,
++   "bytes": 0,
++   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++   "contentType": null,
++   "location": null,
++   "etag": null,
++   "lastModified": null,
++   "age": null,
++   "cacheControl": null,
++   "xIpnsSequence": null,
++   "bodyStart": ""
++  },
++  "old-site-root-block": {
++   "url": "https://ipfs.enclave.host/ipfs/bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou?format=raw",
++   "http": 200,
++   "ms": 78,
++   "bytes": 1680,
++   "sha256": "94bcfd5c735c335930f48ef3098f5fafedc34d31f1e5d48b573ae882474f2075",
++   "contentType": "application/vnd.ipld.raw",
++   "location": null,
++   "etag": "\"dm8uok2va00r1ao\"",
++   "lastModified": "Mon, 19 Oct 2026 13:31:13 GMT",
++   "age": null,
++   "cacheControl": null,
++   "xIpnsSequence": null,
++   "blockMatchesCid": true
++  }
++ },
++ "summary": {
++  "validRecords": [
++   "delegated-ipfs.dev: seq 1026 /ipfs/bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou until 2026-10-30T13:03:14Z"
++  ],
++  "maxSequence": 1026
++ }
++}
+diff --git a/evidence/public-read-20261023T204505Z.json b/evidence/public-read-20261023T204505Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..5bd0dd012c2edbd68d661ae7e840146067e39774
+--- /dev/null
++++ b/evidence/public-read-20261023T204505Z.json
+@@ -0,0 +1,27 @@
++{
++ "at": "2026-10-23T20:45:05.170Z",
++ "readOnly": true,
++ "requests": 1,
++ "name": "k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52",
++ "reads": {
++  "trustless-gateway.link": {
++   "url": "https://trustless-gateway.link/ipns/k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52?format=ipns-record",
++   "http": 526,
++   "ms": 20063,
++   "bytes": 7759,
++   "sha256": "b0425c1063aeabfd01f35c51cbadef18554690e5117cbcfa968cb1f77937dd08",
++   "contentType": "text/html; charset=UTF-8",
++   "location": null,
++   "etag": null,
++   "lastModified": null,
++   "age": null,
++   "cacheControl": "private, max-age=0, no-store, no-cache, must-revalidate, post-check=0, pre-check=0",
++   "xIpnsSequence": null,
++   "bodyStart": "<!DOCTYPE html>\n<!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 7]>    <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endi"
++  }
++ },
++ "summary": {
++  "validRecords": [],
++  "maxSequence": -1
++ }
++}
+diff --git a/probes/local-provenance.sh b/probes/local-provenance.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..3f9143803cfe2b9d2cb62d8ad36155e4e1ef98f2
+--- /dev/null
++++ b/probes/local-provenance.sh
+@@ -0,0 +1,17 @@
++#!/bin/bash
++# LOCAL ONLY (no network): is the cutover fixture the production 1.0.5 component, and does it carry the status/sign logic and
++# the favicon commit 4514d25 read in enclave-apps source? Offline kubo hash-only add in a throwaway repo; strings over the wasm.
++set -euo pipefail
++W=/home/steven/Documents/Codex/2026-10-18/wo/work/ipns-production-cutover/fixtures/ipns-publisher-1.0.5.wasm
++SRC=/home/steven/Projects/enclave-apps
++echo "fixture sha256 $(sha256sum "$W" | cut -d' ' -f1) bytes $(stat -c %s "$W")"
++export IPFS_PATH=$(mktemp -d)/kubo; trap 'rm -rf "$(dirname "$IPFS_PATH")"' EXIT
++ipfs init --profile=test >/dev/null
++for args in "--cid-version=1" "--cid-version=1 --raw-leaves=false"; do echo "hash-only ($args): $(ipfs add -Q -n $args "$W")"; done
++echo "catalog 1.0.5 cid: bafybeiesjakstv3lnkgkbcrj3itenwubnk6wuwpkcrgmjbh64wfkr4j6ii (bootstrap-cas manifest, cutover plan)"
++for s in 'http-only' 'http-only mode (no DHT publish yet)' 'publish aborted: ' 'value source answered ' 'value source returned unusable content' \
++         'config `value` is not set' 'knows sequence' 'ipns-publisher-state.json' 'ipns-publisher:%20an%20ed25519' 'release-anchor' 'anchor'; do
++  printf '%-45s %s\n' "$s" "$(grep -c -a -F -- "$s" "$W" || true)"
++done
++for c in fca1fea 4514d25; do echo "enclave-apps $c ipns-publisher tree $(git -C $SRC rev-parse $c:ipns-publisher) main.rs $(git -C $SRC rev-parse $c:ipns-publisher/src/main.rs)"; done
++echo "checked-out HEAD $(git -C $SRC rev-parse --short HEAD) ipns-publisher tree $(git -C $SRC rev-parse HEAD:ipns-publisher) dirty: $(git -C $SRC status --porcelain -- ipns-publisher | wc -l)"
+diff --git a/probes/public-read.mjs b/probes/public-read.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..fee4665015cd6cb5c76749ed598d9afbf2641e66
+--- /dev/null
++++ b/probes/public-read.mjs
+@@ -0,0 +1,62 @@
++// READ-ONLY public probe (exactly 9 unauthenticated GETs by default; `--follow-trustless` makes the ONE 10th request of the
++// assessment: the trustless-gateway.link target that ipfs.io and dweb.link redirected to in public-read-1, each <= 30 s, bodies capped at 64 KiB, no redirects followed, no
++// cookies/keys/admin routes). IPNS records are verified OFFLINE with a throwaway local kubo repo (`ipfs name inspect --verify`,
++// no daemon, no network). Nothing is published, reset or written anywhere but evidence/public-read-<stamp>.json.
++import { execFileSync } from "node:child_process";
++import { createHash } from "node:crypto";
++import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++const NAME = "k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52";
++const PUB = "https://d9798e4c.app.enclave.host";
++const OLD = "bafybeieuxt6vy424gnmtb5eo6mey6x5p5xbu2mpr4xkiwvz25cbeotzaou";
++const sha = (b) => createHash("sha256").update(b).digest("hex");
++const REC = { accept: "application/vnd.ipfs.ipns-record" };
++const READS = [
++  ["publisher-status", `${PUB}/api/status`, {}, "json"],
++  ["publisher-record", `${PUB}/routing/v1/ipns/${NAME}`, REC, "record"],
++  ["value-source", "https://ipfs.enclave.host/site-root", {}, "text"],
++  ["delegated-ipfs.dev", `https://delegated-ipfs.dev/routing/v1/ipns/${NAME}`, REC, "record"],
++  ["ipfs.io", `https://ipfs.io/ipns/${NAME}?format=ipns-record`, REC, "record"],
++  ["dweb.link", `https://dweb.link/ipns/${NAME}?format=ipns-record`, REC, "record"],
++  ["ipfs.enclave.host-record", `https://ipfs.enclave.host/ipns/${NAME}?format=ipns-record`, REC, "record"],
++  ["ipfs.enclave.host-name-path", `https://ipfs.enclave.host/ipns/${NAME}/`, {}, "head-only"],
++  ["old-site-root-block", `https://ipfs.enclave.host/ipfs/${OLD}?format=raw`, { accept: "application/vnd.ipld.raw" }, "block"],
++];
++if (process.argv.includes("--follow-trustless")) READS.splice(0, READS.length, ["trustless-gateway.link", `https://trustless-gateway.link/ipns/${NAME}?format=ipns-record`, REC, "record"]);
++if (READS.length > 10) throw Error("request cap");
++const repo = mkdtempSync(join(tmpdir(), "pubread-kubo-")), env = { ...process.env, IPFS_PATH: join(repo, "kubo") };
++execFileSync("ipfs", ["init", "--profile=test"], { env, stdio: "ignore" });
++const inspect = (b) => { const j = JSON.parse(execFileSync("ipfs", ["name", "inspect", "--enc=json", "--dump=false", "--verify", NAME], { env, input: b }).toString());
++  return { valid: j.Validation?.Valid === true, validationReason: j.Validation?.Reason || null, sequence: j.Entry?.Sequence, value: j.Entry?.Value, validity: j.Entry?.Validity,
++    ttlSecs: Number(j.Entry?.TTL) / 1e9, signatureType: j.SignatureType, bytes: b.length, sha256: sha(b) }; };
++// multihash of a base32 CIDv1 dag-pb/raw sha2-256 CID -> hex digest
++const b32 = (s) => { const A = "abcdefghijklmnopqrstuvwxyz234567"; let bits = 0, v = 0; const o = []; for (const c of s) { v = (v << 5) | A.indexOf(c); bits += 5; if (bits >= 8) { o.push((v >>> (bits - 8)) & 255); bits -= 8; } } return Buffer.from(o); };
++const cidDigest = (cid) => { const b = b32(cid.slice(1)); if (b[0] !== 1 || b[2] !== 0x12 || b[3] !== 0x20) throw Error("not a CIDv1 sha2-256"); return b.subarray(4, 36).toString("hex"); };
++const out = { at: new Date().toISOString(), readOnly: true, requests: READS.length, name: NAME, reads: {} };
++for (const [k, url, headers, kind] of READS) {
++  const t0 = Date.now();
++  try {
++    const r = await fetch(url, { headers, redirect: "manual", signal: AbortSignal.timeout(30_000) });
++    const chunks = []; let n = 0;
++    for await (const c of r.body ?? []) { n += c.length; if (n > 65536) break; chunks.push(c); }
++    const b = Buffer.concat(chunks).subarray(0, 65536);
++    const e = { url, http: r.status, ms: Date.now() - t0, bytes: b.length, sha256: sha(b), contentType: r.headers.get("content-type"),
++      location: r.headers.get("location"), etag: r.headers.get("etag"), lastModified: r.headers.get("last-modified"), age: r.headers.get("age"),
++      cacheControl: r.headers.get("cache-control"), xIpnsSequence: r.headers.get("x-ipns-sequence") };
++    if (r.status === 200 && kind === "json") e.json = JSON.parse(b.toString());
++    else if (r.status === 200 && kind === "record") e.record = inspect(b);
++    else if (r.status === 200 && kind === "text") e.firstLine = b.toString().split("\n")[0].trim().slice(0, 200);
++    else if (r.status === 200 && kind === "block") e.blockMatchesCid = sha(b) === cidDigest(OLD);
++    else if (kind !== "head-only" || r.status !== 200) e.bodyStart = b.toString().slice(0, 160);
++    out.reads[k] = e;
++  } catch (err) { out.reads[k] = { url, ms: Date.now() - t0, error: String(err.message ?? err).slice(0, 200) }; }
++}
++rmSync(repo, { recursive: true, force: true });
++const recs = Object.entries(out.reads).filter(([, v]) => v.record?.valid);
++out.summary = { validRecords: recs.map(([k, v]) => `${k}: seq ${v.record.sequence} ${v.record.value} until ${v.record.validity}`),
++  maxSequence: recs.reduce((a, [, v]) => Math.max(a, Number(v.record.sequence)), -1) };
++const f = `evidence/public-read-${out.at.replace(/[-:]/g, "").slice(0, 15)}Z.json`;
++writeFileSync(f, JSON.stringify(out, null, 1) + "\n", { flag: "wx" });
++console.log(f); console.log(JSON.stringify(out.summary, null, 1));
++for (const [k, v] of Object.entries(out.reads)) console.log(k, v.http ?? v.error, v.ms + "ms", v.firstLine ?? v.record?.sequence ?? v.blockMatchesCid ?? v.location ?? "");
+diff --git a/probes/public-read.sh b/probes/public-read.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..c04408b364f6faa20bd0df59dfb0501a6b4ad754
+--- /dev/null
++++ b/probes/public-read.sh
+@@ -0,0 +1,4 @@
++#!/bin/bash
++set -euo pipefail
++cd "$(dirname "$0")/.."
++exec timeout -k 5 330 node probes/public-read.mjs "$@"
+diff --git a/q.sh b/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..52aa447cdd7d1a2cd6e8b858f0abb754dc2ed154
+--- /dev/null
++++ b/q.sh
+@@ -0,0 +1,17 @@
++#!/usr/bin/env bash
++# (copied from work/resume-20261021/reconciliation/q.sh, unchanged logic)
++# q.sh <MiB> <name> <command...>: ONE job through work/claude-test-queue.py, retried only while the queue answers 98
++# (NOT STARTED). The 256 lane refuses at once while held, so wait 30 s between tries (up to 120 tries) - same cap, no evasion.
++set -u
++mib="$1"; name="$2"; shift 2
++here="$(cd "$(dirname "$0")" && pwd)"; mkdir -p "$here/logs"; log="$here/logs/$name.log"; : > "$log"
++for i in $(seq 1 120); do
++  echo "[q] $(date -Is) try $i cmd: $*" >> "$log"
++  python3 /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib "$mib" --log "$here/logs/$name.guard.log" -- "$@" >> "$log" 2>&1
++  rc=$?; [ $rc -ne 98 ] && break
++  sleep 30
++done
++echo "[q] $(date -Is) exit=$rc" >> "$log"
++echo "$rc" > "$here/logs/$name.rc"
++grep -E "^\[queue\] (START|EXIT)" "$log" | tail -3
++echo "exit=$rc"; exit $rc
+diff --git a/scan-staged.sh b/scan-staged.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..8e8652ec6d54dabeb1b224a6d959cc7435a81e7b
+--- /dev/null
++++ b/scan-staged.sh
+@@ -0,0 +1,6 @@
++#!/bin/bash
++# gitleaks + the crypto-key scanner over this repository's staged files only (run through q.sh)
++set -euo pipefail
++cd "$(dirname "$0")"
++git diff --cached --binary | /home/steven/.local/bin/gitleaks stdin --no-banner --redact --exit-code 1 --report-format json --report-path logs/staged-gitleaks.json
++git diff --cached --name-only -z | xargs -0 python3 /home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo/.githooks/scan-crypto-keys.py --files

@@ -1,0 +1,68 @@
+[queue] START available=24146MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "at": "2026-10-23T20:20:51.979151+00:00",
+ "readOnly": true,
+ "reads": [
+  {
+   "url": "https://d9798e4c.app.enclave.host/api/status",
+   "status": 200,
+   "bytes": 477,
+   "sha256": "ea25f36d23e481059123cf934106e944e51ecbf314e8659fa179f86fe8c7b130",
+   "oversize": false,
+   "headers": {
+    "Content-Type": "application/json"
+   },
+   "publicStatus": {
+    "name": "k51qzi5uqu5dma8l0w05o02gkz7l80f3r3mb536qh8fuhrr2qj4nsa2afe9b52",
+    "sequence": 0,
+    "value": "",
+    "validUntil": 0,
+    "publishedAt": 0,
+    "mode": "http-only"
+   }
+  },
+  {
+   "url": "https://enclave.host/",
+   "status": 200,
+   "bytes": 41726,
+   "sha256": "d253ac834b95b211facdff6e45458983970ce1b71457731c262d658d663c7e25",
+   "oversize": false,
+   "headers": {
+    "Content-Type": "text/html; charset=utf-8",
+    "Etag": "\"dm9b1lj2aa1gw72\"",
+    "Last-Modified": "Tue, 20 Oct 2026 02:20:32 GMT"
+   }
+  },
+  {
+   "url": "https://enclave.host/index.html",
+   "status": 200,
+   "bytes": 41726,
+   "sha256": "d253ac834b95b211facdff6e45458983970ce1b71457731c262d658d663c7e25",
+   "oversize": false,
+   "headers": {
+    "Content-Type": "text/html; charset=utf-8",
+    "Etag": "\"dm9b1lj2aa1gw72\"",
+    "Last-Modified": "Tue, 20 Oct 2026 02:20:32 GMT"
+   }
+  },
+  {
+   "url": "https://enclave.host/.well-known/enclave-site-release.json",
+   "error": "HTTP Error 404: Not Found"
+  },
+  {
+   "url": "https://enclave.host/dashboard.html",
+   "status": 200,
+   "bytes": 13535,
+   "sha256": "0da63cbf46ca16d01a30b4922e8b5b8ef2d219796abd7df1b9533a649601ea8b",
+   "oversize": false,
+   "headers": {
+    "Content-Type": "text/html; charset=utf-8",
+    "Etag": "\"dm9b1lj31w0safz\"",
+    "Last-Modified": "Tue, 20 Oct 2026 02:20:32 GMT"
+   }
+  }
+ ]
+}
+[memory-guard] exit=0 peakTreeRssMiB=33 minHostAvailableMiB=24102
+[memory-guard] at peak: python3:28 public-read.sh:6
+[queue] EXIT 0

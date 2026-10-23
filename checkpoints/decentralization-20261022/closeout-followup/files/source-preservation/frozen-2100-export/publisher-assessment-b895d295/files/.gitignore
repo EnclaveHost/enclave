@@ -1,0 +1,6 @@
+logs/*.log
+logs/*.rc
+*.err
+*progress*.txt
+TASK*.txt
+ROOT-*.txt

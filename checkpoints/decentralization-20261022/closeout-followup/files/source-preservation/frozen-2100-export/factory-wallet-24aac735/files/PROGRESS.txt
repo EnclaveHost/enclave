@@ -1,0 +1,15 @@
+2026-10-23T20:47:19Z book sessionVaultFactory activation handoff: SOURCE ONLY, INACTIVE (nothing served, signed, sent or read live).
+- One frozen tx: book.set(sessionVaultFactory, 0x1f5c), from admin 0x0b2d, value 0. Byte-equal to root's plan 3b28b16f.
+- Pins from public evidence. Prepare: code first; owner/pending/entry/ledger/implementation; nonce settled; EXHAUSTIVE
+  impact (deployless multicall, the review's effectOf); refuses any stranding or unreviewed change.
+- Transport and RPC layer byte-identical to 7b49cd99; journal 0600; only the explicit click sends; verify uses 2
+  providers, 2 confirmations, the event and readbacks.
+- Tests: activation 9/9 (256, peak 227 MiB); browser 3/3 (512, peak 370 MiB); 5/5 mutants caught.
+- Scans: scan-crypto-keys and gitleaks clean.
+- Consumer review updated with root's relay evidence: d0e9df8.
+2026-10-23T20:52:23Z ROOT-FEE-REVIEW fix (source only; nothing served or signed):
+- L1 data fee via GasPriceOracle.getL1FeeUpperBound(max(unsigned, signedMax-68)), so the oracle-side size covers the
+  maximum signed tx (113 unsigned / 180 signed-max bytes; overhead 67 <= 68). Unsigned-only accounting is refused.
+- Verification refuses a wallet-added access list.
+- feeBound.totalExcludingOperatorFeeWei is labelled as excluding the OP-stack operator fee (not an all-fee cap).
+- activation 10/10 (256); 2 fee mutants caught. Browser suite not re-run: only the fee row text on the page changed.

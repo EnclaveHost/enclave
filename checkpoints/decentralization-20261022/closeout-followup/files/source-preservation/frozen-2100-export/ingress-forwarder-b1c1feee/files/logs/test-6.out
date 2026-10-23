@@ -1,0 +1,86 @@
+[queue] START available=23847MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: pinned/ingress.mjs is the reviewed ab589bf8 blob
+ok 1 - pinned/ingress.mjs is the reviewed ab589bf8 blob
+  ---
+  duration_ms: 4.402138
+  type: 'test'
+  ...
+# Subtest: the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
+ok 2 - the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
+  ---
+  duration_ms: 1.285848
+  type: 'test'
+  ...
+# Subtest: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
+ok 3 - config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
+  ---
+  duration_ms: 0.869482
+  type: 'test'
+  ...
+# Subtest: the example canary config validates and the example Caddy snippet lists exactly prefix + the 12 routes
+ok 4 - the example canary config validates and the example Caddy snippet lists exactly prefix + the 12 routes
+  ---
+  duration_ms: 0.554045
+  type: 'test'
+  ...
+# Subtest: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
+ok 5 - every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
+  ---
+  duration_ms: 42.084956
+  type: 'test'
+  ...
+# Subtest: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
+ok 6 - private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
+  ---
+  duration_ms: 281.063389
+  type: 'test'
+  ...
+# Subtest: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
+ok 7 - unknown or wrong methods, CONNECT and Upgrade never reach the upstream
+  ---
+  duration_ms: 10.181055
+  type: 'test'
+  ...
+# Subtest: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
+ok 8 - request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
+  ---
+  duration_ms: 1057.735979
+  type: 'test'
+  ...
+# Subtest: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
+ok 9 - upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
+  ---
+  duration_ms: 1267.778495
+  type: 'test'
+  ...
+# Subtest: a client that goes away aborts the upstream request
+ok 10 - a client that goes away aborts the upstream request
+  ---
+  duration_ms: 351.864467
+  type: 'test'
+  ...
+# Subtest: in-flight limit: excess requests get 503 without reaching the upstream
+ok 11 - in-flight limit: excess requests get 503 without reaching the upstream
+  ---
+  duration_ms: 503.367061
+  type: 'test'
+  ...
+# Subtest: the module never opens a listener outside loopback and only ever connects to the fixed upstream port
+ok 12 - the module never opens a listener outside loopback and only ever connects to the fixed upstream port
+  ---
+  duration_ms: 2.14481
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3642.768087
+[memory-guard] exit=0 peakTreeRssMiB=132 minHostAvailableMiB=23803
+[memory-guard] at peak: node:73 node:59
+[queue] EXIT 0

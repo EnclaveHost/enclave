@@ -1,0 +1,373 @@
+From b1c1feee70bb5ac7a63468c20a894ce7ca0ab657 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:37:10 -0700
+Subject: [PATCH] Forwarder: a client gone before upstream creation never
+ starts upstream work (ROOT-FOLLOWUP cancellation race), focused test and
+ mutant
+
+---
+ RESULT.md                | 35 +++++++++++++++
+ ROOT-FOLLOWUP.txt        |  1 +
+ forwarder.mjs            | 12 +++++-
+ logs/mutants-4.guard.log |  1 +
+ logs/mutants-4.out       |  8 ++++
+ logs/mutants-4.rc        |  1 +
+ logs/scan-2.guard.log    |  1 +
+ logs/scan-2.out          |  8 ++++
+ logs/scan-2.rc           |  1 +
+ logs/test-7.guard.log    |  1 +
+ logs/test-7.out          | 92 ++++++++++++++++++++++++++++++++++++++++
+ logs/test-7.rc           |  1 +
+ test/forwarder.test.mjs  | 24 +++++++++++
+ test/helpers.mjs         |  7 +--
+ test/run-mutants.mjs     |  2 +
+ 15 files changed, 190 insertions(+), 5 deletions(-)
+ create mode 100644 ROOT-FOLLOWUP.txt
+ create mode 100644 logs/mutants-4.guard.log
+ create mode 100644 logs/mutants-4.out
+ create mode 100644 logs/mutants-4.rc
+ create mode 100644 logs/scan-2.guard.log
+ create mode 100644 logs/scan-2.out
+ create mode 100644 logs/scan-2.rc
+ create mode 100644 logs/test-7.guard.log
+ create mode 100644 logs/test-7.out
+ create mode 100644 logs/test-7.rc
+
+diff --git a/RESULT.md b/RESULT.md
+index 040d1a0a73c6862248673add9bea835e5a9621b5..c6a7e3ea4208c6ce562a9da6640e3583a6c54fbf 100644
+--- a/RESULT.md
++++ b/RESULT.md
+@@ -126,3 +126,38 @@
+ - **Responses:** buffered up to the cap, not streamed byte by byte (see above).
+ - **Corrected image:** per root, it is ab589bf8, measurement 70aadf…, with fresh/reopen AMD quotes and the storage-503
+   no-identity-replacement hardware test passed. D did not verify any of that; it is root's record.
++
++## Follow-up: cancellation race (ROOT-FOLLOWUP.txt, 2026-10-23T20:35Z)
++
++**Finding (confirmed).**
++- In 35d73c68 a client could go away after its body completed but before the upstream request was created.
++- Its socket `close` can arrive via `nextTick`, which runs before the `await` continuation. The `AbortController` was then already
++  aborted, and the abort listener attached afterwards never fired.
++- The upstream request was still sent, and its answer was discarded. That is wasted upstream work, but no exposure: the path and
++  method are still the allowlisted constants.
++
++**Fix** (`forwarder.mjs`).
++- Right after the body (or none, for GET) and before any upstream socket exists, the forwarder checks the state itself:
++  `ac.signal.aborted || res.destroyed || req.socket.destroyed`. If any is true it returns `client_gone` without creating a request.
++- Inside the upstream promise, `if (ac.signal.aborted) return end({gone})` follows the listener.
++  - It is defensive only: the code between the pre-check and the listener is synchronous, so no test can reach it on its own.
++- An abort after the upstream request exists was already handled: the listener destroys the request. The existing test "a client
++  that goes away aborts the upstream request" covers it.
++- A test-only seam, `createForwarder(config, { afterBody })`, runs in exactly that window; production passes nothing.
++
++**Evidence** (queue, 256 MiB):
++- **`logs/test-7.out`:** 13/13 pass, peak 132 MiB. The new test covers POST release and GET info:
++  - the client is made to go away in that window, without the abort having fired yet;
++  - the upstream sees **no request and no TCP connection**, and the log reason is `client_gone`;
++  - in flight and forwarded counts are 0;
++  - a control run without the seam forwards normally.
++- **`logs/mutants-4.out`:** only the cancellation-related mutants were re-run, plus the control. Both are killed:
++  - `no-gone-check-before-upstream` (both new checks removed), by the new test;
++  - `no-abort-on-client-gone`, by the existing abort test.
++- **Not re-run:** the other 23 mutants. Their logic is unchanged, and their last full run is `logs/mutants-3.out`, 24/24 killed.
++
++**Response handling** stays as documented above: **bounded buffering** (up to `maxResponseBytes`, under the upstream deadline),
++not streaming.
++
++**Scope is unchanged:** the public port never exposes host-binding, state or submit. Root has not installed or run this against
++production, and D has not either.
+diff --git a/ROOT-FOLLOWUP.txt b/ROOT-FOLLOWUP.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..08a262fbc274c7daab9102ed766cc9d4f404136c
+--- /dev/null
++++ b/ROOT-FOLLOWUP.txt
+@@ -0,0 +1 @@
++Root read actual forwarder. Exact raw-target allowlist/fixed upstream/private-route filtering looks sound. Please check one cancellation race before final freeze: ac can already be aborted between completed body await and attaching upstream abort listener; addEventListener on an already-aborted signal does not fire. Ensure an already-gone client never starts upstream work, and abort after upstream creation is handled. A focused test/control is enough; no broad reruns unless needed. Keep original scope. Public port never exposes host-binding/state/submit. Current test response buffering is bounded, document as bounded buffering rather than streaming. Root has not installed/executed this against production.
+diff --git a/forwarder.mjs b/forwarder.mjs
+index d4e101fdf94232e2655b21686b420542de80cf41..d909cc55a936b14d9cb512de457b4c04f37171ac 100644
+--- a/forwarder.mjs
++++ b/forwarder.mjs
+@@ -95,10 +95,12 @@
+ }
+ 
+ /**
+- * createForwarder(config, { log }) -> { server, listen() -> Promise<{host, port}>, close() -> Promise, stats }
++ * createForwarder(config, { log, afterBody }) -> { server, listen() -> Promise<{host, port}>, close() -> Promise, stats }
++ * afterBody(req, res) is a TEST SEAM only (test/forwarder.test.mjs): called synchronously once the body is complete, before
++ * any upstream work, so a test can make the client go away in exactly that window. Production passes nothing.
+  * log(event) receives { status, reason, route?, ms } per request: never a body, header or raw target.
+  */
+-export function createForwarder(config, { log = () => {} } = {}) {
++export function createForwarder(config, { log = () => {}, afterBody = null } = {}) {
+   const c = validateConfig(config);
+   const stats = { inFlight: 0, forwarded: 0, refused: 0 };
+   const server = http.createServer({ maxHeaderSize: c.maxHeaderBytes, requestTimeout: c.requestTimeoutMs, headersTimeout: c.headersTimeoutMs,
+@@ -142,6 +144,11 @@
+       if (got === 'aborted') { done(499, 'client_gone'); return; }
+       body = got;
+     }
++    afterBody?.(req, res);
++    // A client can go away after its body completed but before this point: its socket 'close' arrives via nextTick, which
++    // runs before this continuation, so `ac` may ALREADY be aborted, and an abort listener added from here on would never
++    // fire. So check the state itself, before any upstream socket exists (ROOT-FOLLOWUP 2026-10-23).
++    if (ac.signal.aborted || res.destroyed || req.socket?.destroyed) { done(499, 'client_gone'); return; }
+ 
+     // one upstream exchange to the fixed loopback port, with the allowlist's own path and method, under one deadline
+     const result = await new Promise((resolve) => {
+@@ -152,6 +159,7 @@
+                    ...(method === 'POST' ? { 'content-type': 'application/json', 'content-length': body.length } : {}) } });
+       function end(v) { if (settled) return; settled = true; clearTimeout(timer); if (v.fail || v.gone) up.destroy(); resolve(v); }
+       ac.signal.addEventListener('abort', () => end({ gone: true }), { once: true });
++      if (ac.signal.aborted) return end({ gone: true });   // aborted before the listener existed: it would never fire
+       up.once('error', () => end({ fail: 502 }));
+       up.once('response', (r) => {
+         const s = r.statusCode, type = String(r.headers['content-type'] || '');
+diff --git a/logs/mutants-4.guard.log b/logs/mutants-4.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..b50843fc524f25f3d7b5a1806cfda7ea6c2af0d9
+--- /dev/null
++++ b/logs/mutants-4.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=184 minHostAvailableMiB=23912
+diff --git a/logs/mutants-4.out b/logs/mutants-4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..f7f2df0cca3dabacba4dc70c41e3a7a06fe520ad
+--- /dev/null
++++ b/logs/mutants-4.out
+@@ -0,0 +1,8 @@
++[queue] START available=24072MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++control (unmutated): exit 0
++KILLED   no-gone-check-before-upstream: exit 1; failing tests: a client gone after its body completed but before upstream creation never starts upstream work (ROOT-FOLLOWUP)
++KILLED   no-abort-on-client-gone: exit 1; failing tests: a client that goes away aborts the upstream request
++mutants 2, killed 2, survived 0; control passed
++[memory-guard] exit=0 peakTreeRssMiB=184 minHostAvailableMiB=23912
++[memory-guard] at peak: node:73 node:59 node:51
++[queue] EXIT 0
+diff --git a/logs/mutants-4.rc b/logs/mutants-4.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/mutants-4.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-2.guard.log b/logs/scan-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..734e4df69e528292441721554a8d7ce9e5d416fc
+--- /dev/null
++++ b/logs/scan-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=70 minHostAvailableMiB=23969
+diff --git a/logs/scan-2.out b/logs/scan-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..7f280ae38032e3b0d259632722cc6beb4553397b
+--- /dev/null
++++ b/logs/scan-2.out
+@@ -0,0 +1,8 @@
++[queue] START available=24038MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++1:37PM INF scanned ~104259 bytes (104.26 KB) in 14.2ms
++1:37PM INF no leaks found
++literal files []
++[scan] gitleaks=0 scan-crypto-keys=0 literal=0
++[memory-guard] exit=0 peakTreeRssMiB=70 minHostAvailableMiB=23969
++[memory-guard] at peak: gitleaks:61 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-2.rc b/logs/scan-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-2.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/test-7.guard.log b/logs/test-7.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..ee210cc2a810fd0bece4cc9c8584ea0f775c2b18
+--- /dev/null
++++ b/logs/test-7.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=132 minHostAvailableMiB=23958
+diff --git a/logs/test-7.out b/logs/test-7.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..d57ec6baac1740cfdfbbe6c285172d3c51d16636
+--- /dev/null
++++ b/logs/test-7.out
+@@ -0,0 +1,92 @@
++[queue] START available=24044MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: pinned/ingress.mjs is the reviewed ab589bf8 blob
++ok 1 - pinned/ingress.mjs is the reviewed ab589bf8 blob
++  ---
++  duration_ms: 4.999846
++  type: 'test'
++  ...
++# Subtest: the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
++ok 2 - the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
++  ---
++  duration_ms: 1.267749
++  type: 'test'
++  ...
++# Subtest: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++ok 3 - config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
++  ---
++  duration_ms: 0.847423
++  type: 'test'
++  ...
++# Subtest: the example canary config validates and the example Caddy snippet lists exactly prefix + the 12 routes
++ok 4 - the example canary config validates and the example Caddy snippet lists exactly prefix + the 12 routes
++  ---
++  duration_ms: 0.557685
++  type: 'test'
++  ...
++# Subtest: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++ok 5 - every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
++  ---
++  duration_ms: 40.900764
++  type: 'test'
++  ...
++# Subtest: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++ok 6 - private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
++  ---
++  duration_ms: 273.653331
++  type: 'test'
++  ...
++# Subtest: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++ok 7 - unknown or wrong methods, CONNECT and Upgrade never reach the upstream
++  ---
++  duration_ms: 9.862951
++  type: 'test'
++  ...
++# Subtest: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++ok 8 - request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
++  ---
++  duration_ms: 1058.503678
++  type: 'test'
++  ...
++# Subtest: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++ok 9 - upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
++  ---
++  duration_ms: 1267.618948
++  type: 'test'
++  ...
++# Subtest: a client that goes away aborts the upstream request
++ok 10 - a client that goes away aborts the upstream request
++  ---
++  duration_ms: 351.371477
++  type: 'test'
++  ...
++# Subtest: a client gone after its body completed but before upstream creation never starts upstream work (ROOT-FOLLOWUP)
++ok 11 - a client gone after its body completed but before upstream creation never starts upstream work (ROOT-FOLLOWUP)
++  ---
++  duration_ms: 605.669151
++  type: 'test'
++  ...
++# Subtest: in-flight limit: excess requests get 503 without reaching the upstream
++ok 12 - in-flight limit: excess requests get 503 without reaching the upstream
++  ---
++  duration_ms: 502.573575
++  type: 'test'
++  ...
++# Subtest: the module never opens a listener outside loopback and only ever connects to the fixed upstream port
++ok 13 - the module never opens a listener outside loopback and only ever connects to the fixed upstream port
++  ---
++  duration_ms: 1.979002
++  type: 'test'
++  ...
++1..13
++# tests 13
++# suites 0
++# pass 13
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 4231.765226
++[memory-guard] exit=0 peakTreeRssMiB=132 minHostAvailableMiB=23958
++[memory-guard] at peak: node:73 node:59
++[queue] EXIT 0
+diff --git a/logs/test-7.rc b/logs/test-7.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/test-7.rc
+@@ -0,0 +1 @@
++0
+diff --git a/test/forwarder.test.mjs b/test/forwarder.test.mjs
+index 0fa12f0ae44da1e3d25d146fc8e2d49b5a09311b..74fe366992b74380e0475118e4732e2d5d8f96a7 100644
+--- a/test/forwarder.test.mjs
++++ b/test/forwarder.test.mjs
+@@ -178,6 +178,30 @@
+   assert.equal(fw.f.stats.inFlight, 0);
+ });
+ 
++test('a client gone after its body completed but before upstream creation never starts upstream work (ROOT-FOLLOWUP)', async () => {
++  // afterBody (a test seam) runs in exactly that window and makes the client go away. res.destroy() emits 'close' on a later
++  // tick, so the abort controller is NOT yet aborted when the forwarder continues: only a check of the state itself catches
++  // it. The upstream must see no request AND no TCP connection.
++  for (const [route, method] of [['/v2/custody/release', 'POST'], ['/v2/custody/info', 'GET']]) {
++    await fw.close();
++    const gone = [];
++    fw = await forwarder(up.port, {}, { afterBody: (req, res) => { res.destroy(); req.socket.destroy(); }, log: (e) => gone.push(e.reason) });
++    up.hits.length = 0; up.connections = 0;
++    const r = await request(fw.port, method, PREFIX + route, method === 'POST' ? '{}' : null);
++    await new Promise((res) => setTimeout(res, 300));
++    assert.equal(r.status, 0, r.text);
++    assert.deepEqual(up.hits, []);
++    assert.equal(up.connections, 0, `${method} ${route}: an upstream connection was opened for a client that had gone`);
++    assert.deepEqual(gone, ['client_gone']);
++    assert.equal(fw.f.stats.inFlight, 0);
++    assert.equal(fw.f.stats.forwarded, 0);
++  }
++  // control: the same forwarder without the seam forwards normally (the seam, not the route, made the client go away)
++  await fw.close(); fw = await forwarder(up.port);
++  assert.equal((await request(fw.port, 'POST', PREFIX + '/v2/custody/release', '{}')).status, 200);
++  assert.equal(up.connections, 1);
++});
++
+ test('in-flight limit: excess requests get 503 without reaching the upstream', async () => {
+   await fw.close();
+   fw = await forwarder(up.port, { maxInFlight: 2, upstreamTimeoutMs: 1500 });
+diff --git a/test/helpers.mjs b/test/helpers.mjs
+index 93897cfc69e7ff9edb2e294a73a74b626da73293..1550a40ff8032c6549cb54a55eae2766dd7d4ea9 100644
+--- a/test/helpers.mjs
++++ b/test/helpers.mjs
+@@ -13,7 +13,7 @@
+ /** A custodian stand-in that dispatches like the guest: new URL(req.url).pathname, so dot/backslash forms resolve. */
+ export async function fakeCustodian() {
+   const hits = [];
+-  const g = { hits, behavior: null, closed: 0 };
++  const g = { hits, behavior: null, closed: 0, connections: 0 };
+   const server = http.createServer((req, res) => {
+     const chunks = [];
+     req.on('data', (d) => chunks.push(d));
+@@ -30,6 +30,7 @@
+       return reply(404, { error: 'not_found' });
+     });
+   });
++  server.on('connection', () => { g.connections++; });
+   await new Promise((r) => server.listen(0, '127.0.0.1', r));
+   g.port = server.address().port;
+   g.close = () => new Promise((r) => { server.close(() => r()); server.closeAllConnections(); });
+@@ -37,9 +38,9 @@
+ }
+ 
+ /** Start a forwarder in front of `upstream` with small test limits (overridable). */
+-export async function forwarder(upstreamPort, over = {}) {
++export async function forwarder(upstreamPort, over = {}, opts = {}) {
+   const f = F.createForwarder({ listen: { host: '127.0.0.1', port: 0 }, prefix: PREFIX, upstreamPort, maxBodyBytes: 4096, maxResponseBytes: 8192,
+-                                bodyTimeoutMs: 400, upstreamTimeoutMs: 600, headersTimeoutMs: 400, requestTimeoutMs: 1500, maxInFlight: 8, ...over });
++                                bodyTimeoutMs: 400, upstreamTimeoutMs: 600, headersTimeoutMs: 400, requestTimeoutMs: 1500, maxInFlight: 8, ...over }, opts);
+   const a = await f.listen();
+   return { f, port: a.port, close: () => f.close() };
+ }
+diff --git a/test/run-mutants.mjs b/test/run-mutants.mjs
+index 9fc51397b872c45b30c86fa6586e80ee8c1cc2ed..3017dba5058efc7c3a1a9aee6e886cb66126d941 100644
+--- a/test/run-mutants.mjs
++++ b/test/run-mutants.mjs
+@@ -33,6 +33,8 @@
+                       ["if (n > c.maxResponseBytes) return end({ fail: 502 });", ""]],
+   'accept-truncated': [["if (r.complete) end({", "if (true) end({"], ["r.once('aborted', () => end({ fail: 502 }));", ""], ["r.once('error', () => end({ fail: 502 }));", "r.once('error', () => end({ status: 200, body: Buffer.from('{}') }));"]],
+   'no-abort-on-client-gone': [["const onGone = () => { if (!res.writableEnded) ac.abort(); };", "const onGone = () => {};"]],
++  'no-gone-check-before-upstream': [["if (ac.signal.aborted || res.destroyed || req.socket?.destroyed) { done(499, 'client_gone'); return; }", ""],
++                                    ["      if (ac.signal.aborted) return end({ gone: true });   // aborted before the listener existed: it would never fire\n", ""]],
+   'no-in-flight-limit': [["if (stats.inFlight > c.maxInFlight)", "if (false)"]],
+   'non-loopback-listen': [["if (!LOOPBACK.has(l.host))", "if (false)"]],
+   'prefix-under-relay-tunnels': [["c.prefix.startsWith('/t/') || ", ""]],

@@ -1,0 +1,230 @@
+From 278a28a7e50d6ae55a541e61b76f176bb3c65635 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:35:04 -0700
+Subject: [PATCH] Site: app media fallback gateways (accepted patch 04836638,
+ applied unchanged)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The patch is root-accepted 2026-10-22 (public-cold-frontend, sha256 04836638e4d2…), applied with `git apply` and no fuzz.
+- catalog.js, app-card.js and app-detail.js equal the reviewed results byte for byte (2abe00fe, 89ebb2a8, f0d7b056).
+- config.js and deployments.js differ from the reviewed bytes only by the custody v2 / wallet-route lines already on this
+  branch. The media hunks are identical: IPFS_IMG_FALLBACKS, the card art attributes, and hydrateMedia after the rows render.
+- Neither file's custody v2 vault binding, Secrets panel or wallet send path is touched.
+---
+ site/components/app-card/app-card.js       |  7 +-
+ site/components/app-detail/app-detail.js   |  8 +--
+ site/components/deployments/deployments.js |  7 +-
+ site/js/core/catalog.js                    | 74 +++++++++++++++++++++-
+ site/js/core/config.js                     |  6 ++
+ 5 files changed, 90 insertions(+), 12 deletions(-)
+
+diff --git a/site/components/app-card/app-card.js b/site/components/app-card/app-card.js
+index 1ae02e0364c1c7e02426b7508e8b7eea01e01622..cb6736647b83a83d9b33e5cb6f11ff9e41a4a3bb 100644
+--- a/site/components/app-card/app-card.js
++++ b/site/components/app-card/app-card.js
+@@ -12,7 +12,7 @@
+ import { esc } from "../../js/core/util.js";
+ import { Enclave } from "../../js/core/api.js";
+ import { APPROVAL } from "../../js/core/chain.js";
+-import { STORE, selIdx, appOfficial, appMedia, mediaUrl, placeholderArt } from "../../js/core/catalog.js";
++import { STORE, selIdx, appOfficial, appMedia, applyMedia, placeholderArt } from "../../js/core/catalog.js";
+ import { tallyOf, avgOf, starsHtml } from "../../js/core/reviews.js";
+ 
+ class AppCard extends EnclaveElement {
+@@ -34,9 +34,8 @@
+     // card is the same shape whether or not the publisher branded it
+     const media = appMedia(app), thumb = this.querySelector(".app-thumb");
+     thumb.hidden = false;
+-    thumb.style.backgroundImage = media.thumbnail
+-      ? "url('" + mediaUrl(media.thumbnail, media.thumbnailSvg) + "')"
+-      : placeholderArt(app.appId || app.slug, app.name || app.slug);
++    // (applyMedia: the preferred gateway first, then the configured fallbacks; the placeholder when none delivers)
++    applyMedia(thumb, media.thumbnail, media.thumbnailSvg, placeholderArt(app.appId || app.slug, app.name || app.slug));
+ 
+     // the title is a real link (the heading survives in the a11y tree; Enter
+     // works natively) - the card-wide click handler below still opens for pointers
+diff --git a/site/components/app-detail/app-detail.js b/site/components/app-detail/app-detail.js
+index ba650ea11495a5d5ff0e93fbdb5d8592ca0b53c3..003f09a3ebb7d2b3f5b4ccde3f8ff68abb933587 100644
+--- a/site/components/app-detail/app-detail.js
++++ b/site/components/app-detail/app-detail.js
+@@ -14,7 +14,7 @@
+ import { IPFS_GATEWAY } from "../../js/core/config.js";
+ import { Enclave } from "../../js/core/api.js";
+ import { APPROVAL, catVersionFee } from "../../js/core/chain.js";
+-import { STORE, selIdx, appOfficial, mediaOf, mediaUrl, verVisible, visibleVerIdxs, specOf } from "../../js/core/catalog.js";
++import { STORE, selIdx, appOfficial, mediaOf, applyMedia, verVisible, visibleVerIdxs, specOf } from "../../js/core/catalog.js";
+ import { tallyOf, avgOf, starsHtml } from "../../js/core/reviews.js";
+ import { appResources } from "../../js/core/app-resources.js";
+ 
+@@ -38,9 +38,9 @@
+     // banner (selected version's media) - optional hero
+     const media = mediaOf(v), banner = this.querySelector(".appd-banner");
+     if (media.banner){
+-      banner.hidden = false;
+-      banner.style.backgroundImage = "url('" + mediaUrl(media.banner, media.bannerSvg) + "')";
+-    } else { banner.hidden = true; banner.style.backgroundImage = ""; }
++      // an optional hero: hidden rather than left as an empty band while no gateway delivers it, shown again if one does
++      applyMedia(banner, media.banner, media.bannerSvg, "", (shown) => { banner.hidden = !shown; });
++    } else { banner.hidden = true; banner.style.backgroundImage = ""; banner.dataset.mediaKey = ""; }
+ 
+     this.querySelector("h1").textContent = app.name;
+ 
+diff --git a/site/components/deployments/deployments.js b/site/components/deployments/deployments.js
+index 7f66639d57df0d479ad3566b6d460956a4c7e94e..77ea0cd58d4c21ac1375fe63b89e2e9d1136ba28 100644
+--- a/site/components/deployments/deployments.js
++++ b/site/components/deployments/deployments.js
+@@ -36,7 +36,7 @@
+ const sendTx = (to, data, value, gas) => String(to).toLowerCase() === String(DEPLOYMENTS_ADDRESS).toLowerCase()
+   ? import("../../js/core/sessions.js").then((S) => S.ledgerSend(data, () => walletSendTx(to, data, value, gas)))
+   : walletSendTx(to, data, value, gas);
+-import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, specOfRef, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
++import { slugOfRef, artOfRef, artAttrsOfRef, hydrateMedia, loadCatalog, parseCatalogRef, catalogRef, specOf, specOfRef, STORE, fetchConfigCid, stripMedia, putConfig } from "../../js/core/catalog.js";
+ import { appShares } from "../../js/core/app-resources.js";
+ import { cpuPoolBadge, gpuPoolBadge } from "../../js/core/pool-badges.js";
+ import { shareEditor } from "../../js/core/share-editor.js";
+@@ -1525,7 +1525,7 @@
+       // the row's app identity, shared by the cover-art chip and the meta line
+       const appLbl = deploymentTitle(d);
+       const shareText = encTier(d);
+-      const art = artOfRef(d.image && d.image.reference, appLbl || d.id);
++      const art = artOfRef(d.image && d.image.reference, appLbl || d.id), artAttrs = artAttrsOfRef(d.image && d.image.reference, appLbl || d.id);
+       // the card leads with the APP, not the raw id: the bytes32 becomes a
+       // compact copy chip (full value in data-copy/title), stated once per card
+       const idShort = (d.id || "").length > 20 ? d.id.slice(0, 10) + "…" + d.id.slice(-4) : (d.id || "–");
+@@ -1539,7 +1539,7 @@
+       const runwayPct = runwaySec != null ? Math.max(2, Math.min(100, Math.round(100 * runwaySec / RUNWAY_FULL))) : null;
+       return '<div class="enc-row' + (highlight && d.id === highlight ? " enc-new" : "") + '">' +
+         '<div class="enc-main">' +
+-          '<span class="enc-thumb" style="background-image:' + art + '" aria-hidden="true"></span>' +
++          '<span class="enc-thumb" style="background-image:' + art + '"' + artAttrs + ' aria-hidden="true"></span>' +
+           '<span class="enc-title">' + esc(appLbl || idShort) + '</span>' +
+           '<span class="ap-badge ' + statusCls(st) + '">' + esc(st) + '</span>' +
+           '<span class="ap-badge ' + (d.public ? 'ep-public' : 'ep-private') + '" title="' + (d.public ? 'anyone can reach the app endpoint' : 'only your wallet token can reach the app') + '">' + (d.public ? 'public' : 'private') + '</span>' +
+@@ -1625,6 +1625,7 @@
+         '<div class="enc-att" hidden></div>' +
+       '</div>';
+     }).join("");
++    hydrateMedia(body);   // the app chips: preferred gateway, configured fallbacks, then the placeholder (once per CID)
+     $$(".enc-id", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
+     $$(".enc-ep", body).forEach(b => b.addEventListener("click", () => copyText(b.dataset.ep)));
+     // recovery on a replaced ledger: refund(id) sent to THAT ledger (js/core/platform-addresses.js allows exactly this
+diff --git a/site/js/core/catalog.js b/site/js/core/catalog.js
+index b97f2e3f6754d55bec58c624ee1aa33f21bd5159..76950270395f3f8f26f31b393dce20d64be517fc 100644
+--- a/site/js/core/catalog.js
++++ b/site/js/core/catalog.js
+@@ -12,7 +12,7 @@
+    Load progress is announced with `enclave:catalog` events (detail.type:
+    loading | loaded | error) - pages render, this module doesn't.
+    ============================================================ */
+-import { APP_CATALOG_ADDRESS, IPFS_IMG_GATEWAY, IPFS_JSON_UPLOAD_URL, IPFS_WALLET_AUDIENCE, STORAGE_PLAN, INDEPENDENT } from "./config.js";
++import { APP_CATALOG_ADDRESS, IPFS_IMG_GATEWAY, IPFS_IMG_FALLBACKS, IPFS_JSON_UPLOAD_URL, IPFS_WALLET_AUDIENCE, STORAGE_PLAN, INDEPENDENT } from "./config.js";
+ import { catConfigured, appCount, catGetAppsPage, catGetVersions, catOwner, APPROVAL, CAT_MAX } from "./chain.js";
+ import { lsGet, lsSet, emit, on, esc } from "./util.js";
+ import { minPctsOf } from "./pricing.js";
+@@ -239,6 +239,69 @@
+ // which the Kubo gateway derives from the ?filename extension; bare raster
+ // CIDs content-sniff fine without it.
+ export const mediaUrl = (cid, svg) => IPFS_IMG_GATEWAY + encodeURIComponent(cid) + (svg ? "?filename=enclave-logo.svg" : "");
++/* Media fallback for the renderers (store tile, detail banner, dashboard chip). A CSS background has no error event, so an
++   unreachable preferred gateway used to leave an EMPTY band with no placeholder (the disappearing logos). A media CID is
++   resolved on use: the preferred mediaUrl first, then config.js IPFS_IMG_FALLBACKS in order, each attempt bounded by
++   MEDIA_TRY_MS (an image that loads = delivered); the first gateway that delivers is used everywhere that CID appears, and
++   if none does the renderer's own placeholder shows instead. The answer is kept MEDIA_HIT_TTL_MS (a gateway) or
++   MEDIA_MISS_TTL_MS (none delivered); renders inside that window repaint from it with no request, the first render after it
++   re-checks the whole list once (shared by every concurrent caller) while the last answer stays painted. So an outage heals
++   and a dead chosen gateway is replaced on a later render, with at most one round of MEDIA_MAX_TRIES attempts per CID per
++   window and no timer of its own. Gateways are transport only: never trusted beyond showing the picture, and a working URL
++   is not a replica. */
++export const MEDIA_TRY_MS = 8000, MEDIA_MAX_TRIES = 4, MEDIA_HIT_TTL_MS = 10 * 60 * 1000, MEDIA_MISS_TTL_MS = 60 * 1000;
++const _media = new Map();   // "s:"/"r:" + cid -> { url: string|null, at } last answer, + { pending: Promise } while (re)checking
++const mediaKey = (cid, svg) => (svg ? "s:" : "r:") + cid;
++const mediaFresh = (e) => !!e && "url" in e && Date.now() - e.at < (e.url ? MEDIA_HIT_TTL_MS : MEDIA_MISS_TTL_MS);
++export function mediaUrls(cid, svg){
++  const c = cleanCid(cid); if (!c) return [];
++  const q = svg ? "?filename=enclave-logo.svg" : "";
++  return [...new Set([IPFS_IMG_GATEWAY, ...(IPFS_IMG_FALLBACKS || [])].filter((g) => /^https?:\/\/[^\s'"()]+\/$/.test(g)))]
++    .slice(0, MEDIA_MAX_TRIES).map((g) => g + encodeURIComponent(c) + q);
++}
++function mediaLoads(url, ms){
++  return new Promise((done) => {
++    const img = new Image(); let over = false;
++    const end = (ok) => { if (over) return; over = true; clearTimeout(t); img.onload = img.onerror = null; if (!ok) img.src = ""; done(ok); };
++    const t = setTimeout(() => end(false), ms);
++    img.onload = () => end(true); img.onerror = () => end(false);
++    img.src = url;
++  });
++}
++// -> Promise<the first URL that delivers the CID's image, or null>; one resolution per CID at a time, reused until it expires
++export function resolveMedia(cid, svg){
++  const c = cleanCid(cid); if (!c) return Promise.resolve(null);
++  const k = mediaKey(c, svg), e = _media.get(k);
++  if (e && e.pending) return e.pending;
++  if (mediaFresh(e)) return Promise.resolve(e.url);
++  const pending = (async () => {
++    let hit = null;
++    for (const u of mediaUrls(c, svg)) { if (await mediaLoads(u, MEDIA_TRY_MS)) { hit = u; break; } }
++    _media.set(k, { url: hit, at: Date.now() }); return hit;
++  })();
++  _media.set(k, { ...e, pending });   // the previous answer stays readable for synchronous repaints meanwhile
++  return pending;
++}
++/* Paint `el`'s background with the CID's image (resolved as above) or, when no gateway delivers it, `fallbackCss` (a CSS
++   background value, e.g. placeholderArt); `onResult(shown)` follows every paint, so a hidden optional banner comes back
++   when its media recovers. A later call for another CID on the same element wins. */
++export function applyMedia(el, cid, svg, fallbackCss, onResult){
++  if (!el) return;
++  const c = cleanCid(cid), k = c ? mediaKey(c, svg) : "";
++  el.dataset.mediaKey = k;
++  const paint = (u) => { if (el.dataset.mediaKey !== k) return; el.style.backgroundImage = u ? "url('" + u + "')" : (fallbackCss || ""); if (onResult) onResult(!!u); };
++  if (!c) return paint(null);
++  const e = _media.get(k);
++  if (mediaFresh(e)) return paint(e.url);
++  paint(e && "url" in e ? e.url : mediaUrl(c, svg));   // the last answer, or (first sight) the preferred URL as before
++  resolveMedia(c, svg).then(paint);
++}
++// HTML-string renderers: mark the element with mediaAttrs(...) and call hydrateMedia(container) after inserting it
++export const mediaAttrs = (cid, svg, fallbackCss) => cleanCid(cid)
++  ? ' data-media-cid="' + esc(cleanCid(cid)) + '" data-media-svg="' + (svg ? "1" : "") + '" data-media-alt="' + esc(fallbackCss || "") + '"' : "";
++export function hydrateMedia(root){
++  if (root && root.querySelectorAll) root.querySelectorAll("[data-media-cid]").forEach((el) => applyMedia(el, el.dataset.mediaCid, el.dataset.mediaSvg === "1", el.dataset.mediaAlt || ""));
++}
+ export function mediaOf(version){
+   if (!version || !version.config) return {};
+   try {
+@@ -605,3 +668,12 @@
+   const name = (hit && (hit.app.name || hit.app.slug)) || String(label || "?");
+   return placeholderArt((cr && cr.appId) || ref || label, name);
+ }
++// the same chip's media-fallback attributes (see hydrateMedia): the thumbnail CID, and the placeholder for when no gateway delivers it
++export function artAttrsOfRef(ref, label){
++  const cr = parseCatalogRef(ref);
++  const hit = cr && appOfRef(cr);
++  const m = hit && hit.v ? mediaOf(hit.v) : {};
++  if (!m.thumbnail) return "";
++  const name = (hit && (hit.app.name || hit.app.slug)) || String(label || "?");
++  return mediaAttrs(m.thumbnail, m.thumbnailSvg, placeholderArt((cr && cr.appId) || ref || label, name));
++}
+diff --git a/site/js/core/config.js b/site/js/core/config.js
+index f8774e9ff035d05dd6e020aaa4e7221c144a1eb6..9217a075569b79a94be0a8de88d65dcdac4ff802 100644
+--- a/site/js/core/config.js
++++ b/site/js/core/config.js
+@@ -223,11 +223,17 @@
+ export let IPFS_JSON_UPLOAD_URL = "https://ipfs.enclave.host/add-json";   // validating config pin (catalog rev-7 large app configs); empty => configs capped at the on-chain inline limit
+ export let IPFS_GATEWAY    = "https://ipfs.io/ipfs/";      // where the "fetch .wasm" links resolve
+ export let IPFS_IMG_GATEWAY = "https://ipfs.enclave.host/ipfs/"; // app media (thumbnail/banner) - served from our own gateway for speed/reliability
++// Where app media is tried when IPFS_IMG_GATEWAY cannot deliver it (catalog.js resolveMedia: in order, once per CID per page,
++// each attempt bounded). Only read gateways the product already uses: the site's public IPFS_GATEWAY and dweb.link (the
++// CLI/supervisor default bootstrap pair); in independent mode, only the profile's other storage replicas. Transport only:
++// the CID names the bytes, and a second URL is not a second copy - a CID no provider holds fails everywhere.
++export let IPFS_IMG_FALLBACKS = [IPFS_GATEWAY, "https://dweb.link/ipfs/"];
+ if (IND_ANY){
+   // no hosted upload gateway at all; reads go to the profile's first storage adapter ("" without a plan)
+   const g = STORAGE_PLAN ? STORAGE_PLAN.replicas[0].gateway + "/" : "";
+   IPFS_UPLOAD_URL = ""; IPFS_IMAGE_UPLOAD_URL = ""; IPFS_JSON_UPLOAD_URL = "";
+   IPFS_GATEWAY = g; IPFS_IMG_GATEWAY = g;
++  IPFS_IMG_FALLBACKS = STORAGE_PLAN ? STORAGE_PLAN.replicas.slice(1).map((r) => r.gateway + "/") : [];
+ }
+ export const MAX_WASM_MB     = 2048;                         // upload ceiling (also enforced server-side by Caddy request_body max_size and the add-wasm gateway)
+ export const MAX_WASM_BYTES  = MAX_WASM_MB * 1024 * 1024;

@@ -1,0 +1,66 @@
+[queue] START available=24430MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "source": "/home/steven/enclave-prod/dist-custody-v2-295650320/initramfs.cpio.gz",
+ "hashedMembers": 13496,
+ "otherMembers": 15539,
+ "otherBytes": 662568286,
+ "namesMentioningCustodyOrGuestd": [
+  "app/isolation/m4/guestd",
+  "app/isolation/m4/guestd/control-client.mjs",
+  "app/isolation/m4/guestd/supervisor-guestcert.mjs",
+  "app/isolation/m4/guestd/supervisor-splice.mjs",
+  "app/isolation/m4/guestd/supervisor-transport.mjs"
+ ],
+ "flavorEnv": {
+  "sha256": "9d901ae3969f0cadafdd65e8abd4515ae4608dbd890e722294135bbdaec807f5",
+  "keys": [
+   "ACME_CONTACT",
+   "ACME_DIRECTORY_2",
+   "ACME_STORE_DIR",
+   "ADDRESS_BOOK_ADDRESS",
+   "APP_CATALOG_ADDRESS",
+   "APP_CERT_DOMAIN",
+   "AUTO_PROVISION",
+   "AUTO_PROVISION_HOURS",
+   "CERTS_API",
+   "CHAIN_ID",
+   "CLAIM_ENABLED",
+   "CORS_ORIGINS",
+   "DEPLOYMENTS_ADDRESS",
+   "DEP_ADDR_PREFIX",
+   "DNS_API",
+   "EGRESS_DEDICATED_RELAY",
+   "EGRESS_DEFAULT_RELAY",
+   "EGRESS_SOCKS_PORT",
+   "ENCLAVE_REPO",
+   "FORWARDER_ADDRESS",
+   "GPU_COUNT",
+   "GRACE_SEC",
+   "NODE_GFLOPS",
+   "NODE_RAM_GB",
+   "NODE_VCPUS",
+   "PAYMENT_WINDOW_SEC",
+   "PAYOUT_ADDRESS",
+   "PAY_POLL_SEC",
+   "PROVISION_BACKEND",
+   "REGISTRY_ADDRESS",
+   "REGISTRY_ENABLED",
+   "SESSION_TTL",
+   "SIWE_DOMAIN",
+   "SIWE_URI",
+   "TLS_BRIDGE_DOMAIN",
+   "USDC_ADDRESS",
+   "VMMGR_URL"
+  ],
+  "publicValues": {
+   "CHAIN_ID": "8453",
+   "ADDRESS_BOOK_ADDRESS": "0xab214342d5A490150A4A977063A2f88E21F80907",
+   "REGISTRY_ADDRESS": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC"
+  },
+  "secretishKeysPresent": []
+ },
+ "inImageManifestSha256": "fe4c2751501c05a3e0287458990906f7fa6cf9855707a1eea341df3935375b1e"
+}
+[memory-guard] exit=0 peakTreeRssMiB=27 minHostAvailableMiB=24396
+[memory-guard] at peak: python3:27
+[queue] EXIT 0

@@ -1,0 +1,8 @@
+[queue] START available=24825MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+1:53PM INF scanned ~5559103 bytes (5.56 MB) in 217ms
+1:53PM INF no leaks found
+literal files ['out/dist-custody-v2-295650320/initramfs-inventory.json', 'out/dist-leasegas-deabf8f90/initramfs-inventory.json']
+[scan] gitleaks=0 scan-crypto-keys=0 literal=1
+[memory-guard] exit=1 peakTreeRssMiB=97 minHostAvailableMiB=24743
+[memory-guard] at peak: gitleaks:87 bash:6 timeout:4
+[queue] EXIT 1

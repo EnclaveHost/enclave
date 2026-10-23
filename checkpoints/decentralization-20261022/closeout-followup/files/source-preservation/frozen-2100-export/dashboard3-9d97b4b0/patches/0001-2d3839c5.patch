@@ -1,0 +1,52 @@
+From 2d3839c547bba10d31339a8f165425571782dddc Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:28:04 -0700
+Subject: [PATCH] Docs: custody v2 current state - corrected image ab589bf8,
+ policy inventory limits, activation still gated
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Root's 2026-10-23 facts, stated as reported:
+- The corrected custodian image ab589bf8 (image 70aadf…) is reproducibly built, with startup and reopen verified on AMD
+  hardware at 20:16Z. It supersedes the quote-only c635fd68. It is not running; the original c866 image is live.
+- There is no release, migration or rotation lifecycle proof yet.
+- Only the sampled deployments are known (one EOA canary policy). The exhaustive log scan is incomplete.
+- The book activations remain gated.
+- No decentralized-custody or full-parity claim.
+Docs only: the site build (release bafybeiax6ngccp7…, built from e24a47fb2) does not include docs/.
+---
+ docs/security/secret-custody-v2.md | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+index e1d4b5b190b11ece5e363838e51e9087f024e318..7dd237d10d361a417a4690b58b3d172bb658df00 100644
+--- a/docs/security/secret-custody-v2.md
++++ b/docs/security/secret-custody-v2.md
+@@ -36,7 +36,10 @@
+   seat on the metal0 host).
+   - That host's accepted owner on `EnclaveHostOwnership` `0xbbd885…` is unset (`host-reader-preflight.json`).
+   - This is a SINGLE-SEAT BOOTSTRAP, not decentralized custody.
+-- **Policies.** The only known policy is the canary `0x4e62…` (policyRev 2, secretRev 2, owner `0x29479Bf…`).
++- **Policies.** Among the deployments sampled (the nine recovered NucBox apps and the old canary), the only v2 policy is the
++  canary `0x4e62…`, owned by an EOA (policyRev 2, secretRev 2, owner `0x29479Bf…`). The exhaustive historical log scan was
++  rate-limited and is INCOMPLETE, so other policies are not ruled out.
++- **Running custodian.** The original image (`c866…`) is still the live one.
+ 
+ Prepared, not done:
+ - **Unsigned plans.** Root has unsigned admin transactions for `book.set("secretVaultV2", 0xE486…)` and
+@@ -44,7 +47,13 @@
+   review first: a policy already pinned to a SessionVault would then need `claimPolicy`, which destroys its bundle.
+ - **Direct ingress.** Direct custodian endpoint ingress is not configured on metal0. The release path above is the relay
+   tunnel.
+-- **Corrected image.** The corrected custodian release (`c635fd68`) has a quote-only hardware check. It is not running.
++- **Corrected image.** Root reported on 2026-10-23 at 20:16Z that the corrected custodian image (`ab589bf8`, image `70aadf…`)
++  is reproducibly built and that its startup and sealed-state reopen were verified on AMD hardware. It supersedes the earlier
++  quote-only candidate `c635fd68`.
++  - It is not running in production.
++  - There is no release, migration or rotation lifecycle proof for it yet.
++- **Activation.** Both book activations remain gated on that lifecycle proof and on the consumer review. Nothing here is
++  decentralized custody or full feature parity with v1.
+ - **Oct-14 verification.** The hardware verification below has no surviving receipt or log (rollout audit F9). It is the
+   2026-10-14 record, not re-proven.
+ 

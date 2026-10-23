@@ -1,0 +1,22 @@
+[queue] START available=24377MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+fixture sha256 59a1cec5130382260347f285f41475176c5923e0736565ffc2835b4a094ef637 bytes 1345402
+hash-only (--cid-version=1): bafybeiesjakstv3lnkgkbcrj3itenwubnk6wuwpkcrgmjbh64wfkr4j6ii
+hash-only (--cid-version=1 --raw-leaves=false): bafybeihnh22vio6eo5p4zedtidxdgizdz7gnhswi7qnoq4ckcdbueeekqi
+catalog 1.0.5 cid: bafybeiesjakstv3lnkgkbcrj3itenwubnk6wuwpkcrgmjbh64wfkr4j6ii (bootstrap-cas manifest, cutover plan)
+http-only                                     1
+http-only mode (no DHT publish yet)           1
+publish aborted:                              1
+value source answered                         1
+value source returned unusable content        1
+config `value` is not set                     1
+knows sequence                                1
+ipns-publisher-state.json                     1
+ipns-publisher:%20an%20ed25519                1
+release-anchor                                0
+anchor                                        1
+enclave-apps fca1fea ipns-publisher tree f7c6f31d8d80938d0f5e68378a970c1c2cce7960 main.rs a9dcb93313e4f2f1a4173bb0e8db1b5fd8af1017
+enclave-apps 4514d25 ipns-publisher tree 90b0c84ca3dd483f8db00105395d5a6a392d38bd main.rs ccde6c3aebbc78823f0e6cb32e0472be0328ff28
+checked-out HEAD da4beff ipns-publisher tree f7c6f31d8d80938d0f5e68378a970c1c2cce7960 dirty: 0
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

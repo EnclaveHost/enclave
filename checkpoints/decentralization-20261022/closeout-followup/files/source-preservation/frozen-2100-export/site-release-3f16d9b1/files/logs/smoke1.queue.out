@@ -1,0 +1,106 @@
+[queue] START available=24143MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "release": "bafybeiax6ngccp7bxoiex5pqv2yoz2ekfk227pthlzfrqkv32v6jt7stmi",
+ "custodyChunk": "/js/chunks/chunk-KUSLTBER.js",
+ "pages": [
+  {
+   "path": "/",
+   "seed": null,
+   "pageErrors": [],
+   "cspRefusals": [],
+   "localBad": [],
+   "localOk": 39,
+   "status": 200,
+   "title": "Enclave · Compute That Cannot See Your Data",
+   "stamp": "e24a47fb · 2026-10-23"
+  },
+  {
+   "path": "/apps",
+   "seed": null,
+   "pageErrors": [],
+   "cspRefusals": [],
+   "localBad": [],
+   "localOk": 33,
+   "status": 200,
+   "title": "Apps · Enclave",
+   "stamp": "e24a47fb · 2026-10-23"
+  },
+  {
+   "path": "/credit/",
+   "seed": null,
+   "pageErrors": [],
+   "cspRefusals": [],
+   "localBad": [],
+   "localOk": 4,
+   "status": 200,
+   "title": "Your Enclave credit, directly on chain",
+   "stamp": null
+  },
+  {
+   "path": "/recover/",
+   "seed": null,
+   "pageErrors": [],
+   "cspRefusals": [],
+   "localBad": [],
+   "localOk": 4,
+   "status": 200,
+   "title": "Sign with your Enclave passkey",
+   "stamp": null
+  },
+  {
+   "path": "/dashboard",
+   "seed": [
+    "deployments",
+    "registry"
+   ],
+   "pageErrors": [],
+   "cspRefusals": [],
+   "localBad": [],
+   "localOk": 56,
+   "status": 200,
+   "title": "Enclave · Compute That Cannot See Your Data",
+   "stamp": "e24a47fb · 2026-10-23",
+   "custodyV2": {
+    "error": "vault-state export not unique: 0"
+   }
+  },
+  {
+   "path": "/dashboard",
+   "seed": [
+    "deployments",
+    "registry",
+    "secretVaultV2"
+   ],
+   "pageErrors": [],
+   "cspRefusals": [],
+   "localBad": [],
+   "localOk": 56,
+   "status": 200,
+   "title": "Enclave · Compute That Cannot See Your Data",
+   "stamp": "e24a47fb · 2026-10-23",
+   "custodyV2": {
+    "error": "vault-state export not unique: 0"
+   }
+  }
+ ],
+ "inert": {
+  "error": "vault-state export not unique: 0"
+ },
+ "control": {
+  "error": "vault-state export not unique: 0"
+ },
+ "completed": true,
+ "externalAborted": {
+  "base-rpc.publicnode.com": 28,
+  "base.drpc.org": 22,
+  "api.enclave.host": 12,
+  "1rpc.io": 22,
+  "mainnet.base.org": 16,
+  "raw.githubusercontent.com": 2
+ },
+ "ok": false
+}
+INERT-SMOKE-FAILED
+[memory-guard] exit=1 peakTreeRssMiB=391 minHostAvailableMiB=23854
+[memory-guard] at peak: chrome-headless:263 node:118 smoke.sh:6 timeout:4
+[queue] EXIT 1

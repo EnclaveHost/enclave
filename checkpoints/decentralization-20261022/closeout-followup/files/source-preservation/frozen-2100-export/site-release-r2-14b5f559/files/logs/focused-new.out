@@ -1,0 +1,398 @@
+tree new at a942a61fd: catalog 9c4ef0d1
+=== FILE test/media-fallback.test.mjs
+TAP version 13
+# Subtest: the fallback list is the existing read gateways only, in order; mediaUrl (the preferred URL) is unchanged
+ok 1 - the fallback list is the existing read gateways only, in order; mediaUrl (the preferred URL) is unchanged
+  ---
+  duration_ms: 1.344748
+  type: 'test'
+  ...
+# Subtest: preferred gateway delivers: one attempt, the preferred URL, no fallback request
+ok 2 - preferred gateway delivers: one attempt, the preferred URL, no fallback request
+  ---
+  duration_ms: 4.871746
+  type: 'test'
+  ...
+# Subtest: preferred gateway fails (the cold path root observed): the next existing gateway delivers; the band shows it, not nothing
+ok 3 - preferred gateway fails (the cold path root observed): the next existing gateway delivers; the band shows it, not nothing
+  ---
+  duration_ms: 11.422607
+  type: 'test'
+  ...
+# Subtest: no gateway delivers: bounded attempts (3), then the renderer's placeholder + onResult(false); not retried inside the window
+ok 4 - no gateway delivers: bounded attempts (3), then the renderer's placeholder + onResult(false); not retried inside the window
+  ---
+  duration_ms: 17.047946
+  type: 'test'
+  ...
+# Subtest: a gateway that never answers is abandoned at MEDIA_TRY_MS and the next one is tried (no infinite loading)
+ok 5 - a gateway that never answers is abandoned at MEDIA_TRY_MS and the next one is tried (no infinite loading)
+  ---
+  duration_ms: 8013.556948
+  type: 'test'
+  ...
+# Subtest: concurrent renders of the same CID share ONE resolution; a re-targeted element ignores the stale answer
+ok 6 - concurrent renders of the same CID share ONE resolution; a re-targeted element ignores the stale answer
+  ---
+  duration_ms: 12.25051
+  type: 'test'
+  ...
+# Subtest: an invalid or missing CID paints the placeholder and requests nothing
+ok 7 - an invalid or missing CID paints the placeholder and requests nothing
+  ---
+  duration_ms: 0.511895
+  type: 'test'
+  ...
+# Subtest: a temporary outage heals: renders inside MEDIA_MISS_TTL_MS repaint the placeholder with no request; the first render after it re-checks ONCE for all callers and the banner comes back
+ok 8 - a temporary outage heals: renders inside MEDIA_MISS_TTL_MS repaint the placeholder with no request; the first render after it re-checks ONCE for all callers and the banner comes back
+  ---
+  duration_ms: 28.350925
+  type: 'test'
+  ...
+# Subtest: a chosen gateway that dies is replaced after MEDIA_HIT_TTL_MS, and a recovered preferred gateway wins back; none -> placeholder
+ok 9 - a chosen gateway that dies is replaced after MEDIA_HIT_TTL_MS, and a recovered preferred gateway wins back; none -> placeholder
+  ---
+  duration_ms: 50.848983
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8195.364833
+=== RC 0 test/media-fallback.test.mjs
+=== FILE test/car-verify-oracle.test.mjs
+TAP version 13
+# \# oracle rows [{"name":"CIDv0 single dag-pb leaf (Kubo v0 default)","js":{"ok":true,"sha":"d71efc846b61efe722d9b5032117d23041e04844139b1bbfd90de72abdaef624"},"py":{"ok":true,"sha":"d71efc846b61efe722d9b5032117d23041e04844139b1bbfd90de72abdaef624"}},{"name":"CIDv1 raw leaves, 256 KiB chunks (pin profile)","js":{"ok":true,"sha":"ba8cb4d6933265bf6457f3fb0f5664d91f62c120529f7dbe68db71ad3deb8623"},"py":{"ok":true,"sha":"ba8cb4d6933265bf6457f3fb0f5664d91f62c120529f7dbe68db71ad3deb8623"}},{"name":"CIDv0 root over CIDv0 dag-pb leaves, 64 KiB chunks","js":{"ok":true,"sha":"0bd07b634cc3fc7ed3e5f71b2d1081be75a51e5e774f2e00fbe79f61e2ab586c"},"py":{"ok":true,"sha":"0bd07b634cc3fc7ed3e5f71b2d1081be75a51e5e774f2e00fbe79f61e2ab586c"}},{"name":"mixed raw / v0 dag-pb / v1 dag-pb leaves, uneven chunk boundaries","js":{"ok":true,"sha":"e38e722ad036604d4f396c455199992637547d5ff9a0a7cd5b2831f65fc7c626"},"py":{"ok":true,"sha":"e38e722ad036604d4f396c455199992637547d5ff9a0a7cd5b2831f65fc7c626"}},{"name":"repeated chunk: one block linked 3 times, emitted 3 times","js":{"ok":true,"sha":"65aff2c854980f25305f8aa1002dee229a48577dd0eaacb07093f13dcfede64f"},"py":{"ok":true,"sha":"65aff2c854980f25305f8aa1002dee229a48577dd0eaacb07093f13dcfede64f"}},{"name":"two-level tree, 4 KiB raw leaves","js":{"ok":true,"sha":"870aa6c3b03c88b4ac7c642635145d4bb259322917f6c96b2d28419ba9a69297"},"py":{"ok":true,"sha":"870aa6c3b03c88b4ac7c642635145d4bb259322917f6c96b2d28419ba9a69297"}},{"name":"depth-900 single-link chain (MAX_DEPTH: deepest the browser takes; the runtime takes it too)","js":{"ok":true,"sha":"6d1fd574b5b9f2196f8fbd8641c9cffe31b302558ac0d93aa8aa7fe14cd4a20d"},"py":{"ok":true,"sha":"6d1fd574b5b9f2196f8fbd8641c9cffe31b302558ac0d93aa8aa7fe14cd4a20d"}},{"name":"forged block (bytes changed, CID kept)","js":{"ok":false,"err":"block hash mismatch"},"py":{"ok":false,"err":"ValueError: block hash mismatch — gateway served tampered/corrupt data"}},{"name":"missing child block","js":{"ok":false,"err":"CAR is missing a block"},"py":{"ok":false,"err":"ValueError: CAR is missing block 0155122036345489b2ae823c7b902a5dc090acd927763f183b41813c747"}},{"name":"wrong root (a valid CAR of another file)","js":{"ok":false,"err":"CAR does not contain the requested CID"},"py":{"ok":false,"err":"ValueError: CAR does not contain the requested CID Qme45dD4XfXX5U9TbdBHdTWKzWA55XdxbLUNQFamP"}},{"name":"truncated CAR (last 10 bytes cut)","js":{"ok":false,"err":"truncated CAR section"},"py":{"ok":false,"err":"ValueError: block hash mismatch — gateway served tampered/corrupt data"}},{"name":"trailing garbage after the last section","js":{"ok":false,"err":"truncated CAR section"},"py":{"ok":false,"err":"IndexError: index out of range"}},{"name":"section length past the end","js":{"ok":false,"err":"truncated CAR section"},"py":{"ok":false,"err":"IndexError: index out of range"}},{"name":"header length past the end","js":{"ok":false,"err":"truncated CAR header"},"py":{"ok":false,"err":"ValueError: CAR does not contain the requested CID bafybeictbedzgrtly3yghezoxy6miwv6h4p7w6rs"}},{"name":"unterminated varint header","js":{"ok":false,"err":"varint too long"},"py":{"ok":false,"err":"ValueError: varint too long"}},{"name":"empty CAR","js":{"ok":false,"err":"truncated varint"},"py":{"ok":false,"err":"IndexError: index out of range"}},{"name":"output over the cap (max = file size - 1)","js":{"ok":false,"err":"reconstructed file exceeds 2056 bytes"},"py":{"ok":false,"err":"ValueError: reconstructed file exceeds max 2056 bytes"}},{"name":"output exactly at the cap","js":{"ok":true,"sha":"1603d7198fa231e71abb6776099ab8484d55072f115543889fee7c8c700525e8"},"py":{"ok":true,"sha":"1603d7198fa231e71abb6776099ab8484d55072f115543889fee7c8c700525e8"}},{"name":"empty-data diamond, depth 26 (2^27 walks, no output)","js":{"ok":false,"err":"DAG walk exceeded node-visit budget (4784)"},"py":{"ok":false,"err":"ValueError: DAG walk exceeded node-visit budget (4784) — possible fan-out/diamond expansion "}},{"name":"depth-1100 chain (past both walkers' depth)","js":{"ok":false,"err":"DAG deeper than 900"},"py":{"ok":false,"err":"RecursionError: maximum recursion depth exceeded"}},{"name":"depth-901 chain: browser refuses (runtime would still take it - the one deliberate divergence)","js":{"ok":false,"err":"DAG deeper than 900"},"py":{"ok":true,"sha":"4ddb423efc4d16a83d5d8cb38f9d1522f89978510bd7831e640ce54c2aed450e"}},{"name":"a non-sha2-256 block anywhere refuses the CAR","js":{"ok":false,"err":"unsupported hash in block (sha2-256 only)"},"py":{"ok":false,"err":"ValueError: unsupported hash in block (sha2-256 only)"}},{"name":"a dag-cbor child is not a file block","js":{"ok":false,"err":"unsupported CID codec 0x71"},"py":{"ok":false,"err":"ValueError: unsupported CID codec 0x71"}}]
+# Subtest: the browser CAR verifier and the runtime's ipfs_fetch.verify_car agree on every fixture
+ok 1 - the browser CAR verifier and the runtime's ipfs_fetch.verify_car agree on every fixture
+  ---
+  duration_ms: 201.226013
+  type: 'test'
+  ...
+# Subtest: limits are the runtime's: CAR transfer cap and the depth guard; the profile fixture is the pin profile's own root
+ok 2 - limits are the runtime's: CAR transfer cap and the depth guard; the profile fixture is the pin profile's own root
+  ---
+  duration_ms: 45.789698
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 300.461251
+=== RC 0 test/car-verify-oracle.test.mjs
+=== FILE test/config-deadline.test.mjs
+TAP version 13
+# Subtest: verifyCar: without a check it is the runtime's verifier (unchanged); with one, hashing stops at the first check past the deadline
+ok 1 - verifyCar: without a check it is the runtime's verifier (unchanged); with one, hashing stops at the first check past the deadline
+  ---
+  duration_ms: 10.333007
+  type: 'test'
+  ...
+# Subtest: reconstruct: the walk calls the check every 1024 visits and stops when it throws; default walk unchanged
+ok 2 - reconstruct: the walk calls the check every 1024 visits and stops when it throws; default walk unchanged
+  ---
+  duration_ms: 40.878912
+  type: 'test'
+  ...
+# Subtest: CAR mode: the deadline passing during block hashing -> null, no further block hashed, no other request, nothing cached
+ok 3 - CAR mode: the deadline passing during block hashing -> null, no further block hashed, no other request, nothing cached
+  ---
+  duration_ms: 20.975111
+  type: 'test'
+  ...
+# Subtest: a VALID proof that completes after the deadline is not returned or cached (deadline passes at the last block's hash)
+ok 4 - a VALID proof that completes after the deadline is not returned or cached (deadline passes at the last block's hash)
+  ---
+  duration_ms: 5.290852
+  type: 'test'
+  ...
+# Subtest: raw and profile-file modes: a proof finishing after the deadline is refused and not cached
+ok 5 - raw and profile-file modes: a proof finishing after the deadline is refused and not cached
+  ---
+  duration_ms: 7.593941
+  type: 'test'
+  ...
+# Subtest: deadline checks never fire inside the window: the same proofs succeed when time does not run out
+ok 6 - deadline checks never fire inside the window: the same proofs succeed when time does not run out
+  ---
+  duration_ms: 3.520408
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 156.823781
+=== RC 0 test/config-deadline.test.mjs
+=== FILE test/config-read-fallback.test.mjs
+TAP version 13
+# Subtest: gateways are the media patch's list; parseCid decodes every spelling exactly as multiformats does; anything else is refused unrequested
+ok 1 - gateways are the media patch's list; parseCid decodes every spelling exactly as multiformats does; anything else is refused unrequested
+  ---
+  duration_ms: 22.482148
+  type: 'test'
+  ...
+# Subtest: forged JSON is rejected for EVERY accepted spelling, raw and dag-pb, and never selected from any gateway position
+ok 2 - forged JSON is rejected for EVERY accepted spelling, raw and dag-pb, and never selected from any gateway position
+  ---
+  duration_ms: 172.867077
+  type: 'test'
+  ...
+# Subtest: equivalent spellings are one content: they share the verified cache and an in-flight round
+ok 3 - equivalent spellings are one content: they share the verified cache and an in-flight round
+  ---
+  duration_ms: 3.122712
+  type: 'test'
+  ...
+# Subtest: preferred gateway down -> the next gateway's bytes verify -> offered; no credentials; then cached by CID (no request)
+ok 4 - preferred gateway down -> the next gateway's bytes verify -> offered; no credentials; then cached by CID (no request)
+  ---
+  duration_ms: 0.744234
+  type: 'test'
+  ...
+# Subtest: corrupt content is rejected wherever it comes from (preferred included) and is never cached
+ok 5 - corrupt content is rejected wherever it comes from (preferred included) and is never cached
+  ---
+  duration_ms: 2.076472
+  type: 'test'
+  ...
+# Subtest: a large (multi-block, dag-pb) config verifies through artifactIdentity; a tampered one does not
+ok 6 - a large (multi-block, dag-pb) config verifies through artifactIdentity; a tampered one does not
+  ---
+  duration_ms: 6.274424
+  type: 'test'
+  ...
+# Subtest: oversize answers are refused within the CAT_MAX.configMax byte bound (declared length or endless stream)
+ok 7 - oversize answers are refused within the CAT_MAX.configMax byte bound (declared length or endless stream)
+  ---
+  duration_ms: 2.068822
+  type: 'test'
+  ...
+# Subtest: a gateway that never answers is abandoned at CONFIG_TRY_MS and the next one serves
+ok 8 - a gateway that never answers is abandoned at CONFIG_TRY_MS and the next one serves
+  ---
+  duration_ms: 10001.929729
+  type: 'test'
+  ...
+# Subtest: the round is bounded by CONFIG_ROUND_MS: no further gateway once the budget is spent
+ok 9 - the round is bounded by CONFIG_ROUND_MS: no further gateway once the budget is spent
+  ---
+  duration_ms: 0.878982
+  type: 'test'
+  ...
+# Subtest: concurrent callers share one round; a failed round answers null without requests for CONFIG_MISS_TTL_MS, then recovers
+ok 10 - concurrent callers share one round; a failed round answers null without requests for CONFIG_MISS_TTL_MS, then recovers
+  ---
+  duration_ms: 1.436858
+  type: 'test'
+  ...
+# Subtest: a Kubo-v0 CIDv0 dag-pb leaf (unprovable by re-import) is proven by its CAR - the runtime's proof - and prefills; bare bytes never are
+ok 11 - a Kubo-v0 CIDv0 dag-pb leaf (unprovable by re-import) is proven by its CAR - the runtime's proof - and prefills; bare bytes never are
+  ---
+  duration_ms: 4.773617
+  type: 'test'
+  ...
+# Subtest: mixed leaves, repeated chunks and uneven boundaries verify end-to-end from the preferred gateway's CAR
+ok 12 - mixed leaves, repeated chunks and uneven boundaries verify end-to-end from the preferred gateway's CAR
+  ---
+  duration_ms: 2.662846
+  type: 'test'
+  ...
+# Subtest: CAR attempts stay inside the round's count, byte and deadline bounds
+ok 13 - CAR attempts stay inside the round's count, byte and deadline bounds
+  ---
+  duration_ms: 6.599821
+  type: 'test'
+  ...
+# Subtest: publish 'add version' prefill: preferred down -> verified alternate fills the form; forged everywhere -> EMPTY box + loud note, never the manifest
+ok 14 - publish 'add version' prefill: preferred down -> verified alternate fills the form; forged everywhere -> EMPTY box + loud note, never the manifest
+  ---
+  duration_ms: 2.164621
+  type: 'test'
+  ...
+# Subtest: dashboard Config/Models read (_cfgRead): split override + stock config both come back verified via an alternate; forged override -> ovLost, forged stock -> null
+ok 15 - dashboard Config/Models read (_cfgRead): split override + stock config both come back verified via an alternate; forged override -> ovLost, forged stock -> null
+  ---
+  duration_ms: 3.887685
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10303.252572
+=== RC 0 test/config-read-fallback.test.mjs
+=== FILE test/models-read-only.test.mjs
+TAP version 13
+# Subtest: Models displays the configured selection when the fleet cannot edit it
+ok 1 - Models displays the configured selection when the fleet cannot edit it
+  ---
+  duration_ms: 3.185321
+  type: 'test'
+  ...
+# Subtest: missing fleet support and old ledgers block writes, not reads
+ok 2 - missing fleet support and old ledgers block writes, not reads
+  ---
+  duration_ms: 2.477258
+  type: 'test'
+  ...
+# Subtest: supported edits and existing overrides retain their established behavior
+ok 3 - supported edits and existing overrides retain their established behavior
+  ---
+  duration_ms: 0.990211
+  type: 'test'
+  ...
+# Subtest: read-only models resolve the pinned stock config and escape model names
+ok 4 - read-only models resolve the pinned stock config and escape model names
+  ---
+  duration_ms: 1.10801
+  type: 'test'
+  ...
+# Subtest: unreadable pinned config is reported instead of claiming no models are selected
+ok 5 - unreadable pinned config is reported instead of claiming no models are selected
+  ---
+  duration_ms: 1.277128
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 58.458575
+=== RC 0 test/models-read-only.test.mjs
+=== FILE test/publish-prefill-config.test.mjs
+TAP version 13
+# Subtest: a rev-7 version prefills from its configCid, not from the inline manifest
+ok 1 - a rev-7 version prefills from its configCid, not from the inline manifest
+  ---
+  duration_ms: 1.08693
+  type: 'test'
+  ...
+# Subtest: an unreadable configCid empties the box loudly - it never degrades to the manifest
+ok 2 - an unreadable configCid empties the box loudly - it never degrades to the manifest
+  ---
+  duration_ms: 0.511306
+  type: 'test'
+  ...
+# Subtest: a pre-rev-7 version still prefills from its inline config, unchanged
+ok 3 - a pre-rev-7 version still prefills from its inline config, unchanged
+  ---
+  duration_ms: 0.218918
+  type: 'test'
+  ...
+# Subtest: gpuOptional is read from the resolved config, not the stale inline field
+ok 4 - gpuOptional is read from the resolved config, not the stale inline field
+  ---
+  duration_ms: 0.237928
+  type: 'test'
+  ...
+# Subtest: cpuFallback comes from the resolved config too, and survives an add-version
+ok 5 - cpuFallback comes from the resolved config too, and survives an add-version
+  ---
+  duration_ms: 0.714204
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 49.06819
+=== RC 0 test/publish-prefill-config.test.mjs
+=== FILE test/custody-v2-dashboard.test.mjs
+TAP version 13
+# Subtest: the committed site/vendor/custody-v2.js is exactly a fresh build of custody/v2/browser.mjs from the reviewed SOURCES
+ok 1 - the committed site/vendor/custody-v2.js is exactly a fresh build of custody/v2/browser.mjs from the reviewed SOURCES
+  ---
+  duration_ms: 66.324335
+  type: 'test'
+  ...
+# Subtest: vault states: unset (no default vault, nothing read), unreviewed, unreadable, mismatch and verified
+ok 2 - vault states: unset (no default vault, nothing read), unreviewed, unreadable, mismatch and verified
+  ---
+  duration_ms: 25.598191
+  type: 'test'
+  ...
+# Subtest: committee status: seats counted as the vault counts them; SINGLE-SEAT only when n = 1, and no claim of independence
+ok 3 - committee status: seats counted as the vault counts them; SINGLE-SEAT only when n = 1, and no claim of independence
+  ---
+  duration_ms: 0.879802
+  type: 'test'
+  ...
+# Subtest: a first save: the page encrypts to the committee key, ONE owner update; the stored bundle opens to exactly the env
+ok 4 - a first save: the page encrypts to the committee key, ONE owner update; the stored bundle opens to exactly the env
+  ---
+  duration_ms: 40.322928
+  type: 'test'
+  ...
+# Subtest: rotation: a new complete set replaces the bundle only (rules, committee and PAUSE untouched), at the next revision
+ok 5 - rotation: a new complete set replaces the bundle only (rules, committee and PAUSE untouched), at the next revision
+  ---
+  duration_ms: 16.411173
+  type: 'test'
+  ...
+# Subtest: refusals send nothing: not the owner, a contract owner, a moved deployment, no committee, an empty set, a bad id
+ok 6 - refusals send nothing: not the owner, a contract owner, a moved deployment, no committee, an empty set, a bad id
+  ---
+  duration_ms: 13.490018
+  type: 'test'
+  ...
+# Subtest: the config binding is read off the chain only when inline; otherwise the owner names it (or none), never a guess
+ok 7 - the config binding is read off the chain only when inline; otherwise the owner names it (or none), never a guess
+  ---
+  duration_ms: 17.453803
+  type: 'test'
+  ...
+# Subtest: a stale revision reverts and nothing is claimed; a vault that does not show the written bundle is reported, not trusted
+ok 8 - a stale revision reverts and nothing is claimed; a vault that does not show the written bundle is reported, not trusted
+  ---
+  duration_ms: 12.879344
+  type: 'test'
+  ...
+# Subtest: pause and resume: one owner update each, same committee and rules, read back; a no-op sends nothing
+ok 9 - pause and resume: one owner update each, same committee and rules, read back; a no-op sends nothing
+  ---
+  duration_ms: 5.60475
+  type: 'test'
+  ...
+# Subtest: migration: relay copy -> v2 (read back) -> the relay copy is KEPT and reported; its deletion is a separate gated step
+ok 10 - migration: relay copy -> v2 (read back) -> the relay copy is KEPT and reported; its deletion is a separate gated step
+  ---
+  duration_ms: 10.362007
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 388.290056
+=== RC 0 test/custody-v2-dashboard.test.mjs

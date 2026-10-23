@@ -1,0 +1,335 @@
+{
+ "provider": "https://base.public.blockpi.network/v1/rpc/public",
+ "addresses": [
+  "0x08074300f75e78212ae10ebd14984f78e17811a6",
+  "0xe48699b8401564aace7a814ae4569b67a3f7eef5"
+ ],
+ "topics": [
+  "0x512a1b5328e1be2d7d9f0d989b4f18232c3f3e2df7862122b7b76169c943ec87",
+  "0x6b930fd91b7b82b75ba955af6c27473a31be50ee09894eebe31923d5a96e334d"
+ ],
+ "start": "52605914",
+ "next": "52728414",
+ "to": "52999031",
+ "span": "5000",
+ "covered": [
+  [
+   "52605914",
+   "52728413"
+  ]
+ ],
+ "events": [
+  {
+   "address": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+   "event": "PolicyUpdated",
+   "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+   "block": "52608770",
+   "tx": "0xa3ab30132c17412832e825bc97b94a208b0ebae5b9eb3278e613e12e1f3eed97",
+   "logIndex": "298",
+   "removed": false
+  },
+  {
+   "address": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+   "event": "PolicyUpdated",
+   "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+   "block": "52615057",
+   "tx": "0x9899c9fb6eca80158ea475aff3af8a5d0d4203094e115b6975540b014d27f320",
+   "logIndex": "353",
+   "removed": false
+  },
+  {
+   "address": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+   "event": "PolicyUpdated",
+   "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+   "block": "52617714",
+   "tx": "0xf6fbb8cfc2f91b94f2d564e0537ced4b3f86d6f4b30a10a5cb84ec6187825816",
+   "logIndex": "1270",
+   "removed": false
+  }
+ ],
+ "stops": [
+  {
+   "at": "52605914",
+   "reason": "range refused at span 100000: halved",
+   "message": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference"
+  },
+  {
+   "at": "52605914",
+   "reason": "range refused at span 50000: halved",
+   "message": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference"
+  },
+  {
+   "at": "52605914",
+   "reason": "range refused at span 25000: halved",
+   "message": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference"
+  },
+  {
+   "at": "52605914",
+   "reason": "range refused at span 12500: halved",
+   "message": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference"
+  },
+  {
+   "at": "52605914",
+   "reason": "range refused at span 6250: halved",
+   "message": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference"
+  },
+  {
+   "at": "52643414",
+   "reason": "budget"
+  },
+  {
+   "at": "52728414",
+   "reason": "budget"
+  }
+ ],
+ "attempts": [
+  {
+   "n": 1,
+   "at": "2026-10-23T20:32:22.489Z",
+   "budget": 20,
+   "idsOutsideCurrentLedger": [],
+   "outcome": "budget",
+   "discoveryRequests": 17,
+   "totalRequests": 18,
+   "requests": [
+    {
+     "n": 1,
+     "host": "base.public.blockpi.network",
+     "method": "eth_chainId",
+     "ms": 294
+    },
+    {
+     "n": 1,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 266,
+     "error": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference",
+     "kind": "range"
+    },
+    {
+     "n": 2,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 211,
+     "error": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference",
+     "kind": "range"
+    },
+    {
+     "n": 3,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 211,
+     "error": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference",
+     "kind": "range"
+    },
+    {
+     "n": 4,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 205,
+     "error": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference",
+     "kind": "range"
+    },
+    {
+     "n": 5,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 208,
+     "error": "eth_getLogs is limited to 5000 block range. Please check the parameter requirements at  https://docs.blockpi.io/documentations/api-reference",
+     "kind": "range"
+    },
+    {
+     "n": 6,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 708
+    },
+    {
+     "n": 7,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 543
+    },
+    {
+     "n": 8,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 537
+    },
+    {
+     "n": 9,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 681
+    },
+    {
+     "n": 10,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 750
+    },
+    {
+     "n": 11,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 613
+    },
+    {
+     "n": 12,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 632
+    },
+    {
+     "n": 13,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 531
+    },
+    {
+     "n": 14,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 536
+    },
+    {
+     "n": 15,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 361
+    },
+    {
+     "n": 16,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 572
+    },
+    {
+     "n": 17,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 1035
+    }
+   ]
+  },
+  {
+   "n": 2,
+   "at": "2026-10-23T20:33:15.291Z",
+   "budget": 20,
+   "idsOutsideCurrentLedger": [],
+   "outcome": "budget",
+   "discoveryRequests": 17,
+   "totalRequests": 18,
+   "requests": [
+    {
+     "n": 1,
+     "host": "base.public.blockpi.network",
+     "method": "eth_chainId",
+     "ms": 294
+    },
+    {
+     "n": 1,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 919
+    },
+    {
+     "n": 2,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 691
+    },
+    {
+     "n": 3,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 477
+    },
+    {
+     "n": 4,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 543
+    },
+    {
+     "n": 5,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 567
+    },
+    {
+     "n": 6,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 489
+    },
+    {
+     "n": 7,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 454
+    },
+    {
+     "n": 8,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 914
+    },
+    {
+     "n": 9,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 941
+    },
+    {
+     "n": 10,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 1087
+    },
+    {
+     "n": 11,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 774
+    },
+    {
+     "n": 12,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 552
+    },
+    {
+     "n": 13,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 497
+    },
+    {
+     "n": 14,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 485
+    },
+    {
+     "n": 15,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 525
+    },
+    {
+     "n": 16,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 474
+    },
+    {
+     "n": 17,
+     "host": "base.public.blockpi.network",
+     "method": "eth_getLogs",
+     "ms": 783
+    }
+   ]
+  }
+ ]
+}

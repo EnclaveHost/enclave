@@ -1,0 +1,10 @@
+2026-10-23T20:34:50Z sessionVaultFactory activation consumer review: read-only, finite.
+- State (complete for the current ledger, block 52999031, 16 requests):
+  - 98 ids; 0 policies stranded in v1 or v2;
+  - the 4 ids owned by SessionVault 0xb794 have no policy (first writer 0xb794 -> 0x0b2d);
+  - 0x4e62 policies (EOA owner) unchanged.
+- Logs: blockpi only, 5000-block limit, 2 attempts x 18 requests; covered 52605914-52728413; UNCOVERED 52728414-52999031.
+- Consumers: CONSUMERS.md. The relay SESSIONS_FACTORY setting is not determined from public evidence.
+- Verdict: existing policies are NOT blocked. Activation stays root/admin-gated: re-run the state probe before signing;
+  confirm the relay setting; never toggle back.
+- Tests 5/5 (256 lane). Scans: scan-crypto-keys and gitleaks clean.

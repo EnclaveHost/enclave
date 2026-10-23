@@ -1,0 +1,70 @@
+From 9d97b4b003661ad4832fe703dc5649ca807739ed Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:47:50 -0700
+Subject: [PATCH] Docs: custody v2 - who holds x in the single-seat bootstrap;
+ goals are targets, admin and business controls kept
+
+Prose only (root doc-accuracy review); no code, contract or site-bundle change (docs/ is not in the site build).
+- 4.1: with t = 1 (genesis and production today) the one share is x itself; the full committee scalar exists inside
+  the single Enclave seat's SEV-SNP custodian guest, sealed, never host plaintext. Threshold distribution starts only
+  after a multi-seat handover, and below 3 seats the Enclave seat can still reconstruct x (6.2).
+- 2: the goals are multi-seat design targets, not the current single-seat state; they do not remove Enclave's
+  administrative and business controls (the EnclaveAddressBook administrator still chooses secretVaultV2 and
+  sessionVaultFactory).
+- 9: "Gives" is scoped to committees with n >= 3 seats.
+The dated 2026-10-14 deployment table and the 2026-10-23 current-state section are unchanged.
+---
+ docs/security/secret-custody-v2.md | 26 +++++++++++++++++++++-----
+ 1 file changed, 21 insertions(+), 5 deletions(-)
+
+diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+index 7dd237d10d361a417a4690b58b3d172bb658df00..de1dce4b8c4252a3999bcf20f733bf674c3e3b97 100644
+--- a/docs/security/secret-custody-v2.md
++++ b/docs/security/secret-custody-v2.md
+@@ -99,8 +99,17 @@
+ 
+ ## 2. Goals
+ 
+-1. **No operator can read the secrets, Enclave included.** Shares live only inside attested TEEs. Admitting members
+-   and upgrading custodian code are decided by the members themselves, never by Enclave alone.
++These are design targets for a committee of several independent seats. They are NOT the current state. Today custody v2
++is a single-seat bootstrap (n = 1 seat, t = 1 of W = 1 shares; "Current proven state" above). In it, the Enclave seat
++alone unlocks, admits members and decides custodian upgrades (§6.2, §11 item 1).
++
++The goals are about who can read or release owners' secrets. They do not remove Enclave's administrative and business
++controls. The EnclaveAddressBook administrator (`0x0b2d…eE61`) still chooses which vault and SessionVault factory clients
++use (book keys `secretVaultV2` and `sessionVaultFactory`). The platform's other admin and business controls are outside
++v2 and are unchanged by it.
++
++1. **No operator can read the secrets, Enclave included.** Shares live only inside attested TEEs. Once other seats
++   exist, admitting members and upgrading custodian code are decided by the members themselves, never by Enclave alone.
+ 2. **No small group can block or read a release.** The threshold is a fraction of a large committee of independent
+    hosts, with an absolute floor.
+ 3. **Any qualified members can serve a request.** A guest asks every member; any `t` valid answers unlock. Members
+@@ -147,8 +156,14 @@
+ 
+ ### 4.1 The committee key
+ 
+-- The committee holds a secret scalar `x`. Nobody ever holds `x` itself. Member `i` holds a Shamir share `x_i` over a
+-  degree-`(t-1)` polynomial.
++- The committee holds a secret scalar `x`. Member `i` holds a Shamir share `x_i` over a degree-`(t-1)` polynomial.
++- **Who holds `x` itself.**
++  - With `t = 1`, as at genesis and in production today, the one share IS `x`. The full committee scalar exists inside
++    the single Enclave seat's SEV-SNP custodian guest. It was generated there and is sealed with the chip's derived key, so
++    the host holds only ciphertext and never plaintext `x`.
++  - Every Enclave machine in that seat would hold a copy of it; today there is one.
++  - Threshold distribution, where no single TEE holds `x`, starts only after a handover to a multi-seat committee (§4.4).
++    Even then, below 3 seats the Enclave seat holds `t` shares and can reconstruct `x` on its own (§6.2).
+ - `Y = x·G` is the committee's public key. `Y_i = x_i·G` are the public verification shares, derived from the Feldman
+   commitments on chain.
+ - **Genesis is one Enclave-owned member (§6.2, §10).** It generates `x` inside its TEE and publishes `Y` and the
+@@ -340,7 +355,8 @@
+ 
+ ## 9. What v2 does and does not give
+ 
+-**Gives:**
++**Gives** (design properties for a committee with `n >= 3` seats; the current single-seat bootstrap has none of the
++threshold properties, see §2 and §4.1):
+ - Enclave cannot read secrets or admit its own members alone.
+ - No single host, operator or relay can block a release, as long as `t` qualified members answer.
+ - Stealing costs `t` seats that are each attested and capacity-proven, on distinct chips and within operator caps.

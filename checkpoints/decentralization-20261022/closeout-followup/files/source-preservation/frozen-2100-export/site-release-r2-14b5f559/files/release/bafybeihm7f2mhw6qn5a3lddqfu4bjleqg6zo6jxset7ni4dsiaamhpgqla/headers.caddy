@@ -1,0 +1,9 @@
+# site release bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla: generated from its ledger (.well-known/enclave-site-release.json); import it inside the site vhost
+header {
+    Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://js.stripe.com https://crypto-js.stripe.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.reown.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' 'sha256-GXyZ2lypzpsF7B3nzXTrDPNLm9gU5HX+HeLZ3yQyT/A=' 'sha256-NixHWnlpLxeQjpDSyeZVwLuOb66H7vUPRcqQ5j62g+w=' 'sha256-jsK7R5UyLOvKAJlV4BIByjWHMXRlFFpt5gXT73deC9o=' 'sha256-sHqhQSr+M9m1FuGTTpDJGl03KUDdC6jhjMfBS/LDMBE=' 'sha256-xZDwSsvKL1ByYsnakgpDiC37RCFF67/32Ojic7PXvi4=' 'sha256-xuOj4HwcIEPne9UnHNw8gwl/+usgJf7X5Dar+HyMitg='; frame-src 'self' https://*.stripe.com https://*.privy.io https://*.hcaptcha.com https://challenges.cloudflare.com https://*.walletconnect.org https://*.walletconnect.com https://*.coinbase.com; connect-src 'self' https: wss:; worker-src 'self' blob:"
+    Cross-Origin-Opener-Policy "same-origin-allow-popups"
+    Permissions-Policy "accelerometer=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(self), usb=(), xr-spatial-tracking=()"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+}

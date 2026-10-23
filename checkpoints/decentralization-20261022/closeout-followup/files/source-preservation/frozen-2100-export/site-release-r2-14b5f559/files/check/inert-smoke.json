@@ -1,0 +1,135 @@
+{
+ "release": "bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla",
+ "custodyChunk": "/js/chunks/chunk-ZQYU6RGM.js",
+ "pages": [
+  {
+   "path": "/",
+   "seed": null,
+   "pageErrors": [],
+   "cspRefusals": [],
+   "localBad": [],
+   "localOk": 46,
+   "status": 200,
+   "title": "Enclave · Compute That Cannot See Your Data",
+   "stamp": "a942a61f · 2026-10-23"
+  },
+  {
+   "path": "/apps",
+   "seed": null,
+   "pageErrors": [],
+   "cspRefusals": [],
+   "localBad": [],
+   "localOk": 35,
+   "status": 200,
+   "title": "Apps · Enclave",
+   "stamp": "a942a61f · 2026-10-23",
+   "carModule": {
+    "exports": [
+     "MAX_DEPTH",
+     "carCap",
+     "parseCar",
+     "reconstruct",
+     "verifyCar"
+    ],
+    "carCap": 2621440,
+    "verifyGarbage": "threw: truncated CAR section"
+   }
+  },
+  {
+   "path": "/credit/",
+   "seed": null,
+   "pageErrors": [],
+   "cspRefusals": [],
+   "localBad": [],
+   "localOk": 4,
+   "status": 200,
+   "title": "Your Enclave credit, directly on chain",
+   "stamp": null
+  },
+  {
+   "path": "/recover/",
+   "seed": null,
+   "pageErrors": [],
+   "cspRefusals": [],
+   "localBad": [],
+   "localOk": 4,
+   "status": 200,
+   "title": "Sign with your Enclave passkey",
+   "stamp": null
+  },
+  {
+   "path": "/dashboard",
+   "seed": [
+    "deployments",
+    "registry"
+   ],
+   "pageErrors": [],
+   "cspRefusals": [],
+   "localBad": [],
+   "localOk": 58,
+   "status": 200,
+   "title": "Enclave · Compute That Cannot See Your Data",
+   "stamp": "a942a61f · 2026-10-23",
+   "custodyV2": {
+    "v2Status": "// custody v2: UNSET - the EnclaveAddressBook names no secretVaultV2 (unset). No v2 action is offered here.",
+    "v2ButtonsShown": [],
+    "state": "unset",
+    "why": "// custody v2: UNSET - the EnclaveAddressBook names no secretVaultV2 (unset). No v2 action is offered here."
+   }
+  },
+  {
+   "path": "/dashboard",
+   "seed": [
+    "deployments",
+    "registry",
+    "secretVaultV2"
+   ],
+   "pageErrors": [],
+   "cspRefusals": [],
+   "localBad": [],
+   "localOk": 59,
+   "status": 200,
+   "title": "Enclave · Compute That Cannot See Your Data",
+   "stamp": "a942a61f · 2026-10-23",
+   "custodyV2": {
+    "v2Status": "// custody v2: UNREADABLE - the RPCs did not agree on the vault's code: only 0 RPCs answered (need 2). No v2 action is offered here.",
+    "v2ButtonsShown": [],
+    "state": "unreadable",
+    "why": "// custody v2: UNREADABLE - the RPCs did not agree on the vault's code: only 0 RPCs answered (need 2). No v2 action is offered here."
+   }
+  }
+ ],
+ "inert": {
+  "v2Status": "// custody v2: UNSET - the EnclaveAddressBook names no secretVaultV2 (unset). No v2 action is offered here.",
+  "v2ButtonsShown": [],
+  "state": "unset",
+  "why": "// custody v2: UNSET - the EnclaveAddressBook names no secretVaultV2 (unset). No v2 action is offered here."
+ },
+ "control": {
+  "v2Status": "// custody v2: UNREADABLE - the RPCs did not agree on the vault's code: only 0 RPCs answered (need 2). No v2 action is offered here.",
+  "v2ButtonsShown": [],
+  "state": "unreadable",
+  "why": "// custody v2: UNREADABLE - the RPCs did not agree on the vault's code: only 0 RPCs answered (need 2). No v2 action is offered here."
+ },
+ "completed": true,
+ "externalAborted": {
+  "base-rpc.publicnode.com": 29,
+  "base.drpc.org": 23,
+  "api.enclave.host": 12,
+  "1rpc.io": 23,
+  "mainnet.base.org": 16,
+  "raw.githubusercontent.com": 2
+ },
+ "carModule": {
+  "exports": [
+   "MAX_DEPTH",
+   "carCap",
+   "parseCar",
+   "reconstruct",
+   "verifyCar"
+  ],
+  "carCap": 2621440,
+  "verifyGarbage": "threw: truncated CAR section"
+ },
+ "ok": true
+}

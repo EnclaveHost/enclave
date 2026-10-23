@@ -1,0 +1,54 @@
+[queue] START available=24419MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+PID 307434 exe=/usr/bin/bash cwd=/home/steven/Documents/Codex/2026-10-18/wo
+  argv: /bin/bash -c python3 - <<'PY'
+from pathlib import Path
+p=Path('work/custody-snp-recovery-harness-20261023/ROOT-LIFECYCLE-TASK.txt')
+p.write_text('Your recovery harness passed root hardware run runs/20261023T201449Z all required=true, exit0, protected QEMUs unchanged, private scrubbed, fresh/reopen AMD quote exact70aadf and identity/encKey stable; fault7GET503 noPUT/noHTTPready45.9s. No lifecycle/secret release. New finite source-only task in NEW work/custody-v2-production-canary-20261023: design and implement a bounded product
+PY
+/home/steven/.local/bin/claude -p --resume 4f3f8435-b7fe-4acd-9b8a-f1de58441e56 --permission-mode bypassPermissions "Read /home/steven/Documents/Codex/2026-10-18/wo/work/custody-snp-recovery-harness-20261023/ROOT-LIFECYCLE-TASK.txt and complete the new finite source-only task." > work/custody-snp-recovery-harness-20261023/lifecycle-progress.txt 2> work/custody-snp-recovery-harness-20261023/lifecyc
+PID 351079 exe=/usr/bin/bash cwd=/home/steven/Documents/Codex/2026-10-18/wo
+  argv: /bin/bash -c python3 - <<'PY'
+from pathlib import Path
+Path('work/custody-v2-ingress-forwarder-20261023/ROOT-RECIPIENT-PROVENANCE.txt').write_text('Forwarder b1c1feee reviewed, rootactualCaddyadapt/validate PASS20:39 (no serve/reload). New finite READONLY source/provenance inventory for currentproductionrecipient (nohardware/prodchanges). Rootactualmetadata live/evidence/recipient-runtime-capabilities.json: metal0 /availability HTTP200 isolation=snp-g
+PY
+/home/steven/.local/bin/claude -p --resume 802c4787-5d4e-482d-8760-636cf0aafa70 --permission-mode bypassPermissions "Read /home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/ROOT-RECIPIENT-PROVENANCE.txt and complete the finite read-only task." > work/custody-v2-live-20261023/claude-D-recipient-progress.txt 2> work/custody-v2-live-20261023/claude-D-recipient.err 
+PID 2087833 exe=/usr/bin/qemu-system-x86_64 cwd=/home/steven
+  argv: /usr/bin/qemu-system-x86_64 -machine q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1 -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on,host-data=nrTmAGOqB5zr7TVflrLQSUV653vbzUkIYEAoLh5Lhxw= -object memory-backend-memfd,id=ram1,size=64281M,share=true -cpu host -smp 16 -m 64281M -bios /home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd -kernel /
+PID 2091472 exe=/home/steven/enclave-prod/guestd-root/bin/fwd cwd=/home/steven
+  argv: /home/steven/enclave-prod/guestd-root/bin/fwd -cid 144931 
+PID 2223309 exe=/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde cwd=/home/steven
+  argv: /home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde -isolation /home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation -root /home/steven/enclave-prod/guestd-root -listen 127.0.0.1:8095 -data-listen 127.0.0.1:8096 -auth-key /home/steven/enclave-prod/guestd-pair.key -gateway https://ipfs.enclave.host -guest-mem-mib 98304 -guest-cpus 24 -release -legacy-isolation /home/steven/enclave-prod/i
+PID 3480942 exe=/usr/bin/node cwd=/home/steven/enclave-prod/metal-deabf8f90
+  argv: /usr/bin/node metal/enclave-metal.mjs --config /home/steven/Projects/enclave/metal/config.json 
+PID 3483499 exe=/usr/bin/qemu-system-x86_64 cwd=/home/steven/enclave-prod/metal-deabf8f90
+  argv: qemu-system-x86_64 -machine q35,accel=kvm,confidential-guest-support=cx0,memory-backend=ram0 -cpu host -smp 4 -m 4096 -nographic -no-reboot -kernel /home/steven/enclave-prod/dist-leasegas-deabf8f90/vmlinuz -initrd /home/steven/enclave-prod/dist-leasegas-deabf8f90/initramfs.cpio.gz -append console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app -fw_cfg n
+PID 3817646 exe=/usr/bin/node (deleted) cwd=/home/steven/enclave-prod/custodian-v2
+  argv: /usr/bin/node /home/steven/enclave-prod/custodian-v2/host.mjs /home/steven/enclave-prod/custodian-v2/config.json 
+PID 3817658 exe=/usr/bin/qemu-system-x86_64 (deleted) cwd=/home/steven/enclave-prod/custodian-v2
+  argv: qemu-system-x86_64 -machine q35,accel=kvm,confidential-guest-support=cx0,memory-backend=ram0 -cpu host -smp 2 -m 3072 -nographic -no-reboot -kernel /home/steven/enclave-prod/custodian-v2-9d43e63e8/vmlinuz -initrd /home/steven/enclave-prod/custodian-v2-9d43e63e8/initramfs.cpio.gz -append console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app -fw_cfg nam
+PID 4061343 exe=/usr/bin/qemu-system-x86_64 cwd=/home/steven
+  argv: /usr/bin/qemu-system-x86_64 -machine q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1 -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on,host-data=2gnQ8mSa4q+nZAPx8V2H21j6rrmj1bqw/d+1vES6aNk= -object memory-backend-memfd,id=ram1,size=6144M,share=true -cpu host -smp 8 -m 6144M -bios /home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd -kernel /hom
+PID 4061682 exe=/home/steven/enclave-prod/guestd-root/bin/fwd cwd=/home/steven
+  argv: /home/steven/enclave-prod/guestd-root/bin/fwd -cid 180670 
+== ~/enclave-prod directories (names, mtimes)
+2026-10-14T11:14:11 /home/steven/enclave-prod/custody-backups
+2026-10-14T12:12:43 /home/steven/enclave-prod/dist-custody-9e5fb2028
+2026-10-14T15:27:42 /home/steven/enclave-prod/dist-custody-v2-295650320
+2026-10-16T00:31:24 /home/steven/enclave-prod/eyesoff-cpu650
+2026-10-14T12:13:50 /home/steven/enclave-prod/guestd-argv.before-custody-20261014T191350Z.txt
+2026-10-14T12:13:50 /home/steven/enclave-prod/guestd-argv.before-custody-20261014T191350Z.txt
+2026-09-24T11:49:30 /home/steven/enclave-prod/guestd-pair.key
+2026-10-23T08:43:57 /home/steven/enclave-prod/guestd-root
+2026-10-14T12:26:00 /home/steven/enclave-prod/guestd-zzzzz-custody.conf.before-hosts-20261014T192600Z
+2026-10-14T12:26:00 /home/steven/enclave-prod/guestd-zzzzz-custody.conf.before-hosts-20261014T192600Z
+2026-10-14T17:37:40 /home/steven/enclave-prod/guestd-zzzzz-custody.conf.before-secretenv-20261015T003740Z
+2026-10-14T17:37:40 /home/steven/enclave-prod/guestd-zzzzz-custody.conf.before-secretenv-20261015T003740Z
+2026-10-14T15:47:23 /home/steven/enclave-prod/guestd-zzzzz-custody.conf.before-v2-20261014T224723Z
+2026-10-14T15:47:23 /home/steven/enclave-prod/guestd-zzzzz-custody.conf.before-v2-20261014T224723Z
+2026-10-17T07:23:41 /home/steven/enclave-prod/guestd-zzzzzz-zimage.conf.before-padspill16
+2026-10-19T07:10:24 /home/steven/enclave-prod/guestd-zzzzzz-zimage.conf.before-padspill17
+2026-10-14T08:10:27 /home/steven/enclave-prod/metal-config.before-custody-20261014T191418Z.json
+2026-10-14T12:14:18 /home/steven/enclave-prod/metal-config.before-custody-v2-20261014T224746Z.json
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

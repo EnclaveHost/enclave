@@ -1,0 +1,7 @@
+{
+ "file": "pinned/ingress.mjs",
+ "source": "work/custody-v2-durability-20261023/repo custody/v2/ingress.mjs",
+ "commit": "ab589bf80b669c9671b53573d489b6c6c45779ea",
+ "blob": "ebacbcc6c6d0016c9bc498ae774bc2a3fc1f1772",
+ "note": "the corrected custodian image source root names (measurement 70aadf...); byte copy, unmodified; test/allowlist.test.mjs derives the forwarder's allowlist check from directCustodyIngress() output"
+}

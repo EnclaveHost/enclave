@@ -1,0 +1,73 @@
+From 3f16d9b18a7fd1b6061705ec555a1ce45628cb41 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:39:40 -0700
+Subject: [PATCH] Errata: publisher deployment id typo, IPNS publication
+ blocked wording, config-read ordering; superseded by the r2 package
+
+---
+ ERRATA-20261023.txt       | 16 ++++++++++++++++
+ ROOT-COMPOSE-FOLLOWUP.txt |  1 +
+ logs/commit1.guard.log    |  1 +
+ logs/commit1.queue.out    |  5 +++++
+ logs/commit1.rc           |  1 +
+ 5 files changed, 24 insertions(+)
+ create mode 100644 ERRATA-20261023.txt
+ create mode 100644 ROOT-COMPOSE-FOLLOWUP.txt
+ create mode 100644 logs/commit1.guard.log
+ create mode 100644 logs/commit1.queue.out
+ create mode 100644 logs/commit1.rc
+
+diff --git a/ERRATA-20261023.txt b/ERRATA-20261023.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..5c25af06f21c5e78773cf776b4a33940f4f4cd5a
+--- /dev/null
++++ b/ERRATA-20261023.txt
+@@ -0,0 +1,16 @@
++ERRATA to RELEASE-HANDOFF.md (commit 7681e3f), recorded 2026-10-23 per ROOT-COMPOSE-FOLLOWUP.txt.
++The earlier commit and its release tree bafybeiax6ngccp7… are unchanged. SUPERSEDED for deployment by
++work/custody-v2-site-release-r2-20261023 (bafybeihm7f2mhw6qn5a3lddqfu4bjleqg6zo6jxset7ni4dsiaamhpgqla).
++
++1. Wrong publisher deployment ID in §5 step 3.
++   - Written: 0xd9798e4c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a (missing "cd0c": 60 hex, not 32 bytes).
++   - Correct: 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a (0x + 64 hex).
++2. IPNS wording in §1 and §5.
++   - The ipns-publisher reports sequence 0 / value "" / http-only, so IPNS publication is BLOCKED until root repairs it.
++   - That status does not establish what the IPNS name resolves to. Neither release may be called published, and no IPNS
++     pointer may be inferred from /api/status.
++3. §4, config-read r4 "FAILS at catalog.js hunk 2".
++   - Wrong: this was an ordering artefact. r4 is layered on the media-patched catalog.js.
++   - After 04836638, this line's catalog.js (reviewed media base f5e518c9) is byte-identical to the reviewed media result
++     2abe00fe, and r4 applies with no fuzz.
++   - Both patches are now composed: commits 278a28a7e and a942a61fd.
+diff --git a/ROOT-COMPOSE-FOLLOWUP.txt b/ROOT-COMPOSE-FOLLOWUP.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..b42d7528db03cb22af51b6caca3b64e9ab7af994
+--- /dev/null
++++ b/ROOT-COMPOSE-FOLLOWUP.txt
+@@ -0,0 +1 @@
++Release reviewed, not authorizedpublishyet. New finite source-only composition: include accepted mediafallback04836638 and verifiedconfigreadr4bad58bd8 that were acceptedOct22, port conflictcarefully oncurrentwallet/custodyline; preservelatestdocs2d3839c54. Include in newimmutablecommit and rebuildreleaseagain usingestablishedcurrentlyservedbase+650chunks retention; no needlessfullsuitererun, meaningfulfocusedtestsforchangedconfigauth/media + existinggeneratedrelease/inertsmoke. Exactwalletbeneficialowner semanticsmustremain; inspect conflictingcataloghunksecurity behavior notblindfuzz. Reportportdiff and provepriorfixcounterexamples. One buildmax1024 viaqueue; no prod/upload/wallet. Fix RELEASE-HANDOFF wrongpublisherdeploymentID: real0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a; currentcommandtypo missingcd0c. Pin syntax32bytes. Also existingpublisherHTTP-only/seq0 meansIPNSpublication blocked; do notcallpublishedor inferIPNS pointerfromapistatus. Rootwilldiagnosepublisher separately onlyaftercurrentcustodytests. Keepnewsource/newCIDrecordsseparatefromprior7681e3 package; no rewritingimmutabletrees. Commitfinitehandoff.
+diff --git a/logs/commit1.guard.log b/logs/commit1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..be9c02720b3a234e9644bd2830b720014e26741c
+--- /dev/null
++++ b/logs/commit1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=42 minHostAvailableMiB=23873
+diff --git a/logs/commit1.queue.out b/logs/commit1.queue.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a56256397d6f91e1c0a4963d31379a34d1d386bb
+--- /dev/null
++++ b/logs/commit1.queue.out
+@@ -0,0 +1,5 @@
++[queue] START available=23890MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++7681e3f Custody v2 dashboard site release bafybeiax6ngccp7 (from e24a47fb2 on live base bafybeig3rai3): checker, inert smoke, evidence, handoff
++[memory-guard] exit=0 peakTreeRssMiB=42 minHostAvailableMiB=23873
++[memory-guard] at peak: python3:23 git:8 commit.sh:6 bash:6
++[queue] EXIT 0
+diff --git a/logs/commit1.rc b/logs/commit1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/commit1.rc
+@@ -0,0 +1 @@
++0

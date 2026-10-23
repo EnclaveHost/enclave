@@ -1,0 +1,105 @@
+[build] clean dist/
+[build] no built-in network profile (hosted defaults; a saved browser profile still applies)
+[build] contract artifacts (admin console deploy bytecode + selectors)
+[build] tailwind css/src/main.css -> css/site.css
+npm notice run enclave-supervisor@0.1.0 npx
+npm notice run 'tailwindcss' -i site/css/src/main.css -o site/css/site.css --minify
+≈ tailwindcss v4.3.2
+
+Done in 151ms
+[build] esbuild (router entry + code-split pages, templates inlined)
+▲ [WARNING] The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected [commonjs-variable-in-esm]
+
+    site/js/lib/qr.js:2300:6:
+      2300 │       module.exports = factory();
+           ╵       ~~~~~~
+
+  This file is considered to be an ECMAScript module because of the "export" keyword here:
+
+    site/js/lib/qr.js:2306:0:
+      2306 │ export function qrSvg(text, opts){
+           ╵ ~~~~~~
+
+[build] recover/ (passkey account recovery signer)
+[build] credit/ (independent credit vault)
+[build] copy pages (components prerendered) + static files
+[build] csp-script-src.txt: 6 inline-script hashes (server CSP can now drop 'unsafe-inline' + esm.sh)
+      3.7 KB  dist/js/chunks/link-VXVKUCQF.js
+      5.1 KB  dist/js/chunks/authorize-FRO5LI4R.js
+      1.1 KB  dist/js/chunks/host-EHCDY3ZQ.js
+      3.5 KB  dist/js/chunks/sso-authorize-M3ZYNQ46.js
+     15.5 KB  dist/js/chunks/grant-TC6WZSXY.js
+     11.7 KB  dist/js/chunks/sessions-JW2KBFK2.js
+     14.3 KB  dist/js/chunks/develop-J3NVFJIS.js
+     22.0 KB  dist/js/chunks/account-ui-6AROAE2Q.js
+      2.4 KB  dist/js/chunks/dashboard-NXMGLC6I.js
+     38.8 KB  dist/js/chunks/migrator-H3RKMNWG.js
+    442.7 KB  dist/js/chunks/admin-OAOTTNTJ.js
+      0.4 KB  dist/js/chunks/terms-CSO67NCL.js
+      0.4 KB  dist/js/chunks/privacy-COSCN4IB.js
+      6.4 KB  dist/js/chunks/checkout-UXQY4ZJR.js
+      2.4 KB  dist/js/chunks/native-instructions-DJHERWWD.js
+      0.9 KB  dist/js/chunks/startup-package-AEB5BPZX.js
+      5.6 KB  dist/js/chunks/history-checkpoint-ITD3PBPL.js
+     34.2 KB  dist/js/chunks/enclave-network-H65C57FW.js
+     24.6 KB  dist/js/chunks/deploy-2WLWHX5W.js
+    211.4 KB  dist/js/chunks/chunk-KUSLTBER.js
+     13.0 KB  dist/js/chunks/chunk-B4Y43EBO.js
+      0.3 KB  dist/js/chunks/independent-ui-MMEPKQ6P.js
+     10.4 KB  dist/js/chunks/chunk-PRQ2A6WT.js
+     71.2 KB  dist/js/chunks/apps-PQCBVSOT.js
+      7.6 KB  dist/js/chunks/chunk-V2HEZS4A.js
+      0.6 KB  dist/js/chunks/architecture-W57NBUD5.js
+      0.4 KB  dist/js/chunks/chunk-Y4FMEFJD.js
+     21.4 KB  dist/js/chunks/chunk-QWCFUE4Z.js
+      4.0 KB  dist/js/chunks/chunk-RVVN5TAG.js
+      3.3 KB  dist/js/chunks/chunk-ET75TXJB.js
+     11.4 KB  dist/js/chunks/chunk-YKZ6DVQT.js
+      3.0 KB  dist/js/chunks/owner-signature-S6LMZFHF.js
+      1.0 KB  dist/js/chunks/sessions-I4R2DXPW.js
+     39.6 KB  dist/js/chunks/chunk-W6O6NSCU.js
+     12.5 KB  dist/js/chunks/independent-management-BPXN5LF5.js
+      0.3 KB  dist/js/chunks/api-MIWHE54X.js
+     19.6 KB  dist/js/chunks/overview-OX65OFEW.js
+      1.6 KB  dist/js/chunks/chunk-AJOGYQWB.js
+      7.3 KB  dist/js/chunks/chunk-32OJJND4.js
+      0.3 KB  dist/js/chunks/chunk-D7VGFCH5.js
+     11.8 KB  dist/js/chunks/chunk-K7OCTN66.js
+      4.5 KB  dist/js/chunks/storage-plan-P2BWPZZ2.js
+      1.6 KB  dist/js/chunks/chunk-IBX6L24F.js
+      2.5 KB  dist/js/chunks/chunk-ACELWRLG.js
+    301.5 KB  dist/js/chunks/custody-ZIMHB3XW.js
+      6.1 KB  dist/js/chunks/app-access-TGT4K55H.js
+      0.5 KB  dist/js/chunks/account-providers-V4SYJPCO.js
+     21.7 KB  dist/js/chunks/passkey-account-KQZWIAWY.js
+     12.8 KB  dist/js/chunks/chunk-4FPBRJ6R.js
+      0.5 KB  dist/js/chunks/identity-DNLP5ZGJ.js
+      5.6 KB  dist/js/chunks/chunk-2P6SU3NM.js
+     11.2 KB  dist/js/chunks/account-transport-RZ2PDK4V.js
+      0.4 KB  dist/js/chunks/vault-RK25UB2L.js
+      4.9 KB  dist/js/chunks/chunk-ATRCWSMW.js
+      7.1 KB  dist/js/chunks/profile-broadcast-FCCNL6BJ.js
+      0.8 KB  dist/js/chunks/wallet-IPSGW3RL.js
+      0.5 KB  dist/js/chunks/account-JHQUYGNU.js
+      6.6 KB  dist/js/chunks/chunk-GNUKSNVG.js
+     47.9 KB  dist/js/chunks/chunk-CBRZNADW.js
+      0.3 KB  dist/js/boot.js
+      9.2 KB  dist/js/chunks/chunk-DHELN6DO.js
+      2.6 KB  dist/js/chunks/chunk-TXG5D22N.js
+      1.0 KB  dist/js/chunks/config-E6FWFCEZ.js
+      0.4 KB  dist/js/chunks/util-GSDZF5ZA.js
+      0.5 KB  dist/js/chunks/platform-addresses-BE2BP5BF.js
+      1.6 KB  dist/js/chunks/chain-LALSXHTQ.js
+      3.7 KB  dist/js/chunks/independent-list-5BWVZ5A5.js
+    103.8 KB  dist/js/chunks/aa-MVXSHBOR.js
+      1.1 KB  dist/js/chunks/independent-chain-T3NK2X6B.js
+     34.0 KB  dist/js/chunks/chunk-6OTBMPV5.js
+      3.2 KB  dist/js/chunks/chunk-U3PONCOJ.js
+      8.8 KB  dist/js/chunks/chunk-HYR2JLMY.js
+      1.9 KB  dist/js/chunks/chunk-2YYAZ6B6.js
+     15.0 KB  dist/js/chunks/chunk-DVWCPY7X.js
+     26.3 KB  dist/js/chunks/chunk-ZPK63CAT.js
+      3.5 KB  dist/js/chunks/chunk-7USQSD5M.js
+     10.4 KB  dist/js/chunks/chunk-BF6F5NAF.js
+      3.8 KB  dist/js/chunks/chunk-DRRCG5VQ.js
+[build] dist/: 240 files · 29.0 MB

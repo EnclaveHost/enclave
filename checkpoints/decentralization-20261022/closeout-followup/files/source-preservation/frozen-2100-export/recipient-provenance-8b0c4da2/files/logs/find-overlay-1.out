@@ -1,0 +1,269 @@
+[queue] START available=23807MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+COMMIT 2857356cd in /home/steven/Projects/enclave
+COMMIT 2857356cd in /home/steven/Projects/enclave-bridge-review
+COMMIT 2857356cd in /home/steven/Projects/enclave-bridge-slots
+COMMIT 2857356cd in /home/steven/Projects/enclave-build-2492e683
+COMMIT 2857356cd in /home/steven/Projects/enclave-build-6845565a
+COMMIT 2857356cd in /home/steven/Projects/enclave-build-b18f8989
+COMMIT 2857356cd in /home/steven/Projects/enclave-build-b3109929
+COMMIT 2857356cd in /home/steven/Projects/enclave-build-c42612c0
+COMMIT 2857356cd in /home/steven/Projects/enclave-build-f6cbd75a
+COMMIT 2857356cd in /home/steven/Projects/enclave-codex-finish
+COMMIT 2857356cd in /home/steven/Projects/enclave-codex-pkg43
+COMMIT 2857356cd in /home/steven/Projects/enclave-ctl40
+COMMIT 2857356cd in /home/steven/Projects/enclave-ctl41
+COMMIT 2857356cd in /home/steven/Projects/enclave-ctl42
+COMMIT 2857356cd in /home/steven/Projects/enclave-ctl43
+COMMIT 2857356cd in /home/steven/Projects/enclave-ctl44
+COMMIT 2857356cd in /home/steven/Projects/enclave-deploy-exclusion
+COMMIT 2857356cd in /home/steven/Projects/enclave-devboot42
+COMMIT 2857356cd in /home/steven/Projects/enclave-e2efix
+COMMIT 2857356cd in /home/steven/Projects/enclave-eehost-slot-fix
+COMMIT 2857356cd in /home/steven/Projects/enclave-egressfix
+COMMIT 2857356cd in /home/steven/Projects/enclave-eyesoff-config-cors
+COMMIT 2857356cd in /home/steven/Projects/enclave-host-bank
+COMMIT 2857356cd in /home/steven/Projects/enclave-host-egress
+COMMIT 2857356cd in /home/steven/Projects/enclave-hosting-ui
+COMMIT 2857356cd in /home/steven/Projects/enclave-hosting-ui-android
+COMMIT 2857356cd in /home/steven/Projects/enclave-hvroll
+COMMIT 2857356cd in /home/steven/Projects/enclave-isoenforce
+COMMIT 2857356cd in /home/steven/Projects/enclave-isolated-set
+COMMIT 2857356cd in /home/steven/Projects/enclave-m4name
+COMMIT 2857356cd in /home/steven/Projects/enclave-metal0-gflops
+COMMIT 2857356cd in /home/steven/Projects/enclave-metal0-isolation
+COMMIT 2857356cd in /home/steven/Projects/enclave-metal0-referral
+COMMIT 2857356cd in /home/steven/Projects/enclave-metal0-shieldgpu
+COMMIT 2857356cd in /home/steven/Projects/enclave-mgr-judgevm
+COMMIT 2857356cd in /home/steven/Projects/enclave-mgr-restart-test
+COMMIT 2857356cd in /home/steven/Projects/enclave-node-hv-fixes
+COMMIT 2857356cd in /home/steven/Projects/enclave-nucbox-live-panel-20260929
+COMMIT 2857356cd in /home/steven/Projects/enclave-nucbox-sd
+COMMIT 2857356cd in /home/steven/Projects/enclave-nucbox-sd-host
+COMMIT 2857356cd in /home/steven/Projects/enclave-nucbox-shield-20260929
+COMMIT 2857356cd in /home/steven/Projects/enclave-nucbox-vtpm-runtime-20260929
+COMMIT 2857356cd in /home/steven/Projects/enclave-nucbox-witness-20260930
+COMMIT 2857356cd in /home/steven/Projects/enclave-padgov
+COMMIT 2857356cd in /home/steven/Projects/enclave-padgov-init
+COMMIT 2857356cd in /home/steven/Projects/enclave-padspill
+COMMIT 2857356cd in /home/steven/Projects/enclave-padspill-init
+COMMIT 2857356cd in /home/steven/Projects/enclave-paid-capacity-audits-20260930
+COMMIT 2857356cd in /home/steven/Projects/enclave-pkg-review
+COMMIT 2857356cd in /home/steven/Projects/enclave-pkg41
+COMMIT 2857356cd in /home/steven/Projects/enclave-pkg42
+COMMIT 2857356cd in /home/steven/Projects/enclave-pkg43
+COMMIT 2857356cd in /home/steven/Projects/enclave-pkg44
+COMMIT 2857356cd in /home/steven/Projects/enclave-poolacct
+COMMIT 2857356cd in /home/steven/Projects/enclave-ports-relay
+COMMIT 2857356cd in /home/steven/Projects/enclave-pub0181
+COMMIT 2857356cd in /home/steven/Projects/enclave-public-web
+COMMIT 2857356cd in /home/steven/Projects/enclave-public-web-host
+COMMIT 2857356cd in /home/steven/Projects/enclave-pvm
+COMMIT 2857356cd in /home/steven/Projects/enclave-pvm-cand
+COMMIT 2857356cd in /home/steven/Projects/enclave-pvm-cpu-only-dev
+COMMIT 2857356cd in /home/steven/Projects/enclave-pvm-cpuonly
+COMMIT 2857356cd in /home/steven/Projects/enclave-pvm-standalone
+COMMIT 2857356cd in /home/steven/Projects/enclave-pvm-u7
+COMMIT 2857356cd in /home/steven/Projects/enclave-ram-share-20260930
+COMMIT 2857356cd in /home/steven/Projects/enclave-relay-predict
+COMMIT 2857356cd in /home/steven/Projects/enclave-relay-zimage
+COMMIT 2857356cd in /home/steven/Projects/enclave-release
+COMMIT 2857356cd in /home/steven/Projects/enclave-resource-profiles
+COMMIT 2857356cd in /home/steven/Projects/enclave-review-win
+COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield
+COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield-guestd
+COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield-init
+COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield-perf
+COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield-predict
+COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield-relay
+COMMIT 2857356cd in /home/steven/Projects/enclave-sdshield-sup
+COMMIT 2857356cd in /home/steven/Projects/enclave-secrets-custody
+COMMIT 2857356cd in /home/steven/Projects/enclave-sessions
+COMMIT 2857356cd in /home/steven/Projects/enclave-shares-requeue-20261001
+COMMIT 2857356cd in /home/steven/Projects/enclave-shares-tab
+COMMIT 2857356cd in /home/steven/Projects/enclave-shield-27b-wrapup
+COMMIT 2857356cd in /home/steven/Projects/enclave-shielded-test-fixtures
+COMMIT 2857356cd in /home/steven/Projects/enclave-site
+COMMIT 2857356cd in /home/steven/Projects/enclave-site-dashboard-errors
+COMMIT 2857356cd in /home/steven/Projects/enclave-site-glass
+COMMIT 2857356cd in /home/steven/Projects/enclave-siteguard
+COMMIT 2857356cd in /home/steven/Projects/enclave-tee-preference-20261001
+COMMIT 2857356cd in /home/steven/Projects/enclave-tlsfix
+COMMIT 2857356cd in /home/steven/Projects/enclave-txtkey
+COMMIT 2857356cd in /home/steven/Projects/enclave-u7
+COMMIT 2857356cd in /home/steven/Projects/enclave-v100-isolation
+COMMIT 2857356cd in /home/steven/Projects/enclave-v100-scheduler-relay
+COMMIT 2857356cd in /home/steven/Projects/enclave-vbslike
+COMMIT 2857356cd in /home/steven/Projects/enclave-vbspkg
+COMMIT 2857356cd in /home/steven/Projects/enclave-verifier
+COMMIT 2857356cd in /home/steven/Projects/enclave-verifier42
+COMMIT 2857356cd in /home/steven/Projects/enclave-visual
+COMMIT 2857356cd in /home/steven/Projects/enclave-winmgr
+COMMIT 2857356cd in /home/steven/Projects/enclave-wt/enclavedns-option
+COMMIT 2857356cd in /home/steven/enclave-prod/iso-03be27d6
+COMMIT 2857356cd in /home/steven/enclave-prod/iso-0c087de8
+COMMIT 2857356cd in /home/steven/enclave-prod/iso-17e182a8
+COMMIT 2857356cd in /home/steven/enclave-prod/iso-4cd26e58
+COMMIT 2857356cd in /home/steven/enclave-prod/iso-4cdd5169
+COMMIT 2857356cd in /home/steven/enclave-prod/iso-5a4eb9a6
+COMMIT 2857356cd in /home/steven/enclave-prod/iso-aa6c985c
+COMMIT 2857356cd in /home/steven/enclave-prod/iso-b63c2def
+COMMIT 2857356cd in /home/steven/enclave-prod/metal-578be084
+COMMIT 2857356cd in /home/steven/enclave-prod/metal-d760ef58
+COMMIT 2857356cd in /home/steven/enclave-prod/src-metal0-sessions
+COMMIT 5a4eb9a6c in /home/steven/Documents/Codex/2026-10-18/wo/work/enclave
+COMMIT 5a4eb9a6c in /home/steven/Documents/Codex/2026-10-18/wo/work/shield-lineage-integration
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-bridge-review
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-bridge-slots
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-build-2492e683
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-build-6845565a
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-build-b18f8989
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-build-b3109929
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-build-c42612c0
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-build-f6cbd75a
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-codex-finish
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-codex-pkg43
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ctl40
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ctl41
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ctl42
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ctl43
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ctl44
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-deploy-exclusion
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-devboot42
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-e2efix
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-eehost-slot-fix
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-egressfix
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-eyesoff-config-cors
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-host-bank
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-host-egress
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-hosting-ui
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-hosting-ui-android
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-hvroll
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-isoenforce
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-isolated-set
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-m4name
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-metal0-gflops
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-metal0-isolation
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-metal0-referral
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-metal0-shieldgpu
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-mgr-judgevm
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-mgr-restart-test
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-node-hv-fixes
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-nucbox-live-panel-20260929
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-nucbox-sd
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-nucbox-sd-host
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-nucbox-shield-20260929
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-nucbox-vtpm-runtime-20260929
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-nucbox-witness-20260930
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-padgov
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-padgov-init
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-padspill
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-padspill-init
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-paid-capacity-audits-20260930
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pkg-review
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pkg41
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pkg42
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pkg43
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pkg44
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-poolacct
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ports-relay
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pub0181
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-public-web
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-public-web-host
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pvm
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pvm-cand
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pvm-cpu-only-dev
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pvm-cpuonly
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pvm-standalone
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-pvm-u7
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-ram-share-20260930
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-relay-predict
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-relay-zimage
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-release
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-resource-profiles
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-review-win
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield-guestd
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield-init
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield-perf
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield-predict
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield-relay
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sdshield-sup
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-secrets-custody
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-sessions
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-shares-requeue-20261001
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-shares-tab
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-shield-27b-wrapup
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-shielded-test-fixtures
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-site
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-site-dashboard-errors
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-site-glass
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-siteguard
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-tee-preference-20261001
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-tlsfix
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-txtkey
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-u7
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-v100-isolation
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-v100-scheduler-relay
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-vbslike
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-vbspkg
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-verifier
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-verifier42
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-visual
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-winmgr
+COMMIT 5a4eb9a6c in /home/steven/Projects/enclave-wt/enclavedns-option
+COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-03be27d6
+COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-0c087de8
+COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-17e182a8
+COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-4cd26e58
+COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-4cdd5169
+COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-5a4eb9a6
+COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-aa6c985c
+COMMIT 5a4eb9a6c in /home/steven/enclave-prod/iso-b63c2def
+COMMIT 5a4eb9a6c in /home/steven/enclave-prod/metal-578be084
+COMMIT 5a4eb9a6c in /home/steven/enclave-prod/metal-d760ef58
+COMMIT 5a4eb9a6c in /home/steven/enclave-prod/src-metal0-sessions
+== receipts naming the dist or the overlay commit
+/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/checkpoints/decentralization-20261022/external/MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/manifest.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/activation/README.txt
+/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/out/c/INPUT-MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/cpu-root-scheduler-quota-20261023/repo/checkpoints/decentralization-20261022/closeout-followup/files/measured-image-build/public/BUILD-RECEIPT.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/ROOT-RECIPIENT-PROVENANCE.txt
+/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/checkpoints/decentralization-20261022/external/MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/manifest.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/activation/README.txt
+/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/out/c/INPUT-MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-history-closure-20261023/repo/checkpoints/decentralization-20261022/closeout-followup/files/measured-image-build/public/BUILD-RECEIPT.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-image/public/BUILD-RECEIPT.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/checkpoints/decentralization-20261022/external/MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/manifest.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/activation/README.txt
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/out/c/INPUT-MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/mut/checkpoints/decentralization-20261022/closeout-followup/files/measured-image-build/public/BUILD-RECEIPT.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/checkpoints/decentralization-20261022/external/MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/manifest.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/activation/README.txt
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/out/c/INPUT-MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate/checkpoints/decentralization-20261022/closeout-followup/files/measured-image-build/public/BUILD-RECEIPT.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/checkpoints/decentralization-20261022/external/MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/manifest.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/activation/README.txt
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/out/c/INPUT-MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base/checkpoints/decentralization-20261022/closeout-followup/files/measured-image-build/public/BUILD-RECEIPT.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-composition/out/c/INPUT-MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-composition/out/b/INPUT-MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/measured-composition/out/a/INPUT-MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate/checkpoints/decentralization-20261022/external/MANIFEST.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/manifest.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate/checkpoints/decentralization-20261022/external/files/work/linux-post-adoption-release/activation/README.txt
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate/checkpoints/decentralization-20261022/closeout-followup/files/native-final-image/public/BUILD-RECEIPT.json
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-compose/candidate/checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/out/c/INPUT-MANIFEST.json
+[memory-guard] exit=0 peakTreeRssMiB=25 minHostAvailableMiB=23647
+[memory-guard] at peak: grep:15 bash:6 head:4
+[queue] EXIT 0

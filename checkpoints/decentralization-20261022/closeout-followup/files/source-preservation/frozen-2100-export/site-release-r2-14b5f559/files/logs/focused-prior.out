@@ -1,0 +1,693 @@
+tree prior at 2d3839c54: catalog f5e518c9
+=== FILE test/media-fallback.test.mjs
+TAP version 13
+# Subtest: the fallback list is the existing read gateways only, in order; mediaUrl (the preferred URL) is unchanged
+not ok 1 - the fallback list is the existing read gateways only, in order; mediaUrl (the preferred URL) is unchanged
+  ---
+  duration_ms: 1.692224
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:19:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + undefined
+    - [
+    -   'https://ipfs.io/ipfs/',
+    -   'https://dweb.link/ipfs/'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'https://ipfs.io/ipfs/'
+    1: 'https://dweb.link/ipfs/'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:20:52)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: preferred gateway delivers: one attempt, the preferred URL, no fallback request
+not ok 2 - preferred gateway delivers: one attempt, the preferred URL, no fallback request
+  ---
+  duration_ms: 0.236457
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:25:1'
+  failureType: 'testCodeFailure'
+  error: 'C.resolveMedia is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:26:51)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: preferred gateway fails (the cold path root observed): the next existing gateway delivers; the band shows it, not nothing
+not ok 3 - preferred gateway fails (the cold path root observed): the next existing gateway delivers; the band shows it, not nothing
+  ---
+  duration_ms: 0.187818
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:28:1'
+  failureType: 'testCodeFailure'
+  error: 'C.applyMedia is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:30:5)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: no gateway delivers: bounded attempts (3), then the renderer's placeholder + onResult(false); not retried inside the window
+not ok 4 - no gateway delivers: bounded attempts (3), then the renderer's placeholder + onResult(false); not retried inside the window
+  ---
+  duration_ms: 0.167499
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:35:1'
+  failureType: 'testCodeFailure'
+  error: 'C.applyMedia is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:37:5)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a gateway that never answers is abandoned at MEDIA_TRY_MS and the next one is tried (no infinite loading)
+not ok 5 - a gateway that never answers is abandoned at MEDIA_TRY_MS and the next one is tried (no infinite loading)
+  ---
+  duration_ms: 0.803763
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:44:1'
+  failureType: 'testCodeFailure'
+  error: 'C.resolveMedia is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:46:24)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: concurrent renders of the same CID share ONE resolution; a re-targeted element ignores the stale answer
+not ok 6 - concurrent renders of the same CID share ONE resolution; a re-targeted element ignores the stale answer
+  ---
+  duration_ms: 0.206258
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:49:1'
+  failureType: 'testCodeFailure'
+  error: 'C.applyMedia is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:51:31)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: an invalid or missing CID paints the placeholder and requests nothing
+not ok 7 - an invalid or missing CID paints the placeholder and requests nothing
+  ---
+  duration_ms: 0.226368
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:56:1'
+  failureType: 'testCodeFailure'
+  error: 'C.applyMedia is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:57:43)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a temporary outage heals: renders inside MEDIA_MISS_TTL_MS repaint the placeholder with no request; the first render after it re-checks ONCE for all callers and the banner comes back
+not ok 8 - a temporary outage heals: renders inside MEDIA_MISS_TTL_MS repaint the placeholder with no request; the first render after it re-checks ONCE for all callers and the banner comes back
+  ---
+  duration_ms: 0.299947
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:61:1'
+  failureType: 'testCodeFailure'
+  error: 'C.applyMedia is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:64:5)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a chosen gateway that dies is replaced after MEDIA_HIT_TTL_MS, and a recovered preferred gateway wins back; none -> placeholder
+not ok 9 - a chosen gateway that dies is replaced after MEDIA_HIT_TTL_MS, and a recovered preferred gateway wins back; none -> placeholder
+  ---
+  duration_ms: 0.439026
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:81:1'
+  failureType: 'testCodeFailure'
+  error: 'C.applyMedia is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/media-fallback.test.mjs:83:5)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 0
+# fail 9
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 64.005316
+=== RC 1 test/media-fallback.test.mjs
+=== FILE test/car-verify-oracle.test.mjs
+TAP version 13
+# node:internal/modules/esm/resolve:275
+#     throw new ERR_MODULE_NOT_FOUND(
+#           ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/site/js/core/ipfs-car.js' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/car-verify-oracle.test.mjs
+#     at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+#     at moduleResolve (node:internal/modules/esm/resolve:865:10)
+#     at defaultResolve (node:internal/modules/esm/resolve:989:11)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+#     at onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:680:36)
+#     at TracingChannel.tracePromise (node:diagnostics_channel:350:14)
+#     at ModuleLoader.import (node:internal/modules/esm/loader:679:21)
+#     at defaultImportModuleDynamicallyForModule (node:internal/modules/esm/utils:222:31) {
+#   code: 'ERR_MODULE_NOT_FOUND',
+#   url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/site/js/core/ipfs-car.js'
+# }
+# Node.js v22.23.3
+# Subtest: test/car-verify-oracle.test.mjs
+not ok 1 - test/car-verify-oracle.test.mjs
+  ---
+  duration_ms: 38.360085
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/car-verify-oracle.test.mjs:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 44.437171
+=== RC 1 test/car-verify-oracle.test.mjs
+=== FILE test/config-deadline.test.mjs
+TAP version 13
+# node:internal/modules/esm/resolve:275
+#     throw new ERR_MODULE_NOT_FOUND(
+#           ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/site/js/core/ipfs-car.js' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-deadline.test.mjs
+#     at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+#     at moduleResolve (node:internal/modules/esm/resolve:865:10)
+#     at defaultResolve (node:internal/modules/esm/resolve:989:11)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+#     at onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:680:36)
+#     at TracingChannel.tracePromise (node:diagnostics_channel:350:14)
+#     at ModuleLoader.import (node:internal/modules/esm/loader:679:21)
+#     at defaultImportModuleDynamicallyForModule (node:internal/modules/esm/utils:222:31) {
+#   code: 'ERR_MODULE_NOT_FOUND',
+#   url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/site/js/core/ipfs-car.js'
+# }
+# Node.js v22.23.3
+# Subtest: test/config-deadline.test.mjs
+not ok 1 - test/config-deadline.test.mjs
+  ---
+  duration_ms: 44.62533
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-deadline.test.mjs:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 50.733875
+=== RC 1 test/config-deadline.test.mjs
+=== FILE test/config-read-fallback.test.mjs
+TAP version 13
+# Subtest: gateways are the media patch's list; parseCid decodes every spelling exactly as multiformats does; anything else is refused unrequested
+not ok 1 - gateways are the media patch's list; parseCid decodes every spelling exactly as multiformats does; anything else is refused unrequested
+  ---
+  duration_ms: 1.01899
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:52:1'
+  failureType: 'testCodeFailure'
+  error: 'CFG.IPFS_IMG_FALLBACKS is not iterable'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:53:50)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: forged JSON is rejected for EVERY accepted spelling, raw and dag-pb, and never selected from any gateway position
+not ok 2 - forged JSON is rejected for EVERY accepted spelling, raw and dag-pb, and never selected from any gateway position
+  ---
+  duration_ms: 20.130159
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:84:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    b32: forged everywhere
+    + actual - expected
+    
+    + '{"tools":{"n":2},"models":{"primary":"evil"}}'
+    - null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual: '{"tools":{"n":2},"models":{"primary":"evil"}}'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:95:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: equivalent spellings are one content: they share the verified cache and an in-flight round
+not ok 3 - equivalent spellings are one content: they share the verified cache and an in-flight round
+  ---
+  duration_ms: 9.577185
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:107:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      assert.ok(all.every((x) => x === big.text))
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:111:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: preferred gateway down -> the next gateway's bytes verify -> offered; no credentials; then cached by CID (no request)
+not ok 4 - preferred gateway down -> the next gateway's bytes verify -> offered; no credentials; then cached by CID (no request)
+  ---
+  duration_ms: 1.206159
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:115:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + null
+    - '{"tools":{"n":4},"models":{"primary":"m4"}}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '{"tools":{"n":4},"models":{"primary":"m4"}}'
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:118:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: corrupt content is rejected wherever it comes from (preferred included) and is never cached
+not ok 5 - corrupt content is rejected wherever it comes from (preferred included) and is never cached
+  ---
+  duration_ms: 1.13019
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:124:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the first VERIFIED copy wins, not the first answer
+    + actual - expected
+    
+    + '{"tools":{"n":5},"models":{"primary":"evil"}}'
+    - '{"tools":{"n":5},"models":{"primary":"m5"}}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '{"tools":{"n":5},"models":{"primary":"m5"}}'
+  actual: '{"tools":{"n":5},"models":{"primary":"evil"}}'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:128:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a large (multi-block, dag-pb) config verifies through artifactIdentity; a tampered one does not
+not ok 6 - a large (multi-block, dag-pb) config verifies through artifactIdentity; a tampered one does not
+  ---
+  duration_ms: 3.236971
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:138:1'
+  failureType: 'testCodeFailure'
+  error: 'C.configCidForm is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:140:18)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: oversize answers are refused within the CAT_MAX.configMax byte bound (declared length or endless stream)
+not ok 7 - oversize answers are refused within the CAT_MAX.configMax byte bound (declared length or endless stream)
+  ---
+  duration_ms: 9.875001
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:146:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + null
+    - '{"tools":{"n":7},"models":{"primary":"m7"}}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '{"tools":{"n":7},"models":{"primary":"m7"}}'
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:150:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a gateway that never answers is abandoned at CONFIG_TRY_MS and the next one serves
+not ok 8 - a gateway that never answers is abandoned at CONFIG_TRY_MS and the next one serves
+  ---
+  duration_ms: 3.573328
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:155:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: the round is bounded by CONFIG_ROUND_MS: no further gateway once the budget is spent
+not ok 9 - the round is bounded by CONFIG_ROUND_MS: no further gateway once the budget is spent
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:163:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: concurrent callers share one round; a failed round answers null without requests for CONFIG_MISS_TTL_MS, then recovers
+not ok 10 - concurrent callers share one round; a failed round answers null without requests for CONFIG_MISS_TTL_MS, then recovers
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:170:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: a Kubo-v0 CIDv0 dag-pb leaf (unprovable by re-import) is proven by its CAR - the runtime's proof - and prefills; bare bytes never are
+not ok 11 - a Kubo-v0 CIDv0 dag-pb leaf (unprovable by re-import) is proven by its CAR - the runtime's proof - and prefills; bare bytes never are
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:185:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: mixed leaves, repeated chunks and uneven boundaries verify end-to-end from the preferred gateway's CAR
+not ok 12 - mixed leaves, repeated chunks and uneven boundaries verify end-to-end from the preferred gateway's CAR
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:204:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: CAR attempts stay inside the round's count, byte and deadline bounds
+not ok 13 - CAR attempts stay inside the round's count, byte and deadline bounds
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:218:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: publish 'add version' prefill: preferred down -> verified alternate fills the form; forged everywhere -> EMPTY box + loud note, never the manifest
+not ok 14 - publish 'add version' prefill: preferred down -> verified alternate fills the form; forged everywhere -> EMPTY box + loud note, never the manifest
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:246:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: dashboard Config/Models read (_cfgRead): split override + stock config both come back verified via an alternate; forged override -> ovLost, forged stock -> null
+not ok 15 - dashboard Config/Models read (_cfgRead): split override + stock config both come back verified via an alternate; forged override -> ovLost, forged stock -> null
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-site-release-r2-20261023/tree-prior/test/config-read-fallback.test.mjs:272:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 0
+# fail 7
+# cancelled 8
+# skipped 0
+# todo 0
+# duration_ms 114.81074
+=== RC 1 test/config-read-fallback.test.mjs
+=== FILE test/models-read-only.test.mjs
+TAP version 13
+# Subtest: Models displays the configured selection when the fleet cannot edit it
+ok 1 - Models displays the configured selection when the fleet cannot edit it
+  ---
+  duration_ms: 3.36298
+  type: 'test'
+  ...
+# Subtest: missing fleet support and old ledgers block writes, not reads
+ok 2 - missing fleet support and old ledgers block writes, not reads
+  ---
+  duration_ms: 2.525317
+  type: 'test'
+  ...
+# Subtest: supported edits and existing overrides retain their established behavior
+ok 3 - supported edits and existing overrides retain their established behavior
+  ---
+  duration_ms: 1.016501
+  type: 'test'
+  ...
+# Subtest: read-only models resolve the pinned stock config and escape model names
+ok 4 - read-only models resolve the pinned stock config and escape model names
+  ---
+  duration_ms: 1.181089
+  type: 'test'
+  ...
+# Subtest: unreadable pinned config is reported instead of claiming no models are selected
+ok 5 - unreadable pinned config is reported instead of claiming no models are selected
+  ---
+  duration_ms: 1.303729
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 56.234025
+=== RC 0 test/models-read-only.test.mjs
+=== FILE test/publish-prefill-config.test.mjs
+TAP version 13
+# Subtest: a rev-7 version prefills from its configCid, not from the inline manifest
+ok 1 - a rev-7 version prefills from its configCid, not from the inline manifest
+  ---
+  duration_ms: 1.1074
+  type: 'test'
+  ...
+# Subtest: an unreadable configCid empties the box loudly - it never degrades to the manifest
+ok 2 - an unreadable configCid empties the box loudly - it never degrades to the manifest
+  ---
+  duration_ms: 0.496315
+  type: 'test'
+  ...
+# Subtest: a pre-rev-7 version still prefills from its inline config, unchanged
+ok 3 - a pre-rev-7 version still prefills from its inline config, unchanged
+  ---
+  duration_ms: 0.220198
+  type: 'test'
+  ...
+# Subtest: gpuOptional is read from the resolved config, not the stale inline field
+ok 4 - gpuOptional is read from the resolved config, not the stale inline field
+  ---
+  duration_ms: 0.251827
+  type: 'test'
+  ...
+# Subtest: cpuFallback comes from the resolved config too, and survives an add-version
+ok 5 - cpuFallback comes from the resolved config too, and survives an add-version
+  ---
+  duration_ms: 0.735093
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 47.291236
+=== RC 0 test/publish-prefill-config.test.mjs
+=== FILE test/custody-v2-dashboard.test.mjs
+TAP version 13
+# Subtest: the committed site/vendor/custody-v2.js is exactly a fresh build of custody/v2/browser.mjs from the reviewed SOURCES
+ok 1 - the committed site/vendor/custody-v2.js is exactly a fresh build of custody/v2/browser.mjs from the reviewed SOURCES
+  ---
+  duration_ms: 63.170463
+  type: 'test'
+  ...
+# Subtest: vault states: unset (no default vault, nothing read), unreviewed, unreadable, mismatch and verified
+ok 2 - vault states: unset (no default vault, nothing read), unreviewed, unreadable, mismatch and verified
+  ---
+  duration_ms: 25.145264
+  type: 'test'
+  ...
+# Subtest: committee status: seats counted as the vault counts them; SINGLE-SEAT only when n = 1, and no claim of independence
+ok 3 - committee status: seats counted as the vault counts them; SINGLE-SEAT only when n = 1, and no claim of independence
+  ---
+  duration_ms: 0.876492
+  type: 'test'
+  ...
+# Subtest: a first save: the page encrypts to the committee key, ONE owner update; the stored bundle opens to exactly the env
+ok 4 - a first save: the page encrypts to the committee key, ONE owner update; the stored bundle opens to exactly the env
+  ---
+  duration_ms: 38.297536
+  type: 'test'
+  ...
+# Subtest: rotation: a new complete set replaces the bundle only (rules, committee and PAUSE untouched), at the next revision
+ok 5 - rotation: a new complete set replaces the bundle only (rules, committee and PAUSE untouched), at the next revision
+  ---
+  duration_ms: 17.193716
+  type: 'test'
+  ...
+# Subtest: refusals send nothing: not the owner, a contract owner, a moved deployment, no committee, an empty set, a bad id
+ok 6 - refusals send nothing: not the owner, a contract owner, a moved deployment, no committee, an empty set, a bad id
+  ---
+  duration_ms: 12.600487
+  type: 'test'
+  ...
+# Subtest: the config binding is read off the chain only when inline; otherwise the owner names it (or none), never a guess
+ok 7 - the config binding is read off the chain only when inline; otherwise the owner names it (or none), never a guess
+  ---
+  duration_ms: 17.190786
+  type: 'test'
+  ...
+# Subtest: a stale revision reverts and nothing is claimed; a vault that does not show the written bundle is reported, not trusted
+ok 8 - a stale revision reverts and nothing is claimed; a vault that does not show the written bundle is reported, not trusted
+  ---
+  duration_ms: 12.904894
+  type: 'test'
+  ...
+# Subtest: pause and resume: one owner update each, same committee and rules, read back; a no-op sends nothing
+ok 9 - pause and resume: one owner update each, same committee and rules, read back; a no-op sends nothing
+  ---
+  duration_ms: 5.58448
+  type: 'test'
+  ...
+# Subtest: migration: relay copy -> v2 (read back) -> the relay copy is KEPT and reported; its deletion is a separate gated step
+ok 10 - migration: relay copy -> v2 (read back) -> the relay copy is KEPT and reported; its deletion is a separate gated step
+  ---
+  duration_ms: 10.398587
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 376.025547
+=== RC 0 test/custody-v2-dashboard.test.mjs
