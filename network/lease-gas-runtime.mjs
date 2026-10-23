@@ -8,6 +8,7 @@ import { leaseRpcSet } from "./lease-executor-authority.mjs";
 import { discoverLeaseRelays, cachedRelayDiscovery, relayPolicyDecider, relayAdmission } from "./lease-relay-discovery.mjs";
 import { validateIndexPin } from "./service-index.mjs";
 import { chainVerifierOf } from "./verified-chain.mjs";
+import { chainAuthorityFromEnv } from "./chain-authority.mjs";
 
 // Where a host's lease operations are submitted (at least one): LOCAL_RELAY, an OPTIONAL relay of the host's own on this
 // machine (loopback only); RELAYS, configured relays; SERVICE_INDEX (<index address>@<runtime code hash>), DESIGNATED relays
@@ -47,19 +48,23 @@ export function assertLeaseGasBindings(config, { chain, ledger, registry }) {
 }
 
 /** `chain`, `ledger`, and `registry` are the host's existing reviewed binding. The record digest is a trusted local
- * setting, not downloaded with its file or accepted from a relay. Calling this function performs no RPC or signing. */
+ * setting, not downloaded with its file or accepted from a relay. Calling this function performs no RPC or signing.
+ * Under the host's explicit local-verifier authority (ENCLAVE_CHAIN_AUTHORITY=verifier: network/chain-authority.mjs, or
+ * `chainAuthority` passed in by a caller that already holds it) every lease read goes to that ONE authority; configured
+ * RPCS are then never contacted (they may stay in the reviewed configuration, unused). */
 export function loadLeaseGasConfig({ env = process.env, chain, ledger, registry, readFile = fs.readFileSync,
-  allowLoopbackHttp = false, rpcTimeoutMs = 10_000 } = {}) {
+  allowLoopbackHttp = false, rpcTimeoutMs = 10_000, chainAuthority } = {}) {
   if (!leaseGasConfigured(env)) return null;
   const file = required(env, "FILE"), digest = required(env, "DIGEST");
-  const rpcs = list(required(env, "RPCS"));
+  const authority = chainAuthority !== undefined ? chainAuthority : chainAuthorityFromEnv(env, { chain });
+  const rpcs = authority ? [] : list(required(env, "RPCS"));
   const localRaw = setting(env, "LOCAL_RELAY");
   const localRelays = localRaw ? [validateLocalRelayUrl(localRaw)] : [];
   const indexRaw = setting(env, "SERVICE_INDEX");
   const pinnedRaw = setting(env, "PINNED_RELAYS");
   const pinnedRelays = pinnedRaw ? parsePinnedRelays(pinnedRaw) : Object.freeze([]);
   const relays = list(localRelays.length || indexRaw || pinnedRelays.length ? setting(env, "RELAYS") : required(env, "RELAYS")).map((url) => validateRelayUrl(url, { allowLoopbackHttp }));
-  if (!rpcs.length || !(relays.length + localRelays.length + pinnedRelays.length) && !indexRaw) throw new Error("app-funded leases require nonempty RPC and relay lists");
+  if (!authority && !rpcs.length || !(relays.length + localRelays.length + pinnedRelays.length) && !indexRaw) throw new Error("app-funded leases require nonempty RPC and relay lists");
   const excludeRaw = list(setting(env, "RELAY_EXCLUDE"));
   if (excludeRaw.length && !indexRaw) throw new Error("RELAY_EXCLUDE applies to relays found in the service index: set SERVICE_INDEX too");
   if (new Set([...localRelays, ...relays, ...pinnedRelays.map((r) => r.origin)]).size !== relays.length + localRelays.length + pinnedRelays.length) throw new Error("lease-gas relays repeat an origin");
@@ -88,10 +93,10 @@ export function loadLeaseGasConfig({ env = process.env, chain, ledger, registry,
   const rawQuorum = setting(env, "QUORUM");
   if (rawQuorum && !/^[1-9][0-9]*$/.test(rawQuorum)) throw new Error("lease-gas quorum must be an integer");
   const quorum = rawQuorum ? Number(rawQuorum) : undefined;
-  const clients = rpcs.map((url) => createPublicClient({ chain, transport: http(url, { retryCount: 0, timeout: rpcTimeoutMs }) }));
+  const clients = authority ? [authority.client] : rpcs.map((url) => createPublicClient({ chain, transport: http(url, { retryCount: 0, timeout: rpcTimeoutMs }) }));
   // Validate identities and the threshold now, before a caller can mistake configuration failure for feature-off.
   const peers = leaseRpcSet(clients, { quorum, allowLoopbackHttp, timeoutMs: rpcTimeoutMs });
-  return Object.freeze({ deployment, reserve: deployment.reserve, clients: Object.freeze(clients),
+  return Object.freeze({ deployment, reserve: deployment.reserve, clients: Object.freeze(clients), authority: peers.authority,
     relays: Object.freeze(relays), localRelays: Object.freeze(localRelays), ...(pinnedRelays.length ? { pinnedRelays } : {}), relayDiscovery, quorum: peers.required, allowLoopbackHttp, rpcTimeoutMs });
 }
 

@@ -9,7 +9,9 @@
 //     "unsafeSigner": "0x…",                       the administrator's pin of the Base sequencer key
 //     "proofSources": ["https://…", …],            1..16 EXPLICIT, untrusted state holders (every witness is verified)
 //     "port": 50546,                               the verifier's loopback port inside the guest: 50000..57999
-//     "gossip"?: { "maxPeers", "discovery", "sessionSecs" }, "limits"?: { "firstHeadTimeoutMs", "heliosReadyTimeoutMs" } }
+//     "gossip"?: { "maxPeers", "discovery", "sessionSecs" }, "limits"?: { "firstHeadTimeoutMs", "heliosReadyTimeoutMs" },
+//     "txBackend"?: "http://10.0.2.2:8545/" }      the operator's OWN Base node, for submission and pool/fee hints only
+//                                                   (a loopback or private IPv4 literal; never a name; never asked for state)
 //
 // Absent: nothing changes (the supervisor's names are not set; its readers keep the provider quorum, exactly as before).
 // Present and valid: gsup starts the runtime BEFORE the supervisor and gives the supervisor exactly two names
@@ -26,7 +28,7 @@ import path from 'node:path';
 export const CHAIN_VERIFIER_FORMAT = 'enclave-chain-verifier/v1';
 export const CHAIN_VERIFIER_IMAGE_FORMAT = 'enclave-chain-verifier-image/v1';
 export const CHAIN_VERIFIER_IMAGE_FILE = '/opt/rpc-runtime/IMAGE.json';
-export const CHAIN_AUTHORITY_NAMES = Object.freeze(['ENCLAVE_CHAIN_AUTHORITY', 'ENCLAVE_CHAIN_VERIFIER']);
+export const CHAIN_AUTHORITY_NAMES = Object.freeze(['ENCLAVE_CHAIN_AUTHORITY', 'ENCLAVE_CHAIN_VERIFIER', 'ENCLAVE_CHAIN_TX_BACKEND']);
 // the guest's own listeners (supervisor 8080, wasm manager 8091, RAD 8443, direct control 8444) and the host link ports
 export const GUEST_RESERVED_PORTS = Object.freeze([8080, 8091, 8443, 8444, 8095, 8096]);
 // The verifier's port lies between the tenants' declarable ports (wasm_manager.py PORT_MAX_DECL 49999; a free declared
@@ -35,7 +37,22 @@ export const GUEST_RESERVED_PORTS = Object.freeze([8080, 8091, 8443, 8444, 8095,
 export const VERIFIER_PORT_RANGE = Object.freeze([50000, 57999]);
 /** Where a configured-but-unusable verifier points: TCP discard, nothing in the guest serves it, every verified read refuses. */
 export const REFUSING_VERIFIER = 'http://127.0.0.1:9/';
-const KEYS = ['format', 'unsafeSigner', 'proofSources', 'port', 'gossip', 'limits'];
+const KEYS = ['format', 'unsafeSigner', 'proofSources', 'port', 'gossip', 'limits', 'txBackend'];
+const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+/** The own transaction backend: the SAME rule as network/chain-authority.mjs checkOwnBackend (a parity test holds them
+ *  equal; this module stays dependency-free): http(s) at [::1] or a loopback/private IPv4 literal; no name, credentials,
+ *  query or fragment. -> the normalized href, or throws. */
+export function checkTxBackendUrl(raw) {
+  let u; try { u = new URL(String(raw)); } catch { bad('txBackend must be a URL'); }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') bad('txBackend must be http(s)');
+  if (u.username || u.password || u.search || u.hash || String(raw).includes('#') || String(raw).includes('?')) bad('txBackend: no credentials, query or fragment');
+  if (u.hostname !== '[::1]') {
+    const m = IPV4.exec(u.hostname), o = m ? m.slice(1).map(Number) : null;
+    if (!o || o.some((x) => x > 255) || !(o[0] === 127 || o[0] === 10 || (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || (o[0] === 192 && o[1] === 168)))
+      bad('txBackend must be a loopback or private IPv4 address literal: a name or public address is not the operator\'s own backend');
+  }
+  return u.href;
+}
 const ADDR = /^0x[0-9a-fA-F]{40}$/;
 
 function bad(m) { throw new Error(`chainVerifier: ${m}`); }
@@ -78,8 +95,9 @@ export function checkChainVerifier(raw, { allowLoopbackHttp = false } = {}) {
     if (raw.limits.heliosReadyTimeoutMs !== undefined) limits.heliosReadyTimeoutMs = int(raw.limits.heliosReadyTimeoutMs, 5000, 600000, 'limits.heliosReadyTimeoutMs');
     limits = Object.freeze(limits);
   }
+  const txBackend = raw.txBackend === undefined || raw.txBackend === null ? null : checkTxBackendUrl(raw.txBackend);
   return Object.freeze({ format: CHAIN_VERIFIER_FORMAT, unsafeSigner: raw.unsafeSigner.toLowerCase(), proofSources: Object.freeze(proofSources), port,
-    ...(gossip ? { gossip } : {}), ...(limits ? { limits } : {}) });
+    ...(gossip ? { gossip } : {}), ...(limits ? { limits } : {}), ...(txBackend ? { txBackend } : {}) });
 }
 
 /** The measured image's verifier record (/opt/rpc-runtime/IMAGE.json, installed by metal/overlay-control-image.py from the
@@ -120,6 +138,7 @@ export function guestChainVerifier(value, { imageFile = CHAIN_VERIFIER_IMAGE_FIL
     argv: (configFile) => [img.node, img.entry, 'run', configFile],
     env: { PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', HOME: img.configDir },
     message: `chain verifier configured: ${v.proofSources.length} proof source(s), loopback port ${v.port}, signer ${v.unsafeSigner}; `
+      + (v.txBackend ? `own transaction backend ${new URL(v.txBackend).host} (submission and pool/fee hints only); ` : 'no own transaction backend (nothing is submitted); ')
       + 'verified readers refuse until it is ready (unsafe-head tier, no finality)' };
 }
 
@@ -133,9 +152,11 @@ export function writeChainVerifierConfig(cv) {
   return file;
 }
 
-/** env with the two chain-authority names ONLY from this channel (any other source of them is dropped). */
+/** env with the chain-authority names ONLY from this channel (any other source of them is dropped); the own backend only
+ *  with a usable verifier (a refusing verifier submits nothing). */
 export function withChainVerifierEnv(env, cv) {
   const out = Object.fromEntries(Object.entries(env).filter(([k]) => !CHAIN_AUTHORITY_NAMES.includes(k)));
   if (!cv?.configured) return out;
-  return { ...out, ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: cv.ok ? cv.url : REFUSING_VERIFIER };
+  return { ...out, ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: cv.ok ? cv.url : REFUSING_VERIFIER,
+    ...(cv.ok && cv.verifier?.txBackend ? { ENCLAVE_CHAIN_TX_BACKEND: cv.verifier.txBackend } : {}) };
 }

@@ -36,23 +36,36 @@ export function leaseDeploymentPins(record) {
 // Distinct configured endpoints are not proof of independent organizations. This uses the repository's shared URL
 // identity rule to prevent counting one public host's paths or ports as several votes. A single local fixture node is
 // allowed only with explicit loopback permission AND an actual loopback transport URL.
+//
+// The host's LOCAL VERIFIER (a client network/chain-authority.mjs built for the operator's explicit
+// ENCLAVE_CHAIN_AUTHORITY=verifier; marked in-process, never from configuration) is ONE proof-checking authority, not a
+// vote: it is used alone (required 1, whatever quorum a provider configuration names), and never mixed with provider
+// peers or repeated to make up a quorum. Its answers are proven against its sequencer-signed head chain (the unsafe tier).
+const LOCAL_VERIFIER = Symbol.for("enclave.chain-authority.local-verifier");
 export function leaseRpcSet(clients, { quorum, allowLoopbackHttp = false, timeoutMs = 15_000 } = {}) {
   if (!Array.isArray(clients) || !clients.length || clients.length > 16)
     throw new Error("lease-gas requires 1..16 explicit RPC clients");
-  const peers = clients.map((client) => {
-    const endpoint = rpcEndpoint(client?.transport?.url);
-    if (endpoint.url.protocol === "http:" && !allowLoopbackHttp)
-      throw new Error("lease-gas plain HTTP RPC needs explicit loopback permission");
-    return { client, endpoint };
-  });
-  if (new Set(peers.map((p) => p.endpoint.identity)).size !== peers.length)
-    throw new Error("lease-gas RPCs repeat a provider");
-  const localFixture = peers.length === 1 && peers[0].endpoint.loopback && allowLoopbackHttp;
-  const required = quorum ?? Math.floor(peers.length / 2) + 1;
-  if (!Number.isInteger(required) || required > peers.length || required <= peers.length / 2 || (required < 2 && !localFixture))
-    throw new Error("lease-gas RPC quorum must be a strict majority of at least two peers");
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000)
     throw new Error("lease-gas RPC timeout must be 1..60000 ms");
+  let peers, required, localFixture = false, authority = "rpc-quorum";
+  if (clients.some((c) => c && c[LOCAL_VERIFIER])) {
+    if (clients.length !== 1) throw new Error("lease-gas: the local verifier is one authority, never a quorum member (not mixed with RPCs, not repeated)");
+    peers = [{ client: clients[0], endpoint: { label: "local verifier", identity: "local-verifier", loopback: true } }];
+    required = 1; authority = "local-verifier";
+  } else {
+    peers = clients.map((client) => {
+      const endpoint = rpcEndpoint(client?.transport?.url);
+      if (endpoint.url.protocol === "http:" && !allowLoopbackHttp)
+        throw new Error("lease-gas plain HTTP RPC needs explicit loopback permission");
+      return { client, endpoint };
+    });
+    if (new Set(peers.map((p) => p.endpoint.identity)).size !== peers.length)
+      throw new Error("lease-gas RPCs repeat a provider");
+    localFixture = peers.length === 1 && peers[0].endpoint.loopback && allowLoopbackHttp;
+    required = quorum ?? Math.floor(peers.length / 2) + 1;
+    if (!Number.isInteger(required) || required > peers.length || required <= peers.length / 2 || (required < 2 && !localFixture))
+      throw new Error("lease-gas RPC quorum must be a strict majority of at least two peers");
+  }
   async function request(client, method, params) {
     let timer;
     try {
@@ -83,7 +96,7 @@ export function leaseRpcSet(clients, { quorum, allowLoopbackHttp = false, timeou
     if (!winner) throw new Error(`lease-gas RPC quorum did not agree on ${what}`);
     return winner;
   }
-  return { peers, required, localFixture, request, agree };
+  return { peers, required, localFixture, authority, request, agree };
 }
 
 /** A fresh, hash-bound read client, backed ONLY by peers that verified the pinned deployment at that same hash. */
