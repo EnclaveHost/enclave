@@ -1,0 +1,65 @@
+a-parity base rebuilt from dfe020abf + 14 stored patch(es) in cadf0ebb8: tree 3acae5433be9ba92a439c025dd36434fb3d21846 OK
+a-parity c3a61fd1a: tree 0e4b6db5d9878ae8ef67dd006bd0414f3573e984 OK
+a-parity e32dd607b: tree 079caef6560a130194c1c37795c97aa33a2d988b OK
+b-runtime-final base rebuilt from dfe020abf + 14 stored patch(es) in cadf0ebb8: tree 3acae5433be9ba92a439c025dd36434fb3d21846 OK
+b-runtime-final daf9e10d6: tree 234f2d52e893539ff8010e5913d3a19d422bdb60 OK
+b-runtime-final 30c634b1d: tree d2d3d3ed4c17cfb7908c640ea74aab0199f0f5cc OK
+b-runtime-final 7af6dd664: tree 6da6bd4cf7910b042d61eecca417b2a80b369172 OK
+b-runtime-final f7817efed: tree f4624cf8f92c3585268349edffc0a4bb35e4eedd OK
+b-runtime-final 863171184: tree 14911289ba7f76c7e628ad666afbfbf21986f813 OK
+b-runtime-final 5aed3a491: tree 0e6f6d490f6c1e90dd932ae4e4bd2568c065283d OK
+b-runtime-final 326911734: tree 996f9293ae76df77c75e9a1cf2d4c94af23c22c4 OK
+b-runtime-final a8d03cd37: tree f456a64888cefd2d31a2906f8d5fccce7f1f7de7 OK
+b-runtime-final 7032177e6: tree 98356794bed5b304ae05615349ea217cc1f5cad1 OK
+b-runtime-final cc9e4da5e: tree c22ce3de5bdb81b67d97340eabfcb81f0f1bc87c OK
+b-runtime-final dc8adb8e1: tree 2ba91028cb3a940d98d4dfea45d12c4ed7cb8a1b OK
+b-runtime-final e6b9bf275: tree 10b6afdf3856cd533456233e49933a61fa2fbcd2 OK
+b-runtime-final a1fd9dfc3: tree 39ad07c50965df6d0d023c9f3c4497834410c183 OK
+b-runtime-final 88bdbbb9e: tree c61bfb6f8cc3e1d8faee5b1fd3ff246109ee5cfe OK
+b-runtime-final 564cc8ae4: tree e331eac1f5d7a2cb13ee75b385658f5071963fca OK
+b-runtime-final fb1c410b4: tree 2d785b079dfe919c1f1bef61b7b474eff2c29756 OK
+b-runtime-final 5296cdebd: tree 9d3dfe26515fa5d5bb3ddfe9bec4d28c20ee4e0e OK
+b-runtime-final 69b966f7f: tree a92d67b6e31d20b1230b73e820f2ee814cfc68b2 OK
+b-runtime-final c31e975a4: tree 6fbe601d8659ab12c2a649ae8c8e89cb7e497db2 OK
+f-rpc-closure base rebuilt from f58e03ec4 + 10 stored patch(es) in cadf0ebb8: tree 1a679ef307a70acf440584a7e991ebf6834d9030 OK
+f-rpc-closure bb86e0ceb: tree 78ece4259fa75b2fb6e90c8901aa7b4fb0844eef OK
+f-rpc-closure 30123801a: tree 7c116aac6080c1cacf5cf923abd545c933094858 OK
+f-rpc-closure 14d1e4954: tree 77d12fb623d5466999ca0c70d6e8d0abfc282086 OK
+c-drain base rebuilt from empty + 2 stored patch(es) in cadf0ebb8: tree 7f3027539b177eb7380fdeae935ef6d5254ee3a3 OK
+c-drain fbaecfced: tree bb3977d44f02178d13b0cb901ab4456d881b534a OK
+c-drain 5a3ee3111: tree 1d90c1b220481e6dc76efc7bf248325bb5dd201a OK
+c-drain 529340596: tree c06beb4c2b2afcc2f248e50586d2d958d79894ef OK
+c-drain 19b914868: tree dde5f8867615c395c0d78a13bb041b05075cb4ea OK
+s-browser base rebuilt from dfe020abf + 13 stored patch(es) in cadf0ebb8: tree 31e01514ac6e791dd2515bb61588bdc1c579f5f4 OK
+s-browser 2bd1eea0c: tree dbb8820641b9b2e25ef2514c71d42bcf51e2bd94 OK
+s-browser 349318a06: tree 516ab0e7f97df5cc5795c1c77a5885bb41dbd5cf OK
+s-report base rebuilt from empty + 0 stored patch(es) in cadf0ebb8: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+s-report 443975561: tree ee9b04fac007d3349eec92dcb9417f2952b73061 OK
+s-report b55ca7916: tree 2c93040daa9c46c98ab158dfc0d10b9d1cd74ff7 OK
+root-pg base rebuilt from empty + 0 stored patch(es) in cadf0ebb8: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-pg 555dc7528: tree d1f6cda2b41e296a16a7c5af4d9897172e002132 OK
+root-tls base rebuilt from empty + 0 stored patch(es) in cadf0ebb8: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-tls be8a71d84: tree a777d3d565b879fdc47cec4be8a4520fbd3e5760 OK
+root-tls edac1dc26: tree 601b3dc4422a7cc3a7285dec71fa47cff4bb688d OK
+root-tls 9bc20538f: tree d474c7d62ac261583564e329d9979631127d02f4 OK
+root-tls ab5270670: tree ae0c540c610e22878f0d0221e520cb392faa6f01 OK
+p-l1 base rebuilt from empty + 0 stored patch(es) in cadf0ebb8: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+p-l1 e318e38ba: tree 6bba8c556c45d235bc4387f50be850493d762b39 OK
+p-l1 c0282ca50: tree 632ce92bf4f50f810760693721a91172a7b2c4f9 OK
+p-l1 5ccee1960: tree 35995d44b24706c0f0950c8ba5a6caa4ad4de908 OK
+p-l1 e373dca68: tree c81c490a222f931ac5fbb35c63f1ab0356702b5c OK
+p-l1 c2f2b1802: tree 8e820e4fd6828eaa585e0841208c3578bf633190 OK
+p-l1 1260cdcb2: tree 4d9363c4810040216574f3333902b5295b163de1 OK
+p-l1 8ea82585c: tree c0a6aad1afab3c83b29495478d8d270a11386c5d OK
+p-l1 83805a1b8: tree b89d0b204aaa165e7fc7d77b2023c473fe978460 OK
+p-l1 47f4f42ac: tree c5b4b0d12da609df6fdf09ef09c9f8dc00f8550d OK
+p-l1 e83301df5: tree 701d06e3e478b1977173f6d4a29e2d42abd481d3 OK
+p-l1 7d5ccb1f3: tree cc367d61535e3c236e3f4eadbf67073cdbeafc3e OK
+p-l1 f83514874: tree 429d103a55dc59c97a1dc09c57ad72279f64666d OK
+e-closure base rebuilt from empty + 2 stored patch(es) in cadf0ebb8: tree 827da8c7e4f16f187084ca46e7c5ed8ebb30e8e4 OK
+e-closure 017b8aae5: tree 0c6b67b18c8cc1505cee33e7027f8cac5aec8154 OK
+e-closure 027ff5494: tree 185ecc761aab5f542a664371dbbbf30d29aaaa29 OK
+e-closure ca818b759: tree 6c2d62eec05413ac273ec2490b7c2ff3a918690d OK
+p-l1 trees are the ORIGINAL trees minus ['evidence/sources/lighthouse-v8.3.2/common/eth2_network_config/built_in_network_configs/mainnet/genesis.ssz.zip', 'evidence/lighthouse-binary-20261023T080144Z/release.yml', 'logs/fetch-lh-2.out', 'logs/verify-lh-2.out', 'logs/verify-lh-3.out'] (originals: 7d5ccb1f3 1cdee7bc9, f83514874 727e029d2); exact originals NOT reproduced
+e-closure trees are the ORIGINAL trees minus ['fixtures/artifacts/', 'exports/'] (originals: 027ff5494 937c20229, ca818b759 d91cec5af); exact originals NOT reproduced
+RESULT a-parity reproduced: True, b-runtime-final reproduced: True, f-rpc-closure reproduced: True, c-drain reproduced: True, s-browser reproduced: True, s-report reproduced: True, root-pg reproduced: True, root-tls reproduced: True, p-l1 reproduced: True, e-closure reproduced: True

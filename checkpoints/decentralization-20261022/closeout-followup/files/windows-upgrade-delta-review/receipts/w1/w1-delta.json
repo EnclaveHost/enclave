@@ -1,0 +1,150 @@
+{
+ "privacy-agent.mjs": {
+  "installed": "cfb69370a00dea147340c64bbd712f118eb8cb825237ac79b3b053b586350801",
+  "f": "6480ca9bb76d22e6e9653aaac6a2c0b4202c6c0f541d3f1da3a9cbbdc701ec77",
+  "reproducedFArtifact": true,
+  "inputs": {
+   "f": 1940,
+   "installedBuild": 1938
+  },
+  "changed": {
+   "source": [
+    "network/challenge-replica-host.mjs",
+    "network/enclave-network-host.mjs",
+    "network/host-service-transport.mjs",
+    "network/host-services/runner.mjs",
+    "network/policy-carriers.mjs",
+    "network/privacy-agent.mjs",
+    "network/wg-circuit-runtime.mjs",
+    "relay/secrets-release.mjs",
+    "relay/snp-verify.mjs"
+   ],
+   "nodeModulesPackages": [],
+   "nodeModulesFiles": 0
+  },
+  "added": {
+   "source": [
+    "net-guard.mjs",
+    "network/entries/privacy-agent.mjs",
+    "network/host-policy-carrier-gate.mjs",
+    "network/host-policy-gate-config.mjs",
+    "network/main-guard.mjs"
+   ],
+   "nodeModulesPackages": [
+    "@libp2p/crypto",
+    "@libp2p/interface",
+    "@libp2p/logger",
+    "@noble/curves",
+    "@noble/hashes",
+    "@scure/base",
+    "@scure/bip32",
+    "@scure/bip39",
+    "abitype",
+    "cborg",
+    "ipns",
+    "isows",
+    "main-event",
+    "ms",
+    "multiformats",
+    "ox",
+    "protons-runtime",
+    "supports-color",
+    "timestamp-nano",
+    "uint8-varint",
+    "uint8arraylist",
+    "uint8arrays",
+    "viem",
+    "weald",
+    "ws"
+   ],
+   "nodeModulesFiles": 1840
+  },
+  "removed": {
+   "source": [
+    "network/challenge-front-declaration.mjs",
+    "relay/net-guard.mjs",
+    "relay/vbs-runtime.mjs"
+   ],
+   "nodeModulesPackages": [
+    "@libp2p/crypto",
+    "@libp2p/interface",
+    "@libp2p/logger",
+    "@noble/curves",
+    "@noble/hashes",
+    "@scure/base",
+    "@scure/bip32",
+    "@scure/bip39",
+    "abitype",
+    "cborg",
+    "ipns",
+    "isows",
+    "main-event",
+    "ms",
+    "multiformats",
+    "ox",
+    "protons-runtime",
+    "supports-color",
+    "timestamp-nano",
+    "uint8-varint",
+    "uint8arraylist",
+    "uint8arrays",
+    "viem",
+    "weald",
+    "ws"
+   ],
+   "nodeModulesFiles": 1840
+  }
+ },
+ "windows-circuit-worker.mjs": {
+  "installed": "13ce44f1b39d4521e32266f2dad234958af70b1b05e2a3f6638535571e8cf320",
+  "f": "dcac53cbe4f4fe19ee10ed5e2719ecff38817990bd1078dbb082f77d8bc2c332",
+  "reproducedFArtifact": true,
+  "inputs": {
+   "f": 19,
+   "installedBuild": 19
+  },
+  "changed": {
+   "source": [],
+   "nodeModulesPackages": [],
+   "nodeModulesFiles": 0
+  },
+  "added": {
+   "source": [],
+   "nodeModulesPackages": [
+    "ws"
+   ],
+   "nodeModulesFiles": 14
+  },
+  "removed": {
+   "source": [],
+   "nodeModulesPackages": [
+    "ws"
+   ],
+   "nodeModulesFiles": 14
+  }
+ },
+ "host-service-ingress.mjs": {
+  "installed": "c952dce4fe007c48c81e1726a743d850dc2f5231204d01466349bfa5ffcc62d3",
+  "f": "c952dce4fe007c48c81e1726a743d850dc2f5231204d01466349bfa5ffcc62d3",
+  "reproducedFArtifact": true,
+  "inputs": {
+   "f": 4,
+   "installedBuild": 4
+  },
+  "changed": {
+   "source": [],
+   "nodeModulesPackages": [],
+   "nodeModulesFiles": 0
+  },
+  "added": {
+   "source": [],
+   "nodeModulesPackages": [],
+   "nodeModulesFiles": 0
+  },
+  "removed": {
+   "source": [],
+   "nodeModulesPackages": [],
+   "nodeModulesFiles": 0
+  }
+ }
+}

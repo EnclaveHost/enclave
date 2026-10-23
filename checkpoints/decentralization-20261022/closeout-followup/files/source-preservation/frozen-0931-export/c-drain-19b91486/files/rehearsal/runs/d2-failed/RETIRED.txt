@@ -1,0 +1,6 @@
+Run d2: 26/27 checks passed, then RETIRED (NOT counted).
+The one failure was a DRIVER expectation, not product behaviour. With the enrolment's COMMIT pending after the KILL, the
+driver expected counts "1/0/1" (fenced/CAS/accounts). indexd's RaiseFence writes the fence and cas_mode in ONE UPDATE of ONE
+transaction (persist/postgres/fence.go), so a pending enrolment shows neither: "0/0/1" was observed, which is correct.
+The expectation was fixed and the full run repeated as d3. d1-failed: the fixture's holder used FOR UPDATE with count(*),
+which PostgreSQL rejects (the holder never started); fixed to SELECT id ... FOR UPDATE.

@@ -27,6 +27,8 @@ Frozen 07:45Z append (2026-10-23): D Linux carrier closure + A/B/ROOT compositio
 
 Frozen 08:30Z append (2026-10-23): A Windows chain consumers df8fbafa (+ B deadline, ROOT fd6, client closure; patches 0010-0014), ROOT canonical doc correction bcd3d9ca (tree = that of dc767fc3), C storage distributed-write cutover package 6fd7a929 + RESULT bbf0a009, F final host-services compose merge 4106c311, and E 159fd148 as a SOURCE-ONLY DERIVATIVE (7 compiled fixtures omitted; blobs/hashes and a regeneration recipe recorded; exact original trees not reproducible from it). Source + offline tests only; nothing deployed. See `MANIFEST.json` `appends`.
 
+Frozen 0931 append (2026-10-23; "0931" = the batch start 09:31Z, an identifier): A consumer parity e32dd607, B final verifier runtime c31e975a, F host-service-rpc-closure 14d1e495, C rollback order + database drain 19b91486, S browser closure 349318a0 (+ROOT 2bd1eea) and report b55ca791, ROOT PostgreSQL counterexample 555dc752 and TLS retry-recovery ab527067; P f8351487 and E ca818b75 as SOURCE-ONLY DERIVATIVES (one vendored upstream zip; 13 compiled fixtures and E exports omitted, recipes recorded); D's installed NucBox baseline sources/manifests and the Windows baseline-to-candidate review; the 0830 receipt with its time correction (cadf0ebb committed 07:57:53Z). Source + offline tests only; nothing deployed. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

@@ -1,0 +1,8 @@
+{
+ "installed": "6bef372d00a27567e94a11d00f165312f9d715a795519e7a7ad77b4718623b18",
+ "F_4106c311": "3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8",
+ "installedOccurrencesOfEmptyList": 1,
+ "FOccurrencesOfMirrorList": 1,
+ "installedWithMirrorListEqualsF": true,
+ "reading": "F's windows/node/host-admission.bundle.mjs is byte-for-byte the installed 6bef372d with ONE change: the platform host policy's default mirrors (network/platform-host-policy-config.mjs PRODUCTION_MIRRORS, minified b1) go from [] to the 4 former DigitalOcean fronts. That is the only delta, and it is a regression: F's lineage inherits the list from checkpoint 9a307f3ea; the 493 lineage and A df8fbafa carry []. A's 28778491 (404195 bytes) is a different, larger bundle (verified-read client, carriers env) on the 493 lineage."
+}

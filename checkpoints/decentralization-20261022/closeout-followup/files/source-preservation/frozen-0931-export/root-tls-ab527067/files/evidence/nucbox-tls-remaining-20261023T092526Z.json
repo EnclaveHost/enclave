@@ -1,0 +1,62 @@
+{
+  "at": "2026-10-23T09:25:24.0661682Z",
+  "apps": [
+    {
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "status": "running",
+      "reason": null,
+      "lastError": null,
+      "leaseUntil": 1792748781
+    },
+    {
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "running",
+      "reason": null,
+      "lastError": null,
+      "leaseUntil": 1792748071
+    },
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "failed",
+      "reason": "isolation: 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77 did not become ready within 300000 ms (last status starting)",
+      "lastError": null,
+      "leaseUntil": 1792745451
+    }
+  ],
+  "vms": [
+    {
+      "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "status": "running",
+      "reason": null,
+      "appId": "ea9d47738f079748b7e3fd29e18c496e2b9e88cd861473671cd9535888654ac3",
+      "instance": null
+    },
+    {
+      "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "running",
+      "reason": null,
+      "appId": "9e2053bc722f4ecafc088ca9b8d754ebf6efc1f24359c687e7e2a88a0afee477",
+      "instance": null
+    }
+  ],
+  "logs": [
+    "09:19:54 [node] [host] 0x59f1273d isolation held: the launch of 0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c did not end in a known state (unavailable: the manager did not launch 0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c: fetch-cid failed for bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau: fetch/verify failed for bafybeic3peeqxip4w2sxz66krxbhkjygfnkqyigdgvoajw6moykvtkfeau: no artifact gateway returned verified content: HTTPError: HTTP Error 404: Not Found; HTTPError: HTTP Error 404: Not Found; HTTPError: HTTP Error 404: Not Found; HTTPError: HTTP Error 404: Not Found; RemoteDisconnected: Remote end closed connection without response); nothing is retried and the lease is kept - reconcile before repeating it",
+    "09:19:57 [node] [host] 0xef514ed3 isolation adopted: hv8babaf3c0991fac56e8b036e49d7b561 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "09:20:08 [node] [network] 0x59f1273d: no ready partition runs catalog://0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06/5 yet",
+    "09:20:40 [node] [network] 0x59f1273d: no ready partition runs catalog://0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06/5 yet",
+    "09:21:14 [node] [network] 0x59f1273d: no ready partition runs catalog://0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06/5 yet",
+    "09:21:21 [node] sealed secrets delivered to 0x59f1273d (2 names)",
+    "09:21:28 [node] [host] 0x59f1273d isolation spawned: hv94a003c5b947f6d2bdb272448442a814 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "09:21:32 [node] [host] 0xef514ed3 isolation adopted: hv8babaf3c0991fac56e8b036e49d7b561 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "09:22:25 [node] [host] 0x59f1273d isolation adopted: hv94a003c5b947f6d2bdb272448442a814 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "09:22:31 [node] [host] 0xef514ed3 isolation adopted: hv8babaf3c0991fac56e8b036e49d7b561 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "09:22:42 [node] 0x59f1273d certificate: none for 59f1273d.app.enclave.host (the order for 59f1273d.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
+    "09:23:27 [node] [host] 0x59f1273d isolation adopted: hv94a003c5b947f6d2bdb272448442a814 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "09:23:32 [node] [host] 0xef514ed3 isolation adopted: hv8babaf3c0991fac56e8b036e49d7b561 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "09:23:33 [node] 0x59f1273d certificate: 59f1273d.app.enclave.host installed in partition hv94a003c5b947f6d2bdb272448442a814 (key 136603c20484c80c\u00e2\u20ac\u00a6, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-21T23:59:59.000Z; domain monitor-signed)",
+    "09:24:21 [node] [host] 0x59f1273d isolation adopted: hv94a003c5b947f6d2bdb272448442a814 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "09:24:24 [node] [host] 0xef514ed3 isolation adopted: hv8babaf3c0991fac56e8b036e49d7b561 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "09:25:17 [node] [host] 0x59f1273d isolation adopted: hv94a003c5b947f6d2bdb272448442a814 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "09:25:20 [node] [host] 0xef514ed3 isolation adopted: hv8babaf3c0991fac56e8b036e49d7b561 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d"
+  ]
+}

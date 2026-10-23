@@ -1,0 +1,121 @@
+[queue] START available=25983MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+== scan e820e2405..HEAD
+349318a06 Keep every browser chain consumer on the confirmed profile's routes
+2bd1eea0c Keep WalletConnect reads on the confirmed independent RPC profile
+scan rc=0
+bundle tree HEAD 349318a0600917bad8f391ad628fa0c7f134b3f6
+[build] clean dist/
+[build] no built-in network profile (hosted defaults; a saved browser profile still applies)
+[build] contract artifacts (admin console deploy bytecode + selectors)
+[build] tailwind css/src/main.css -> css/site.css
+npm notice run enclave-supervisor@0.1.0 npx
+npm notice run 'tailwindcss' -i site/css/src/main.css -o site/css/site.css --minify
+≈ tailwindcss v4.3.2
+
+Done in 161ms
+[build] esbuild (router entry + code-split pages, templates inlined)
+▲ [WARNING] The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected [commonjs-variable-in-esm]
+
+    site/js/lib/qr.js:2300:6:
+      2300 │       module.exports = factory();
+           ╵       ~~~~~~
+
+  This file is considered to be an ECMAScript module because of the "export" keyword here:
+
+    site/js/lib/qr.js:2306:0:
+      2306 │ export function qrSvg(text, opts){
+           ╵ ~~~~~~
+
+[build] recover/ (passkey account recovery signer)
+[build] credit/ (independent credit vault)
+[build] copy pages (components prerendered) + static files
+[build] csp-script-src.txt: 6 inline-script hashes (server CSP can now drop 'unsafe-inline' + esm.sh)
+      5.1 KB  dist/js/chunks/authorize-6MLCC5LB.js
+      1.1 KB  dist/js/chunks/host-LFPVMOFM.js
+      3.5 KB  dist/js/chunks/sso-authorize-M5M4CPIS.js
+     15.5 KB  dist/js/chunks/grant-REUWKDQA.js
+     11.7 KB  dist/js/chunks/sessions-TZVUPOHA.js
+     22.0 KB  dist/js/chunks/account-ui-EPHMOIT5.js
+      2.4 KB  dist/js/chunks/dashboard-JGKY3TLH.js
+     38.8 KB  dist/js/chunks/migrator-7M5322DK.js
+    442.7 KB  dist/js/chunks/admin-ELKJLGUV.js
+      0.4 KB  dist/js/chunks/terms-5NS4BNVC.js
+      0.4 KB  dist/js/chunks/privacy-T43R3PTI.js
+      6.4 KB  dist/js/chunks/checkout-QMST3O5D.js
+      3.7 KB  dist/js/chunks/link-JZEAPILB.js
+      0.9 KB  dist/js/chunks/startup-package-AEB5BPZX.js
+      5.6 KB  dist/js/chunks/history-checkpoint-ITD3PBPL.js
+     34.2 KB  dist/js/chunks/enclave-network-CCAVGBPV.js
+     24.6 KB  dist/js/chunks/deploy-KTOY7ZCU.js
+    191.0 KB  dist/js/chunks/chunk-FBCGHCMJ.js
+     13.0 KB  dist/js/chunks/chunk-B4Y43EBO.js
+      0.3 KB  dist/js/chunks/independent-ui-6DAFGCTK.js
+     10.4 KB  dist/js/chunks/chunk-GBO74RVI.js
+     71.2 KB  dist/js/chunks/apps-MFIBE4M5.js
+      7.6 KB  dist/js/chunks/chunk-TD3R4NJP.js
+      0.6 KB  dist/js/chunks/architecture-JTBYLTBM.js
+     14.3 KB  dist/js/chunks/develop-Y3CHQI4Y.js
+      0.4 KB  dist/js/chunks/chunk-NIEW4B4D.js
+     21.4 KB  dist/js/chunks/chunk-MTGQQPTX.js
+      4.0 KB  dist/js/chunks/chunk-DRWBX56V.js
+      3.3 KB  dist/js/chunks/chunk-65C7LGLL.js
+     11.4 KB  dist/js/chunks/chunk-MAPBJX7T.js
+      1.0 KB  dist/js/chunks/sessions-FURL6UWK.js
+     39.6 KB  dist/js/chunks/chunk-X7Y7MZKW.js
+     12.5 KB  dist/js/chunks/independent-management-JLA2VC4A.js
+      0.3 KB  dist/js/chunks/api-AWB5SELO.js
+     19.6 KB  dist/js/chunks/overview-W6SZW6KR.js
+      1.6 KB  dist/js/chunks/chunk-ATQK46QG.js
+      7.3 KB  dist/js/chunks/chunk-32OJJND4.js
+      0.3 KB  dist/js/chunks/chunk-D7VGFCH5.js
+     11.8 KB  dist/js/chunks/chunk-7EQ2C52P.js
+      4.5 KB  dist/js/chunks/storage-plan-P2BWPZZ2.js
+      1.6 KB  dist/js/chunks/chunk-IBX6L24F.js
+      2.5 KB  dist/js/chunks/chunk-ACELWRLG.js
+    301.5 KB  dist/js/chunks/custody-ZIMHB3XW.js
+      6.1 KB  dist/js/chunks/app-access-AGGIBM5Z.js
+      2.4 KB  dist/js/chunks/native-instructions-DJHERWWD.js
+      0.5 KB  dist/js/chunks/account-providers-AMXMLSTM.js
+     21.3 KB  dist/js/chunks/passkey-account-2KA6JUIT.js
+     12.8 KB  dist/js/chunks/chunk-42W4JKOO.js
+      0.5 KB  dist/js/chunks/identity-3WWU47L7.js
+      5.6 KB  dist/js/chunks/chunk-YN3EHS3N.js
+     11.2 KB  dist/js/chunks/account-transport-KCEZCKJM.js
+      0.4 KB  dist/js/chunks/vault-3LBPDODX.js
+      4.9 KB  dist/js/chunks/chunk-VSIJUIQU.js
+      0.8 KB  dist/js/chunks/wallet-MEKJQLRV.js
+      0.5 KB  dist/js/chunks/account-YVZARYMM.js
+      6.6 KB  dist/js/chunks/chunk-HEIPPJMI.js
+     46.2 KB  dist/js/chunks/chunk-BDBC3NTR.js
+      3.0 KB  dist/js/chunks/owner-signature-AXWEFQM6.js
+      0.3 KB  dist/js/boot.js
+      9.2 KB  dist/js/chunks/chunk-ITIXS22U.js
+      2.6 KB  dist/js/chunks/chunk-TXG5D22N.js
+      1.0 KB  dist/js/chunks/config-JWL7LCOP.js
+      0.4 KB  dist/js/chunks/util-GSDZF5ZA.js
+      0.5 KB  dist/js/chunks/platform-addresses-XSKIENQ6.js
+      1.6 KB  dist/js/chunks/chain-6N2RIFF7.js
+      3.7 KB  dist/js/chunks/independent-list-ZZ3XMAST.js
+    103.8 KB  dist/js/chunks/aa-MVXSHBOR.js
+      1.1 KB  dist/js/chunks/independent-chain-OVOYBQSX.js
+     34.0 KB  dist/js/chunks/chunk-LGOIE35G.js
+      3.2 KB  dist/js/chunks/chunk-UMK2F3SL.js
+      8.8 KB  dist/js/chunks/chunk-HYR2JLMY.js
+      1.9 KB  dist/js/chunks/chunk-GPCHFJQ2.js
+     14.9 KB  dist/js/chunks/chunk-O6MLUJE2.js
+     26.3 KB  dist/js/chunks/chunk-ITVXKVWT.js
+      3.2 KB  dist/js/chunks/chunk-D3OHU7VL.js
+     10.4 KB  dist/js/chunks/chunk-BF6F5NAF.js
+      3.8 KB  dist/js/chunks/chunk-DRRCG5VQ.js
+[build] dist/: 236 files · 28.5 MB
+== tracked files the build rewrote:
+ M site/css/site.css
+ M site/js/gen/contract-artifacts.js
+bundle files containing [network profile changed in another tab]: 3
+bundle files containing [broadcast by your wallet]: 2
+bundle files containing [none of the network profile's RPC endpoints could check this transaction]: 2
+bundle files containing [Confirm a valid independent profile before connecting WalletConnect]: 2
+bundle files containing [none of the network profile's RPC endpoints answered]: 2
+[memory-guard] exit=1 peakTreeRssMiB=420 minHostAvailableMiB=25598
+[memory-guard] at peak: node:346 node:64 scan-and-bundle:6 timeout:4
+[queue] EXIT 1

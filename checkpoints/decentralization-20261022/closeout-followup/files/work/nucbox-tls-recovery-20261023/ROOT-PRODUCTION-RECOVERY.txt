@@ -1,0 +1,1 @@
+Production recovery succeeded after control/storage tunnel repairs, eight publicTLS pass inclEnclaveDNS. No source deployment. Continue bounded offline HTTPS failover scope; current metadata in retry-recovery/RESULT.md. No SSH or broader changes.

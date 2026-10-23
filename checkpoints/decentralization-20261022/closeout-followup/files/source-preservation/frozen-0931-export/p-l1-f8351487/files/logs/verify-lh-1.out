@@ -1,0 +1,8 @@
+[queue] START available=23615MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+== digests
+tarball + .asc match the GitHub asset digests pinned in PINS.json
+== official fingerprint statement (book/src/installation_binaries.md @ a376defa)
+VERIFY FAIL: fingerprint not stated in the pinned book page
+[memory-guard] exit=3 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 3

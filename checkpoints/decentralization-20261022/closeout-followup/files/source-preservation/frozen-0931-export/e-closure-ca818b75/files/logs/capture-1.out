@@ -1,0 +1,104 @@
+[queue] START available=23261MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+2026-10-23T07:18:51Z
+accf907ead612f07b7fc7626eab5b6624cc3a09984d0272c33beb5fce3182dc7  tools/capture-state.mjs
+5a807ceb47bcfe0fdfe3a192c29aa9051e620a452f9c58dc3537af2dfe2bbbfc  evidence/capture/spec-l1-portal.json
+81825c34a330e36e2ec978101f4505e0033678a9ec0ba09065e3b65b5ae5727b  evidence/capture/spec-l2-gpo.json
+{
+ "name": "base-optimismportal-deposit",
+ "block": "0x1909998",
+ "requests": 7,
+ "providers": [
+  "https://ethereum-rpc.publicnode.com"
+ ],
+ "mismatches": 0,
+ "errors": [
+  {
+   "rpc": "https://eth.drpc.org",
+   "error": "https://eth.drpc.org: HTTP 500"
+  }
+ ],
+ "accounts": {
+  "0x49048044d57e1c92a77f79988d21fa8faf74e97e": {
+   "codeBytes": 2096,
+   "codeHash": "0x7d1cd19d713c8d64bf663f4168250abfbf690dbb6214c25bf757fee383816914",
+   "slots": 11
+  },
+  "0x03863ab7f64b733cff85c8ff44a86601c568ca70": {
+   "codeBytes": 19458,
+   "codeHash": "0x007e6981bad03430b24e2e89367b124a1f52ff7e6184139d5fec3228abbbf333",
+   "slots": 0
+  },
+  "0x56ca4f4f5ba9b42d360b48429e8c4a60c5a0795d": {
+   "codeBytes": 11080,
+   "codeHash": "0x8f2f3085ef0b85c764a113b72dc3845fbfe7652562634d4e3f6983be8399d78a",
+   "slots": 0
+  },
+  "0x73a79fab69143498ed3712e519a88a918e1f4072": {
+   "codeBytes": 2096,
+   "codeHash": "0x7d1cd19d713c8d64bf663f4168250abfbf690dbb6214c25bf757fee383816914",
+   "slots": 3
+  }
+ },
+ "extra": [
+  [
+   "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000005362e302e31000000000000000000000000000000000000000000000000000000",
+   "0x00000000000000000000000073a79fab69143498ed3712e519a88a918e1f4072",
+   "0x000000000000000000000000000000000000000000000000000000003b9aca0000000000000000000000000000000000000000000000000000000000000fcaec000000000000000000000000000000000000000000000000000000000190997a",
+   "0x0000000000000000000000000000000000000000000000000000000000000000"
+  ]
+ ]
+}
+{
+ "name": "base-gaspriceoracle-l1-upper-bound",
+ "block": "0x3285465",
+ "requests": 5,
+ "providers": [
+  "https://mainnet.base.org"
+ ],
+ "mismatches": 0,
+ "errors": [
+  {
+   "rpc": "https://base-rpc.publicnode.com",
+   "error": "https://base-rpc.publicnode.com: HTTP 403"
+  }
+ ],
+ "accounts": {
+  "0x420000000000000000000000000000000000000f": {
+   "codeBytes": 2055,
+   "codeHash": "0x1f958654ab06a152993e7a0ae7b6dbb0d4b19265cc9337b8789fe1353bd9dc35",
+   "slots": 2
+  },
+  "0x4200000000000000000000000000000000000015": {
+   "codeBytes": 2055,
+   "codeHash": "0x1f958654ab06a152993e7a0ae7b6dbb0d4b19265cc9337b8789fe1353bd9dc35",
+   "slots": 4
+  },
+  "0x4f1db3c6abd250ba86e0928471a8f7db3afd88f1": {
+   "codeBytes": 7848,
+   "codeHash": "0xe9fc7c96c4db0d6078e3d359d7e8c982c350a513cb2c31121adf5e1e8a446614",
+   "slots": 0
+  },
+  "0x3ba4007f5c922fbb33c454b41ea7a1f11e83df2c": {
+   "codeBytes": 1813,
+   "codeHash": "0x5f885ca815d2cf27a203123e50b8ae204fdca910b6995d90b2d7700cbb9240d1",
+   "slots": 0
+  }
+ },
+ "extra": [
+  [
+   "0x0000000000000000000000000000000000000000000000000000000090afc3f8",
+   "25/second request limit reached",
+   "25/second request limit reached",
+   "25/second request limit reached",
+   "0x0000000000000000000000000000000000000000000000000000000000000001",
+   "0x0000000000000000000000000000000000000000000000000000000003aab4a9"
+  ]
+ ]
+}
+bf234b0f3e697e4086cff8d3d5950d9a75bfa0fb7d98420f1583a45d17d5af36  evidence/capture/l1-portal.json
+05ed85c2f51f482a3bd6e5155997ad7a62d6084d5f91630755929dc09c7bf828  evidence/capture/l2-gpo.json
+5a807ceb47bcfe0fdfe3a192c29aa9051e620a452f9c58dc3537af2dfe2bbbfc  evidence/capture/spec-l1-portal.json
+81825c34a330e36e2ec978101f4505e0033678a9ec0ba09065e3b65b5ae5727b  evidence/capture/spec-l2-gpo.json
+[memory-guard] exit=0 peakTreeRssMiB=92 minHostAvailableMiB=23180
+[memory-guard] at peak: node:82 capture.sh:6 timeout:4
+[queue] EXIT 0

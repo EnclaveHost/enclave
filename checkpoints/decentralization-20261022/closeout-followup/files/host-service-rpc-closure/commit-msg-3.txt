@@ -1,0 +1,25 @@
+Hosted roles on the explicit local verifier: one authority, never a provider vote; packaged-role verifier tests
+
+Hardening on top of the composed A authority:
+- In verifier mode, directory-replica refuses `rpc`, and policy-mirror refuses `rpc`/`minAgree`: an RPC list that
+  would never be read is refused, not silently ignored.
+- In verifier mode, the runner refuses `platformHostPolicyRpcs`.
+- No RPC entry this host lists (the policy's, or any role's) may resolve to the endpoint identity of a verifier it
+  configures. One verifier under several provider identities is not a quorum.
+- The legacy quorum rule is unchanged: 2 to 8 distinct providers, majority agreement.
+
+test/host-service-verifier-roles.test.mjs drives the PACKAGED directory-replica and policy-mirror roles. They run
+under the real runner, gate, carriers and service index, on the hosted policy rig's real chain (admin-owned
+EnclaveAddressBook, EnclaveHostOwnership, registry, EnclaveServiceIndex). Every chain read goes to ONE loopback
+verifier endpoint (test/helpers/loopback-verifier.mjs: the real verifier's protocol and refusals; Merkle checking is
+proven by worker A's Helios E2E). The fleet mirrors are refused at the transport.
+
+What it covers:
+- the config rules above;
+- every public provider DOWN: both hosts are admitted on the verifier alone, the packaged roles serve, and host B
+  starts cold (empty state) through the service index read via the verifier;
+- the admin's ban and unban through the carrier;
+- an AddressBook owner MIGRATION (setOwner + acceptOwnership): only the current owner's signature verifies, and the
+  new admin's anchored policy governs;
+- proof failure, missing witness, stale head and unknown block all refuse with the public providers UP, and the
+  providers see no traffic.

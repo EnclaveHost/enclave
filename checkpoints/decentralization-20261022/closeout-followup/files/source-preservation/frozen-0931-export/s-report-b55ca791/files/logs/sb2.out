@@ -1,0 +1,27 @@
+[queue] START available=23043MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+== page js (dist/js):
+      2 https://1rpc.io/base
+      2 https://base-rpc.polkachu.com
+      2 https://base-rpc.publicnode.com
+      2 https://base.drpc.org
+      2 https://gateway.tenderly.co/public/base
+      8 https://mainnet.base.org
+== vendor (copied unchanged):
+      1 https://base-rpc.publicnode.com
+      1 https://base-sepolia-rpc.publicnode.com
+== vendor bundles identical to the committed ones:
+same aa.js
+same credit-vault.js
+same custody.js
+same enclave-verifier.js
+same host-capacity.js
+same host-policy.js
+same management.js
+same sessions.js
+same walletconnect.js
+same webauthn.js
+== js file digest list
+1fd5ddf8e2a18cc6efc35b42485b2851fb810979ae2c811f56f48a6f70454c83  -
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

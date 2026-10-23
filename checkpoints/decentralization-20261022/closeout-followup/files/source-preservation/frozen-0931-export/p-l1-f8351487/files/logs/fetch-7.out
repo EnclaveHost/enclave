@@ -1,0 +1,8 @@
+[queue] START available=23025MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+200 16785 https://raw.githubusercontent.com/paradigmxyz/reth/05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915/crates/net/network/src/transactions/config.rs
+200 2166 https://raw.githubusercontent.com/paradigmxyz/reth/05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915/crates/net/network/src/transactions/policy.rs
+200 25917 https://raw.githubusercontent.com/paradigmxyz/reth/05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915/crates/net/network/src/network.rs
+200 22169 https://raw.githubusercontent.com/paradigmxyz/reth/05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915/crates/node/builder/src/launch/engine.rs
+[memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=22990
+[memory-guard] at peak: curl:16 bash:6
+[queue] EXIT 0

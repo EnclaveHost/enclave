@@ -1,0 +1,3 @@
+version rc=0
+bn-help rc=0
+flagcheck rc=0

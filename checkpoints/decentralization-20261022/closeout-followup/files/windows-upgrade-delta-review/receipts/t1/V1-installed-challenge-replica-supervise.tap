@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: readiness follows ledger-index progress: a ledger larger than one sync completes past readyMs; a stall or the cap still refuses
+ok 1 - readiness follows ledger-index progress: a ledger larger than one sync completes past readyMs; a stall or the cap still refuses
+  ---
+  duration_ms: 2052.927022
+  type: 'test'
+  ...
+# Subtest: supervised: a transient policy refusal and a missing release recover on their own; one child at a time; serving only once ready
+ok 2 - supervised: a transient policy refusal and a missing release recover on their own; one child at a time; serving only once ready
+  ---
+  duration_ms: 621.647058
+  type: 'test'
+  ...
+# Subtest: supervised close: a start in progress is cancelled at once (not after its readiness bound); a late success is closed and awaited
+ok 3 - supervised close: a start in progress is cancelled at once (not after its readiness bound); a late success is closed and awaited
+  ---
+  duration_ms: 947.3852
+  type: 'test'
+  ...
+# Subtest: the network host: an unavailable challenge service never delays or breaks the network; it starts once its release returns
+ok 4 - the network host: an unavailable challenge service never delays or breaks the network; it starts once its release returns
+  ---
+  duration_ms: 56.07661
+  type: 'test'
+  ...
+# Subtest: root: the first indexed batch grants time for the next sync even when no zero-size health was observed
+ok 5 - root: the first indexed batch grants time for the next sync even when no zero-size health was observed
+  ---
+  duration_ms: 265.638512
+  type: 'test'
+  ...
+# Subtest: root: a fresh host policy refusal at readiness prevents opening the challenge front
+ok 6 - root: a fresh host policy refusal at readiness prevents opening the challenge front
+  ---
+  duration_ms: 7.802309
+  type: 'test'
+  ...
+# Subtest: root: cancellation while a ready health response is pending cannot open the challenge front
+ok 7 - root: cancellation while a ready health response is pending cannot open the challenge front
+  ---
+  duration_ms: 6.305899
+  type: 'test'
+  ...
+# Subtest: root: administrator refusal is enforced while indexing is still incomplete
+ok 8 - root: administrator refusal is enforced while indexing is still incomplete
+  ---
+  duration_ms: 260.223023
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4502.72706

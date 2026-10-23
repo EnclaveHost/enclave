@@ -1,0 +1,8 @@
+200 31384350 https://github.com/sigp/lighthouse/releases/download/v8.3.2/lighthouse-v8.3.2-x86_64-unknown-linux-gnu.tar.gz
+200 833 https://github.com/sigp/lighthouse/releases/download/v8.3.2/lighthouse-v8.3.2-x86_64-unknown-linux-gnu.tar.gz.asc
+200 1500 https://raw.githubusercontent.com/sigp/lighthouse/a376defa30470923556d91bdeb15a802e297f31f/book/src/installation_binaries.md
+200 1758 https://keys.openpgp.org/vks/v1/by-fingerprint/15E66D941F697E28F49381F426416DC3F30674B0
+200 3926 https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0x15E66D941F697E28F49381F426416DC3F30674B0
+200 11368 https://raw.githubusercontent.com/sigp/lighthouse/a376defa30470923556d91bdeb15a802e297f31f/.github/workflows/release.yml
+200 669 https://raw.githubusercontent.com/sigp/lighthouse/a376defa30470923556d91bdeb15a802e297f31f/SECURITY.md
+200 16294 https://api.github.com/repos/sigp/lighthouse/releases/tags/v8.3.2

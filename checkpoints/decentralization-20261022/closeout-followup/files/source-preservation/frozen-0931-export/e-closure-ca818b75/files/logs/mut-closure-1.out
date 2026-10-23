@@ -1,0 +1,44 @@
+[queue] START available=23862MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+mutant 1 killed (1 failing): if (lower(signer) !== lower(operator)) refuse('bad-signature'
+mutant 2 killed (1 failing): if (u(s.executorNonce, 'executorNonce') !== l.nonce) refuse
+mutant 3 killed (1 failing): if (code !== '0x' \&\& !(size(code) === 23
+mutant 4 killed (1 failing): if (source.submittedVia \&\& source.submittedVia === source.endpoint) refuse
+mutant 5 killed (1 failing): acceptableFrom: \[getAddress(from)\] }
+mutant 6 killed (2 failing): if ((s.operatorCode 
+mutant 7 killed (2 failing): if (paid.length !== 1 
+mutant 8 killed (2 failing): if (e \&\& e.commitment === commitment) return { replay: true, entry: e };
+mutant 9 killed (1 failing): if (e.l1Nonce !== undefined \&\& String(e.l1Nonce) !== String(l1Nonce)) refuse
+mutant 10 killed (2 failing): if (l1Receipt?.status !== 'reverted' 
+survivors: 0 of 10
+old rc=0
+Traceback (most recent call last):
+  File "<stdin>", line 2, in <module>
+ValueError: too many values to unpack (expected 4, got 6)
+cat: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-1/.tests: No such file or directory
+MUTANT 1 SURVIVED: if (lower(l1Sender) === lower(owner) 
+mutant 2 killed (1 failing): if (!isPlainOrDelegatedEoa(s.ownerCode)) refuse
+Traceback (most recent call last):
+  File "<stdin>", line 2, in <module>
+ValueError: too many values to unpack (expected 4, got 5)
+cat: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-3/.tests: No such file or directory
+MUTANT 3 SURVIVED: if (!s.held.env 
+Traceback (most recent call last):
+  File "<stdin>", line 2, in <module>
+ValueError: too many values to unpack (expected 4, got 5)
+cat: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-4/.tests: No such file or directory
+MUTANT 4 SURVIVED: if (s.seq === undefined 
+mutant 5 killed (1 failing): if (((BigInt(sess.actions) >> BigInt(action)) & 1n) !== 1n) refuse
+mutant 6 killed (1 failing): if (op === 'release' && lower(m.to)
+mutant 7 killed (1 failing): if (String(auth.nonce).toLowerCase() !== topUp.toLowerCase()) refuse
+mutant 8 killed (1 failing): if (sep.toLowerCase() !== String(token.separator).toLowerCase()) refuse
+mutant 9 killed (1 failing): if (s.ownerNonceUsed !== false) refuse
+mutant 10 killed (1 failing): if (lower(l1Snapshot.implementation) !== lower(pin.implementation)) refuse
+mutant 11 killed (1 failing): export const L1_VERIFIERS = Object.freeze(['l1-light-client', 'l1-execution-proof']);
+mutant 12 killed (1 failing): if (forced !== undefined) refuse
+mutant 13 killed (1 failing): if (Number(r.renewWindow) < window) refuse
+mutant 14 killed (2 failing): if (budget > BigInt(r.maxPerOpWei)) refuse
+mutant 15 killed (2 failing): deadline: BigInt(c.head.timestamp + window)
+survivors: 3 of 15
+[memory-guard] exit=3 peakTreeRssMiB=261 minHostAvailableMiB=21623
+[memory-guard] at peak: node:102 node:55 anvil:34 anvil:28 anvil:23 mutants.sh:6 sh:6 timeout:4
+[queue] EXIT 3

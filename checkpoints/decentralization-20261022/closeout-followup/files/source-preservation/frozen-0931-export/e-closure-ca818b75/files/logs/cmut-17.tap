@@ -1,0 +1,36 @@
+TAP version 13
+# Subtest: no evidence: unsafe with explicit gates; evidence only from named verifiers, for the right blocks, never from the submitter
+not ok 1 - no evidence: unsafe with explicit gates; evidence only from named verifiers, for the right blocks, never from the submitter
+  ---
+  duration_ms: 1.670417
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-17/test/finality.test.mjs:9:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    no finalized L2 without a finalized L1 deposit block
+    + actual - expected
+    
+    + 'finalized'
+    - 'safe'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'safe'
+  actual: 'finalized'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-17/test/finality.test.mjs:16:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 244.064585

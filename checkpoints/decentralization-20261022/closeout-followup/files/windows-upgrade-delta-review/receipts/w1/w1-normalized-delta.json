@@ -1,0 +1,45 @@
+{
+ "installedInputs": 1938,
+ "FInputs": 1940,
+ "note": "paths normalized (installed ../../enclave/<dir>/node_modules -> <dir>/node_modules); a removed path whose exact bytes reappear at an added path is a relabel (git symlink in F)",
+ "sameBytes": 1926,
+ "changed": [
+  "network/challenge-replica-host.mjs",
+  "network/enclave-network-host.mjs",
+  "network/host-service-transport.mjs",
+  "network/host-services/runner.mjs",
+  "network/policy-carriers.mjs",
+  "network/privacy-agent.mjs",
+  "network/wg-circuit-runtime.mjs",
+  "relay/secrets-release.mjs",
+  "relay/snp-verify.mjs"
+ ],
+ "relabelled": [
+  {
+   "installedPath": "relay/net-guard.mjs",
+   "Fpath": "net-guard.mjs",
+   "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af"
+  }
+ ],
+ "removed": [
+  "network/challenge-front-declaration.mjs",
+  "relay/vbs-runtime.mjs"
+ ],
+ "added": [
+  "network/entries/privacy-agent.mjs",
+  "network/host-policy-carrier-gate.mjs",
+  "network/host-policy-gate-config.mjs",
+  "network/main-guard.mjs"
+ ],
+ "removedExplained": {
+  "network/challenge-front-declaration.mjs": "R1: F has no managed challenge front",
+  "relay/vbs-runtime.mjs": "deduplicated, not lost: the installed tree had relay/vbs-runtime.mjs as a REAL copy of isolation/contract/runtime.mjs (both 8bb7f911, both bundled as separate modules); F commits it as a git symlink, so esbuild bundles the one real file isolation/contract/runtime.mjs (present in both manifests)"
+ },
+ "addedExplained": {
+  "network/entries/privacy-agent.mjs": "F's bundle entry (network/build.mjs builds from network/entries/)",
+  "network/main-guard.mjs": "entry helper (is-main check)",
+  "network/host-policy-gate-config.mjs": "carrier/gate config (moved from policy-carriers.mjs + new hostServicesPolicy)",
+  "network/host-policy-carrier-gate.mjs": "shared carrier gate (privacy agent host services + challenge replica)"
+ },
+ "nodeModules": "every node_modules input is byte-identical at its normalized path (w1-delta.json lists every package as removed+added only because the installed tree labelled them ../../enclave/...)"
+}

@@ -1,0 +1,85 @@
+[queue] START available=23512MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+159fd1480ddab9652043cce5163348ff4fa6996b
+ M src/forced-inclusion.mjs
+?? evidence/capture/
+?? jobs/capture-x.sh
+?? jobs/capture.sh
+?? logs/capture-1.guard.log
+?? logs/capture-1.out
+?? logs/capture-2.guard.log
+?? logs/capture-2.out
+?? logs/capture-3.guard.log
+?? logs/capture-3.out
+?? logs/l1-1.out
+?? test/l1-portal.anvil.test.mjs
+?? test/support/
+?? tools/capture-state.mjs
+anvil Version: 1.7.1
+v22.23.3
+  "version": "2.53.1",
+aad0c3e88598a0b84661d391cbb9272346ad4eae8a2c75c9bb1c33a06f432dc6  src/forced-inclusion.mjs
+cbd5de839736a8948d5951dce3260660c940f929031425b2b17558ab5e4f7f74  test/forced-inclusion.anvil.test.mjs
+748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
+784ba86de7d3f08cb6cf0df1164c7bc9c5d1ef5bcccc125e3d05e2c966355c2d  test/tracker.test.mjs
+0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
+dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
+aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
+aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
+66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
+10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
+524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
+2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
+dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
+1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
+e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
+47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
+97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
+65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
+5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
+external network: unreachable (as intended)
+TAP version 13
+# Subtest: provenance: the replayed production portal answers version() and params() as the provider did at the captured block
+ok 1 - provenance: the replayed production portal answers version() and params() as the provider did at the captured block
+  ---
+  duration_ms: 182.706192
+  type: 'test'
+  ...
+# Subtest: the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
+ok 2 - the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
+  ---
+  duration_ms: 34.203077
+  type: 'test'
+  ...
+# EOA deposit: L1 gasUsed 834932 at base fee 1 gwei
+# Subtest: a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
+ok 3 - a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
+  ---
+  duration_ms: 24.771893
+  type: 'test'
+  ...
+# 7702-delegated EOA via relayer: deposit from 0x83c17d7C674356170846367eDCe8ea54a02B77A0 (EOA 0x83c17d7C674356170846367eDCe8ea54a02B77A0, alias 0x94D27D7c674356170846367EDCe8Ea54a02b88B1)
+# Subtest: L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
+ok 4 - L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
+  ---
+  duration_ms: 547.55931
+  type: 'test'
+  ...
+# L1_COST [{"baseFeeGwei":0.1,"l2GasLimit":400000,"l1GasUsed":435082,"effectiveGasPrice":"1100000000","l1CostWei":"478590200000000"},{"baseFeeGwei":0.1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"1087862569","l1CostWei":"908279303972049"},{"baseFeeGwei":1,"l2GasLimit":400000,"l1GasUsed":435069,"effectiveGasPrice":"2000000000","l1CostWei":"870138000000000"},{"baseFeeGwei":1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"1878625575","l1CostWei":"1568503943704575"},{"baseFeeGwei":5,"l2GasLimit":400000,"l1GasUsed":114994,"effectiveGasPrice":"6000000000","l1CostWei":"689964000000000"},{"baseFeeGwei":5,"l2GasLimit":800000,"l1GasUsed":217683,"effectiveGasPrice":"5379791417","l1CostWei":"1171089135026811"},{"baseFeeGwei":30,"l2GasLimit":400000,"l1GasUsed":72267,"effectiveGasPrice":"31000000000","l1CostWei":"2240277000000000"},{"baseFeeGwei":30,"l2GasLimit":800000,"l1GasUsed":69431,"effectiveGasPrice":"27268066750","l1CostWei":"1893249142519250"}]
+# Subtest: refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
+ok 5 - refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
+  ---
+  duration_ms: 21.613817
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5142.107961
+[memory-guard] exit=0 peakTreeRssMiB=210 minHostAvailableMiB=23469
+[memory-guard] at peak: node:95 node:55 anvil:29 anvil:27 timeout:4
+[queue] EXIT 0

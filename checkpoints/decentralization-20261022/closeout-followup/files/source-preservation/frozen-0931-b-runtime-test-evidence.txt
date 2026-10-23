@@ -1,0 +1,150 @@
+# B rpc-runtime-final-integration (c31e975a) job log digest; generated from resume-after-checkpoint-20261022/rpc-runtime-final-integration/jobs; full logs stay local.
+
+## a-e2e  out-sha256 acb3e3a153dc2cff207e46d37f2112df8009dd5620d88f3a518773b57d5b39e8  bytes 7376  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=777 minHostAvailableMiB=22562
+    [queue] START available=23062MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    # tests 24
+    # pass 23
+    # fail 0
+    # skipped 1
+    [memory-guard] exit=0 peakTreeRssMiB=777 minHostAvailableMiB=22562
+    [memory-guard] at peak: reth-v2.8.0:354 node:264 node:95 node:60 timeout:4
+    [queue] EXIT 0
+
+## a-unit  out-sha256 51b7be8a43f0f73ec95c48d2330f4851f16f1ff4361a9664a6a40dc38d1b578a  bytes 11161  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=219 minHostAvailableMiB=22551
+    [queue] START available=22866MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    # tests 40
+    # pass 40
+    # fail 0
+    # skipped 0
+    [memory-guard] exit=0 peakTreeRssMiB=219 minHostAvailableMiB=22551
+    [memory-guard] at peak: node:90 node:63 node:61 timeout:4
+    [queue] EXIT 0
+
+## closure-check  out-sha256 fc91c301a19c27a663d1e4dd57fbb97f9e82ca6cea333369fb3da0597d20190a  bytes 1744  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=184 minHostAvailableMiB=22748
+    [queue] START available=23277MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [memory-guard] exit=0 peakTreeRssMiB=184 minHostAvailableMiB=22748
+    [memory-guard] at peak: cargo:176 build-binaries.:6 build-binaries.:2
+    [queue] EXIT 0
+
+## e2e-1  out-sha256 cee221503ce0605f4bfc688dc13ca631fe302f827c9e68beee00b6f19f22c619  bytes 4016  rc 99
+    [memory-guard] exit=1 peakTreeRssMiB=1130 minHostAvailableMiB=22734 STOPPED: process tree RSS 1130 MiB > 1024 MiB
+    [queue] START available=23305MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] STOPPING own job: process tree RSS 1130 MiB > 1024 MiB
+    [memory-guard] exit=1 peakTreeRssMiB=1130 minHostAvailableMiB=22734 STOPPED: process tree RSS 1130 MiB > 1024 MiB
+    [memory-guard] at peak: reth-v2.8.0:388 node:195 node:163 node:98 enclave-base-he:90 node:73 helios:60 node:54
+    [queue] EXIT 99
+
+## e2e-2  out-sha256 73e286df8f70d7feec5b1fc75944da0ab43b1dfc40477901b93d49dab0ccc122  bytes 5432  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=914 minHostAvailableMiB=22699
+    [queue] START available=23093MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+    # tests 14
+    # pass 14
+    # fail 0
+    # skipped 0
+    [memory-guard] exit=0 peakTreeRssMiB=914 minHostAvailableMiB=22699
+    [memory-guard] at peak: reth-v2.8.0:386 minio:115 node:107 node:104 enclave-base-he:91 node:54 helios:48 witness-check:6
+    [queue] EXIT 0
+
+## e2e-release  out-sha256 48c5d96f04f217a674c996ef2447e41a5ec70fce9b30c4b0e9ea1d4865efa48f  bytes 1200  rc 99
+    [memory-guard] exit=1 peakTreeRssMiB=1036 minHostAvailableMiB=24902 STOPPED: process tree RSS 1036 MiB > 1024 MiB
+    [queue] START available=25295MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] STOPPING own job: process tree RSS 1036 MiB > 1024 MiB
+    [memory-guard] exit=1 peakTreeRssMiB=1036 minHostAvailableMiB=24902 STOPPED: process tree RSS 1036 MiB > 1024 MiB
+    [memory-guard] at peak: reth-v2.8.0:542 node:131 node:111 enclave-base-he:86 node:54 enclave-base-he:53 helios:48 witness-check:6
+    [queue] EXIT 99
+
+## e2e-release2  out-sha256 eea8587a60cc597f105e45aeba90945c471c898c97832924feab4ff8d17b34a7  bytes 5478  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=1131 minHostAvailableMiB=23443
+    [queue] START available=24884MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+    # tests 15
+    # pass 15
+    # fail 0
+    # skipped 0
+    [memory-guard] exit=0 peakTreeRssMiB=1131 minHostAvailableMiB=23443
+    [memory-guard] at peak: reth-v2.8.0:532 node:113 minio:113 node:104 enclave-base-he:91 node:59 helios:57 enclave-base-he:53
+    [queue] EXIT 0
+
+## lineage  out-sha256 51961e83a317341afe16aee690cb30c38a645f953f89ae39e1381fa037134994  bytes 6803  rc 0
+    [memory-guard] exit=128 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [memory-guard] exit=128 peakTreeRssMiB=90 minHostAvailableMiB=23586
+    [memory-guard] exit=0 peakTreeRssMiB=116 minHostAvailableMiB=23805
+    [queue] START available=23855MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] exit=0 peakTreeRssMiB=116 minHostAvailableMiB=23805
+    [memory-guard] at peak: git:111 lineage.sh:6
+    [queue] EXIT 0
+
+## p-small  out-sha256 8cf26bf9435494956f6d8cddc7e5a4edbb17ea124b52f060cc7fc52bbc5ffcc9  bytes 18137  rc 1
+    [memory-guard] exit=1 peakTreeRssMiB=196 minHostAvailableMiB=22109
+    [queue] START available=23735MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    # Subtest: hung S3 archive through the REAL composed gateway: refused at the deadline and its curl transfers are killed at once
+    ok 8 - hung S3 archive through the REAL composed gateway: refused at the deadline and its curl transfers are killed at once
+    not ok 9 - NEGATIVE CONTROL: E's exact afc443e0 gateway leaves the abandoned S3 transfer running after the request ended
+      code: 'ERR_TEST_FAILURE'
+    # Subtest: FAILED CONTROL: without verification (no proofs: plain first-answer failover) the forged block IS served
+    ok 18 - FAILED CONTROL: without verification (no proofs: plain first-answer failover) the forged block IS served
+    not ok 22 - NEGATIVE CONTROL: the exact 7b4e8c68 gateway reproduces root's violation
+      code: 'ERR_TEST_FAILURE'
+    # tests 48
+    # pass 46
+    # fail 2
+    # skipped 0
+    [memory-guard] exit=1 peakTreeRssMiB=196 minHostAvailableMiB=22109
+    [memory-guard] at peak: node:119 node:61 witness-check:12 timeout:4
+    [queue] EXIT 1
+
+## p-small2  out-sha256 83bcdbba01844fab7dd92ef27a0e859e1a46460c4ed1aaee35a3d3b88956cb83  bytes 16007  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=192 minHostAvailableMiB=22599
+    [queue] START available=23362MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    # Subtest: hung S3 archive through the REAL composed gateway: refused at the deadline and its curl transfers are killed at once
+    ok 8 - hung S3 archive through the REAL composed gateway: refused at the deadline and its curl transfers are killed at once
+    # Subtest: FAILED CONTROL: without verification (no proofs: plain first-answer failover) the forged block IS served
+    ok 18 - FAILED CONTROL: without verification (no proofs: plain first-answer failover) the forged block IS served
+    # tests 48
+    # pass 48
+    # fail 0
+    # skipped 0
+    [memory-guard] exit=0 peakTreeRssMiB=192 minHostAvailableMiB=22599
+    [memory-guard] at peak: node:115 node:61 witness-check:12 timeout:4
+    [queue] EXIT 0
+
+## pe-e2e  out-sha256 8c75c9c567a4cc1191394665a8b704523522f5d4b97ee7deba40090caa871dec  bytes 25265  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=417 minHostAvailableMiB=22884
+    [queue] START available=26868MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    # Subtest: FAILED CONTROL: with plain first-answer failover the forged block is what Helios receives
+    ok 7 - FAILED CONTROL: with plain first-answer failover the forged block is what Helios receives
+    # Subtest: a hung transport process is killed by the outer bound, not only by curl --max-time
+    ok 43 - a hung transport process is killed by the outer bound, not only by curl --max-time
+    # tests 48
+    # pass 46
+    # fail 0
+    # skipped 2
+    [memory-guard] exit=0 peakTreeRssMiB=417 minHostAvailableMiB=22884
+    [memory-guard] at peak: minio:194 node:101 node:60 helios-eeffcc9:51 witness-check:6 timeout:4
+    [queue] EXIT 0
+
+## scan  out-sha256 6d2662d331536bca46fc8e4644ea3d3cea360458ce243f2b788e5fa8bafd3dd5  bytes 439  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=41 minHostAvailableMiB=24945
+    [queue] START available=24965MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    scan-crypto-keys rc=0
+    2:20AM INF no leaks found
+    [memory-guard] exit=0 peakTreeRssMiB=41 minHostAvailableMiB=24945
+    [memory-guard] at peak: gitleaks:36 scan.sh:6
+    [queue] EXIT 0
+
+## scan-gitleaks  out-sha256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  bytes 0  rc absent
+
+## u1  out-sha256 2b151de79b22dc2b50c060b039dc675716a8ffd9eb8b817b55dca091e4a22674  bytes 11359  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=351 minHostAvailableMiB=23573
+    [queue] START available=23726MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    # Subtest: a stuck utility is killed on deadline and on cancellation before a retry
+    ok 42 - a stuck utility is killed on deadline and on cancellation before a retry
+    # tests 42
+    # pass 42
+    # fail 0
+    # skipped 0
+    [memory-guard] exit=0 peakTreeRssMiB=351 minHostAvailableMiB=23573
+    [memory-guard] at peak: node:163 node:59 fake-listener.m:59 fake-listener.m:53 enclave-base-he:13 timeout:4
+    [queue] EXIT 0

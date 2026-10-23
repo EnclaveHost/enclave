@@ -1,0 +1,420 @@
+# C storage-write-release (through 5293405/19b9148) job log digest; generated from resume-after-checkpoint-20261022/storage-write-release/logs; full logs stay local.
+
+## d1  out-sha256 f1c5d87339fbfc7199033fe918b2e48a4584d7959a0b8b97f495c5caa5bff14e  bytes 4026  rc absent
+    [memory-guard] exit=1 peakTreeRssMiB=242 minHostAvailableMiB=22574
+    [queue] START available=23640MiB required=17664MiB cap=768MiB floor=16384MiB concurrentSmall=256MiB
+    01:46:58 CHECK PASS setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path
+    01:46:58 CHECK PASS setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 s
+    01:46:59 CHECK PASS N: an account registered on the actual indexd; nothing fenced or enrolled 0/0/1
+    01:46:59 CHECK PASS N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 
+    01:46:59 CHECK PASS F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only) ['db.noOtherSession']
+    01:46:59 CHECK PASS F1: that session was NOT ended by the barrier ['92']
+    01:47:09 CHECK FAIL F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read {'seconds': 0.1, 'decision': 'LEGACY_REDEPLOY_SAFE', 'missing': None, 'dbMessage': None}
+    [memory-guard] exit=1 peakTreeRssMiB=242 minHostAvailableMiB=22574
+    [memory-guard] at peak: indexd:33 postgres:31 python3:31 postgres:22 postgres:22 postgres:18 postgres:18 postgres:18
+    [queue] EXIT 1
+
+## d1-failed  out-sha256 f1c5d87339fbfc7199033fe918b2e48a4584d7959a0b8b97f495c5caa5bff14e  bytes 4026  rc absent
+    [queue] START available=23640MiB required=17664MiB cap=768MiB floor=16384MiB concurrentSmall=256MiB
+    01:46:58 CHECK PASS setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path
+    01:46:58 CHECK PASS setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 s
+    01:46:59 CHECK PASS N: an account registered on the actual indexd; nothing fenced or enrolled 0/0/1
+    01:46:59 CHECK PASS N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 
+    01:46:59 CHECK PASS F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only) ['db.noOtherSession']
+    01:46:59 CHECK PASS F1: that session was NOT ended by the barrier ['92']
+    01:47:09 CHECK FAIL F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read {'seconds': 0.1, 'decision': 'LEGACY_REDEPLOY_SAFE', 'missing': None, 'dbMessage': None}
+    [memory-guard] exit=1 peakTreeRssMiB=242 minHostAvailableMiB=22574
+    [memory-guard] at peak: indexd:33 postgres:31 python3:31 postgres:22 postgres:22 postgres:18 postgres:18 postgres:18
+    [queue] EXIT 1
+
+## d2  out-sha256 ca2c849f1f7017143556c4b8268ce6f58553c77b73a1949c92c1dcbca17ee1a7  bytes 9568  rc absent
+    [memory-guard] exit=1 peakTreeRssMiB=319 minHostAvailableMiB=22439
+    [queue] START available=23426MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    02:01:44 CHECK PASS setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path
+    02:01:44 CHECK PASS setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 s
+    02:01:45 CHECK PASS N: an account registered on the actual indexd; nothing fenced or enrolled 0/0/1
+    02:01:45 CHECK PASS N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 
+    02:01:45 CHECK PASS F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only) ['db.noOtherSession']
+    02:01:45 CHECK PASS F1: that session was NOT ended by the barrier ['90']
+    02:02:15 CHECK PASS F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read {'seconds': 30.1, 'decision': 'UNKNOWN', 'missing': ['db.lockGranted', 'db.noOtherSession', 'db.noPreparedTran
+    02:02:15 CHECK PASS F2: the holding session is left alone (alive, still holding its lock); no barrier session or lock remains ['122']
+    02:02:45 CHECK PASS F3: the barrier KILLed while it waits for the lock: its partial output -> UNKNOWN {'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUn
+    02:02:45 CHECK PASS F3: its backend ends by itself (client_connection_check_interval / lock_timeout); the holder is untouched {'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.n
+    02:02:45 CHECK PASS F: cleanup - the fixture's own sessions closed by their owner; no lock on accounts remains
+    02:02:46 CHECK PASS N: the read-only vm-state.v2.sh alone (process barrier + zero counts): fbaecfce says SAFE, the new decision UNKNOWN (databaseBarrier) {'new': 'UNKNOWN', 'newMissing': ['databaseBarrier'], 'fbaecfce': 'LEGACY_REDEPLOY_SAF
+    02:02:46 CHECK PASS N: db-barrier.sh: lock granted, no other session, no prepared transaction, 0 fenced / 0 CAS; pre/post unchanged .unit.ExecMainStatus=0
+    02:02:46 CHECK PASS N: the legitimate never-enrolled rollback: UNKNOWN without the owner's attestation, LEGACY_REDEPLOY_SAFE with it {'withoutAttestation': ['UNKNOWN', ['c2ActivationDisabledAttested']], 'withAttestation': 'LEGACY_REDEPLOY_S
+    02:02:47 CHECK PASS B: enrolled while running (raise-cas), then the controller's stop: the barrier -> FORWARD_ONLY (and vm-state alone too) {'raise': {'head': 0, 'mode': 'cas', 'step': 'raise-cas'}, 'countsRunning': '1/1/1', 'stop': {'ok': 
+    02:02:48 CHECK PASS D1: the actual indexd sent the enrolment's COMMIT (its backend runs the commit: query 'commit', PgSleep in the deferred check) {'pendingCommitSeenAfter': 0.06}
+    02:02:48 CHECK PASS D1: the controller's crash-indexd KILLed it: reaped by SIGKILL, unit failed with no main PID, no indexd process {'controller': {'ok': True, 'killed': 1465, '_rc': 0}, 'exit': 9, 'unit': {'ActiveState': 'failed', 'SubStat
+    02:02:48 CHECK FAIL D1: process gone, yet its backend still runs the COMMIT; the account still reads unenrolled {'counts': '0/0/1', 'indexdBackends': '1', 'pendingCommit': '1'}
+    02:02:48 CHECK PASS D1 NEGATIVE CONTROL: on the actual vm-state.v2.sh output (unit failed, MainPID 0, guard absent, 0 CAS) the fbaecfce decision says LEGACY_REDEPLOY_SAFE while the COMMIT is still pending {'fbaecfce': 'LEGACY_REDEPLOY_SAFE'
+    02:02:48 CHECK PASS D1: the new decision on that vm-state output is UNKNOWN (databaseBarrier)
+    02:03:03 CHECK PASS D1: db-barrier.sh started while the COMMIT was pending, WAITED for it (lock), and read CAS=1 -> FORWARD_ONLY {'seconds': 14.5, 'lockWaitMs': '14425', 'decision': 'FORWARD_ONLY', 'otherBackends': '', 'stopKind': 'abnormal
+    02:03:03 CHECK PASS D1: the enrolment committed after the process was gone (1/1/1); the dead client's backend then ended by itself {'counts': '1/1/1', 'indexdBackendsGoneAfter': 0.01}
+    02:03:12 CHECK PASS D2: the controller's stop (one SIGTERM) waited for the in-flight enrolment: exit 0 only AFTER its COMMIT; no backend left {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'seconds': 8.5, 'exit': 0, 'unit': {'Activ
+    02:03:12 CHECK PASS D2: the client got its answer (the handler completed during Shutdown) {'rc': 0, 'out': '{"head":0,"mode":"cas","step":"raise-cas"}\n'}
+    02:03:12 CHECK PASS D2: the barrier -> FORWARD_ONLY without waiting (the graceful path had already drained); stopKind exited-0 is reported, not used {'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}
+    02:03:21 CHECK PASS D3: two SIGTERMs: indexd logged the interrupted graceful shutdown and exited (observation recorded: exitedBeforeCommit = False) {'seconds': 8.0, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID
+    02:03:21 CHECK PASS D3: the barrier -> FORWARD_ONLY whatever the process did {'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}
+    [memory-guard] exit=1 peakTreeRssMiB=319 minHostAvailableMiB=22439
+    [memory-guard] at peak: indexd:36 postgres:31 python3:31 python3:29 postgres:27 postgres:23 postgres:23 postgres:22
+    [queue] EXIT 1
+
+## d2-failed  out-sha256 ca2c849f1f7017143556c4b8268ce6f58553c77b73a1949c92c1dcbca17ee1a7  bytes 9568  rc absent
+    [queue] START available=23426MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    02:01:44 CHECK PASS setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path
+    02:01:44 CHECK PASS setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 s
+    02:01:45 CHECK PASS N: an account registered on the actual indexd; nothing fenced or enrolled 0/0/1
+    02:01:45 CHECK PASS N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 
+    02:01:45 CHECK PASS F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only) ['db.noOtherSession']
+    02:01:45 CHECK PASS F1: that session was NOT ended by the barrier ['90']
+    02:02:15 CHECK PASS F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read {'seconds': 30.1, 'decision': 'UNKNOWN', 'missing': ['db.lockGranted', 'db.noOtherSession', 'db.noPreparedTran
+    02:02:15 CHECK PASS F2: the holding session is left alone (alive, still holding its lock); no barrier session or lock remains ['122']
+    02:02:45 CHECK PASS F3: the barrier KILLed while it waits for the lock: its partial output -> UNKNOWN {'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUn
+    02:02:45 CHECK PASS F3: its backend ends by itself (client_connection_check_interval / lock_timeout); the holder is untouched {'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.n
+    02:02:45 CHECK PASS F: cleanup - the fixture's own sessions closed by their owner; no lock on accounts remains
+    02:02:46 CHECK PASS N: the read-only vm-state.v2.sh alone (process barrier + zero counts): fbaecfce says SAFE, the new decision UNKNOWN (databaseBarrier) {'new': 'UNKNOWN', 'newMissing': ['databaseBarrier'], 'fbaecfce': 'LEGACY_REDEPLOY_SAF
+    02:02:46 CHECK PASS N: db-barrier.sh: lock granted, no other session, no prepared transaction, 0 fenced / 0 CAS; pre/post unchanged .unit.ExecMainStatus=0
+    02:02:46 CHECK PASS N: the legitimate never-enrolled rollback: UNKNOWN without the owner's attestation, LEGACY_REDEPLOY_SAFE with it {'withoutAttestation': ['UNKNOWN', ['c2ActivationDisabledAttested']], 'withAttestation': 'LEGACY_REDEPLOY_S
+    02:02:47 CHECK PASS B: enrolled while running (raise-cas), then the controller's stop: the barrier -> FORWARD_ONLY (and vm-state alone too) {'raise': {'head': 0, 'mode': 'cas', 'step': 'raise-cas'}, 'countsRunning': '1/1/1', 'stop': {'ok': 
+    02:02:48 CHECK PASS D1: the actual indexd sent the enrolment's COMMIT (its backend runs the commit: query 'commit', PgSleep in the deferred check) {'pendingCommitSeenAfter': 0.06}
+    02:02:48 CHECK PASS D1: the controller's crash-indexd KILLed it: reaped by SIGKILL, unit failed with no main PID, no indexd process {'controller': {'ok': True, 'killed': 1465, '_rc': 0}, 'exit': 9, 'unit': {'ActiveState': 'failed', 'SubStat
+    02:02:48 CHECK FAIL D1: process gone, yet its backend still runs the COMMIT; the account still reads unenrolled {'counts': '0/0/1', 'indexdBackends': '1', 'pendingCommit': '1'}
+    02:02:48 CHECK PASS D1 NEGATIVE CONTROL: on the actual vm-state.v2.sh output (unit failed, MainPID 0, guard absent, 0 CAS) the fbaecfce decision says LEGACY_REDEPLOY_SAFE while the COMMIT is still pending {'fbaecfce': 'LEGACY_REDEPLOY_SAFE'
+    02:02:48 CHECK PASS D1: the new decision on that vm-state output is UNKNOWN (databaseBarrier)
+    02:03:03 CHECK PASS D1: db-barrier.sh started while the COMMIT was pending, WAITED for it (lock), and read CAS=1 -> FORWARD_ONLY {'seconds': 14.5, 'lockWaitMs': '14425', 'decision': 'FORWARD_ONLY', 'otherBackends': '', 'stopKind': 'abnormal
+    02:03:03 CHECK PASS D1: the enrolment committed after the process was gone (1/1/1); the dead client's backend then ended by itself {'counts': '1/1/1', 'indexdBackendsGoneAfter': 0.01}
+    02:03:12 CHECK PASS D2: the controller's stop (one SIGTERM) waited for the in-flight enrolment: exit 0 only AFTER its COMMIT; no backend left {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'seconds': 8.5, 'exit': 0, 'unit': {'Activ
+    02:03:12 CHECK PASS D2: the client got its answer (the handler completed during Shutdown) {'rc': 0, 'out': '{"head":0,"mode":"cas","step":"raise-cas"}\n'}
+    02:03:12 CHECK PASS D2: the barrier -> FORWARD_ONLY without waiting (the graceful path had already drained); stopKind exited-0 is reported, not used {'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}
+    02:03:21 CHECK PASS D3: two SIGTERMs: indexd logged the interrupted graceful shutdown and exited (observation recorded: exitedBeforeCommit = False) {'seconds': 8.0, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID
+    02:03:21 CHECK PASS D3: the barrier -> FORWARD_ONLY whatever the process did {'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}
+    [memory-guard] exit=1 peakTreeRssMiB=319 minHostAvailableMiB=22439
+    [memory-guard] at peak: indexd:36 postgres:31 python3:31 python3:29 postgres:27 postgres:23 postgres:23 postgres:22
+    [queue] EXIT 1
+
+## d3  out-sha256 c91750086e09e366c64f18db115b6c34e85998078dca7f1c00ea44eda89a4582  bytes 9533  rc absent
+    [memory-guard] exit=0 peakTreeRssMiB=314 minHostAvailableMiB=22951
+    [queue] START available=23426MiB required=17664MiB cap=768MiB floor=16384MiB concurrentSmall=256MiB
+    02:08:10 CHECK PASS setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path
+    02:08:10 CHECK PASS setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 s
+    02:08:11 CHECK PASS N: an account registered on the actual indexd; nothing fenced or enrolled 0/0/1
+    02:08:11 CHECK PASS N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 
+    02:08:11 CHECK PASS F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only) ['db.noOtherSession']
+    02:08:11 CHECK PASS F1: that session was NOT ended by the barrier ['91']
+    02:08:41 CHECK PASS F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read {'seconds': 30.1, 'decision': 'UNKNOWN', 'missing': ['db.lockGranted', 'db.noOtherSession', 'db.noPreparedTran
+    02:08:41 CHECK PASS F2: the holding session is left alone (alive, still holding its lock); no barrier session or lock remains ['124']
+    02:09:11 CHECK PASS F3: the barrier KILLed while it waits for the lock: its partial output -> UNKNOWN {'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUn
+    02:09:11 CHECK PASS F3: its backend ends by itself, at the latest at its own lock_timeout (30 s); the holder is untouched {'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noInd
+    02:09:11 CHECK PASS F: cleanup - the fixture's own sessions closed by their owner; no lock on accounts remains
+    02:09:12 CHECK PASS N: the read-only vm-state.v2.sh alone (process barrier + zero counts): fbaecfce says SAFE, the new decision UNKNOWN (databaseBarrier) {'new': 'UNKNOWN', 'newMissing': ['databaseBarrier'], 'fbaecfce': 'LEGACY_REDEPLOY_SAF
+    02:09:12 CHECK PASS N: db-barrier.sh: lock granted, no other session, no prepared transaction, 0 fenced / 0 CAS; pre/post unchanged .unit.ExecMainStatus=0
+    02:09:12 CHECK PASS N: the legitimate never-enrolled rollback: UNKNOWN without the owner's attestation, LEGACY_REDEPLOY_SAFE with it {'withoutAttestation': ['UNKNOWN', ['c2ActivationDisabledAttested']], 'withAttestation': 'LEGACY_REDEPLOY_S
+    02:09:13 CHECK PASS B: enrolled while running (raise-cas), then the controller's stop: the barrier -> FORWARD_ONLY (and vm-state alone too) {'raise': {'head': 0, 'mode': 'cas', 'step': 'raise-cas'}, 'countsRunning': '1/1/1', 'stop': {'ok': 
+    02:09:14 CHECK PASS D1: the actual indexd sent the enrolment's COMMIT (its backend runs the commit: query 'commit', PgSleep in the deferred check) {'pendingCommitSeenAfter': 0.06}
+    02:09:14 CHECK PASS D1: the controller's crash-indexd KILLed it: reaped by SIGKILL, unit failed with no main PID, no indexd process {'controller': {'ok': True, 'killed': 1472, '_rc': 0}, 'exit': 9, 'unit': {'ActiveState': 'failed', 'SubStat
+    02:09:14 CHECK PASS D1: process gone, yet its backend still runs the COMMIT; the account still reads neither fenced nor enrolled (both are written in that one transaction) {'counts': '0/0/1', 'indexdBackends': '1', 'pendingCommit': '1'}
+    02:09:14 CHECK PASS D1 NEGATIVE CONTROL: on the actual vm-state.v2.sh output (unit failed, MainPID 0, guard absent, 0 CAS) the fbaecfce decision says LEGACY_REDEPLOY_SAFE while the COMMIT is still pending {'fbaecfce': 'LEGACY_REDEPLOY_SAFE'
+    02:09:14 CHECK PASS D1: the new decision on that vm-state output is UNKNOWN (databaseBarrier)
+    02:09:29 CHECK PASS D1: db-barrier.sh started while the COMMIT was pending, WAITED for it (lock), and read CAS=1 -> FORWARD_ONLY {'seconds': 14.5, 'lockWaitMs': '14439', 'decision': 'FORWARD_ONLY', 'otherBackends': '', 'stopKind': 'abnormal
+    02:09:29 CHECK PASS D1: the enrolment committed after the process was gone (1/1/1); the dead client's backend then ended by itself {'counts': '1/1/1', 'indexdBackendsGoneAfter': 0.01}
+    02:09:38 CHECK PASS D2: the controller's stop (one SIGTERM) waited for the in-flight enrolment: exit 0 only AFTER its COMMIT; no backend left {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'seconds': 8.1, 'exit': 0, 'unit': {'Activ
+    02:09:38 CHECK PASS D2: the client got its answer (the handler completed during Shutdown) {'rc': 0, 'out': '{"head":0,"mode":"cas","step":"raise-cas"}\n'}
+    02:09:38 CHECK PASS D2: the barrier -> FORWARD_ONLY without waiting (the graceful path had already drained); stopKind exited-0 is reported, not used {'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}
+    02:09:47 CHECK PASS D3: two SIGTERMs: indexd logged the interrupted graceful shutdown and exited (observation recorded: exitedBeforeCommit = False) {'seconds': 8.0, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID
+    02:09:47 CHECK PASS D3: the barrier -> FORWARD_ONLY whatever the process did {'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}
+    [memory-guard] exit=0 peakTreeRssMiB=314 minHostAvailableMiB=22951
+    [memory-guard] at peak: indexd:36 postgres:31 python3:31 python3:29 postgres:27 postgres:23 postgres:22 postgres:19
+    [queue] EXIT 0
+
+## e1  out-sha256 254f6660d674faf379bb6cc925e36040094ba4edcd4f30516e1b7c80360ce1bc  bytes 3148  rc absent
+    [memory-guard] exit=0 peakTreeRssMiB=701 minHostAvailableMiB=23154
+    [queue] START available=23614MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    00:40:47 CHECK PASS P: the exact 0.1.8 is ready on the v28 indexer (unenrolled account)
+    00:40:50 CHECK PASS P: 0.1.8 PUT ipfs/legacy/one 200
+    00:40:50 CHECK PASS P: rollback-decision before any C2 boot: LEGACY_REDEPLOY_SAFE dbVersion=28
+    00:40:50 CHECK PASS E: C2 was killed right after logging its installed fence, and NEVER reported ready r0 uses plain HTTP; only for an indexer on a trusted path
+    00:40:50 CHECK PASS E: yet the account IS enrolled: CAS mode and the claim's lease16 fence installed {'fenceGeneration': '0x0010032153d80003', 'casMode': True, 'seqEnabled': True, 'eventSeq': 1}
+    00:40:50 CHECK PASS D: rollback-decision on that state: FORWARD_ONLY (never a legacy redeploy) {'decision': 'FORWARD_ONLY', 'do': "keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and the
+    00:40:55 CHECK PASS O: a redeployed 0.1.8 cannot write to the enrolled account, and indexd is unchanged {'PUT': 500, 'before': {'fenceGeneration': '0x0010032153d80003', 'casMode': True, 'seqEnabled': True, 'eventSeq': 1}, 'after': {'fenceGe
+    00:40:57 CHECK PASS F: C2 restarted under the same claim becomes ready
+    00:40:59 CHECK PASS F: the legacy bytes: every key reads back byte-exact (1 keys) []
+    00:40:59 CHECK PASS F: the legacy bytes: listings are exact per bucket (deleted keys absent) []
+    00:41:03 CHECK PASS F: and writes 200
+    [memory-guard] exit=0 peakTreeRssMiB=701 minHostAvailableMiB=23154
+    [memory-guard] at peak: harness-block:280 wasmtime:153 postgres:36 python3:33 postgres:31 postgres:30 postgres:29 python3:26
+    [queue] EXIT 0
+
+## gitleaks  out-sha256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  bytes 0  rc absent
+
+## gitleaks-dd  out-sha256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  bytes 0  rc absent
+
+## gitleaks-dr  out-sha256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  bytes 0  rc absent
+
+## gitleaks-rb  out-sha256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  bytes 0  rc absent
+
+## m1  out-sha256 859b28227ebbf07d2f8f820fdad30a046ed82d4434a3cc4d8bb6065e225c90a8  bytes 5324  rc absent
+    [memory-guard] exit=1 peakTreeRssMiB=1043 minHostAvailableMiB=23771
+    [queue] START available=24921MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    22:55:43 CHECK PASS backend: three independent indexers (own databases), each at schema exactly v28 (c2-enclave) ['28', '28', '28']
+    22:55:47 CHECK PASS config: the corrected catalog version config equals the prepared one minus writeQuorum (no other byte changed)
+    22:55:49 CHECK PASS P: the exact live 0.1.8 becomes ready on the existing v28 indexer r0 (unenrolled account)
+    22:55:49 CHECK FAIL P: 0.1.8 PUT ipfs/legacy/small (100000 B) 500 b'<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>InternalError</Code><Message>queue error: not enough initial hosts</Message><Resource>/ipfs/legacy/small</Resource></Er
+    22:55:49 CHECK FAIL P: 0.1.8 PUT git/legacy/big (12582912 B) 500 b'<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>InternalError</Code><Message>queue error: not enough initial hosts</Message><Resource>/git/legacy/big</Resource></Error>
+    22:55:49 CHECK FAIL P: 0.1.8 PUT machines/legacy/mid (3145728 B) 500 b'<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>InternalError</Code><Message>queue error: not enough initial hosts</Message><Resource>/machines/legacy/mid</Resource
+    22:55:49 CHECK PASS P: 0.1.8 reads its own writes: every key reads back byte-exact (0 keys) []
+    22:55:49 CHECK PASS P: 0.1.8 reads its own writes: ranged reads (incl. across the slab boundary) are byte-exact []
+    22:55:49 CHECK PASS P: 0.1.8 reads its own writes: listings are exact per bucket (deleted keys absent) []
+    22:55:49 CHECK PASS P: before T1: r0 holds the account unenrolled (no fence, no CAS); r1/r2 do not know it {'r0': {'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}, 'r1': None, 'r2': None}
+    22:55:51 CHECK PASS B: the PREPARED catalog config (writeQuorum 2) with $SIAS3_REPLICAS = [r0] refuses to start (writeQuorum must be 1-1) [sia-s3] config: resolved $SIAS3_REPLICAS from the environment
+    22:55:51 CHECK PASS B: and enrolled nothing (r0 account still unfenced, not CAS) {'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}
+    22:55:53 CHECK PASS T1: the corrected config with [r0] and the lease16 fact makes the FIRST fenced C2 boot (ready)
+    23:01:53 CHECK FAIL T1: membership stable at epoch 1 with r0's record admitted; lease16 authority, Vbs, C2 verified, ballot = the claim's generation {'writerFence': {'authority': 'lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf3
+    [memory-guard] exit=1 peakTreeRssMiB=1043 minHostAvailableMiB=23771
+    [memory-guard] at peak: harness-block:192 wasmtime:143 postgres:45 postgres:44 postgres:43 postgres:41 postgres:40 postgres:40
+    [queue] EXIT 1
+
+## m2  out-sha256 aabba096495dae914d5dd55bd1f18d3a64e6e40d0065661ba751ee05eecab7a8  bytes 6572  rc absent
+    [memory-guard] exit=1 peakTreeRssMiB=1556 minHostAvailableMiB=23510 STOPPED: process tree RSS 1556 MiB > 1536 MiB
+    [queue] START available=24519MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+    23:08:14 CHECK PASS backend: three independent indexers (own databases), each at schema exactly v28 (c2-enclave) ['28', '28', '28']
+    23:08:17 CHECK PASS config: the corrected catalog version config equals the prepared one minus writeQuorum (no other byte changed)
+    23:08:19 CHECK PASS P: the exact live 0.1.8 becomes ready on the existing v28 indexer r0 (unenrolled account)
+    23:08:21 CHECK PASS P: 0.1.8 PUT ipfs/legacy/small (100000 B) 200 b''
+    23:08:24 CHECK PASS P: 0.1.8 PUT git/legacy/big (12582912 B) 200 b''
+    23:08:26 CHECK PASS P: 0.1.8 PUT machines/legacy/mid (3145728 B) 200 b''
+    23:08:32 CHECK PASS P: 0.1.8 reads its own writes: every key reads back byte-exact (3 keys) []
+    23:08:34 CHECK PASS P: 0.1.8 reads its own writes: ranged reads (incl. across the slab boundary) are byte-exact []
+    23:08:34 CHECK PASS P: 0.1.8 reads its own writes: listings are exact per bucket (deleted keys absent) []
+    23:08:34 CHECK PASS P: before T1: r0 holds the account unenrolled (no fence, no CAS); r1/r2 do not know it {'r0': {'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}, 'r1': None, 'r2': None}
+    23:08:36 CHECK PASS B: the PREPARED catalog config (writeQuorum 2) with $SIAS3_REPLICAS = [r0] refuses to start (writeQuorum must be 1-1) [sia-s3] config: resolved $SIAS3_REPLICAS from the environment
+    23:08:36 CHECK PASS B: and enrolled nothing (r0 account still unfenced, not CAS) {'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}
+    23:08:38 CHECK PASS T1: the corrected config with [r0] and the lease16 fact makes the FIRST fenced C2 boot (ready)
+    23:13:48 CHECK PASS T1: membership stable at epoch 1 with r0's record admitted; lease16 authority, Vbs, C2 verified, ballot = the claim's generation {'writerFence': {'authority': 'lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf3
+    23:13:48 CHECK PASS T1: r0 is ENROLLED (CAS mode, sequence on) under the claim-1 lease16 generation {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 4}
+    23:13:55 CHECK PASS T1: every 0.1.8 object reads back byte-exact: every key reads back byte-exact (3 keys) []
+    23:13:56 CHECK PASS T1: every 0.1.8 object reads back byte-exact: ranged reads (incl. across the slab boundary) are byte-exact []
+    23:13:56 CHECK PASS T1: every 0.1.8 object reads back byte-exact: listings are exact per bucket (deleted keys absent) []
+    23:14:00 CHECK PASS T1: writes after enrollment 200
+    23:14:03 CHECK PASS T2: [r0, r1, r2] (same claim) becomes ready while migrating: the old indexer keeps serving
+    23:14:12 CHECK PASS T2: during the migration every key reads back: every key reads back byte-exact (4 keys) []
+    23:14:12 CHECK PASS T2: during the migration every key reads back: listings are exact per bucket (deleted keys absent) []
+    23:14:24 CHECK PASS T2: writes DURING the migration 200
+    [memory-guard] STOPPING own job: process tree RSS 1556 MiB > 1536 MiB
+    23:19:04 CHECK FAIL T2: the change commits: stable at epoch 2 on all three, every record admitted [{'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': 
+    [memory-guard] exit=1 peakTreeRssMiB=1556 minHostAvailableMiB=23510 STOPPED: process tree RSS 1556 MiB > 1536 MiB
+    [memory-guard] at peak: wasmtime:398 harness-block:367 postgres:46 postgres:46 postgres:45 postgres:42 postgres:42 postgres:42
+    [queue] EXIT 99
+
+## m3  out-sha256 504501052bb903067577196e7900bc648af12d0c364fa4ec9080e7a6d190f595  bytes 8470  rc absent
+    [memory-guard] exit=0 peakTreeRssMiB=1533 minHostAvailableMiB=22432
+    [queue] START available=24292MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+    00:04:11 CHECK PASS backend: three independent indexers (own databases), each at schema exactly v28 (c2-enclave) ['28', '28', '28']
+    00:04:14 CHECK PASS config: the corrected catalog version config equals the prepared one minus writeQuorum (no other byte changed)
+    00:04:16 CHECK PASS P: the exact live 0.1.8 becomes ready on the existing v28 indexer r0 (unenrolled account)
+    00:04:18 CHECK PASS P: 0.1.8 PUT ipfs/legacy/small (100000 B) 200 b''
+    00:04:21 CHECK PASS P: 0.1.8 PUT git/legacy/big (12582912 B) 200 b''
+    00:04:23 CHECK PASS P: 0.1.8 PUT machines/legacy/mid (3145728 B) 200 b''
+    00:04:29 CHECK PASS P: 0.1.8 reads its own writes: every key reads back byte-exact (3 keys) []
+    00:04:30 CHECK PASS P: 0.1.8 reads its own writes: ranged reads (incl. across the slab boundary) are byte-exact []
+    00:04:30 CHECK PASS P: 0.1.8 reads its own writes: listings are exact per bucket (deleted keys absent) []
+    00:04:30 CHECK PASS P: before T1: r0 holds the account unenrolled (no fence, no CAS); r1/r2 do not know it {'r0': {'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}, 'r1': None, 'r2': None}
+    00:04:32 CHECK PASS B: the PREPARED catalog config (writeQuorum 2) with $SIAS3_REPLICAS = [r0] refuses to start (writeQuorum must be 1-1) [sia-s3] config: resolved $SIAS3_REPLICAS from the environment
+    00:04:32 CHECK PASS B: and enrolled nothing (r0 account still unfenced, not CAS) {'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}
+    00:04:34 CHECK PASS T1: the corrected config with [r0] and the lease16 fact makes the FIRST fenced C2 boot (ready)
+    00:09:44 CHECK PASS T1: membership stable at epoch 1 with r0's record admitted; lease16 authority, Vbs, C2 verified, ballot = the claim's generation {'writerFence': {'authority': 'lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf3
+    00:09:44 CHECK PASS T1: r0 is ENROLLED (CAS mode, sequence on) under the claim-1 lease16 generation {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 4}
+    00:09:51 CHECK PASS T1: every 0.1.8 object reads back byte-exact: every key reads back byte-exact (3 keys) []
+    00:09:53 CHECK PASS T1: every 0.1.8 object reads back byte-exact: ranged reads (incl. across the slab boundary) are byte-exact []
+    00:09:53 CHECK PASS T1: every 0.1.8 object reads back byte-exact: listings are exact per bucket (deleted keys absent) []
+    00:09:57 CHECK PASS T1: writes after enrollment 200
+    00:10:00 CHECK PASS T2: [r0, r1, r2] (same claim) becomes ready while migrating: the old indexer keeps serving
+    00:10:08 CHECK PASS T2: during the migration every key reads back: every key reads back byte-exact (4 keys) []
+    00:10:09 CHECK PASS T2: during the migration every key reads back: listings are exact per bucket (deleted keys absent) []
+    00:10:20 CHECK PASS T2: writes DURING the migration 200
+    00:15:43 CHECK PASS T2: the change commits: stable at epoch 2 on all three, every record admitted [{'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': 
+    00:15:43 CHECK PASS T2: r1 and r2 are enrolled (CAS) under the same lease16 generation as r0 {'r0': {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 2, 'casMode': True, 'seqEnabled': True, 'eventSeq': 14}, 'r1': {'fenceGeneration':
+    00:15:54 CHECK PASS T2: stable N=3 W=2: every key reads back byte-exact (5 keys) []
+    00:15:55 CHECK PASS T2: stable N=3 W=2: ranged reads (incl. across the slab boundary) are byte-exact []
+    00:15:55 CHECK PASS T2: stable N=3 W=2: listings are exact per bucket (deleted keys absent) []
+    00:16:02 CHECK PASS T2: one replica (r2) down: writes still commit (W = 2 of 3) 200
+    00:16:15 CHECK PASS T2: one replica down: reads: every key reads back byte-exact (6 keys) []
+    00:16:16 CHECK PASS T2: one replica down: reads: listings are exact per bucket (deleted keys absent) []
+    00:16:18 CHECK PASS T4: [r0 retiring, r1, r2] becomes ready
+    00:21:38 CHECK PASS T4: the retirement commits: stable at epoch 3 (members r1, r2) [{'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': None, 'floors':
+    00:21:40 CHECK PASS T4: [r1, r2] (r0 dropped from the list) becomes ready
+    00:21:40 CHECK PASS T4: [r1, r2] is the committed stable set (epoch 3), both members loaded and caught up [{'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, '
+    00:21:54 CHECK PASS T4: with r0 STOPPED, every key (legacy 0.1.8, T1, T2) reads back byte-exact from r1 + r2 alone: every key reads back byte-exact (6 keys) []
+    00:21:55 CHECK PASS T4: with r0 STOPPED, every key (legacy 0.1.8, T1, T2) reads back byte-exact from r1 + r2 alone: ranged reads (incl. across the slab boundary) are byte-exact []
+    00:21:55 CHECK PASS T4: with r0 STOPPED, every key (legacy 0.1.8, T1, T2) reads back byte-exact from r1 + r2 alone: listings are exact per bucket (deleted keys absent) []
+    00:22:04 CHECK PASS T4: the new set writes (W = 2 of 2) 200
+    00:22:19 CHECK PASS T4: final state: every key reads back byte-exact (7 keys) []
+    00:22:19 CHECK PASS T4: final state: listings are exact per bucket (deleted keys absent) []
+    00:22:24 CHECK PASS O: 0.1.8 cannot write to an enrolled new replica, which is unchanged {'PUT': 500, 'before': {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 4, 'casMode': True, 'seqEnabled': True, 'eventSeq': 17}, 'after': {'fe
+    [memory-guard] exit=0 peakTreeRssMiB=1533 minHostAvailableMiB=22432
+    [memory-guard] at peak: harness-block:595 wasmtime:391 postgres:33 postgres:33 postgres:33 python3:32 postgres:32 postgres:29
+    [queue] EXIT 0
+
+## r1  out-sha256 68b810ff9e412dce949b7c37efdea1ce624daf182da1bbb632731fa81243910f  bytes 6900  rc absent
+    [memory-guard] exit=1 peakTreeRssMiB=817 minHostAvailableMiB=23595
+    [queue] START available=24139MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    00:59:21 CHECK PASS U1: 0.1.8 is ready on r0 (account A unenrolled)
+    00:59:23 CHECK PASS U1: 0.1.8 PUT 200
+    00:59:23 CHECK PASS U2: S0 is a zero snapshot read while indexd RUNS; the ORIGINAL 6fd7a929 decision says LEGACY_REDEPLOY_SAFE {'decision': 'LEGACY_REDEPLOY_SAFE', 'do': 'stop any C2 instance, then redeploy 0.1.8: the account is neither fen
+    00:59:23 CHECK PASS U2: the NEW decision on the same unquiesced zero snapshot is UNKNOWN (even with the attestation) {'decision': 'UNKNOWN', 'missing': ['allowLiveStart', 'unitInactive', 'noIndexdProcess'], 'steps': ['owner: disable C2 acti
+    00:59:23 CHECK PASS U3: a C2 instance enrols AFTER S0 (account A now in CAS mode) 0.21
+    00:59:29 CHECK PASS U4: following the ORIGINAL decision, the redeployed 0.1.8 CANNOT write (the account is enrolled): the plan was unsafe {'PUT': 500}
+    00:59:30 CHECK PASS U5: the NEW procedure (barrier first, then the read): FORWARD_ONLY {'decision': 'FORWARD_ONLY', 'do': "keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and there is no
+    00:59:32 CHECK PASS S1: 0.1.8 is ready on r1 (account B unenrolled)
+    00:59:34 CHECK PASS S1: 0.1.8 PUT 200
+    00:59:35 CHECK FAIL S1: 0.1.8 reads: every key reads back byte-exact (2 keys) ['ipfs/legacy/a: 404 163/2097152']
+    00:59:35 CHECK FAIL S1: 0.1.8 reads: listings are exact per bucket (deleted keys absent) ["ipfs: 200 got [] want ['legacy/a']"]
+    01:00:23 CHECK PASS S2: a C2 instance ran while r1 was down, never became ready, and no instance remains False
+    01:00:23 CHECK PASS S3: behind the barrier the counts are zero; WITHOUT the owner's attestation the decision is UNKNOWN {'decision': 'UNKNOWN', 'missing': ['c2ActivationDisabledAttested'], 'steps': ['owner: disable C2 activation AND its ret
+    01:00:23 CHECK PASS S3: WITH it, LEGACY_REDEPLOY_SAFE {'decision': 'LEGACY_REDEPLOY_SAFE', 'established': 'with the start guard absent and indexd stopped (no process, no session), no enrolment can complete; the database then shows no fenced
+    01:00:25 CHECK PASS S4: 0.1.8 redeployed is ready
+    [memory-guard] exit=1 peakTreeRssMiB=817 minHostAvailableMiB=23595
+    [memory-guard] at peak: harness-block:396 wasmtime:151 postgres:35 python3:33 postgres:32 postgres:31 postgres:31 python3:25
+    [queue] EXIT 1
+
+## r2  out-sha256 d8673902acf6dad78779b2aabcb29f2a4c33b7c9b6b1d474898325d4242eaa43  bytes 5067  rc absent
+    [memory-guard] exit=0 peakTreeRssMiB=878 minHostAvailableMiB=23316
+    [queue] START available=23933MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    01:01:27 CHECK PASS U1: 0.1.8 is ready on r0 (account A unenrolled)
+    01:01:30 CHECK PASS U1: 0.1.8 PUT 200
+    01:01:30 CHECK PASS U2: S0 is a zero snapshot read while indexd RUNS; the ORIGINAL 6fd7a929 decision says LEGACY_REDEPLOY_SAFE {'decision': 'LEGACY_REDEPLOY_SAFE', 'do': 'stop any C2 instance, then redeploy 0.1.8: the account is neither fen
+    01:01:30 CHECK PASS U2: the NEW decision on the same unquiesced zero snapshot is UNKNOWN (even with the attestation) {'decision': 'UNKNOWN', 'missing': ['allowLiveStart', 'unitInactive', 'noIndexdProcess'], 'steps': ['owner: disable C2 acti
+    01:01:30 CHECK PASS U3: a C2 instance enrols AFTER S0 (account A now in CAS mode) 0.21
+    01:01:35 CHECK PASS U4: following the ORIGINAL decision, the redeployed 0.1.8 CANNOT write (the account is enrolled): the plan was unsafe {'PUT': 500}
+    01:01:36 CHECK PASS U5: the NEW procedure (barrier first, then the read): FORWARD_ONLY {'decision': 'FORWARD_ONLY', 'do': "keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and there is no
+    01:01:38 CHECK PASS S1: 0.1.8 is ready on r1 (account B unenrolled)
+    01:01:41 CHECK PASS S1: 0.1.8 PUT 200
+    01:01:42 CHECK PASS S1: 0.1.8 reads: every key reads back byte-exact (1 keys) []
+    01:01:42 CHECK PASS S1: 0.1.8 reads: listings are exact per bucket (deleted keys absent) []
+    01:02:29 CHECK PASS S2: a C2 instance ran while r1 was down, never became ready, and no instance remains False
+    01:02:29 CHECK PASS S3: behind the barrier the counts are zero; WITHOUT the owner's attestation the decision is UNKNOWN {'decision': 'UNKNOWN', 'missing': ['c2ActivationDisabledAttested'], 'steps': ['owner: disable C2 activation AND its ret
+    01:02:29 CHECK PASS S3: WITH it, LEGACY_REDEPLOY_SAFE {'decision': 'LEGACY_REDEPLOY_SAFE', 'established': 'with the start guard absent and indexd stopped (no process, no session), no enrolment can complete; the database then shows no fenced
+    01:02:33 CHECK PASS S4: 0.1.8 redeployed serves its legacy object (attempts recorded; restarts only after a crash) [{'n': 0, 'ready': True, 'get': 200, 'alive': True, 'panic': False}]
+    01:02:35 CHECK PASS S4: 0.1.8 reads its legacy object: every key reads back byte-exact (1 keys) []
+    01:02:35 CHECK PASS S4: 0.1.8 reads its legacy object: listings are exact per bucket (deleted keys absent) []
+    01:02:37 CHECK PASS S4: and writes (a real rollback, nothing lost) 200
+    01:02:37 CHECK PASS S4: the post-check still shows 0 fenced / 0 CAS on r1 dbVersion=28
+    [memory-guard] exit=0 peakTreeRssMiB=878 minHostAvailableMiB=23316
+    [memory-guard] at peak: harness-block:456 wasmtime:150 postgres:35 python3:33 postgres:31 postgres:31 postgres:31 python3:26
+    [queue] EXIT 0
+
+## u1  out-sha256 85bfdebefee8a518b37290b3da808e9e8f6ae60e4f26cba5015b7c4b2bfbc66e  bytes 11696  rc absent
+    [memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] START available=24245MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    Ran 10 tests in 0.007s
+    FAILED (errors=2, skipped=1)
+    [memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [memory-guard] at peak:
+    [queue] EXIT 1
+
+## u2  out-sha256 f5747778dd812eaf435ab64cb18322f1e9d5a7d0f827fd4d366c387877be6ed6  bytes 9536  rc absent
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] START available=24566MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    Ran 10 tests in 0.091s
+    OK (skipped=1)
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [memory-guard] at peak:
+    [queue] EXIT 0
+
+## u3  out-sha256 10b2cfe987c3e913b50401f7c52fce6a13817f0e042df8cfcaf2ef7ea82c5691  bytes 3002  rc absent
+    [memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] START available=24368MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    test_cli_prints_the_secret (__main__.Replicas.test_cli_prints_the_secret) ... FAIL
+    test_stages_and_quorum (__main__.Replicas.test_stages_and_quorum) ... FAIL
+    FAIL: test_cli_prints_the_secret (__main__.Replicas.test_cli_prints_the_secret)
+    FAIL: test_stages_and_quorum (__main__.Replicas.test_stages_and_quorum)
+    Ran 10 tests in 0.049s
+    FAILED (failures=2, skipped=1)
+    [memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [memory-guard] at peak:
+    [queue] EXIT 1
+
+## u4  out-sha256 30fa6dc8021b17bdf592e5b44890ecce381cab7f8196097ba2087187bc66627d  bytes 3823  rc absent
+    [memory-guard] exit=0 peakTreeRssMiB=71 minHostAvailableMiB=25850
+    [queue] START available=25954MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    Ran 25 tests in 3.783s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=71 minHostAvailableMiB=25850
+    [memory-guard] at peak: python3:30 python3:21 python3:15 gpg:5
+    [queue] EXIT 0
+
+## u5  out-sha256 422698b989429d03588082d3bf642cc004430533ec38a7f5f0be725061b37de5  bytes 1574  rc absent
+    [memory-guard] exit=0 peakTreeRssMiB=48 minHostAvailableMiB=24351
+    [queue] START available=24402MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    Ran 12 tests in 0.340s
+    OK (skipped=1)
+    [memory-guard] exit=0 peakTreeRssMiB=48 minHostAvailableMiB=24351
+    [memory-guard] at peak: python3:23 python3:21 timeout:4
+    [queue] EXIT 0
+
+## u6  out-sha256 1d64ae45359a9589d08963500babd6951c228ffa1f81f8437c4a98fdcee46cf8  bytes 1494  rc absent
+    [memory-guard] exit=0 peakTreeRssMiB=48 minHostAvailableMiB=23399
+    [queue] START available=23399MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    Ran 12 tests in 0.344s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=48 minHostAvailableMiB=23399
+    [memory-guard] at peak: python3:24 python3:21 timeout:4
+    [queue] EXIT 0
+
+## u7  out-sha256 fddbb387f0248b0b03db649ee6fecbf4bb8aefe9091d46660e1a553b036eef91  bytes 2950  rc absent
+    [memory-guard] exit=1 peakTreeRssMiB=80 minHostAvailableMiB=23656
+    [queue] START available=23810MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    Ran 11 tests in 0.302s
+    OK
+    test_the_original_b2_runner_cannot_back_up_the_running_release (__main__.Provenance.test_the_original_b2_runner_cannot_back_up_the_running_release) ... FAIL
+    FAIL: test_the_original_b2_runner_cannot_back_up_the_running_release (__main__.Provenance.test_the_original_b2_runner_cannot_back_up_the_running_release)
+    Ran 3 tests in 2.670s
+    FAILED (failures=1)
+    [memory-guard] exit=1 peakTreeRssMiB=80 minHostAvailableMiB=23656
+    [memory-guard] at peak: python3:29 python3:21 python3:15 sh:6 gpg:5 timeout:4
+    [queue] EXIT 1
+
+## u8  out-sha256 d5439b7c321294d9cda3e0a8b665b13b1db3d8a20381a154a01689945eb1d81d  bytes 2044  rc absent
+    [memory-guard] exit=0 peakTreeRssMiB=80 minHostAvailableMiB=23718
+    [queue] START available=23726MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    Ran 11 tests in 0.296s
+    OK
+    Ran 3 tests in 3.279s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=80 minHostAvailableMiB=23718
+    [memory-guard] at peak: python3:29 python3:21 python3:15 sh:6 gpg:5 timeout:4
+    [queue] EXIT 0
+
+## u9  out-sha256 ce4559997d68e46669944a82803d713dbfdf17315fa58a37e73a862a3e3cf3d8  bytes 2044  rc absent
+    [memory-guard] exit=0 peakTreeRssMiB=80 minHostAvailableMiB=23713
+    [queue] START available=23798MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    Ran 11 tests in 0.321s
+    OK
+    Ran 3 tests in 3.685s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=80 minHostAvailableMiB=23713
+    [memory-guard] at peak: python3:29 python3:21 python3:15 sh:6 gpg:5 timeout:4
+    [queue] EXIT 0
+
+## v1  out-sha256 f0a0d15444874e6360c9d4c572594d73ab9de1dcd3cfa5b4cb0fff435c9ef2c6  bytes 2463  rc absent
+    [memory-guard] exit=0 peakTreeRssMiB=81 minHostAvailableMiB=23946
+    [queue] START available=23984MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    Ran 14 tests in 0.328s
+    OK
+    Ran 3 tests in 3.383s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=81 minHostAvailableMiB=23946
+    [memory-guard] at peak: python3:29 python3:21 python3:15 gpg:6 sh:6 timeout:4
+    [queue] EXIT 0
+
+## v2  out-sha256 409c2a5a4d1ad90feb38d719ef5b0a00cc45ecc4d6b02dede6618eadf5816470  bytes 2463  rc absent
+    [memory-guard] exit=0 peakTreeRssMiB=81 minHostAvailableMiB=23804
+    [queue] START available=23864MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    Ran 14 tests in 0.352s
+    OK
+    Ran 3 tests in 3.585s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=81 minHostAvailableMiB=23804
+    [memory-guard] at peak: python3:29 python3:21 python3:15 gpg:6 sh:6 timeout:4
+    [queue] EXIT 0

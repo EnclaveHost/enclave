@@ -1,0 +1,12 @@
+[queue] START available=24793MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+version rc=0
+node-help rc=0
+Reth Version: 2.8.0
+Commit SHA: 05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915
+Build Timestamp: 2026-10-20T17:56:57.432728107Z
+Build Features: asm_keccak,jemalloc,keccak_cache_global,min_trace_logs,otlp,otlp_logs
+Build Profile: maxperf
+1424 evidence/reth-help-20261023T061904Z/node-help.txt
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

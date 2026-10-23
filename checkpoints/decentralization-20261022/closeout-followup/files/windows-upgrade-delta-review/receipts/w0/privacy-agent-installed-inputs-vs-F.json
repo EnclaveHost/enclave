@@ -1,0 +1,96 @@
+{
+ "installedManifest": "work/g4-challenge-retry-package-20261022/candidate/privacy-agent.mjs.inputs.json (cfb69370, 1938 inputs)",
+ "F": "4106c3114dd13f39692195c182d3152efa5e212c",
+ "Fnode_modules": "resume-after-checkpoint-20261022/host-services-final-compose/candidate (the tree F built 6480ca9b from)",
+ "summary": {
+  "same": 1926,
+  "sameContentViaSymlinkInF": 2,
+  "changed": 9,
+  "absentInF": 1
+ },
+ "changed": [
+  {
+   "path": "network/challenge-replica-host.mjs",
+   "Fpath": "network/challenge-replica-host.mjs",
+   "installed": "9c3e4d1048119417dbf7dac3ace03d66a0f8ad9d1d1734f470040fe2bdbd1d1e",
+   "F": "52e02b9349d1a44976521145d064309bc039d48c8db3a869861d0bea687db27e"
+  },
+  {
+   "path": "network/enclave-network-host.mjs",
+   "Fpath": "network/enclave-network-host.mjs",
+   "installed": "2c1b84aa842e22c1a6e803f5eb8c3b98b7b3609d76ad3ef40994636976234327",
+   "F": "7c2f8af54bcb546d27b5ac960cddff818be25a7e0ad9b50edaac63ff7b6d99b8"
+  },
+  {
+   "path": "network/host-service-transport.mjs",
+   "Fpath": "network/host-service-transport.mjs",
+   "installed": "de5bb98a2e77ffd90ccf65211f564d9515f667b4cd6d17cbb3644fb2ca454e06",
+   "F": "43e7c11527491f47a4c8c15e4a6832e560c59f94a8c00d9de34897a99d5be01a"
+  },
+  {
+   "path": "network/host-services/runner.mjs",
+   "Fpath": "network/host-services/runner.mjs",
+   "installed": "7d63742b06ececd26adb472bfba3bd333b91802c5c3440b60aacdb4c9ec67606",
+   "F": "3902ca3655bc864554a704cd19e0fa9db5580611373abafa623fa7839107203b"
+  },
+  {
+   "path": "network/policy-carriers.mjs",
+   "Fpath": "network/policy-carriers.mjs",
+   "installed": "ce06bc1d2d78d56075a437b88c4d228558073f3154b84ac83e64817120c3f8fc",
+   "F": "05d5fb6c7e8291214da5181aa799e3196a714efa9ce2c1f299c3d3b515010549"
+  },
+  {
+   "path": "network/privacy-agent.mjs",
+   "Fpath": "network/privacy-agent.mjs",
+   "installed": "a3f08aca344d4022f9af3d3954c9d6601654ab084251dcbd60d1ee76372f9c62",
+   "F": "5e56973dfd27bc76781ea2f70646803019044d56d7bd97988bcfe8cffca6f705"
+  },
+  {
+   "path": "network/wg-circuit-runtime.mjs",
+   "Fpath": "network/wg-circuit-runtime.mjs",
+   "installed": "ff7784432eb812d47079fa4e34ee575bc75a53f4d05cfa5ff41e3f9c7d2fa03f",
+   "F": "77b842e8a891f7aff5923b6a886334feec1814c1f002a6cac517ab4b10045efd"
+  },
+  {
+   "path": "relay/secrets-release.mjs",
+   "Fpath": "relay/secrets-release.mjs",
+   "installed": "be22b456b7ef2116f681fcf4eea0247eed40c181b3f3f4fe664b46e231de2e9a",
+   "F": "1cb53b64470c54a2d21bfd2d19626c1afe82b7282345ed8170e48803e6fdd50e"
+  },
+  {
+   "path": "relay/snp-verify.mjs",
+   "Fpath": "relay/snp-verify.mjs",
+   "installed": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+   "F": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046"
+  }
+ ],
+ "absentInF": [
+  {
+   "path": "network/challenge-front-declaration.mjs",
+   "Fpath": "network/challenge-front-declaration.mjs",
+   "installed": "67e67a016ef49e979b35cd2b70e94da58b69fc53884f7b2e2ae3ebeb88511e7f",
+   "F": null
+  }
+ ],
+ "note": "installed node_modules inputs are labelled ../../enclave/<dir>/node_modules (its tree symlinked node_modules); compared at F candidate <dir>/node_modules/<same path>. Inputs F ADDS are not visible here (w1: F rebuild manifest). F commits relay/net-guard.mjs and relay/vbs-runtime.mjs as git symlinks (to ../net-guard.mjs and ../isolation/contract/runtime.mjs); their target blobs are compared (esbuild follows the link).",
+ "symlinkInF": [
+  {
+   "path": "relay/net-guard.mjs",
+   "Fpath": "relay/net-guard.mjs",
+   "installed": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "F": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "Fsymlink": "relay/net-guard.mjs -> ../net-guard.mjs",
+   "FtargetBlob": "net-guard.mjs",
+   "sameContent": true
+  },
+  {
+   "path": "relay/vbs-runtime.mjs",
+   "Fpath": "relay/vbs-runtime.mjs",
+   "installed": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+   "F": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+   "Fsymlink": "relay/vbs-runtime.mjs -> ../isolation/contract/runtime.mjs",
+   "FtargetBlob": "isolation/contract/runtime.mjs",
+   "sameContent": true
+  }
+ ]
+}

@@ -1,0 +1,368 @@
+{
+ "format": "enclave-e-artifact-recipe/v2",
+ "repo": "work/rpc-transaction-independence",
+ "head": "ca818b759172adc98c5089796784133f9310e597",
+ "base": "159fd1480ddab9652043cce5163348ff4fa6996b",
+ "extends": "source-preservation/frozen-0830-e-artifact-recipe.json",
+ "note": "Compiled forge outputs E committed (RESULT-TRANSACTION-CLOSURE.md: 'Contracts are the existing compiled artifacts, not rebuilt'). Not archived; the exact original trees of 017b8aa/027ff549/ca818b75 cannot be rebuilt from the export until these are regenerated with the pinned compiler and settings and reproduce the recorded bytecode keccak256s.",
+ "artifacts": [
+  {
+   "path": "fixtures/artifacts/EnclaveAddressBook.json",
+   "mode": "100644",
+   "blob": "c62efc71ac0575c72028f431387c247926662d91",
+   "bytes": 21909,
+   "sha256": "966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca",
+   "compiler": "0.8.35+commit.47b9dedd",
+   "compilationTarget": {
+    "contracts/EnclaveAddressBook.sol": "EnclaveAddressBook"
+   },
+   "settings": {
+    "optimizer": {
+     "enabled": true,
+     "runs": 200
+    },
+    "viaIR": true,
+    "evmVersion": "osaka",
+    "remappings": [
+     ":forge-std/=contracts/foundry/lib/forge-std/src/"
+    ],
+    "libraries": {},
+    "metadata": {
+     "bytecodeHash": "ipfs"
+    }
+   },
+   "bytecodeKeccak256": "0x5d0bbfa7ad2601e5fe751bb0b48004d4e970048fc8ae743dc78729b17ed5408e",
+   "deployedBytecodeKeccak256": "0xf20811eb9fbd2a1a7acc20048a6a78f4afd0bb66dc7d0933b9f12d6e898991fd",
+   "sources": [
+    {
+     "path": "contracts/EnclaveAddressBook.sol",
+     "keccak256": "0xe830fd1c38323296c8c252704f010bb1ba2dcc8632fe69a1bf136f3ead1aa3d4",
+     "committedFixtureSource": "fixtures/sources/EnclaveAddressBook.sol",
+     "frozen0830RecipeSource": null
+    }
+   ]
+  },
+  {
+   "path": "fixtures/artifacts/EnclaveDeployments.json",
+   "mode": "100644",
+   "blob": "8011bcba74980cf58cc7def54c8cf3aa1d432977",
+   "bytes": 324106,
+   "sha256": "0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3",
+   "sameAsFrozen0830": "fixtures/artifacts/EnclaveDeployments.json"
+  },
+  {
+   "path": "fixtures/artifacts/EnclaveLeaseExecutor.json",
+   "mode": "100644",
+   "blob": "0c1914229de2e4fac56cf72201f40d6650a075f9",
+   "bytes": 32471,
+   "sha256": "dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d",
+   "sameAsFrozen0830": "fixtures/artifacts/EnclaveLeaseExecutor.json"
+  },
+  {
+   "path": "fixtures/artifacts/EnclaveLeaseGasReserve.json",
+   "mode": "100644",
+   "blob": "a5334d585cca2c906f3babe91e59b11bc80881bc",
+   "bytes": 151135,
+   "sha256": "aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815",
+   "sameAsFrozen0830": "fixtures/artifacts/EnclaveLeaseGasReserve.json"
+  },
+  {
+   "path": "fixtures/artifacts/EnclaveLedgerBandwidth.json",
+   "mode": "100644",
+   "blob": "cdd4196147e1e982dfb6955f3c0e68913ee133eb",
+   "bytes": 32240,
+   "sha256": "aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda",
+   "sameAsFrozen0830": "fixtures/artifacts/EnclaveLedgerBandwidth.json"
+  },
+  {
+   "path": "fixtures/artifacts/EnclaveRegistry.json",
+   "mode": "100644",
+   "blob": "a53a74c9a0059b09e5b28bdf67ab39d1a9ec56e8",
+   "bytes": 66096,
+   "sha256": "66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864",
+   "sameAsFrozen0830": "fixtures/artifacts/EnclaveRegistry.json"
+  },
+  {
+   "path": "fixtures/artifacts/Mock1271Owner.json",
+   "mode": "100644",
+   "blob": "1e94556da5f8b4d77684318127146fe96f6dd47d",
+   "bytes": 10440,
+   "sha256": "613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d",
+   "compiler": "0.8.35+commit.47b9dedd",
+   "compilationTarget": {
+    "contracts/foundry/test/mocks/SessionMocks.sol": "Mock1271Owner"
+   },
+   "settings": {
+    "optimizer": {
+     "enabled": true,
+     "runs": 1
+    },
+    "viaIR": true,
+    "evmVersion": "osaka",
+    "remappings": [
+     ":forge-std/=contracts/foundry/lib/forge-std/src/"
+    ],
+    "libraries": {},
+    "metadata": {
+     "bytecodeHash": "ipfs"
+    }
+   },
+   "bytecodeKeccak256": "0x8de921bc616003f72a9edfe1dc0ceb7225017c3ac16ab1156c8352ca40ae1dd6",
+   "deployedBytecodeKeccak256": "0xafc0e12ed1320fb1fb7bf91cd243ddc26d769531f310b31cc7007e1484cd08d4",
+   "sources": [
+    {
+     "path": "contracts/EnclaveDeployments.sol",
+     "keccak256": "0x92ae38ee09ee220a6ceef7dd78831ad0f8ed1fbf96cc7e6e83f4e515b6704bf0",
+     "committedFixtureSource": null,
+     "frozen0830RecipeSource": null
+    },
+    {
+     "path": "contracts/foundry/test/mocks/MockUSDC.sol",
+     "keccak256": "0x35697c7ec71f58526a35295f32967175f66068797bcc85670d944c4fd380e0d4",
+     "committedFixtureSource": "fixtures/sources/MockUSDC.sol",
+     "frozen0830RecipeSource": "test/mocks/MockUSDC.sol"
+    },
+    {
+     "path": "contracts/foundry/test/mocks/SessionMocks.sol",
+     "keccak256": "0xe70f2e7dad318e7529cceebf317b83fcb8e9b291496841cb3b49089d655feaa7",
+     "committedFixtureSource": "fixtures/sources/SessionMocks.sol",
+     "frozen0830RecipeSource": null
+    }
+   ]
+  },
+  {
+   "path": "fixtures/artifacts/MockFeed.json",
+   "mode": "100644",
+   "blob": "9e6fd30186cfc481fcec43c574af7b5da6b1d536",
+   "bytes": 22365,
+   "sha256": "10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291",
+   "sameAsFrozen0830": "fixtures/artifacts/MockFeed.json"
+  },
+  {
+   "path": "fixtures/artifacts/MockUSDC.json",
+   "mode": "100644",
+   "blob": "6dbf36a2f2232962edfe0a6b5872fd285aaa1766",
+   "bytes": 29274,
+   "sha256": "524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7",
+   "sameAsFrozen0830": "fixtures/artifacts/MockUSDC.json"
+  },
+  {
+   "path": "fixtures/artifacts/MockUSDC3009.json",
+   "mode": "100644",
+   "blob": "9562743ee15d6aef2b4ca7963261a05bcdbd5d25",
+   "bytes": 40609,
+   "sha256": "9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946",
+   "compiler": "0.8.35+commit.47b9dedd",
+   "compilationTarget": {
+    "contracts/foundry/test/mocks/SessionMocks.sol": "MockUSDC3009"
+   },
+   "settings": {
+    "optimizer": {
+     "enabled": true,
+     "runs": 1
+    },
+    "viaIR": true,
+    "evmVersion": "osaka",
+    "remappings": [
+     ":forge-std/=contracts/foundry/lib/forge-std/src/"
+    ],
+    "libraries": {},
+    "metadata": {
+     "bytecodeHash": "ipfs"
+    }
+   },
+   "bytecodeKeccak256": "0xc4adf828f419f1491b7070bbeb3277a6ec1c95b8d00abb80e2db4112646e9dc2",
+   "deployedBytecodeKeccak256": "0xbd513e98f0df5b18004473dca3e9c95fa2a3973f508d7db5bab4a2a0e102980b",
+   "sources": [
+    {
+     "path": "contracts/EnclaveDeployments.sol",
+     "keccak256": "0x92ae38ee09ee220a6ceef7dd78831ad0f8ed1fbf96cc7e6e83f4e515b6704bf0",
+     "committedFixtureSource": null,
+     "frozen0830RecipeSource": null
+    },
+    {
+     "path": "contracts/foundry/test/mocks/MockUSDC.sol",
+     "keccak256": "0x35697c7ec71f58526a35295f32967175f66068797bcc85670d944c4fd380e0d4",
+     "committedFixtureSource": "fixtures/sources/MockUSDC.sol",
+     "frozen0830RecipeSource": "test/mocks/MockUSDC.sol"
+    },
+    {
+     "path": "contracts/foundry/test/mocks/SessionMocks.sol",
+     "keccak256": "0xe70f2e7dad318e7529cceebf317b83fcb8e9b291496841cb3b49089d655feaa7",
+     "committedFixtureSource": "fixtures/sources/SessionMocks.sol",
+     "frozen0830RecipeSource": null
+    }
+   ]
+  },
+  {
+   "path": "fixtures/artifacts/SessionVault.json",
+   "mode": "100644",
+   "blob": "b4ac20f4e5c31110ac3c7243667d2573a0de7e97",
+   "bytes": 241447,
+   "sha256": "f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc",
+   "compiler": "0.8.35+commit.47b9dedd",
+   "compilationTarget": {
+    "contracts/SessionVault.sol": "SessionVault"
+   },
+   "settings": {
+    "optimizer": {
+     "enabled": true,
+     "runs": 1
+    },
+    "viaIR": true,
+    "evmVersion": "osaka",
+    "remappings": [
+     ":forge-std/=contracts/foundry/lib/forge-std/src/"
+    ],
+    "libraries": {},
+    "metadata": {
+     "bytecodeHash": "ipfs"
+    }
+   },
+   "bytecodeKeccak256": "0xcad39aa3e4322fe8e20928657baa283b131fd18250ccc92273e5320fcb3d4e93",
+   "deployedBytecodeKeccak256": "0xa4014adf7b1db7c26ac8472ff3bcfc6cde0e0bb8dcc0f0e99e7b0600c198ef70",
+   "sources": [
+    {
+     "path": "contracts/SessionVault.sol",
+     "keccak256": "0xa2a0324aefc95ab08ffd997a06f632018ac794ae350fd3cb5048aa00966b6ec8",
+     "committedFixtureSource": "fixtures/sources/SessionVault.sol",
+     "frozen0830RecipeSource": null
+    }
+   ]
+  },
+  {
+   "path": "fixtures/artifacts/SessionVaultFactory.json",
+   "mode": "100644",
+   "blob": "dffd6809fc03aca0811287ed7943572504a65eb3",
+   "bytes": 80921,
+   "sha256": "eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e",
+   "compiler": "0.8.35+commit.47b9dedd",
+   "compilationTarget": {
+    "contracts/SessionVault.sol": "SessionVaultFactory"
+   },
+   "settings": {
+    "optimizer": {
+     "enabled": true,
+     "runs": 1
+    },
+    "viaIR": true,
+    "evmVersion": "osaka",
+    "remappings": [
+     ":forge-std/=contracts/foundry/lib/forge-std/src/"
+    ],
+    "libraries": {},
+    "metadata": {
+     "bytecodeHash": "ipfs"
+    }
+   },
+   "bytecodeKeccak256": "0x76fafb459af952f7287e5184641fc84bf20e44d5cf7d9e0f6fab28d0c17f25ab",
+   "deployedBytecodeKeccak256": "0x35e18ebbf3cda602c0e5c4b685079133a760c16edbddbff752513bb059608fb0",
+   "sources": [
+    {
+     "path": "contracts/SessionVault.sol",
+     "keccak256": "0xa2a0324aefc95ab08ffd997a06f632018ac794ae350fd3cb5048aa00966b6ec8",
+     "committedFixtureSource": "fixtures/sources/SessionVault.sol",
+     "frozen0830RecipeSource": null
+    }
+   ]
+  },
+  {
+   "path": "fixtures/artifacts/SessionVaultLib.json",
+   "mode": "100644",
+   "blob": "4278505c7579fb9e7c4caf57e141851fef845155",
+   "bytes": 87029,
+   "sha256": "bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478",
+   "compiler": "0.8.35+commit.47b9dedd",
+   "compilationTarget": {
+    "contracts/SessionVault.sol": "SessionVaultLib"
+   },
+   "settings": {
+    "optimizer": {
+     "enabled": true,
+     "runs": 1
+    },
+    "viaIR": true,
+    "evmVersion": "osaka",
+    "remappings": [
+     ":forge-std/=contracts/foundry/lib/forge-std/src/"
+    ],
+    "libraries": {},
+    "metadata": {
+     "bytecodeHash": "ipfs"
+    }
+   },
+   "bytecodeKeccak256": "0x0a7db9bebcea0b8566ddf9e6cbe154e6a89ecdefd3db8a5d455fea4ea1fd53d6",
+   "deployedBytecodeKeccak256": "0xe242e34162cba3805afacafe6efa6afbd6f037458fb0958f7c545c6f2de7656a",
+   "sources": [
+    {
+     "path": "contracts/SessionVault.sol",
+     "keccak256": "0xa2a0324aefc95ab08ffd997a06f632018ac794ae350fd3cb5048aa00966b6ec8",
+     "committedFixtureSource": "fixtures/sources/SessionVault.sol",
+     "frozen0830RecipeSource": null
+    }
+   ]
+  }
+ ],
+ "recipeSources": {
+  "copiedTo": "source-preservation/frozen-0931-e-recipe-sources",
+  "matched": [
+   {
+    "path": "contracts/EnclaveDeployments.sol",
+    "keccak256": "0x92ae38ee09ee220a6ceef7dd78831ad0f8ed1fbf96cc7e6e83f4e515b6704bf0",
+    "from": "main 7752a423:contracts/EnclaveDeployments.sol",
+    "inCheckpointHead": "cadf0ebb:contracts/EnclaveDeployments.sol",
+    "gitBlob": "75d117cbedb3b43b0f500bf3fc7955c6b1048e73",
+    "copied": false
+   }
+  ],
+  "missing": []
+ },
+ "compilerPin": [
+  "0.8.35+commit.47b9dedd"
+ ],
+ "exportsOmitted": [
+  {
+   "path": "exports/SHA256SUMS",
+   "mode": "100644",
+   "blob": "a733a1a8ced12c97b9c411af80cbf350040fc100",
+   "bytes": 663,
+   "sha256": "1892905ec02ffec2e60a2a2038249198c1113dd5c6d8d72b990bd0907b065b30"
+  },
+  {
+   "path": "exports/patches/0001-Strict-unsigned-L1-forced-inclusion-plans-for-review.patch",
+   "mode": "100644",
+   "blob": "121ab4ceef5a8b31439f3347f13cf8549f7c1a4e",
+   "bytes": 1083421,
+   "sha256": "1bec1782aac000af8674a6eec1f754943dda0e1ae9ecc521ef03cab54602fda8"
+  },
+  {
+   "path": "exports/patches/0002-RESULT-final-run-evidence-7-7-10-10-mutants-killed-o.patch",
+   "mode": "100644",
+   "blob": "723541130ba361d0fe576590be1e8f13eb3e7075",
+   "bytes": 43455,
+   "sha256": "c27e25c5fdb67cf8dc379aee8d600095feb197edeace2dd20cdd43d561f9d3ce"
+  },
+  {
+   "path": "exports/patches/0003-Transaction-closure-real-portal-execution-SessionVau.patch",
+   "mode": "100644",
+   "blob": "d17548b9ae3976088fc211c1ca507ff7a80996b0",
+   "bytes": 1130325,
+   "sha256": "ed67fcc172c277096850e92febda71c4797052afd3b38c387d027a6f38740a52"
+  },
+  {
+   "path": "exports/patches/0004-Finality-adapter-upgrade-unsafe-only-on-named-verifi.patch",
+   "mode": "100644",
+   "blob": "8d017842104e42c94fd5796b1fbf2c2e29ba2512",
+   "bytes": 32753,
+   "sha256": "aa872a995b78d662abf710d385529c36f68585660d79e8fa31f061fd6d636b46"
+  },
+  {
+   "path": "exports/rpc-transaction-independence-027ff549.bundle",
+   "mode": "100644",
+   "blob": "0f9eaa543cf6d8009973bd63ec5e77c58a56dae9",
+   "bytes": 508076,
+   "sha256": "d58726efabe10668e3459682efb96e936bb1b73a7cabc2f4e52dacb1d4b286ea"
+  }
+ ],
+ "exportsNote": "E's own export for D (format-patch --root files and a git bundle of 027ff549). They EMBED the compiled fixtures (patch text / pack), so they are omitted; the derivative's Git-object patches plus regenerated artifacts reproduce them in content."
+}

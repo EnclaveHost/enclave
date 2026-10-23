@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: managed front configuration: the name is the host's own; loopback only; no static key; never with policy "off"; static stays as it was
+ok 1 - managed front configuration: the name is the host's own; loopback only; no static key; never with policy "off"; static stays as it was
+  ---
+  duration_ms: 6.414609
+  type: 'test'
+  ...
+# Subtest: the network host refuses a managed front whose endpoint is not this runner's
+ok 2 - the network host refuses a managed front whose endpoint is not this runner's
+  ---
+  duration_ms: 21.89327
+  type: 'test'
+  ...
+# Subtest: the declaration contract: refusal reasons, proof matching, bounded validity
+ok 3 - the declaration contract: refusal reasons, proof matching, bounded validity
+  ---
+  duration_ms: 0.968318
+  type: 'test'
+  ...
+# Subtest: lifecycle: the front serves only while admitted and the replica is ready; it declares serving (heartbeat), stopped on refusal and close
+ok 4 - lifecycle: the front serves only while admitted and the replica is ready; it declares serving (heartbeat), stopped on refusal and close
+  ---
+  duration_ms: 466.596007
+  type: 'test'
+  ...
+# Subtest: a declaration that cannot be written is logged and never serves; a crafted public managed front is refused at start
+ok 5 - a declaration that cannot be written is logged and never serves; a crafted public managed front is refused at start
+  ---
+  duration_ms: 2.657536
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 776.007068

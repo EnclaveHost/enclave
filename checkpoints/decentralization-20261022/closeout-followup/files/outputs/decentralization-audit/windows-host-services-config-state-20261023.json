@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-23T08:31:42.2520151Z",
+  "networkProcesses": [
+    {
+      "pid": 2140,
+      "processName": "node.exe",
+      "startedAt": "2026-10-23T08:31:31.0717410Z",
+      "configPath": "C:\\ProgramData\\Enclave\\network\\privacy-config.json",
+      "configRead": true,
+      "configSha": "BD18BBE3112DAC2676E4EDD1739B2E0032A9C537D0F13C0B98A36ECDC9B4F6AB",
+      "appCount": 17,
+      "hasHostServices": false,
+      "hasHostServicesPolicy": false,
+      "hasChallengeReplica": false,
+      "chainVerifierSelected": false,
+      "chainRpcCount": 5
+    }
+  ],
+  "scope": "Read-only process identity and sanitized config structure. No keys, RPC URLs or full command lines returned. No restart or mutation. Config file structure is not proof every field is active in memory."
+}

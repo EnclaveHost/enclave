@@ -1,0 +1,40 @@
+{
+ "name": "base-optimismportal-deposit-crosscheck",
+ "rpcs": [
+  "https://1rpc.io/eth",
+  "https://rpc.flashbots.net"
+ ],
+ "blockTag": "finalized",
+ "from": "0x425f5d6e20b4664d777ca559e7fbec30c414aaf8",
+ "to": "0x49048044D57e1C92A77f79988d21Fa8fAF74E97e",
+ "data": "0xe9e05c420000000000000000000000001111111111111111111111111111111111111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c3500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000184abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab00000000000000000000000000000000000000000000000000000000",
+ "sweepSlots": [
+  64
+ ],
+ "maxRequests": 30,
+ "extraCalls": [
+  {
+   "label": "version()",
+   "to": "0x49048044D57e1C92A77f79988d21Fa8fAF74E97e",
+   "data": "0x54fd4d50"
+  },
+  {
+   "label": "systemConfig()",
+   "to": "0x49048044D57e1C92A77f79988d21Fa8fAF74E97e",
+   "data": "0x33d7e2bd"
+  },
+  {
+   "label": "params()",
+   "to": "0x49048044D57e1C92A77f79988d21Fa8fAF74E97e",
+   "data": "0xcff0ab96"
+  },
+  {
+   "label": "paused()",
+   "to": "0x49048044D57e1C92A77f79988d21Fa8fAF74E97e",
+   "data": "0x5c975abb"
+  }
+ ],
+ "block": "0x1909998",
+ "batchSize": 10,
+ "batchDelayMs": 1200
+}

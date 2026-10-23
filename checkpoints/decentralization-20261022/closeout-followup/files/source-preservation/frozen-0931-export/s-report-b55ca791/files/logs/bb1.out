@@ -1,0 +1,284 @@
+[queue] START available=23565MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+HEAD e820e2405af91010c18913acf4740f651618c644
+TAP version 13
+# Subtest: profile import: checked against the chain, then active; a new tab must confirm it first
+ok 1 - profile import: checked against the chain, then active; a new tab must confirm it first
+  ---
+  duration_ms: 1697.833791
+  type: 'test'
+  ...
+# Subtest: publish through the real form: local CID, one signature per adapter, two of three verified copies
+ok 2 - publish through the real form: local CID, one signature per adapter, two of three verified copies
+  ---
+  duration_ms: 1162.175959
+  type: 'test'
+  ...
+# Subtest: deploy and fund on the pinned ledger at the registry's price; an independent host claims; the list shows it
+not ok 3 - deploy and fund on the pinned ledger at the registry's price; an independent host claims; the list shows it
+  ---
+  duration_ms: 60428.752423
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:137:1'
+  failureType: 'testCodeFailure'
+  error: 'a funded deployment owned by the wallet exists'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:149:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: listing needs agreeing RPCs: one liar is outvoted, a split refuses (never an empty list)
+not ok 4 - listing needs agreeing RPCs: one liar is outvoted, a split refuses (never an empty list)
+  ---
+  duration_ms: 0.983545
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:165:1'
+  failureType: 'testCodeFailure'
+  error: 'needs the deployment'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:166:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: owner startup settings: published to the storage plan, re-read, committed by the owner's transaction
+not ok 5 - owner startup settings: published to the storage plan, re-read, committed by the owner's transaction
+  ---
+  duration_ms: 0.331868
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:179:1'
+  failureType: 'testCodeFailure'
+  error: 'needs the deployment'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:180:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a record created for owner-published startup cannot start until its settings are committed
+not ok 6 - a record created for owner-published startup cannot start until its settings are committed
+  ---
+  duration_ms: 32221.773607
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:209:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:222:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: owner network setting: signed by the wallet and published to the profile's directory
+not ok 7 - owner network setting: signed by the wallet and published to the profile's directory
+  ---
+  duration_ms: 0.687297
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:229:1'
+  failureType: 'testCodeFailure'
+  error: 'needs the deployment'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:230:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a wallet session on the pinned factory: opened, used and ended through wallet-submitted calldata
+ok 8 - a wallet session on the pinned factory: opened, used and ended through wallet-submitted calldata
+  ---
+  duration_ms: 519.326598
+  type: 'test'
+  ...
+# Subtest: owner operations from the dashboard: start, add budget, extend, promote a production record, end all - each a wallet transaction to the vault
+ok 9 - owner operations from the dashboard: start, add budget, extend, promote a production record, end all - each a wallet transaction to the vault
+  ---
+  duration_ms: 2406.775556
+  type: 'test'
+  ...
+# Subtest: ETH funding at the ledger's own feed, read at an agreed block; a stale feed refuses before any value is sent
+not ok 10 - ETH funding at the ledger's own feed, read at an agreed block; a stale feed refuses before any value is sent
+  ---
+  duration_ms: 30231.231957
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:325:1'
+  failureType: 'testCodeFailure'
+  error: 'no new record'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    newRow (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:330:182)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:333:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: host choice: registry hosts with posted prices; a pinned record carries the host and that host's price ceiling
+not ok 11 - host choice: registry hosts with posted prices; a pinned record carries the host and that host's price ceiling
+  ---
+  duration_ms: 30241.826182
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:349:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'configCid')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:359:35)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a refusing cheapest host: the ceiling never rises by itself; the owner picks a dearer host within an explicit ceiling (Host & price, no API)
+not ok 12 - a refusing cheapest host: the ceiling never rises by itself; the owner picks a dearer host within an explicit ceiling (Host & price, no API)
+  ---
+  duration_ms: 60396.177856
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:382:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out: funded record'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    until (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:373:166)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:388:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: quick deploy (independent): per-host totals, owner-set ceiling, host above the ceiling flagged, the chosen host and ceiling reach the record
+not ok 13 - quick deploy (independent): per-host totals, owner-set ceiling, host above the ceiling flagged, the chosen host and ceiling reach the record
+  ---
+  duration_ms: 30293.317959
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:421:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    locator.click: Timeout 30000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('#appDetailView [data-act="deploy"]').first()[22m
+    [2m    - locator resolved to <button disabled type="button" data-act="deploy" class="btn btn-primary btn-sm" title="Deploys unlock once the catalog owner approves this version">Deploy →</button>[22m
+    [2m  - attempting click action[22m
+    [2m    2 × waiting for element to be visible, enabled and stable[22m
+    [2m      - element is not enabled[22m
+    [2m    - retrying click action[22m
+    [2m    - waiting 20ms[22m
+    [2m    2 × waiting for element to be visible, enabled and stable[22m
+    [2m      - element is not enabled[22m
+    [2m    - retrying click action[22m
+    [2m      - waiting 100ms[22m
+    [2m    58 × waiting for element to be visible, enabled and stable[22m
+    [2m       - element is not enabled[22m
+    [2m     - retrying click action[22m
+    [2m       - waiting 500ms[22m
+    
+  code: 'ERR_TEST_FAILURE'
+  name: 'TimeoutError'
+  stack: |-
+    TestContext.<anonymous> (/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:425:68)
+  ...
+# Subtest: listing is bounded and resumable: partial results are labeled, transfers in and out follow the ledger's events, add by id
+ok 14 - listing is bounded and resumable: partial results are labeled, transfers in and out follow the ledger's events, add by id
+  ---
+  duration_ms: 3130.688137
+  type: 'test'
+  ...
+# Subtest: custom names: added with the challenge alias shown, edited, deleted - each the CLI's exact package bytes, committed by the owner
+not ok 15 - custom names: added with the challenge alias shown, edited, deleted - each the CLI's exact package bytes, committed by the owner
+  ---
+  duration_ms: 0.818946
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:497:1'
+  failureType: 'testCodeFailure'
+  error: 'needs the deployment with committed startup settings'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:498:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: Startup tier: SEV-SNP by default; an Enclave Shield partition only when chosen, public settings only, and it reads back
+not ok 16 - Startup tier: SEV-SNP by default; an Enclave Shield partition only when chosen, public settings only, and it reads back
+  ---
+  duration_ms: 0.342449
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:577:1'
+  failureType: 'testCodeFailure'
+  error: 'needs the deployment with committed startup settings'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:578:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: Connect: a native-client starting profile from the network profile's pins, with the open trust decisions named
+not ok 17 - Connect: a native-client starting profile from the network profile's pins, with the open trust decisions named
+  ---
+  duration_ms: 273.337042
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:621:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'slice')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:624:48)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: nothing reached Enclave: no enclave.host request, no upload-token call, no other origin
+not ok 18 - nothing reached Enclave: no enclave.host request, no upload-token call, no other origin
+  ---
+  duration_ms: 2.090488
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:635:1'
+  failureType: 'testCodeFailure'
+  error: 'unexpected origin host.independent.test'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-browser.test.mjs:639:33)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 5
+# fail 13
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 253776.372159
+[memory-guard] exit=1 peakTreeRssMiB=1097 minHostAvailableMiB=22547
+[memory-guard] at peak: node:422 chrome-headless:216 chrome-headless:126 chrome-headless:107 anvil:84 node:59 chrome-headless:39 chrome-headless:39
+[queue] EXIT 1

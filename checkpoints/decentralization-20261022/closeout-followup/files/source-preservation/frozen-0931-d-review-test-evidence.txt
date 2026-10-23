@@ -1,0 +1,83 @@
+# D windows-upgrade-delta-review job log digest; generated from resume-after-checkpoint-20261022/windows-upgrade-delta-review/rawlogs; full logs stay local.
+
+## t1-challenge  out-sha256 9824eb24210ace1940df7ac8d9e76f0459252906447f8d2cf41e3a890e6c20c7  bytes 2943  rc 0  not-started-tries-kept 1
+    [memory-guard] exit=0 peakTreeRssMiB=379 minHostAvailableMiB=25169
+    [queue] START available=25746MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    [V0] installed-challenge-replica-supervise rc=1 # pass 0 # fail 1 # cancelled 0 # skipped 0
+    [V0]   not ok 1 - test/installed-challenge-replica-supervise.test.mjs
+    [V0] installed-challenge-replica-host rc=1 # pass 7 # fail 2 # cancelled 0 # skipped 0
+    [V0]   not ok 8 - the network host judges challengeReplica before anything binds
+    [V0]   not ok 9 - end to end: the built release, started by the host package, serves a Shield guest push through its HTTPS front; refusals; restart
+    [V0] installed-challenge-front-managed rc=1 # pass 0 # fail 1 # cancelled 0 # skipped 0
+    [V0]   not ok 1 - test/installed-challenge-front-managed.test.mjs
+    [V0] challenge-replica-host rc=1 # pass 8 # fail 1 # cancelled 0 # skipped 0
+    [V0]   not ok 9 - end to end: the built release, started by the host package, serves a Shield guest push through its HTTPS front; refusals; restart
+    [V0] enclave-network-host-canary rc=0 # pass 5 # fail 0 # cancelled 0 # skipped 0
+    [V0] privacy-agent-lifecycle rc=0 # pass 3 # fail 0 # cancelled 0 # skipped 0
+    [V0] network-policy-outage rc=0 # pass 1 # fail 0 # cancelled 0 # skipped 0
+    [V0] local-byo-config rc=0 # pass 3 # fail 0 # cancelled 0 # skipped 0
+    [V1] installed-challenge-replica-supervise rc=0 # pass 8 # fail 0 # cancelled 0 # skipped 0
+    [V1] installed-challenge-replica-host rc=1 # pass 8 # fail 1 # cancelled 0 # skipped 0
+    [V1]   not ok 9 - end to end: the built release, started by the host package, serves a Shield guest push through its HTTPS front; refusals; restart
+    [V1] installed-challenge-front-managed rc=0 # pass 5 # fail 0 # cancelled 0 # skipped 0
+    [V1] challenge-replica-host rc=1 # pass 7 # fail 2 # cancelled 0 # skipped 0
+    [V1]   not ok 8 - the network host judges challengeReplica before anything binds
+    [V1]   not ok 9 - end to end: the built release, started by the host package, serves a Shield guest push through its HTTPS front; refusals; restart
+    [V1] enclave-network-host-canary rc=0 # pass 5 # fail 0 # cancelled 0 # skipped 0
+    [V1] privacy-agent-lifecycle rc=0 # pass 3 # fail 0 # cancelled 0 # skipped 0
+    [V1] network-policy-outage rc=0 # pass 1 # fail 0 # cancelled 0 # skipped 0
+    [V1] local-byo-config rc=0 # pass 3 # fail 0 # cancelled 0 # skipped 0
+    T1-DONE
+    [memory-guard] exit=0 peakTreeRssMiB=379 minHostAvailableMiB=25169
+    [memory-guard] at peak: esbuild:131 node:112 node:70 node:56 bash:6 timeout:4
+    [queue] EXIT 0
+
+## t2-challenge-e2e  out-sha256 b41b575b66806760b0065815f8038af967ce4dce60906b6bd042edb0437490ac  bytes 3195  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=419 minHostAvailableMiB=24498
+    [queue] START available=24872MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    [V0] rc=0 # pass 9 # fail 0 # cancelled 0 # skipped 0
+    [V0]   ok 1 - configuration: explicit trust inputs only; legacy central inputs, lab modes and malformed values are refused before anything binds
+    [V0]   ok 2 - the child environment is derived, complete and minimal: trusted judge, no relay/secret/inherited variables
+    [V0]   ok 3 - the release must hold exactly the pinned bytes; the service-index advertisement is only an unsigned draft
+    [V0]   ok 4 - a replica that cannot be spawned is retried with backoff, then refused as not ready; nothing is left running
+    [V0]   ok 5 - the REAL platform host policy gate: a fresh host without an authenticated admit starts nothing (production policy, no network)
+    [V0]   ok 6 - host policy carriers (first host without the fleet): the integrated carriers, explicit only; the gate is shown the reserved carrier o
+    [V0]   ok 7 - the REAL gate with carriers, fresh offline host: still nothing starts, and the carrier origin is answered locally (never fetched)
+    [V0]   ok 8 - the network host judges challengeReplica before anything binds
+    [V0]   ok 9 - end to end: the built release, started by the host package, serves a Shield guest push through its HTTPS front; refusals; restart
+    [V1] rc=0 # pass 9 # fail 0 # cancelled 0 # skipped 0
+    [V1]   ok 1 - configuration: explicit trust inputs only; legacy central inputs, lab modes and malformed values are refused before anything binds
+    [V1]   ok 2 - the child environment is derived, complete and minimal: trusted judge, no relay/secret/inherited variables
+    [V1]   ok 3 - the release must hold exactly the pinned bytes; the service-index advertisement is only an unsigned draft
+    [V1]   ok 4 - a replica that cannot be spawned is retried with backoff, then refused as not ready; nothing is left running
+    [V1]   ok 5 - the REAL platform host policy gate: a fresh host without an authenticated admit starts nothing (production policy, no network)
+    [V1]   ok 6 - host policy carriers (first host without the fleet): the integrated carriers, explicit only; the gate is shown the reserved carrier o
+    [V1]   ok 7 - the REAL gate with carriers, fresh offline host: still nothing starts, and the carrier origin is answered locally (never fetched)
+    [V1]   ok 8 - the network host judges challengeReplica before anything binds
+    [V1]   ok 9 - end to end: the built release, started by the host package, serves a Shield guest push through its HTTPS front; refusals; restart
+    T2-DONE
+    [memory-guard] exit=0 peakTreeRssMiB=419 minHostAvailableMiB=24498
+    [memory-guard] at peak: node:130 node:115 node:108 node:56 bash:6 timeout:4
+    [queue] EXIT 0
+
+## w1-inputs  out-sha256 76c444b9cafb4d8acad02cbbfe730053f44d352f4d9945ad3344114bf4d5c85e  bytes 1208  rc 1  not-started-tries-kept 3
+    [memory-guard] exit=1 peakTreeRssMiB=265 minHostAvailableMiB=23348
+    [queue] START available=23779MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] exit=1 peakTreeRssMiB=265 minHostAvailableMiB=23348
+    [memory-guard] at peak: esbuild:196 node:63 bash:6
+    [queue] EXIT 1
+
+## w1-inputs-2  out-sha256 21821e0d3971f97b53a8f01495178f4ee3a9c559d6b96501f67148fcb836a25f  bytes 1208  rc 1  not-started-tries-kept 8
+    [memory-guard] exit=1 peakTreeRssMiB=260 minHostAvailableMiB=23319
+    [queue] START available=23363MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] exit=1 peakTreeRssMiB=260 minHostAvailableMiB=23319
+    [memory-guard] at peak: esbuild:188 node:66 bash:6
+    [queue] EXIT 1
+
+## w1-inputs-3  out-sha256 408cb02e6e6d274fc605c27c63ce08fe5450819480846267da8a0de691e96336  bytes 2628  rc 0  not-started-tries-kept 26
+    [memory-guard] exit=0 peakTreeRssMiB=262 minHostAvailableMiB=24951
+    [queue] START available=25812MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    W1-OK
+    [memory-guard] exit=0 peakTreeRssMiB=262 minHostAvailableMiB=24951
+    [memory-guard] at peak: esbuild:186 node:70 bash:6
+    [queue] EXIT 0

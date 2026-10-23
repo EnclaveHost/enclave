@@ -1,0 +1,1 @@
+bin-staging/lighthouse-v8.3.2/lighthouse: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, BuildID[sha1]=235b60ea7ce66b6f08489ea2dfa4defbf7f34249, not stripped

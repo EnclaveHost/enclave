@@ -1,0 +1,670 @@
+{
+ "format": "rpc-runtime-final-integration-inventory/v1",
+ "label": "SOURCE + OFFLINE PROCESS TESTS. Not deployed, pushed or merged. Not RPC independence.",
+ "repo": {
+  "path": "rpc-runtime-final-integration/repo",
+  "branch": "runtime-final",
+  "head": "c31e975a44ef3114d4eadddb27e75956b33ccf2c",
+  "tree": "6fbe601d8659ab12c2a649ae8c8e89cb7e497db2",
+  "base": {
+   "commit": "df8fbafae081321f3c9a9c774e41007200913f32",
+   "what": "A rpc-priority/repo final (0c43 + 437d/2efc/71448 + deadline b56a/f344 + fd6 as 25c0 + e820 + Windows df8f)"
+  },
+  "provenanceRefs": {
+   "refs/provenance/e-sia-history-compose": "afc443e032647c2d8ea31535f5ff0f6609d99ba6",
+   "refs/provenance/p-witness-failover": "d0775541db0a0cb599cfe5c7b3853e24242aaaec"
+  }
+ },
+ "sources": {
+  "P": {
+   "repo": "witness-cache-deadline-compose/repo",
+   "range": "9fdc1418c..9e838ba758b96f96eb9858e35f4898a95fc5cba7",
+   "tree": "90ecef92d89783aaf8da58eb2e0eae2483abf546"
+  },
+  "B": {
+   "repo": "rpc-runtime-composition/repo",
+   "range": "1ad7c4a3e0c6f8f1f279bb82d9633a58ffc903ff..8c8fa957ceeef4f3cbc116552656067157007db5"
+  },
+  "rootLock": {
+   "repo": "root-rpc-kernel-lock",
+   "commit": "794d2ff3c7e9e99a9fa92b54390030cb46f108cf",
+   "export": "336ea56ab458fa4f80481f332fd44f3bf88ded1f:source-only.patch"
+  },
+  "helper": {
+   "helios": "ef3202982b475212d9bb6adfdc3eed4ebb0b83c5",
+   "tree": "eec339e18296d850a514f72de2efdd8729302efd"
+  },
+  "listener": {
+   "commit": "5e178676bbe0ce5cda7ea95a3ccfefa8dca8a4b7",
+   "tree": "00e3a61d48c91a6072355bf0ac67564490a6fc8b"
+  },
+  "budget": {
+   "repo": "fresh-witness-supply",
+   "commit": "959e56fd7ea191bfcc7eb94b26a20d4795856bd3",
+   "report": "bcd3d9ca",
+   "use": "binding rule only (no local cache enabled); nothing vendored or allocated"
+  }
+ },
+ "commits": [
+  {
+   "commit": "daf9e10d69468911a6d841740fc9743a5e648fab",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Verify block-hash-pinned witnesses in the gateway: proof-aware failover and a poisoning-resistant cache"
+  },
+  {
+   "commit": "30c634b1d58de2a81b54fa64b957f4ae2f7e0add",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Run the Helios E2Es through the verifying witness gateway"
+  },
+  {
+   "commit": "7af6dd6647384f0b0e2faefcaed2ad67a69fac97",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Recover missed state roots by authenticated ancestry; let head sources push"
+  },
+  {
+   "commit": "f7817efed48b889893c2db727f6ed0ff6732ebfb",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Test ancestry recovery on real Base headers and end to end with Helios"
+  },
+  {
+   "commit": "86317118444fe69252a8d55d54d053c4c3e5f29b",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Record real Base history proofs under a strict budget; test the real composition at a missed real block"
+  },
+  {
+   "commit": "5aed3a491c4c42b8ccfbc9e0b1961e3fda752d2e",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Verify eth_getBlockByHash answers with failover so one faulty RPC cannot wedge historical calls"
+  },
+  {
+   "commit": "326911734dadd7217466d941eae45c43d184d3c2",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Bound every gateway request by one whole-operation deadline; make close terminal across gateway, roots and helper"
+  },
+  {
+   "commit": "a8d03cd37fc9275ecff16f746cddb5c6a77a7778",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Optional S3 (Sia-S3) backend for the witness gateway's immutable cache"
+  },
+  {
+   "commit": "7032177e61cd312eb29706ff1c19a1ca2fd3d624",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Compose the S3 witness store as the verifying gateway's ARCHIVE tier"
+  },
+  {
+   "commit": "cc9e4da5e9b1dee25797664e6b919222821ff3f1",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Archive verified ancestry headers so a missed root recovers with every upstream down"
+  },
+  {
+   "commit": "dc8adb8e133f60501a836a82a8f574381ec607c6",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Compose E's S3 archive tier with whole-operation deadlines: per-request abort into S3, aggregate cache bounds, cache byte budget"
+  },
+  {
+   "commit": "e6b9bf275ce11f92bd8d90fb318a5f601e1ed96c",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Import the native gossip head source (rpc-gossip-bridge d2f9e0c)"
+  },
+  {
+   "commit": "a1fd9dfc376f6aee92edd4dd6c69535e3cc4281a",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "One local Base verifier runtime: gossip head -> roots -> gateway -> Helios"
+  },
+  {
+   "commit": "88bdbbb9ecbca95342eff7c7b53f556dfa8bbb66",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Pinned offline build closure for the verifier runtime's binaries; document it"
+  },
+  {
+   "commit": "564cc8ae473bfb3ab38c91a34175232d8a652231",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Deadline test: accept the request timeout winning the race with the operation deadline"
+  },
+  {
+   "commit": "fb1c410b44353f92ae2a8369017b15fe5416b623",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Compose A's verifier and head E2Es with the proof-aware gateway"
+  },
+  {
+   "commit": "5296cdebd04cfa2fee8f6c7e9566ee648af1a9e8",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Hold the RPC runtime state lock with a parent-owned kernel descriptor"
+  },
+  {
+   "commit": "69b966f7f9d7e2460f0c9e82d8cb7efbac044ac3",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Integrate the kernel lock, final witness helper and optional S3 archive into the verifier runtime"
+  },
+  {
+   "commit": "c31e975a44ef3114d4eadddb27e75956b33ccf2c",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "subject": "Compose A's policy and Windows verifier E2Es with the proof-aware gateway"
+  }
+ ],
+ "lineagePatches": {
+  "lineage/b/0001-Import-the-native-gossip-head-source-rpc-gossip-brid.patch": "1d4f1c5e9e3bd86025f9493a63afcae7a93ec786ec5bec1b5548dc3184fda021",
+  "lineage/b/0002-One-local-Base-verifier-runtime-gossip-head-roots-ga.patch": "ec012727c97f9185ddb38eeeb1cfda9114600219e40b5ff95462bc70434bfcf3",
+  "lineage/b/0003-Pinned-offline-build-closure-for-the-verifier-runtim.patch": "35e57d35e54f376fc8bab4cd5fc0d0b9e1ca4322b89f3c43b4b1d4e6444ee00f",
+  "lineage/b/0004-Deadline-test-accept-the-request-timeout-winning-the.patch": "32fa40c26176350691fa817078c7eeb4c9dad81f4a6c177565d0e512e1bd1b1c",
+  "lineage/b/0005-Compose-A-s-verifier-and-head-E2Es-with-the-proof-aw.patch": "a7ddd365d528cc0af9fd280ffdeb1939e1a34f5ed5ebdce222bc19fe5bc43a02",
+  "lineage/lock/0001-runtime-lock-source-only.patch": "53862deefecf578e64a07b646553c4bb46cff7c04cfbc4556c669eabcbf0fb8a",
+  "lineage/p/0001-Verify-block-hash-pinned-witnesses-in-the-gateway-pr.patch": "a98b9287100977e062e79d925325cd477b04f7e42dc496145a74214b2a660fa7",
+  "lineage/p/0002-Run-the-Helios-E2Es-through-the-verifying-witness-ga.patch": "e2a6bb21eabba7de33e0d1db414115784eb4c08768709ed387e1a786bf64eae0",
+  "lineage/p/0003-Recover-missed-state-roots-by-authenticated-ancestry.patch": "b2eacfc2d3557249d9277dfbce544dfecaa505f27911ccfe9b76345d16776708",
+  "lineage/p/0004-Test-ancestry-recovery-on-real-Base-headers-and-end-.patch": "c6c42adb159a277075aeb9b80ae8f7d7cf560d5f0637718d699a13a4ec39aae9",
+  "lineage/p/0005-Record-real-Base-history-proofs-under-a-strict-budge.patch": "1ca563e160236773f3894d1d7513617043329bce3031c7ee29c6536fccddb349",
+  "lineage/p/0006-Verify-eth_getBlockByHash-answers-with-failover-so-o.patch": "1999287347f6040cc36fe763f2c250b58f44e8c84eb6bf5cb6cd17b013bd72dd",
+  "lineage/p/0007-Bound-every-gateway-request-by-one-whole-operation-d.patch": "5408401b7c0d774e2041b711549b99893d6c5f0c73eb8002f6af57429873cbf9",
+  "lineage/p/0008-Optional-S3-Sia-S3-backend-for-the-witness-gateway-s.patch": "158f04350d460bdd17f4879bbd3a15e0a38048ac4d8a6ecfd7d1129bbbf5746e",
+  "lineage/p/0009-Compose-the-S3-witness-store-as-the-verifying-gatewa.patch": "806bbb67ab9af256c5900145e0391831aa99e780f5583e68def195a6ab7a6a7a",
+  "lineage/p/0010-Archive-verified-ancestry-headers-so-a-missed-root-r.patch": "592f32bca373069317bc6059427a2a15d506a1c76feaa52559a6fe95ab6fe744",
+  "lineage/p/0011-Compose-E-s-S3-archive-tier-with-whole-operation-dea.patch": "67a72f51fb8c6ca001c46d46c1e9dae8edc75712935b7ee60780e0d16bbc2599"
+ },
+ "changedFiles": [
+  {
+   "path": "docs/network/local-chain-verifier.md",
+   "blob": "fd71e312c807054839e1252afb1b8c36fed2c3dc",
+   "sha256": "72551b320a7b13d2fda629026c2efafed9645944e084aaa4edc22e2f2cc89bb9"
+  },
+  {
+   "path": "network/gossip-head-source.mjs",
+   "blob": "0662853601e1d6f6b1286ae28f5248dcad7cbf92",
+   "sha256": "150a06f8b474d74c6542244290f3696d76aab65ac33c70f989a0d0781aa2eb0a"
+  },
+  {
+   "path": "network/rpc-runtime-main.mjs",
+   "blob": "aa294d71a75c0a1d79a3e890f803976ed6dd918f",
+   "sha256": "d290ee02931cff7c0c07521f2d452ac051940a1b3d4502887fe93e8742cbf9c9"
+  },
+  {
+   "path": "network/rpc-runtime.mjs",
+   "blob": "8632ddf6896ee2f01ad3f7b6641c12590ed0f21a",
+   "sha256": "104532f40634125c5c4427b3ab0a7f395482e6eecb3c4b8a4d3863e39d95bb61"
+  },
+  {
+   "path": "network/runtime-lock.mjs",
+   "blob": "76b1e6361f00eec31481df27265fd6f191dbefb1",
+   "sha256": "256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a"
+  },
+  {
+   "path": "network/s3-witness-cache.mjs",
+   "blob": "a72aaecf7d10ac71c507cb9f764661a1fbec7809",
+   "sha256": "fa87083a2a6bb1bd2458cbb0c37bd8446a6f2c1af5d6531046be0281b048dd40"
+  },
+  {
+   "path": "network/witness-gateway.mjs",
+   "blob": "f6a18de33ce7e0e79454004c8c6b0aa7fbfa7ce0",
+   "sha256": "7209ef5beea5cf2f1afa471bf9d7b49babfdbb5877de63d9ee5159420d1389cb"
+  },
+  {
+   "path": "network/witness-verify.mjs",
+   "blob": "a8c0edec5a86c9127a9ec69957c8762f635fcc51",
+   "sha256": "729496b0e85475b7ca9b2dd6d8a25e365e798230be745e42de14b54edb81fd4b"
+  },
+  {
+   "path": "scripts/rpc-runtime/build-binaries.sh",
+   "blob": "6133b22a9b3a3e807589c71b5ab60e3d28d47425",
+   "sha256": "d5bb17e80614c05480ee057e62e7b0739228857fc1b3b29fea09189d9a33e8bb"
+  },
+  {
+   "path": "scripts/rpc-runtime/cargo-home-from-lock.py",
+   "blob": "ecd0ce041f314c7787e9baaa5d28793cc58c3a93",
+   "sha256": "1d6495e25437d502545473ab81034336bddf0e5ef6243c652e63f71ca686988c"
+  },
+  {
+   "path": "scripts/rpc-runtime/closure.json",
+   "blob": "899cb4a5653e6b5a4c636ef6e359c86849ff50fb",
+   "sha256": "92ff59d118002d921f213f476bd07b6ce344af96a300564ea77181703206fef4"
+  },
+  {
+   "path": "test/fixtures/aws-sigv4/SOURCE.txt",
+   "blob": "0cbe3d6ec5a80b937139df3d8814192919dad309",
+   "sha256": "e7c307a102d121ae622df22fa80f2e5a8c9c000eae0fc3a64548b064c1630b9d"
+  },
+  {
+   "path": "test/fixtures/aws-sigv4/get-header-value-trim/context.json",
+   "blob": "0468d80074cb592e77c1d4bdfe088933e1028efc",
+   "sha256": "5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1"
+  },
+  {
+   "path": "test/fixtures/aws-sigv4/get-header-value-trim/header-signed-request.txt",
+   "blob": "6331d16d5e40bdac24248b0c1732698d4672bcd5",
+   "sha256": "5a08e8c4caa69eb8521e06ebe0eaa62d4d93ecaa78fd13b83dc8eadede437784"
+  },
+  {
+   "path": "test/fixtures/aws-sigv4/get-header-value-trim/request.txt",
+   "blob": "ad1ea986773b32b50453c4fbc51d15dfe70e5149",
+   "sha256": "3ca569dba28e15df4200ca1619c6909645ad0259f6121827e099c46c66e9dc87"
+  },
+  {
+   "path": "test/fixtures/aws-sigv4/get-vanilla/context.json",
+   "blob": "0468d80074cb592e77c1d4bdfe088933e1028efc",
+   "sha256": "5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1"
+  },
+  {
+   "path": "test/fixtures/aws-sigv4/get-vanilla/header-signed-request.txt",
+   "blob": "36b86e79ee9490c24a7902fc1142790f0364fd31",
+   "sha256": "f94281f97a281169827bbd016b1454eec132260d77c505405c558b7d21a177bc"
+  },
+  {
+   "path": "test/fixtures/aws-sigv4/get-vanilla/request.txt",
+   "blob": "e659c3be2c30123d75effb8e95c1c05927139a55",
+   "sha256": "9b87a0709187548ccac04f6d06a8cba1fc85273003efcda670e9f3ca1ad63e4f"
+  },
+  {
+   "path": "test/fixtures/base-header-52965249.synthetic.json",
+   "blob": "6d344fa61cc74e2e651fd8e80e249ae8cbba7c20",
+   "sha256": "13b67f65dd20d0b73fc2d73f8625c2d7af271077773fc158b69d7f738a084d8e"
+  },
+  {
+   "path": "test/fixtures/base-headers-52965055-52965106.json",
+   "blob": "602ed1df58625d2f5b4fe101387a9e287f4356a9",
+   "sha256": "11be29552f4c3426affd03161b0d39f5ff508f8cc1827b591d135f58a9ca1236"
+  },
+  {
+   "path": "test/fixtures/base-mainnet-52965074.head.json",
+   "blob": "d09c5f1ca9b521f18c872606bf11cbf50b53304a",
+   "sha256": "14fc7bb54d479e4dc2b2bb921bcf9c888403422906582e501b200535b10a0ca2"
+  },
+  {
+   "path": "test/fixtures/base-mainnet-52965074.v4.snappy.hex",
+   "blob": "8c59c6b5b7a4ce536847b8e0cddf9bc5d3ae128c",
+   "sha256": "b06394b42f810c93c30104492775d14f955b1a9120fe31b0fb57bb788af45015"
+  },
+  {
+   "path": "test/fixtures/base-mainnet-52965075.head.json",
+   "blob": "749b91b708e0f6a119f11df9a14b625f2f7c1001",
+   "sha256": "915453065b5d390f018490f6d7ffd1ced7dcdd58be2943237195a964ea31e0d9"
+  },
+  {
+   "path": "test/fixtures/base-mainnet-52965075.v4.snappy.hex",
+   "blob": "a68ea295df4d853e77a7e04432fc313fea40129c",
+   "sha256": "e55130dc6f67e67cad3e033c1ab29b4be4e0eb5ed4ad29bc4f5d7107e80251b5"
+  },
+  {
+   "path": "test/fixtures/base-mainnet-52965076.head.json",
+   "blob": "b395886d3a835b0f3e9515c46ec57ca6c1cba2d7",
+   "sha256": "62f4b8b4e08834ca3708e9b128da05801614868fc184d01d3b1fafb383eda389"
+  },
+  {
+   "path": "test/fixtures/base-mainnet-52965076.v4.snappy.hex",
+   "blob": "d217642791cccd89699e6cbf5e55a6dd5f0ee25a",
+   "sha256": "02beaa24c8cc9e7ab7b68fb01dbc3e76bd737af2190c318f528482a9a6da7590"
+  },
+  {
+   "path": "test/fixtures/base-real-history-52965080/attempt-1.json",
+   "blob": "991923f3d487685e8ec9fb49dab56dbd48f2b4ad",
+   "sha256": "1f601a366d0b317596c83256a339996fb78b3f3790a8936dec5aeae831c21ad6"
+  },
+  {
+   "path": "test/fixtures/base-real-history-52965080/recording.json",
+   "blob": "3ca8045823818e649aa4589d6cc840283c8a712a",
+   "sha256": "ebcb5eb7bdda5720d145ff3f8d364ea5ea442d7cfc4e69db7b1f2d2d1b79161f"
+  },
+  {
+   "path": "test/fixtures/derive-base-headers.mjs",
+   "blob": "842b8c6984ecd6f6018ccc7df782b688a1304a68",
+   "sha256": "b98d22a4163e68d56e8171055279d2c786157acf0df504d7e7c9cc3e3ab35390"
+  },
+  {
+   "path": "test/fixtures/derive-reth-genesis-2935.py",
+   "blob": "41920b555ffbffad68ced2c860d9ab235cb8ccf6",
+   "sha256": "c935888aa8d16d72cd5a688c05270e8a62146d6f73ced60cb151f0db0155fea8"
+  },
+  {
+   "path": "test/fixtures/fake-listener.mjs",
+   "blob": "b5b42bb6c02853c2a8ed492ee806b130a77a9368",
+   "sha256": "c89d85c609872530a0538196e00edf0efa4e9a4f39aee1ebe3770409c4498deb"
+  },
+  {
+   "path": "test/fixtures/listener-start-record.json",
+   "blob": "cb1000b7437f59732fb8dea602e1f4082897dc3a",
+   "sha256": "b80d909fe8ae5a13418c66d269832f00a621009af045812f968520df2a458fec"
+  },
+  {
+   "path": "test/fixtures/record-real-history.mjs",
+   "blob": "5f02ac99751719c0f6a7be0a6f4c009d15bd6f21",
+   "sha256": "c5d2c48de25cf982a9929922a6a3210be6ae478a56c1b34bfa084c94de28e332"
+  },
+  {
+   "path": "test/fixtures/replay-listener.mjs",
+   "blob": "df1fbe0b02be0d2bd807dabaf2cd8f7260481c29",
+   "sha256": "080b78845d73613e7ec1fbebd1e817e9a1a0cfeb62ff89ef3cb4b12d44df23eb"
+  },
+  {
+   "path": "test/fixtures/reth-dev-8453-genesis-2935.json",
+   "blob": "6925ffce41f624b4d22c1a0824a88df9f6c06b3a",
+   "sha256": "99138899e98faa27cdd28c21423d3ae55c36c36b50eb1334c102a1ab937ee319"
+  },
+  {
+   "path": "test/fixtures/reth-gossip-listener.mjs",
+   "blob": "5bf98ce0bb701327eff9921f17b8eede02693813",
+   "sha256": "f4047dcfbfad0322f44f39552778157bb4984213b1e8283dbbd4eabee8c2aeb2"
+  },
+  {
+   "path": "test/fixtures/rpc-runtime-launcher.mjs",
+   "blob": "536a7b1b3b03e4b25deb76f0df26debd8ee0b88f",
+   "sha256": "e9004bfeac6bc7490d0c7f611bf7a8b19b84f66b2e0c5070ceb2157e66769101"
+  },
+  {
+   "path": "test/gossip-head-source.test.mjs",
+   "blob": "100e5aefeccd9a41cfba6ad3bbacecf48d55b45c",
+   "sha256": "e0ce8a2d5b19fedc03e4ff1bd1d7479ed1f28a197f308da92d23a24c5a5565d4"
+  },
+  {
+   "path": "test/helios-base-head.e2e.test.mjs",
+   "blob": "b1d81d6df80c112e5101352251d22a41a1285f6b",
+   "sha256": "7765b225c4d121fbf4800dd5c430220b1e426e77b32b44de18db042f21f84d17"
+  },
+  {
+   "path": "test/helios-base-replay.e2e.test.mjs",
+   "blob": "bc81a6fa11551a4ba56cf02843035152471f746d",
+   "sha256": "7622f806ce636ba7fc8cddd8f799a1877d4aad6b65380292890d75273d787323"
+  },
+  {
+   "path": "test/helios-block-failover.e2e.test.mjs",
+   "blob": "33745cdb01f3fbf7fb4e37949da370cb4fc3525b",
+   "sha256": "c581e6b5502d3654f17f02f8ffee5286f7fd2af7d7c6680eb04dfce231322b65"
+  },
+  {
+   "path": "test/helios-real-history.e2e.test.mjs",
+   "blob": "db3349a8161120da3b0fce9672c8331d81045a71",
+   "sha256": "13371af742c761c7b6f01d07c77942bf7682e80b73af3fb8d6d021bda65f81e6"
+  },
+  {
+   "path": "test/helios-s3-replay.e2e.test.mjs",
+   "blob": "773679e7288cff5fdb2ce359491e1f147240e78a",
+   "sha256": "93f4f9c5595daaef3e9853a9a443193fee26ee25b7cff14c7b99892a9de8b67b"
+  },
+  {
+   "path": "test/helios-witness-failover.e2e.test.mjs",
+   "blob": "e7361c549e11ccf2bc0f75ba82f3f44181283c39",
+   "sha256": "869556bfd8c795f9cecccc08554db3fb9840748f2d6da460b529594c423536f0"
+  },
+  {
+   "path": "test/helios-witness.e2e.test.mjs",
+   "blob": "f868841c416e1ef6836ca460efb8b366ccdbc377",
+   "sha256": "ee3d144c5c60049e46fe66f6f54638dce3af737aeb997a0c9be3e49464c636a2"
+  },
+  {
+   "path": "test/lease-reader-verifier-deadline.test.mjs",
+   "blob": "b4e449662548bcce884899aec1aa52a10f7bd0cd",
+   "sha256": "c09098d10e184592d446008eb1d83aa921ab601ecbbb3143dbc730a9a20c833f"
+  },
+  {
+   "path": "test/lease-reader-verifier.e2e.test.mjs",
+   "blob": "7bbce0ffad4f6e2a825c44540de35040f1d3be53",
+   "sha256": "0f4dad94eefcc3f7656c39c62a9f236fd852ef177b17bb03d6d0e68f9dba8cd9"
+  },
+  {
+   "path": "test/lock-child.mjs",
+   "blob": "52ab26d87b1d4a6d264be562c6fdce3061a6a8e4",
+   "sha256": "3ca6ae66fb5599ac70c30278c2027a0ef0ec7265a45a9afb96f9c205fda7bcfc"
+  },
+  {
+   "path": "test/policy-verifier.e2e.test.mjs",
+   "blob": "cf0c3e78d71e77887c22ac6bcb1ab96ade74bce7",
+   "sha256": "063e0cb49e75b62083d3e74b2a8031ca7c742745be92b6662daae2cec0ee5d9d"
+  },
+  {
+   "path": "test/rpc-runtime-base-heads.test.mjs",
+   "blob": "f04ba5461e2a3a4c86ace03490933e24a7911cf9",
+   "sha256": "37c3cb64ba86efe7174fd84d7731aae3605e14aacb67aab5d3d13fda89dccdd3"
+  },
+  {
+   "path": "test/rpc-runtime.e2e.test.mjs",
+   "blob": "eac488598f5952b5ff210d13556e65a297dc7fac",
+   "sha256": "4e0d67d59d9544a001c3e79476d80ac49c023e7170557d7459c246f1e1039867"
+  },
+  {
+   "path": "test/rpc-runtime.test.mjs",
+   "blob": "228af8bc65023d0a116f4da899311be40fde03dd",
+   "sha256": "af72cc3d88c1171230d4c1c4d8df0bc4dbac0494760cda059d71d34a34aed451"
+  },
+  {
+   "path": "test/runtime-lock.test.mjs",
+   "blob": "3a0c9c39419f274ac67c5a59ecce17efdb0dcddd",
+   "sha256": "52932b0df53dd5aaa277584cab6e1fa58c21a4ecd5773f7495738bec3f0f834b"
+  },
+  {
+   "path": "test/s3-witness-archive.test.mjs",
+   "blob": "4b0bc1d0ec6c523e2a07671bd2e31c4eec844992",
+   "sha256": "c2b586a01612ec8b68e992a38adfe6e40899e3f172ea85f35cfe4fb856bda611"
+  },
+  {
+   "path": "test/s3-witness-cache.test.mjs",
+   "blob": "666a174d1f2628bdf53f44c97ae2b753d6442ade",
+   "sha256": "ebb5402b68377427cbd376ab2c8356bd10257c0f767800cc3dcd90cc7e42ec3b"
+  },
+  {
+   "path": "test/s3-witness-history.test.mjs",
+   "blob": "cd10210cccd369e7a381c77d1f80a1f5599a7f73",
+   "sha256": "b0be67850799622fb2619257ab6c1854a9483b34767a4ec809309908053a9abb"
+  },
+  {
+   "path": "test/support/s3-test-env.mjs",
+   "blob": "c0cec7901de9a06c0cac6d1172c2c0c3e5a27dd5",
+   "sha256": "cba2119a5d754075b76cd6fe9411544599851b6c2aa6ee8729e8c79e00de52e6"
+  },
+  {
+   "path": "test/windows-verifier.e2e.test.mjs",
+   "blob": "a35ea93040dc062b9b64bea6a2fe6ef95c1f1228",
+   "sha256": "c6c49fff099b4749256ec192db4262279787edf2f694c94eb184d037c05bf514"
+  },
+  {
+   "path": "test/witness-ancestry.test.mjs",
+   "blob": "d1efb257ec30de246c14e6b06e2c1b31e7394e8e",
+   "sha256": "df24cf53a1f2a8292bebaca74a549120fd371ace04ffa55a02c03a421b8dd8b2"
+  },
+  {
+   "path": "test/witness-archive-deadline.test.mjs",
+   "blob": "8bd43b34071eb0a0130a4265df7bdec343e2cdbd",
+   "sha256": "bcbff3d2fa519e458653f916ecda3522f2404e719b4305316b1f90c68f408b42"
+  },
+  {
+   "path": "test/witness-blocks.test.mjs",
+   "blob": "cd29bb3f46f5eb3be30509d993957dfb23435d74",
+   "sha256": "b674f3fb3182315fb8eee85d08934efe3aaad32f821ecd7ddd05f5edc23c4aa7"
+  },
+  {
+   "path": "test/witness-deadline.test.mjs",
+   "blob": "fb4a0f0ce57bc58d63172aee4b0acf74d7de6e3a",
+   "sha256": "17d9c2bd21db155f19bf1fa19751c5b58dfd127a3929b470496aa5497d70ccb7"
+  },
+  {
+   "path": "test/witness-failover.test.mjs",
+   "blob": "1c60a401a47dd65c6b7a0d328a73124de57bb58c",
+   "sha256": "8dea1d8c9feda753552e61d3c3048c5e4702f982e0889e21d6304567d020f187"
+  },
+  {
+   "path": "test/witness-gateway.test.mjs",
+   "blob": "0f7be1bea277b36dc8cb9ccf82a4ffa957a3f9be",
+   "sha256": "f0930fbc510d60e8fef967a811df8c33b92b3dd9347e07018ab90c8321c4870e"
+  }
+ ],
+ "binaries": {
+  "bin": {
+   "witness-check": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
+   "helios-eeffcc9": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+   "helios-compat-0a02256": "0929f7f383a082b8aa7fda97c3058e72a4acc93cbf250a24c7a08ae4e1df98fc",
+   "enclave-base-head-listener": "ebd045b428227530fac1c1b079f47c67ecb874637a1c7dcb4f021dd5929e8d3a",
+   "enclave-base-head-listener-release": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3",
+   "reth-v2.8.0": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250",
+   "opstack-server-eeffcc9": "35e2f0127d13a9f054cae1751d61578267802c0511ecdf511e17ca1030b95fee"
+  },
+  "bin-release": {
+   "enclave-base-head-listener": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3",
+   "helios-eeffcc9": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+   "witness-check": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411"
+  },
+  "acceptedByRuntime": {
+   "listener": [
+    "ebd045b4 (debug)",
+    "9ca75047 (release)"
+   ],
+   "helios": [
+    "cc962e2b (debug)"
+   ],
+   "witnessCheck": [
+    "4fe0cd3b (debug, ef320298)"
+   ]
+  }
+ },
+ "fixtures": {
+  "P manifest (109 files)": "887ab86dbf3f9551280efcb441722d7e8ddb39fb6ca6b1f941c0767b4b148cb5",
+  "reth-dev-8453-genesis.json": "cc045d9d317d08dc6971e923b3939365acdfd58d5484c65afc1f5e450ee5b5af",
+  "reth-dev-8453-genesis-2935.json": "99138899e98faa27cdd28c21423d3ae55c36c36b50eb1334c102a1ab937ee319"
+ },
+ "closure": {
+  "base-5476069f.tar.gz": "9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012",
+  "cargo-home-helios/CLOSURE.json": "046e1a66738c05c82eaf6b331f04ae494b9a21217165c549526e2720dc014c9c",
+  "cargo-home-listener/CLOSURE.json": "3db6a333d05164ee656f083d1003dd91440f6d04d63b10ffdcc17711cc06f557"
+ },
+ "jobs": {
+  "a-e2e": {
+   "rc": "0",
+   "out_sha256": "acb3e3a153dc2cff207e46d37f2112df8009dd5620d88f3a518773b57d5b39e8",
+   "summary": {
+    "tests": 24,
+    "pass": 23,
+    "fail": 0,
+    "skipped": 1
+   },
+   "peakTreeRssMiB": 777,
+   "capMiB": 1024,
+   "stoppedByGuard": false
+  },
+  "a-unit": {
+   "rc": "0",
+   "out_sha256": "51b7be8a43f0f73ec95c48d2330f4851f16f1ff4361a9664a6a40dc38d1b578a",
+   "summary": {
+    "tests": 40,
+    "pass": 40,
+    "fail": 0,
+    "skipped": 0
+   },
+   "peakTreeRssMiB": 219,
+   "capMiB": 256,
+   "stoppedByGuard": false
+  },
+  "closure-check": {
+   "rc": "0",
+   "out_sha256": "fc91c301a19c27a663d1e4dd57fbb97f9e82ca6cea333369fb3da0597d20190a",
+   "summary": null,
+   "peakTreeRssMiB": 184,
+   "capMiB": 256,
+   "stoppedByGuard": false
+  },
+  "e2e-1": {
+   "rc": "99",
+   "out_sha256": "cee221503ce0605f4bfc688dc13ca631fe302f827c9e68beee00b6f19f22c619",
+   "summary": null,
+   "peakTreeRssMiB": 1130,
+   "capMiB": 1024,
+   "stoppedByGuard": true
+  },
+  "e2e-2": {
+   "rc": "0",
+   "out_sha256": "73e286df8f70d7feec5b1fc75944da0ab43b1dfc40477901b93d49dab0ccc122",
+   "summary": {
+    "tests": 14,
+    "pass": 14,
+    "fail": 0,
+    "skipped": 0
+   },
+   "peakTreeRssMiB": 914,
+   "capMiB": 1408,
+   "stoppedByGuard": false
+  },
+  "e2e-release": {
+   "rc": "99",
+   "out_sha256": "48c5d96f04f217a674c996ef2447e41a5ec70fce9b30c4b0e9ea1d4865efa48f",
+   "summary": null,
+   "peakTreeRssMiB": 1036,
+   "capMiB": 1024,
+   "stoppedByGuard": true
+  },
+  "e2e-release2": {
+   "rc": "0",
+   "out_sha256": "eea8587a60cc597f105e45aeba90945c471c898c97832924feab4ff8d17b34a7",
+   "summary": {
+    "tests": 15,
+    "pass": 15,
+    "fail": 0,
+    "skipped": 0
+   },
+   "peakTreeRssMiB": 1131,
+   "capMiB": 1408,
+   "stoppedByGuard": false
+  },
+  "lineage": {
+   "rc": "0",
+   "out_sha256": "51961e83a317341afe16aee690cb30c38a645f953f89ae39e1381fa037134994",
+   "summary": null,
+   "peakTreeRssMiB": 116,
+   "capMiB": 1024,
+   "stoppedByGuard": false
+  },
+  "p-small": {
+   "rc": "1",
+   "out_sha256": "8cf26bf9435494956f6d8cddc7e5a4edbb17ea124b52f060cc7fc52bbc5ffcc9",
+   "summary": {
+    "tests": 48,
+    "pass": 46,
+    "fail": 2,
+    "skipped": 0
+   },
+   "peakTreeRssMiB": 196,
+   "capMiB": 256,
+   "stoppedByGuard": false
+  },
+  "p-small2": {
+   "rc": "0",
+   "out_sha256": "83bcdbba01844fab7dd92ef27a0e859e1a46460c4ed1aaee35a3d3b88956cb83",
+   "summary": {
+    "tests": 48,
+    "pass": 48,
+    "fail": 0,
+    "skipped": 0
+   },
+   "peakTreeRssMiB": 192,
+   "capMiB": 256,
+   "stoppedByGuard": false
+  },
+  "pe-e2e": {
+   "rc": "0",
+   "out_sha256": "8c75c9c567a4cc1191394665a8b704523522f5d4b97ee7deba40090caa871dec",
+   "summary": {
+    "tests": 48,
+    "pass": 46,
+    "fail": 0,
+    "skipped": 2
+   },
+   "peakTreeRssMiB": 417,
+   "capMiB": 1024,
+   "stoppedByGuard": false
+  },
+  "scan": {
+   "rc": "0",
+   "out_sha256": "6d2662d331536bca46fc8e4644ea3d3cea360458ce243f2b788e5fa8bafd3dd5",
+   "summary": null,
+   "peakTreeRssMiB": 41,
+   "capMiB": 256,
+   "stoppedByGuard": false
+  },
+  "u1": {
+   "rc": "0",
+   "out_sha256": "2b151de79b22dc2b50c060b039dc675716a8ffd9eb8b817b55dca091e4a22674",
+   "summary": {
+    "tests": 42,
+    "pass": 42,
+    "fail": 0,
+    "skipped": 0
+   },
+   "peakTreeRssMiB": 351,
+   "capMiB": 512,
+   "stoppedByGuard": false
+  }
+ }
+}

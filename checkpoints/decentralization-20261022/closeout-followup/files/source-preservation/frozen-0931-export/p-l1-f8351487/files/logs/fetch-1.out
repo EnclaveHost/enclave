@@ -1,0 +1,27 @@
+[queue] START available=24404MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+200 177681 https://api.github.com/repos/paradigmxyz/reth/releases?per_page=8
+200 170707 https://api.github.com/repos/sigp/lighthouse/releases?per_page=8
+200 255785 https://api.github.com/repos/base/base/releases?per_page=4
+reth-releases.json v2.8.0 2026-10-20T19:34:03Z   Reth v2.8.0
+reth-releases.json v2.7.0 2026-09-28T12:45:27Z   Reth v2.7.0
+reth-releases.json v2.6.0 2026-09-17T14:00:49Z   Reth v2.6.0
+reth-releases.json v2.5.2 2026-09-02T11:32:33Z   Reth v2.5.2
+reth-releases.json v2.5.1 2026-08-20T12:18:40Z   Reth v2.5.1
+reth-releases.json v2.5.0 2026-08-12T13:11:35Z   Reth v2.5.0
+reth-releases.json v2.4.1 2026-07-17T13:23:16Z   Reth v2.4.1
+reth-releases.json v2.4.0 2026-07-14T13:37:38Z   Reth v2.4.0
+lighthouse-releases.json v8.4.0-rc.0 2026-10-22T12:35:49Z pre  Abandoned Jerrys
+lighthouse-releases.json v8.3.2 2026-10-23T00:41:38Z   Rhett Caan
+lighthouse-releases.json v8.3.1 2026-10-22T02:53:46Z   Rick J-22
+lighthouse-releases.json v8.3.0 2026-10-19T10:12:23Z   Simple Rick
+lighthouse-releases.json v8.3.0-rc.0 2026-10-01T04:47:48Z pre  Warp Rick
+lighthouse-releases.json v8.2.3 2026-10-01T02:15:41Z   Kirkland Meeseeks
+lighthouse-releases.json v8.2.2 2026-08-18T00:53:15Z   Mr. Meeseeks
+lighthouse-releases.json v8.2.1 2026-07-21T04:50:09Z   Mrs. Pancakes
+base-releases.json v1.5.1 2026-10-22T17:47:20Z   v1.5.1
+base-releases.json v1.5.0 2026-10-14T20:52:39Z   v1.5.0
+base-releases.json v1.4.2 2026-09-23T22:49:04Z   v1.4.2
+base-releases.json v1.4.1 2026-09-23T16:41:18Z   v1.4.1
+[memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=24347
+[memory-guard] at peak: curl:16 bash:6
+[queue] EXIT 0

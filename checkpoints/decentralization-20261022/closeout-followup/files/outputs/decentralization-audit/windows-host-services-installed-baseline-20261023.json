@@ -1,0 +1,79 @@
+{
+  "at": "2026-10-23T08:01:05.8937280Z",
+  "files": [
+    {
+      "path": "network\\privacy-agent.mjs",
+      "present": true,
+      "sha": "CFB69370A00DEA147340C64BBD712F118EB8CB825237AC79B3B053B586350801"
+    },
+    {
+      "path": "network\\windows-circuit-worker.mjs",
+      "present": true,
+      "sha": "13CE44F1B39D4521E32266F2DAD234958AF70B1B05E2A3F6638535571E8CF320"
+    },
+    {
+      "path": "network\\host-service-ingress.mjs",
+      "present": true,
+      "sha": "C952DCE4FE007C48C81E1726A743D850DC2F5231204D01466349BFA5FFCC62D3"
+    },
+    {
+      "path": "network\\enclave-wg.exe",
+      "present": true,
+      "sha": "CBAF8313CE4E2CFCE347ABED99BDEAF5FC0631B8AB07BFBAB20471F60920264C"
+    },
+    {
+      "path": "network\\enclave-circuit-firewall.exe",
+      "present": true,
+      "sha": "78DAEC71F51F89A53600CB7D4BFB0492E2F0D642047422E4FBEC30B2A5C238A6"
+    },
+    {
+      "path": "control\\windows\\node\\agent.mjs",
+      "present": true,
+      "sha": "76CAC3559713313251A0C0AB618FC31980C750496B6D55D94969D30B32C083A1"
+    },
+    {
+      "path": "control\\windows\\node\\network-enroll.mjs",
+      "present": true,
+      "sha": "A9729786598107E69D24D5163EA8592D114F93A9B6693106A7FA3414C95430D6"
+    },
+    {
+      "path": "control\\windows\\node\\host.mjs",
+      "present": true,
+      "sha": "EA0F6B8AB9562E95CC20E82EA0D6CC6C7A242445D0A8608195F50EBB711C00DE"
+    },
+    {
+      "path": "control\\windows\\node\\chain.mjs",
+      "present": true,
+      "sha": "3E9FAE0392497841F5C4E084C9D11F6C01243D339B0BDF3395B569F921A12938"
+    },
+    {
+      "path": "control\\network\\host-service-transport.mjs",
+      "present": true,
+      "sha": "DE5BB98A2E77FFD90CCF65211F564D9515F667B4CD6D17CBB3644FB2CA454E06"
+    },
+    {
+      "path": "control\\network\\host-service-names.mjs",
+      "present": true,
+      "sha": "A46123CBB70AB666F9DFB23B5B545FE76D87658C6BF82C7F7574579D0C65B32C"
+    },
+    {
+      "path": "control\\network\\host-policy-gate-config.mjs",
+      "present": false,
+      "sha": null
+    },
+    {
+      "path": "control\\network\\rpc-identity.mjs",
+      "present": true,
+      "sha": "74CB965EE1AE031566AC0F060E4EBDF512089CC702C0EC54C2F98113834C5D57"
+    },
+    {
+      "path": "control\\network\\platform-host-policy-config.mjs",
+      "present": false,
+      "sha": null
+    }
+  ],
+  "optInConfigured": false,
+  "updateNext": "2026-10-23T08:13:36.0000000Z",
+  "updateLast": 0,
+  "scope": "Read-only installed file hashes and machine opt-in presence. No activation, stage, restart, configuration or scheduler change. Hashes identify files on disk, not loaded process bytes."
+}

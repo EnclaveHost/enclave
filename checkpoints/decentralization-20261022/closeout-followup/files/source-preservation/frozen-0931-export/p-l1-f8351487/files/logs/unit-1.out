@@ -1,0 +1,1059 @@
+[queue] START available=24495MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+== pins
+e74191fd6d4e05008bd9a8784e8ef9b424178d34de6e6284145c2842f4ff7670  l1pair/l1pair.py
+46deaf02b28a96d2806a71de21b7559cdaa657f3dd718bfd5623ab4b91810d6a  l1pair/PINS.json
+fb952770f6a3851b44cff72cc171390b77e92f982e44eaa78d2ebe0c7b82ff99  l1pair/vendor/VENDOR.json
+21bba6263dbb264eab6629bb794488565f6ca368a223a8ae442cc4cede4a301c  l1pair/test/test_l1pair.py
+vendor: OK (S 08f2efe byte-identical)
+test_check_checkpoint (__main__.Checkpoint.test_check_checkpoint) ... ERROR
+test_inspect_reads_the_real_mainnet_genesis_state (__main__.Checkpoint.test_inspect_reads_the_real_mainnet_genesis_state) ... ok
+test_jwt_shape_and_mode (__main__.Jwt.test_jwt_shape_and_mode) ... ERROR
+test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_check) ... ERROR
+test_nothing_listening_is_not_ready_and_does_not_crash (__main__.ReadyGate.test_nothing_listening_is_not_ready_and_does_not_crash) ... ERROR
+test_closed_env (__main__.Rendering.test_closed_env) ... ERROR
+test_every_lighthouse_flag_is_in_the_pinned_source_help (__main__.Rendering.test_every_lighthouse_flag_is_in_the_pinned_source_help) ... ERROR
+test_every_reth_flag_is_in_the_executed_binary_help (__main__.Rendering.test_every_reth_flag_is_in_the_executed_binary_help) ... ERROR
+test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv) ... ERROR
+test_exact_el_argv (__main__.Rendering.test_exact_el_argv) ... ERROR
+test_no_hidden_external_default (__main__.Rendering.test_no_hidden_external_default) ... ERROR
+test_render (__main__.Rendering.test_render) ... ERROR
+test_storage_script_is_S_template_with_this_pairs_constants (__main__.Rendering.test_storage_script_is_S_template_with_this_pairs_constants) ... ERROR
+test_units (__main__.Rendering.test_units) ... ERROR
+test_vendor_files_match_their_pins (__main__.Rendering.test_vendor_files_match_their_pins) ... ERROR
+test_boundaries_accepted (__main__.Validation.test_boundaries_accepted) ... ERROR
+test_example_as_shipped_is_refused_until_pins_are_recorded (__main__.Validation.test_example_as_shipped_is_refused_until_pins_are_recorded) ... FAIL
+test_good_config_validates (__main__.Validation.test_good_config_validates) ... ERROR
+test_refusals (__main__.Validation.test_refusals) ... 
+  test_refusals (__main__.Validation.test_refusals) [format] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [network] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [el client] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [cl client] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [admin api] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [debug api] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [no eth api] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [receipts full default] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [receipts one short] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [custody default] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [nat any] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [nat upnp] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [nat publicip] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [nat extip loopback] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [dns discovery implicit] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [listen loopback] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [dup tcp port] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [avoid port] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [verifier port] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [jwt outside etc] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [no co-resident list] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [mount inside holder] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [origin inside holder dir] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [mount root] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [mount array root] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [mount tmp] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [mount nvme vm] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [origin not on array] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [origin too small] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [other caches implicit] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [wrong reth release] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [wrong lh commit] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [wrong tarball] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [wrong reth binary] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [wss malformed] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [wss pre-fulu] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [one provenance] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [provenance root differs] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [provenance same source] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [state sha placeholder] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [checkpoint inside datadir] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [genesis sync] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [url without ack] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [url plain http] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [writeback cache] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [cache over target] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [cache over cap] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [el memory tiny] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [co-resident implicit] ... FAIL
+  test_refusals (__main__.Validation.test_refusals) [root user] ... FAIL
+
+======================================================================
+ERROR: test_check_checkpoint (__main__.Checkpoint.test_check_checkpoint)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 283, in test_check_checkpoint
+    self.assertIn('epoch-boundary', L.check_checkpoint(self._cfg(d, synthetic_state(slot), synthetic_block(slot), epoch), now))
+                                                       ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 273, in _cfg
+    c = L.validate(good())
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_jwt_shape_and_mode (__main__.Jwt.test_jwt_shape_and_mode)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 312, in test_jwt_shape_and_mode
+    c = L.validate(good())
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_check)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 405, in test_gate_is_the_conjunction_of_every_check
+    c = L.validate(good())
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_nothing_listening_is_not_ready_and_does_not_crash (__main__.ReadyGate.test_nothing_listening_is_not_ready_and_does_not_crash)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 397, in test_nothing_listening_is_not_ready_and_does_not_crash
+    c = L.validate(good())
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_closed_env (__main__.Rendering.test_closed_env)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 135, in setUp
+    self.c = L.validate(good())
+             ~~~~~~~~~~^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_every_lighthouse_flag_is_in_the_pinned_source_help (__main__.Rendering.test_every_lighthouse_flag_is_in_the_pinned_source_help)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 135, in setUp
+    self.c = L.validate(good())
+             ~~~~~~~~~~^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_every_reth_flag_is_in_the_executed_binary_help (__main__.Rendering.test_every_reth_flag_is_in_the_executed_binary_help)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 135, in setUp
+    self.c = L.validate(good())
+             ~~~~~~~~~~^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 135, in setUp
+    self.c = L.validate(good())
+             ~~~~~~~~~~^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 135, in setUp
+    self.c = L.validate(good())
+             ~~~~~~~~~~^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_no_hidden_external_default (__main__.Rendering.test_no_hidden_external_default)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 135, in setUp
+    self.c = L.validate(good())
+             ~~~~~~~~~~^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_render (__main__.Rendering.test_render)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 135, in setUp
+    self.c = L.validate(good())
+             ~~~~~~~~~~^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_storage_script_is_S_template_with_this_pairs_constants (__main__.Rendering.test_storage_script_is_S_template_with_this_pairs_constants)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 135, in setUp
+    self.c = L.validate(good())
+             ~~~~~~~~~~^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_units (__main__.Rendering.test_units)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 135, in setUp
+    self.c = L.validate(good())
+             ~~~~~~~~~~^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_vendor_files_match_their_pins (__main__.Rendering.test_vendor_files_match_their_pins)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 135, in setUp
+    self.c = L.validate(good())
+             ~~~~~~~~~~^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_boundaries_accepted (__main__.Validation.test_boundaries_accepted)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 120, in test_boundaries_accepted
+    L.validate(c)
+    ~~~~~~~~~~^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+ERROR: test_good_config_validates (__main__.Validation.test_good_config_validates)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 44, in test_good_config_validates
+    c = L.validate(good())
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 147, in validate
+    only('config', raw, ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         'otherServicePaths', 'limits', 'storage', 'comment'],
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         ['format', 'network', 'serviceUser', 'execution', 'consensus', 'p2p', 'jwtSecretPath', 'avoidPorts',
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          'otherServicePaths', 'limits', 'storage'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 70, in only
+    fail(f'{where}: field {k!r} names a credential; this config holds none')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: config: field 'jwtSecretPath' names a credential; this config holds none
+
+======================================================================
+FAIL: test_example_as_shipped_is_refused_until_pins_are_recorded (__main__.Validation.test_example_as_shipped_is_refused_until_pins_are_recorded)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 41, in test_example_as_shipped_is_refused_until_pins_are_recorded
+    self.assertIn('consensus.binary.sha256', str(cm.exception))
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'consensus.binary.sha256' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [format]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'format' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [network]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'mainnet' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [el client]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'reth' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [cl client]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'lighthouse' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [admin api]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'httpApi' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [debug api]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'httpApi' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [no eth api]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'httpApi' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [receipts full default]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'receiptsRetentionBlocks' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [receipts one short]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'receiptsRetentionBlocks' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [custody default]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'semi-supernode or supernode' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [nat any]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'ipinfo' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [nat upnp]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'ipinfo' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [nat publicip]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'ipinfo' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [nat extip loopback]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'extip' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [dns discovery implicit]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'dnsDiscovery' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [listen loopback]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'listenIp' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [dup tcp port]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'distinct' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [avoid port]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'co-resident' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [verifier port]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'co-resident' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [jwt outside etc]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: '/etc' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [no co-resident list]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'otherServicePaths' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [mount inside holder]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'overlaps' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [origin inside holder dir]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'overlaps' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [mount root]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'dedicated' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [mount array root]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'dedicated' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [mount tmp]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'inside /tmp' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [mount nvme vm]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'inside /vm' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [origin not on array]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'HDD array' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [origin too small]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'origin.bytes' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [other caches implicit]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'otherNvmeCacheAllocations' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [wrong reth release]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'release/commit' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [wrong lh commit]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'release/commit' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [wrong tarball]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'asset digest' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [wrong reth binary]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'reviewed binary' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [wss malformed]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'wss' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [wss pre-fulu]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'Fulu' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [one provenance]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: '>= 2' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [provenance root differs]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'does not equal' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [provenance same source]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'distinct' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [state sha placeholder]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'stateSha256' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [checkpoint inside datadir]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'outside the beacon datadir' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [genesis sync]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'DO NOT use on mainnet' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [url without ack]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'oneTimeBootstrapUrlAcknowledged' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [url plain http]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'https' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [writeback cache]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'writethrough' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [cache over target]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'operational target' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [cache over cap]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'aggregate cap' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [el memory tiny]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'memoryMaxBytes' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [co-resident implicit]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'coResidentMemoryBytes' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+======================================================================
+FAIL: test_refusals (__main__.Validation.test_refusals) [root user]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 116, in test_refusals
+    refused(self, mut, match)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 34, in refused
+    test.assertRegex(str(cm.exception), match)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'serviceUser' not found in "config: field 'jwtSecretPath' names a credential; this config holds none"
+
+----------------------------------------------------------------------
+Ran 19 tests in 0.034s
+
+FAILED (failures=51, errors=16)
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

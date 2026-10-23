@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-23T09:19:16.960258+00:00",
+  "rc": 0,
+  "data": {
+    "services": {
+      "rc": 0,
+      "out": "MainPID=5031\nResult=success\nNRestarts=238\nId=enclave-storage-tunnel-eu-central.service\nActiveState=active\nSubState=running\n\nMainPID=5032\nResult=success\nNRestarts=238\nId=enclave-storage-tunnel-ap-southeast.service\nActiveState=active\nSubState=running\n\nMainPID=2016\nResult=success\nNRestarts=36\nId=enclave-storage-tunnel-us-west.service\nActiveState=active\nSubState=running\n\nMainPID=5029\nResult=success\nNRestarts=219\nId=enclave-storage-tunnel-ca-east.service\nActiveState=active\nSubState=running\n",
+      "err": ""
+    },
+    "logs": {
+      "rc": 0,
+      "out": "2026-10-23T09:16:52+00:00 enclave-storage systemd[1]: enclave-storage-tunnel-eu-central.service: Failed with result 'exit-code'.\n2026-10-23T09:16:52+00:00 enclave-storage ssh[5003]: Error: remote port forwarding failed for listen port 29443\n2026-10-23T09:16:52+00:00 enclave-storage systemd[1]: enclave-storage-tunnel-ap-southeast.service: Main process exited, code=exited, status=255/EXCEPTION\n2026-10-23T09:16:52+00:00 enclave-storage systemd[1]: enclave-storage-tunnel-ap-southeast.service: Failed with result 'exit-code'.\n2026-10-23T09:17:52+00:00 enclave-storage systemd[1]: enclave-storage-tunnel-eu-central.service: Scheduled restart job, restart counter is at 237.\n2026-10-23T09:17:52+00:00 enclave-storage systemd[1]: Started enclave-storage-tunnel-eu-central.service - Encrypted storage ingress via eu-central.\n2026-10-23T09:17:52+00:00 enclave-storage systemd[1]: enclave-storage-tunnel-ap-southeast.service: Scheduled restart job, restart counter is at 237.\n2026-10-23T09:17:52+00:00 enclave-storage systemd[1]: Started enclave-storage-tunnel-ap-southeast.service - Encrypted storage ingress via ap-southeast.\n2026-10-23T09:17:55+00:00 enclave-storage ssh[5019]: Error: remote port forwarding failed for listen port 29443\n2026-10-23T09:17:55+00:00 enclave-storage systemd[1]: enclave-storage-tunnel-eu-central.service: Main process exited, code=exited, status=255/EXCEPTION\n2026-10-23T09:17:55+00:00 enclave-storage systemd[1]: enclave-storage-tunnel-eu-central.service: Failed with result 'exit-code'.\n2026-10-23T09:17:55+00:00 enclave-storage ssh[5020]: Error: remote port forwarding failed for listen port 29443\n2026-10-23T09:17:55+00:00 enclave-storage systemd[1]: enclave-storage-tunnel-ap-southeast.service: Main process exited, code=exited, status=255/EXCEPTION\n2026-10-23T09:17:55+00:00 enclave-storage systemd[1]: enclave-storage-tunnel-ap-southeast.service: Failed with result 'exit-code'.\n2026-10-23T09:18:55+00:00 enclave-storage systemd[1]: enclave-storage-tunnel-eu-central.service: Scheduled restart job, restart counter is at 238.\n2026-10-23T09:18:55+00:00 enclave-storage systemd[1]: Started enclave-storage-tunnel-eu-central.service - Encrypted storage ingress via eu-central.\n2026-10-23T09:18:55+00:00 enclave-storage systemd[1]: enclave-storage-tunnel-ap-southeast.service: Scheduled restart job, restart counter is at 238.\n2026-10-23T09:18:55+00:00 enclave-storage systemd[1]: Started enclave-storage-tunnel-ap-southeast.service - Encrypted storage ingress via ap-southeast.\n",
+      "err": ""
+    }
+  },
+  "err": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n"
+}

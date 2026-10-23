@@ -1,0 +1,167 @@
+[queue] START available=25914MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+== pins
+a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+f26b94a8af333c67bc51f4ea4111ca231a8e5f3a0bf6ba22079731ef9ee70890  l1pair/PINS.json
+a2bcc3aabff16977e29e84ed46b1734028ec58c66dbc8c4523ae1bcf62accefa  l1pair/vendor/VENDOR.json
+f1f748833dbb7a1a32702daace04588441cf5b40b93b5046dd1ef3f4c1b985fd  l1pair/test/mutate.py
+86cb2a3558882ec5699d83d68ee11f6d1a0224f1d8b5de36147a3e62bf16cf44  l1pair/test/realrig.py
+6dc6fc2e92136842d4278f56b8194c9fca83fe959f5f52009677f543c94ab4cf  l1pair/test/run_side.py
+9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
+b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
+df0e3dfc93e516d26bef54f2f45816e7a571f7c5f55ff86081132594ee7631f2  l1pair/test/test_lighthouse_offline.py
+60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
+85cdd561c066131c2cb611822c047b868d2e83480a490116978ac4cdae7e4f7a  l1pair/test/test_tx_broadcast_offline.py
+vendor: OK (S 959e56f byte-identical)
+8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250  bin/reth-v2.8.0
+test_default_admits_locally_but_never_propagates_and_opt_in_propagates (__main__.TxBroadcastOffline.test_default_admits_locally_but_never_propagates_and_opt_in_propagates) ... {
+ "label": "TEST NETWORK chainId 1337 (throwaway genesis), offline, synthetic tx signed with a PUBLIC test key; not mainnet, no inclusion",
+ "disabled": {
+  "modeUnderTestOnA": "disabled",
+  "argvA_txFlags": [
+   "--txpool.disable-transactions-backup",
+   "--disable-tx-gossip",
+   "--txpool.no-local-transactions-propagation"
+  ],
+  "peersConnected": true,
+  "peerAfterSec": 0.0,
+  "fcu": {
+   "A": [
+    200,
+    "VALID"
+   ],
+   "B": [
+    200,
+    "VALID"
+   ]
+  },
+  "advance": {
+   "block": "0x1",
+   "hash": "0x22cd6bd567b45c78ee4554b6153e77f8853311434379c9ef2093a7c46ce070e1",
+   "txs": 0,
+   "status": {
+    "A": [
+     "VALID",
+     "VALID"
+    ],
+    "B": [
+     "VALID",
+     "VALID"
+    ]
+   }
+  },
+  "bothAtBlock1": true,
+  "sendRawTransactionOnA": "0x88f6fc9f7aeb0a3871b400ceb6c9b3a19b398c9f8b84006831ebd56c7b790208",
+  "admittedOnA": true,
+  "seenOnB": false,
+  "seenOnBAfterSec": 30.0,
+  "peersAfter": {
+   "A": 1,
+   "B": 1
+  },
+  "probes": {
+   "wrongChain": {
+    "accepted": false,
+    "answer": "{'code': -32000, 'message': 'invalid chain ID'}"
+   },
+   "unprotected": {
+    "accepted": true,
+    "answer": "0x4816d88854d914e596bc80338b4169385bb497865073957a223e0ef330a3ae50"
+   },
+   "overFeeCap": {
+    "accepted": false,
+    "answer": "{'code': -32000, 'message': 'tx fee (2100000000000000000 wei) exceeds the configured cap (1000000000000000000 wei)'}"
+   }
+  },
+  "receiptOnA": null,
+  "headAfter": {
+   "A": "0x1",
+   "B": "0x1"
+  },
+  "stopB": {
+   "exitCode": 0,
+   "sec": 0.11
+  },
+  "stopA": {
+   "exitCode": 0,
+   "sec": 0.31
+  }
+ },
+ "localRawPropagate": {
+  "modeUnderTestOnA": "local-raw-propagate",
+  "argvA_txFlags": [
+   "--txpool.disable-transactions-backup"
+  ],
+  "peersConnected": true,
+  "peerAfterSec": 0.0,
+  "fcu": {
+   "A": [
+    200,
+    "VALID"
+   ],
+   "B": [
+    200,
+    "VALID"
+   ]
+  },
+  "advance": {
+   "block": "0x1",
+   "hash": "0x22cd6bd567b45c78ee4554b6153e77f8853311434379c9ef2093a7c46ce070e1",
+   "txs": 0,
+   "status": {
+    "A": [
+     "VALID",
+     "VALID"
+    ],
+    "B": [
+     "VALID",
+     "VALID"
+    ]
+   }
+  },
+  "bothAtBlock1": true,
+  "sendRawTransactionOnA": "0x88f6fc9f7aeb0a3871b400ceb6c9b3a19b398c9f8b84006831ebd56c7b790208",
+  "admittedOnA": true,
+  "seenOnB": true,
+  "seenOnBAfterSec": 0.0,
+  "peersAfter": {
+   "A": 1,
+   "B": 1
+  },
+  "probes": {
+   "wrongChain": {
+    "accepted": false,
+    "answer": "{'code': -32000, 'message': 'invalid chain ID'}"
+   },
+   "unprotected": {
+    "accepted": true,
+    "answer": "0x4816d88854d914e596bc80338b4169385bb497865073957a223e0ef330a3ae50"
+   },
+   "overFeeCap": {
+    "accepted": false,
+    "answer": "{'code': -32000, 'message': 'tx fee (2100000000000000000 wei) exceeds the configured cap (1000000000000000000 wei)'}"
+   }
+  },
+  "receiptOnA": null,
+  "headAfter": {
+   "A": "0x1",
+   "B": "0x1"
+  },
+  "stopB": {
+   "exitCode": 0,
+   "sec": 0.56
+  },
+  "stopA": {
+   "exitCode": 0,
+   "sec": 0.26
+  }
+ }
+}
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 35.546s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=817 minHostAvailableMiB=24875
+[memory-guard] at peak: reth-v2.8.0:431 reth-v2.8.0:306 python3:31 python3:25 python3:25
+[queue] EXIT 0

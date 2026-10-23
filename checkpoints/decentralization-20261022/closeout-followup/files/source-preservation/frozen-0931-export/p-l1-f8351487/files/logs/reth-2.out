@@ -1,0 +1,53 @@
+[queue] START available=23914MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
+== pins
+a008183607760acb73d97cca36f59ac5fed99939ee0e4d0b499704e54ad20a1a  l1pair/l1pair.py
+46deaf02b28a96d2806a71de21b7559cdaa657f3dd718bfd5623ab4b91810d6a  l1pair/PINS.json
+a5440bc77ab55aa68f541b768acca438df75025eeea6c0d42a99c31a6eaabb53  l1pair/vendor/VENDOR.json
+51b8a2d111dd6aa9fc3d9e1f36031bfe3e3e7990857cdbf804efc25077e8c1fb  l1pair/test/mutate.py
+a3c26785d946be37ca3044fe2eecef21ed4201025dcb254679c177fdfdf87fb7  l1pair/test/realrig.py
+2f7f6a2412fcdc5b5d31cfa088b96b6de49ed7883c65601f015678d5bae908ab  l1pair/test/run_side.py
+6b988f289eb29f9d621f62df4e0dac31ddbb83fb1a1f23f2b0d9f9ad1ebf602e  l1pair/test/test_base_l1_offline.py
+a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
+vendor: OK (S 6b9dae92 byte-identical)
+8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250  bin/reth-v2.8.0
+test_real_reth_under_the_launcher (__main__.RethOffline.test_real_reth_under_the_launcher) ... {
+ "readyAfterSec": null,
+ "exitCode": 1,
+ "stopSec": 0.0,
+ "leftoverListeners": [],
+ "datadir": {
+  "apparent": 0,
+  "allocated": 0,
+  "files": 0
+ },
+ "supervisorLog": []
+}
+FAIL
+
+======================================================================
+FAIL: test_real_reth_under_the_launcher (__main__.RethOffline.test_real_reth_under_the_launcher)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_reth_offline.py", line 28, in test_real_reth_under_the_launcher
+    self.assertIsNotNone(ready_at, rig.text()[-3000:])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/run_side.py", line 7, in <module>
+    sys.exit(L.run(json.loads(Path(sys.argv[1]).read_text()), sys.argv[2]))
+             ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 764, in run
+    check_binaries(c)
+    ~~~~~~~~~~~~~~^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 546, in check_binaries
+    st = os.lstat(b['path'])
+FileNotFoundError: [Errno 2] No such file or directory: '/opt/enclave-l1-pair/bin/lighthouse'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.256s
+
+FAILED (failures=1)
+[memory-guard] exit=1 peakTreeRssMiB=58 minHostAvailableMiB=23840
+[memory-guard] at peak: python3:31 python3:26
+[queue] EXIT 1

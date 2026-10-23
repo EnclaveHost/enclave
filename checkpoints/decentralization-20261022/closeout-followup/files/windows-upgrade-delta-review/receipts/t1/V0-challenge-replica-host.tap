@@ -1,0 +1,113 @@
+TAP version 13
+# Subtest: configuration: explicit trust inputs only; legacy central inputs, lab modes and malformed values are refused before anything binds
+ok 1 - configuration: explicit trust inputs only; legacy central inputs, lab modes and malformed values are refused before anything binds
+  ---
+  duration_ms: 4.42053
+  type: 'test'
+  ...
+# Subtest: the child environment is derived, complete and minimal: trusted judge, no relay/secret/inherited variables
+ok 2 - the child environment is derived, complete and minimal: trusted judge, no relay/secret/inherited variables
+  ---
+  duration_ms: 0.650691
+  type: 'test'
+  ...
+# Subtest: the release must hold exactly the pinned bytes; the service-index advertisement is only an unsigned draft
+ok 3 - the release must hold exactly the pinned bytes; the service-index advertisement is only an unsigned draft
+  ---
+  duration_ms: 3.262597
+  type: 'test'
+  ...
+# Subtest: a replica that cannot be spawned is retried with backoff, then refused as not ready; nothing is left running
+ok 4 - a replica that cannot be spawned is retried with backoff, then refused as not ready; nothing is left running
+  ---
+  duration_ms: 5509.977153
+  type: 'test'
+  ...
+# Subtest: the REAL platform host policy gate: a fresh host without an authenticated admit starts nothing (production policy, no network)
+ok 5 - the REAL platform host policy gate: a fresh host without an authenticated admit starts nothing (production policy, no network)
+  ---
+  duration_ms: 23.514576
+  type: 'test'
+  ...
+# Subtest: host policy carriers (first host without the fleet): the integrated carriers, explicit only; the gate is shown the reserved carrier origin
+ok 6 - host policy carriers (first host without the fleet): the integrated carriers, explicit only; the gate is shown the reserved carrier origin
+  ---
+  duration_ms: 1.463121
+  type: 'test'
+  ...
+# Subtest: the REAL gate with carriers, fresh offline host: still nothing starts, and the carrier origin is answered locally (never fetched)
+ok 7 - the REAL gate with carriers, fresh offline host: still nothing starts, and the carrier origin is answered locally (never fetched)
+  ---
+  duration_ms: 16.374081
+  type: 'test'
+  ...
+# node:fs:560
+#   return binding.open(
+#                  ^
+# Error: ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/tmp/t1/relay/network-runtime.bundle.mjs'
+#     at Object.openSync (node:fs:560:18)
+#     at Object.readFileSync (node:fs:444:35)
+#     at file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/tmp/t1/scripts/build-challenge-replica-release.mjs:52:22
+#     at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+#   errno: -2,
+#   code: 'ENOENT',
+#   syscall: 'open',
+#   path: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/tmp/t1/relay/network-runtime.bundle.mjs'
+# }
+# Node.js v22.23.3
+# Subtest: the network host judges challengeReplica before anything binds
+ok 8 - the network host judges challengeReplica before anything binds
+  ---
+  duration_ms: 1.612629
+  type: 'test'
+  ...
+# Subtest: end to end: the built release, started by the host package, serves a Shield guest push through its HTTPS front; refusals; restart
+not ok 9 - end to end: the built release, started by the host package, serves a Shield guest push through its HTTPS front; refusals; restart
+  ---
+  duration_ms: 575.756419
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/tmp/t1/test/challenge-replica-host.test.mjs:236:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/tmp/t1/scripts/build-challenge-replica-release.mjs /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/tmp/challenge-release-built-uRlnK8
+    node:fs:560
+      return binding.open(
+                     ^
+    
+    Error: ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/tmp/t1/relay/network-runtime.bundle.mjs'
+        at Object.openSync (node:fs:560:18)
+        at Object.readFileSync (node:fs:444:35)
+        at file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/tmp/t1/scripts/build-challenge-replica-release.mjs:52:22
+        at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+      errno: -2,
+      code: 'ENOENT',
+      syscall: 'open',
+      path: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/tmp/t1/relay/network-runtime.bundle.mjs'
+    }
+    
+    Node.js v22.23.3
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Object.openSync (node:fs:560:18)
+    Object.readFileSync (node:fs:444:35)
+    file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/tmp/t1/scripts/build-challenge-replica-release.mjs:52:22
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+    genericNodeError (node:internal/errors:983:15)
+    wrappedFn (node:internal/errors:537:14)
+    checkExecSyncError (node:child_process:916:11)
+    execFileSync (node:child_process:952:15)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/tmp/t1/test/challenge-replica-host.test.mjs:242:28)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 8
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6527.570002

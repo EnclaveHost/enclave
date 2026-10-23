@@ -1,0 +1,19 @@
+current=NONE
+currentSha=
+unit.ActiveState=inactive
+unit.SubState=dead
+unit.MainPID=0
+unit.NRestarts=0
+unit.NeedDaemonReload=
+unit.ExecStart=
+writerPids=
+allowLiveStart=absent
+containerTimeout=timeout (GNU coreutils) 9.12
+dbVersion=28
+fsync=on synchronous_commit=on
+fencedAccounts=0
+casEnrolledAccounts=0
+scratchDatabases=
+controllerSessions=
+toolSessions=
+lockHeld=no (absent)

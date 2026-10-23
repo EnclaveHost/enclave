@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-23T08:17:33.277726+00:00",
+  "scope": "Actual PostgreSQL delayed update after client SIGKILL. Synthetic account table; NOT a reproduction of production indexd/controller shutdown.",
+  "postgres": "postgres (PostgreSQL) 18.6",
+  "clientExit": -9,
+  "casWhileClientGone": 0,
+  "pendingBackend": 1,
+  "decisionOnProcessOnlyBarrier": "LEGACY_REDEPLOY_SAFE",
+  "casAfterBackendFinished": 1,
+  "observedCounterexample": true,
+  "cleanup": {
+    "postgresExited": true,
+    "tempRemoved": true
+  }
+}

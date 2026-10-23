@@ -1,0 +1,241 @@
+{
+ "format": "enclave-d-installed-baseline/v1",
+ "scope": "NucBox installed files per ROOT R3 (outputs/decentralization-audit/windows-host-services-installed-baseline-20261023.json, 08:01:05Z; on-disk hashes, not loaded-process identity)",
+ "installedSourceCheck": {
+  "checked": 116,
+  "alreadyInCheckpointHistory": 114,
+  "exportedHere": [
+   "installed-src/network/enclave-network-host.mjs"
+  ],
+  "method": "git blob id of the exact bytes vs every object reachable from cadf0ebb (find-installed-unpreserved.py)"
+ },
+ "byRelation": [
+  {
+   "path": "relay/snp-verify.mjs",
+   "installedSha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+   "installedGitBlob": "01bcea280b1db8252cb799a38a49d81b873f4ca6",
+   "bytes": 25976,
+   "relation": "T(installed) == F 4106c311's relay/snp-verify.mjs 93f9e9d2 (preserved), T = the 2026-10-21 repository rewrite (byte replacement of the former provider name by 'Cloud Provider'); one occurrence, a line-2 comment",
+   "notExported": "its bytes carry the rewritten literal; publishing them would reintroduce it"
+  }
+ ],
+ "omittedCompiled": [
+  {
+   "path": "work/g4-challenge-retry-package-20261022/candidate/privacy-agent.mjs",
+   "sha256": "cfb69370a00dea147340c64bbd712f118eb8cb825237ac79b3b053b586350801",
+   "bytes": 2951076,
+   "note": "installed network\\privacy-agent.mjs cfb69370",
+   "recipe": "node work/g4-challenge-retry-package-20261022/build.mjs: esbuild over g4-network-composition-20261021/src with the 2 changed inputs from g4-challenge-retry-package-20261022/src; inputs = build/g4-challenge-retry-package/candidate/privacy-agent.mjs.inputs.json (1938, every sha256)"
+  },
+  {
+   "path": "work/g4-challenge-retry-package-20261022/candidate/windows-circuit-worker.mjs",
+   "sha256": "13ce44f1b39d4521e32266f2dad234958af70b1b05e2a3f6638535571e8cf320",
+   "bytes": 136752,
+   "note": "installed network\\windows-circuit-worker.mjs 13ce44f1 (= the g4 composition build)",
+   "recipe": "same build; inputs = build/g4-network-composition/out/g4/windows-circuit-worker.mjs.inputs.json"
+  },
+  {
+   "path": "work/g4-challenge-retry-package-20261022/candidate/host-service-ingress.mjs",
+   "sha256": "c952dce4fe007c48c81e1726a743d850dc2f5231204d01466349bfa5ffcc62d3",
+   "bytes": 7534,
+   "note": "installed network\\host-service-ingress.mjs c952dce4",
+   "recipe": "same build; inputs = build/g4-network-composition/out/g4/host-service-ingress.mjs.inputs.json"
+  },
+  {
+   "path": "work/root-control-final-20261022/control-package/files/windows/node/host-admission.bundle.mjs",
+   "sha256": "6bef372d00a27567e94a11d00f165312f9d715a795519e7a7ad77b4718623b18",
+   "bytes": 348897,
+   "note": "installed windows\\node\\host-admission.bundle.mjs 6bef372d",
+   "recipe": "no input manifest locally (G4 package: \"admission, NOT rebuilt\"); proven = F 3438cdf2 with PRODUCTION_MIRRORS [] instead of the 4 DO fronts (windows-upgrade-delta-review/receipts/bundles/host-admission-delta.json)"
+  },
+  {
+   "path": "work/root-control-final-20261022/control-package/files/windows/node/lease-gas-runtime.bundle.mjs",
+   "sha256": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d",
+   "bytes": 342304,
+   "note": "installed windows\\node\\lease-gas-runtime.bundle.mjs 159108d1",
+   "recipe": "no input manifest locally; proven = F 008cdca1 up to minifier renames (receipts/bundles/lease-gas-runtime-rename-check.json)"
+  },
+  {
+   "path": "network\\enclave-wg.exe (NucBox)",
+   "sha256": "cbaf8313ce4e2cfce347abed99bdeaf5fc0631b8ab07bfbab20471f60920264c",
+   "note": "no local copy; Go buildinfo (vcs.revision) unknown: root read-only capture item"
+  },
+  {
+   "path": "network\\enclave-circuit-firewall.exe (NucBox)",
+   "sha256": "78daec71f51f89a53600cb7d4bfb0492e2f0d642047422e4fbec30b2a5c238a6",
+   "note": "no local copy; Go buildinfo unknown: root read-only capture item"
+  }
+ ],
+ "exported": [
+  {
+   "path": "installed-src/network/enclave-network-host.mjs",
+   "source": "work/g4-challenge-retry-package-20261022/src/network/enclave-network-host.mjs",
+   "sha256": "2c1b84aa842e22c1a6e803f5eb8c3b98b7b3609d76ad3ef40994636976234327",
+   "gitBlob": "c02bb1f1661231f88d09412d043bf901f00827cf",
+   "bytes": 19171,
+   "why": "privacy-agent cfb69370 input (g4-challenge-retry-package-20261022/candidate/privacy-agent.mjs.inputs.json)"
+  },
+  {
+   "path": "build/g4-challenge-retry-package/build-result.json",
+   "source": "work/g4-challenge-retry-package-20261022/build-result.json",
+   "sha256": "770964f60c6243202a36548db9e69d367c24f7752907ff35b5129b047d973741",
+   "gitBlob": "b31c9cb800bba149217a55b641db1ada00275d19",
+   "bytes": 943,
+   "why": "build manifest / recipe of the installed bundles"
+  },
+  {
+   "path": "build/g4-challenge-retry-package/source-inventory.json",
+   "source": "work/g4-challenge-retry-package-20261022/source-inventory.json",
+   "sha256": "e6144aa4baf108504da0ae95334cb2bb22ffd8c28378a51ae2a900a004d74a59",
+   "gitBlob": "8c5eeec164a60828686e3be09674176441fc6c37",
+   "bytes": 10384,
+   "why": "build manifest / recipe of the installed bundles"
+  },
+  {
+   "path": "build/g4-challenge-retry-package/candidate/privacy-agent.mjs.inputs.sha256sums",
+   "source": "work/g4-challenge-retry-package-20261022/candidate/privacy-agent.mjs.inputs.json",
+   "sha256": "9e96f8bfdf3b08d7f1e252c02a73bae3f6b34e5588b64368671b1a77e1b9c12b",
+   "gitBlob": "e4d973189dace1589cefe6dc51d63262a331d0cd",
+   "bytes": 258023,
+   "why": "build manifest / recipe of the installed bundles",
+   "convertedFromJson": {
+    "originalSha256": "bbf8ec289a7ef6ca617b7cf89d94589fd3350dee09e4f2abf5e03841b2e1c725",
+    "originalBytes": 271592,
+    "rebuild": "json.dumps(dict((p, h) for each line 'h  p' in order), indent=2) + '\\n' (Python)"
+   }
+  },
+  {
+   "path": "build/g4-challenge-retry-package/candidate/windows-circuit-worker.mjs.inputs.sha256sums",
+   "source": "work/g4-challenge-retry-package-20261022/candidate/windows-circuit-worker.mjs.inputs.json",
+   "sha256": "aa0bdaf230a80806ea55d13fe04e1c86b2a763fd85c2923ae0e98860a3a41686",
+   "gitBlob": "87439a0c733e462d6bf4d43453171b4546a86dcf",
+   "bytes": 2057,
+   "why": "build manifest / recipe of the installed bundles",
+   "convertedFromJson": {
+    "originalSha256": "865f453c8694aadf177dca213245f98b966d72a8d9af78019b6be2ec660e903f",
+    "originalBytes": 2193,
+    "rebuild": "json.dumps(dict((p, h) for each line 'h  p' in order), indent=2) + '\\n' (Python)"
+   }
+  },
+  {
+   "path": "build/g4-challenge-retry-package/candidate/host-service-ingress.mjs.inputs.sha256sums",
+   "source": "work/g4-challenge-retry-package-20261022/candidate/host-service-ingress.mjs.inputs.json",
+   "sha256": "f446ffdce02a88cdd890972947e4d51d96b331b468c7aa9b81d436e64bccd8be",
+   "gitBlob": "7be6c46df50ee3ad1055bfc192f903453525536e",
+   "bytes": 384,
+   "why": "build manifest / recipe of the installed bundles",
+   "convertedFromJson": {
+    "originalSha256": "25dbef81d4205a0408fafdee8e3c61c653a30d3d1cce00a5ae0a4c57ef89bfdf",
+    "originalBytes": 415,
+    "rebuild": "json.dumps(dict((p, h) for each line 'h  p' in order), indent=2) + '\\n' (Python)"
+   }
+  },
+  {
+   "path": "build/g4-network-composition/out/build-manifest.json",
+   "source": "work/g4-network-composition-20261021/out/build-manifest.json",
+   "sha256": "9da6b17431be557e7448a80b9e120f13ea5b2cd1b89c264a95dd9ce0e9f229e0",
+   "gitBlob": "a48f1fb169d58c3527d832223397db6388e04c92",
+   "bytes": 1754,
+   "why": "build manifest / recipe of the installed bundles"
+  },
+  {
+   "path": "build/g4-network-composition/out/g4/privacy-agent.mjs.inputs.sha256sums",
+   "source": "work/g4-network-composition-20261021/out/g4/privacy-agent.mjs.inputs.json",
+   "sha256": "59e2a09edecacfba652f45fb4b181ecafc2ec509f8dca32b4d0dc721d7eb5c7c",
+   "gitBlob": "e6b45aafcdcf80ffa20dc6d7a2a3be85e870f51e",
+   "bytes": 258023,
+   "why": "build manifest / recipe of the installed bundles",
+   "convertedFromJson": {
+    "originalSha256": "ddb93ff14eba6034843144a1d7e88c7ffff345d5d169a2a2016b4aa4e6a2bf08",
+    "originalBytes": 269653,
+    "rebuild": "json.dumps(dict((p, h) for each line 'h  p' in order), indent=1) (Python)"
+   }
+  },
+  {
+   "path": "build/g4-network-composition/out/g4/windows-circuit-worker.mjs.inputs.sha256sums",
+   "source": "work/g4-network-composition-20261021/out/g4/windows-circuit-worker.mjs.inputs.json",
+   "sha256": "aa0bdaf230a80806ea55d13fe04e1c86b2a763fd85c2923ae0e98860a3a41686",
+   "gitBlob": "87439a0c733e462d6bf4d43453171b4546a86dcf",
+   "bytes": 2057,
+   "why": "build manifest / recipe of the installed bundles",
+   "convertedFromJson": {
+    "originalSha256": "c2310ceb105541149d1007ae453b8a05e62fcf9bc9dc795e982a3db9c2a77da3",
+    "originalBytes": 2173,
+    "rebuild": "json.dumps(dict((p, h) for each line 'h  p' in order), indent=1) (Python)"
+   }
+  },
+  {
+   "path": "build/g4-network-composition/out/g4/host-service-ingress.mjs.inputs.sha256sums",
+   "source": "work/g4-network-composition-20261021/out/g4/host-service-ingress.mjs.inputs.json",
+   "sha256": "f446ffdce02a88cdd890972947e4d51d96b331b468c7aa9b81d436e64bccd8be",
+   "gitBlob": "7be6c46df50ee3ad1055bfc192f903453525536e",
+   "bytes": 384,
+   "why": "build manifest / recipe of the installed bundles",
+   "convertedFromJson": {
+    "originalSha256": "90c4774be5cac0fe8d1865957defbf12c912947a90b89a0b0d633ba74ca3bd81",
+    "originalBytes": 410,
+    "rebuild": "json.dumps(dict((p, h) for each line 'h  p' in order), indent=1) (Python)"
+   }
+  },
+  {
+   "path": "review-w1/host-service-ingress.mjs.inputs.sha256sums",
+   "source": "work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/receipts/w1/host-service-ingress.mjs.inputs.json",
+   "sha256": "f446ffdce02a88cdd890972947e4d51d96b331b468c7aa9b81d436e64bccd8be",
+   "gitBlob": "7be6c46df50ee3ad1055bfc192f903453525536e",
+   "bytes": 384,
+   "why": "D review w1: F 4106c311's rebuilt bundle input manifest (windows-upgrade-delta-review/receipts/w1)",
+   "convertedFromJson": {
+    "originalSha256": "76be50704d89f39c2c75dc4072f5df73813f912b239260d8c1798c6265d706c8",
+    "originalBytes": 411,
+    "rebuild": "json.dumps(dict((p, h) for each line 'h  p' in order), indent=1) + '\\n' (Python)"
+   }
+  },
+  {
+   "path": "review-w1/privacy-agent.mjs.inputs.sha256sums",
+   "source": "work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/receipts/w1/privacy-agent.mjs.inputs.json",
+   "sha256": "c29b4c6eded591d744b3b1ee72e35ddb5785594ad5b9a63ddf50fd02feb336e1",
+   "gitBlob": "e205b590cabd11aad372c1699b269c495bd16e34",
+   "bytes": 232457,
+   "why": "D review w1: F 4106c311's rebuilt bundle input manifest (windows-upgrade-delta-review/receipts/w1)",
+   "convertedFromJson": {
+    "originalSha256": "3a7396ce6a8e6abe0ff32c1c2cbf9b1241fe22363aa74652ad91714e6b205554",
+    "originalBytes": 244100,
+    "rebuild": "json.dumps(dict((p, h) for each line 'h  p' in order), indent=1) + '\\n' (Python)"
+   }
+  },
+  {
+   "path": "review-w1/windows-circuit-worker.mjs.inputs.sha256sums",
+   "source": "work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/receipts/w1/windows-circuit-worker.mjs.inputs.json",
+   "sha256": "2b9f4628a43e17398e15b1f70139db446fbbbe6d70fca3fd27f95492fc0c7a87",
+   "gitBlob": "cfdd68e55c9dedaea84e83aabf82622dc55d23b2",
+   "bytes": 1861,
+   "why": "D review w1: F 4106c311's rebuilt bundle input manifest (windows-upgrade-delta-review/receipts/w1)",
+   "convertedFromJson": {
+    "originalSha256": "284bb317d0590f5e255d56b759b7fde4b06128e1268b3f28edf27d32d696be4e",
+    "originalBytes": 1978,
+    "rebuild": "json.dumps(dict((p, h) for each line 'h  p' in order), indent=1) + '\\n' (Python)"
+   }
+  }
+ ],
+ "referencedAlreadyPreserved": [
+  {
+   "path": "build/g4-challenge-retry-package/build.mjs",
+   "source": "work/g4-challenge-retry-package-20261022/build.mjs",
+   "sha256": "e73f18e338d136266f268b932739da5912a7d392968a837af5e7f6e64226d4f7",
+   "gitBlob": "21601a69f85dc9f1a9a5be38436822568a4ba05a",
+   "bytes": 2489,
+   "why": "build manifest / recipe of the installed bundles",
+   "alreadyInCheckpointHistory": true
+  },
+  {
+   "path": "build/root-control-final/control-package/manifest.json",
+   "source": "work/root-control-final-20261022/control-package/manifest.json",
+   "sha256": "5094dca0c9de9134a37ff8b7bfb35cabf4a3efbb301f2810bb6c95276861647d",
+   "gitBlob": "1b6de0b6fd12b75436d101deabeb6412fbef785f",
+   "bytes": 42667,
+   "why": "build manifest / recipe of the installed bundles",
+   "alreadyInCheckpointHistory": true
+  }
+ ],
+ "review": "windows-upgrade-delta-review/RESULT.md (delta, tests t1/t2, F/A handoff D-WINDOWS-UPGRADE-DELTA.txt)"
+}

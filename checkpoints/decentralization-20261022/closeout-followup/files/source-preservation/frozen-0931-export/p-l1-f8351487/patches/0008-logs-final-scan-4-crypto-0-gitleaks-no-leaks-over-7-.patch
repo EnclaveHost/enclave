@@ -1,0 +1,52 @@
+From 83805a1b89bfd1c2168b31effa004a29e3c7eae4 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 00:54:19 -0700
+Subject: [PATCH 08/12] logs: final scan-4 (crypto 0, gitleaks no leaks over 7
+ commits and evidence)
+
+---
+ logs/scan-4.guard.log |  1 +
+ logs/scan-4.out       | 17 +++++++++++++++++
+ logs/scan-4.rc        |  1 +
+ 3 files changed, 19 insertions(+)
+ create mode 100644 logs/scan-4.guard.log
+ create mode 100644 logs/scan-4.out
+ create mode 100644 logs/scan-4.rc
+
+diff --git a/logs/scan-4.guard.log b/logs/scan-4.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..3a9ecd78d9654424ce3cc107b2468c4f83817792
+--- /dev/null
++++ b/logs/scan-4.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=59 minHostAvailableMiB=23413
+diff --git a/logs/scan-4.out b/logs/scan-4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..b5a87aa5b1d50ae2bfe281e9e35600582d645cbb
+--- /dev/null
++++ b/logs/scan-4.out
+@@ -0,0 +1,17 @@
++[queue] START available=23473MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++8ea82585c5ac105169fc769a80228e7fe0950454 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> RESULT/evidence: final runs on S 959e56f (unit-6, mut-4, reth-4, base-3); shared NVMe ledger; disclosures
++1260cdcb202a93b383fb78303a8068d6ac01b309 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: re-vendor S 959e56f (root-reviewed shared NVMe budget ledger v2); cache names its own ledger reservation, none reserves nothing; storage script budget constants; tests/mutants/real-binary reruns
++c2f2b180250aa3b28c8b71486a9f4698bf67603e SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> RESULT: L1 source package, terminal tests, capacity envelope, decisions and gates for root
++e373dca68176a45bc642b9091ad3cefe5afa2968 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> tests: short datadir for the official base binary (engine.ipc sun_path); evidence, logs, test digest
++5ccee1960534b3b15cee0a27354723e504f2ff11 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: each run unit pins only its own binary (run-el no longer requires lighthouse); found by the real reth test
++c0282ca5062122f1e1b5d931fefa99052e23936e SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: re-vendor S's final immutable 6b9dae92 (fd0134d unwind stop-on-failure, Supervisor cwd); child cwd via Supervisor; example uses the holder's single shared NVMe inventory
++e318e38ba146fbbbe3e4757e381aafde889be1e8 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: strict launcher/config/preflight/readiness gate for a non-validating reth v2.8.0 + lighthouse v8.3.2 mainnet L1 source for the Base holder
++12:54AM INF 7 commits scanned.
++12:54AM INF scanned ~2374549 bytes (2.37 MB) in 208ms
++12:54AM INF no leaks found
++12:54AM INF scanned ~1935858 bytes (1.94 MB) in 86.5ms
++12:54AM INF no leaks found
++[scan] scan-crypto-keys=0 gitleaks-git=0 gitleaks-evidence=0
++[memory-guard] exit=0 peakTreeRssMiB=59 minHostAvailableMiB=23413
++[memory-guard] at peak: gitleaks:49 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-4.rc b/logs/scan-4.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-4.rc
+@@ -0,0 +1 @@
++0

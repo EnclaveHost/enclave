@@ -1,0 +1,30 @@
+{
+  "at": "2026-10-23T09:18:26.612200+00:00",
+  "apply": true,
+  "rows": [
+    {
+      "host": "ca-east",
+      "exit": 0,
+      "out": "{\"phase\": \"preflight\", \"staleSession\": {\"pid\": 348549, \"startEpoch\": 1792737722.5593262, \"ticks\": 90458291}, \"clientAliveBefore\": {\"enclave-control-tunnel\": {\"clientaliveinterval\": \"0\", \"clientalivecountmax\": \"3\"}, \"enclave-storage-tunnel\": {\"clientaliveinterval\": \"0\", \"clientalivecountmax\": \"3\"}, \"root\": {\"clientaliveinterval\": \"0\", \"clientalivecountmax\": \"3\"}}}\n{\"phase\": \"applied\", \"stalePidTerminated\": 348549, \"authAndForwardingUnchanged\": true, \"rootSshUnchanged\": true}\n",
+      "err": ""
+    },
+    {
+      "host": "eu-central",
+      "exit": 0,
+      "out": "{\"phase\": \"preflight\", \"staleSession\": {\"pid\": 352111, \"startEpoch\": 1792737725.539898, \"ticks\": 90205429}, \"clientAliveBefore\": {\"enclave-control-tunnel\": {\"clientaliveinterval\": \"0\", \"clientalivecountmax\": \"3\"}, \"enclave-storage-tunnel\": {\"clientaliveinterval\": \"0\", \"clientalivecountmax\": \"3\"}, \"root\": {\"clientaliveinterval\": \"0\", \"clientalivecountmax\": \"3\"}}}\n{\"phase\": \"applied\", \"stalePidTerminated\": 352111, \"authAndForwardingUnchanged\": true, \"rootSshUnchanged\": true}\n",
+      "err": ""
+    },
+    {
+      "host": "ap-southeast",
+      "exit": 0,
+      "out": "{\"phase\": \"preflight\", \"staleSession\": {\"pid\": 358333, \"startEpoch\": 1792737724.5656974, \"ticks\": 90458873}, \"clientAliveBefore\": {\"enclave-control-tunnel\": {\"clientaliveinterval\": \"0\", \"clientalivecountmax\": \"3\"}, \"enclave-storage-tunnel\": {\"clientaliveinterval\": \"0\", \"clientalivecountmax\": \"3\"}, \"root\": {\"clientaliveinterval\": \"0\", \"clientalivecountmax\": \"3\"}}}\n{\"phase\": \"applied\", \"stalePidTerminated\": 358333, \"authAndForwardingUnchanged\": true, \"rootSshUnchanged\": true}\n",
+      "err": ""
+    },
+    {
+      "host": "us-west",
+      "exit": 0,
+      "out": "{\"phase\": \"preflight\", \"staleSession\": null, \"clientAliveBefore\": {\"enclave-control-tunnel\": {\"clientaliveinterval\": \"0\", \"clientalivecountmax\": \"3\"}, \"enclave-storage-tunnel\": {\"clientaliveinterval\": \"0\", \"clientalivecountmax\": \"3\"}, \"root\": {\"clientaliveinterval\": \"0\", \"clientalivecountmax\": \"3\"}}}\n{\"phase\": \"applied\", \"stalePidTerminated\": null, \"authAndForwardingUnchanged\": true, \"rootSshUnchanged\": true}\n",
+      "err": ""
+    }
+  ]
+}

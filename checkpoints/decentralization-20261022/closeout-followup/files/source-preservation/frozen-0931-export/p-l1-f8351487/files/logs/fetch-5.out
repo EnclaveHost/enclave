@@ -1,0 +1,7 @@
+[queue] START available=24859MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+git-blob 28405c78f0daddee3e132ccb6976f71ea56fb28c expect 28405c78f0daddee3e132ccb6976f71ea56fb28c
+members ['genesis.ssz'] stateBytes 5404504 sha256 bbdf6fa5ffd6ead8ca6714c60a17d14d48ccaabbb18622b8485f88b58633d620
+genesis_time 1606824023 genesis_validators_root 0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95 slot 0
+[memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=24790
+[memory-guard] at peak: curl:16 bash:6
+[queue] EXIT 0

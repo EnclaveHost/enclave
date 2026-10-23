@@ -1,0 +1,1065 @@
+From 69b966f7f9d7e2460f0c9e82d8cb7efbac044ac3 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:08:38 -0700
+Subject: [PATCH 18/19] Integrate the kernel lock, final witness helper and
+ optional S3 archive into the verifier runtime
+
+The runtime now holds its stateDir with root's parent-owned kernel flock (network/runtime-lock.mjs,
+794d2ff3): the PID-file takeLock is deleted, runtime.lock stays a persistent empty file that is never
+unlinked, the release (registered before any further await) closes the descriptor, a nonempty
+legacy lock is refused unchanged, and the stateDir must be private (0700, our uid). util-linux flock
+and, with an archive, curl with --aws-sigv4 are reviewed absolute paths (hostTools), preflighted.
+
+Config format enclave-rpc-runtime/v2 (v1 refused):
+  * witnessCache must be null: a local cache would allocate NVMe, and every such cache must be a
+    root-approved reservation in the central budget (enclave-rpc-nvme-cache-budget/v2, 250 GB hard
+    aggregate), whose v2 kinds reserve only preallocated files; no competing quota is invented;
+  * witnessArchive (optional): P/E's S3 archive tier (s3-witness-cache.mjs) behind the gateway, read
+    only after every proof source failed, re-verified, writes opt-in; never contacted to start;
+    credentials from a 0600 file of the runtime user; scratch under <stateDir>/tmp (<= 2 x 4 MiB);
+  * only the final helper is accepted: witness-check 4fe0cd3b (Helios ef320298, adds the block op);
+    the aca81764 helpers fab2f1ce/a3377048 are dropped. Helios cc962e2b and the listener builds stay.
+Shutdown closes gateway, archive, relay, root store and helper in that order. Status and docs say
+what the corrected audit supports: no usable maintained peer-proof source is established for this
+runtime (snap/2 implemented, default off, no Base flag, peer availability unknown); fresh state needs
+a configured, reachable proof source.
+
+Composed-process tests: cold start with every proof source and the archive down; admin platform-policy
+ban through the runtime; retained clients closed after success and deadline; the archive serving
+verified history with every source down, never fresh state, and refusing once it fails too; a second
+runtime on a live stateDir refused; two simultaneous cold starts with one owner; a legacy lock
+refused unchanged; a SIGKILLed runtime whose orphaned Helios holds no lock descriptor, then a clean
+restart; the lock file persisting and reacquirable after shutdown. build-binaries.sh pins Helios
+ef320298 and gains a no-compile `check` mode for the input closure.
+---
+ docs/network/local-chain-verifier.md  |  76 +++++++----
+ network/rpc-runtime-main.mjs          |  10 +-
+ network/rpc-runtime.mjs               | 164 +++++++++++++++++-------
+ scripts/rpc-runtime/build-binaries.sh |  21 +++-
+ scripts/rpc-runtime/closure.json      |  25 ++--
+ test/rpc-runtime.e2e.test.mjs         | 175 +++++++++++++++++++++++---
+ test/rpc-runtime.test.mjs             |  81 +++++++++---
+ 7 files changed, 435 insertions(+), 117 deletions(-)
+
+diff --git a/docs/network/local-chain-verifier.md b/docs/network/local-chain-verifier.md
+index e6a574ab29ea2196e79d147f85a430577e41b678..fd71e312c807054839e1252afb1b8c36fed2c3dc 100644
+--- a/docs/network/local-chain-verifier.md
++++ b/docs/network/local-chain-verifier.md
+@@ -11,27 +11,35 @@ gossip listener (native, owned child)
+   -> head relay       127.0.0.1:ephemeral   (Helios --consensus-rpc)    network/op-head-relay.mjs
+   -> witness gateway  127.0.0.1:ephemeral   (Helios --execution-rpc)    network/witness-gateway.mjs
+        -> proofSources.untrusted[]  (explicit config; every pinned witness verified before use)
++       -> witnessArchive (optional S3/Sia-S3; untrusted verified history; never contacted to start)  network/s3-witness-cache.mjs
+   -> Helios enclave-base-evm  127.0.0.1:<verifier.port>  (owned child, started after the first verified head)
+   -> consumers: chainAuthority 'verifier', chainVerifier http://127.0.0.1:<verifier.port>/   network/lease-reader.mjs
+ ```
+ 
+ ## Startup order (no race, no remote proof before a local verifier)
+ 
+-1. A lock on `stateDir` (bound to pid and `/proc` start time). Then children left by an earlier run are reaped: the
+-   identities it recorded in `children.json`, and any process still executing a binary staged in an earlier run
+-   directory.
+-2. Each pinned binary is copied into a fresh 0700 run directory, hashed **there** and executed from there. A digest
++1. `stateDir` must be a private (0700) directory owned by the runtime user. The reviewed host tools are preflighted
++   (util-linux `flock`; with an archive, a `curl` with `--aws-sigv4`).
++2. A **kernel lock** (`network/runtime-lock.mjs`): the runtime opens `runtime.lock` (a persistent, empty file), and a
++   short-lived `flock --exclusive --nonblock` acquires the lock on that open file description, which only the runtime
++   process holds. It is released when the runtime closes it or dies; the file is never unlinked, so there is never a
++   second inode or a second owner. Children never inherit the descriptor (an orphaned Helios does not hold it). A
++   NONEMPTY `runtime.lock` is the earlier PID-file protocol: it is refused unchanged (stop the old runtime and review
++   the migration; there is no PID-based reclaim). Then children left by an earlier run are reaped: the identities it
++   recorded in `children.json`, and any process still executing a binary staged in an earlier run directory.
++3. Each pinned binary is copied into a fresh 0700 run directory, hashed **there** and executed from there. A digest
+    other than the config's pin, or a pin that is not a tested build (`PINNED_BUILDS`), is refused.
+-3. The witness-check helper answers `version` with the pinned chain id and signer. It needs no network.
+-4. The root store (pushed heads only), the relay and the gateway start on 127.0.0.1. No upstream is contacted.
+-5. The gossip head source starts the listener. Each head it verifies, natively and then in JavaScript, goes to
++4. The witness-check helper answers `version` with the pinned chain id and signer. It needs no network.
++5. The root store (pushed heads only), the relay, the optional archive client and the gateway start; the endpoints
++   bind 127.0.0.1. No upstream and no archive is contacted.
++6. The gossip head source starts the listener. Each head it verifies, natively and then in JavaScript, goes to
+    `roots.offer` first and then to the relay. The relay never serves a head whose root is not bound.
+-6. **Only after the first fresh verified head**, Helios starts. The verifier port must be free beforehand. Readiness
++7. **Only after the first fresh verified head**, Helios starts. The verifier port must be free beforehand. Readiness
+    requires all three of:
+    - the port's listening socket belongs to the owned Helios process (`/proc/<pid>/fd`);
+    - `eth_chainId` is 8453;
+    - Helios's head has reached the first verified head.
+-7. `ready.json` is written. `status.json` is rewritten every 2 s from step 5 on; it is present while the runtime is
++8. `ready.json` is written. `status.json` is rewritten every 2 s from step 6 on; it is present while the runtime is
+    starting, ready or degraded.
+ 
+ The relay serves only the newest verified head, and Helios polls it, so Helios does not adopt every block as a head.
+@@ -40,26 +48,28 @@ contract's slot, proven at its latest verified head. That covers the last 8191 b
+ Base since Isthmus. The gateway binds the roots of skipped blocks by authenticated ancestry (at most 256 links).
+ 
+ Any failure runs every registered cleanup in reverse order and the process exits 1. SIGTERM/SIGINT stops it in order
+-(Helios, listener, gateway, relay, helper, files, lock) and exits 0. A SIGKILLed runtime leaves an orphaned Helios
++(Helios, listener, gateway, archive, relay, root store, helper, files, lock descriptor) and exits 0. A SIGKILLed runtime leaves an orphaned Helios
+ (its own process group); the next start reaps it (tested). Run it under a service manager with a memory limit and
+ `KillMode=control-group` so a crash also takes its children down.
+ 
+-## Configuration (`enclave-rpc-runtime/v1`)
++## Configuration (`enclave-rpc-runtime/v2`)
+ 
+ ```json
+ {
+-  "format": "enclave-rpc-runtime/v1",
++  "format": "enclave-rpc-runtime/v2",
+   "chain": { "chainId": 8453, "unsafeSigner": "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a" },
+   "binaries": {
+     "listener":     { "path": "/opt/enclave/rpc-runtime/enclave-base-head-listener", "sha256": "ebd045b4…" },
+     "helios":       { "path": "/opt/enclave/rpc-runtime/helios",                     "sha256": "cc962e2b…" },
+-    "witnessCheck": { "path": "/opt/enclave/rpc-runtime/witness-check",              "sha256": "fab2f1ce…" }
++    "witnessCheck": { "path": "/opt/enclave/rpc-runtime/witness-check",              "sha256": "4fe0cd3b…" }
+   },
+   "proofSources": { "untrusted": ["https://<execution rpc 1>/", "https://<execution rpc 2>/"] },
+   "verifier": { "port": 8545 },
+   "stateDir": "/var/lib/enclave/rpc-runtime",
+   "gossip": { "maxPeers": 20, "discovery": "bounded" },
+-  "witnessCache": null
++  "witnessCache": null,
++  "witnessArchive": null,
++  "hostTools": { "flock": "/usr/bin/flock", "curl": "/usr/bin/curl" }
+ }
+ ```
+ 
+@@ -69,10 +79,21 @@ Any failure runs every registered cleanup in reverse order and the process exits
+   witness against a bound root and charges a source that fails. With every source down, reads of new blocks are
+   refused. A URL with userinfo or a query string is refused (this config holds no credential).
+ - Every endpoint binds 127.0.0.1. There is no bind option. A proof source on the verifier's own port is refused.
+-- `witnessCache`: `null` (default) or `{ "kind": "dir", "path": "/abs" }` outside `stateDir`. The cache holds history
+-  for its own block only; it is not live availability. Other caches (the Sia/S3 archive) are not part of this
+-  composition yet. They would plug into the same `{put, candidates}` interface without becoming a startup dependency.
+-  Setting `null` again is the rollback.
++- `witnessCache` must be `null`. A local (NVMe) witness cache would allocate disk, and every NVMe cache for this work
++  must be a root-approved reservation in the ONE central budget (`enclave-rpc-nvme-cache-budget/v2` at
++  `/etc/enclave-rpc-cache/nvme-cache-budget.json`: 250,000,000,000-byte hard aggregate including metadata, temporary
++  and spill files; 200 GB target). Its v2 kinds reserve only preallocated fixed-size files; a growing directory cache
++  has no reviewed kind, and a quota of this runtime's own would compete with the central one, so none is offered. The
++  v1 config's unbudgeted `"dir"` cache is gone (v1 configs are refused).
++- `witnessArchive` (optional): `{ "kind": "s3", "endpoint": "https://…", "bucket": "…", "region"?, "prefix"?,
++  "accessFile": "/abs/path", "writes"?: false }`. It is the gateway's ARCHIVE tier: read only after every proof source
++  failed, every candidate re-verified against a bound root, writes (verified answers only, background, bounded) off
++  unless `writes: true`, since an archived proof names the state this node read. It answers history for its block, never
++  a root and never freshness, and it is never contacted to start: a cold start with Sia down succeeds (tested). The
++  `accessFile` is a 0600 regular file of the runtime user holding `{accessKeyId, secretAccessKey}`; the key reaches curl
++  on its standard input, never argv. Local footprint: request bodies of in-flight writes only (≤ 2 × 4 MiB), in a 0700
++  scratch under `<stateDir>/tmp`, removed on stop. Rollback: `null`.
++- `hostTools`: reviewed absolute paths of util-linux `flock` (always) and `curl` (archive only); preflighted at start.
+ - `limits.firstHeadTimeoutMs` (default 180000) and `limits.heliosReadyTimeoutMs` (default 120000) bound startup.
+ 
+ ## Build and run (Linux x86_64)
+@@ -80,7 +101,7 @@ Any failure runs every registered cleanup in reverse order and the process exits
+ Binaries are built from `scripts/rpc-runtime/closure.json`, offline and from exact commits:
+ 
+ ```
+-scripts/rpc-runtime/build-binaries.sh <new-work-dir> <helios repo with aca81764> <listener repo with 5e178676> \
++scripts/rpc-runtime/build-binaries.sh <new-work-dir> <helios repo with ef320298> <listener repo with 5e178676> \
+     base-5476069f.tar.gz <CARGO_HOME with the locked crates> release
+ ```
+ 
+@@ -91,9 +112,13 @@ scripts/rpc-runtime/build-binaries.sh <new-work-dir> <helios repo with aca81764>
+ - A new build digest is not accepted by the runtime until it is added to `PINNED_BUILDS` together with its test
+   evidence.
+ - Release status (`closure.json` `release`):
+-  - the listener (`9ca75047…`) and witness-check (`a33770482…`) release builds exist;
++  - the listener release build (`9ca75047…`) exists and is tested;
++  - witness-check: the accepted helper is the DEBUG build `4fe0cd3b…` of `ef320298` (it adds the `block` op the final
++    gateway needs). The earlier release build `a33770482…` was of `aca81764` and is no longer accepted; no release of
++    `ef320298` was built;
+   - the Helios release build (fat LTO) exceeded the 1536 MiB build allocation and was stopped. Until a larger, reviewed
+-    allocation builds it, the tested Helios is the debug build `cc962e2b…`.
++    allocation builds it, the tested Helios is the debug build `cc962e2b…`. Debug builds are slower; no optimized or
++    reproducible-release claim is made.
+ 
+ ```
+ node network/rpc-runtime-main.mjs check /etc/enclave/rpc-runtime.json   # validate + hash every binary, print the plan
+@@ -111,6 +136,7 @@ KillMode=control-group
+ TimeoutStopSec=30
+ MemoryMax=1536M
+ StateDirectory=enclave/rpc-runtime
++StateDirectoryMode=0700
+ ```
+ 
+ Consumers opt in per process with `chainAuthority: "verifier"` and `chainVerifier: "http://127.0.0.1:8545/"`, or
+@@ -132,9 +158,11 @@ itself.
+ ## What it does not do
+ 
+ - **Finality:** heads are the sequencer-signed **unsafe** head. There is no L1-derived safe or finalized tier.
+-- **Provider independence:** fresh reads need at least one available upstream proof source. Base has no P2P witness
+-  transport today. Failover among sources is not independence from them.
+-- **Live availability from cache:** cached witnesses and ancestor roots answer history for their block only.
++- **Provider independence:** fresh reads need at least one configured, reachable proof source (an explicit state
++  holder). No usable maintained peer-proof source is established for this runtime: the reviewed Base clients implement
++  snap/2 serving but ship it off with no Base flag, and whether any peer serves proofs is unknown (not ruled out).
++  Failover among sources is not independence from them.
++- **Live availability from the archive:** archived witnesses and ancestor roots answer history for their block only.
+ - **Public serving:** nothing is advertised, granted or exposed. It is not a host-service role. Those roles are
+   public, and they are gated by the platform host policy, whose own chain reads may come to depend on this verifier.
+ - **Windows:** the supervision uses `/proc` (Linux) and the runtime refuses to start elsewhere. The Windows reader
+diff --git a/network/rpc-runtime-main.mjs b/network/rpc-runtime-main.mjs
+index acb21ea7a4e34a4ea050de00536de64c4cbe999d..aa294d71a75c0a1d79a3e890f803976ed6dd918f 100644
+--- a/network/rpc-runtime-main.mjs
++++ b/network/rpc-runtime-main.mjs
+@@ -9,7 +9,7 @@
+ // unset chainAuthority there (the legacy provider quorum), never a fallback inside this runtime.
+ import fs from 'node:fs';
+ import { createHash } from 'node:crypto';
+-import { validateRuntimeConfig, runRpcRuntimeProcess, LABELS, CHAIN_ID } from './rpc-runtime.mjs';
++import { validateRuntimeConfig, runRpcRuntimeProcess, preflightTools, LABELS, CHAIN_ID } from './rpc-runtime.mjs';
+ 
+ const [cmd, file] = process.argv.slice(2);
+ if (!['check', 'run'].includes(cmd) || !file) { console.error('usage: rpc-runtime-main.mjs check|run <rpc-runtime.json>'); process.exit(2); }
+@@ -24,10 +24,14 @@ if (cmd === 'check') {
+     binaries[role] = { path: b.path, pinned: b.sha256, actual: digest, build: b.build, ok: digest === b.sha256 };
+     ok &&= digest === b.sha256;
+   }
++  let tools; try { tools = await preflightTools(config.hostTools, { needCurl: !!config.witnessArchive }); } catch (e) { tools = { error: String(e.message || e) }; ok = false; }
+   console.log(JSON.stringify({ ok, chainId: CHAIN_ID, unsafeSigner: config.chain.unsafeSigner, verifierUrl: `http://127.0.0.1:${config.verifier.port}/`,
+-    order: ['witness-check helper (offline)', 'root store (pushed signed heads only)', 'head relay 127.0.0.1:ephemeral', 'witness gateway 127.0.0.1:ephemeral',
++    order: ['stateDir kernel lock (flock, parent-held descriptor)', 'witness-check helper (offline)', 'root store (pushed signed heads only)', 'head relay 127.0.0.1:ephemeral',
++      ...(config.witnessArchive ? ['S3 archive client (no contact at start; untrusted history)'] : []), 'witness gateway 127.0.0.1:ephemeral',
+       'gossip listener (native commitment) -> roots.offer -> relay.offer', 'first fresh verified head', 'Helios 127.0.0.1:' + config.verifier.port, 'ready'],
+-    untrustedProofSources: config.proofSources.untrusted.length, witnessCache: config.witnessCache?.kind ?? 'none', binaries, labels: LABELS }, null, 2));
++    untrustedProofSources: config.proofSources.untrusted.length, witnessCache: 'none',
++    witnessArchive: config.witnessArchive ? { endpoint: config.witnessArchive.endpoint, bucket: config.witnessArchive.bucket, writes: config.witnessArchive.writes } : null,
++    hostTools: { ...config.hostTools, probed: tools }, binaries, labels: LABELS }, null, 2));
+   process.exit(ok ? 0 : 2);
+ }
+ await runRpcRuntimeProcess(raw);   // validated again inside, from the same raw document
+diff --git a/network/rpc-runtime.mjs b/network/rpc-runtime.mjs
+index 7a4db080fd8388e5fda294a3ced0bbf99bfb6994..8632ddf6896ee2f01ad3f7b6641c12590ed0f21a 100644
+--- a/network/rpc-runtime.mjs
++++ b/network/rpc-runtime.mjs
+@@ -6,7 +6,8 @@
+ //      (pushed below) or authenticated ancestry from them
+ //   3. head relay on 127.0.0.1 (Helios's --consensus-rpc)                               network/op-head-relay.mjs
+ //   4. proof-aware witness gateway on 127.0.0.1 (Helios's --execution-rpc) in front of   network/witness-gateway.mjs
+-//      the EXPLICIT, UNTRUSTED upstream proof sources of the config
++//      the EXPLICIT, UNTRUSTED upstream proof sources of the config, with an optional    network/s3-witness-cache.mjs
++//      untrusted S3 (Sia-S3) ARCHIVE of verified history behind them (never contacted to start)
+ //   5. native gossip head source: the pinned enclave-base-head-listener (owned child)    network/gossip-head-source.mjs
+ //      -> its native `commitment` mode -> op-head-relay verifyCommitment; every verified head is offered to the root
+ //      store FIRST (roots.offer) and then to the relay, so a head Helios can adopt always has its root bound already
+@@ -21,9 +22,11 @@
+ //
+ // What this is NOT (labels the status carries, and the reasons):
+ //   * not finality: heads are the sequencer-signed UNSAFE head (no L1 derivation, no safe/finalized tier);
+-//   * not provider independence: fresh state still needs at least one available UPSTREAM PROOF SOURCE (explicit config,
+-//     untrusted, verified before use; Base has no P2P witness transport today). With every upstream down, reads of new
+-//     blocks fail closed; a witness cache (optional) is history for its block only, never live availability;
++//   * not provider independence: fresh state still needs at least one configured, reachable UPSTREAM PROOF SOURCE (an
++//     explicit state holder; untrusted, verified before use). No usable maintained peer-proof source is established for
++//     this runtime (the reviewed Base clients implement snap/2 serving but ship it off with no Base flag; whether any
++//     peer serves proofs is unknown). With every upstream down, reads of new blocks fail closed; the optional archive
++//     answers history for its block only, never live availability or a root;
+ //   * not a public service: every endpoint binds 127.0.0.1, nothing is advertised, no grant or serving decision is made
+ //     here (platform admission stays where it is). It is not a host-service role (network/host-services/roles.mjs): those
+ //     are public, advertised and gated by the platform host policy, whose own chain reads may come to depend on this
+@@ -32,7 +35,9 @@
+ //     rollback to its legacy provider quorum is an explicit config change (chainAuthority unset), not automatic.
+ //
+ // Lifecycle: startup is all-or-nothing (every resource registers its cleanup the moment it exists; a failure runs them
+-// in reverse and rethrows). One runtime per stateDir (lock bound to pid + /proc start time). Children are owned by
++// in reverse and rethrows). One runtime per stateDir: a kernel flock on a persistent, empty runtime.lock held through a
++// descriptor only this process owns (network/runtime-lock.mjs; never unlinked; a nonempty legacy lock is refused and
++// needs a reviewed migration; children do not inherit the descriptor, so an orphaned child never holds it). Children are owned by
+ // process identity (pid, process group, start time) recorded at spawn, and anything still executing a binary staged
+ // in an EARLIER run directory of this stateDir is ours by construction; both are reaped before a new start. Binaries
+ // are copied into a fresh 0700 run directory, hashed there and executed from there (no check-then-swap window).
+@@ -43,11 +48,13 @@ import { spawn } from 'node:child_process';
+ import { createHash, randomBytes } from 'node:crypto';
+ import { createHeadRelay, BASE_MAINNET } from './op-head-relay.mjs';
+ import { createWitnessChecker, createRootStore } from './witness-verify.mjs';
+-import { createWitnessGateway, dirWitnessCache, WITNESS_METHODS } from './witness-gateway.mjs';
++import { createWitnessGateway, WITNESS_METHODS } from './witness-gateway.mjs';
++import { s3WitnessCache } from './s3-witness-cache.mjs';
++import { takeRuntimeLock } from './runtime-lock.mjs';
+ import { createGossipHeadSource, procIdentity, signalOwned } from './gossip-head-source.mjs';
+ import { rpcEndpoint, rpcLabel } from './rpc-identity.mjs';
+ 
+-export const CONFIG_FORMAT = 'enclave-rpc-runtime/v1';
++export const CONFIG_FORMAT = 'enclave-rpc-runtime/v2';
+ export const STATUS_FORMAT = 'enclave-rpc-runtime-status/v1';
+ export const CHAIN_ID = 8453;                 // Base mainnet: the listener, the relay and Helios's network 'base'
+ /**
+@@ -60,11 +67,12 @@ export const PINNED_BUILDS = Object.freeze({
+     '9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3': 'enclave-base-head-listener 5e178676, release profile, scripts/rpc-runtime/build-binaries.sh (closure.json), Rust 1.96.0',
+   }),
+   helios: Object.freeze({
+-    cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0: 'helios enclave-base-evm eeffcc9 (CLI source identical in function to aca81764), base/base v1.5.1 EVM, Rust 1.96.0, debug profile',
++    cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0: 'helios enclave-base-evm eeffcc9 (CLI source identical in function to ef320298: later commits change only the witness-check helper), base/base v1.5.1 EVM, Rust 1.96.0, debug profile (not an optimized release)',
+   }),
+   witnessCheck: Object.freeze({
+-    fab2f1cea2f69a8b2e676f8ffb51d0014408f99b5f92397566772e96e1c1ae93: 'witness-check enclave-witness-check aca81764, Rust 1.96.0, debug profile',
+-    a33770482356c92861b77c3630e840761208c6c183aa5a67db795a44e8f85acf: 'witness-check aca81764, release profile (fat LTO, opt-level z), scripts/rpc-runtime/build-binaries.sh (closure.json), Rust 1.96.0',
++    // the final gateway needs the helper's `block`/`header` ops (Helios ef320298); the older aca81764 builds
++    // (fab2f1ce debug, a3377048 release) fail closed on blocks and are no longer accepted
++    '4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411': 'witness-check enclave-witness-check ef320298, Rust 1.96.0, debug profile (not an optimized release)',
+   }),
+ });
+ const ROLES = Object.freeze(['listener', 'helios', 'witnessCheck']);
+@@ -74,6 +82,11 @@ const ADDR = /^0x[0-9a-fA-F]{40}$/, SHA = /^[0-9a-f]{64}$/;
+ // a field that names a credential is refused (the same rule as network/host-services/roles.mjs): this config holds none
+ const SECRETISH = /(secret|token|password|passwd|private|mnemonic|seed|apikey|api_key|auth|hmac|credential|key$|keyfile)/i;
+ const LIMITS = Object.freeze({ killGraceMs: 5000, stopStepMs: 10000, readyPollMs: 250, statusEveryMs: 2000, stderrTailBytes: 16 * 1024 });
++// The optional archive's local footprint: request bodies of in-flight archive writes only (s3WitnessCache defaults
++// maxInflightPuts 2 x maxObjectBytes 4 MiB), in a 0700 scratch under <stateDir>/tmp (TMPDIR), removed on close. No NVMe
++// cache is allocated by this runtime: a local witness cache would need a root-approved reservation in the central budget.
++const ARCHIVE_SCRATCH_MAX_BYTES = 2 * (4 << 20);
++const DEFAULT_TOOLS = Object.freeze({ flock: '/usr/bin/flock', curl: '/usr/bin/curl' });
+ 
+ const fail = (m) => { throw new Error(`rpc runtime: ${m}`); };
+ const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
+@@ -96,21 +109,26 @@ const absPath = (where, v) => { if (typeof v !== 'string' || !path.isAbsolute(v)
+  * unless a caller (a test launcher, never the config file) passes its own table.
+  *
+  * {
+- *   "format": "enclave-rpc-runtime/v1",
++ *   "format": "enclave-rpc-runtime/v2",
+  *   "chain": { "chainId": 8453, "unsafeSigner": "0x..." },            the administrator's pin of the sequencer key
+  *   "binaries": { "listener": {"path", "sha256"}, "helios": {...}, "witnessCheck": {...} },
+  *   "proofSources": { "untrusted": ["https://...", ...], "accessListHint": false },
+  *   "verifier": { "port": 8545 },                                       Helios JSON-RPC, always 127.0.0.1
+  *   "stateDir": "/abs/dir",
+  *   "gossip"?: { "maxPeers": 20, "discovery": "bounded"|"off", "sessionSecs": 3600, "restartIfNoHeadMs": 120000 },
+- *   "witnessCache"?: null | { "kind": "dir", "path": "/abs/dir" },     optional; history only
++ *   "witnessCache"?: null,                                             no local cache (see below)
++ *   "witnessArchive"?: null | { "kind": "s3", "endpoint": "https://...", "bucket": "...", "region"?: "us-east-1",
++ *                               "prefix"?: "enclave-witness", "accessFile": "/abs/0600 JSON {accessKeyId, secretAccessKey}",
++ *                               "writes"?: false },                    optional untrusted history; never needed to start
++ *   "hostTools"?: { "flock": "/usr/bin/flock", "curl": "/usr/bin/curl" }, reviewed absolute paths (util-linux flock; curl
++ *                                                                        with --aws-sigv4, needed only with an archive)
+  *   "limits"?: { "firstHeadTimeoutMs": 180000, "heliosReadyTimeoutMs": 120000 }
+  * }
+  */
+ export function validateRuntimeConfig(raw, { acceptedBuilds = PINNED_BUILDS } = {}) {
+-  only('config', raw, ['format', 'chain', 'binaries', 'proofSources', 'verifier', 'stateDir', 'gossip', 'witnessCache', 'limits'],
++  only('config', raw, ['format', 'chain', 'binaries', 'proofSources', 'verifier', 'stateDir', 'gossip', 'witnessCache', 'witnessArchive', 'hostTools', 'limits'],
+     ['format', 'chain', 'binaries', 'proofSources', 'verifier', 'stateDir']);
+-  if (raw.format !== CONFIG_FORMAT) fail(`format must be ${CONFIG_FORMAT}`);
++  if (raw.format !== CONFIG_FORMAT) fail(`format must be ${CONFIG_FORMAT}${raw.format === 'enclave-rpc-runtime/v1' ? ' (v1 had an unbudgeted local cache and no archive; rewrite the config)' : ''}`);
+   only('chain', raw.chain, ['chainId', 'unsafeSigner'], ['chainId', 'unsafeSigner']);
+   if (raw.chain.chainId !== CHAIN_ID) fail(`chain.chainId must be ${CHAIN_ID} (Base mainnet: the listener, relay and Helios network are Base-only)`);
+   if (!ADDR.test(raw.chain.unsafeSigner) || /^0x0{40}$/i.test(raw.chain.unsafeSigner)) fail('chain.unsafeSigner must be the pinned sequencer address');
+@@ -139,17 +157,31 @@ export function validateRuntimeConfig(raw, { acceptedBuilds = PINNED_BUILDS } =
+   const g = raw.gossip ?? {};
+   only('gossip', g, ['maxPeers', 'discovery', 'sessionSecs', 'restartIfNoHeadMs']);
+   if (g.discovery !== undefined && !['off', 'bounded'].includes(g.discovery)) fail('gossip.discovery must be off or bounded');
+-  let witnessCache = null;
+-  if (raw.witnessCache !== undefined && raw.witnessCache !== null) {
+-    only('witnessCache', raw.witnessCache, ['kind', 'path'], ['kind', 'path']);
+-    // the Sia/S3 archive is a later, optional plug-in behind the same {put, candidates} interface (not composed here)
+-    if (raw.witnessCache.kind !== 'dir') fail('witnessCache.kind must be "dir" (other caches are not part of this composition)');
+-    witnessCache = { kind: 'dir', path: absPath('witnessCache.path', raw.witnessCache.path) };
++  // A local (NVMe) witness cache allocates disk: it would need its own root-approved reservation in the ONE central cache
++  // budget (enclave-rpc-nvme-cache-budget/v2, /etc/enclave-rpc-cache/nvme-cache-budget.json; 250,000,000,000-byte cap,
++  // 200 GB target), whose v2 kinds reserve only preallocated fixed-size files. A growing directory cache has no reviewed
++  // kind there, and a quota of this runtime's own would compete with it, so none is offered: null only.
++  if (raw.witnessCache !== undefined && raw.witnessCache !== null) fail('witnessCache must be null: a local witness cache needs a root-approved reservation of a reviewed kind in the central NVMe cache budget (v2 reserves only preallocated files); use witnessArchive for remote history');
++  let witnessArchive = null;
++  if (raw.witnessArchive !== undefined && raw.witnessArchive !== null) {
++    const a = raw.witnessArchive;
++    only('witnessArchive', a, ['kind', 'endpoint', 'bucket', 'region', 'prefix', 'accessFile', 'writes'], ['kind', 'endpoint', 'bucket', 'accessFile']);
++    if (a.kind !== 's3') fail('witnessArchive.kind must be "s3"');
++    let e; try { e = rpcEndpoint(a.endpoint); } catch (x) { fail(`witnessArchive.endpoint: ${x.message}`); }
++    if (e.url.search || e.url.pathname !== '/') fail('witnessArchive.endpoint must be a bare https origin (or http on loopback)');
++    if (typeof a.bucket !== 'string' || !/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(a.bucket)) fail('witnessArchive.bucket must be an S3 bucket name');
++    if (a.region !== undefined && !/^[a-z0-9-]{1,32}$/.test(a.region)) fail('witnessArchive.region must be a region name');
++    if (a.prefix !== undefined && !/^[A-Za-z0-9._-]{1,64}$/.test(a.prefix)) fail('witnessArchive.prefix must be a simple name');
++    if (a.writes !== undefined && typeof a.writes !== 'boolean') fail('witnessArchive.writes must be a boolean');
++    witnessArchive = Object.freeze({ kind: 's3', endpoint: e.url.origin, bucket: a.bucket, region: a.region ?? 'us-east-1', prefix: a.prefix ?? 'enclave-witness',
++      accessFile: absPath('witnessArchive.accessFile', a.accessFile), writes: a.writes === true });
+   }
++  const t = raw.hostTools ?? {};
++  only('hostTools', t, ['flock', 'curl']);
++  const hostTools = Object.freeze({ flock: absPath('hostTools.flock', t.flock ?? DEFAULT_TOOLS.flock), curl: absPath('hostTools.curl', t.curl ?? DEFAULT_TOOLS.curl) });
+   const l = raw.limits ?? {};
+   only('limits', l, ['firstHeadTimeoutMs', 'heliosReadyTimeoutMs']);
+   const stateDir = absPath('stateDir', raw.stateDir);
+-  if (witnessCache && (witnessCache.path === stateDir || witnessCache.path.startsWith(stateDir + path.sep))) fail('witnessCache.path must be outside stateDir (stateDir runs are removed)');
+   return Object.freeze({
+     format: CONFIG_FORMAT,
+     chain: Object.freeze({ chainId: CHAIN_ID, unsafeSigner: lower(raw.chain.unsafeSigner) }),
+@@ -159,7 +191,9 @@ export function validateRuntimeConfig(raw, { acceptedBuilds = PINNED_BUILDS } =
+     stateDir,
+     gossip: Object.freeze({ maxPeers: int('gossip.maxPeers', g.maxPeers, 1, 50, 20), discovery: g.discovery ?? 'bounded',
+       sessionSecs: int('gossip.sessionSecs', g.sessionSecs, 60, 3600, 3600), restartIfNoHeadMs: int('gossip.restartIfNoHeadMs', g.restartIfNoHeadMs, 5000, 3_600_000, 120_000) }),
+-    witnessCache,
++    witnessCache: null,
++    witnessArchive,
++    hostTools,
+     limits: Object.freeze({ firstHeadTimeoutMs: int('limits.firstHeadTimeoutMs', l.firstHeadTimeoutMs, 5000, 900_000, 180_000),
+       heliosReadyTimeoutMs: int('limits.heliosReadyTimeoutMs', l.heliosReadyTimeoutMs, 5000, 600_000, 120_000) }),
+   });
+@@ -169,10 +203,10 @@ export function validateRuntimeConfig(raw, { acceptedBuilds = PINNED_BUILDS } =
+ export const LABELS = Object.freeze({
+   head: 'sequencer-signed Base UNSAFE head received over native gossip (no L1 safety, no finality)',
+   execution: 'Helios enclave-base-evm over proof-backed state (maintained Base EVM; refuses execution from Denim)',
+-  witnesses: 'UNTRUSTED upstream proof sources from config, every pinned witness verified against a bound root before use; no P2P witness transport exists for Base',
++  witnesses: 'UNTRUSTED upstream proof sources from config (explicit state holders), every pinned witness verified against a bound root before use; no usable maintained peer-proof source is established for this runtime (reviewed Base clients ship snap/2 serving off, peer availability unknown), so fresh state requires a configured, reachable proof source',
+   roots: 'signed-head roots (pushed per verified head) and ancestor roots (authenticated ancestry) are history for their block, never freshness',
+-  cache: 'a witness cache answers history for its block only; it is not live availability',
+-  independence: 'NOT provider-independent: fresh reads need at least one available upstream proof source; no provider agreement replaces a failed proof',
++  cache: 'no local witness cache (none is budgeted); the optional S3/Sia archive is untrusted history for its block only: never a root, never freshness, never needed to start',
++  independence: 'NOT provider-independent: fresh reads need at least one configured, reachable proof source; no provider agreement replaces a failed proof',
+   exposure: 'loopback only; no public serving, advertisement or grant',
+ });
+ 
+@@ -231,19 +265,43 @@ async function rpc(url, method, params = [], ms = 3000) {
+   return j.result;
+ }
+ 
+-/** One lock per stateDir, bound to this process's pid + start time; a lock whose owner is gone is taken over. */
+-function takeLock(file) {
+-  const me = procIdentity(process.pid);
+-  const body = JSON.stringify({ pid: process.pid, startTime: me?.startTime ?? null }) + '\n';
+-  for (let i = 0; i < 2; i++) {
+-    try { fs.writeFileSync(file, body, { flag: 'wx', mode: 0o600 }); return () => { try { if (fs.readFileSync(file, 'utf8') === body) fs.rmSync(file); } catch {} }; }
+-    catch (e) { if (e.code !== 'EEXIST') throw e; }
+-    let held = null; try { held = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+-    const live = held && Number.isSafeInteger(held.pid) ? procIdentity(held.pid) : null;
+-    if (live && live.startTime === held.startTime) fail(`stateDir is in use by a running runtime (pid ${held.pid})`);
+-    fs.rmSync(file, { force: true });     // stale: its owner is gone (or the pid was recycled by another process)
++/** Host tools the runtime runs: absolute, regular, executable, and the right program (version/feature probe, bounded). */
++export async function preflightTools(tools, { needCurl }) {
++  const probe = (bin, args) => new Promise((resolve) => {
++    let out = '';
++    const p = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], env: { PATH: '/usr/bin:/bin', LC_ALL: 'C' } });
++    const timer = setTimeout(() => p.kill('SIGKILL'), 5000);
++    p.stdout.on('data', (d) => { if (out.length < 1 << 20) out += d; }); p.stderr.on('data', () => {});
++    p.on('error', () => { clearTimeout(timer); resolve(null); });
++    p.on('close', (code) => { clearTimeout(timer); resolve(code === 0 ? out : null); });
++  });
++  const regular = (what, bin) => {
++    let st; try { st = fs.statSync(bin); } catch { fail(`hostTools.${what}: ${bin} does not exist`); }
++    if (!st.isFile() || !(st.mode & 0o111)) fail(`hostTools.${what}: ${bin} is not an executable file`);
++  };
++  regular('flock', tools.flock);
++  const fv = await probe(tools.flock, ['--version']);
++  if (!fv || !/util-linux/.test(fv)) fail(`hostTools.flock: ${tools.flock} is not util-linux flock`);
++  const out = { flock: fv.trim().split('\n')[0] };
++  if (needCurl) {
++    regular('curl', tools.curl);
++    const help = await probe(tools.curl, ['--help', 'all']);
++    if (!help || !help.includes('--aws-sigv4')) fail(`hostTools.curl: ${tools.curl} lacks --aws-sigv4 (the S3 archive signs with it)`);
++    out.curl = ((await probe(tools.curl, ['--version'])) || '').split('\n')[0];
+   }
+-  fail('could not take the stateDir lock');
++  return out;
++}
++
++/** S3 archive access: a regular, non-symlink, owner-only (0600) file of this user holding {accessKeyId, secretAccessKey}. */
++function readArchiveAccess(file) {
++  let st; try { st = fs.lstatSync(file); } catch { fail(`witnessArchive.accessFile ${file} does not exist`); }
++  if (!st.isFile() || st.isSymbolicLink()) fail('witnessArchive.accessFile must be a regular file (not a symlink)');
++  if (st.mode & 0o077) fail('witnessArchive.accessFile must be readable by its owner only (0600)');
++  if (st.uid !== process.getuid()) fail('witnessArchive.accessFile must belong to the runtime user');
++  if (st.size > 4096) fail('witnessArchive.accessFile is too large');
++  let a; try { a = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { fail('witnessArchive.accessFile is not JSON'); }
++  if (!plain(a) || Object.keys(a).some((k) => !['accessKeyId', 'secretAccessKey'].includes(k))) fail('witnessArchive.accessFile must hold exactly {accessKeyId, secretAccessKey}');
++  return { accessKeyId: a.accessKeyId, secretAccessKey: a.secretAccessKey };
+ }
+ 
+ // ---- the head path (shared by the runtime and its tests) ------------------------------------------------------------
+@@ -307,8 +365,14 @@ export async function startRpcRuntime(rawConfig, { acceptedBuilds = PINNED_BUILD
+   signal?.addEventListener('abort', onAbort, { once: true });
+   try {
+     await fsp.mkdir(stateDir, { recursive: true, mode: 0o700 });
+-    const releaseLock = takeLock(path.join(stateDir, 'runtime.lock'));
++    const sd = fs.lstatSync(stateDir);
++    if (!sd.isDirectory() || sd.uid !== process.getuid() || (sd.mode & 0o077)) fail('stateDir must be a directory owned by the runtime user and private (0700)');
++    const tools = await preflightTools(config.hostTools, { needCurl: !!config.witnessArchive });
++    // kernel exclusion: the release closes our descriptor (never unlinks the file); registered before any other await
++    const releaseLock = await takeRuntimeLock(path.join(stateDir, 'runtime.lock'), { flockPath: config.hostTools.flock, signal });
+     stops.push(releaseLock);
++    log({ event: 'locked', tools });
++    const archiveAccess = config.witnessArchive ? readArchiveAccess(config.witnessArchive.accessFile) : null;   // fail before staging
+     childrenFile = path.join(stateDir, 'children.json');
+     stops.push(() => fs.rmSync(childrenFile, { force: true }));      // after every child is stopped (stops run in reverse)
+     readyFile = path.join(stateDir, 'ready.json'); statusFile = path.join(stateDir, 'status.json');
+@@ -354,13 +418,28 @@ export async function startRpcRuntime(rawConfig, { acceptedBuilds = PINNED_BUILD
+     const v = await checker.check({ op: 'version' }).catch((e) => fail(`witness-check did not answer: ${e.message}`));
+     if (!v.ok || v.chainId !== CHAIN_ID || lower(v.signer) !== signer) fail('witness-check does not hold the pinned chain and signer');
+ 
+-    // 2. roots (pushed only), 3. relay, 4. gateway
++    // 2. roots (pushed only), 3. relay, 4. archive (optional; constructing it contacts nothing), 5. gateway
+     const roots = createRootStore({ checker });
++    stops.push(() => roots.close());
+     const relay = createHeadRelay({ sources: [], chainId: CHAIN_ID, signer, maxAgeMs: 60000 });
+     const relayUrl = await relay.listen(0);
+     stops.push(() => relay.close());
+-    const gateway = createWitnessGateway({ upstreams: [...config.proofSources.untrusted], proofs: { checker, roots },
+-      cache: config.witnessCache ? dirWitnessCache(config.witnessCache.path) : null, methods: config.proofSources.accessListHint ? WITNESS_METHODS : NO_HINT });
++    let archive = null;
++    if (config.witnessArchive) {
++      const a = config.witnessArchive, tmp = path.join(stateDir, 'tmp');
++      fs.rmSync(tmp, { recursive: true, force: true });           // only this runtime's scratch, under its lock
++      fs.mkdirSync(tmp, { mode: 0o700 });
++      stops.push(() => fs.rmSync(tmp, { recursive: true, force: true }));
++      const prior = process.env.TMPDIR;
++      process.env.TMPDIR = tmp;                                   // the archive's private scratch is made under os.tmpdir()
++      try {
++        archive = s3WitnessCache({ endpoint: a.endpoint, bucket: a.bucket, region: a.region, prefix: a.prefix, chainId: CHAIN_ID,
++          credentials: archiveAccess, archive: a.writes, curl: config.hostTools.curl });
++      } finally { if (prior === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = prior; }
++      stops.push(() => archive.close());
++    }
++    const gateway = createWitnessGateway({ upstreams: [...config.proofSources.untrusted], proofs: { checker, roots }, archive,
++      methods: config.proofSources.accessListHint ? WITNESS_METHODS : NO_HINT });
+     const gatewayUrl = await gateway.listen(0);
+     stops.push(() => gateway.close());
+ 
+@@ -394,7 +473,8 @@ export async function startRpcRuntime(rawConfig, { acceptedBuilds = PINNED_BUILD
+         head: { fresh, relay: rel.head ?? null, gossip: g.head, firstVerified: state.firstHead },
+         roots: { signedHead: r.verified, ancestor: r.ancestors, refused: r.refused, conflicts: r.conflicts, bound: r.roots, ancestryRefused: r.ancestryRefused },
+         fanout: { ...fanout.counters, relayRefused: { ...fanout.counters.relayRefused } },
+-        witnesses: { untrustedSources: config.proofSources.untrusted.map(rpcLabel), gateway: gateway.stats(), cache: config.witnessCache ? 'dir (history only)' : 'none' },
++        witnesses: { untrustedSources: config.proofSources.untrusted.map(rpcLabel), gateway: gateway.stats(), cache: 'none',
++          archive: archive ? { endpoint: rpcLabel(config.witnessArchive.endpoint), writes: config.witnessArchive.writes, scratchMaxBytes: config.witnessArchive.writes ? ARCHIVE_SCRATCH_MAX_BYTES : 0, stats: archive.stats() } : null },
+         gossip: { running: g.running, session: g.session, counters: g.counters, lastExit: g.lastExit },
+         helios: helios ? { pid: helios.owned?.pid ?? null, exit: helios.exit } : null,
+         reaped: state.reaped,
+diff --git a/scripts/rpc-runtime/build-binaries.sh b/scripts/rpc-runtime/build-binaries.sh
+index 2d73cfed05bfa26dbeadff5790ddb8cd89a16455..6133b22a9b3a3e807589c71b5ab60e3d28d47425 100755
+--- a/scripts/rpc-runtime/build-binaries.sh
++++ b/scripts/rpc-runtime/build-binaries.sh
+@@ -2,9 +2,9 @@
+ # Build the native binaries of the local chain verifier runtime (network/rpc-runtime.mjs) from the pinned closure
+ # (scripts/rpc-runtime/closure.json), offline, in a fresh work directory:
+ #
+-#   build-binaries.sh <work-dir> <helios-git-repo> <listener-git-repo> <base-tarball> <cargo-home> [dev|release] [helios|witness-check|listener|all]
++#   build-binaries.sh <work-dir> <helios-git-repo> <listener-git-repo> <base-tarball> <cargo-home> [dev|release|check] [helios|witness-check|listener|all]
+ #
+-#   <helios-git-repo>    any git repository holding commit aca81764 (rebuilt from the checkpoint patches, or a clone)
++#   <helios-git-repo>    any git repository holding commit ef320298 (rebuilt from the checkpoint patches, or a clone)
+ #   <listener-git-repo>  any git repository holding commit 5e178676
+ #   <base-tarball>       base/base 5476069f codeload tarball (sha256 9784e20a...)
+ #   <cargo-home>         a CARGO_HOME already holding every crate the Cargo.locks name (nothing is fetched);
+@@ -13,15 +13,17 @@
+ # The sources are exported from the exact commits (git archive: no worktree, no untracked file) and their trees are
+ # checked; the base tree is extracted from the verified tarball into the relative path Helios names. Paths are remapped
+ # so the outputs do not name the build directory. Prints sha256 per binary and writes <work-dir>/BUILD.json.
++# Profile `check` compiles nothing: it verifies the whole input closure (toolchain, tarball, trees, generated manifest,
++# both Cargo.locks) and resolves both workspaces --locked --offline against the given cargo homes (cargo metadata).
+ # Run it under the host's memory guard; it never raises a limit (one job, single-threaded link).
+ set -euo pipefail
+ [ $# -ge 5 ] || { sed -n 2,16p "$0"; exit 2; }
+ WORK=$1; HREPO=$2; LREPO=$3; TARBALL=$4; PROFILE=${6:-release}; ONLY=${7:-all}
+ export CARGO_HOME=$5
+-HELIOS=aca81764f1d41a34829a3b408cea11c5c186e9e9 HELIOS_TREE=082c719ec1d63ea923f65cb14598f78efff07e5c
++HELIOS=ef3202982b475212d9bb6adfdc3eed4ebb0b83c5 HELIOS_TREE=eec339e18296d850a514f72de2efdd8729302efd
+ LISTENER=5e178676bbe0ce5cda7ea95a3ccfefa8dca8a4b7 LISTENER_TREE=00e3a61d48c91a6072355bf0ac67564490a6fc8b
+ BASE_SHA=9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012 BASE_COMMIT=5476069f1eb74a56bccb56fdefd4b4bb0e3cda42
+-case $PROFILE in dev|release) ;; *) echo "profile must be dev or release"; exit 2;; esac
++case $PROFILE in dev|release|check) ;; *) echo "profile must be dev, release or check"; exit 2;; esac
+ export RUSTUP_TOOLCHAIN=1.96.0 RUSTUP_AUTO_INSTALL=0 CARGO_NET_OFFLINE=true CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 CARGO_TERM_COLOR=never
+ export CARGO_PROFILE_DEV_DEBUG=0
+ rustc --version | grep -q '^rustc 1\.96\.0 ' || { echo "rustc 1.96.0 required (installed toolchains only)"; exit 3; }
+@@ -38,6 +40,17 @@ mkdir -p "$WORK/vendor-inspect/base-v1.5.1"
+ tar -xzf "$TARBALL" -C "$WORK/vendor-inspect/base-v1.5.1" --strip-components=1 "base-$BASE_COMMIT/"
+ (cd "$WORK/listener" && python3 -I tools/prepare-upstream.py "$TARBALL")
+ git -C "$LREPO" show $LISTENER:Cargo.toml | cmp -s - "$WORK/listener/Cargo.toml" || { echo "prepare-upstream changed the listener root Cargo.toml"; exit 4; }
++if [ $PROFILE = check ]; then
++  for d in helios listener; do
++    home=$CARGO_HOME; [ $d = listener ] && home=${LISTENER_CARGO_HOME:-$CARGO_HOME}
++    (cd "$WORK/$d" && CARGO_HOME=$home cargo metadata --locked --offline --format-version 1 > "$WORK/metadata-$d.json") || { echo "$d does not resolve --locked --offline"; exit 5; }
++    git -C "$([ $d = helios ] && echo "$HREPO" || echo "$LREPO")" show "$([ $d = helios ] && echo $HELIOS || echo $LISTENER)":Cargo.lock | cmp -s - "$WORK/$d/Cargo.lock" || { echo "$d Cargo.lock changed"; exit 4; }
++    echo "$d: resolves --locked --offline; packages $(python3 -I -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["packages"]))' "$WORK/metadata-$d.json"); lock $(sha256sum "$WORK/$d/Cargo.lock" | cut -c1-64)"
++  done
++  echo "$(rustc --version); base $BASE_SHA; helios $HELIOS tree $HELIOS_TREE; listener $LISTENER tree $LISTENER_TREE"
++  echo CLOSURE_CHECK_OK
++  exit 0
++fi
+ export RUSTFLAGS="--remap-path-prefix=$WORK=/build -C link-arg=-Wl,--threads=1"
+ out=$([ $PROFILE = dev ] && echo debug || echo release)
+ declare -A SHA
+diff --git a/scripts/rpc-runtime/closure.json b/scripts/rpc-runtime/closure.json
+index 36f3b0b5b082be46364b080a96791e081ac55bad..899cb4a5653e6b5a4c636ef6e359c86849ff50fb 100644
+--- a/scripts/rpc-runtime/closure.json
++++ b/scripts/rpc-runtime/closure.json
+@@ -15,15 +15,16 @@
+    "layout": "Helios's opstack/Cargo.toml names ../../vendor-inspect/base-v1.5.1: the build extracts the tarball (top directory stripped) to <work>/vendor-inspect/base-v1.5.1 next to <work>/helios. The listener's tools/prepare-upstream.py extracts its nine crates from the same tarball into upstream/base-5476069f. No other local tree is read."
+   },
+   "helios": {
+-   "what": "a16z/helios 2af9b418 + enclave-base-evm (4 patches, eeffcc9) + enclave-witness-check (1ec2c1a5, aca81764)",
+-   "commit": "aca81764f1d41a34829a3b408cea11c5c186e9e9",
+-   "tree": "082c719ec1d63ea923f65cb14598f78efff07e5c",
++   "what": "a16z/helios 2af9b418 + enclave-base-evm (4 patches, eeffcc9) + enclave-witness-check (1ec2c1a5, aca81764, ef320298)",
++   "commit": "ef3202982b475212d9bb6adfdc3eed4ebb0b83c5",
++   "tree": "eec339e18296d850a514f72de2efdd8729302efd",
+    "cargoLockSha256": "28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4",
+-   "preserved": "checkpoint/decentralization-20261022: rpc-base-evm-export (eeffcc9 patches) + frozen-0318 witness-helios-1ec2c1a5 + frozen-0331 p-history-helios-aca81764 (REBUILD.md)",
++   "preserved": "checkpoint/decentralization-20261022: rpc-base-evm-export (eeffcc9 patches) + witness-helios 1ec2c1a5 + aca81764 + ef320298 (P witness-failover/helios; D owns publication)",
+    "binaries": {
+     "helios": "-p helios-cli --bin helios",
+     "witnessCheck": "-p helios-opstack --bin witness-check"
+-   }
++   },
++   "note": "ef320298 changes only opstack/bin/witness-check.rs and opstack/src/witness_check.rs relative to aca81764 (Cargo.lock unchanged), so the Helios CLI built from eeffcc9 (cc962e2b) is functionally the CLI of this commit"
+   },
+   "listener": {
+    "what": "enclave-base-head-listener (rpc-gossip-bridge/listener branch commitment-mode)",
+@@ -41,8 +42,9 @@
+   "profile": "dev (debug, debuginfo off)",
+   "listener": "ebd045b428227530fac1c1b079f47c67ecb874637a1c7dcb4f021dd5929e8d3a",
+   "helios": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+-  "witnessCheck": "fab2f1cea2f69a8b2e676f8ffb51d0014408f99b5f92397566772e96e1c1ae93",
+-  "heliosNote": "cc962e2b was built from eeffcc9: aca81764 differs from it only by the witness-check binary, its library module (not used by the CLI) and pub(crate) on payload_to_block; Cargo.lock unchanged"
++  "witnessCheck": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
++  "witnessCheckNote": "built by P from ef320298 (debug); the aca81764 helpers fab2f1ce (debug) and a3377048 (release) lack the block op and are no longer accepted",
++  "heliosNote": "cc962e2b was built from eeffcc9; later commits through ef320298 change only the witness-check helper"
+  },
+  "release": {
+   "builtWith": "scripts/rpc-runtime/build-binaries.sh <work> <helios repo> <listener repo> <base tarball> <cargo home> release <one>, offline (unshare -r -n), CARGO_BUILD_JOBS=1, under the host memory guard at 1536 MiB",
+@@ -52,9 +54,8 @@
+    "at": "2026-10-23T06:02Z"
+   },
+   "witnessCheck": {
+-   "sha256": "a33770482356c92861b77c3630e840761208c6c183aa5a67db795a44e8f85acf",
+-   "peakMiB": 1529,
+-   "at": "2026-10-23T06:19Z"
++   "sha256": null,
++   "superseded": "a33770482356c92861b77c3630e840761208c6c183aa5a67db795a44e8f85acf was a release of aca81764 (peak 1529 MiB, 7 MiB under the 1536 MiB allocation); it is not accepted. No release of ef320298 was built in this integration."
+   },
+   "helios": {
+    "sha256": null,
+@@ -62,5 +63,9 @@
+   },
+   "pathsInBinaries": "no build-directory or home path strings in the listener and witness-check release binaries (remapped)",
+   "reproducedTwice": false
++ },
++ "hostTools": {
++  "flock": "util-linux flock (tested 2.42.4 at /usr/bin/flock): --exclusive --nonblock --conflict-exit-code 73 on an inherited fd 3; reviewed absolute path in config hostTools.flock",
++  "curl": "curl with --aws-sigv4 (only with witnessArchive; credentials on stdin as a config file); reviewed absolute path in config hostTools.curl"
+  }
+ }
+diff --git a/test/rpc-runtime.e2e.test.mjs b/test/rpc-runtime.e2e.test.mjs
+index 2167b88609fc515598d073474862e9ed80fe72be..eac488598f5952b5ff210d13556e65a297dc7fac 100644
+--- a/test/rpc-runtime.e2e.test.mjs
++++ b/test/rpc-runtime.e2e.test.mjs
+@@ -9,8 +9,11 @@
+ // helios-base-replay.e2e, helios-witness-failover.e2e). Nothing here proves Base availability, finality or independence.
+ // The chain's genesis is A's pinned reth dev genesis plus the EIP-2935 history contract Base has (derived:
+ // test/fixtures/derive-reth-genesis-2935.py -> reth-dev-8453-genesis-2935.json); asserted at setup.
++// The optional witness ARCHIVE is a REAL MinIO (loopback S3 stand-in for Sia-S3), configured from the first start while
++// it is DOWN (cold start without Sia), started later, then stopped again (archive failure). The stateDir lock is the
++// real kernel flock (util-linux /usr/bin/flock): concurrent starts, a legacy lock, a crash with an orphaned Helios.
+ //   env: RIG_CHAIN_NODE=reth, RIG_RETH_BIN, RIG_RETH_GENESIS (the -2935 genesis), RUNTIME_BIN_DIR (helios-eeffcc9, witness-check,
+-//        enclave-base-head-listener), TEST_TMP. Needs contracts/foundry/out. Run inside `unshare -r -n` (lo up).
++//        enclave-base-head-listener), MINIO_BIN, TEST_TMP. Needs contracts/foundry/out. Run inside `unshare -r -n` (lo up).
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import { spawn } from 'node:child_process';
+@@ -26,10 +29,15 @@ import { LeaseReader } from '../network/lease-reader.mjs';
+ import { createHostAdmission } from '../network/host-admission-runtime.mjs';
+ import { hostAdmissionPolicyHash } from '../network/host-admission-policy.mjs';
+ import { CONFIG_FORMAT } from '../network/rpc-runtime.mjs';
++import { takeRuntimeLock } from '../network/runtime-lock.mjs';
++import { s3Request } from '../network/s3-witness-cache.mjs';
++import { testCredentials } from './support/s3-test-env.mjs';
++import { createHostPolicyRuntime } from '../network/host-policy-runtime.mjs';
++import { POLICY_FORMAT, policyTypedData, policyDigest, encodeAnchor, ANCHOR_KEYS } from '../network/platform-host-policy.mjs';
+ 
+-const { RUNTIME_BIN_DIR } = process.env;
++const { RUNTIME_BIN_DIR, MINIO_BIN } = process.env;
+ const canonical = process.env.RIG_CHAIN_NODE === 'reth';
+-const skip = haveTools() || (!RUNTIME_BIN_DIR && 'RUNTIME_BIN_DIR not set') || (!canonical && 'needs a canonical-trie chain (RIG_CHAIN_NODE=reth)');
++const skip = haveTools() || (!RUNTIME_BIN_DIR && 'RUNTIME_BIN_DIR not set') || (!MINIO_BIN && 'MINIO_BIN not set') || (!canonical && 'needs a canonical-trie chain (RIG_CHAIN_NODE=reth)');
+ const HERE = path.dirname(new URL(import.meta.url).pathname);
+ const STANDIN = path.join(HERE, 'fixtures', 'reth-gossip-listener.mjs'), LAUNCHER = path.join(HERE, 'fixtures', 'rpc-runtime-launcher.mjs');
+ const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'rpc-runtime-e2e-'));
+@@ -39,7 +47,28 @@ const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT
+ const sha = (f) => createHash('sha256').update(fs.readFileSync(f)).digest('hex');
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+ const bin = (n) => path.join(RUNTIME_BIN_DIR || '/nonexistent', n);
+-let rig, book, bookAbi, leaseId, proxies, rt, reader;
++let rig, book, bookAbi, leaseId, proxies, rt, reader, minio = null;
++const S3 = { creds: testCredentials(), bucket: 'witness', port: 0, dir: '', accessFile: '' };
++/** MinIO on a FIXED loopback port (so the runtime can be configured for it while it is down); keeps its data dir */
++async function minioUp() {
++  const p = spawn(MINIO_BIN, ['server', '--quiet', '--address', `127.0.0.1:${S3.port}`, '--console-address', `127.0.0.1:${await freePort()}`, S3.dir],
++    { env: { PATH: process.env.PATH, HOME: path.dirname(S3.dir), MINIO_ROOT_USER: S3.creds.accessKeyId, MINIO_ROOT_PASSWORD: S3.creds.secretAccessKey, MINIO_BROWSER: 'off' }, stdio: 'ignore' });
++  const endpoint = `http://127.0.0.1:${S3.port}`;
++  await until(async () => (await fetch(endpoint + '/minio/health/ready')).ok, 40000, 'MinIO ready (test environment)');
++  const mk = await s3Request({ method: 'PUT', url: `${endpoint}/${S3.bucket}`, region: 'us-east-1', credentials: S3.creds, timeoutMs: 5000, maxBytes: 65536 });
++  if (![200, 409].includes(mk.status)) throw new Error('bucket not created: HTTP ' + mk.status);
++  minio = { stop: () => new Promise((r) => { p.once('exit', r); p.kill('SIGKILL'); }) };
++}
++/** every live process holding an open descriptor on `file` (by /proc/<pid>/fd link) */
++function lockHolders(file) {
++  const out = [];
++  for (const p of fs.readdirSync('/proc')) {
++    if (!/^\d+$/.test(p)) continue;
++    let fds = []; try { fds = fs.readdirSync(`/proc/${p}/fd`); } catch { continue; }
++    for (const fd of fds) { try { if (fs.readlinkSync(`/proc/${p}/fd/${fd}`) === file) { out.push(Number(p)); break; } } catch {} }
++  }
++  return out;
++}
+ 
+ async function rpc(url, method, params = [], ms = 30000) {
+   const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(ms) });
+@@ -87,15 +116,17 @@ function listening(port) {
+ const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+ 
+ /** one runtime process through the test launcher (= the main entry + the stand-in's accepted digest/env) */
+-function launch(name, { port, untrusted, control = {}, limits, verifierPort } = {}) {
+-  const dir = path.join(TMP, name), stateDir = path.join(dir, 'state'), controlFile = path.join(dir, 'control.json');
++function launch(name, { port, untrusted, control = {}, limits, verifierPort, archive = false, stateDir: sharedState } = {}) {
++  const dir = path.join(TMP, name), stateDir = sharedState ?? path.join(dir, 'state'), controlFile = path.join(dir, 'control.json');
+   fs.mkdirSync(dir, { recursive: true });
+   fs.writeFileSync(controlFile, JSON.stringify(control));
+   const config = { format: CONFIG_FORMAT, chain: { chainId: 8453, unsafeSigner: seqSigner },
+     binaries: { listener: { path: STANDIN, sha256: sha(STANDIN) }, helios: { path: bin('helios-eeffcc9'), sha256: sha(bin('helios-eeffcc9')) },
+       witnessCheck: { path: bin('witness-check'), sha256: sha(bin('witness-check')) } },
+     proofSources: { untrusted: untrusted ?? proxies.map((p) => p.url) }, verifier: { port: verifierPort ?? port }, stateDir,
+-    gossip: { discovery: 'off', sessionSecs: 3600 }, ...(limits ? { limits } : {}) };
++    gossip: { discovery: 'off', sessionSecs: 3600 }, ...(limits ? { limits } : {}),
++    ...(archive ? { witnessArchive: { kind: 's3', endpoint: `http://127.0.0.1:${S3.port}`, bucket: S3.bucket, accessFile: S3.accessFile, writes: true } } : {}),
++    hostTools: { flock: '/usr/bin/flock', curl: '/usr/bin/curl' } };
+   const cfgFile = path.join(dir, 'rpc-runtime.json');
+   fs.writeFileSync(cfgFile, JSON.stringify(config, null, 1));
+   const child = spawn(process.execPath, [LAUNCHER, cfgFile], { detached: true, stdio: ['ignore', 'pipe', 'pipe'],
+@@ -135,18 +166,22 @@ test.before(async () => {
+   await rig.write(dep, book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry]);
+   leaseId = rig.createdId(await rig.create(KEYS.owner));
+   proxies = [await startProxy(), await startProxy()];
++  S3.port = await freePort(); S3.dir = path.join(TMP, 'minio', 'data'); fs.mkdirSync(S3.dir, { recursive: true });
++  S3.accessFile = path.join(TMP, 's3-access.json');
++  fs.writeFileSync(S3.accessFile, JSON.stringify(S3.creds), { mode: 0o600 });
+ });
+ test.after(async () => {
+   for (const p of proxies || []) p.srv.close();
++  await minio?.stop();
+   if (rt && rt.child.exitCode === null) { try { process.kill(-rt.child.pid, 'SIGKILL'); } catch {} }
+   await rig?.stop();
+   fs.rmSync(TMP, { recursive: true, force: true });
+ });
+ const T = { skip, timeout: 300000 };
+ 
+-test('startup order: no verifier before the first verified head, and none of it needs a witness source', T, async () => {
++test('startup order: no verifier before the first verified head; neither a witness source nor the (down) Sia archive is needed', T, async () => {
+   for (const p of proxies) p.st.mode = 'down';        // every proof source is down for the whole startup
+-  rt = launch('main', { port: await freePort(), control: { frozen: true } });
++  rt = launch('main', { port: await freePort(), control: { frozen: true }, archive: true });   // MinIO is NOT running
+   await rt.event('head-source-started', 60000);
+   await sleep(6000);
+   assert.ok(!rt.events.some((e) => ['first-head', 'ready'].includes(e.event)), 'no head yet: not ready');
+@@ -167,6 +202,13 @@ test('startup order: no verifier before the first verified head, and none of it
+   assert.match(s.labels.independence, /NOT provider-independent/);
+   assert.equal(s.head.fresh, true);
+   assert.ok(s.roots.signedHead >= 1, 'every delivered head is bound in the root store');
++  assert.equal(s.witnesses.cache, 'none');
++  assert.equal(s.witnesses.archive.writes, true);
++  // the kernel lock: a persistent empty file, held by the runtime process alone (no child inherited the descriptor)
++  const lock = path.join(rt.stateDir, 'runtime.lock');
++  assert.equal(fs.statSync(lock).size, 0);
++  assert.deepEqual(lockHolders(lock), [rt.child.pid], 'only the runtime parent holds the lock descriptor');
++  await assert.rejects(takeRuntimeLock(lock), /in use/, 'the kernel refuses a second owner');
+   for (const p of proxies) p.st.mode = 'ok';
+   reader = new LeaseReader({ authority: 'verifier', verifier: rt.url, addressBook: book, confirmations: 1, maxBlockAgeMs: 60000, deadlineMs: 30000 });
+ });
+@@ -209,6 +251,41 @@ test('block-pinned lease snapshot, host admission, catalog moderation and admin
+   await waitTx(await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry]));
+ });
+ 
++test('platform admin ban through the composed runtime: an admin-anchored policy bans the host operator; an outsider cannot anchor', T, async () => {
++  const admin = privateKeyToAccount(KEYS.deployer), Z32 = '0x' + '00'.repeat(32), docs = [];
++  const own = await rig.deploy(art('EnclaveHostOwnership.sol', 'EnclaveHostOwnership'), [rig.addresses.registry]);
++  const sign = async (deny) => {
++    const prev = docs.length ? docs[docs.length - 1].digest : Z32;
++    const p = { format: POLICY_FORMAT, chainId: 8453, book: book.toLowerCase(), registry: rig.addresses.registry.toLowerCase(), hostOwnership: own.toLowerCase(),
++      sequence: docs.length + 1, issuedAt: Math.floor(Date.now() / 1000) - 5, expiresAt: 0, maxStaleSec: 0, previousDigest: prev, mode: 'denylist', deny, admit: [] };
++    const d = { policy: p, digest: policyDigest(p), document: JSON.stringify(p), signature: await admin.signTypedData(policyTypedData(p)) };
++    docs.push(d); return d;
++  };
++  const anchor = (digest, key = KEYS.deployer) => { const a = encodeAnchor(digest); return rig.write(rig.wc(key), book, bookAbi, 'setMany', [[ANCHOR_KEYS.hi, ANCHOR_KEYS.lo], [a.hi, a.lo]]); };
++  const mirror = http.createServer((q, res) => { const d = docs.find((x) => q.url.endsWith(`/${x.digest}.json`)); if (!d) { res.writeHead(404); return res.end(); } res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ document: d.document, signature: d.signature })); });
++  await new Promise((r) => mirror.listen(0, '127.0.0.1', r));
++  const netFetch = (url, opts) => { const u = new URL(url); return u.hostname === 'pm.policy-test.net' ? fetch(`http://127.0.0.1:${mirror.address().port}${u.pathname}`, opts) : Promise.reject(new TypeError(`no route to ${u.hostname}`)); };
++  try {
++    await sign([]);
++    await waitTx(await anchor(docs[0].digest));
++    const policy = createHostPolicyRuntime({ book: book.toLowerCase(), hostOwnership: own.toLowerCase(), mirrors: ['https://pm.policy-test.net/platform-policy'],
++      activation: 'required', chainAuthority: 'verifier', chainVerifier: rt.url }, { fetch: netFetch });
++    assert.match(policy.status().chainAuthority, /local-verifier/);
++    await policy.gate.refresh();
++    let d = await policy.gate.decide({ registryIds: [rig.runner] });
++    assert.equal(d.anchor, 'anchored');
++    assert.equal(d.decisions[rig.runner].admit, true, JSON.stringify(d.decisions[rig.runner]));
++    await assert.rejects(anchor(policyDigest({ ...docs[0].policy, sequence: 9 }), KEYS.other), undefined, 'an outsider cannot anchor policy in the admin-owned book');
++    await sign([{ kind: 'operator', value: privateKeyToAccount(KEYS.operator).address.toLowerCase(), reason: 'abuse' }]);
++    await waitTx(await anchor(docs[1].digest));
++    await policy.gate.refresh();
++    d = await policy.gate.decide({ registryIds: [rig.runner] });
++    assert.equal(d.decisions[rig.runner].admit, false, 'banned by the admin, read through the composed verifier');
++    assert.equal(policy.gate.accepted().digest, docs[1].digest);
++    policy.stop?.(); policy.close?.();
++  } finally { mirror.close(); }
++});
++
+ test('a failing or lying first proof source: the second, correct source serves; the first is charged, never trusted', T, async () => {
+   assert.equal(await reader.bookAddress('deployments'), rig.addresses.ledger.toLowerCase());
+   await sleep(2500);                                                         // status.json refresh
+@@ -293,6 +370,13 @@ test('a stale head refuses fresh authority, the runtime reports degraded, and it
+ 
+ test('whole-operation deadline through the composed runtime: a never-settling callback and a stopped verifier are both bounded', T, async () => {
+   const quick = new LeaseReader({ authority: 'verifier', verifier: rt.url, addressBook: book, confirmations: 1, maxBlockAgeMs: 60000, deadlineMs: 1500 });
++  // a client retained past its operation (success, then a timeout) is closed: data and metadata calls refuse
++  let kept;
++  await reader.agreed(async (c) => { kept = c; return { v: 1 }; });
++  await assert.rejects(kept.readContract({ address: book, abi: bookAbi, functionName: 'addr', args: [stringToHex('deployments', { size: 32 })] }), /closed|deadline/);
++  await assert.rejects(kept.getBlockNumber(), /closed|deadline/);
++  await assert.rejects(quick.agreed(async (c) => { kept = c; return new Promise(() => {}); }), /deadline/);
++  await assert.rejects(kept.getChainId(), /closed|deadline/, 'after the deadline too');
+   let t0 = Date.now();
+   await assert.rejects(quick.agreed(() => new Promise(() => {})), /deadline/);
+   assert.ok(Date.now() - t0 < 4000, `bounded (${Date.now() - t0} ms)`);
+@@ -306,13 +390,50 @@ test('whole-operation deadline through the composed runtime: a never-settling ca
+   assert.equal(await reader.bookAddress('deployments'), rig.addresses.ledger.toLowerCase(), 'serves again once the verifier answers');
+ });
+ 
++test('Sia/S3 archive: verified history survives every proof source going down; it never serves fresh state; an archive failure only refuses', T, async () => {
++  await minioUp();                                                           // the archive appears after the runtime started
++  const gw = rt.status().internal.gatewayUrl;
++  await changeState();
++  assert.equal(await reader.bookAddress('deployments'), rig.addresses.ledger.toLowerCase());
++  const at = { blockHash: reader.lastEvidence.blockHash };
++  const req = [book, [], at];
++  const live = await rpc(gw, 'eth_getProof', req);                          // verified from a source; archived in the background
++  await until(() => (rt.status()?.witnesses.archive.stats.puts ?? 0) >= 1, 30000, 'a verified witness archived');
++  for (const p of proxies) p.st.mode = 'down';
++  try {
++    const s0 = rt.status().witnesses.gateway;
++    const hist = await rpc(gw, 'eth_getProof', req);                          // history for THAT block, from the archive, re-verified
++    assert.deepEqual(hist.accountProof, live.accountProof);
++    await sleep(2500);
++    assert.ok(rt.status().witnesses.gateway.archiveHits > s0.archiveHits, 'served from the archive');
++    await changeState();
++    await assert.rejects(reader.bookAddress('deployments'), /no fresh verified chain state/, 'the archive holds no fresh witness: new state needs a proof source');
++    await minio.stop(); minio = null;                                         // the archive fails too
++    await assert.rejects(rpc(gw, 'eth_getProof', req), /no verifiable witness|refused/,
++      'with every source and the archive down, even the archived block\'s witness is refused, never invented');
++    assert.equal(rt.child.exitCode, null, 'the runtime keeps running');
++  } finally { for (const p of proxies) p.st.mode = 'ok'; }
++  assert.equal(await reader.bookAddress('deployments'), rig.addresses.ledger.toLowerCase(), 'fresh again once a source answers');
++});
++
++test('kernel lock: a second runtime on a live stateDir is refused and the live one is untouched', T, async () => {
++  const contender = launch('contender', { port: await freePort(), stateDir: rt.stateDir });
++  assert.equal((await contender.exited).code, 1);
++  assert.ok(contender.events.some((e) => e.event === 'startup-failed' && /in use/.test(e.reason)), JSON.stringify(contender.events));
++  assert.equal(Number(await rpc(rt.url, 'eth_chainId')), 8453, 'the live runtime is untouched');
++  assert.equal(rt.child.exitCode, null);
++
++});
++
+ test('crash: a SIGKILLed runtime leaves Helios orphaned; the next start reaps it and is ready on the same port', T, async () => {
+   const old = rt.children();
+   const h = old.find((c) => c.role === 'helios'), l = old.find((c) => c.role === 'listener');
+   process.kill(rt.child.pid, 'SIGKILL');
+   await rt.exited;
+   assert.ok(alive(h.pid), 'Helios survived its parent (own process group): an orphan the next start must reap');
+-  assert.ok(fs.existsSync(path.join(rt.stateDir, 'runtime.lock')), 'the crashed run left its lock (taken over: its owner is gone)');
++  const lock = path.join(rt.stateDir, 'runtime.lock');
++  assert.ok(fs.existsSync(lock) && fs.statSync(lock).size === 0, 'the lock file persists, empty');
++  assert.deepEqual(lockHolders(lock), [], 'nobody holds it: the surviving Helios never inherited the descriptor');
+   rt = relaunchSame(rt);                                 // the same config and stateDir, a new process
+   await rt.event('ready', 180000);
+   assert.equal(alive(h.pid), false, 'the orphaned Helios was reaped');
+@@ -337,7 +458,7 @@ function relaunchSame(prev) {
+     event: (e, ms) => until(() => events.some((x) => x.event === e), ms, `relaunch: event ${e} (events ${JSON.stringify(events.map((x) => x.event))}, stderr ${err.slice(-500)})`) };
+ }
+ 
+-test('shutdown: SIGTERM stops everything in order; no child, port, lock or state file is left', T, async () => {
++test('shutdown: SIGTERM stops everything in order; no child, port or state file is left; the lock file persists, released', T, async () => {
+   const kids = rt.children();
+   assert.ok(kids.length >= 2);
+   process.kill(rt.child.pid, 'SIGTERM');
+@@ -347,18 +468,44 @@ test('shutdown: SIGTERM stops everything in order; no child, port, lock or state
+   for (const k of kids) assert.equal(alive(k.pid), false, `${k.role} reaped`);
+   assert.deepEqual(stagedPids(rt.stateDir), []);
+   assert.equal(listening(rt.port), false, 'the verifier port is released');
+-  for (const f of ['runtime.lock', 'ready.json', 'status.json', 'children.json']) assert.equal(fs.existsSync(path.join(rt.stateDir, f)), false, f);
++  for (const f of ['ready.json', 'status.json', 'children.json']) assert.equal(fs.existsSync(path.join(rt.stateDir, f)), false, f);
++  const lock = path.join(rt.stateDir, 'runtime.lock');
++  assert.equal(fs.statSync(lock).size, 0, 'runtime.lock persists (never unlinked), empty');
++  assert.deepEqual(lockHolders(lock), [], 'released');
++  const again = await takeRuntimeLock(lock); again();                       // reacquirable at once
+   assert.deepEqual(fs.readdirSync(path.join(rt.stateDir, 'runs')), [], 'the run directory is removed');
+   assert.deepEqual(fs.readdirSync(path.join(rt.stateDir, 'gossip', 'sessions')), [], 'listener sessions are removed');
+ });
+ 
++test('kernel lock: two simultaneous cold starts on one stateDir yield one owner; a legacy nonempty lock is refused unchanged', T, async () => {
++  const shared = path.join(TMP, 'race-state');
++  const pair = [launch('race-1', { port: await freePort(), stateDir: shared }), launch('race-2', { port: await freePort(), stateDir: shared })];
++  const first = await Promise.race(pair.map((x, i) => x.exited.then(() => i)));
++  const loser = pair[first], winner = pair[1 - first];
++  assert.equal((await loser.exited).code, 1);
++  assert.ok(loser.events.some((e) => e.event === 'startup-failed' && /in use/.test(e.reason)), JSON.stringify(loser.events));
++  await winner.event('ready', 180000);
++  assert.deepEqual(lockHolders(path.join(shared, 'runtime.lock')), [winner.child.pid]);
++  process.kill(winner.child.pid, 'SIGTERM');
++  assert.equal((await winner.exited).code, 0);
++
++  const legacy = path.join(TMP, 'legacy-state');
++  fs.mkdirSync(legacy, { mode: 0o700 });
++  fs.writeFileSync(path.join(legacy, 'runtime.lock'), JSON.stringify({ pid: 1, startTime: '1' }) + '\n', { mode: 0o600 });
++  const before = fs.readFileSync(path.join(legacy, 'runtime.lock'), 'utf8');
++  const old = launch('legacy', { port: await freePort(), stateDir: legacy });
++  assert.equal((await old.exited).code, 1);
++  assert.ok(old.events.some((e) => e.event === 'startup-failed' && /legacy runtime lock/.test(e.reason)), JSON.stringify(old.events));
++  assert.equal(fs.readFileSync(path.join(legacy, 'runtime.lock'), 'utf8'), before, 'a legacy lock is never removed or rewritten');
++});
++
+ test('a failed startup cleans up: no fresh head in time, and a verifier port taken by another process', T, async () => {
+   const a = launch('no-head', { port: await freePort(), control: { frozen: true }, limits: { firstHeadTimeoutMs: 5000, heliosReadyTimeoutMs: 60000 } });
+   assert.equal((await a.exited).code, 1);
+   assert.ok(a.events.some((e) => e.event === 'startup-failed' && /no fresh verified head/.test(e.reason)), JSON.stringify(a.events));
+   await sleep(500);
+   assert.deepEqual(stagedPids(a.stateDir), []);
+-  assert.equal(fs.existsSync(path.join(a.stateDir, 'runtime.lock')), false);
++  assert.deepEqual(lockHolders(path.join(a.stateDir, 'runtime.lock')), [], 'the lock is released');
+   assert.deepEqual(fs.readdirSync(path.join(a.stateDir, 'runs')), []);
+   assert.equal(listening(a.port), false);
+ 
+@@ -370,6 +517,6 @@ test('a failed startup cleans up: no fresh head in time, and a verifier port tak
+     assert.ok(b.events.some((e) => e.event === 'startup-failed' && /already in use|held by another process/.test(e.reason)), JSON.stringify(b.events));
+     await sleep(500);
+     assert.deepEqual(stagedPids(b.stateDir), [], 'no Helios or listener left behind');
+-    assert.equal(fs.existsSync(path.join(b.stateDir, 'runtime.lock')), false);
++    assert.deepEqual(lockHolders(path.join(b.stateDir, 'runtime.lock')), []);
+   } finally { squat.close(); }
+ });
+diff --git a/test/rpc-runtime.test.mjs b/test/rpc-runtime.test.mjs
+index cd1254eaf5e881e84307fad03389536b982ba99c..228af8bc65023d0a116f4da899311be40fde03dd 100644
+--- a/test/rpc-runtime.test.mjs
++++ b/test/rpc-runtime.test.mjs
+@@ -1,6 +1,7 @@
+-// network/rpc-runtime.mjs without any chain: strict config validation (pins, loopback, untrusted sources, no secrets,
+-// optional history-only cache), refusals at startup that must leave nothing behind (missing or wrong binary, a held
+-// stateDir), and the head fan-out order (root store first, relay second). Offline.
++// network/rpc-runtime.mjs without any chain: strict config validation (pins, loopback, untrusted sources, no secrets, no
++// unbudgeted local cache, an optional untrusted S3 archive, reviewed host tools), refusals at startup that must leave
++// nothing behind (missing or wrong binary, a held, legacy or non-private stateDir, an unsafe archive access file; the
++// kernel lock file persists and is released), and the head fan-out order (root store first, relay second). Offline.
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+@@ -8,7 +9,7 @@ import os from 'node:os';
+ import path from 'node:path';
+ import { createHash } from 'node:crypto';
+ import { validateRuntimeConfig, startRpcRuntime, createHeadFanout, PINNED_BUILDS, CONFIG_FORMAT, LABELS } from '../network/rpc-runtime.mjs';
+-import { procIdentity } from '../network/gossip-head-source.mjs';
++import { takeRuntimeLock } from '../network/runtime-lock.mjs';
+ 
+ const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 'rpc-runtime-unit-'));
+ test.after(() => fs.rmSync(TMP, { recursive: true, force: true }));
+@@ -21,8 +22,12 @@ const base = (over = {}) => ({
+   proofSources: { untrusted: ['https://base-a.example/', 'https://base-b.example/'] }, verifier: { port: 8545 }, stateDir: '/var/lib/enclave/rpc-runtime', ...over });
+ const bad = (over, re) => assert.throws(() => validateRuntimeConfig(base(over)), re);
+ 
+-test('a valid config normalizes with explicit defaults: loopback bind, no access-list hint, bounded gossip, no cache', () => {
++test('a valid config normalizes with explicit defaults: loopback bind, no access-list hint, bounded gossip, no cache, no archive', () => {
+   const c = validateRuntimeConfig(base());
++  assert.equal(c.format, 'enclave-rpc-runtime/v2');
++  assert.equal(c.witnessArchive, null);
++  assert.deepEqual({ ...c.hostTools }, { flock: '/usr/bin/flock', curl: '/usr/bin/curl' });
++  assert.match(c.binaries.witnessCheck.build, /ef320298/);
+   assert.equal(c.verifier.bind, '127.0.0.1');
+   assert.equal(c.proofSources.accessListHint, false);
+   assert.deepEqual({ ...c.gossip }, { maxPeers: 20, discovery: 'bounded', sessionSecs: 3600, restartIfNoHeadMs: 120000 });
+@@ -35,6 +40,10 @@ test('a valid config normalizes with explicit defaults: loopback bind, no access
+ 
+ test('pins: chain, signer, format and only tested binary builds', () => {
+   bad({ format: 'enclave-rpc-runtime/v0' }, /format/);
++  bad({ format: 'enclave-rpc-runtime/v1' }, /v1 had an unbudgeted local cache/);
++  const b0 = base().binaries;
++  for (const old of ['fab2f1cea2f69a8b2e676f8ffb51d0014408f99b5f92397566772e96e1c1ae93', 'a33770482356c92861b77c3630e840761208c6c183aa5a67db795a44e8f85acf'])
++    bad({ binaries: { ...b0, witnessCheck: { ...b0.witnessCheck, sha256: old } } }, /not a tested build/);   // the aca81764 helpers: no `block` op
+   bad({ chain: { chainId: 84532, unsafeSigner: SIGNER } }, /chainId must be 8453/);
+   bad({ chain: { chainId: 8453, unsafeSigner: '0x' + '0'.repeat(40) } }, /unsafeSigner/);
+   bad({ chain: { chainId: 8453 } }, /unsafeSigner is required/);
+@@ -72,19 +81,39 @@ test('no secrets, no unknown fields, no public bind, bounded limits', () => {
+   bad({ stateDir: 'state' }, /stateDir must be an absolute path/);
+ });
+ 
+-test('the witness cache is optional, local, outside stateDir; other caches are not part of this composition', () => {
+-  assert.deepEqual({ ...validateRuntimeConfig(base({ witnessCache: { kind: 'dir', path: '/var/cache/enclave/witness' } })).witnessCache }, { kind: 'dir', path: '/var/cache/enclave/witness' });
+-  assert.equal(validateRuntimeConfig(base({ witnessCache: null })).witnessCache, null, 'explicit rollback: null = no cache');
+-  bad({ witnessCache: { kind: 's3', path: '/x' } }, /must be "dir"/);
+-  bad({ witnessCache: { kind: 'dir', path: '/var/lib/enclave/rpc-runtime/cache' } }, /outside stateDir/);
++test('no unbudgeted local cache; the S3/Sia archive is optional, untrusted, credential-free in config; host tools are reviewed absolute paths', () => {
++  assert.equal(validateRuntimeConfig(base({ witnessCache: null })).witnessCache, null, 'explicit: null = no local cache');
++  bad({ witnessCache: { kind: 'dir', path: '/var/cache/enclave/witness' } }, /central NVMe cache budget/);
++  bad({ witnessCache: { kind: 'dir', path: '/x', maxBytes: 1 << 30 } }, /central NVMe cache budget/);
++  const arc = { kind: 's3', endpoint: 'https://s3.example.net', bucket: 'enclave-witness', accessFile: '/etc/enclave/rpc-runtime/s3-access.json' };
++  const c = validateRuntimeConfig(base({ witnessArchive: arc }));
++  assert.deepEqual({ ...c.witnessArchive }, { kind: 's3', endpoint: 'https://s3.example.net', bucket: 'enclave-witness', region: 'us-east-1', prefix: 'enclave-witness',
++    accessFile: '/etc/enclave/rpc-runtime/s3-access.json', writes: false }, 'archive writes are off unless asked (they reveal which state this node read)');
++  assert.equal(validateRuntimeConfig(base({ witnessArchive: null })).witnessArchive, null, 'rollback: null = no archive');
++  bad({ witnessArchive: { ...arc, kind: 'dir' } }, /must be "s3"/);
++  bad({ witnessArchive: { ...arc, endpoint: 'http://s3.example.net' } }, /witnessArchive.endpoint/);
++  bad({ witnessArchive: { ...arc, endpoint: 'https://s3.example.net/bucket?x=1' } }, /bare https origin/);
++  bad({ witnessArchive: { ...arc, bucket: 'Bad_Bucket' } }, /bucket/);
++  bad({ witnessArchive: { ...arc, writes: 'yes' } }, /boolean/);
++  bad({ witnessArchive: { ...arc, accessFile: 'access.json' } }, /absolute path/);
++  bad({ witnessArchive: { ...arc, secretAccessKey: 'x' } }, /holds no secret/);
++  bad({ hostTools: { flock: 'flock' } }, /absolute path/);
++  bad({ hostTools: { lockTool: '/usr/bin/flock' } }, /unknown field/);
+ });
+ 
+-function stateFiles(dir) { return fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f !== 'runs' && f !== 'gossip') : []; }
+-test('startup refusals leave nothing behind: a missing binary, a binary that is not the pinned build, a held stateDir', async () => {
++// the lock file persists by design (never unlinked); it must be empty and free again after a refusal
++function stateFiles(dir) { return fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => !['runs', 'gossip', 'runtime.lock'].includes(f)) : []; }
++async function lockFree(dir) {
++  const lock = path.join(dir, 'runtime.lock');
++  assert.equal(fs.statSync(lock).size, 0, 'the lock file stays, empty');
++  const release = await takeRuntimeLock(lock); release();
++}
++test('startup refusals leave nothing behind: a missing binary, a binary that is not the pinned build, a held, legacy or shared stateDir', async () => {
+   const stateDir = path.join(TMP, 's1');
+   await assert.rejects(startRpcRuntime(base({ stateDir })), /binaries\.listener: .* cannot be read/);
+-  assert.deepEqual(stateFiles(stateDir), [], 'no lock or state file');
++  assert.deepEqual(stateFiles(stateDir), [], 'no state file');
+   assert.deepEqual(fs.readdirSync(path.join(stateDir, 'runs')), [], 'no run directory');
++  await lockFree(stateDir);
+ 
+   const fake = path.join(TMP, 'not-the-listener'); fs.writeFileSync(fake, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+   const pin = 'cd'.repeat(32);
+@@ -94,14 +123,26 @@ test('startup refusals leave nothing behind: a missing binary, a binary that is
+     new RegExp(`has sha256 ${createHash('sha256').update(fs.readFileSync(fake)).digest('hex')}, not the pinned ${pin}`));
+   assert.deepEqual(stateFiles(stateDir), []);
+   assert.deepEqual(fs.readdirSync(path.join(stateDir, 'runs')), []);
++  await lockFree(stateDir);
+ 
+-  const me = procIdentity(process.pid);
+-  fs.writeFileSync(path.join(stateDir, 'runtime.lock'), JSON.stringify({ pid: process.pid, startTime: me.startTime }) + '\n');
+-  await assert.rejects(startRpcRuntime(base({ stateDir })), /in use by a running runtime/);
+-  assert.ok(fs.existsSync(path.join(stateDir, 'runtime.lock')), 'a live owner\'s lock is never removed');
+-  fs.writeFileSync(path.join(stateDir, 'runtime.lock'), JSON.stringify({ pid: process.pid, startTime: '1' }) + '\n');   // recycled pid
+-  await assert.rejects(startRpcRuntime(base({ stateDir })), /cannot be read/, 'a stale lock is taken over (then the missing binary refuses)');
+-  assert.deepEqual(stateFiles(stateDir), []);
++  // a live owner (here: this process, through the same kernel lock) refuses a second runtime; the file is untouched
++  const held = await takeRuntimeLock(path.join(stateDir, 'runtime.lock'));
++  try { await assert.rejects(startRpcRuntime(base({ stateDir })), /in use by a running runtime/); } finally { held(); }
++  // a nonempty legacy (PID-file) lock is refused and never removed or rewritten, even if its pid is dead
++  const legacy = path.join(TMP, 's-legacy'); fs.mkdirSync(legacy, { mode: 0o700 });
++  fs.writeFileSync(path.join(legacy, 'runtime.lock'), JSON.stringify({ pid: process.pid, startTime: '1' }) + '\n', { mode: 0o600 });
++  await assert.rejects(startRpcRuntime(base({ stateDir: legacy })), /legacy runtime lock/);
++  assert.match(fs.readFileSync(path.join(legacy, 'runtime.lock'), 'utf8'), /"startTime":"1"/);
++  // a stateDir others can read or write is refused before any lock or file
++  const open = path.join(TMP, 's-open'); fs.mkdirSync(open, { mode: 0o755 }); fs.chmodSync(open, 0o755);
++  await assert.rejects(startRpcRuntime(base({ stateDir: open })), /private \(0700\)/);
++  assert.deepEqual(fs.readdirSync(open), []);
++  // an archive access file that others can read is refused right after the lock, before any binary is staged
++  const acc = path.join(TMP, 'access.json'); fs.writeFileSync(acc, JSON.stringify({ accessKeyId: 'abcdefgh', secretAccessKey: 'abcdefghijkl' }), { mode: 0o644 }); fs.chmodSync(acc, 0o644);
++  const s2 = path.join(TMP, 's2');
++  await assert.rejects(startRpcRuntime(base({ stateDir: s2, witnessArchive: { kind: 's3', endpoint: 'https://s3.example.net', bucket: 'witness', accessFile: acc } })), /owner only \(0600\)/);
++  assert.ok(!fs.existsSync(path.join(s2, 'runs')), 'nothing was staged');
++  await lockFree(s2);
+   await assert.rejects(startRpcRuntime(base({ stateDir }), { signal: AbortSignal.abort() }), /stopped before start/);
+ });
+ 

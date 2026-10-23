@@ -1,0 +1,1680 @@
+From 1260cdcb202a93b383fb78303a8068d6ac01b309 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 00:53:59 -0700
+Subject: [PATCH 06/12] l1pair: re-vendor S 959e56f (root-reviewed shared NVMe
+ budget ledger v2); cache names its own ledger reservation, none reserves
+ nothing; storage script budget constants; tests/mutants/real-binary reruns
+
+---
+ jobs/run.sh                               |   2 +-
+ jobs/scan.sh                              |   2 +-
+ l1pair/RUNBOOK.md                         |  18 +-
+ l1pair/l1pair.example.json                |   2 -
+ l1pair/l1pair.py                          |  43 +-
+ l1pair/test/mutate.py                     |   3 +-
+ l1pair/test/test_base_l1_offline.py       |   1 +
+ l1pair/test/test_l1pair.py                |  45 ++-
+ l1pair/vendor/VENDOR.json                 |  11 +-
+ l1pair/vendor/holder/budget.py            | 465 ++++++++++++++++++++++
+ l1pair/vendor/holder/holder-storage.sh.in |  39 +-
+ l1pair/vendor/holder/holder.example.json  |   8 +-
+ l1pair/vendor/holder/holder.py            |  93 +++--
+ logs/base-3.guard.log                     |   1 +
+ logs/base-3.out                           |  55 +++
+ logs/base-3.rc                            |   1 +
+ logs/gitleaks-git.json                    |   1 +
+ logs/mut-4.guard.log                      |   1 +
+ logs/mut-4.out                            |  36 ++
+ logs/mut-4.rc                             |   1 +
+ logs/reth-4.guard.log                     |   1 +
+ logs/reth-4.out                           | 226 +++++++++++
+ logs/reth-4.rc                            |   1 +
+ logs/scan-1.guard.log                     |   1 +
+ logs/scan-1.out                           |  14 +
+ logs/scan-1.rc                            |   1 +
+ logs/scan-2.guard.log                     |   1 +
+ logs/scan-2.out                           |  14 +
+ logs/scan-2.rc                            |   1 +
+ logs/scan-3.guard.log                     |   1 +
+ logs/scan-3.out                           |  14 +
+ logs/scan-3.rc                            |   1 +
+ logs/unit-6.guard.log                     |   1 +
+ logs/unit-6.out                           |  39 ++
+ logs/unit-6.rc                            |   1 +
+ 35 files changed, 1031 insertions(+), 114 deletions(-)
+ create mode 100644 l1pair/vendor/holder/budget.py
+ create mode 100644 logs/base-3.guard.log
+ create mode 100644 logs/base-3.out
+ create mode 100644 logs/base-3.rc
+ create mode 100644 logs/gitleaks-git.json
+ create mode 100644 logs/mut-4.guard.log
+ create mode 100644 logs/mut-4.out
+ create mode 100644 logs/mut-4.rc
+ create mode 100644 logs/reth-4.guard.log
+ create mode 100644 logs/reth-4.out
+ create mode 100644 logs/reth-4.rc
+ create mode 100644 logs/scan-1.guard.log
+ create mode 100644 logs/scan-1.out
+ create mode 100644 logs/scan-1.rc
+ create mode 100644 logs/scan-2.guard.log
+ create mode 100644 logs/scan-2.out
+ create mode 100644 logs/scan-2.rc
+ create mode 100644 logs/scan-3.guard.log
+ create mode 100644 logs/scan-3.out
+ create mode 100644 logs/scan-3.rc
+ create mode 100644 logs/unit-6.guard.log
+ create mode 100644 logs/unit-6.out
+ create mode 100644 logs/unit-6.rc
+
+diff --git a/jobs/run.sh b/jobs/run.sh
+index 5ab32a68152becadd2f1748243c7f49bba34ee7c..9525370e410f69e50467f9489fce42f8a36a3f0e 100755
+--- a/jobs/run.sh
++++ b/jobs/run.sh
+@@ -15,7 +15,7 @@ import hashlib, json
+ v = json.load(open('l1pair/vendor/VENDOR.json'))
+ for rel, sha in v['files'].items():
+     assert hashlib.sha256(open('l1pair/vendor/' + rel, 'rb').read()).hexdigest() == sha, rel
+-print('vendor: OK (S 6b9dae92 byte-identical)')
++print('vendor: OK (S 959e56f byte-identical)')
+ PY
+ case "${1:-}" in
+ unit)    eval exec $NS python3 -u -I l1pair/test/test_l1pair.py ;;
+diff --git a/jobs/scan.sh b/jobs/scan.sh
+index 087244739b481afa80cbdc859bda2a920b249097..48b116513363b9108fc325c3343b9ecc12c805ec 100755
+--- a/jobs/scan.sh
++++ b/jobs/scan.sh
+@@ -6,6 +6,6 @@ C=$(cd "$(dirname "$0")/.." && pwd); cd "$C"
+ SCAN=/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-cache-deadline-compose/repo/.githooks/scan-crypto-keys.py
+ git log --format='%H %an <%ae> / %cn <%ce> %s' --all
+ timeout -k 5 300 python3 "$SCAN" --range --all; s=$?
+-timeout -k 5 300 /home/steven/.local/bin/gitleaks git . --log-opts="--all" --no-banner --redact --exit-code 1; g=$?
++timeout -k 5 300 /home/steven/.local/bin/gitleaks git . --log-opts="--all" --no-banner --redact --exit-code 1 --report-format json --report-path logs/gitleaks-git.json; g=$?
+ timeout -k 5 300 /home/steven/.local/bin/gitleaks dir evidence --no-banner --redact --exit-code 1; d=$?
+ echo "[scan] scan-crypto-keys=$s gitleaks-git=$g gitleaks-evidence=$d"; [ $s -eq 0 ] && [ $g -eq 0 ] && [ $d -eq 0 ]
+diff --git a/l1pair/RUNBOOK.md b/l1pair/RUNBOOK.md
+index af504b54be5a6c8be08efa0f09a170660052c5b8..d7655e4ea29e57e12be4f489c8797425aa708286 100644
+--- a/l1pair/RUNBOOK.md
++++ b/l1pair/RUNBOOK.md
+@@ -20,7 +20,7 @@ The pair feeds the Base holder's `l1.executionRpc` and `l1.beacon` on loopback.
+ 
+ D1. **Storage medium for durable L1 execution state.** HDD-only is the current human rule, but vendors recommend TLC NVMe or an SSD.
+ D2. **Memory.** The pair plus the holder needs 60 GiB of MemoryMax, against about 24 GiB MemAvailable now.
+-D3. **NVMe cache share.** The default is none. Any share must come out of the same 250,000,000,000-byte total, and S plans to use 199.14 GB of it.
++D3. **NVMe cache share.** The default is none. Any share is a fixed reservation in the one shared ledger, out of the same 250,000,000,000-byte total; the holder reserves 199,140,835,328 B, leaving 859,164,672 B under the 200 GB host share.
+ D4. **Anchor.** Who supplies the first checkpoint state and block, and which two or more independent observations confirm its root.
+ D5. **Lighthouse download.** Download the 31 MB tarball and choose whether to establish the Sigma Prime PGP key.
+ 
+@@ -74,10 +74,14 @@ loopback.
+ 
+ **Origin:** a new ext4 filesystem inside a new image file under `/mnt/usb/enclave-l1-pair/` (HDD).
+ 
+-**Cache:** none by default. If D3 grants a share:
+-1. Add both cache images of the pair AND the holder's to the ONE shared inventory TSV.
+-2. Point both configs' `nvmeInventoryPath` at the same file.
+-3. Run `verify-cap`.
++**Cache:** none by default, and with none the pair reserves NOTHING in the shared ledger. If D3 grants a share:
++1. Root adds the pair's OWN fixed reservation to the ONE canonical ledger,
++   `/etc/enclave-rpc-cache/nvme-cache-budget.json` (S's `budget.py`, format v2). The rendered
++   `nvme-budget-reservation.json` is that entry.
++2. The host's reservations, including the holder's 199,140,835,328 B, must fit its share, the 200 GB target and the
++   250,000,000,000-byte cap.
++3. Set `storage.nvmeBudget {ledgerPath, reservationId}` in the pair config.
++4. `create` admits and allocates only through `budget.py`; `assemble` and `verify-cap` re-verify against the ledger.
+ 
+ **Steps:**
+ 1. `l1pair-storage.sh create`, then `verify-cap`, then `assemble` (or install `enclave-l1-pair-storage.service`).
+@@ -179,8 +183,8 @@ follow S's RESULT-HOLDER §7.
+ 1. In S's config, revert `l1` to the previous endpoints. S owns this step and the holder restart.
+ 2. Run `systemctl stop enclave-l1-cl enclave-l1-el`, then `enclave-l1-pair-storage`. `disassemble` refuses foreign
+    mappings and mounts, and stops at the first failure.
+-3. If a cache was granted: run `l1pair-storage.sh cache-loss`, delete the two cache images, and remove their inventory
+-   lines.
++3. If a cache was granted: run `l1pair-storage.sh cache-loss`, delete the two cache images (and their
++   `.enclave-budget-owner` markers), and have root remove the pair's ledger reservation.
+ 4. Full removal: delete `/mnt/usb/enclave-l1-pair/origin.img`, `/etc/enclave-l1-pair` (including the JWT), the units and
+    `/opt/enclave-l1-pair`.
+ 
+diff --git a/l1pair/l1pair.example.json b/l1pair/l1pair.example.json
+index 9ac82ba4623fdfe5e28eb440233571e8ca85cab9..f850b676fc774c6b1f9b49c13c30f351cea96e00 100644
+--- a/l1pair/l1pair.example.json
++++ b/l1pair/l1pair.example.json
+@@ -68,8 +68,6 @@
+   "mountPoint": "/srv/enclave-l1-pair",
+   "origin": {"imagePath": "/mnt/usb/enclave-l1-pair/origin.img", "bytes": 4000000000000},
+   "cache": {"mechanism": "none"},
+-  "otherNvmeCacheAllocations": [{"label": "enclave-base-holder dm-cache (S example plan)", "bytes": 199140835328}],
+-  "nvmeInventoryPath": "/etc/enclave-base-holder/nvme-cache-inventory.tsv",
+   "originFreeMarginBytes": 500000000000,
+   "nvmeFreeMarginBytes": 200000000000
+  }
+diff --git a/l1pair/l1pair.py b/l1pair/l1pair.py
+index 260b446746071fd006d21feeede2d1bda0d1551a..f7f899ab9807292470c116ee5f2ca4eb9871190b 100644
+--- a/l1pair/l1pair.py
++++ b/l1pair/l1pair.py
+@@ -264,11 +264,11 @@ def validate(raw):
+ 
+ def validate_storage(s, c):
+     """Durable data: ONE new ext4 filesystem in ONE new image file on the HDD array, mounted at a dedicated mount point.
+-    The optional writethrough NVMe cache is S's dm-cache design; its bytes come out of the SAME 250 GB aggregate and must
+-    stay under the 200 GB operational target together with every other declared cache of this work."""
+-    only('storage', s, ['layout', 'mountPoint', 'origin', 'cache', 'otherNvmeCacheAllocations', 'nvmeInventoryPath',
+-                        'originFreeMarginBytes', 'nvmeFreeMarginBytes'],
+-         ['layout', 'mountPoint', 'origin', 'cache', 'otherNvmeCacheAllocations', 'nvmeInventoryPath'])
++    The optional writethrough NVMe cache is S's dm-cache design. Its bytes come out of the SAME 250 GB aggregate: the
++    pair only NAMES its fixed reservation in the one canonical shared ledger (S's budget.py, which enforces the cap, each
++    host's share and the 200 GB target at allocation and verification). With cache none the pair reserves nothing."""
++    only('storage', s, ['layout', 'mountPoint', 'origin', 'cache', 'nvmeBudget', 'originFreeMarginBytes', 'nvmeFreeMarginBytes'],
++         ['layout', 'mountPoint', 'origin', 'cache'])
+     mnt = abspath('storage.mountPoint', s.get('mountPoint'))
+     if mnt.rstrip('/') in FORBIDDEN_MOUNT_ROOTS or mnt.count('/') < 2:
+         fail('storage.mountPoint must be a dedicated directory such as /srv/enclave-l1-pair (never /, a system tree, '
+@@ -279,17 +279,12 @@ def validate_storage(s, c):
+     o = s.get('origin') or {}
+     if not isinstance(o, dict) or not str(o.get('imagePath', '')).startswith('/mnt/usb/'):
+         fail('storage.origin.imagePath must be a NEW image file on the HDD array (/mnt/usb/...)')
+-    if not isinstance(s.get('otherNvmeCacheAllocations'), list):
+-        fail('storage.otherNvmeCacheAllocations must be declared explicitly (e.g. the Base holder cache); [] only if none exist')
+     holder_view = {'datadir': mnt + '/data', 'staticFilesDir': None}
+-    out = H.validate_storage(dict(s), holder_view)       # S's reviewed rules: origin size, writethrough-only, cap
++    out = H.validate_storage(dict(s), holder_view)       # S's reviewed rules: origin size, writethrough-only, ledger
+     if _inside(out['origin']['imagePath'], mnt):
+         fail('the origin image must not live inside its own mount point')
+-    acct = out['nvmeAccounting']
+-    if acct['totalBytes'] > NVME_TARGET:
+-        fail(f"planned NVMe cache total {acct['totalBytes']} exceeds the 200,000,000,000-byte operational target (this pair "
+-             f"{acct['holderBytes']} + other declared {acct['otherBytes']}): rebalance the shares (root decision) or use "
+-             'cache.mechanism none')
++    if out['cache']['mechanism'] != 'none' and out['nvmeBudget']['reservationId'] == 'base-holder-dm-cache':
++        fail("storage.nvmeBudget.reservationId must be the pair's OWN ledger reservation, never the holder's")
+     return out
+ 
+ 
+@@ -414,10 +409,10 @@ WantedBy=multi-user.target
+ """
+ 
+ 
+-def storage_script(c, cap=AGGREGATE_NVME_CAP):
++def storage_script(c, budget_tool='/opt/enclave-l1-pair/vendor/holder/budget.py'):
+     """S's holder-storage.sh.in, byte-identical (VENDOR.json pin), with THIS pair's constants (shell-quoted). The mapping
+-    name differs from the holder's, so the two never adopt each other's mappings; each lists the other's cache images in
+-    the shared inventory so verify-cap measures the aggregate."""
++    name differs from the holder's, so the two never adopt each other's mappings; a cache is admitted, allocated and
++    verified only through the shared budget ledger reservation it names."""
+     s, o, k = c['storage'], c['storage']['origin'], c['storage']['cache']
+     tpl = HERE / 'vendor' / 'holder' / 'holder-storage.sh.in'
+     if H.sha256_file(tpl) != VENDOR['files']['holder/holder-storage.sh.in']:
+@@ -425,13 +420,23 @@ def storage_script(c, cap=AGGREGATE_NVME_CAP):
+     q = lambda v: "'" + str(v).replace("'", "'\\''") + "'"
+     const = {'MECHANISM': k['mechanism'], 'ORIGIN': o['imagePath'], 'ORIGIN_BYTES': o['bytes'],
+              'ORIGIN_FREE_MARGIN': s['originFreeMarginBytes'], 'MNT': s['mountPoint'], 'DATADIR': s['mountPoint'] + '/data',
+-             'OWNER': c['serviceUser'], 'NAME': NAME, 'INVENTORY': s['nvmeInventoryPath'], 'CAP': cap, 'TARGET': NVME_TARGET,
++             'OWNER': c['serviceUser'], 'NAME': NAME, 'PY': '/usr/bin/python3', 'BUDGET_TOOL': budget_tool,
++             'LEDGER': (s.get('nvmeBudget') or {}).get('ledgerPath', ''), 'RESERVATION': (s.get('nvmeBudget') or {}).get('reservationId', ''),
+              'CDATA': k.get('dataImagePath', ''), 'CDATA_BYTES': k.get('dataBytes', 0), 'CMETA': k.get('metadataImagePath', ''),
+              'CMETA_BYTES': k.get('metadataBytes', 0), 'BLOCK_SECTORS': k.get('blockBytes', 0) // 512,
+-             'SLACK': k.get('slackBytes', 0), 'NVME_FREE_MARGIN': s['nvmeFreeMarginBytes']}
++             'NVME_FREE_MARGIN': s['nvmeFreeMarginBytes']}
+     return tpl.read_text().replace('@CONSTANTS@', '\n'.join(f'{n}={q(v)}' for n, v in const.items()))
+ 
+ 
++def budget_reservation(c):
++    """Only with a cache: the pair's OWN fixed entry for root to add to the shared ledger (S's budget v2 shape)."""
++    k = c['storage']['cache']
++    return {'id': c['storage']['nvmeBudget']['reservationId'], 'host': '<this host: /etc/machine-id>', 'owner': NAME,
++            'kind': 'preallocated-files', 'blockBytes': H.CACHE_FS_BLOCK, 'maxBytes': k['dataBytes'] + k['metadataBytes'] + k['slackBytes'],
++            'slackBytes': k['slackBytes'],
++            'files': [{'path': k['dataImagePath'], 'bytes': k['dataBytes']}, {'path': k['metadataImagePath'], 'bytes': k['metadataBytes']}]}
++
++
+ def holder_fragment(c):
+     return {'l1': {'executionRpc': f"http://127.0.0.1:{c['execution']['httpPort']}/",
+                    'beacon': f"http://127.0.0.1:{c['consensus']['httpPort']}/", 'trustRpc': False},
+@@ -468,6 +473,8 @@ def render(c, outdir, launcher_path='/opt/enclave-l1-pair/l1pair.py', config_pat
+              f'{NAME}-storage.service': storage_unit_text(script_path),
+              'l1pair-storage.sh': storage_script(c),
+              'holder-l1-fragment.json': json.dumps(holder_fragment(c), indent=1) + '\n'}
++    if c['storage']['cache']['mechanism'] != 'none':
++        files['nvme-budget-reservation.json'] = json.dumps(budget_reservation(c), indent=1) + '\n'
+     for name, text in files.items():
+         (out / name).write_text(text)
+         os.chmod(out / name, 0o700 if name.endswith('.sh') else 0o600)
+diff --git a/l1pair/test/mutate.py b/l1pair/test/mutate.py
+index 17fae3bd810ad16a96c73d92d20c0554e1afd436..b46ad192f9284d6e49014452fbc5cf89a09dab2f 100644
+--- a/l1pair/test/mutate.py
++++ b/l1pair/test/mutate.py
+@@ -14,7 +14,8 @@ MUTANTS = {
+     'upnp-on': ("'--disable-upnp', ", ""),
+     'tx-gossip-on': ("'--disable-tx-gossip', ", ""),
+     'overlap-ignored': ("            if _overlap(mine, other):", "            if False:"),
+-    'target-ignored': ("if acct['totalBytes'] > NVME_TARGET:", "if False:"),
++    'holder-reservation-reuse': ("if out['cache']['mechanism'] != 'none' and out['nvmeBudget']['reservationId'] == 'base-holder-dm-cache':", "if False:"),
++    'budget-constants-dropped': ("'LEDGER': (s.get('nvmeBudget') or {}).get('ledgerPath', '')", "'LEDGER': ''"),
+     'genesis-allowed': ("    if mode == 'genesis':", "    if False:"),
+     'one-provenance': ("len(prov) < 2", "len(prov) < 1"),
+     'stale-checkpoint': ("if age > 14 * 86400:", "if age > 10 ** 12:"),
+diff --git a/l1pair/test/test_base_l1_offline.py b/l1pair/test/test_base_l1_offline.py
+index 86574df70891673b527901e605929c1753e9c15a..8acdb701239c81b11d2666fd7a6c07dc5fef5927 100644
+--- a/l1pair/test/test_base_l1_offline.py
++++ b/l1pair/test/test_base_l1_offline.py
+@@ -66,6 +66,7 @@ class BaseOnRealL1Execution(unittest.TestCase):
+                        'beacon': f'http://127.0.0.1:{bcn.port}/', 'trustRpc': False}
+             c['datadir'] = str(tmp / 'mnt' / 'data')
+             c['storage'].update(mountPoint=str(tmp / 'mnt'), cache={'mechanism': 'none'})
++            c['storage'].pop('nvmeBudget', None)            # S 959e56f: a ledger reservation applies only to a cache
+             c['rpc']['port'] = R.free_port(); c['consensusRpc']['port'] = R.free_port()
+             for k in ('executionPort', 'discoveryV5Port', 'consensusTcpPort', 'consensusUdpPort'):
+                 c['p2p'][k] = R.free_port()
+diff --git a/l1pair/test/test_l1pair.py b/l1pair/test/test_l1pair.py
+index 6a95d41a4edc59180543bfa8d1105147536f9339..b2a723f5d3b3269cfd5cb28e30f6f6aa3ee8ca0e 100644
+--- a/l1pair/test/test_l1pair.py
++++ b/l1pair/test/test_l1pair.py
+@@ -27,6 +27,11 @@ def good():
+     return c
+ 
+ 
++def cache(data, meta=64 << 20):
++    return {'mechanism': 'dm-cache', 'mode': 'writethrough', 'dataImagePath': '/vm/l1c/d.img', 'dataBytes': data,
++            'metadataImagePath': '/vm/l1c/m.img', 'metadataBytes': meta, 'blockBytes': 262144}
++
++
+ def refused(test, mutate, match):
+     c = good(); mutate(c)
+     with test.assertRaises(L.Refused) as cm:
+@@ -77,7 +82,6 @@ class Validation(unittest.TestCase):
+             ('mount nvme vm', lambda c: c['storage'].update(mountPoint='/vm/l1'), 'inside /vm'),
+             ('origin not on array', lambda c: c['storage']['origin'].update(imagePath='/vm/l1/origin.img'), 'HDD array'),
+             ('origin too small', lambda c: c['storage']['origin'].update(bytes=10 ** 12), 'origin.bytes'),
+-            ('other caches implicit', lambda c: c['storage'].pop('otherNvmeCacheAllocations'), 'otherNvmeCacheAllocations'),
+             ('wrong reth release', lambda c: c['execution']['binary'].update(release='v2.7.0'), 'release/commit'),
+             ('wrong lh commit', lambda c: c['consensus']['binary'].update(commit='0' * 40), 'release/commit'),
+             ('wrong tarball', lambda c: c['execution']['binary'].update(releaseTarballSha256='0' * 64), 'asset digest'),
+@@ -96,16 +100,15 @@ class Validation(unittest.TestCase):
+             ('url plain http', lambda c: c['consensus'].update(checkpoint={'mode': 'url', 'url': 'http://bn.example/', 'wss': f'{ROOT_HEX}:{EPOCH}',
+                                                                           'provenance': c['consensus']['checkpoint']['provenance'],
+                                                                           'oneTimeBootstrapUrlAcknowledged': True}), 'https'),
+-            ('writeback cache', lambda c: c['storage'].update(cache={'mechanism': 'dm-cache', 'mode': 'writeback', 'dataImagePath': '/vm/l1c/d.img',
++            ('writeback cache', lambda c: c['storage'].update(nvmeBudget={'ledgerPath': '/etc/enclave-rpc-cache/nvme-cache-budget.json', 'reservationId': 'l1-pair-dm-cache'}, cache={'mechanism': 'dm-cache', 'mode': 'writeback', 'dataImagePath': '/vm/l1c/d.img',
+                                                                      'dataBytes': 1 << 30, 'metadataImagePath': '/vm/l1c/m.img',
+                                                                      'metadataBytes': 64 << 20, 'blockBytes': 262144}), 'writethrough'),
+-            ('cache over target', lambda c: c['storage'].update(cache={'mechanism': 'dm-cache', 'mode': 'writethrough', 'dataImagePath': '/vm/l1c/d.img',
+-                                                                       'dataBytes': 2 << 30, 'metadataImagePath': '/vm/l1c/m.img',
+-                                                                       'metadataBytes': 64 << 20, 'blockBytes': 262144}), 'operational target'),
+-            ('cache over cap', lambda c: c['storage'].update(otherNvmeCacheAllocations=[{'label': 'x', 'bytes': 249_000_000_000}],
+-                                                             cache={'mechanism': 'dm-cache', 'mode': 'writethrough', 'dataImagePath': '/vm/l1c/d.img',
+-                                                                    'dataBytes': 2 << 30, 'metadataImagePath': '/vm/l1c/m.img',
+-                                                                    'metadataBytes': 64 << 20, 'blockBytes': 262144}), 'aggregate cap'),
++            ('cache alone over target', lambda c: c['storage'].update(nvmeBudget={'ledgerPath': '/etc/enclave-rpc-cache/nvme-cache-budget.json', 'reservationId': 'l1-pair-dm-cache'}, cache=cache(200_000_000_000 // 262144 * 262144, meta=256 << 20)), 'operational target'),
++            ('cache without ledger', lambda c: c['storage'].update(cache=cache(2 << 30)), 'nvmeBudget'),
++            ('ledger not canonical', lambda c: c['storage'].update(nvmeBudget={'ledgerPath': '/etc/my-own-ledger.json', 'reservationId': 'x'}, cache=cache(2 << 30)), 'canonical shared ledger'),
++            ('holder reservation reused', lambda c: c['storage'].update(nvmeBudget={'ledgerPath': '/etc/enclave-rpc-cache/nvme-cache-budget.json', 'reservationId': 'base-holder-dm-cache'}, cache=cache(2 << 30)), 'OWN ledger reservation'),
++            ('ledger with no cache', lambda c: c['storage'].update(nvmeBudget={'ledgerPath': '/etc/enclave-rpc-cache/nvme-cache-budget.json', 'reservationId': 'l1-pair-dm-cache'}), 'applies only to a cache'),
++            ('old inventory field', lambda c: c['storage'].update(nvmeInventoryPath='/etc/enclave-base-holder/nvme-cache-inventory.tsv'), 'unknown field'),
+             ('el memory tiny', lambda c: c['limits']['execution'].update(memoryMaxBytes=1 << 30), 'memoryMaxBytes'),
+             ('co-resident implicit', lambda c: c['limits'].pop('coResidentMemoryBytes'), 'coResidentMemoryBytes'),
+             ('root user', lambda c: c.update(serviceUser='root'), 'serviceUser'),
+@@ -118,11 +121,15 @@ class Validation(unittest.TestCase):
+     def test_boundaries_accepted(self):
+         c = good(); c['execution']['receiptsRetentionBlocks'] = L.MIN_RECEIPTS
+         L.validate(c)
+-        c = good(); c['storage']['otherNvmeCacheAllocations'] = [{'label': 'holder (rebalanced)', 'bytes': 150_000_000_000}]
+-        c['storage']['cache'] = {'mechanism': 'dm-cache', 'mode': 'writethrough', 'dataImagePath': '/vm/l1c/d.img', 'dataBytes': 45 << 30,
+-                                 'metadataImagePath': '/vm/l1c/m.img', 'metadataBytes': 64 << 20, 'blockBytes': 262144}
++        c = good(); c['storage']['nvmeBudget'] = {'ledgerPath': '/etc/enclave-rpc-cache/nvme-cache-budget.json', 'reservationId': 'l1-pair-dm-cache'}; c['storage']['cache'] = cache(45 << 30)
+         v = L.validate(c)
+-        self.assertLessEqual(v['storage']['nvmeAccounting']['totalBytes'], L.NVME_TARGET)
++        r = L.budget_reservation(v)
++        self.assertEqual((r['id'], r['owner'], r['maxBytes']), ('l1-pair-dm-cache', 'enclave-l1-pair', (45 << 30) + (64 << 20) + (64 << 20)))
++        s = L.storage_script(v)
++        self.assertIn("LEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'", s); self.assertIn("RESERVATION='l1-pair-dm-cache'", s)
++        self.assertIn("MECHANISM='dm-cache'", s)
++        with tempfile.TemporaryDirectory() as d:
++            self.assertIn('nvme-budget-reservation.json', L.render(v, Path(d) / 'o')['files'])
+         c = good(); c['consensus']['checkpoint'] = {'mode': 'resume'}
+         self.assertNotIn('--checkpoint-state', L.cl_argv(L.validate(c)))
+         c = good(); c['p2p']['nat'] = 'extip:203.0.113.7'
+@@ -220,15 +227,21 @@ class Rendering(unittest.TestCase):
+         self.assertTrue(s.startswith(head) and s.endswith(tail))
+         consts = s[len(head):len(s) - len(tail)]
+         self.assertIn("NAME='enclave-l1-pair'", consts); self.assertIn("MNT='/srv/enclave-l1-pair'", consts)
+-        self.assertIn("ORIGIN='/mnt/usb/enclave-l1-pair/origin.img'", consts); self.assertIn("CAP='250000000000'", consts)
+-        self.assertIn("MECHANISM='none'", consts)
++        self.assertIn("ORIGIN='/mnt/usb/enclave-l1-pair/origin.img'", consts); self.assertIn("MECHANISM='none'", consts)
++        self.assertIn("LEDGER=''", consts); self.assertIn("RESERVATION=''", consts)
++        self.assertIn("BUDGET_TOOL='/opt/enclave-l1-pair/vendor/holder/budget.py'", consts)
++        names = set(re.findall(r'^([A-Z_]+)=', consts, re.M))
++        used = set(re.findall(r'\$\{?([A-Z_]{2,})', tail)) - {'EXIT'}
++        self.assertTrue(used <= names | {'O', 'D', 'M', 'DEV', 'REMOVE_MAPPING', 'H', 'OTHER', 'TOTAL', 'ALLOC', 'MAPPED', 'MOUNTED', 'CREATED', 'ATTACHED'}, used - names)
++        with tempfile.TemporaryDirectory() as d:
++            self.assertNotIn('nvme-budget-reservation.json', L.render(self.c, Path(d) / 'o')['files'])
+         with tempfile.NamedTemporaryFile('w', suffix='.sh') as f:
+             f.write(s); f.flush()
+             self.assertEqual(subprocess.run(['bash', '-n', f.name]).returncode, 0)
+ 
+     def test_vendor_files_match_their_pins(self):
+         v = json.loads((PKG / 'vendor/VENDOR.json').read_text())
+-        self.assertIn('6b9dae92dcae815a59b4a6d3edd26ebb682f43d8', v['source'])
++        self.assertIn('959e56fd7ea191bfcc7eb94b26a20d4795856bd3', v['source'])
+         for rel, sha in v['files'].items():
+             self.assertEqual(hashlib.sha256((PKG / 'vendor' / rel).read_bytes()).hexdigest(), sha, rel)
+ 
+diff --git a/l1pair/vendor/VENDOR.json b/l1pair/vendor/VENDOR.json
+index 472e9db53a632c6cb0d3faa9cb0d52709fc43740..4670983b1c3461e4082d3be9219a625ba2e0897a 100644
+--- a/l1pair/vendor/VENDOR.json
++++ b/l1pair/vendor/VENDOR.json
+@@ -1,12 +1,13 @@
+ {
+  "format": "enclave-l1-pair-vendor/v1",
+- "source": "S's fresh-witness-supply repo, FINAL immutable commit 6b9dae92dcae815a59b4a6d3edd26ebb682f43d8 (includes fd0134d storage-unwind fix and 1a50957 Supervisor cwd; git show, S working tree NOT used)",
+- "use": "library only (Supervisor, PDEATHSIG, group stop, sd_notify, backing_disks, port_in_use, validate_storage rules) and the storage script template; nothing here edits or runs the Base holder",
++ "source": "S's fresh-witness-supply repo, FINAL immutable commit 959e56fd7ea191bfcc7eb94b26a20d4795856bd3 (root-reviewed budget v2: shared ledger + rounding fix; includes fd0134d/c3efff41 unwind and b1b6f184; git show, S working tree NOT used)",
++ "use": "library only (Supervisor, PDEATHSIG, group stop, sd_notify, backing_disks, port_in_use, validate_storage rules, shared NVMe budget ledger tool) and the storage script template; nothing here edits or runs the Base holder",
+  "files": {
+-  "holder/holder.py": "30cd71a5520d824070dc21cbd5b6fd9372ba120294f8a80a259c5af40b057674",
++  "holder/holder.py": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
++  "holder/budget.py": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24",
+   "holder/FLAGS.json": "7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59",
+   "holder/BINARY.json": "b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00",
+-  "holder/holder-storage.sh.in": "334737ae7af4cd206b3bcf8bc0b6afb7119cacf0913777ab2661e2f61d218505",
+-  "holder/holder.example.json": "b2e8a260d33bc0882f5f8967973c177735ae2745b49934153517a7cef6c976ec"
++  "holder/holder-storage.sh.in": "eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00",
++  "holder/holder.example.json": "8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a"
+  }
+ }
+diff --git a/l1pair/vendor/holder/budget.py b/l1pair/vendor/holder/budget.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..6e00797a9e1cf337432f659f1bbc2529fd509979
+--- /dev/null
++++ b/l1pair/vendor/holder/budget.py
+@@ -0,0 +1,465 @@
++#!/usr/bin/env python3
++"""The shared NVMe cache budget of the RPC/storage work: ONE root-owned ledger for every package and host.
++
++  budget.py validate LEDGER                     the ledger's own rules (no filesystem access)
++  budget.py admit LEDGER RESERVATION_ID PATH=BYTES...
++                                                (create preflight) the reservation exists for this host, names exactly
++                                                 these files, its filesystem is supported with the declared block size;
++                                                 present files are its own (interrupted creates are adopted)
++  budget.py allocate LEDGER RESERVATION_ID      (holder-storage.sh create) lock, re-validate, allocate this reservation's
++                                                 fixed-size files in bounded steps; prints "created PATH" for each file
++                                                 and marker it made
++  budget.py verify LEDGER RESERVATION_ID        (assemble / verify-cap) lock (shared), re-validate, check every local
++                                                 reservation's ACTUAL allocation against its maximum; exit 3 out of bounds
++
++Canonical identity: /etc/enclave-rpc-cache/nvme-cache-budget.json (format enclave-rpc-nvme-cache-budget/v2); the lock is
++the sibling file <ledger>.lock (this budget only, never a host-wide lock).
++
++Why a ledger of MAXIMA rather than measured usage:
++  * every reservation is charged its declared maxBytes whether or not its files exist yet. A missing file is never
++    counted as zero, and a participant that later grows cannot be fitted under an earlier measurement;
++  * only HARD-BOUNDED kinds are admitted ("preallocated-files": fixed-size, fully allocated files whose size cannot grow
++    through the consumer, e.g. dm-cache data/metadata, or a fixed image holding a cache filesystem). Directory entries
++    are refused, because nothing bounds them;
++  * per-host shares are fixed in the ledger and must sum to <= the 250,000,000,000-byte cap, so hosts that do not share
++    a lock still cannot exceed the aggregate. Each host is also charged a fixed BOOKKEEPING_BYTES for the ledger, its
++    lock and their directory blocks.
++
++How a reservation's maxBytes bounds REAL allocation (v2; v1 charged declared bytes and allowed +64 MiB per file):
++  * ACTUAL bytes of a reservation = st_blocks of its files and markers + a fixed directory-entry charge (one block per
++    file, entry_bytes). Every bound below compares ACTUAL with maxBytes; there is no per-file allowance;
++  * declared file sizes must be multiples of the reservation's blockBytes, which must equal the real filesystem's block
++    size; only SUPPORTED_FS are accepted (others refused before anything is written);
++  * slackBytes must be >= required_headroom(): per file one marker block (markers are <= MARKER_MAX_BYTES), one
++    directory-entry block and 2x the ext4 extent tree of a contiguous fallocate; plus ONE allocation step's worst-case
++    extent metadata (one extent per block). The ledger is refused otherwise, before any file or marker exists;
++  * allocate checks the projected total (present allocation + missing markers + all remaining declared data + one step's
++    headroom) before writing anything, then allocates in ALLOC_STEP steps, re-checking actual + remaining + one step's
++    headroom before every step and actual after the last. A filesystem that allocates more than the estimate makes
++    allocation STOP (and unwind) inside the maximum instead of overrunning it; an owned incomplete file (interrupted
++    create) is reset to zero in place so its old blocks are never miscounted;
++  * verify compares every local reservation's actual bytes with its maxBytes, and the ledger + lock with
++    BOOKKEEPING_BYTES.
++What the bound depends on (not proven here): st_blocks reporting all of a file's data AND extent blocks (true for ext4
++and tmpfs; filesystems with CoW, snapshots, compression or delayed accounting are unsupported); the parent directories'
++growth staying within one block per entry; ext4 not allocating per-file space outside st_blocks (inode tables are
++preallocated at mkfs). The estimate only decides how much slack is required: if real metadata is larger, allocation
++refuses rather than exceeding maxBytes. This is source logic: real kernel/device behaviour is not proven by it, and
++caches outside the ledger are not detected."""
++import fcntl
++import json
++import os
++import re
++import stat
++import sys
++from pathlib import Path
++
++FORMAT = 'enclave-rpc-nvme-cache-budget/v2'
++CANONICAL_PATH = '/etc/enclave-rpc-cache/nvme-cache-budget.json'
++CAP = 250_000_000_000          # direct human limit: ALL cache allocations of this work, all hosts together
++TARGET = 200_000_000_000
++KINDS = ('preallocated-files',)
++MARKER = '.enclave-budget-owner'   # <file>.enclave-budget-owner: O_EXCL ownership marker written before the file
++MARKER_MAX_BYTES = 512
++SUPPORTED_FS = ('ext4', 'tmpfs')   # st_blocks counts data + extent blocks; no CoW/compression/snapshots
++BLOCK_SIZES = (1024, 2048, 4096, 8192, 16384, 32768, 65536)
++ALLOC_STEP = 64 << 20              # bytes allocated per step between bound checks
++EXT4_MAX_UNWRITTEN_EXTENT = 32767  # blocks per unwritten (fallocated) ext4 extent
++LEDGER_MAX_BYTES = 64 << 10
++BOOKKEEPING_BYTES = (64 << 10) + 3 * 4096   # per host: ledger (<= LEDGER_MAX_BYTES) + lock + their directory entries
++
++
++class BudgetError(Exception):
++    pass
++
++
++def fail(m):
++    raise BudgetError(m)
++
++
++def _abs(p, where):
++    if not isinstance(p, str) or not p.startswith('/') or p != os.path.normpath(p) or '\0' in p:
++        fail(f'{where}: a normalized absolute path is required')
++    return p
++
++
++def _int(v, where, lo=0, hi=CAP):
++    if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
++        fail(f'{where} must be an integer in [{lo}, {hi}]')
++    return v
++
++
++def _ceil(a, b):
++    return -(-a // b)
++
++
++def _tree_blocks(extents, B):
++    """ext4 extent-tree blocks (leaves + index levels) holding `extents` extents: <= 4 live in the inode, each tree
++    block holds (B - 12) / 12 entries."""
++    per, n, total = (B - 12) // 12, extents, 0
++    while n > 4:
++        n = _ceil(n, per)
++        total += n
++    return total
++
++
++def file_headroom(f, B):
++    """Per file: its marker (one block, <= MARKER_MAX_BYTES), its directory entries (one block) and 2x the extent tree
++    of a contiguous fallocate (unwritten extents of <= EXT4_MAX_UNWRITTEN_EXTENT blocks)."""
++    return 2 * B + 2 * _tree_blocks(_ceil(f['bytes'] // B, EXT4_MAX_UNWRITTEN_EXTENT), B) * B
++
++
++def step_headroom(r):
++    """One allocation step's worst case: one extent per block, plus a leaf split and one more tree level."""
++    B = r['blockBytes']
++    step = min(ALLOC_STEP, max(f['bytes'] for f in r['files']))
++    return (_tree_blocks(step // B, B) + 2) * B
++
++
++def entry_bytes(r):
++    """Directory entries of each file and its marker: one block per file, charged in every actual comparison (directory
++    blocks are not in the files' st_blocks)."""
++    return len(r['files']) * r['blockBytes']
++
++
++def required_headroom(r):
++    """The minimum slackBytes of a reservation."""
++    return sum(file_headroom(f, r['blockBytes']) for f in r['files']) + step_headroom(r)
++
++
++def validate(raw):
++    """-> the ledger, or BudgetError. Pure: no filesystem access."""
++    if not isinstance(raw, dict) or set(raw) != {'format', 'capBytes', 'targetBytes', 'hosts', 'reservations'}:
++        fail('ledger fields: exactly format, capBytes, targetBytes, hosts, reservations')
++    if raw['format'] != FORMAT:
++        fail(f'format must be {FORMAT} (v1 charged declared bytes only and is refused)')
++    if raw['capBytes'] != CAP:
++        fail(f'capBytes must be {CAP} (the user cap; it is not configurable)')
++    _int(raw['targetBytes'], 'targetBytes', 0, CAP)
++    hosts = {}
++    for i, h in enumerate(raw['hosts']):
++        if not isinstance(h, dict) or set(h) != {'machineId', 'label', 'shareBytes'}:
++            fail(f'hosts[{i}]: exactly machineId, label, shareBytes')
++        if not re.fullmatch(r'[0-9a-f]{32}', str(h['machineId'])) or h['machineId'] in hosts:
++            fail(f'hosts[{i}].machineId must be a unique 32-hex /etc/machine-id')
++        hosts[h['machineId']] = _int(h['shareBytes'], f'hosts[{i}].shareBytes')
++    if sum(hosts.values()) > CAP:
++        fail(f'host shares sum to {sum(hosts.values())} > cap {CAP}: every participating host needs an explicit share, no host gets 250 GB')
++    used, ids, paths = {m: BOOKKEEPING_BYTES for m in hosts}, set(), []
++    for i, r in enumerate(raw['reservations']):
++        w = f'reservations[{i}]'
++        if not isinstance(r, dict) or set(r) != {'id', 'host', 'owner', 'kind', 'blockBytes', 'maxBytes', 'slackBytes', 'files'}:
++            fail(f'{w}: exactly id, host, owner, kind, blockBytes, maxBytes, slackBytes, files')
++        if not re.fullmatch(r'[a-z0-9][a-z0-9._-]{0,63}', str(r['id'])) or r['id'] in ids:
++            fail(f'{w}.id must be unique')
++        ids.add(r['id'])
++        if r['host'] not in hosts:
++            fail(f'{w}.host is not a ledger host (unaccounted reservation)')
++        if r['kind'] not in KINDS:
++            fail(f'{w}.kind {r["kind"]!r} is not hard-bounded (allowed: {KINDS}); directory-only entries are refused')
++        if r['blockBytes'] not in BLOCK_SIZES:
++            fail(f'{w}.blockBytes must be the filesystem block size, one of {BLOCK_SIZES}')
++        if not isinstance(r['files'], list) or not r['files']:
++            fail(f'{w}.files must list the fixed-size files')
++        total = 0
++        for j, f in enumerate(r['files']):
++            if not isinstance(f, dict) or set(f) != {'path', 'bytes'}:
++                fail(f'{w}.files[{j}]: exactly path, bytes')
++            paths.append((_abs(f['path'], f'{w}.files[{j}].path'), r['host']))
++            total += _int(f['bytes'], f'{w}.files[{j}].bytes', 1)
++            if f['bytes'] % r['blockBytes']:
++                fail(f'{w}.files[{j}].bytes must be a multiple of blockBytes {r["blockBytes"]} (no partial blocks)')
++        slack = _int(r['slackBytes'], f'{w}.slackBytes', 0, 4 << 30)
++        need = required_headroom(r)
++        if slack < need:
++            fail(f'{w}.slackBytes {slack} is below the required headroom {need} (markers, directory entries, extent '
++                 f'metadata, one allocation step)')
++        if _int(r['maxBytes'], f'{w}.maxBytes', 1) != total + slack:
++            fail(f'{w}.maxBytes must equal its files plus slackBytes ({total + slack})')
++        used[r['host']] += r['maxBytes']
++    for m, u in used.items():
++        if u > hosts[m]:
++            fail(f'host {m}: reservations plus bookkeeping {u} exceed its share {hosts[m]}')
++    seen = set()
++    for p, m in paths:
++        for q, n in seen:
++            if m == n and (p == q or p.startswith(q + '/') or q.startswith(p + '/')):
++                fail(f'reservation paths overlap: {p} / {q}')
++        seen.add((p, m))
++    return raw
++
++
++def machine_id(path='/etc/machine-id'):
++    v = Path(path).read_text().strip()
++    if not re.fullmatch(r'[0-9a-f]{32}', v):
++        fail('/etc/machine-id is not a 32-hex id')
++    return v
++
++
++def load(ledger, require_root_owned=True):
++    """Read the ledger file. It must be a regular file, not a symlink, not group/other writable (root-owned in
++    deployment), and at most LEDGER_MAX_BYTES (its allocation is part of the per-host bookkeeping charge)."""
++    st = os.lstat(ledger)
++    if not stat.S_ISREG(st.st_mode) or st.st_mode & 0o022 or (require_root_owned and st.st_uid != 0):
++        fail(f'{ledger} must be a root-owned regular file, not group/other writable')
++    if st.st_size > LEDGER_MAX_BYTES:
++        fail(f'{ledger} is larger than {LEDGER_MAX_BYTES} bytes')
++    return validate(json.loads(Path(ledger).read_text()))
++
++
++def fs_of(path):
++    """(fstype, block size) of the filesystem holding directory `path`, from /proc/self/mountinfo + statvfs."""
++    real = os.path.realpath(path)
++    best, fstype = '', None
++    with open('/proc/self/mountinfo') as f:
++        for line in f:
++            left, _, right = line.partition(' - ')
++            mp = left.split()[4].replace('\\040', ' ').replace('\\011', '\t').replace('\\134', '\\')
++            if (real == mp or real.startswith(mp.rstrip('/') + '/')) and len(mp) >= len(best):
++                best, fstype = mp, right.split()[0]
++    return fstype, os.statvfs(real).f_frsize
++
++
++def check_fs(r):
++    for f in r['files']:
++        d = os.path.dirname(f['path'])
++        fstype, bs = fs_of(d)
++        if fstype not in SUPPORTED_FS:
++            fail(f'{d} is on {fstype!r}: unsupported for bounded accounting (supported: {SUPPORTED_FS})')
++        if bs != r['blockBytes']:
++            fail(f'{d} has block size {bs}, the reservation declares {r["blockBytes"]}')
++
++
++class Lock:
++    """flock on <ledger>.lock: exclusive for allocation and ledger edits, shared for verification."""
++    def __init__(self, ledger, exclusive):
++        self.path, self.mode = ledger + '.lock', fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
++
++    def __enter__(self):
++        self.fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
++        fcntl.flock(self.fd, self.mode)
++        return self
++
++    def __exit__(self, *a):
++        fcntl.flock(self.fd, fcntl.LOCK_UN)
++        os.close(self.fd)
++
++
++def reservation(ledger_doc, rid, host):
++    r = next((r for r in ledger_doc['reservations'] if r['id'] == rid), None)
++    if r is None:
++        fail(f'reservation {rid!r} is not in the ledger: an unreserved allocation is refused')
++    if r['host'] != host:
++        fail(f'reservation {rid!r} belongs to host {r["host"]}, not this host {host}')
++    return r
++
++
++def _owned(p, rid):
++    m = p + MARKER
++    if not os.path.isfile(m):
++        return False
++    if os.lstat(m).st_size > MARKER_MAX_BYTES:
++        fail(f'{m} is larger than a marker may be')
++    return json.loads(Path(m).read_text()).get('reservation') == rid
++
++
++def allocated(p):
++    try:
++        return os.lstat(p).st_blocks * 512
++    except FileNotFoundError:
++        return 0
++
++
++def actual_bytes(r):
++    """Allocated bytes of a reservation's present files and markers (st_blocks: data + extent blocks) plus its fixed
++    directory-entry charge. Every bound compares THIS with maxBytes."""
++    return sum(allocated(f['path']) + allocated(f['path'] + MARKER) for f in r['files']) + entry_bytes(r)
++
++
++def complete(f):
++    st = os.lstat(f['path'])
++    return st.st_size == f['bytes'] and st.st_blocks * 512 >= f['bytes']
++
++
++def check_file(f, rid, must_exist):
++    """-> 'absent' | 'ok'. A present file must be ours (marker), a regular file of EXACTLY the declared size, and not
++    sparse. Over-allocation is charged to the reservation as a whole (actual_bytes), never allowed per file."""
++    p = f['path']
++    try:
++        st = os.lstat(p)
++    except FileNotFoundError:
++        if must_exist:
++            fail(f'{p} (reservation {rid}) is missing')
++        return 'absent'
++    if not stat.S_ISREG(st.st_mode):
++        fail(f'{p} is not a regular file')
++    if not _owned(p, rid):
++        fail(f'{p} exists without this reservation\'s ownership marker: not adopting it')
++    if st.st_size != f['bytes']:
++        fail(f'{p} is {st.st_size} bytes, declared {f["bytes"]}')
++    if st.st_blocks * 512 < f['bytes']:
++        fail(f'{p} allocates {st.st_blocks * 512} bytes for a declared {f["bytes"]} (sparse)')
++    return 'ok'
++
++
++def _bound(r, projected, what):
++    if projected > r['maxBytes']:
++        fail(f'reservation {r["id"]}: {what}: {projected} bytes would exceed maxBytes {r["maxBytes"]}; nothing more is allocated')
++
++
++def allocate(ledger, rid, host=None, require_root_owned=True):
++    """Under the exclusive lock: re-validate, check the filesystem and the PROJECTED total (present allocation + missing
++    markers + all remaining declared data + one step's headroom) BEFORE writing anything; then create this reservation's
++    markers (O_EXCL), reset owned incomplete files (an interrupted create) to zero in place, and allocate each file in
++    ALLOC_STEP steps, re-checking actual + remaining + one step's headroom <= maxBytes before every step and
++    actual <= maxBytes at the end. Complete owned files are untouched; recovery never grants new budget (maxBytes is
++    fixed in the ledger). -> list of created paths (files and markers)."""
++    host = host or machine_id()
++    created = []
++    with Lock(ledger, exclusive=True):
++        doc = load(ledger, require_root_owned)
++        r = reservation(doc, rid, host)
++        check_fs(r)
++        B, todo = r['blockBytes'], []
++        for f in r['files']:
++            p = f['path']
++            if os.path.lexists(p):
++                if not os.path.exists(p + MARKER):
++                    fail(f'{p} exists without this reservation\'s ownership marker: refusing (no reuse of foreign files)')
++                if not stat.S_ISREG(os.lstat(p).st_mode) or not _owned(p, rid):
++                    fail(f'{p} is not this reservation\'s regular file')
++                if os.lstat(p).st_size > f['bytes']:
++                    fail(f'{p} is larger than its reservation')
++            if not os.path.lexists(p) or not complete(f):
++                todo.append(f)
++        kept = sum(allocated(f['path']) for f in r['files'] if f not in todo)
++        markers = sum(allocated(f['path'] + MARKER) if os.path.exists(f['path'] + MARKER) else B for f in r['files'])
++        remaining = sum(f['bytes'] for f in todo)
++        _bound(r, kept + markers + entry_bytes(r) + remaining + (step_headroom(r) if todo else 0), 'before any write')
++        try:
++            for f in r['files']:
++                p = f['path']
++                if not os.path.exists(p + MARKER):
++                    body = (json.dumps({'reservation': rid, 'path': p, 'bytes': f['bytes']}) + '\n').encode()
++                    if len(body) > MARKER_MAX_BYTES:
++                        fail(f'marker for {p} would exceed {MARKER_MAX_BYTES} bytes')
++                    fd = os.open(p + MARKER, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
++                    created.append(p + MARKER)
++                    with os.fdopen(fd, 'wb') as m:
++                        m.write(body)
++                        m.flush()
++                        os.fsync(m.fileno())
++            fds = {}
++            for f in todo:                              # owned incomplete files restart from zero (same inode)
++                p = f['path']
++                if os.path.exists(p):
++                    fds[p] = os.open(p, os.O_WRONLY)
++                    os.ftruncate(fds[p], 0)
++                else:
++                    fds[p] = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
++                    created.append(p)
++            try:
++                for f in todo:
++                    p, off, fd = f['path'], 0, fds[f['path']]
++                    while off < f['bytes']:
++                        n = min(ALLOC_STEP, f['bytes'] - off)
++                        _bound(r, actual_bytes(r) + remaining + step_headroom(r), f'before allocating {p} at {off}')
++                        os.posix_fallocate(fd, off, n)
++                        off += n
++                        remaining -= n
++                    os.fsync(fd)
++            finally:
++                for fd in fds.values():
++                    os.close(fd)
++            for f in r['files']:
++                check_file(f, rid, must_exist=True)
++            _bound(r, actual_bytes(r), 'after allocation')
++        except BaseException:
++            for p in reversed(created):            # only what THIS call created
++                try:
++                    os.remove(p)
++                except FileNotFoundError:
++                    pass
++            raise
++    return created
++
++
++def admit(ledger, rid, expected, host=None, require_root_owned=True):
++    """Shared lock: the reservation exists for this host, its files are exactly `expected` ({path: bytes}), their
++    filesystem is supported with the declared block size, and each file is absent or ours (an owned file may be
++    incomplete after an interrupted create). Nothing is written."""
++    host = host or machine_id()
++    with Lock(ledger, exclusive=False):
++        r = reservation(load(ledger, require_root_owned), rid, host)
++        if {f['path']: f['bytes'] for f in r['files']} != expected:
++            fail(f'reservation {rid!r} files {[(f["path"], f["bytes"]) for f in r["files"]]} differ from this configuration {sorted(expected.items())}')
++        check_fs(r)
++        for f in r['files']:
++            p = f['path']
++            if os.path.exists(p):
++                if not _owned(p, rid):
++                    fail(f'{p} exists without this reservation\'s ownership marker: refusing')
++                if os.lstat(p).st_size > f['bytes']:
++                    fail(f'{p} is larger than its reservation')
++        return r
++
++
++def verify(ledger, rid, host=None, require_root_owned=True):
++    """Shared lock: the ledger is valid (host shares and charged maxima incl. bookkeeping fit); this reservation's files
++    exist on a supported filesystem with the declared block size; every present file of every local reservation is
++    ours, exactly sized and not sparse; every local reservation's ACTUAL allocation (files + markers + directory-entry
++    charge) is <= its maxBytes; the ledger + lock allocation is within the bookkeeping charge. -> summary dict."""
++    host = host or machine_id()
++    with Lock(ledger, exclusive=False):
++        doc = load(ledger, require_root_owned)
++        mine = reservation(doc, rid, host)
++        check_fs(mine)
++        local = [r for r in doc['reservations'] if r['host'] == host]
++        share = next(h['shareBytes'] for h in doc['hosts'] if h['machineId'] == host)
++        actual = {}
++        for r in local:
++            for f in r['files']:
++                check_file(f, r['id'], must_exist=(r is mine))
++            actual[r['id']] = actual_bytes(r)
++            if actual[r['id']] > r['maxBytes']:
++                fail(f'reservation {r["id"]}: actual allocation {actual[r["id"]]} exceeds its maxBytes {r["maxBytes"]}')
++        book = allocated(ledger) + allocated(ledger + '.lock')
++        if book > BOOKKEEPING_BYTES:
++            fail(f'ledger + lock allocate {book} bytes, above the bookkeeping charge {BOOKKEEPING_BYTES}')
++        charged = sum(r['maxBytes'] for r in local) + BOOKKEEPING_BYTES
++        return {'host': host, 'shareBytes': share, 'chargedBytes': charged, 'actualBytes': sum(actual.values()) + book,
++                'reservation': rid, 'reservationBytes': mine['maxBytes'], 'reservationActualBytes': actual[rid],
++                'requiredHeadroomBytes': required_headroom(mine), 'bookkeepingBytes': BOOKKEEPING_BYTES,
++                'ledgerHostShares': sum(h['shareBytes'] for h in doc['hosts']), 'capBytes': CAP, 'targetBytes': doc['targetBytes']}
++
++
++def main(argv):
++    try:
++        if len(argv) == 2 and argv[0] == 'validate':
++            validate(json.loads(Path(argv[1]).read_text()))
++            print(json.dumps({'valid': True}))
++        elif len(argv) >= 4 and argv[0] == 'admit':
++            exp = {}
++            for a in argv[3:]:
++                p, sep, n = a.rpartition('=')
++                if not sep or not n.isdigit():
++                    fail('admit takes PATH=BYTES arguments')
++                exp[p] = int(n)
++            r = admit(argv[1], argv[2], exp)
++            print(json.dumps({'admitted': r['id'], 'maxBytes': r['maxBytes']}))
++        elif len(argv) == 3 and argv[0] == 'allocate':
++            for p in allocate(argv[1], argv[2]):
++                print(f'created {p}')
++        elif len(argv) == 3 and argv[0] == 'verify':
++            print(json.dumps(verify(argv[1], argv[2])))
++        else:
++            print(__doc__, file=sys.stderr)
++            return 64
++    except (BudgetError, OSError, ValueError) as e:
++        print(json.dumps({'refused': f'{type(e).__name__}: {e}' if not isinstance(e, BudgetError) else str(e)}), file=sys.stderr)
++        return 3
++    return 0
++
++
++if __name__ == '__main__':
++    sys.exit(main(sys.argv[1:]))
+diff --git a/l1pair/vendor/holder/holder-storage.sh.in b/l1pair/vendor/holder/holder-storage.sh.in
+index 549c73d2954058d4abc0904476ca87a85c3062bc..46e1533d6c2efc75a573194507af0fec98bd1b64 100644
+--- a/l1pair/vendor/holder/holder-storage.sh.in
++++ b/l1pair/vendor/holder/holder-storage.sh.in
+@@ -6,8 +6,9 @@
+ #   create        once, with root's approval: preflight EVERYTHING, then allocate; unwinds only what it created
+ #   assemble      at boot: attach and map (or adopt an IDENTICAL existing mapping), mount; unwinds only what it did
+ #   disassemble   at stop: unmount, unmap, detach; stops at the first failure (never detaches under a live user)
+-#   verify-cap    measured aggregate NVMe bytes (allocated, not apparent) of the holder images plus every path in the
+-#                 shared inventory; exit 3 above the cap
++#   verify-cap    the shared NVMe cache budget ledger (budget.py verify): this host's reservations charged at their
++#                 declared MAXIMA within its fixed share of the 250,000,000,000-byte cap, every present file exactly
++#                 bounded and owned, this reservation's files present; exit 3 otherwise
+ #   cache-loss    holder stopped: unmap, INVALIDATE the cache metadata first, then a read-only check of the origin. Any
+ #                 later assemble starts from an empty cache. A cache is never reattached after uncached origin access.
+ set -euo pipefail
+@@ -16,7 +17,6 @@ umask 077
+ log() { echo "holder-storage: $*" >&2; }
+ die() { log "$*"; exit 2; }
+ rot() { lsblk -nso ROTA "$(findmnt -no SOURCE --target "$(dirname "$1")")" | tail -1 | tr -d ' '; }
+-alloc() { echo $(( $(stat -c %b "$1") * 512 )); }
+ avail() { df --output=avail -B1 "$(dirname "$1")" | tail -1 | tr -d ' '; }
+ mm() { lsblk -dno MAJ:MIN "$1" | tr -d ' '; }
+ loopof() { losetup -j "$1" -O NAME -n | head -1; }          # the loop bound to exactly this backing file, if any
+@@ -72,8 +72,8 @@ own_mapping() {  # 0 = absent, 1 = present AND identical to ours; anything else
+ case "${1:-}" in
+ create)
+   # 1. preflight every resource BEFORE allocating anything
++  test ! -e "$ORIGIN" || die "$ORIGIN exists: refusing to overwrite or reuse"
+   for f in "$ORIGIN" ${CDATA:+"$CDATA"} ${CMETA:+"$CMETA"}; do
+-    test ! -e "$f" || die "$f exists: refusing to overwrite or reuse"
+     test -d "$(dirname "$f")" || die "$(dirname "$f") does not exist"
+   done
+   [ "$(rot "$ORIGIN")" = 1 ] || die "origin must be on a rotational (HDD) device"
+@@ -81,15 +81,18 @@ create)
+   if cached; then
+     for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
+     [ "$(avail "$CDATA")" -ge $(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN )) ] || die "not enough NVMe free space for the cache plus margin"
+-    "$0" verify-cap-plan || die "aggregate NVMe cap would be exceeded"
++    # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
++    # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
++    "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
++      || die "NVMe cache budget reservation refused"
+   fi
+   # 2. allocate, tracking ownership for unwind
+   CREATED+=("$ORIGIN"); fallocate -l "$ORIGIN_BYTES" -- "$ORIGIN"
+   attach "$ORIGIN" O
+   mkfs.ext4 -q -L enclave-holder -E lazy_itable_init=0,lazy_journal_init=0 "$O"   # NEW filesystem in the NEW image
+   if cached; then
+-    CREATED+=("$CDATA"); fallocate -l "$CDATA_BYTES" -- "$CDATA"
+-    CREATED+=("$CMETA"); fallocate -l "$CMETA_BYTES" -- "$CMETA"
++    ALLOC=$("$PY" -I "$BUDGET_TOOL" allocate "$LEDGER" "$RESERVATION") || die "NVMe cache budget allocation refused"
++    while read -r w p; do [ "$w" = created ] && CREATED+=("$p"); done <<< "$ALLOC"
+     dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none   # zeroed: dm-cache formats an empty cache
+   fi
+   losetup -d "$O"; ATTACHED=()
+@@ -102,7 +105,7 @@ assemble)
+   if cached; then modprobe dm-cache; modprobe dm-cache-smq; test -f "$CDATA" && test -f "$CMETA" || die "cache images missing"; fi
+   attach "$ORIGIN" O
+   if cached; then
+-    "$0" verify-cap-measured || die "measured aggregate NVMe bytes exceed the cap"
++    "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION" >/dev/null || die "NVMe cache budget verification failed"
+     attach "$CDATA" D; attach "$CMETA" M
+     if own_mapping; then
+       [ -z "$(lsblk -nro MOUNTPOINTS "$O" | tr -d '[:space:]')" ] || die "origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)"
+@@ -149,24 +152,10 @@ disassemble)
+   done
+   log "disassembled"
+   ;;
+-verify-cap-plan|verify-cap-measured|verify-cap)
++verify-cap)
+   trap - EXIT
+-  # holder images: planned sizes, or ALLOCATED bytes once they exist; plus every inventory path's allocated bytes
+-  if ! cached; then H=0; SLACK=0
+-  elif [ "$1" = verify-cap-plan ]; then H=$(( CDATA_BYTES + CMETA_BYTES ))
+-  else H=$(( $(alloc "$CDATA") + $(alloc "$CMETA") )); fi
+-  OTHER=0
+-  test -f "$INVENTORY" || die "shared NVMe cache inventory $INVENTORY missing (root-maintained: label<TAB>path per line)"
+-  while IFS=$'\t' read -r label path; do
+-    [ -z "${label:-}" ] || [ "${label:0:1}" = '#' ] && continue
+-    [ "$path" = "$CDATA" ] || [ "$path" = "$CMETA" ] && continue
+-    test -e "$path" || { log "inventory path absent (counted 0): $label $path"; continue; }
+-    OTHER=$(( OTHER + $(du -sx --block-size=1 -- "$path" | cut -f1) ))
+-  done < "$INVENTORY"
+-  TOTAL=$(( H + SLACK + OTHER ))
+-  echo "holderBytes=$H slackBytes=$SLACK otherMeasuredBytes=$OTHER totalBytes=$TOTAL capBytes=$CAP targetBytes=$TARGET"
+-  [ "$TOTAL" -le "$CAP" ] || { log "OVER CAP"; exit 3; }
+-  if [ "$1" = verify-cap ] && cached && dmsetup info "$NAME" >/dev/null 2>&1; then dmsetup status "$NAME"; fi
++  if cached; then exec "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION"; fi
++  echo '{"cache": "none", "nvmeBytes": 0}'
+   ;;
+ cache-loss)
+   cached || die "no cache configured"
+diff --git a/l1pair/vendor/holder/holder.example.json b/l1pair/vendor/holder/holder.example.json
+index a38be3826c1484702ce32c6e9659a6d55f968e1c..2c5847969d3ff40ca472164ee8001ff792d55b37 100644
+--- a/l1pair/vendor/holder/holder.example.json
++++ b/l1pair/vendor/holder/holder.example.json
+@@ -64,9 +64,11 @@
+    "blockBytes": 262144,
+    "slackBytes": 67108864
+   },
+-  "otherNvmeCacheAllocations": [],
+-  "nvmeInventoryPath": "/etc/enclave-base-holder/nvme-cache-inventory.tsv",
+   "originFreeMarginBytes": 500000000000,
+-  "nvmeFreeMarginBytes": 200000000000
++  "nvmeFreeMarginBytes": 200000000000,
++  "nvmeBudget": {
++   "ledgerPath": "/etc/enclave-rpc-cache/nvme-cache-budget.json",
++   "reservationId": "base-holder-dm-cache"
++  }
+  }
+ }
+diff --git a/l1pair/vendor/holder/holder.py b/l1pair/vendor/holder/holder.py
+index 340dfd5ab5cb125cae86c83e95497ac471a890e7..7e3417a9f29b2be19a28480eca592166b7d12ced 100644
+--- a/l1pair/vendor/holder/holder.py
++++ b/l1pair/vendor/holder/holder.py
+@@ -50,6 +50,10 @@ SECRETISH = re.compile(r'(secret|token|password|passwd|private|mnemonic|seed|api
+ HERE = Path(__file__).resolve().parent
+ FLAGS = json.loads((HERE / 'FLAGS.json').read_text())
+ BINARY = json.loads((HERE / 'BINARY.json').read_text())   # the reviewed official binary and its offline help
++sys.path.insert(0, str(HERE))
++import budget as BUDGET   # noqa: E402  the shared NVMe cache budget ledger (budget.py, same directory)
++CACHE_FS_BLOCK = 4096     # block size of the ext4 holding the cache images; budget.py refuses any other before writing
++sys.path.pop(0)
+ 
+ 
+ class Refused(Exception):
+@@ -215,14 +219,11 @@ def validate(raw, review=False):
+ 
+ def validate_storage(s, c):
+     """Durable state lives in an HDD-backed origin image. The NVMe cache is optional, writethrough and bounded."""
+-    only('storage', s, ['layout', 'mountPoint', 'origin', 'cache', 'otherNvmeCacheAllocations', 'nvmeInventoryPath',
+-                        'originFreeMarginBytes', 'nvmeFreeMarginBytes'], ['layout', 'mountPoint', 'origin', 'cache', 'nvmeInventoryPath'])
++    only('storage', s, ['layout', 'mountPoint', 'origin', 'cache', 'nvmeBudget', 'originFreeMarginBytes', 'nvmeFreeMarginBytes'],
++         ['layout', 'mountPoint', 'origin', 'cache'])
+     if s['layout'] != 'loop-ext4-image':
+         fail('storage.layout must be loop-ext4-image (a NEW image file; existing filesystems are never reformatted)')
+     out = {'layout': s['layout'], 'mountPoint': abspath('storage.mountPoint', s['mountPoint']),
+-           # root-maintained shared inventory of EVERY NVMe cache allocation of this work (label<TAB>path); verify-cap
+-           # measures each path's allocated bytes. The config's otherNvmeCacheAllocations is only the planning estimate.
+-           'nvmeInventoryPath': abspath('storage.nvmeInventoryPath', s['nvmeInventoryPath']),
+            'originFreeMarginBytes': integer('storage.originFreeMarginBytes', s.get('originFreeMarginBytes', 500_000_000_000), 0, 10 ** 14),
+            'nvmeFreeMarginBytes': integer('storage.nvmeFreeMarginBytes', s.get('nvmeFreeMarginBytes', 200_000_000_000), 0, 10 ** 14)}
+     if not (c['datadir'] + '/').startswith(out['mountPoint'].rstrip('/') + '/') or c['datadir'] == out['mountPoint']:
+@@ -236,21 +237,21 @@ def validate_storage(s, c):
+     k = s['cache']
+     only('storage.cache', k, ['mechanism', 'mode', 'dataImagePath', 'dataBytes', 'metadataImagePath', 'metadataBytes', 'blockBytes', 'slackBytes'],
+          ['mechanism'])
+-    others = s.get('otherNvmeCacheAllocations', [])
+-    if not isinstance(others, list):
+-        fail('storage.otherNvmeCacheAllocations must be a list of {label, bytes}')
+-    other_total = 0
+-    for i, a in enumerate(others):
+-        only(f'storage.otherNvmeCacheAllocations[{i}]', a, ['label', 'bytes'], ['label', 'bytes'])
+-        other_total += integer(f'storage.otherNvmeCacheAllocations[{i}].bytes', a['bytes'], 0, AGGREGATE_NVME_CAP)
+-    out['otherNvmeCacheAllocations'] = [dict(a) for a in others]
++    # The aggregate cap is enforced by the SHARED budget ledger (budget.py), not by this config: the holder only names
++    # its reservation there. Other caches are never estimated here (an estimate is not a bound).
++    nb = s.get('nvmeBudget')
+     if k['mechanism'] == 'none':
++        if nb is not None:
++            fail('storage.nvmeBudget applies only to a cache (mechanism none allocates no NVMe bytes)')
+         out['cache'] = {'mechanism': 'none'}
+-        out['nvmeAccounting'] = {'holderBytes': 0, 'otherBytes': other_total, 'totalBytes': other_total,
+-                                 'capBytes': AGGREGATE_NVME_CAP, 'targetBytes': NVME_TARGET}
+-        if other_total > AGGREGATE_NVME_CAP:
+-            fail('declared NVMe cache allocations of this work already exceed the 250,000,000,000-byte aggregate cap')
++        out['nvmeAccounting'] = {'holderBytes': 0, 'capBytes': AGGREGATE_NVME_CAP, 'targetBytes': NVME_TARGET}
+         return out
++    only('storage.nvmeBudget', nb, ['ledgerPath', 'reservationId'], ['ledgerPath', 'reservationId'])
++    if nb['ledgerPath'] != BUDGET.CANONICAL_PATH:
++        fail(f'storage.nvmeBudget.ledgerPath must be the canonical shared ledger {BUDGET.CANONICAL_PATH}')
++    if not re.fullmatch(r'[a-z0-9][a-z0-9._-]{0,63}', str(nb['reservationId'])):
++        fail('storage.nvmeBudget.reservationId must be a ledger reservation id')
++    out['nvmeBudget'] = {'ledgerPath': nb['ledgerPath'], 'reservationId': nb['reservationId']}
+     if k['mechanism'] != 'dm-cache':
+         fail('storage.cache.mechanism must be none or dm-cache (block-level, under the new image only)')
+     only('storage.cache', k, ['mechanism', 'mode', 'dataImagePath', 'dataBytes', 'metadataImagePath', 'metadataBytes', 'blockBytes', 'slackBytes'],
+@@ -268,19 +269,22 @@ def validate_storage(s, c):
+     need_meta = (4 << 20) + 16 * (data // blk) * 4   # 4x the dm-cache rule of thumb (4 MiB + 16 B per block)
+     if meta < need_meta:
+         fail(f'storage.cache.metadataBytes must be at least {need_meta} for {data // blk} cache blocks')
++    if meta % CACHE_FS_BLOCK:
++        fail(f'storage.cache.metadataBytes must be a multiple of the {CACHE_FS_BLOCK}-byte filesystem block of the cache images')
+     slack = integer('storage.cache.slackBytes', k.get('slackBytes', 64 << 20), 16 << 20, 4 << 30)
+     paths = [abspath('storage.cache.dataImagePath', k['dataImagePath']), abspath('storage.cache.metadataImagePath', k['metadataImagePath'])]
+     if paths[0] == paths[1] or any(p.startswith(out['mountPoint'].rstrip('/') + '/') or p == out['origin']['imagePath'] for p in paths):
+         fail('cache images must be two distinct files outside the mount point and apart from the origin image')
+     holder = data + meta + slack
+-    total = holder + other_total
+-    if total > AGGREGATE_NVME_CAP:
+-        fail(f'NVMe cache total {total} bytes (this holder {holder} + other declared {other_total}) exceeds the '
+-             f'{AGGREGATE_NVME_CAP}-byte aggregate cap')
++    need = BUDGET.required_headroom({'blockBytes': CACHE_FS_BLOCK, 'files': [{'path': p, 'bytes': n} for p, n in zip(paths, (data, meta))]})
++    if slack < need:
++        fail(f'storage.cache.slackBytes must be at least {need} (the budget ledger\'s required allocation headroom)')
++    if holder > NVME_TARGET:
++        fail(f'this cache reserves {holder} bytes, above the {NVME_TARGET}-byte operational target by itself')
+     out['cache'] = {'mechanism': 'dm-cache', 'mode': 'writethrough', 'policy': 'smq', 'dataImagePath': paths[0], 'dataBytes': data,
+                     'metadataImagePath': paths[1], 'metadataBytes': meta, 'blockBytes': blk, 'slackBytes': slack}
+-    out['nvmeAccounting'] = {'holderBytes': holder, 'otherBytes': other_total, 'totalBytes': total, 'capBytes': AGGREGATE_NVME_CAP,
+-                             'targetBytes': NVME_TARGET, 'overTarget': total > NVME_TARGET}
++    out['nvmeAccounting'] = {'holderBytes': holder, 'capBytes': AGGREGATE_NVME_CAP, 'targetBytes': NVME_TARGET,
++                             'enforcedBy': f"shared ledger {nb['ledgerPath']} reservation {nb['reservationId']} (maxBytes must equal holderBytes)"}
+     return out
+ 
+ 
+@@ -385,28 +389,36 @@ WantedBy=multi-user.target
+ """
+ 
+ 
+-def storage_script(c, cap=AGGREGATE_NVME_CAP):
+-    """The root-only storage script: holder-storage.sh.in with this config's constants (shell-quoted). `cap` is the
+-    aggregate NVMe cap; only tests pass a smaller one, to reach the over-cap path with small files."""
++def storage_script(c, budget_tool='/opt/enclave-base-holder/budget.py'):
++    """The root-only storage script: holder-storage.sh.in with this config's constants (shell-quoted)."""
+     s, o, k = c['storage'], c['storage']['origin'], c['storage']['cache']
+     q = lambda v: "'" + str(v).replace("'", "'\\''") + "'"
+     const = {'MECHANISM': k['mechanism'], 'ORIGIN': o['imagePath'], 'ORIGIN_BYTES': o['bytes'],
+              'ORIGIN_FREE_MARGIN': s['originFreeMarginBytes'], 'MNT': s['mountPoint'], 'DATADIR': c['datadir'], 'OWNER': c['serviceUser'],
+-             'NAME': 'enclave-base-holder', 'INVENTORY': s['nvmeInventoryPath'], 'CAP': cap, 'TARGET': NVME_TARGET,
++             'NAME': 'enclave-base-holder', 'PY': '/usr/bin/python3', 'BUDGET_TOOL': budget_tool,
++             'LEDGER': (s.get('nvmeBudget') or {}).get('ledgerPath', ''), 'RESERVATION': (s.get('nvmeBudget') or {}).get('reservationId', ''),
+              'CDATA': k.get('dataImagePath', ''), 'CDATA_BYTES': k.get('dataBytes', 0), 'CMETA': k.get('metadataImagePath', ''),
+              'CMETA_BYTES': k.get('metadataBytes', 0), 'BLOCK_SECTORS': k.get('blockBytes', 0) // 512,
+-             'SLACK': k.get('slackBytes', 0), 'NVME_FREE_MARGIN': s['nvmeFreeMarginBytes']}
++             'NVME_FREE_MARGIN': s['nvmeFreeMarginBytes']}
+     text = (HERE / 'holder-storage.sh.in').read_text()
+     return text.replace('@CONSTANTS@', '\n'.join(f'{n}={q(v)}' for n, v in const.items()))
+ 
+ 
+-def nvme_inventory_example(c):
++def budget_reservation(c):
++    """This holder's entry for the shared ledger: the two fixed-size cache files plus slack."""
+     k = c['storage']['cache']
+-    rows = ['# shared NVMe cache inventory of the RPC/storage work (ROOT-maintained; one label<TAB>path per line).',
+-            '# EVERY cache allocation of this work goes here (Sia caches included); verify-cap sums their ALLOCATED bytes',
+-            '# with the holder images and refuses above 250,000,000,000. The holder images are counted automatically.']
+-    rows += [f"{a['label']}\t<path of {a['label']}>" for a in c['storage']['otherNvmeCacheAllocations']]
+-    return '\n'.join(rows) + '\n'
++    return {'id': c['storage']['nvmeBudget']['reservationId'], 'host': '<this host: /etc/machine-id>', 'owner': 'enclave-base-holder',
++            'kind': 'preallocated-files', 'blockBytes': CACHE_FS_BLOCK, 'maxBytes': k['dataBytes'] + k['metadataBytes'] + k['slackBytes'],
++            'slackBytes': k['slackBytes'],
++            'files': [{'path': k['dataImagePath'], 'bytes': k['dataBytes']}, {'path': k['metadataImagePath'], 'bytes': k['metadataBytes']}]}
++
++
++def budget_example(c):
++    """An EXAMPLE ledger (not valid until root fills real machine ids and shares): one host share, this reservation."""
++    rows = [budget_reservation(c)] if c['storage']['cache']['mechanism'] == 'dm-cache' else []
++    return {'format': BUDGET.FORMAT, 'capBytes': BUDGET.CAP, 'targetBytes': BUDGET.TARGET,
++            'hosts': [{'machineId': '<32-hex /etc/machine-id of the cache host>', 'label': 'workstation', 'shareBytes': BUDGET.TARGET}],
++            'reservations': rows}
+ 
+ 
+ def render(c, outdir, holder_path='/opt/enclave-base-holder/holder.py', config_path='/etc/enclave-base-holder/holder.json',
+@@ -419,7 +431,7 @@ def render(c, outdir, holder_path='/opt/enclave-base-holder/holder.py', config_p
+              'enclave-base-holder.service': unit_text(c, holder_path, config_path),
+              'enclave-base-holder-storage.service': storage_unit_text(script_path),
+              'holder-storage.sh': storage_script(c),
+-             'nvme-cache-inventory.example.tsv': nvme_inventory_example(c),
++             'nvme-cache-budget.example.json': json.dumps(budget_example(c), indent=1) + '\n',
+              'b-proof-source.json': json.dumps({'proofSources': {'untrusted': [f"http://127.0.0.1:{c['rpc']['port']}/"]},
+                                                 'note': "fragment for B's enclave-rpc-runtime/v1 config; B verifies every witness"}, indent=1) + '\n'}
+     for name, text in files.items():
+@@ -559,6 +571,17 @@ def preflight(c, owner_uid=None, need_free=None):
+             if os.stat(p).st_blocks * 512 < os.stat(p).st_size:
+                 fail(f'{p} is sparse: the cap must be pre-allocated, not apparent')
+     out.append(f'placement {leaves}')
++    if c['storage']['cache']['mechanism'] == 'dm-cache':
++        nb = c['storage']['nvmeBudget']
++        try:
++            want = budget_reservation(c)
++            r = BUDGET.admit(nb['ledgerPath'], nb['reservationId'], {f['path']: f['bytes'] for f in want['files']})
++            if (r['maxBytes'], r['slackBytes'], r['blockBytes']) != (want['maxBytes'], want['slackBytes'], want['blockBytes']):
++                fail(f"ledger reservation {nb['reservationId']} maxBytes/slackBytes/blockBytes differ from this configuration")
++            v = BUDGET.verify(nb['ledgerPath'], nb['reservationId'])
++        except BUDGET.BudgetError as e:
++            fail(f'NVMe cache budget: {e}')
++        out.append(f"budget: reservation {nb['reservationId']} {r['maxBytes']} B; host charged {v['chargedBytes']} of share {v['shareBytes']}")
+     out.append(check_reth_toml(c))
+     vfs = os.statvfs(c['datadir'])
+     free = vfs.f_bavail * vfs.f_frsize
+diff --git a/logs/base-3.guard.log b/logs/base-3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..c7c893525fde2042bbcfa1ba0194d737fce3e94e
+--- /dev/null
++++ b/logs/base-3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=565 minHostAvailableMiB=21422
+diff --git a/logs/base-3.out b/logs/base-3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..1b3f56ef23365ec43b28b1ed6c81be8ff7414398
+--- /dev/null
++++ b/logs/base-3.out
+@@ -0,0 +1,55 @@
++[queue] START available=23639MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
++== pins
++3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
++46deaf02b28a96d2806a71de21b7559cdaa657f3dd718bfd5623ab4b91810d6a  l1pair/PINS.json
++a2bcc3aabff16977e29e84ed46b1734028ec58c66dbc8c4523ae1bcf62accefa  l1pair/vendor/VENDOR.json
++35c60ff6bf233c44517d1d9d3af6300c91b53fe18399116fa2a02e120e2951ab  l1pair/test/mutate.py
++a3c26785d946be37ca3044fe2eecef21ed4201025dcb254679c177fdfdf87fb7  l1pair/test/realrig.py
++2f7f6a2412fcdc5b5d31cfa088b96b6de49ed7883c65601f015678d5bae908ab  l1pair/test/run_side.py
++9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
++e129dce22fd352ef748bb7089ae72f0536a03455ee7d5450da42cad6b87351d3  l1pair/test/test_l1pair.py
++60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
++vendor: OK (S 959e56f byte-identical)
++9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f  ../fresh-witness-supply/staging/base-v1.5.1-20261023T053947Z/base
++test_official_base_starts_against_the_real_self_hosted_execution_side (__main__.BaseOnRealL1Execution.test_official_base_starts_against_the_real_self_hosted_execution_side) ... {
++ "baseBinary": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
++ "aliveAfterSec": 120.0,
++ "exitedAfterSec": null,
++ "exitCode": 0,
++ "chainId": "0x2105",
++ "chainIdAfterSec": 1.5,
++ "beaconPathsRequested": [
++  "/eth/v1/beacon/genesis",
++  "/eth/v1/config/spec"
++ ],
++ "retryExhausted": false,
++ "signerLines": [
++  "2026-10-23T07:51:33.398536Z  WARN p2p::flags: L1 SystemConfig returned zero unsafe block signer (L1 may still be syncing), falling back to built-in/genesis signer block_number=0"
++ ],
++ "l1Lines": [
++  "2026-10-23T07:51:33.393955Z  INFO upgrade_signal: execution upgrade signal metrics observer spawned",
++  "2026-10-23T07:51:33.395724Z  WARN upgrade_signal: failed to read live L1 upgrade signal schedule error=get L1 block failed: missing block for tag",
++  "2026-10-23T07:51:33.398536Z  WARN p2p::flags: L1 SystemConfig returned zero unsafe block signer (L1 may still be syncing), falling back to built-in/genesis signer block_number=0",
++  "2026-10-23T07:51:33.413231Z  INFO derivation: Starting derivation",
++  "2026-10-23T07:51:33.422246Z  WARN upgrade_signal: failed to read live L1 upgrade signal schedule error=get L1 block failed: missing block for tag",
++  "2026-10-23T07:51:33.422361Z  INFO derivation: Processing l1 head update l1_head=BlockInfo { hash: 0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3, number: 0, parent_hash: 0x0000000000000000000000000000000000000000000000000000000000000000, ti",
++  "2026-10-23T07:51:33.422375Z  INFO derivation: Skipping derivation. derivation_state=DerivationStateMachine { confirmed_safe_head: L2BlockInfo { block_info: BlockInfo { hash: 0x0000000000000000000000000000000000000000000000000000000000000000, number: 0, parent_"
++ ],
++ "reference": "S logs/bp-off1.out: same binary, L1 unreachable -> exit 1 after 5.8 s",
++ "rethExit": 0,
++ "rethStopSec": 0.16,
++ "rethDatadir": {
++  "apparent": 4295676380,
++  "allocated": 1507328,
++  "files": 35
++ }
++}
++ok
++
++----------------------------------------------------------------------
++Ran 1 test in 121.136s
++
++OK
++[memory-guard] exit=0 peakTreeRssMiB=565 minHostAvailableMiB=21422
++[memory-guard] at peak: reth-v2.8.0:283 base:199 python3:32 python3:27 python3:25
++[queue] EXIT 0
+diff --git a/logs/base-3.rc b/logs/base-3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/base-3.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/gitleaks-git.json b/logs/gitleaks-git.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..fe51488c7066f6687ef680d6bfaa4f7768ef205c
+--- /dev/null
++++ b/logs/gitleaks-git.json
+@@ -0,0 +1 @@
++[]
+diff --git a/logs/mut-4.guard.log b/logs/mut-4.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..5e8641bf5a062dd4b2fec6c8bcf7cf0e35326cba
+--- /dev/null
++++ b/logs/mut-4.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=55 minHostAvailableMiB=20347
+diff --git a/logs/mut-4.out b/logs/mut-4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..087661e087588cf43dc78b9c817149b0e79048de
+--- /dev/null
++++ b/logs/mut-4.out
+@@ -0,0 +1,36 @@
++[queue] START available=22805MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++== pins
++3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
++46deaf02b28a96d2806a71de21b7559cdaa657f3dd718bfd5623ab4b91810d6a  l1pair/PINS.json
++a2bcc3aabff16977e29e84ed46b1734028ec58c66dbc8c4523ae1bcf62accefa  l1pair/vendor/VENDOR.json
++35c60ff6bf233c44517d1d9d3af6300c91b53fe18399116fa2a02e120e2951ab  l1pair/test/mutate.py
++a3c26785d946be37ca3044fe2eecef21ed4201025dcb254679c177fdfdf87fb7  l1pair/test/realrig.py
++2f7f6a2412fcdc5b5d31cfa088b96b6de49ed7883c65601f015678d5bae908ab  l1pair/test/run_side.py
++9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
++e129dce22fd352ef748bb7089ae72f0536a03455ee7d5450da42cad6b87351d3  l1pair/test/test_l1pair.py
++60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
++vendor: OK (S 959e56f byte-identical)
++KILLED nat-any  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
++KILLED public-http  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
++KILLED public-engine  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
++KILLED minimal-prune  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
++KILLED receipts-floor  FAIL: test_refusals (__main__.Validation.test_refusals) [receipts full default]
++KILLED custody-any  FAIL: test_refusals (__main__.Validation.test_refusals) [custody default]
++KILLED upnp-on  FAIL: test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv)
++KILLED tx-gossip-on  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
++KILLED overlap-ignored  FAIL: test_refusals (__main__.Validation.test_refusals) [mount inside holder]
++KILLED holder-reservation-reuse  FAIL: test_refusals (__main__.Validation.test_refusals) [holder reservation reused]
++KILLED budget-constants-dropped  FAIL: test_boundaries_accepted (__main__.Validation.test_boundaries_accepted)
++KILLED genesis-allowed  FAIL: test_refusals (__main__.Validation.test_refusals) [genesis sync]
++KILLED one-provenance  FAIL: test_refusals (__main__.Validation.test_refusals) [one provenance]
++KILLED stale-checkpoint  FAIL: test_check_checkpoint (__main__.Checkpoint.test_check_checkpoint) [stale]
++KILLED inherit-env  FAIL: test_closed_env (__main__.Rendering.test_closed_env)
++KILLED jwt-mode  FAIL: test_jwt_shape_and_mode (__main__.Jwt.test_jwt_shape_and_mode)
++KILLED gate-chainid-only  FAIL: test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_ch
++KILLED gate-no-custody  FAIL: test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_ch
++KILLED url-default  FAIL: test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv)
++KILLED mount-tmp  FAIL: test_refusals (__main__.Validation.test_refusals) [mount tmp]
++20/20 killed
++[memory-guard] exit=0 peakTreeRssMiB=55 minHostAvailableMiB=20347
++[memory-guard] at peak: python3:38 python3:17
++[queue] EXIT 0
+diff --git a/logs/mut-4.rc b/logs/mut-4.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/mut-4.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/reth-4.guard.log b/logs/reth-4.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..35f19cf409d8c298540a22370453c5fde5e99c73
+--- /dev/null
++++ b/logs/reth-4.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=290 minHostAvailableMiB=23456
+diff --git a/logs/reth-4.out b/logs/reth-4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..bc7490dd7cd2617604e419c7ebcd6e76d9007812
+--- /dev/null
++++ b/logs/reth-4.out
+@@ -0,0 +1,226 @@
++[queue] START available=23668MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
++== pins
++3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
++46deaf02b28a96d2806a71de21b7559cdaa657f3dd718bfd5623ab4b91810d6a  l1pair/PINS.json
++a2bcc3aabff16977e29e84ed46b1734028ec58c66dbc8c4523ae1bcf62accefa  l1pair/vendor/VENDOR.json
++35c60ff6bf233c44517d1d9d3af6300c91b53fe18399116fa2a02e120e2951ab  l1pair/test/mutate.py
++a3c26785d946be37ca3044fe2eecef21ed4201025dcb254679c177fdfdf87fb7  l1pair/test/realrig.py
++2f7f6a2412fcdc5b5d31cfa088b96b6de49ed7883c65601f015678d5bae908ab  l1pair/test/run_side.py
++9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
++e129dce22fd352ef748bb7089ae72f0536a03455ee7d5450da42cad6b87351d3  l1pair/test/test_l1pair.py
++60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
++vendor: OK (S 959e56f byte-identical)
++8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250  bin/reth-v2.8.0
++test_real_reth_under_the_launcher (__main__.RethOffline.test_real_reth_under_the_launcher) ... {
++ "readyAfterSec": 0.5,
++ "genesisHash": "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
++ "baseMethods": {
++  "eth_blockNumber": "0x0",
++  "eth_chainId": "0x1",
++  "eth_getBlockByNumber(latest)": {
++   "hash": "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
++   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
++   "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
++   "miner": "0x0000000000000000000000000000000000000000",
++   "stateRoot": "0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544",
++   "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
++   "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
++   "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
++   "difficulty": "0x400000000",
++   "number": "0x0",
++   "gasLimit": "0x1388",
++   "gasUsed": "0x0",
++   "timestamp": "0x0",
++   "extraData": "0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa",
++   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
++   "nonce": "0x0000000000000042",
++   "size": "0x21c",
++   "uncles": [],
++   "transactions": []
++  },
++  "eth_getBlockByNumber(finalized)": null,
++  "eth_getBlockByNumber(0x0)": {
++   "hash": "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
++   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
++   "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
++   "miner": "0x0000000000000000000000000000000000000000",
++   "stateRoot": "0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544",
++   "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
++   "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
++   "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
++   "difficulty": "0x400000000",
++   "number": "0x0",
++   "gasLimit": "0x1388",
++   "gasUsed": "0x0",
++   "timestamp": "0x0",
++   "extraData": "0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa",
++   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
++   "nonce": "0x0000000000000042",
++   "size": "0x21c",
++   "uncles": [],
++   "transactions": []
++  },
++  "eth_getBlockByHash": {
++   "hash": "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
++   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
++   "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
++   "miner": "0x0000000000000000000000000000000000000000",
++   "stateRoot": "0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544",
++   "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
++   "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
++   "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
++   "difficulty": "0x400000000",
++   "number": "0x0",
++   "gasLimit": "0x1388",
++   "gasUsed": "0x0",
++   "timestamp": "0x0",
++   "extraData": "0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa",
++   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
++   "nonce": "0x0000000000000042",
++   "size": "0x21c",
++   "uncles": [],
++   "transactions": []
++  },
++  "eth_getBlockByHash(full)": {
++   "hash": "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
++   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
++   "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
++   "miner": "0x0000000000000000000000000000000000000000",
++   "stateRoot": "0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544",
++   "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
++   "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
++   "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
++   "difficulty": "0x400000000",
++   "number": "0x0",
++   "gasLimit": "0x1388",
++   "gasUsed": "0x0",
++   "timestamp": "0x0",
++   "extraData": "0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa",
++   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
++   "nonce": "0x0000000000000042",
++   "size": "0x21c",
++   "uncles": [],
++   "transactions": []
++  },
++  "eth_getBlockReceipts(hash)": [],
++  "eth_getLogs(blockHash,address)": [],
++  "eth_getStorageAt(blockHash)": "0x0000000000000000000000000000000000000000000000000000000000000000",
++  "eth_call(latest)": "0x"
++ },
++ "refusedOnHttp": {
++  "admin_nodeInfo": -32601,
++  "debug_getRawBlock": -32601,
++  "txpool_status": -32601,
++  "trace_block": -32601,
++  "miner_setExtra": -32601,
++  "engine_exchangeCapabilities": -32601
++ },
++ "engine": {
++  "validJwt": 200,
++  "noJwt": 401,
++  "wrongKey": 401,
++  "staleIat": 401,
++  "caps": [
++   "engine_newPayloadV4",
++   "engine_newPayloadV2",
++   "engine_forkchoiceUpdatedV5",
++   "engine_getPayloadBodiesByHashV2",
++   "engine_getPayloadBodiesByRangeV2",
++   "engine_hasBlobs"
++  ]
++ },
++ "listeners": [
++  "0.0.0.0:37747",
++  "127.0.0.1:38641",
++  "127.0.0.1:57599"
++ ],
++ "persistedPrune": {
++  "sender_recovery": "full",
++  "receipts": {
++   "distance": 140000
++  },
++  "account_history": {
++   "distance": 10064
++  },
++  "storage_history": {
++   "distance": 10064
++  },
++  "bodies_history": {
++   "before": 15537394
++  }
++ },
++ "gate": {
++  "el.chainId": [
++   true,
++   "mainnet"
++  ],
++  "el.genesis": [
++   true,
++   "mainnet genesis"
++  ],
++  "el.syncing": [
++   false,
++   "FAIL eth_syncing is not false"
++  ],
++  "el.head": [
++   false,
++   "FAIL head lag 1792741889 s > 120"
++  ],
++  "el.finalized": [
++   false,
++   "FAIL no finalized block (the CL has not sent a finalized forkchoice)"
++  ],
++  "cl.genesis": [
++   false,
++   "ConnectionRefusedError: [Errno 111] Connection refused"
++  ],
++  "cl.spec": [
++   false,
++   "ConnectionRefusedError: [Errno 111] Connection refused"
++  ],
++  "cl.version": [
++   false,
++   "ConnectionRefusedError: [Errno 111] Connection refused"
++  ],
++  "cl.syncing": [
++   false,
++   "ConnectionRefusedError: [Errno 111] Connection refused"
++  ],
++  "cl.custody": [
++   false,
++   "ConnectionRefusedError: [Errno 111] Connection refused"
++  ],
++  "pair.head": [
++   false,
++   "ConnectionRefusedError: [Errno 111] Connection refused"
++  ],
++  "cl.blobs": [
++   false,
++   "ConnectionRefusedError: [Errno 111] Connection refused"
++  ]
++ },
++ "ipcSocket": false,
++ "exitCode": 0,
++ "stopSec": 1.67,
++ "leftoverListeners": [],
++ "datadir": {
++  "apparent": 4295663903,
++  "allocated": 1495040,
++  "files": 35
++ },
++ "supervisorLog": [
++  "{\"event\": \"started\", \"pid\": 3132738, \"argvSha256\": \"7dfd372c8c3524b34222fb099f268630d477aaef0ffc7a96905f372a9fc4f118\"}",
++  "{\"event\": \"ready\", \"pid\": 3132738, \"afterSec\": 0.2}",
++  "{\"event\": \"stopping\", \"pid\": 3132738}",
++  "{\"event\": \"exited\", \"code\": 0, \"stopping\": true}"
++ ]
++}
++ok
++
++----------------------------------------------------------------------
++Ran 1 test in 2.183s
++
++OK
++[memory-guard] exit=0 peakTreeRssMiB=290 minHostAvailableMiB=23456
++[memory-guard] at peak: reth-v2.8.0:234 python3:32 python3:25
++[queue] EXIT 0
+diff --git a/logs/reth-4.rc b/logs/reth-4.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/reth-4.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-1.guard.log b/logs/scan-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..dfee5080786349efd19078140ad46efdd879f162
+--- /dev/null
++++ b/logs/scan-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=81 minHostAvailableMiB=23626
+diff --git a/logs/scan-1.out b/logs/scan-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..d01871224a882af546e7f75321f65611187872d1
+--- /dev/null
++++ b/logs/scan-1.out
+@@ -0,0 +1,14 @@
++[queue] START available=23698MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++7dae6f5a90e1f4a273bb984514b701bd16e24ee9 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> tests: short datadir for the official base binary (engine.ipc sun_path); evidence, logs, test digest
++5ccee1960534b3b15cee0a27354723e504f2ff11 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: each run unit pins only its own binary (run-el no longer requires lighthouse); found by the real reth test
++c0282ca5062122f1e1b5d931fefa99052e23936e SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: re-vendor S's final immutable 6b9dae92 (fd0134d unwind stop-on-failure, Supervisor cwd); child cwd via Supervisor; example uses the holder's single shared NVMe inventory
++e318e38ba146fbbbe3e4757e381aafde889be1e8 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: strict launcher/config/preflight/readiness gate for a non-validating reth v2.8.0 + lighthouse v8.3.2 mainnet L1 source for the Base holder
++12:44AM INF 4 commits scanned.
++12:44AM INF scanned ~2848588 bytes (2.85 MB) in 261ms
++12:44AM WRN leaks found: 13
++12:44AM INF scanned ~2509488 bytes (2.51 MB) in 144ms
++12:44AM WRN leaks found: 13
++[scan] scan-crypto-keys=0 gitleaks-git=1 gitleaks-evidence=1
++[memory-guard] exit=1 peakTreeRssMiB=81 minHostAvailableMiB=23626
++[memory-guard] at peak: gitleaks:71 bash:6 timeout:4
++[queue] EXIT 1
+diff --git a/logs/scan-1.rc b/logs/scan-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/scan-1.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/scan-2.guard.log b/logs/scan-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..1dde295afb804f89571c270a57a67b03d664f3e5
+--- /dev/null
++++ b/logs/scan-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=84 minHostAvailableMiB=23523
+diff --git a/logs/scan-2.out b/logs/scan-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..39cfc7c7edf7917ff8c4c9bbd210c05a8a74f7ad
+--- /dev/null
++++ b/logs/scan-2.out
+@@ -0,0 +1,14 @@
++[queue] START available=23593MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++7dae6f5a90e1f4a273bb984514b701bd16e24ee9 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> tests: short datadir for the official base binary (engine.ipc sun_path); evidence, logs, test digest
++5ccee1960534b3b15cee0a27354723e504f2ff11 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: each run unit pins only its own binary (run-el no longer requires lighthouse); found by the real reth test
++c0282ca5062122f1e1b5d931fefa99052e23936e SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: re-vendor S's final immutable 6b9dae92 (fd0134d unwind stop-on-failure, Supervisor cwd); child cwd via Supervisor; example uses the holder's single shared NVMe inventory
++e318e38ba146fbbbe3e4757e381aafde889be1e8 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: strict launcher/config/preflight/readiness gate for a non-validating reth v2.8.0 + lighthouse v8.3.2 mainnet L1 source for the Base holder
++12:44AM INF 4 commits scanned.
++12:44AM INF scanned ~2848588 bytes (2.85 MB) in 231ms
++12:44AM WRN leaks found: 13
++12:44AM INF scanned ~2509488 bytes (2.51 MB) in 114ms
++12:44AM WRN leaks found: 13
++[scan] scan-crypto-keys=0 gitleaks-git=1 gitleaks-evidence=1
++[memory-guard] exit=1 peakTreeRssMiB=84 minHostAvailableMiB=23523
++[memory-guard] at peak: gitleaks:74 bash:6 timeout:4
++[queue] EXIT 1
+diff --git a/logs/scan-2.rc b/logs/scan-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/scan-2.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/scan-3.guard.log b/logs/scan-3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..c2ac6e8f65fce5354a1d59315db1e710ef3b02fc
+--- /dev/null
++++ b/logs/scan-3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=69 minHostAvailableMiB=23483
+diff --git a/logs/scan-3.out b/logs/scan-3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..5420b7d119f224450158c9c4987ca8d7c831c098
+--- /dev/null
++++ b/logs/scan-3.out
+@@ -0,0 +1,14 @@
++[queue] START available=23538MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++e373dca68176a45bc642b9091ad3cefe5afa2968 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> tests: short datadir for the official base binary (engine.ipc sun_path); evidence, logs, test digest
++5ccee1960534b3b15cee0a27354723e504f2ff11 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: each run unit pins only its own binary (run-el no longer requires lighthouse); found by the real reth test
++c0282ca5062122f1e1b5d931fefa99052e23936e SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: re-vendor S's final immutable 6b9dae92 (fd0134d unwind stop-on-failure, Supervisor cwd); child cwd via Supervisor; example uses the holder's single shared NVMe inventory
++e318e38ba146fbbbe3e4757e381aafde889be1e8 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: strict launcher/config/preflight/readiness gate for a non-validating reth v2.8.0 + lighthouse v8.3.2 mainnet L1 source for the Base holder
++12:45AM INF 4 commits scanned.
++12:45AM INF scanned ~2274958 bytes (2.27 MB) in 215ms
++12:45AM INF no leaks found
++12:45AM INF scanned ~1935858 bytes (1.94 MB) in 115ms
++12:45AM INF no leaks found
++[scan] scan-crypto-keys=0 gitleaks-git=0 gitleaks-evidence=0
++[memory-guard] exit=0 peakTreeRssMiB=69 minHostAvailableMiB=23483
++[memory-guard] at peak: gitleaks:59 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-3.rc b/logs/scan-3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-3.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/unit-6.guard.log b/logs/unit-6.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ae34484c7f776e967e3e01c7b044face6b7f367
+--- /dev/null
++++ b/logs/unit-6.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=35 minHostAvailableMiB=24004
+diff --git a/logs/unit-6.out b/logs/unit-6.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..d6b9d8e991f60d64c749de545726c8f1f4fb6b75
+--- /dev/null
++++ b/logs/unit-6.out
+@@ -0,0 +1,39 @@
++[queue] START available=24060MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++== pins
++3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
++46deaf02b28a96d2806a71de21b7559cdaa657f3dd718bfd5623ab4b91810d6a  l1pair/PINS.json
++a2bcc3aabff16977e29e84ed46b1734028ec58c66dbc8c4523ae1bcf62accefa  l1pair/vendor/VENDOR.json
++35c60ff6bf233c44517d1d9d3af6300c91b53fe18399116fa2a02e120e2951ab  l1pair/test/mutate.py
++a3c26785d946be37ca3044fe2eecef21ed4201025dcb254679c177fdfdf87fb7  l1pair/test/realrig.py
++2f7f6a2412fcdc5b5d31cfa088b96b6de49ed7883c65601f015678d5bae908ab  l1pair/test/run_side.py
++9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
++e129dce22fd352ef748bb7089ae72f0536a03455ee7d5450da42cad6b87351d3  l1pair/test/test_l1pair.py
++60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
++vendor: OK (S 959e56f byte-identical)
++test_check_checkpoint (__main__.Checkpoint.test_check_checkpoint) ... ok
++test_inspect_reads_the_real_mainnet_genesis_state (__main__.Checkpoint.test_inspect_reads_the_real_mainnet_genesis_state) ... ok
++test_jwt_shape_and_mode (__main__.Jwt.test_jwt_shape_and_mode) ... ok
++test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_check) ... ok
++test_nothing_listening_is_not_ready_and_does_not_crash (__main__.ReadyGate.test_nothing_listening_is_not_ready_and_does_not_crash) ... ok
++test_closed_env (__main__.Rendering.test_closed_env) ... ok
++test_every_lighthouse_flag_is_in_the_pinned_source_help (__main__.Rendering.test_every_lighthouse_flag_is_in_the_pinned_source_help) ... ok
++test_every_reth_flag_is_in_the_executed_binary_help (__main__.Rendering.test_every_reth_flag_is_in_the_executed_binary_help) ... ok
++test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv) ... ok
++test_exact_el_argv (__main__.Rendering.test_exact_el_argv) ... ok
++test_no_hidden_external_default (__main__.Rendering.test_no_hidden_external_default) ... ok
++test_render (__main__.Rendering.test_render) ... ok
++test_storage_script_is_S_template_with_this_pairs_constants (__main__.Rendering.test_storage_script_is_S_template_with_this_pairs_constants) ... ok
++test_units (__main__.Rendering.test_units) ... ok
++test_vendor_files_match_their_pins (__main__.Rendering.test_vendor_files_match_their_pins) ... ok
++test_boundaries_accepted (__main__.Validation.test_boundaries_accepted) ... ok
++test_example_as_shipped_is_refused_until_pins_are_recorded (__main__.Validation.test_example_as_shipped_is_refused_until_pins_are_recorded) ... ok
++test_good_config_validates (__main__.Validation.test_good_config_validates) ... ok
++test_refusals (__main__.Validation.test_refusals) ... ok
++
++----------------------------------------------------------------------
++Ran 19 tests in 7.239s
++
++OK
++[memory-guard] exit=0 peakTreeRssMiB=35 minHostAvailableMiB=24004
++[memory-guard] at peak: python3:35
++[queue] EXIT 0
+diff --git a/logs/unit-6.rc b/logs/unit-6.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/unit-6.rc
+@@ -0,0 +1 @@
++0

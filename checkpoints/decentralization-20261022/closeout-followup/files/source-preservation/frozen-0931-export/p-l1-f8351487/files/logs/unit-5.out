@@ -1,0 +1,39 @@
+[queue] START available=23897MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+== pins
+a1de2806dc321b411b71dcffb7b10b324bf73146fcbc40e57722e7caa54bbb74  l1pair/l1pair.py
+46deaf02b28a96d2806a71de21b7559cdaa657f3dd718bfd5623ab4b91810d6a  l1pair/PINS.json
+a5440bc77ab55aa68f541b768acca438df75025eeea6c0d42a99c31a6eaabb53  l1pair/vendor/VENDOR.json
+51b8a2d111dd6aa9fc3d9e1f36031bfe3e3e7990857cdbf804efc25077e8c1fb  l1pair/test/mutate.py
+a3c26785d946be37ca3044fe2eecef21ed4201025dcb254679c177fdfdf87fb7  l1pair/test/realrig.py
+2f7f6a2412fcdc5b5d31cfa088b96b6de49ed7883c65601f015678d5bae908ab  l1pair/test/run_side.py
+6b988f289eb29f9d621f62df4e0dac31ddbb83fb1a1f23f2b0d9f9ad1ebf602e  l1pair/test/test_base_l1_offline.py
+a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
+vendor: OK (S 6b9dae92 byte-identical)
+test_check_checkpoint (__main__.Checkpoint.test_check_checkpoint) ... ok
+test_inspect_reads_the_real_mainnet_genesis_state (__main__.Checkpoint.test_inspect_reads_the_real_mainnet_genesis_state) ... ok
+test_jwt_shape_and_mode (__main__.Jwt.test_jwt_shape_and_mode) ... ok
+test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_check) ... ok
+test_nothing_listening_is_not_ready_and_does_not_crash (__main__.ReadyGate.test_nothing_listening_is_not_ready_and_does_not_crash) ... ok
+test_closed_env (__main__.Rendering.test_closed_env) ... ok
+test_every_lighthouse_flag_is_in_the_pinned_source_help (__main__.Rendering.test_every_lighthouse_flag_is_in_the_pinned_source_help) ... ok
+test_every_reth_flag_is_in_the_executed_binary_help (__main__.Rendering.test_every_reth_flag_is_in_the_executed_binary_help) ... ok
+test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv) ... ok
+test_exact_el_argv (__main__.Rendering.test_exact_el_argv) ... ok
+test_no_hidden_external_default (__main__.Rendering.test_no_hidden_external_default) ... ok
+test_render (__main__.Rendering.test_render) ... ok
+test_storage_script_is_S_template_with_this_pairs_constants (__main__.Rendering.test_storage_script_is_S_template_with_this_pairs_constants) ... ok
+test_units (__main__.Rendering.test_units) ... ok
+test_vendor_files_match_their_pins (__main__.Rendering.test_vendor_files_match_their_pins) ... ok
+test_boundaries_accepted (__main__.Validation.test_boundaries_accepted) ... ok
+test_example_as_shipped_is_refused_until_pins_are_recorded (__main__.Validation.test_example_as_shipped_is_refused_until_pins_are_recorded) ... ok
+test_good_config_validates (__main__.Validation.test_good_config_validates) ... ok
+test_refusals (__main__.Validation.test_refusals) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 7.232s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=23801
+[memory-guard] at peak: python3:34
+[queue] EXIT 0

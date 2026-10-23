@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: a failed policy fetch keeps the last policy for ten minutes, then refuses
+ok 1 - a failed policy fetch keeps the last policy for ten minutes, then refuses
+  ---
+  duration_ms: 7.611137
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 275.663133

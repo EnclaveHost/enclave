@@ -1,0 +1,29 @@
+{
+  "at": "2026-10-23T08:44:45.829271+00:00",
+  "type": "in-progress source review; not release approval",
+  "sources": {
+    "runtime": {
+      "path": "work/resume-after-checkpoint-20261022/rpc-runtime-final-integration/repo/network/rpc-runtime.mjs",
+      "sha256": "104532f40634125c5c4427b3ab0a7f395482e6eecb3c4b8a4d3863e39d95bb61"
+    },
+    "databaseBarrier": {
+      "path": "work/resume-after-checkpoint-20261022/storage-write-release/package/primary/db-barrier.sh",
+      "sha256": "b143cedeb6ed22e3238dc861f6194359ad83e0b222bec503d47034c9e3f79b45"
+    },
+    "databaseDecision": {
+      "path": "work/resume-after-checkpoint-20261022/storage-write-release/package/tools/cutover.py",
+      "sha256": "fb4fcbb2c01fbf7b023ffa48eae92e563a65f6b03abc8b229c2ccb044b7f8e6f"
+    },
+    "lighthouseOffline": {
+      "path": "work/rpc-l1-source-package/logs/lh-3.out",
+      "sha256": "fc72193c89343d80da0d2f5bfa3de0787f5e694bc7d6a0f47894129f6bcdab62"
+    }
+  },
+  "findings": [
+    "B now composes the parent-held kernel lock and final block/header witness helper. Source still uncommitted and combined tests running; no release acceptance.",
+    "C now takes an EXCLUSIVE accounts-table lock before enrollment counts and refuses other client sessions/prepared transactions. Real database-drain fixture remains pending; no production barrier executed.",
+    "P actual Lighthouse 8.3.2 offline lifecycle completed with actual Reth, peak 614 MiB. Sync/head/blob readiness correctly failed on isolated genesis. This proves lifecycle and refusal, not chain synchronization or production independence.",
+    "NucBox owner-only hold may follow loss of a fresh market-admission window after reboot; saved reasons alone do not prove delegation loss. No host action during confirmed experiment."
+  ],
+  "next": "Wait for the existing scoped tests to terminate; review immutable worker results and preserve candidates, then compose Linux guest runtime. No job restart or duplicate test."
+}

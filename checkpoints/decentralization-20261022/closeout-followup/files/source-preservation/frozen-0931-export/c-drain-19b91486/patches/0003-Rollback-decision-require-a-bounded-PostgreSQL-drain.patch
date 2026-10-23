@@ -1,0 +1,3471 @@
+From 5293405969d510571897f2bd5b53c2806c6123b8 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:24:14 -0700
+Subject: [PATCH 3/4] Rollback decision: require a bounded PostgreSQL drain
+ barrier before the enrolment read
+
+Root's counterexample 555dc752 showed that a stopped or killed indexd does not prove that no enrolment can still complete.
+Its database backend finishes the statement it is running, including a COMMIT indexd already sent. fbaecfce accepted a
+failed unit with MainPID 0 and never looked at indexd's database sessions.
+
+- package/primary/db-barrier.sh (new, R4, NOT read-only):
+  - one transaction in the indexd database:
+    - LOCK TABLE accounts IN EXCLUSIVE MODE (lock_timeout 30 s);
+    - then the other client sessions and the prepared transactions;
+    - then the schema version and the fenced/CAS counts;
+    - then ROLLBACK.
+  - The unit, the process and the start guard are read before and after.
+  - Every bound is a setting of its own session. It ends no session and changes no setting.
+- tools/cutover.py rollback_decision:
+  - LEGACY_REDEPLOY_SAFE only from a complete db-barrier output: process barrier before and after, unchanged; lock granted;
+    no other session; no prepared transaction; zero counts; plus the owner's attestation.
+  - A vm-state output alone, a failed unit or an exit status is never the proof.
+  - Any enrolment is still FORWARD_ONLY.
+- CUTOVER.md section 4:
+  - R3 no longer claims that a stop drains;
+  - R4 is the barrier, with its outcomes and serialization assumptions;
+  - the stop guarantees from run.go, store.go and the unit.
+  PINS.json pins db-barrier.sh.
+- rehearsal/dbdrain.py (d3, 27/27): the actual indexd 2c0e5b06 and controller 1543577f on a private PostgreSQL 18.6, with
+  the c2rclient enrolment:
+  - D1: after crash-indexd the actual vm-state.v2.sh read 0 CAS while the COMMIT was pending; fbaecfce said
+    LEGACY_REDEPLOY_SAFE. The barrier waited 14.4 s and read CAS=1: FORWARD_ONLY.
+  - D2: a graceful stop exits only after the commit.
+  - D3: two SIGTERMs, observed.
+  - The legitimate never-enrolled rollback is SAFE only with the attestation.
+  - Failed and interrupted barriers are UNKNOWN; other sessions are left alone; cleanup is complete.
+---
+ package/CUTOVER.md                            |  79 +-
+ package/PINS.json                             |   8 +-
+ package/primary/db-barrier.sh                 |  69 ++
+ package/tests/fixtures/README.md              |  13 +
+ package/tests/fixtures/d3-B-barrier.txt       |  31 +
+ package/tests/fixtures/d3-D1-barrier.txt      |  31 +
+ package/tests/fixtures/d3-D1-vmstate.txt      |  19 +
+ package/tests/fixtures/d3-D2-barrier.txt      |  31 +
+ package/tests/fixtures/d3-D3-barrier.txt      |  31 +
+ package/tests/fixtures/d3-F1-barrier.txt      |  31 +
+ package/tests/fixtures/d3-F2-barrier.txt      |  23 +
+ .../fixtures/d3-F3-barrier-interrupted.txt    |  11 +
+ package/tests/fixtures/d3-N-barrier.txt       |  31 +
+ package/tests/fixtures/d3-N-vmstate.txt       |  19 +
+ package/tests/test_cutover.py                 | 151 +++-
+ package/tools/cutover.py                      | 105 ++-
+ rehearsal/dbdrain.py                          | 692 ++++++++++++++++++
+ rehearsal/dbdrain.sh                          |  16 +
+ rehearsal/runs/d1-failed/RETIRED.txt          |   1 +
+ rehearsal/runs/d1-failed/results.json         | 135 ++++
+ rehearsal/runs/d2-failed/B-barrier.txt        |  31 +
+ rehearsal/runs/d2-failed/B-vmstate.txt        |  19 +
+ rehearsal/runs/d2-failed/D1-barrier.txt       |  31 +
+ rehearsal/runs/d2-failed/D1-vmstate.txt       |  19 +
+ rehearsal/runs/d2-failed/D2-barrier.txt       |  31 +
+ rehearsal/runs/d2-failed/D3-barrier.txt       |  31 +
+ rehearsal/runs/d2-failed/F1-barrier.txt       |  31 +
+ rehearsal/runs/d2-failed/F2-barrier.txt       |  23 +
+ .../runs/d2-failed/F3-barrier-interrupted.txt |  11 +
+ rehearsal/runs/d2-failed/N-barrier.txt        |  31 +
+ rehearsal/runs/d2-failed/N-vmstate.txt        |  19 +
+ rehearsal/runs/d2-failed/RETIRED.txt          |   6 +
+ rehearsal/runs/d2-failed/results.json         | 443 +++++++++++
+ rehearsal/runs/d3/B-barrier.txt               |  31 +
+ rehearsal/runs/d3/B-vmstate.txt               |  19 +
+ rehearsal/runs/d3/D1-barrier.txt              |  31 +
+ rehearsal/runs/d3/D1-vmstate.txt              |  19 +
+ rehearsal/runs/d3/D2-barrier.txt              |  31 +
+ rehearsal/runs/d3/D3-barrier.txt              |  31 +
+ rehearsal/runs/d3/F1-barrier.txt              |  31 +
+ rehearsal/runs/d3/F2-barrier.txt              |  23 +
+ rehearsal/runs/d3/F3-barrier-interrupted.txt  |  11 +
+ rehearsal/runs/d3/N-barrier.txt               |  31 +
+ rehearsal/runs/d3/N-vmstate.txt               |  19 +
+ rehearsal/runs/d3/results.json                | 441 +++++++++++
+ 45 files changed, 2907 insertions(+), 64 deletions(-)
+ create mode 100644 package/primary/db-barrier.sh
+ create mode 100644 package/tests/fixtures/d3-B-barrier.txt
+ create mode 100644 package/tests/fixtures/d3-D1-barrier.txt
+ create mode 100644 package/tests/fixtures/d3-D1-vmstate.txt
+ create mode 100644 package/tests/fixtures/d3-D2-barrier.txt
+ create mode 100644 package/tests/fixtures/d3-D3-barrier.txt
+ create mode 100644 package/tests/fixtures/d3-F1-barrier.txt
+ create mode 100644 package/tests/fixtures/d3-F2-barrier.txt
+ create mode 100644 package/tests/fixtures/d3-F3-barrier-interrupted.txt
+ create mode 100644 package/tests/fixtures/d3-N-barrier.txt
+ create mode 100644 package/tests/fixtures/d3-N-vmstate.txt
+ create mode 100644 rehearsal/dbdrain.py
+ create mode 100755 rehearsal/dbdrain.sh
+ create mode 100644 rehearsal/runs/d1-failed/RETIRED.txt
+ create mode 100644 rehearsal/runs/d1-failed/results.json
+ create mode 100644 rehearsal/runs/d2-failed/B-barrier.txt
+ create mode 100644 rehearsal/runs/d2-failed/B-vmstate.txt
+ create mode 100644 rehearsal/runs/d2-failed/D1-barrier.txt
+ create mode 100644 rehearsal/runs/d2-failed/D1-vmstate.txt
+ create mode 100644 rehearsal/runs/d2-failed/D2-barrier.txt
+ create mode 100644 rehearsal/runs/d2-failed/D3-barrier.txt
+ create mode 100644 rehearsal/runs/d2-failed/F1-barrier.txt
+ create mode 100644 rehearsal/runs/d2-failed/F2-barrier.txt
+ create mode 100644 rehearsal/runs/d2-failed/F3-barrier-interrupted.txt
+ create mode 100644 rehearsal/runs/d2-failed/N-barrier.txt
+ create mode 100644 rehearsal/runs/d2-failed/N-vmstate.txt
+ create mode 100644 rehearsal/runs/d2-failed/RETIRED.txt
+ create mode 100644 rehearsal/runs/d2-failed/results.json
+ create mode 100644 rehearsal/runs/d3/B-barrier.txt
+ create mode 100644 rehearsal/runs/d3/B-vmstate.txt
+ create mode 100644 rehearsal/runs/d3/D1-barrier.txt
+ create mode 100644 rehearsal/runs/d3/D1-vmstate.txt
+ create mode 100644 rehearsal/runs/d3/D2-barrier.txt
+ create mode 100644 rehearsal/runs/d3/D3-barrier.txt
+ create mode 100644 rehearsal/runs/d3/F1-barrier.txt
+ create mode 100644 rehearsal/runs/d3/F2-barrier.txt
+ create mode 100644 rehearsal/runs/d3/F3-barrier-interrupted.txt
+ create mode 100644 rehearsal/runs/d3/N-barrier.txt
+ create mode 100644 rehearsal/runs/d3/N-vmstate.txt
+ create mode 100644 rehearsal/runs/d3/results.json
+
+diff --git a/package/CUTOVER.md b/package/CUTOVER.md
+index 5a1f2739e367bc299191ec9643919bd40289f9cb..da57d5324bfac80ff1bde965abddfe50d68d7506 100644
+--- a/package/CUTOVER.md
++++ b/package/CUTOVER.md
+@@ -85,6 +85,21 @@ All pins are in `PINS.json`; `tools/verify_pins.py` checks them (all pinned path
+    - **Fixed:** R1-R5 (§4) establish the barrier first: C2 activation disabled, the start guard moved aside, indexd stopped,
+      the snapshot read behind it. The decision is UNKNOWN for zero counts without that barrier.
+    - Count equality is no longer presented as proof of no writes.
++9. **PostgreSQL drain (root's review of fbaecfce, counterexample `555dc752`).**
++   - A stopped or killed indexd does not prove that no enrolment can still complete. Its database backend finishes the
++     statement it is running, including a COMMIT indexd already sent.
++   - fbaecfce accepted a `failed` unit with `MainPID=0` and checked only controller/tool sessions, so it said
++     LEGACY_REDEPLOY_SAFE while that COMMIT was pending. Fixture d2 D1 reproduces this with the actual indexd 2c0e5b06 and
++     controller 1543577f.
++   - **Fixed:** R4 is now `primary/db-barrier.sh`, a bounded database barrier that is NOT read-only:
++     - in ONE transaction, `LOCK TABLE accounts IN EXCLUSIVE MODE` (≤ 30 s), which waits for every transaction holding an
++       accounts row;
++     - then no other client session and no prepared transaction;
++     - then the counts;
++     - then ROLLBACK.
++   - The process barrier is read before and after the database step.
++   - `rollback-decision` says SAFE only from that output. A vm-state alone, a failed unit or an exit status is never the
++     proof (§4).
+ 
+ **Not blockers, reported:**
+ - **Role comment drift** (ROOT-LIFECYCLE-REVIEW): `storage-indexer-host.mjs:288` says a stop "waits for the in-flight
+@@ -167,15 +182,54 @@ earlier observation.**
+ |---|---|---|---|
+ | R1 | owner | Disable C2 activation AND its retries: switch the deployment back to the 0.1.8 catalog version, or stop it, so the node neither runs nor respawns C2. Confirm no C2 instance of the deployment remains (node status). | No NEW C2 attempt starts. It cannot recall a request already sent. |
+ | R2 | root | `mv /etc/enclave-indexd/ALLOW_LIVE_START /etc/enclave-indexd/ALLOW_LIVE_START.held-<run>` | systemd will not start indexd: the unit's `ConditionPathExists`. |
+-| R3 | root | Stop indexd with the reviewed controller `1543577f` (`replicactl … stop`, i.e. `systemctl stop enclave-indexd`). | No request in flight can complete an enrolment: the only service that applies it is down and cannot restart. PostgreSQL stays up for reads. |
+-| R4 | root | `primary/vm-state.v2.sh` (the pinned `vm-state.sh` plus one read-only `allowLiveStart` line), captured AFTER R2-R3. | This one snapshot shows the barrier (`allowLiveStart=absent`, `unit.ActiveState=inactive`, `MainPID=0`, empty `writerPids`, no controller/tool session) AND the fenced/CAS counts read behind it. |
+-| R5 | root | `cutover.py rollback-decision --vm-state <R4> [--c2-activation-disabled]`; the flag is the owner's R1 attestation. | See the table below. |
++| R3 | root | Stop indexd with the reviewed controller `1543577f` (`replicactl … stop`, i.e. `systemctl stop enclave-indexd`). Wait until `systemctl show enclave-indexd -p ActiveState` is `inactive` or `failed` (not `activating`: an auto-restart attempt is pending). | No NEW request reaches indexd, and it cannot restart. This does NOT prove that nothing already sent can still commit: see the stop guarantees below. PostgreSQL stays up. |
++| R4 | root | `$VMSSH 'sudo bash -s' < primary/db-barrier.sh > r4-barrier.txt`, AFTER R2-R3. **NOT read-only:** see the note after this table. | One output shows: the process barrier BEFORE (`pre.*`) and AFTER (`post.*`) the database step, unchanged (guard absent, unit inactive or failed with `MainPID=0`, no indexd process, the same `InvocationID` and `NRestarts`); the database barrier (`db.lock=granted`, `db.otherBackends=0`, `db.preparedXacts=0`, `db.barrier=complete`); and the fenced/CAS counts read AFTER both. |
++| R5 | root | `cutover.py rollback-decision --vm-state r4-barrier.txt [--c2-activation-disabled]`; the flag is the owner's R1 attestation. | See the decision table below. |
++
++**R4 is NOT read-only. It takes a lock that blocks writers, and writes no row.** db-barrier.sh opens ONE transaction in the
++indexd database as the container's PostgreSQL superuser (`application_name=root-barrier`) and runs, in order:
++1. `LOCK TABLE accounts IN EXCLUSIVE MODE`. This mode conflicts with every row lock and row change on `accounts`, so it waits
++   until every transaction that has locked or changed an accounts row has ended (committed or rolled back). That includes
++   one whose client is already dead. While it is held, writers to `accounts` wait; plain reads do not.
++2. The other client sessions of the database (`pg_stat_activity`) and the prepared transactions (`pg_prepared_xacts`).
++3. The schema version and the fenced/CAS counts.
++4. `ROLLBACK`.
++
++Its bounds are settings of its own session (`PGOPTIONS`): lock wait 30 s, statement 35 s, transaction 60 s, idle in
++transaction 10 s, a dead client noticed within 1 s. psql is KILLed at 75 s inside the container, and the whole command
++at 90 s on the VM. It changes no server setting and ends no session.
++
++| R4 outcome | meaning | root's action |
++|---|---|---|
++| lock timeout (`db.message` "canceling statement due to lock timeout", no `db.lock` line) | a transaction still holds accounts rows | UNKNOWN. Wait, then re-run R4; never end that session to get through. If it persists, repair forward. |
++| `db.otherBackends` > 0 (listed in `db.otherBackendsDetail`) | a session exists that could still have work in flight (e.g. a backend whose client died, still finishing) | UNKNOWN. Re-run R4 once it has ended by itself. A session of root's own (vm-state) must not run at the same time. |
++| `pre.*` ≠ `post.*` or the guard present | the process barrier did not hold for the whole step | UNKNOWN. Re-establish R2-R3, then re-run R4. |
++| the run interrupted (no `db.barrier=complete`) | nothing proven | UNKNOWN. Its backend ends by itself (fixture F3). Re-run R4. |
++
++**Serialization assumptions** (the parser cannot check them):
++- every enrolment is written by a client session of the indexd database (indexd's `RaiseFence`, in one transaction);
++- a backend whose client has died can complete only the statement it is running: it never runs a new one;
++- one operator: nobody restores the guard or starts indexd during R4-R5.
++Under these assumptions, after the lock is granted with no other session and no prepared transaction, no transaction
++exists that could still commit. A later write needs a new session, and the process barrier excludes that.
++
++**Stop guarantees** (source: indexd `cmd/indexd/run.go` 377-404, `persist/postgres/store.go`, `fence.go`; the unit; the
++controller 1543577f):
++
++| stop | what the process does | what it guarantees about the database |
++|---|---|---|
++| `systemctl stop` (controller `stop`): one SIGTERM, then up to `TimeoutStopSec=180` | The root context is cancelled, and `http.Server.Shutdown` waits for every active handler. Enrolment (`RaiseFence`) runs its transactions with `context.Background()`, so a COMMIT it sent completes, and the handler answers. Then the deferred `store.Close()` (`pgxpool.Close`) waits until every pool connection is released, and closes them. The process exits 0. | Source: when that path ran to exit 0, every transaction of the pool has ended. Fixture D2: the exit came only after the COMMIT, and no backend was left. **But exit 0 is not proof that this path ran** (another binary, an edited unit); the parser reports it only as `seen.stopKind`. |
++| a second SIGTERM or SIGINT during Shutdown (run.go allows it; systemd does not send one) | Shutdown returns early ("graceful shutdown was interrupted"), then the same deferred closes run. | See fixture D3 for what was observed. Not relied on. |
++| SIGKILL: `TimeoutStopSec` expired, an OOM kill (MemoryMax=1G), the controller's `crash-indexd`, a crash | Nothing runs. The unit is `failed` with `MainPID=0`; with `Restart=on-failure` it is held only by the absent guard. | **None.** A backend whose client was killed finishes its statement. A COMMIT already sent commits after the process is gone (fixture D1: unit failed, 0 CAS read, then CAS = 1). |
++
++So R4 must be the database barrier for every stop kind. A `failed` unit is accepted only together with the barrier: it
++proves only that no NEW request can arrive.
+ 
+ | decision | when | what is allowed |
+ |---|---|---|
+ | `FORWARD_ONLY` | any fenced or CAS account, in ANY snapshot (enrolment is sticky) | Keep C2: restart it, or stay at N = 1, and repair forward. 0.1.8 cannot write to an enrolled account and there is no online downgrade (sticky CAS; no force-unenrol). |
+-| `LEGACY_REDEPLOY_SAFE` | zero counts read BEHIND the barrier (R4) AND the R1 attestation | Keep C2 disabled. Restore the guard and start indexd (`replicactl … start`), then run 0.1.8. Post-check with `vm-state.v2.sh`: still 0/0 and 0.1.8 writes. If an account is now enrolled (a C2 instance survived), the decision is FORWARD_ONLY: switch back to C2. |
+-| `UNKNOWN` | zero counts WITHOUT the full barrier or attestation, or an unreadable state | NOT a rollback authorization: establish R1-R4 and re-read. If the barrier cannot be established, repair forward (C2). |
++| `LEGACY_REDEPLOY_SAFE` | zero counts in a COMPLETE db-barrier.sh output (R4) with the process barrier before and after, AND the R1 attestation | Keep C2 disabled. Restore the guard and start indexd (`replicactl … start`), then run 0.1.8. Post-check with `vm-state.v2.sh`: still 0/0 and 0.1.8 writes. If an account is now enrolled (a C2 instance survived), the decision is FORWARD_ONLY: switch back to C2. |
++| `UNKNOWN` | zero counts without a complete R4 barrier (including any vm-state.v2.sh output alone) or without the attestation, or an unreadable state | NOT a rollback authorization: establish R1-R4 and re-run R4. If the barrier cannot be established, repair forward (C2). |
+ 
+ **Observed once, not diagnosed (FIXTURE r1).** Right after its indexer restarted, the live 0.1.8 panicked on a GET:
+ `sia_storage download.rs:336`, "index out of bounds: the len is 27 but the index is 28". That GET was for a key the account
+@@ -183,13 +237,20 @@ did not hold. r2, reading only existing keys, did not see it. After the LEGACY_R
+ need the node's respawn before it serves; that is availability, not data.
+ 
+ **What the steps establish, and what the offline parser cannot.**
+-- **The parser** reads ONE snapshot. It verifies the barrier lines and the counts in that snapshot, and that zero counts
+-  were read while indexd could not run.
++- **The parser** reads ONE db-barrier.sh output. It verifies:
++  - the process barrier before and after;
++  - the database barrier (lock granted, then no other session and no prepared transaction);
++  - the counts read after both.
+ - **It cannot verify:**
+   - that no C2 instance remains or will be respawned: the owner's R1 attestation; node state is not visible from the VM;
+   - that the snapshot is the live primary's and the latest: root's capture;
+-  - that nobody restores the guard between R4 and the decision: one operator.
+-- **It never accepts** an earlier zero count or a caller-supplied timestamp as quiescence.
++  - that nobody restores the guard between R4 and the decision: one operator;
++  - the serialization assumptions above.
++- **It never accepts** as quiescence:
++  - an earlier zero count;
++  - a caller-supplied timestamp;
++  - a failed or inactive unit;
++  - an exit status.
+ 
+ **Restoring the T1.2 backup is NOT a routine rollback.** On the same VM with the same seed it discards every write
+ acknowledged after `dataLossBoundary`: all C2 writes, since the legacy writer was stopped before the capture. It is root's
+diff --git a/package/PINS.json b/package/PINS.json
+index 063b4570225a7b04ba536ddbac174e413f42891b..9b48e99896d946c90726b9e577029ff3bf0d4630 100644
+--- a/package/PINS.json
++++ b/package/PINS.json
+@@ -97,7 +97,13 @@
+    "path": "work/resume-after-checkpoint-20261022/storage-write-release/package/primary/vm-state.v2.sh",
+    "sha256": "adacd37fc82e05a272db6a7732999a296ac954b132d521406efdcaee078b9a64",
+    "derivedFrom": "5ac71122e2c13bffd53443f040bbc19e6b3dd622162882d19567e5a90efbb616",
+-   "use": "T1 preflight and the rollback barrier snapshot R4 (adds the allowLiveStart line)"
++   "use": "T1 preflight and the read-only post-check after a legacy redeploy. It is NOT the rollback decision's R4 any more: a vm-state output alone is UNKNOWN for zero counts (PostgreSQL drain)"
++  },
++  "primary.db-barrier": {
++   "path": "work/resume-after-checkpoint-20261022/storage-write-release/package/primary/db-barrier.sh",
++   "sha256": "70cfef1fd28d3555e6340af13e1d1630e08d4474d48b1efaebd0037024a037bc",
++   "use": "rollback R4: the database barrier the decision requires (CUTOVER.md section 4)",
++   "access": "NOT read-only: one transaction takes LOCK TABLE accounts IN EXCLUSIVE MODE for at most 30 s (session-local bounds), writes no row, then ROLLBACK; it ends no session and changes no setting"
+   }
+  },
+  "never": {
+diff --git a/package/primary/db-barrier.sh b/package/primary/db-barrier.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..f43c02b1a976fa581c28090e4edaa5ee8019e2e4
+--- /dev/null
++++ b/package/primary/db-barrier.sh
+@@ -0,0 +1,69 @@
++#!/bin/bash
++# db-barrier.sh - the rollback decision's DATABASE BARRIER on the live primary (storage-write-release, PostgreSQL drain).
++#
++# NOT READ-ONLY. It writes no row, but it takes a table lock that blocks writers:
++# - It opens ONE transaction in the indexd database and takes LOCK TABLE accounts IN EXCLUSIVE MODE.
++# - The lock waits for every transaction that holds a row lock on, or has changed, an accounts row (an enrolment
++#   in flight, including one whose client process has already exited), for at most 30 s (lock_timeout).
++# - While it holds the lock, every write to accounts waits (plain reads do not).
++# - It then reads: the other client sessions of the database, the prepared transactions, and the enrolment counts.
++# - Then it ROLLBACKs.
++# - Every bound is a setting of its own session only (PGOPTIONS). It changes no server setting and ends no other session.
++#
++# Root runs it ONLY behind the rollback barrier (CUTOVER.md §4 R1-R3: C2 activation disabled, start guard absent, indexd
++# stopped by the controller), as R4:
++#   $VMSSH 'sudo bash -s' < db-barrier.sh > r4-barrier.txt
++# It prints the unit/process/guard state BEFORE and AFTER the database step (pre.* / post.*), and the database step's
++# lines (db.*); `barrier=complete` is printed only when every statement ran. No secret is printed.
++# Serialization assumptions:
++# - Every enrolment is written by a client session of the indexd database.
++# - Prepared transactions (none expected) are counted, never committed or rolled back here.
++# - One operator: nobody restores the start guard or starts indexd while this runs. pre/post must match.
++set -u
++U=enclave-indexd PG=enclave-indexd-postgres DB=indexd GUARD=/etc/enclave-indexd/ALLOW_LIVE_START
++echo "barrierScript=db-barrier.v1"
++proc() {   # $1 = pre|post: the unit, its processes and the start guard
++  systemctl show "$U" -p ActiveState -p SubState -p MainPID -p Result -p ExecMainCode -p ExecMainStatus -p InvocationID -p NRestarts \
++    --no-pager | sed "s/^/$1.unit./"
++  echo "$1.writerPids=$(pgrep -u "$U" -x indexd | tr '\n' ' ')"
++  echo "$1.allowLiveStart=$([ -e "$GUARD" ] && echo present || echo absent)"
++}
++proc pre
++tv=$(timeout 30 docker exec "$PG" timeout --version 2>/dev/null | head -1)
++case "$tv" in *"GNU coreutils"*) ;; *) echo "db.skipped=no GNU coreutils timeout in the container"; proc post; exit 0 ;; esac
++# Bounds:
++# - server side (this session only): lock wait 30 s; a statement 35 s; the transaction 60 s; idle in a transaction 10 s;
++#   the client's connection checked every 1 s while a statement runs. A barrier killed during its lock wait ended at
++#   lock_timeout, not at that check (fixture F3);
++# - in the container: psql is KILLed at 75 s by its own timeout (no orphan);
++# - here: 90 s.
++out=$(timeout 90 docker exec -i -e PGAPPNAME=root-barrier \
++  -e PGOPTIONS='-c lock_timeout=30000 -c statement_timeout=35000 -c transaction_timeout=60000 -c idle_in_transaction_session_timeout=10000 -c client_connection_check_interval=1000' \
++  "$PG" sh -c 'exec timeout --foreground -s KILL 75 psql -U "${POSTGRES_USER:-postgres}" -d "$1" -X -A -t -q -v ON_ERROR_STOP=1 -f -' psql "$DB" 2>&1 <<'SQL'
++BEGIN ISOLATION LEVEL READ COMMITTED;
++SELECT set_config('db_barrier.t0', clock_timestamp()::text, true) IS NULL;
++LOCK TABLE accounts IN EXCLUSIVE MODE;
++SELECT 'lock=granted';
++SELECT 'lockWaitMs=' || round(extract(epoch FROM clock_timestamp() - current_setting('db_barrier.t0')::timestamptz) * 1000);
++SELECT 'otherBackends=' || count(*) || chr(10) || 'otherBackendsDetail=' ||
++       coalesce(string_agg(pid || ':' || coalesce(nullif(application_name, ''), '-') || ':' || coalesce(usename::text, '-') || ':' ||
++                           coalesce(state, '-') || ':' || coalesce(wait_event, '-'), ' ' ORDER BY pid), '')
++  FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND backend_type = 'client backend';
++SELECT 'preparedXacts=' || count(*) FROM pg_prepared_xacts WHERE database = current_database();
++SELECT 'dbVersion=' || db_version FROM global_settings;
++SELECT 'fencedAccounts=' || count(*) FROM accounts WHERE fence IS NOT NULL;
++SELECT 'casEnrolledAccounts=' || count(*) FROM accounts WHERE cas_mode;
++SELECT 'barrier=complete';
++ROLLBACK;
++SQL
++)
++rc=$?
++printf '%s\n' "$out" | while IFS= read -r l; do
++  case "$l" in
++    f|t|"") ;;
++    [a-zA-Z]*=*) echo "db.$l" ;;
++    *) echo "db.message=$(printf '%s' "$l" | tr -d '\r' | cut -c1-200)" ;;
++  esac
++done
++echo "db.exit=$rc"
++proc post
+diff --git a/package/tests/fixtures/README.md b/package/tests/fixtures/README.md
+index c2f09bf58f0c43f685ea5c82f5744257c5fe4bd5..b49bf7af22f9839f5905d547ded38d93e29c2fd6 100644
+--- a/package/tests/fixtures/README.md
++++ b/package/tests/fixtures/README.md
+@@ -7,3 +7,16 @@ Test inputs for tools/cutover.py. REAL = captured output; DERIVED = assembled fr
+ - l1-healthz-claim1.json, l1-fact-claim1.json, l1-account-row.txt: REAL /healthz, lease16 fixture fact and indexd account row of
+   the first fenced C2 boot of 00e9cde0 on a 0.1.8 account (storage-client-interop run l1; FIXTURE backend, loopback).
+ - m3-*.json, m3-account-row.txt: REAL captures of the staged rehearsal run m3 (rehearsal/runs/m3/results.json; FIXTURE backend: three loopback indexers).
++- d3-*.txt: REAL outputs of the actual package/primary/db-barrier.sh and vm-state.v2.sh, from the PostgreSQL-drain fixture run d3
++  (rehearsal/runs/d3; FIXTURE). The setup: the actual indexd 2c0e5b06 on a private PostgreSQL 18.6, driven by controller
++  1543577f. Each script was run as a copy that differs only in the start-guard path. Their `unit.*` lines are DERIVED by the
++  fixture's systemctl shim from the actual indexd process (running, or its reaped exit status).
++  - N = never enrolled, after the graceful stop.
++  - F1 = an idle unrelated session.
++  - F2 = a session holding accounts rows (lock timeout).
++  - F3 = the barrier KILLed during its lock wait (partial output).
++  - B = enrolled before the stop.
++  - D1 = the enrolment's COMMIT pending after crash-indexd (SIGKILL): the vm-state was read during that window, then the
++    barrier waited for the COMMIT.
++  - D2 = the controller's graceful stop during the pending COMMIT.
++  - D3 = two SIGTERMs during the pending COMMIT.
+diff --git a/package/tests/fixtures/d3-B-barrier.txt b/package/tests/fixtures/d3-B-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..4de2fe88e5e280259bc5ab5cfd2bd4d04c8db55b
+--- /dev/null
++++ b/package/tests/fixtures/d3-B-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=98e6eafcb76fe3afad41404c11a9dc4a
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=1
++db.casEnrolledAccounts=1
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=98e6eafcb76fe3afad41404c11a9dc4a
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/package/tests/fixtures/d3-D1-barrier.txt b/package/tests/fixtures/d3-D1-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..fb860dd73fa26ccd5c1fb0d5eba24d5379746a33
+--- /dev/null
++++ b/package/tests/fixtures/d3-D1-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=failed
++pre.unit.SubState=failed
++pre.unit.MainPID=0
++pre.unit.Result=signal
++pre.unit.ExecMainCode=2
++pre.unit.ExecMainStatus=9
++pre.unit.InvocationID=db34e99a62c72b91c0e608eb15c97013
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=14439
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=1
++db.casEnrolledAccounts=1
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=failed
++post.unit.SubState=failed
++post.unit.MainPID=0
++post.unit.Result=signal
++post.unit.ExecMainCode=2
++post.unit.ExecMainStatus=9
++post.unit.InvocationID=db34e99a62c72b91c0e608eb15c97013
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/package/tests/fixtures/d3-D1-vmstate.txt b/package/tests/fixtures/d3-D1-vmstate.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..d6e70a5fa8303572f638fc8f010f9eea65faa870
+--- /dev/null
++++ b/package/tests/fixtures/d3-D1-vmstate.txt
+@@ -0,0 +1,19 @@
++current=NONE
++currentSha=
++unit.ActiveState=failed
++unit.SubState=failed
++unit.MainPID=0
++unit.NRestarts=0
++unit.NeedDaemonReload=
++unit.ExecStart=
++writerPids=
++allowLiveStart=absent
++containerTimeout=timeout (GNU coreutils) 9.12
++dbVersion=28
++fsync=on synchronous_commit=on
++fencedAccounts=0
++casEnrolledAccounts=0
++scratchDatabases=
++controllerSessions=
++toolSessions=
++lockHeld=no (absent)
+diff --git a/package/tests/fixtures/d3-D2-barrier.txt b/package/tests/fixtures/d3-D2-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..92b1750eea78112921c9d4c903f2856658da7e1b
+--- /dev/null
++++ b/package/tests/fixtures/d3-D2-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=fed69dcd86bb971e3da7108fd83bf00b
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=1
++db.casEnrolledAccounts=1
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=fed69dcd86bb971e3da7108fd83bf00b
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/package/tests/fixtures/d3-D3-barrier.txt b/package/tests/fixtures/d3-D3-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ac8b45f2e7c2e609964f54bb7e7893494e5a337
+--- /dev/null
++++ b/package/tests/fixtures/d3-D3-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=d4d63cfcb8ff6f064334785e8f971e0b
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=1
++db.casEnrolledAccounts=1
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=d4d63cfcb8ff6f064334785e8f971e0b
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/package/tests/fixtures/d3-F1-barrier.txt b/package/tests/fixtures/d3-F1-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..347344e1abd5f167e2544c7b393f2f72453f698f
+--- /dev/null
++++ b/package/tests/fixtures/d3-F1-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=1
++db.otherBackendsDetail=91:dbd-idle:postgres:idle:ClientRead
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=0
++db.casEnrolledAccounts=0
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/package/tests/fixtures/d3-F2-barrier.txt b/package/tests/fixtures/d3-F2-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..c9c31228bf065760cff0c4c62498e7d2a14ba345
+--- /dev/null
++++ b/package/tests/fixtures/d3-F2-barrier.txt
+@@ -0,0 +1,23 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.message=psql:<stdin>:3: ERROR:  canceling statement due to lock timeout
++db.exit=3
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/package/tests/fixtures/d3-F3-barrier-interrupted.txt b/package/tests/fixtures/d3-F3-barrier-interrupted.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..726d39f33b8ee8e93d78da9fbdd61d42ffc19d01
+--- /dev/null
++++ b/package/tests/fixtures/d3-F3-barrier-interrupted.txt
+@@ -0,0 +1,11 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
+diff --git a/package/tests/fixtures/d3-N-barrier.txt b/package/tests/fixtures/d3-N-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..bc23126db3cde599d026631c3d8656bd7faaf396
+--- /dev/null
++++ b/package/tests/fixtures/d3-N-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=0
++db.casEnrolledAccounts=0
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/package/tests/fixtures/d3-N-vmstate.txt b/package/tests/fixtures/d3-N-vmstate.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ed6397e6f61615c5beb955881a5c326520335a7
+--- /dev/null
++++ b/package/tests/fixtures/d3-N-vmstate.txt
+@@ -0,0 +1,19 @@
++current=NONE
++currentSha=
++unit.ActiveState=inactive
++unit.SubState=dead
++unit.MainPID=0
++unit.NRestarts=0
++unit.NeedDaemonReload=
++unit.ExecStart=
++writerPids=
++allowLiveStart=absent
++containerTimeout=timeout (GNU coreutils) 9.12
++dbVersion=28
++fsync=on synchronous_commit=on
++fencedAccounts=0
++casEnrolledAccounts=0
++scratchDatabases=
++controllerSessions=
++toolSessions=
++lockHeld=no (absent)
+diff --git a/package/tests/test_cutover.py b/package/tests/test_cutover.py
+index ce305e17eff8a04925129a294711db842e1d033b..a154b3ab3ef6adb294e4093974a03d23ae11beb3 100644
+--- a/package/tests/test_cutover.py
++++ b/package/tests/test_cutover.py
+@@ -1,5 +1,5 @@
+ """tools/cutover.py against REAL captures (tests/fixtures/README.md says which are real and which derived)."""
+-import copy, datetime, json, os, pathlib, sys, tempfile, unittest
++import copy, datetime, json, os, pathlib, re, sys, tempfile, unittest
+ 
+ HERE = os.path.dirname(os.path.abspath(__file__))
+ FX = os.path.join(HERE, "fixtures")
+@@ -93,44 +93,93 @@ class Preflight(unittest.TestCase):
+ 
+ 
+ def barrier_state(text, **over):
+-    """the v28 vm-state behind the quiescence barrier (R2-R4): start guard absent, indexd stopped, no session"""
++    """the v28 vm-state.v2.sh lines behind the PROCESS barrier (R2-R3): start guard absent, indexd stopped, no session"""
+     kv = {"unit.ActiveState": "inactive", "unit.SubState": "dead", "unit.MainPID": "0", "writerPids": "", "allowLiveStart": "absent", **over}
+     lines = [l for l in text.splitlines() if l.split("=", 1)[0] not in kv]
+     return "\n".join(lines + [f"{k}={v}" for k, v in kv.items()]) + "\n"
+ 
+ 
++def barrier_out(**over):
++    """a db-barrier.sh (db-barrier.v1) output behind the full barrier, never enrolled, after a graceful stop; `over` replaces
++    a line, or drops it when the value is None (the order is the script's: pre, db, post)"""
++    unit = {"ActiveState": "inactive", "SubState": "dead", "MainPID": "0", "Result": "success", "ExecMainCode": "1", "ExecMainStatus": "0",
++            "InvocationID": "5f" * 16, "NRestarts": "0"}
++    proc = lambda ph: {**{f"{ph}.unit.{k}": v for k, v in unit.items()}, f"{ph}.writerPids": "", f"{ph}.allowLiveStart": "absent"}
++    kv = {"barrierScript": "db-barrier.v1", **proc("pre"), "db.lock": "granted", "db.lockWaitMs": "3", "db.otherBackends": "0",
++          "db.otherBackendsDetail": "", "db.preparedXacts": "0", "db.dbVersion": "28", "db.fencedAccounts": "0", "db.casEnrolledAccounts": "0",
++          "db.barrier": "complete", "db.exit": "0", **proc("post")}
++    kv.update(over)
++    return "".join(f"{k}={v}\n" for k, v in kv.items() if v is not None)
++
++
++def git_module(commit, name):
++    """tools/cutover.py exactly as committed at `commit` (the negative controls)"""
++    import subprocess, importlib.util
++    src = subprocess.run(["git", "-C", os.path.join(HERE, "..", ".."), "show", f"{commit}:package/tools/cutover.py"], capture_output=True, check=True).stdout
++    with tempfile.NamedTemporaryFile("wb", suffix=".py", delete=False) as f:
++        f.write(src)
++    spec = importlib.util.spec_from_file_location(name, f.name); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
++    os.unlink(f.name)
++    return m
++
++
++# root's synthetic process-only snapshot (root-pg-drain-review 555dc752 probe.py), read while a COMMIT was still pending
++ROOT_STATE = ("dbVersion=28\nunit.ActiveState=inactive\nunit.MainPID=0\nwriterPids=\nallowLiveStart=absent\nfencedAccounts=0\n"
++              "casEnrolledAccounts=0\ncontrollerSessions=\ntoolSessions=\n")
++
++
+ class Rollback(unittest.TestCase):
+     def test_original_6fd7a929_decides_from_an_unquiesced_zero_count(self):
+-        import subprocess, importlib.util
+-        src = subprocess.run(["git", "-C", os.path.join(HERE, "..", ".."), "show", "6fd7a9299c53121142ab59d8ff9a7406c1f2b845:package/tools/cutover.py"],
+-                             capture_output=True, check=True).stdout
+-        with tempfile.NamedTemporaryFile("wb", suffix=".py", delete=False) as f:
+-            f.write(src)
+-        spec = importlib.util.spec_from_file_location("cutover_6fd7", f.name); old = importlib.util.module_from_spec(spec); spec.loader.exec_module(old)
+-        os.unlink(f.name)
++        old = git_module("6fd7a9299c53121142ab59d8ff9a7406c1f2b845", "cutover_6fd7")
+         running = txt("vm-state-v28-from-postcheck2.out")                       # indexd RUNNING, start guard unknown
+         self.assertEqual(old.rollback_decision(running)["decision"], "LEGACY_REDEPLOY_SAFE", "the counterexample: observation alone authorized it")
+         self.assertEqual(C.rollback_decision(running)["decision"], "UNKNOWN")
+         self.assertEqual(C.rollback_decision(running, True)["decision"], "UNKNOWN", "an attestation without the barrier authorizes nothing")
+ 
+-    def test_legacy_redeploy_only_behind_the_full_barrier_with_the_attestation(self):
+-        v28 = txt("vm-state-v28-from-postcheck2.out")
+-        full = barrier_state(v28)
+-        d = C.rollback_decision(full, True)
++    def test_fbaecfce_process_only_barrier_is_roots_counterexample(self):
++        old = git_module("fbaecfced41da552a9e138082ecd0bd821c9e0f8", "cutover_fbae")
++        for state in (ROOT_STATE, ROOT_STATE.replace("ActiveState=inactive", "ActiveState=failed"),
++                      barrier_state(txt("vm-state-v28-from-postcheck2.out"))):
++            self.assertEqual(old.rollback_decision(state, True)["decision"], "LEGACY_REDEPLOY_SAFE", "fbaecfce trusted the process barrier")
++            for att in (False, True):
++                d = C.rollback_decision(state, att)
++                self.assertEqual((d["decision"], d["missing"]), ("UNKNOWN", ["databaseBarrier"]), state)
++                self.assertTrue(any("db-barrier.sh" in x for x in d["steps"]))
++
++    def test_legacy_redeploy_only_from_the_complete_database_barrier_with_the_attestation(self):
++        d = C.rollback_decision(barrier_out(), True)
+         self.assertEqual(d["decision"], "LEGACY_REDEPLOY_SAFE", d)
+-        self.assertTrue(d["notEstablished"] and any("C2 instance" in x for x in d["notEstablished"]))
+-        self.assertEqual(C.rollback_decision(full, False)["missing"], ["c2ActivationDisabledAttested"])
+-        for k, v in (("allowLiveStart", "present"), ("unit.ActiveState", "active"), ("unit.MainPID", "4242"), ("writerPids", "4242"),
+-                     ("controllerSessions", "99:replicactl-x:active"), ("toolSessions", "7:psql:indexd")):
+-            d = C.rollback_decision(barrier_state(v28, **{k: v}), True)
+-            self.assertEqual(d["decision"], "UNKNOWN", k); self.assertTrue(d["missing"], k); self.assertTrue(d["steps"])
+-        self.assertEqual(C.rollback_decision(barrier_state(v28).replace("allowLiveStart=absent\n", ""), True)["decision"], "UNKNOWN",
+-                         "a snapshot without the guard line (the original vm-state.sh) never shows the barrier")
++        self.assertTrue(any("C2 instance" in x for x in d["notEstablished"]))
++        self.assertEqual(d["seen"]["stopKind"], "exited-0")
++        self.assertEqual(C.rollback_decision(barrier_out(), False)["missing"], ["c2ActivationDisabledAttested"])
++
++    def test_every_barrier_element_is_required(self):
++        cases = {"pre.allowLiveStart": "present", "post.allowLiveStart": "present", "pre.unit.ActiveState": "active",
++                 "post.unit.ActiveState": "activating", "post.unit.MainPID": "4242", "pre.writerPids": "4242", "post.writerPids": "4242 ",
++                 "post.unit.InvocationID": "6e" * 16, "pre.unit.InvocationID": None, "post.unit.NRestarts": "1",
++                 "db.lock": None, "db.otherBackends": "1", "db.preparedXacts": "1", "db.preparedXacts ": None, "db.barrier": None,
++                 "db.exit": "3", "db.dbVersion": None, "db.casEnrolledAccounts": None, "db.fencedAccounts": "UNREADABLE",
++                 "barrierScript": "db-barrier.v0"}
++        for k, v in cases.items():
++            d = C.rollback_decision(barrier_out(**{k.strip(): v}), True)
++            self.assertEqual(d["decision"], "UNKNOWN", (k, v)); self.assertTrue(d["missing"], k); self.assertTrue(d["steps"], k)
++
++    def test_a_failed_unit_or_an_exit_status_is_never_the_proof(self):
++        killed = {f"{ph}.unit.{k}": v for ph in ("pre", "post") for k, v in
++                  (("ActiveState", "failed"), ("SubState", "failed"), ("Result", "signal"), ("ExecMainCode", "2"), ("ExecMainStatus", "9"))}
++        d = C.rollback_decision(barrier_out(**killed), True)
++        self.assertEqual((d["decision"], d["seen"]["stopKind"]), ("LEGACY_REDEPLOY_SAFE", "abnormal"),
++                         "after a KILL the database barrier, not the process, establishes the drain")
++        graceful = barrier_state(txt("vm-state-v28-from-postcheck2.out"), **{"unit.Result": "success", "unit.ExecMainCode": "1", "unit.ExecMainStatus": "0"})
++        self.assertEqual(C.rollback_decision(graceful, True)["missing"], ["databaseBarrier"], "an exit 0 without the database barrier proves nothing")
++        self.assertEqual(C.stop_kind(C.parse_kv(barrier_out(**{"post.unit.ExecMainStatus": "2", "post.unit.Result": "exit-code"}))), "abnormal")
+ 
+     def test_any_enrolment_is_forward_only_whatever_the_barrier(self):
+         v28 = txt("vm-state-v28-from-postcheck2.out")
+         for text in (v28.replace("casEnrolledAccounts=0", "casEnrolledAccounts=1"), v28.replace("fencedAccounts=0", "fencedAccounts=1"),
+-                     barrier_state(v28.replace("casEnrolledAccounts=0", "casEnrolledAccounts=1"))):
++                     barrier_state(v28.replace("casEnrolledAccounts=0", "casEnrolledAccounts=1")),
++                     barrier_out(**{"db.casEnrolledAccounts": "1", "db.fencedAccounts": "1"}),
++                     barrier_out(**{"db.casEnrolledAccounts": "1", "db.fencedAccounts": "1", "db.otherBackends": "1", "post.allowLiveStart": "present"})):
+             for att in (False, True):
+                 d = C.rollback_decision(text, att)
+                 self.assertEqual(d["decision"], "FORWARD_ONLY"); self.assertIn("NOT a routine rollback", d["do"])
+@@ -138,9 +187,65 @@ class Rollback(unittest.TestCase):
+     def test_unreadable_is_unknown(self):
+         v28 = txt("vm-state-v28-from-postcheck2.out")
+         for text in (txt("vm-state-v26-real.out"), barrier_state(v28).replace("casEnrolledAccounts=0\n", ""),
+-                     barrier_state(v28).replace("casEnrolledAccounts=0", "casEnrolledAccounts=UNREADABLE")):
++                     barrier_out(**{"db.casEnrolledAccounts": "UNREADABLE"}), barrier_out(**{"db.dbVersion": "27"}), ""):
+             self.assertEqual(C.rollback_decision(text, True)["decision"], "UNKNOWN")
+ 
++    def test_db_barrier_script(self):
++        """the script root runs (package/primary/db-barrier.sh): lock BEFORE the session check BEFORE the counts, one transaction
++        that is rolled back, every wait bounded, labelled NOT read-only, and nothing that ends a session or changes a setting"""
++        s = pathlib.Path(HERE, "..", "primary", "db-barrier.sh").read_text()
++        sql = s[s.index("<<'SQL'"):s.index("\nSQL\n")]
++        order = ["BEGIN ISOLATION LEVEL READ COMMITTED;", "LOCK TABLE accounts IN EXCLUSIVE MODE;", "'lock=granted'", "FROM pg_stat_activity",
++                 "FROM pg_prepared_xacts", "FROM global_settings", "WHERE fence IS NOT NULL", "WHERE cas_mode", "'barrier=complete'", "ROLLBACK;"]
++        pos = [sql.index(x) for x in order]
++        self.assertEqual(pos, sorted(pos), "the lock, then the sessions, then the counts, then ROLLBACK")
++        self.assertEqual(sql.count("BEGIN"), 1)
++        for bad in ("COMMIT", "pg_terminate_backend", "pg_cancel_backend", "ALTER", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "SET SESSION", "pg_reload_conf"):
++            self.assertIsNone(re.search(r"\b" + bad + r"\b", sql.upper()), bad)
++        self.assertIn("NOT READ-ONLY", s)
++        self.assertNotIn("default_transaction_read_only", s)
++        for bound in ("lock_timeout=30000", "statement_timeout=35000", "transaction_timeout=60000", "idle_in_transaction_session_timeout=10000",
++                      "client_connection_check_interval=1000", "timeout --foreground -s KILL 75", "timeout 90 docker exec"):
++            self.assertIn(bound, s)
++        self.assertLess(s.index("proc pre"), s.index("docker exec -i"))
++        self.assertTrue(s.rstrip().endswith("proc post"), "the process barrier is read again AFTER the database step")
++        self.assertIn('echo "barrierScript=' + C.BARRIER_SCRIPT + '"', s)
++
++
++class DatabaseDrainCaptures(unittest.TestCase):
++    """the REAL outputs of the actual scripts in fixture run d3 (tests/fixtures/README.md): actual indexd 2c0e5b06 and controller
++    1543577f on a private PostgreSQL 18.6"""
++
++    def test_d1_commit_after_the_kill_negative_control_and_the_barrier(self):
++        old = git_module("fbaecfced41da552a9e138082ecd0bd821c9e0f8", "cutover_fbae_d1")
++        vm = txt("d3-D1-vmstate.txt")                    # read while the killed indexd's COMMIT was still pending
++        self.assertIn("unit.ActiveState=failed", vm); self.assertIn("casEnrolledAccounts=0", vm)
++        self.assertEqual(old.rollback_decision(vm, True)["decision"], "LEGACY_REDEPLOY_SAFE", "fbaecfce on the actual indexd window")
++        self.assertEqual(C.rollback_decision(vm, True)["missing"], ["databaseBarrier"])
++        d = C.rollback_decision(txt("d3-D1-barrier.txt"), True)
++        self.assertEqual(d["decision"], "FORWARD_ONLY")
++        kv = C.parse_kv(txt("d3-D1-barrier.txt"))
++        self.assertGreaterEqual(int(kv["db.lockWaitMs"]), 1000, "the lock waited for the pending COMMIT")
++        self.assertEqual(C.stop_kind(kv), "abnormal")
++
++    def test_never_enrolled_safe_only_with_the_attestation(self):
++        out = txt("d3-N-barrier.txt")
++        self.assertEqual(C.rollback_decision(out, False)["missing"], ["c2ActivationDisabledAttested"])
++        d = C.rollback_decision(out, True)
++        self.assertEqual((d["decision"], d["seen"]["stopKind"]), ("LEGACY_REDEPLOY_SAFE", "exited-0"))
++        self.assertEqual(C.rollback_decision(txt("d3-N-vmstate.txt"), True)["missing"], ["databaseBarrier"], "vm-state alone is never enough")
++
++    def test_failed_and_interrupted_barriers_are_unknown(self):
++        self.assertEqual(C.rollback_decision(txt("d3-F1-barrier.txt"), True)["missing"], ["db.noOtherSession"])
++        d = C.rollback_decision(txt("d3-F2-barrier.txt"), True)
++        self.assertEqual(d["decision"], "UNKNOWN"); self.assertIn("db.lockGranted", d["missing"]); self.assertIn("lock timeout", d["seen"]["dbMessage"])
++        d = C.rollback_decision(txt("d3-F3-barrier-interrupted.txt"), True)
++        self.assertEqual(d["decision"], "UNKNOWN"); self.assertIn("db.complete", d["missing"])
++
++    def test_enrolled_before_or_during_the_stop_is_forward_only(self):
++        for n in ("d3-B-barrier.txt", "d3-D2-barrier.txt", "d3-D3-barrier.txt"):
++            self.assertEqual(C.rollback_decision(txt(n), True)["decision"], "FORWARD_ONLY", n)
++
+ 
+ class VerifyT1(unittest.TestCase):
+     def setUp(self):
+diff --git a/package/tools/cutover.py b/package/tools/cutover.py
+index 5135334ead5bc4dc6e7bd764274f0ed5465e8282..8f96f9cdef08e5f4b51b4ebf8f5fa6629bac66b7 100644
+--- a/package/tools/cutover.py
++++ b/package/tools/cutover.py
+@@ -1,8 +1,8 @@
+ #!/usr/bin/env python3
+ """Storage distributed-write cutover: the owner's per-stage replica secret and root's step verifiers (CUTOVER.md).
+ 
+-Pure functions over files root captures with the EXISTING reviewed read-only tools: nothing here opens a network
+-connection, reads a key, or changes anything. Exit 0 = GO / PASS, 1 = NO-GO / FAIL (reasons printed as JSON), 2 = usage.
++Pure functions over files root captures with the reviewed tools. Those tools are read-only, except db-barrier.sh, which
++takes a bounded table lock and writes no row. Nothing here opens a network connection, reads a key, or changes anything. Exit 0 = GO / PASS, 1 = NO-GO / FAIL (reasons printed as JSON), 2 = usage.
+ 
+   cutover.py replicas --stage t1|t2|t4a|t4b --inputs replicas.json
+       the exact $SIAS3_REPLICAS value for the stage (the sia-s3 C2 catalog config f6b48940 has NO writeQuorum, so the
+@@ -12,9 +12,11 @@ connection, reads a key, or changes anything. Exit 0 = GO / PASS, 1 = NO-GO / FA
+             --legacy-stopped-at <ISO8601+zone> --live-counts counts.json [--max-capture-age-hours 2] [--max-verify-age-hours 2]
+       GO only for the live primary EXACTLY as prepared (release 2c0e5b06, schema 28, quiet, NO account fenced or enrolled),
+       the legacy writer stopped BEFORE a fresh coupled v28 capture of the running release, and nothing written since
+-  cutover.py rollback-decision --vm-state <vm-state.v2.sh output> [--c2-activation-disabled]
+-      FORWARD_ONLY on any fenced/CAS account; LEGACY_REDEPLOY_SAFE only for zero counts read BEHIND the quiescence barrier
+-      (start guard absent, indexd stopped, no session) with C2 activation attested disabled; otherwise UNKNOWN
++  cutover.py rollback-decision --vm-state <db-barrier.sh output> [--c2-activation-disabled]
++      FORWARD_ONLY on any fenced/CAS account; LEGACY_REDEPLOY_SAFE only for zero counts read by db-barrier.sh BEHIND the
++      process barrier (start guard absent, indexd stopped, before and after) AND the database barrier (EXCLUSIVE lock on
++      accounts granted, then no other session and no prepared transaction), with C2 activation attested disabled;
++      otherwise UNKNOWN (a vm-state.v2.sh output alone is always UNKNOWN for zero counts)
+   cutover.py verify --stage t1|t2|t4a|t4b --healthz healthz.json --fact lease16.json --inputs replicas.json [--account-row row.txt]
+       the public /healthz of the C2 deployment (and, for t1, root's read-only account row) against the stage's expectation
+ """
+@@ -208,47 +210,88 @@ BARRIER_STEPS = [
+     "node neither runs nor respawns the C2 version; confirm no C2 instance of the deployment remains (node status)",
+     "root: move the start guard aside: mv /etc/enclave-indexd/ALLOW_LIVE_START /etc/enclave-indexd/ALLOW_LIVE_START.held-<run> "
+     "(the unit's ConditionPathExists: systemd will not start indexd while it is absent)",
+-    "root: stop indexd with the reviewed controller (replicactl ... stop, i.e. systemctl stop enclave-indexd): after this no "
+-    "request in flight from any C2 instance can complete an enrolment",
+-    "root: capture vm-state.v2.sh (read-only) and decide with --c2-activation-disabled",
++    "root: stop indexd with the reviewed controller (replicactl ... stop, i.e. systemctl stop enclave-indexd). This stops NEW "
++    "requests only. A database transaction the process already sent its COMMIT for can still commit after the process is "
++    "gone (root counterexample 555dc752; storage-write-release fixture d1)",
++    "root: run db-barrier.sh (NOT read-only: LOCK TABLE accounts IN EXCLUSIVE MODE for at most 30 s, no row written, ROLLBACK) "
++    "and decide from ITS output with --c2-activation-disabled. A lock timeout or another session = UNKNOWN: re-run it later; "
++    "never end another session to get through",
+ ]
++BARRIER_SCRIPT = "db-barrier.v1"
++
++
++def stop_kind(kv, p="post."):
++    """How the unit's last main process ended - REPORTED, never evidence. A graceful exit of the reviewed source drains its own
++    transactions (http.Server.Shutdown waits for the handlers, then pgxpool.Close waits for every connection), but systemd's
++    exit status cannot show that this binary did so, and a KILL (TimeoutStopSec, OOM, crash-indexd) drains nothing."""
++    st, res, code, status = (kv.get(p + "unit." + k) for k in ("ActiveState", "Result", "ExecMainCode", "ExecMainStatus"))
++    if st == "inactive" and res == "success" and code == "1" and status == "0":
++        return "exited-0"
++    if st == "failed" or (code is not None and code not in ("0", "1")) or (status not in (None, "0")):
++        return "abnormal"
++    return "unknown"
+ 
+ 
+ def rollback_decision(vm_text, c2_activation_disabled=False):
+     """What a T1 rollback may do. OBSERVATION ALONE NEVER AUTHORIZES A LEGACY REDEPLOY.
+-      - Any fenced or CAS-enrolled account -> FORWARD_ONLY (enrolment is sticky: no later state can undo it).
+-      - Zero counts authorize LEGACY_REDEPLOY_SAFE only when the SAME vm-state.v2.sh snapshot shows the quiescence barrier
+-        (allowLiveStart absent, the unit inactive with no main PID, no indexd process, no controller/tool session) AND the
+-        owner attests that C2 activation and its retries are disabled. Otherwise -> UNKNOWN: establish the barrier, re-read.
+-    A zero count read while indexd can still serve says nothing about the next instant: a C2 instance (or a retry, or a
+-    request already in flight) can enrol between that read and any later stop (storage-write-release rehearsal r1)."""
++      - Any fenced or CAS-enrolled account, in any snapshot -> FORWARD_ONLY (enrolment is sticky).
++      - Zero counts authorize LEGACY_REDEPLOY_SAFE only from a db-barrier.sh output that shows ALL of:
++        - the process barrier BEFORE and AFTER the database step, unchanged: allowLiveStart absent; the unit inactive or
++          failed with no main PID; no indexd process; the same InvocationID and NRestarts;
++        - the DATABASE barrier: the EXCLUSIVE lock on accounts granted. Every transaction that held an accounts row lock or
++          change has therefore ended, committed or not. Then, with the lock held: no other client session in the
++          database, no prepared transaction, and the counts read after both;
++        - the owner's attestation that C2 activation and its retries are disabled.
++      - Otherwise -> UNKNOWN: establish what is missing and re-run db-barrier.sh, or repair forward.
++    Neither a process-only barrier (vm-state.v2.sh: the unit failed or inactive, MainPID 0, no process) nor the unit's exit
++    status proves that no enrolment can still complete. A backend whose client was killed finishes the statement it is
++    running, including a COMMIT the client already sent (root counterexample 555dc752; storage-write-release fixture d1)."""
+     kv = parse_kv(vm_text)
+-    cas, fenced = kv.get("casEnrolledAccounts"), kv.get("fencedAccounts")
++    is_barrier = kv.get("barrierScript") == BARRIER_SCRIPT
++    p = "db." if is_barrier else ""
++    cas, fenced, ver = kv.get(p + "casEnrolledAccounts"), kv.get(p + "fencedAccounts"), kv.get(p + "dbVersion")
+     not_established = ["that no C2 instance of the deployment remains or will be respawned (the owner's attestation: "
+                        "--c2-activation-disabled; node state is not visible from the VM)",
+                        "that this snapshot comes from the live primary VM and is the latest (root's capture)",
+                        "that the start guard stays absent until root restores it (no concurrent operator)"]
+-    if kv.get("dbVersion") != "28" or cas is None or fenced is None or not (str(cas).isdigit() and str(fenced).isdigit()):
+-        return {"decision": "UNKNOWN", "do": "nothing: re-read the state (an unread enrolment state is never 'not enrolled')",
+-                "state": {"dbVersion": kv.get("dbVersion"), "casEnrolledAccounts": cas, "fencedAccounts": fenced}}
+-    if cas != "0" or fenced != "0":
++    readable = ver == "28" and str(cas).isdigit() and str(fenced).isdigit()
++    if readable and (cas != "0" or fenced != "0"):
+         return {"decision": "FORWARD_ONLY", "do": FORWARD, "state": {"casEnrolledAccounts": int(cas), "fencedAccounts": int(fenced)},
+                 "established": "an account IS fenced or CAS-enrolled; enrolment is sticky, so this holds whatever happens next"}
+-    barrier = {"allowLiveStart": kv.get("allowLiveStart") == "absent",
+-               "unitInactive": kv.get("unit.ActiveState") in ("inactive", "failed") and kv.get("unit.MainPID") == "0",
+-               "noIndexdProcess": kv.get("writerPids", None) == "",
+-               "noControllerOrToolSession": kv.get("controllerSessions") == "" and kv.get("toolSessions") == "",
+-               "c2ActivationDisabledAttested": c2_activation_disabled is True}
++    if not is_barrier:
++        return {"decision": "UNKNOWN", "missing": ["databaseBarrier"], "steps": BARRIER_STEPS,
++                "do": "NOT a rollback authorization: this is not a db-barrier.sh output. Without the database barrier, zero counts "
++                      "say nothing about a transaction a stopped or killed indexd already sent. Run R1-R4, decide from R4's output; "
++                      "if it cannot be established, repair forward (C2).",
++                "state": {"dbVersion": ver, "casEnrolledAccounts": cas, "fencedAccounts": fenced}}
++    same = lambda k: kv.get("pre." + k) is not None and kv.get("pre." + k) == kv.get("post." + k)
++    barrier = {}
++    for ph in ("pre", "post"):
++        barrier[ph + ".allowLiveStart"] = kv.get(ph + ".allowLiveStart") == "absent"
++        barrier[ph + ".unitInactive"] = kv.get(ph + ".unit.ActiveState") in ("inactive", "failed") and kv.get(ph + ".unit.MainPID") == "0"
++        barrier[ph + ".noIndexdProcess"] = kv.get(ph + ".writerPids", None) == ""
++    barrier["unitUnchanged"] = same("unit.InvocationID") and same("unit.NRestarts")
++    barrier["db.lockGranted"] = kv.get("db.lock") == "granted"
++    barrier["db.noOtherSession"] = kv.get("db.otherBackends") == "0"
++    barrier["db.noPreparedTransaction"] = kv.get("db.preparedXacts") == "0"
++    barrier["db.countsReadUnderLock"] = readable
++    barrier["db.complete"] = kv.get("db.barrier") == "complete" and kv.get("db.exit") == "0"
++    barrier["c2ActivationDisabledAttested"] = c2_activation_disabled is True
+     missing = [k for k, ok in barrier.items() if not ok]
++    seen = {"stopKind": stop_kind(kv), "lockWaitMs": kv.get("db.lockWaitMs"), "otherBackends": kv.get("db.otherBackendsDetail"),
++            "dbMessage": kv.get("db.message")}
+     if missing:
+-        return {"decision": "UNKNOWN", "missing": missing, "steps": BARRIER_STEPS,
+-                "do": "NOT a rollback authorization: zero counts without the quiescence barrier say nothing about the next "
+-                      "instant. Establish the barrier in this order, then re-read. If it cannot be established, repair forward (C2).",
+-                "state": {"casEnrolledAccounts": 0, "fencedAccounts": 0}}
++        return {"decision": "UNKNOWN", "missing": missing, "steps": BARRIER_STEPS, "seen": seen,
++                "do": "NOT a rollback authorization. Establish what is missing and re-run db-barrier.sh. A lock timeout or another "
++                      "session means work may still be in flight: wait for it to end by itself and re-run (never end a session "
++                      "to get through). If the barrier cannot be established, repair forward (C2).",
++                "state": {"dbVersion": ver, "casEnrolledAccounts": cas, "fencedAccounts": fenced}}
+     return {"decision": "LEGACY_REDEPLOY_SAFE",
+-            "established": "with the start guard absent and indexd stopped (no process, no session), no enrolment can complete; "
+-                           "the database then shows no fenced and no CAS account",
+-            "notEstablished": not_established,
++            "established": "indexd could not run before or after the database step (start guard absent, no process, the same "
++                           "unit invocation). The EXCLUSIVE lock on accounts waited for every transaction holding an accounts row; "
++                           "then no other session and no prepared transaction existed, so nothing was left to commit. The counts "
++                           "read after that show no fenced and no CAS account.",
++            "notEstablished": not_established, "seen": seen,
+             "do": ["keep C2 activation disabled", "root: restore ALLOW_LIVE_START and start indexd (replicactl ... start)",
+                    "owner: run 0.1.8", "root: post-check with vm-state.v2.sh: still 0 fenced / 0 CAS and 0.1.8 writes; if an account "
+                    "is now enrolled (a C2 instance survived), the decision becomes FORWARD_ONLY: switch back to C2"],
+diff --git a/rehearsal/dbdrain.py b/rehearsal/dbdrain.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..925be3674be18d373d3a413f133584cc6145d187
+--- /dev/null
++++ b/rehearsal/dbdrain.py
+@@ -0,0 +1,692 @@
++#!/usr/bin/env python3
++# ======================================================================================================================
++# POSTGRESQL DRAIN (root's review of fbaecfce, counterexample 555dc752): process-down does not prove that no enrolment can
++# still complete. Small fixture, ACTUAL components, no hosts, no wasm:
++#   - the live primary's indexd release 2c0e5b06 (cmd/indexd, the run.go shutdown path), offline, on a private PostgreSQL
++#     18.6 cluster: the indexd role is not a superuser, as on the live VM;
++#   - the reviewed controller 1543577f (runner "process"): `start`, `stop` (SIGTERM, wait) and `crash-indexd` (SIGKILL);
++#   - the c2rclient of the C2 production-copy rehearsal (e76693f6): register, raise-cas (POST /fence mode "cas", the
++#     enrolment C2 performs) over indexd's real application and admin APIs;
++#   - the ACTUAL scripts root runs: package/primary/db-barrier.sh (new) and vm-state.v2.sh (adacd37f). The fixture copy of
++#     each differs ONLY in the start-guard path (checked). They run through three fixture shims:
++#     - docker exec -> the same psql command line on this cluster's socket, as the container superuser;
++#     - systemctl show -> the unit's properties, DERIVED from the actual indexd process: running, or its reaped exit
++#       status, with systemd's meanings;
++#     - pgrep -u enclave-indexd -> pgrep in this PID namespace.
++# FIXTURE-ONLY mutations (the private cluster): roles/databases and, in D1-D3, a DEFERRED constraint trigger that holds
++# the COMMIT of an enrolment for a few seconds, i.e. the window root's probe opened with pg_sleep (a slow commit:
++# fsync, a lock wait in a deferred check). indexd's own SQL is unchanged.
++#   N  never-enrolled: R2 guard aside, R3 controller stop (exit 0); then
++#      F1 an idle unrelated session -> UNKNOWN, the session is left alone;
++#      F2 a session holding accounts rows -> the barrier's lock times out -> UNKNOWN, the session is left alone;
++#      F3 the barrier interrupted (KILLed) while waiting -> UNKNOWN, its backend goes away by itself, nothing left behind;
++#      then vm-state alone -> UNKNOWN; the barrier -> SAFE only with the owner's attestation.
++#   B  commit before the stop: enrolled while running, controller stop -> FORWARD_ONLY.
++#   D1 commit AFTER an abnormal stop: indexd sent the enrolment's COMMIT, the controller KILLs it (crash-indexd), the
++#      process is reaped and the unit is failed, the account still reads unenrolled while its backend commits:
++#      - the fbaecfce (and 6fd7a929) decision on the actual vm-state.v2.sh output -> LEGACY_REDEPLOY_SAFE (negative control);
++#      - the new one -> UNKNOWN;
++#      - db-barrier.sh WAITS for the commit and reads CAS=1 -> FORWARD_ONLY.
++#   D2 the graceful stop during the same pending COMMIT: the controller's SIGTERM waits for the handler -> exit 0 only after
++#      the commit; the barrier then -> FORWARD_ONLY.
++#   D3 two SIGTERMs during the pending COMMIT (the operator's interrupt that run.go allows): observed, then the barrier ->
++#      FORWARD_ONLY whatever the process did.
++# ======================================================================================================================
++import base64, ctypes, hashlib, importlib.util, json, os, re, secrets, shutil, signal, subprocess, sys, tempfile, threading, time
++import urllib.request
++
++HERE = os.path.dirname(os.path.abspath(__file__))
++RELEASE = os.path.abspath(os.path.join(HERE, ".."))
++WORK = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
++PGROOT = os.path.join(WORK, "storage-host-role/pg18/root")
++PGBIN, PGLIB = os.path.join(PGROOT, "usr/bin"), os.path.join(PGROOT, "usr/lib")
++INDEXD = os.path.join(WORK, "claude-resumed-20261022/storage-enclave-build/out/c2-enclave-a/indexd")
++CONTROLLER = os.path.join(WORK, "resume-after-checkpoint-20261022/controller-bounds-validation/frozen/replicactl.r5-production.restorefix.bounds.py")
++CLIENT = os.path.join(WORK, "indexd-c2-production-rehearsal/bin/c2rclient")
++GEOIP = os.path.join(WORK, "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb")
++BARRIER = os.path.join(RELEASE, "package/primary/db-barrier.sh")
++VMSTATE = os.path.join(RELEASE, "package/primary/vm-state.v2.sh")
++PINS = {INDEXD: "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
++        CONTROLLER: "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83",
++        CLIENT: "e76693f68b70caa2b7309c1f29ace904e975f2dda7503e344eaa15d6e8f53458",
++        GEOIP: "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
++        VMSTATE: None}   # the full hash comes from package/PINS.json (primary.vm-state-v2)
++LIVE_GUARD = "/etc/enclave-indexd/ALLOW_LIVE_START"
++
++run_id = sys.argv[1]
++assert re.fullmatch(r"[a-z0-9]{1,12}", run_id)
++RUN = os.path.join(HERE, "runs", run_id)
++os.makedirs(RUN)
++R = {"run": run_id, "started": time.time(), "inputs": {}, "checks": [], "events": [], "scenarios": {}}
++sha_file = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest()
++
++
++def save():
++    json.dump(R, open(os.path.join(RUN, "results.json"), "w"), indent=1, default=str)
++
++
++def log(*a):
++    line = time.strftime("%H:%M:%S ") + " ".join(str(x) for x in a)
++    print(line, flush=True)
++    R["events"].append(line)
++
++
++def check(name, ok, detail=""):
++    R["checks"].append({"name": name, "ok": bool(ok), "detail": str(detail)[:1500]})
++    log("CHECK", "PASS" if ok else "FAIL", name, str(detail)[:300])
++    save()
++    return bool(ok)
++
++
++def load(name, path):
++    sp = importlib.util.spec_from_file_location(name, path)
++    m = importlib.util.module_from_spec(sp)
++    sp.loader.exec_module(m)
++    return m
++
++
++sys.path.insert(0, os.path.join(RELEASE, "package", "tools"))
++import cutover  # noqa: E402
++OLD = {"fbaecfce": load("cutover_fbaecfce", os.environ["OLD_CUTOVER_FBA"]), "6fd7a929": load("cutover_6fd7a929", os.environ["OLD_CUTOVER_6FD"])}
++
++
++def preconditions():
++    pins = json.load(open(os.path.join(RELEASE, "package/PINS.json")))["files"]
++    for p, want in PINS.items():
++        got = sha_file(p)
++        R["inputs"][os.path.relpath(p, WORK)] = got
++        if p == VMSTATE:
++            want = pins["primary.vm-state-v2"]["sha256"]
++        if got != want:
++            raise SystemExit(f"pin mismatch {p}: {got} != {want}")
++    R["inputs"]["db-barrier.sh"] = sha_file(BARRIER)
++    R["inputs"]["cutover.py"] = sha_file(os.path.join(RELEASE, "package/tools/cutover.py"))
++    R["inputs"]["oldCutover"] = {k: sha_file(m.__file__) for k, m in OLD.items()}
++    nets = sorted(l.split(":")[0].strip() for l in open("/proc/net/dev").read().splitlines()[2:])
++    R["isolation"] = {"netInterfaces": nets, "uid": os.getuid(), "pid": os.getpid()}
++    if nets != ["lo"] or os.getuid() == 0 or os.getpid() > 50:
++        raise SystemExit(f"refused: not in the private namespaces (interfaces {nets}, uid {os.getuid()}, pid {os.getpid()})")
++    ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0)   # PR_SET_CHILD_SUBREAPER: the controller's orphaned indexd is ours to reap
++
++
++# ---------------- private PostgreSQL 18 (the container's role: a superuser on a local socket) ----------------
++
++class PG:
++    def __init__(self):
++        self.data = os.path.join(RUN, "pg", "data")
++        os.makedirs(os.path.dirname(self.data))
++        self.sock = tempfile.mkdtemp(prefix=f"dbd-{run_id}-", dir="/tmp")
++        self.env = {"PATH": f"{PGBIN}:/usr/bin:/bin", "LD_LIBRARY_PATH": PGLIB, "LC_ALL": "C", "TZ": "UTC"}
++        self.p = None
++        pw = os.path.join(RUN, "pg", "pw")
++        fd = os.open(pw, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
++        os.write(fd, secrets.token_hex(24).encode()); os.close(fd)
++        subprocess.run([os.path.join(PGBIN, "initdb"), "-D", self.data, "-U", "postgres", f"--pwfile={pw}", "--auth-local=trust",
++                        "--auth-host=scram-sha-256", "-E", "UTF8", "--locale=C"], env=self.env, check=True, capture_output=True)
++        os.unlink(pw)
++        self.log = open(os.path.join(RUN, "postgres.log"), "w")
++        # FIXTURE footprint (one indexd): no I/O workers, no autovacuum. Durability settings stay at their defaults
++        # (fsync, synchronous_commit on), as on the live container (only listen_addresses, shared_buffers, max_connections).
++        self.p = subprocess.Popen([os.path.join(PGBIN, "postgres"), "-D", self.data, "-c", "listen_addresses=127.0.0.1", "-p", "5432",
++                                   "-c", f"unix_socket_directories={self.sock}", "-c", "shared_buffers=16MB", "-c", "max_connections=50",
++                                   "-c", "io_method=sync", "-c", "autovacuum=off", "-c", "max_worker_processes=2",
++                                   "-c", "max_parallel_workers=0", "-c", "max_logical_replication_workers=0"],
++                                  env=self.env, stdout=self.log, stderr=subprocess.STDOUT)
++        for _ in range(60):
++            if subprocess.run([os.path.join(PGBIN, "pg_isready"), "-h", self.sock], env=self.env, capture_output=True).returncode == 0:
++                break
++            time.sleep(0.5)
++        else:
++            raise SystemExit("PostgreSQL not ready")
++        R["postgres"] = self.q("SELECT version()", "postgres")
++        R["postgresSettings"] = self.q("SELECT string_agg(name || '=' || setting, ' ' ORDER BY name) FROM pg_settings WHERE name IN "
++                                       "('client_connection_check_interval','synchronous_commit','fsync','max_prepared_transactions',"
++                                       "'lock_timeout','statement_timeout','transaction_timeout','idle_in_transaction_session_timeout')", "postgres")
++        log("postgres ready", R["postgres"][:40], R["postgresSettings"])
++
++    def q(self, sql, db="indexd", inp=None):
++        """the FIXTURE's own superuser session (application_name dbd-fixture)"""
++        r = subprocess.run([os.path.join(PGBIN, "psql"), "-h", self.sock, "-U", "postgres", "-d", db, "-X", "-A", "-t", "-q",
++                            "-v", "ON_ERROR_STOP=1", *(["-c", sql] if inp is None else ["-f", "-"])],
++                           env={**self.env, "PGAPPNAME": "dbd-fixture"}, input=inp, capture_output=True, text=True, timeout=60)
++        if r.returncode:
++            raise RuntimeError(r.stderr[-500:])
++        return r.stdout.strip()
++
++    def session(self, app, sql):
++        """a long-lived psql session of the fixture (stdin kept open); `sql` is sent at once"""
++        p = subprocess.Popen([os.path.join(PGBIN, "psql"), "-h", self.sock, "-U", "postgres", "-d", "indexd", "-X", "-q", "-v", "ON_ERROR_STOP=1"],
++                             env={**self.env, "PGAPPNAME": app}, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
++        p.stdin.write(sql + "\n"); p.stdin.flush()
++        return p
++
++    def pids(self, where):
++        return [x for x in self.q(f"SELECT pid FROM pg_stat_activity WHERE datname = 'indexd' AND {where} ORDER BY pid", "postgres").split() if x]
++
++    def wait(self, sql, want, secs, db="postgres"):
++        """fixture synchronisation only (never evidence): poll until `sql` returns `want`"""
++        t0 = time.time()
++        while time.time() - t0 < secs:
++            if self.q(sql, db) == want:
++                return round(time.time() - t0, 2)
++            time.sleep(0.05)
++        return None
++
++    def close(self):
++        if self.p is not None:
++            subprocess.run([os.path.join(PGBIN, "pg_ctl"), "-D", self.data, "-m", "fast", "-w", "-t", "60", "stop"], env=self.env, capture_output=True)
++            try:
++                self.p.wait(timeout=60)
++            except subprocess.TimeoutExpired:
++                self.p.kill(); self.p.wait(timeout=30)
++        shutil.rmtree(os.path.join(RUN, "pg"), ignore_errors=True)
++        shutil.rmtree(self.sock, ignore_errors=True)
++
++
++# ---------------- the indexd "unit" (DERIVED from the actual process) and the shims ----------------
++
++UNIT = {"ActiveState": "inactive", "SubState": "dead", "MainPID": "0", "Result": "success", "ExecMainCode": "0", "ExecMainStatus": "0",
++        "InvocationID": "", "NRestarts": "0"}
++UNIT_JSON = os.path.join(RUN, "unit.json")
++TRACK = {"pid": None, "exit": None, "exitAt": None}
++LOCK = threading.Lock()
++
++
++def write_unit():
++    tmp = UNIT_JSON + ".tmp"
++    json.dump(UNIT, open(tmp, "w")); os.replace(tmp, UNIT_JSON)
++
++
++def reaper():
++    """reap ONLY the tracked indexd (an orphan of the controller's start, re-parented to this subreaper) and set the unit's
++    properties as systemd would: exit 0 -> inactive/success; another code -> failed/exit-code; a signal -> failed/signal"""
++    while True:
++        with LOCK:
++            pid = TRACK["pid"]
++            if pid is not None:
++                try:
++                    got, st = os.waitpid(pid, os.WNOHANG)
++                except ChildProcessError:
++                    got, st = 0, 0
++                if got == pid:
++                    TRACK.update(pid=None, exit=st, exitAt=time.time())
++                    if os.WIFEXITED(st):
++                        code = os.WEXITSTATUS(st)
++                        UNIT.update(ExecMainCode="1", ExecMainStatus=str(code), MainPID="0",
++                                    **({"ActiveState": "inactive", "SubState": "dead", "Result": "success"} if code == 0 else
++                                       {"ActiveState": "failed", "SubState": "failed", "Result": "exit-code"}))
++                    else:
++                        UNIT.update(ExecMainCode="2", ExecMainStatus=str(os.WTERMSIG(st)), MainPID="0", ActiveState="failed", SubState="failed",
++                                    Result="signal")
++                    write_unit()
++        time.sleep(0.02)
++
++
++def shims(pg):
++    d = os.path.join(RUN, "shim")
++    os.makedirs(d)
++    py = "#!/usr/bin/python3 -I\nimport json, os, sys\n"
++    files = {
++        "docker": py + f"""a = sys.argv[1:]
++if a[:1] != ["exec"]:
++    sys.exit("fixture docker shim: exec only")
++a, env = a[1:], dict(os.environ)
++while a and a[0].startswith("-"):
++    f = a.pop(0)
++    if f == "-e":
++        k, v = a.pop(0).split("=", 1); env[k] = v
++    elif f != "-i":
++        sys.exit("fixture docker shim: flag " + f)
++if a.pop(0) != "enclave-indexd-postgres":
++    sys.exit("fixture docker shim: unknown container")
++env.update(PATH={PGBIN!r} + ":/usr/bin:/bin", LD_LIBRARY_PATH={PGLIB!r}, PGHOST={pg.sock!r}, POSTGRES_USER="postgres")
++os.execvpe(a[0], a, env)
++""",
++        "systemctl": py + f"""a = sys.argv[1:]
++if a[:1] != ["show"]:
++    sys.exit(1)
++props, value, unit, i = [], False, None, 1
++while i < len(a):
++    if a[i] == "-p":
++        props.append(a[i + 1]); i += 2
++    elif a[i] == "--value":
++        value = True; i += 1
++    elif a[i] == "--no-pager":
++        i += 1
++    else:
++        unit = a[i]; i += 1
++if unit != "enclave-indexd":
++    sys.exit(1)
++st = json.load(open({UNIT_JSON!r}))
++for p in props:
++    print(st.get(p, "") if value else p + "=" + st.get(p, ""))
++""",
++        "pgrep": py + """a = sys.argv[1:]
++while "-u" in a:
++    i = a.index("-u"); del a[i:i + 2]
++os.execv("/usr/bin/pgrep", ["pgrep", *a])
++"""}
++    for n, t in files.items():
++        p = os.path.join(d, n)
++        open(p, "w").write(t); os.chmod(p, 0o755)
++    return d
++
++
++GUARD = os.path.join(RUN, "etc", "ALLOW_LIVE_START")
++
++
++def fixture_copy(src, name):
++    """the actual script with ONLY the start-guard path changed (checked: exactly one occurrence, nothing else differs)"""
++    text = open(src).read()
++    assert text.count(LIVE_GUARD) == 1, (src, text.count(LIVE_GUARD))
++    out = text.replace(LIVE_GUARD, GUARD)
++    p = os.path.join(RUN, name)
++    open(p, "w").write(out)
++    R["inputs"]["fixtureCopy." + name] = {"source": hashlib.sha256(text.encode()).hexdigest(), "copy": hashlib.sha256(out.encode()).hexdigest(),
++                                          "onlyGuardPathChanged": out.replace(GUARD, LIVE_GUARD) == text}
++    return p
++
++
++def run_script(path, env, out_name):
++    r = subprocess.run(["bash", path], env=env, capture_output=True, text=True, timeout=150)
++    text = r.stdout
++    open(os.path.join(RUN, out_name), "w").write(text)
++    if r.stderr.strip():
++        open(os.path.join(RUN, out_name + ".stderr"), "w").write(r.stderr[-4000:])
++    return text
++
++
++# ---------------- one indexd node per scenario (fresh database and state; the controller drives the process) ----------------
++
++class Node:
++    PHRASE = None
++
++    def __init__(self, pg, name, ports):
++        self.pg, self.name = pg, name
++        self.dir = os.path.join(RUN, name)
++        self.state, self.sec, rel = os.path.join(self.dir, "state"), os.path.join(self.dir, "secrets"), os.path.join(self.dir, "releases")
++        for d in (self.state, self.sec, os.path.join(rel, "r2c0e5b06")):
++            os.makedirs(d, mode=0o700)
++        shutil.copyfile(INDEXD, os.path.join(rel, "r2c0e5b06", "indexd")); os.chmod(os.path.join(rel, "r2c0e5b06", "indexd"), 0o755)
++        os.symlink("r2c0e5b06", os.path.join(rel, "current"))
++        shutil.copyfile(GEOIP, os.path.join(self.state, "GeoLite2-City.mmdb"))
++        if Node.PHRASE is None:
++            out = subprocess.run([INDEXD, "seed"], capture_output=True, text=True, check=True).stdout
++            Node.PHRASE = next(l.split(":", 1)[1].strip() for l in out.splitlines() if l.startswith("Recovery Phrase:"))
++        dbpw, self.adminpw = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
++        # a fresh indexd database owned by a NON-superuser role, as on the live VM
++        pg.q("", "postgres", inp=f"DROP DATABASE IF EXISTS indexd;\nDROP ROLE IF EXISTS indexd;\n"
++                                  f"CREATE ROLE indexd LOGIN NOSUPERUSER PASSWORD '{dbpw}';\nCREATE DATABASE indexd OWNER indexd;\n")
++        self.pa, self.pb, self.ps = ports
++        cfg = f"""autoOpenWebUI: false
++directory: {self.state}
++recoveryPhrase: "{Node.PHRASE}"
++adminAPI:
++  address: 127.0.0.1:{self.pa}
++  password: "{self.adminpw}"
++applicationAPI:
++  address: 127.0.0.1:{self.pb}
++  advertiseURL: http://127.0.0.1:{self.pb}
++syncer:
++  address: 127.0.0.1:{self.ps}
++  bootstrap: false
++  enableUPnP: false
++  peers: []
++consensus:
++  network: mainnet
++explorer:
++  enabled: false
++  url: ""
++database:
++  host: 127.0.0.1
++  port: 5432
++  user: indexd
++  password: "{dbpw}"
++  database: indexd
++  sslmode: disable
++log:
++  stdout:
++    enabled: true
++    level: info
++    format: json
++  file:
++    enabled: false
++"""
++        for n, t in (("indexd.yml", cfg), ("admin-password", self.adminpw)):
++            fd = os.open(os.path.join(self.sec, n), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
++            os.write(fd, t.encode()); os.close(fd)
++        self.profile = os.path.join(self.dir, "profile.json")
++        json.dump({"runner": "process", "pg_container": "enclave-indexd-postgres", "database": "indexd", "state_dir": self.state,
++                   "config_file": os.path.join(self.sec, "indexd.yml"), "admin_url": f"http://127.0.0.1:{self.pa}/api",
++                   "admin_password_file": os.path.join(self.sec, "admin-password"), "app_url": f"http://127.0.0.1:{self.pb}",
++                   "release_dir": rel, "gomemlimit": "256MiB"}, open(self.profile, "w"), indent=1)
++        self.client_state = os.path.join(self.sec, "client-state.json")
++
++    def ctl(self, cmd):
++        r = subprocess.run([sys.executable, "-I", CONTROLLER, "--profile", self.profile, cmd], capture_output=True, text=True, timeout=300)
++        try:
++            out = json.loads(r.stdout.strip().splitlines()[-1])
++        except (ValueError, IndexError):
++            out = {"raw": r.stdout[-300:]}
++        out["_rc"] = r.returncode
++        return out
++
++    def client(self, step, background=False):
++        args = [CLIENT, "-app", f"http://127.0.0.1:{self.pb}", "-admin", f"http://127.0.0.1:{self.pa}/api", "-admin-pw",
++                os.path.join(self.sec, "admin-password"), "-state", self.client_state, step]
++        if background:
++            return subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
++        r = subprocess.run(args, capture_output=True, text=True, timeout=180)
++        if r.returncode:
++            raise RuntimeError(f"client {step}: {r.stderr.strip()[-300:]}")
++        return json.loads(r.stdout)
++
++    def start(self):
++        """R2's opposite: guard present; the controller starts indexd; ready = the admin API answers"""
++        os.makedirs(os.path.dirname(GUARD), exist_ok=True)
++        open(GUARD, "w").close()
++        out = self.ctl("start")
++        assert out.get("started"), out
++        pid = int(open(os.path.join(self.state, "indexd.pid")).read())
++        with LOCK:
++            TRACK.update(pid=pid, exit=None, exitAt=None)
++            UNIT.update(ActiveState="active", SubState="running", MainPID=str(pid), Result="success", ExecMainCode="0", ExecMainStatus="0",
++                        InvocationID=secrets.token_hex(16))
++            write_unit()
++        auth = "Basic " + base64.b64encode((":" + self.adminpw).encode()).decode()
++        t0 = time.time()
++        while time.time() - t0 < 180:
++            if TRACK["pid"] is None:
++                raise RuntimeError("indexd exited during start: " + self.tail())
++            try:
++                req = urllib.request.Request(f"http://127.0.0.1:{self.pa}/api/state", headers={"Authorization": auth})
++                with urllib.request.urlopen(req, timeout=5) as r:
++                    if r.status == 200:
++                        log(self.name, "indexd ready after", round(time.time() - t0, 1), "s, pid", pid)
++                        return pid
++            except Exception:
++                pass
++            time.sleep(0.5)
++        raise RuntimeError("indexd not ready: " + self.tail())
++
++    def tail(self):
++        try:
++            return " | ".join(l[:200] for l in open(os.path.join(self.state, "indexd.out")).read().splitlines()[-3:])
++        except OSError:
++            return ""
++
++    def log_has(self, text):
++        try:
++            return text in open(os.path.join(self.state, "indexd.out")).read()
++        except OSError:
++            return False
++
++    def wipe(self):
++        shutil.rmtree(self.sec, ignore_errors=True)
++        shutil.rmtree(self.state, ignore_errors=True)
++        shutil.rmtree(os.path.join(self.dir, "releases"), ignore_errors=True)
++
++
++def settled(secs=15):
++    """wait until the reaper has recorded the tracked indexd's exit (fixture synchronisation only)"""
++    t0 = time.time()
++    while TRACK["pid"] is not None and time.time() - t0 < secs:
++        time.sleep(0.02)
++    return TRACK["pid"] is None
++
++
++def guard_aside():
++    """R2: the unit's start guard moved aside"""
++    os.replace(GUARD, GUARD + ".held-" + run_id)
++
++
++def counts(pg):
++    return pg.q("SELECT count(*) FILTER (WHERE fence IS NOT NULL) || '/' || count(*) FILTER (WHERE cas_mode) || '/' || count(*) FROM accounts")
++
++
++STALL = """CREATE FUNCTION dbd_stall() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep({s}); RETURN NULL; END $$;
++CREATE CONSTRAINT TRIGGER dbd_stall AFTER UPDATE ON accounts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
++  WHEN (NEW.cas_mode AND NOT OLD.cas_mode) EXECUTE FUNCTION dbd_stall();
++"""
++PENDING_COMMIT = "SELECT count(*) FROM pg_stat_activity WHERE datname = 'indexd' AND usename = 'indexd' AND wait_event = 'PgSleep' AND query = 'commit'"
++INDEXD_BACKENDS = "SELECT count(*) FROM pg_stat_activity WHERE datname = 'indexd' AND usename = 'indexd'"
++
++
++def decide(text, attest=True):
++    return cutover.rollback_decision(text, attest)
++
++
++def main():
++    preconditions()
++    pg = PG()
++    clients, sessions, nodes = [], [], []
++    threading.Thread(target=reaper, daemon=True).start()
++    write_unit()
++    try:
++        env = {"PATH": shims(pg) + ":/usr/bin:/bin", "LC_ALL": "C", "TZ": "UTC"}
++        barrier = fixture_copy(BARRIER, "db-barrier.fixture.sh")
++        vmstate = fixture_copy(VMSTATE, "vm-state.v2.fixture.sh")
++        check("setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path",
++              all(R["inputs"][k]["onlyGuardPathChanged"] for k in ("fixtureCopy.db-barrier.fixture.sh", "fixtureCopy.vm-state.v2.fixture.sh")))
++        check("setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session",
++              "PostgreSQL 18.6" in R["postgres"] and "client_connection_check_interval=0" in R["postgresSettings"] and "lock_timeout=0" in R["postgresSettings"]
++              and "max_prepared_transactions=0" in R["postgresSettings"], R["postgresSettings"])
++        ports = iter(range(19980, 20100))
++        port3 = lambda: (next(ports), next(ports), next(ports))
++
++        # ================= N + F: never enrolled, then the failed and interrupted barriers =================
++        S = R["scenarios"]["N"] = {}
++        n = Node(pg, "N", port3()); nodes.append(n)
++        n.start()
++        n.client("register")
++        S["countsRunning"] = counts(pg)
++        check("N: an account registered on the actual indexd; nothing fenced or enrolled", S["countsRunning"] == "0/0/1", S["countsRunning"])
++        guard_aside()
++        st = n.ctl("stop"); settled()
++        S["stop"] = {"controller": st, "exit": TRACK["exit"], "unit": dict(UNIT), "indexdBackendsGoneAfter": pg.wait(INDEXD_BACKENDS, "0", 5)}
++        check("N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed",
++              st.get("stopped") and UNIT["ActiveState"] == "inactive" and UNIT["ExecMainStatus"] == "0" and S["stop"]["indexdBackendsGoneAfter"] is not None, S["stop"])
++
++        idle = pg.session("dbd-idle", "SELECT 1;"); sessions.append(idle)
++        pg.wait("SELECT count(*) FROM pg_stat_activity WHERE application_name = 'dbd-idle' AND state = 'idle'", "1", 10)
++        idle_pid = pg.pids("application_name = 'dbd-idle'")
++        out = run_script(barrier, env, "F1-barrier.txt"); d = decide(out)
++        S["F1"] = {"decision": d["decision"], "missing": d.get("missing")}
++        check("F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only)",
++              "db.barrier=complete" in out and d["decision"] == "UNKNOWN" and d.get("missing") == ["db.noOtherSession"], d.get("missing"))
++        check("F1: that session was NOT ended by the barrier", pg.pids("application_name = 'dbd-idle'") == idle_pid and idle.poll() is None, idle_pid)
++        idle.stdin.write("\\q\n"); idle.stdin.flush(); idle.wait(timeout=10)
++
++        holder = pg.session("dbd-holder", "BEGIN; SELECT id FROM accounts FOR UPDATE;"); sessions.append(holder)
++        pg.wait("SELECT count(*) FROM pg_stat_activity WHERE application_name = 'dbd-holder' AND state = 'idle in transaction'", "1", 10)
++        holder_pid = pg.pids("application_name = 'dbd-holder'")
++        t0 = time.time()
++        out = run_script(barrier, env, "F2-barrier.txt"); d = decide(out)
++        S["F2"] = {"seconds": round(time.time() - t0, 1), "decision": d["decision"], "missing": d.get("missing"), "dbMessage": d.get("seen", {}).get("dbMessage")}
++        check("F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read",
++              "db.lock=granted" not in out and "db.exit=0" not in out and "lock timeout" in out and d["decision"] == "UNKNOWN"
++              and "db.lockGranted" in d["missing"] and 25 <= S["F2"]["seconds"] <= 60, S["F2"])
++        holder_lock = "SELECT count(*) FROM pg_locks l JOIN pg_class c ON c.oid = l.relation WHERE c.relname = 'accounts' AND l.granted AND l.pid = %s"
++        check("F2: the holding session is left alone (alive, still holding its lock); no barrier session or lock remains",
++              pg.pids("application_name = 'dbd-holder'") == holder_pid and pg.q(holder_lock % holder_pid[0]) != "0"
++              and pg.pids("application_name = 'root-barrier'") == [], holder_pid)
++
++        p = subprocess.Popen(["bash", barrier], env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, start_new_session=True)
++        waited = pg.wait("SELECT count(*) FROM pg_stat_activity WHERE application_name = 'root-barrier' AND wait_event_type = 'Lock'", "1", 20)
++        os.killpg(p.pid, signal.SIGKILL)
++        partial = p.communicate(timeout=10)[0]
++        open(os.path.join(RUN, "F3-barrier-interrupted.txt"), "w").write(partial)
++        d = decide(partial)
++        gone = pg.wait("SELECT count(*) FROM pg_stat_activity WHERE application_name = 'root-barrier'", "0", 40)
++        S["F3"] = {"lockWaitSeenAfter": waited, "decision": d["decision"], "missing": d.get("missing"), "barrierBackendGoneAfterSeconds": gone}
++        check("F3: the barrier KILLed while it waits for the lock: its partial output -> UNKNOWN", waited is not None and d["decision"] == "UNKNOWN"
++              and "db.barrier=complete" not in partial, S["F3"])
++        check("F3: its backend ends by itself, at the latest at its own lock_timeout (30 s); the holder is untouched",
++              gone is not None and pg.pids("application_name = 'dbd-holder'") == holder_pid and pg.q(holder_lock % holder_pid[0]) != "0", S["F3"])
++        holder.stdin.write("ROLLBACK;\n\\q\n"); holder.stdin.flush(); holder.wait(timeout=10)
++        check("F: cleanup - the fixture's own sessions closed by their owner; no lock on accounts remains",
++              pg.pids("application_name LIKE 'dbd-%' AND application_name <> 'dbd-fixture'") == []
++              and pg.q("SELECT count(*) FROM pg_locks l JOIN pg_class c ON c.oid = l.relation WHERE c.relname = 'accounts'") == "0")
++
++        out = run_script(vmstate, env, "N-vmstate.txt")
++        dn, dold = decide(out), OLD["fbaecfce"].rollback_decision(out, True)
++        S["vmstate"] = {"new": dn["decision"], "newMissing": dn.get("missing"), "fbaecfce": dold["decision"]}
++        check("N: the read-only vm-state.v2.sh alone (process barrier + zero counts): fbaecfce says SAFE, the new decision UNKNOWN (databaseBarrier)",
++              dold["decision"] == "LEGACY_REDEPLOY_SAFE" and dn["decision"] == "UNKNOWN" and dn.get("missing") == ["databaseBarrier"], S["vmstate"])
++        out = run_script(barrier, env, "N-barrier.txt")
++        d0, d1 = decide(out, False), decide(out, True)
++        S["barrier"] = {"withoutAttestation": [d0["decision"], d0.get("missing")], "withAttestation": d1["decision"], "seen": d1.get("seen")}
++        check("N: db-barrier.sh: lock granted, no other session, no prepared transaction, 0 fenced / 0 CAS; pre/post unchanged",
++              all(x in out for x in ("db.lock=granted", "db.otherBackends=0", "db.preparedXacts=0", "db.fencedAccounts=0", "db.casEnrolledAccounts=0",
++                                     "db.barrier=complete", "db.exit=0", "pre.allowLiveStart=absent", "post.allowLiveStart=absent")), out[-600:])
++        check("N: the legitimate never-enrolled rollback: UNKNOWN without the owner's attestation, LEGACY_REDEPLOY_SAFE with it",
++              d0["decision"] == "UNKNOWN" and d0.get("missing") == ["c2ActivationDisabledAttested"] and d1["decision"] == "LEGACY_REDEPLOY_SAFE", S["barrier"])
++        n.wipe()
++
++        # ================= B: enrolled BEFORE the stop =================
++        S = R["scenarios"]["B"] = {}
++        n = Node(pg, "B", port3()); nodes.append(n)
++        n.start()
++        n.client("register")
++        S["raise"] = n.client("raise-cas")
++        S["countsRunning"] = counts(pg)
++        guard_aside()
++        S["stop"] = n.ctl("stop"); settled()
++        out_v = run_script(vmstate, env, "B-vmstate.txt")
++        out = run_script(barrier, env, "B-barrier.txt")
++        d = decide(out)
++        S.update(decision=d["decision"], exit=TRACK["exit"], vmstate=[decide(out_v)["decision"], OLD["fbaecfce"].rollback_decision(out_v, True)["decision"]])
++        check("B: enrolled while running (raise-cas), then the controller's stop: the barrier -> FORWARD_ONLY (and vm-state alone too)",
++              S["countsRunning"] == "1/1/1" and d["decision"] == "FORWARD_ONLY" and S["vmstate"] == ["FORWARD_ONLY", "FORWARD_ONLY"], S)
++        n.wipe()
++
++        # ================= D1: the COMMIT completes AFTER an abnormal stop =================
++        S = R["scenarios"]["D1"] = {}
++        n = Node(pg, "D1", port3()); nodes.append(n)
++        n.start()
++        n.client("register")
++        pg.q("", inp=STALL.format(s=15))
++        c = n.client("raise-cas", background=True); clients.append(c)
++        S["pendingCommitSeenAfter"] = pg.wait(PENDING_COMMIT, "1", 60)
++        check("D1: the actual indexd sent the enrolment's COMMIT (its backend runs the commit: query 'commit', PgSleep in the deferred check)",
++              S["pendingCommitSeenAfter"] is not None, S)
++        guard_aside()
++        st = n.ctl("crash-indexd"); settled()
++        killed_at = time.time()
++        S["crash"] = {"controller": st, "exit": TRACK["exit"], "unit": dict(UNIT)}
++        S["afterKill"] = {"counts": counts(pg), "indexdBackends": pg.q(INDEXD_BACKENDS, "postgres"), "pendingCommit": pg.q(PENDING_COMMIT, "postgres")}
++        check("D1: the controller's crash-indexd KILLed it: reaped by SIGKILL, unit failed with no main PID, no indexd process",
++              st.get("killed") and UNIT["ActiveState"] == "failed" and UNIT["MainPID"] == "0" and UNIT["ExecMainStatus"] == "9"
++              and subprocess.run(["pgrep", "-x", "indexd"], capture_output=True).returncode == 1, S["crash"])
++        check("D1: process gone, yet its backend still runs the COMMIT; the account still reads neither fenced nor enrolled (both are "
++              "written in that one transaction)", S["afterKill"] == {"counts": "0/0/1", "indexdBackends": "1", "pendingCommit": "1"}, S["afterKill"])
++        out_v = run_script(vmstate, env, "D1-vmstate.txt")
++        S["vmstateRead"] = {"pendingCommitAfter": pg.q(PENDING_COMMIT, "postgres"), "casEnrolledLine": [l for l in out_v.splitlines() if l.startswith("casEnrolledAccounts=")]}
++        d_fba, d_6fd, d_new = OLD["fbaecfce"].rollback_decision(out_v, True), OLD["6fd7a929"].rollback_decision(out_v), decide(out_v)
++        S["vmstateDecisions"] = {"fbaecfce": d_fba["decision"], "6fd7a929": d_6fd["decision"], "new": [d_new["decision"], d_new.get("missing")]}
++        check("D1 NEGATIVE CONTROL: on the actual vm-state.v2.sh output (unit failed, MainPID 0, guard absent, 0 CAS) the fbaecfce decision "
++              "says LEGACY_REDEPLOY_SAFE while the COMMIT is still pending",
++              "casEnrolledAccounts=0" in out_v and "unit.ActiveState=failed" in out_v and d_fba["decision"] == "LEGACY_REDEPLOY_SAFE"
++              and S["vmstateRead"]["pendingCommitAfter"] == "1", S["vmstateDecisions"])
++        check("D1: the new decision on that vm-state output is UNKNOWN (databaseBarrier)", d_new["decision"] == "UNKNOWN" and d_new.get("missing") == ["databaseBarrier"])
++        t0 = time.time()
++        out = run_script(barrier, env, "D1-barrier.txt")
++        d = decide(out)
++        kv = cutover.parse_kv(out)
++        S["barrier"] = {"seconds": round(time.time() - t0, 1), "lockWaitMs": kv.get("db.lockWaitMs"), "decision": d["decision"],
++                        "otherBackends": kv.get("db.otherBackendsDetail"), "stopKind": cutover.stop_kind(kv), "secondsAfterKill": round(t0 - killed_at, 1)}
++        check("D1: db-barrier.sh started while the COMMIT was pending, WAITED for it (lock), and read CAS=1 -> FORWARD_ONLY",
++              d["decision"] == "FORWARD_ONLY" and kv.get("db.casEnrolledAccounts") == "1" and int(kv.get("db.lockWaitMs", "0")) >= 1000
++              and kv.get("db.lock") == "granted", S["barrier"])
++        S["final"] = {"counts": counts(pg), "indexdBackendsGoneAfter": pg.wait(INDEXD_BACKENDS, "0", 30)}
++        S["client"] = {"rc": c.wait(timeout=60)}
++        check("D1: the enrolment committed after the process was gone (1/1/1); the dead client's backend then ended by itself",
++              S["final"]["counts"] == "1/1/1" and S["final"]["indexdBackendsGoneAfter"] is not None, S["final"])
++        n.wipe()
++
++        # ================= D2: the graceful stop during the same pending COMMIT =================
++        S = R["scenarios"]["D2"] = {}
++        n = Node(pg, "D2", port3()); nodes.append(n)
++        n.start()
++        n.client("register")
++        pg.q("", inp=STALL.format(s=8))
++        c = n.client("raise-cas", background=True); clients.append(c)
++        S["pendingCommitSeenAfter"] = pg.wait(PENDING_COMMIT, "1", 60)
++        guard_aside()
++        t0 = time.time()
++        st = n.ctl("stop"); settled()
++        S["stop"] = {"controller": st, "seconds": round(time.time() - t0, 1), "exit": TRACK["exit"], "unit": dict(UNIT),
++                     "countsAtExit": counts(pg), "pendingCommitAtExit": pg.q(PENDING_COMMIT, "postgres"),
++                     "indexdBackendsGoneAfter": pg.wait(INDEXD_BACKENDS, "0", 5)}
++        S["client"] = {"rc": c.wait(timeout=60), "out": c.stdout.read()[-300:]}
++        check("D2: the controller's stop (one SIGTERM) waited for the in-flight enrolment: exit 0 only AFTER its COMMIT; no backend left",
++              S["pendingCommitSeenAfter"] is not None and st.get("stopped") and UNIT["ExecMainStatus"] == "0" and UNIT["ActiveState"] == "inactive"
++              and S["stop"]["countsAtExit"] == "1/1/1" and S["stop"]["pendingCommitAtExit"] == "0" and S["stop"]["indexdBackendsGoneAfter"] is not None,
++              S["stop"])
++        check("D2: the client got its answer (the handler completed during Shutdown)", S["client"]["rc"] == 0, S["client"])
++        out = run_script(barrier, env, "D2-barrier.txt"); d = decide(out); kv = cutover.parse_kv(out)
++        S["barrier"] = {"decision": d["decision"], "lockWaitMs": kv.get("db.lockWaitMs"), "stopKind": cutover.stop_kind(kv)}
++        check("D2: the barrier -> FORWARD_ONLY without waiting (the graceful path had already drained); stopKind exited-0 is reported, not used",
++              d["decision"] == "FORWARD_ONLY" and S["barrier"]["stopKind"] == "exited-0" and int(kv.get("db.lockWaitMs", "99999")) < 1000, S["barrier"])
++        n.wipe()
++
++        # ================= D3: two SIGTERMs during the pending COMMIT =================
++        S = R["scenarios"]["D3"] = {}
++        n = Node(pg, "D3", port3()); nodes.append(n)
++        pid = n.start()
++        n.client("register")
++        pg.q("", inp=STALL.format(s=8))
++        c = n.client("raise-cas", background=True); clients.append(c)
++        S["pendingCommitSeenAfter"] = pg.wait(PENDING_COMMIT, "1", 60)
++        guard_aside()
++        t0 = time.time()
++        os.kill(pid, signal.SIGTERM)
++        time.sleep(0.5)   # FIXTURE pacing between the operator's two signals (not evidence)
++        if TRACK["pid"] is not None:
++            os.kill(pid, signal.SIGTERM)
++        while TRACK["pid"] is not None and time.time() - t0 < 120:
++            time.sleep(0.02)
++        S["exit"] = {"seconds": round(time.time() - t0, 1), "exit": TRACK["exit"], "unit": dict(UNIT), "countsAtExit": counts(pg),
++                     "pendingCommitAtExit": pg.q(PENDING_COMMIT, "postgres"), "interruptedLogged": n.log_has("graceful shutdown was interrupted")}
++        S["exitedBeforeCommit"] = S["exit"]["countsAtExit"] != "1/1/1"
++        S["client"] = {"rc": c.wait(timeout=60)}
++        log("D3 observed:", S["exit"])
++        check("D3: two SIGTERMs: indexd logged the interrupted graceful shutdown and exited (observation recorded: exitedBeforeCommit = "
++              f"{S['exitedBeforeCommit']})", S["exit"]["interruptedLogged"] and TRACK["pid"] is None, S["exit"])
++        out = run_script(barrier, env, "D3-barrier.txt"); d = decide(out); kv = cutover.parse_kv(out)
++        S["barrier"] = {"decision": d["decision"], "lockWaitMs": kv.get("db.lockWaitMs"), "stopKind": cutover.stop_kind(kv)}
++        check("D3: the barrier -> FORWARD_ONLY whatever the process did", d["decision"] == "FORWARD_ONLY" and kv.get("db.casEnrolledAccounts") == "1", S["barrier"])
++        n.wipe()
++    finally:
++        for c in clients:
++            if c.poll() is None:
++                c.kill(); c.wait(timeout=10)
++        for s in sessions:
++            if s.poll() is None:
++                s.kill(); s.wait(timeout=10)
++        pid = TRACK["pid"]
++        if pid is not None:
++            try:
++                os.kill(pid, signal.SIGKILL)
++            except ProcessLookupError:
++                pass
++            t0 = time.time()
++            while TRACK["pid"] is not None and time.time() - t0 < 10:
++                time.sleep(0.05)
++        for n in nodes:
++            n.wipe()
++        pg.close()
++        R["cleanup"] = {"postgresExited": pg.p is None or pg.p.poll() is not None,
++                        "noIndexd": subprocess.run(["pgrep", "-x", "indexd"], capture_output=True).returncode == 1,
++                        "pgDataRemoved": not os.path.exists(os.path.join(RUN, "pg")), "socketDirRemoved": not os.path.exists(pg.sock),
++                        "secretsRemoved": all(not os.path.exists(n.sec) for n in nodes)}
++        R["finished"] = time.time()
++        failed = [c["name"] for c in R["checks"] if not c["ok"]]
++        R["summary"] = {"checks": len(R["checks"]), "failed": failed, "cleanupOk": all(R["cleanup"].values())}
++        save()
++        log("SUMMARY", json.dumps(R["summary"]))
++    sys.exit(0 if not R["summary"]["failed"] and R["summary"]["cleanupOk"] else 1)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/rehearsal/dbdrain.sh b/rehearsal/dbdrain.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..d54b6e6195b76b0c41a03e6bb010d854786e77d0
+--- /dev/null
++++ b/rehearsal/dbdrain.sh
+@@ -0,0 +1,16 @@
++#!/bin/bash
++# dbdrain.sh <run-id>: extract the cutover.py of fbaecfce and 6fd7a929 (the negative controls) and run dbdrain.py in PRIVATE
++# network + PID namespaces as uid 1000 (PostgreSQL refuses root). Run it inside ONE claude-test-queue allocation (768: one
++# indexd at GOMEMLIMIT 256MiB, one small PostgreSQL, the client and the scripts; no hosts, no wasm).
++set -euo pipefail
++here=$(cd "$(dirname "$0")" && pwd)
++id=${1:?run-id}
++[[ "$id" =~ ^[a-z0-9]{1,12}$ ]] || { echo "run-id: [a-z0-9]{1,12}"; exit 2; }
++mkdir -p "$here/tmp" "$here/runs"
++git -C "$here/.." show fbaecfced41da552a9e138082ecd0bd821c9e0f8:package/tools/cutover.py > "$here/tmp/cutover-fbaecfce.py"
++git -C "$here/.." show 6fd7a9299c53121142ab59d8ff9a7406c1f2b845:package/tools/cutover.py > "$here/tmp/cutover-6fd7a929.py"
++sha256sum "$here/dbdrain.py" "$here/tmp/cutover-fbaecfce.py" "$here/tmp/cutover-6fd7a929.py" "$here/../package/tools/cutover.py" \
++  "$here/../package/primary/db-barrier.sh" "$here/../package/primary/vm-state.v2.sh"
++export OLD_CUTOVER_FBA="$here/tmp/cutover-fbaecfce.py" OLD_CUTOVER_6FD="$here/tmp/cutover-6fd7a929.py"
++exec unshare -rn --pid --fork --kill-child --mount-proc sh -c \
++  'ip link set lo up && exec unshare -U --map-user=1000 --map-group=1000 python3 -u -B "$0" "$1"' "$here/dbdrain.py" "$id"
+diff --git a/rehearsal/runs/d1-failed/RETIRED.txt b/rehearsal/runs/d1-failed/RETIRED.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..ebc6499c638fdbf78995be9778b8801bada981ea
+--- /dev/null
++++ b/rehearsal/runs/d1-failed/RETIRED.txt
+@@ -0,0 +1 @@
++Run d1: RETIRED (NOT counted). F2 failed because the fixture holder session never started: PostgreSQL rejects FOR UPDATE with count(*). Fixed in d2.
+diff --git a/rehearsal/runs/d1-failed/results.json b/rehearsal/runs/d1-failed/results.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec1dc0395074e94e4c464a6404ce3d4a370fe1da
+--- /dev/null
++++ b/rehearsal/runs/d1-failed/results.json
+@@ -0,0 +1,135 @@
++{
++ "run": "d1",
++ "started": 1792745217.215257,
++ "inputs": {
++  "claude-resumed-20261022/storage-enclave-build/out/c2-enclave-a/indexd": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
++  "resume-after-checkpoint-20261022/controller-bounds-validation/frozen/replicactl.r5-production.restorefix.bounds.py": "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83",
++  "indexd-c2-production-rehearsal/bin/c2rclient": "e76693f68b70caa2b7309c1f29ace904e975f2dda7503e344eaa15d6e8f53458",
++  "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
++  "resume-after-checkpoint-20261022/storage-write-release/package/primary/vm-state.v2.sh": "adacd37fc82e05a272db6a7732999a296ac954b132d521406efdcaee078b9a64",
++  "db-barrier.sh": "b143cedeb6ed22e3238dc861f6194359ad83e0b222bec503d47034c9e3f79b45",
++  "cutover.py": "fb4fcbb2c01fbf7b023ffa48eae92e563a65f6b03abc8b229c2ccb044b7f8e6f",
++  "oldCutover": {
++   "fbaecfce": "fa4eca762aafa8a4fa8d4f529f7581155a20a5ec1b5bf47dd22c7736ecc60dfe",
++   "6fd7a929": "1b05047cce27a9a56fde7e4d20c690d202f4114abe59a98c75b187c3eec56f80"
++  },
++  "fixtureCopy.db-barrier.fixture.sh": {
++   "source": "b143cedeb6ed22e3238dc861f6194359ad83e0b222bec503d47034c9e3f79b45",
++   "copy": "f10b781f5051725237714f534cb19b38595b80f80082174d8a18a219bc7f98db",
++   "onlyGuardPathChanged": true
++  },
++  "fixtureCopy.vm-state.v2.fixture.sh": {
++   "source": "adacd37fc82e05a272db6a7732999a296ac954b132d521406efdcaee078b9a64",
++   "copy": "f70ba6d5cec7d5b4f13dc54cc358bff42a13f84680cd08ad6401f1505b962d2e",
++   "onlyGuardPathChanged": true
++  }
++ },
++ "checks": [
++  {
++   "name": "setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path",
++   "ok": true,
++   "detail": ""
++  },
++  {
++   "name": "setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session",
++   "ok": true,
++   "detail": "client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0"
++  },
++  {
++   "name": "N: an account registered on the actual indexd; nothing fenced or enrolled",
++   "ok": true,
++   "detail": "0/0/1"
++  },
++  {
++   "name": "N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed",
++   "ok": true,
++   "detail": "{'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': '4a843a4283cdfbf680d1f2f3b2edeb8d', 'NRestarts': '0'}, 'indexdBackendsGoneAfter': 0.01}"
++  },
++  {
++   "name": "F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only)",
++   "ok": true,
++   "detail": "['db.noOtherSession']"
++  },
++  {
++   "name": "F1: that session was NOT ended by the barrier",
++   "ok": true,
++   "detail": "['92']"
++  },
++  {
++   "name": "F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read",
++   "ok": false,
++   "detail": "{'seconds': 0.1, 'decision': 'LEGACY_REDEPLOY_SAFE', 'missing': None, 'dbMessage': None}"
++  }
++ ],
++ "events": [
++  "01:46:58 postgres ready PostgreSQL 18.6 on x86_64-pc-linux-gnu,  client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
++  "01:46:58 CHECK PASS setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path ",
++  "01:46:58 CHECK PASS setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
++  "01:46:59 N indexd ready after 0.5 s, pid 44",
++  "01:46:59 CHECK PASS N: an account registered on the actual indexd; nothing fenced or enrolled 0/0/1",
++  "01:46:59 CHECK PASS N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': '4a843a4283cdfbf680d1f2f3b2edeb8d', 'NRestarts': '0'}, 'indexdBackendsGoneAfter'",
++  "01:46:59 CHECK PASS F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only) ['db.noOtherSession']",
++  "01:46:59 CHECK PASS F1: that session was NOT ended by the barrier ['92']",
++  "01:47:09 CHECK FAIL F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read {'seconds': 0.1, 'decision': 'LEGACY_REDEPLOY_SAFE', 'missing': None, 'dbMessage': None}"
++ ],
++ "scenarios": {
++  "N": {
++   "countsRunning": "0/0/1",
++   "stop": {
++    "controller": {
++     "ok": true,
++     "stopped": true,
++     "_rc": 0
++    },
++    "exit": 0,
++    "unit": {
++     "ActiveState": "inactive",
++     "SubState": "dead",
++     "MainPID": "0",
++     "Result": "success",
++     "ExecMainCode": "1",
++     "ExecMainStatus": "0",
++     "InvocationID": "4a843a4283cdfbf680d1f2f3b2edeb8d",
++     "NRestarts": "0"
++    },
++    "indexdBackendsGoneAfter": 0.01
++   },
++   "F1": {
++    "decision": "UNKNOWN",
++    "missing": [
++     "db.noOtherSession"
++    ]
++   },
++   "F2": {
++    "seconds": 0.1,
++    "decision": "LEGACY_REDEPLOY_SAFE",
++    "missing": null,
++    "dbMessage": null
++   }
++  }
++ },
++ "isolation": {
++  "netInterfaces": [
++   "lo"
++  ],
++  "uid": 1000,
++  "pid": 1
++ },
++ "postgres": "PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 16.2.1 20260810, 64-bit",
++ "postgresSettings": "client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
++ "cleanup": {
++  "postgresExited": true,
++  "noIndexd": true,
++  "pgDataRemoved": true,
++  "socketDirRemoved": true,
++  "secretsRemoved": true
++ },
++ "finished": 1792745229.905085,
++ "summary": {
++  "checks": 7,
++  "failed": [
++   "F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read"
++  ],
++  "cleanupOk": true
++ }
++}
+\ No newline at end of file
+diff --git a/rehearsal/runs/d2-failed/B-barrier.txt b/rehearsal/runs/d2-failed/B-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..9f93ee157ed16d3e608d38adcbc4c09c1bbc3b59
+--- /dev/null
++++ b/rehearsal/runs/d2-failed/B-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=35bf4758f199f438dcc703267f7b8a71
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=1
++db.casEnrolledAccounts=1
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=35bf4758f199f438dcc703267f7b8a71
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d2-failed/B-vmstate.txt b/rehearsal/runs/d2-failed/B-vmstate.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..df3cbfbbee1bc9518a129872b62945c1e04784ca
+--- /dev/null
++++ b/rehearsal/runs/d2-failed/B-vmstate.txt
+@@ -0,0 +1,19 @@
++current=NONE
++currentSha=
++unit.ActiveState=inactive
++unit.SubState=dead
++unit.MainPID=0
++unit.NRestarts=0
++unit.NeedDaemonReload=
++unit.ExecStart=
++writerPids=
++allowLiveStart=absent
++containerTimeout=timeout (GNU coreutils) 9.12
++dbVersion=28
++fsync=on synchronous_commit=on
++fencedAccounts=1
++casEnrolledAccounts=1
++scratchDatabases=
++controllerSessions=
++toolSessions=
++lockHeld=no (absent)
+diff --git a/rehearsal/runs/d2-failed/D1-barrier.txt b/rehearsal/runs/d2-failed/D1-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..1c70ac6ec315fd8e4b614180d2dade7f43512f16
+--- /dev/null
++++ b/rehearsal/runs/d2-failed/D1-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=failed
++pre.unit.SubState=failed
++pre.unit.MainPID=0
++pre.unit.Result=signal
++pre.unit.ExecMainCode=2
++pre.unit.ExecMainStatus=9
++pre.unit.InvocationID=04d1055b5741332aceace9259045120d
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=14425
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=1
++db.casEnrolledAccounts=1
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=failed
++post.unit.SubState=failed
++post.unit.MainPID=0
++post.unit.Result=signal
++post.unit.ExecMainCode=2
++post.unit.ExecMainStatus=9
++post.unit.InvocationID=04d1055b5741332aceace9259045120d
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d2-failed/D1-vmstate.txt b/rehearsal/runs/d2-failed/D1-vmstate.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..d6e70a5fa8303572f638fc8f010f9eea65faa870
+--- /dev/null
++++ b/rehearsal/runs/d2-failed/D1-vmstate.txt
+@@ -0,0 +1,19 @@
++current=NONE
++currentSha=
++unit.ActiveState=failed
++unit.SubState=failed
++unit.MainPID=0
++unit.NRestarts=0
++unit.NeedDaemonReload=
++unit.ExecStart=
++writerPids=
++allowLiveStart=absent
++containerTimeout=timeout (GNU coreutils) 9.12
++dbVersion=28
++fsync=on synchronous_commit=on
++fencedAccounts=0
++casEnrolledAccounts=0
++scratchDatabases=
++controllerSessions=
++toolSessions=
++lockHeld=no (absent)
+diff --git a/rehearsal/runs/d2-failed/D2-barrier.txt b/rehearsal/runs/d2-failed/D2-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..c93b0feb0f5de56e3257cbc52af57ea6d4912495
+--- /dev/null
++++ b/rehearsal/runs/d2-failed/D2-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=28e9813b620a440ab636c79cc38877d2
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=1
++db.casEnrolledAccounts=1
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=28e9813b620a440ab636c79cc38877d2
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d2-failed/D3-barrier.txt b/rehearsal/runs/d2-failed/D3-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..60e16cd90cfc59dbc298168cfc3b5b508c90ef5a
+--- /dev/null
++++ b/rehearsal/runs/d2-failed/D3-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=9e46a99c4111fadfa0d5d7bd8319841e
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=1
++db.casEnrolledAccounts=1
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=9e46a99c4111fadfa0d5d7bd8319841e
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d2-failed/F1-barrier.txt b/rehearsal/runs/d2-failed/F1-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..f54f4eb45dbaeb9350e9a9b79024bbf0d86e8c32
+--- /dev/null
++++ b/rehearsal/runs/d2-failed/F1-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=d2c7932b9007052b1428b57dd3017f10
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=1
++db.otherBackendsDetail=90:dbd-idle:postgres:idle:ClientRead
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=0
++db.casEnrolledAccounts=0
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=d2c7932b9007052b1428b57dd3017f10
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d2-failed/F2-barrier.txt b/rehearsal/runs/d2-failed/F2-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..45e4605b87ac8a64b7c50441526fbdd47514d361
+--- /dev/null
++++ b/rehearsal/runs/d2-failed/F2-barrier.txt
+@@ -0,0 +1,23 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=d2c7932b9007052b1428b57dd3017f10
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.message=psql:<stdin>:3: ERROR:  canceling statement due to lock timeout
++db.exit=3
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=d2c7932b9007052b1428b57dd3017f10
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d2-failed/F3-barrier-interrupted.txt b/rehearsal/runs/d2-failed/F3-barrier-interrupted.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..36775616ecd4c6811b1e5a75e4e9cad0c5b9596c
+--- /dev/null
++++ b/rehearsal/runs/d2-failed/F3-barrier-interrupted.txt
+@@ -0,0 +1,11 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=d2c7932b9007052b1428b57dd3017f10
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
+diff --git a/rehearsal/runs/d2-failed/N-barrier.txt b/rehearsal/runs/d2-failed/N-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..b22de4e49b7aea49182fc3575c57b0be7965d4f1
+--- /dev/null
++++ b/rehearsal/runs/d2-failed/N-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=d2c7932b9007052b1428b57dd3017f10
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=1
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=0
++db.casEnrolledAccounts=0
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=d2c7932b9007052b1428b57dd3017f10
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d2-failed/N-vmstate.txt b/rehearsal/runs/d2-failed/N-vmstate.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ed6397e6f61615c5beb955881a5c326520335a7
+--- /dev/null
++++ b/rehearsal/runs/d2-failed/N-vmstate.txt
+@@ -0,0 +1,19 @@
++current=NONE
++currentSha=
++unit.ActiveState=inactive
++unit.SubState=dead
++unit.MainPID=0
++unit.NRestarts=0
++unit.NeedDaemonReload=
++unit.ExecStart=
++writerPids=
++allowLiveStart=absent
++containerTimeout=timeout (GNU coreutils) 9.12
++dbVersion=28
++fsync=on synchronous_commit=on
++fencedAccounts=0
++casEnrolledAccounts=0
++scratchDatabases=
++controllerSessions=
++toolSessions=
++lockHeld=no (absent)
+diff --git a/rehearsal/runs/d2-failed/RETIRED.txt b/rehearsal/runs/d2-failed/RETIRED.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..819b369b4cda40fd9d78e7a9d70087e1810c1640
+--- /dev/null
++++ b/rehearsal/runs/d2-failed/RETIRED.txt
+@@ -0,0 +1,6 @@
++Run d2: 26/27 checks passed, then RETIRED (NOT counted).
++The one failure was a DRIVER expectation, not product behaviour. With the enrolment's COMMIT pending after the KILL, the
++driver expected counts "1/0/1" (fenced/CAS/accounts). indexd's RaiseFence writes the fence and cas_mode in ONE UPDATE of ONE
++transaction (persist/postgres/fence.go), so a pending enrolment shows neither: "0/0/1" was observed, which is correct.
++The expectation was fixed and the full run repeated as d3. d1-failed: the fixture's holder used FOR UPDATE with count(*),
++which PostgreSQL rejects (the holder never started); fixed to SELECT id ... FOR UPDATE.
+diff --git a/rehearsal/runs/d2-failed/results.json b/rehearsal/runs/d2-failed/results.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..6f82c6a7fd5b11f5bb163bd0f4d3a33b8acd3c0c
+--- /dev/null
++++ b/rehearsal/runs/d2-failed/results.json
+@@ -0,0 +1,443 @@
++{
++ "run": "d2",
++ "started": 1792746103.2294743,
++ "inputs": {
++  "claude-resumed-20261022/storage-enclave-build/out/c2-enclave-a/indexd": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
++  "resume-after-checkpoint-20261022/controller-bounds-validation/frozen/replicactl.r5-production.restorefix.bounds.py": "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83",
++  "indexd-c2-production-rehearsal/bin/c2rclient": "e76693f68b70caa2b7309c1f29ace904e975f2dda7503e344eaa15d6e8f53458",
++  "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
++  "resume-after-checkpoint-20261022/storage-write-release/package/primary/vm-state.v2.sh": "adacd37fc82e05a272db6a7732999a296ac954b132d521406efdcaee078b9a64",
++  "db-barrier.sh": "b143cedeb6ed22e3238dc861f6194359ad83e0b222bec503d47034c9e3f79b45",
++  "cutover.py": "fb4fcbb2c01fbf7b023ffa48eae92e563a65f6b03abc8b229c2ccb044b7f8e6f",
++  "oldCutover": {
++   "fbaecfce": "fa4eca762aafa8a4fa8d4f529f7581155a20a5ec1b5bf47dd22c7736ecc60dfe",
++   "6fd7a929": "1b05047cce27a9a56fde7e4d20c690d202f4114abe59a98c75b187c3eec56f80"
++  },
++  "fixtureCopy.db-barrier.fixture.sh": {
++   "source": "b143cedeb6ed22e3238dc861f6194359ad83e0b222bec503d47034c9e3f79b45",
++   "copy": "7e217ceeef4558162327cdba6233213c20d9dc08cf513068b3d6170bd22c3e38",
++   "onlyGuardPathChanged": true
++  },
++  "fixtureCopy.vm-state.v2.fixture.sh": {
++   "source": "adacd37fc82e05a272db6a7732999a296ac954b132d521406efdcaee078b9a64",
++   "copy": "94b21414dd678b9b4a4bcce8219b34638749951b1412a2303ea7b934cec8caa3",
++   "onlyGuardPathChanged": true
++  }
++ },
++ "checks": [
++  {
++   "name": "setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path",
++   "ok": true,
++   "detail": ""
++  },
++  {
++   "name": "setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session",
++   "ok": true,
++   "detail": "client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0"
++  },
++  {
++   "name": "N: an account registered on the actual indexd; nothing fenced or enrolled",
++   "ok": true,
++   "detail": "0/0/1"
++  },
++  {
++   "name": "N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed",
++   "ok": true,
++   "detail": "{'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': 'd2c7932b9007052b1428b57dd3017f10', 'NRestarts': '0'}, 'indexdBackendsGoneAfter': 0.01}"
++  },
++  {
++   "name": "F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only)",
++   "ok": true,
++   "detail": "['db.noOtherSession']"
++  },
++  {
++   "name": "F1: that session was NOT ended by the barrier",
++   "ok": true,
++   "detail": "['90']"
++  },
++  {
++   "name": "F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read",
++   "ok": true,
++   "detail": "{'seconds': 30.1, 'decision': 'UNKNOWN', 'missing': ['db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'dbMessage': 'psql:<stdin>:3: ERROR:  canceling statement due to lock timeout'}"
++  },
++  {
++   "name": "F2: the holding session is left alone (alive, still holding its lock); no barrier session or lock remains",
++   "ok": true,
++   "detail": "['122']"
++  },
++  {
++   "name": "F3: the barrier KILLed while it waits for the lock: its partial output -> UNKNOWN",
++   "ok": true,
++   "detail": "{'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUnchanged', 'db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'barrierBackendGoneAfterSeconds': 29.99}"
++  },
++  {
++   "name": "F3: its backend ends by itself (client_connection_check_interval / lock_timeout); the holder is untouched",
++   "ok": true,
++   "detail": "{'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUnchanged', 'db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'barrierBackendGoneAfterSeconds': 29.99}"
++  },
++  {
++   "name": "F: cleanup - the fixture's own sessions closed by their owner; no lock on accounts remains",
++   "ok": true,
++   "detail": ""
++  },
++  {
++   "name": "N: the read-only vm-state.v2.sh alone (process barrier + zero counts): fbaecfce says SAFE, the new decision UNKNOWN (databaseBarrier)",
++   "ok": true,
++   "detail": "{'new': 'UNKNOWN', 'newMissing': ['databaseBarrier'], 'fbaecfce': 'LEGACY_REDEPLOY_SAFE'}"
++  },
++  {
++   "name": "N: db-barrier.sh: lock granted, no other session, no prepared transaction, 0 fenced / 0 CAS; pre/post unchanged",
++   "ok": true,
++   "detail": ".unit.ExecMainStatus=0\npre.unit.InvocationID=d2c7932b9007052b1428b57dd3017f10\npre.unit.NRestarts=0\npre.writerPids=\npre.allowLiveStart=absent\ndb.lock=granted\ndb.lockWaitMs=1\ndb.otherBackends=0\ndb.otherBackendsDetail=\ndb.preparedXacts=0\ndb.dbVersion=28\ndb.fencedAccounts=0\ndb.casEnrolledAccounts=0\ndb.barrier=complete\ndb.exit=0\npost.unit.ActiveState=inactive\npost.unit.SubState=dead\npost.unit.MainPID=0\npost.unit.Result=success\npost.unit.ExecMainCode=1\npost.unit.ExecMainStatus=0\npost.unit.InvocationID=d2c7932b9007052b1428b57dd3017f10\npost.unit.NRestarts=0\npost.writerPids=\npost.allowLiveStart=absent\n"
++  },
++  {
++   "name": "N: the legitimate never-enrolled rollback: UNKNOWN without the owner's attestation, LEGACY_REDEPLOY_SAFE with it",
++   "ok": true,
++   "detail": "{'withoutAttestation': ['UNKNOWN', ['c2ActivationDisabledAttested']], 'withAttestation': 'LEGACY_REDEPLOY_SAFE', 'seen': {'stopKind': 'exited-0', 'lockWaitMs': '1', 'otherBackends': '', 'dbMessage': None}}"
++  },
++  {
++   "name": "B: enrolled while running (raise-cas), then the controller's stop: the barrier -> FORWARD_ONLY (and vm-state alone too)",
++   "ok": true,
++   "detail": "{'raise': {'head': 0, 'mode': 'cas', 'step': 'raise-cas'}, 'countsRunning': '1/1/1', 'stop': {'ok': True, 'stopped': True, '_rc': 0}, 'decision': 'FORWARD_ONLY', 'exit': 0, 'vmstate': ['FORWARD_ONLY', 'FORWARD_ONLY']}"
++  },
++  {
++   "name": "D1: the actual indexd sent the enrolment's COMMIT (its backend runs the commit: query 'commit', PgSleep in the deferred check)",
++   "ok": true,
++   "detail": "{'pendingCommitSeenAfter': 0.06}"
++  },
++  {
++   "name": "D1: the controller's crash-indexd KILLed it: reaped by SIGKILL, unit failed with no main PID, no indexd process",
++   "ok": true,
++   "detail": "{'controller': {'ok': True, 'killed': 1465, '_rc': 0}, 'exit': 9, 'unit': {'ActiveState': 'failed', 'SubState': 'failed', 'MainPID': '0', 'Result': 'signal', 'ExecMainCode': '2', 'ExecMainStatus': '9', 'InvocationID': '04d1055b5741332aceace9259045120d', 'NRestarts': '0'}}"
++  },
++  {
++   "name": "D1: process gone, yet its backend still runs the COMMIT; the account still reads unenrolled",
++   "ok": false,
++   "detail": "{'counts': '0/0/1', 'indexdBackends': '1', 'pendingCommit': '1'}"
++  },
++  {
++   "name": "D1 NEGATIVE CONTROL: on the actual vm-state.v2.sh output (unit failed, MainPID 0, guard absent, 0 CAS) the fbaecfce decision says LEGACY_REDEPLOY_SAFE while the COMMIT is still pending",
++   "ok": true,
++   "detail": "{'fbaecfce': 'LEGACY_REDEPLOY_SAFE', '6fd7a929': 'LEGACY_REDEPLOY_SAFE', 'new': ['UNKNOWN', ['databaseBarrier']]}"
++  },
++  {
++   "name": "D1: the new decision on that vm-state output is UNKNOWN (databaseBarrier)",
++   "ok": true,
++   "detail": ""
++  },
++  {
++   "name": "D1: db-barrier.sh started while the COMMIT was pending, WAITED for it (lock), and read CAS=1 -> FORWARD_ONLY",
++   "ok": true,
++   "detail": "{'seconds': 14.5, 'lockWaitMs': '14425', 'decision': 'FORWARD_ONLY', 'otherBackends': '', 'stopKind': 'abnormal', 'secondsAfterKill': 0.3}"
++  },
++  {
++   "name": "D1: the enrolment committed after the process was gone (1/1/1); the dead client's backend then ended by itself",
++   "ok": true,
++   "detail": "{'counts': '1/1/1', 'indexdBackendsGoneAfter': 0.01}"
++  },
++  {
++   "name": "D2: the controller's stop (one SIGTERM) waited for the in-flight enrolment: exit 0 only AFTER its COMMIT; no backend left",
++   "ok": true,
++   "detail": "{'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'seconds': 8.5, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': '28e9813b620a440ab636c79cc38877d2', 'NRestarts': '0'}, 'countsAtExit': '1/1/1', 'pendingCommitAtExit': '0', 'indexdBackendsGoneAfter': 0.01}"
++  },
++  {
++   "name": "D2: the client got its answer (the handler completed during Shutdown)",
++   "ok": true,
++   "detail": "{'rc': 0, 'out': '{\"head\":0,\"mode\":\"cas\",\"step\":\"raise-cas\"}\\n'}"
++  },
++  {
++   "name": "D2: the barrier -> FORWARD_ONLY without waiting (the graceful path had already drained); stopKind exited-0 is reported, not used",
++   "ok": true,
++   "detail": "{'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}"
++  },
++  {
++   "name": "D3: two SIGTERMs: indexd logged the interrupted graceful shutdown and exited (observation recorded: exitedBeforeCommit = False)",
++   "ok": true,
++   "detail": "{'seconds': 8.0, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': '9e46a99c4111fadfa0d5d7bd8319841e', 'NRestarts': '0'}, 'countsAtExit': '1/1/1', 'pendingCommitAtExit': '0', 'interruptedLogged': True}"
++  },
++  {
++   "name": "D3: the barrier -> FORWARD_ONLY whatever the process did",
++   "ok": true,
++   "detail": "{'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}"
++  }
++ ],
++ "events": [
++  "02:01:44 postgres ready PostgreSQL 18.6 on x86_64-pc-linux-gnu,  client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
++  "02:01:44 CHECK PASS setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path ",
++  "02:01:44 CHECK PASS setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
++  "02:01:45 N indexd ready after 0.5 s, pid 43",
++  "02:01:45 CHECK PASS N: an account registered on the actual indexd; nothing fenced or enrolled 0/0/1",
++  "02:01:45 CHECK PASS N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': 'd2c7932b9007052b1428b57dd3017f10', 'NRestarts': '0'}, 'indexdBackendsGoneAfter'",
++  "02:01:45 CHECK PASS F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only) ['db.noOtherSession']",
++  "02:01:45 CHECK PASS F1: that session was NOT ended by the barrier ['90']",
++  "02:02:15 CHECK PASS F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read {'seconds': 30.1, 'decision': 'UNKNOWN', 'missing': ['db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'dbMessage': 'psql:<stdin>:3: ERROR:  canceling statement due to lock timeout'}",
++  "02:02:15 CHECK PASS F2: the holding session is left alone (alive, still holding its lock); no barrier session or lock remains ['122']",
++  "02:02:45 CHECK PASS F3: the barrier KILLed while it waits for the lock: its partial output -> UNKNOWN {'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUnchanged', 'db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'barrierBackendGoneAfterSeconds': 29.99}",
++  "02:02:45 CHECK PASS F3: its backend ends by itself (client_connection_check_interval / lock_timeout); the holder is untouched {'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUnchanged', 'db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'barrierBackendGoneAfterSeconds': 29.99}",
++  "02:02:45 CHECK PASS F: cleanup - the fixture's own sessions closed by their owner; no lock on accounts remains ",
++  "02:02:46 CHECK PASS N: the read-only vm-state.v2.sh alone (process barrier + zero counts): fbaecfce says SAFE, the new decision UNKNOWN (databaseBarrier) {'new': 'UNKNOWN', 'newMissing': ['databaseBarrier'], 'fbaecfce': 'LEGACY_REDEPLOY_SAFE'}",
++  "02:02:46 CHECK PASS N: db-barrier.sh: lock granted, no other session, no prepared transaction, 0 fenced / 0 CAS; pre/post unchanged .unit.ExecMainStatus=0\npre.unit.InvocationID=d2c7932b9007052b1428b57dd3017f10\npre.unit.NRestarts=0\npre.writerPids=\npre.allowLiveStart=absent\ndb.lock=granted\ndb.lockWaitMs=1\ndb.otherBackends=0\ndb.otherBackendsDetail=\ndb.preparedXacts=0\ndb.dbVersion=28\ndb.fencedAccounts=0\ndb.casEnrolledAccounts=0\ndb.b",
++  "02:02:46 CHECK PASS N: the legitimate never-enrolled rollback: UNKNOWN without the owner's attestation, LEGACY_REDEPLOY_SAFE with it {'withoutAttestation': ['UNKNOWN', ['c2ActivationDisabledAttested']], 'withAttestation': 'LEGACY_REDEPLOY_SAFE', 'seen': {'stopKind': 'exited-0', 'lockWaitMs': '1', 'otherBackends': '', 'dbMessage': None}}",
++  "02:02:46 B indexd ready after 0.5 s, pid 1333",
++  "02:02:47 CHECK PASS B: enrolled while running (raise-cas), then the controller's stop: the barrier -> FORWARD_ONLY (and vm-state alone too) {'raise': {'head': 0, 'mode': 'cas', 'step': 'raise-cas'}, 'countsRunning': '1/1/1', 'stop': {'ok': True, 'stopped': True, '_rc': 0}, 'decision': 'FORWARD_ONLY', 'exit': 0, 'vmstate': ['FORWARD_ONLY', 'FORWARD_ONLY']}",
++  "02:02:48 D1 indexd ready after 0.5 s, pid 1465",
++  "02:02:48 CHECK PASS D1: the actual indexd sent the enrolment's COMMIT (its backend runs the commit: query 'commit', PgSleep in the deferred check) {'pendingCommitSeenAfter': 0.06}",
++  "02:02:48 CHECK PASS D1: the controller's crash-indexd KILLed it: reaped by SIGKILL, unit failed with no main PID, no indexd process {'controller': {'ok': True, 'killed': 1465, '_rc': 0}, 'exit': 9, 'unit': {'ActiveState': 'failed', 'SubState': 'failed', 'MainPID': '0', 'Result': 'signal', 'ExecMainCode': '2', 'ExecMainStatus': '9', 'InvocationID': '04d1055b5741332aceace9259045120d', 'NRestarts': '0'}}",
++  "02:02:48 CHECK FAIL D1: process gone, yet its backend still runs the COMMIT; the account still reads unenrolled {'counts': '0/0/1', 'indexdBackends': '1', 'pendingCommit': '1'}",
++  "02:02:48 CHECK PASS D1 NEGATIVE CONTROL: on the actual vm-state.v2.sh output (unit failed, MainPID 0, guard absent, 0 CAS) the fbaecfce decision says LEGACY_REDEPLOY_SAFE while the COMMIT is still pending {'fbaecfce': 'LEGACY_REDEPLOY_SAFE', '6fd7a929': 'LEGACY_REDEPLOY_SAFE', 'new': ['UNKNOWN', ['databaseBarrier']]}",
++  "02:02:48 CHECK PASS D1: the new decision on that vm-state output is UNKNOWN (databaseBarrier) ",
++  "02:03:03 CHECK PASS D1: db-barrier.sh started while the COMMIT was pending, WAITED for it (lock), and read CAS=1 -> FORWARD_ONLY {'seconds': 14.5, 'lockWaitMs': '14425', 'decision': 'FORWARD_ONLY', 'otherBackends': '', 'stopKind': 'abnormal', 'secondsAfterKill': 0.3}",
++  "02:03:03 CHECK PASS D1: the enrolment committed after the process was gone (1/1/1); the dead client's backend then ended by itself {'counts': '1/1/1', 'indexdBackendsGoneAfter': 0.01}",
++  "02:03:03 D2 indexd ready after 0.5 s, pid 1615",
++  "02:03:12 CHECK PASS D2: the controller's stop (one SIGTERM) waited for the in-flight enrolment: exit 0 only AFTER its COMMIT; no backend left {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'seconds': 8.5, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': '28e9813b620a440ab636c79cc38877d2', 'NRestarts': '0'}, 'countsAt",
++  "02:03:12 CHECK PASS D2: the client got its answer (the handler completed during Shutdown) {'rc': 0, 'out': '{\"head\":0,\"mode\":\"cas\",\"step\":\"raise-cas\"}\\n'}",
++  "02:03:12 CHECK PASS D2: the barrier -> FORWARD_ONLY without waiting (the graceful path had already drained); stopKind exited-0 is reported, not used {'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}",
++  "02:03:13 D3 indexd ready after 0.5 s, pid 1709",
++  "02:03:21 D3 observed: {'seconds': 8.0, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': '9e46a99c4111fadfa0d5d7bd8319841e', 'NRestarts': '0'}, 'countsAtExit': '1/1/1', 'pendingCommitAtExit': '0', 'interruptedLogged': True}",
++  "02:03:21 CHECK PASS D3: two SIGTERMs: indexd logged the interrupted graceful shutdown and exited (observation recorded: exitedBeforeCommit = False) {'seconds': 8.0, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': '9e46a99c4111fadfa0d5d7bd8319841e', 'NRestarts': '0'}, 'countsAtExit': '1/1/1', 'pendingCommitAtExit': '0', 'interrupte",
++  "02:03:21 CHECK PASS D3: the barrier -> FORWARD_ONLY whatever the process did {'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}"
++ ],
++ "scenarios": {
++  "N": {
++   "countsRunning": "0/0/1",
++   "stop": {
++    "controller": {
++     "ok": true,
++     "stopped": true,
++     "_rc": 0
++    },
++    "exit": 0,
++    "unit": {
++     "ActiveState": "inactive",
++     "SubState": "dead",
++     "MainPID": "0",
++     "Result": "success",
++     "ExecMainCode": "1",
++     "ExecMainStatus": "0",
++     "InvocationID": "d2c7932b9007052b1428b57dd3017f10",
++     "NRestarts": "0"
++    },
++    "indexdBackendsGoneAfter": 0.01
++   },
++   "F1": {
++    "decision": "UNKNOWN",
++    "missing": [
++     "db.noOtherSession"
++    ]
++   },
++   "F2": {
++    "seconds": 30.1,
++    "decision": "UNKNOWN",
++    "missing": [
++     "db.lockGranted",
++     "db.noOtherSession",
++     "db.noPreparedTransaction",
++     "db.countsReadUnderLock",
++     "db.complete"
++    ],
++    "dbMessage": "psql:<stdin>:3: ERROR:  canceling statement due to lock timeout"
++   },
++   "F3": {
++    "lockWaitSeenAfter": 0.12,
++    "decision": "UNKNOWN",
++    "missing": [
++     "post.allowLiveStart",
++     "post.unitInactive",
++     "post.noIndexdProcess",
++     "unitUnchanged",
++     "db.lockGranted",
++     "db.noOtherSession",
++     "db.noPreparedTransaction",
++     "db.countsReadUnderLock",
++     "db.complete"
++    ],
++    "barrierBackendGoneAfterSeconds": 29.99
++   },
++   "vmstate": {
++    "new": "UNKNOWN",
++    "newMissing": [
++     "databaseBarrier"
++    ],
++    "fbaecfce": "LEGACY_REDEPLOY_SAFE"
++   },
++   "barrier": {
++    "withoutAttestation": [
++     "UNKNOWN",
++     [
++      "c2ActivationDisabledAttested"
++     ]
++    ],
++    "withAttestation": "LEGACY_REDEPLOY_SAFE",
++    "seen": {
++     "stopKind": "exited-0",
++     "lockWaitMs": "1",
++     "otherBackends": "",
++     "dbMessage": null
++    }
++   }
++  },
++  "B": {
++   "raise": {
++    "head": 0,
++    "mode": "cas",
++    "step": "raise-cas"
++   },
++   "countsRunning": "1/1/1",
++   "stop": {
++    "ok": true,
++    "stopped": true,
++    "_rc": 0
++   },
++   "decision": "FORWARD_ONLY",
++   "exit": 0,
++   "vmstate": [
++    "FORWARD_ONLY",
++    "FORWARD_ONLY"
++   ]
++  },
++  "D1": {
++   "pendingCommitSeenAfter": 0.06,
++   "crash": {
++    "controller": {
++     "ok": true,
++     "killed": 1465,
++     "_rc": 0
++    },
++    "exit": 9,
++    "unit": {
++     "ActiveState": "failed",
++     "SubState": "failed",
++     "MainPID": "0",
++     "Result": "signal",
++     "ExecMainCode": "2",
++     "ExecMainStatus": "9",
++     "InvocationID": "04d1055b5741332aceace9259045120d",
++     "NRestarts": "0"
++    }
++   },
++   "afterKill": {
++    "counts": "0/0/1",
++    "indexdBackends": "1",
++    "pendingCommit": "1"
++   },
++   "vmstateRead": {
++    "pendingCommitAfter": "1",
++    "casEnrolledLine": [
++     "casEnrolledAccounts=0"
++    ]
++   },
++   "vmstateDecisions": {
++    "fbaecfce": "LEGACY_REDEPLOY_SAFE",
++    "6fd7a929": "LEGACY_REDEPLOY_SAFE",
++    "new": [
++     "UNKNOWN",
++     [
++      "databaseBarrier"
++     ]
++    ]
++   },
++   "barrier": {
++    "seconds": 14.5,
++    "lockWaitMs": "14425",
++    "decision": "FORWARD_ONLY",
++    "otherBackends": "",
++    "stopKind": "abnormal",
++    "secondsAfterKill": 0.3
++   },
++   "final": {
++    "counts": "1/1/1",
++    "indexdBackendsGoneAfter": 0.01
++   },
++   "client": {
++    "rc": 1
++   }
++  },
++  "D2": {
++   "pendingCommitSeenAfter": 0.06,
++   "stop": {
++    "controller": {
++     "ok": true,
++     "stopped": true,
++     "_rc": 0
++    },
++    "seconds": 8.5,
++    "exit": 0,
++    "unit": {
++     "ActiveState": "inactive",
++     "SubState": "dead",
++     "MainPID": "0",
++     "Result": "success",
++     "ExecMainCode": "1",
++     "ExecMainStatus": "0",
++     "InvocationID": "28e9813b620a440ab636c79cc38877d2",
++     "NRestarts": "0"
++    },
++    "countsAtExit": "1/1/1",
++    "pendingCommitAtExit": "0",
++    "indexdBackendsGoneAfter": 0.01
++   },
++   "client": {
++    "rc": 0,
++    "out": "{\"head\":0,\"mode\":\"cas\",\"step\":\"raise-cas\"}\n"
++   },
++   "barrier": {
++    "decision": "FORWARD_ONLY",
++    "lockWaitMs": "0",
++    "stopKind": "exited-0"
++   }
++  },
++  "D3": {
++   "pendingCommitSeenAfter": 0.06,
++   "exit": {
++    "seconds": 8.0,
++    "exit": 0,
++    "unit": {
++     "ActiveState": "inactive",
++     "SubState": "dead",
++     "MainPID": "0",
++     "Result": "success",
++     "ExecMainCode": "1",
++     "ExecMainStatus": "0",
++     "InvocationID": "9e46a99c4111fadfa0d5d7bd8319841e",
++     "NRestarts": "0"
++    },
++    "countsAtExit": "1/1/1",
++    "pendingCommitAtExit": "0",
++    "interruptedLogged": true
++   },
++   "exitedBeforeCommit": false,
++   "client": {
++    "rc": 1
++   },
++   "barrier": {
++    "decision": "FORWARD_ONLY",
++    "lockWaitMs": "0",
++    "stopKind": "exited-0"
++   }
++  }
++ },
++ "isolation": {
++  "netInterfaces": [
++   "lo"
++  ],
++  "uid": 1000,
++  "pid": 1
++ },
++ "postgres": "PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 16.2.1 20260810, 64-bit",
++ "postgresSettings": "client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
++ "cleanup": {
++  "postgresExited": true,
++  "noIndexd": true,
++  "pgDataRemoved": true,
++  "socketDirRemoved": true,
++  "secretsRemoved": true
++ },
++ "finished": 1792746201.7022474,
++ "summary": {
++  "checks": 27,
++  "failed": [
++   "D1: process gone, yet its backend still runs the COMMIT; the account still reads unenrolled"
++  ],
++  "cleanupOk": true
++ }
++}
+\ No newline at end of file
+diff --git a/rehearsal/runs/d3/B-barrier.txt b/rehearsal/runs/d3/B-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..4de2fe88e5e280259bc5ab5cfd2bd4d04c8db55b
+--- /dev/null
++++ b/rehearsal/runs/d3/B-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=98e6eafcb76fe3afad41404c11a9dc4a
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=1
++db.casEnrolledAccounts=1
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=98e6eafcb76fe3afad41404c11a9dc4a
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d3/B-vmstate.txt b/rehearsal/runs/d3/B-vmstate.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..df3cbfbbee1bc9518a129872b62945c1e04784ca
+--- /dev/null
++++ b/rehearsal/runs/d3/B-vmstate.txt
+@@ -0,0 +1,19 @@
++current=NONE
++currentSha=
++unit.ActiveState=inactive
++unit.SubState=dead
++unit.MainPID=0
++unit.NRestarts=0
++unit.NeedDaemonReload=
++unit.ExecStart=
++writerPids=
++allowLiveStart=absent
++containerTimeout=timeout (GNU coreutils) 9.12
++dbVersion=28
++fsync=on synchronous_commit=on
++fencedAccounts=1
++casEnrolledAccounts=1
++scratchDatabases=
++controllerSessions=
++toolSessions=
++lockHeld=no (absent)
+diff --git a/rehearsal/runs/d3/D1-barrier.txt b/rehearsal/runs/d3/D1-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..fb860dd73fa26ccd5c1fb0d5eba24d5379746a33
+--- /dev/null
++++ b/rehearsal/runs/d3/D1-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=failed
++pre.unit.SubState=failed
++pre.unit.MainPID=0
++pre.unit.Result=signal
++pre.unit.ExecMainCode=2
++pre.unit.ExecMainStatus=9
++pre.unit.InvocationID=db34e99a62c72b91c0e608eb15c97013
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=14439
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=1
++db.casEnrolledAccounts=1
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=failed
++post.unit.SubState=failed
++post.unit.MainPID=0
++post.unit.Result=signal
++post.unit.ExecMainCode=2
++post.unit.ExecMainStatus=9
++post.unit.InvocationID=db34e99a62c72b91c0e608eb15c97013
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d3/D1-vmstate.txt b/rehearsal/runs/d3/D1-vmstate.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..d6e70a5fa8303572f638fc8f010f9eea65faa870
+--- /dev/null
++++ b/rehearsal/runs/d3/D1-vmstate.txt
+@@ -0,0 +1,19 @@
++current=NONE
++currentSha=
++unit.ActiveState=failed
++unit.SubState=failed
++unit.MainPID=0
++unit.NRestarts=0
++unit.NeedDaemonReload=
++unit.ExecStart=
++writerPids=
++allowLiveStart=absent
++containerTimeout=timeout (GNU coreutils) 9.12
++dbVersion=28
++fsync=on synchronous_commit=on
++fencedAccounts=0
++casEnrolledAccounts=0
++scratchDatabases=
++controllerSessions=
++toolSessions=
++lockHeld=no (absent)
+diff --git a/rehearsal/runs/d3/D2-barrier.txt b/rehearsal/runs/d3/D2-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..92b1750eea78112921c9d4c903f2856658da7e1b
+--- /dev/null
++++ b/rehearsal/runs/d3/D2-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=fed69dcd86bb971e3da7108fd83bf00b
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=1
++db.casEnrolledAccounts=1
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=fed69dcd86bb971e3da7108fd83bf00b
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d3/D3-barrier.txt b/rehearsal/runs/d3/D3-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ac8b45f2e7c2e609964f54bb7e7893494e5a337
+--- /dev/null
++++ b/rehearsal/runs/d3/D3-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=d4d63cfcb8ff6f064334785e8f971e0b
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=1
++db.casEnrolledAccounts=1
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=d4d63cfcb8ff6f064334785e8f971e0b
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d3/F1-barrier.txt b/rehearsal/runs/d3/F1-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..347344e1abd5f167e2544c7b393f2f72453f698f
+--- /dev/null
++++ b/rehearsal/runs/d3/F1-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=1
++db.otherBackendsDetail=91:dbd-idle:postgres:idle:ClientRead
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=0
++db.casEnrolledAccounts=0
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d3/F2-barrier.txt b/rehearsal/runs/d3/F2-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..c9c31228bf065760cff0c4c62498e7d2a14ba345
+--- /dev/null
++++ b/rehearsal/runs/d3/F2-barrier.txt
+@@ -0,0 +1,23 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.message=psql:<stdin>:3: ERROR:  canceling statement due to lock timeout
++db.exit=3
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d3/F3-barrier-interrupted.txt b/rehearsal/runs/d3/F3-barrier-interrupted.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..726d39f33b8ee8e93d78da9fbdd61d42ffc19d01
+--- /dev/null
++++ b/rehearsal/runs/d3/F3-barrier-interrupted.txt
+@@ -0,0 +1,11 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
+diff --git a/rehearsal/runs/d3/N-barrier.txt b/rehearsal/runs/d3/N-barrier.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..bc23126db3cde599d026631c3d8656bd7faaf396
+--- /dev/null
++++ b/rehearsal/runs/d3/N-barrier.txt
+@@ -0,0 +1,31 @@
++barrierScript=db-barrier.v1
++pre.unit.ActiveState=inactive
++pre.unit.SubState=dead
++pre.unit.MainPID=0
++pre.unit.Result=success
++pre.unit.ExecMainCode=1
++pre.unit.ExecMainStatus=0
++pre.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++pre.unit.NRestarts=0
++pre.writerPids=
++pre.allowLiveStart=absent
++db.lock=granted
++db.lockWaitMs=0
++db.otherBackends=0
++db.otherBackendsDetail=
++db.preparedXacts=0
++db.dbVersion=28
++db.fencedAccounts=0
++db.casEnrolledAccounts=0
++db.barrier=complete
++db.exit=0
++post.unit.ActiveState=inactive
++post.unit.SubState=dead
++post.unit.MainPID=0
++post.unit.Result=success
++post.unit.ExecMainCode=1
++post.unit.ExecMainStatus=0
++post.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7
++post.unit.NRestarts=0
++post.writerPids=
++post.allowLiveStart=absent
+diff --git a/rehearsal/runs/d3/N-vmstate.txt b/rehearsal/runs/d3/N-vmstate.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ed6397e6f61615c5beb955881a5c326520335a7
+--- /dev/null
++++ b/rehearsal/runs/d3/N-vmstate.txt
+@@ -0,0 +1,19 @@
++current=NONE
++currentSha=
++unit.ActiveState=inactive
++unit.SubState=dead
++unit.MainPID=0
++unit.NRestarts=0
++unit.NeedDaemonReload=
++unit.ExecStart=
++writerPids=
++allowLiveStart=absent
++containerTimeout=timeout (GNU coreutils) 9.12
++dbVersion=28
++fsync=on synchronous_commit=on
++fencedAccounts=0
++casEnrolledAccounts=0
++scratchDatabases=
++controllerSessions=
++toolSessions=
++lockHeld=no (absent)
+diff --git a/rehearsal/runs/d3/results.json b/rehearsal/runs/d3/results.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..3a070ca8a01847726a51579541507cdf1f554941
+--- /dev/null
++++ b/rehearsal/runs/d3/results.json
+@@ -0,0 +1,441 @@
++{
++ "run": "d3",
++ "started": 1792746489.398315,
++ "inputs": {
++  "claude-resumed-20261022/storage-enclave-build/out/c2-enclave-a/indexd": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
++  "resume-after-checkpoint-20261022/controller-bounds-validation/frozen/replicactl.r5-production.restorefix.bounds.py": "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83",
++  "indexd-c2-production-rehearsal/bin/c2rclient": "e76693f68b70caa2b7309c1f29ace904e975f2dda7503e344eaa15d6e8f53458",
++  "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
++  "resume-after-checkpoint-20261022/storage-write-release/package/primary/vm-state.v2.sh": "adacd37fc82e05a272db6a7732999a296ac954b132d521406efdcaee078b9a64",
++  "db-barrier.sh": "70cfef1fd28d3555e6340af13e1d1630e08d4474d48b1efaebd0037024a037bc",
++  "cutover.py": "fb4fcbb2c01fbf7b023ffa48eae92e563a65f6b03abc8b229c2ccb044b7f8e6f",
++  "oldCutover": {
++   "fbaecfce": "fa4eca762aafa8a4fa8d4f529f7581155a20a5ec1b5bf47dd22c7736ecc60dfe",
++   "6fd7a929": "1b05047cce27a9a56fde7e4d20c690d202f4114abe59a98c75b187c3eec56f80"
++  },
++  "fixtureCopy.db-barrier.fixture.sh": {
++   "source": "70cfef1fd28d3555e6340af13e1d1630e08d4474d48b1efaebd0037024a037bc",
++   "copy": "6b6cfdd4ba7aa4f4f59e36d55febe0cece164623a0f6bb33fc73d39878e3cbd8",
++   "onlyGuardPathChanged": true
++  },
++  "fixtureCopy.vm-state.v2.fixture.sh": {
++   "source": "adacd37fc82e05a272db6a7732999a296ac954b132d521406efdcaee078b9a64",
++   "copy": "9396743fd5a1fcdd908f0eecb7af63d0412137491dbbca34e7baac308c2b6deb",
++   "onlyGuardPathChanged": true
++  }
++ },
++ "checks": [
++  {
++   "name": "setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path",
++   "ok": true,
++   "detail": ""
++  },
++  {
++   "name": "setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session",
++   "ok": true,
++   "detail": "client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0"
++  },
++  {
++   "name": "N: an account registered on the actual indexd; nothing fenced or enrolled",
++   "ok": true,
++   "detail": "0/0/1"
++  },
++  {
++   "name": "N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed",
++   "ok": true,
++   "detail": "{'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': '22d828327fb8f0313ba89991fde71ef7', 'NRestarts': '0'}, 'indexdBackendsGoneAfter': 0.01}"
++  },
++  {
++   "name": "F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only)",
++   "ok": true,
++   "detail": "['db.noOtherSession']"
++  },
++  {
++   "name": "F1: that session was NOT ended by the barrier",
++   "ok": true,
++   "detail": "['91']"
++  },
++  {
++   "name": "F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read",
++   "ok": true,
++   "detail": "{'seconds': 30.1, 'decision': 'UNKNOWN', 'missing': ['db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'dbMessage': 'psql:<stdin>:3: ERROR:  canceling statement due to lock timeout'}"
++  },
++  {
++   "name": "F2: the holding session is left alone (alive, still holding its lock); no barrier session or lock remains",
++   "ok": true,
++   "detail": "['124']"
++  },
++  {
++   "name": "F3: the barrier KILLed while it waits for the lock: its partial output -> UNKNOWN",
++   "ok": true,
++   "detail": "{'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUnchanged', 'db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'barrierBackendGoneAfterSeconds': 29.98}"
++  },
++  {
++   "name": "F3: its backend ends by itself, at the latest at its own lock_timeout (30 s); the holder is untouched",
++   "ok": true,
++   "detail": "{'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUnchanged', 'db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'barrierBackendGoneAfterSeconds': 29.98}"
++  },
++  {
++   "name": "F: cleanup - the fixture's own sessions closed by their owner; no lock on accounts remains",
++   "ok": true,
++   "detail": ""
++  },
++  {
++   "name": "N: the read-only vm-state.v2.sh alone (process barrier + zero counts): fbaecfce says SAFE, the new decision UNKNOWN (databaseBarrier)",
++   "ok": true,
++   "detail": "{'new': 'UNKNOWN', 'newMissing': ['databaseBarrier'], 'fbaecfce': 'LEGACY_REDEPLOY_SAFE'}"
++  },
++  {
++   "name": "N: db-barrier.sh: lock granted, no other session, no prepared transaction, 0 fenced / 0 CAS; pre/post unchanged",
++   "ok": true,
++   "detail": ".unit.ExecMainStatus=0\npre.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7\npre.unit.NRestarts=0\npre.writerPids=\npre.allowLiveStart=absent\ndb.lock=granted\ndb.lockWaitMs=0\ndb.otherBackends=0\ndb.otherBackendsDetail=\ndb.preparedXacts=0\ndb.dbVersion=28\ndb.fencedAccounts=0\ndb.casEnrolledAccounts=0\ndb.barrier=complete\ndb.exit=0\npost.unit.ActiveState=inactive\npost.unit.SubState=dead\npost.unit.MainPID=0\npost.unit.Result=success\npost.unit.ExecMainCode=1\npost.unit.ExecMainStatus=0\npost.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7\npost.unit.NRestarts=0\npost.writerPids=\npost.allowLiveStart=absent\n"
++  },
++  {
++   "name": "N: the legitimate never-enrolled rollback: UNKNOWN without the owner's attestation, LEGACY_REDEPLOY_SAFE with it",
++   "ok": true,
++   "detail": "{'withoutAttestation': ['UNKNOWN', ['c2ActivationDisabledAttested']], 'withAttestation': 'LEGACY_REDEPLOY_SAFE', 'seen': {'stopKind': 'exited-0', 'lockWaitMs': '0', 'otherBackends': '', 'dbMessage': None}}"
++  },
++  {
++   "name": "B: enrolled while running (raise-cas), then the controller's stop: the barrier -> FORWARD_ONLY (and vm-state alone too)",
++   "ok": true,
++   "detail": "{'raise': {'head': 0, 'mode': 'cas', 'step': 'raise-cas'}, 'countsRunning': '1/1/1', 'stop': {'ok': True, 'stopped': True, '_rc': 0}, 'decision': 'FORWARD_ONLY', 'exit': 0, 'vmstate': ['FORWARD_ONLY', 'FORWARD_ONLY']}"
++  },
++  {
++   "name": "D1: the actual indexd sent the enrolment's COMMIT (its backend runs the commit: query 'commit', PgSleep in the deferred check)",
++   "ok": true,
++   "detail": "{'pendingCommitSeenAfter': 0.06}"
++  },
++  {
++   "name": "D1: the controller's crash-indexd KILLed it: reaped by SIGKILL, unit failed with no main PID, no indexd process",
++   "ok": true,
++   "detail": "{'controller': {'ok': True, 'killed': 1472, '_rc': 0}, 'exit': 9, 'unit': {'ActiveState': 'failed', 'SubState': 'failed', 'MainPID': '0', 'Result': 'signal', 'ExecMainCode': '2', 'ExecMainStatus': '9', 'InvocationID': 'db34e99a62c72b91c0e608eb15c97013', 'NRestarts': '0'}}"
++  },
++  {
++   "name": "D1: process gone, yet its backend still runs the COMMIT; the account still reads neither fenced nor enrolled (both are written in that one transaction)",
++   "ok": true,
++   "detail": "{'counts': '0/0/1', 'indexdBackends': '1', 'pendingCommit': '1'}"
++  },
++  {
++   "name": "D1 NEGATIVE CONTROL: on the actual vm-state.v2.sh output (unit failed, MainPID 0, guard absent, 0 CAS) the fbaecfce decision says LEGACY_REDEPLOY_SAFE while the COMMIT is still pending",
++   "ok": true,
++   "detail": "{'fbaecfce': 'LEGACY_REDEPLOY_SAFE', '6fd7a929': 'LEGACY_REDEPLOY_SAFE', 'new': ['UNKNOWN', ['databaseBarrier']]}"
++  },
++  {
++   "name": "D1: the new decision on that vm-state output is UNKNOWN (databaseBarrier)",
++   "ok": true,
++   "detail": ""
++  },
++  {
++   "name": "D1: db-barrier.sh started while the COMMIT was pending, WAITED for it (lock), and read CAS=1 -> FORWARD_ONLY",
++   "ok": true,
++   "detail": "{'seconds': 14.5, 'lockWaitMs': '14439', 'decision': 'FORWARD_ONLY', 'otherBackends': '', 'stopKind': 'abnormal', 'secondsAfterKill': 0.3}"
++  },
++  {
++   "name": "D1: the enrolment committed after the process was gone (1/1/1); the dead client's backend then ended by itself",
++   "ok": true,
++   "detail": "{'counts': '1/1/1', 'indexdBackendsGoneAfter': 0.01}"
++  },
++  {
++   "name": "D2: the controller's stop (one SIGTERM) waited for the in-flight enrolment: exit 0 only AFTER its COMMIT; no backend left",
++   "ok": true,
++   "detail": "{'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'seconds': 8.1, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': 'fed69dcd86bb971e3da7108fd83bf00b', 'NRestarts': '0'}, 'countsAtExit': '1/1/1', 'pendingCommitAtExit': '0', 'indexdBackendsGoneAfter': 0.0}"
++  },
++  {
++   "name": "D2: the client got its answer (the handler completed during Shutdown)",
++   "ok": true,
++   "detail": "{'rc': 0, 'out': '{\"head\":0,\"mode\":\"cas\",\"step\":\"raise-cas\"}\\n'}"
++  },
++  {
++   "name": "D2: the barrier -> FORWARD_ONLY without waiting (the graceful path had already drained); stopKind exited-0 is reported, not used",
++   "ok": true,
++   "detail": "{'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}"
++  },
++  {
++   "name": "D3: two SIGTERMs: indexd logged the interrupted graceful shutdown and exited (observation recorded: exitedBeforeCommit = False)",
++   "ok": true,
++   "detail": "{'seconds': 8.0, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': 'd4d63cfcb8ff6f064334785e8f971e0b', 'NRestarts': '0'}, 'countsAtExit': '1/1/1', 'pendingCommitAtExit': '0', 'interruptedLogged': True}"
++  },
++  {
++   "name": "D3: the barrier -> FORWARD_ONLY whatever the process did",
++   "ok": true,
++   "detail": "{'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}"
++  }
++ ],
++ "events": [
++  "02:08:10 postgres ready PostgreSQL 18.6 on x86_64-pc-linux-gnu,  client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
++  "02:08:10 CHECK PASS setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path ",
++  "02:08:10 CHECK PASS setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
++  "02:08:11 N indexd ready after 0.5 s, pid 44",
++  "02:08:11 CHECK PASS N: an account registered on the actual indexd; nothing fenced or enrolled 0/0/1",
++  "02:08:11 CHECK PASS N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': '22d828327fb8f0313ba89991fde71ef7', 'NRestarts': '0'}, 'indexdBackendsGoneAfter'",
++  "02:08:11 CHECK PASS F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only) ['db.noOtherSession']",
++  "02:08:11 CHECK PASS F1: that session was NOT ended by the barrier ['91']",
++  "02:08:41 CHECK PASS F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read {'seconds': 30.1, 'decision': 'UNKNOWN', 'missing': ['db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'dbMessage': 'psql:<stdin>:3: ERROR:  canceling statement due to lock timeout'}",
++  "02:08:41 CHECK PASS F2: the holding session is left alone (alive, still holding its lock); no barrier session or lock remains ['124']",
++  "02:09:11 CHECK PASS F3: the barrier KILLed while it waits for the lock: its partial output -> UNKNOWN {'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUnchanged', 'db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'barrierBackendGoneAfterSeconds': 29.98}",
++  "02:09:11 CHECK PASS F3: its backend ends by itself, at the latest at its own lock_timeout (30 s); the holder is untouched {'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUnchanged', 'db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'barrierBackendGoneAfterSeconds': 29.98}",
++  "02:09:11 CHECK PASS F: cleanup - the fixture's own sessions closed by their owner; no lock on accounts remains ",
++  "02:09:12 CHECK PASS N: the read-only vm-state.v2.sh alone (process barrier + zero counts): fbaecfce says SAFE, the new decision UNKNOWN (databaseBarrier) {'new': 'UNKNOWN', 'newMissing': ['databaseBarrier'], 'fbaecfce': 'LEGACY_REDEPLOY_SAFE'}",
++  "02:09:12 CHECK PASS N: db-barrier.sh: lock granted, no other session, no prepared transaction, 0 fenced / 0 CAS; pre/post unchanged .unit.ExecMainStatus=0\npre.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7\npre.unit.NRestarts=0\npre.writerPids=\npre.allowLiveStart=absent\ndb.lock=granted\ndb.lockWaitMs=0\ndb.otherBackends=0\ndb.otherBackendsDetail=\ndb.preparedXacts=0\ndb.dbVersion=28\ndb.fencedAccounts=0\ndb.casEnrolledAccounts=0\ndb.b",
++  "02:09:12 CHECK PASS N: the legitimate never-enrolled rollback: UNKNOWN without the owner's attestation, LEGACY_REDEPLOY_SAFE with it {'withoutAttestation': ['UNKNOWN', ['c2ActivationDisabledAttested']], 'withAttestation': 'LEGACY_REDEPLOY_SAFE', 'seen': {'stopKind': 'exited-0', 'lockWaitMs': '0', 'otherBackends': '', 'dbMessage': None}}",
++  "02:09:12 B indexd ready after 0.5 s, pid 1341",
++  "02:09:13 CHECK PASS B: enrolled while running (raise-cas), then the controller's stop: the barrier -> FORWARD_ONLY (and vm-state alone too) {'raise': {'head': 0, 'mode': 'cas', 'step': 'raise-cas'}, 'countsRunning': '1/1/1', 'stop': {'ok': True, 'stopped': True, '_rc': 0}, 'decision': 'FORWARD_ONLY', 'exit': 0, 'vmstate': ['FORWARD_ONLY', 'FORWARD_ONLY']}",
++  "02:09:14 D1 indexd ready after 0.5 s, pid 1472",
++  "02:09:14 CHECK PASS D1: the actual indexd sent the enrolment's COMMIT (its backend runs the commit: query 'commit', PgSleep in the deferred check) {'pendingCommitSeenAfter': 0.06}",
++  "02:09:14 CHECK PASS D1: the controller's crash-indexd KILLed it: reaped by SIGKILL, unit failed with no main PID, no indexd process {'controller': {'ok': True, 'killed': 1472, '_rc': 0}, 'exit': 9, 'unit': {'ActiveState': 'failed', 'SubState': 'failed', 'MainPID': '0', 'Result': 'signal', 'ExecMainCode': '2', 'ExecMainStatus': '9', 'InvocationID': 'db34e99a62c72b91c0e608eb15c97013', 'NRestarts': '0'}}",
++  "02:09:14 CHECK PASS D1: process gone, yet its backend still runs the COMMIT; the account still reads neither fenced nor enrolled (both are written in that one transaction) {'counts': '0/0/1', 'indexdBackends': '1', 'pendingCommit': '1'}",
++  "02:09:14 CHECK PASS D1 NEGATIVE CONTROL: on the actual vm-state.v2.sh output (unit failed, MainPID 0, guard absent, 0 CAS) the fbaecfce decision says LEGACY_REDEPLOY_SAFE while the COMMIT is still pending {'fbaecfce': 'LEGACY_REDEPLOY_SAFE', '6fd7a929': 'LEGACY_REDEPLOY_SAFE', 'new': ['UNKNOWN', ['databaseBarrier']]}",
++  "02:09:14 CHECK PASS D1: the new decision on that vm-state output is UNKNOWN (databaseBarrier) ",
++  "02:09:29 CHECK PASS D1: db-barrier.sh started while the COMMIT was pending, WAITED for it (lock), and read CAS=1 -> FORWARD_ONLY {'seconds': 14.5, 'lockWaitMs': '14439', 'decision': 'FORWARD_ONLY', 'otherBackends': '', 'stopKind': 'abnormal', 'secondsAfterKill': 0.3}",
++  "02:09:29 CHECK PASS D1: the enrolment committed after the process was gone (1/1/1); the dead client's backend then ended by itself {'counts': '1/1/1', 'indexdBackendsGoneAfter': 0.01}",
++  "02:09:29 D2 indexd ready after 0.5 s, pid 1619",
++  "02:09:38 CHECK PASS D2: the controller's stop (one SIGTERM) waited for the in-flight enrolment: exit 0 only AFTER its COMMIT; no backend left {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'seconds': 8.1, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': 'fed69dcd86bb971e3da7108fd83bf00b', 'NRestarts': '0'}, 'countsAt",
++  "02:09:38 CHECK PASS D2: the client got its answer (the handler completed during Shutdown) {'rc': 0, 'out': '{\"head\":0,\"mode\":\"cas\",\"step\":\"raise-cas\"}\\n'}",
++  "02:09:38 CHECK PASS D2: the barrier -> FORWARD_ONLY without waiting (the graceful path had already drained); stopKind exited-0 is reported, not used {'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}",
++  "02:09:38 D3 indexd ready after 0.5 s, pid 1715",
++  "02:09:47 D3 observed: {'seconds': 8.0, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': 'd4d63cfcb8ff6f064334785e8f971e0b', 'NRestarts': '0'}, 'countsAtExit': '1/1/1', 'pendingCommitAtExit': '0', 'interruptedLogged': True}",
++  "02:09:47 CHECK PASS D3: two SIGTERMs: indexd logged the interrupted graceful shutdown and exited (observation recorded: exitedBeforeCommit = False) {'seconds': 8.0, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': 'd4d63cfcb8ff6f064334785e8f971e0b', 'NRestarts': '0'}, 'countsAtExit': '1/1/1', 'pendingCommitAtExit': '0', 'interrupte",
++  "02:09:47 CHECK PASS D3: the barrier -> FORWARD_ONLY whatever the process did {'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}"
++ ],
++ "scenarios": {
++  "N": {
++   "countsRunning": "0/0/1",
++   "stop": {
++    "controller": {
++     "ok": true,
++     "stopped": true,
++     "_rc": 0
++    },
++    "exit": 0,
++    "unit": {
++     "ActiveState": "inactive",
++     "SubState": "dead",
++     "MainPID": "0",
++     "Result": "success",
++     "ExecMainCode": "1",
++     "ExecMainStatus": "0",
++     "InvocationID": "22d828327fb8f0313ba89991fde71ef7",
++     "NRestarts": "0"
++    },
++    "indexdBackendsGoneAfter": 0.01
++   },
++   "F1": {
++    "decision": "UNKNOWN",
++    "missing": [
++     "db.noOtherSession"
++    ]
++   },
++   "F2": {
++    "seconds": 30.1,
++    "decision": "UNKNOWN",
++    "missing": [
++     "db.lockGranted",
++     "db.noOtherSession",
++     "db.noPreparedTransaction",
++     "db.countsReadUnderLock",
++     "db.complete"
++    ],
++    "dbMessage": "psql:<stdin>:3: ERROR:  canceling statement due to lock timeout"
++   },
++   "F3": {
++    "lockWaitSeenAfter": 0.12,
++    "decision": "UNKNOWN",
++    "missing": [
++     "post.allowLiveStart",
++     "post.unitInactive",
++     "post.noIndexdProcess",
++     "unitUnchanged",
++     "db.lockGranted",
++     "db.noOtherSession",
++     "db.noPreparedTransaction",
++     "db.countsReadUnderLock",
++     "db.complete"
++    ],
++    "barrierBackendGoneAfterSeconds": 29.98
++   },
++   "vmstate": {
++    "new": "UNKNOWN",
++    "newMissing": [
++     "databaseBarrier"
++    ],
++    "fbaecfce": "LEGACY_REDEPLOY_SAFE"
++   },
++   "barrier": {
++    "withoutAttestation": [
++     "UNKNOWN",
++     [
++      "c2ActivationDisabledAttested"
++     ]
++    ],
++    "withAttestation": "LEGACY_REDEPLOY_SAFE",
++    "seen": {
++     "stopKind": "exited-0",
++     "lockWaitMs": "0",
++     "otherBackends": "",
++     "dbMessage": null
++    }
++   }
++  },
++  "B": {
++   "raise": {
++    "head": 0,
++    "mode": "cas",
++    "step": "raise-cas"
++   },
++   "countsRunning": "1/1/1",
++   "stop": {
++    "ok": true,
++    "stopped": true,
++    "_rc": 0
++   },
++   "decision": "FORWARD_ONLY",
++   "exit": 0,
++   "vmstate": [
++    "FORWARD_ONLY",
++    "FORWARD_ONLY"
++   ]
++  },
++  "D1": {
++   "pendingCommitSeenAfter": 0.06,
++   "crash": {
++    "controller": {
++     "ok": true,
++     "killed": 1472,
++     "_rc": 0
++    },
++    "exit": 9,
++    "unit": {
++     "ActiveState": "failed",
++     "SubState": "failed",
++     "MainPID": "0",
++     "Result": "signal",
++     "ExecMainCode": "2",
++     "ExecMainStatus": "9",
++     "InvocationID": "db34e99a62c72b91c0e608eb15c97013",
++     "NRestarts": "0"
++    }
++   },
++   "afterKill": {
++    "counts": "0/0/1",
++    "indexdBackends": "1",
++    "pendingCommit": "1"
++   },
++   "vmstateRead": {
++    "pendingCommitAfter": "1",
++    "casEnrolledLine": [
++     "casEnrolledAccounts=0"
++    ]
++   },
++   "vmstateDecisions": {
++    "fbaecfce": "LEGACY_REDEPLOY_SAFE",
++    "6fd7a929": "LEGACY_REDEPLOY_SAFE",
++    "new": [
++     "UNKNOWN",
++     [
++      "databaseBarrier"
++     ]
++    ]
++   },
++   "barrier": {
++    "seconds": 14.5,
++    "lockWaitMs": "14439",
++    "decision": "FORWARD_ONLY",
++    "otherBackends": "",
++    "stopKind": "abnormal",
++    "secondsAfterKill": 0.3
++   },
++   "final": {
++    "counts": "1/1/1",
++    "indexdBackendsGoneAfter": 0.01
++   },
++   "client": {
++    "rc": 1
++   }
++  },
++  "D2": {
++   "pendingCommitSeenAfter": 0.06,
++   "stop": {
++    "controller": {
++     "ok": true,
++     "stopped": true,
++     "_rc": 0
++    },
++    "seconds": 8.1,
++    "exit": 0,
++    "unit": {
++     "ActiveState": "inactive",
++     "SubState": "dead",
++     "MainPID": "0",
++     "Result": "success",
++     "ExecMainCode": "1",
++     "ExecMainStatus": "0",
++     "InvocationID": "fed69dcd86bb971e3da7108fd83bf00b",
++     "NRestarts": "0"
++    },
++    "countsAtExit": "1/1/1",
++    "pendingCommitAtExit": "0",
++    "indexdBackendsGoneAfter": 0.0
++   },
++   "client": {
++    "rc": 0,
++    "out": "{\"head\":0,\"mode\":\"cas\",\"step\":\"raise-cas\"}\n"
++   },
++   "barrier": {
++    "decision": "FORWARD_ONLY",
++    "lockWaitMs": "0",
++    "stopKind": "exited-0"
++   }
++  },
++  "D3": {
++   "pendingCommitSeenAfter": 0.06,
++   "exit": {
++    "seconds": 8.0,
++    "exit": 0,
++    "unit": {
++     "ActiveState": "inactive",
++     "SubState": "dead",
++     "MainPID": "0",
++     "Result": "success",
++     "ExecMainCode": "1",
++     "ExecMainStatus": "0",
++     "InvocationID": "d4d63cfcb8ff6f064334785e8f971e0b",
++     "NRestarts": "0"
++    },
++    "countsAtExit": "1/1/1",
++    "pendingCommitAtExit": "0",
++    "interruptedLogged": true
++   },
++   "exitedBeforeCommit": false,
++   "client": {
++    "rc": 1
++   },
++   "barrier": {
++    "decision": "FORWARD_ONLY",
++    "lockWaitMs": "0",
++    "stopKind": "exited-0"
++   }
++  }
++ },
++ "isolation": {
++  "netInterfaces": [
++   "lo"
++  ],
++  "uid": 1000,
++  "pid": 1
++ },
++ "postgres": "PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 16.2.1 20260810, 64-bit",
++ "postgresSettings": "client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
++ "cleanup": {
++  "postgresExited": true,
++  "noIndexd": true,
++  "pgDataRemoved": true,
++  "socketDirRemoved": true,
++  "secretsRemoved": true
++ },
++ "finished": 1792746587.3528454,
++ "summary": {
++  "checks": 27,
++  "failed": [],
++  "cleanupOk": true
++ }
++}
+\ No newline at end of file

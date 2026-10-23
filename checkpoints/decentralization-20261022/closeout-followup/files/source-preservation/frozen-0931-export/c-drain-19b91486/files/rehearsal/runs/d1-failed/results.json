@@ -1,0 +1,135 @@
+{
+ "run": "d1",
+ "started": 1792745217.215257,
+ "inputs": {
+  "claude-resumed-20261022/storage-enclave-build/out/c2-enclave-a/indexd": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
+  "resume-after-checkpoint-20261022/controller-bounds-validation/frozen/replicactl.r5-production.restorefix.bounds.py": "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83",
+  "indexd-c2-production-rehearsal/bin/c2rclient": "e76693f68b70caa2b7309c1f29ace904e975f2dda7503e344eaa15d6e8f53458",
+  "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+  "resume-after-checkpoint-20261022/storage-write-release/package/primary/vm-state.v2.sh": "adacd37fc82e05a272db6a7732999a296ac954b132d521406efdcaee078b9a64",
+  "db-barrier.sh": "b143cedeb6ed22e3238dc861f6194359ad83e0b222bec503d47034c9e3f79b45",
+  "cutover.py": "fb4fcbb2c01fbf7b023ffa48eae92e563a65f6b03abc8b229c2ccb044b7f8e6f",
+  "oldCutover": {
+   "fbaecfce": "fa4eca762aafa8a4fa8d4f529f7581155a20a5ec1b5bf47dd22c7736ecc60dfe",
+   "6fd7a929": "1b05047cce27a9a56fde7e4d20c690d202f4114abe59a98c75b187c3eec56f80"
+  },
+  "fixtureCopy.db-barrier.fixture.sh": {
+   "source": "b143cedeb6ed22e3238dc861f6194359ad83e0b222bec503d47034c9e3f79b45",
+   "copy": "f10b781f5051725237714f534cb19b38595b80f80082174d8a18a219bc7f98db",
+   "onlyGuardPathChanged": true
+  },
+  "fixtureCopy.vm-state.v2.fixture.sh": {
+   "source": "adacd37fc82e05a272db6a7732999a296ac954b132d521406efdcaee078b9a64",
+   "copy": "f70ba6d5cec7d5b4f13dc54cc358bff42a13f84680cd08ad6401f1505b962d2e",
+   "onlyGuardPathChanged": true
+  }
+ },
+ "checks": [
+  {
+   "name": "setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session",
+   "ok": true,
+   "detail": "client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0"
+  },
+  {
+   "name": "N: an account registered on the actual indexd; nothing fenced or enrolled",
+   "ok": true,
+   "detail": "0/0/1"
+  },
+  {
+   "name": "N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed",
+   "ok": true,
+   "detail": "{'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': '4a843a4283cdfbf680d1f2f3b2edeb8d', 'NRestarts': '0'}, 'indexdBackendsGoneAfter': 0.01}"
+  },
+  {
+   "name": "F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only)",
+   "ok": true,
+   "detail": "['db.noOtherSession']"
+  },
+  {
+   "name": "F1: that session was NOT ended by the barrier",
+   "ok": true,
+   "detail": "['92']"
+  },
+  {
+   "name": "F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read",
+   "ok": false,
+   "detail": "{'seconds': 0.1, 'decision': 'LEGACY_REDEPLOY_SAFE', 'missing': None, 'dbMessage': None}"
+  }
+ ],
+ "events": [
+  "01:46:58 postgres ready PostgreSQL 18.6 on x86_64-pc-linux-gnu,  client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
+  "01:46:58 CHECK PASS setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path ",
+  "01:46:58 CHECK PASS setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
+  "01:46:59 N indexd ready after 0.5 s, pid 44",
+  "01:46:59 CHECK PASS N: an account registered on the actual indexd; nothing fenced or enrolled 0/0/1",
+  "01:46:59 CHECK PASS N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': '4a843a4283cdfbf680d1f2f3b2edeb8d', 'NRestarts': '0'}, 'indexdBackendsGoneAfter'",
+  "01:46:59 CHECK PASS F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only) ['db.noOtherSession']",
+  "01:46:59 CHECK PASS F1: that session was NOT ended by the barrier ['92']",
+  "01:47:09 CHECK FAIL F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read {'seconds': 0.1, 'decision': 'LEGACY_REDEPLOY_SAFE', 'missing': None, 'dbMessage': None}"
+ ],
+ "scenarios": {
+  "N": {
+   "countsRunning": "0/0/1",
+   "stop": {
+    "controller": {
+     "ok": true,
+     "stopped": true,
+     "_rc": 0
+    },
+    "exit": 0,
+    "unit": {
+     "ActiveState": "inactive",
+     "SubState": "dead",
+     "MainPID": "0",
+     "Result": "success",
+     "ExecMainCode": "1",
+     "ExecMainStatus": "0",
+     "InvocationID": "4a843a4283cdfbf680d1f2f3b2edeb8d",
+     "NRestarts": "0"
+    },
+    "indexdBackendsGoneAfter": 0.01
+   },
+   "F1": {
+    "decision": "UNKNOWN",
+    "missing": [
+     "db.noOtherSession"
+    ]
+   },
+   "F2": {
+    "seconds": 0.1,
+    "decision": "LEGACY_REDEPLOY_SAFE",
+    "missing": null,
+    "dbMessage": null
+   }
+  }
+ },
+ "isolation": {
+  "netInterfaces": [
+   "lo"
+  ],
+  "uid": 1000,
+  "pid": 1
+ },
+ "postgres": "PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 16.2.1 20260810, 64-bit",
+ "postgresSettings": "client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
+ "cleanup": {
+  "postgresExited": true,
+  "noIndexd": true,
+  "pgDataRemoved": true,
+  "socketDirRemoved": true,
+  "secretsRemoved": true
+ },
+ "finished": 1792745229.905085,
+ "summary": {
+  "checks": 7,
+  "failed": [
+   "F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read"
+  ],
+  "cleanupOk": true
+ }
+}

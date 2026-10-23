@@ -1,0 +1,39 @@
+From 7d5ccb1f3ea20be53ab10bc197bf16559d884865 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:26:26 -0700
+Subject: [PATCH 11/12] scan: allowlist exactly the public Sigma Prime PGP
+ fingerprint (trust evidence) for gitleaks
+
+---
+ .gitleaks.toml | 8 ++++++++
+ jobs/scan.sh   | 4 ++--
+ 2 files changed, 10 insertions(+), 2 deletions(-)
+ create mode 100644 .gitleaks.toml
+
+diff --git a/.gitleaks.toml b/.gitleaks.toml
+new file mode 100644
+index 0000000000000000000000000000000000000000..f0e32a4dd6a7e17013ca5b7a185019d056a278cf
+--- /dev/null
++++ b/.gitleaks.toml
+@@ -0,0 +1,8 @@
++# Default gitleaks rules plus ONE exact allowlisted value: Sigma Prime's PUBLIC Lighthouse release-signing PGP key
++# fingerprint (stated in sigp/lighthouse release.yml:195, SECURITY.md and release notes; trust evidence, not a secret).
++[extend]
++useDefault = true
++
++[allowlist]
++description = "Sigma Prime public release-signing PGP fingerprint"
++regexes = ['''^15E66D941F697E28F49381F426416DC3F30674B0$''']
+diff --git a/jobs/scan.sh b/jobs/scan.sh
+index 48b116513363b9108fc325c3343b9ecc12c805ec..e1bb5add18b4d163a6ebb1ca963a28aa8c7dbbef 100755
+--- a/jobs/scan.sh
++++ b/jobs/scan.sh
+@@ -6,6 +6,6 @@ C=$(cd "$(dirname "$0")/.." && pwd); cd "$C"
+ SCAN=/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-cache-deadline-compose/repo/.githooks/scan-crypto-keys.py
+ git log --format='%H %an <%ae> / %cn <%ce> %s' --all
+ timeout -k 5 300 python3 "$SCAN" --range --all; s=$?
+-timeout -k 5 300 /home/steven/.local/bin/gitleaks git . --log-opts="--all" --no-banner --redact --exit-code 1 --report-format json --report-path logs/gitleaks-git.json; g=$?
+-timeout -k 5 300 /home/steven/.local/bin/gitleaks dir evidence --no-banner --redact --exit-code 1; d=$?
++timeout -k 5 300 /home/steven/.local/bin/gitleaks git . --config .gitleaks.toml --log-opts="--all" --no-banner --redact --exit-code 1 --report-format json --report-path logs/gitleaks-git.json; g=$?
++timeout -k 5 300 /home/steven/.local/bin/gitleaks dir evidence --config .gitleaks.toml --no-banner --redact --exit-code 1; d=$?
+ echo "[scan] scan-crypto-keys=$s gitleaks-git=$g gitleaks-evidence=$d"; [ $s -eq 0 ] && [ $g -eq 0 ] && [ $d -eq 0 ]

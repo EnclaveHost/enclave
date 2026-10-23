@@ -1,0 +1,30 @@
+From 564cc8ae473bfb3ab38c91a34175232d8a652231 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 00:04:34 -0700
+Subject: [PATCH 15/19] Deadline test: accept the request timeout winning the
+ race with the operation deadline
+
+The loopback HTTP case gives each request the time left, so its AbortSignal.timeout and the
+operation's deadline timer fire within the same millisecond; when the request timeout wins the
+refusal reads "aborted due to timeout", which the regex from 8d110101 did not accept (seen once in
+the combined run: 110/111). Test-only: the read is still refused, and the server must still see
+the hung request aborted within 400 ms of a 200 ms deadline.
+---
+ test/lease-reader-verifier-deadline.test.mjs | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/test/lease-reader-verifier-deadline.test.mjs b/test/lease-reader-verifier-deadline.test.mjs
+index 4c92a00b80b60e7a3f542d52f9c6a741b6edca2c..b4e449662548bcce884899aec1aa52a10f7bd0cd 100644
+--- a/test/lease-reader-verifier-deadline.test.mjs
++++ b/test/lease-reader-verifier-deadline.test.mjs
+@@ -184,7 +184,9 @@ test('the loopback HTTP verifier: a hung request is cancelled on the wire at the
+   try {
+     const r = new LeaseReader({ authority: 'verifier', verifier: `http://127.0.0.1:${server.address().port}/`, addressBook: BOOK, confirmations: 2, deadlineMs: 200 });
+     const t0 = performance.now();
+-    await assert.rejects(r.agreed(async (c) => ({ v: String(await c.readContract({ address: ADDR, abi: BAL_ABI, functionName: 'balanceOf', args: [ADDR] })) })), /deadline|timed out/);
++    // the request's own timeout (the time left) and the operation's deadline fire at about the same moment: either wins
++    await assert.rejects(r.agreed(async (c) => ({ v: String(await c.readContract({ address: ADDR, abi: BAL_ABI, functionName: 'balanceOf', args: [ADDR] })) })),
++      /no fresh verified chain state: .*(deadline|timed out|aborted due to timeout)/);
+     await sleep(100);
+     assert.equal(closedAt.length, 1, 'the server saw the hung request aborted');
+     assert.ok(closedAt[0] - t0 < 400, `aborted ${Math.round(closedAt[0] - t0)} ms after start (deadline 200 ms)`);

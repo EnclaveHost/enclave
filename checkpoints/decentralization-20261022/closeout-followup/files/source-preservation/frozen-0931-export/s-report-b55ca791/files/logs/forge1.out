@@ -1,0 +1,697 @@
+[queue] START available=24020MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+forge Version: 1.7.1
+Compiling 4 files with Solc 0.8.35
+Compiling 5 files with Solc 0.8.35
+Solc 0.8.35 finished in 2.31s
+Solc 0.8.35 finished in 5.51s
+Compiler run successful with warnings:
+Warning (6335): "at" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+   --> contracts/EnclaveRegistry.sol:153:41:
+    |
+153 |     event Heartbeat(bytes32 indexed id, uint64 at);
+    |                                         ^^^^^^^^^
+
+Warning (6335): "at" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+   --> contracts/EnclaveDeployments.sol:548:32:
+    |
+548 |     event ProofRequiredFromSet(uint64 at);
+    |                                ^^^^^^^^^
+
+Warning (6335): "at" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> contracts/EnclaveDeployments.sol:1674:35:
+     |
+1674 |     function setProofRequiredFrom(uint64 at) external {
+     |                                   ^^^^^^^^^
+
+Warning (6335): "at" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+   --> contracts/SessionVault.sol:351:41:
+    |
+351 |     function parseHex32(bytes memory b, uint256 at) public pure returns (bytes32 v, bool ok) {
+    |                                         ^^^^^^^^^^
+
+Warning (8760): This declaration has the same name as another declaration.
+   --> contracts/EnclaveDeployments.sol:839:13:
+    |
+839 |             uint256 refund = tail * d.rate;          // settle the unserved tail at the rate it was burned at
+    |             ^^^^^^^^^^^^^^
+Note: The other declaration is here:
+    --> contracts/EnclaveDeployments.sol:1361:5:
+     |
+1361 |     function refund(bytes32 id) external {
+     |     ^ (Relevant source part starts here and spans across multiple lines).
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   ╭▸ contracts/PinnedSessionVaultFactory.sol:23:21
+   │
+23 │         if (name == bytes32("deployments")) return deployments;
+   │                     ━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: consider disabling this lint if you're certain the cast is safe
+   │       
+   │       // casting to 'bytes32' is safe because [explain why]
+   │       // forge-lint: disable-next-line(unsafe-typecast)
+   │       
+   │       
+   ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+   ╭▸ contracts/foundry/test/mocks/SessionMocks.sol:20:17
+   │
+20 │         require(block.timestamp > validAfter, "authorization is not yet valid");
+   │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+   ╭▸ contracts/foundry/test/mocks/SessionMocks.sol:21:17
+   │
+21 │         require(block.timestamp < validBefore, "authorization is expired");
+   │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   ╭▸ contracts/PinnedSessionVaultFactory.sol:24:21
+   │
+24 │         if (name == bytes32("appCatalog")) return appCatalog;
+   │                     ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: consider disabling this lint if you're certain the cast is safe
+   │       
+   │       // casting to 'bytes32' is safe because [explain why]
+   │       // forge-lint: disable-next-line(unsafe-typecast)
+   │       
+   │       
+   ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   ╭▸ contracts/PinnedSessionVaultFactory.sol:25:21
+   │
+25 │         if (name == bytes32("sessionVaultFactory")) return sessionVaultFactory;
+   │                     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: consider disabling this lint if you're certain the cast is safe
+   │       
+   │       // casting to 'bytes32' is safe because [explain why]
+   │       // forge-lint: disable-next-line(unsafe-typecast)
+   │       
+   │       
+   ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/SessionVault.sol:184:39
+    │
+184 │         if (d.runner == bytes32(0) && d.leaseUntil <= block.timestamp && rate != cap) {
+    │                                       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/SessionVault.sol:220:39
+    │
+220 │         if (d.runner != bytes32(0) && d.leaseUntil <= block.timestamp) revert LeaseUnsettled(id);
+    │                                       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/EnclaveAppCatalog.sol:442:59
+    │
+442 │         _cidRefs[cidKey] = CidRef({ appId: appId, index1: uint32(index + 1) });
+    │                                                           ━━━━━━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'uint32' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/EnclaveDeployments.sol:680:13
+    │
+680 │         if (d.leaseUntil <= block.timestamp) {   // unleased: the cap IS the working rate
+    │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/SessionVault.sol:602:13
+    │
+602 │         if (block.timestamp > signBefore) revert Expired();
+    │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/EnclaveDeployments.sol:746:64
+    │
+746 │         if (q.operator == e.operator && q.tenant == d.owner && q.expires > block.timestamp
+    │                                                                ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/SessionVault.sol:608:13
+    │
+608 │         if (g.expiresAt <= block.timestamp) revert BadPolicy(3);
+    │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/EnclaveDeployments.sol:837:13
+    │
+837 │         if (d.leaseUntil > block.timestamp) {
+    │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/SessionVault.sol:668:13
+    │
+668 │         if (block.timestamp > deadline) revert Expired();
+    │             ━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/EnclaveDeployments.sol:880:13
+    │
+880 │         if (d.leaseUntil <= block.timestamp) return _unleasedRate(id, d);
+    │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/SessionVault.sol:694:13
+    │
+694 │         if (block.timestamp > deadline) revert Expired();
+    │             ━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/SessionVault.sol:712:13
+    │
+712 │         if (block.timestamp <= s.expiresAt) revert NotExpired();
+    │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+     ╭▸ contracts/EnclaveDeployments.sol:1031:31
+     │
+1031 │         require(answer > 0 && block.timestamp - updatedAt <= FEED_MAX_AGE, "stale price");
+     │                               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     │
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/SessionVault.sol:750:13
+    │
+750 │         if (expiresAt <= block.timestamp) revert BadPolicy(3);
+    │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+     ╭▸ contracts/EnclaveDeployments.sol:1082:17
+     │
+1082 │         require(block.timestamp > d.leaseUntil, "leased");
+     │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     │
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/SessionVault.sol:896:55
+    │
+896 │         return s.state == LIVE && s.epoch == epoch && block.timestamp <= s.expiresAt;
+    │                                                       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+     ╭▸ contracts/EnclaveDeployments.sol:1125:17
+     │
+1125 │         require(block.timestamp <= d.leaseUntil, "lease expired");
+     │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     │
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/SessionVault.sol:942:13
+    │
+942 │         if (block.timestamp > signBefore) revert Expired();
+    │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+     ╭▸ contracts/EnclaveDeployments.sol:1159:13
+     │
+1159 │         if (d.leaseUntil > block.timestamp) {
+     │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     │
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ contracts/SessionVault.sol:982:13
+    │
+982 │         if (block.timestamp >= uint256(s.periodStart) + s.period) {
+    │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+     ╭▸ contracts/EnclaveDeployments.sol:1264:42
+     │
+1264 │         return proofRequiredFrom != 0 && block.timestamp >= proofRequiredFrom;
+     │                                          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     │
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+     ╭▸ contracts/EnclaveDeployments.sol:1380:17
+     │
+1380 │         require(block.timestamp > d.leaseUntil, "leased");
+     │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     │
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+     ╭▸ contracts/EnclaveDeployments.sol:1423:34
+     │
+1423 │         require(b.exitAt != 0 && block.timestamp >= b.exitAt, "exit pending");
+     │                                  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     │
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/SessionVault.sol:670:28
+    │
+670 │             uint192 lane = uint192(nonce >> 64);
+    │                            ━━━━━━━━━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'uint192' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+     ╭▸ contracts/EnclaveDeployments.sol:1768:43
+     │
+1768 │         return _exists[id] && d.active && block.timestamp > d.leaseUntil;
+     │                                           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     │
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/SessionVault.sol:671:37
+    │
+671 │             if (seqOf[sid][lane] != uint64(nonce)) revert BadNonce();
+    │                                     ━━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'uint64' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/SessionVault.sol:672:32
+    │
+672 │             seqOf[sid][lane] = uint64(nonce) + 1;
+    │                                ━━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'uint64' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+     ╭▸ contracts/EnclaveDeployments.sol:1933:77
+     │
+1933 │ …     require(amount6 > 0 && provider6 <= amount6 && backing(d,e) == 0 && d.leaseUntil > block.timestamp && d.runnerOperator != addr…
+     │                                                                           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     │
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/SessionVault.sol:913:23
+    │
+913 │         s.balance6 += uint128(amount);
+    │                       ━━━━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'uint128' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/SessionVault.sol:963:42
+    │
+963 │         return ok && ret.length >= 32 && bytes4(bytes32(ret)) == 0x1626ba7e;
+    │                                          ━━━━━━━━━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'bytes4' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/SessionVault.sol:963:49
+    │
+963 │         return ok && ret.length >= 32 && bytes4(bytes32(ret)) == 0x1626ba7e;
+    │                                                 ━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'bytes32' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/EnclaveDeployments.sol:626:44
+    │
+626 │         while (_exists[id] || _prefixTaken[bytes4(id)]);
+    │                                            ━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'bytes4' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/SessionVault.sol:972:50
+    │
+972 │         return ok && ret.length == 32 && uint256(bytes32(ret)) == 1;
+    │                                                  ━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'bytes32' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/EnclaveDeployments.sol:628:22
+    │
+628 │         _prefixTaken[bytes4(id)] = true;   // the hostname label is unique too (see _prefixTaken)
+    │                      ━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'bytes4' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/SessionVault.sol:993:23
+    │
+993 │         s.balance6 -= uint128(amt);
+    │                       ━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'uint128' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/SessionVault.sol:994:21
+    │
+994 │         s.spent6 += uint128(amt);
+    │                     ━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'uint128' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/SessionVault.sol:995:27
+    │
+995 │         s.periodSpent6 += uint128(amt);
+    │                           ━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'uint128' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/EnclaveDeployments.sol:695:29
+    │
+695 │         _earn[d.id].rate6 = uint96(r6);
+    │                             ━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'uint96' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/EnclaveDeployments.sol:708:41
+    │
+708 │         _fees[d.id] = Fee(feeRecipient, uint96(feePerSec6));  // cast safe: maxFeePerSec6 <= uint96.max (setter-enforced)
+    │                                         ━━━━━━━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'uint96' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/EnclaveDeployments.sol:849:54
+    │
+849 │             d.leaseUntil = uint64(block.timestamp) + uint64(secs);
+    │                                                      ━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'uint64' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/EnclaveDeployments.sol:962:17
+    │
+962 │         require(bytes16(nonce) == bytes16(id), "nonce !~ id");
+    │                 ━━━━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'bytes16' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    ╭▸ contracts/EnclaveDeployments.sol:962:35
+    │
+962 │         require(bytes16(nonce) == bytes16(id), "nonce !~ id");
+    │                                   ━━━━━━━━━━━
+    │
+    ├ note: consider disabling this lint if you're certain the cast is safe
+    │       
+    │       // casting to 'bytes16' is safe because [explain why]
+    │       // forge-lint: disable-next-line(unsafe-typecast)
+    │       
+    │       
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+     ╭▸ contracts/EnclaveDeployments.sol:1034:41
+     │
+1034 │         uint256 credited = (msg.value * uint256(answer)) / 1e20;
+     │                                         ━━━━━━━━━━━━━━━
+     │
+     ├ note: consider disabling this lint if you're certain the cast is safe
+     │       
+     │       // casting to 'uint256' is safe because [explain why]
+     │       // forge-lint: disable-next-line(unsafe-typecast)
+     │       
+     │       
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+     ╭▸ contracts/EnclaveDeployments.sol:1194:64
+     │
+1194 │         until = (rate == 0 ? uint64(block.timestamp) : from) + uint64(secs);
+     │                                                                ━━━━━━━━━━━━
+     │
+     ├ note: consider disabling this lint if you're certain the cast is safe
+     │       
+     │       // casting to 'uint64' is safe because [explain why]
+     │       // forge-lint: disable-next-line(unsafe-typecast)
+     │       
+     │       
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+     ╭▸ contracts/EnclaveDeployments.sol:1313:32
+     │
+1313 │         _earn[d.id].escrow6 += uint96(amount6);              // cast safe: real USDC received
+     │                                ━━━━━━━━━━━━━━━
+     │
+     ├ note: consider disabling this lint if you're certain the cast is safe
+     │       
+     │       // casting to 'uint96' is safe because [explain why]
+     │       // forge-lint: disable-next-line(unsafe-typecast)
+     │       
+     │       
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+     ╭▸ contracts/EnclaveDeployments.sol:1404:22
+     │
+1404 │         b.amount6 += uint192(amount6);                       // cast safe: real USDC received
+     │                      ━━━━━━━━━━━━━━━━
+     │
+     ├ note: consider disabling this lint if you're certain the cast is safe
+     │       
+     │       // casting to 'uint192' is safe because [explain why]
+     │       // forge-lint: disable-next-line(unsafe-typecast)
+     │       
+     │       
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+     ╭▸ contracts/EnclaveDeployments.sol:1438:22
+     │
+1438 │         b.amount6 -= uint192(amount6);
+     │                      ━━━━━━━━━━━━━━━━
+     │
+     ├ note: consider disabling this lint if you're certain the cast is safe
+     │       
+     │       // casting to 'uint192' is safe because [explain why]
+     │       // forge-lint: disable-next-line(unsafe-typecast)
+     │       
+     │       
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+     ╭▸ contracts/EnclaveDeployments.sol:1493:26
+     │
+1493 │             _prefixTaken[bytes4(id)] = true;
+     │                          ━━━━━━━━━━
+     │
+     ├ note: consider disabling this lint if you're certain the cast is safe
+     │       
+     │       // casting to 'bytes4' is safe because [explain why]
+     │       // forge-lint: disable-next-line(unsafe-typecast)
+     │       
+     │       
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+     ╭▸ contracts/EnclaveDeployments.sol:1888:22
+     │
+1888 │         e.escrow6 -= uint96(amount);earned[d.runnerOperator] += amount;
+     │                      ━━━━━━━━━━━━━━
+     │
+     ├ note: consider disabling this lint if you're certain the cast is safe
+     │       
+     │       // casting to 'uint96' is safe because [explain why]
+     │       // forge-lint: disable-next-line(unsafe-typecast)
+     │       
+     │       
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+     ╭▸ contracts/EnclaveDeployments.sol:1900:50
+     │
+1900 │         ownerEscrow[d.id] -= amount;e.escrow6 -= uint96(amount);d.balance6 = 0;d.active = false;
+     │                                                  ━━━━━━━━━━━━━━
+     │
+     ├ note: consider disabling this lint if you're certain the cast is safe
+     │       
+     │       // casting to 'uint96' is safe because [explain why]
+     │       // forge-lint: disable-next-line(unsafe-typecast)
+     │       
+     │       
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+     ╭▸ contracts/EnclaveDeployments.sol:1923:26
+     │
+1923 │             e.escrow6 += uint96(esc);
+     │                          ━━━━━━━━━━━
+     │
+     ├ note: consider disabling this lint if you're certain the cast is safe
+     │       
+     │       // casting to 'uint96' is safe because [explain why]
+     │       // forge-lint: disable-next-line(unsafe-typecast)
+     │       
+     │       
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+     ╭▸ contracts/EnclaveDeployments.sol:1934:64
+     │
+1934 │         d.balance6 -= amount6;d.spent6 += amount6;e.escrow6 -= uint96(amount6);earned[beneficiary] += provider6;
+     │                                                                ━━━━━━━━━━━━━━━
+     │
+     ├ note: consider disabling this lint if you're certain the cast is safe
+     │       
+     │       // casting to 'uint96' is safe because [explain why]
+     │       // forge-lint: disable-next-line(unsafe-typecast)
+     │       
+     │       
+     ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  contracts/foundry/out/EnclaveAddressBook.sol/EnclaveAddressBook.json
+58fde116ae2ed8eabac4185c447e88d88bc020f823ee3df81265a3958f44034b  contracts/foundry/out/EnclaveAppCatalog.sol/EnclaveAppCatalog.json
+039d621990f347a95a8f58a83b384e19236aedc731e0f7d2e198e77ca966622f  contracts/foundry/out/EnclaveDeployments.sol/EnclaveDeployments.json
+0e40cb03958d9430161f891baded07ced297d95f16f77590fd829cf2125a5912  contracts/foundry/out/EnclaveDeployments.sol/EnclaveLedgerBandwidth.json
+5b36ed29d26bf37a62b36882e758fb09addadda6e47dc09944a6853b94f00879  contracts/foundry/out/EnclaveRegistry.sol/EnclaveRegistry.json
+74c63e835865d959f7163e713701632a1bc0c57bfeebf700240043eb8a329d91  contracts/foundry/out/PaymentRouter.sol/PaymentRouter.json
+5488c36e0d5669fa0a2dcf7427363e3f3c5678550cb6fa0c14fdfa9344e71733  contracts/foundry/out/PinnedSessionVaultFactory.sol/PinnedSessionVaultFactory.json
+2381bea655da4ac803954db73d175b5a33fa6314f6068950aa1a7a67b22f820a  contracts/foundry/out/SessionMocks.sol/MockUSDC3009.json
+c874729343a0be895aff02238d996bf4809f0017a021230d65a8f976ae1e3d78  contracts/foundry/out/SessionVault.sol/SessionVaultFactory.json
+2429487ca1eeb23c4c7cc5acd0b88af3df5f9f8a66c93320e34ccac66fef567e  contracts/foundry/out/SessionVault.sol/SessionVaultLib.json
+[memory-guard] exit=0 peakTreeRssMiB=200 minHostAvailableMiB=23778
+[memory-guard] at peak: solc-0.8.35:75 solc-0.8.35:74 forge:41 forge-subset.sh:6 timeout:4
+[queue] EXIT 0

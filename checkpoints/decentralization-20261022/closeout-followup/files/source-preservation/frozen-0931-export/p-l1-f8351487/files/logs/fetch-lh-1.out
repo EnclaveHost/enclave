@@ -1,0 +1,11 @@
+[queue] START available=23753MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+200 31384350 https://github.com/sigp/lighthouse/releases/download/v8.3.2/lighthouse-v8.3.2-x86_64-unknown-linux-gnu.tar.gz
+200 833 https://github.com/sigp/lighthouse/releases/download/v8.3.2/lighthouse-v8.3.2-x86_64-unknown-linux-gnu.tar.gz.asc
+200 1500 https://raw.githubusercontent.com/sigp/lighthouse/a376defa30470923556d91bdeb15a802e297f31f/book/src/installation_binaries.md
+200 1758 https://keys.openpgp.org/vks/v1/by-fingerprint/15E66D941F697E28F49381F426416DC3F30674B0
+200 3926 https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0x15E66D941F697E28F49381F426416DC3F30674B0
+ea914e932462d6a93ad78c21377d70f995e05ac224248be0b58c2f4d6740439a  bin-staging/lighthouse-v8.3.2/lighthouse-v8.3.2-x86_64-unknown-linux-gnu.tar.gz
+OUT=evidence/lighthouse-binary-20261023T080144Z
+[memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=23683
+[memory-guard] at peak: curl:17 bash:6
+[queue] EXIT 0

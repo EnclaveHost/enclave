@@ -1,0 +1,55 @@
+[queue] START available=22974MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+HEAD 349318a0600917bad8f391ad628fa0c7f134b3f6
+3b3b2178a23782e0ac7181fa09a30f060871b6edde425dc1c63a9aa7e24be8a7  site/js/core/wallet.js
+26af82aae6b7afa66e83b4d451c1cdf44c2a152de7a52484eb46fe3483ba074f  test/walletconnect-independent-rpc.test.mjs
+TAP version 13
+# (node:3276295) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: WalletConnect uses the confirmed profile RPC and shares one initialization
+ok 1 - WalletConnect uses the confirmed profile RPC and shares one initialization
+  ---
+  duration_ms: 3.656345
+  type: 'test'
+  ...
+# Subtest: WalletConnect refuses invalid profile before SDK or lock
+ok 2 - WalletConnect refuses invalid profile before SDK or lock
+  ---
+  duration_ms: 2.559542
+  type: 'test'
+  ...
+# Subtest: WalletConnect refuses unconfirmed profile before SDK or lock
+ok 3 - WalletConnect refuses unconfirmed profile before SDK or lock
+  ---
+  duration_ms: 1.48204
+  type: 'test'
+  ...
+# Subtest: empty independent RPC list refuses without a hidden default
+ok 4 - empty independent RPC list refuses without a hidden default
+  ---
+  duration_ms: 1.477169
+  type: 'test'
+  ...
+# Subtest: SDK retry stays on the selected independent RPC
+ok 5 - SDK retry stays on the selected independent RPC
+  ---
+  duration_ms: 2.117056
+  type: 'test'
+  ...
+# Subtest: hosted mode retains its existing WalletConnect endpoint
+ok 6 - hosted mode retains its existing WalletConnect endpoint
+  ---
+  duration_ms: 1.514369
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 57.544245
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

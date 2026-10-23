@@ -1,0 +1,441 @@
+{
+ "run": "d3",
+ "started": 1792746489.398315,
+ "inputs": {
+  "claude-resumed-20261022/storage-enclave-build/out/c2-enclave-a/indexd": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
+  "resume-after-checkpoint-20261022/controller-bounds-validation/frozen/replicactl.r5-production.restorefix.bounds.py": "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83",
+  "indexd-c2-production-rehearsal/bin/c2rclient": "e76693f68b70caa2b7309c1f29ace904e975f2dda7503e344eaa15d6e8f53458",
+  "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+  "resume-after-checkpoint-20261022/storage-write-release/package/primary/vm-state.v2.sh": "adacd37fc82e05a272db6a7732999a296ac954b132d521406efdcaee078b9a64",
+  "db-barrier.sh": "70cfef1fd28d3555e6340af13e1d1630e08d4474d48b1efaebd0037024a037bc",
+  "cutover.py": "fb4fcbb2c01fbf7b023ffa48eae92e563a65f6b03abc8b229c2ccb044b7f8e6f",
+  "oldCutover": {
+   "fbaecfce": "fa4eca762aafa8a4fa8d4f529f7581155a20a5ec1b5bf47dd22c7736ecc60dfe",
+   "6fd7a929": "1b05047cce27a9a56fde7e4d20c690d202f4114abe59a98c75b187c3eec56f80"
+  },
+  "fixtureCopy.db-barrier.fixture.sh": {
+   "source": "70cfef1fd28d3555e6340af13e1d1630e08d4474d48b1efaebd0037024a037bc",
+   "copy": "6b6cfdd4ba7aa4f4f59e36d55febe0cece164623a0f6bb33fc73d39878e3cbd8",
+   "onlyGuardPathChanged": true
+  },
+  "fixtureCopy.vm-state.v2.fixture.sh": {
+   "source": "adacd37fc82e05a272db6a7732999a296ac954b132d521406efdcaee078b9a64",
+   "copy": "9396743fd5a1fcdd908f0eecb7af63d0412137491dbbca34e7baac308c2b6deb",
+   "onlyGuardPathChanged": true
+  }
+ },
+ "checks": [
+  {
+   "name": "setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session",
+   "ok": true,
+   "detail": "client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0"
+  },
+  {
+   "name": "N: an account registered on the actual indexd; nothing fenced or enrolled",
+   "ok": true,
+   "detail": "0/0/1"
+  },
+  {
+   "name": "N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed",
+   "ok": true,
+   "detail": "{'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': '22d828327fb8f0313ba89991fde71ef7', 'NRestarts': '0'}, 'indexdBackendsGoneAfter': 0.01}"
+  },
+  {
+   "name": "F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only)",
+   "ok": true,
+   "detail": "['db.noOtherSession']"
+  },
+  {
+   "name": "F1: that session was NOT ended by the barrier",
+   "ok": true,
+   "detail": "['91']"
+  },
+  {
+   "name": "F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read",
+   "ok": true,
+   "detail": "{'seconds': 30.1, 'decision': 'UNKNOWN', 'missing': ['db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'dbMessage': 'psql:<stdin>:3: ERROR:  canceling statement due to lock timeout'}"
+  },
+  {
+   "name": "F2: the holding session is left alone (alive, still holding its lock); no barrier session or lock remains",
+   "ok": true,
+   "detail": "['124']"
+  },
+  {
+   "name": "F3: the barrier KILLed while it waits for the lock: its partial output -> UNKNOWN",
+   "ok": true,
+   "detail": "{'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUnchanged', 'db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'barrierBackendGoneAfterSeconds': 29.98}"
+  },
+  {
+   "name": "F3: its backend ends by itself, at the latest at its own lock_timeout (30 s); the holder is untouched",
+   "ok": true,
+   "detail": "{'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUnchanged', 'db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'barrierBackendGoneAfterSeconds': 29.98}"
+  },
+  {
+   "name": "F: cleanup - the fixture's own sessions closed by their owner; no lock on accounts remains",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "N: the read-only vm-state.v2.sh alone (process barrier + zero counts): fbaecfce says SAFE, the new decision UNKNOWN (databaseBarrier)",
+   "ok": true,
+   "detail": "{'new': 'UNKNOWN', 'newMissing': ['databaseBarrier'], 'fbaecfce': 'LEGACY_REDEPLOY_SAFE'}"
+  },
+  {
+   "name": "N: db-barrier.sh: lock granted, no other session, no prepared transaction, 0 fenced / 0 CAS; pre/post unchanged",
+   "ok": true,
+   "detail": ".unit.ExecMainStatus=0\npre.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7\npre.unit.NRestarts=0\npre.writerPids=\npre.allowLiveStart=absent\ndb.lock=granted\ndb.lockWaitMs=0\ndb.otherBackends=0\ndb.otherBackendsDetail=\ndb.preparedXacts=0\ndb.dbVersion=28\ndb.fencedAccounts=0\ndb.casEnrolledAccounts=0\ndb.barrier=complete\ndb.exit=0\npost.unit.ActiveState=inactive\npost.unit.SubState=dead\npost.unit.MainPID=0\npost.unit.Result=success\npost.unit.ExecMainCode=1\npost.unit.ExecMainStatus=0\npost.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7\npost.unit.NRestarts=0\npost.writerPids=\npost.allowLiveStart=absent\n"
+  },
+  {
+   "name": "N: the legitimate never-enrolled rollback: UNKNOWN without the owner's attestation, LEGACY_REDEPLOY_SAFE with it",
+   "ok": true,
+   "detail": "{'withoutAttestation': ['UNKNOWN', ['c2ActivationDisabledAttested']], 'withAttestation': 'LEGACY_REDEPLOY_SAFE', 'seen': {'stopKind': 'exited-0', 'lockWaitMs': '0', 'otherBackends': '', 'dbMessage': None}}"
+  },
+  {
+   "name": "B: enrolled while running (raise-cas), then the controller's stop: the barrier -> FORWARD_ONLY (and vm-state alone too)",
+   "ok": true,
+   "detail": "{'raise': {'head': 0, 'mode': 'cas', 'step': 'raise-cas'}, 'countsRunning': '1/1/1', 'stop': {'ok': True, 'stopped': True, '_rc': 0}, 'decision': 'FORWARD_ONLY', 'exit': 0, 'vmstate': ['FORWARD_ONLY', 'FORWARD_ONLY']}"
+  },
+  {
+   "name": "D1: the actual indexd sent the enrolment's COMMIT (its backend runs the commit: query 'commit', PgSleep in the deferred check)",
+   "ok": true,
+   "detail": "{'pendingCommitSeenAfter': 0.06}"
+  },
+  {
+   "name": "D1: the controller's crash-indexd KILLed it: reaped by SIGKILL, unit failed with no main PID, no indexd process",
+   "ok": true,
+   "detail": "{'controller': {'ok': True, 'killed': 1472, '_rc': 0}, 'exit': 9, 'unit': {'ActiveState': 'failed', 'SubState': 'failed', 'MainPID': '0', 'Result': 'signal', 'ExecMainCode': '2', 'ExecMainStatus': '9', 'InvocationID': 'db34e99a62c72b91c0e608eb15c97013', 'NRestarts': '0'}}"
+  },
+  {
+   "name": "D1: process gone, yet its backend still runs the COMMIT; the account still reads neither fenced nor enrolled (both are written in that one transaction)",
+   "ok": true,
+   "detail": "{'counts': '0/0/1', 'indexdBackends': '1', 'pendingCommit': '1'}"
+  },
+  {
+   "name": "D1 NEGATIVE CONTROL: on the actual vm-state.v2.sh output (unit failed, MainPID 0, guard absent, 0 CAS) the fbaecfce decision says LEGACY_REDEPLOY_SAFE while the COMMIT is still pending",
+   "ok": true,
+   "detail": "{'fbaecfce': 'LEGACY_REDEPLOY_SAFE', '6fd7a929': 'LEGACY_REDEPLOY_SAFE', 'new': ['UNKNOWN', ['databaseBarrier']]}"
+  },
+  {
+   "name": "D1: the new decision on that vm-state output is UNKNOWN (databaseBarrier)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "D1: db-barrier.sh started while the COMMIT was pending, WAITED for it (lock), and read CAS=1 -> FORWARD_ONLY",
+   "ok": true,
+   "detail": "{'seconds': 14.5, 'lockWaitMs': '14439', 'decision': 'FORWARD_ONLY', 'otherBackends': '', 'stopKind': 'abnormal', 'secondsAfterKill': 0.3}"
+  },
+  {
+   "name": "D1: the enrolment committed after the process was gone (1/1/1); the dead client's backend then ended by itself",
+   "ok": true,
+   "detail": "{'counts': '1/1/1', 'indexdBackendsGoneAfter': 0.01}"
+  },
+  {
+   "name": "D2: the controller's stop (one SIGTERM) waited for the in-flight enrolment: exit 0 only AFTER its COMMIT; no backend left",
+   "ok": true,
+   "detail": "{'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'seconds': 8.1, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': 'fed69dcd86bb971e3da7108fd83bf00b', 'NRestarts': '0'}, 'countsAtExit': '1/1/1', 'pendingCommitAtExit': '0', 'indexdBackendsGoneAfter': 0.0}"
+  },
+  {
+   "name": "D2: the client got its answer (the handler completed during Shutdown)",
+   "ok": true,
+   "detail": "{'rc': 0, 'out': '{\"head\":0,\"mode\":\"cas\",\"step\":\"raise-cas\"}\\n'}"
+  },
+  {
+   "name": "D2: the barrier -> FORWARD_ONLY without waiting (the graceful path had already drained); stopKind exited-0 is reported, not used",
+   "ok": true,
+   "detail": "{'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}"
+  },
+  {
+   "name": "D3: two SIGTERMs: indexd logged the interrupted graceful shutdown and exited (observation recorded: exitedBeforeCommit = False)",
+   "ok": true,
+   "detail": "{'seconds': 8.0, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': 'd4d63cfcb8ff6f064334785e8f971e0b', 'NRestarts': '0'}, 'countsAtExit': '1/1/1', 'pendingCommitAtExit': '0', 'interruptedLogged': True}"
+  },
+  {
+   "name": "D3: the barrier -> FORWARD_ONLY whatever the process did",
+   "ok": true,
+   "detail": "{'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}"
+  }
+ ],
+ "events": [
+  "02:08:10 postgres ready PostgreSQL 18.6 on x86_64-pc-linux-gnu,  client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
+  "02:08:10 CHECK PASS setup: the fixture copies of db-barrier.sh and vm-state.v2.sh differ from the package files ONLY in the guard path ",
+  "02:08:10 CHECK PASS setup: PostgreSQL 18.6 with server-wide defaults for every bound the barrier sets per session client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
+  "02:08:11 N indexd ready after 0.5 s, pid 44",
+  "02:08:11 CHECK PASS N: an account registered on the actual indexd; nothing fenced or enrolled 0/0/1",
+  "02:08:11 CHECK PASS N: R2 guard aside, R3 the controller's stop: indexd exited 0, unit inactive/success, its backends closed {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': '22d828327fb8f0313ba89991fde71ef7', 'NRestarts': '0'}, 'indexdBackendsGoneAfter'",
+  "02:08:11 CHECK PASS F1: an idle unrelated session in the database: the barrier completes but the decision is UNKNOWN (db.noOtherSession only) ['db.noOtherSession']",
+  "02:08:11 CHECK PASS F1: that session was NOT ended by the barrier ['91']",
+  "02:08:41 CHECK PASS F2: a session holding accounts rows: the barrier's lock times out (bounded, ~30 s) -> UNKNOWN, no counts read {'seconds': 30.1, 'decision': 'UNKNOWN', 'missing': ['db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'dbMessage': 'psql:<stdin>:3: ERROR:  canceling statement due to lock timeout'}",
+  "02:08:41 CHECK PASS F2: the holding session is left alone (alive, still holding its lock); no barrier session or lock remains ['124']",
+  "02:09:11 CHECK PASS F3: the barrier KILLed while it waits for the lock: its partial output -> UNKNOWN {'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUnchanged', 'db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'barrierBackendGoneAfterSeconds': 29.98}",
+  "02:09:11 CHECK PASS F3: its backend ends by itself, at the latest at its own lock_timeout (30 s); the holder is untouched {'lockWaitSeenAfter': 0.12, 'decision': 'UNKNOWN', 'missing': ['post.allowLiveStart', 'post.unitInactive', 'post.noIndexdProcess', 'unitUnchanged', 'db.lockGranted', 'db.noOtherSession', 'db.noPreparedTransaction', 'db.countsReadUnderLock', 'db.complete'], 'barrierBackendGoneAfterSeconds': 29.98}",
+  "02:09:11 CHECK PASS F: cleanup - the fixture's own sessions closed by their owner; no lock on accounts remains ",
+  "02:09:12 CHECK PASS N: the read-only vm-state.v2.sh alone (process barrier + zero counts): fbaecfce says SAFE, the new decision UNKNOWN (databaseBarrier) {'new': 'UNKNOWN', 'newMissing': ['databaseBarrier'], 'fbaecfce': 'LEGACY_REDEPLOY_SAFE'}",
+  "02:09:12 CHECK PASS N: db-barrier.sh: lock granted, no other session, no prepared transaction, 0 fenced / 0 CAS; pre/post unchanged .unit.ExecMainStatus=0\npre.unit.InvocationID=22d828327fb8f0313ba89991fde71ef7\npre.unit.NRestarts=0\npre.writerPids=\npre.allowLiveStart=absent\ndb.lock=granted\ndb.lockWaitMs=0\ndb.otherBackends=0\ndb.otherBackendsDetail=\ndb.preparedXacts=0\ndb.dbVersion=28\ndb.fencedAccounts=0\ndb.casEnrolledAccounts=0\ndb.b",
+  "02:09:12 CHECK PASS N: the legitimate never-enrolled rollback: UNKNOWN without the owner's attestation, LEGACY_REDEPLOY_SAFE with it {'withoutAttestation': ['UNKNOWN', ['c2ActivationDisabledAttested']], 'withAttestation': 'LEGACY_REDEPLOY_SAFE', 'seen': {'stopKind': 'exited-0', 'lockWaitMs': '0', 'otherBackends': '', 'dbMessage': None}}",
+  "02:09:12 B indexd ready after 0.5 s, pid 1341",
+  "02:09:13 CHECK PASS B: enrolled while running (raise-cas), then the controller's stop: the barrier -> FORWARD_ONLY (and vm-state alone too) {'raise': {'head': 0, 'mode': 'cas', 'step': 'raise-cas'}, 'countsRunning': '1/1/1', 'stop': {'ok': True, 'stopped': True, '_rc': 0}, 'decision': 'FORWARD_ONLY', 'exit': 0, 'vmstate': ['FORWARD_ONLY', 'FORWARD_ONLY']}",
+  "02:09:14 D1 indexd ready after 0.5 s, pid 1472",
+  "02:09:14 CHECK PASS D1: the actual indexd sent the enrolment's COMMIT (its backend runs the commit: query 'commit', PgSleep in the deferred check) {'pendingCommitSeenAfter': 0.06}",
+  "02:09:14 CHECK PASS D1: the controller's crash-indexd KILLed it: reaped by SIGKILL, unit failed with no main PID, no indexd process {'controller': {'ok': True, 'killed': 1472, '_rc': 0}, 'exit': 9, 'unit': {'ActiveState': 'failed', 'SubState': 'failed', 'MainPID': '0', 'Result': 'signal', 'ExecMainCode': '2', 'ExecMainStatus': '9', 'InvocationID': 'db34e99a62c72b91c0e608eb15c97013', 'NRestarts': '0'}}",
+  "02:09:14 CHECK PASS D1: process gone, yet its backend still runs the COMMIT; the account still reads neither fenced nor enrolled (both are written in that one transaction) {'counts': '0/0/1', 'indexdBackends': '1', 'pendingCommit': '1'}",
+  "02:09:14 CHECK PASS D1 NEGATIVE CONTROL: on the actual vm-state.v2.sh output (unit failed, MainPID 0, guard absent, 0 CAS) the fbaecfce decision says LEGACY_REDEPLOY_SAFE while the COMMIT is still pending {'fbaecfce': 'LEGACY_REDEPLOY_SAFE', '6fd7a929': 'LEGACY_REDEPLOY_SAFE', 'new': ['UNKNOWN', ['databaseBarrier']]}",
+  "02:09:14 CHECK PASS D1: the new decision on that vm-state output is UNKNOWN (databaseBarrier) ",
+  "02:09:29 CHECK PASS D1: db-barrier.sh started while the COMMIT was pending, WAITED for it (lock), and read CAS=1 -> FORWARD_ONLY {'seconds': 14.5, 'lockWaitMs': '14439', 'decision': 'FORWARD_ONLY', 'otherBackends': '', 'stopKind': 'abnormal', 'secondsAfterKill': 0.3}",
+  "02:09:29 CHECK PASS D1: the enrolment committed after the process was gone (1/1/1); the dead client's backend then ended by itself {'counts': '1/1/1', 'indexdBackendsGoneAfter': 0.01}",
+  "02:09:29 D2 indexd ready after 0.5 s, pid 1619",
+  "02:09:38 CHECK PASS D2: the controller's stop (one SIGTERM) waited for the in-flight enrolment: exit 0 only AFTER its COMMIT; no backend left {'controller': {'ok': True, 'stopped': True, '_rc': 0}, 'seconds': 8.1, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': 'fed69dcd86bb971e3da7108fd83bf00b', 'NRestarts': '0'}, 'countsAt",
+  "02:09:38 CHECK PASS D2: the client got its answer (the handler completed during Shutdown) {'rc': 0, 'out': '{\"head\":0,\"mode\":\"cas\",\"step\":\"raise-cas\"}\\n'}",
+  "02:09:38 CHECK PASS D2: the barrier -> FORWARD_ONLY without waiting (the graceful path had already drained); stopKind exited-0 is reported, not used {'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}",
+  "02:09:38 D3 indexd ready after 0.5 s, pid 1715",
+  "02:09:47 D3 observed: {'seconds': 8.0, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': 'd4d63cfcb8ff6f064334785e8f971e0b', 'NRestarts': '0'}, 'countsAtExit': '1/1/1', 'pendingCommitAtExit': '0', 'interruptedLogged': True}",
+  "02:09:47 CHECK PASS D3: two SIGTERMs: indexd logged the interrupted graceful shutdown and exited (observation recorded: exitedBeforeCommit = False) {'seconds': 8.0, 'exit': 0, 'unit': {'ActiveState': 'inactive', 'SubState': 'dead', 'MainPID': '0', 'Result': 'success', 'ExecMainCode': '1', 'ExecMainStatus': '0', 'InvocationID': 'd4d63cfcb8ff6f064334785e8f971e0b', 'NRestarts': '0'}, 'countsAtExit': '1/1/1', 'pendingCommitAtExit': '0', 'interrupte",
+  "02:09:47 CHECK PASS D3: the barrier -> FORWARD_ONLY whatever the process did {'decision': 'FORWARD_ONLY', 'lockWaitMs': '0', 'stopKind': 'exited-0'}"
+ ],
+ "scenarios": {
+  "N": {
+   "countsRunning": "0/0/1",
+   "stop": {
+    "controller": {
+     "ok": true,
+     "stopped": true,
+     "_rc": 0
+    },
+    "exit": 0,
+    "unit": {
+     "ActiveState": "inactive",
+     "SubState": "dead",
+     "MainPID": "0",
+     "Result": "success",
+     "ExecMainCode": "1",
+     "ExecMainStatus": "0",
+     "InvocationID": "22d828327fb8f0313ba89991fde71ef7",
+     "NRestarts": "0"
+    },
+    "indexdBackendsGoneAfter": 0.01
+   },
+   "F1": {
+    "decision": "UNKNOWN",
+    "missing": [
+     "db.noOtherSession"
+    ]
+   },
+   "F2": {
+    "seconds": 30.1,
+    "decision": "UNKNOWN",
+    "missing": [
+     "db.lockGranted",
+     "db.noOtherSession",
+     "db.noPreparedTransaction",
+     "db.countsReadUnderLock",
+     "db.complete"
+    ],
+    "dbMessage": "psql:<stdin>:3: ERROR:  canceling statement due to lock timeout"
+   },
+   "F3": {
+    "lockWaitSeenAfter": 0.12,
+    "decision": "UNKNOWN",
+    "missing": [
+     "post.allowLiveStart",
+     "post.unitInactive",
+     "post.noIndexdProcess",
+     "unitUnchanged",
+     "db.lockGranted",
+     "db.noOtherSession",
+     "db.noPreparedTransaction",
+     "db.countsReadUnderLock",
+     "db.complete"
+    ],
+    "barrierBackendGoneAfterSeconds": 29.98
+   },
+   "vmstate": {
+    "new": "UNKNOWN",
+    "newMissing": [
+     "databaseBarrier"
+    ],
+    "fbaecfce": "LEGACY_REDEPLOY_SAFE"
+   },
+   "barrier": {
+    "withoutAttestation": [
+     "UNKNOWN",
+     [
+      "c2ActivationDisabledAttested"
+     ]
+    ],
+    "withAttestation": "LEGACY_REDEPLOY_SAFE",
+    "seen": {
+     "stopKind": "exited-0",
+     "lockWaitMs": "0",
+     "otherBackends": "",
+     "dbMessage": null
+    }
+   }
+  },
+  "B": {
+   "raise": {
+    "head": 0,
+    "mode": "cas",
+    "step": "raise-cas"
+   },
+   "countsRunning": "1/1/1",
+   "stop": {
+    "ok": true,
+    "stopped": true,
+    "_rc": 0
+   },
+   "decision": "FORWARD_ONLY",
+   "exit": 0,
+   "vmstate": [
+    "FORWARD_ONLY",
+    "FORWARD_ONLY"
+   ]
+  },
+  "D1": {
+   "pendingCommitSeenAfter": 0.06,
+   "crash": {
+    "controller": {
+     "ok": true,
+     "killed": 1472,
+     "_rc": 0
+    },
+    "exit": 9,
+    "unit": {
+     "ActiveState": "failed",
+     "SubState": "failed",
+     "MainPID": "0",
+     "Result": "signal",
+     "ExecMainCode": "2",
+     "ExecMainStatus": "9",
+     "InvocationID": "db34e99a62c72b91c0e608eb15c97013",
+     "NRestarts": "0"
+    }
+   },
+   "afterKill": {
+    "counts": "0/0/1",
+    "indexdBackends": "1",
+    "pendingCommit": "1"
+   },
+   "vmstateRead": {
+    "pendingCommitAfter": "1",
+    "casEnrolledLine": [
+     "casEnrolledAccounts=0"
+    ]
+   },
+   "vmstateDecisions": {
+    "fbaecfce": "LEGACY_REDEPLOY_SAFE",
+    "6fd7a929": "LEGACY_REDEPLOY_SAFE",
+    "new": [
+     "UNKNOWN",
+     [
+      "databaseBarrier"
+     ]
+    ]
+   },
+   "barrier": {
+    "seconds": 14.5,
+    "lockWaitMs": "14439",
+    "decision": "FORWARD_ONLY",
+    "otherBackends": "",
+    "stopKind": "abnormal",
+    "secondsAfterKill": 0.3
+   },
+   "final": {
+    "counts": "1/1/1",
+    "indexdBackendsGoneAfter": 0.01
+   },
+   "client": {
+    "rc": 1
+   }
+  },
+  "D2": {
+   "pendingCommitSeenAfter": 0.06,
+   "stop": {
+    "controller": {
+     "ok": true,
+     "stopped": true,
+     "_rc": 0
+    },
+    "seconds": 8.1,
+    "exit": 0,
+    "unit": {
+     "ActiveState": "inactive",
+     "SubState": "dead",
+     "MainPID": "0",
+     "Result": "success",
+     "ExecMainCode": "1",
+     "ExecMainStatus": "0",
+     "InvocationID": "fed69dcd86bb971e3da7108fd83bf00b",
+     "NRestarts": "0"
+    },
+    "countsAtExit": "1/1/1",
+    "pendingCommitAtExit": "0",
+    "indexdBackendsGoneAfter": 0.0
+   },
+   "client": {
+    "rc": 0,
+    "out": "{\"head\":0,\"mode\":\"cas\",\"step\":\"raise-cas\"}\n"
+   },
+   "barrier": {
+    "decision": "FORWARD_ONLY",
+    "lockWaitMs": "0",
+    "stopKind": "exited-0"
+   }
+  },
+  "D3": {
+   "pendingCommitSeenAfter": 0.06,
+   "exit": {
+    "seconds": 8.0,
+    "exit": 0,
+    "unit": {
+     "ActiveState": "inactive",
+     "SubState": "dead",
+     "MainPID": "0",
+     "Result": "success",
+     "ExecMainCode": "1",
+     "ExecMainStatus": "0",
+     "InvocationID": "d4d63cfcb8ff6f064334785e8f971e0b",
+     "NRestarts": "0"
+    },
+    "countsAtExit": "1/1/1",
+    "pendingCommitAtExit": "0",
+    "interruptedLogged": true
+   },
+   "exitedBeforeCommit": false,
+   "client": {
+    "rc": 1
+   },
+   "barrier": {
+    "decision": "FORWARD_ONLY",
+    "lockWaitMs": "0",
+    "stopKind": "exited-0"
+   }
+  }
+ },
+ "isolation": {
+  "netInterfaces": [
+   "lo"
+  ],
+  "uid": 1000,
+  "pid": 1
+ },
+ "postgres": "PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 16.2.1 20260810, 64-bit",
+ "postgresSettings": "client_connection_check_interval=0 fsync=on idle_in_transaction_session_timeout=0 lock_timeout=0 max_prepared_transactions=0 statement_timeout=0 synchronous_commit=on transaction_timeout=0",
+ "cleanup": {
+  "postgresExited": true,
+  "noIndexd": true,
+  "pgDataRemoved": true,
+  "socketDirRemoved": true,
+  "secretsRemoved": true
+ },
+ "finished": 1792746587.3528454,
+ "summary": {
+  "checks": 27,
+  "failed": [],
+  "cleanupOk": true
+ }
+}

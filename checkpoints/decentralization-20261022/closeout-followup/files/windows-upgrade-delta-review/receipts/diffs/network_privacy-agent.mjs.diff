@@ -1,0 +1,129 @@
+--- installed/network/privacy-agent.mjs (a3f08aca)
++++ F-4106c311/network/privacy-agent.mjs
+@@ -16,7 +16,10 @@
+ import {EnclaveNetworkManager} from './wg-manager.mjs';
+ import {createNetworkHost} from './enclave-network-host.mjs';
+ import {WgControlTransport} from './wg-control.mjs';
+-import {HostServiceTransport,validateHostServicesTransport} from './host-service-transport.mjs';
++import {HostServiceTransport,validateHostServicesTransport,hostServiceLifecycle} from './host-service-transport.mjs';
++import {createHostServiceGate} from './host-service-gate.mjs';
++import {hostServicesPolicyConfig} from './host-policy-gate-config.mjs';
++import {hostPolicyCarrierGate} from './host-policy-carrier-gate.mjs';
+ import {createPaidNetwork} from './paid-network.mjs';
+ import {ShieldHostProof} from './shield-host-proof.mjs';
+ import {RoutePublisher} from './route-publisher.mjs';
+@@ -83,7 +86,9 @@
+       // round goes on to the policies and guest proofs (2026-10-13 15:21Z: control circuits down ~1 min -> three apps'
+       // egress OFF, their leases fine).
+       let leases;
+-      try{
++      // an app-less host (host services only) has no lease to read: no chain round every 15 s for nothing
++      if(!this.apps.length)leases=[];
++      else try{
+         // one read at a time: a read still running from an earlier round is not doubled, and that round's leases are held
+         if(this.chainRead)throw new Error('the previous chain read has not finished');
+         const began=this.now();
+@@ -150,6 +155,8 @@
+   admit(){return this.snapshot();}
+   async start(){
+     this.admission.wallet?.refresh();await this.refreshAuthorization();await this.refreshProofs();if(this.closed)throw new Error('privacy agent stopped during startup');await this.snapshot();
++    // a stop during that last write: close() has run, so no timer may be created now (five intervals held the process forever)
++    if(this.closed)throw new Error('privacy agent stopped during startup');
+     this.timers=[setInterval(()=>{void this.admit().catch(e=>this.log(e.message));},1000),
+       setInterval(()=>void this.refreshAuthorization(),15000),
+       setInterval(()=>void this.refreshProofs(),5000),
+@@ -175,7 +182,10 @@
+ 
+ export async function runPrivacy(configFile){
+   const cfg=JSON.parse(await fs.readFile(configFile,'utf8'));
+-  if(cfg.version!==2||!Array.isArray(cfg.apps)||!cfg.apps.length||cfg.apps.length>256||!path.isAbsolute(cfg.directory))throw new Error('version 2 app configuration required');
++  // an EMPTY app list runs only for this host's own public service roles (below: a valid hostServices block and the platform
++  // host policy on); without them it is refused exactly as before
++  if(cfg.version!==2||!Array.isArray(cfg.apps)||cfg.apps.length>256||!path.isAbsolute(cfg.directory))throw new Error('version 2 app configuration required');
++  if(!cfg.apps.length&&cfg.enclaveNetwork?.hostServices===undefined)throw new Error('version 2 app configuration required');
+   if(!cfg.enclaveNetwork||typeof cfg.enclaveNetwork!=='object')throw new Error(NETWORK_REQUIRED);
+   // each line carries its UTC time: a cut stream has to be matched against circuit events, and the log had none
+   const log=message=>console.error(new Date().toISOString().slice(11,19)+' [privacy] '+message);
+@@ -228,17 +238,43 @@
+   const wa=cfg.enclaveNetwork.walletAdmission;
+   if(wa!==undefined&&(!wa||typeof wa!=='object'||Array.isArray(wa)||Object.keys(wa).join()!=='file'))throw new Error('enclaveNetwork.walletAdmission must be {file}');
+   const wallet=wa?new WalletAllowFile({file:wa.file,runner:cfg.runner,log}):null;
+-  let wgControl=null,hostServices=null,paid=null,stopping=false;
++  let wgControl=null,hostServices=null,hostGateTimer=null,paid=null,stopping=false;   // hostServices: hostServiceLifecycle
+   // this host's own public service roles (cfg.enclaveNetwork.hostServices, host-service-transport.mjs): checked before
+   // anything is bound. A block that does not pass refuses HOST SERVICES only, loudly - the apps this host serves are
+   // never taken down by it (hostServicesPreflight)
+   const pre=hostServicesPreflight({block:cfg.enclaveNetwork.hostServices,workerModule:cfg.enclaveNetwork.serviceWorkerModule,runner:cfg.runner,endpoint:cfg.endpoint});
+-  const hostServicesConfig=pre.config;
++  let hostServicesConfig=pre.config;
+   if(pre.refused)log('HOST SERVICES REFUSED (apps unaffected): '+pre.refused);
++  // ...and they run only while THIS host is admitted by the platform host policy: the same gate as the node and
++  // supervisor.js (host-service-gate.mjs), for this host's registry id, on by default for the production chain and address
++  // book. Never before a first authenticated admit in this process (a fresh or restarted host, or one whose policy cannot
++  // be read, holds them); an explicit refusal (ban, allowlist miss, deregistration) closes them and withdraws their grants,
++  // sticky until the admin's admit; a transient outage keeps them within the gate's grace. The exits judge the same policy
++  // before every grant (wg-provider), so this is the host's own half, not the only one.
++  // The operator's EXPLICIT block (enclaveNetwork.hostServicesPolicy, host-policy-gate-config.mjs) names the policy, its RPC
++  // quorum and CARRIERS for the signed document - an imported directory, this host's policy-mirror store (read from disk: the
++  // role need not run, nor be admitted, for its own prerequisite), other hosts' policy mirrors - so a cold host loads the
++  // anchored policy with every fleet mirror down. Untrusted bytes only: the gate still requires the anchored digest, the
++  // book's current owner, the sequence and the bans. Without the block: the platform's default for this chain and book.
++  let hostGate=null;
++  if(hostServicesConfig){try{const hsp=cfg.enclaveNetwork.hostServicesPolicy,stateDir=path.join(cfg.directory,'host-services-policy');
++    const secs=v=>Number(v)>0?Number(v)*1000:null;
++    hostGate=hsp===undefined?createHostServiceGate({env:process.env,chainId:8453,book:cfg.chain?.addressBook||null,hostId:cfg.runner,stateDir,fetch:globalThis.fetch,log})
++      :await hostPolicyCarrierGate(hostServicesPolicyConfig(hsp),{hostId:cfg.runner,stateDir,fetch:globalThis.fetch,log,
++        intervalMs:secs(process.env.ENCLAVE_PLATFORM_HOST_POLICY_INTERVAL_SEC),graceMs:secs(process.env.ENCLAVE_PLATFORM_HOST_POLICY_GRACE_SEC)});}
++   catch(e){pre.refused='platform host policy: '+e.message;log('HOST SERVICES REFUSED (apps unaffected): '+pre.refused);hostServicesConfig=null;}}
++  // an app-less host has nothing else to run: refused (before anything binds) unless its host services can actually run -
++  // a valid block, and a platform host policy that is ON (an "off" policy admits nothing, so it cannot admit host services)
++  if(!apps.length){
++    if(!hostServicesConfig)throw new Error('version 2 app configuration required: an empty app list runs only this host\'s services, and they are refused ('+(pre.refused||'platform host policy')+')');
++    if(!hostGate.enabled)throw new Error('version 2 app configuration required: an empty app list runs only this host\'s services, and they need the platform host policy on ('+hostGate.reason+')');
++    log('no apps: running this host\'s services only (they start once the platform host policy admits this host)');
++  }
+   // The network host is closed LAST and always (enclave-network-host.mjs close(), idempotent): its direct runtime and the
+   // qualification canary hold public listeners from startup, and a daemon that keeps them cannot exit.
+   const closeNetwork=()=>Promise.resolve(networkHost?.close()).catch(e=>log('network host: '+e.message));
+-  const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),wgControl?.close(),hostServices?.close()]).then(()=>paid?.close()).catch(e=>log(e.message)).finally(closeNetwork);};
++  const stopHostGate=()=>{clearInterval(hostGateTimer);hostGate?.stop();};
++  const close=()=>{stopping=true;stopHostGate();hostProof?.close();void Promise.all([agent?.close(),wgControl?.close(),hostServices?.close()]).then(()=>paid?.close()).catch(e=>log(e.message)).finally(closeNetwork);};
+   process.once('SIGTERM',close);process.once('SIGINT',close);
+   // SIGHUP re-reads the app list: each app's expectation, names and mirror
+   // flag, and any new app, and the operator's host-egress offer (enclaveNetwork.hostEgress). Everything is validated before anything changes; no
+@@ -294,10 +330,19 @@
+   try{
+   if(cfg.enclaveNetwork.control===true){wgControl=new WgControlTransport({runtime:network.runtime,providers:network.providers,
+     probeUrls:(cfg.enclaveNetwork.directories||[cfg.enclaveNetwork.relay]).map(origin=>new URL('/v1/network/providers',origin).href),log});await wgControl.start();}
+-  // host services never take the agent (its apps) down: a failure here refuses them, loudly
+-  if(hostServicesConfig){try{hostServices=new HostServiceTransport({runtime:network.runtime,providers:network.providers,grants:network.grants,hostId:cfg.runner,config:hostServicesConfig,log});
+-    log('host services: '+JSON.stringify(hostServices.names));await hostServices.start();}
+-   catch(e){log('HOST SERVICES REFUSED (apps unaffected): '+e.message);await hostServices?.close().catch(()=>{});hostServices=null;}}
++  // host services never take the agent (its apps) down: a failure here refuses them, loudly. They follow the platform host
++  // policy gate (above): started on its admit, closed (grants withdrawn) on its refusal, started again on the next admit.
++  // The first decision is not awaited: a slow or unreadable policy never holds up the apps.
++  // The switch (hostServiceLifecycle) never waits for a startup before judging again: a refusal during the first round
++  // cancels it (no circuit, grant or timer survives the stop), and only an admit starts a fresh transport.
++  if(hostServicesConfig){
++    hostServices=hostServiceLifecycle({refusal:()=>hostGate.serviceRefusal(),log,
++      create:()=>new HostServiceTransport({runtime:network.runtime,providers:network.providers,grants:network.grants,hostId:cfg.runner,config:hostServicesConfig,log})});
++    const judge=()=>stopping?undefined:hostServices.judge();
++    hostGate.start();
++    void hostGate.check().catch(()=>{}).then(judge);
++    hostGateTimer=setInterval(()=>void judge(),2000);hostGateTimer.unref?.();
++  }
+   // paid providers (enclaveNetwork.paid): the lease must carry the on-chain connectivity authorization
+   paid=cfg.enclaveNetwork.paid?await createPaidNetwork({config:cfg.enclaveNetwork.paid,directory:path.join(cfg.directory,'paid'),leaseReader,providers:network.providers,fetchFn:networkFetch,log}):null;
+   agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,directory:cfg.directory,dns:cfg.dns,network,paid,wallet,log,
+@@ -342,9 +387,9 @@
+       ...(!circuit&&pvm?{pvm}:!circuit&&windows?{shield,hostSession:await hostProof.get()}:!circuit?{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}:{}),
+       ...(circuit?{address:circuit.address,direct:circuit.transport==='direct',proxy:circuit.transport==='direct'?undefined:circuit.isolation.guardAddress,domainIndependent:circuit.transport!=='direct'&&apps.find(a=>a.deploymentId===id)?.startupEgress===true}:apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:guestd?{openApp:id=>guestd.open(id)}:pvm?{openApp:()=>openPvmApp(pvm.appPort)}:{localUpstream:cfg.upstream})});
+     })});
+-  }catch(e){await closeNetwork();throw e;}
++  }catch(e){stopping=true;stopHostGate();await hostServices?.close().catch(()=>{});await closeNetwork();throw e;}
+   try{if(stopping)throw new Error('privacy agent stopped during startup');await agent.start();}
+-  catch(e){try{hostProof?.close();await agent.close();await wgControl?.close();await hostServices?.close();}finally{await closeNetwork();}throw e;}
++  catch(e){stopping=true;stopHostGate();try{hostProof?.close();await agent.close();await wgControl?.close();await hostServices?.close();}finally{await closeNetwork();}throw e;}
+   return agent;
+ }
+ if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){

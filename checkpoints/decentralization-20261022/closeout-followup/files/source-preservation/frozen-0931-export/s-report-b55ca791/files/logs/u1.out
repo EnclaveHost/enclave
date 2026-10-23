@@ -1,0 +1,2568 @@
+[queue] START available=23572MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+HEAD 2bd1eea0cdf70dc33b69b71b6decc7c2b0186266
+ M site/components/admin-console/migrator.js
+ M site/js/core/chain.js
+ M site/js/core/config.js
+ M site/js/core/custody.js
+ M site/js/core/fund.js
+ M site/js/core/independent-chain.js
+ M site/js/core/independent.js
+ M site/js/core/pay.js
+ M site/js/core/platform-addresses.js
+ M site/js/core/sessions.js
+ M site/js/core/wallet.js
+ M site/js/pages/grant.js
+?? test/helpers/browser-rpc-scenario.mjs
+?? test/site-browser-rpc-closure.test.mjs
+945ffc2a612fff95b19da21f9396c8c6578fad661775e5be3d56ec3ccb66610b  site/js/core/config.js
+3693175b3a71b15c01ba38152ac2a620abfb587665bf24c21e71ff62b6739932  site/js/core/independent.js
+5b81fe6354cbbcc8ea261dcb7113dbb163364be03fc3b4e06b629adfa5ccc089  site/js/core/chain.js
+3b3b2178a23782e0ac7181fa09a30f060871b6edde425dc1c63a9aa7e24be8a7  site/js/core/wallet.js
+bfa9af487d6e0433c70d1fab694fdc33792f6054a8207d57aeafed9aa0985ccd  site/js/core/fund.js
+54fc225ea7c26385bf0c97bf69319490f08a886852b570eac0d62995bb4b76e9  site/js/core/pay.js
+847098e1ea941e65a5f0743c1f4b6dee29928f25702a54ed64a8c23d0a977950  site/js/core/custody.js
+ff651ceb8690cc9f5f555b9a48553da441f6b653232130de90f18ad3a14c8a5e  site/js/core/sessions.js
+b8e56460458f1124ba67118af8e97ebbf8fa169103c3c42ce84dbfecd5a610e8  site/js/core/independent-chain.js
+959ea6d2d34ef2f1bd5fe139709f8cca884a24b99aa6e4d3b56e4b1ee82ab678  site/js/core/platform-addresses.js
+7a6a1500f65cda19d3e0ae47226f141a577691e3620c8bd2610d8d1a8619ff99  site/js/pages/grant.js
+7227d495215edca21fd4d828ec9ff5eac0a5d3e09ccd8fefc6c9015d06f172a7  site/components/admin-console/migrator.js
+394dc742b78a373995a61f59bb7d6ed7ff3b130752a6da315a8d064dda58f605  test/site-browser-rpc-closure.test.mjs
+c0f2d7dd9d0ce680541df3f9b4454b31c25f6fd41a750197a9a0e76db293cb9e  test/helpers/browser-rpc-scenario.mjs
+TAP version 13
+# Subtest: artifact selectors match the checked-in ABIs
+ok 1 - artifact selectors match the checked-in ABIs
+  ---
+  duration_ms: 14.715515
+  type: 'test'
+  ...
+# Subtest: book keys encode like viem stringToHex(size:32)
+ok 2 - book keys encode like viem stringToHex(size:32)
+  ---
+  duration_ms: 0.286058
+  type: 'test'
+  ...
+# Subtest: owner calls encode like viem
+ok 3 - owner calls encode like viem
+  ---
+  duration_ms: 3.82983
+  type: 'test'
+  ...
+# Subtest: the dashboard's setConfig envelope call encodes like viem
+ok 4 - the dashboard's setConfig envelope call encodes like viem
+  ---
+  duration_ms: 0.659245
+  type: 'test'
+  ...
+# Subtest: vaultmig.js pins + encodings match viem (the credit-vault recovery flow)
+ok 5 - vaultmig.js pins + encodings match viem (the credit-vault recovery flow)
+  ---
+  duration_ms: 1.473659
+  type: 'test'
+  ...
+# Subtest: vault recovery selectors pin against the vault ABI (the no-passkey migration path)
+ok 6 - vault recovery selectors pin against the vault ABI (the no-passkey migration path)
+  ---
+  duration_ms: 0.472146
+  type: 'test'
+  ...
+# Subtest: chain.js DEP_SEL hand-pins match the ABI (the cap getter every deploy path gates on)
+ok 7 - chain.js DEP_SEL hand-pins match the ABI (the cap getter every deploy path gates on)
+  ---
+  duration_ms: 0.138709
+  type: 'test'
+  ...
+# Subtest: publisher-fee surface pins + encodes like viem
+ok 8 - publisher-fee surface pins + encodes like viem
+  ---
+  duration_ms: 0.965002
+  type: 'test'
+  ...
+# Subtest: rate-cap surface (rev 8) pins + encodes like viem
+ok 9 - rate-cap surface (rev 8) pins + encodes like viem
+  ---
+  duration_ms: 0.693025
+  type: 'test'
+  ...
+# Subtest: setAppRef (the dashboard's Version control) pins + encodes like viem
+ok 10 - setAppRef (the dashboard's Version control) pins + encodes like viem
+  ---
+  duration_ms: 0.942172
+  type: 'test'
+  ...
+# Subtest: setShares + multicall (the dashboard's resize control) pin + encode like viem
+ok 11 - setShares + multicall (the dashboard's resize control) pin + encode like viem
+  ---
+  duration_ms: 0.782724
+  type: 'test'
+  ...
+# Subtest: refund-sweep batches (suspend + refund multicalls) encode like viem
+ok 12 - refund-sweep batches (suspend + refund multicalls) encode like viem
+  ---
+  duration_ms: 2.134713
+  type: 'test'
+  ...
+# Subtest: allowance funding pair (fund.js) encodes like viem
+ok 13 - allowance funding pair (fund.js) encodes like viem
+  ---
+  duration_ms: 0.419586
+  type: 'test'
+  ...
+# Subtest: creation tx data (bytecode + ctor args) encodes like viem encodeDeployData
+ok 14 - creation tx data (bytecode + ctor args) encodes like viem encodeDeployData
+  ---
+  duration_ms: 1.389199
+  type: 'test'
+  ...
+# Subtest: decodeBook round-trips a viem-encoded all() result (skipping retired keys)
+ok 15 - decodeBook round-trips a viem-encoded all() result (skipping retired keys)
+  ---
+  duration_ms: 0.974442
+  type: 'test'
+  ...
+# Subtest: import calls (tuple[] args) encode like viem
+ok 16 - import calls (tuple[] args) encode like viem
+  ---
+  duration_ms: 1.414889
+  type: 'test'
+  ...
+# Subtest: importFees (parallel arrays) encodes like viem
+ok 17 - importFees (parallel arrays) encodes like viem
+  ---
+  duration_ms: 0.463446
+  type: 'test'
+  ...
+# Subtest: runner-payout surface (rev 7) pins + importEarn encodes like viem
+ok 18 - runner-payout surface (rev 7) pins + importEarn encodes like viem
+  ---
+  duration_ms: 0.470516
+  type: 'test'
+  ...
+# Subtest: publisher recovery (transferApp) pins + the bulk multicall encodes like viem
+ok 19 - publisher recovery (transferApp) pins + the bulk multicall encodes like viem
+  ---
+  duration_ms: 0.616605
+  type: 'test'
+  ...
+# Subtest: importVersionFees (the catalog fee carry) encodes like viem
+ok 20 - importVersionFees (the catalog fee carry) encodes like viem
+  ---
+  duration_ms: 0.336637
+  type: 'test'
+  ...
+# Subtest: multicall wrapping encodes like viem
+ok 21 - multicall wrapping encodes like viem
+  ---
+  duration_ms: 0.386677
+  type: 'test'
+  ...
+# Subtest: migration round-trip: decode a getPage result, re-encode it for import, byte-equal to viem
+ok 22 - migration round-trip: decode a getPage result, re-encode it for import, byte-equal to viem
+  ---
+  duration_ms: 1.23433
+  type: 'test'
+  ...
+# Subtest: rev-1 source rows (extra sshPubKey string) decode with DEP_SCHEMA_V1 and strip clean
+ok 23 - rev-1 source rows (extra sshPubKey string) decode with DEP_SCHEMA_V1 and strip clean
+  ---
+  duration_ms: 0.348907
+  type: 'test'
+  ...
+# Subtest: every constructor argument the console can answer is prefilled
+ok 24 - every constructor argument the console can answer is prefilled
+  ---
+  duration_ms: 0.984513
+  type: 'test'
+  ...
+# Subtest: artifacts stay in sync with contracts/*.sol (regenerate check)
+ok 25 - artifacts stay in sync with contracts/*.sol (regenerate check)
+  ---
+  duration_ms: 2.680699
+  type: 'test'
+  ...
+# Subtest: fundEscrow + the approve that funds it encode like viem
+ok 26 - fundEscrow + the approve that funds it encode like viem
+  ---
+  duration_ms: 0.671495
+  type: 'test'
+  ...
+# Subtest: batched fundEscrow rides the ledger's multicall, encoded like viem
+ok 27 - batched fundEscrow rides the ledger's multicall, encoded like viem
+  ---
+  duration_ms: 0.492846
+  type: 'test'
+  ...
+# Subtest: setProver / setProofRequiredFrom encode like viem
+ok 28 - setProver / setProofRequiredFrom encode like viem
+  ---
+  duration_ms: 0.382667
+  type: 'test'
+  ...
+# Subtest: the escrow step's required-backing formula matches _splitFunding's ceil
+ok 29 - the escrow step's required-backing formula matches _splitFunding's ceil
+  ---
+  duration_ms: 0.10663
+  type: 'test'
+  ...
+# Subtest: a granted runner rate matches the contract's _snapRunnerRate
+ok 30 - a granted runner rate matches the contract's _snapRunnerRate
+  ---
+  duration_ms: 0.722805
+  type: 'test'
+  ...
+# Subtest: migrate reads retry on empty and then fail loudly, never coerce to zero
+ok 31 - migrate reads retry on empty and then fail loudly, never coerce to zero
+  ---
+  duration_ms: 0.343637
+  type: 'test'
+  ...
+# Subtest: verify accepts a granted runner rate, and only the exact granted value
+ok 32 - verify accepts a granted runner rate, and only the exact granted value
+  ---
+  duration_ms: 0.390597
+  type: 'test'
+  ...
+# Subtest: the migration flow survives a repaint, and Seal is never unreachable
+ok 33 - the migration flow survives a repaint, and Seal is never unreachable
+  ---
+  duration_ms: 0.640975
+  type: 'test'
+  ...
+# Subtest: migration batches are sized by GAS, and a record's gas is its BYTES
+ok 34 - migration batches are sized by GAS, and a record's gas is its BYTES
+  ---
+  duration_ms: 3.446073
+  type: 'test'
+  ...
+# Subtest: a smaller gas budget re-plans into more, smaller batches (the refusal retry)
+ok 35 - a smaller gas budget re-plans into more, smaller batches (the refusal retry)
+  ---
+  duration_ms: 5.214129
+  type: 'test'
+  ...
+# Subtest: the migrator's raw EIP-1559 encoding matches viem byte-for-byte
+ok 36 - the migrator's raw EIP-1559 encoding matches viem byte-for-byte
+  ---
+  duration_ms: 46.804484
+  type: 'test'
+  ...
+# Subtest: the migrator address derives deterministically from a signature
+ok 37 - the migrator address derives deterministically from a signature
+  ---
+  duration_ms: 1.34496
+  type: 'test'
+  ...
+# Subtest: every migratable contract exposes an ownership handoff and accept
+ok 38 - every migratable contract exposes an ownership handoff and accept
+  ---
+  duration_ms: 0.261717
+  type: 'test'
+  ...
+# Subtest: provermig.js: the prover creation tx encodes like viem, and the plan covers every branch
+ok 39 - provermig.js: the prover creation tx encodes like viem, and the plan covers every branch
+  ---
+  duration_ms: 25.368262
+  type: 'test'
+  ...
+# Subtest: provermig.js: a permanent step is judged by a settled read, never one stale answer
+ok 40 - provermig.js: a permanent step is judged by a settled read, never one stale answer
+  ---
+  duration_ms: 0.512306
+  type: 'test'
+  ...
+# Subtest: escrow.js: refund batches encode like viem, and the summary groups by owner
+ok 41 - escrow.js: refund batches encode like viem, and the summary groups by owner
+  ---
+  duration_ms: 2.284753
+  type: 'test'
+  ...
+# Subtest: escrow.js: a refund dry-run reads '0x' as success, and tells a revert from a dead RPC
+ok 42 - escrow.js: a refund dry-run reads '0x' as success, and tells a revert from a dead RPC
+  ---
+  duration_ms: 1.25359
+  type: 'test'
+  ...
+# Subtest: the console offers no deploy card for a contract that is live and bound, or not in a rollout
+ok 43 - the console offers no deploy card for a contract that is live and bound, or not in a rollout
+  ---
+  duration_ms: 0.776484
+  type: 'test'
+  ...
+# Subtest: every event topic matches viem's selector for the same signature
+ok 44 - every event topic matches viem's selector for the same signature
+  ---
+  duration_ms: 3.048687
+  type: 'test'
+  ...
+# Subtest: the signatures match the events EnclaveDeployments actually declares
+ok 45 - the signatures match the events EnclaveDeployments actually declares
+  ---
+  duration_ms: 0.360117
+  type: 'test'
+  ...
+# Subtest: Created's topic is the one chain.js already pinned by hand
+ok 46 - Created's topic is the one chain.js already pinned by hand
+  ---
+  duration_ms: 0.094259
+  type: 'test'
+  ...
+# Subtest: buckets are hour-aligned, 24 of them, ending with the hour in progress
+ok 47 - buckets are hour-aligned, 24 of them, ending with the hour in progress
+  ---
+  duration_ms: 0.356057
+  type: 'test'
+  ...
+# Subtest: createdBuckets lands each record in its own hour and drops what is older than the window
+ok 48 - createdBuckets lands each record in its own hour and drops what is older than the window
+  ---
+  duration_ms: 0.233268
+  type: 'test'
+  ...
+# Subtest: summarize splits active records into running / waiting / out of funds
+ok 49 - summarize splits active records into running / waiting / out of funds
+  ---
+  duration_ms: 0.308207
+  type: 'test'
+  ...
+# Subtest: a lease held by nobody is not running, however far in the future it says
+ok 50 - a lease held by nobody is not running, however far in the future it says
+  ---
+  duration_ms: 0.194999
+  type: 'test'
+  ...
+# Subtest: a claim covers every hour up to its leaseUntil and no further
+ok 51 - a claim covers every hour up to its leaseUntil and no further
+  ---
+  duration_ms: 0.740514
+  type: 'test'
+  ...
+# Subtest: renewals chain into one continuous run
+ok 52 - renewals chain into one continuous run
+  ---
+  duration_ms: 0.334368
+  type: 'test'
+  ...
+# Subtest: a release ends the run at the release, not at the lease it had paid for
+ok 53 - a release ends the run at the release, not at the lease it had paid for
+  ---
+  duration_ms: 0.406897
+  type: 'test'
+  ...
+# Subtest: a deployment re-claimed after a release runs again, and is counted once per hour
+ok 54 - a deployment re-claimed after a release runs again, and is counted once per hour
+  ---
+  duration_ms: 0.277707
+  type: 'test'
+  ...
+# Subtest: a lease opened before the window still counts in the window's first hours
+ok 55 - a lease opened before the window still counts in the window's first hours
+  ---
+  duration_ms: 0.128619
+  type: 'test'
+  ...
+# Subtest: concurrent deployments are counted per hour, not summed over the window
+ok 56 - concurrent deployments are counted per hour, not summed over the window
+  ---
+  duration_ms: 0.100759
+  type: 'test'
+  ...
+# Subtest: money buckets split settled, refunded and funded-in by hour
+ok 57 - money buckets split settled, refunded and funded-in by hour
+  ---
+  duration_ms: 0.130779
+  type: 'test'
+  ...
+# Subtest: an empty log yields 24 zeroed buckets, not an empty array
+ok 58 - an empty log yields 24 zeroed buckets, not an empty array
+  ---
+  duration_ms: 0.092119
+  type: 'test'
+  ...
+# Subtest: a session minted at the default base is sent there
+ok 59 - a session minted at the default base is sent there
+  ---
+  duration_ms: 1.174711
+  type: 'test'
+  ...
+# Subtest: repointing the base does NOT carry the token to the new endpoint
+ok 60 - repointing the base does NOT carry the token to the new endpoint
+  ---
+  duration_ms: 1.485388
+  type: 'test'
+  ...
+# Subtest: an OPTIONAL account auth is simply omitted, not an error
+ok 61 - an OPTIONAL account auth is simply omitted, not an error
+  ---
+  duration_ms: 0.675235
+  type: 'test'
+  ...
+# Subtest: signing in against the new endpoint binds to it, and the old one is refused
+ok 62 - signing in against the new endpoint binds to it, and the old one is refused
+  ---
+  duration_ms: 0.226839
+  type: 'test'
+  ...
+# Subtest: a session stored before this binding existed is honored only at the default
+ok 63 - a session stored before this binding existed is honored only at the default
+  ---
+  duration_ms: 0.368117
+  type: 'test'
+  ...
+# Subtest: clearing a session clears its binding too
+ok 64 - clearing a session clears its binding too
+  ---
+  duration_ms: 0.142939
+  type: 'test'
+  ...
+# Subtest: siwe gate: the genuine challenge passes, in both spellings
+ok 65 - siwe gate: the genuine challenge passes, in both spellings
+  ---
+  duration_ms: 0.859673
+  type: 'test'
+  ...
+# Subtest: siwe gate: anything that is not a SIWE login for this wallet is refused
+ok 66 - siwe gate: anything that is not a SIWE login for this wallet is refused
+  ---
+  duration_ms: 0.419677
+  type: 'test'
+  ...
+# Subtest: another wallet's per-enclave session reads as signed-out, never as that wallet
+ok 67 - another wallet's per-enclave session reads as signed-out, never as that wallet
+  ---
+  duration_ms: 0.644885
+  type: 'test'
+  ...
+# Subtest: a sticky session for another wallet falls back to the public ?owner= read
+ok 68 - a sticky session for another wallet falls back to the public ?owner= read
+  ---
+  duration_ms: 0.925743
+  type: 'test'
+  ...
+# Subtest: an opaque (non-JWT) token stays wallet-agnostic, exactly as before
+ok 69 - an opaque (non-JWT) token stays wallet-agnostic, exactly as before
+  ---
+  duration_ms: 0.289668
+  type: 'test'
+  ...
+# Subtest: conversion: reviewed pins, token, ledger feed and provenance; the dashboard accepts the exact output
+ok 70 - conversion: reviewed pins, token, ledger feed and provenance; the dashboard accepts the exact output
+  ---
+  duration_ms: 9.062299
+  type: 'test'
+  ...
+# Subtest: conversion refuses anything not anchored out of band, and unsafe operator inputs
+ok 71 - conversion refuses anything not anchored out of band, and unsafe operator inputs
+  ---
+  duration_ms: 3.040766
+  type: 'test'
+  ...
+# Subtest: conversion follows an address book only when explicitly selected
+ok 72 - conversion follows an address book only when explicitly selected
+  ---
+  duration_ms: 2.414091
+  type: 'test'
+  ...
+# Subtest: address-book mode selects the ORIGINAL session factory from the reviewed profile; fixed mode keeps the pinned one
+ok 73 - address-book mode selects the ORIGINAL session factory from the reviewed profile; fixed mode keeps the pinned one
+  ---
+  duration_ms: 1.914935
+  type: 'test'
+  ...
+# Subtest: --ledger-history-from: every ledger the book named, from its own AddressSet events with all RPCs agreeing, in the profile
+ok 74 - --ledger-history-from: every ledger the book named, from its own AddressSet events with all RPCs agreeing, in the profile
+  ---
+  duration_ms: 3.698581
+  type: 'test'
+  ...
+# Subtest: --capacity-directory: optional HTTPS mirrors of signed capacity records, carried into the profile
+ok 75 - --capacity-directory: optional HTTPS mirrors of signed capacity records, carried into the profile
+  ---
+  duration_ms: 2.207803
+  type: 'test'
+  ...
+# Subtest: an address-book profile always enables the platform host policy: this book, the explicit host-ownership extension, the given mirrors
+ok 76 - an address-book profile always enables the platform host policy: this book, the explicit host-ownership extension, the given mirrors
+  ---
+  duration_ms: 4.030819
+  type: 'test'
+  ...
+# Subtest: --verify-chain reads the policy anchor at the verified block on every RPC: anchored, unanchored, torn, disagreeing
+ok 77 - --verify-chain reads the policy anchor at the verified block on every RPC: anchored, unanchored, torn, disagreeing
+  ---
+  duration_ms: 0.942903
+  type: 'test'
+  ...
+# Subtest: --verify-chain in address-book mode: every RPC must bind the original factory to this book, USDC and the pinned entries
+ok 78 - --verify-chain in address-book mode: every RPC must bind the original factory to this book, USDC and the pinned entries
+  ---
+  duration_ms: 2.765669
+  type: 'test'
+  ...
+# Subtest: the command refuses to overwrite and prints the fingerprint
+ok 79 - the command refuses to overwrite and prints the fingerprint
+  ---
+  duration_ms: 477.244037
+  type: 'test'
+  ...
+# Subtest: ETH quote: the ledger's reviewed 8-decimal feed with a fresh finalized round
+ok 80 - ETH quote: the ledger's reviewed 8-decimal feed with a fresh finalized round
+  ---
+  duration_ms: 5.331579
+  type: 'test'
+  ...
+# Subtest: ETH quote refuses: disabled, swapped feed, wrong decimals, stale, unfinished, non-positive, missing methods
+ok 81 - ETH quote refuses: disabled, swapped feed, wrong decimals, stale, unfinished, non-positive, missing methods
+  ---
+  duration_ms: 10.700447
+  type: 'test'
+  ...
+# Subtest: selector presence check handles PUSHn for selectors with leading zero bytes
+ok 82 - selector presence check handles PUSHn for selectors with leading zero bytes
+  ---
+  duration_ms: 0.840814
+  type: 'test'
+  ...
+# Subtest: reads the exact deployed version without trusting a cached version count
+ok 83 - reads the exact deployed version without trusting a cached version count
+  ---
+  duration_ms: 4.288327
+  type: 'test'
+  ...
+# Subtest: queued and failed active records need neither a release nor a resume signature
+ok 84 - queued and failed active records need neither a release nor a resume signature
+  ---
+  duration_ms: 1.576688
+  type: 'test'
+  ...
+# Subtest: ended record resumes once; an expired old runner is not treated as a lease
+ok 85 - ended record resumes once; an expired old runner is not treated as a lease
+  ---
+  duration_ms: 0.339377
+  type: 'test'
+  ...
+# Subtest: live lease waits for settlement before returning control to the claim-hint flow
+ok 86 - live lease waits for settlement before returning control to the claim-hint flow
+  ---
+  duration_ms: 0.204508
+  type: 'test'
+  ...
+# Subtest: suspended deployment releases its live lease before resuming
+ok 87 - suspended deployment releases its live lease before resuming
+  ---
+  duration_ms: 0.143029
+  type: 'test'
+  ...
+# Subtest: vault-style suspend then release reactivates only after the old lease clears
+ok 88 - vault-style suspend then release reactivates only after the old lease clears
+  ---
+  duration_ms: 0.296778
+  type: 'test'
+  ...
+# Subtest: a rejected resume and a failed release abort without continuing
+ok 89 - a rejected resume and a failed release abort without continuing
+  ---
+  duration_ms: 0.589796
+  type: 'test'
+  ...
+# Subtest: ownership changes stop the workflow and claim races do not terminate a new host
+ok 90 - ownership changes stop the workflow and claim races do not terminate a new host
+  ---
+  duration_ms: 0.320458
+  type: 'test'
+  ...
+# Subtest: a live lease timeout never resumes or silently queues a second instance
+ok 91 - a live lease timeout never resumes or silently queues a second instance
+  ---
+  duration_ms: 0.172158
+  type: 'test'
+  ...
+# Subtest: dashboard Pin nucbox-k11 queued  respects resume and target selection
+ok 92 - dashboard Pin nucbox-k11 queued  respects resume and target selection
+  ---
+  duration_ms: 1.117961
+  type: 'test'
+  ...
+# Subtest: dashboard Pin nucbox-k11 queued with requirements respects resume and target selection
+not ok 93 - dashboard Pin nucbox-k11 queued with requirements respects resume and target selection
+  ---
+  duration_ms: 1.413469
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:68:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   [
+    -     '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    -     'nucbox-k11'
+    -   ]
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      1: 'nucbox-k11'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:83:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: dashboard Pin nucbox-k11 ended  respects resume and target selection
+ok 94 - dashboard Pin nucbox-k11 ended  respects resume and target selection
+  ---
+  duration_ms: 0.368507
+  type: 'test'
+  ...
+# Subtest: dashboard Pin nucbox-k11 ended with requirements respects resume and target selection
+not ok 95 - dashboard Pin nucbox-k11 ended with requirements respects resume and target selection
+  ---
+  duration_ms: 0.376017
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:68:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   [
+    -     '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    -     'nucbox-k11'
+    -   ]
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      1: 'nucbox-k11'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:83:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: dashboard Pin Auto queued  respects resume and target selection
+ok 96 - dashboard Pin Auto queued  respects resume and target selection
+  ---
+  duration_ms: 0.123779
+  type: 'test'
+  ...
+# Subtest: dashboard Pin Auto queued with requirements respects resume and target selection
+not ok 97 - dashboard Pin Auto queued with requirements respects resume and target selection
+  ---
+  duration_ms: 0.277758
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:68:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   [
+    -     '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    -     ''
+    -   ]
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      1: ''
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:83:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: dashboard Pin Auto ended  respects resume and target selection
+ok 98 - dashboard Pin Auto ended  respects resume and target selection
+  ---
+  duration_ms: 0.137349
+  type: 'test'
+  ...
+# Subtest: dashboard Pin Auto ended with requirements respects resume and target selection
+not ok 99 - dashboard Pin Auto ended with requirements respects resume and target selection
+  ---
+  duration_ms: 0.411607
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:68:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   [
+    -     '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    -     ''
+    -   ]
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      1: ''
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:83:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: keeping the selected live host performs no release, resume or claim
+ok 100 - keeping the selected live host performs no release, resume or claim
+  ---
+  duration_ms: 0.175888
+  type: 'test'
+  ...
+# Subtest: applying the current host saves preference without stopping the app
+not ok 101 - applying the current host saves preference without stopping the app
+  ---
+  duration_ms: 0.576126
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:95:42'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:109:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: applying the current host keeps preference without stopping the app
+not ok 102 - applying the current host keeps preference without stopping the app
+  ---
+  duration_ms: 6.704347
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:95:42'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      assert.ok(messages.some(message=>message.includes('running on nucbox-k11')))
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:110:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: changing Allow Fallback to false saves the ledger policy before the preference without restarting the current host
+not ok 103 - changing Allow Fallback to false saves the ledger policy before the preference without restarting the current host
+  ---
+  duration_ms: 0.493556
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:114:42'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'options',
+    -   'save'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'options'
+    1: 'save'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:133:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: changing Allow Fallback to true saves the ledger policy before the preference without restarting the current host
+not ok 104 - changing Allow Fallback to true saves the ledger policy before the preference without restarting the current host
+  ---
+  duration_ms: 0.378217
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:114:42'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'options',
+    -   'save'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'options'
+    1: 'save'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/deployment-move.test.mjs:133:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: FEAT_SEL selectors match the compiled ABI (viem-derived)
+ok 105 - FEAT_SEL selectors match the compiled ABI (viem-derived)
+  ---
+  duration_ms: 6.885307
+  type: 'test'
+  ...
+# Subtest: campaign call encodings match viem
+ok 106 - campaign call encodings match viem
+  ---
+  duration_ms: 1.973114
+  type: 'test'
+  ...
+# Subtest: Campaign[] (static tuples, inline layout) decodes against a viem encoding
+ok 107 - Campaign[] (static tuples, inline layout) decodes against a viem encoding
+  ---
+  duration_ms: 0.945082
+  type: 'test'
+  ...
+# Subtest: dynamic tuples (catalog App[]) still route through the offset table
+ok 108 - dynamic tuples (catalog App[]) still route through the offset table
+  ---
+  duration_ms: 0.449006
+  type: 'test'
+  ...
+# [tunnel] metal0 token attach REFUSED: metal0 is refused by the platform host policy: banned by platform policy \#2 (operator): abuse
+# [tunnel] metal0 attached via token (1 enclave)
+# [tunnel] metal0 DETACHED by the platform host policy: banned by platform policy \#3 (owner): fraud
+# [tunnel] metal0 detached
+# Subtest: tunnel: a refused host cannot attach (token path); an admitted one can; the hot ban detaches it; undecided never detaches
+ok 109 - tunnel: a refused host cannot attach (token path); an admitted one can; the hot ban detaches it; undecided never detaches
+  ---
+  duration_ms: 450.0597
+  type: 'test'
+  ...
+# [tunnel] metal0 attached via token (1 enclave)
+# Subtest: tunnel: with no policy configured nothing changes
+ok 110 - tunnel: with no policy configured nothing changes
+  ---
+  duration_ms: 86.335985
+  type: 'test'
+  ...
+# Subtest: host service gate: admit -> ban stops new work, service and renewal; outage keeps it stopped; the admin's unban restores
+ok 111 - host service gate: admit -> ban stops new work, service and renewal; outage keeps it stopped; the admin's unban restores
+  ---
+  duration_ms: 4.769543
+  type: 'test'
+  ...
+# Subtest: host service gate: off for test chains/books, ON for the production chain + book, unusable config refuses
+ok 112 - host service gate: off for test chains/books, ON for the production chain + book, unusable config refuses
+  ---
+  duration_ms: 0.737424
+  type: 'test'
+  ...
+# Subtest: pay.js selector literals match viem
+ok 113 - pay.js selector literals match viem
+  ---
+  duration_ms: 2.707349
+  type: 'test'
+  ...
+# Subtest: hand-encoded calldata is byte-identical to viem on the PaymentRouter ABI
+ok 114 - hand-encoded calldata is byte-identical to viem on the PaymentRouter ABI
+  ---
+  duration_ms: 1.895975
+  type: 'test'
+  ...
+# Subtest: the permit typed data pay.js builds hashes like viem (USDC domain)
+ok 115 - the permit typed data pay.js builds hashes like viem (USDC domain)
+  ---
+  duration_ms: 4.251996
+  type: 'test'
+  ...
+# Subtest: REV_SEL selectors match the compiled ABI (viem-derived)
+ok 116 - REV_SEL selectors match the compiled ABI (viem-derived)
+  ---
+  duration_ms: 6.763998
+  type: 'test'
+  ...
+# Subtest: review calls encode like viem
+ok 117 - review calls encode like viem
+  ---
+  duration_ms: 2.370202
+  type: 'test'
+  ...
+# Subtest: a multi-byte comment encodes like viem (the star of a UTF-8 padding bug)
+ok 118 - a multi-byte comment encodes like viem (the star of a UTF-8 padding bug)
+  ---
+  duration_ms: 0.324947
+  type: 'test'
+  ...
+# Subtest: bytes32[] arguments (talliesOf - the grid's one-call read) encode like viem
+ok 119 - bytes32[] arguments (talliesOf - the grid's one-call read) encode like viem
+  ---
+  duration_ms: 0.728354
+  type: 'test'
+  ...
+# Subtest: Review[] (dynamic tuples) decodes against a viem encoding
+ok 120 - Review[] (dynamic tuples) decodes against a viem encoding
+  ---
+  duration_ms: 0.892203
+  type: 'test'
+  ...
+# Subtest: one returned struct (getReview) decodes against a viem encoding
+ok 121 - one returned struct (getReview) decodes against a viem encoding
+  ---
+  duration_ms: 0.520436
+  type: 'test'
+  ...
+# Subtest: decodeStruct still reads a Deployment (the depGet path it now shares)
+ok 122 - decodeStruct still reads a Deployment (the depGet path it now shares)
+  ---
+  duration_ms: 0.380617
+  type: 'test'
+  ...
+# Subtest: talliesOf's parallel uint32 arrays decode back onto the apps we asked about
+ok 123 - talliesOf's parallel uint32 arrays decode back onto the apps we asked about
+  ---
+  duration_ms: 0.995342
+  type: 'test'
+  ...
+# Subtest: the site's body cap matches the contract's MAX_BODY
+ok 124 - the site's body cap matches the contract's MAX_BODY
+  ---
+  duration_ms: 0.365767
+  type: 'test'
+  ...
+# Subtest: the appRef parser's window matches how the site builds a catalog ref
+ok 125 - the appRef parser's window matches how the site builds a catalog ref
+  ---
+  duration_ms: 0.531705
+  type: 'test'
+  ...
+# Subtest: original all() ABI retains optional retirements and cannot pollute object prototypes
+ok 126 - original all() ABI retains optional retirements and cannot pollute object prototypes
+  ---
+  duration_ms: 1.748826
+  type: 'test'
+  ...
+# Subtest: malformed, overlapping, truncated and duplicate maps are rejected
+ok 127 - malformed, overlapping, truncated and duplicate maps are rejected
+  ---
+  duration_ms: 1.145111
+  type: 'test'
+  ...
+# Subtest: admin updates resolve through the original book with the first RPC offline
+ok 128 - admin updates resolve through the original book with the first RPC offline
+  ---
+  duration_ms: 3.572562
+  type: 'test'
+  ...
+# Subtest: one dishonest endpoint cannot select a replacement; loss of quorum has no cached fallback
+ok 129 - one dishonest endpoint cannot select a replacement; loss of quorum has no cached fallback
+  ---
+  duration_ms: 2.392682
+  type: 'test'
+  ...
+# Subtest: missing, retired or codeless core bindings fail as a whole
+ok 130 - missing, retired or codeless core bindings fail as a whole
+  ---
+  duration_ms: 1.748127
+  type: 'test'
+  ...
+# Subtest: build arguments: none (unchanged build), both flags, or a refusal
+ok 131 - build arguments: none (unchanged build), both flags, or a refusal
+  ---
+  duration_ms: 1.601288
+  type: 'test'
+  ...
+# Subtest: a profile file is accepted only with its reviewed digest, as UTF-8, and when the dashboard's parser accepts it
+ok 132 - a profile file is accepted only with its reviewed digest, as UTF-8, and when the dashboard's parser accepts it
+  ---
+  duration_ms: 4.407756
+  type: 'test'
+  ...
+# Subtest: the bundled independent.js carries exactly the reviewed text, and an empty browser loads it as its built-in profile
+ok 133 - the bundled independent.js carries exactly the reviewed text, and an empty browser loads it as its built-in profile
+  ---
+  duration_ms: 40.153556
+  type: 'test'
+  ...
+# Subtest: the embedding refuses a module whose declaration is missing or repeated
+ok 134 - the embedding refuses a module whose declaration is missing or repeated
+  ---
+  duration_ms: 9.555915
+  type: 'test'
+  ...
+# Subtest: eip191Hash matches viem hashMessage, including multi-byte text and a real policy message
+ok 135 - eip191Hash matches viem hashMessage, including multi-byte text and a real policy message
+  ---
+  duration_ms: 9.673285
+  type: 'test'
+  ...
+# Subtest: the committed bundle is a fresh build of the unmodified reader sources; its shims equal Node
+ok 136 - the committed bundle is a fresh build of the unmodified reader sources; its shims equal Node
+  ---
+  duration_ms: 134.580597
+  type: 'test'
+  ...
+# Subtest: a healthy host with an OLD registry lastSeen and a fresh verified record is live and quotable; HTTP 200 alone is not
+ok 137 - a healthy host with an OLD registry lastSeen and a fresh verified record is live and quotable; HTTP 200 alone is not
+  ---
+  duration_ms: 47.22024
+  type: 'test'
+  ...
+# Subtest: forged, wrong-operator, wrong-endpoint, stale, other-chain and other-registry records are refused; inactive rows never become eligible
+ok 138 - forged, wrong-operator, wrong-endpoint, stale, other-chain and other-registry records are refused; inactive rows never become eligible
+  ---
+  duration_ms: 23.156019
+  type: 'test'
+  ...
+# Subtest: an address-book repoint or a re-registration under another operator invalidates a cached record at the next snapshot
+ok 139 - an address-book repoint or a re-registration under another operator invalidates a cached record at the next snapshot
+  ---
+  duration_ms: 6.949356
+  type: 'test'
+  ...
+# Subtest: replay of an older record and equivocation (two records, one sequence) are refused per host and operator
+ok 140 - replay of an older record and equivocation (two records, one sequence) are refused per host and operator
+  ---
+  duration_ms: 13.493254
+  type: 'test'
+  ...
+# Subtest: independent sources: a host outage is reported (not 'no capacity'); a mirror's verified copy keeps the host live; no mirror is required
+ok 141 - independent sources: a host outage is reported (not 'no capacity'); a mirror's verified copy keeps the host live; no mirror is required
+  ---
+  duration_ms: 5.233129
+  type: 'test'
+  ...
+# Subtest: bounded: a hanging host times out, the call ends within its total budget, overflow beyond MAX_HOSTS is reported
+ok 142 - bounded: a hanging host times out, the call ends within its total budget, overflow beyond MAX_HOSTS is reported
+  ---
+  duration_ms: 505.207179
+  type: 'test'
+  ...
+# Subtest: the profile names capacity mirrors as bare origins (at most 8); none is required
+ok 143 - the profile names capacity mirrors as bare origins (at most 8); none is required
+  ---
+  duration_ms: 1.25516
+  type: 'test'
+  ...
+# Subtest: an oversized answer is refused without reading it all
+ok 144 - an oversized answer is refused without reading it all
+  ---
+  duration_ms: 1.35169
+  type: 'test'
+  ...
+# Subtest: the committed bundle is a fresh build of the unmodified shared modules; the page imports no Node built-ins
+ok 145 - the committed bundle is a fresh build of the unmodified shared modules; the page imports no Node built-ins
+  ---
+  duration_ms: 76.830569
+  type: 'test'
+  ...
+# Subtest: core v3: 'authority' is a confirmed refusal (sticky here), 'authority-unread' and other undecided states are not
+ok 146 - core v3: 'authority' is a confirmed refusal (sticky here), 'authority-unread' and other undecided states are not
+  ---
+  duration_ms: 84.371021
+  type: 'test'
+  ...
+# Subtest: modes: the platform network enforces by default (production constants), a profile field configures any book, others are off
+ok 147 - modes: the platform network enforces by default (production constants), a profile field configures any book, others are off
+  ---
+  duration_ms: 141.94133
+  type: 'test'
+  ...
+# Subtest: anchored policy: an admitted host is admitted, a banned one refused even when live, at the registry read's own block
+ok 148 - anchored policy: an admitted host is admitted, a banned one refused even when live, at the registry read's own block
+  ---
+  duration_ms: 21.934759
+  type: 'test'
+  ...
+# Subtest: a cold client refuses a withheld older policy, a torn anchor, a bad signature, a wrong book and a stale block; unanchored = not activated
+ok 149 - a cold client refuses a withheld older policy, a torn anchor, a bad signature, a wrong book and a stale block; unanchored = not activated
+  ---
+  duration_ms: 46.367097
+  type: 'test'
+  ...
+# Subtest: ban takes effect for an open view; an RPC or mirror failure afterwards never re-admits; an anchored unban resumes
+ok 150 - ban takes effect for an open view; an RPC or mirror failure afterwards never re-admits; an anchored unban resumes
+  ---
+  duration_ms: 53.530802
+  type: 'test'
+  ...
+# Subtest: authority: an owner rotation retires the old key's documents; an ERC-1271 owner is asked at the same block
+ok 151 - authority: an owner rotation retires the old key's documents; an ERC-1271 owner is asked at the same block
+  ---
+  duration_ms: 43.283692
+  type: 'test'
+  ...
+# Subtest: same-block authority on a CACHED acceptance: rotation / ERC-1271 withdrawal refuse, an RPC failure keeps it refused, a valid re-signature resumes
+ok 152 - same-block authority on a CACHED acceptance: rotation / ERC-1271 withdrawal refuse, an RPC failure keeps it refused, a valid re-signature resumes
+  ---
+  duration_ms: 53.877908
+  type: 'test'
+  ...
+# Subtest: a delayed admit judged at an OLDER block never lifts a newer refusal; a newer authenticated admit does
+ok 153 - a delayed admit judged at an OLDER block never lifts a newer refusal; a newer authenticated admit does
+  ---
+  duration_ms: 2018.475253
+  type: 'test'
+  ...
+# Subtest: mirrors: one failing leaves another usable; malformed, oversized or hanging answers end in a bounded unavailable state
+ok 154 - mirrors: one failing leaves another usable; malformed, oversized or hanging answers end in a bounded unavailable state
+  ---
+  duration_ms: 324.125305
+  type: 'test'
+  ...
+# Subtest: the platform network without a profile field: production default - not activated while unanchored, refusing an anchored policy no mirror carries
+ok 155 - the platform network without a profile field: production default - not activated while unanchored, refusing an anchored policy no mirror carries
+  ---
+  duration_ms: 20.172342
+  type: 'test'
+  ...
+# Subtest: management: a lease whose runner the policy refuses is never contacted (nothing fetched, nothing signed)
+ok 156 - management: a lease whose runner the policy refuses is never contacted (nothing fetched, nothing signed)
+  ---
+  duration_ms: 2.219993
+  type: 'test'
+  ...
+# Subtest: a verified account's session serves it; another Safe's session, or the wallet's pointer, never does
+ok 157 - a verified account's session serves it; another Safe's session, or the wallet's pointer, never does
+  ---
+  duration_ms: 3.548062
+  type: 'test'
+  ...
+# Subtest: pending and refused identities: no session, and every send is refused before signing - never the wallet
+ok 158 - pending and refused identities: no session, and every send is refused before signing - never the wallet
+  ---
+  duration_ms: 3.014216
+  type: 'test'
+  ...
+# Subtest: a verified account never hands a ledger call it cannot make to the wallet
+ok 159 - a verified account never hands a ledger call it cannot make to the wallet
+  ---
+  duration_ms: 0.659215
+  type: 'test'
+  ...
+# Subtest: starting a session: the account needs a gas payer connected; the wallet's own sign-in is refused under the account
+ok 160 - starting a session: the account needs a gas payer connected; the wallet's own sign-in is refused under the account
+  ---
+  duration_ms: 1.888546
+  type: 'test'
+  ...
+# Subtest: an identity change drops the cached session at once
+ok 161 - an identity change drops the cached session at once
+  ---
+  duration_ms: 1.25158
+  type: 'test'
+  ...
+# Subtest: the owner chooses who pays: no silent default with a transport
+ok 162 - the owner chooses who pays: no silent default with a transport
+  ---
+  duration_ms: 3.078256
+  type: 'test'
+  ...
+# Subtest: an owner-chosen paymaster (ERC-7677): only that paymaster, its deposit must cover the gas, and its data is part of what the passkeys sign
+ok 163 - an owner-chosen paymaster (ERC-7677): only that paymaster, its deposit must cover the gas, and its data is part of what the passkeys sign
+  ---
+  duration_ms: 9.869352
+  type: 'test'
+  ...
+# Subtest: gas is not free: an account without enough ETH is refused before anything is signed, with the amount
+ok 164 - gas is not free: an account without enough ETH is refused before anything is signed, with the amount
+  ---
+  duration_ms: 1.989125
+  type: 'test'
+  ...
+# Subtest: the call and the signed operation are simulated first; either refusal stops everything
+ok 165 - the call and the signed operation are simulated first; either refusal stops everything
+  ---
+  duration_ms: 1.161251
+  type: 'test'
+  ...
+# Subtest: the outcome is the EntryPoint's own event: success, and a failed call reported as included-and-failed
+ok 166 - the outcome is the EntryPoint's own event: success, and a failed call reported as included-and-failed
+  ---
+  duration_ms: 2.345841
+  type: 'test'
+  ...
+# Subtest: an unknown outcome stays pending, blocks new operations without signing, and is never resent
+ok 167 - an unknown outcome stays pending, blocks new operations without signing, and is never resent
+  ---
+  duration_ms: 2.362142
+  type: 'test'
+  ...
+# Subtest: delivery: every bundler refusing means nothing is pending; an unreachable bundler is an unknown outcome
+ok 168 - delivery: every bundler refusing means nothing is pending; an unreachable bundler is an unknown outcome
+  ---
+  duration_ms: 1.544878
+  type: 'test'
+  ...
+# Subtest: creation: only with deploy, and only when the description creates exactly this address
+ok 169 - creation: only with deploy, and only when the description creates exactly this address
+  ---
+  duration_ms: 1.761676
+  type: 'test'
+  ...
+# Subtest: a bundler's call-gas estimate is never trusted alone: the account's own call, measured from the account, sets the floor
+ok 170 - a bundler's call-gas estimate is never trusted alone: the account's own call, measured from the account, sets the floor
+  ---
+  duration_ms: 1.555108
+  type: 'test'
+  ...
+# Subtest: the site bundles with independent mode included and no Node built-ins
+ok 171 - the site bundles with independent mode included and no Node built-ins
+  ---
+  duration_ms: 98.759807
+  type: 'test'
+  ...
+# Subtest: the vendored sessions SDK is the current browser build with relay-free preparation
+ok 172 - the vendored sessions SDK is the current browser build with relay-free preparation
+  ---
+  duration_ms: 21.73068
+  type: 'test'
+  ...
+# Subtest: nothing is selected by default: the wallet is the identity and acts for itself
+ok 173 - nothing is selected by default: the wallet is the identity and acts for itself
+  ---
+  duration_ms: 14.05187
+  type: 'test'
+  ...
+# Subtest: an explicit, verified selection makes the Safe the owner; the wallet becomes a payer only
+ok 174 - an explicit, verified selection makes the Safe the owner; the wallet becomes a payer only
+  ---
+  duration_ms: 2.503821
+  type: 'test'
+  ...
+# Subtest: selection is refused, and nothing stored, for an undeployed, unrecognized, mismatching or warned account
+ok 175 - selection is refused, and nothing stored, for an undeployed, unrecognized, mismatching or warned account
+  ---
+  duration_ms: 4.218926
+  type: 'test'
+  ...
+# Subtest: a stored selection is pending on load, re-verified, and refused with the reason - never the wallet
+ok 176 - a stored selection is pending on load, re-verified, and refused with the reason - never the wallet
+  ---
+  duration_ms: 2.58
+  type: 'test'
+  ...
+# Subtest: a missing or different account description refuses the stored selection
+ok 177 - a missing or different account description refuses the stored selection
+  ---
+  duration_ms: 1.036061
+  type: 'test'
+  ...
+# Subtest: 'use my connected wallet' restores the wallet identity; session pointers are per identity
+ok 178 - 'use my connected wallet' restores the wallet identity; session pointers are per identity
+  ---
+  duration_ms: 0.660264
+  type: 'test'
+  ...
+# Subtest: a planted or malformed stored selection is not an identity
+ok 179 - a planted or malformed stored selection is not an identity
+  ---
+  duration_ms: 0.198099
+  type: 'test'
+  ...
+# Subtest: a shared-signer passkey counts only with exactly its key configured in this Safe's storage
+ok 180 - a shared-signer passkey counts only with exactly its key configured in this Safe's storage
+  ---
+  duration_ms: 1.534548
+  type: 'test'
+  ...
+# Subtest: the vendored bundle is exactly a fresh build of network/management-browser.mjs and its sources
+not ok 181 - the vendored bundle is exactly a fresh build of network/management-browser.mjs and its sources
+  ---
+  duration_ms: 133.951822
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:86:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    ... Skipped lines
+    
+      {
+        bytes: 70230,
+        deps: {
+          viem: '2.53.1'
+        },
+    ...
+          'net-guard.mjs': {
+    +       commit: 'c2bc3cc636ce53719f52688093ea892b9c8639c1',
+    -       commit: 'eb2c994a6b67e0fbc05be1a42614a27cd847ed71',
+            committedClean: true,
+            sha256: 'd61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af'
+          },
+          'network/canonical.mjs': {
+    +       commit: 'c2bc3cc636ce53719f52688093ea892b9c8639c1',
+    -       commit: '62f082fc615f84a32e26f2caf0868a27975681ae',
+            committedClean: true,
+            sha256: '5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3'
+          },
+          'network/management-browser.mjs': {
+    +       commit: 'b3256349f18eaa853259e42726fa7f6233db1f71',
+    -       commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df',
+            committedClean: true,
+            sha256: '857dbfb5545951e02325a6e6959e1957394804cd1e4ec64a2b95fa95b7cd614b'
+          },
+          'network/management-outcome.mjs': {
+    +       commit: 'b3256349f18eaa853259e42726fa7f6233db1f71',
+    +       committedClean: false,
+    -       commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df',
+    -       committedClean: true,
+            sha256: 'fea5703454b1cc9323eacc931a42c0f99f1895526f4926e787155d57e44c0398'
+          },
+          'network/management-record.mjs': {
+    +       commit: 'b3256349f18eaa853259e42726fa7f6233db1f71',
+    -       commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df',
+            committedClean: true,
+            sha256: 'd946589d7f43a6169fcb8f88cbef9c9e933e24f42ecd3e72a41a38e936285eda'
+          },
+          'network/management-routes.mjs': {
+    +       commit: '3542e1802018f41654a4554803ea51ecf0a4aaa7',
+    +       committedClean: false,
+    -       commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df',
+    -       committedClean: true,
+            sha256: '0a47239553d4c4389227b5b56241fce955af87892907e7b70016bc4a9882dd93'
+          }
+        }
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    file: 'site/vendor/management.js'
+    sha256: '05209546a4b0b68091e13efa7afa9a33221271c9dc161dca7a3c9da1212bd6a3'
+    bytes: 70230
+    entry: 'network/management-browser.mjs'
+    esbuild: '0.28.1'
+    deps:
+      viem: '2.53.1'
+    sources:
+      net-guard.mjs:
+        sha256: 'd61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af'
+        commit: 'eb2c994a6b67e0fbc05be1a42614a27cd847ed71'
+        committedClean: true
+      network/canonical.mjs:
+        sha256: '5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3'
+        commit: '62f082fc615f84a32e26f2caf0868a27975681ae'
+        committedClean: true
+      network/management-browser.mjs:
+        sha256: '857dbfb5545951e02325a6e6959e1957394804cd1e4ec64a2b95fa95b7cd614b'
+        commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df'
+        committedClean: true
+      network/management-outcome.mjs:
+        sha256: 'fea5703454b1cc9323eacc931a42c0f99f1895526f4926e787155d57e44c0398'
+        commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df'
+        committedClean: true
+      network/management-record.mjs:
+        sha256: 'd946589d7f43a6169fcb8f88cbef9c9e933e24f42ecd3e72a41a38e936285eda'
+        commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df'
+        committedClean: true
+      network/management-routes.mjs:
+        sha256: '0a47239553d4c4389227b5b56241fce955af87892907e7b70016bc4a9882dd93'
+        commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df'
+        committedClean: true
+  actual:
+    file: 'site/vendor/management.js'
+    sha256: '05209546a4b0b68091e13efa7afa9a33221271c9dc161dca7a3c9da1212bd6a3'
+    bytes: 70230
+    entry: 'network/management-browser.mjs'
+    esbuild: '0.28.1'
+    deps:
+      viem: '2.53.1'
+    sources:
+      net-guard.mjs:
+        sha256: 'd61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af'
+        commit: 'c2bc3cc636ce53719f52688093ea892b9c8639c1'
+        committedClean: true
+      network/canonical.mjs:
+        sha256: '5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3'
+        commit: 'c2bc3cc636ce53719f52688093ea892b9c8639c1'
+        committedClean: true
+      network/management-browser.mjs:
+        sha256: '857dbfb5545951e02325a6e6959e1957394804cd1e4ec64a2b95fa95b7cd614b'
+        commit: 'b3256349f18eaa853259e42726fa7f6233db1f71'
+        committedClean: true
+      network/management-outcome.mjs:
+        sha256: 'fea5703454b1cc9323eacc931a42c0f99f1895526f4926e787155d57e44c0398'
+        commit: 'b3256349f18eaa853259e42726fa7f6233db1f71'
+        committedClean: false
+      network/management-record.mjs:
+        sha256: 'd946589d7f43a6169fcb8f88cbef9c9e933e24f42ecd3e72a41a38e936285eda'
+        commit: 'b3256349f18eaa853259e42726fa7f6233db1f71'
+        committedClean: true
+      network/management-routes.mjs:
+        sha256: '0a47239553d4c4389227b5b56241fce955af87892907e7b70016bc4a9882dd93'
+        commit: '3542e1802018f41654a4554803ea51ecf0a4aaa7'
+        committedClean: false
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:89:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: with the source helper
+    # Subtest: status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+    not ok 1 - status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+      ---
+      duration_ms: 15.546229
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:96:3'
+      failureType: 'testCodeFailure'
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'QuorumError'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:98:29)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Promise.all (index 0)
+        async Suite.run (node:internal/test_runner/test:1442:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+    not ok 2 - records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+      ---
+      duration_ms: 3.184005
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:113:3'
+      failureType: 'testCodeFailure'
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'QuorumError'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:116:17)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+    not ok 3 - no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+      ---
+      duration_ms: 4.462415
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:134:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The validation function is expected to return "true". Received false
+        
+        Caught error:
+        
+        QuorumError: The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      stack: |-
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:142:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+    not ok 4 - refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+      ---
+      duration_ms: 5.251978
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:147:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The input did not match the regular expression /session has ended/. Input:
+        
+        'QuorumError: The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+      actual:
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async waitForActual (node:assert:644:5)
+        async Function.rejects (node:assert:767:25)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:160:3)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      operator: 'rejects'
+      stack: |-
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:160:3)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+    not ok 5 - mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+      ---
+      duration_ms: 1.599658
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:171:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The validation function is expected to return "true". Received false
+        
+        Caught error:
+        
+        QuorumError: The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      stack: |-
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:175:3)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: app token: returned to the caller only; never stored, never echoed in an error
+    not ok 6 - app token: returned to the caller only; never stored, never echoed in an error
+      ---
+      duration_ms: 1.103191
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:189:3'
+      failureType: 'testCodeFailure'
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'QuorumError'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:194:17)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: the page sends only to the origin inside the operator's signature
+    not ok 7 - the page sends only to the origin inside the operator's signature
+      ---
+      duration_ms: 1.213451
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:204:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The input did not match the regular expression /does not match its signed record\. Nothing was sent/. Input:
+        
+        'QuorumError: The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+      actual:
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async waitForActual (node:assert:644:5)
+        async Function.rejects (node:assert:767:25)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:209:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      operator: 'rejects'
+      stack: |-
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:209:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+    not ok 8 - attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+      ---
+      duration_ms: 1.745377
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:214:3'
+      failureType: 'testCodeFailure'
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'QuorumError'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async Module.hostAttestation (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:274:15)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:218:13)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+    not ok 9 - the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+      ---
+      duration_ms: 1.216551
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:225:3'
+      failureType: 'testCodeFailure'
+      error: 'busy'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      stack: |-
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:231:7)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+    not ok 10 - a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+      ---
+      duration_ms: 1.495159
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:236:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The validation function is expected to return "true". Received false
+        
+        Caught error:
+        
+        QuorumError: The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      stack: |-
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:240:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+    not ok 11 - floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+      ---
+      duration_ms: 0.985513
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:243:3'
+      failureType: 'testCodeFailure'
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'QuorumError'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:245:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+    not ok 12 - GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+      ---
+      duration_ms: 1.050082
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:256:3'
+      failureType: 'testCodeFailure'
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'QuorumError'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:261:31)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    1..12
+not ok 182 - with the source helper
+  ---
+  duration_ms: 40.237375
+  type: 'suite'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:93:91'
+  failureType: 'subtestsFailed'
+  error: '12 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: with the shipped bundle helper
+    # Subtest: status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+    not ok 1 - status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+      ---
+      duration_ms: 1.17936
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:96:3'
+      failureType: 'testCodeFailure'
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'QuorumError'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:98:29)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Promise.all (index 0)
+        async Suite.run (node:internal/test_runner/test:1442:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+    not ok 2 - records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+      ---
+      duration_ms: 1.28443
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:113:3'
+      failureType: 'testCodeFailure'
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'QuorumError'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:116:17)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+    not ok 3 - no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+      ---
+      duration_ms: 1.983024
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:134:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The validation function is expected to return "true". Received false
+        
+        Caught error:
+        
+        QuorumError: The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      stack: |-
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:142:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+    not ok 4 - refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+      ---
+      duration_ms: 3.955009
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:147:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The input did not match the regular expression /session has ended/. Input:
+        
+        'QuorumError: The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+      actual:
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async waitForActual (node:assert:644:5)
+        async Function.rejects (node:assert:767:25)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:160:3)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      operator: 'rejects'
+      stack: |-
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:160:3)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+    not ok 5 - mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+      ---
+      duration_ms: 0.799224
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:171:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The validation function is expected to return "true". Received false
+        
+        Caught error:
+        
+        QuorumError: The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      stack: |-
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:175:3)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: app token: returned to the caller only; never stored, never echoed in an error
+    not ok 6 - app token: returned to the caller only; never stored, never echoed in an error
+      ---
+      duration_ms: 0.977043
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:189:3'
+      failureType: 'testCodeFailure'
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'QuorumError'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:194:17)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: the page sends only to the origin inside the operator's signature
+    not ok 7 - the page sends only to the origin inside the operator's signature
+      ---
+      duration_ms: 0.889823
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:204:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The input did not match the regular expression /does not match its signed record\. Nothing was sent/. Input:
+        
+        'QuorumError: The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+      actual:
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async waitForActual (node:assert:644:5)
+        async Function.rejects (node:assert:767:25)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:209:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      operator: 'rejects'
+      stack: |-
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:209:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+    not ok 8 - attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+      ---
+      duration_ms: 0.859084
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:214:3'
+      failureType: 'testCodeFailure'
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'QuorumError'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async Module.hostAttestation (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:274:15)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:218:13)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+    not ok 9 - the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+      ---
+      duration_ms: 1.100382
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:225:3'
+      failureType: 'testCodeFailure'
+      error: 'busy'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      stack: |-
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:231:7)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+    not ok 10 - a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+      ---
+      duration_ms: 0.834214
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:236:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The validation function is expected to return "true". Received false
+        
+        Caught error:
+        
+        QuorumError: The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      stack: |-
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:240:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+    not ok 11 - floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+      ---
+      duration_ms: 0.707954
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:243:3'
+      failureType: 'testCodeFailure'
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'QuorumError'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:245:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+    not ok 12 - GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+      ---
+      duration_ms: 1.031152
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:256:3'
+      failureType: 'testCodeFailure'
+      error: 'The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'QuorumError'
+      stack: |-
+        reader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:41:51)
+        Module.leaseHostPolicy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-chain.js:209:58)
+        resolveEndpoint (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:191:110)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async manage (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/site/js/core/independent-management.js:240:13)
+        async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:261:31)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    1..12
+not ok 183 - with the shipped bundle helper
+  ---
+  duration_ms: 16.043695
+  type: 'suite'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:93:91'
+  failureType: 'subtestsFailed'
+  error: '12 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: GPU view: rows from the supervisor's answer, every value host-reported; Shield proof fields named as unverified claims
+ok 184 - GPU view: rows from the supervisor's answer, every value host-reported; Shield proof fields named as unverified claims
+  ---
+  duration_ms: 0.739784
+  type: 'test'
+  ...
+# Subtest: Startup tier: SNP by default (byte-identical to the CLI's activation); Shield only when chosen, which the Shield node accepts
+ok 185 - Startup tier: SNP by default (byte-identical to the CLI's activation); Shield only when chosen, which the Shield node accepts
+  ---
+  duration_ms: 1.103711
+  type: 'test'
+  ...
+# Subtest: pending owner grant: the CLI's typed data is accepted only as the SDK's exact SessionGrant for this wallet's vault
+ok 186 - pending owner grant: the CLI's typed data is accepted only as the SDK's exact SessionGrant for this wallet's vault
+  ---
+  duration_ms: 2.949317
+  type: 'test'
+  ...
+# Subtest: the browser accepts and refuses exactly the shared Go/JS name vectors, as the SDK does
+ok 187 - the browser accepts and refuses exactly the shared Go/JS name vectors, as the SDK does
+  ---
+  duration_ms: 13.381785
+  type: 'test'
+  ...
+# Subtest: the browser derives the shared challenge aliases (owner-bound, case-insensitive owner)
+ok 188 - the browser derives the shared challenge aliases (owner-bound, case-insensitive owner)
+  ---
+  duration_ms: 1.159851
+  type: 'test'
+  ...
+# Subtest: every valid vector's name set round-trips through the Startup form into the SDK's exact package bytes
+ok 189 - every valid vector's name set round-trips through the Startup form into the SDK's exact package bytes
+  ---
+  duration_ms: 2.742149
+  type: 'test'
+  ...
+# Subtest: explicit choices only: no default CA, responder or zone; a partial selection is refused; Enclave-run choices are named
+ok 190 - explicit choices only: no default CA, responder or zone; a partial selection is refused; Enclave-run choices are named
+  ---
+  duration_ms: 1.35
+  type: 'test'
+  ...
+# Subtest: publish a wallet-signed setting to every directory; read it back; stale and forged settings are refused
+ok 191 - publish a wallet-signed setting to every directory; read it back; stale and forged settings are refused
+  ---
+  duration_ms: 84.31733
+  type: 'test'
+  ...
+# Subtest: nextPolicyNonce ignores malformed reports and never goes below the issue time
+ok 192 - nextPolicyNonce ignores malformed reports and never goes below the issue time
+  ---
+  duration_ms: 0.172938
+  type: 'test'
+  ...
+# Subtest: owner kind from agreed code: EOA, EIP-7702-delegated EOA, contract account
+ok 193 - owner kind from agreed code: EOA, EIP-7702-delegated EOA, contract account
+  ---
+  duration_ms: 8.187586
+  type: 'test'
+  ...
+# Subtest: an ERC-1271 owner's signature rides the SDK's exact openFor, and the simulation is of exactly those bytes
+ok 194 - an ERC-1271 owner's signature rides the SDK's exact openFor, and the simulation is of exactly those bytes
+  ---
+  duration_ms: 8.069137
+  type: 'test'
+  ...
+# Subtest: a funded grant records both owner signatures (grant and USDC authorization) and checks them in one simulation
+ok 195 - a funded grant records both owner signatures (grant and USDC authorization) and checks them in one simulation
+  ---
+  duration_ms: 4.718993
+  type: 'test'
+  ...
+# Subtest: refusals: an agreed revert (EOA and contract wording), no agreement, an ERC-6492 signature (before any read)
+ok 196 - refusals: an agreed revert (EOA and contract wording), no agreement, an ERC-6492 signature (before any read)
+  ---
+  duration_ms: 1.387249
+  type: 'test'
+  ...
+# Subtest: the dashboard sign-in and /grant check the owner signature before anything is submitted or handed over
+ok 197 - the dashboard sign-in and /grant check the owner signature before anything is submitted or handed over
+  ---
+  duration_ms: 0.671875
+  type: 'test'
+  ...
+# Subtest: the vendored aa.js is exactly a fresh build of the repository's viem/ox exports
+ok 198 - the vendored aa.js is exactly a fresh build of the repository's viem/ox exports
+  ---
+  duration_ms: 81.513103
+  type: 'test'
+  ...
+# Subtest: profile: exact fields, pinned verifiers only, distinct owners, threshold in range, a validated owner transport
+ok 199 - profile: exact fields, pinned verifiers only, distinct owners, threshold in range, a validated owner transport
+  ---
+  duration_ms: 2.158163
+  type: 'test'
+  ...
+# Subtest: capabilities say exactly what the owners can and cannot rely on - and never call one RP independence
+ok 200 - capabilities say exactly what the owners can and cannot rely on - and never call one RP independence
+  ---
+  duration_ms: 0.492376
+  type: 'test'
+  ...
+# Subtest: Safe signature bytes: ascending owners; contract signatures as {r: signer, s: offset, v: 0} + length || data; ECDSA verbatim
+ok 201 - Safe signature bytes: ascending owners; contract signatures as {r: signer, s: offset, v: 0} + length || data; ECDSA verbatim
+  ---
+  duration_ms: 0.471847
+  type: 'test'
+  ...
+# Subtest: the SafeMessage hash equals Safe v1.4.1's own construction from its literal constants (CompatibilityFallbackHandler)
+ok 202 - the SafeMessage hash equals Safe v1.4.1's own construction from its literal constants (CompatibilityFallbackHandler)
+  ---
+  duration_ms: 8.038038
+  type: 'test'
+  ...
+# Subtest: a passkey assertion becomes the signer's signature only if it is over exactly this challenge, with UP and UV
+ok 203 - a passkey assertion becomes the signer's signature only if it is over exactly this challenge, with UP and UV
+  ---
+  duration_ms: 1.586258
+  type: 'test'
+  ...
+# Subtest: user operations: only with the owner's transport; sent to the owner's bundlers in order, nothing else; paymaster fields split for v0.7
+ok 204 - user operations: only with the owner's transport; sent to the owner's bundlers in order, nothing else; paymaster fields split for v0.7
+  ---
+  duration_ms: 15.081032
+  type: 'test'
+  ...
+# Subtest: the account panel never submits silently: every prepared call is offered with a gas payer the owner picks, and a profile is saved only on an explicit click
+ok 205 - the account panel never submits silently: every prepared call is offered with a gas payer the owner picks, and a profile is saved only on an explicit click
+  ---
+  duration_ms: 0.505466
+  type: 'test'
+  ...
+# Subtest: a complete profile validates and normalizes; the CLI's contract-pin document is embedded unchanged
+ok 206 - a complete profile validates and normalizes; the CLI's contract-pin document is embedded unchanged
+  ---
+  duration_ms: 2.324262
+  type: 'test'
+  ...
+# Subtest: invalid profiles are refused with a reason
+ok 207 - invalid profiles are refused with a reason
+  ---
+  duration_ms: 1.497888
+  type: 'test'
+  ...
+# Subtest: saved profiles need this tab's confirmation; built-in ones do not; broken ones never load
+ok 208 - saved profiles need this tab's confirmation; built-in ones do not; broken ones never load
+  ---
+  duration_ms: 2.325012
+  type: 'test'
+  ...
+# Subtest: config.js: an active profile pins every binding and never consults the book or the hosted upload service
+ok 209 - config.js: an active profile pins every binding and never consults the book or the hosted upload service
+  ---
+  duration_ms: 1.619487
+  type: 'test'
+  ...
+# Subtest: config.js: an unconfirmed or invalid profile pins nothing and does not fall back to the hosted defaults
+ok 210 - config.js: an unconfirmed or invalid profile pins nothing and does not fall back to the hosted defaults
+  ---
+  duration_ms: 3.170515
+  type: 'test'
+  ...
+# Subtest: an explicit platform book allows admin updates while fixed profiles keep their original trust
+ok 211 - an explicit platform book allows admin updates while fixed profiles keep their original trust
+  ---
+  duration_ms: 1.34234
+  type: 'test'
+  ...
+# Subtest: api.js: independent mode refuses every central call without network access, with a plain reason
+ok 212 - api.js: independent mode refuses every central call without network access, with a plain reason
+  ---
+  duration_ms: 17.768771
+  type: 'test'
+  ...
+# Subtest: agreement on one block, then on one result at that block's hash
+ok 213 - agreement on one block, then on one result at that block's hash
+  ---
+  duration_ms: 2.390341
+  type: 'test'
+  ...
+# Subtest: one lying endpoint is outvoted; two disagreeing endpoints of two fail closed
+ok 214 - one lying endpoint is outvoted; two disagreeing endpoints of two fail closed
+  ---
+  duration_ms: 0.914973
+  type: 'test'
+  ...
+# Subtest: unreachable, wrong-chain and forked endpoints cannot stand in for agreement
+ok 215 - unreachable, wrong-chain and forked endpoints cannot stand in for agreement
+  ---
+  duration_ms: 0.749435
+  type: 'test'
+  ...
+# Subtest: the target is the quorum-th highest head, so one endpoint racing ahead cannot pick an unconfirmed block
+ok 216 - the target is the quorum-th highest head, so one endpoint racing ahead cannot pick an unconfirmed block
+  ---
+  duration_ms: 0.691915
+  type: 'test'
+  ...
+# Subtest: stale and future blocks are refused; a later snapshot never moves backwards
+ok 217 - stale and future blocks are refused; a later snapshot never moves backwards
+  ---
+  duration_ms: 1.092401
+  type: 'test'
+  ...
+# Subtest: an agreed revert is reported as a revert, not as data
+ok 218 - an agreed revert is reported as a revert, not as data
+  ---
+  duration_ms: 0.446596
+  type: 'test'
+  ...
+# Subtest: configuration needs at least two origins and a quorum of two
+ok 219 - configuration needs at least two origins and a quorum of two
+  ---
+  duration_ms: 0.310298
+  type: 'test'
+  ...
+# Subtest: delegation storage requires complete agreeing words, not a malformed or lone answer
+ok 220 - delegation storage requires complete agreeing words, not a malformed or lone answer
+  ---
+  duration_ms: 0.741194
+  type: 'test'
+  ...
+# Subtest: event logs need the identical set from a quorum; dropped, removed, foreign or out-of-range logs never win
+ok 221 - event logs need the identical set from a quorum; dropped, removed, foreign or out-of-range logs never win
+  ---
+  duration_ms: 1.772336
+  type: 'test'
+  ...
+# Subtest: browser CIDs equal the CLI importer at chunk and tree boundaries
+ok 222 - browser CIDs equal the CLI importer at chunk and tree boundaries
+  ---
+  duration_ms: 352.94401
+  type: 'test'
+  ...
+# Subtest: a verified copy needs the local CID AND every byte read back; two of three is enough, one is not
+ok 223 - a verified copy needs the local CID AND every byte read back; two of three is enough, one is not
+  ---
+  duration_ms: 308.291219
+  type: 'test'
+  ...
+# Subtest: a declined signature uploads nothing anywhere
+ok 224 - a declined signature uploads nothing anywhere
+  ---
+  duration_ms: 3.994599
+  type: 'test'
+  ...
+# Subtest: startup packages are byte-identical to the CLI's and pass its verifier
+ok 225 - startup packages are byte-identical to the CLI's and pass its verifier
+  ---
+  duration_ms: 3.189565
+  type: 'test'
+  ...
+# Subtest: activation replaces legacy config, keeps other options and requires the direct SNP runtime - as the CLI does
+ok 226 - activation replaces legacy config, keeps other options and requires the direct SNP runtime - as the CLI does
+  ---
+  duration_ms: 0.711124
+  type: 'test'
+  ...
+# Subtest: startup publication counts only exact readback, and the committed bytes are re-read by raw CID
+ok 227 - startup publication counts only exact readback, and the committed bytes are re-read by raw CID
+  ---
+  duration_ms: 10.656697
+  type: 'test'
+  ...
+# Subtest: committed custom names are accepted, preserved byte-for-byte and checked like the SDK does
+ok 228 - committed custom names are accepted, preserved byte-for-byte and checked like the SDK does
+  ---
+  duration_ms: 1.915695
+  type: 'test'
+  ...
+# Subtest: every single owner call decodes to its fields
+ok 229 - every single owner call decodes to its fields
+  ---
+  duration_ms: 8.780391
+  type: 'test'
+  ...
+# Subtest: multicall (version + shares in one confirmation) decodes each inner call
+ok 230 - multicall (version + shares in one confirmation) decodes each inner call
+  ---
+  duration_ms: 1.251371
+  type: 'test'
+  ...
+# Subtest: anything else is 'unknown' (the caller then sends the plain wallet tx)
+ok 231 - anything else is 'unknown' (the caller then sends the plain wallet tx)
+  ---
+  duration_ms: 0.215609
+  type: 'test'
+  ...
+# Subtest: wallet record: suspend/resume, resize and cancel become the matching session actions
+ok 232 - wallet record: suspend/resume, resize and cancel become the matching session actions
+  ---
+  duration_ms: 1.746877
+  type: 'test'
+  ...
+# Subtest: wallet record: a cap only ever goes down (or stays); a raise, or no known cap, is the wallet's
+ok 233 - wallet record: a cap only ever goes down (or stays); a raise, or no known cap, is the wallet's
+  ---
+  duration_ms: 0.536936
+  type: 'test'
+  ...
+# Subtest: wallet record: never the version, the config or a transfer - alone or inside a batch
+ok 234 - wallet record: never the version, the config or a transfer - alone or inside a batch
+  ---
+  duration_ms: 0.753904
+  type: 'test'
+  ...
+# Subtest: wallet record: a batch of allowed calls on ONE record goes call by call; another record in it is the wallet's
+ok 235 - wallet record: a batch of allowed calls on ONE record goes call by call; another record in it is the wallet's
+  ---
+  duration_ms: 0.833473
+  type: 'test'
+  ...
+# Subtest: status categories: the live owner list's twelve rows land in the right tabs
+ok 236 - status categories: the live owner list's twelve rows land in the right tabs
+  ---
+  duration_ms: 1.30621
+  type: 'test'
+  ...
+# Subtest: every status has a tab, and the tabs are the template's
+ok 237 - every status has a tab, and the tabs are the template's
+  ---
+  duration_ms: 0.552165
+  type: 'test'
+  ...
+# Subtest: a failed first read is an error with nothing to show, never an empty list
+ok 238 - a failed first read is an error with nothing to show, never an empty list
+  ---
+  duration_ms: 0.279258
+  type: 'test'
+  ...
+# Subtest: a failed refresh shows the same wallet's last good rows, marked stale with their time
+ok 239 - a failed refresh shows the same wallet's last good rows, marked stale with their time
+  ---
+  duration_ms: 0.333948
+  type: 'test'
+  ...
+# Subtest: another wallet's rows are never shown: a failure after a switch is an error
+ok 240 - another wallet's rows are never shown: a failure after a switch is an error
+  ---
+  duration_ms: 0.144449
+  type: 'test'
+  ...
+# Subtest: an account session without an id has no identity, so its failure shows no cached rows
+ok 241 - an account session without an id has no identity, so its failure shows no cached rows
+  ---
+  duration_ms: 0.117319
+  type: 'test'
+  ...
+# Subtest: recovery: the next good read is fresh and replaces what was stale
+ok 242 - recovery: the next good read is fresh and replaces what was stale
+  ---
+  duration_ms: 0.153169
+  type: 'test'
+  ...
+# Subtest: failure reasons say what is known: no answer is not called a CORS problem
+ok 243 - failure reasons say what is known: no answer is not called a CORS problem
+  ---
+  duration_ms: 0.342188
+  type: 'test'
+  ...
+# Subtest: fleet: a failed first read is an error state, not 'no app hosts'; then stale; then recovered
+ok 244 - fleet: a failed first read is an error state, not 'no app hosts'; then stale; then recovered
+  ---
+  duration_ms: 0.837673
+  type: 'test'
+  ...
+# Subtest: fleet: a body that is not JSON is a failed read too
+ok 245 - fleet: a body that is not JSON is a failed read too
+  ---
+  duration_ms: 0.421426
+  type: 'test'
+  ...
+# Subtest: no page blanks the fleet on failure any more; all three use the shared reader
+ok 246 - no page blanks the fleet on failure any more; all three use the shared reader
+  ---
+  duration_ms: 1.417319
+  type: 'test'
+  ...
+# Subtest: a failed list read keeps polling, shows unknown counts, and never shows another identity's rows
+ok 247 - a failed list read keeps polling, shows unknown counts, and never shows another identity's rows
+  ---
+  duration_ms: 0.972902
+  type: 'test'
+  ...
+# Subtest: tunaPolicyDigest and authorizeTuna calldata match the ABI encoding
+ok 248 - tunaPolicyDigest and authorizeTuna calldata match the ABI encoding
+  ---
+  duration_ms: 13.364176
+  type: 'test'
+  ...
+# Subtest: recovery calldata is recognized exactly
+ok 249 - recovery calldata is recognized exactly
+  ---
+  duration_ms: 5.406728
+  type: 'test'
+  ...
+# Subtest: a replaced ledger is recovery-only in the tab that followed the change; other replaced targets stay refused
+ok 250 - a replaced ledger is recovery-only in the tab that followed the change; other replaced targets stay refused
+  ---
+  duration_ms: 41.823053
+  type: 'test'
+  ...
+# Subtest: a fresh tab derives the replaced ledger from the profile's original pin (no retained cache)
+ok 251 - a fresh tab derives the replaced ledger from the profile's original pin (no retained cache)
+  ---
+  duration_ms: 9.647845
+  type: 'test'
+  ...
+# Subtest: the profile's ledgerHistory: only with a book, block number, distinct nonzero addresses, at most 32
+ok 252 - the profile's ledgerHistory: only with a book, block number, distinct nonzero addresses, at most 32
+  ---
+  duration_ms: 1.007422
+  type: 'test'
+  ...
+# Subtest: after the profile's block: the book's own AddressSet(deployments) events, agreed by the quorum, bounded per call
+ok 253 - after the profile's block: the book's own AddressSet(deployments) events, agreed by the quorum, bounded per call
+  ---
+  duration_ms: 5.552457
+  type: 'test'
+  ...
+# Subtest: a disagreeing or malformed history adds nothing; a long gap is scanned in bounded steps and labeled until done
+ok 254 - a disagreeing or malformed history adds nothing; a long gap is scanned in bounded steps and labeled until done
+  ---
+  duration_ms: 12.911619
+  type: 'test'
+  ...
+# Subtest: who may push a replaced-ledger refund follows the record's owner ON THAT LEDGER and the ledger's retirement
+ok 255 - who may push a replaced-ledger refund follows the record's owner ON THAT LEDGER and the ledger's retirement
+  ---
+  duration_ms: 0.563676
+  type: 'test'
+  ...
+# Subtest: every replaced-ledger record stays its own holding, with its owner there: carried-over and left-behind records
+ok 256 - every replaced-ledger record stays its own holding, with its owner there: carried-over and left-behind records
+  ---
+  duration_ms: 10.896145
+  type: 'test'
+  ...
+# Subtest: a helper exit cannot release the root lock while its owning rollout is alive
+ok 257 - a helper exit cannot release the root lock while its owning rollout is alive
+  ---
+  duration_ms: 7.69138
+  type: 'test'
+  ...
+# Subtest: each host-routed owner call is signed by the session: method, exact URL with its query, the scope it needs
+ok 258 - each host-routed owner call is signed by the session: method, exact URL with its query, the scope it needs
+  ---
+  duration_ms: 18.847723
+  type: 'test'
+  ...
+# Subtest: a body is signed as the exact string that is sent
+ok 259 - a body is signed as the exact string that is sent
+  ---
+  duration_ms: 0.531106
+  type: 'test'
+  ...
+# Subtest: a host that predates sessions (401 to a live one) falls back ONCE to its per-host sign-in, remembered per host
+ok 260 - a host that predates sessions (401 to a live one) falls back ONCE to its per-host sign-in, remembered per host
+  ---
+  duration_ms: 2.330961
+  type: 'test'
+  ...
+# Subtest: with a per-host token already held, the fallback happens inside the same call
+ok 261 - with a per-host token already held, the fallback happens inside the same call
+  ---
+  duration_ms: 1.113061
+  type: 'test'
+  ...
+# Subtest: a 401 under a session that turns out to be over marks no host
+ok 262 - a 401 under a session that turns out to be over marks no host
+  ---
+  duration_ms: 0.822434
+  type: 'test'
+  ...
+# Subtest: a 403 (the host refused the session for this record) falls back for that route only
+ok 263 - a 403 (the host refused the session for this record) falls back for that route only
+  ---
+  duration_ms: 0.922473
+  type: 'test'
+  ...
+# Subtest: other failures under the session are real answers: thrown, no fallback
+ok 264 - other failures under the session are real answers: thrown, no fallback
+  ---
+  duration_ms: 0.490316
+  type: 'test'
+  ...
+# Subtest: no session: exactly the old behaviour (per-host token, or a local 401 with no request)
+ok 265 - no session: exactly the old behaviour (per-host token, or a local 401 with no request)
+  ---
+  duration_ms: 0.702044
+  type: 'test'
+  ...
+# Subtest: list: signed with ?owner= for the relay's merge; a refusal falls back to the public read, never throws
+ok 266 - list: signed with ?owner= for the relay's merge; a refusal falls back to the public read, never throws
+  ---
+  duration_ms: 0.887423
+  type: 'test'
+  ...
+# Subtest: get: signed WITHOUT ?owner= (a vault-held record is not the wallet's; the relay's fallback stays unscoped)
+ok 267 - get: signed WITHOUT ?owner= (a vault-held record is not the wallet's; the relay's fallback stays unscoped)
+  ---
+  duration_ms: 0.481306
+  type: 'test'
+  ...
+# Subtest: sessionMayServe: only with a session in this browser, for the connected wallet, while nothing says it is over
+ok 268 - sessionMayServe: only with a session in this browser, for the connected wallet, while nothing says it is over
+  ---
+  duration_ms: 0.252588
+  type: 'test'
+  ...
+# Subtest: hostAuthorization signs the exact request for the connected wallet's live session, with the scope it holds
+ok 269 - hostAuthorization signs the exact request for the connected wallet's live session, with the scope it holds
+  ---
+  duration_ms: 1.000962
+  type: 'test'
+  ...
+# Subtest: the session header is only ever made for the configured API endpoint, of the relay the session was opened against
+ok 270 - the session header is only ever made for the configured API endpoint, of the relay the session was opened against
+  ---
+  duration_ms: 1.28496
+  type: 'test'
+  ...
+# Subtest: hostAuthorization: another wallet's session, an ended one or an expired one signs nothing
+ok 271 - hostAuthorization: another wallet's session, an ended one or an expired one signs nothing
+  ---
+  duration_ms: 0.310508
+  type: 'test'
+  ...
+# Subtest: sessionStillLive re-reads the chain: live -> true; over -> false, and this browser forgets the session
+ok 272 - sessionStillLive re-reads the chain: live -> true; over -> false, and this browser forgets the session
+  ---
+  duration_ms: 0.720664
+  type: 'test'
+  ...
+# Subtest: asHostOwner: the session serves it - no wallet prompt
+ok 273 - asHostOwner: the session serves it - no wallet prompt
+  ---
+  duration_ms: 0.534316
+  type: 'test'
+  ...
+# Subtest: asHostOwner: an old host's 401 -> ONE per-host SIWE (pinned to that host), then the call once more with its token
+ok 274 - asHostOwner: an old host's 401 -> ONE per-host SIWE (pinned to that host), then the call once more with its token
+  ---
+  duration_ms: 1.578487
+  type: 'test'
+  ...
+# Subtest: asHostOwner prompt:false (polls, panels opened without a click): the 401 comes back, the wallet is never asked
+ok 275 - asHostOwner prompt:false (polls, panels opened without a click): the 401 comes back, the wallet is never asked
+  ---
+  duration_ms: 0.350957
+  type: 'test'
+  ...
+# Subtest: WalletConnect RPC routing in the actual browser module
+ok 276 - WalletConnect RPC routing in the actual browser module
+  ---
+  duration_ms: 34.756698
+  type: 'test'
+  ...
+1..276
+# tests 298
+# suites 2
+# pass 265
+# fail 33
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11076.737437
+[memory-guard] exit=1 peakTreeRssMiB=259 minHostAvailableMiB=23384
+[memory-guard] at peak: node:190 node:65 timeout:4
+[queue] EXIT 1

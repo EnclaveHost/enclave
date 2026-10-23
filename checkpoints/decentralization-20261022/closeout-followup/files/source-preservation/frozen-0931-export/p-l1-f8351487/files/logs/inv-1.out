@@ -1,0 +1,47 @@
+[queue] START available=24322MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+## date
+2026-10-23T06:08:37Z
+## PATH and common bins
+## containers
+(end containers)
+## executables named like clients under the workspace and home (depth-limited, regular files, size>1MB)
+124722632	cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/target/debug/deps/helios-0da9228faa76ceb7
+124722632	cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/target/debug/helios
+124722632	cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/bin/helios-eeffcc9
+124722632	cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-sia-cache/history-compose/bin/helios-eeffcc9
+124722632	cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-sia-cache/compose/target/debug/deps/helios-0da9228faa76ceb7
+124722632	cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-sia-cache/compose/target/debug/helios
+139248776	8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-runtime-composition/bin/reth-v2.8.0
+124722632	cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-runtime-composition/bin/helios-eeffcc9
+124722632	cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-cache-deadline-compose/bin/helios-eeffcc9
+96975728	0929f7f383a082b8aa7fda97c3058e72a4acc93cbf250a24c7a08ae4e1df98fc	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target/debug/deps/helios-8460eef21ac35048
+96975728	0929f7f383a082b8aa7fda97c3058e72a4acc93cbf250a24c7a08ae4e1df98fc	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target/debug/helios
+139248776	8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/vendor-inspect/reth-v2.8.0/bin/reth
+23486912	a7f777b430c04f030b1f337c157a13a368aea11c14315b7be79095026f619180	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/vendor-inspect/helios-release-0.12.0/bin/helios
+124722632	cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/deps/helios-0da9228faa76ceb7
+124722632	cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios
+124722632	cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/bin/helios-eeffcc9
+139248776	8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-runtime-composition/bin/reth-v2.8.0
+124722632	cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-runtime-composition/bin/helios-eeffcc9
+124722632	cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-cache-deadline-compose/bin/helios-eeffcc9
+## source clones (Cargo.toml / go.mod / nimble) for client repos
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/helios/Cargo.toml
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/helios/cli/Cargo.toml
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-sia-cache/compose/helios/Cargo.toml
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-sia-cache/compose/helios/cli/Cargo.toml
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-runtime-composition/closure/build-listener-r2/helios/Cargo.toml
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/vendor-inspect/helios-src-2af9b418/Cargo.toml
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/vendor-inspect/helios-src-2af9b418/cli/Cargo.toml
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-patched/Cargo.toml
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-patched/cli/Cargo.toml
+/home/steven/enclave-prod/firefox-jit/firefox-140.14.0/mobile/android/fenix/build.gradle
+/home/steven/enclave-prod/firefox-jit/firefox-140.14.0/mobile/android/focus-android/build.gradle
+/home/steven/enclave-prod/firefox-jit/firefox-140.14.0/build.gradle
+/home/steven/enclave-prod/firefox-jit/firefox-140.14.0/third_party/rust/firefox-versioning/Cargo.toml
+/home/steven/go/pkg/mod/github.com/ethereum-optimism/op-geth@v1.101702.3/go.mod
+/home/steven/go/pkg/mod/github.com/ethereum/go-ethereum@v1.17.9/go.mod
+/home/steven/go/pkg/mod/github.com/ethereum/go-ethereum@v1.13.5/go.mod
+## end
+[memory-guard] exit=0 peakTreeRssMiB=54 minHostAvailableMiB=23596
+[memory-guard] at peak: find:33 bash:6 grep:5 grep:4 head:4 bash:2
+[queue] EXIT 0

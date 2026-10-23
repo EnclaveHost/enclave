@@ -1,0 +1,26 @@
+{
+ "checkpointHead": "cadf0ebb83338d847ef1cb5d3f14a64fe7560098",
+ "checked": 116,
+ "alreadyPreserved": 114,
+ "notPreserved": [
+  {
+   "path": "network/enclave-network-host.mjs",
+   "file": "g4-challenge-retry-package-20261022/src/network/enclave-network-host.mjs",
+   "sha256": "2c1b84aa842e22c1a6e803f5eb8c3b98b7b3609d76ad3ef40994636976234327",
+   "gitBlob": "c02bb1f1661231f88d09412d043bf901f00827cf",
+   "bytes": 19171,
+   "provenance": "privacy-agent cfb69370 input (g4-challenge-retry-package-20261022/candidate/privacy-agent.mjs.inputs.json)",
+   "inCheckpointHistory": false
+  },
+  {
+   "path": "relay/snp-verify.mjs",
+   "file": "g4-network-composition-20261021/src/relay/snp-verify.mjs",
+   "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+   "gitBlob": "01bcea280b1db8252cb799a38a49d81b873f4ca6",
+   "bytes": 25976,
+   "provenance": "privacy-agent cfb69370 input (g4-challenge-retry-package-20261022/candidate/privacy-agent.mjs.inputs.json)",
+   "inCheckpointHistory": false
+  }
+ ],
+ "note": "node_modules inputs are not source of this project (npm packages); they are recorded by sha256 in the input manifests"
+}

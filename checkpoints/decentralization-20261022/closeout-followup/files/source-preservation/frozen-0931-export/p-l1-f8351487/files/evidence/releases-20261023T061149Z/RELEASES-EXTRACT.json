@@ -1,0 +1,672 @@
+{
+ "format": "enclave-l1-release-extract/v1",
+ "note": "trimmed from the GitHub releases API responses fetched 2026-10-23T06:11:49Z (job fetch-1); the raw responses are not kept (public metadata only; their sha256 are in SHA256SUMS). Fields: tag, target, published, prerelease, body sha256, x86_64-linux assets with GitHub digests.",
+ "releases": {
+  "reth": [
+   {
+    "tag": "v2.8.0",
+    "target": "main",
+    "published": "2026-10-20T19:34:03Z",
+    "prerelease": false,
+    "bodySha256": "eec99edf5747fa2a9fd2a39ae8ce9b2723b62036146f95951f54b37bbdaa6545",
+    "assets": [
+     {
+      "name": "reth-v2.8.0-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 53988258,
+      "digest": "sha256:809bfe0f071b509980d7f9178603edd2f7432356d50ae5af256cb62213c10ed8",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.8.0/reth-v2.8.0-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "reth-v2.8.0-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 228,
+      "digest": "sha256:7ca371e10986418c55d247c292ddef59d7e582d379b76b820e12dc18944657d5",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.8.0/reth-v2.8.0-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v2.7.0",
+    "target": "main",
+    "published": "2026-09-28T12:45:27Z",
+    "prerelease": false,
+    "bodySha256": "840bc7a4341d8d3e058eabccec09b5432f10395b6050b292b38117abc2cf0adb",
+    "assets": [
+     {
+      "name": "reth-v2.7.0-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 52554735,
+      "digest": "sha256:c91ef845f97c28e9fdb60de04eee871f957738548d474c9b6379debbf3f1064a",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.7.0/reth-v2.7.0-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "reth-v2.7.0-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 228,
+      "digest": "sha256:c5f542a37e5504fe3aabaf65371215e2a8dce4e32380dab35941b0383aeb426d",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.7.0/reth-v2.7.0-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v2.6.0",
+    "target": "main",
+    "published": "2026-09-17T14:00:49Z",
+    "prerelease": false,
+    "bodySha256": "25a754c2dfb356e64779e6de92932db2916df08f9154f3505e96b85ba92be7ed",
+    "assets": [
+     {
+      "name": "reth-v2.6.0-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 52484089,
+      "digest": "sha256:f69df85bcaacc7c911b315c078899e6968e8361c017c56fe7356365eb8fb6b9d",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.6.0/reth-v2.6.0-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "reth-v2.6.0-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 228,
+      "digest": "sha256:ac871d70478c49f5e6fc5c34e3a44ccf8ce108571148f2de93d6527a84d567be",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.6.0/reth-v2.6.0-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v2.5.2",
+    "target": "main",
+    "published": "2026-09-02T11:32:33Z",
+    "prerelease": false,
+    "bodySha256": "e29347c0cec49ee4e37bf40564e48bd57de0cb6ebb50d9ec5e88e55351ed3468",
+    "assets": [
+     {
+      "name": "reth-v2.5.2-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 51932647,
+      "digest": "sha256:e360895ac51b351ff0c44573f0f619bb1e7c3ff2df55502af1190c14c9b5ef6d",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.5.2/reth-v2.5.2-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "reth-v2.5.2-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 228,
+      "digest": "sha256:ed051781c2c1c0af30bb14e4a1bdda0ecf1f0356705487e8f9f2d65983189107",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.5.2/reth-v2.5.2-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v2.5.1",
+    "target": "main",
+    "published": "2026-08-20T12:18:40Z",
+    "prerelease": false,
+    "bodySha256": "b4fb33380bda9b5bf2282f166cb697cd0145812f1165e4635e0dd7c91a785f47",
+    "assets": [
+     {
+      "name": "reth-v2.5.1-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 51940256,
+      "digest": "sha256:d68a42a8ee798b4229430f6da30261936c99615daa3c41dd4d67b0cac9d5e725",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.5.1/reth-v2.5.1-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "reth-v2.5.1-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 228,
+      "digest": "sha256:4becee8aeae7a5873646fcd4447d1472b621c4f69a37bb514313daa5d3450b30",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.5.1/reth-v2.5.1-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v2.5.0",
+    "target": "main",
+    "published": "2026-08-12T13:11:35Z",
+    "prerelease": false,
+    "bodySha256": "6a2478c790899f0f717237d8f0963e0365d8387f0988c56ff2b4ff91fb75e09d",
+    "assets": [
+     {
+      "name": "reth-v2.5.0-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 51946439,
+      "digest": "sha256:6719ec675744c279dadab1269a15b3afb6ed153839aa87ccad7c2d119d48f47f",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.5.0/reth-v2.5.0-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "reth-v2.5.0-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 228,
+      "digest": "sha256:8ee0fdf395e5bdfea2da210d15604830638d6b0941e8dc9855093c180edc7d9b",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.5.0/reth-v2.5.0-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v2.4.1",
+    "target": "main",
+    "published": "2026-07-17T13:23:16Z",
+    "prerelease": false,
+    "bodySha256": "062f15020b11900af99679725932ead4e34bfc89c3e3ecaa2f9cfaf59655851d",
+    "assets": [
+     {
+      "name": "reth-v2.4.1-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 67348858,
+      "digest": "sha256:bc3b4b9f798f1c9b043950d8cdee04982f492889827cb02dcce3b1a97ee43bcf",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.4.1/reth-v2.4.1-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "reth-v2.4.1-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 228,
+      "digest": "sha256:5f4b668bb6cfc3e73401a0ffe8951b578f98d132dbd2cf2eeb0c9f81f3a6e05b",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.4.1/reth-v2.4.1-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v2.4.0",
+    "target": "main",
+    "published": "2026-07-14T13:37:38Z",
+    "prerelease": false,
+    "bodySha256": "89a25c172a395707a48406dc7dab775981ee5c2daf632ca89988c28170ebc181",
+    "assets": [
+     {
+      "name": "reth-v2.4.0-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 67315088,
+      "digest": "sha256:6ec9c2d843c2dac0132a2c23eda40dd049679e88750d8e81d64dc241c6d9973c",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.4.0/reth-v2.4.0-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "reth-v2.4.0-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 228,
+      "digest": "sha256:ffba173728b38520719cae293ea027cb53627348f610504e6d3e30c907c1a9c7",
+      "url": "https://github.com/paradigmxyz/reth/releases/download/v2.4.0/reth-v2.4.0-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   }
+  ],
+  "lighthouse": [
+   {
+    "tag": "v8.4.0-rc.0",
+    "target": "stable",
+    "published": "2026-10-22T12:35:49Z",
+    "prerelease": true,
+    "bodySha256": "e0c624fb789776347de1f1cd2925190e14357d939e61b1146dbc4cb934b3fe00",
+    "assets": [
+     {
+      "name": "lighthouse-v8.4.0-rc.0-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 31604680,
+      "digest": "sha256:3c760c0ea53ece186aad77b53c2eea6c9bc1b2141d7755889cf8bc9bc72b8112",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.4.0-rc.0/lighthouse-v8.4.0-rc.0-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "lighthouse-v8.4.0-rc.0-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:8580e4bc37ea453254fb57ee1206094fd298835b6db5ae0dcc0c094b0ea10a50",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.4.0-rc.0/lighthouse-v8.4.0-rc.0-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v8.3.2",
+    "target": "stable",
+    "published": "2026-10-23T00:41:38Z",
+    "prerelease": false,
+    "bodySha256": "b34ad0d213eeaf003a5eaf2974022a4adbc30e7344c86ed2dd0400c072c2dbeb",
+    "assets": [
+     {
+      "name": "lighthouse-v8.3.2-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 31384350,
+      "digest": "sha256:ea914e932462d6a93ad78c21377d70f995e05ac224248be0b58c2f4d6740439a",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.3.2/lighthouse-v8.3.2-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "lighthouse-v8.3.2-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:4c4ce3267acd03ad6925c23894351d937806f59d07556ee00d439fdb975bcb97",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.3.2/lighthouse-v8.3.2-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v8.3.1",
+    "target": "stable",
+    "published": "2026-10-22T02:53:46Z",
+    "prerelease": false,
+    "bodySha256": "3b3f56fe69321bdc052cbfb52c1b4936125e827689a3c299f527835693e31882",
+    "assets": [
+     {
+      "name": "lighthouse-v8.3.1-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 31375482,
+      "digest": "sha256:46f6580d64bb3164b17d0799847fc2ec518700860a187373a6a8d5b5fed382d3",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.3.1/lighthouse-v8.3.1-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "lighthouse-v8.3.1-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:1e41d24ac87440feffcdec185343189e7d4f0bc432dbc700b6398fa04b4f1d7a",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.3.1/lighthouse-v8.3.1-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v8.3.0",
+    "target": "stable",
+    "published": "2026-10-19T10:12:23Z",
+    "prerelease": false,
+    "bodySha256": "0422df094be9bac9c6c9a55258b42153200d27071dc24acd13d7a0f261de0915",
+    "assets": [
+     {
+      "name": "lighthouse-v8.3.0-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 31360330,
+      "digest": "sha256:686e076e23bc75ad592917c228a9c96558b2ac9a4cdaac99896f331fb7ae78f1",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.3.0/lighthouse-v8.3.0-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "lighthouse-v8.3.0-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:97ed42c4636e82e453d0bb89e281af847984fdc2ee1a5d93bb2b57b94d8aeeba",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.3.0/lighthouse-v8.3.0-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v8.3.0-rc.0",
+    "target": "stable",
+    "published": "2026-10-01T04:47:48Z",
+    "prerelease": true,
+    "bodySha256": "bc27c7b543f644fa981f8a7518a2cf719523a1d07d401357ba6ee0c42c59c7ce",
+    "assets": [
+     {
+      "name": "lighthouse-v8.3.0-rc.0-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 30083091,
+      "digest": "sha256:4240f74fcbf2350071ccdef6c5e1b605227254bcc339d746e684e8dd3a53cf0d",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.3.0-rc.0/lighthouse-v8.3.0-rc.0-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "lighthouse-v8.3.0-rc.0-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:f61259894f5e1e9fb838226591511accbb0a96332813624567d40711d68d73e1",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.3.0-rc.0/lighthouse-v8.3.0-rc.0-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v8.2.3",
+    "target": "stable",
+    "published": "2026-10-01T02:15:41Z",
+    "prerelease": false,
+    "bodySha256": "03a19f458ff577fd9bde4600840b1b01b26576538639880e9236c3285b6b1d5b",
+    "assets": [
+     {
+      "name": "lighthouse-v8.2.3-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 29617123,
+      "digest": "sha256:876f27e169161520ba4bb4d3bd19837f2474939e3c0f817a94749e0702c975ef",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.2.3/lighthouse-v8.2.3-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "lighthouse-v8.2.3-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:48744ee9655d613ff1ae301dee2b484a3d6586104e17422ff28c8d0997d9c22c",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.2.3/lighthouse-v8.2.3-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v8.2.2",
+    "target": "stable",
+    "published": "2026-08-18T00:53:15Z",
+    "prerelease": false,
+    "bodySha256": "2651650b6c51b876151eb0b6c9e86330857feea4ef27864057c1720c468359df",
+    "assets": [
+     {
+      "name": "lighthouse-v8.2.2-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 29616186,
+      "digest": "sha256:334922e4b55075fbe86acaef3ce2a8e55699d2c647443e83cffed00f3babfaa8",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.2.2/lighthouse-v8.2.2-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "lighthouse-v8.2.2-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:7dade3cf0db3a0929532b9580d6e05f8caf15b90295286033aef4111c2c970a6",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.2.2/lighthouse-v8.2.2-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   },
+   {
+    "tag": "v8.2.1",
+    "target": "stable",
+    "published": "2026-07-21T04:50:09Z",
+    "prerelease": false,
+    "bodySha256": "7b735180c901dabb20bc6929ffe6787da8576a8662e98810218d066ddb85270b",
+    "assets": [
+     {
+      "name": "lighthouse-v8.2.1-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 29611307,
+      "digest": "sha256:51754fc07e337a2ccbc9afa0037e268d4cf1b19fb69e9b2a272b5dd44a401496",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.2.1/lighthouse-v8.2.1-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "lighthouse-v8.2.1-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:3a4c42f2dd46aed97dcd001f7cc325cf3b76afc972bb0ab18ff9fb24caf9efcb",
+      "url": "https://github.com/sigp/lighthouse/releases/download/v8.2.1/lighthouse-v8.2.1-x86_64-unknown-linux-gnu.tar.gz.asc"
+     }
+    ]
+   }
+  ],
+  "base": [
+   {
+    "tag": "v1.5.1",
+    "target": "main",
+    "published": "2026-10-22T17:47:20Z",
+    "prerelease": false,
+    "bodySha256": "62ae8fd3b3638372acb747ef3012960ac203bad9389269358b388e00a43b2380",
+    "assets": [
+     {
+      "name": "base-consensus-v1.5.1-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 16621314,
+      "digest": "sha256:f7457d5fb797a815ba301e4d5d68ff17e21c98fbfe6cebc081ad8e5e300913f4",
+      "url": "https://github.com/base/base/releases/download/v1.5.1/base-consensus-v1.5.1-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "base-consensus-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:b64985998334d5f76b8c07c843813f198dd0d767e46a6882d57de20134761a5c",
+      "url": "https://github.com/base/base/releases/download/v1.5.1/base-consensus-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "base-consensus-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 120,
+      "digest": "sha256:a9e118e3bfdfcc24e4f2df3da0fab4a8839b46c12c0fa27039ebb7a80c8455a5",
+      "url": "https://github.com/base/base/releases/download/v1.5.1/base-consensus-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     },
+     {
+      "name": "base-reth-node-v1.5.1-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 42947380,
+      "digest": "sha256:7731fef2e236c0b68a75ad326efdd7f9f7333e4c7c1def21e439ed9ff4850b90",
+      "url": "https://github.com/base/base/releases/download/v1.5.1/base-reth-node-v1.5.1-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "base-reth-node-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:e12b00b26b86d86bad3ba1d6b3fe02258cf0bf035ca34dad0e1c00285fac1a7e",
+      "url": "https://github.com/base/base/releases/download/v1.5.1/base-reth-node-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "base-reth-node-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 120,
+      "digest": "sha256:15fc91049f04375f9e210bc3542fe07a69d182ae5a589c932030b2209377e2e0",
+      "url": "https://github.com/base/base/releases/download/v1.5.1/base-reth-node-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     },
+     {
+      "name": "base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 53031200,
+      "digest": "sha256:6779c45dbc6041205cc4e52bc2cd9d40746a5a4366a309899bf6533fccebe2b7",
+      "url": "https://github.com/base/base/releases/download/v1.5.1/base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:bcd3c7c0f4ae79c2deab0bb71f176559dc3d07ff60f41eb4c4c0ec11ff479397",
+      "url": "https://github.com/base/base/releases/download/v1.5.1/base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 110,
+      "digest": "sha256:dd50e081b0d2ccfac6ccb32297223e472f59f7c4d978558a38c5bb01bc716d11",
+      "url": "https://github.com/base/base/releases/download/v1.5.1/base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     },
+     {
+      "name": "basectl-v1.5.1-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 12102937,
+      "digest": "sha256:adb28acaa3c4b06d8405d361f21d4ca46b57842b58f0683cd80586af4fd482d1",
+      "url": "https://github.com/base/base/releases/download/v1.5.1/basectl-v1.5.1-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "basectl-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:c09452e07f6d2c4c98ce1e213411db2e0dba74d81e6608e8539082205fc07f0a",
+      "url": "https://github.com/base/base/releases/download/v1.5.1/basectl-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "basectl-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 113,
+      "digest": "sha256:3de178fb22ec4c39ff6a602fbfd1769f8977e118c862341f0eb4d99abdff2053",
+      "url": "https://github.com/base/base/releases/download/v1.5.1/basectl-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     }
+    ]
+   },
+   {
+    "tag": "v1.5.0",
+    "target": "main",
+    "published": "2026-10-14T20:52:39Z",
+    "prerelease": false,
+    "bodySha256": "bea5b200357d42ec8804328617b401a03e3aa9557f73b297bb8ae786e341e8a5",
+    "assets": [
+     {
+      "name": "base-consensus-v1.5.0-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 16610715,
+      "digest": "sha256:1483d93f56ef09a69214dcfbd05827ea5b127b256d8dc949ecd5e11e6339def6",
+      "url": "https://github.com/base/base/releases/download/v1.5.0/base-consensus-v1.5.0-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "base-consensus-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:465dad0b3d94d6e062aa4d58af8e29ea5bd8489e0e13651192f0404f655511a2",
+      "url": "https://github.com/base/base/releases/download/v1.5.0/base-consensus-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "base-consensus-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 120,
+      "digest": "sha256:85cdc9014e2485f7b3850a4b28540979fa933b1f21a1eed1037eb553e9f8e53d",
+      "url": "https://github.com/base/base/releases/download/v1.5.0/base-consensus-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     },
+     {
+      "name": "base-reth-node-v1.5.0-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 42922651,
+      "digest": "sha256:e8eee5b44b4ba937b5be787169c48f36136ccf8d283a209f846d905eaddc9e4a",
+      "url": "https://github.com/base/base/releases/download/v1.5.0/base-reth-node-v1.5.0-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "base-reth-node-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:ad4e9fcc3fb443769c5b360724ec44b1892fd3b21dcbd93dea073f8360cc5151",
+      "url": "https://github.com/base/base/releases/download/v1.5.0/base-reth-node-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "base-reth-node-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 120,
+      "digest": "sha256:05ff1a0bbbff4134d4aceed53653ecdac16c610198aa7d581d14057fb36cf4ee",
+      "url": "https://github.com/base/base/releases/download/v1.5.0/base-reth-node-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     },
+     {
+      "name": "base-v1.5.0-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 53027767,
+      "digest": "sha256:6643f1885e756a8bc721d47a2b68d42c77613d5f12bc6588ed89c8b921ca4bb4",
+      "url": "https://github.com/base/base/releases/download/v1.5.0/base-v1.5.0-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "base-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:a8639bfa0afa3dbb3a530a921ff3bb279b9bbfb38adb38178e5e694705c4c535",
+      "url": "https://github.com/base/base/releases/download/v1.5.0/base-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "base-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 110,
+      "digest": "sha256:497354d5021194e0297563052dae04dfea02c9d4e853c9a813120727e78fe1e4",
+      "url": "https://github.com/base/base/releases/download/v1.5.0/base-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     },
+     {
+      "name": "basectl-v1.5.0-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 12095691,
+      "digest": "sha256:f7b3134af419d902f7f7a4a1505d45e1da5f10050e0eef6bc091229a55927cfa",
+      "url": "https://github.com/base/base/releases/download/v1.5.0/basectl-v1.5.0-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "basectl-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:99f113c108cd38734b87048eb48d4b708d626b6d53f9c2ce43a7377f6a5d331f",
+      "url": "https://github.com/base/base/releases/download/v1.5.0/basectl-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "basectl-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 113,
+      "digest": "sha256:80f6f76665f0cd1edef6b4a5b1ba7964863428aad0d05eaa42e27674ce832420",
+      "url": "https://github.com/base/base/releases/download/v1.5.0/basectl-v1.5.0-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     }
+    ]
+   },
+   {
+    "tag": "v1.4.2",
+    "target": "main",
+    "published": "2026-09-23T22:49:04Z",
+    "prerelease": false,
+    "bodySha256": "8c3f6cd320163399f501d24e019ef0d5231a35b5fc90c33d9d624467eff8b326",
+    "assets": [
+     {
+      "name": "base-consensus-v1.4.2-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 16593323,
+      "digest": "sha256:0f9a76d6174b2bb612b63fb91a923af051eb614078c8ec02f1a0a4349058183e",
+      "url": "https://github.com/base/base/releases/download/v1.4.2/base-consensus-v1.4.2-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "base-consensus-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:34ce11c3930287c7339894f7e2824bba140950f02b33b4622213286a9492b2a8",
+      "url": "https://github.com/base/base/releases/download/v1.4.2/base-consensus-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "base-consensus-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 120,
+      "digest": "sha256:fefeefeb634091e4fb7699fbfd256576ff3ee258af5a1363652d593955cd556c",
+      "url": "https://github.com/base/base/releases/download/v1.4.2/base-consensus-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     },
+     {
+      "name": "base-reth-node-v1.4.2-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 43543337,
+      "digest": "sha256:93b6daa8eba64326d9ebecc54df1fc406cda932a39066b64c125f02d74dfd0d3",
+      "url": "https://github.com/base/base/releases/download/v1.4.2/base-reth-node-v1.4.2-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "base-reth-node-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:bef272809d19b71a619ca5f06bb8f9937e037009e376c198de37861eb0d072ba",
+      "url": "https://github.com/base/base/releases/download/v1.4.2/base-reth-node-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "base-reth-node-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 120,
+      "digest": "sha256:c371a6f91f673f567bb3650b61bb6c0471bc7c146a906f6551c6076579a034e5",
+      "url": "https://github.com/base/base/releases/download/v1.4.2/base-reth-node-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     },
+     {
+      "name": "base-v1.4.2-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 53621008,
+      "digest": "sha256:7a5ab8a77847adc645616791d61799704cd588f41e9c81dd7cef0133f428ced2",
+      "url": "https://github.com/base/base/releases/download/v1.4.2/base-v1.4.2-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "base-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:51cd92bb82d4a429cc58290190a3503e3a8b24a2e832398f0ff7c042085df0ed",
+      "url": "https://github.com/base/base/releases/download/v1.4.2/base-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "base-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 110,
+      "digest": "sha256:f82a424e2c629ec14ad9688f6ef4ad68aebe52722b2431b4897469ce3a9b6c38",
+      "url": "https://github.com/base/base/releases/download/v1.4.2/base-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     },
+     {
+      "name": "basectl-v1.4.2-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 12072516,
+      "digest": "sha256:a3b98cb0e6b8ada17ef0178d02ddbe939677024f0c7024e50a60eba2942ff30d",
+      "url": "https://github.com/base/base/releases/download/v1.4.2/basectl-v1.4.2-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "basectl-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:88cf68c7a5824643ba1b140215e8b220f18bce3e33151ea7676cdf0816d94878",
+      "url": "https://github.com/base/base/releases/download/v1.4.2/basectl-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "basectl-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 113,
+      "digest": "sha256:a915442d9bcd7187db7161fd1da355c041115d2fec91a27cd97c87a2cbfff147",
+      "url": "https://github.com/base/base/releases/download/v1.4.2/basectl-v1.4.2-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     }
+    ]
+   },
+   {
+    "tag": "v1.4.1",
+    "target": "main",
+    "published": "2026-09-23T16:41:18Z",
+    "prerelease": false,
+    "bodySha256": "fb15b0806bbb9dce3aab64c67e6bc7bff27c46185f8f850267db4dcea8d117b7",
+    "assets": [
+     {
+      "name": "base-consensus-v1.4.1-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 16593536,
+      "digest": "sha256:8db8b8eae17415ae148776f2a0bb859b7a950d42e11acead9f8528e472c786a8",
+      "url": "https://github.com/base/base/releases/download/v1.4.1/base-consensus-v1.4.1-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "base-consensus-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:a5f30fb0abac385021db33fa4bb71c40c4bf67c3d826b773be5cdab27c9c0cd8",
+      "url": "https://github.com/base/base/releases/download/v1.4.1/base-consensus-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "base-consensus-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 120,
+      "digest": "sha256:d8f115689681e01d88ee4479d6c217e17a5b15a3b18fe7cb95a8f2c7f7de195a",
+      "url": "https://github.com/base/base/releases/download/v1.4.1/base-consensus-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     },
+     {
+      "name": "base-reth-node-v1.4.1-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 43498498,
+      "digest": "sha256:a12466bb5ac9d2368559942fbe1919cc3c29e0e5a5e35c4390fca110c461ef0f",
+      "url": "https://github.com/base/base/releases/download/v1.4.1/base-reth-node-v1.4.1-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "base-reth-node-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:f0034356075b8d057b96bfd6ee045ccca260f14ade386a25dbcf74af2b418858",
+      "url": "https://github.com/base/base/releases/download/v1.4.1/base-reth-node-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "base-reth-node-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 120,
+      "digest": "sha256:b34cc4c104677df3922887a1f74bb101db147123d4e0bac783f5785de99bb485",
+      "url": "https://github.com/base/base/releases/download/v1.4.1/base-reth-node-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     },
+     {
+      "name": "base-v1.4.1-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 53571401,
+      "digest": "sha256:82ddab3ae132e3e250e89378a3cecf89ecffe27e2fa0d0485449ad39ed3064fc",
+      "url": "https://github.com/base/base/releases/download/v1.4.1/base-v1.4.1-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "base-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:8b56a85369e8565fe20712cfc2bfa4ef0161fc37892258d3d116f731630d92c3",
+      "url": "https://github.com/base/base/releases/download/v1.4.1/base-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "base-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 110,
+      "digest": "sha256:7ed4a62d8aa01e9757805ff214c298118e2ecea3e4370bfba58ffdfc025da483",
+      "url": "https://github.com/base/base/releases/download/v1.4.1/base-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     },
+     {
+      "name": "basectl-v1.4.1-x86_64-unknown-linux-gnu.tar.gz",
+      "size": 12070555,
+      "digest": "sha256:3c7e6013c8ccb40e18baaf61e3d4ba24945575b2e0ab1cb7b31d6bc434a4c1ff",
+      "url": "https://github.com/base/base/releases/download/v1.4.1/basectl-v1.4.1-x86_64-unknown-linux-gnu.tar.gz"
+     },
+     {
+      "name": "basectl-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.asc",
+      "size": 833,
+      "digest": "sha256:81efe8f2c8a05866e9654565a9efa96252790bc5caec02dd2be80e0453a84822",
+      "url": "https://github.com/base/base/releases/download/v1.4.1/basectl-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.asc"
+     },
+     {
+      "name": "basectl-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.sha256",
+      "size": 113,
+      "digest": "sha256:891b35392b91b399be0470ec35e713a645efbce70cd2458db740dce3d938582a",
+      "url": "https://github.com/base/base/releases/download/v1.4.1/basectl-v1.4.1-x86_64-unknown-linux-gnu.tar.gz.sha256"
+     }
+    ]
+   }
+  ]
+ }
+}

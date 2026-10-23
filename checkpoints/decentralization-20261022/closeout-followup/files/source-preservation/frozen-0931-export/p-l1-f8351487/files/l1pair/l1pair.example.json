@@ -1,0 +1,75 @@
+{
+ "format": "enclave-l1-pair/v1",
+ "comment": "EXAMPLE. validate refuses it until root records the checkpoint files' sha256/wss/provenance at activation (both binaries are pinned).",
+ "network": "mainnet",
+ "serviceUser": "enclave-l1",
+ "execution": {
+  "client": "reth",
+  "binary": {
+   "path": "/opt/enclave-l1-pair/bin/reth",
+   "sha256": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250",
+   "release": "v2.8.0",
+   "commit": "05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915",
+   "releaseTarballSha256": "809bfe0f071b509980d7f9178603edd2f7432356d50ae5af256cb62213c10ed8"
+  },
+  "httpPort": 18645,
+  "authPort": 18651,
+  "httpApi": ["eth", "net", "web3"],
+  "receiptsRetentionBlocks": 140000,
+  "txBroadcast": "disabled",
+  "maxConnections": 64
+ },
+ "consensus": {
+  "client": "lighthouse",
+  "binary": {
+   "path": "/opt/enclave-l1-pair/bin/lighthouse",
+   "sha256": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96",
+   "release": "v8.3.2",
+   "commit": "a376defa30470923556d91bdeb15a802e297f31f",
+   "releaseTarballSha256": "ea914e932462d6a93ad78c21377d70f995e05ac224248be0b58c2f4d6740439a"
+  },
+  "httpPort": 15052,
+  "custody": "semi-supernode",
+  "blobPruneMarginEpochs": 0,
+  "targetPeers": 100,
+  "checkpoint": {
+   "mode": "file",
+   "statePath": "/srv/enclave-l1-pair/anchor/state.ssz",
+   "blockPath": "/srv/enclave-l1-pair/anchor/block.ssz",
+   "stateSha256": "RECORD-AT-ACTIVATION",
+   "blockSha256": "RECORD-AT-ACTIVATION",
+   "wss": "0x<finalized block root>:<epoch>",
+   "provenance": [
+    {"source": "<independent observation 1>", "observedRoot": "0x<root>", "observedAt": "<UTC>"},
+    {"source": "<independent observation 2>", "observedRoot": "0x<root>", "observedAt": "<UTC>"}
+   ]
+  }
+ },
+ "p2p": {
+  "listenIp": "0.0.0.0",
+  "nat": "none",
+  "dnsDiscovery": false,
+  "executionPort": 30313,
+  "executionDiscv5Port": 30314,
+  "consensusPort": 9310,
+  "consensusQuicPort": 9311
+ },
+ "engineAuthPath": "/etc/enclave-l1-pair/jwt.hex",
+ "avoidPorts": [8545, 18545, 19545, 30303, 9200, 9222, 9223, 8551, 5052, 9000, 9001],
+ "otherServicePaths": ["/srv/enclave-base-holder", "/mnt/usb/enclave-base-holder", "/vm/enclave-base-holder-cache", "/etc/enclave-base-holder"],
+ "limits": {
+  "execution": {"memoryMaxBytes": 17179869184, "tasksMax": 4096, "nofile": 65536},
+  "consensus": {"memoryMaxBytes": 12884901888, "tasksMax": 4096, "nofile": 65536},
+  "coResidentMemoryBytes": 34359738368,
+  "stopTimeoutSec": 600,
+  "readyTimeoutSec": 600
+ },
+ "storage": {
+  "layout": "loop-ext4-image",
+  "mountPoint": "/srv/enclave-l1-pair",
+  "origin": {"imagePath": "/mnt/usb/enclave-l1-pair/origin.img", "bytes": 4000000000000},
+  "cache": {"mechanism": "none"},
+  "originFreeMarginBytes": 500000000000,
+  "nvmeFreeMarginBytes": 200000000000
+ }
+}

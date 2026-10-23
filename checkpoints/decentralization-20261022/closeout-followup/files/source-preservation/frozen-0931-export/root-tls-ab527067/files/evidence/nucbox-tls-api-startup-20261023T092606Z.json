@@ -1,0 +1,45 @@
+{
+  "at": "2026-10-23T09:26:04.5069595Z",
+  "apps": [
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "failed",
+      "reason": "isolation: 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77 did not become ready within 300000 ms (last status starting)",
+      "lastError": null,
+      "leaseUntil": 1792745451
+    }
+  ],
+  "vms": [],
+  "logs": [
+    "08:49:39 [node] [host] config: bafkreifxoosjvq56tua7y325cvlfav56unskmppwtsdqgx5sa3b4ybybpi applied to 0xa69dcbba (5551 bytes, CID-verified)",
+    "08:49:41 [node] [host] 0xa69dcbba secrets: whether 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77 has staged secrets is not known (fetch failed)",
+    "08:49:41 [node] [host] 0xa69dcbba isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify",
+    "08:49:51 [node] [network] 0xa69dcbba: no ready partition runs catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0 yet",
+    "08:50:23 [node] [network] 0xa69dcbba: no ready partition runs catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0 yet",
+    "08:50:36 [node] [host] config: bafkreifxoosjvq56tua7y325cvlfav56unskmppwtsdqgx5sa3b4ybybpi applied to 0xa69dcbba (5551 bytes, CID-verified)",
+    "08:50:48 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:51:03 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:51:18 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:51:33 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:51:48 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:52:04 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:52:18 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:52:33 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:52:48 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:53:03 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:53:18 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:53:33 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:53:48 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:54:03 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:54:18 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:54:33 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:54:48 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:55:03 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:55:18 [node] sealed secrets for 0xa69dcbba pending: relay HTTP 403",
+    "08:55:32 [node] sealed secrets for 0xa69dcbba pending: fetch failed",
+    "08:55:47 [node] sealed secrets for 0xa69dcbba pending: fetch failed",
+    "08:55:48 [node] [host] 0xa69dcbba isolated domain retired (isolation: 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77 did not become ready within 300000 ms (last status starting))",
+    "08:55:48 [node] [host] giving up on 0xa69dcbba: isolation: 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77 did not become ready within 300000 ms (last status starting)",
+    "08:55:53 [node] [host] released 0xa69dcbba back to the fleet (tx 0xfa85dfa6e3756622fa9f70f407a3600c790b72a218238c1b7030a623ab87af6f)"
+  ]
+}

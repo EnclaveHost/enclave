@@ -1,0 +1,1 @@
+relay_net-guard.mjs / relay_vbs-runtime.mjs .SYMLINK-TEXT-NOT-CONTENT.diff compare the installed file with the TEXT of F's git symlink (mode 120000). They are NOT content changes: the link targets (net-guard.mjs d61c6d64, isolation/contract/runtime.mjs 8bb7f911) equal the installed bytes (receipts/w0 symlinkInF).

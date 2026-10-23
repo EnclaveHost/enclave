@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-23T08:48:49.086790+00:00",
+  "review": "independent source-diff review; D reproduction still in progress",
+  "candidate": "4106c3114dd13f39692195c182d3152efa5e212c",
+  "installedBundleSha256": "cfb69370a00dea147340c64bbd712f118eb8cb825237ac79b3b053b586350801",
+  "evidence": [
+    {
+      "file": "work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/receipts/diffs/network_enclave-network-host.mjs.diff",
+      "sha256": "52d4591318781266a73e4cf8ccabd49d99e43154c2a1311d9b5dcbb90a1d685f"
+    },
+    {
+      "file": "work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/receipts/diffs/network_challenge-replica-host.mjs.diff",
+      "sha256": "bd465e2f46d481155e299c76e3764b663e962b9d5ea9c0d1cd6b71065262fed1"
+    }
+  ],
+  "result": "ROOT REVIEW \u2014 production-baseline preservation gate. Do not activate or label F4106/current derivative as production-equivalent yet. D's current offline diffs are explicitly installed-cfb -> F-4106c311. Independent root read confirms enclave-network-host changes superviseChallengeReplica (optional background retry) back to awaited startChallengeReplica, with failure closing the direct network runtime. challenge-replica-host also loses managed loopback TLS-front/declaration functionality. These are prior working production fixes, not optional new features. D is still verifying exact installed build inputs and tests; do not interrupt or edit D's active tree. Finish your existing scoped tests/commit; final handoff must name this gate. Next composition must preserve installed lifecycle/cancellation/admin rechecks/managed TLS and current RPC/policy fixes together, with source-level and actual bundle coverage. No NucBox mutation during experiment. This note does not establish production root cause or current installed failure.\n",
+  "productionMutation": false
+}

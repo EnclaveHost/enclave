@@ -1,0 +1,2 @@
+2026-10-23T07:49:05Z start host-service-rpc-closure: setup from 4106c311 + A df8fbafae objects
+2026-10-23T09:05:15Z DONE: head 14d1e495 (bb86e0ce race fix; 30123801 A compose; 14d1e495 hardening+tests); v2 39/39; regressions classified (no introduced failure); JS 22/22 reproducible; scans clean; RESULT.md

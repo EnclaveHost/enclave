@@ -1,0 +1,863 @@
+From e32dd607b55b9c6afd605482a4bc31c9d30528d6 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 01:45:24 -0700
+Subject: [PATCH 16/16] Make the local verifier the state authority of
+ independent CLI and MCP reads
+
+With --chain-verifier (CLI) / chainVerifier (MCP profile, hosted-connector registry,
+host-lifecycle plan), independent mode's chain is cli/independent.mjs VerifiedChain via one
+factory, independentChain: the QuorumChain interface over network/verified-chain.mjs (one
+confirmed, fresh, monotonic block per snapshot, whole-operation deadline, terminal client).
+
+- snapshot/read/readMany/balance and quorumPublicClient (the SDK view) read the verifier; an
+  eth_call revert from the verifier is a fact (agreed revert), anything else an outage.
+- sendQuorumTx simulates at the verified block (an opt-in proof-backed `call` on the pinned
+  client); nonce, gas, fees, broadcast and receipts use only the explicit --rpc transport
+  (all configured endpoints must agree), and the verifier must reach the receipt's block
+  before a send returns (else the outcome is unknown). Without a transport every
+  transaction/history method refuses by name. Log scans inside a snapshot are discovery
+  hints from that transport only, clamped to the verified block.
+- the --rpc list is optional under the verifier and never falls back to the public default
+  list; custody's own quorum reader (leaseReaderClients) refuses instead of reading the
+  transport.
+- MCP Scope reads each tool call at ONE verified block; resumed reads use a floor-free
+  snapshot that still requires the exact hash to be canonical and fresh, so concurrent calls
+  do not refuse each other. The signer's receipt and nonce look-ups use historySnapshot.
+
+The legacy RPC quorum is unchanged when no verifier is chosen.
+---
+ cli/enclave.mjs                          |  14 +-
+ cli/host-independent-lifecycle.mjs       |  16 +-
+ cli/independent-signer.mjs               |   7 +-
+ cli/independent.mjs                      | 125 ++++++++++++--
+ mcp/hosted-connector.mjs                 |   8 +-
+ mcp/independent.mjs                      |  19 ++-
+ network/verified-chain.mjs               |  15 +-
+ test/caller-verifier-wiring.test.mjs     |   8 +-
+ test/cli-mcp-verifier.e2e.test.mjs       | 202 +++++++++++++++++++++++
+ test/independent-verified-chain.test.mjs | 129 +++++++++++++++
+ 10 files changed, 505 insertions(+), 38 deletions(-)
+ create mode 100644 test/cli-mcp-verifier.e2e.test.mjs
+ create mode 100644 test/independent-verified-chain.test.mjs
+
+diff --git a/cli/enclave.mjs b/cli/enclave.mjs
+index 4ef7f7a15..e7b691ee0 100755
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -609,6 +609,8 @@ function pub() {
+   return _pub;
+ }
+ function wallet(account) {
++  // independent mode sends through sendQuorumTx (the quorum, or the explicit transport under --chain-verifier), never here
++  if (INDEPENDENT) throw new Error("internal: a first-answer wallet send was attempted in independent mode; refusing");
+   if (_wallet) return _wallet;
+   // With --signer the key lives in Frame/Clef/a node, so the account is just an
+   // ADDRESS and viem sends eth_sendTransaction to that endpoint — which is
+@@ -5217,17 +5219,21 @@ async function configureIndependent() {
+   if (external && opt.unsigned) throw new Error("--signer / --signer-mode handoff and --unsigned are different ways to sign elsewhere; use one");
+   if (opt.signerMode && !external) throw new Error("--signer-mode needs --signer URL (handoff alone needs no endpoint: --signer-mode handoff)");
+   if (external && !opt.from) throw new Error(`${opt.signer ? "--signer" : "--signer-mode handoff"} needs --from 0x… — the wallet this is for`);
+-  if (!(opt.rpc || env.ENCLAVE_RPC)) throw new Error("independent mode needs explicit RPCs: --rpc https://a,https://b[,…] (at least two; there is no default set)");
++  const explicitRpcs = !!(opt.rpc || env.ENCLAVE_RPC);
++  // under --chain-verifier the RPC list is optional (only the explicit transaction transport); NEVER the public defaults
++  if (!explicitRpcs && !opt.chainVerifier) throw new Error("independent mode needs explicit RPCs: --rpc https://a,https://b[,…] (at least two; there is no default set)");
+   const I = await import("./independent.mjs");
+   const trust = I.loadIndependentTrust({ profileFile: opt.profile, profileDigest: opt.profileDigest, contractPins: CONTRACT_PINS,
+-    usdc: opt.usdcToken, defaultUsdc: DEFAULTS.USDC_ADDRESS, rpcs: RPCS, quorum: opt.quorum, confirmations: opt.confirmations, maxBlockAgeSec: opt.maxBlockAge,
++    usdc: opt.usdcToken, defaultUsdc: DEFAULTS.USDC_ADDRESS, rpcs: explicitRpcs ? RPCS : [], quorum: opt.quorum, confirmations: opt.confirmations, maxBlockAgeSec: opt.maxBlockAge,
+     chainVerifier: opt.chainVerifier });
+   CONTRACT_PINS = trust.pins;
+   for (const [key, name] of Object.entries({ deployments: "DEPLOYMENTS_ADDRESS", registry: "REGISTRY_ADDRESS", appCatalog: "APP_CATALOG_ADDRESS",
+     sessionVaultFactory: "SESSION_VAULT_FACTORY_ADDRESS" })) DEFAULTS[name] = /^0x0{40}$/i.test(trust.pins[key]) ? trust.pins[key] : getAddress(trust.pins[key]);
+   DEFAULTS.USDC_ADDRESS = trust.usdc;
+   CHAIN_ONLY = true;
+-  const chain = new I.QuorumChain({ rpcs: trust.rpcs, quorum: trust.quorum, confirmations: trust.confirmations, maxBlockAgeMs: trust.maxBlockAgeMs });
++  // the RPC quorum, or under --chain-verifier the local verifier for every state read (the --rpc list then only the explicit
++  // transaction/history transport): cli/independent.mjs independentChain
++  const chain = I.independentChain({ rpcs: trust.rpcs, quorum: trust.quorum, confirmations: trust.confirmations, maxBlockAgeMs: trust.maxBlockAgeMs, chainVerifier: trust.chainVerifier });
+   const maxFeeGwei = opt.maxFeeGwei !== null ? numFlag(opt.maxFeeGwei, "--max-fee-gwei") : 5;
+   INDEPENDENT = { trust, chain, I, maxFeeGwei, pc: I.quorumPublicClient(chain), send: I.quorumWriter(chain, { maxFeeGwei, log: (m) => trace(m) }) };
+   if (external) {
+@@ -5237,7 +5243,7 @@ async function configureIndependent() {
+     INDEPENDENT.signer = X.createExternalSigner({ url: opt.signer, from: opt.from, chainId: chain.chainId, mode: opt.signerMode || "auto",
+       journalDir: signerJournalDir(), log: (m) => stderr.write(`signer: ${m}\n`), onHandoff: signerHandoff });
+   }
+-  stderr.write(`independent: ${trust.profile ? `reviewed profile ${trust.digest}` : "explicit contract pins"}; ${trust.quorum} of ${trust.rpcs.length} RPCs must agree `
++  stderr.write(`independent: ${trust.profile ? `reviewed profile ${trust.digest}` : "explicit contract pins"}; ${trust.chainVerifier ? `state from the local verifier ${trust.chainVerifier} (unsafe tier); transactions via ${trust.rpcs.length ? `${trust.rpcs.length} explicit RPC(s), all must agree` : "no transport (sending refuses)"}` : `${trust.quorum} of ${trust.rpcs.length} RPCs must agree`} `
+     + `at one block ${trust.confirmations} deep; no Enclave API, address book or first-answer read\n`);
+ }
+ const signerJournalDir = () => path.resolve(opt.stateDir ? path.join(opt.stateDir, "signer") : path.join(CONF_DIR, "independent-signer"));
+diff --git a/cli/host-independent-lifecycle.mjs b/cli/host-independent-lifecycle.mjs
+index 9e94d4ead..cb8fb7ba4 100644
+--- a/cli/host-independent-lifecycle.mjs
++++ b/cli/host-independent-lifecycle.mjs
+@@ -29,7 +29,8 @@ import { spawn, spawnSync } from "node:child_process";
+ import { fileURLToPath, pathToFileURL } from "node:url";
+ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+ import { keccak256, toHex, getAddress, parseAbi, recoverMessageAddress } from "viem";
+-import { loadIndependentTrust, QuorumChain, assertReviewedCode, readHost, requireSchema4, validateRpcOrigins } from "./independent.mjs";
++import { loadIndependentTrust, QuorumChain, independentChain, assertReviewedCode, readHost, requireSchema4, validateRpcOrigins } from "./independent.mjs";
++import { chainVerifierOf } from "../network/verified-chain.mjs";
+ import { validateContractPins } from "../network/contract-pins.mjs";
+ import { contractPinsFromProfile } from "../network/authority-profile.mjs";
+ import { verifiedReleaseManifest } from "../sdk/storage/raw-artifacts.mjs";
+@@ -96,7 +97,9 @@ export function validatePlan(p) {
+     const extra = Object.keys(o).filter((k) => !allowed.includes(k)); if (extra.length) fail(`${what} has unknown field(s): ${extra.join(", ")}`); };
+   keys(p, ["format", "authorities", "identity", "runtime", "guestd", "supervisor", "selling", "walletPolicy", "referral"], "plan");
+   if (p.format !== PLAN_FORMAT) fail(`plan format must be ${PLAN_FORMAT}`);
+-  const a = p.authorities; keys(a, ["profile", "contractPins", "rpcs", "quorum", "confirmations", "maxBlockAgeSec"], "authorities");
++  const a = p.authorities; keys(a, ["profile", "contractPins", "rpcs", "quorum", "confirmations", "maxBlockAgeSec", "chainVerifier"], "authorities");
++  // chainVerifier (optional, loopback): THIS CLI's own chain state checks read the local verifier; the rpcs still configure the host
++  if (a.chainVerifier !== undefined && a.chainVerifier !== null) { try { chainVerifierOf({ chainAuthority: "verifier", chainVerifier: a.chainVerifier }, "authorities.chainVerifier"); } catch (e) { fail(e.message); } }
+   if (!!a.profile === !!a.contractPins) fail("authorities: exactly one of profile {file, digest} or contractPins FILE");
+   if (a.profile) { keys(a.profile, ["file", "digest"], "authorities.profile"); if (!isAbs(a.profile.file) || !/^sha256:[0-9a-f]{64}$/.test(a.profile.digest || "")) fail("authorities.profile needs an absolute file and its sha256: digest"); }
+   if (a.contractPins && !isAbs(a.contractPins)) fail("authorities.contractPins must be an absolute path");
+@@ -140,7 +143,7 @@ export function planTrust(plan) {
+   let contractPins = null, pinsDoc = null;
+   if (a.contractPins) { pinsDoc = readJson(a.contractPins, "contract pins"); contractPins = validateContractPins(pinsDoc); }
+   const trust = loadIndependentTrust({ profileFile: a.profile?.file, profileDigest: a.profile?.digest, contractPins, defaultUsdc: BASE_USDC,
+-    rpcs: a.rpcs, quorum: a.quorum, confirmations: a.confirmations, maxBlockAgeSec: a.maxBlockAgeSec });
++    rpcs: a.rpcs, quorum: a.quorum, confirmations: a.confirmations, maxBlockAgeSec: a.maxBlockAgeSec, chainVerifier: a.chainVerifier ?? null });
+   if (trust.profile) pinsDoc = contractPinsFromProfile(trust.profile);
+   // the host-owner authority: only the reviewed profile's verified hostOwnership (its code hash is checked on chain)
+   const ownership = trust.profile?.contracts?.hostOwnership ? { address: trust.profile.contracts.hostOwnership.address, codeHash: trust.profile.contracts.hostOwnership.codeHash } : null;
+@@ -257,7 +260,8 @@ function planFromFlags(o, dir) {
+     format: PLAN_FORMAT,
+     authorities: { profile: o.profile ? { file: abs(o.profile), digest: need("profile-digest", "the digest you reviewed; a profile never vouches for itself") } : null,
+       contractPins: o["contract-pins"] ? abs(o["contract-pins"]) : null, rpcs: list(need("rpc", "2-8 RPCs you chose (comma-separated); there is no default set")),
+-      quorum: Number(o.quorum ?? 2), confirmations: Number(o.confirmations ?? 2), maxBlockAgeSec: Number(o["max-block-age"] ?? 120) },
++      quorum: Number(o.quorum ?? 2), confirmations: Number(o.confirmations ?? 2), maxBlockAgeSec: Number(o["max-block-age"] ?? 120),
++      ...(o["chain-verifier"] ? { chainVerifier: o["chain-verifier"] } : {}) },
+     identity: { name: o.name ?? "host", publicUrl: need("public-url", "this host's own https endpoint (its registry identity)"), repo: need("repo", "the source repository the image is attested against") },
+     runtime: { releaseId: need("release-id", "the 64-hex CPU release pin you reviewed"), isolationDir: abs(o.isolation ?? path.join(REPO, "isolation")),
+       gateways: list(need("gateways", "1-8 replica origins for the release, components and packages")).map(replicaOrigin), storagePlan: o["storage-plan"] ? abs(o["storage-plan"]) : null },
+@@ -467,7 +471,7 @@ export async function readinessRows(dir, o, { fetchImpl = globalThis.fetch, now
+     ? `configured ${plan.supervisor.attestationUrl}; this check has not verified that the running supervisor and its proof key belong to that measured control guest`
+     : "no ATTESTATION_URL: a measured control guest and verification of its running supervisor are still required");
+   // chain: every read through the agreeing quorum; a read that fails is UNKNOWN, never ready
+-  const chain = chainFactory ? chainFactory(ctx.trust) : new QuorumChain({ rpcs: ctx.trust.rpcs, quorum: ctx.trust.quorum, confirmations: ctx.trust.confirmations, maxBlockAgeMs: ctx.trust.maxBlockAgeMs, now });
++  const chain = chainFactory ? chainFactory(ctx.trust) : independentChain({ rpcs: ctx.trust.rpcs, quorum: ctx.trust.quorum, confirmations: ctx.trust.confirmations, maxBlockAgeMs: ctx.trust.maxBlockAgeMs, now, chainVerifier: ctx.trust.chainVerifier });
+   const hid = hostIdOf(plan.identity.publicUrl), registry = ctx.pinsDoc.contracts.registry;
+   try {
+     if (ctx.trust.profile) { await assertReviewedCode(chain, ctx.trust.profile, ["registry", "deployments", "appCatalog", ...(plan.walletPolicy ? ["hostOwnership"] : [])]); add("reviewed code", "ready", "registry, deployments, appCatalog" + (plan.walletPolicy ? ", hostOwnership" : "") + " carry the reviewed code"); }
+@@ -558,7 +562,7 @@ async function cmdReferral(dir, o, out, deps) {
+     if (doc.registry !== registry.toLowerCase() || doc.chain !== 8453) fail(`the statement names registry ${doc.registry} on chain ${doc.chain}; your pinned registry is ${registry.toLowerCase()} on 8453`);
+     if (hostIdOf(doc.endpoint) !== doc.host) fail("the statement's host id is not keccak256 of its endpoint");
+     const signer = (await recoverMessageAddress({ message: referralStatement({ chainId: doc.chain, registry: doc.registry, hostId: doc.host, endpoint: doc.endpoint, code: doc.code }), signature: doc.signature })).toLowerCase();
+-    const chain = deps.chainFactory ? deps.chainFactory(ctx.trust) : new QuorumChain({ rpcs: ctx.trust.rpcs, quorum: ctx.trust.quorum, confirmations: ctx.trust.confirmations, maxBlockAgeMs: ctx.trust.maxBlockAgeMs });
++    const chain = deps.chainFactory ? deps.chainFactory(ctx.trust) : independentChain({ rpcs: ctx.trust.rpcs, quorum: ctx.trust.quorum, confirmations: ctx.trust.confirmations, maxBlockAgeMs: ctx.trust.maxBlockAgeMs, chainVerifier: ctx.trust.chainVerifier });
+     const snap = await chain.snapshot((c, b) => readHost(c, registry, doc.host, b)); requireSchema4(snap.value.schema);
+     const h = snap.value.host;
+     if (!h) { out(`NOT VERIFIED: ${doc.endpoint} is not registered in the pinned registry`); return 3; }
+diff --git a/cli/independent-signer.mjs b/cli/independent-signer.mjs
+index 82a255283..26743293d 100644
+--- a/cli/independent-signer.mjs
++++ b/cli/independent-signer.mjs
+@@ -19,7 +19,7 @@ import crypto from "node:crypto";
+ import { getAddress, keccak256, parseTransaction, serializeTransaction, recoverTransactionAddress, recoverMessageAddress,
+   recoverTypedDataAddress, serializeTypedData, getTypesForEIP712Domain, validateTypedData, stringToHex, toHex } from "viem";
+ import { rpcEndpoint, redactUrls } from "../network/rpc-identity.mjs";
+-import { sendQuorumTx } from "./independent.mjs";
++import { sendQuorumTx, historySnapshot } from "./independent.mjs";
+ 
+ export const INTENT_FORMAT = "enclave-signer-intent/v1";
+ const MODES = ["auto", "sign", "wallet-send", "handoff"];
+@@ -273,7 +273,8 @@ export async function preflight(chain, { from, to, data, value = 0n, maxFeeGwei
+ 
+ /** One agreed look at a hash: { receipt, tx } once mined in a confirmed block, else { pending, nonceUsed }. */
+ async function lookHash(chain, { hash, from, nonce }) {
+-  return chain.snapshot(async (c, blockNumber) => {
++  // receipts and nonce counts are transaction/history reads: under the verifier the explicit transport (historySnapshot)
++  return historySnapshot(chain, async (c, blockNumber) => {
+     let r;
+     try { r = await c.getTransactionReceipt({ hash }); } catch (e) { if (!notFound(e)) throw e; }
+     if (!r || r.blockNumber > blockNumber || (await c.getBlock({ blockNumber: r.blockNumber })).hash !== r.blockHash)
+@@ -285,7 +286,7 @@ async function lookHash(chain, { hash, from, nonce }) {
+ /** Which transaction used `from`'s nonce N, decided in ONE agreed snapshot: each peer binary-searches the first block in
+  *  [startBlock, agreed] whose nonce count passes N (historical state: an archive-capable RPC is needed for old ranges). */
+ export async function findByNonce(chain, { from, nonce, startBlock = 0n, maxRange = 1_000_000n }) {
+-  return chain.snapshot(async (c, head) => {
++  return historySnapshot(chain, async (c, head) => {
+     const count = async (b) => BigInt(await c.getTransactionCount({ address: from, blockNumber: b }));
+     const N = BigInt(nonce);
+     if (await count(head) <= N) return { used: false };
+diff --git a/cli/independent.mjs b/cli/independent.mjs
+index 7f25ca280..de07c2855 100644
+--- a/cli/independent.mjs
++++ b/cli/independent.mjs
+@@ -5,7 +5,7 @@
+ // A read that cannot reach quorum fails, and a failure is never reported as an empty answer.
+ // Transactions are signed once, broadcast unchanged and confirmed by the same quorum; an outcome that cannot be
+ // confirmed is reported as unknown and never re-signed or resent.
+-import { chainVerifierOf } from "../network/verified-chain.mjs";
++import { chainVerifierOf, createVerifiedSnapshot } from "../network/verified-chain.mjs";
+ import fs from "node:fs";
+ import { createPublicClient, http as viemHttp, keccak256, toBytes, getAddress, encodeFunctionData } from "viem";
+ import { base } from "viem/chains";
+@@ -23,9 +23,10 @@ const nonZero = (a) => isAddress(a) && !/^0x0{40}$/i.test(a);
+ /** RPC origins for a quorum: 2-8 URLs under the URL policy every independent reader shares (network/rpc-identity.mjs:
+  *  HTTPS, plain HTTP only on loopback, no credentials or fragment), each a DISTINCT vote by its canonical identity (one
+  *  public host is one vote however it is addressed; loopback counts by port). Messages carry only redacted labels. */
+-export function validateRpcOrigins(list) {
+-  if (!Array.isArray(list) || list.length < 2 || list.length > 8)
+-    throw new Error("independent mode needs 2 to 8 explicit RPC origins (--rpc a,b[,c]); there is no default RPC set");
++export function validateRpcOrigins(list, { min = 2 } = {}) {
++  if (!Array.isArray(list) || list.length < min || list.length > 8)
++    throw new Error(min === 2 ? "independent mode needs 2 to 8 explicit RPC origins (--rpc a,b[,c]); there is no default RPC set"
++      : `the explicit transaction transport takes ${min} to 8 RPC origins (--rpc); there is no default RPC set`);
+   const seen = new Map();
+   return list.map((raw) => {
+     let e;
+@@ -70,12 +71,13 @@ export function loadIndependentTrust({ profileFile, profileDigest, contractPins,
+   if (!pins) throw new Error("independent mode needs explicit authorities: --profile FILE --profile-digest sha256:… or --contract-pins FILE");
+   token = token || defaultUsdc;
+   if (!nonZero(token)) throw new Error("independent mode needs a payment token address (--usdc)");
+-  const origins = validateRpcOrigins(rpcs);
+-  const q = intIn(quorum, 2, origins.length, 2, "--quorum");
+-  // --chain-verifier (optional, loopback only): the local proof-backed verifier for the reads that can use it - LeaseReader
+-  // management reads and the platform host policy. Every other independent-mode read and every transaction still uses the
+-  // RPC quorum (it is not replaced, and a verifier refusal never falls back to it).
++  // --chain-verifier (optional, loopback only): the local proof-backed verifier becomes the authority for EVERY chain state
++  // read of independent mode (independentChain: one verified block per snapshot; a refusal never falls back). The --rpc list
++  // is then optional and is only the explicit TRANSACTION/HISTORY transport (nonce, gas, fees, broadcast, receipts, log
++  // hints): untrusted for state. Without a verifier the RPC quorum is the authority, as before.
+   const verifier = chainVerifier ? chainVerifierOf({ chainAuthority: "verifier", chainVerifier }, "--chain-verifier") : null;
++  const origins = verifier && !(Array.isArray(rpcs) && rpcs.length) ? [] : validateRpcOrigins(rpcs, { min: verifier ? 1 : 2 });
++  const q = verifier ? origins.length : intIn(quorum, 2, origins.length, 2, "--quorum");
+   return Object.freeze({ pins, usdc: getAddress(token), profile, digest, rpcs: origins, quorum: q,
+     confirmations: intIn(confirmations, 0, 64, 2, "--confirmations"), maxBlockAgeMs: intIn(maxBlockAgeSec, 10, 86400, 120, "--max-block-age") * 1000, chainVerifier: verifier });
+ }
+@@ -98,10 +100,11 @@ export const agreementKey = (v) => JSON.stringify(v, (_k, x) => typeof x === "bi
+ 
+ export class QuorumChain {
+   /** rpcs: validated origins; clients (tests): [{origin, client}] with viem public-client methods. */
+-  constructor({ rpcs, clients, quorum = 2, confirmations = 2, maxBlockAgeMs = 120000, chainId = BASE_CHAIN_ID, now = Date.now, timeoutMs = 12000 }) {
++  // minPeers (default 2: a quorum): 1 only for VerifiedChain's explicit transaction transport, never a state authority
++  constructor({ rpcs, clients, quorum = 2, confirmations = 2, maxBlockAgeMs = 120000, chainId = BASE_CHAIN_ID, now = Date.now, timeoutMs = 12000, minPeers = 2 }) {
+     this.peers = clients || rpcs.map((origin) => ({ origin, client: createPublicClient({ chain: base,
+       transport: viemHttp(origin, { retryCount: 0, timeout: timeoutMs, fetchFn: boundedFetch({ timeoutMs }) }) }) }));
+-    if (this.peers.length < 2 || quorum < 2 || quorum > this.peers.length) throw new Error("a quorum needs at least two of the configured RPCs");
++    if (this.peers.length < minPeers || quorum < Math.min(2, minPeers) || quorum > this.peers.length) throw new Error("a quorum needs at least two of the configured RPCs");
+     Object.assign(this, { quorum, confirmations, maxBlockAgeMs, chainId, now });
+     this.lastBlock = 0n;
+   }
+@@ -178,6 +181,92 @@ export class QuorumChain {
+   }
+ }
+ 
++// ---- the explicit local verifier as independent mode's chain authority ---------------------------------------------
++const NO_TX = "under --chain-verifier this needs the explicit transaction/history transport (--rpc); there is none, and no public default is used";
++// A verifier refusal of an eth_call that is an execution revert (JSON-RPC code 3 or "execution reverted") is a proof-backed
++// fact about the contract, reported like an agreed revert; anything else stays an outage.
++const verifiedRevert = (e) => e?.rpcCode === 3 || /execution reverted|\brevert(ed)?\b/i.test(String(e?.message || ""));
++function asRevert(e) { const reason = String(e?.message || "").replace(/^verifier:\s*/, "").replace(/^.*?execution reverted:?\s*/i, "").slice(0, 200);
++  return Object.assign(new Error(`execution reverted: ${reason}`), { name: "ExecutionRevertedError", reason, cause: e }); }
++/**
++ * The QuorumChain interface over the local proof-backed verifier (network/verified-chain.mjs createVerifiedSnapshot: one
++ * confirmed, fresh, monotonic block per snapshot, the header re-checked, ONE whole-operation deadline, a terminal client):
++ *   * snapshot(fn, {atBlock}) - fn(client, blockNumber) with the pinned client (readContract, getCode, getStorageAt,
++ *     getBalance, getBlock at that block, and `call` for simulation); read/readMany/balance as QuorumChain's, on it;
++ *     `getLogs` / eth_getLogs inside a snapshot are DISCOVERY HINTS from the explicit transport only, clamped to the verified
++ *     block (callers verify every candidate by state reads); without a transport they refuse by name;
++ *   * each(), peers, host(), receiptSnapshot(): the explicit TRANSACTION/HISTORY transport (the --rpc list, all of which
++ *     must answer alike), untrusted for state; without one they refuse by name. Nothing falls back to a public default.
++ */
++export class VerifiedChain {
++  constructor({ verifier, txRpcs = [], txClients = null, chainId = BASE_CHAIN_ID, confirmations = 2, maxBlockAgeMs = 120000, now = Date.now, timeoutMs = 12000, deadlineMs = 30000 }) {
++    this.authority = "local-verifier"; this.verifier = verifier;
++    Object.assign(this, { chainId, confirmations, maxBlockAgeMs, now });
++    this.policy = { verifier, chainId, confirmations, maxBlockAgeMs, deadlineMs, now, allowCall: true };
++    this.snap = createVerifiedSnapshot(this.policy);
++    const n = (txClients || txRpcs).length;
++    this.tx = n ? new QuorumChain({ rpcs: txRpcs, clients: txClients || undefined, quorum: n, minPeers: 1, confirmations, maxBlockAgeMs, chainId, now, timeoutMs }) : null;
++    this.peers = this.tx ? this.tx.peers : [];
++    this.quorum = this.tx ? this.tx.quorum : 1;
++    this.lastBlock = 0n;
++  }
++  host(i) { return this.tx ? this.tx.host(i) : "verifier"; }
++  #client(c, b) {
++    const hints = async (q) => {
++      if (!this.tx) throw Object.assign(new Error(`getLogs: ${NO_TX}`), { code: "chain_unsupported" });
++      const to = q.toBlock === undefined || BigInt(q.toBlock) > b ? b : BigInt(q.toBlock);
++      const all = await this.tx.each((cl) => cl.getLogs({ ...q, toBlock: to }), "log hints (explicit transport, untrusted)");
++      if (new Set(all.map(agreementKey)).size !== 1) throw new QuorumError("log hints: the transaction transports disagree");
++      return all[0];
++    };
++    return new Proxy(Object.freeze({}), { get(_t, key) {
++      if (key === "getLogs") return hints;
++      if (key === "request") return async ({ method, params }) => {
++        if (method !== "eth_getLogs") throw Object.assign(new Error(`${method}: not a verified state read (${NO_TX})`), { code: "chain_unsupported" });
++        const p = params?.[0] || {};
++        const logs = await hints({ address: p.address, topics: p.topics, fromBlock: BigInt(p.fromBlock), toBlock: BigInt(p.toBlock) });
++        return logs.map((l) => ({ address: l.address, topics: l.topics, data: l.data, blockNumber: "0x" + BigInt(l.blockNumber).toString(16), logIndex: "0x" + Number(l.logIndex).toString(16) }));
++      };
++      if (key === "readContract" || key === "call") return async (q) => { try { return await c[key](q); } catch (e) { throw verifiedRevert(e) ? asRevert(e) : e; } };
++      return c[key];
++    } });
++  }
++  async snapshot(fn, { atBlock = null } = {}) {
++    // a resumed block ({number, hash} this chain already accepted: one MCP call's later reads, pagination) is read by a fresh
++    // snapshot function - the exact hash must still be canonical and fresh - so a newer block accepted meanwhile by another
++    // call cannot refuse it; fresh reads keep the monotonic floor
++    const snap = atBlock ? createVerifiedSnapshot(this.policy) : this.snap;
++    const s = await snap((c, b) => fn(this.#client(c, b), b), atBlock ? { atBlock } : {});
++    if (s.blockNumber > this.lastBlock) this.lastBlock = s.blockNumber;
++    return { value: s.value, blockNumber: s.blockNumber, blockHash: s.blockHash, timestamp: s.timestamp, agreeing: 1, peers: 1, failures: [], evidence: s.evidence };
++  }
++  each(fn, what) { if (!this.tx) return Promise.reject(Object.assign(new QuorumError(`${what}: ${NO_TX}`), { code: "chain_unsupported" })); return this.tx.each(fn, what); }
++  /** Wait (bounded) until a VERIFIED block reaches `n`: after a transport-reported receipt, later reads are then at or after
++   *  the block the transport says it was mined in (read-your-writes); a transport claiming a block the verifier never
++   *  reaches leaves the outcome unknown, never "done". -> the snapshot that reached it, or null on timeout. */
++  async awaitBlock(n, { timeoutMs = 120000, pollMs = 1000 } = {}) {
++    const end = Date.now() + timeoutMs;
++    for (;;) {
++      try { const s = await this.snapshot(async () => 0); if (s.blockNumber >= BigInt(n)) return s; } catch {}
++      if (Date.now() >= end) return null;
++      await new Promise((r) => setTimeout(r, pollMs));
++    }
++  }
++  /** receipts, transactions, nonce counts at a block: the explicit transport's own snapshot (untrusted for state). */
++  receiptSnapshot(fn) { if (!this.tx) return Promise.reject(Object.assign(new QuorumError(`receipt: ${NO_TX}`), { code: "chain_unsupported" })); return this.tx.snapshot(fn); }
++}
++for (const m of ["read", "readMany", "balance"]) VerifiedChain.prototype[m] = QuorumChain.prototype[m];
++/** independent mode's chain: VerifiedChain under --chain-verifier (the RPC list is the explicit transaction transport), else
++ *  the RPC QuorumChain exactly as before. `clients` (tests) are the RPC/transport peers. */
++export function independentChain({ rpcs = [], clients, quorum, confirmations, maxBlockAgeMs, chainVerifier = null, chainId, now, timeoutMs }) {
++  const opt = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
++  if (chainVerifier) return new VerifiedChain(opt({ verifier: chainVerifier, txRpcs: rpcs, txClients: clients, chainId, confirmations, maxBlockAgeMs, now, timeoutMs }));
++  return new QuorumChain(opt({ rpcs, clients, quorum, confirmations, maxBlockAgeMs, chainId, now, timeoutMs }));
++}
++/** A snapshot for TRANSACTION/HISTORY reads (receipts, transactions, nonce counts, logs): the RPC quorum itself in legacy
++ *  mode; under the verifier only the explicit transaction transport (receiptSnapshot), never state authority. */
++export const historySnapshot = (chain, fn) => (chain.authority === "local-verifier" ? chain.receiptSnapshot(fn) : chain.snapshot(fn));
++
+ /** With a reviewed profile: every contract an authority decision uses must carry the reviewed code at the agreed block. */
+ export async function assertReviewedCode(chain, profile, names) {
+   if (!profile) return null;
+@@ -453,7 +542,7 @@ export async function sendQuorumTx(chain, { account, to, data, value = 0n, maxFe
+   let last = "no quorum yet";
+   while (Date.now() < deadline) {
+     try {
+-      const s = await chain.snapshot(async (c, blockNumber) => {
++      const s = await historySnapshot(chain, async (c, blockNumber) => {
+         let r;
+         try { r = await c.getTransactionReceipt({ hash }); } catch (e) { if (/not.?found|could not be found/i.test(short(e)) || e?.name === "TransactionReceiptNotFoundError") return { pending: true }; throw e; }
+         if (!r || r.blockNumber > blockNumber) return { pending: true };
+@@ -462,10 +551,17 @@ export async function sendQuorumTx(chain, { account, to, data, value = 0n, maxFe
+       });
+       if (s.value.receipt) {
+         if (s.value.receipt.status !== "success") throw Object.assign(new Error(`transaction reverted: ${hash} (block ${s.value.receipt.blockNumber})`), { mined: true });
++        // under the verifier the receipt comes from the explicit transport: not state authority. The verifier must reach its
++        // block before this returns, so every later read sees at least that state (callers read their effects back)
++        if (chain.authority === "local-verifier") {
++          const reached = await chain.awaitBlock(s.value.receipt.blockNumber, { timeoutMs: Math.max(1000, deadline - Date.now()), pollMs });
++          if (!reached) throw Object.assign(new OutcomeUnknownError(hash, `the transport reports it mined in block ${s.value.receipt.blockNumber}, but the local verifier has not reached that block`), { final: true });
++          return { ...s.value.receipt, agreedBlock: reached.blockNumber, agreeing: s.agreeing, receiptAuthority: "explicit transaction transport (unverified); verifier reached its block" };
++        }
+         return { ...s.value.receipt, agreedBlock: s.blockNumber, agreeing: s.agreeing };
+       }
+       last = "not yet confirmed";
+-    } catch (e) { if (e.mined) throw e; last = short(e); }
++    } catch (e) { if (e.mined || e.final) throw e; last = short(e); }
+     await new Promise((r) => setTimeout(r, pollMs));
+   }
+   throw new OutcomeUnknownError(hash, `no RPC quorum confirmed it within ${Math.round(timeoutMs / 1000)}s (${last})`);
+@@ -498,6 +594,9 @@ export function quorumPublicClient(chain) {
+ /** The quorum's peers for network/lease-reader.mjs, unchanged: that reader counts each viem client by its transport URL
+  *  under the same shared identity rule (network/rpc-identity.mjs) these origins were validated with. */
+ export function leaseReaderClients(chain) {
++  // under --chain-verifier the peers are the explicit TRANSACTION transport (untrusted for state): a consumer that builds
++  // its own quorum reader from them (custody v2: cli/custody-independent.mjs, mcp/independent-secrets.mjs) refuses instead
++  if (chain.authority === "local-verifier") throw Object.assign(new Error("custody reads have their own quorum interface (custody/v2) and are not available under --chain-verifier; run custody commands without it"), { code: "chain_unsupported" });
+   return chain.peers.map(({ client }) => client);
+ }
+ /** LeaseReader authority options for independent mode: the local verifier when --chain-verifier is set, else the quorum's clients. */
+diff --git a/mcp/hosted-connector.mjs b/mcp/hosted-connector.mjs
+index 6381870c6..661764a76 100644
+--- a/mcp/hosted-connector.mjs
++++ b/mcp/hosted-connector.mjs
+@@ -88,8 +88,12 @@ async function main(argv) {
+   if (!collateral) throw new Error('collateral: "amd" (AMD KDS) or { "dir": PATH }');
+   let registry = null;
+   if (cfg.registry) {
+-    const { QuorumChain, readHost, requireSchema4 } = await import("../cli/independent.mjs");
+-    const chain = new QuorumChain({ rpcs: cfg.registry.rpcs, quorum: cfg.registry.quorum || 2, confirmations: 1 });
++    const { independentChain, readHost, requireSchema4 } = await import("../cli/independent.mjs");
++    const { chainVerifierOf } = await import("../network/verified-chain.mjs");
++    // registry.chainVerifier (optional, loopback, with registry.chainAuthority "verifier"): the registry read comes from the
++    // local verifier instead of the RPC quorum (no provider client then)
++    const chainVerifier = chainVerifierOf({ chainAuthority: cfg.registry.chainAuthority, chainVerifier: cfg.registry.chainVerifier }, "registry");
++    const chain = independentChain({ rpcs: cfg.registry.rpcs || [], quorum: cfg.registry.quorum || 2, confirmations: 1, chainVerifier });
+     const reg = cfg.expect.config.contracts.registry;
+     registry = async (rid) => { const s = await chain.snapshot((c, b) => readHost(c, reg, rid, b)); if (s.value.schema !== undefined && s.value.host === undefined) requireSchema4(s.value.schema);
+       const h = s.value.host; return h ? { operator: h.operator, proofKey: h.proofKey, active: h.active } : null; };
+diff --git a/mcp/independent.mjs b/mcp/independent.mjs
+index 7224bd370..ce0c75f35 100644
+--- a/mcp/independent.mjs
++++ b/mcp/independent.mjs
+@@ -18,7 +18,7 @@ import fs from "node:fs";
+ import path from "node:path";
+ import { getAddress, keccak256, stringToHex } from "viem";
+ 
+-import { loadIndependentTrust, QuorumChain, agreementKey, QuorumError, REGISTRY_SCHEMA4_ABI, quorumPublicClient } from "../cli/independent.mjs";
++import { loadIndependentTrust, QuorumChain, independentChain, agreementKey, QuorumError, REGISTRY_SCHEMA4_ABI, quorumPublicClient } from "../cli/independent.mjs";
+ import { readSessionAuthority } from "../network/session-authority.mjs";
+ import { REVIEWED_SESSION_FACTORIES, readSessionFactoryIdentity, checkSessionFactoryIdentity } from "../network/session-factories.mjs";
+ import { hostLiveness, REGISTRY_UPDATE_WINDOW_SEC } from "../network/host-liveness.mjs";
+@@ -129,8 +129,10 @@ export class Authority {
+     if (!nonZero(trust.pins.sessionVaultFactory))
+       throw new IndependentError("config", `profile ${this.cfg.name}: the pins must select a SessionVault factory; its implementation names the admin AddressBook this profile resolves`);
+     this.trust = trust;
+-    this.chain = this.chain || new QuorumChain({ rpcs: trust.rpcs, clients: this.deps.clients, quorum: trust.quorum, confirmations: trust.confirmations,
+-      maxBlockAgeMs: trust.maxBlockAgeMs });
++    // the RPC quorum, or under the profile's chainVerifier the local verifier for every state read (the rpcs then only the
++    // explicit transaction/history transport): cli/independent.mjs independentChain
++    this.chain = this.chain || independentChain({ rpcs: trust.rpcs, clients: this.deps.clients, quorum: trust.quorum, confirmations: trust.confirmations,
++      maxBlockAgeMs: trust.maxBlockAgeMs, chainVerifier: trust.chainVerifier });
+     return this;
+   }
+   get name() { return this.cfg.name; }
+@@ -148,6 +150,13 @@ export class Scope {
+   /** The agreed block of this call: chosen once (QuorumChain.pickBlock rules), never below minBlock. */
+   async at() {
+     if (this.block) return this.block;
++    if (this.chain.authority === "local-verifier") {
++      // under the verifier: ONE verified block for the whole call (every agree() below resumes exactly it by number + hash)
++      const s = await this.chain.snapshot(async () => 0);
++      if (s.blockNumber < this.minBlock) throw new QuorumError(`the verified block ${s.blockNumber} is behind this call's floor ${this.minBlock}`);
++      this.block = { number: s.blockNumber, hash: s.blockHash, timestamp: s.timestamp, peers: [0], agreeing: 1, of: 1, authority: "local-verifier" };
++      return this.block;
++    }
+     const failures = [];
+     let { block, candidates } = await this.chain.pickBlock(failures);
+     if (block < this.minBlock) block = this.minBlock;
+@@ -171,6 +180,7 @@ export class Scope {
+   /** fn(client, blockNumber) on every peer that holds this call's block; `quorum` identical answers or it throws. */
+   async agree(fn, label = "read") {
+     const b = await this.at();
++    if (b.authority === "local-verifier") return (await this.chain.snapshot(fn, { atBlock: { number: b.number, hash: b.hash } })).value;
+     const failures = [];
+     const rs = await Promise.allSettled(b.peers.map(async (i) => {
+       const c = this.chain.peers[i].client;
+@@ -259,7 +269,8 @@ export class Scope {
+   }
+   summary() {
+     return this.block ? { profile: this.a.name, blockNumber: this.block.number.toString(), blockHash: this.block.hash, agreeing: this.block.agreeing,
+-      peers: this.block.of, quorum: this.chain.quorum, reads: this.reads.length } : { profile: this.a.name, reads: 0 };
++      peers: this.block.of, quorum: this.chain.quorum, reads: this.reads.length, ...(this.block.authority ? { authority: "local-verifier", tier: "unsafe" } : {}) }
++      : { profile: this.a.name, reads: 0 };
+   }
+ }
+ const unwrapRead = (v) => { if (v.revert !== undefined) throw Object.assign(new Error(`execution reverted: ${v.revert}`), { agreedRevert: true }); return v.ok; };
+diff --git a/network/verified-chain.mjs b/network/verified-chain.mjs
+index e55f0359e..42e5f4ddd 100644
+--- a/network/verified-chain.mjs
++++ b/network/verified-chain.mjs
+@@ -55,8 +55,10 @@ export function verifiedHeader(block, b) {
+ }
+ 
+ export const PINNED_METHODS = Object.freeze(['getChainId', 'getBlockNumber', 'getBlock', 'readContract', 'getCode', 'getBytecode', 'getStorageAt', 'getBalance']);
+-/** The only client a read callback sees: every answer at block `b` (by hash), proof-backed; anything else refuses by name. */
+-export function pinnedClient({ b, hash, request, chainId, alive = () => {} }) {
++/** The only client a read callback sees: every answer at block `b` (by hash), proof-backed; anything else refuses by name.
++ *  allowCall: also a raw `call` ({account, to, data, value}) - the same proof-backed eth_call at `b`, for simulating a
++ *  transaction's preconditions (off unless a snapshot function is created with allowCall). */
++export function pinnedClient({ b, hash, request, chainId, alive = () => {}, allowCall = false }) {
+   const at = (blockNumber, blockTag) => {
+     if (blockTag !== undefined) throw new Error(`verified reads are pinned to block ${b} (no block tags)`);
+     if (blockNumber !== undefined && BigInt(blockNumber) !== b) throw new Error(`verified reads are pinned to block ${b}`);
+@@ -81,6 +83,11 @@ export function pinnedClient({ b, hash, request, chainId, alive = () => {} }) {
+     getCode: code, getBytecode: code,
+     getStorageAt: async ({ address, slot, blockNumber, blockTag }) => request('eth_getStorageAt', [address, slot, at(blockNumber, blockTag)]),
+     getBalance: async ({ address, blockNumber, blockTag }) => BigInt(await request('eth_getBalance', [address, at(blockNumber, blockTag)])),
++    ...(allowCall ? { call: async ({ account, to, data, value, blockNumber, blockTag }) => {
++      const from = typeof account === 'string' ? account : account?.address;
++      const tx = { to, ...(data ? { data } : {}), ...(from ? { from } : {}), ...(value ? { value: '0x' + BigInt(value).toString(16) } : {}) };
++      return { data: await request('eth_call', [tx, at(blockNumber, blockTag)]) };
++    } } : {}),
+   };
+   return new Proxy(Object.freeze({}), { get(_t, key) {
+     if (Object.hasOwn(methods, key)) return async (...args) => { alive(); return methods[key](...args); };
+@@ -100,7 +107,7 @@ export function pinnedClient({ b, hash, request, chainId, alive = () => {} }) {
+  *   * the header is read again after the callback (same hash and timestamp, else reorganized);
+  *   * one `deadlineMs` bounds the whole operation including the callback; afterwards the pinned client refuses.
+  */
+-export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, maxBlockAgeMs = 90_000, futureSkewMs = 5_000, deadlineMs = 30_000, now = Date.now } = {}) {
++export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, maxBlockAgeMs = 90_000, futureSkewMs = 5_000, deadlineMs = 30_000, now = Date.now, allowCall = false } = {}) {
+   const v = verifierEndpoint(verifier);
+   if (!Number.isSafeInteger(chainId) || chainId <= 0) throw new Error('chain id required');
+   const int = (x, lo, hi) => Number.isSafeInteger(x) && x >= lo && x <= hi;
+@@ -143,7 +150,7 @@ export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, m
+       if (floor && b === floor.number && h.hash !== floor.hash) throw fail('chain_rollback', 'the accepted block was replaced');
+       if (h.timestamp > now() + futureSkewMs) throw fail('chain_future', 'the verified block is in the future');
+       if (!fresh(h.timestamp)) throw fail('chain_stale', `verified block ${b} is older than ${maxBlockAgeMs} ms`);
+-      const value = await read(pinnedClient({ b, hash: h.hash, request, chainId, alive }), b, h);
++      const value = await read(pinnedClient({ b, hash: h.hash, request, chainId, alive, allowCall }), b, h);
+       const again = verifiedHeader(await request('eth_getBlockByNumber', [hexBlock(b), false]), b);
+       if (again.hash !== h.hash || again.timestamp !== h.timestamp) throw fail('chain_reorg', 'chain reorganized during the read');
+       if (!fresh(h.timestamp)) throw fail('chain_stale', `verified block ${b} became older than ${maxBlockAgeMs} ms during the read`);
+diff --git a/test/caller-verifier-wiring.test.mjs b/test/caller-verifier-wiring.test.mjs
+index bd9fffe9a..417851a6f 100644
+--- a/test/caller-verifier-wiring.test.mjs
++++ b/test/caller-verifier-wiring.test.mjs
+@@ -27,8 +27,12 @@ test('independent trust: --chain-verifier is optional, local only, and selects t
+   assert.equal(v.chainVerifier, 'http://127.0.0.1:8545/');
+   assert.deepEqual(independentReaderAuthority(v, chain), { authority: 'verifier', verifier: 'http://127.0.0.1:8545/' });
+   assert.throws(() => loadIndependentTrust({ ...trustArgs, chainVerifier: 'https://rpc.example.org/' }), /local endpoint/);
+-  // the RPC quorum itself is still required: the verifier replaces no other read and no transaction
+-  assert.throws(() => loadIndependentTrust({ ...trustArgs, rpcs: [], chainVerifier: 'http://127.0.0.1:8545/' }), /RPC/);
++  // under the verifier the --rpc list is optional and is only the explicit transaction/history transport (1-8, all must
++  // agree); without a verifier the 2-of-n quorum stays required
++  const noTx = loadIndependentTrust({ ...trustArgs, rpcs: [], chainVerifier: 'http://127.0.0.1:8545/' });
++  assert.deepEqual(noTx.rpcs, []); assert.equal(noTx.quorum, 0);
++  assert.equal(loadIndependentTrust({ ...trustArgs, rpcs: ['https://tx.example.org'], chainVerifier: 'http://127.0.0.1:8545/' }).quorum, 1);
++  assert.throws(() => loadIndependentTrust({ ...trustArgs, rpcs: ['https://a.example.org'] }), /2 to 8/);
+ });
+ 
+ test('the management client builds its LeaseReader on the verifier when told, never on the RPC list', () => {
+diff --git a/test/cli-mcp-verifier.e2e.test.mjs b/test/cli-mcp-verifier.e2e.test.mjs
+new file mode 100644
+index 000000000..28426123a
+--- /dev/null
++++ b/test/cli-mcp-verifier.e2e.test.mjs
+@@ -0,0 +1,202 @@
++// END-TO-END: the independent CLI (cli/enclave.mjs as a process, behind the network guard) and the independent MCP
++// authority (mcp/independent.mjs Authority + Scope) with --chain-verifier / profile chainVerifier, against REAL contracts on
++// a CANONICAL-trie chain (the cli-independent rig on pinned reth --dev) through the patched Helios. The rig's three logged
++// RPC fronts stand for providers: with no --rpc the CLI contacts none; with ONE explicit --rpc (the self-hosted transaction
++// transport) a write is simulated by the verifier and only nonce/fees/broadcast/receipt touch that front, never a state read.
++// TEST-SIGNED HEAD (local sequencer key in helios.toml), not real Base.
++//   env: RIG_CHAIN_NODE=reth (+ RIG_RETH_*), HELIOS_BASE_BIN, TEST_TMP. Run inside `unshare -r -n`.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { spawn } from 'node:child_process';
++import fs from 'node:fs';
++import path from 'node:path';
++import http from 'node:http';
++import { pathToFileURL, fileURLToPath } from 'node:url';
++import { toHex } from 'viem';
++import { privateKeyToAccount } from 'viem/accounts';
++import { startRig, haveTools, KEYS, freePort } from './helpers/cli-independent-rig.mjs';
++import { createWitnessGateway } from '../network/witness-gateway.mjs';
++import { makeCommitment, blockFields } from './fixtures/op-commitment.mjs';
++import { loadConfig, Authority, Scope, VAULT_ABI } from '../mcp/independent.mjs';
++import { independentChain, sendQuorumTx } from '../cli/independent.mjs';
++import { encodeFunctionData } from 'viem';
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const CLI = path.join(REPO, 'cli', 'enclave.mjs');
++const GUARD = pathToFileURL(path.join(REPO, 'test/helpers/cli-network-guard.mjs')).href;
++const { HELIOS_BASE_BIN } = process.env;
++const skip = haveTools() || (!HELIOS_BASE_BIN && 'HELIOS_BASE_BIN not set') || (process.env.RIG_CHAIN_NODE !== 'reth' && 'needs the canonical-trie rig (RIG_CHAIN_NODE=reth)');
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'cli-mcp-verifier-'));
++const SEQ_KEY = '0x' + '5e'.repeat(32), seqSigner = privateKeyToAccount(SEQ_KEY).address;
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++let rig, helios, heliosUrl, feed, proxy, gateway, pinsFile, netLog;
++const proxyMode = { value: 'ok' };
++
++async function rpc(url, method, params = []) {
++  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(30000) });
++  const j = await r.json(); if (j.error) throw new Error(j.error.message); return j.result;
++}
++async function untilHelios(n, ms = 120000) {
++  const end = Date.now() + ms;
++  while (Date.now() < end) { try { if (BigInt(await rpc(heliosUrl, 'eth_blockNumber')) >= BigInt(n)) return; } catch {} await sleep(300); }
++  throw new Error(`helios did not reach block ${n}`);
++}
++const settled = (rc) => untilHelios(rc.blockNumber + 2n);
++function startFeed() {
++  let served = 0n, current = null, frozen = false;
++  const srv = http.createServer(async (q, res) => {
++    if (q.url === '/chain_id') return res.end('8453');
++    try {
++      const latest = BigInt(await rig.rpcCall('eth_blockNumber'));
++      if (served === 0n && latest > 3n) served = latest - 3n;
++      if (!frozen && served < latest) {
++        const n = served + 1n;
++        const b = await rig.rpcCall('eth_getBlockByNumber', [toHex(n), false]);
++        const txs = await Promise.all(b.transactions.map((h) => rig.rpcCall('eth_getRawTransactionByHash', [h])));
++        current = await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs });
++        served = n;
++      }
++    } catch {}
++    res.end(JSON.stringify(current));
++  });
++  return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, url: `http://127.0.0.1:${srv.address().port}/`, freeze: (v) => { frozen = v; } })));
++}
++function startProxy() {
++  const srv = http.createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', async () => {
++    if (proxyMode.value === 'down') { res.writeHead(503); return res.end(); }
++    const j = await (await fetch(rig.rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: b })).json();
++    if (proxyMode.value === 'tamper') for (const x of [j].flat()) if (x?.result?.storageProof) for (const s of x.result.storageProof) s.value = '0x' + 'beef'.padStart(40, '1');
++    res.end(JSON.stringify(j));
++  }); });
++  return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, url: `http://127.0.0.1:${srv.address().port}/` })));
++}
++// the CLI with --chain-verifier; `tx` adds ONE explicit transaction transport (a rig front); confirmations 1 like cli-independent
++function cli(args, { tx = null } = {}) {
++  const base = ['--independent', '--contract-pins', pinsFile, '--usdc-token', rig.addresses.usdc, '--confirmations', '1', '--yes', '--chain-verifier', heliosUrl, ...(tx ? ['--rpc', tx] : [])];
++  return new Promise((resolve) => {
++    const p = spawn(process.execPath, [CLI, ...args, ...base], { cwd: TMP, env: { PATH: process.env.PATH, HOME: TMP, XDG_CONFIG_HOME: path.join(TMP, 'conf'),
++      ENCLAVE_SESSION_DIR: path.join(TMP, 'sessions'), ENCLAVE_KEY: KEYS.owner, ENCLAVE_API_BASE: rig.apiOrigin, NODE_OPTIONS: `--import=${GUARD}`,
++      ENCLAVE_TEST_NET_LOG: netLog, ENCLAVE_TEST_DENY_PORT: String(rig.apiPort) } });
++    let out = '', err = '';
++    const killer = setTimeout(() => { err += '\n[test: CLI killed after 150 s]'; p.kill('SIGKILL'); }, 150000);
++    p.stdout.on('data', (d) => (out += d)); p.stderr.on('data', (d) => (err += d));
++    p.on('close', (code) => { clearTimeout(killer); resolve({ code, out, err, json: (() => { try { return JSON.parse(out); } catch { return null; } })() }); });
++  });
++}
++const frontCalls = () => rig.rpcLog.length;
++const ledgerGet = (id) => rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.A.ledger.abi, functionName: 'get', args: [id] });
++const noEnclave = () => { assert.deepEqual(rig.apiHits, []); assert.equal(fs.readFileSync(netLog, 'utf8'), '', 'no non-loopback or Enclave connection'); };
++
++test.before(async () => {
++  if (skip) return;
++  rig = await startRig();
++  pinsFile = path.join(TMP, 'pins.json'); fs.writeFileSync(pinsFile, JSON.stringify(rig.pins));
++  netLog = path.join(TMP, 'net.log'); fs.writeFileSync(netLog, '');
++  await rig.create(KEYS.owner); const last = await rig.create(KEYS.owner);
++  feed = await startFeed(); proxy = await startProxy();
++  gateway = createWitnessGateway({ upstreams: [proxy.url] }); const gUrl = await gateway.listen(0);
++  const home = path.join(TMP, 'home'); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
++  fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${seqSigner}"\n`);
++  const port = await freePort();
++  helios = spawn(HELIOS_BASE_BIN, ['opstack', '--network', 'base', '--consensus-rpc', feed.url, '--execution-rpc', gUrl, '--rpc-port', String(port)], { env: { HOME: home, PATH: process.env.PATH }, stdio: 'ignore' });
++  heliosUrl = `http://127.0.0.1:${port}/`;
++  await settled(last);
++});
++test.after(async () => {
++  helios?.kill('SIGKILL');
++  await gateway?.close(); feed?.srv.close(); proxy?.srv.close();
++  await rig?.stop();
++  fs.rmSync(TMP, { recursive: true, force: true });
++});
++const T = { skip, timeout: 600000 };
++
++test('CLI reads (ls, hosts, status) come from the verifier with no RPC list at all; no provider front is contacted', T, async () => {
++  const f0 = frontCalls();
++  const ls = await cli(['ls', '--json']);
++  assert.equal(ls.code, 0, ls.err + ls.out);
++  assert.match(ls.err, /state from the local verifier .* \(unsafe tier\); transactions via no transport/);
++  const owner = privateKeyToAccount(KEYS.owner).address.toLowerCase();
++  const ids = ls.json.deployments.map((d) => d.id.toLowerCase()).sort();
++  assert.ok(ids.length >= 2);
++  for (const id of ids) assert.equal(String((await ledgerGet(id)).owner).toLowerCase(), owner);
++  const h = await cli(['hosts', '--all', '--json']);                  // --all: every registered host, live or not
++  assert.equal(h.code, 0, h.err); assert.equal(h.json.registrySchema, 4);
++  assert.ok(h.json.hosts.some((x) => x.id === rig.runner && x.endpoint === rig.endpoint), 'the schema-4 registry host is read through the verifier');
++  const st = await cli(['status', ids[0], '--json']);
++  assert.equal(st.code, 0, st.err); assert.ok(JSON.stringify(st.json).toLowerCase().includes(ids[0]), 'status names the deployment');
++  assert.equal(frontCalls(), f0, 'no provider front was contacted');
++  noEnclave();
++});
++
++test('CLI writes: without a transport they refuse by name after a verified simulation; a verified revert refuses before any transport use; with ONE explicit transport the send succeeds and only transaction methods touch it', T, async () => {
++  const id = (await cli(['ls', '--json'])).json.deployments[0].id;
++  const f0 = frontCalls();
++  const noTx = await cli(['stop', id]);
++  assert.notEqual(noTx.code, 0); assert.match(noTx.err + noTx.out, /explicit transaction\/history transport/);
++  assert.equal((await ledgerGet(id)).active, true); assert.equal(frontCalls(), f0);
++  const front = rig.rpcs[0];
++  // the library path every independent write takes: a non-owner's setActive is reverted by the REAL ledger in the verified
++  // simulation, before the transport is used at all
++  const chain = independentChain({ chainVerifier: heliosUrl, rpcs: [front], confirmations: 1 });
++  await assert.rejects(sendQuorumTx(chain, { account: privateKeyToAccount(KEYS.other), to: rig.addresses.ledger,
++    data: encodeFunctionData({ abi: rig.A.ledger.abi, functionName: 'setActive', args: [id, false] }) }), /would revert at agreed block/);
++  assert.equal(frontCalls(), f0, 'a verified revert stops the write before the transport is used');
++  const stop = await cli(['stop', id, '--json'], { tx: front });
++  assert.equal(stop.code, 0, stop.err + stop.out);
++  assert.equal((await ledgerGet(id)).active, false, 'the transaction landed');
++  const used = rig.rpcLog.slice(f0);
++  assert.ok(used.length > 0 && used.every((x) => x.i === 0), 'only the explicit front was used');
++  assert.ok(used.some((x) => x.method === 'eth_sendRawTransaction'));
++  assert.deepEqual(used.filter((x) => x.method === 'eth_call'), [], 'the transport never answered a state read or the simulation');
++  const back = await cli(['resume', id], { tx: front });
++  assert.equal(back.code, 0, back.err); assert.equal((await ledgerGet(id)).active, true);
++  noEnclave();
++});
++
++test('MCP authority with a chainVerifier profile: bindings and reads at ONE verified block, no RPC list', T, async () => {
++  const cfgFile = path.join(TMP, 'mcp.json');
++  fs.writeFileSync(cfgFile, JSON.stringify({ format: 'enclave-mcp-independent/v1', profiles: { p: { contractPins: pinsFile, usdc: rig.addresses.usdc, rpcs: [], stateDir: path.join(TMP, 'mcp-state'), chainVerifier: heliosUrl, confirmations: 1 } } }));
++  const authority = await new Authority(loadConfig(cfgFile).profiles.get('p')).ready();
++  assert.equal(authority.chain.authority, 'local-verifier'); assert.deepEqual(authority.chain.peers, []);
++  const f0 = frontCalls();
++  const s = new Scope(authority);
++  const b = await s.bindings();
++  assert.equal(b.deployments.toLowerCase(), rig.addresses.ledger.toLowerCase());
++  assert.equal(b.factory.toLowerCase(), rig.addresses.factory.toLowerCase());
++  const count = await s.read(rig.addresses.ledger, rig.A.ledger.abi, 'count');
++  assert.equal(count, await rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.A.ledger.abi, functionName: 'count', blockNumber: s.block.number }));
++  assert.equal(s.summary().authority, 'local-verifier');
++  // session revocation: a real session reads live at a verified block; once the owner terminates it a new call reads it ended
++  const S = await import('../sdk/sessions/dist/node.mjs');
++  const owner = privateKeyToAccount(KEYS.owner);
++  const kp = await S.generateKeyPair(true); const { x, y } = await S.publicKeyXY(kp.publicKey);
++  const grant = S.buildGrant({ label: 'mcp-test', sessionKey: S.keyHashOf(x, y), policy: { actions: ['api.status'], apps: ['*'], environments: ['prod'], budget: 0n,
++    spendPerPeriod: 0n, periodSeconds: 86400, opsPerPeriod: 0, maxFeePerOp: 0n, maxAppFeePerHour: 0n, maxRatePerHour: 0n, expiresIn: 3600 } });
++  const tx = await S.prepareSessionOpen({ publicClient: rig.pc, factory: rig.addresses.factory, owner, chainId: 8453, grant });
++  await settled(await rig.pc.waitForTransactionReceipt({ hash: await rig.wc(KEYS.owner).sendTransaction({ to: tx.to, data: tx.data }) }));
++  const live = async () => (await new Scope(authority).read(tx.vault, VAULT_ABI, 'sessionOf', [tx.sid]))[1];
++  assert.equal(await live(), true);
++  const op = await S.prepareOwnerOperation({ publicClient: rig.pc, chainId: 8453, vault: tx.vault, op: { op: 'terminate', sessionId: tx.sid }, mode: 'direct', owner });
++  await settled(await rig.pc.waitForTransactionReceipt({ hash: await rig.wc(KEYS.owner).sendTransaction({ to: op.to, data: op.data }) }));
++  assert.equal(await live(), false, 'the terminated session reads ended through the verifier');
++  assert.equal(frontCalls(), f0);
++});
++
++test('tampered or missing witnesses and a stale head refuse CLI reads; nothing falls back to the transport', T, async () => {
++  const front = rig.rpcs[0];
++  for (const mode of ['tamper', 'down']) {
++    proxyMode.value = mode;
++    try {
++      await untilHelios(BigInt(await rpc(heliosUrl, 'eth_blockNumber')) + 2n);
++      const f0 = frontCalls();
++      const x = await cli(['ls', '--json'], { tx: front });
++      assert.notEqual(x.code, 0, mode); assert.equal(frontCalls(), f0, `${mode}: no fallback to the transport`);
++    } finally { proxyMode.value = 'ok'; }
++  }
++  feed.freeze(true);
++  try { await sleep(130000); const x = await cli(['ls', '--json']); assert.notEqual(x.code, 0); assert.match(x.err, /stale|older than|out of sync|behind/i); }
++  finally { feed.freeze(false); }
++  // let the verifier catch up before anything else reads (Helios refuses while out of sync)
++  await untilHelios(BigInt(await rig.rpcCall('eth_blockNumber')) - 2n, 300000);
++  for (let i = 0; i < 60; i++) { if ((await cli(['ls', '--json'])).code === 0) break; await sleep(2000); }
++});
+diff --git a/test/independent-verified-chain.test.mjs b/test/independent-verified-chain.test.mjs
+new file mode 100644
+index 000000000..376d040a0
+--- /dev/null
++++ b/test/independent-verified-chain.test.mjs
+@@ -0,0 +1,129 @@
++// Independent mode (CLI and MCP) under --chain-verifier: the QuorumChain interface over the local verifier
++// (cli/independent.mjs VerifiedChain via independentChain). A real loopback HTTP JSON-RPC stand-in plays the verifier and,
++// separately, the explicit transaction transport; both count every method. State reads, revert facts and simulations are
++// the verifier's; nonce/receipts/log hints only the explicit transport's (refused by name without one); custody's own
++// quorum extraction refuses; MCP's Scope reads one verified block per call even while another call moves the floor.
++// The real-chain counterpart is test/cli-mcp-verifier.e2e.test.mjs.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import { encodeFunctionData, encodeAbiParameters, parseAbi, pad, toHex, keccak256 } from 'viem';
++import { privateKeyToAccount } from 'viem/accounts';
++import * as I from '../cli/independent.mjs';
++import { Scope } from '../mcp/independent.mjs';
++
++const servers = new Set();
++test.after(() => { for (const s of servers) try { s.closeAllConnections?.(); s.close(); } catch {} });
++const ABI = parseAbi(['function balanceOf(address) view returns (uint256)', 'function revertMe() view returns (uint256)', 'event Ping(uint256 n)']);
++const ADDR = '0x' + '44'.repeat(20);
++const BAL = encodeFunctionData({ abi: ABI, functionName: 'balanceOf', args: [ADDR] }).slice(0, 10);
++const REV = encodeFunctionData({ abi: ABI, functionName: 'revertMe' }).slice(0, 10);
++const hashOf = (n, salt = 0) => pad(toHex(BigInt(n) * 1000n + BigInt(salt) + 1n), { size: 32 });
++async function stand(handler) {
++  const st = { calls: [], head: 100n, salt: 0 };
++  const s = http.createServer((req, res) => { const c = []; req.on('data', (d) => c.push(d)); req.on('end', () => {
++    const q = JSON.parse(Buffer.concat(c).toString() || 'null');
++    const one = (m) => { st.calls.push(m.method); try { return { jsonrpc: '2.0', id: m.id, result: handler(st, m) }; } catch (e) { return { jsonrpc: '2.0', id: m.id, error: { code: e.code ?? -32000, message: e.message } }; } };
++    res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(Array.isArray(q) ? q.map(one) : one(q)));
++  }); });
++  servers.add(s); await new Promise((r) => s.listen(0, '127.0.0.1', r));
++  return { st, url: `http://127.0.0.1:${s.address().port}/` };
++}
++const verifierHandler = (st, m) => {
++  switch (m.method) {
++    case 'eth_chainId': return '0x2105';
++    case 'eth_blockNumber': return toHex(st.head);
++    case 'eth_getBlockByNumber': { const n = BigInt(m.params[0]); return { number: toHex(n), hash: hashOf(n, st.salt), stateRoot: pad('0x22', { size: 32 }), timestamp: toHex(Math.floor(Date.now() / 1000)) }; }
++    case 'eth_call': {
++      st.callBlocks = [...(st.callBlocks || []), m.params[1]?.blockHash];
++      const sel = m.params[0].data.slice(0, 10);
++      if (sel === REV) throw Object.assign(new Error('execution reverted: nope'), { code: 3 });
++      if (sel === BAL) return encodeAbiParameters([{ type: 'uint256' }], [42n]);
++      return '0x';                                                    // a plain simulation (sendQuorumTx's c.call)
++    }
++    case 'eth_getBalance': return '0x10';
++    default: throw new Error('method not served');
++  }
++};
++const txHandler = (st, m) => {
++  switch (m.method) {
++    case 'eth_chainId': return '0x2105';
++    case 'eth_getTransactionCount': return '0x5';
++    case 'eth_getLogs': st.logRange = [m.params[0].fromBlock, m.params[0].toBlock]; return [];
++    default: throw new Error('not served by this stand-in');
++  }
++};
++const VERIFIER_ONLY = (url) => ({ chainVerifier: url });
++
++test('state reads, revert facts and snapshots come from the verifier; the chain reports no provider peers', async () => {
++  const v = await stand(verifierHandler);
++  const chain = I.independentChain({ ...VERIFIER_ONLY(v.url), confirmations: 2 });
++  assert.equal(chain.authority, 'local-verifier'); assert.deepEqual(chain.peers, []);
++  assert.equal(await chain.read(ADDR, ABI, 'balanceOf', [ADDR]), 42n);
++  await assert.rejects(chain.read(ADDR, ABI, 'revertMe'), (e) => e.agreedRevert === true && /nope/.test(e.message), 'a proof-backed revert is a fact, not an outage');
++  assert.deepEqual(await chain.readMany([{ address: ADDR, abi: ABI, functionName: 'balanceOf', args: [ADDR] }, { address: ADDR, abi: ABI, functionName: 'revertMe', optional: true }]).then((s) => s.value), [42n, null]);
++  assert.equal(await chain.balance(ADDR), 16n);
++  const s = await chain.snapshot(async (c, b) => ({ b, code: typeof c.getCode }));
++  assert.equal(s.blockNumber, 98n); assert.equal(s.blockHash, hashOf(98)); assert.equal(s.value.code, 'function');
++  assert.ok(v.st.callBlocks.every((h) => h === hashOf(98)), 'every call is pinned to the verified block by hash');
++  assert.equal(await I.quorumPublicClient(chain).readContract({ address: ADDR, abi: ABI, functionName: 'balanceOf', args: [ADDR] }), 42n, 'the SDK-facing view reads the verifier too');
++});
++
++test('transaction/history work refuses by name without an explicit transport, and uses ONLY that transport when configured', async () => {
++  const v = await stand(verifierHandler), tx = await stand(txHandler);
++  const bare = I.independentChain(VERIFIER_ONLY(v.url));
++  await assert.rejects(bare.each((c) => c.getTransactionCount({ address: ADDR, blockTag: 'pending' }), 'pending nonce'), /needs the explicit transaction\/history transport/);
++  await assert.rejects(bare.receiptSnapshot(async () => 0), /needs the explicit transaction\/history transport/);
++  await assert.rejects(bare.snapshot((c) => c.getLogs({ address: ADDR, event: ABI[2], fromBlock: 0n, toBlock: 100n })), /getLogs: under --chain-verifier/);
++  await assert.rejects(bare.snapshot((c) => c.getTransactionReceipt({ hash: hashOf(1) })), /not available under the verifier authority/);
++  // sendQuorumTx: the precondition simulation is the verifier's; without a transport nothing is signed or sent
++  const key = privateKeyToAccount('0x' + '11'.repeat(32));
++  await assert.rejects(I.sendQuorumTx(bare, { account: key, to: ADDR, data: REV }), /would revert at agreed block 98 \(nope\)/);
++  await assert.rejects(I.sendQuorumTx(bare, { account: key, to: ADDR, data: '0x' }), /pending nonce: under --chain-verifier/);
++  const withTx = I.independentChain({ ...VERIFIER_ONLY(v.url), rpcs: [tx.url] });
++  assert.deepEqual(await withTx.each((c) => c.getTransactionCount({ address: ADDR, blockTag: 'pending' }), 'pending nonce'), [5]);
++  await withTx.snapshot((c) => c.getLogs({ address: ADDR, event: ABI[2], fromBlock: 0n, toBlock: 10_000n }));
++  assert.deepEqual(tx.st.logRange, ['0x0', toHex(98)], 'log hints are clamped to the verified block');
++  assert.ok(!v.st.calls.includes('eth_getTransactionCount') && !v.st.calls.includes('eth_getLogs'), 'the verifier never serves transaction/history');
++  assert.ok(!tx.st.calls.includes('eth_call'), 'the transport never answers a state read');
++  assert.throws(() => I.leaseReaderClients(withTx), /custody reads .* not available under --chain-verifier/);
++  assert.deepEqual(I.independentReaderAuthority({ chainVerifier: v.url }, withTx), { authority: 'verifier', verifier: v.url });
++});
++
++test('a stale or reorganized verifier refuses; nothing falls back to the transport', async () => {
++  const v = await stand((st, m) => (m.method === 'eth_getBlockByNumber' ? { ...verifierHandler(st, m), timestamp: toHex(Math.floor(Date.now() / 1000) - 3600) } : verifierHandler(st, m)));
++  const tx = await stand(txHandler);
++  const chain = I.independentChain({ ...VERIFIER_ONLY(v.url), rpcs: [tx.url] });
++  await assert.rejects(chain.read(ADDR, ABI, 'balanceOf', [ADDR]), (e) => e.code === 'chain_stale');
++  assert.equal(tx.st.calls.length, 0);
++});
++
++test('MCP Scope: one verified block per call; its later reads resume that exact block even after another call moved the floor', async () => {
++  const v = await stand(verifierHandler);
++  const chain = I.independentChain(VERIFIER_ONLY(v.url));
++  const authority = { chain, name: 'p', trust: {}, cfg: {} };
++  const a = new Scope(authority);
++  const blockA = await a.at();
++  assert.equal(blockA.number, 98n); assert.equal(blockA.authority, 'local-verifier');
++  v.st.head = 110n;
++  const b = new Scope(authority);
++  assert.equal((await b.at()).number, 108n, 'a newer call reads a newer block');
++  assert.equal(await a.read(ADDR, ABI, 'balanceOf', [ADDR]), 42n, 'the older call still reads ITS block');
++  assert.equal(v.st.callBlocks.at(-1), hashOf(98));
++  assert.equal(a.summary().authority, 'local-verifier');
++  v.st.salt = 7;                                                      // block 98 replaced: the call refuses rather than mixing blocks
++  await assert.rejects(a.agree((c, n) => c.readContract({ address: ADDR, abi: ABI, functionName: 'balanceOf', args: [ADDR], blockNumber: n })), (e) => e.code === 'chain_reorg');
++});
++
++test('trust and factory: the RPC list is optional under the verifier and only the transport; legacy is unchanged', () => {
++  const PINS = Object.freeze({ registry: '0x' + '11'.repeat(20), deployments: '0x' + '22'.repeat(20), appCatalog: '0x' + '33'.repeat(20), proofOfTime: '0x' + '44'.repeat(20),
++    enclavePay: '0x' + '00'.repeat(20), verificationFees: '0x' + '00'.repeat(20), sessionVaultFactory: '0x' + '00'.repeat(20), secretVaultV2: '0x' + '00'.repeat(20) });
++  const base = { contractPins: PINS, usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' };
++  const t = I.loadIndependentTrust({ ...base, chainVerifier: 'http://127.0.0.1:8545/' });
++  assert.deepEqual(t.rpcs, []);
++  assert.ok(I.independentChain({ rpcs: t.rpcs, chainVerifier: t.chainVerifier }) instanceof I.VerifiedChain);
++  const legacy = I.loadIndependentTrust({ ...base, rpcs: ['https://a.example.org', 'https://b.example.org'] });
++  assert.ok(I.independentChain({ rpcs: legacy.rpcs, quorum: legacy.quorum }) instanceof I.QuorumChain);
++  assert.throws(() => I.loadIndependentTrust(base), /2 to 8 explicit RPC origins/);
++  assert.throws(() => I.loadIndependentTrust({ ...base, chainVerifier: 'https://rpc.example.org/' }), /local endpoint/);
++});
+-- 
+2.56.0
+

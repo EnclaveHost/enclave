@@ -1,0 +1,75 @@
+[queue] START available=23449MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+== pins
+a1de2806dc321b411b71dcffb7b10b324bf73146fcbc40e57722e7caa54bbb74  l1pair/l1pair.py
+46deaf02b28a96d2806a71de21b7559cdaa657f3dd718bfd5623ab4b91810d6a  l1pair/PINS.json
+a5440bc77ab55aa68f541b768acca438df75025eeea6c0d42a99c31a6eaabb53  l1pair/vendor/VENDOR.json
+51b8a2d111dd6aa9fc3d9e1f36031bfe3e3e7990857cdbf804efc25077e8c1fb  l1pair/test/mutate.py
+a3c26785d946be37ca3044fe2eecef21ed4201025dcb254679c177fdfdf87fb7  l1pair/test/realrig.py
+2f7f6a2412fcdc5b5d31cfa088b96b6de49ed7883c65601f015678d5bae908ab  l1pair/test/run_side.py
+6b988f289eb29f9d621f62df4e0dac31ddbb83fb1a1f23f2b0d9f9ad1ebf602e  l1pair/test/test_base_l1_offline.py
+a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
+vendor: OK (S 6b9dae92 byte-identical)
+9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f  ../fresh-witness-supply/staging/base-v1.5.1-20261023T053947Z/base
+test_official_base_starts_against_the_real_self_hosted_execution_side (__main__.BaseOnRealL1Execution.test_official_base_starts_against_the_real_self_hosted_execution_side) ... {
+ "baseBinary": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+ "aliveAfterSec": null,
+ "exitedAfterSec": 1.5,
+ "exitCode": 1,
+ "chainId": null,
+ "chainIdAfterSec": null,
+ "beaconPathsRequested": [],
+ "retryExhausted": false,
+ "signerLines": [],
+ "l1Lines": [],
+ "reference": "S logs/bp-off1.out: same binary, L1 unreachable -> exit 1 after 5.8 s",
+ "rethExit": 0,
+ "rethStopSec": 0.11,
+ "rethDatadir": {
+  "apparent": 4295664392,
+  "allocated": 1495040,
+  "files": 35
+ }
+}
+FAIL
+
+======================================================================
+FAIL: test_official_base_starts_against_the_real_self_hosted_execution_side (__main__.BaseOnRealL1Execution.test_official_base_starts_against_the_real_self_hosted_execution_side)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_base_l1_offline.py", line 101, in test_official_base_starts_against_the_real_self_hosted_execution_side
+    self.assertTrue(alive, f'base exited early (rc={rc}); log tail: {log[-2500:]}')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : base exited early (rc=1); log tail: ian                           @1764691201
+- Azul                             @1779991200
+- Beryl                            @1782410400
+- Cobalt                           @1790791200
+- Denim                            @1793901600
+2026-10-23T07:33:57.151110Z  INFO reth::cli: Loaded storage settings settings=StorageSettings { storage_v2: true } pruning_mode="archive"
+2026-10-23T07:33:57.152004Z  INFO reth::cli: Transaction pool initialized max_inflight_delegated_slots=4 sender_limit=4 payer_limit=4
+2026-10-23T07:33:58.178434Z  INFO reth::cli: P2P networking initialized enode=enode://b7c345f9cc47f2c2d9b8999dd3336fb94854fb0ed658219fe9f65eadabaeb68b192388e739d187891fb85bb61d5c733ae4dd075398266c31a7d5c99a2129cfb7@127.0.0.1:54107?discport=58847
+2026-10-23T07:33:58.178568Z  INFO reth::cli: StaticFileProducer initialized
+2026-10-23T07:33:58.178724Z  INFO reth::cli: Pruner initialized prune_config=PruneConfig { block_interval: 5, segments: PruneModes { sender_recovery: None, transaction_lookup: None, receipts: None, account_history: None, storage_history: None, bodies_history: None, receipts_log_filter: ReceiptsLogPruneConfig({}) }, minimum_pruning_distance: 10064 }
+2026-10-23T07:33:58.178825Z  INFO reth::cli: Creating JWT auth secret file path="/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/scratch/l1el-yeqjqfzv/holder/mnt/data/jwt.hex"
+2026-10-23T07:33:58.179196Z  INFO reth::cli: Consensus engine initialized
+2026-10-23T07:33:58.179252Z  INFO reth::cli: Engine API handler initialized
+2026-10-23T07:33:58.180592Z  INFO base_execution_eip8130_rpc_node::extension: Starting standalone EIP-8130 RPC override
+2026-10-23T07:33:58.180752Z  INFO reth::cli: RPC HTTP server started url=127.0.0.1:41053
+2026-10-23T07:33:58.180843Z ERROR reth::cli: shutting down due to error err=failed to listen on ipc endpoint `/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/scratch/l1el-yeqjqfzv/holder/mnt/data/engine.ipc`: local socket name length exceeds capacity of sun_path of sockaddr_un
+Error: failed to listen on ipc endpoint `/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/scratch/l1el-yeqjqfzv/holder/mnt/data/engine.ipc`: local socket name length exceeds capacity of sun_path of sockaddr_un
+
+Caused by:
+    local socket name length exceeds capacity of sun_path of sockaddr_un
+
+Location:
+    /rustc/ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96/library/core/src/ops/function.rs:250:5
+{"event": "exited", "code": 1, "stopping": false}
+
+
+----------------------------------------------------------------------
+Ran 1 test in 2.708s
+
+FAILED (failures=1)
+[memory-guard] exit=1 peakTreeRssMiB=479 minHostAvailableMiB=23157
+[memory-guard] at peak: reth-v2.8.0:203 base:193 python3:31 python3:26 python3:25
+[queue] EXIT 1

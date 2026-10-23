@@ -1,0 +1,432 @@
+# rpc-l1-source-package terminal evidence (digest of logs/; full logs committed). Exit-98 waits not listed; reth-1 never started (background limit).
+
+## inv-1  rc=0  sha256 19d544af7f0b21f823254f58c779fc6550fd1ec3de3af4426b7e496b7c7fc558  bytes 6127  -- read-only client artifact inventory
+    [queue] START available=24322MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    139248776	8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-runtime-composition/bin/reth-v2.8.0
+    139248776	8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-runtime-composition/bin/reth-v2.8.0
+    [memory-guard] exit=0 peakTreeRssMiB=54 minHostAvailableMiB=23596
+    [queue] EXIT 0
+
+## fetch-1  rc=0  sha256 d7e2684d944f694f051cdb7718c9125908a8378745b7972e6492f64792449cd6  bytes 1724  -- release metadata (raw JSON later trimmed to RELEASES-EXTRACT.json)
+    [queue] START available=24404MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=24347
+    [queue] EXIT 0
+
+## fetch-2  rc=0  sha256 b5abbd3060828589fe7874632382462db44cda87a0823d73492af806c06102c1  bytes 719  -- tag commits + trees
+    [queue] START available=24464MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=24319
+    [queue] EXIT 0
+
+## fetch-3  rc=0  sha256 8e86364d848cf966150bd0712cb98974266dde65d3fb13796c4192a2a55bd92f  bytes 599  -- pinned sources
+    [queue] START available=24252MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=24260
+    [queue] EXIT 0
+
+## fetch-4  rc=0  sha256 2c45dda3c88a4a802316201ea2bcf478359d4768f36ce82a4afb9ac4ff75f2be  bytes 775  -- reth NAT/network/storage sources
+    [queue] START available=24401MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=24341
+    [queue] EXIT 0
+
+## fetch-5  rc=0  sha256 7ddf3a318684a7a8320c4db457ec3518ddaff0ad9585cda1088517b65ea80217  bytes 563  -- lighthouse embedded mainnet genesis
+    [queue] START available=24859MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=24790
+    [queue] EXIT 0
+
+## rhelp-1  rc=0  sha256 91ab8c59ac698dc509af9b81b1c1a3dc7eacb97917406729a95af3adf6822881  bytes 514  -- reth v2.8.0 own --version/node --help, offline
+    [queue] START available=24793MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    Reth Version: 2.8.0
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] EXIT 0
+
+## unit-1  rc=1  sha256 796c96e28a5667a184191504314677b51e3175a0623d4323bbabb1307e79cc14  bytes 77457  -- DEV: credential-named field refused by S only() -> renamed engineAuthPath
+    [queue] START available=24495MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    e74191fd6d4e05008bd9a8784e8ef9b424178d34de6e6284145c2842f4ff7670  l1pair/l1pair.py
+    21bba6263dbb264eab6629bb794488565f6ca368a223a8ae442cc4cede4a301c  l1pair/test/test_l1pair.py
+    vendor: OK (S 08f2efe byte-identical)
+    Ran 19 tests in 0.034s
+    FAILED (failures=51, errors=16)
+    [memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] EXIT 1
+
+## unit-2  rc=1  sha256 4b1e80ad109546317edec2b6de9c3cd57b0befd522cd7daf2ca8c2396ec5fd3b  bytes 6696  -- DEV: loopback down in netns; check count; cache arithmetic
+    [queue] START available=24185MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    77acff290c005ea219e0d9b4274ea076fdcfa2b60b3c8c51d06bf2a08c3ab129  l1pair/l1pair.py
+    07bd79fa7cfed931e39e77331419ce1bd2bc6fffeffc26be8f1169dec39ed6ec  l1pair/test/test_l1pair.py
+    vendor: OK (S 08f2efe byte-identical)
+    Ran 19 tests in 0.562s
+    FAILED (failures=2, errors=1)
+    [memory-guard] exit=1 peakTreeRssMiB=35 minHostAvailableMiB=24106
+    [queue] EXIT 1
+
+## unit-3  rc=0  sha256 85fbc047a49c351ea6a751f693bed20dbd29fe156daffcacc0ee21fb3b4b8f49  bytes 2516  -- unit 19/19 (S 08f2efe pin)
+    [queue] START available=24421MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    77acff290c005ea219e0d9b4274ea076fdcfa2b60b3c8c51d06bf2a08c3ab129  l1pair/l1pair.py
+    3b02e9e3352ddde96e8303683082f71df579064bbb7c99465256a4d9a8d5f421  l1pair/test/test_l1pair.py
+    vendor: OK (S 08f2efe byte-identical)
+    Ran 19 tests in 7.250s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=24249
+    [queue] EXIT 0
+
+## mut-1  rc=0  sha256 9f338a0c82ec9c67a45d8c3d163c794b76ef08135c4ca6f1df25a3f5917a9e0d  bytes 2922  -- mutants 19/19 (S 08f2efe pin)
+    [queue] START available=23868MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    f9f3dc42edcdc240328c26db14cca8f9eae5945e82d9d0c592336bb2ce0f3b9d  l1pair/l1pair.py
+    3b02e9e3352ddde96e8303683082f71df579064bbb7c99465256a4d9a8d5f421  l1pair/test/test_l1pair.py
+    vendor: OK (S 08f2efe byte-identical)
+    19/19 killed
+    [memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=23723
+    [queue] EXIT 0
+
+## unit-4  rc=0  sha256 94bf2c8d81ad0197f28058a456febeadd7ec884540901d8d09f3ac574a3c4b6a  bytes 2985  -- unit 19/19 (S 6b9dae92 pin)
+    [queue] START available=23915MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    a008183607760acb73d97cca36f59ac5fed99939ee0e4d0b499704e54ad20a1a  l1pair/l1pair.py
+    a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+    vendor: OK (S 6b9dae92 byte-identical)
+    Ran 19 tests in 7.258s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=35 minHostAvailableMiB=23749
+    [queue] EXIT 0
+
+## mut-2  rc=0  sha256 d4822799051b7603818c049c05dc5667631606fb81848bfd7008d1c50cfa4400  bytes 2923  -- mutants 19/19 (S 6b9dae92 pin)
+    [queue] START available=23923MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    a008183607760acb73d97cca36f59ac5fed99939ee0e4d0b499704e54ad20a1a  l1pair/l1pair.py
+    a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+    vendor: OK (S 6b9dae92 byte-identical)
+    19/19 killed
+    [memory-guard] exit=0 peakTreeRssMiB=52 minHostAvailableMiB=23532
+    [queue] EXIT 0
+
+## reth-2  rc=1  sha256 f253a0418cda13b4f0037fe5ee2180403ed71a92a93fcb4e20c4593d966b874a  bytes 2861  -- FAIL: run-el required the absent lighthouse binary (launcher bug, fixed 5ccee19)
+    [queue] START available=23914MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
+    a008183607760acb73d97cca36f59ac5fed99939ee0e4d0b499704e54ad20a1a  l1pair/l1pair.py
+    a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+    vendor: OK (S 6b9dae92 byte-identical)
+    8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250  bin/reth-v2.8.0
+     "readyAfterSec": null,
+     "exitCode": 1,
+     "stopSec": 0.0,
+    Ran 1 test in 0.256s
+    FAILED (failures=1)
+    [memory-guard] exit=1 peakTreeRssMiB=58 minHostAvailableMiB=23840
+    [queue] EXIT 1
+
+## reth-3  rc=0  sha256 e711739aa0bc1695e662d22f9161d944ade9364db3fba83918342d9815c3253c  bytes 10285  -- real reth PASS (S 6b9dae92 pin)
+    [queue] START available=24224MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    a1de2806dc321b411b71dcffb7b10b324bf73146fcbc40e57722e7caa54bbb74  l1pair/l1pair.py
+    a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+    vendor: OK (S 6b9dae92 byte-identical)
+    8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250  bin/reth-v2.8.0
+     "readyAfterSec": 0.5,
+     "exitCode": 0,
+     "stopSec": 1.67,
+    Ran 1 test in 2.184s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=293 minHostAvailableMiB=24023
+    [queue] EXIT 0
+
+## unit-5  rc=0  sha256 44a8c4746b9093767988d5cad4681fc15c048c6e67375428ea3820e086e12623  bytes 2985  -- unit 19/19 (S 6b9dae92 pin, a1de2806)
+    [queue] START available=23897MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    a1de2806dc321b411b71dcffb7b10b324bf73146fcbc40e57722e7caa54bbb74  l1pair/l1pair.py
+    a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+    vendor: OK (S 6b9dae92 byte-identical)
+    Ran 19 tests in 7.232s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=23801
+    [queue] EXIT 0
+
+## mut-3  rc=0  sha256 80980f18e8df9abc54d3e835bb55a60c192bc9063434f766be698b65805f76e0  bytes 2923  -- mutants 19/19 (a1de2806)
+    [queue] START available=23883MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    a1de2806dc321b411b71dcffb7b10b324bf73146fcbc40e57722e7caa54bbb74  l1pair/l1pair.py
+    a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+    vendor: OK (S 6b9dae92 byte-identical)
+    19/19 killed
+    [memory-guard] exit=0 peakTreeRssMiB=55 minHostAvailableMiB=23090
+    [queue] EXIT 0
+
+## base-1  rc=1  sha256 179f3e61c8144726469a97f6e9d52763bde48b362d807352f7ca176052345df3  bytes 5350  -- FAIL: TEST HARNESS socket path > sun_path (engine.ipc under long scratch dir)
+    [queue] START available=23449MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    a1de2806dc321b411b71dcffb7b10b324bf73146fcbc40e57722e7caa54bbb74  l1pair/l1pair.py
+    a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+    vendor: OK (S 6b9dae92 byte-identical)
+    9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f  ../fresh-witness-supply/staging/base-v1.5.1-20261023T053947Z/base
+     "aliveAfterSec": null,
+     "exitedAfterSec": 1.5,
+     "exitCode": 1,
+     "chainId": null,
+    Ran 1 test in 2.708s
+    FAILED (failures=1)
+    [memory-guard] exit=1 peakTreeRssMiB=479 minHostAvailableMiB=23157
+    [queue] EXIT 1
+
+## base-2  rc=0  sha256 48f8a2db920a071eab8e5f4fcdf6c75c4a35fe7a21d02a207d80a346f447f287  bytes 3627  -- real base on real reth PASS (S 6b9dae92 pin)
+    [queue] START available=23865MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    a1de2806dc321b411b71dcffb7b10b324bf73146fcbc40e57722e7caa54bbb74  l1pair/l1pair.py
+    a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+    vendor: OK (S 6b9dae92 byte-identical)
+    9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f  ../fresh-witness-supply/staging/base-v1.5.1-20261023T053947Z/base
+     "aliveAfterSec": 120.0,
+     "exitedAfterSec": null,
+     "exitCode": 0,
+     "chainId": "0x2105",
+    Ran 1 test in 121.160s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=569 minHostAvailableMiB=23367
+    [queue] EXIT 0
+
+## scan-1  rc=1  sha256 4234010e912c27f0063c83407e8407d24ced332322804a47ddcfb070455348d6  bytes 1689  -- gitleaks 13 generic-api-key in raw lighthouse release JSON (public PGP fingerprint etc.)
+    [queue] START available=23698MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+    12:44AM WRN leaks found: 13
+    12:44AM WRN leaks found: 13
+    [scan] scan-crypto-keys=0 gitleaks-git=1 gitleaks-evidence=1
+    [memory-guard] exit=1 peakTreeRssMiB=81 minHostAvailableMiB=23626
+    [memory-guard] at peak: gitleaks:71 bash:6 timeout:4
+    [queue] EXIT 1
+
+## scan-2  rc=1  sha256 ddf5b1fab5d8359f4778e9789b262cdf10ca2e7e39c186c8e1cfca464ebed18d  bytes 1699  -- same, with JSON report
+    [queue] START available=23593MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    12:44AM WRN leaks found: 13
+    12:44AM WRN leaks found: 13
+    [scan] scan-crypto-keys=0 gitleaks-git=1 gitleaks-evidence=1
+    [memory-guard] exit=1 peakTreeRssMiB=84 minHostAvailableMiB=23523
+    [memory-guard] at peak: gitleaks:74 bash:6 timeout:4
+    [queue] EXIT 1
+
+## scan-3  rc=0  sha256 595c318462f07a62f3f3761ee008fa6850f0dd3041c32eb8a076a1d7ff2971a1  bytes 1697  -- clean after trimming raw release JSON
+    [queue] START available=23538MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    12:45AM INF no leaks found
+    12:45AM INF no leaks found
+    [scan] scan-crypto-keys=0 gitleaks-git=0 gitleaks-evidence=0
+    [memory-guard] exit=0 peakTreeRssMiB=69 minHostAvailableMiB=23483
+    [memory-guard] at peak: gitleaks:59 bash:6 timeout:4
+    [queue] EXIT 0
+
+## unit-6  rc=0  sha256 863fabbd12f70a2babb33d6536d41f2e918851eb7f51cddfa9eb1db7945a66f6  bytes 2984  -- FINAL unit 19/19 (S 959e56f pin, l1pair 3635472d)
+    [queue] START available=24060MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
+    e129dce22fd352ef748bb7089ae72f0536a03455ee7d5450da42cad6b87351d3  l1pair/test/test_l1pair.py
+    vendor: OK (S 959e56f byte-identical)
+    Ran 19 tests in 7.239s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=35 minHostAvailableMiB=24004
+    [queue] EXIT 0
+
+## mut-4  rc=0  sha256 f16fa850312855ad8d30fba3650e75a2df800e035714fc7db221afec2c52bc15  bytes 3051  -- FINAL mutants 20/20 killed (3635472d)
+    [queue] START available=22805MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
+    e129dce22fd352ef748bb7089ae72f0536a03455ee7d5450da42cad6b87351d3  l1pair/test/test_l1pair.py
+    vendor: OK (S 959e56f byte-identical)
+    20/20 killed
+    [memory-guard] exit=0 peakTreeRssMiB=55 minHostAvailableMiB=20347
+    [queue] EXIT 0
+
+## reth-4  rc=0  sha256 57314aebfb1ee4323a36e52e639941083a7dc81e2defffda555f5f26c2b7c612  bytes 10276  -- FINAL real reth v2.8.0 under run-el PASS (S 959e56f)
+    [queue] START available=23668MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
+    e129dce22fd352ef748bb7089ae72f0536a03455ee7d5450da42cad6b87351d3  l1pair/test/test_l1pair.py
+    vendor: OK (S 959e56f byte-identical)
+    8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250  bin/reth-v2.8.0
+     "readyAfterSec": 0.5,
+     "exitCode": 0,
+     "stopSec": 1.67,
+    Ran 1 test in 2.183s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=290 minHostAvailableMiB=23456
+    [queue] EXIT 0
+
+## base-3  rc=0  sha256 2b8693c21ecff2b4e881c9dec7209f4f03b98ed53d2aa9338292716a259a9515  bytes 3472  -- FINAL official base v1.5.1 on real reth PASS (S 959e56f)
+    [queue] START available=23639MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
+    e129dce22fd352ef748bb7089ae72f0536a03455ee7d5450da42cad6b87351d3  l1pair/test/test_l1pair.py
+    vendor: OK (S 959e56f byte-identical)
+    9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f  ../fresh-witness-supply/staging/base-v1.5.1-20261023T053947Z/base
+     "aliveAfterSec": 120.0,
+     "exitedAfterSec": null,
+     "exitCode": 0,
+     "chainId": "0x2105",
+    Ran 1 test in 121.136s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=565 minHostAvailableMiB=21422
+    [queue] EXIT 0
+
+# ---- binary closure runs (2026-10-23, additive) ----
+
+## fetch-lh-1  rc=0  sha256 aec647db61f2af0a7b67c49b898b10df0d056d73c72da112b8a1723b469d7734  bytes 1015  -- root-authorized Lighthouse download (tarball/asc/key/book page)
+    [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=23683
+    [queue] EXIT 0
+
+## verify-lh-1  rc=3  sha256 68dad4f10bda87e963ff9d27aecb47bc3530c908de68fbfbab1a4883339d833b  bytes 429  -- REFUSED by design: book page states no fingerprint
+    VERIFY FAIL: fingerprint not stated in the pinned book page
+    [memory-guard] exit=3 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] EXIT 3
+
+## fetch-lh-2  rc=0  sha256 8121c7fbe925c64ee378c3790185eb4c42eae416062f24a3529329464ff8a5bc  bytes 3909  -- official fingerprint statements: release.yml, SECURITY.md, release body
+    [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=23552
+    [queue] EXIT 0
+
+## verify-lh-2  rc=3  sha256 99c0a668469a5b361a4052a9f445d3fbd244f9915e6a00d4046c27543063b4ee  bytes 1197  -- FAIL: my check counted the subkey fingerprint
+    VERIFY FAIL: keyring contains a key other than the pinned primary (or none); subkeys listed above
+    [memory-guard] exit=3 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] EXIT 3
+
+## verify-lh-3  rc=0  sha256 c443f63a7d451d76d1a71f18ca025e9290a339cc5665188be8457be20d0b52a9  bytes 2147  -- FINAL: digests, fingerprint authority, VALIDSIG primary, single-member archive, binary 11b7bca8
+    SIGNATURE OK: VALIDSIG by primary 15E66D941F697E28F49381F426416DC3F30674B0
+    MEMBERS OK: exactly one regular file named lighthouse
+    11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96  bin-staging/lighthouse-v8.3.2/lighthouse
+    [memory-guard] exit=0 peakTreeRssMiB=128 minHostAvailableMiB=23712
+    [queue] EXIT 0
+
+## lhelp-1  rc=0  sha256 bb53818aa036fa2d2aac7f8c4fcb139d294f32b3a2d40bf3524cabbd61f0e7fe  bytes 1384  -- FINAL Lighthouse --version/help offline; every rendered flag present
+    11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96  bin-staging/lighthouse-v8.3.2/lighthouse
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] EXIT 0
+
+## unit-7  rc=0  sha256 19862bcf83ac2d71c7870c4ebb62ffbe1d668d44891a2a501c2b2b94779551d6  bytes 3089  -- unit 19/19 (Lighthouse pin)
+    3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
+    9677732340c0007e4b9bce86d547b53e67428e81d36ca8e52215cbd63a46ed5d  l1pair/test/test_l1pair.py
+    Ran 19 tests in 7.244s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=23129
+    [queue] EXIT 0
+
+## lh-1  rc=1  sha256 5e0bbcc5b7d57eb939e7e360687913ae3852343f2d3641ef40636cbe2a495c70  bytes 5232  -- FAIL harness: genesis head outside WS period (needs --ignore-ws-check); refusal part PASS
+    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+    1ff3c408e7e4f4137b975e3d12e2bb70c6796315bfb96c08eea687467eb5291b  l1pair/test/test_l1pair.py
+    11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96  bin-staging/lighthouse-v8.3.2/lighthouse
+      "exitCode": 1,
+      "exitCode": 0,
+    Ran 1 test in 5.845s
+    FAILED (failures=1)
+    [memory-guard] exit=1 peakTreeRssMiB=521 minHostAvailableMiB=23298
+    [queue] EXIT 1
+
+## lh-2  rc=1  sha256 555509cd8bb56226ec816eb18ff410436882f3be3456d07c6c349c4513435cff  bytes 5230  -- accidental repeat of lh-1 (edit not applied)
+    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+    1ff3c408e7e4f4137b975e3d12e2bb70c6796315bfb96c08eea687467eb5291b  l1pair/test/test_l1pair.py
+    11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96  bin-staging/lighthouse-v8.3.2/lighthouse
+      "exitCode": 1,
+      "exitCode": 0,
+    Ran 1 test in 5.842s
+    FAILED (failures=1)
+    [memory-guard] exit=1 peakTreeRssMiB=556 minHostAvailableMiB=23342
+    [queue] EXIT 1
+
+## lh-3  rc=0  sha256 fc72193c89343d80da0d2f5bfa3de0787f5e694bc7d6a0f47894129f6bcdab62  bytes 5755  -- FINAL real Lighthouse refusal / wrong-JWT / pairing PASS
+    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
+    11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96  bin-staging/lighthouse-v8.3.2/lighthouse
+      "exitCode": 1,
+      "readyAfterSec": 2.8,
+      "elOfflineBecameFalse": false,
+      "exitCode": 0,
+      "readyAfterSec": 2.8,
+      "elOnline": true,
+      "exitCode": 0,
+      "exitCode": 0,
+    Ran 1 test in 69.047s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=614 minHostAvailableMiB=22748
+    [queue] EXIT 0
+
+## unit-8  rc=0  sha256 80a82be29f5a10a1ecc453aa8f8b0a1dc286a27462a2166e6e23c3b9dfd57e1c  bytes 3191  -- unit 20/20 (txBroadcast)
+    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+    1ff3c408e7e4f4137b975e3d12e2bb70c6796315bfb96c08eea687467eb5291b  l1pair/test/test_l1pair.py
+    Ran 20 tests in 7.242s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=35 minHostAvailableMiB=22180
+    [queue] EXIT 0
+
+## mut-5  rc=0  sha256 1d6146bdd22b6731bec0994148f586e2b8ea9b742d32d5cee5e5e70df32412b1  bytes 3487  -- mutants 22/22
+    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+    1ff3c408e7e4f4137b975e3d12e2bb70c6796315bfb96c08eea687467eb5291b  l1pair/test/test_l1pair.py
+    22/22 killed
+    [memory-guard] exit=0 peakTreeRssMiB=54 minHostAvailableMiB=22411
+    [queue] EXIT 0
+
+## txb-1  rc=1  sha256 a292adaf8ed962a31c5a61653e4768bae2e5eec2b7c048e403ab257502e6a20c  bytes 4762  -- FAIL harness: ANSI in reth log broke enode parse
+    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
+    Ran 1 test in 30.787s
+    FAILED (failures=1)
+    [memory-guard] exit=1 peakTreeRssMiB=330 minHostAvailableMiB=23391
+    [queue] EXIT 1
+
+## txb-2  rc=1  sha256 edaa4b6134af85259fd99a2ecb2dc90d5a9dc3963ea817cde93a95ddb3d1a08c  bytes 4029  -- no propagation in either mode: receiver initially syncing (real reth behaviour)
+    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
+      "admittedOnA": true,
+      "seenOnB": false,
+       "exitCode": 0,
+       "exitCode": 0,
+      "admittedOnA": true,
+      "seenOnB": false,
+       "exitCode": 0,
+       "exitCode": 0,
+    Ran 1 test in 62.963s
+    FAILED (failures=1)
+    [memory-guard] exit=1 peakTreeRssMiB=638 minHostAvailableMiB=22978
+    [queue] EXIT 1
+
+## fetch-6  rc=0  sha256 a3683bd82519f7e617f9a3b8a5a8dbf44771c8f01912d2b3b0760a80234134f7  bytes 805  -- reth tx gossip sources
+    [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=23107
+    [queue] EXIT 0
+
+## fetch-7  rc=0  sha256 1f9bbc517bc08eeadee451539fadb2c37dacc691b3adfaa8608c33346acff07a  bytes 802  -- reth engine launch source
+    [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=22990
+    [queue] EXIT 0
+
+## txb-3  rc=0  sha256 608abf486ecf377c9019980ef90859f22ac8495b7e215e08aa6a6386592a1131  bytes 3761  -- two-peer broadcast PASS (after one engine-API test block)
+    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
+      "admittedOnA": true,
+      "seenOnB": false,
+       "exitCode": 0,
+       "exitCode": 0,
+      "admittedOnA": true,
+      "seenOnB": true,
+       "exitCode": 0,
+       "exitCode": 0,
+    Ran 1 test in 35.937s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=688 minHostAvailableMiB=22594
+    [queue] EXIT 0
+
+## unit-9  rc=0  sha256 74cb3b5b564a3fc437bf21620b67095adde0c78f4b0df714dcc9ff21d6aefb04  bytes 3298  -- FINAL unit 20/20 on a25bd4ea
+    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
+    Ran 20 tests in 7.240s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=23600
+    [queue] EXIT 0
+
+## mut-6  rc=0  sha256 280c21d26c0c221a039a5135495279e547069df3fac23a3c714720b45abb94b8  bytes 3487  -- FINAL mutants 22/22 on a25bd4ea
+    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
+    22/22 killed
+    [memory-guard] exit=0 peakTreeRssMiB=52 minHostAvailableMiB=23325
+    [queue] EXIT 0
+
+## reth-5  rc=0  sha256 7b5a782c7204234e695905a10154a3fac882f67a9265195f12279b6df34baa4e  bytes 10490  -- FINAL real reth mainnet PASS on a25bd4ea
+    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
+     "readyAfterSec": 0.8,
+     "exitCode": 0,
+    Ran 1 test in 2.585s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=385 minHostAvailableMiB=24974
+    [queue] EXIT 0
+
+## txb-4  rc=0  sha256 344b3c208fc9be8b5f25de393348b2b28ec3a21a31a56e88a191a7c87e7a58e3  bytes 4645  -- FINAL two-peer broadcast + node-side gate probes PASS
+    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
+      "admittedOnA": true,
+      "seenOnB": false,
+       "exitCode": 0,
+       "exitCode": 0,
+      "admittedOnA": true,
+      "seenOnB": true,
+       "exitCode": 0,
+       "exitCode": 0,
+    Ran 1 test in 35.546s
+    OK
+    [memory-guard] exit=0 peakTreeRssMiB=817 minHostAvailableMiB=24875
+    [queue] EXIT 0

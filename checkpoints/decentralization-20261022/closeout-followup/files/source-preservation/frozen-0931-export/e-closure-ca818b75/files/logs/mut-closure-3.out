@@ -1,0 +1,7 @@
+[queue] START available=23702MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+mutant 16 killed (1 failing): if (!L1_VERIFIERS.includes(l1Evidence.verifiedBy)) refuse
+mutant 17 killed (1 failing): if (l2Evidence.finalized === true && l1Final) level
+survivors: 0 of 17
+[memory-guard] exit=0 peakTreeRssMiB=150 minHostAvailableMiB=23596
+[memory-guard] at peak: node:83 node:55 mutants-closure:6 timeout:4 mutants-closure:2
+[queue] EXIT 0

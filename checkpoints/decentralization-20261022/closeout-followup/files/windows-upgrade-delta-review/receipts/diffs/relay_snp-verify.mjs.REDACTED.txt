@@ -1,0 +1,4 @@
+relay/snp-verify.mjs: installed 10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91 vs F 4106c311 93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046 - one comment word on line 2.
+The installed file predates the 2026-10-21 repository rewrite T (filter-repo byte replacement of the former provider name by
+"Cloud Provider"): T(installed bytes) == F's 93f9e9d2 byte-for-byte (checked 2026-10-23T09:40Z). The raw unified diff, which
+contains the rewritten literal, is kept locally (rawlogs/local-only/) and is NOT published, so the literal is not reintroduced.

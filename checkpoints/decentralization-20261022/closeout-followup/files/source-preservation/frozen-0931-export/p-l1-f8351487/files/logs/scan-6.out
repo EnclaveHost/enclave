@@ -1,0 +1,21 @@
+[queue] START available=25536MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+7d5ccb1f3ea20be53ab10bc197bf16559d884865 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> scan: allowlist exactly the public Sigma Prime PGP fingerprint (trust evidence) for gitleaks
+e83301df5c8c013f5c0924fbedf069922aa02381 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> RESULT-BINARY-CLOSURE: verified lighthouse, real-binary pairing, opt-in broadcast with measured node-side gates (unprotected legacy accepted, no allowlist); E handoff; evidence
+47f4f42ac11bf0451c212d05069f91c0f7f20378 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: verified official lighthouse v8.3.2 pinned (11b7bca8; sig by 15E66D94 primary); execution.txBroadcast opt-in (default disabled adds --txpool.no-local-transactions-propagation); real lighthouse refusal/pairing/JWT tests; two-peer offline broadcast test; E handoff
+83805a1b89bfd1c2168b31effa004a29e3c7eae4 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> logs: final scan-4 (crypto 0, gitleaks no leaks over 7 commits and evidence)
+8ea82585c5ac105169fc769a80228e7fe0950454 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> RESULT/evidence: final runs on S 959e56f (unit-6, mut-4, reth-4, base-3); shared NVMe ledger; disclosures
+1260cdcb202a93b383fb78303a8068d6ac01b309 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: re-vendor S 959e56f (root-reviewed shared NVMe budget ledger v2); cache names its own ledger reservation, none reserves nothing; storage script budget constants; tests/mutants/real-binary reruns
+c2f2b180250aa3b28c8b71486a9f4698bf67603e SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> RESULT: L1 source package, terminal tests, capacity envelope, decisions and gates for root
+e373dca68176a45bc642b9091ad3cefe5afa2968 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> tests: short datadir for the official base binary (engine.ipc sun_path); evidence, logs, test digest
+5ccee1960534b3b15cee0a27354723e504f2ff11 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: each run unit pins only its own binary (run-el no longer requires lighthouse); found by the real reth test
+c0282ca5062122f1e1b5d931fefa99052e23936e SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: re-vendor S's final immutable 6b9dae92 (fd0134d unwind stop-on-failure, Supervisor cwd); child cwd via Supervisor; example uses the holder's single shared NVMe inventory
+e318e38ba146fbbbe3e4757e381aafde889be1e8 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: strict launcher/config/preflight/readiness gate for a non-validating reth v2.8.0 + lighthouse v8.3.2 mainnet L1 source for the Base holder
+2:26AM INF 11 commits scanned.
+2:26AM INF scanned ~2793891 bytes (2.79 MB) in 211ms
+2:26AM INF no leaks found
+2:26AM INF scanned ~2205768 bytes (2.21 MB) in 116ms
+2:26AM INF no leaks found
+[scan] scan-crypto-keys=0 gitleaks-git=0 gitleaks-evidence=0
+[memory-guard] exit=0 peakTreeRssMiB=92 minHostAvailableMiB=25458
+[memory-guard] at peak: gitleaks:82 bash:6 timeout:4
+[queue] EXIT 0

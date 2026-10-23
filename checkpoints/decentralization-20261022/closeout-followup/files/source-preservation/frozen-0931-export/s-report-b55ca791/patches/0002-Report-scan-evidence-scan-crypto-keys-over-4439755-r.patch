@@ -1,0 +1,56 @@
+From b55ca7916d4c61f79bc308828270a9b4f386b61b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:32:08 -0700
+Subject: [PATCH 2/2] Report scan evidence (scan-crypto-keys over 4439755: rc
+ 0)
+
+---
+ jobs/scan-report.sh  | 7 +++++++
+ logs/scan2.guard.log | 1 +
+ logs/scan2.out       | 6 ++++++
+ logs/scan2.rc        | 1 +
+ 4 files changed, 15 insertions(+)
+ create mode 100755 jobs/scan-report.sh
+ create mode 100644 logs/scan2.guard.log
+ create mode 100644 logs/scan2.out
+ create mode 100644 logs/scan2.rc
+
+diff --git a/jobs/scan-report.sh b/jobs/scan-report.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..d721fa9d2c65678153db579d90ac798ecca4e7a3
+--- /dev/null
++++ b/jobs/scan-report.sh
+@@ -0,0 +1,7 @@
++#!/bin/bash
++# crypto-key scan of the report repository's commits (same scanner as the source repo's pre-commit)
++set -euo pipefail
++cd "$(dirname "$0")/.."
++git log --oneline
++python3 repo/.githooks/scan-crypto-keys.py --range HEAD
++echo "report scan rc=$?"
+diff --git a/logs/scan2.guard.log b/logs/scan2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/logs/scan2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/logs/scan2.out b/logs/scan2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..abb308bcaddab09f4de4e10bf321a1d9b8862802
+--- /dev/null
++++ b/logs/scan2.out
+@@ -0,0 +1,6 @@
++[queue] START available=25725MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++4439755 RESULT-BROWSER-RPC-CLOSURE: source 349318a (root WalletConnect 2bd1eea on e820e2405), tests, baselines, bundle closure, endpoint note
++report scan rc=0
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/scan2.rc b/logs/scan2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan2.rc
+@@ -0,0 +1 @@
++0

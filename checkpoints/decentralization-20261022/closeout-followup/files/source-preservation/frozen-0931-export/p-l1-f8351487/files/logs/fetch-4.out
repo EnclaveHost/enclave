@@ -1,0 +1,8 @@
+[queue] START available=24401MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+200 14893 https://raw.githubusercontent.com/paradigmxyz/reth/05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915/crates/net/nat/src/lib.rs
+200 67753 https://raw.githubusercontent.com/paradigmxyz/reth/05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915/crates/node/core/src/args/network.rs
+200 3122 https://raw.githubusercontent.com/paradigmxyz/reth/05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915/docs/vocs/docs/pages/run/storage.mdx
+404 14 https://raw.githubusercontent.com/paradigmxyz/reth/05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915/docs/vocs/docs/pages/run/storage/index.mdx
+[memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=24341
+[memory-guard] at peak: curl:16 bash:6
+[queue] EXIT 0

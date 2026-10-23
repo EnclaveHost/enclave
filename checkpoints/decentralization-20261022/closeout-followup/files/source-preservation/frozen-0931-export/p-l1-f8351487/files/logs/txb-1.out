@@ -1,0 +1,56 @@
+[queue] START available=23612MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+== pins
+a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+f26b94a8af333c67bc51f4ea4111ca231a8e5f3a0bf6ba22079731ef9ee70890  l1pair/PINS.json
+a2bcc3aabff16977e29e84ed46b1734028ec58c66dbc8c4523ae1bcf62accefa  l1pair/vendor/VENDOR.json
+f1f748833dbb7a1a32702daace04588441cf5b40b93b5046dd1ef3f4c1b985fd  l1pair/test/mutate.py
+86cb2a3558882ec5699d83d68ee11f6d1a0224f1d8b5de36147a3e62bf16cf44  l1pair/test/realrig.py
+6dc6fc2e92136842d4278f56b8194c9fca83fe959f5f52009677f543c94ab4cf  l1pair/test/run_side.py
+9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
+b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
+df0e3dfc93e516d26bef54f2f45816e7a571f7c5f55ff86081132594ee7631f2  l1pair/test/test_lighthouse_offline.py
+60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
+ec20b6d91b5c2ad38ae25b19d76043fa7e33ee2b4fa95ff6572a2c1908dc0b77  l1pair/test/test_tx_broadcast_offline.py
+vendor: OK (S 959e56f byte-identical)
+8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250  bin/reth-v2.8.0
+test_default_admits_locally_but_never_propagates_and_opt_in_propagates (__main__.TxBroadcastOffline.test_default_admits_locally_but_never_propagates_and_opt_in_propagates) ... {
+ "label": "TEST NETWORK chainId 1337 (throwaway genesis), offline, synthetic tx signed with a PUBLIC test key; not mainnet, no inclusion"
+}
+FAIL
+
+======================================================================
+FAIL: test_default_admits_locally_but_never_propagates_and_opt_in_propagates (__main__.TxBroadcastOffline.test_default_admits_locally_but_never_propagates_and_opt_in_propagates)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_tx_broadcast_offline.py", line 119, in test_default_admits_locally_but_never_propagates_and_opt_in_propagates
+    report['disabled'] = off = run_pair(scratch, reth, gfile, 'disabled')
+                               ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_tx_broadcast_offline.py", line 77, in run_pair
+    assert enode, a.text()[-2000:]
+           ^^^^^
+AssertionError: wn to be merged)
+Post-merge hard forks (timestamp based):
+- Shanghai                         @0          blob: (target: 6, max: 9, fraction: 5007716)
+- Cancun                           @0          blob: (target: 6, max: 9, fraction: 5007716)
+- Prague                           @0          blob: (target: 6, max: 9, fraction: 5007716)
+[2m2026-10-23T08:29:18.783537Z[0m [32m INFO[0m Loaded storage settings [3msettings[0m[2m=[0mStorageSettings { storage_v2: true } [3mpruning_mode[0m[2m=[0m"custom"
+[2m2026-10-23T08:29:18.784493Z[0m [32m INFO[0m Transaction pool initialized
+[2m2026-10-23T08:29:18.803643Z[0m [32m INFO[0m P2P networking initialized [3menode[0m[2m=[0menode://8c8ae13e96870e33974a381fa7ebb7c4f07fe3ac40f9ee072990f410981598a64a8910d1ea02119eff8cf99ea5a5178a0a15a562866ed3bd1a8e2b1bc4983a8b@0.0.0.0:53855
+[2m2026-10-23T08:29:18.803905Z[0m [32m INFO[0m StaticFileProducer initialized
+[2m2026-10-23T08:29:18.804130Z[0m [32m INFO[0m Pruner initialized [3mprune_config[0m[2m=[0mPruneConfig { block_interval: 5, segments: PruneModes { sender_recovery: Some(Full), transaction_lookup: None, receipts: Some(Distance(140000)), account_history: Some(Distance(10064)), storage_history: Some(Distance(10064)), bodies_history: Some(Before(0)), receipts_log_filter: ReceiptsLogPruneConfig({}) }, minimum_pruning_distance: 10064 }
+[2m2026-10-23T08:29:18.804703Z[0m [32m INFO[0m Consensus engine initialized
+[2m2026-10-23T08:29:18.804767Z[0m [32m INFO[0m Engine API handler initialized
+[2m2026-10-23T08:29:18.806175Z[0m [32m INFO[0m RPC HTTP server started [3murl[0m[2m=[0m127.0.0.1:59623
+[2m2026-10-23T08:29:18.806201Z[0m [32m INFO[0m RPC auth server started [3murl[0m[2m=[0m127.0.0.1:59403
+[2m2026-10-23T08:29:18.806269Z[0m [32m INFO[0m Starting consensus engine
+{"event": "ready", "pid": 3213224, "afterSec": 0.2}
+[2m2026-10-23T08:29:21.806927Z[0m [32m INFO[0m Status [3mconnected_peers[0m[2m=[0m0 [3mlatest_block[0m[2m=[0m0
+
+
+----------------------------------------------------------------------
+Ran 1 test in 30.787s
+
+FAILED (failures=1)
+[memory-guard] exit=1 peakTreeRssMiB=330 minHostAvailableMiB=23391
+[memory-guard] at peak: reth-v2.8.0:275 python3:29 python3:25
+[queue] EXIT 1

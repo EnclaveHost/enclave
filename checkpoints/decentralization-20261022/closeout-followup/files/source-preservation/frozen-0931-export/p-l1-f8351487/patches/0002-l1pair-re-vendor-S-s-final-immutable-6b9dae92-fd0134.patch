@@ -1,0 +1,189 @@
+From c0282ca5062122f1e1b5d931fefa99052e23936e Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 23:47:27 -0700
+Subject: [PATCH 02/12] l1pair: re-vendor S's final immutable 6b9dae92 (fd0134d
+ unwind stop-on-failure, Supervisor cwd); child cwd via Supervisor; example
+ uses the holder's single shared NVMe inventory
+
+---
+ jobs/run.sh                               |  2 +-
+ l1pair/l1pair.example.json                |  2 +-
+ l1pair/l1pair.py                          |  5 ++---
+ l1pair/test/test_base_l1_offline.py       |  2 +-
+ l1pair/test/test_l1pair.py                |  2 +-
+ l1pair/vendor/VENDOR.json                 |  6 ++---
+ l1pair/vendor/holder/holder-storage.sh.in | 27 +++++++++++++++++++----
+ l1pair/vendor/holder/holder.py            |  8 +++----
+ 8 files changed, 36 insertions(+), 18 deletions(-)
+
+diff --git a/jobs/run.sh b/jobs/run.sh
+index ea923fe58ac1b8de0897434af3a62b1795d3734c..5ab32a68152becadd2f1748243c7f49bba34ee7c 100755
+--- a/jobs/run.sh
++++ b/jobs/run.sh
+@@ -15,7 +15,7 @@ import hashlib, json
+ v = json.load(open('l1pair/vendor/VENDOR.json'))
+ for rel, sha in v['files'].items():
+     assert hashlib.sha256(open('l1pair/vendor/' + rel, 'rb').read()).hexdigest() == sha, rel
+-print('vendor: OK (S 08f2efe byte-identical)')
++print('vendor: OK (S 6b9dae92 byte-identical)')
+ PY
+ case "${1:-}" in
+ unit)    eval exec $NS python3 -u -I l1pair/test/test_l1pair.py ;;
+diff --git a/l1pair/l1pair.example.json b/l1pair/l1pair.example.json
+index c80dcec21e276069995339030ef922f13a879514..9ac82ba4623fdfe5e28eb440233571e8ca85cab9 100644
+--- a/l1pair/l1pair.example.json
++++ b/l1pair/l1pair.example.json
+@@ -69,7 +69,7 @@
+   "origin": {"imagePath": "/mnt/usb/enclave-l1-pair/origin.img", "bytes": 4000000000000},
+   "cache": {"mechanism": "none"},
+   "otherNvmeCacheAllocations": [{"label": "enclave-base-holder dm-cache (S example plan)", "bytes": 199140835328}],
+-  "nvmeInventoryPath": "/etc/enclave-rpc-cache/nvme-cache-inventory.tsv",
++  "nvmeInventoryPath": "/etc/enclave-base-holder/nvme-cache-inventory.tsv",
+   "originFreeMarginBytes": 500000000000,
+   "nvmeFreeMarginBytes": 200000000000
+  }
+diff --git a/l1pair/l1pair.py b/l1pair/l1pair.py
+index 4c96a3dc3008b93d78a24abc617ce28cf6c3ef98..a1f1767b13031f96e334fa5cbcd49512ff2a6844 100644
+--- a/l1pair/l1pair.py
++++ b/l1pair/l1pair.py
+@@ -22,7 +22,7 @@ What it is not:
+   * not a proxy or verifier of someone else's L1: it IS the L1 node pair, verifying the chain itself.
+ 
+ Reuse: supervision (Supervisor, PDEATHSIG, group stop, sd_notify), sysfs placement and port checks come from the Base
+-holder launcher (vendor/holder/holder.py, byte-identical to S's commit 08f2efe); the root storage script is S's
++holder launcher (vendor/holder/holder.py, byte-identical to S's final commit 6b9dae92); the root storage script is S's
+ holder-storage.sh.in, byte-identical, rendered with this pair's constants.
+ """
+ import hashlib
+@@ -768,14 +768,13 @@ def run(c, side):
+     d = c['execution' if side == 'el' else 'consensus']['datadir']
+     os.makedirs(d, mode=0o700, exist_ok=True)
+     os.makedirs(c['storage']['mountPoint'] + '/tmp', mode=0o700, exist_ok=True)
+-    os.chdir(d)
+     lim = c['limits']['execution' if side == 'el' else 'consensus']
+     port = c['execution']['httpPort'] if side == 'el' else c['consensus']['httpPort']
+     status = os.path.join(os.environ.get('RUNTIME_DIRECTORY', f'/run/enclave-l1-{side}'), 'status.json')
+     sup = H.Supervisor(el_argv(c) if side == 'el' else cl_argv(c), child_env(c, side), port, MAIN['elChainIdHex'],
+                        c['limits']['stopTimeoutSec'], c['limits']['readyTimeoutSec'], lim['nofile'],
+                        status_path=status if os.path.isdir(os.path.dirname(status)) else None,
+-                       log=lambda m: print(m, flush=True))
++                       log=lambda m: print(m, flush=True), cwd=d)
+     return sup.run(install_signals=True)
+ 
+ 
+diff --git a/l1pair/test/test_base_l1_offline.py b/l1pair/test/test_base_l1_offline.py
+index 6c5e5c16a0fbd220a1d227bb441c128c05567fd9..cc2b666057af0b23a3a34a8cc5f6c6282f9ea9bb 100644
+--- a/l1pair/test/test_base_l1_offline.py
++++ b/l1pair/test/test_base_l1_offline.py
+@@ -1,5 +1,5 @@
+ """The OFFICIAL base v1.5.1 binary (S's staged 9c44836d, read-only) under S's COMMITTED launcher (vendor/holder/holder.py,
+-08f2efe), with l1.executionRpc = the REAL reth v2.8.0 of this package (mainnet, empty datadir, run-el) and l1.beacon = a
++6b9dae92), with l1.executionRpc = the REAL reth v2.8.0 of this package (mainnet, empty datadir, run-el) and l1.beacon = a
+ LABELLED STAND-IN (not lighthouse) that answers only /eth/v1/config/spec and /eth/v1/beacon/genesis with mainnet values
+ and 404 for everything else. Network-denied namespace (loopback only).
+ 
+diff --git a/l1pair/test/test_l1pair.py b/l1pair/test/test_l1pair.py
+index cfdd56adfc904430eb1d3e901217194eeadc87cb..6a95d41a4edc59180543bfa8d1105147536f9339 100644
+--- a/l1pair/test/test_l1pair.py
++++ b/l1pair/test/test_l1pair.py
+@@ -228,7 +228,7 @@ class Rendering(unittest.TestCase):
+ 
+     def test_vendor_files_match_their_pins(self):
+         v = json.loads((PKG / 'vendor/VENDOR.json').read_text())
+-        self.assertIn('08f2efed6d93ca4bd8010bae34c231769e14c363', v['source'])
++        self.assertIn('6b9dae92dcae815a59b4a6d3edd26ebb682f43d8', v['source'])
+         for rel, sha in v['files'].items():
+             self.assertEqual(hashlib.sha256((PKG / 'vendor' / rel).read_bytes()).hexdigest(), sha, rel)
+ 
+diff --git a/l1pair/vendor/VENDOR.json b/l1pair/vendor/VENDOR.json
+index fcedd1cc064440f5283f37f5e5971e62ff385454..472e9db53a632c6cb0d3faa9cb0d52709fc43740 100644
+--- a/l1pair/vendor/VENDOR.json
++++ b/l1pair/vendor/VENDOR.json
+@@ -1,12 +1,12 @@
+ {
+  "format": "enclave-l1-pair-vendor/v1",
+- "source": "S's fresh-witness-supply repo, commit 08f2efed6d93ca4bd8010bae34c231769e14c363 (git show; S's dirty working tree NOT used)",
++ "source": "S's fresh-witness-supply repo, FINAL immutable commit 6b9dae92dcae815a59b4a6d3edd26ebb682f43d8 (includes fd0134d storage-unwind fix and 1a50957 Supervisor cwd; git show, S working tree NOT used)",
+  "use": "library only (Supervisor, PDEATHSIG, group stop, sd_notify, backing_disks, port_in_use, validate_storage rules) and the storage script template; nothing here edits or runs the Base holder",
+  "files": {
+-  "holder/holder.py": "458de2064ccafa23046017f7e05f61210e2c05009d83de9474111f9c6ac26bcc",
++  "holder/holder.py": "30cd71a5520d824070dc21cbd5b6fd9372ba120294f8a80a259c5af40b057674",
+   "holder/FLAGS.json": "7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59",
+   "holder/BINARY.json": "b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00",
+-  "holder/holder-storage.sh.in": "823aa8a036f62ba57ded9b34748e3fcf41bdc4af493899dcf2843c9e97d0e290",
++  "holder/holder-storage.sh.in": "334737ae7af4cd206b3bcf8bc0b6afb7119cacf0913777ab2661e2f61d218505",
+   "holder/holder.example.json": "b2e8a260d33bc0882f5f8967973c177735ae2745b49934153517a7cef6c976ec"
+  }
+ }
+diff --git a/l1pair/vendor/holder/holder-storage.sh.in b/l1pair/vendor/holder/holder-storage.sh.in
+index c50824859fc3c61786412e57466ab6688aed9bef..549c73d2954058d4abc0904476ca87a85c3062bc 100644
+--- a/l1pair/vendor/holder/holder-storage.sh.in
++++ b/l1pair/vendor/holder/holder-storage.sh.in
+@@ -24,11 +24,30 @@ CREATED=(); ATTACHED=(); MAPPED=; MOUNTED=
+ unwind() {
+   local rc=$?
+   [ "$rc" -eq 0 ] && return 0
++  trap - EXIT
+   set +e
+-  [ -n "$MOUNTED" ] && umount "$MNT"
+-  [ -n "$MAPPED" ] && dmsetup remove "$NAME"
+-  for l in "${ATTACHED[@]}"; do losetup -d "$l"; done
+-  for f in "${CREATED[@]}"; do rm -f -- "$f"; done
++  # Ownership alone is not enough: a failed teardown leaves its dependencies live.
++  # Preserve the remaining devices/files for recovery and the original failure code.
++  if [ -n "$MOUNTED" ] && ! umount "$MNT"; then
++    log "cleanup stopped: cannot unmount $MNT; mapping, loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  if [ -n "$MAPPED" ] && ! dmsetup remove "$NAME"; then
++    log "cleanup stopped: cannot remove mapping $NAME; loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  for l in "${ATTACHED[@]}"; do
++    if ! losetup -d "$l"; then
++      log "cleanup stopped: cannot detach $l; remaining loops and images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  for f in "${CREATED[@]}"; do
++    if ! rm -f -- "$f"; then
++      log "cleanup stopped: cannot remove $f; remaining images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
+   log "failed (rc=$rc): undid only what this run created/attached/mapped/mounted"
+   exit "$rc"
+ }
+diff --git a/l1pair/vendor/holder/holder.py b/l1pair/vendor/holder/holder.py
+index 6eac58b5aefdf500d38685afd30d56c5147ad177..340dfd5ab5cb125cae86c83e95497ac471a890e7 100644
+--- a/l1pair/vendor/holder/holder.py
++++ b/l1pair/vendor/holder/holder.py
+@@ -619,8 +619,8 @@ class Supervisor:
+     """ONE child in its own process group. Stop = SIGTERM to the group, then SIGKILL after the grace period; the child
+     also gets SIGKILL if the supervisor dies (PDEATHSIG). Readiness = the loopback RPC answers the expected chain id."""
+ 
+-    def __init__(self, argv, env, port, chain_id_hex, stop_timeout, ready_timeout, nofile, status_path=None, log=print):
+-        self.argv, self.env, self.port, self.chain = argv, env, port, chain_id_hex
++    def __init__(self, argv, env, port, chain_id_hex, stop_timeout, ready_timeout, nofile, status_path=None, log=print, cwd=None):
++        self.argv, self.env, self.port, self.chain, self.cwd = argv, env, port, chain_id_hex, cwd
+         self.stop_timeout, self.ready_timeout, self.nofile = stop_timeout, ready_timeout, nofile
+         self.status_path, self.log = status_path, log
+         self.proc, self.stopping, self.ready, self.never_ready = None, False, False, False
+@@ -652,7 +652,7 @@ class Supervisor:
+         if install_signals:                 # the process entry (main thread); embedded/test callers use stop()
+             signal.signal(signal.SIGTERM, self.stop)
+             signal.signal(signal.SIGINT, self.stop)
+-        self.proc = subprocess.Popen(self.argv, env=self.env, stdin=subprocess.DEVNULL, close_fds=True,
++        self.proc = subprocess.Popen(self.argv, env=self.env, cwd=self.cwd, stdin=subprocess.DEVNULL, close_fds=True,
+                                      start_new_session=True, preexec_fn=_child_setup(self.nofile))
+         self.log(json.dumps({'event': 'started', 'pid': self.proc.pid, 'argvSha256': hashlib.sha256('\0'.join(self.argv).encode()).hexdigest()}))
+         self._status(state='starting')
+@@ -701,7 +701,7 @@ def run(c):
+     sup = Supervisor(argv(c), child_env(c), c['rpc']['port'], CHAIN_ID_HEX, c['limits']['stopTimeoutSec'],
+                      c['limits']['readyTimeoutSec'], c['limits']['nofile'],
+                      status_path=status if os.path.isdir(os.path.dirname(status)) else None,
+-                     log=lambda m: print(m, flush=True))
++                     log=lambda m: print(m, flush=True), cwd=c['datadir'])   # the consensus side writes l2_jwt.hex into its cwd
+     return sup.run(install_signals=True)
+ 
+ 

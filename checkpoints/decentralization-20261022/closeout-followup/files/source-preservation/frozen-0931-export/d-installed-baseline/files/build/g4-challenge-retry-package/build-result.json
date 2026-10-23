@@ -1,0 +1,26 @@
+{
+  "privacy-agent.mjs": {
+    "baselineSha256": "7ef4e2303d841e86269d3bbb7ce5f43a5ead5b0d2f2898f9b69774da1ac13147",
+    "candidateSha256": "cfb69370a00dea147340c64bbd712f118eb8cb825237ac79b3b053b586350801",
+    "bytes": 2951076,
+    "inputCount": 1938,
+    "changedInputs": [
+      "network/challenge-replica-host.mjs",
+      "network/enclave-network-host.mjs"
+    ]
+  },
+  "windows-circuit-worker.mjs": {
+    "baselineSha256": "13ce44f1b39d4521e32266f2dad234958af70b1b05e2a3f6638535571e8cf320",
+    "candidateSha256": "13ce44f1b39d4521e32266f2dad234958af70b1b05e2a3f6638535571e8cf320",
+    "bytes": 136752,
+    "inputCount": 19,
+    "changedInputs": []
+  },
+  "host-service-ingress.mjs": {
+    "baselineSha256": "c952dce4fe007c48c81e1726a743d850dc2f5231204d01466349bfa5ffcc62d3",
+    "candidateSha256": "c952dce4fe007c48c81e1726a743d850dc2f5231204d01466349bfa5ffcc62d3",
+    "bytes": 7534,
+    "inputCount": 4,
+    "changedInputs": []
+  }
+}

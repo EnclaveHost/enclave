@@ -1,0 +1,72 @@
+[queue] START available=24185MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+== pins
+77acff290c005ea219e0d9b4274ea076fdcfa2b60b3c8c51d06bf2a08c3ab129  l1pair/l1pair.py
+46deaf02b28a96d2806a71de21b7559cdaa657f3dd718bfd5623ab4b91810d6a  l1pair/PINS.json
+fb952770f6a3851b44cff72cc171390b77e92f982e44eaa78d2ebe0c7b82ff99  l1pair/vendor/VENDOR.json
+07bd79fa7cfed931e39e77331419ce1bd2bc6fffeffc26be8f1169dec39ed6ec  l1pair/test/test_l1pair.py
+vendor: OK (S 08f2efe byte-identical)
+test_check_checkpoint (__main__.Checkpoint.test_check_checkpoint) ... ok
+test_inspect_reads_the_real_mainnet_genesis_state (__main__.Checkpoint.test_inspect_reads_the_real_mainnet_genesis_state) ... ok
+test_jwt_shape_and_mode (__main__.Jwt.test_jwt_shape_and_mode) ... ok
+test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_check) ... FAIL
+test_nothing_listening_is_not_ready_and_does_not_crash (__main__.ReadyGate.test_nothing_listening_is_not_ready_and_does_not_crash) ... FAIL
+test_closed_env (__main__.Rendering.test_closed_env) ... ok
+test_every_lighthouse_flag_is_in_the_pinned_source_help (__main__.Rendering.test_every_lighthouse_flag_is_in_the_pinned_source_help) ... ok
+test_every_reth_flag_is_in_the_executed_binary_help (__main__.Rendering.test_every_reth_flag_is_in_the_executed_binary_help) ... ok
+test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv) ... ok
+test_exact_el_argv (__main__.Rendering.test_exact_el_argv) ... ok
+test_no_hidden_external_default (__main__.Rendering.test_no_hidden_external_default) ... ok
+test_render (__main__.Rendering.test_render) ... ok
+test_storage_script_is_S_template_with_this_pairs_constants (__main__.Rendering.test_storage_script_is_S_template_with_this_pairs_constants) ... ok
+test_units (__main__.Rendering.test_units) ... ok
+test_vendor_files_match_their_pins (__main__.Rendering.test_vendor_files_match_their_pins) ... ok
+test_boundaries_accepted (__main__.Validation.test_boundaries_accepted) ... ERROR
+test_example_as_shipped_is_refused_until_pins_are_recorded (__main__.Validation.test_example_as_shipped_is_refused_until_pins_are_recorded) ... ok
+test_good_config_validates (__main__.Validation.test_good_config_validates) ... ok
+test_refusals (__main__.Validation.test_refusals) ... ok
+
+======================================================================
+ERROR: test_boundaries_accepted (__main__.Validation.test_boundaries_accepted)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 124, in test_boundaries_accepted
+    v = L.validate(c)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 252, in validate
+    c['storage'] = validate_storage(raw['storage'], c)
+                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/l1pair.py", line 290, in validate_storage
+    fail(f"planned NVMe cache total {acct['totalBytes']} exceeds the 200,000,000,000-byte operational target (this pair "
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         f"{acct['holderBytes']} + other declared {acct['otherBytes']}): rebalance the shares (root decision) or use "
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         'cache.mechanism none')
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/vendor/holder/holder.py", line 60, in fail
+    raise Refused(msg)
+enclave_holder_vendor.Refused: planned NVMe cache total 201673825280 exceeds the 200,000,000,000-byte operational target (this pair 51673825280 + other declared 150000000000): rebalance the shares (root decision) or use cache.mechanism none
+
+======================================================================
+FAIL: test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_check)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 423, in test_gate_is_the_conjunction_of_every_check
+    self.assertTrue(r['ready'], r)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+AssertionError: False is not true : {'ready': False, 'checks': [{'check': 'el.chainId', 'ok': False, 'detail': 'OSError: [Errno 101] Network is unreachable'}, {'check': 'el.genesis', 'ok': False, 'detail': 'OSError: [Errno 101] Network is unreachable'}, {'check': 'el.syncing', 'ok': False, 'detail': 'OSError: [Errno 101] Network is unreachable'}, {'check': 'el.head', 'ok': False, 'detail': 'OSError: [Errno 101] Network is unreachable'}, {'check': 'el.finalized', 'ok': False, 'detail': 'OSError: [Errno 101] Network is unreachable'}, {'check': 'el.receiptsFrom', 'ok': False, 'detail': 'OSError: [Errno 101] Network is unreachable'}, {'check': 'cl.genesis', 'ok': False, 'detail': 'OSError: [Errno 101] Network is unreachable'}, {'check': 'cl.spec', 'ok': False, 'detail': 'OSError: [Errno 101] Network is unreachable'}, {'check': 'cl.version', 'ok': False, 'detail': 'OSError: [Errno 101] Network is unreachable'}, {'check': 'cl.syncing', 'ok': False, 'detail': 'OSError: [Errno 101] Network is unreachable'}, {'check': 'cl.custody', 'ok': False, 'detail': 'OSError: [Errno 101] Network is unreachable'}, {'check': 'pair.head', 'ok': False, 'detail': 'OSError: [Errno 101] Network is unreachable'}, {'check': 'cl.blobs', 'ok': False, 'detail': 'OSError: [Errno 101] Network is unreachable'}]}
+
+======================================================================
+FAIL: test_nothing_listening_is_not_ready_and_does_not_crash (__main__.ReadyGate.test_nothing_listening_is_not_ready_and_does_not_crash)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_l1pair.py", line 402, in test_nothing_listening_is_not_ready_and_does_not_crash
+    self.assertEqual(len(r['checks']), 14)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 13 != 14
+
+----------------------------------------------------------------------
+Ran 19 tests in 0.562s
+
+FAILED (failures=2, errors=1)
+[memory-guard] exit=1 peakTreeRssMiB=35 minHostAvailableMiB=24106
+[memory-guard] at peak: python3:35
+[queue] EXIT 1

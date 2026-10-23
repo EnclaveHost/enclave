@@ -1,0 +1,7 @@
+Lighthouse v8.3.2
+BLS library: blst-portable
+BLS hardware acceleration: true
+SHA256 hardware acceleration: true
+Allocator: jemalloc (4K)
+Profile: maxperf
+Specs: mainnet (true), minimal (false), gnosis (true)

@@ -1,0 +1,53 @@
+TAP version 13
+# Subtest: provenance: the replayed production portal answers version() and params() as the provider did at the captured block
+ok 1 - provenance: the replayed production portal answers version() and params() as the provider did at the captured block
+  ---
+  duration_ms: 180.403056
+  type: 'test'
+  ...
+# Subtest: the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
+ok 2 - the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
+  ---
+  duration_ms: 37.657387
+  type: 'test'
+  ...
+# EOA deposit: L1 gasUsed 834932 at base fee 1 gwei
+# Subtest: a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
+ok 3 - a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
+  ---
+  duration_ms: 27.269517
+  type: 'test'
+  ...
+# 7702-delegated EOA via relayer: deposit from 0x2C2Da22B7992c64dD03dC354A1F80FA8998df8e7 (EOA 0x2C2Da22B7992c64dD03dC354A1F80FA8998df8e7, alias 0x3D3ea22b7992C64Dd03DC354a1f80fa8998E09f8)
+# Subtest: L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
+ok 4 - L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
+  ---
+  duration_ms: 548.824318
+  type: 'test'
+  ...
+# L1_COST [{"baseFeeGwei":0.1,"l2GasLimit":400000,"l1GasUsed":435082,"effectiveGasPrice":"100000000","l1CostWei":"43508200000000"},{"baseFeeGwei":0.1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"87862569","l1CostWei":"73358303972049"},{"baseFeeGwei":1,"l2GasLimit":400000,"l1GasUsed":435069,"effectiveGasPrice":"1000000000","l1CostWei":"435069000000000"},{"baseFeeGwei":1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"878625575","l1CostWei":"733582943704575"},{"baseFeeGwei":5,"l2GasLimit":400000,"l1GasUsed":114994,"effectiveGasPrice":"5000000000","l1CostWei":"574970000000000"},{"baseFeeGwei":5,"l2GasLimit":800000,"l1GasUsed":217683,"effectiveGasPrice":"4379791417","l1CostWei":"953406135026811"},{"baseFeeGwei":30,"l2GasLimit":400000,"l1GasUsed":72267,"effectiveGasPrice":"30000000000","l1CostWei":"2168010000000000"},{"baseFeeGwei":30,"l2GasLimit":800000,"l1GasUsed":69431,"effectiveGasPrice":"26268066750","l1CostWei":"1823818142519250"}]
+# Subtest: refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
+not ok 5 - refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
+  ---
+  duration_ms: 14.478587
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-10/test/l1-portal.anvil.test.mjs:102:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-10/test/l1-portal.anvil.test.mjs:116:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 4
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4494.332778

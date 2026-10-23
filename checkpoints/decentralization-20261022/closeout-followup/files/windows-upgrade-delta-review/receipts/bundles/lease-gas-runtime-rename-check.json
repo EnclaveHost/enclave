@@ -1,0 +1,33 @@
+{
+ "installed": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d",
+ "F": "008cdca1240372d3dccedc2f58fecfcdca6377245ad67d4970a2efe79757f4e7",
+ "sameLength": true,
+ "differingBytes": 1102,
+ "allDifferingBytesInIdentifiers": true,
+ "renamedTokens": 1076,
+ "distinctRenames": 274,
+ "bijective": true,
+ "installedRenamedEqualsF": "not applicable: a GLOBAL substitution is wrong for a minifier that reuses the same short name in different scopes (one name maps differently per scope); the evidence is positional",
+ "newCodeAbsentFromBoth": {
+  "renewalCadence": [
+   0,
+   0
+  ],
+  "costModel": [
+   0,
+   0
+  ],
+  "served.push": [
+   0,
+   0
+  ],
+  "withheld": [
+   0,
+   0
+  ]
+ },
+ "reading": "Same length; every differing byte lies in an identifier token whose boundaries are unchanged; every changed token is a short minified name (max length above); none is a quoted string. The 2 changed inputs (lease-gas-owner, route-record) are not reachable from the runtime entry (network/lease-gas-runtime.mjs imports only parseDeploymentRecord, unchanged), and their new code is absent from both bundles. Reading: minifier name allocation shifted; not a functional change. Not a reproduction proof (no AST comparison was run).",
+ "tokenBoundariesIdentical": true,
+ "maxRenamedTokenLength": 2,
+ "renamedTokensDelimitedByQuotes": 0
+}

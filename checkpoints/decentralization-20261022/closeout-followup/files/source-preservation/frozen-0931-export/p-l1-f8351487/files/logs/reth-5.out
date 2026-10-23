@@ -1,0 +1,228 @@
+[queue] START available=25142MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+== pins
+a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+f26b94a8af333c67bc51f4ea4111ca231a8e5f3a0bf6ba22079731ef9ee70890  l1pair/PINS.json
+a2bcc3aabff16977e29e84ed46b1734028ec58c66dbc8c4523ae1bcf62accefa  l1pair/vendor/VENDOR.json
+f1f748833dbb7a1a32702daace04588441cf5b40b93b5046dd1ef3f4c1b985fd  l1pair/test/mutate.py
+86cb2a3558882ec5699d83d68ee11f6d1a0224f1d8b5de36147a3e62bf16cf44  l1pair/test/realrig.py
+6dc6fc2e92136842d4278f56b8194c9fca83fe959f5f52009677f543c94ab4cf  l1pair/test/run_side.py
+9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
+b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
+df0e3dfc93e516d26bef54f2f45816e7a571f7c5f55ff86081132594ee7631f2  l1pair/test/test_lighthouse_offline.py
+60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
+901cdaf812be2530f338752557f4df75c53bc595a0d8b3cf5eb1c1137cab2efa  l1pair/test/test_tx_broadcast_offline.py
+vendor: OK (S 959e56f byte-identical)
+8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250  bin/reth-v2.8.0
+test_real_reth_under_the_launcher (__main__.RethOffline.test_real_reth_under_the_launcher) ... {
+ "readyAfterSec": 0.8,
+ "genesisHash": "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
+ "baseMethods": {
+  "eth_blockNumber": "0x0",
+  "eth_chainId": "0x1",
+  "eth_getBlockByNumber(latest)": {
+   "hash": "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
+   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+   "miner": "0x0000000000000000000000000000000000000000",
+   "stateRoot": "0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544",
+   "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+   "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+   "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "difficulty": "0x400000000",
+   "number": "0x0",
+   "gasLimit": "0x1388",
+   "gasUsed": "0x0",
+   "timestamp": "0x0",
+   "extraData": "0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa",
+   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "nonce": "0x0000000000000042",
+   "size": "0x21c",
+   "uncles": [],
+   "transactions": []
+  },
+  "eth_getBlockByNumber(finalized)": null,
+  "eth_getBlockByNumber(0x0)": {
+   "hash": "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
+   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+   "miner": "0x0000000000000000000000000000000000000000",
+   "stateRoot": "0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544",
+   "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+   "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+   "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "difficulty": "0x400000000",
+   "number": "0x0",
+   "gasLimit": "0x1388",
+   "gasUsed": "0x0",
+   "timestamp": "0x0",
+   "extraData": "0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa",
+   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "nonce": "0x0000000000000042",
+   "size": "0x21c",
+   "uncles": [],
+   "transactions": []
+  },
+  "eth_getBlockByHash": {
+   "hash": "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
+   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+   "miner": "0x0000000000000000000000000000000000000000",
+   "stateRoot": "0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544",
+   "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+   "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+   "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "difficulty": "0x400000000",
+   "number": "0x0",
+   "gasLimit": "0x1388",
+   "gasUsed": "0x0",
+   "timestamp": "0x0",
+   "extraData": "0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa",
+   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "nonce": "0x0000000000000042",
+   "size": "0x21c",
+   "uncles": [],
+   "transactions": []
+  },
+  "eth_getBlockByHash(full)": {
+   "hash": "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
+   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+   "miner": "0x0000000000000000000000000000000000000000",
+   "stateRoot": "0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544",
+   "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+   "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+   "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "difficulty": "0x400000000",
+   "number": "0x0",
+   "gasLimit": "0x1388",
+   "gasUsed": "0x0",
+   "timestamp": "0x0",
+   "extraData": "0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa",
+   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "nonce": "0x0000000000000042",
+   "size": "0x21c",
+   "uncles": [],
+   "transactions": []
+  },
+  "eth_getBlockReceipts(hash)": [],
+  "eth_getLogs(blockHash,address)": [],
+  "eth_getStorageAt(blockHash)": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "eth_call(latest)": "0x"
+ },
+ "refusedOnHttp": {
+  "admin_nodeInfo": -32601,
+  "debug_getRawBlock": -32601,
+  "txpool_status": -32601,
+  "trace_block": -32601,
+  "miner_setExtra": -32601,
+  "engine_exchangeCapabilities": -32601
+ },
+ "engine": {
+  "validJwt": 200,
+  "noJwt": 401,
+  "wrongKey": 401,
+  "staleIat": 401,
+  "caps": [
+   "engine_forkchoiceUpdatedV2",
+   "engine_getPayloadV3",
+   "engine_hasBlobs",
+   "engine_getPayloadBodiesByRangeV2",
+   "engine_forkchoiceUpdatedV1",
+   "engine_forkchoiceUpdatedV3"
+  ]
+ },
+ "listeners": [
+  "0.0.0.0:50531",
+  "127.0.0.1:43253",
+  "127.0.0.1:57235"
+ ],
+ "persistedPrune": {
+  "sender_recovery": "full",
+  "receipts": {
+   "distance": 140000
+  },
+  "account_history": {
+   "distance": 10064
+  },
+  "storage_history": {
+   "distance": 10064
+  },
+  "bodies_history": {
+   "before": 15537394
+  }
+ },
+ "gate": {
+  "el.chainId": [
+   true,
+   "mainnet"
+  ],
+  "el.genesis": [
+   true,
+   "mainnet genesis"
+  ],
+  "el.syncing": [
+   false,
+   "FAIL eth_syncing is not false"
+  ],
+  "el.head": [
+   false,
+   "FAIL head lag 1792747195 s > 120"
+  ],
+  "el.finalized": [
+   false,
+   "FAIL no finalized block (the CL has not sent a finalized forkchoice)"
+  ],
+  "cl.genesis": [
+   false,
+   "ConnectionRefusedError: [Errno 111] Connection refused"
+  ],
+  "cl.spec": [
+   false,
+   "ConnectionRefusedError: [Errno 111] Connection refused"
+  ],
+  "cl.version": [
+   false,
+   "ConnectionRefusedError: [Errno 111] Connection refused"
+  ],
+  "cl.syncing": [
+   false,
+   "ConnectionRefusedError: [Errno 111] Connection refused"
+  ],
+  "cl.custody": [
+   false,
+   "ConnectionRefusedError: [Errno 111] Connection refused"
+  ],
+  "pair.head": [
+   false,
+   "ConnectionRefusedError: [Errno 111] Connection refused"
+  ],
+  "cl.blobs": [
+   false,
+   "ConnectionRefusedError: [Errno 111] Connection refused"
+  ]
+ },
+ "ipcSocket": false,
+ "exitCode": 0,
+ "stopSec": 1.82,
+ "leftoverListeners": [],
+ "datadir": {
+  "apparent": 4295663907,
+  "allocated": 1495040,
+  "files": 35
+ },
+ "supervisorLog": [
+  "{\"event\": \"started\", \"pid\": 3299070, \"argvSha256\": \"530fecdee4d47c0e354cb26204df85863095821cf15797ff0d72d6a25ac794ea\"}",
+  "{\"event\": \"ready\", \"pid\": 3299070, \"afterSec\": 0.6}",
+  "{\"event\": \"stopping\", \"pid\": 3299070}",
+  "{\"event\": \"exited\", \"code\": 0, \"stopping\": true}"
+ ]
+}
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 2.585s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=385 minHostAvailableMiB=24974
+[memory-guard] at peak: reth-v2.8.0:329 python3:31 python3:25
+[queue] EXIT 0

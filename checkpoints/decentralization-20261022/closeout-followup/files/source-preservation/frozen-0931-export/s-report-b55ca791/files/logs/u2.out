@@ -1,0 +1,354 @@
+[queue] START available=23478MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+HEAD 2bd1eea0cdf70dc33b69b71b6decc7c2b0186266
+ M site/components/admin-console/migrator.js
+ M site/js/core/chain.js
+ M site/js/core/config.js
+ M site/js/core/custody.js
+ M site/js/core/fund.js
+ M site/js/core/independent-chain.js
+ M site/js/core/independent.js
+ M site/js/core/pay.js
+ M site/js/core/platform-addresses.js
+ M site/js/core/sessions.js
+ M site/js/core/wallet.js
+ M site/js/pages/grant.js
+ M test/site-independent-management-unit.test.mjs
+?? test/helpers/browser-rpc-scenario.mjs
+?? test/site-browser-rpc-closure.test.mjs
+945ffc2a612fff95b19da21f9396c8c6578fad661775e5be3d56ec3ccb66610b  site/js/core/config.js
+3693175b3a71b15c01ba38152ac2a620abfb587665bf24c21e71ff62b6739932  site/js/core/independent.js
+5b81fe6354cbbcc8ea261dcb7113dbb163364be03fc3b4e06b629adfa5ccc089  site/js/core/chain.js
+3b3b2178a23782e0ac7181fa09a30f060871b6edde425dc1c63a9aa7e24be8a7  site/js/core/wallet.js
+bfa9af487d6e0433c70d1fab694fdc33792f6054a8207d57aeafed9aa0985ccd  site/js/core/fund.js
+54fc225ea7c26385bf0c97bf69319490f08a886852b570eac0d62995bb4b76e9  site/js/core/pay.js
+847098e1ea941e65a5f0743c1f4b6dee29928f25702a54ed64a8c23d0a977950  site/js/core/custody.js
+ff651ceb8690cc9f5f555b9a48553da441f6b653232130de90f18ad3a14c8a5e  site/js/core/sessions.js
+b8e56460458f1124ba67118af8e97ebbf8fa169103c3c42ce84dbfecd5a610e8  site/js/core/independent-chain.js
+959ea6d2d34ef2f1bd5fe139709f8cca884a24b99aa6e4d3b56e4b1ee82ab678  site/js/core/platform-addresses.js
+7a6a1500f65cda19d3e0ae47226f141a577691e3620c8bd2610d8d1a8619ff99  site/js/pages/grant.js
+7227d495215edca21fd4d828ec9ff5eac0a5d3e09ccd8fefc6c9015d06f172a7  site/components/admin-console/migrator.js
+394dc742b78a373995a61f59bb7d6ed7ff3b130752a6da315a8d064dda58f605  test/site-browser-rpc-closure.test.mjs
+c0f2d7dd9d0ce680541df3f9b4454b31c25f6fd41a750197a9a0e76db293cb9e  test/helpers/browser-rpc-scenario.mjs
+TAP version 13
+# Subtest: the vendored bundle is exactly a fresh build of network/management-browser.mjs and its sources
+not ok 1 - the vendored bundle is exactly a fresh build of network/management-browser.mjs and its sources
+  ---
+  duration_ms: 141.726013
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:87:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    ... Skipped lines
+    
+      {
+        bytes: 70230,
+        deps: {
+          viem: '2.53.1'
+        },
+    ...
+          'net-guard.mjs': {
+    +       commit: 'c2bc3cc636ce53719f52688093ea892b9c8639c1',
+    -       commit: 'eb2c994a6b67e0fbc05be1a42614a27cd847ed71',
+            committedClean: true,
+            sha256: 'd61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af'
+          },
+          'network/canonical.mjs': {
+    +       commit: 'c2bc3cc636ce53719f52688093ea892b9c8639c1',
+    -       commit: '62f082fc615f84a32e26f2caf0868a27975681ae',
+            committedClean: true,
+            sha256: '5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3'
+          },
+          'network/management-browser.mjs': {
+    +       commit: 'b3256349f18eaa853259e42726fa7f6233db1f71',
+    -       commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df',
+            committedClean: true,
+            sha256: '857dbfb5545951e02325a6e6959e1957394804cd1e4ec64a2b95fa95b7cd614b'
+          },
+          'network/management-outcome.mjs': {
+    +       commit: 'b3256349f18eaa853259e42726fa7f6233db1f71',
+    +       committedClean: false,
+    -       commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df',
+    -       committedClean: true,
+            sha256: 'fea5703454b1cc9323eacc931a42c0f99f1895526f4926e787155d57e44c0398'
+          },
+          'network/management-record.mjs': {
+    +       commit: 'b3256349f18eaa853259e42726fa7f6233db1f71',
+    -       commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df',
+            committedClean: true,
+            sha256: 'd946589d7f43a6169fcb8f88cbef9c9e933e24f42ecd3e72a41a38e936285eda'
+          },
+          'network/management-routes.mjs': {
+    +       commit: '3542e1802018f41654a4554803ea51ecf0a4aaa7',
+    +       committedClean: false,
+    -       commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df',
+    -       committedClean: true,
+            sha256: '0a47239553d4c4389227b5b56241fce955af87892907e7b70016bc4a9882dd93'
+          }
+        }
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    file: 'site/vendor/management.js'
+    sha256: '05209546a4b0b68091e13efa7afa9a33221271c9dc161dca7a3c9da1212bd6a3'
+    bytes: 70230
+    entry: 'network/management-browser.mjs'
+    esbuild: '0.28.1'
+    deps:
+      viem: '2.53.1'
+    sources:
+      net-guard.mjs:
+        sha256: 'd61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af'
+        commit: 'eb2c994a6b67e0fbc05be1a42614a27cd847ed71'
+        committedClean: true
+      network/canonical.mjs:
+        sha256: '5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3'
+        commit: '62f082fc615f84a32e26f2caf0868a27975681ae'
+        committedClean: true
+      network/management-browser.mjs:
+        sha256: '857dbfb5545951e02325a6e6959e1957394804cd1e4ec64a2b95fa95b7cd614b'
+        commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df'
+        committedClean: true
+      network/management-outcome.mjs:
+        sha256: 'fea5703454b1cc9323eacc931a42c0f99f1895526f4926e787155d57e44c0398'
+        commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df'
+        committedClean: true
+      network/management-record.mjs:
+        sha256: 'd946589d7f43a6169fcb8f88cbef9c9e933e24f42ecd3e72a41a38e936285eda'
+        commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df'
+        committedClean: true
+      network/management-routes.mjs:
+        sha256: '0a47239553d4c4389227b5b56241fce955af87892907e7b70016bc4a9882dd93'
+        commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df'
+        committedClean: true
+  actual:
+    file: 'site/vendor/management.js'
+    sha256: '05209546a4b0b68091e13efa7afa9a33221271c9dc161dca7a3c9da1212bd6a3'
+    bytes: 70230
+    entry: 'network/management-browser.mjs'
+    esbuild: '0.28.1'
+    deps:
+      viem: '2.53.1'
+    sources:
+      net-guard.mjs:
+        sha256: 'd61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af'
+        commit: 'c2bc3cc636ce53719f52688093ea892b9c8639c1'
+        committedClean: true
+      network/canonical.mjs:
+        sha256: '5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3'
+        commit: 'c2bc3cc636ce53719f52688093ea892b9c8639c1'
+        committedClean: true
+      network/management-browser.mjs:
+        sha256: '857dbfb5545951e02325a6e6959e1957394804cd1e4ec64a2b95fa95b7cd614b'
+        commit: 'b3256349f18eaa853259e42726fa7f6233db1f71'
+        committedClean: true
+      network/management-outcome.mjs:
+        sha256: 'fea5703454b1cc9323eacc931a42c0f99f1895526f4926e787155d57e44c0398'
+        commit: 'b3256349f18eaa853259e42726fa7f6233db1f71'
+        committedClean: false
+      network/management-record.mjs:
+        sha256: 'd946589d7f43a6169fcb8f88cbef9c9e933e24f42ecd3e72a41a38e936285eda'
+        commit: 'b3256349f18eaa853259e42726fa7f6233db1f71'
+        committedClean: true
+      network/management-routes.mjs:
+        sha256: '0a47239553d4c4389227b5b56241fce955af87892907e7b70016bc4a9882dd93'
+        commit: '3542e1802018f41654a4554803ea51ecf0a4aaa7'
+        committedClean: false
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/repo/test/site-independent-management-unit.test.mjs:90:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: with the source helper
+    # Subtest: status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+    ok 1 - status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+      ---
+      duration_ms: 47.656138
+      type: 'test'
+      ...
+    # Subtest: records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+    ok 2 - records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+      ---
+      duration_ms: 29.388621
+      type: 'test'
+      ...
+    # Subtest: no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+    ok 3 - no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+      ---
+      duration_ms: 14.876644
+      type: 'test'
+      ...
+    # Subtest: refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+    ok 4 - refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+      ---
+      duration_ms: 23.434057
+      type: 'test'
+      ...
+    # Subtest: mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+    ok 5 - mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+      ---
+      duration_ms: 41.274868
+      type: 'test'
+      ...
+    # Subtest: app token: returned to the caller only; never stored, never echoed in an error
+    ok 6 - app token: returned to the caller only; never stored, never echoed in an error
+      ---
+      duration_ms: 20.55958
+      type: 'test'
+      ...
+    # Subtest: the page sends only to the origin inside the operator's signature
+    ok 7 - the page sends only to the origin inside the operator's signature
+      ---
+      duration_ms: 4.575774
+      type: 'test'
+      ...
+    # Subtest: attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+    ok 8 - attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+      ---
+      duration_ms: 7.705399
+      type: 'test'
+      ...
+    # Subtest: the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+    ok 9 - the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+      ---
+      duration_ms: 19.604926
+      type: 'test'
+      ...
+    # Subtest: a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+    ok 10 - a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+      ---
+      duration_ms: 7.341482
+      type: 'test'
+      ...
+    # Subtest: floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+    ok 11 - floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+      ---
+      duration_ms: 7.209043
+      type: 'test'
+      ...
+    # Subtest: GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+    ok 12 - GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+      ---
+      duration_ms: 18.844323
+      type: 'test'
+      ...
+    1..12
+ok 2 - with the source helper
+  ---
+  duration_ms: 244.266513
+  type: 'suite'
+  ...
+# Subtest: with the shipped bundle helper
+    # Subtest: status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+    ok 1 - status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+      ---
+      duration_ms: 36.143168
+      type: 'test'
+      ...
+    # Subtest: records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+    ok 2 - records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+      ---
+      duration_ms: 26.086427
+      type: 'test'
+      ...
+    # Subtest: no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+    ok 3 - no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+      ---
+      duration_ms: 13.511345
+      type: 'test'
+      ...
+    # Subtest: refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+    ok 4 - refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+      ---
+      duration_ms: 18.952292
+      type: 'test'
+      ...
+    # Subtest: mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+    ok 5 - mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+      ---
+      duration_ms: 31.714672
+      type: 'test'
+      ...
+    # Subtest: app token: returned to the caller only; never stored, never echoed in an error
+    ok 6 - app token: returned to the caller only; never stored, never echoed in an error
+      ---
+      duration_ms: 18.518366
+      type: 'test'
+      ...
+    # Subtest: the page sends only to the origin inside the operator's signature
+    ok 7 - the page sends only to the origin inside the operator's signature
+      ---
+      duration_ms: 4.161018
+      type: 'test'
+      ...
+    # Subtest: attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+    ok 8 - attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+      ---
+      duration_ms: 6.631759
+      type: 'test'
+      ...
+    # Subtest: the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+    ok 9 - the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+      ---
+      duration_ms: 18.200518
+      type: 'test'
+      ...
+    # Subtest: a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+    ok 10 - a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+      ---
+      duration_ms: 6.907656
+      type: 'test'
+      ...
+    # Subtest: floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+    ok 11 - floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+      ---
+      duration_ms: 6.606819
+      type: 'test'
+      ...
+    # Subtest: GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+    ok 12 - GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+      ---
+      duration_ms: 20.108823
+      type: 'test'
+      ...
+    1..12
+ok 3 - with the shipped bundle helper
+  ---
+  duration_ms: 208.429352
+  type: 'suite'
+  ...
+# Subtest: GPU view: rows from the supervisor's answer, every value host-reported; Shield proof fields named as unverified claims
+ok 4 - GPU view: rows from the supervisor's answer, every value host-reported; Shield proof fields named as unverified claims
+  ---
+  duration_ms: 0.608915
+  type: 'test'
+  ...
+# Subtest: Startup tier: SNP by default (byte-identical to the CLI's activation); Shield only when chosen, which the Shield node accepts
+ok 5 - Startup tier: SNP by default (byte-identical to the CLI's activation); Shield only when chosen, which the Shield node accepts
+  ---
+  duration_ms: 0.918223
+  type: 'test'
+  ...
+# Subtest: pending owner grant: the CLI's typed data is accepted only as the SDK's exact SessionGrant for this wallet's vault
+ok 6 - pending owner grant: the CLI's typed data is accepted only as the SDK's exact SessionGrant for this wallet's vault
+  ---
+  duration_ms: 2.925797
+  type: 'test'
+  ...
+1..6
+# tests 28
+# suites 2
+# pass 27
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 899.075589
+[memory-guard] exit=1 peakTreeRssMiB=216 minHostAvailableMiB=23395
+[memory-guard] at peak: node:97 node:60 esbuild:55 timeout:4
+[queue] EXIT 1

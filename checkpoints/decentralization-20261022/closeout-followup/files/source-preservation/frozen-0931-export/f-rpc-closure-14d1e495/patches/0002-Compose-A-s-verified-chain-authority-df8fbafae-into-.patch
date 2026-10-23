@@ -1,0 +1,1679 @@
+From 30123801a279479f1dc9406d417e7bfa17b9f023 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:01:52 -0700
+Subject: [PATCH 2/3] Compose A's verified chain authority (df8fbafae) into the
+ hosted-service roles, the runner and their readers
+
+This brings only the modules the directory-replica and policy-mirror roles, the host-services runner (gate and
+carriers) and their server readers need from worker A's immutable df8fbafae. They were composed from git objects
+(rpc-priority/repo, A's base 9fdc1418c); A's tree was not edited.
+
+Taken as A's blobs: A's base blob for each equals 4106c311's, so this IS the 3-way result.
+  network/verified-chain.mjs  e55f0359eb26
+  network/lease-reader.mjs  d77dbf772ca3
+  network/directory-server.mjs  c48d1908606b
+  network/host-policy-runtime.mjs  95930152ebc1
+  network/service-index.mjs  d7350364a480
+  test/verified-chain.test.mjs  774a4273d05d
+  test/verified-chain-lifecycle.test.mjs  f1d0b20d7876
+  test/lease-reader-verifier.test.mjs  eec9cf3c1949
+  test/lease-reader-verifier-deadline.test.mjs  4c92a00b80b6
+  test/lease-reader-terminal-snapshot.test.mjs  9c971b67b952
+
+Three-way merged (git merge-file, ours / base 9fdc1418c / theirs df8fbafae):
+- network/platform-host-policy-config.mjs, network/policy-carriers.mjs, network/host-services/roles.mjs and
+  network/host-services/policy-mirror.mjs (on bb86e0ce's race fix): clean.
+- network/host-services/runner.mjs policyCarrierFetch: 2 conflict hunks, resolved by
+  host-service-rpc-closure/resolve-runner.py. C's injected snapshot (its gate's own authority) wins; otherwise A's
+  configured chainAuthority applies. The RPC-quorum requirement applies only in legacy mode.
+
+Effect:
+- A role, or the runner's policy gate and carriers, given chainAuthority 'verifier' plus a LOOPBACK chainVerifier
+  reads the local proof-backed verifier (unsafe tier, one pinned block, whole-operation deadline). It builds no
+  provider client and has no provider fallback.
+- Without that choice the legacy quorum is unchanged: 2 to 8 distinct providers, majority agreement.
+
+Not composed (A's other consumers):
+- cold-bootstrap, provider-settlement, usdc-bandwidth, management, native, windows, relays, lease-gas,
+  host-admission and challenge-replica wiring;
+- A's lease-reader-verifier "settlement pinned reads" case depends on usdc-bandwidth and is excluded by name in this
+  tree's runs.
+---
+ network/directory-server.mjs                 |   5 +-
+ network/host-policy-runtime.mjs              |  29 ++-
+ network/host-services/policy-mirror.mjs      |   4 +-
+ network/host-services/roles.mjs              |  33 ++-
+ network/host-services/runner.mjs             |  21 +-
+ network/lease-reader.mjs                     | 238 ++++++++++++++++++-
+ network/platform-host-policy-config.mjs      |  18 +-
+ network/policy-carriers.mjs                  |   7 +-
+ network/service-index.mjs                    |  39 ++-
+ network/verified-chain.mjs                   | 177 ++++++++++++++
+ test/lease-reader-terminal-snapshot.test.mjs |  57 +++++
+ test/lease-reader-verifier-deadline.test.mjs | 215 +++++++++++++++++
+ test/lease-reader-verifier.test.mjs          | 234 ++++++++++++++++++
+ test/verified-chain-lifecycle.test.mjs       |  46 ++++
+ test/verified-chain.test.mjs                 | 167 +++++++++++++
+ 15 files changed, 1250 insertions(+), 40 deletions(-)
+ create mode 100644 network/verified-chain.mjs
+ create mode 100644 test/lease-reader-terminal-snapshot.test.mjs
+ create mode 100644 test/lease-reader-verifier-deadline.test.mjs
+ create mode 100644 test/lease-reader-verifier.test.mjs
+ create mode 100644 test/verified-chain-lifecycle.test.mjs
+ create mode 100644 test/verified-chain.test.mjs
+
+diff --git a/network/directory-server.mjs b/network/directory-server.mjs
+index 28758284fba9f1af61ef16fba8e978726f5753a4..c48d1908606b92d2ad7671689f21122b1409bae1 100644
+--- a/network/directory-server.mjs
++++ b/network/directory-server.mjs
+@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
+ import {pathToFileURL} from 'node:url';
+ import {PublicDirectory} from './public-directory.mjs';
+ import {DirectoryClient} from './directory-client.mjs';
+-import {LeaseReader} from './lease-reader.mjs';
++import {LeaseReader,chainAuthorityOptions} from './lease-reader.mjs';
+ import {verifyOwnerSignature} from './owner-signature.mjs';
+ 
+ export function createDirectoryServer(directory,{maxInFlight=32,log=()=>{}}={}){
+@@ -47,7 +47,7 @@ export function createDirectoryServer(directory,{maxInFlight=32,log=()=>{}}={}){
+ // reader: an injected chain reader with the LeaseReader interface (refresh, registryEntries, bookAddress); tests only.
+ export async function runDirectory(config,{reader:injected}={}){
+   const log=m=>console.log(new Date().toISOString(),m);
+-  const reader=injected||new LeaseReader({rpc:config.rpc,addressBook:config.addressBook,authorityPins:config.authorityPins,includeHostPayout:true});
++  const reader=injected||new LeaseReader({rpc:config.rpc,addressBook:config.addressBook,authorityPins:config.authorityPins,includeHostPayout:true,...chainAuthorityOptions(config)});
+   const leases=new Map(),operators=new Map();let registry=null,registryAt=0,refreshLeases=null;
+   const leaseOf=async id=>{
+     const cached=leases.get(id);if(cached&&cached.at+15000>Date.now())return cached.row;
+@@ -86,6 +86,7 @@ export async function runDirectory(config,{reader:injected}={}){
+   };
+   const timer=setInterval(()=>void sync(),10000);timer.unref();void sync();
+   log('public signed-record directory listening on '+JSON.stringify(server.address()));
++  {const a=reader.authorityInfo?.();if(a)log('chain reads: '+a.authority+' ('+a.tier+' tier'+(a.authority==='local-verifier'?', proof-backed, no provider fallback':'')+')');}
+   return {server,directory,close:()=>{clearInterval(timer);server.close();}};
+ }
+ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+diff --git a/network/host-policy-runtime.mjs b/network/host-policy-runtime.mjs
+index 7eb8bdec66217dc54976b9c40575644f0d784e52..95930152ebc12331d0dddc6f9cad57384df3b84b 100644
+--- a/network/host-policy-runtime.mjs
++++ b/network/host-policy-runtime.mjs
+@@ -10,6 +10,7 @@ import fs from "node:fs";
+ import path from "node:path";
+ import { createPublicClient, http, encodeFunctionData, decodeFunctionResult } from "viem";
+ import { createQuorumReader, checkRpcUrls } from "../custody/v2/quorum.mjs";
++import { createVerifiedSnapshot, chainVerifierOf } from "./verified-chain.mjs";
+ import { createPlatformHostGate, readPolicyFacts, decodeAnchor } from "./platform-host-policy.mjs";
+ import { httpPolicyMirrors, validateMirrors } from "./host-policy-mirrors.mjs";
+ import { hostAdmissions, measuredHostGate } from "./host-policy-adapters.mjs";
+@@ -41,6 +42,27 @@ export function quorumSnapshot({ rpcs, minAgree = null, clients = null, maxAgeSe
+       data: await c.request({ method: "eth_call", params: [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }, { blockHash: b.blockHash, requireCanonical: true }] }) }),
+     code: (a) => c.request({ method: "eth_getCode", params: [a, { blockHash: b.blockHash, requireCanonical: true }] }) }));
+ }
++/**
++ * The local proof-backed verifier -> the gate's snapshot(fn), same interface and freshness as quorumSnapshot (head block,
++ * <= maxAgeSec old, <= 10 s ahead, monotonic, re-checked header) but ONE verified block (unsafe tier) instead of a
++ * provider majority. Any failure refuses (codes as custody/v2/quorum.mjs); there is no provider fallback.
++ */
++export function verifiedHostSnapshot({ verifier, chainId = 8453, maxAgeSec = 120, now = Date.now }) {
++  const snap = createVerifiedSnapshot({ verifier, chainId, confirmations: 0, maxBlockAgeMs: maxAgeSec * 1000, futureSkewMs: 10_000, deadlineMs: 30_000, now });
++  return async (fn) => {
++    const s = await snap((c, b) => fn({ block: b,
++      call: (address, abi, functionName, args = []) => c.readContract({ address, abi, functionName, args, blockNumber: b }),
++      code: (a) => c.getCode({ address: a, blockNumber: b }).then((x) => x || "0x") }));
++    // quorumSnapshot hands back the read's value merged with the block it was read at; so does this
++    return s.value && typeof s.value === "object" && !Array.isArray(s.value)
++      ? { ...s.value, blockNumber: s.blockNumber, blockHash: s.blockHash, blockTimestamp: Math.floor(s.timestamp / 1000) } : s.value;
++  };
++}
++/** The policy snapshot a configuration asks for: the local verifier when chainAuthority is 'verifier', else the RPC quorum. */
++export function hostPolicySnapshot({ rpcs = null, minAgree = null, clients = null, chainAuthority, chainVerifier, chainId = 8453 } = {}) {
++  const verifier = chainVerifierOf({ chainAuthority, chainVerifier }, "platform host policy");
++  return verifier ? verifiedHostSnapshot({ verifier, chainId }) : quorumSnapshot({ rpcs, minAgree, clients });
++}
+ /** A viem client snapshot (e.g. the CLI's INDEPENDENT.chain.snapshot((client, blockNumber) => ...)) -> the gate's snapshot */
+ export const clientSnapshot = (snap) => (fn) => snap((client, blockNumber) => fn({ block: blockNumber,
+   call: (address, abi, functionName, args = []) => client.readContract({ address, abi, functionName, args, blockNumber }),
+@@ -60,7 +82,9 @@ export function createHostPolicyRuntime(resolved, { rpcs = null, minAgree = null
+   else cfg = resolved.on === true ? resolved.config : resolved;
+   if (!cfg) return null;
+   const activation = cfg.activation || "anchor";
+-  const snap = snapshot || quorumSnapshot({ rpcs: rpcs || cfg.rpcs, minAgree: minAgree ?? cfg.minAgree ?? null, clients });
++  // the configured authority decides: with chainAuthority 'verifier' the RPC list/clients are never used
++  const snap = snapshot || hostPolicySnapshot({ rpcs: rpcs || cfg.rpcs, minAgree: minAgree ?? cfg.minAgree ?? null, clients,
++    chainAuthority: cfg.chainAuthority, chainVerifier: cfg.chainVerifier });
+   const mirrors = cfg.mirrors && cfg.mirrors.length ? httpPolicyMirrors(cfg.mirrors, { fetch }) : [];
+   if (!mirrors.length) log("[host-policy] WARNING: no policy mirror configured - an anchored policy cannot be loaded and will refuse every host");
+   const core = createPlatformHostGate({ book: cfg.book, hostOwnership: cfg.hostOwnership, snapshot: snap, mirrors, store, log });
+@@ -92,6 +116,7 @@ export function createHostPolicyRuntime(resolved, { rpcs = null, minAgree = null
+   const gate = { refresh, decide, decideOperators, decideHost: core.decideHost, currentAuthorityChecks: core.currentAuthorityChecks, accepted: core.accepted, problems: core.problems };
+   return { config: cfg, activation, gate, admissions: hostAdmissions(gate, { ttlMs }), decideOperators,
+            measured: (hostId, o = {}) => measuredHostGate({ gate, hostId, log, ...o }),
+-           status: () => ({ activation, anchor: last.state, block: last.block ? String(last.block) : null,
++           status: () => ({ activation, chainAuthority: snapshot ? "injected" : cfg.chainAuthority === "verifier" ? "local-verifier (unsafe tier)" : "provider-quorum",
++             anchor: last.state, block: last.block ? String(last.block) : null,
+                             accepted: core.accepted() ? { sequence: core.accepted().policy.sequence, digest: core.accepted().digest } : null, problems: core.problems() }) };
+ }
+diff --git a/network/host-services/policy-mirror.mjs b/network/host-services/policy-mirror.mjs
+index a7306058c2ac883938f45a26259063a684c6bc98..8af1510a2619575f7577be1c78b549bed7423b7e 100644
+--- a/network/host-services/policy-mirror.mjs
++++ b/network/host-services/policy-mirror.mjs
+@@ -16,14 +16,14 @@ import http from 'node:http';
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import { pathToFileURL } from 'node:url';
+-import { quorumSnapshot } from '../host-policy-runtime.mjs';
++import { hostPolicySnapshot } from '../host-policy-runtime.mjs';
+ import { MAX_POLICY_RESPONSE } from '../host-policy-mirrors.mjs';
+ import { fileCarrier, httpCarriers, freshVerifier, candidateDigest } from '../policy-carriers.mjs';
+ 
+ export function startPolicyMirror(cfg, { snapshot = null, fetch = globalThis.fetch, log = (m) => console.log(new Date().toISOString(), m) } = {}) {
+   const docsDir = path.join(cfg.stateDir, 'documents');
+   fs.mkdirSync(docsDir, { recursive: true, mode: 0o755 });
+-  const verify = freshVerifier({ snapshot: snapshot || quorumSnapshot({ rpcs: cfg.rpc, minAgree: cfg.minAgree ?? null }), book: cfg.book, hostOwnership: cfg.hostOwnership });
++  const verify = freshVerifier({ snapshot: snapshot || hostPolicySnapshot({ rpcs: cfg.rpc, minAgree: cfg.minAgree ?? null, chainAuthority: cfg.chainAuthority, chainVerifier: cfg.chainVerifier }), book: cfg.book, hostOwnership: cfg.hostOwnership });
+   const max = cfg.maxDocuments || 32, syncMs = (cfg.syncSec || 30) * 1000;
+   const store = new Map();             // digest -> { document, signature, sequence }
+   const carriers = [...(cfg.importDir ? [fileCarrier(cfg.importDir)] : []), ...httpCarriers(cfg.peers || [], { fetch })];
+diff --git a/network/host-services/roles.mjs b/network/host-services/roles.mjs
+index 43f65bfb2b39d5da15b38c62feaa7d484ed813b6..668ff76fc2df8b5dbb6640d57e19933a6a6f1dd6 100644
+--- a/network/host-services/roles.mjs
++++ b/network/host-services/roles.mjs
+@@ -21,6 +21,7 @@ import { validateNetworkAuthorities } from '../network-authorities.mjs';
+ import { rpcEndpoint } from '../rpc-identity.mjs';
+ import { publicIPv4 } from '../service-index.mjs';
+ import { validateCarrierBases } from '../policy-carriers.mjs';
++import { chainVerifierOf } from '../verified-chain.mjs';
+ import { CREDIT_VAULT_SUBMITTER_ROLE } from './credit-vault-submitter.mjs';
+ 
+ export const PACKAGE_FORMAT = 'enclave-host-service-package/v1';
+@@ -87,17 +88,22 @@ export const ROLES = Object.freeze({
+     serves: 'signed public network records: providers, checker qualifications, owner policies, app routes, host management records',
+     state: { durable: true, what: 'accepted records and per-app replay floors (route-floors)', rebuild: 'records re-import from peers and re-publication; replay floors must persist (a corrupt store refuses startup, never resets)' },
+     secrets: 'none',
+-    cold: ['two or more Base RPC providers (the operator\'s quorum)', 'the admin-controlled EnclaveAddressBook address (and optional authority pins)'],
++    cold: ['two or more Base RPC providers (the operator\'s quorum), or explicitly this host\'s local verifier (chainAuthority verifier)', 'the admin-controlled EnclaveAddressBook address (and optional authority pins)'],
+     notCold: ['peers (optional; a replica starts empty and accepts signed submissions)', 'storage adapters', 'artifact replicas', 'lease relays', 'any app'],
+     validate(c) {
+-      only('directory-replica', c, ['port', 'bind', 'stateDir', 'rpc', 'addressBook', 'authorityPins', 'checkers', 'peers'], ['port', 'bind', 'stateDir', 'rpc', 'addressBook', 'checkers']);
+-      port('directory-replica', c.port, 'port'); bind('directory-replica', c.bind); absDir('directory-replica', c.stateDir, 'stateDir'); rpcs('directory-replica', c.rpc);
++      // chainAuthority 'verifier' + chainVerifier (loopback): the replica's lease/registry/book reads come from the local
++      // proof-backed verifier (network/directory-server.mjs builds no provider client then); rpc is not needed
++      let verifier; try { verifier = chainVerifierOf({ chainAuthority: c.chainAuthority, chainVerifier: c.chainVerifier }, 'directory-replica'); } catch (e) { fail('directory-replica', e.message); }
++      only('directory-replica', c, ['port', 'bind', 'stateDir', 'rpc', 'addressBook', 'authorityPins', 'checkers', 'peers', 'chainAuthority', 'chainVerifier'],
++        ['port', 'bind', 'stateDir', ...(verifier ? [] : ['rpc']), 'addressBook', 'checkers']);
++      port('directory-replica', c.port, 'port'); bind('directory-replica', c.bind); absDir('directory-replica', c.stateDir, 'stateDir');
++      if (c.rpc !== undefined || !verifier) rpcs('directory-replica', c.rpc);
+       if (!NONZERO(c.addressBook)) fail('directory-replica', 'addressBook must be the admin-controlled EnclaveAddressBook address');
+       if (c.authorityPins !== undefined) { try { validateNetworkAuthorities(c.authorityPins); } catch (e) { fail('directory-replica', `authorityPins: ${e.message}`); } }
+       if (!Array.isArray(c.checkers) || c.checkers.length < 1 || c.checkers.length > 16 || !c.checkers.every(NONZERO)) fail('directory-replica', 'checkers: 1 to 16 checker addresses the operator trusts');
+       const peers = origins('directory-replica', c.peers ?? [], 'peers');
+-      return { port: c.port, bind: c.bind, stateDir: c.stateDir, rpc: [...c.rpc], addressBook: c.addressBook, ...(c.authorityPins ? { authorityPins: c.authorityPins } : {}),
+-        checkers: c.checkers.map((x) => x.toLowerCase()), peers };
++      return { port: c.port, bind: c.bind, stateDir: c.stateDir, ...(c.rpc ? { rpc: [...c.rpc] } : {}), addressBook: c.addressBook, ...(c.authorityPins ? { authorityPins: c.authorityPins } : {}),
++        checkers: c.checkers.map((x) => x.toLowerCase()), peers, ...(verifier ? { chainAuthority: 'verifier', chainVerifier: verifier } : {}) };
+     },
+     launch(c) { return { configFile: c, env: {} }; },
+   }),
+@@ -160,19 +166,24 @@ export const ROLES = Object.freeze({
+     serves: 'the administrator\'s signed platform host policy documents by digest (GET /platform-policy/<digest>.json, POST /platform-policy): an untrusted carrier the platform host policy gate and clients verify',
+     state: { durable: false, what: 'documents the address book\'s current owner signs at a fresh agreed block (public data)', rebuild: 'refilled by digest from importDir, peers or publication; every gate re-verifies' },
+     secrets: 'none',
+-    cold: ['two or more Base RPC providers (the operator\'s quorum)', 'the admin-controlled EnclaveAddressBook and the hostOwnership extension it binds', 'the anchored document from ANY carrier: importDir (an operator-imported copy), a peer, or a publication'],
++    cold: ['two or more Base RPC providers (the operator\'s quorum), or explicitly this host\'s local verifier (chainAuthority verifier)', 'the admin-controlled EnclaveAddressBook and the hostOwnership extension it binds', 'the anchored document from ANY carrier: importDir (an operator-imported copy), a peer, or a publication'],
+     notCold: ['the fleet\'s /platform-policy routes', 'discovery', 'storage adapters', 'lease relays', 'any app', 'this host\'s own admission (its gate reads importDir and this role\'s store from disk)'],
+     validate(c) {
+-      only('policy-mirror', c, ['port', 'bind', 'stateDir', 'rpc', 'minAgree', 'book', 'hostOwnership', 'peers', 'importDir', 'syncSec', 'maxDocuments'],
+-        ['port', 'bind', 'stateDir', 'rpc', 'book', 'hostOwnership']);
+-      port('policy-mirror', c.port, 'port'); bind('policy-mirror', c.bind); absDir('policy-mirror', c.stateDir, 'stateDir'); rpcs('policy-mirror', c.rpc);
+-      if (c.minAgree !== undefined && (!Number.isInteger(c.minAgree) || c.minAgree <= c.rpc.length / 2 || c.minAgree > c.rpc.length)) fail('policy-mirror', 'minAgree must be a majority of rpc');
++      // chainAuthority 'verifier' + chainVerifier (loopback): candidates are verified against the local proof-backed
++      // verifier; rpc is then not needed (and never used)
++      let verifier; try { verifier = chainVerifierOf({ chainAuthority: c.chainAuthority, chainVerifier: c.chainVerifier }, 'policy-mirror'); } catch (e) { fail('policy-mirror', e.message); }
++      only('policy-mirror', c, ['port', 'bind', 'stateDir', 'rpc', 'minAgree', 'book', 'hostOwnership', 'peers', 'importDir', 'syncSec', 'maxDocuments', 'chainAuthority', 'chainVerifier'],
++        ['port', 'bind', 'stateDir', ...(verifier ? [] : ['rpc']), 'book', 'hostOwnership']);
++      port('policy-mirror', c.port, 'port'); bind('policy-mirror', c.bind); absDir('policy-mirror', c.stateDir, 'stateDir');
++      if (c.rpc !== undefined || !verifier) rpcs('policy-mirror', c.rpc);
++      if (c.minAgree !== undefined && (!Number.isInteger(c.minAgree) || c.minAgree <= (c.rpc || []).length / 2 || c.minAgree > (c.rpc || []).length)) fail('policy-mirror', 'minAgree must be a majority of rpc');
+       for (const k of ['book', 'hostOwnership']) if (!NONZERO(c[k])) fail('policy-mirror', `${k} must be the platform host policy's ${k === 'book' ? 'admin-controlled EnclaveAddressBook' : 'EnclaveHostOwnership extension'}`);
+       let peers; try { peers = validateCarrierBases(c.peers ?? [], 'peers'); } catch (e) { fail('policy-mirror', e.message); }
+       if (c.importDir !== undefined) absDir('policy-mirror', c.importDir, 'importDir');
+       if (c.syncSec !== undefined && (!Number.isInteger(c.syncSec) || c.syncSec < 5 || c.syncSec > 3600)) fail('policy-mirror', 'syncSec: 5 to 3600');
+       if (c.maxDocuments !== undefined && (!Number.isInteger(c.maxDocuments) || c.maxDocuments < 2 || c.maxDocuments > 32)) fail('policy-mirror', 'maxDocuments: 2 to 32');
+-      return { port: c.port, bind: c.bind, stateDir: c.stateDir, rpc: [...c.rpc], ...(c.minAgree ? { minAgree: c.minAgree } : {}), book: c.book.toLowerCase(),
++      return { port: c.port, bind: c.bind, stateDir: c.stateDir, ...(c.rpc ? { rpc: [...c.rpc] } : {}), ...(c.minAgree ? { minAgree: c.minAgree } : {}),
++        ...(verifier ? { chainAuthority: 'verifier', chainVerifier: verifier } : {}), book: c.book.toLowerCase(),
+         hostOwnership: c.hostOwnership.toLowerCase(), peers, ...(c.importDir ? { importDir: c.importDir } : {}), ...(c.syncSec ? { syncSec: c.syncSec } : {}),
+         ...(c.maxDocuments ? { maxDocuments: c.maxDocuments } : {}) };
+     },
+diff --git a/network/host-services/runner.mjs b/network/host-services/runner.mjs
+index 4bd88f50343eee985ba1b7d1395e163ecdb31127..30c089a604a483d7ad6bdddb5e49375f126fdb6d 100644
+--- a/network/host-services/runner.mjs
++++ b/network/host-services/runner.mjs
+@@ -35,6 +35,7 @@
+ //   - the platform host policy gates it exactly as it gates app service on this host (network/host-service-gate.mjs): a ban,
+ //     an allowlist miss or a deregistration STOPS every role (sticky until the admin's admit); a transient outage keeps
+ //     serving for the gate's grace; "off" must be written explicitly and is reported as such.
++import { chainVerifierOf } from '../verified-chain.mjs';
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import { spawn as spawnChild } from 'node:child_process';
+@@ -76,7 +77,7 @@ function baseEnv() {
+ /** -> the normalized configuration (throws on anything else). */
+ export function validateHostServicesConfig(cfg) {
+   if (!plain(cfg)) fail('configuration must be an object');
+-  const allowed = ['format', 'host', 'platformHostPolicy', 'platformHostPolicyMirrors', 'platformHostPolicyRpcs', 'platformHostPolicyCarriers', 'serviceIndex', 'packagesDir', 'stateRoot', 'services'];
++  const allowed = ['format', 'host', 'platformHostPolicy', 'platformHostPolicyMirrors', 'platformHostPolicyRpcs', 'platformHostPolicyCarriers', 'serviceIndex', 'packagesDir', 'stateRoot', 'services', 'chainAuthority', 'chainVerifier'];
+   for (const k of Object.keys(cfg)) if (!allowed.includes(k)) fail(`unknown field ${JSON.stringify(k)}${SECRETISH.test(k) ? ' (host services hold no secret)' : ''}`);
+   if (cfg.format !== CONFIG_FORMAT) fail(`format must be ${CONFIG_FORMAT}`);
+   for (const k of ['packagesDir', 'stateRoot']) if (typeof cfg[k] !== 'string' || !path.isAbsolute(cfg[k])) fail(`${k} must be an absolute path`);
+@@ -84,6 +85,9 @@ export function validateHostServicesConfig(cfg) {
+   if (!(cfg.platformHostPolicy === 'production' || cfg.platformHostPolicy === 'off' || plain(cfg.platformHostPolicy))) fail('platformHostPolicy: "production" | "off" | { book, hostOwnership, mirrors[] }');
+   if (cfg.platformHostPolicyMirrors !== undefined && (!Array.isArray(cfg.platformHostPolicyMirrors) || cfg.platformHostPolicyMirrors.some((u) => typeof u !== 'string' || !/^https:\/\/[^\s/?#@]+(\/[^\s?#]*)?$/.test(u)))) fail('platformHostPolicyMirrors: https URLs');
+   // the policy's own RPC quorum: https (http only on loopback), one vote per provider (network/rpc-identity.mjs)
++  // chainAuthority 'verifier' + chainVerifier (loopback): the platform policy, its carriers and the index carriers read
++  // the local proof-backed verifier instead of the RPC quorum (no fallback)
++  try { chainVerifierOf({ chainAuthority: cfg.chainAuthority, chainVerifier: cfg.chainVerifier }, 'host services'); } catch (e) { fail(e.message); }
+   if (cfg.platformHostPolicyRpcs !== undefined) {
+     if (!Array.isArray(cfg.platformHostPolicyRpcs) || cfg.platformHostPolicyRpcs.length < 1 || cfg.platformHostPolicyRpcs.length > 8) fail('platformHostPolicyRpcs: 1 to 8 RPC URLs');
+     const ids = cfg.platformHostPolicyRpcs.map((u, i) => { try { return rpcEndpoint(u).identity; } catch (e) { return fail(`platformHostPolicyRpcs[${i}]: https (http only on loopback), without credentials`); } });
+@@ -140,7 +144,8 @@ export function policyEnv(cfg) {
+   const mirrors = [...(cfg.platformHostPolicyMirrors || []), ...(usesCarriers(cfg) ? [CARRIER_MIRROR] : [])];
+   return { ENCLAVE_PLATFORM_HOST_POLICY: typeof p === 'string' ? p : JSON.stringify(p),
+     ...(mirrors.length ? { ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS: mirrors.join(',') } : {}),
+-    ...(cfg.platformHostPolicyRpcs ? { ENCLAVE_PLATFORM_HOST_POLICY_RPCS: cfg.platformHostPolicyRpcs.join(',') } : {}) };
++    ...(cfg.platformHostPolicyRpcs ? { ENCLAVE_PLATFORM_HOST_POLICY_RPCS: cfg.platformHostPolicyRpcs.join(',') } : {}),
++    ...(cfg.chainAuthority === 'verifier' ? { ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: cfg.chainVerifier } : {}) };
+ }
+ /**
+  * The fetch the gate uses: CARRIER_MIRROR answered from this host's carriers (importDir, its policy-mirror store, peers,
+@@ -152,20 +157,22 @@ export function policyEnv(cfg) {
+ export async function policyCarrierFetch(cfg, { fetch = globalThis.fetch, log = () => {}, snapshot = null } = {}) {
+   if (!usesCarriers(cfg)) return fetch;
+   const { resolveHostPolicyConfig } = await import('../platform-host-policy-config.mjs');
+-  const { quorumSnapshot } = await import('../host-policy-runtime.mjs');
++  const { hostPolicySnapshot } = await import('../host-policy-runtime.mjs');
+   const pcm = await import('../policy-carriers.mjs');
+   const resolved = resolveHostPolicyConfig({ env: policyEnv(cfg), chainId: 8453 });
+-  const { book, hostOwnership, rpcs, minAgree } = resolved.config;
+-  if (!snapshot && (!rpcs || !rpcs.length)) fail('platform host policy carriers need the policy\'s RPC quorum (platformHostPolicyRpcs or the platform\'s rpcs)');
++  // the authority: an injected snapshot (the caller's gate's own) wins; else the configured one - the local verifier when
++  // chainAuthority is 'verifier' (no RPC used), or the policy's RPC quorum (never relaxed)
++  const { book, hostOwnership, rpcs, minAgree, chainAuthority, chainVerifier } = resolved.config;
++  if (!snapshot && chainAuthority !== 'verifier' && (!rpcs || !rpcs.length)) fail('platform host policy carriers need the policy\'s RPC quorum (platformHostPolicyRpcs or the platform\'s rpcs)');
+   const pc = cfg.platformHostPolicyCarriers || {};
+   const mirror = cfg.services.find((s) => s.role === 'policy-mirror');
+   const carriers = [
+     ...(pc.importDir ? [pcm.fileCarrier(pc.importDir)] : []),
+     ...(mirror ? [pcm.fileCarrier(path.join(mirror.config.stateDir, 'documents'))] : []),
+     ...pcm.httpCarriers(pc.peers || [], { fetch }),
+-    ...(pc.serviceIndex ? [pcm.indexCarriers({ pin: cfg.serviceIndex, peers: rpcs, fetch, log })] : []),
++    ...(pc.serviceIndex ? [pcm.indexCarriers({ pin: cfg.serviceIndex, peers: rpcs, fetch, log, chainAuthority, chainVerifier })] : []),
+   ];
+-  const verify = pcm.freshVerifier({ snapshot: snapshot || quorumSnapshot({ rpcs, minAgree }), book, hostOwnership });
++  const verify = pcm.freshVerifier({ snapshot: snapshot || hostPolicySnapshot({ rpcs, minAgree, chainAuthority, chainVerifier }), book, hostOwnership });
+   return pcm.carrierFetch({ carriers, verify, fetch, log });
+ }
+ 
+diff --git a/network/lease-reader.mjs b/network/lease-reader.mjs
+index 0a4bc01f9a89c9303abbc6b99e1456d8e781cedd..d77dbf772ca34798b439313df4affe91acc89411 100644
+--- a/network/lease-reader.mjs
++++ b/network/lease-reader.mjs
+@@ -1,6 +1,12 @@
+-// Serving authorization comes from two independently configured chain RPCs at
+-// the same recent block. Nan is neither a bootstrap nor an admission dependency.
+-import {createPublicClient, http, stringToHex} from 'viem';
++// Serving authorization comes from one of two EXPLICIT chain authorities (never mixed, never a fallback for each other):
++//  * 'quorum' (default, legacy): two independently configured chain RPCs agree at the same recent block. Agreement of
++//    providers is not proof and not independence from them.
++//  * 'verifier': ONE local validating endpoint (Helios, branch enclave-base-evm) that follows a sequencer-signed Base
++//    head and answers every read from proofs verified against that block's state root, executing calls with the
++//    maintained Base EVM. Its tier is the UNSAFE head (sequencer-signed, not L1-final). It is never a quorum vote, and
++//    with it no provider client exists, so a failed proof or missing fresh evidence can only refuse.
++// Nan is neither a bootstrap nor an admission dependency.
++import {createPublicClient, http, stringToHex, encodeFunctionData, decodeFunctionResult} from 'viem';
+ import {base} from 'viem/chains';
+ import {canonical} from './route-record.mjs';
+ import {readConnectivity} from './connectivity-chain.mjs';
+@@ -21,6 +27,16 @@ function timed(promise,ms) {
+   let timer;
+   return Promise.race([promise,new Promise((_r,reject)=>{timer=setTimeout(()=>reject(new Error('chain request timed out')),ms);})]).finally(()=>clearTimeout(timer));
+ }
++// The verifier authority's per-request bound: like timed(), and also ended at once when its operation closes (signal
++// aborted). Both the timer and the abort listener are removed when the request settles either way.
++function bounded(promise,ms,signal,message) {
++  let timer,onAbort;
++  return Promise.race([promise,new Promise((_r,reject)=>{
++    timer=setTimeout(()=>reject(new Error(message)),ms);
++    onAbort=()=>reject(signal.reason instanceof Error?signal.reason:new Error('the verified operation was closed'));
++    if(signal.aborted)onAbort();else signal.addEventListener('abort',onAbort,{once:true});
++  })]).finally(()=>{clearTimeout(timer);signal.removeEventListener('abort',onAbort);});
++}
+ // an RPC library's error can name the URL it called, API key and all: only a safe label of it is kept
+ const errText=e=>redactUrls(String(e?.shortMessage||e?.message||e)).slice(0,400);
+ const rateLimited=t=>/rate limit|over rate|too many requests|compute units per second|\b429\b/i.test(t);
+@@ -72,14 +88,74 @@ function header(block,blockNumber) {
+   if(!Number.isSafeInteger(ms))throw new Error('malformed chain block timestamp');
+   return {number:blockNumber,hash:hash.toLowerCase(),timestamp:ms};
+ }
++/**
++ * Explicit chain-authority options for a LeaseReader from a runtime config ({chainAuthority, chainVerifier}): {} (the
++ * legacy provider quorum, unchanged) unless chainAuthority is 'verifier', which needs the local verifier URL.
++ */
++export function chainAuthorityOptions({chainAuthority,chainVerifier}={}) {
++  if(chainAuthority===undefined||chainAuthority===null||chainAuthority==='quorum'){
++    if(chainVerifier!==undefined&&chainVerifier!==null)throw new Error('chainVerifier is set but chainAuthority is not verifier');
++    return {};
++  }
++  if(chainAuthority!=='verifier')throw new Error('chainAuthority must be quorum or verifier');
++  if(!chainVerifier)throw new Error('chainAuthority verifier needs chainVerifier (the local verifier URL)');
++  return {authority:'verifier',verifier:chainVerifier};
++}
++/** The same from the environment: ENCLAVE_CHAIN_AUTHORITY=verifier and ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:<port>/ */
++export const chainAuthorityFromEnv=(env=process.env)=>chainAuthorityOptions({chainAuthority:env.ENCLAVE_CHAIN_AUTHORITY||undefined,chainVerifier:env.ENCLAVE_CHAIN_VERIFIER||undefined});
++// The local validating endpoint behind authority 'verifier': a loopback JSON-RPC URL (the Helios process on this host)
++// or, in-process, an object with request(method, params, timeoutMs, signal). A remote URL is refused: a remote
++// "verifier" would be one unverified server, exactly what this authority must never be.
++// `signal` is the AbortSignal of the operation the request belongs to (aborted at its deadline or when it finishes).
++// The HTTP transport aborts its fetch (connection and body) with it; an in-process transport receives it and may honour
++// it. One that ignores it cannot be force-stopped (running JavaScript cannot be aborted): its late answer is ignored.
++function verifierEndpoint(v) {
++  if(v&&typeof v==='object'&&typeof v.request==='function')return {request:(m,p,ms,signal)=>v.request(m,p,ms,signal),label:'verifier'};
++  const url=typeof v==='string'?v:v?.url;
++  let e;try{e=rpcEndpoint(url);}catch(err){throw new Error('verifier endpoint: '+err.message);}
++  if(!e.loopback)throw new Error('the verifier must be a local endpoint (loopback); a remote server is not a verifier');
++  let id=0;
++  return {label:'verifier '+e.label,request:async(method,params,ms,signal)=>{
++    const timeout=AbortSignal.timeout(Math.max(1,ms));
++    const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:++id,method,params}),
++      redirect:'error',signal:signal?AbortSignal.any([signal,timeout]):timeout});
++    if(!r.ok)throw Object.assign(new Error(`verifier HTTP ${r.status}`),{status:r.status});
++    const j=await r.json();
++    if(j?.error)throw Object.assign(new Error('verifier: '+String(j.error.message||'error').slice(0,300)),{code:j.error.code});
++    return j?.result;
++  }};
++}
++const hexBlock=b=>'0x'+b.toString(16);
++// A block the verifier returned for number b (from its signed head chain): that number, a 32-byte hash and state root,
++// a whole-second timestamp. -> {number, hash, stateRoot, timestamp (ms)}
++function verifiedHeader(block,b) {
++  if(!block||typeof block!=='object')throw new Error('the verifier has no block '+b);
++  let number;try{number=BigInt(block.number);}catch{throw new Error('malformed verified block number');}
++  if(number!==b)throw new Error('verified block number differs from the one requested');
++  if(!/^0x[0-9a-fA-F]{64}$/.test(block.hash||'')||!/^0x[0-9a-fA-F]{64}$/.test(block.stateRoot||''))throw new Error('malformed verified block hash or state root');
++  let ts;try{ts=Number(BigInt(block.timestamp))*1000;}catch{throw new Error('malformed verified block timestamp');}
++  if(!Number.isSafeInteger(ts)||ts<0)throw new Error('malformed verified block timestamp');
++  return {number:b,hash:block.hash.toLowerCase(),stateRoot:block.stateRoot.toLowerCase(),timestamp:ts};
++}
++const PINNED_METHODS=['getChainId','getBlockNumber','getBlock','readContract','getCode','getBytecode','getStorageAt','getBalance'];
+ // The fields agreed() itself puts on every answer; a read callback returning one is a bug, refused loudly.
+ const reservedFields=['hash','blockNumber','timestamp'];
+ export class LeaseReader {
+-  constructor({rpc,chainId=8453,addressBook,authorityPins,maxBlockAgeMs=90000,confirmations=2,deadlineMs=30000,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now,rateLimitRetryMs=0}) {
++  constructor({rpc,chainId=8453,addressBook,authorityPins,maxBlockAgeMs=90000,confirmations=2,deadlineMs=30000,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now,rateLimitRetryMs=0,authority='quorum',verifier}) {
+     if (!/^0x[0-9a-fA-F]{40}$/.test(addressBook||'')) throw new Error('invalid chain policy');
+     Object.assign(this,{chainId,addressBook,maxBlockAgeMs,confirmations,deadlineMs,includeHostPayout,includeConnectivity,now});
+     this.retryDelayMs=400;this.headGraceMs=250;
+     const policy=policyProblem(this);if(policy)throw new Error(policy);
++    if(authority!=='quorum'&&authority!=='verifier')throw new Error('chain authority must be quorum or verifier');
++    if(authority==='quorum'&&verifier!==undefined)throw new Error('a verifier is configured but the chain authority is quorum: say authority: verifier');
++    Object.defineProperty(this,'authority',{value:authority,enumerable:true});
++    if(authority==='verifier'){
++      // rpc/clients (spread in from a shared chain config) are deliberately NOT turned into clients: no fallback exists
++      this.verifier=verifierEndpoint(verifier);
++      Object.defineProperty(this,'authorityPins',{value:authorityPins===undefined?null:validateNetworkAuthorities(authorityPins),enumerable:true});
++      this.clients=Object.freeze([]);this.labels=[];this.lastBlock=0n;this.cache=new Map();this.rateLimitRetryMs=0;this.lastEvidence=null;
++      return;
++    }
+     if (!clients) {
+       // one vote per public host: case, a trailing dot, the port and the path do not make another one
+       if (!Array.isArray(rpc) || rpc.length<2 || rpc.length>maxClients) throw new Error('at least two independent HTTPS RPC origins required');
+@@ -156,7 +232,14 @@ export class LeaseReader {
+   //  * ONE deadline (`deadlineMs`) bounds the whole call. Each request is waited for at most the time left, and once the
+   //    outcome is decided, a round is superseded, or the deadline has passed, no further request is sent.
+   //  * One RPC never wins alone; there is no fallback to a first answer.
++  // What this reader's answers are worth, for evidence and status pages (never "independent").
++  authorityInfo() {
++    return this.authority==='verifier'
++      ?{authority:'local-verifier',head:'sequencer-signed Base unsafe head',tier:'unsafe',finality:'none',execution:'proof-backed (maintained Base EVM)',providerQuorum:false,last:this.lastEvidence}
++      :{authority:'provider-quorum',head:'provider-reported',tier:'provider-reported',finality:'none',execution:'provider eth_call',providerQuorum:true,independentOfProviders:false};
++  }
+   agreed(read, failures=[]) {
++    if(this.authority==='verifier')return this.verifiedRead(read,failures);
+     const problem=clientProblem(this.clients);
+     if(problem)return Promise.reject(new Error('invalid chain clients: '+problem));
+     const policy=policyProblem(this);
+@@ -275,6 +358,153 @@ export class LeaseReader {
+       },e=>{if(!closed)failures.push(failureText(this.labels[this.clients.indexOf(c)]||'rpc','head',e));}).finally(()=>{headsOutstanding--;headsSettled();});
+     });
+   }
++  // ---- authority 'verifier' ------------------------------------------------------------------------------------------
++  // One read of verified state at ONE block, within ONE deadline:
++  //  * the verifier's head (Helios refuses a head older than 60 s) minus `confirmations`, never below the block this
++  //    reader already accepted (monotonic), and never a head behind it;
++  //  * that block's header as the verifier holds it (hash, state root, timestamp), fresh by `maxBlockAgeMs`;
++  //  * the caller's read, through a client pinned to that block HASH whose every answer is proof-backed;
++  //  * the header again (same hash and timestamp: no reorganization underneath), still fresh, still not older than a
++  //    block accepted meanwhile.
++  // Any failure refuses the whole read. There is no other source to fall back to. ONE deadline (`deadlineMs`) bounds
++  // the WHOLE read, the caller's callback included, and the read's client is closed once it settles (verifiedOperation).
++  verifiedRead(read, failures=[]) {
++    const policy=policyProblem(this);
++    if(policy)return Promise.reject(new Error(policy));
++    if(typeof read!=='function')return Promise.reject(new Error('agreed() needs a read function'));
++    const op=this.verifiedOperation('read'),call=op.call;
++    const fresh=ts=>ts+this.maxBlockAgeMs>this.now()&&ts<=this.now()+5000;
++    return op.run(async()=>{
++      const chainId=Number(BigInt(await call('eth_chainId',[])));
++      if(chainId!==this.chainId)throw new Error('the verifier follows another chain');
++      const head=BigInt(await call('eth_blockNumber',[]));
++      if(head<this.lastBlock)throw new Error(`the verifier head ${head} is behind block ${this.lastBlock} already accepted`);
++      let b=head-BigInt(this.confirmations);
++      if(b<0n)throw new Error('the verifier head is too young');
++      if(b<this.lastBlock)b=this.lastBlock;
++      const first=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
++      if(!fresh(first.timestamp))throw new Error('stale chain block');
++      const value=await read(this.pinnedClient(b,first.hash,call,op.assertOpen),b);
++      if(!value||typeof value!=='object'||Array.isArray(value))throw Object.assign(new Error('the chain read function must return an object'),{readerBug:true});
++      const reserved=reservedFields.find(k=>Object.hasOwn(value,k));
++      if(reserved)throw Object.assign(new Error('the chain read function returned the reserved field '+reserved),{readerBug:true});
++      const again=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
++      if(again.hash!==first.hash||again.timestamp!==first.timestamp)throw new Error('chain reorganized during read');
++      if(!fresh(first.timestamp))throw new Error('chain block became stale during the read');
++      op.assertOpen();   // a body that outlived its deadline (a late callback) never answers or touches reader state
++      if(b<this.lastBlock)throw new Error(`block ${b} is older than block ${this.lastBlock} accepted meanwhile`);
++      this.lastBlock=b;
++      this.lastEvidence={authority:'local-verifier',tier:'unsafe',blockNumber:String(b),blockHash:first.hash,stateRoot:first.stateRoot,timestamp:first.timestamp};
++      return {...value,hash:first.hash,blockNumber:String(b),timestamp:first.timestamp};
++    }).catch(e=>{
++      if(e?.readerBug)throw e;
++      failures.push(failureText(this.verifier.label,'read',e));
++      throw Object.assign(new Error('no fresh verified chain state: '+errText(e)),{cause:e});
++    });
++  }
++  // ONE verified operation (a read, a pinned history read, a block-hash check): ONE deadline for everything in it, the
++  // caller's callback included, and ONE closure.
++  //  * run(fn) settles at the deadline even if fn (e.g. a read callback) never settles. JavaScript cannot abort running
++  //    code: such a callback is simply no longer waited for, and anything it does later is refused.
++  //  * The moment run() settles (answer, refusal or deadline) the operation is closed: the AbortSignal every transport
++  //    request got is aborted (the HTTP verifier cancels its fetch), every pending request of it rejects at once, and the
++  //    deadline timer is cleared. A client the callback kept cannot send anything afterwards.
++  //  * call() refuses once closed or past the deadline, and checks both again at the moment the transport is invoked (a
++  //    microtask later), not only when the request is queued. Each request waits at most the time left.
++  verifiedOperation(kind) {
++    const endAt=performance.now()+this.deadlineMs,controller=new AbortController();
++    let closed=null,timer;
++    const close=reason=>{if(closed)return;closed=reason;clearTimeout(timer);controller.abort(reason);};
++    const expired=new Promise((_r,reject)=>{
++      // NOT unref'd: it is cleared the moment the operation settles, so it only keeps a process alive while an operation is
++      // really in progress, and it must fire even when nothing else (e.g. a silent callback) holds the event loop
++      timer=setTimeout(()=>{const e=new Error(`the verified ${kind} deadline of ${this.deadlineMs} ms has passed`);close(e);reject(e);},this.deadlineMs);
++    });
++    expired.catch(()=>{});
++    const refusal=()=>closed?new Error(`the verified ${kind} is closed (${closed.message}): no new request`)
++      :performance.now()>=endAt?new Error(`the verified ${kind} deadline has passed`):null;
++    const call=(method,params)=>{
++      const no=refusal();
++      if(no)return Promise.reject(no);
++      return bounded(Promise.resolve().then(()=>{
++        const late=refusal();   // re-checked when the transport is actually invoked
++        if(late)throw late;
++        return this.verifier.request(method,params,Math.max(1,Math.floor(endAt-performance.now())),controller.signal);
++      }),Math.max(1,Math.floor(endAt-performance.now())),controller.signal,`the verified ${kind} deadline has passed`);
++    };
++    const run=fn=>Promise.race([Promise.resolve().then(fn),expired]).finally(()=>close(new Error(`the verified ${kind} has finished`)));
++    const assertOpen=()=>{const no=refusal();if(no)throw no;};
++    return {call,run,assertOpen};
++  }
++  // The only client a read callback sees under the verifier: every answer is AT the verified block (by hash) and
++  // proof-backed; a read at any other block, or any method outside PINNED_METHODS, refuses by name. `assertOpen` (the
++  // operation's): once the operation has settled even the methods that send nothing (chain id, block number) refuse, so a
++  // retained client never answers for a closed snapshot.
++  pinnedClient(b,hash,call,assertOpen=()=>{}) {
++    const at=(blockNumber,blockTag)=>{
++      if(blockTag!==undefined)throw new Error('verified reads are pinned to block '+b+' (no block tags)');
++      if(blockNumber!==undefined&&BigInt(blockNumber)!==b)throw new Error('verified reads are pinned to block '+b);
++      return {blockHash:hash};
++    };
++    const code=async({address,blockNumber,blockTag})=>{const c=await call('eth_getCode',[address,at(blockNumber,blockTag)]);return c&&c!=='0x'?c:undefined;};
++    const methods={
++      getChainId:async()=>{assertOpen();return this.chainId;},
++      getBlockNumber:async()=>{assertOpen();return b;},
++      getBlock:async({blockNumber,blockTag,blockHash}={})=>{
++        if(blockHash!==undefined&&String(blockHash).toLowerCase()!==hash)throw new Error('verified reads are pinned to block '+b);
++        at(blockNumber,blockTag);
++        const h=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
++        if(h.hash!==hash)throw new Error('chain reorganized during read');
++        return {number:b,hash:h.hash,stateRoot:h.stateRoot,timestamp:BigInt(h.timestamp/1000)};
++      },
++      readContract:async({address,abi,functionName,args,blockNumber,blockTag,account})=>{
++        const data=encodeFunctionData({abi,functionName,args});
++        const from=typeof account==='string'?account:account?.address;
++        const out=await call('eth_call',[{to:address,data,...(from?{from}:{})},at(blockNumber,blockTag)]);
++        return decodeFunctionResult({abi,functionName,data:out});
++      },
++      getCode:code,getBytecode:code,
++      getStorageAt:async({address,slot,blockNumber,blockTag})=>call('eth_getStorageAt',[address,slot,at(blockNumber,blockTag)]),
++      getBalance:async({address,blockNumber,blockTag})=>BigInt(await call('eth_getBalance',[address,at(blockNumber,blockTag)])),
++    };
++    return new Proxy(Object.freeze({}),{get(_t,key){
++      if(Object.hasOwn(methods,key))return methods[key];
++      if(typeof key==='symbol'||key==='then'||key==='toJSON')return undefined;
++      return ()=>{throw new Error(`client.${String(key)} is not available under the verifier authority (proof-backed reads only: ${PINNED_METHODS.join(', ')})`);};
++    }});
++  }
++  // Is `hash` the canonical hash of block `number`? quorum: two clients report exactly that hash (the original rule).
++  // verifier: the verifier's own block at that number (its signed head chain, or verified history) has that hash.
++  async blockHashIs(number,hash) {
++    const b=BigInt(number);
++    if(this.authority==='verifier'){
++      const op=this.verifiedOperation('block hash check');
++      try{return await op.run(async()=>verifiedHeader(await op.call('eth_getBlockByNumber',[hexBlock(b),false]),b).hash===String(hash).toLowerCase());}
++      catch{return false;}
++    }
++    const hashes=await Promise.all(this.clients.map(client=>client.getBlock({blockNumber:b}).then(x=>x.hash).catch(()=>null)));
++    return hashes.filter(h=>h===hash).length>=2;
++  }
++  // `read(client, blockNumber)` at a block this reader already accepted (pin = {blockNumber, blockHash} from a snapshot):
++  // history bound to an accepted snapshot, never new fresh authority. quorum: the first value two clients return
++  // identically (the original rule; null when none). verifier: proof-backed at that block, refused if the block's hash
++  // is no longer the pinned one.
++  async readAt({blockNumber,blockHash},read) {
++    const b=BigInt(blockNumber);
++    if(this.authority==='verifier'){
++      // history: bounded and closed like every verified operation, and it never moves lastBlock/lastEvidence
++      const op=this.verifiedOperation('pinned read');
++      return op.run(async()=>{
++        const h=verifiedHeader(await op.call('eth_getBlockByNumber',[hexBlock(b),false]),b);
++        if(blockHash!==undefined&&h.hash!==String(blockHash).toLowerCase())throw new Error('the pinned block is no longer canonical at '+b);
++        return read(this.pinnedClient(b,h.hash,op.call,op.assertOpen),b);
++      });
++    }
++    const key=v=>JSON.stringify(v,(_k,x)=>typeof x==='bigint'?x.toString():x);
++    const values=await Promise.all(this.clients.map(client=>Promise.resolve().then(()=>read(client,b)).catch(()=>null)));
++    for(const v of values)if(v!==null&&values.filter(x=>x!==null&&key(x)===key(v)).length>=2)return v;
++    return null;
++  }
+   async readSnapshot(ids) {
+     if(!Array.isArray(ids)||ids.length>256||ids.some(id=>!/^0x[0-9a-f]{64}$/.test(id))) throw new Error('exact deployment ids required');
+     this.failures=[];
+diff --git a/network/platform-host-policy-config.mjs b/network/platform-host-policy-config.mjs
+index 66bd375338831d130a2be229b2616e81833b2e00..627be0427c0b1e17554766f19dab030bdb4cf924 100644
+--- a/network/platform-host-policy-config.mjs
++++ b/network/platform-host-policy-config.mjs
+@@ -30,6 +30,16 @@ export const PRODUCTION_HOST_POLICY = Object.freeze({ chainId: 8453, book: PRODU
+   mirrors: PRODUCTION_MIRRORS, rpcs: PRODUCTION_RPCS, minAgree: 3, activation: "anchor" });
+ 
+ const list = (v) => String(v || "").split(",").map((s) => s.trim()).filter(Boolean);
++// The policy's chain authority: the legacy RPC quorum (default), or EXPLICITLY the local proof-backed verifier
++// (ENCLAVE_CHAIN_AUTHORITY=verifier + ENCLAVE_CHAIN_VERIFIER=<loopback URL>, or chainAuthority/chainVerifier in the JSON).
++// Dependency-free (this module also runs in the browser); the endpoint is refused unless local when it is used.
++function chainAuthority(env, c = {}) {
++  const a = String(env.ENCLAVE_CHAIN_AUTHORITY ?? c.chainAuthority ?? "").trim(), v = String(env.ENCLAVE_CHAIN_VERIFIER ?? c.chainVerifier ?? "").trim();
++  if (!a || a === "quorum") { if (v) throw Error("platform host policy: a chain verifier is set but the chain authority is not verifier"); return {}; }
++  if (a !== "verifier") throw Error("platform host policy: chain authority must be quorum or verifier");
++  if (!/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d{1,5})?(\/|$)/.test(v)) throw Error("platform host policy: the chain verifier must be a local (loopback) URL");
++  return { chainAuthority: "verifier", chainVerifier: v };
++}
+ /**
+  * -> { on: false, reason } | { on: true, source, config: { book, hostOwnership, mirrors[], rpcs[]|null, minAgree|null, activation } }
+  * env: ENCLAVE_PLATFORM_HOST_POLICY, ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS, ENCLAVE_PLATFORM_HOST_POLICY_RPCS,
+@@ -42,19 +52,19 @@ export function resolveHostPolicyConfig({ env = {}, chainId = null, book = null
+   if (activation && !["anchor", "required"].includes(activation)) throw Error("ENCLAVE_PLATFORM_HOST_POLICY_ACTIVATION must be anchor or required");
+   const production = (source) => ({ on: true, source, config: { book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP,
+     mirrors: [...new Set([...PRODUCTION_MIRRORS, ...extraMirrors])], rpcs: rpcs.length ? rpcs : [...PRODUCTION_RPCS],
+-    minAgree: rpcs.length ? null : PRODUCTION_HOST_POLICY.minAgree, activation: activation || "anchor" } });
++    minAgree: rpcs.length ? null : PRODUCTION_HOST_POLICY.minAgree, activation: activation || "anchor", ...chainAuthority(env) } });
+   if (raw === "off") return { on: false, reason: "ENCLAVE_PLATFORM_HOST_POLICY=off (explicitly disabled)" };
+   if (raw === "production") return production("ENCLAVE_PLATFORM_HOST_POLICY=production");
+   if (raw) {
+     let c; try { c = JSON.parse(raw); } catch { throw Error("ENCLAVE_PLATFORM_HOST_POLICY: production | off | JSON {book, hostOwnership, mirrors}"); }
+-    if (!c || typeof c !== "object" || Array.isArray(c) || Object.keys(c).some((k) => !["book", "hostOwnership", "mirrors", "activation", "rpcs", "minAgree"].includes(k)))
+-      throw Error("ENCLAVE_PLATFORM_HOST_POLICY JSON: { book, hostOwnership, mirrors[], activation?, rpcs?, minAgree? }");
++    if (!c || typeof c !== "object" || Array.isArray(c) || Object.keys(c).some((k) => !["book", "hostOwnership", "mirrors", "activation", "rpcs", "minAgree", "chainAuthority", "chainVerifier"].includes(k)))
++      throw Error("ENCLAVE_PLATFORM_HOST_POLICY JSON: { book, hostOwnership, mirrors[], activation?, rpcs?, minAgree?, chainAuthority?, chainVerifier? }");
+     for (const k of ["book", "hostOwnership"]) if (!/^0x[0-9a-fA-F]{40}$/.test(String(c[k] || "")) || /^0x0{40}$/i.test(c[k])) throw Error(`ENCLAVE_PLATFORM_HOST_POLICY.${k}: a nonzero address`);
+     const act = activation || c.activation || "anchor";
+     if (!["anchor", "required"].includes(act)) throw Error("ENCLAVE_PLATFORM_HOST_POLICY.activation must be anchor or required");
+     return { on: true, source: "ENCLAVE_PLATFORM_HOST_POLICY (explicit)", config: { book: lc(c.book), hostOwnership: lc(c.hostOwnership),
+       mirrors: [...new Set([...(Array.isArray(c.mirrors) ? c.mirrors : []), ...extraMirrors])], rpcs: rpcs.length ? rpcs : (Array.isArray(c.rpcs) ? c.rpcs : null),
+-      minAgree: Number.isSafeInteger(c.minAgree) ? c.minAgree : null, activation: act } };
++      minAgree: Number.isSafeInteger(c.minAgree) ? c.minAgree : null, activation: act, ...chainAuthority(env, c) } };
+   }
+   if (Number(chainId) === 8453 && lc(book) === PRODUCTION_BOOK) return production("production chain and address book (default)");
+   return { on: false, reason: `not the production chain/book (chain ${chainId ?? "unset"}, book ${book || "unset"}): platform host policy off unless configured` };
+diff --git a/network/policy-carriers.mjs b/network/policy-carriers.mjs
+index 79bf7ea67bb4c4b1200be81a1fcc8ddaad65fd36..042ba04f79a62768a9e3fe94ce8a9211b79eb5a0 100644
+--- a/network/policy-carriers.mjs
++++ b/network/policy-carriers.mjs
+@@ -103,15 +103,16 @@ export function httpCarriers(bases, { fetch = globalThis.fetch, timeoutMs = 8000
+  * cached for refreshMs (a failed read keeps the previous listing). Advertisements are untrusted candidates like any carrier;
+  * a banned operator's carrier can only withhold, never admit. accept(endpoint) -> bool filters (e.g. failure domains).
+  */
+-export function indexCarriers({ pin, peers, clients, fetch = globalThis.fetch, timeoutMs = 8000, refreshMs = 5 * 60_000, accept = async () => true, log = () => {} }) {
++export function indexCarriers({ pin, peers, clients, fetch = globalThis.fetch, timeoutMs = 8000, refreshMs = 5 * 60_000, accept = async () => true, log = () => {},
++  chainAuthority, chainVerifier }) {
+   let listing = [], at = 0, reading = null;
+-  if (peers) peers = rpcPeers(peers);
++  if (peers && chainAuthority !== 'verifier') peers = rpcPeers(peers);
+   const list = async () => {
+     if (Date.now() - at < refreshMs && at) return listing;
+     reading ||= (async () => {
+       try {
+         const si = await import('./service-index.mjs');
+-        const r = await si.readServiceIndex({ peers, clients, pin, kinds: ['policy'] });
++        const r = await si.readServiceIndex({ peers, clients, pin, kinds: ['policy'], chainAuthority, chainVerifier });
+         const bases = [];
+         for (const c of r.candidates) for (const e of c.endpoints) {
+           const b = String(e).replace(/\/+$/, '');
+diff --git a/network/service-index.mjs b/network/service-index.mjs
+index 4475fbd63ac89f98b4c8c442224e8a8a7e3acf2c..d7350364a4802743415057f3c8bc32bcbd666d4d 100644
+--- a/network/service-index.mjs
++++ b/network/service-index.mjs
+@@ -18,6 +18,7 @@ import { keccak256 } from 'viem';
+ import { directoryOrigins } from './directory-client.mjs';
+ import { validateNetworkAuthorities } from './network-authorities.mjs';
+ import { rpcEndpoint, rpcLabel as safeRpcLabel, redactUrls } from './rpc-identity.mjs';
++import { createVerifiedSnapshot, chainVerifierOf } from './verified-chain.mjs';
+ 
+ // relay (7): an app-funded LEASE relay a designated host operator runs (network/host-services/lease-relay-host.mjs); its
+ // descriptor names the relay's payee key, which signs the relay's /v1/info statement (lease-relay-discovery.mjs).
+@@ -388,11 +389,15 @@ function lookupList(lookups) {
+  * any amount of spam in the listing cannot hide an operator the caller already knows of. Distinct operator keys are not
+  * distinct organizations. Without an agreeing quorum this throws QuorumError (with evidence); it never returns an empty
+  * list for a disagreement.
++ * Authority: the legacy provider quorum (peers/clients, the default), or - with chainAuthority 'verifier' and a local
++ * chainVerifier - ONE proof-backed snapshot from the local verifier (network/verified-chain.mjs; unsafe tier). In
++ * verifier mode no provider client is built, so a refusal there can never fall back to a provider answer.
+  */
+ export async function readServiceIndex({ peers, clients, pin, kinds = DEFAULT_KINDS, window = 256, cursor = null, lookups = [],
+-                                        maxBlockAgeMs = 90_000, requestTimeoutMs = 8_000, deadlineMs = 30_000, now = Date.now, ...policy }) {
++                                        maxBlockAgeMs = 90_000, requestTimeoutMs = 8_000, deadlineMs = 30_000, now = Date.now,
++                                        chainAuthority, chainVerifier, ...policy }) {
+   pin = validateIndexPin(pin);
+-  const list = peerList({ peers, clients, methods: ['getCode', 'readContract'] });
++  const auth = indexAuthority({ peers, clients, chainAuthority, chainVerifier });
+   if (!Number.isSafeInteger(window) || window < 1 || window > LIMITS.perKind) throw new Error(`window must be 1..${LIMITS.perKind}`);
+   const kindIds = kinds.map((k) => { const id = SERVICE_KINDS[k]; if (!id) throw new Error(`unknown kind ${k}`); return id; });
+   const wanted = lookupList(lookups);
+@@ -401,8 +406,7 @@ export async function readServiceIndex({ peers, clients, pin, kinds = DEFAULT_KI
+     if (cursor.index !== pin.address || cursor.chainId !== pin.chainId) throw new Error('the cursor is for another index');
+     atBlock = { number: BigInt(cursor.blockNumber), hash: cursor.blockHash }; positions = cursor.positions || {};
+   }
+-  const r = await agreedRead({ peers: list, chainId: pin.chainId, maxBlockAgeMs, requestTimeoutMs, deadlineMs, now, atBlock, ...policy,
+-    read: async (c, blockNumber, call) => {
++  const readIndex = async (c, blockNumber, call) => {
+       const code = await call('code', () => c.getCode({ address: pin.address, blockNumber }));
+       const value = { codeHash: code ? keccak256(code) : null, windows: {}, lookups: [] };
+       if (value.codeHash !== pin.codeHash) return value;   // agreed below, then refused: the pin is never weakened
+@@ -419,7 +423,8 @@ export async function readServiceIndex({ peers, clients, pin, kinds = DEFAULT_KI
+       for (const w of wanted)
+         value.lookups.push(await call(`get ${w.operator}/${w.slot}`, () => c.readContract({ address: pin.address, abi: SERVICE_INDEX_ABI, functionName: 'get', args: [w.operator, w.slot], blockNumber })));
+       return value;
+-    } });
++    };
++  const r = await indexRead(auth, { chainId: pin.chainId, maxBlockAgeMs, requestTimeoutMs, deadlineMs, now, atBlock, policy, read: readIndex });
+   const v = r.value;
+   if (v.codeHash !== pin.codeHash) throw new QuorumError(`the agreed code at ${pin.address} is ${v.codeHash || 'absent'}, not the pinned ${pin.codeHash}`, r.evidence);
+   const ts = BigInt(r.timestamp), candidates = [], rejected = [], windows = {}, next = {};
+@@ -445,6 +450,30 @@ export async function readServiceIndex({ peers, clients, pin, kinds = DEFAULT_KI
+            candidates, rejected, expired, lookups: found, evidence: r.evidence, notice: CANDIDATE_NOTICE };
+ }
+ 
++/**
++ * The authority an index reader uses, chosen explicitly: the legacy provider quorum (peers/clients, validated as distinct
++ * votes) or, with chainAuthority 'verifier', the local proof-backed verifier and NO provider client. -> {verifier, list}
++ */
++export function indexAuthority({ peers, clients, chainAuthority, chainVerifier, methods = ['getCode', 'readContract'] }) {
++  const verifier = chainVerifierOf({ chainAuthority, chainVerifier }, 'service index');
++  return Object.freeze({ verifier, list: verifier ? null : peerList({ peers, clients, methods }) });
++}
++/**
++ * One read of index state under that authority, in agreedRead's result shape {blockNumber, blockHash, timestamp (s),
++ * value, evidence}: agreedRead over the quorum, or ONE proof-backed snapshot from the verifier. A verifier refusal is a
++ * QuorumError (no listing is ever produced from a refusal), carrying the verifier's reason; never a provider fallback.
++ */
++export async function indexRead(auth, { chainId, read, atBlock = null, maxBlockAgeMs = 90_000, requestTimeoutMs = 8_000, deadlineMs = 30_000, now = Date.now, policy = {}, ...rest }) {
++  policy = { ...policy, ...rest };
++  if (!auth.verifier) return agreedRead({ peers: auth.list, chainId, maxBlockAgeMs, requestTimeoutMs, deadlineMs, now, atBlock, ...policy, read });
++  const snap = createVerifiedSnapshot({ verifier: auth.verifier, chainId, confirmations: policy.confirmations ?? 2, maxBlockAgeMs,
++    futureSkewMs: policy.futureSkewMs ?? 5_000, deadlineMs, now });
++  let s;
++  try { s = await snap((c, blockNumber) => read(c, blockNumber, (_what, f) => f()), { atBlock }); }
++  catch (e) { throw new QuorumError(`no verified service index snapshot: ${errText(e)}`, { authority: 'local-verifier', reason: errText(e), code: e?.code || null }); }
++  return { blockNumber: String(s.blockNumber), blockHash: s.blockHash, timestamp: Math.floor(s.timestamp / 1000), value: s.value, evidence: s.evidence };
++}
++
+ // ---- the provider's bootstrap ------------------------------------------------------------------------------------------
+ const ZERO = '0x' + '0'.repeat(40);
+ const dnsZone = (z, what) => {
+diff --git a/network/verified-chain.mjs b/network/verified-chain.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..e55f0359eb26d65d7fa0c809ccfc3de320c55797
+--- /dev/null
++++ b/network/verified-chain.mjs
+@@ -0,0 +1,177 @@
++// One proof-backed snapshot of chain state at ONE block, from the LOCAL validating verifier (the patched Helios, branch
++// enclave-base-evm: it follows a sequencer-signed Base head and answers reads from proofs verified against that
++// block's state root, executing calls with the maintained Base EVM). Shared by the independent policy readers that do
++// not go through LeaseReader: the service index (network/service-index.mjs readServiceIndex: discovery and cold
++// bootstrap) and the platform host policy runtime (network/host-policy-runtime.mjs: admin admission policy).
++//
++// What a snapshot proves: every value was proven against the state root of the block the verifier holds for its
++// signed head chain - the sequencer-signed UNSAFE tier, no L1 finality. It is never one vote of a provider quorum, and a
++// caller that chose this authority has no provider fallback: a failed proof, a missing witness, a stale or reorganized
++// head all refuse.
++//
++// One deadline bounds the WHOLE operation, including the caller's read callback; when the snapshot settles (answer,
++// refusal or deadline) its pinned client stops working, so a retained client cannot keep reading.
++// (LeaseReader carries its own copy of this logic at 921d60c2b; worker B owns the whole-operation deadline fix there.
++//  The two are to be unified by root when B's fix composes.)
++import { encodeFunctionData, decodeFunctionResult } from 'viem';
++import { rpcEndpoint } from './rpc-identity.mjs';
++
++const lc = (s) => String(s).toLowerCase();
++const HASH = /^0x[0-9a-fA-F]{64}$/;
++// the error codes custody/v2/quorum.mjs gives the same failures, so callers that classify them see the same classes
++const fail = (code, message, cause) => Object.assign(new Error(message), { code, status: 503, ...(cause ? { cause } : {}) });
++const hexBlock = (b) => '0x' + b.toString(16);
++
++/**
++ * The verifier endpoint: a loopback JSON-RPC URL, or in-process an object with request(method, params, timeoutMs). A
++ * remote URL is refused: a remote "verifier" is one unverified server.
++ */
++export function verifierEndpoint(v) {
++  if (v && typeof v === 'object' && typeof v.request === 'function') return { request: (m, p, ms, signal) => v.request(m, p, ms, signal), label: 'verifier' };
++  const url = typeof v === 'string' ? v : v?.url;
++  let e; try { e = rpcEndpoint(url); } catch (err) { throw new Error('verifier endpoint: ' + err.message); }
++  if (!e.loopback) throw new Error('the verifier must be a local endpoint (loopback); a remote server is not a verifier');
++  let id = 0;
++  return { label: 'verifier ' + e.label, request: async (method, params, ms, signal) => {
++    const timeout = AbortSignal.timeout(Math.max(1, ms));
++    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params }),
++      redirect: 'error', signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
++    if (!r.ok) throw Object.assign(new Error(`verifier HTTP ${r.status}`), { status: r.status });
++    const j = await r.json();
++    if (j?.error) throw Object.assign(new Error('verifier: ' + String(j.error.message || 'error').slice(0, 300)), { rpcCode: j.error.code });
++    return j?.result;
++  } };
++}
++
++/** The verifier's block `b`: that number, a 32-byte hash and state root, a whole-second timestamp -> {number, hash, stateRoot, timestamp ms}. */
++export function verifiedHeader(block, b) {
++  if (!block || typeof block !== 'object') throw fail('chain_unconfirmed', 'the verifier has no block ' + b);
++  let number; try { number = BigInt(block.number); } catch { throw fail('chain_unconfirmed', 'malformed verified block number'); }
++  if (number !== b) throw fail('chain_unconfirmed', 'verified block number differs from the one requested');
++  if (!HASH.test(block.hash || '') || !HASH.test(block.stateRoot || '')) throw fail('chain_unconfirmed', 'malformed verified block hash or state root');
++  let ts; try { ts = Number(BigInt(block.timestamp)) * 1000; } catch { throw fail('chain_unconfirmed', 'malformed verified block timestamp'); }
++  if (!Number.isSafeInteger(ts) || ts < 0) throw fail('chain_unconfirmed', 'malformed verified block timestamp');
++  return { number: b, hash: lc(block.hash), stateRoot: lc(block.stateRoot), timestamp: ts };
++}
++
++export const PINNED_METHODS = Object.freeze(['getChainId', 'getBlockNumber', 'getBlock', 'readContract', 'getCode', 'getBytecode', 'getStorageAt', 'getBalance']);
++/** The only client a read callback sees: every answer at block `b` (by hash), proof-backed; anything else refuses by name. */
++export function pinnedClient({ b, hash, request, chainId, alive = () => {} }) {
++  const at = (blockNumber, blockTag) => {
++    if (blockTag !== undefined) throw new Error(`verified reads are pinned to block ${b} (no block tags)`);
++    if (blockNumber !== undefined && BigInt(blockNumber) !== b) throw new Error(`verified reads are pinned to block ${b}`);
++    return { blockHash: hash };
++  };
++  const code = async ({ address, blockNumber, blockTag }) => { const c = await request('eth_getCode', [address, at(blockNumber, blockTag)]); return c && c !== '0x' ? c : undefined; };
++  const methods = {
++    getChainId: async () => chainId,
++    getBlockNumber: async () => b,
++    getBlock: async ({ blockNumber, blockTag, blockHash } = {}) => {
++      if (blockHash !== undefined && lc(blockHash) !== hash) throw new Error(`verified reads are pinned to block ${b}`);
++      at(blockNumber, blockTag);
++      const h = verifiedHeader(await request('eth_getBlockByNumber', [hexBlock(b), false]), b);
++      if (h.hash !== hash) throw fail('chain_unconfirmed', 'chain reorganized during the read');
++      return { number: b, hash: h.hash, stateRoot: h.stateRoot, timestamp: BigInt(h.timestamp / 1000) };
++    },
++    readContract: async ({ address, abi, functionName, args, blockNumber, blockTag, account }) => {
++      const data = encodeFunctionData({ abi, functionName, args });
++      const from = typeof account === 'string' ? account : account?.address;
++      return decodeFunctionResult({ abi, functionName, data: await request('eth_call', [{ to: address, data, ...(from ? { from } : {}) }, at(blockNumber, blockTag)]) });
++    },
++    getCode: code, getBytecode: code,
++    getStorageAt: async ({ address, slot, blockNumber, blockTag }) => request('eth_getStorageAt', [address, slot, at(blockNumber, blockTag)]),
++    getBalance: async ({ address, blockNumber, blockTag }) => BigInt(await request('eth_getBalance', [address, at(blockNumber, blockTag)])),
++  };
++  return new Proxy(Object.freeze({}), { get(_t, key) {
++    if (Object.hasOwn(methods, key)) return async (...args) => { alive(); return methods[key](...args); };
++    if (typeof key === 'symbol' || key === 'then' || key === 'toJSON') return undefined;
++    return () => { throw new Error(`client.${String(key)} is not available under the verifier authority (proof-backed reads only: ${PINNED_METHODS.join(', ')})`); };
++  } });
++}
++
++/**
++ * A snapshot function for one verifier: snapshot(read, {atBlock}) -> {blockNumber, blockHash, stateRoot, timestamp (ms),
++ * value, evidence}. read(client, blockNumber, header) gets the pinned client.
++ *   * block: the verifier head minus `confirmations`, never below a block this snapshot function accepted and refused if
++ *     the verifier head goes behind it; `atBlock` {number, hash} resumes exactly that block (pagination) and refuses if its
++ *     hash is no longer the verifier's;
++ *   * freshness: the block timestamp neither older than `maxBlockAgeMs` nor more than `futureSkewMs` ahead, before and after
++ *     the read (a resumed block too: history never counts as fresh authority);
++ *   * the header is read again after the callback (same hash and timestamp, else reorganized);
++ *   * one `deadlineMs` bounds the whole operation including the callback; afterwards the pinned client refuses.
++ */
++export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, maxBlockAgeMs = 90_000, futureSkewMs = 5_000, deadlineMs = 30_000, now = Date.now } = {}) {
++  const v = verifierEndpoint(verifier);
++  if (!Number.isSafeInteger(chainId) || chainId <= 0) throw new Error('chain id required');
++  const int = (x, lo, hi) => Number.isSafeInteger(x) && x >= lo && x <= hi;
++  if (!int(confirmations, 0, 64) || !int(maxBlockAgeMs, 1000, 600_000) || !int(futureSkewMs, 0, 60_000) || !int(deadlineMs, 100, 300_000) || typeof now !== 'function')
++    throw new Error('invalid verified snapshot policy');
++  let floor = null;                                    // {number, hash} of the newest block this function accepted
++  return async function snapshot(read, { atBlock = null } = {}) {
++    if (typeof read !== 'function') throw new Error('snapshot(read) needs a read function');
++    if (atBlock && !HASH.test(String(atBlock.hash))) throw new Error('resume block hash required');
++    let closed = false, timer;
++    const controller = new AbortController();
++    const endAt = performance.now() + deadlineMs;
++    const alive = () => {
++      if (closed) throw fail('chain_closed', 'this verified snapshot has already ended');
++      const left = Math.floor(endAt - performance.now());
++      if (left <= 0) throw fail('chain_timeout', 'the verified read deadline has passed');
++      return left;
++    };
++    const request = async (method, params) => {
++      const value = await v.request(method, params, alive(), controller.signal);
++      // A custom transport may ignore cancellation. Its late answer must not advance the accepted-block floor.
++      alive();
++      return value;
++    };
++    const fresh = (ts) => ts + maxBlockAgeMs > now();
++    const work = (async () => {
++      const id = Number(BigInt(await request('eth_chainId', [])));
++      if (id !== chainId) throw fail('chain_wrong_network', `the verifier follows chain ${id}, not ${chainId}`);
++      let b;
++      if (atBlock) b = BigInt(atBlock.number);
++      else {
++        const head = BigInt(await request('eth_blockNumber', []));   // Helios refuses a head older than 60 s
++        if (floor && head < floor.number) throw fail('chain_rollback', `the verifier head ${head} is behind block ${floor.number} already accepted`);
++        b = head - BigInt(confirmations);
++        if (b < 0n) throw fail('chain_unconfirmed', 'no confirmed block yet');
++        if (floor && b < floor.number) b = floor.number;
++      }
++      const h = verifiedHeader(await request('eth_getBlockByNumber', [hexBlock(b), false]), b);
++      if (atBlock && h.hash !== lc(atBlock.hash)) throw fail('chain_reorg', 'the resume block is no longer canonical');
++      if (floor && b === floor.number && h.hash !== floor.hash) throw fail('chain_rollback', 'the accepted block was replaced');
++      if (h.timestamp > now() + futureSkewMs) throw fail('chain_future', 'the verified block is in the future');
++      if (!fresh(h.timestamp)) throw fail('chain_stale', `verified block ${b} is older than ${maxBlockAgeMs} ms`);
++      const value = await read(pinnedClient({ b, hash: h.hash, request, chainId, alive }), b, h);
++      const again = verifiedHeader(await request('eth_getBlockByNumber', [hexBlock(b), false]), b);
++      if (again.hash !== h.hash || again.timestamp !== h.timestamp) throw fail('chain_reorg', 'chain reorganized during the read');
++      if (!fresh(h.timestamp)) throw fail('chain_stale', `verified block ${b} became older than ${maxBlockAgeMs} ms during the read`);
++      if (floor && b < floor.number) throw fail('chain_rollback', `block ${b} is older than block ${floor.number} accepted meanwhile`);
++      alive();
++      if (!floor || b > floor.number) floor = { number: b, hash: h.hash };
++      return { blockNumber: b, blockHash: h.hash, stateRoot: h.stateRoot, timestamp: h.timestamp, value,
++        evidence: { authority: 'local-verifier', tier: 'unsafe', finality: 'none', blockNumber: String(b), blockHash: h.hash, stateRoot: h.stateRoot, verifier: v.label } };
++    })();
++    // a REFERENCED timer (always cleared on settlement): an unref'd one would let a hung read outlive the event loop unsettled
++    const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(fail('chain_timeout', `no verified snapshot within ${deadlineMs} ms`)), deadlineMs); });
++    try { return await Promise.race([work, deadline]); }
++    catch (e) { throw e?.code ? e : fail('chain_unconfirmed', 'no verified chain state: ' + String(e?.message || e).slice(0, 300), e); }
++    finally { closed = true; clearTimeout(timer); controller.abort(fail('chain_closed', 'this verified snapshot has already ended')); work.catch(() => {}); }
++  };
++}
++
++/**
++ * The explicit authority choice shared by config surfaces: ({chainAuthority, chainVerifier}) -> null (the legacy
++ * provider quorum) or the verifier URL. A verifier without chainAuthority 'verifier' is refused as ambiguous.
++ */
++export function chainVerifierOf({ chainAuthority, chainVerifier } = {}, what = 'chain authority') {
++  if (chainAuthority === undefined || chainAuthority === null || chainAuthority === '' || chainAuthority === 'quorum') {
++    if (chainVerifier !== undefined && chainVerifier !== null && chainVerifier !== '') throw new Error(`${what}: a verifier is set but the chain authority is not verifier`);
++    return null;
++  }
++  if (chainAuthority !== 'verifier') throw new Error(`${what}: chainAuthority must be quorum or verifier`);
++  if (!chainVerifier) throw new Error(`${what}: chainAuthority verifier needs chainVerifier (the local verifier URL)`);
++  verifierEndpoint(chainVerifier);                     // local only, refused now rather than at first use
++  return chainVerifier;
++}
+diff --git a/test/lease-reader-terminal-snapshot.test.mjs b/test/lease-reader-terminal-snapshot.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..9c971b67b952434b2c2b1e8c0542c9764f8d7987
+--- /dev/null
++++ b/test/lease-reader-terminal-snapshot.test.mjs
+@@ -0,0 +1,57 @@
++// LeaseReader authority 'verifier' with BOTH lifecycle fixes composed: B's whole-operation deadline (62feb3aaf, 8d110101f)
++// and the terminal-snapshot rules root applied to network/verified-chain.mjs (fd6a1762e): a transport answer that arrives
++// after the deadline cannot move the accepted floor, and a retained client refuses EVERY method once its operation has
++// settled - including the ones that send nothing (chain id, block number). Scripted in-process transports, no network.
++import test, { after } from 'node:test';
++import assert from 'node:assert/strict';
++import { pad, toHex } from 'viem';
++import { LeaseReader } from '../network/lease-reader.mjs';
++
++const BOOK = '0x' + '33'.repeat(20), ADDR = '0x' + '44'.repeat(20);
++const HASH = (n) => pad(toHex(BigInt(n) * 1000n + 1n), { size: 32 });
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const keepAlive = setInterval(() => {}, 1000); after(() => clearInterval(keepAlive));
++function scripted() {
++  const st = { head: 102n, headers: 0, holdSecondHeader: null, signals: [] };
++  const verifier = { request: async (method, params, _ms, signal) => {
++    st.signals.push(signal);
++    if (method === 'eth_chainId') return '0x2105';
++    if (method === 'eth_blockNumber') return toHex(st.head);
++    if (method === 'eth_getBlockByNumber') {
++      const n = BigInt(params[0]);
++      if (++st.headers === 2 && st.holdSecondHeader) await st.holdSecondHeader;   // the re-check header answers late
++      return { number: toHex(n), hash: HASH(n), stateRoot: pad('0x22', { size: 32 }), timestamp: toHex(Math.floor(Date.now() / 1000)) };
++    }
++    if (method === 'eth_getCode') return '0x60';
++    throw new Error('method not supported');
++  } };
++  return { st, verifier };
++}
++const reader = (verifier) => new LeaseReader({ authority: 'verifier', verifier, addressBook: BOOK, confirmations: 2, deadlineMs: 100 });
++
++test('a final header that answers after the deadline cannot advance the accepted floor', { timeout: 5000 }, async () => {
++  const { st, verifier } = scripted(); const r = reader(verifier);
++  let release; st.holdSecondHeader = new Promise((ok) => { release = ok; });
++  await assert.rejects(r.agreed(async () => ({ ok: true })), /deadline/);
++  release(); await sleep(20);
++  assert.equal(r.lastBlock, 0n, 'the timed-out read accepted nothing');
++  st.head = 101n; st.holdSecondHeader = null; st.headers = 0;
++  assert.equal((await r.agreed(async () => ({ ok: true }))).blockNumber, '99', 'an otherwise valid older block still reads');
++  st.head = 98n; st.headers = 0;   // a verifier head below the accepted block 99
++  await assert.rejects(r.agreed(async () => ({ ok: true })), /behind block 99/, 'a really accepted floor is still enforced');
++});
++
++test('a retained client refuses metadata AND RPC methods after success, failure or timeout', { timeout: 5000 }, async () => {
++  for (const outcome of ['success', 'failure', 'timeout']) {
++    const { st, verifier } = scripted(); const r = reader(verifier); let kept;
++    const p = r.agreed(async (c) => { kept = c; if (outcome === 'failure') throw new Error('callback failed'); if (outcome === 'timeout') return new Promise(() => {}); return { ok: true }; });
++    if (outcome === 'success') await p; else await assert.rejects(p);
++    for (const call of [() => kept.getChainId(), () => kept.getBlockNumber(), () => kept.getBlock(), () => kept.getCode({ address: ADDR })])
++      await assert.rejects(call(), /closed|deadline/, outcome);
++    assert.ok(st.signals.length && st.signals.every((s) => s?.aborted), `${outcome}: cancellation reached every request`);
++  }
++  // readAt (pinned history) hands out the same terminal client
++  const { verifier } = scripted(); const r = reader(verifier); let kept;
++  await r.readAt({ blockNumber: 90n }, async (c) => { kept = c; return { ok: true }; });
++  await assert.rejects(kept.getBlockNumber(), /closed/);
++});
+diff --git a/test/lease-reader-verifier-deadline.test.mjs b/test/lease-reader-verifier-deadline.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..4c92a00b80b60e7a3f542d52f9c6a741b6edca2c
+--- /dev/null
++++ b/test/lease-reader-verifier-deadline.test.mjs
+@@ -0,0 +1,215 @@
++// LeaseReader authority 'verifier': ONE deadline and ONE closure for each whole operation (agreed/verifiedRead, readAt,
++// blockHashIs), including a caller callback that never settles. Real LeaseReader methods, driven by scripted in-process
++// transports and a real loopback HTTP verifier; no chain, no network beyond 127.0.0.1.
++import test, { after } from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import { pad, toHex, parseAbi } from 'viem';
++import { LeaseReader } from '../network/lease-reader.mjs';
++
++const BOOK = '0x' + '33'.repeat(20), ADDR = '0x' + '44'.repeat(20);
++const HASH = (n) => pad(toHex(BigInt(n) * 1000n + 1n), { size: 32 });
++const T = { timeout: 5000 };
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const BAL_ABI = parseAbi(['function balanceOf(address) view returns (uint256)']);
++// Keeps the event loop alive so that, on code WITHOUT a whole-operation deadline (the base-failure control), a
++// never-settling read fails by its own 5 s test timeout instead of draining the loop and cancelling every later test.
++const keepAlive = setInterval(() => {}, 1000);
++after(() => clearInterval(keepAlive));
++
++// A scripted in-process verifier. `hang` lists methods that never answer; every request records its AbortSignal.
++function scripted({ hang = [], head = 100n } = {}) {
++  const st = { calls: [], signals: [] };
++  const verifier = {
++    request: (method, params, _ms, signal) => {
++      st.calls.push(method); st.signals.push(signal);
++      if (hang.includes(method)) return new Promise(() => {});
++      switch (method) {
++        case 'eth_chainId': return Promise.resolve('0x2105');
++        case 'eth_blockNumber': return Promise.resolve(toHex(head));
++        case 'eth_getBlockByNumber': {
++          const n = BigInt(params[0]);
++          return Promise.resolve({ number: toHex(n), hash: HASH(n), stateRoot: pad('0x22', { size: 32 }), timestamp: toHex(Math.floor(Date.now() / 1000)) });
++        }
++        case 'eth_getStorageAt': return Promise.resolve(pad('0x2a', { size: 32 }));
++        case 'eth_getBalance': return Promise.resolve('0x10');
++        case 'eth_call': return Promise.resolve(pad('0x05', { size: 32 }));
++        default: return Promise.reject(new Error('method not supported'));
++      }
++    },
++  };
++  return { st, verifier };
++}
++const reader = (verifier, opts = {}) => new LeaseReader({ authority: 'verifier', verifier, addressBook: BOOK, confirmations: 2, deadlineMs: 100, ...opts });
++const sends = (st) => st.calls.length;
++
++test('a callback that never settles is rejected at the deadline; reader state is untouched', T, async () => {
++  const { st, verifier } = scripted();
++  const r = reader(verifier), failures = [];
++  const t0 = performance.now();
++  await assert.rejects(r.agreed(() => new Promise(() => {}), failures), /no fresh verified chain state: .*deadline/);
++  const took = performance.now() - t0;
++  assert.ok(took >= 90 && took < 300, `rejected after ${Math.round(took)} ms (deadline 100 ms)`);
++  assert.equal(r.lastBlock, 0n);
++  assert.equal(r.lastEvidence, null);
++  assert.equal(failures.length, 1);
++  assert.ok(st.signals.every((s) => s?.aborted), 'every transport signal is aborted when the operation closes');
++});
++
++test('a callback that resolves after the deadline cannot answer, change state or send', T, async () => {
++  const { st, verifier } = scripted();
++  const r = reader(verifier);
++  let late = null;
++  const p = r.agreed(async (c) => {
++    await sleep(250);
++    late = await c.getStorageAt({ address: ADDR, slot: '0x0' }).then(() => 'sent', (e) => e.message);
++    return { ok: true };
++  });
++  await assert.rejects(p, /deadline/);
++  const before = sends(st);
++  await sleep(350);
++  assert.match(late, /closed|deadline/);
++  assert.equal(sends(st), before, 'the late attempt sends nothing');
++  assert.equal(r.lastBlock, 0n);
++  assert.equal(r.lastEvidence, null);
++});
++
++test('a hung RPC inside the callback is bounded and its transport signal is aborted', T, async () => {
++  const { st, verifier } = scripted({ hang: ['eth_getBalance'] });
++  const r = reader(verifier);
++  const t0 = performance.now();
++  await assert.rejects(r.agreed(async (c) => ({ v: String(await c.getBalance({ address: ADDR })) })), /deadline|timed out/);
++  assert.ok(performance.now() - t0 < 300);
++  const i = st.calls.indexOf('eth_getBalance');
++  assert.ok(i >= 0 && st.signals[i].aborted, 'the hung request was told to abort');
++});
++
++test('retained clients cannot send after success, failure or timeout', T, async () => {
++  for (const outcome of ['success', 'failure', 'timeout']) {
++    const { st, verifier } = scripted();
++    const r = reader(verifier);
++    let kept;
++    const p = r.agreed(async (c) => {
++      kept = c;
++      if (outcome === 'failure') throw new Error('callback failed');
++      if (outcome === 'timeout') return new Promise(() => {});
++      return { ok: true };
++    });
++    if (outcome === 'success') assert.equal((await p).ok, true); else await assert.rejects(p);
++    const before = sends(st);
++    await assert.rejects(kept.getStorageAt({ address: ADDR, slot: '0x0' }), /closed|deadline/, outcome);
++    await assert.rejects(kept.readContract({ address: ADDR, abi: BAL_ABI, functionName: 'balanceOf', args: [ADDR] }), /closed|deadline/, outcome);
++    await sleep(5);
++    assert.equal(sends(st), before, `${outcome}: retained client sent nothing`);
++  }
++});
++
++test('the deadline is re-checked when the transport is actually invoked, not only when the request is queued', T, async () => {
++  const { st, verifier } = scripted();
++  const r = reader(verifier);
++  let queued;
++  const p = r.agreed((c) => {
++    queued = c.getStorageAt({ address: ADDR, slot: '0x0' }).then(() => 'sent', (e) => e.message);
++    const until = performance.now() + 130;   // block the event loop past the 100 ms deadline before the microtask runs
++    while (performance.now() < until) { /* busy */ }
++    return { ok: true };
++  });
++  await assert.rejects(p, /deadline/);
++  assert.match(await queued, /deadline|closed/);
++  assert.equal(st.calls.filter((m) => m === 'eth_getStorageAt').length, 0, 'the expired request never reached the transport');
++});
++
++test('normal completion: callback-created pending requests are aborted, no timers stay behind', T, async () => {
++  const { st, verifier } = scripted({ hang: ['eth_getBalance'] });
++  const r = reader(verifier, { deadlineMs: 2000 });
++  const timeouts = () => process.getActiveResourcesInfo().filter((x) => x === 'Timeout').length;
++  const base = timeouts();
++  let orphan;
++  const out = await r.agreed(async (c) => {
++    orphan = c.getBalance({ address: ADDR }).then(() => 'answered', (e) => e.message);   // never awaited by the callback
++    return { v: (await c.getStorageAt({ address: ADDR, slot: '0x0' })).slice(0, 4) };
++  });
++  assert.equal(out.v, '0x00');
++  assert.match(await orphan, /closed|finished/);
++  const i = st.calls.indexOf('eth_getBalance');
++  assert.ok(st.signals[i].aborted, 'the orphaned request was aborted at completion');
++  await sleep(0);
++  assert.equal(timeouts(), base, 'no per-request or deadline timer outlives the operation');
++  assert.equal(r.lastEvidence.tier, 'unsafe');
++});
++
++test('readAt (history) is bounded and closed the same way, and never becomes fresh authority', T, async () => {
++  const { st, verifier } = scripted();
++  const r = reader(verifier);
++  const t0 = performance.now();
++  await assert.rejects(r.readAt({ blockNumber: 98n, blockHash: HASH(98) }, () => new Promise(() => {})), /deadline/);
++  assert.ok(performance.now() - t0 < 300);
++  let kept;
++  const v = await r.readAt({ blockNumber: 98n, blockHash: HASH(98) }, async (c) => { kept = c; return { s: await c.getStorageAt({ address: ADDR, slot: '0x1' }) }; });
++  assert.ok(v.s);
++  const before = sends(st);
++  await assert.rejects(kept.getBalance({ address: ADDR }), /closed/);
++  assert.equal(sends(st), before);
++  assert.equal(r.lastBlock, 0n, 'a history read does not move the accepted block');
++  assert.equal(r.lastEvidence, null, 'a history read is not fresh evidence');
++  await assert.rejects(r.readAt({ blockNumber: 98n, blockHash: HASH(97) }, () => ({})), /no longer canonical/);
++});
++
++test('blockHashIs: true/false as before, a hung verifier answers false within the deadline and is aborted', T, async () => {
++  const ok = scripted();
++  assert.equal(await reader(ok.verifier).blockHashIs(98n, HASH(98)), true);
++  assert.equal(await reader(ok.verifier).blockHashIs(98n, HASH(97)), false);
++  const hung = scripted({ hang: ['eth_getBlockByNumber'] });
++  const t0 = performance.now();
++  assert.equal(await reader(hung.verifier).blockHashIs(98n, HASH(98)), false);
++  assert.ok(performance.now() - t0 < 300);
++  assert.ok(hung.st.signals[0].aborted);
++});
++
++test('the loopback HTTP verifier: a hung request is cancelled on the wire at the deadline', T, async () => {
++  const closedAt = [];
++  const server = http.createServer((req, res) => {
++    let body = '';
++    req.on('data', (d) => { body += d; });
++    req.on('end', () => {
++      const { id, method, params } = JSON.parse(body);
++      const reply = (result) => res.end(JSON.stringify({ jsonrpc: '2.0', id, result }));
++      if (method === 'eth_chainId') return reply('0x2105');
++      if (method === 'eth_blockNumber') return reply('0x64');
++      if (method === 'eth_getBlockByNumber') return reply({ number: params[0], hash: HASH(BigInt(params[0])), stateRoot: pad('0x22', { size: 32 }), timestamp: toHex(Math.floor(Date.now() / 1000)) });
++      res.on('close', () => { if (!res.writableEnded) closedAt.push(performance.now()); });   // eth_call: never answered
++    });
++  });
++  await new Promise((r) => server.listen(0, '127.0.0.1', r));
++  try {
++    const r = new LeaseReader({ authority: 'verifier', verifier: `http://127.0.0.1:${server.address().port}/`, addressBook: BOOK, confirmations: 2, deadlineMs: 200 });
++    const t0 = performance.now();
++    await assert.rejects(r.agreed(async (c) => ({ v: String(await c.readContract({ address: ADDR, abi: BAL_ABI, functionName: 'balanceOf', args: [ADDR] })) })), /deadline|timed out/);
++    await sleep(100);
++    assert.equal(closedAt.length, 1, 'the server saw the hung request aborted');
++    assert.ok(closedAt[0] - t0 < 400, `aborted ${Math.round(closedAt[0] - t0)} ms after start (deadline 200 ms)`);
++  } finally {
++    server.closeAllConnections?.();
++    await new Promise((r) => server.close(r));
++  }
++});
++
++test('the deadline fires even when nothing else keeps the process alive (child process, no keep-alive)', T, async () => {
++  const { spawnSync } = await import('node:child_process');
++  const src = `import { LeaseReader } from ${JSON.stringify(new URL('../network/lease-reader.mjs', import.meta.url).href)};
++    const ts = '0x' + Math.floor(Date.now() / 1000).toString(16), h = '0x' + '11'.repeat(32);
++    const verifier = { request: async (m, p) => m === 'eth_chainId' ? '0x2105' : m === 'eth_blockNumber' ? '0x64'
++      : { number: p[0], hash: h, stateRoot: h, timestamp: ts } };
++    const r = new LeaseReader({ authority: 'verifier', verifier, addressBook: '0x' + '33'.repeat(20), deadlineMs: 100 });
++    try { await r.agreed(() => new Promise(() => {})); console.log('resolved'); } catch (e) { console.log('rejected: ' + e.message); }`;
++  const out = spawnSync(process.execPath, ['--input-type=module', '-e', src], { encoding: 'utf8', timeout: 4000 });
++  assert.equal(out.status, 0, out.stderr);
++  assert.match(out.stdout, /^rejected: no fresh verified chain state: .*deadline of 100 ms has passed/);
++});
++
++test('policy is unchanged: the deadline bound and legacy quorum construction', () => {
++  const { verifier } = scripted();
++  assert.throws(() => reader(verifier, { deadlineMs: 99 }), /invalid chain policy/);
++  assert.throws(() => reader(verifier, { deadlineMs: 300001 }), /invalid chain policy/);
++  assert.equal(reader(verifier, { deadlineMs: 300000 }).deadlineMs, 300000);
++});
+diff --git a/test/lease-reader-verifier.test.mjs b/test/lease-reader-verifier.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..eec9cf3c1949af1752d9be97bfdd81c298d24124
+--- /dev/null
++++ b/test/lease-reader-verifier.test.mjs
+@@ -0,0 +1,234 @@
++// LeaseReader authority 'verifier': the reader's semantics (block selection, freshness, monotonicity, reorg, one
++// deadline, pinned proof-backed client, explicit refusals) and REAL consumers driven through it (deployment/lease
++// snapshots, host admission + catalog moderation, admin-directed AddressBook migration, settlement pinned reads), with
++// proof failure, missing witness, stale head and unknown state. The verifier here is an in-process stand-in that
++// answers like the patched Helios (eth_* methods; errors where Helios refuses). Real Helios: lease-reader-verifier.e2e.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { parseAbi, encodeFunctionResult, decodeFunctionData, pad, toHex, stringToHex } from 'viem';
++import { LeaseReader, chainAuthorityOptions, chainAuthorityFromEnv } from '../network/lease-reader.mjs';
++import { createHostAdmission } from '../network/host-admission-runtime.mjs';
++import { hostAdmissionPolicyHash } from '../network/host-admission-policy.mjs';
++import { USDCBandwidthSettlement } from '../network/usdc-bandwidth.mjs';
++
++const BOOK = '0x' + 'b0'.repeat(20), LEDGER = '0x' + '1e'.repeat(20), LEDGER2 = '0x' + '2e'.repeat(20), CATALOG = '0x' + 'ca'.repeat(20);
++const OWNERSHIP = '0x' + '0e'.repeat(20), REGISTRY = '0x' + 'ee'.repeat(20), METER = '0x' + 'ae'.repeat(20);
++const HOST = '0x' + 'ab'.repeat(32), APP = '0x' + 'ef'.repeat(32), DEP = '0x' + 'cd'.repeat(32), OWNER = '0x' + '44'.repeat(20);
++const fields = [['id','bytes32'],['owner','address'],['appRef','string'],['ports','string'],['configCid','string'],['gpuMilli','uint16'],['cpuMilli','uint16'],['appPort','uint32'],['isPublic','bool'],['active','bool'],['createdAt','uint64'],['rate','uint256'],['balance6','uint256'],['spent6','uint256'],['runner','bytes32'],['runnerOperator','address'],['leaseUntil','uint64']];
++const ABI = {
++  book: parseAbi(['function addr(bytes32) view returns (address)']),
++  ledger: [{ type: 'function', name: 'get', stateMutability: 'view', inputs: [{ type: 'bytes32' }], outputs: [{ type: 'tuple', components: fields.map(([name, type]) => ({ name, type })) }] },
++    ...parseAbi(['function deploymentsSchema() view returns (uint256)'])],
++  ownership: parseAbi(['function registry() view returns (address)', 'function authority(bytes32) view returns (address owner,address pendingOwner,uint64 revision,bytes32 policyHash)']),
++  catalog: parseAbi(['function getApp(bytes32) view returns ((bytes32 appId,address publisher,string slug,string name,string description,uint32 versionCount,uint64 createdAt,uint64 updatedAt,bool active))',
++    'function getVersion(bytes32,uint256) view returns ((string cid,string version,uint32 vramMb,uint32 gpuGflops,uint32 memMb,uint32 cpuGflops,uint64 createdAt,bool verified,bool yanked,string ports,uint8 approval,string config))']),
++  meter: parseAbi(['function bytesServed(bytes32) view returns (uint256)']),
++};
++const NOW = 1_800_000_000_000;
++const hash = (n, salt = 0) => pad(toHex(BigInt(n) * 1000n + BigInt(salt)), { size: 32 });
++
++// A chain the stand-in verifier "proves": state can change at a block (admin repoints the book, moderation yanks).
++function chain() {
++  const st = { head: 100n, now: NOW, salt: new Map(), calls: [], mode: {}, at: {}, bookLedger: [[0n, LEDGER]], yankedFrom: null, deniedFrom: null, bytes: 7n };
++  const numberOf = (h) => { for (let n = 0n; n <= st.head + 5n; n++) if (hash(n, st.salt.get(n) || 0) === h) return n; throw new Error('unknown block hash'); };
++  const block = (n) => ({ number: toHex(n), hash: hash(n, st.salt.get(n) || 0), stateRoot: pad(toHex(n + 7n), { size: 32 }),
++    timestamp: toHex(Math.floor(st.now / 1000) - Number(st.head - n) * 2 + (st.mode.future ? 3600 : 0) - (st.mode.oldBlocks ? 600 : 0)) });
++  const current = (list, n) => list.filter(([from]) => from <= n).at(-1)[1];
++  const answer = (to, data, n) => {
++    const t = to.toLowerCase();
++    const find = (abi) => { const d = decodeFunctionData({ abi, data }); return [abi, d]; };
++    if (t === BOOK) { const [abi] = find(ABI.book); return encodeFunctionResult({ abi, functionName: 'addr', result: current(st.bookLedger, n) }); }
++    if (t === LEDGER || t === LEDGER2) {
++      const [abi, d] = find(ABI.ledger);
++      if (d.functionName === 'deploymentsSchema') return encodeFunctionResult({ abi, functionName: 'deploymentsSchema', result: 15n });
++      return encodeFunctionResult({ abi, functionName: 'get', result: { id: d.args[0], owner: OWNER, appRef: `catalog://${APP}/1`, ports: 'http:8080', configCid: '', gpuMilli: 0, cpuMilli: 100,
++        appPort: 8080, isPublic: true, active: true, createdAt: 1n, rate: 0n, balance6: 5n, spent6: 0n, runner: HOST, runnerOperator: OWNER, leaseUntil: BigInt(Math.floor(st.now / 1000) + 3600) } });
++    }
++    if (t === OWNERSHIP) {
++      const [abi, d] = find(ABI.ownership);
++      if (d.functionName === 'registry') return encodeFunctionResult({ abi, functionName: 'registry', result: REGISTRY });
++      const denied = st.deniedFrom !== null && n >= st.deniedFrom;
++      return encodeFunctionResult({ abi, functionName: 'authority', result: [OWNER, '0x' + '00'.repeat(20), denied ? 2n : 1n, denied ? st.policyHash : pad('0x', { size: 32 })] });
++    }
++    if (t === CATALOG) {
++      const [abi, d] = find(ABI.catalog);
++      if (d.functionName === 'getApp') return encodeFunctionResult({ abi, functionName: 'getApp', result: { appId: APP, publisher: OWNER, slug: 'a', name: 'A', description: '', versionCount: 2, createdAt: 1n, updatedAt: 1n, active: true } });
++      const yanked = st.yankedFrom !== null && n >= st.yankedFrom;
++      return encodeFunctionResult({ abi, functionName: 'getVersion', result: { cid: 'bafy', version: '1', vramMb: 0, gpuGflops: 0, memMb: 64, cpuGflops: 1, createdAt: 1n, verified: false, yanked, ports: 'http:8080', approval: 1, config: '{}' } });
++    }
++    if (t === METER) { const [abi] = find(ABI.meter); return encodeFunctionResult({ abi, functionName: 'bytesServed', result: st.bytes }); }
++    throw new Error('execution reverted');
++  };
++  const verifier = {
++    request: async (method, params) => {
++      st.calls.push({ method, params });
++      if (st.mode.hang) return new Promise(() => {});
++      if (st.mode.down) throw new Error('verifier HTTP 502');
++      switch (method) {
++        case 'eth_chainId': return toHex(st.mode.wrongChain ? 10 : 8453);
++        case 'eth_blockNumber': if (st.mode.stale) throw new Error('verifier: out of sync: 125 seconds behind'); return toHex(st.head);
++        case 'eth_getBlockByNumber': {
++          const n = BigInt(params[0]);
++          if (st.mode.reorgOnce && st.calls.filter((c) => c.method === 'eth_getBlockByNumber').length === 2) { st.salt.set(n, 9); st.mode.reorgOnce = false; }
++          return n <= st.head ? block(n) : null;
++        }
++        case 'eth_call': {
++          if (st.mode.proofFail) throw new Error('verifier: invalid account proof for address ' + params[0].to);
++          if (st.mode.missing) throw new Error('verifier: no witness source answered');
++          assert.ok(params[1]?.blockHash, 'calls are pinned by block hash');
++          return answer(params[0].to, params[0].data, numberOf(params[1].blockHash));
++        }
++        case 'eth_getCode': return '0x6000';
++        case 'eth_getStorageAt': return pad('0x2a', { size: 32 });
++        case 'eth_getBalance': return '0x10';
++        default: throw new Error('method not supported');
++      }
++    },
++  };
++  return { st, verifier };
++}
++const reader = (verifier, opts = {}) => new LeaseReader({ authority: 'verifier', verifier, addressBook: BOOK, now: () => NOW, confirmations: 2, ...opts });
++const T = { timeout: 20000 };
++
++test('construction: the verifier is explicit, local, exclusive, and never mixed with provider clients', () => {
++  const { verifier } = chain();
++  assert.throws(() => new LeaseReader({ verifier, addressBook: BOOK }), /authority is quorum/);
++  assert.throws(() => new LeaseReader({ authority: 'verifier', verifier: 'https://rpc.example.org', addressBook: BOOK }), /local endpoint/);
++  assert.throws(() => new LeaseReader({ authority: 'verifier', addressBook: BOOK }), /verifier endpoint/);
++  // a shared chain config that also lists provider RPCs: they are ignored, no client exists
++  const r = new LeaseReader({ authority: 'verifier', verifier, rpc: ['https://a.example.org', 'https://b.example.org'], addressBook: BOOK });
++  assert.equal(r.clients.length, 0);
++  assert.equal(r.authorityInfo().authority, 'local-verifier');
++  assert.equal(r.authorityInfo().tier, 'unsafe');
++  const q = new LeaseReader({ rpc: ['https://a.example.org', 'https://b.example.org'], addressBook: BOOK });
++  assert.equal(q.authority, 'quorum');
++  assert.equal(q.authorityInfo().independentOfProviders, false);
++  assert.deepEqual(chainAuthorityOptions({}), {});
++  assert.deepEqual(chainAuthorityOptions({ chainAuthority: 'verifier', chainVerifier: 'http://127.0.0.1:8545/' }), { authority: 'verifier', verifier: 'http://127.0.0.1:8545/' });
++  assert.throws(() => chainAuthorityOptions({ chainVerifier: 'http://127.0.0.1:8545/' }), /not verifier/);
++  assert.throws(() => chainAuthorityOptions({ chainAuthority: 'verifier' }), /needs chainVerifier/);
++  assert.deepEqual(chainAuthorityFromEnv({ ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:1/' }).authority, 'verifier');
++});
++
++test('deployment/lease snapshot: one confirmed block, pinned by hash, fresh, with verified evidence', T, async () => {
++  const { st, verifier } = chain();
++  const r = reader(verifier);
++  const [lease] = await r.refresh([DEP]);
++  assert.equal(lease.id, DEP);
++  assert.equal(lease.blockNumber, '98');
++  assert.equal(lease.blockHash, hash(98n));
++  assert.equal(lease.deployments, LEDGER);
++  assert.equal(r.lastEvidence.stateRoot, pad(toHex(105n), { size: 32 }));
++  for (const c of st.calls.filter((x) => x.method === 'eth_call')) assert.deepEqual(c.params[1], { blockHash: hash(98n) });
++  assert.ok(!st.calls.some((c) => c.method === 'eth_call' && c.params[1] === 'latest'));
++});
++
++test('admin-directed migration: a repointed AddressBook entry is followed at the next fresh read', T, async () => {
++  const { st, verifier } = chain();
++  const r = reader(verifier);
++  assert.equal(await r.bookAddress('deployments'), LEDGER);
++  st.bookLedger.push([101n, LEDGER2]); st.head = 104n;            // the admin repointed at block 101
++  assert.equal(await r.bookAddress('deployments'), LEDGER2);
++  const [lease] = await r.refresh([DEP]);
++  assert.equal(lease.deployments, LEDGER2);
++});
++
++test('freshness, monotonicity, chain, reorganization and the single deadline all refuse', T, async () => {
++  let { st, verifier } = chain();
++  let r = reader(verifier);
++  st.mode.oldBlocks = true;
++  await assert.rejects(r.refresh([DEP]), /stale chain block/);
++  st.mode.oldBlocks = false; st.mode.future = true;
++  await assert.rejects(r.refresh([DEP]), /stale chain block/);
++  st.mode.future = false; st.mode.stale = true;                      // Helios check_head_age: head older than 60 s
++  await assert.rejects(r.refresh([DEP]), /out of sync/);
++  st.mode.stale = false; st.mode.wrongChain = true;
++  await assert.rejects(r.refresh([DEP]), /another chain/);
++  st.mode.wrongChain = false;
++  await r.refresh([DEP]);
++  st.head = 90n;                                                     // a verifier that went backwards
++  await assert.rejects(r.refresh([DEP]), /behind block 98/);
++  ({ st, verifier } = chain()); r = reader(verifier);
++  st.mode.reorgOnce = true;
++  await assert.rejects(r.refresh([DEP]), /reorganized/);
++  ({ st, verifier } = chain()); r = reader(verifier, { deadlineMs: 300 });
++  st.mode.hang = true;
++  const t0 = Date.now();
++  await assert.rejects(r.refresh([DEP]), /timed out|deadline/);
++  assert.ok(Date.now() - t0 < 2000, 'one total deadline');
++});
++
++test('inside a read: only proof-backed methods at the pinned block; anything else refuses by name', T, async () => {
++  const { verifier } = chain();
++  const r = reader(verifier);
++  for (const bad of [(c) => c.getLogs({}), (c) => c.multicall({ contracts: [] }), (c) => c.request({ method: 'eth_call' }), (c) => c.call({}), (c) => c.getTransactionReceipt({})])
++    await assert.rejects(r.agreed(async (c) => ({ x: await bad(c) })), /not available under the verifier authority/);
++  await assert.rejects(r.agreed(async (c, b) => ({ x: await c.readContract({ address: BOOK, abi: ABI.book, functionName: 'addr', args: [stringToHex('registry', { size: 32 })], blockNumber: b - 1n }) })), /pinned to block/);
++  await assert.rejects(r.agreed(async (c) => ({ x: await c.getCode({ address: BOOK, blockTag: 'latest' }) })), /no block tags/);
++  const ok = await r.agreed(async (c, b) => ({ code: await c.getCode({ address: BOOK, blockNumber: b }), word: await c.getStorageAt({ address: BOOK, slot: '0x0', blockNumber: b }), bal: String(await c.getBalance({ address: OWNER, blockNumber: b })) }));
++  assert.deepEqual([ok.code, ok.bal], ['0x6000', '16']);
++});
++
++test('proof failure, missing witness or an unreachable verifier: refused, cache untouched, nothing newly admitted', T, async () => {
++  const { st, verifier } = chain();
++  const r = reader(verifier);
++  const [lease] = await r.refresh([DEP]);
++  for (const mode of ['proofFail', 'missing', 'down']) {
++    st.mode = { [mode]: true };
++    await assert.rejects(r.refresh([DEP]), /no fresh verified chain state/);
++    assert.equal(r.get(DEP).blockHash, lease.blockHash, 'the last verified answer stands, unchanged');
++    await assert.rejects(r.refresh(['0x' + '99'.repeat(32)]));
++    assert.equal(r.get('0x' + '99'.repeat(32)), null, 'never-verified deployment is not admitted');
++  }
++  // unknown state: the existing outage hold is bounded by the lease and the grace, and only for leases already verified
++  assert.deepEqual(r.hold(60000), [DEP]);
++});
++
++test('host admission + catalog moderation through the verifier: approve, yank, owner policy, and failures refuse', T, async () => {
++  const { st, verifier } = chain();
++  const r = reader(verifier);
++  const doc = { version: 1, chainId: 8453, ownershipContract: OWNERSHIP, hostId: HOST, requireCatalogApproval: false, denyDeployments: [DEP], denyAppRefs: [] };
++  st.policyHash = hostAdmissionPolicyHash(doc);
++  const admission = createHostAdmission({ hostId: HOST, ownershipContract: OWNERSHIP, registry: REGISTRY, catalog: CATALOG, reader: r, loadPolicy: async () => doc, now: () => NOW, cacheMs: 0 });
++  const request = { deploymentId: DEP, appRef: `catalog://${APP}/1` };
++  assert.equal(await admission.refusal(request), null);
++  st.yankedFrom = 101n; st.head = 103n;                                       // platform moderation: the version is yanked
++  assert.match(await admission.refusal(request), /yank/i);
++  st.yankedFrom = null; st.deniedFrom = 104n; st.head = 106n;                 // the host owner commits a deny policy
++  assert.equal(await admission.refusal(request), 'this host owner declines this deployment');
++  st.mode = { proofFail: true }; st.head = 108n;
++  await assert.rejects(admission.refusal(request), /no fresh verified chain state/);
++  st.mode = { missing: true };
++  await assert.rejects(admission.refusal(request), /no fresh verified chain state/);
++  st.mode = { stale: true };
++  await assert.rejects(admission.refusal(request), /out of sync/);
++});
++
++test('settlement pinned reads: anchors and metered bytes at the snapshot block, verified or refused', T, async () => {
++  const { st, verifier } = chain();
++  const r = reader(verifier);
++  const [lease] = await r.refresh([DEP]);
++  assert.equal(await r.blockHashIs(95n, hash(95n)), true);
++  assert.equal(await r.blockHashIs(95n, hash(95n, 1)), false);
++  st.mode = { down: true };
++  assert.equal(await r.blockHashIs(95n, hash(95n)), false, 'unverifiable is not verified');
++  st.mode = {};
++  // USDCBandwidthSettlement.chainBytes is the actual consumer code: it reads bytesServed at lease.blockNumber through readAt
++  const ctx = { leaseReader: r, confirmed: new Map(), meterHost: () => HOST };
++  const c = { address: METER, nonce: 3 };
++  assert.equal(await USDCBandwidthSettlement.prototype.chainBytes.call(ctx, { ...lease }, c), 7n);
++  ctx.confirmed.clear(); st.mode = { proofFail: true };
++  await assert.rejects(USDCBandwidthSettlement.prototype.chainBytes.call(ctx, { ...lease }, c), /bandwidth payment state unverified/);
++  ctx.confirmed.clear(); st.mode = {}; st.salt.set(98n, 5);                    // the snapshot block was reorganized away
++  await assert.rejects(USDCBandwidthSettlement.prototype.chainBytes.call(ctx, { ...lease }, c), /unverified/);
++});
++
++test('legacy quorum mode is unchanged by the new primitives (two agreeing clients, never one)', T, async () => {
++  const blockOf = (h) => ({ getBlock: async () => ({ hash: h }), readContract: async () => 5n, getChainId: async () => 8453, getBlockNumber: async () => 100n });
++  const q = new LeaseReader({ clients: [blockOf('0xaa'), blockOf('0xaa'), blockOf('0xbb')], addressBook: BOOK });
++  assert.equal(await q.blockHashIs(9n, '0xaa'), true);
++  assert.equal(await q.blockHashIs(9n, '0xbb'), false);
++  assert.equal(await q.readAt({ blockNumber: 9n }, (cl, b) => cl.readContract({ blockNumber: b }).then(String)), '5');
++  const one = new LeaseReader({ clients: [blockOf('0xaa'), { ...blockOf('0xaa'), readContract: async () => { throw new Error('down'); } }], addressBook: BOOK });
++  assert.equal(await one.readAt({ blockNumber: 9n }, (cl, b) => cl.readContract({ blockNumber: b }).then(String)), null);
++});
+diff --git a/test/verified-chain-lifecycle.test.mjs b/test/verified-chain-lifecycle.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..f1d0b20d7876dbcd3a646d8a671aa0b938e78900
+--- /dev/null
++++ b/test/verified-chain-lifecycle.test.mjs
+@@ -0,0 +1,46 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import {pathToFileURL} from 'node:url';
++const {createVerifiedSnapshot}=await import(process.env.VERIFIED_CHAIN_MODULE ? pathToFileURL(process.env.VERIFIED_CHAIN_MODULE).href : '../network/verified-chain.mjs');
++const sleep=ms=>new Promise(r=>setTimeout(r,ms));
++const block=n=>({number:'0x'+n.toString(16),hash:'0x'+n.toString(16).padStart(64,'0'),stateRoot:'0x'+'22'.repeat(32),timestamp:'0x'+Math.floor(Date.now()/1000).toString(16)});
++function fake(){const s={n:100n,headers:0,final:null,signals:[]};return {s,verifier:{request:async(m,p,ms,signal)=>{
++ s.signals.push(signal);if(m==='eth_chainId')return '0x2105';if(m==='eth_blockNumber')return '0x'+s.n.toString(16);
++ if(m==='eth_getBlockByNumber'){const b=block(s.n);if(++s.headers===2&&s.final)await s.final;return b;}throw Error('unexpected');
++}}};}
++test('late final header after deadline cannot advance the accepted floor',async()=>{
++ const {s,verifier}=fake();let release;s.final=new Promise(r=>release=r);
++ const snap=createVerifiedSnapshot({verifier,chainId:8453,confirmations:0,deadlineMs:100});
++ await assert.rejects(snap(async()=>true),e=>e.code==='chain_timeout');
++ release();await sleep(20);s.n=99n;
++ assert.equal((await snap(async()=>true)).blockNumber,99n);
++ // An actually accepted floor is still enforced.
++ s.n=98n;await assert.rejects(snap(async()=>true),e=>e.code==='chain_rollback');
++});
++test('a retained client closes metadata and RPC methods after success or failure',async()=>{
++ for(const fail of [false,true]){
++  const {s,verifier}=fake();const snap=createVerifiedSnapshot({verifier,chainId:8453,confirmations:0});let client;
++  const pending=snap(async c=>{client=c;if(fail)throw Error('callback failed');return true;});
++  if(fail)await assert.rejects(pending,/callback failed/);else await pending;
++  for(const call of [()=>client.getChainId(),()=>client.getBlockNumber(),()=>client.getBlock(),()=>client.getCode({address:'0x'+'33'.repeat(20)})])
++   await assert.rejects(call(),e=>e.code==='chain_closed');
++  assert.ok(s.signals.length&&s.signals.every(s=>s?.aborted),'operation cancellation reached each request');
++ }
++});
++test('callback failure aborts a pending local HTTP request before its long request timeout', {timeout:5000},async t=>{
++ let began,ended;const started=new Promise(r=>began=r),closed=new Promise(r=>ended=r);
++ const server=http.createServer(async(req,res)=>{
++  let body='';for await(const chunk of req)body+=chunk;
++  const j=JSON.parse(body);if(j.method==='eth_getCode'){res.on('close',ended);began();return;}
++  const result=j.method==='eth_chainId'?'0x2105':j.method==='eth_blockNumber'?'0x64':block(100n);
++  res.setHeader('content-type','application/json');res.end(JSON.stringify({jsonrpc:'2.0',id:j.id,result}));
++ });
++ await new Promise(r=>server.listen(0,'127.0.0.1',r));
++ t.after(()=>{server.closeAllConnections();server.close();});
++ const snap=createVerifiedSnapshot({verifier:`http://127.0.0.1:${server.address().port}`,chainId:8453,confirmations:0,deadlineMs:30000});
++ let rpc;
++ await assert.rejects(snap(async c=>{rpc=c.getCode({address:'0x'+'33'.repeat(20)});rpc.catch(()=>{});await started;throw Error('callback failed');}),/callback failed/);
++ let timer;try {await Promise.race([closed,new Promise((_,reject)=>timer=setTimeout(()=>reject(Error('pending HTTP request was not cancelled')),1000))]);}finally{clearTimeout(timer);}
++ await assert.rejects(rpc);
++});
+diff --git a/test/verified-chain.test.mjs b/test/verified-chain.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..774a4273d05db8b1e1a590c38748c6c56f8dcad2
+--- /dev/null
++++ b/test/verified-chain.test.mjs
+@@ -0,0 +1,167 @@
++// network/verified-chain.mjs and the two independent policy readers on it: service-index readServiceIndex (discovery,
++// cold bootstrap) and the platform host policy (resolveHostPolicyConfig, hostPolicySnapshot, createHostPolicyRuntime),
++// plus their config surfaces (host services runner, policy-mirror role). The verifier is an in-process stand-in that
++// answers like the patched Helios; the real verifier on real contracts is test/policy-verifier.e2e.test.mjs.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { pad, toHex, keccak256, encodeFunctionResult, decodeFunctionData } from 'viem';
++import { createVerifiedSnapshot, chainVerifierOf } from '../network/verified-chain.mjs';
++import * as si from '../network/service-index.mjs';
++import { resolveHostPolicyConfig, PRODUCTION_BOOK, PRODUCTION_HOST_OWNERSHIP } from '../network/platform-host-policy-config.mjs';
++import { hostPolicySnapshot, verifiedHostSnapshot, createHostPolicyRuntime } from '../network/host-policy-runtime.mjs';
++import { validateHostServicesConfig, policyEnv } from '../network/host-services/runner.mjs';
++import { ROLES } from '../network/host-services/roles.mjs';
++
++const NOW = 1_800_000_000_000;
++const INDEX = '0x' + '1d'.repeat(20), CODE = '0x6080604052', OPERATOR = '0x' + '0a'.repeat(20);
++const hash = (n, salt = 0) => pad(toHex(BigInt(n) * 1000n + BigInt(salt)), { size: 32 });
++function chain({ head = 100n } = {}) {
++  const st = { head, salt: new Map(), calls: [], mode: {}, code: CODE, ads: [] };
++  const block = (n) => ({ number: toHex(n), hash: hash(n, st.salt.get(n) || 0), stateRoot: pad(toHex(n + 3n), { size: 32 }),
++    timestamp: toHex(Math.floor(NOW / 1000) - Number(st.head - n) * 2 - (st.mode.old ? 600 : 0) + (st.mode.future ? 600 : 0)) });
++  const verifier = { request: async (method, params) => {
++    st.calls.push({ method, params });
++    if (st.mode.down) throw new Error('verifier HTTP 502');
++    switch (method) {
++      case 'eth_chainId': return toHex(st.mode.wrongChain ? 1 : 8453);
++      case 'eth_blockNumber': return toHex(st.head);
++      case 'eth_getBlockByNumber': { const n = BigInt(params[0]); if (st.mode.reorgSecond && st.calls.filter((c) => c.method === 'eth_getBlockByNumber').length >= 2) st.salt.set(n, 7); return block(n); }
++      case 'eth_getCode': assert.ok(params[1]?.blockHash, 'pinned by block hash'); return st.code;
++      case 'eth_call': {
++        if (st.mode.proofFail) throw new Error('verifier: invalid storage proof');
++        assert.ok(params[1]?.blockHash, 'pinned by block hash');
++        const d = decodeFunctionData({ abi: si.SERVICE_INDEX_ABI, data: params[0].data });
++        const ad = (op) => ({ operator: op, slot: 0, kind: 1, version: 1, sequence: 1n, expiresAt: BigInt(Math.floor(NOW / 1000) + 86400), updatedAt: 1n,
++          descriptor: pad('0x', { size: 32 }), endpoints: ['https://dir-a.example.net/'] });
++        if (d.functionName === 'page') return encodeFunctionResult({ abi: si.SERVICE_INDEX_ABI, functionName: 'page', result: [d.args[0] === 1 ? [ad(OPERATOR)] : [], d.args[0] === 1 ? 1n : 0n] });
++        if (d.functionName === 'get') return encodeFunctionResult({ abi: si.SERVICE_INDEX_ABI, functionName: 'get', result: ad(d.args[0]) });
++        throw new Error('execution reverted');
++      }
++      default: throw new Error('method not supported');
++    }
++  } };
++  return { st, verifier };
++}
++const PIN = { chainId: 8453, address: INDEX, codeHash: keccak256(CODE) };
++const T = { timeout: 20000 };
++
++test('a verified snapshot: one confirmed block, fresh, pinned by hash, re-checked, monotonic', T, async () => {
++  const { st, verifier } = chain();
++  const snap = createVerifiedSnapshot({ verifier, chainId: 8453, now: () => NOW });
++  const r = await snap(async (c, b) => ({ code: await c.getCode({ address: INDEX, blockNumber: b }) }));
++  assert.equal(r.blockNumber, 98n); assert.equal(r.blockHash, hash(98n)); assert.equal(r.value.code, CODE);
++  assert.deepEqual(r.evidence.tier, 'unsafe');
++  st.head = 95n;                                                      // the verifier went backwards
++  await assert.rejects(snap(async () => ({})), (e) => e.code === 'chain_rollback');
++  st.head = 100n; st.salt.set(98n, 3);                                // the accepted block was replaced
++  await assert.rejects(snap(async () => ({})), (e) => e.code === 'chain_rollback');
++});
++
++test('stale, future, wrong chain, reorganization, proof failure and an unreachable verifier refuse with quorum-class codes', T, async () => {
++  for (const [mode, code] of [['old', 'chain_stale'], ['future', 'chain_future'], ['wrongChain', 'chain_wrong_network'], ['reorgSecond', 'chain_reorg'], ['down', 'chain_unconfirmed']]) {
++    const { st, verifier } = chain(); st.mode[mode] = true;
++    const snap = createVerifiedSnapshot({ verifier, chainId: 8453, now: () => NOW });
++    await assert.rejects(snap(async (c, b) => ({ code: await c.getCode({ address: INDEX, blockNumber: b }) })), (e) => e.code === code && e.status === 503, mode);
++  }
++});
++
++test('ONE deadline bounds the whole operation including a hung callback; a retained client refuses afterwards', T, async () => {
++  const { verifier } = chain();
++  const snap = createVerifiedSnapshot({ verifier, chainId: 8453, now: () => NOW, deadlineMs: 300 });
++  let kept = null;
++  const t0 = Date.now();
++  await assert.rejects(snap(async (c) => { kept = c; return new Promise(() => {}); }), (e) => e.code === 'chain_timeout');
++  assert.ok(Date.now() - t0 < 2000, 'bounded by the deadline');
++  await assert.rejects(kept.getCode({ address: INDEX }), (e) => e.code === 'chain_closed');
++  // also after a successful snapshot
++  const snap2 = createVerifiedSnapshot({ verifier, chainId: 8453, now: () => NOW });
++  await snap2(async (c) => { kept = c; return {}; });
++  await assert.rejects(kept.readContract({ address: INDEX, abi: si.SERVICE_INDEX_ABI, functionName: 'count', args: [1] }), (e) => e.code === 'chain_closed');
++});
++
++test('inside a snapshot only proof-backed methods at the pinned block exist; resumed history must still be fresh and canonical', T, async () => {
++  const { st, verifier } = chain();
++  const snap = createVerifiedSnapshot({ verifier, chainId: 8453, now: () => NOW });
++  for (const bad of [(c) => c.getLogs({}), (c) => c.request({}), (c) => c.multicall({}), (c) => c.call({})])
++    await assert.rejects(snap(async (c) => ({ x: await bad(c) })), /not available under the verifier authority/);
++  await assert.rejects(snap(async (c, b) => ({ x: await c.getCode({ address: INDEX, blockNumber: b - 1n }) })), /pinned to block/);
++  await assert.rejects(snap(async (c) => ({ x: await c.getCode({ address: INDEX, blockTag: 'latest' }) })), /no block tags/);
++  await assert.rejects(snap(async () => ({}), { atBlock: { number: 97n, hash: hash(97n, 1) } }), (e) => e.code === 'chain_reorg');
++  st.mode.old = true;
++  await assert.rejects(snap(async () => ({}), { atBlock: { number: 97n, hash: hash(97n) } }), (e) => e.code === 'chain_stale', 'history is never fresh authority');
++});
++
++test('the explicit authority choice: quorum by default, verifier only when said, local only', () => {
++  assert.equal(chainVerifierOf({}), null);
++  assert.equal(chainVerifierOf({ chainAuthority: 'quorum' }), null);
++  assert.equal(chainVerifierOf({ chainAuthority: 'verifier', chainVerifier: 'http://127.0.0.1:8545/' }), 'http://127.0.0.1:8545/');
++  assert.throws(() => chainVerifierOf({ chainVerifier: 'http://127.0.0.1:8545/' }), /not verifier/);
++  assert.throws(() => chainVerifierOf({ chainAuthority: 'verifier' }), /needs chainVerifier/);
++  assert.throws(() => chainVerifierOf({ chainAuthority: 'verifier', chainVerifier: 'https://rpc.example.org' }), /local endpoint/);
++  assert.throws(() => chainVerifierOf({ chainAuthority: 'remote' }), /quorum or verifier/);
++});
++
++test('service index under the verifier: same listing logic, no provider client, pin never weakened, refusals are QuorumErrors', T, async () => {
++  const { st, verifier } = chain();
++  const r = await si.readServiceIndex({ pin: PIN, kinds: ['directory'], lookups: [{ operator: OPERATOR, slot: 0 }], chainAuthority: 'verifier', chainVerifier: verifier, now: () => NOW });
++  assert.equal(r.status, 'complete');
++  assert.deepEqual(r.candidates.map((c) => [c.operator, c.endpoints[0]]), [[OPERATOR, 'https://dir-a.example.net/']]);
++  assert.equal(r.lookups[0].state, 'listed');
++  assert.equal(r.evidence.authority, 'local-verifier');
++  assert.equal(r.blockHash, hash(98n));
++  // provider peers alongside the verifier are never turned into clients (no fallback)
++  const r2 = await si.readServiceIndex({ peers: [{ label: 'x', client: {} }], pin: PIN, kinds: ['directory'], chainAuthority: 'verifier', chainVerifier: verifier, now: () => NOW });
++  assert.equal(r2.candidates.length, 1);
++  await assert.rejects(si.readServiceIndex({ pin: { ...PIN, codeHash: keccak256('0x00') }, kinds: ['directory'], chainAuthority: 'verifier', chainVerifier: verifier, now: () => NOW }), /pinned/);
++  st.mode.proofFail = true;
++  await assert.rejects(si.readServiceIndex({ pin: PIN, kinds: ['directory'], chainAuthority: 'verifier', chainVerifier: verifier, now: () => NOW }), (e) => e instanceof si.QuorumError && /no verified service index snapshot/.test(e.message));
++  st.mode = { old: true };
++  await assert.rejects(si.readServiceIndex({ pin: PIN, kinds: ['directory'], chainAuthority: 'verifier', chainVerifier: verifier, now: () => NOW }), /chain_stale|older than/);
++  await assert.rejects(si.readServiceIndex({ pin: PIN, kinds: ['directory'], chainVerifier: verifier }), /not verifier/);
++  // the legacy default is unchanged: two peers still required
++  await assert.rejects(si.readServiceIndex({ pin: PIN, kinds: ['directory'] }), /two or more/);
++});
++
++test('platform host policy config: explicit verifier authority from env or JSON; ambiguous or remote refused', () => {
++  const env = { ENCLAVE_PLATFORM_HOST_POLICY: JSON.stringify({ book: '0x' + '0b'.repeat(20), hostOwnership: '0x' + '0c'.repeat(20), mirrors: [] }) };
++  assert.equal(resolveHostPolicyConfig({ env }).config.chainAuthority, undefined);
++  const v = resolveHostPolicyConfig({ env: { ...env, ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:8545/' } }).config;
++  assert.deepEqual([v.chainAuthority, v.chainVerifier], ['verifier', 'http://127.0.0.1:8545/']);
++  const j = resolveHostPolicyConfig({ env: { ENCLAVE_PLATFORM_HOST_POLICY: JSON.stringify({ book: '0x' + '0b'.repeat(20), hostOwnership: '0x' + '0c'.repeat(20), mirrors: [], chainAuthority: 'verifier', chainVerifier: 'http://localhost:9/' }) } }).config;
++  assert.equal(j.chainAuthority, 'verifier');
++  assert.equal(resolveHostPolicyConfig({ env: { ENCLAVE_PLATFORM_HOST_POLICY: 'production', ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:1/' } }).config.chainAuthority, 'verifier');
++  assert.throws(() => resolveHostPolicyConfig({ env: { ...env, ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:8545/' } }), /not verifier/);
++  assert.throws(() => resolveHostPolicyConfig({ env: { ...env, ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'https://rpc.example.org/' } }), /local/);
++});
++
++test('the policy snapshot follows the configured authority, with quorumSnapshot\'s interface and result shape', T, async () => {
++  const { st, verifier } = chain();
++  const snap = verifiedHostSnapshot({ verifier, now: () => NOW });
++  const out = await snap(async (at) => ({ code: await at.code(INDEX), block: at.block }));
++  assert.equal(out.code, CODE); assert.equal(out.blockNumber, 100n, 'head block (0 confirmations, like the quorum snapshot)');
++  assert.equal(out.blockHash, hash(100n)); assert.equal(typeof out.blockTimestamp, 'number');
++  assert.equal(st.calls.filter((c) => c.method === 'eth_getCode').length, 1);
++  // quorum stays the default; a verifier needs the explicit authority
++  assert.throws(() => hostPolicySnapshot({ chainVerifier: verifier }), /not verifier/);
++  assert.equal(typeof hostPolicySnapshot({ chainAuthority: 'verifier', chainVerifier: verifier }), 'function');
++  // the runtime uses the verifier when its config says so (and reports it), never the RPC list
++  const rt = createHostPolicyRuntime({ book: '0x' + '0b'.repeat(20), hostOwnership: '0x' + '0c'.repeat(20), mirrors: ['https://m.example.org/platform-policy'],
++    rpcs: ['https://a.example.org', 'https://b.example.org'], chainAuthority: 'verifier', chainVerifier: 'http://127.0.0.1:1/' }, { fetch: async () => { throw new Error('no network'); } });
++  assert.match(rt.status().chainAuthority, /local-verifier/);
++});
++
++test('host services and the policy-mirror role accept the explicit verifier authority and refuse ambiguous ones', () => {
++  // a policy-mirror service must carry the platform policy's own book and ownership extension (production here)
++  const pm = { port: 9100, bind: '127.0.0.1', stateDir: '/var/lib/pm', book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP };
++  const base = { format: 'enclave-host-services/v1', host: { endpoint: 'https://host-a.example.net' }, platformHostPolicy: 'production',
++    packagesDir: '/opt/packages', stateRoot: '/var/lib/enclave-host-services',
++    services: [{ role: 'policy-mirror', package: 'sha256:' + 'ab'.repeat(32), config: { ...pm, chainAuthority: 'verifier', chainVerifier: 'http://127.0.0.1:8545/' } }] };
++  const cfg = validateHostServicesConfig({ ...base, chainAuthority: 'verifier', chainVerifier: 'http://127.0.0.1:8545/' });
++  assert.deepEqual([policyEnv(cfg).ENCLAVE_CHAIN_AUTHORITY, policyEnv(cfg).ENCLAVE_CHAIN_VERIFIER], ['verifier', 'http://127.0.0.1:8545/']);
++  assert.equal(policyEnv(validateHostServicesConfig(base)).ENCLAVE_CHAIN_AUTHORITY, undefined);
++  assert.throws(() => validateHostServicesConfig({ ...base, chainVerifier: 'http://127.0.0.1:8545/' }), /not verifier/);
++  assert.throws(() => validateHostServicesConfig({ ...base, chainAuthority: 'verifier', chainVerifier: 'https://rpc.example.org/' }), /local endpoint/);
++  const v = ROLES['policy-mirror'].validate({ ...pm, chainAuthority: 'verifier', chainVerifier: 'http://127.0.0.1:8545/' });
++  assert.deepEqual([v.chainAuthority, v.rpc], ['verifier', undefined]);
++  assert.throws(() => ROLES['policy-mirror'].validate(pm), /rpc/);
++});

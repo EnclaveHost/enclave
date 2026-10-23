@@ -1,0 +1,20 @@
+--- installed/windows/node/agent.mjs (76cac355)
++++ F-4106c311/windows/node/agent.mjs
+@@ -1062,6 +1062,8 @@
+                       // the wallet hold channel the node writes (host.mjs walletChannelStart): the network agent enforces it
+                       // only while this node actually runs one; otherwise the block is dropped (and the agent restarted once)
+                       walletAdmission: host.walletChannel ? { file: host.walletAdmission.file } : null,
++                      // the operator's host-services opt-in (node-config.local.cmd), the only one a box with no app yet can make
++                      hostServicesFile: process.env.ENCLAVE_HOST_SERVICES_FILE || null,
+                       operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
+                       policyFile: NET.policy, tpmBinary: process.env.TPMATTEST_EXE,
+                       tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
+@@ -1079,6 +1081,8 @@
+             rows: () => chainMod.allDeployments(), version: (appRef) => chainMod.resolveAppRef(appRef),
+             vms: async () => { const r = await fetch(`${host.cfg.isolationManager}/vms`, { signal: AbortSignal.timeout(15000) });
+                                if (!r.ok) throw new Error(`the manager answered /vms ${r.status}`); const j = await r.json(); return Array.isArray(j) ? j : j.vms || []; },
++            // an app-less config (host services only) is not written while this node's platform host policy refuses this host
++            hostServiceRefusal: () => host.platformPolicy?.serviceRefusal?.() || null,
+             log: (m) => log('[network]', m) });
+           const r = await enroll.pass(); lastEnrollError = ''; enrollWaiting = Number(r?.waiting) || 0;
+         } catch (e) { if (e.message !== lastEnrollError) log('[network]', `enrollment: ${e.message}`); lastEnrollError = e.message; }

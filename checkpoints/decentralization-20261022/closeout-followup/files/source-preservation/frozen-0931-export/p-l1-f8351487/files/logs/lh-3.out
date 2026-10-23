@@ -1,0 +1,156 @@
+[queue] START available=23835MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+== pins
+a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+f26b94a8af333c67bc51f4ea4111ca231a8e5f3a0bf6ba22079731ef9ee70890  l1pair/PINS.json
+a2bcc3aabff16977e29e84ed46b1734028ec58c66dbc8c4523ae1bcf62accefa  l1pair/vendor/VENDOR.json
+f1f748833dbb7a1a32702daace04588441cf5b40b93b5046dd1ef3f4c1b985fd  l1pair/test/mutate.py
+86cb2a3558882ec5699d83d68ee11f6d1a0224f1d8b5de36147a3e62bf16cf44  l1pair/test/realrig.py
+6dc6fc2e92136842d4278f56b8194c9fca83fe959f5f52009677f543c94ab4cf  l1pair/test/run_side.py
+9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
+b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
+df0e3dfc93e516d26bef54f2f45816e7a571f7c5f55ff86081132594ee7631f2  l1pair/test/test_lighthouse_offline.py
+60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
+ec20b6d91b5c2ad38ae25b19d76043fa7e33ee2b4fa95ff6572a2c1908dc0b77  l1pair/test/test_tx_broadcast_offline.py
+vendor: OK (S 959e56f byte-identical)
+8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250  bin/reth-v2.8.0
+11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96  bin-staging/lighthouse-v8.3.2/lighthouse
+test_real_lighthouse_refusal_pairing_and_counter_control (__main__.LighthouseOffline.test_real_lighthouse_refusal_pairing_and_counter_control) ... {
+ "label": "mainnet config, offline, empty datadirs; pairing run starts from the EMBEDDED genesis via TEST-ONLY --allow-insecure-genesis-sync --ignore-ws-check",
+ "refusal": {
+  "ready": null,
+  "exitCode": 1,
+  "after": 2.5,
+  "lines": [
+   "{\"event\": \"started\", \"pid\": 3204087, \"argvSha256\": \"52a13a02cf93198e2c8addd01467c772535d23bf8ac6e2d109a08735f9bf03fe\"}",
+   "Oct 23 01:26:32.760 INFO  Starting from known genesis state           ",
+   "Oct 23 01:26:32.777 CRIT  Failed to start beacon node                   reason: \"Syncing from genesis is insecure and incompatible with data availability checks. You should instead perform a checkpoint sync from a truste",
+   "{\"event\": \"exited\", \"code\": 1, \"stopping\": false}"
+  ]
+ },
+ "wrongJwt": {
+  "readyAfterSec": 2.8,
+  "elOfflineBecameFalse": false,
+  "lastSyncing": {
+   "is_syncing": true,
+   "is_optimistic": false,
+   "el_offline": true,
+   "head_slot": "0",
+   "sync_distance": "15493335"
+  },
+  "exitCode": 0,
+  "stopSec": 0.16,
+  "engineLines": [
+   "Oct 23 01:26:53.001 WARN  Execution engine call failed                  error: Auth(InvalidToken(\"HTTP status client error (401 Unauthorized) for url (http://127.0.0.1:54639/)\"))",
+   "Oct 23 01:27:05.002 WARN  Execution engine call failed                  error: Auth(InvalidToken(\"HTTP status client error (401 Unauthorized) for url (http://127.0.0.1:54639/)\"))",
+   "Oct 23 01:27:17.001 WARN  Execution engine call failed                  error: Auth(InvalidToken(\"HTTP status client error (401 Unauthorized) for url (http://127.0.0.1:54639/)\"))",
+   "Oct 23 01:27:29.001 WARN  Execution engine call failed                  error: Auth(InvalidToken(\"HTTP status client error (401 Unauthorized) for url (http://127.0.0.1:54639/)\"))",
+   "Oct 23 01:27:35.400 WARN  Execution engine call failed                  error: Auth(InvalidToken(\"HTTP status client error (401 Unauthorized) for url (http://127.0.0.1:54639/)\"))"
+  ]
+ },
+ "pairing": {
+  "readyAfterSec": 2.8,
+  "elOnline": true,
+  "elOnlineAfterSec": 0.0,
+  "syncing": {
+   "is_syncing": true,
+   "is_optimistic": false,
+   "el_offline": false,
+   "head_slot": "0",
+   "sync_distance": "15493336"
+  },
+  "version": "Lighthouse/v8.3.2/x86_64-linux",
+  "custodyGroupCount": "64",
+  "spec": {
+   "DEPOSIT_CHAIN_ID": "1",
+   "SECONDS_PER_SLOT": "12",
+   "FULU_FORK_EPOCH": "411392",
+   "GLOAS_FORK_EPOCH": "18446744073709551615",
+   "MIN_EPOCHS_FOR_DATA_COLUMN_SIDECARS_REQUESTS": "4096"
+  },
+  "genesis": {
+   "genesis_time": "1606824023",
+   "genesis_validators_root": "0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95",
+   "genesis_fork_version": "0x00000000"
+  },
+  "headSlot": "0",
+  "blobsSlot0": {
+   "status": 400,
+   "body": "{'code': 400, 'message': 'BAD_REQUEST: block is pre-Deneb and has no blobs', 'stacktraces': []}"
+  },
+  "listeners": [
+   "0.0.0.0:58719",
+   "127.0.0.1:45793"
+  ],
+  "gate": {
+   "el.chainId": [
+    true,
+    "mainnet"
+   ],
+   "el.genesis": [
+    true,
+    "mainnet genesis"
+   ],
+   "el.syncing": [
+    false,
+    "FAIL eth_syncing is not false"
+   ],
+   "el.head": [
+    false,
+    "FAIL head lag 1792744058 s > 120"
+   ],
+   "el.finalized": [
+    false,
+    "FAIL no finalized block (the CL has not sent a finalized forkchoice)"
+   ],
+   "cl.genesis": [
+    true,
+    "mainnet GVR"
+   ],
+   "cl.spec": [
+    true,
+    "deposit chain 1, 12 s slots, Fulu 411392"
+   ],
+   "cl.version": [
+    true,
+    "v8.3.2"
+   ],
+   "cl.syncing": [
+    false,
+    "FAIL syncing=True optimistic=False el_offline=False"
+   ],
+   "cl.custody": [
+    true,
+    "custody groups 64"
+   ],
+   "pair.head": [
+    false,
+    "KeyError: 'execution_payload'"
+   ],
+   "cl.blobs": [
+    false,
+    "FAIL no blob-carrying slot found to test"
+   ]
+  },
+  "exitCode": 0,
+  "stopSec": 0.16,
+  "leftover": [],
+  "noUrlLines": []
+ },
+ "reth": {
+  "exitCode": 0,
+  "datadir": {
+   "apparent": 4303870877,
+   "allocated": 9875456,
+   "files": 98
+  }
+ }
+}
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 69.047s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=614 minHostAvailableMiB=22748
+[memory-guard] at peak: reth-v2.8.0:283 lighthouse:249 python3:32 python3:25 python3:25
+[queue] EXIT 0

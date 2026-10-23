@@ -1,0 +1,279 @@
+{
+  "at": "2026-10-23T08:35:19.4770250Z",
+  "events": [
+    {
+      "at": "2026-10-23T08:29:19.7947051Z",
+      "id": 41,
+      "provider": "Microsoft-Windows-Kernel-Power",
+      "data": {
+        "BugcheckCode": "239",
+        "LongPowerButtonPressDetected": "false",
+        "PowerButtonSuppressionState": "0",
+        "PowerButtonTimestamp": "0",
+        "BugcheckParameter3": "0x0",
+        "BugcheckParameter4": "0x0",
+        "BugcheckParameter1": "0xffffd502732f7080",
+        "BugcheckParameter2": "0x0",
+        "SleepInProgress": "0",
+        "BugcheckInfoFromEFI": "true"
+      },
+      "message": "The system has rebooted without cleanly shutting down first. This error could be caused if the system stopped responding, crashed, or lost power unexpectedly."
+    },
+    {
+      "at": "2026-10-23T08:08:09.1232984Z",
+      "id": 1001,
+      "provider": "Microsoft-Windows-WER-SystemErrorReporting",
+      "data": {},
+      "message": "The computer has rebooted from a bugcheck.  The bugcheck was: 0x000000ef (0xffffda8b8ba15080, 0x0000000000000000, 0xffffda8b8ba15080, 0x0000000000000000). A dump was saved in: C:\\Windows\\MEMORY.DMP. Report Id: e470c84a-cd20-4b1e-bfb5-9ab909755cfa."
+    },
+    {
+      "at": "2026-10-23T08:07:55.9584688Z",
+      "id": 41,
+      "provider": "Microsoft-Windows-Kernel-Power",
+      "data": {
+        "BugcheckCode": "239",
+        "LongPowerButtonPressDetected": "false",
+        "PowerButtonSuppressionState": "0",
+        "PowerButtonTimestamp": "0",
+        "BugcheckParameter3": "0x0",
+        "BugcheckParameter4": "0x0",
+        "BugcheckParameter1": "0xffffda8b8ba15080",
+        "BugcheckParameter2": "0x0",
+        "SleepInProgress": "0",
+        "BugcheckInfoFromEFI": "true"
+      },
+      "message": "The system has rebooted without cleanly shutting down first. This error could be caused if the system stopped responding, crashed, or lost power unexpectedly."
+    },
+    {
+      "at": "2026-10-23T08:03:53.3241499Z",
+      "id": 1001,
+      "provider": "Microsoft-Windows-WER-SystemErrorReporting",
+      "data": {},
+      "message": "The computer has rebooted from a bugcheck.  The bugcheck was: 0x000000ef (0xffffa408510b4080, 0x0000000000000000, 0xffffa408510b4080, 0x0000000000000000). A dump was saved in: C:\\WINDOWS\\Minidump\\102326-15031-01.dmp. Report Id: 90edcda2-3877-41e2-83f8-4ae062d2d056."
+    },
+    {
+      "at": "2026-10-23T08:03:43.3098354Z",
+      "id": 41,
+      "provider": "Microsoft-Windows-Kernel-Power",
+      "data": {
+        "BugcheckCode": "239",
+        "LongPowerButtonPressDetected": "false",
+        "PowerButtonSuppressionState": "0",
+        "PowerButtonTimestamp": "0",
+        "BugcheckParameter3": "0xffffa408510b4080",
+        "BugcheckParameter4": "0x0",
+        "BugcheckParameter1": "0xffffa408510b4080",
+        "BugcheckParameter2": "0x0",
+        "SleepInProgress": "0",
+        "BugcheckInfoFromEFI": "false"
+      },
+      "message": "The system has rebooted without cleanly shutting down first. This error could be caused if the system stopped responding, crashed, or lost power unexpectedly."
+    }
+  ],
+  "deployments": [
+    {
+      "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+      "status": "refused",
+      "reason": "this node is in owner-only scope and hosts only its operator's and its delegated owners' deployments (0x1a01194c34fe3577c6d0a54feb78af6253e494e0; this one is owned by 0x389C3f030a209D04D026228D2D053fEB75DbadcA)",
+      "lastError": null,
+      "leaseUntil": null,
+      "iso": null
+    },
+    {
+      "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+      "status": "refused",
+      "reason": "This version requires catalog approval; pending versions may only be deployed PRIVATE for testing.",
+      "lastError": null,
+      "leaseUntil": null,
+      "iso": null
+    },
+    {
+      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "status": "held",
+      "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
+      "lastError": null,
+      "leaseUntil": 1792745391,
+      "iso": null
+    },
+    {
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "status": "held",
+      "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
+      "lastError": null,
+      "leaseUntil": 1792745331,
+      "iso": null
+    },
+    {
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "status": "held",
+      "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
+      "lastError": null,
+      "leaseUntil": 1792745397,
+      "iso": null
+    },
+    {
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "held",
+      "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0xB794C4DD0e1C5E6B72281799F282BfdE7654345D: held - not started, not renewed, not released - pending the operator's decision",
+      "lastError": null,
+      "leaseUntil": 1792745235,
+      "iso": null
+    },
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "held",
+      "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
+      "lastError": null,
+      "leaseUntil": 1792745451,
+      "iso": null
+    },
+    {
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "status": "held",
+      "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
+      "lastError": null,
+      "leaseUntil": 1792745481,
+      "iso": null
+    },
+    {
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "status": "held",
+      "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
+      "lastError": null,
+      "leaseUntil": 1792745487,
+      "iso": null
+    },
+    {
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "status": "held",
+      "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
+      "lastError": null,
+      "leaseUntil": 1792745871,
+      "iso": null
+    },
+    {
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "status": "held",
+      "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
+      "lastError": null,
+      "leaseUntil": 1792745143,
+      "iso": null
+    }
+  ],
+  "directories": [
+    {
+      "Name": ".cron-respawn"
+    },
+    {
+      "Name": "activation-stage"
+    },
+    {
+      "Name": "admin-restoration-20261020"
+    },
+    {
+      "Name": "challenge-replica"
+    },
+    {
+      "Name": "control-activation"
+    },
+    {
+      "Name": "control-vm"
+    },
+    {
+      "Name": "host-policy"
+    },
+    {
+      "Name": "host-services"
+    },
+    {
+      "Name": "hosting"
+    },
+    {
+      "Name": "hotfix"
+    },
+    {
+      "Name": "lease-gas"
+    },
+    {
+      "Name": "lease-relay"
+    },
+    {
+      "Name": "logs"
+    },
+    {
+      "Name": "nan-retirement"
+    },
+    {
+      "Name": "network"
+    },
+    {
+      "Name": "network-checker"
+    },
+    {
+      "Name": "node"
+    },
+    {
+      "Name": "ops"
+    },
+    {
+      "Name": "patch-backup-2026.10.12.5"
+    },
+    {
+      "Name": "patch-backup-2026.10.12.6"
+    },
+    {
+      "Name": "patch-backup-20261012-certretry"
+    },
+    {
+      "Name": "patch-backup-20261012-dropcooldown"
+    },
+    {
+      "Name": "patch-backup-20261012-minfunded"
+    },
+    {
+      "Name": "patch-backup-20261012-wgall"
+    },
+    {
+      "Name": "patch-backup-20261012-wgcanary"
+    },
+    {
+      "Name": "patch-backup-20261013-degrade"
+    },
+    {
+      "Name": "patch-backup-20261013-eligibility"
+    },
+    {
+      "Name": "patch-backup-20261013-fallback"
+    },
+    {
+      "Name": "patch-backup-20261013-paidtest"
+    },
+    {
+      "Name": "patch-backup-20261013-paidtest2"
+    },
+    {
+      "Name": "patch-backup-20261013-reload"
+    },
+    {
+      "Name": "patch-backup-20261013-shares"
+    },
+    {
+      "Name": "patch-backup-20261015-hostegress"
+    },
+    {
+      "Name": "shield"
+    },
+    {
+      "Name": "staging"
+    },
+    {
+      "Name": "storage-vm"
+    },
+    {
+      "Name": "update-host-first-hop"
+    },
+    {
+      "Name": "wg-stage"
+    }
+  ]
+}

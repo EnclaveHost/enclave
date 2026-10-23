@@ -1,0 +1,11 @@
+barrierScript=db-barrier.v1
+pre.unit.ActiveState=inactive
+pre.unit.SubState=dead
+pre.unit.MainPID=0
+pre.unit.Result=success
+pre.unit.ExecMainCode=1
+pre.unit.ExecMainStatus=0
+pre.unit.InvocationID=d2c7932b9007052b1428b57dd3017f10
+pre.unit.NRestarts=0
+pre.writerPids=
+pre.allowLiveStart=absent

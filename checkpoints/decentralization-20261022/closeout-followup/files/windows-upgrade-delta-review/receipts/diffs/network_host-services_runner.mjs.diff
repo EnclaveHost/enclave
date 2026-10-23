@@ -1,0 +1,30 @@
+--- installed/network/host-services/runner.mjs (7d63742b)
++++ F-4106c311/network/host-services/runner.mjs
+@@ -147,14 +147,16 @@
+  * service-index policy mirrors), each candidate signed by the book's current owner at a fresh agreed block of the policy's
+  * own RPC quorum; everything else goes to `fetch`.
+  */
+-export async function policyCarrierFetch(cfg, { fetch = globalThis.fetch, log = () => {} } = {}) {
++// snapshot (optional): the agreed-block chain authority the caller's gate uses (host-policy-carrier-gate.mjs); the carriers'
++// fresh verification then uses the SAME one, never a raw RPC quorum of its own
++export async function policyCarrierFetch(cfg, { fetch = globalThis.fetch, log = () => {}, snapshot = null } = {}) {
+   if (!usesCarriers(cfg)) return fetch;
+   const { resolveHostPolicyConfig } = await import('../platform-host-policy-config.mjs');
+   const { quorumSnapshot } = await import('../host-policy-runtime.mjs');
+   const pcm = await import('../policy-carriers.mjs');
+   const resolved = resolveHostPolicyConfig({ env: policyEnv(cfg), chainId: 8453 });
+   const { book, hostOwnership, rpcs, minAgree } = resolved.config;
+-  if (!rpcs || !rpcs.length) fail('platform host policy carriers need the policy\'s RPC quorum (platformHostPolicyRpcs or the platform\'s rpcs)');
++  if (!snapshot && (!rpcs || !rpcs.length)) fail('platform host policy carriers need the policy\'s RPC quorum (platformHostPolicyRpcs or the platform\'s rpcs)');
+   const pc = cfg.platformHostPolicyCarriers || {};
+   const mirror = cfg.services.find((s) => s.role === 'policy-mirror');
+   const carriers = [
+@@ -163,7 +165,7 @@
+     ...pcm.httpCarriers(pc.peers || [], { fetch }),
+     ...(pc.serviceIndex ? [pcm.indexCarriers({ pin: cfg.serviceIndex, peers: rpcs, fetch, log })] : []),
+   ];
+-  const verify = pcm.freshVerifier({ snapshot: quorumSnapshot({ rpcs, minAgree }), book, hostOwnership });
++  const verify = pcm.freshVerifier({ snapshot: snapshot || quorumSnapshot({ rpcs, minAgree }), book, hostOwnership });
+   return pcm.carrierFetch({ carriers, verify, fetch, log });
+ }
+ 

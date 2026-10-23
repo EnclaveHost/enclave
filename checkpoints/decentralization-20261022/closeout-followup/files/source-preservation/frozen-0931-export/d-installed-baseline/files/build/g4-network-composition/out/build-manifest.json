@@ -1,0 +1,74 @@
+{
+ "control": {
+  "privacy-agent.mjs": {
+   "sha256": "5c03987df990c9819947d10a3d4468cf227a91f36da11fdad6a8c8a91f3c9fe2",
+   "bytes": 2941951,
+   "inputs": 1937
+  },
+  "windows-circuit-worker.mjs": {
+   "sha256": "13ce44f1b39d4521e32266f2dad234958af70b1b05e2a3f6638535571e8cf320",
+   "bytes": 136752,
+   "inputs": 19
+  },
+  "host-service-ingress.mjs": {
+   "sha256": "d2abbd157a7019799bba26c49cd7bbfe3eb732e96e3df7dc13e7284f985c3c0b",
+   "bytes": 7529,
+   "inputs": 4
+  }
+ },
+ "g4": {
+  "privacy-agent.mjs": {
+   "sha256": "7ef4e2303d841e86269d3bbb7ce5f43a5ead5b0d2f2898f9b69774da1ac13147",
+   "bytes": 2948000,
+   "inputs": 1938
+  },
+  "windows-circuit-worker.mjs": {
+   "sha256": "13ce44f1b39d4521e32266f2dad234958af70b1b05e2a3f6638535571e8cf320",
+   "bytes": 136752,
+   "inputs": 19
+  },
+  "host-service-ingress.mjs": {
+   "sha256": "c952dce4fe007c48c81e1726a743d850dc2f5231204d01466349bfa5ffcc62d3",
+   "bytes": 7534,
+   "inputs": 4
+  }
+ },
+ "inputsChangedVsControl": {
+  "privacy-agent.mjs": [
+   {
+    "input": "network/challenge-front-declaration.mjs",
+    "control": "absent",
+    "g4": "67e67a01"
+   },
+   {
+    "input": "network/challenge-replica-host.mjs",
+    "control": "33433eb3",
+    "g4": "52d6f679"
+   },
+   {
+    "input": "network/enclave-network-host.mjs",
+    "control": "7c2f8af5",
+    "g4": "21181cb2"
+   },
+   {
+    "input": "network/host-service-names.mjs",
+    "control": "08bda1e6",
+    "g4": "a46123cb"
+   },
+   {
+    "input": "network/host-service-transport.mjs",
+    "control": "e75f0331",
+    "g4": "de5bb98a"
+   }
+  ],
+  "windows-circuit-worker.mjs": [],
+  "host-service-ingress.mjs": [
+   {
+    "input": "network/host-service-names.mjs",
+    "control": "08bda1e6",
+    "g4": "a46123cb"
+   }
+  ]
+ },
+ "esbuild": "0.28.1"
+}

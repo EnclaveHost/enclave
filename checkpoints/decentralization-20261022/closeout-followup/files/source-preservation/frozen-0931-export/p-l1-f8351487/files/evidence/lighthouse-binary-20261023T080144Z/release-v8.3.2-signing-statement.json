@@ -1,0 +1,9 @@
+{
+ "tag": "v8.3.2",
+ "id": 421312929,
+ "author": "github-actions[bot]",
+ "bodySha256": "b34ad0d213eeaf003a5eaf2974022a4adbc30e7344c86ed2dd0400c072c2dbeb",
+ "fingerprintInBody": true,
+ "statementPrefix": "The binaries are signed with Sigma Prime's PGP key:",
+ "fingerprint": "15E66D941F697E28F49381F426416DC3F30674B0"
+}

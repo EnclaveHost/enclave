@@ -1,0 +1,56 @@
+[queue] START available=23865MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+== pins
+a1de2806dc321b411b71dcffb7b10b324bf73146fcbc40e57722e7caa54bbb74  l1pair/l1pair.py
+46deaf02b28a96d2806a71de21b7559cdaa657f3dd718bfd5623ab4b91810d6a  l1pair/PINS.json
+a5440bc77ab55aa68f541b768acca438df75025eeea6c0d42a99c31a6eaabb53  l1pair/vendor/VENDOR.json
+51b8a2d111dd6aa9fc3d9e1f36031bfe3e3e7990857cdbf804efc25077e8c1fb  l1pair/test/mutate.py
+a3c26785d946be37ca3044fe2eecef21ed4201025dcb254679c177fdfdf87fb7  l1pair/test/realrig.py
+2f7f6a2412fcdc5b5d31cfa088b96b6de49ed7883c65601f015678d5bae908ab  l1pair/test/run_side.py
+af41581396b555ac2c2c577a7f4cd15e79ba369ecb272b06152461ea9665e1ec  l1pair/test/test_base_l1_offline.py
+a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
+vendor: OK (S 6b9dae92 byte-identical)
+9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f  ../fresh-witness-supply/staging/base-v1.5.1-20261023T053947Z/base
+test_official_base_starts_against_the_real_self_hosted_execution_side (__main__.BaseOnRealL1Execution.test_official_base_starts_against_the_real_self_hosted_execution_side) ... {
+ "baseBinary": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+ "aliveAfterSec": 120.0,
+ "exitedAfterSec": null,
+ "exitCode": 0,
+ "chainId": "0x2105",
+ "chainIdAfterSec": 1.5,
+ "beaconPathsRequested": [
+  "/eth/v1/beacon/genesis",
+  "/eth/v1/config/spec"
+ ],
+ "retryExhausted": false,
+ "signerLines": [
+  "2026-10-23T07:42:10.141764Z  WARN p2p::flags: L1 SystemConfig returned zero unsafe block signer (L1 may still be syncing), falling back to built-in/genesis signer block_number=0"
+ ],
+ "l1Lines": [
+  "2026-10-23T07:42:10.137340Z  INFO upgrade_signal: execution upgrade signal metrics observer spawned",
+  "2026-10-23T07:42:10.139174Z  WARN upgrade_signal: failed to read live L1 upgrade signal schedule error=get L1 block failed: missing block for tag",
+  "2026-10-23T07:42:10.141764Z  WARN p2p::flags: L1 SystemConfig returned zero unsafe block signer (L1 may still be syncing), falling back to built-in/genesis signer block_number=0",
+  "2026-10-23T07:42:10.155634Z  INFO derivation: Starting derivation",
+  "2026-10-23T07:42:10.169351Z  WARN upgrade_signal: failed to read live L1 upgrade signal schedule error=get L1 block failed: missing block for tag",
+  "2026-10-23T07:42:10.169353Z  INFO derivation: Processing l1 head update l1_head=BlockInfo { hash: 0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3, number: 0, parent_hash: 0x0000000000000000000000000000000000000000000000000000000000000000, ti",
+  "2026-10-23T07:42:10.169366Z  INFO derivation: Skipping derivation. derivation_state=DerivationStateMachine { confirmed_safe_head: L2BlockInfo { block_info: BlockInfo { hash: 0x0000000000000000000000000000000000000000000000000000000000000000, number: 0, parent_",
+  "2026-10-23T07:44:08.907592Z  WARN alloy_pubsub::service: Reconnection attempt 1/10 failed: No such file or directory (os error 2). Retrying in 3s..."
+ ],
+ "reference": "S logs/bp-off1.out: same binary, L1 unreachable -> exit 1 after 5.8 s",
+ "rethExit": 0,
+ "rethStopSec": 0.06,
+ "rethDatadir": {
+  "apparent": 4295676376,
+  "allocated": 1507328,
+  "files": 35
+ }
+}
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 121.160s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=569 minHostAvailableMiB=23367
+[memory-guard] at peak: reth-v2.8.0:286 base:201 python3:32 python3:27 python3:25
+[queue] EXIT 0

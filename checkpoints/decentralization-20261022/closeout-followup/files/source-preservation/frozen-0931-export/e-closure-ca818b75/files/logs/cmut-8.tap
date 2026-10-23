@@ -1,0 +1,62 @@
+TAP version 13
+# Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+ok 1 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+  ---
+  duration_ms: 456.339247
+  type: 'test'
+  ...
+# Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+ok 2 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+  ---
+  duration_ms: 62.600623
+  type: 'test'
+  ...
+# Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+ok 3 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+  ---
+  duration_ms: 64.502918
+  type: 'test'
+  ...
+# Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+ok 4 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+  ---
+  duration_ms: 106.206093
+  type: 'test'
+  ...
+# Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+ok 5 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+  ---
+  duration_ms: 129.393842
+  type: 'test'
+  ...
+# Subtest: release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+ok 6 - release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+  ---
+  duration_ms: 59.04203
+  type: 'test'
+  ...
+# Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+not ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+  ---
+  duration_ms: 27.870663
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-8/test/vault-deposit.anvil.test.mjs:232:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-8/test/vault-deposit.anvil.test.mjs:248:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4897.967021

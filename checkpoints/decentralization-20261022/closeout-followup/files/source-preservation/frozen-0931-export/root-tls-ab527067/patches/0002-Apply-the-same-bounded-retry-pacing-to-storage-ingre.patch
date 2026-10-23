@@ -1,0 +1,72 @@
+From edac1dc269d9dc29cc61efba6d588f514361c4bf Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:10:58 -0700
+Subject: [PATCH 2/4] Apply the same bounded retry pacing to storage ingress
+ tunnels
+
+---
+ repair-storage.py | 41 +++++++++++++++++++++++++++++++++++++++++
+ run-storage.py    |  6 ++++++
+ 2 files changed, 47 insertions(+)
+ create mode 100644 repair-storage.py
+ create mode 100644 run-storage.py
+
+diff --git a/repair-storage.py b/repair-storage.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..784fb1899840c5729a3c131b3ef04ce034a56859
+--- /dev/null
++++ b/repair-storage.py
+@@ -0,0 +1,41 @@
++"""Run on enclave-storage as root. Default: read-only preflight. --apply: bounded tunnel retry repair."""
++import subprocess,pathlib,json,hashlib,sys,time,os
++REGIONS=('us-west','ca-east','eu-central','ap-southeast')
++FAILED=('ca-east','eu-central','ap-southeast')
++PINS={'us-west': 'db1e8ba21e9032dbee639a1355c15645374855e0dd7762919de0251ab8c6faad', 'ca-east': '5137d27cbabb3016a9e479d61c2e7d519e4526da949091c26082b372fbb1df72', 'eu-central': '3b44e1fcebab4cdee62f66c2c5087d58dcd0ead497a5a2ab012c4d903820c056', 'ap-southeast': '188956b7bf0023c8b4d1165f7a8651ef158202de9640106bb86630b36ddfaaab'}
++DROP='[Service]\n# Keep failed reverse-tunnel attempts outside the ingress SSH rate-limit window.\nRestartSec=60s\n'
++def command(*args):return subprocess.check_output(args,text=True,timeout=15)
++def inspect(region):
++ u='enclave-storage-tunnel-'+region+'.service'
++ raw=command('systemctl','show',u,'-p','ActiveState','-p','SubState','-p','MainPID','-p','NRestarts','-p','RestartUSec','-p','FragmentPath')
++ d=dict(l.split('=',1)for l in raw.splitlines()if '='in l)
++ path=pathlib.Path(d['FragmentPath']);data=path.read_bytes()
++ assert '--apply' not in sys.argv or hashlib.sha256(data).hexdigest()==PINS[region],(u,'unit changed since reviewed preflight')
++ assert b'RestartSec=10' in data and b'ExitOnForwardFailure=yes' in data,(u,'unexpected unit template')
++ drop=pathlib.Path('/etc/systemd/system')/(u+'.d')/'60-tunnel-retry.conf'
++ assert not drop.exists() or drop.read_text()==DROP,(u,'conflicting drop-in')
++ d.update(unit=u,unitSha256=hashlib.sha256(data).hexdigest(),dropIn=str(drop),alreadyApplied=drop.exists())
++ return d
++before={r:inspect(r)for r in REGIONS}
++print(json.dumps({'phase':'preflight','before':before}),flush=True)
++if '--apply' not in sys.argv:raise SystemExit(0)
++for r in FAILED:
++ d=before[r]
++ assert d['ActiveState']in ('activating','failed','inactive') and d['MainPID']=='0',(r,'tunnel is now active; inspect before changing it')
++for r,d in before.items():
++ p=pathlib.Path(d['dropIn']);p.parent.mkdir(mode=0o755,exist_ok=True)
++ if not p.exists():
++  fd=os.open(p,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o644)
++  with os.fdopen(fd,'w')as f:f.write(DROP);f.flush();os.fsync(f.fileno())
++command('systemctl','daemon-reload')
++for r in REGIONS:assert command('systemctl','show','enclave-storage-tunnel-'+r,'-p','RestartUSec','--value').strip()=='1min'
++stopped=[]
++try:
++ for r in FAILED:
++  command('systemctl','stop','enclave-storage-tunnel-'+r);stopped.append(r)
++ print(json.dumps({'phase':'cooldown','seconds':35,'stopped':stopped,'healthyTunnelsUnchanged':True}),flush=True)
++ time.sleep(35)
++finally:
++ for r in stopped:command('systemctl','start','enclave-storage-tunnel-'+r)
++time.sleep(3)
++print(json.dumps({'phase':'after','after':{r:inspect(r)for r in REGIONS}}),flush=True)
+diff --git a/run-storage.py b/run-storage.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..4d34a2885f87a5b08cae214d5bc2220e720f13d5
+--- /dev/null
++++ b/run-storage.py
+@@ -0,0 +1,6 @@
++import subprocess,pathlib,json,sys,datetime
++p=pathlib.Path(__file__).parent;apply='--apply'in sys.argv
++cmd=['ssh','-J','minipc','-o','HostKeyAlias=[127.0.0.1]:32422','-o','BatchMode=yes','-o','ConnectTimeout=6','-o','UserKnownHostsFile=work/storage-vm/known_hosts','-i','/home/steven/.ssh/minipc','storageadmin@172.17.29.188','sudo python3 -'+(' --apply'if apply else '')]
++r=subprocess.run(cmd,input=(p/'repair-storage.py').read_text(),capture_output=True,text=True,timeout=80)
++o={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'apply':apply,'exit':r.returncode,'out':r.stdout,'err':r.stderr[-800:]}
++f=pathlib.Path('outputs/decentralization-audit')/('nucbox-tls-storage-retry-'+('apply-'if apply else'preflight-')+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'.json');f.write_text(json.dumps(o,indent=2)+'\n');print(json.dumps(o));print('Saved',f);raise SystemExit(r.returncode)

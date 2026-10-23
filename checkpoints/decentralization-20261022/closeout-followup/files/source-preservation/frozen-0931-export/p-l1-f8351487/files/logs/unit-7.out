@@ -1,0 +1,40 @@
+[queue] START available=23192MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+== pins
+3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
+f26b94a8af333c67bc51f4ea4111ca231a8e5f3a0bf6ba22079731ef9ee70890  l1pair/PINS.json
+a2bcc3aabff16977e29e84ed46b1734028ec58c66dbc8c4523ae1bcf62accefa  l1pair/vendor/VENDOR.json
+35c60ff6bf233c44517d1d9d3af6300c91b53fe18399116fa2a02e120e2951ab  l1pair/test/mutate.py
+32cf6a03d0f30700264e0ce50382663557facb23e43356a2f0139fceb844fff6  l1pair/test/realrig.py
+5a9da54369a409b3863247c10c03e056107779ee6a01fb0903ced3eb8488022e  l1pair/test/run_side.py
+9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
+9677732340c0007e4b9bce86d547b53e67428e81d36ca8e52215cbd63a46ed5d  l1pair/test/test_l1pair.py
+5dd17163f49cd2dfebbc9af96b9bbd8c61e05566cf5d6fe9fd5d6b370e8fe3f6  l1pair/test/test_lighthouse_offline.py
+60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
+vendor: OK (S 959e56f byte-identical)
+test_check_checkpoint (__main__.Checkpoint.test_check_checkpoint) ... ok
+test_inspect_reads_the_real_mainnet_genesis_state (__main__.Checkpoint.test_inspect_reads_the_real_mainnet_genesis_state) ... ok
+test_jwt_shape_and_mode (__main__.Jwt.test_jwt_shape_and_mode) ... ok
+test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_check) ... ok
+test_nothing_listening_is_not_ready_and_does_not_crash (__main__.ReadyGate.test_nothing_listening_is_not_ready_and_does_not_crash) ... ok
+test_closed_env (__main__.Rendering.test_closed_env) ... ok
+test_every_lighthouse_flag_is_in_the_pinned_source_help (__main__.Rendering.test_every_lighthouse_flag_is_in_the_pinned_source_help) ... ok
+test_every_reth_flag_is_in_the_executed_binary_help (__main__.Rendering.test_every_reth_flag_is_in_the_executed_binary_help) ... ok
+test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv) ... ok
+test_exact_el_argv (__main__.Rendering.test_exact_el_argv) ... ok
+test_no_hidden_external_default (__main__.Rendering.test_no_hidden_external_default) ... ok
+test_render (__main__.Rendering.test_render) ... ok
+test_storage_script_is_S_template_with_this_pairs_constants (__main__.Rendering.test_storage_script_is_S_template_with_this_pairs_constants) ... ok
+test_units (__main__.Rendering.test_units) ... ok
+test_vendor_files_match_their_pins (__main__.Rendering.test_vendor_files_match_their_pins) ... ok
+test_boundaries_accepted (__main__.Validation.test_boundaries_accepted) ... ok
+test_example_as_shipped_is_refused_until_pins_are_recorded (__main__.Validation.test_example_as_shipped_is_refused_until_pins_are_recorded) ... ok
+test_good_config_validates (__main__.Validation.test_good_config_validates) ... ok
+test_refusals (__main__.Validation.test_refusals) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 7.244s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=23129
+[memory-guard] at peak: python3:34
+[queue] EXIT 0

@@ -1,0 +1,36 @@
+Compose A's verified chain authority (df8fbafae) into the hosted-service roles, the runner and their readers
+
+This brings only the modules the directory-replica and policy-mirror roles, the host-services runner (gate and
+carriers) and their server readers need from worker A's immutable df8fbafae. They were composed from git objects
+(rpc-priority/repo, A's base 9fdc1418c); A's tree was not edited.
+
+Taken as A's blobs: A's base blob for each equals 4106c311's, so this IS the 3-way result.
+  network/verified-chain.mjs  e55f0359eb26
+  network/lease-reader.mjs  d77dbf772ca3
+  network/directory-server.mjs  c48d1908606b
+  network/host-policy-runtime.mjs  95930152ebc1
+  network/service-index.mjs  d7350364a480
+  test/verified-chain.test.mjs  774a4273d05d
+  test/verified-chain-lifecycle.test.mjs  f1d0b20d7876
+  test/lease-reader-verifier.test.mjs  eec9cf3c1949
+  test/lease-reader-verifier-deadline.test.mjs  4c92a00b80b6
+  test/lease-reader-terminal-snapshot.test.mjs  9c971b67b952
+
+Three-way merged (git merge-file, ours / base 9fdc1418c / theirs df8fbafae):
+- network/platform-host-policy-config.mjs, network/policy-carriers.mjs, network/host-services/roles.mjs and
+  network/host-services/policy-mirror.mjs (on bb86e0ce's race fix): clean.
+- network/host-services/runner.mjs policyCarrierFetch: 2 conflict hunks, resolved by
+  host-service-rpc-closure/resolve-runner.py. C's injected snapshot (its gate's own authority) wins; otherwise A's
+  configured chainAuthority applies. The RPC-quorum requirement applies only in legacy mode.
+
+Effect:
+- A role, or the runner's policy gate and carriers, given chainAuthority 'verifier' plus a LOOPBACK chainVerifier
+  reads the local proof-backed verifier (unsafe tier, one pinned block, whole-operation deadline). It builds no
+  provider client and has no provider fallback.
+- Without that choice the legacy quorum is unchanged: 2 to 8 distinct providers, majority agreement.
+
+Not composed (A's other consumers):
+- cold-bootstrap, provider-settlement, usdc-bandwidth, management, native, windows, relays, lease-gas,
+  host-admission and challenge-replica wiring;
+- A's lease-reader-verifier "settlement pinned reads" case depends on usdc-bandwidth and is excluded by name in this
+  tree's runs.

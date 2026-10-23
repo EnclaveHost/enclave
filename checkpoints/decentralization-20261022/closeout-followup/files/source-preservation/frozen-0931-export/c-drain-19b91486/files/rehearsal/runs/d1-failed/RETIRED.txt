@@ -1,0 +1,1 @@
+Run d1: RETIRED (NOT counted). F2 failed because the fixture holder session never started: PostgreSQL rejects FOR UPDATE with count(*). Fixed in d2.

@@ -1,0 +1,85 @@
+{
+ "format": "enclave-base-real-history-recording/v1",
+ "target": {
+  "number": 52965080,
+  "hash": "0x067ca9489316bedb18d12b628402e6e46937ca16a684070da549f06f6bc2dc11",
+  "stateRoot": "0x4621fa883d2276b4fbafece01f3a9798c2e286300fed81a2bb0e83b3ec0e2290"
+ },
+ "head": {
+  "number": 52965106,
+  "hash": "0x723b40aad9af8aa1f99f78c1c06acf76e4c079a1c246a5ec011d5c444aa67a8d"
+ },
+ "sources": [
+  "https://base.gateway.tenderly.co",
+  "https://mainnet.base.org"
+ ],
+ "budget": {
+  "requests": 30,
+  "bytes": 20971520,
+  "ms": 120000
+ },
+ "policy": "read-only; eth_getProof/eth_getCode/eth_call pinned to the target block hash; AddressBook calls only; no credentials",
+ "realHeads": {
+  "52965080": {
+   "objectSha256": "cef62382f2d7b55889acefb4319fa7a9e1896f3a080ce15e33e8a7f75b4c87c5",
+   "blockHash": "0x067ca9489316bedb18d12b628402e6e46937ca16a684070da549f06f6bc2dc11",
+   "stateRoot": "0x4621fa883d2276b4fbafece01f3a9798c2e286300fed81a2bb0e83b3ec0e2290",
+   "canonicalHashEqualsSigned": true
+  },
+  "52965106": {
+   "objectSha256": "50b82c0287a93b2da97147324fcb1887ac5ed77cb790ce76a68880f95c298c58",
+   "blockHash": "0x723b40aad9af8aa1f99f78c1c06acf76e4c079a1c246a5ec011d5c444aa67a8d",
+   "stateRoot": "0x8f1da3c4c57a0192a9ff1b4fde2893d1b7aa2f3e64058dc65e4d449fc8922f06",
+   "canonicalHashEqualsSigned": true
+  }
+ },
+ "preflight": [
+  {
+   "source": "base.gateway.tenderly.co",
+   "verdict": "unavailable"
+  },
+  {
+   "source": "mainnet.base.org",
+   "verdict": "failed: The operation was aborted due to timeout"
+  }
+ ],
+ "error": "no source served a verifiable proof at the target block",
+ "unavailable": true,
+ "used": {
+  "requests": 4,
+  "bytes": 160,
+  "ms": 82274
+ },
+ "requests": [
+  {
+   "seq": 1,
+   "source": "base.gateway.tenderly.co",
+   "method": "eth_getProof",
+   "params": [
+    "0xab214342d5a490150a4a977063a2f88e21f80907",
+    [],
+    "0x067ca9489316bedb18d12b628402e6e46937ca16a684070da549f06f6bc2dc11"
+   ],
+   "at": "2026-10-23T03:53:15.605Z",
+   "status": 429,
+   "bytes": 80,
+   "bodySha256": "1ad40bc5a4bdcd869b82fd3fcde29bbdb928241fb06590ffd26d19f17b1bd8b2",
+   "ms": 136,
+   "outcome": "rpc-error -32005: rate limit exceeded"
+  },
+  {
+   "seq": 2,
+   "source": "mainnet.base.org",
+   "method": "eth_getProof",
+   "params": [
+    "0xab214342d5a490150a4a977063a2f88e21f80907",
+    [],
+    "0x067ca9489316bedb18d12b628402e6e46937ca16a684070da549f06f6bc2dc11"
+   ],
+   "at": "2026-10-23T03:53:15.741Z",
+   "outcome": "failed: The operation was aborted due to timeout"
+  }
+ ],
+ "priorAttempt": "attempt-1.json (its usage is included in used)",
+ "cacheEntries": 0
+}

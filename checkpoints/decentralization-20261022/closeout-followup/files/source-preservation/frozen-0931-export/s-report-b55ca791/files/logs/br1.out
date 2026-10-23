@@ -1,0 +1,51 @@
+[queue] START available=23822MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+HEAD 2bd1eea0cdf70dc33b69b71b6decc7c2b0186266
+ M site/components/admin-console/migrator.js
+ M site/js/core/chain.js
+ M site/js/core/config.js
+ M site/js/core/custody.js
+ M site/js/core/fund.js
+ M site/js/core/independent-chain.js
+ M site/js/core/independent.js
+ M site/js/core/pay.js
+ M site/js/core/platform-addresses.js
+ M site/js/core/sessions.js
+ M site/js/core/wallet.js
+ M site/js/pages/grant.js
+ M test/site-independent-management-unit.test.mjs
+?? test/helpers/browser-rpc-scenario.mjs
+?? test/site-browser-rpc-closure.test.mjs
+?? test/site-browser-rpc-routes.test.mjs
+945ffc2a612fff95b19da21f9396c8c6578fad661775e5be3d56ec3ccb66610b  site/js/core/config.js
+3693175b3a71b15c01ba38152ac2a620abfb587665bf24c21e71ff62b6739932  site/js/core/independent.js
+5b81fe6354cbbcc8ea261dcb7113dbb163364be03fc3b4e06b629adfa5ccc089  site/js/core/chain.js
+3b3b2178a23782e0ac7181fa09a30f060871b6edde425dc1c63a9aa7e24be8a7  site/js/core/wallet.js
+bfa9af487d6e0433c70d1fab694fdc33792f6054a8207d57aeafed9aa0985ccd  site/js/core/fund.js
+54fc225ea7c26385bf0c97bf69319490f08a886852b570eac0d62995bb4b76e9  site/js/core/pay.js
+847098e1ea941e65a5f0743c1f4b6dee29928f25702a54ed64a8c23d0a977950  site/js/core/custody.js
+ff651ceb8690cc9f5f555b9a48553da441f6b653232130de90f18ad3a14c8a5e  site/js/core/sessions.js
+b8e56460458f1124ba67118af8e97ebbf8fa169103c3c42ce84dbfecd5a610e8  site/js/core/independent-chain.js
+959ea6d2d34ef2f1bd5fe139709f8cca884a24b99aa6e4d3b56e4b1ee82ab678  site/js/core/platform-addresses.js
+7a6a1500f65cda19d3e0ae47226f141a577691e3620c8bd2610d8d1a8619ff99  site/js/pages/grant.js
+7227d495215edca21fd4d828ec9ff5eac0a5d3e09ccd8fefc6c9015d06f172a7  site/components/admin-console/migrator.js
+394dc742b78a373995a61f59bb7d6ed7ff3b130752a6da315a8d064dda58f605  test/site-browser-rpc-closure.test.mjs
+c0f2d7dd9d0ce680541df3f9b4454b31c25f6fd41a750197a9a0e76db293cb9e  test/helpers/browser-rpc-scenario.mjs
+TAP version 13
+# Subtest: browser chain consumers stay on the profile's routes; the wallet only signs and broadcasts
+ok 1 - browser chain consumers stay on the profile's routes; the wallet only signs and broadcasts
+  ---
+  duration_ms: 3901.540785
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4617.157793
+[memory-guard] exit=0 peakTreeRssMiB=813 minHostAvailableMiB=23499
+[memory-guard] at peak: node:321 chrome-headless:139 chrome-headless:96 chrome-headless:88 node:55 chrome-headless:39 chrome-headless:39 anvil:32
+[queue] EXIT 0

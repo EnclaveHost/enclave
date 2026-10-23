@@ -1,0 +1,145 @@
+From bb86e0cebdd43c4ab4a5182c42fc143b30eafa6b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 00:53:57 -0700
+Subject: [PATCH 1/3] policy-mirror: a sync judges only the documents it
+ captured
+
+The race (hosted-policy-cold-start t2 on 4106c311):
+- sync() verified a snapshot of the store;
+- it then dropped every key of the CURRENT store that the verification did not cover.
+
+So a document the admin POSTed while that verification was awaited was dropped as "not signed by the address book's
+current owner at block N". A ban published only to that carrier was lost from it: enforcement was delayed to the gate's
+grace, not bypassed.
+
+The fix:
+- capture (digest, entry) pairs before verifying;
+- drop only an entry that is still the exact captured object, so a document published or re-published meanwhile keeps
+  its own, fresher verification.
+
+Unchanged: the owner signature, the book/registry/ownership binding, the anchor fill from carriers, and the prune.
+
+test/policy-mirror-sync-race.test.mjs runs the real module over a real quorum snapshot of the loopback policy world. One
+verification is held deterministically:
+- the race case: 2/2 here, and FAILS on 4106c311 ("the ban published during the sync is still carried");
+- the checks case (foreign-signed document refused on POST and dropped from disk; anchored document filled from
+  importDir) passes on both.
+---
+ network/host-services/policy-mirror.mjs |  8 ++-
+ test/policy-mirror-sync-race.test.mjs   | 87 +++++++++++++++++++++++++
+ 2 files changed, 92 insertions(+), 3 deletions(-)
+ create mode 100644 test/policy-mirror-sync-race.test.mjs
+
+diff --git a/network/host-services/policy-mirror.mjs b/network/host-services/policy-mirror.mjs
+index fa8dd4de0bc757095bfe2b4fddbbf3f71909b0f2..a7306058c2ac883938f45a26259063a684c6bc98 100644
+--- a/network/host-services/policy-mirror.mjs
++++ b/network/host-services/policy-mirror.mjs
+@@ -49,10 +49,12 @@ export function startPolicyMirror(cfg, { snapshot = null, fetch = globalThis.fet
+   let syncing = null;
+   async function sync() {
+     try {
+-      const stored = [...store.entries()].map(([, v]) => ({ document: v.document, signature: v.signature }));
+-      const first = await verify(stored);
++      // judge only what this sync captured: a document published (or re-published, so re-verified at a fresher block)
++      // while the verification below is awaited is not part of it, and its own verification stands
++      const captured = [...store.entries()];
++      const first = await verify(captured.map(([, v]) => ({ document: v.document, signature: v.signature })));
+       const ok = new Set(first.verified.map((v) => v.digest));
+-      for (const d of [...store.keys()]) if (!ok.has(d)) { drop(d); log(`[policy-mirror] dropped ${d.slice(0, 18)}…: not signed by the address book's current owner at block ${first.block}`); }
++      for (const [d, v] of captured) if (!ok.has(d) && store.get(d) === v) { drop(d); log(`[policy-mirror] dropped ${d.slice(0, 18)}…: not signed by the address book's current owner at block ${first.block}`); }
+       let anchored = first.anchor.state === 'anchored' ? first.anchor.digest : null;
+       if (anchored && !store.has(anchored)) {
+         for (const c of carriers) {
+diff --git a/test/policy-mirror-sync-race.test.mjs b/test/policy-mirror-sync-race.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..f400f60de07a22cd40057d5ad04b58a156991cac
+--- /dev/null
++++ b/test/policy-mirror-sync-race.test.mjs
+@@ -0,0 +1,87 @@
++// policy-mirror sync race (hosted-policy-cold-start t2, 4106c311): sync() verified a snapshot of the store, then dropped
++// every key of the CURRENT store its verification did not cover - so a document the admin POSTed while that verification
++// was awaited was dropped as "not signed by the address book's current owner". Deterministic here: the REAL policy-mirror
++// module, the REAL quorum snapshot over the loopback policy world (admin-signed documents, the book's owner and anchor read
++// from its JSON-RPC fixture), and a snapshot wrapper that holds exactly the sync's verification while a publication lands.
++// The owner, binding and anchor checks are exercised alongside, so the fix cannot pass by verifying less.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
++import { startPolicyMirror } from '../network/host-services/policy-mirror.mjs';
++import { quorumSnapshot } from '../network/host-policy-runtime.mjs';
++import { policyTypedData, policyDigest } from '../network/platform-host-policy.mjs';
++import { platformPolicyWorld, BOOK, OWNERSHIP } from './helpers/platform-policy-world.mjs';
++
++const deferred = () => { let resolve; const p = new Promise((r) => { resolve = r; }); return Object.assign(p, { resolve }); };
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++
++async function rig(t, extra = {}) {
++  const w = await platformPolicyWorld(t);
++  const real = quorumSnapshot({ rpcs: w.rpcs });
++  // hold(): the NEXT verification (and only it) waits at its chain read until released
++  let held = null;
++  const snapshot = async (fn) => { if (held) { const h = held; held = null; h.entered.resolve(); await h.release; } return real(fn); };
++  const hold = () => { held = { entered: deferred(), release: deferred() }; return held; };
++  const stateDir = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'pm-race-'));
++  t.after(() => fs.rmSync(stateDir, { recursive: true, force: true }));
++  const logs = [];
++  const start = async () => {
++    const m = await startPolicyMirror({ port: 0, bind: '127.0.0.1', stateDir, rpc: w.rpcs, book: BOOK, hostOwnership: OWNERSHIP, syncSec: 3600, ...extra },
++      { snapshot, log: (l) => logs.push(l) });
++    t.after(() => m.close());
++    const base = `http://127.0.0.1:${m.server.address().port}`;
++    for (let i = 0; i < 100 && m.status().at === null && m.status().error === null; i++) await sleep(20);   // the startup sync settles first
++    return { m, base };
++  };
++  const post = (base, doc) => fetch(base + '/platform-policy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(doc) });
++  const get = (base, d) => fetch(`${base}/platform-policy/${d}.json`).then((r) => r.status);
++  return { w, hold, start, post, get, logs, stateDir };
++}
++
++test('a publication that lands while a sync verifies is kept; the sync judges only what it captured', { timeout: 60_000 }, async (t) => {
++  const r = await rig(t);
++  const d1 = await r.w.publish({ deny: [] });
++  const d2 = await r.w.publish({ deny: [{ kind: 'operator', value: '0x' + '44'.repeat(20), reason: 'abuse' }] });   // the admin's ban
++  r.w.anchor(d1);                                            // the ban is published to the carrier before it is anchored
++  const { m, base } = await r.start();
++  assert.equal((await r.post(base, r.w.document(d1))).status, 201);
++  const h = r.hold();
++  const syncing = m.sync();                                  // this sync captures { d1 } and waits at its chain read
++  await h.entered;
++  const res = await r.post(base, r.w.document(d2));          // the ban arrives meanwhile, verified on its own
++  assert.equal(res.status, 201, await res.text());
++  h.release.resolve(); await syncing;
++  assert.equal(await r.get(base, d2), 200, 'the ban published during the sync is still carried');
++  assert.equal(await r.get(base, d1), 200);
++  assert.equal(m.status().documents, 2);
++  assert.ok(!r.logs.some((l) => /dropped/.test(l)), r.logs.join('\n'));
++  // after anchoring, a later sync keeps it as the anchored one
++  r.w.anchor(d2); await m.sync();
++  assert.equal(m.status().anchor, d2); assert.equal(m.status().anchoredAvailable, true);
++});
++
++test('the checks stand: a foreign-signed document is refused on publication and dropped from a stored copy; the anchored one is filled from importDir', { timeout: 60_000 }, async (t) => {
++  const importDir = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'pm-import-'));
++  t.after(() => fs.rmSync(importDir, { recursive: true, force: true }));
++  const r = await rig(t, { importDir });
++  const d1 = await r.w.publish({ deny: [] });
++  // the same content signed by someone who is not the book's owner
++  const p = { ...JSON.parse(r.w.document(d1).document), sequence: 99 };
++  const foreign = { document: JSON.stringify(p), signature: await privateKeyToAccount(generatePrivateKey()).signTypedData(policyTypedData(p)) };
++  const fd = policyDigest(p);
++  // a stored copy from an earlier run (as on disk), and the anchored document only in the operator's import
++  fs.mkdirSync(path.join(r.stateDir, 'documents'), { recursive: true });
++  fs.writeFileSync(path.join(r.stateDir, 'documents', `${fd}.json`), JSON.stringify({ ...foreign, sequence: 99 }));
++  fs.writeFileSync(path.join(importDir, `${d1}.json`), JSON.stringify(r.w.document(d1)));
++  const { m, base } = await r.start();                       // its startup sync re-verifies what it loaded
++  assert.equal(await r.get(base, fd), 404, 'the foreign stored copy is dropped');
++  assert.ok(r.logs.some((l) => l.includes(`dropped ${fd.slice(0, 18)}`) && /current owner/.test(l)), r.logs.join('\n'));
++  assert.equal(await r.get(base, d1), 200, 'the anchored document comes from importDir');
++  assert.equal(m.status().anchoredAvailable, true);
++  const res = await r.post(base, foreign);
++  assert.equal(res.status, 422, 'publication by a non-owner is refused');
++  assert.equal(await r.get(base, fd), 404);
++});

@@ -1,0 +1,40 @@
+[queue] START available=23378MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+== pins
+a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+f26b94a8af333c67bc51f4ea4111ca231a8e5f3a0bf6ba22079731ef9ee70890  l1pair/PINS.json
+a2bcc3aabff16977e29e84ed46b1734028ec58c66dbc8c4523ae1bcf62accefa  l1pair/vendor/VENDOR.json
+f1f748833dbb7a1a32702daace04588441cf5b40b93b5046dd1ef3f4c1b985fd  l1pair/test/mutate.py
+86cb2a3558882ec5699d83d68ee11f6d1a0224f1d8b5de36147a3e62bf16cf44  l1pair/test/realrig.py
+6dc6fc2e92136842d4278f56b8194c9fca83fe959f5f52009677f543c94ab4cf  l1pair/test/run_side.py
+9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
+1ff3c408e7e4f4137b975e3d12e2bb70c6796315bfb96c08eea687467eb5291b  l1pair/test/test_l1pair.py
+5dd17163f49cd2dfebbc9af96b9bbd8c61e05566cf5d6fe9fd5d6b370e8fe3f6  l1pair/test/test_lighthouse_offline.py
+60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
+ec20b6d91b5c2ad38ae25b19d76043fa7e33ee2b4fa95ff6572a2c1908dc0b77  l1pair/test/test_tx_broadcast_offline.py
+vendor: OK (S 959e56f byte-identical)
+KILLED nat-any  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
+KILLED public-http  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
+KILLED public-engine  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
+KILLED minimal-prune  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
+KILLED receipts-floor  FAIL: test_refusals (__main__.Validation.test_refusals) [receipts full default]
+KILLED custody-any  FAIL: test_refusals (__main__.Validation.test_refusals) [custody default]
+KILLED upnp-on  FAIL: test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv)
+KILLED tx-gossip-on  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
+KILLED broadcast-default-on  FAIL: test_tx_broadcast_is_explicit_opt_in (__main__.Rendering.test_tx_broadcast_is_explicit_opt_in)
+KILLED local-propagation-on  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
+KILLED overlap-ignored  FAIL: test_refusals (__main__.Validation.test_refusals) [mount inside holder]
+KILLED holder-reservation-reuse  FAIL: test_refusals (__main__.Validation.test_refusals) [holder reservation reused]
+KILLED budget-constants-dropped  FAIL: test_boundaries_accepted (__main__.Validation.test_boundaries_accepted)
+KILLED genesis-allowed  FAIL: test_refusals (__main__.Validation.test_refusals) [genesis sync]
+KILLED one-provenance  FAIL: test_refusals (__main__.Validation.test_refusals) [one provenance]
+KILLED stale-checkpoint  FAIL: test_check_checkpoint (__main__.Checkpoint.test_check_checkpoint) [stale]
+KILLED inherit-env  FAIL: test_closed_env (__main__.Rendering.test_closed_env)
+KILLED jwt-mode  FAIL: test_jwt_shape_and_mode (__main__.Jwt.test_jwt_shape_and_mode)
+KILLED gate-chainid-only  FAIL: test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_ch
+KILLED gate-no-custody  FAIL: test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_ch
+KILLED url-default  FAIL: test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv)
+KILLED mount-tmp  FAIL: test_refusals (__main__.Validation.test_refusals) [mount tmp]
+22/22 killed
+[memory-guard] exit=0 peakTreeRssMiB=54 minHostAvailableMiB=22411
+[memory-guard] at peak: python3:37 python3:17
+[queue] EXIT 0

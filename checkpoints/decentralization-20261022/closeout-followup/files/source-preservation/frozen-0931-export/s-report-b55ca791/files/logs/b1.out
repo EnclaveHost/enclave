@@ -1,0 +1,633 @@
+[queue] START available=23282MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+HEAD e820e2405af91010c18913acf4740f651618c644
+TAP version 13
+# Subtest: queued and failed active records need neither a release nor a resume signature
+ok 1 - queued and failed active records need neither a release nor a resume signature
+  ---
+  duration_ms: 1.683387
+  type: 'test'
+  ...
+# Subtest: ended record resumes once; an expired old runner is not treated as a lease
+ok 2 - ended record resumes once; an expired old runner is not treated as a lease
+  ---
+  duration_ms: 0.361258
+  type: 'test'
+  ...
+# Subtest: live lease waits for settlement before returning control to the claim-hint flow
+ok 3 - live lease waits for settlement before returning control to the claim-hint flow
+  ---
+  duration_ms: 0.223039
+  type: 'test'
+  ...
+# Subtest: suspended deployment releases its live lease before resuming
+ok 4 - suspended deployment releases its live lease before resuming
+  ---
+  duration_ms: 0.157059
+  type: 'test'
+  ...
+# Subtest: vault-style suspend then release reactivates only after the old lease clears
+ok 5 - vault-style suspend then release reactivates only after the old lease clears
+  ---
+  duration_ms: 0.303458
+  type: 'test'
+  ...
+# Subtest: a rejected resume and a failed release abort without continuing
+ok 6 - a rejected resume and a failed release abort without continuing
+  ---
+  duration_ms: 0.644705
+  type: 'test'
+  ...
+# Subtest: ownership changes stop the workflow and claim races do not terminate a new host
+ok 7 - ownership changes stop the workflow and claim races do not terminate a new host
+  ---
+  duration_ms: 0.323537
+  type: 'test'
+  ...
+# Subtest: a live lease timeout never resumes or silently queues a second instance
+ok 8 - a live lease timeout never resumes or silently queues a second instance
+  ---
+  duration_ms: 0.736314
+  type: 'test'
+  ...
+# Subtest: dashboard Pin nucbox-k11 queued  respects resume and target selection
+ok 9 - dashboard Pin nucbox-k11 queued  respects resume and target selection
+  ---
+  duration_ms: 1.147481
+  type: 'test'
+  ...
+# Subtest: dashboard Pin nucbox-k11 queued with requirements respects resume and target selection
+not ok 10 - dashboard Pin nucbox-k11 queued with requirements respects resume and target selection
+  ---
+  duration_ms: 1.495049
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:68:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   [
+    -     '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    -     'nucbox-k11'
+    -   ]
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      1: 'nucbox-k11'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:83:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: dashboard Pin nucbox-k11 ended  respects resume and target selection
+ok 11 - dashboard Pin nucbox-k11 ended  respects resume and target selection
+  ---
+  duration_ms: 0.375577
+  type: 'test'
+  ...
+# Subtest: dashboard Pin nucbox-k11 ended with requirements respects resume and target selection
+not ok 12 - dashboard Pin nucbox-k11 ended with requirements respects resume and target selection
+  ---
+  duration_ms: 0.394997
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:68:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   [
+    -     '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    -     'nucbox-k11'
+    -   ]
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      1: 'nucbox-k11'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:83:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: dashboard Pin Auto queued  respects resume and target selection
+ok 13 - dashboard Pin Auto queued  respects resume and target selection
+  ---
+  duration_ms: 0.129699
+  type: 'test'
+  ...
+# Subtest: dashboard Pin Auto queued with requirements respects resume and target selection
+not ok 14 - dashboard Pin Auto queued with requirements respects resume and target selection
+  ---
+  duration_ms: 0.285317
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:68:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   [
+    -     '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    -     ''
+    -   ]
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      1: ''
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:83:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: dashboard Pin Auto ended  respects resume and target selection
+ok 15 - dashboard Pin Auto ended  respects resume and target selection
+  ---
+  duration_ms: 0.130939
+  type: 'test'
+  ...
+# Subtest: dashboard Pin Auto ended with requirements respects resume and target selection
+not ok 16 - dashboard Pin Auto ended with requirements respects resume and target selection
+  ---
+  duration_ms: 0.417047
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:68:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   [
+    -     '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    -     ''
+    -   ]
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      1: ''
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:83:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: keeping the selected live host performs no release, resume or claim
+ok 17 - keeping the selected live host performs no release, resume or claim
+  ---
+  duration_ms: 0.181179
+  type: 'test'
+  ...
+# Subtest: applying the current host saves preference without stopping the app
+not ok 18 - applying the current host saves preference without stopping the app
+  ---
+  duration_ms: 0.595005
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:95:42'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:109:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: applying the current host keeps preference without stopping the app
+not ok 19 - applying the current host keeps preference without stopping the app
+  ---
+  duration_ms: 3.946409
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:95:42'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      assert.ok(messages.some(message=>message.includes('running on nucbox-k11')))
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:110:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: changing Allow Fallback to false saves the ledger policy before the preference without restarting the current host
+not ok 20 - changing Allow Fallback to false saves the ledger policy before the preference without restarting the current host
+  ---
+  duration_ms: 0.517016
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:114:42'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'options',
+    -   'save'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'options'
+    1: 'save'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:133:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: changing Allow Fallback to true saves the ledger policy before the preference without restarting the current host
+not ok 21 - changing Allow Fallback to true saves the ledger policy before the preference without restarting the current host
+  ---
+  duration_ms: 0.398547
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:114:42'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'options',
+    -   'save'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'options'
+    1: 'save'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/deployment-move.test.mjs:133:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: the vendored bundle is exactly a fresh build of network/management-browser.mjs and its sources
+not ok 22 - the vendored bundle is exactly a fresh build of network/management-browser.mjs and its sources
+  ---
+  duration_ms: 125.56007
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-management-unit.test.mjs:86:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    ... Skipped lines
+    
+      {
+        bytes: 70230,
+        deps: {
+          viem: '2.53.1'
+        },
+    ...
+          'net-guard.mjs': {
+    +       commit: 'c2bc3cc636ce53719f52688093ea892b9c8639c1',
+    -       commit: 'eb2c994a6b67e0fbc05be1a42614a27cd847ed71',
+            committedClean: true,
+            sha256: 'd61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af'
+          },
+          'network/canonical.mjs': {
+    +       commit: 'c2bc3cc636ce53719f52688093ea892b9c8639c1',
+    -       commit: '62f082fc615f84a32e26f2caf0868a27975681ae',
+            committedClean: true,
+            sha256: '5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3'
+          },
+          'network/management-browser.mjs': {
+    +       commit: 'b3256349f18eaa853259e42726fa7f6233db1f71',
+    -       commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df',
+            committedClean: true,
+            sha256: '857dbfb5545951e02325a6e6959e1957394804cd1e4ec64a2b95fa95b7cd614b'
+          },
+          'network/management-outcome.mjs': {
+    +       commit: 'b3256349f18eaa853259e42726fa7f6233db1f71',
+    +       committedClean: false,
+    -       commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df',
+    -       committedClean: true,
+            sha256: 'fea5703454b1cc9323eacc931a42c0f99f1895526f4926e787155d57e44c0398'
+          },
+          'network/management-record.mjs': {
+    +       commit: 'b3256349f18eaa853259e42726fa7f6233db1f71',
+    -       commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df',
+            committedClean: true,
+            sha256: 'd946589d7f43a6169fcb8f88cbef9c9e933e24f42ecd3e72a41a38e936285eda'
+          },
+          'network/management-routes.mjs': {
+    +       commit: '3542e1802018f41654a4554803ea51ecf0a4aaa7',
+    +       committedClean: false,
+    -       commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df',
+    -       committedClean: true,
+            sha256: '0a47239553d4c4389227b5b56241fce955af87892907e7b70016bc4a9882dd93'
+          }
+        }
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    file: 'site/vendor/management.js'
+    sha256: '05209546a4b0b68091e13efa7afa9a33221271c9dc161dca7a3c9da1212bd6a3'
+    bytes: 70230
+    entry: 'network/management-browser.mjs'
+    esbuild: '0.28.1'
+    deps:
+      viem: '2.53.1'
+    sources:
+      net-guard.mjs:
+        sha256: 'd61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af'
+        commit: 'eb2c994a6b67e0fbc05be1a42614a27cd847ed71'
+        committedClean: true
+      network/canonical.mjs:
+        sha256: '5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3'
+        commit: '62f082fc615f84a32e26f2caf0868a27975681ae'
+        committedClean: true
+      network/management-browser.mjs:
+        sha256: '857dbfb5545951e02325a6e6959e1957394804cd1e4ec64a2b95fa95b7cd614b'
+        commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df'
+        committedClean: true
+      network/management-outcome.mjs:
+        sha256: 'fea5703454b1cc9323eacc931a42c0f99f1895526f4926e787155d57e44c0398'
+        commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df'
+        committedClean: true
+      network/management-record.mjs:
+        sha256: 'd946589d7f43a6169fcb8f88cbef9c9e933e24f42ecd3e72a41a38e936285eda'
+        commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df'
+        committedClean: true
+      network/management-routes.mjs:
+        sha256: '0a47239553d4c4389227b5b56241fce955af87892907e7b70016bc4a9882dd93'
+        commit: '6f2c7da466dc26e5f7aac88c574a6b807e1a03df'
+        committedClean: true
+  actual:
+    file: 'site/vendor/management.js'
+    sha256: '05209546a4b0b68091e13efa7afa9a33221271c9dc161dca7a3c9da1212bd6a3'
+    bytes: 70230
+    entry: 'network/management-browser.mjs'
+    esbuild: '0.28.1'
+    deps:
+      viem: '2.53.1'
+    sources:
+      net-guard.mjs:
+        sha256: 'd61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af'
+        commit: 'c2bc3cc636ce53719f52688093ea892b9c8639c1'
+        committedClean: true
+      network/canonical.mjs:
+        sha256: '5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3'
+        commit: 'c2bc3cc636ce53719f52688093ea892b9c8639c1'
+        committedClean: true
+      network/management-browser.mjs:
+        sha256: '857dbfb5545951e02325a6e6959e1957394804cd1e4ec64a2b95fa95b7cd614b'
+        commit: 'b3256349f18eaa853259e42726fa7f6233db1f71'
+        committedClean: true
+      network/management-outcome.mjs:
+        sha256: 'fea5703454b1cc9323eacc931a42c0f99f1895526f4926e787155d57e44c0398'
+        commit: 'b3256349f18eaa853259e42726fa7f6233db1f71'
+        committedClean: false
+      network/management-record.mjs:
+        sha256: 'd946589d7f43a6169fcb8f88cbef9c9e933e24f42ecd3e72a41a38e936285eda'
+        commit: 'b3256349f18eaa853259e42726fa7f6233db1f71'
+        committedClean: true
+      network/management-routes.mjs:
+        sha256: '0a47239553d4c4389227b5b56241fce955af87892907e7b70016bc4a9882dd93'
+        commit: '3542e1802018f41654a4554803ea51ecf0a4aaa7'
+        committedClean: false
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/browser-rpc-closure/baseline-e820/test/site-independent-management-unit.test.mjs:89:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: with the source helper
+    # Subtest: status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+    ok 1 - status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+      ---
+      duration_ms: 46.485787
+      type: 'test'
+      ...
+    # Subtest: records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+    ok 2 - records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+      ---
+      duration_ms: 31.394354
+      type: 'test'
+      ...
+    # Subtest: no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+    ok 3 - no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+      ---
+      duration_ms: 15.752307
+      type: 'test'
+      ...
+    # Subtest: refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+    ok 4 - refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+      ---
+      duration_ms: 22.252967
+      type: 'test'
+      ...
+    # Subtest: mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+    ok 5 - mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+      ---
+      duration_ms: 34.362092
+      type: 'test'
+      ...
+    # Subtest: app token: returned to the caller only; never stored, never echoed in an error
+    ok 6 - app token: returned to the caller only; never stored, never echoed in an error
+      ---
+      duration_ms: 20.54631
+      type: 'test'
+      ...
+    # Subtest: the page sends only to the origin inside the operator's signature
+    ok 7 - the page sends only to the origin inside the operator's signature
+      ---
+      duration_ms: 4.942681
+      type: 'test'
+      ...
+    # Subtest: attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+    ok 8 - attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+      ---
+      duration_ms: 7.951248
+      type: 'test'
+      ...
+    # Subtest: the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+    ok 9 - the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+      ---
+      duration_ms: 19.485198
+      type: 'test'
+      ...
+    # Subtest: a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+    ok 10 - a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+      ---
+      duration_ms: 6.985176
+      type: 'test'
+      ...
+    # Subtest: floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+    ok 11 - floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+      ---
+      duration_ms: 6.948676
+      type: 'test'
+      ...
+    # Subtest: GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+    ok 12 - GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+      ---
+      duration_ms: 17.377124
+      type: 'test'
+      ...
+    1..12
+ok 23 - with the source helper
+  ---
+  duration_ms: 236.042367
+  type: 'suite'
+  ...
+# Subtest: with the shipped bundle helper
+    # Subtest: status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+    ok 1 - status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+      ---
+      duration_ms: 33.575428
+      type: 'test'
+      ...
+    # Subtest: records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+    ok 2 - records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+      ---
+      duration_ms: 23.547566
+      type: 'test'
+      ...
+    # Subtest: no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+    ok 3 - no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+      ---
+      duration_ms: 12.710231
+      type: 'test'
+      ...
+    # Subtest: refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+    ok 4 - refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+      ---
+      duration_ms: 17.85331
+      type: 'test'
+      ...
+    # Subtest: mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+    ok 5 - mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+      ---
+      duration_ms: 30.891818
+      type: 'test'
+      ...
+    # Subtest: app token: returned to the caller only; never stored, never echoed in an error
+    ok 6 - app token: returned to the caller only; never stored, never echoed in an error
+      ---
+      duration_ms: 17.810191
+      type: 'test'
+      ...
+    # Subtest: the page sends only to the origin inside the operator's signature
+    ok 7 - the page sends only to the origin inside the operator's signature
+      ---
+      duration_ms: 4.141218
+      type: 'test'
+      ...
+    # Subtest: attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+    ok 8 - attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+      ---
+      duration_ms: 6.982345
+      type: 'test'
+      ...
+    # Subtest: the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+    ok 9 - the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+      ---
+      duration_ms: 17.976189
+      type: 'test'
+      ...
+    # Subtest: a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+    ok 10 - a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+      ---
+      duration_ms: 6.534839
+      type: 'test'
+      ...
+    # Subtest: floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+    ok 11 - floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+      ---
+      duration_ms: 6.745558
+      type: 'test'
+      ...
+    # Subtest: GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+    ok 12 - GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+      ---
+      duration_ms: 17.149776
+      type: 'test'
+      ...
+    1..12
+ok 24 - with the shipped bundle helper
+  ---
+  duration_ms: 196.671064
+  type: 'suite'
+  ...
+# Subtest: GPU view: rows from the supervisor's answer, every value host-reported; Shield proof fields named as unverified claims
+ok 25 - GPU view: rows from the supervisor's answer, every value host-reported; Shield proof fields named as unverified claims
+  ---
+  duration_ms: 0.604726
+  type: 'test'
+  ...
+# Subtest: Startup tier: SNP by default (byte-identical to the CLI's activation); Shield only when chosen, which the Shield node accepts
+ok 26 - Startup tier: SNP by default (byte-identical to the CLI's activation); Shield only when chosen, which the Shield node accepts
+  ---
+  duration_ms: 1.036302
+  type: 'test'
+  ...
+# Subtest: pending owner grant: the CLI's typed data is accepted only as the SDK's exact SessionGrant for this wallet's vault
+ok 27 - pending owner grant: the CLI's typed data is accepted only as the SDK's exact SessionGrant for this wallet's vault
+  ---
+  duration_ms: 2.864318
+  type: 'test'
+  ...
+1..27
+# tests 49
+# suites 2
+# pass 40
+# fail 9
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 793.434373
+[memory-guard] exit=1 peakTreeRssMiB=210 minHostAvailableMiB=23178
+[memory-guard] at peak: node:90 node:62 esbuild:54 timeout:4
+[queue] EXIT 1

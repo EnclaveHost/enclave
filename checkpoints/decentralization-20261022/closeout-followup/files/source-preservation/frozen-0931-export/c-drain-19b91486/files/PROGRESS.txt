@@ -1,0 +1,6 @@
+2026-10-23T05:40:25Z started storage-write-release (same session as windows-host-services-compose C); read-only research agents launched (role lineage, client/front, production migration)
+2026-10-23T06:03:10Z m1 retired (hosts 14 too few for sia-s3 uploads; B blocker reproduced); rerun m2 at hosts 30
+2026-10-23T06:19:45Z m2 guard-stopped 1556>1536 in T2 (not a pass); PG fixture footprint reduced (io_method=sync, autovacuum off, shared_buffers 8MB, max_connections 120); rerun m3
+2026-10-23T07:42:57Z DONE: commit 6fd7a929 (package+rehearsal), m3 42/42, e1 11/11, unit 11+3; RESULT.md
+2026-10-23T08:04:09Z ROLLBACK-ORDER done: fbaecfc (r2 19/19, unit 14+3); RESULT-ROLLBACK-ORDER.md
+2026-10-23T09:25:58Z DATABASE-DRAIN done: 5293405 (db-barrier.sh R4, decision requires it; d3 27/27 actual indexd+controller, d1/d2 retired; unit 22+3); RESULT-DATABASE-DRAIN.md

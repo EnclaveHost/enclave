@@ -1,0 +1,11 @@
+logs/
+tmp/
+rehearsal/migrate16.py
+rehearsal/runs/*/harness/
+rehearsal/runs/*/pg/
+rehearsal/runs/*/*.cwasm
+rehearsal/runs/*/*.log
+__pycache__/
+rehearsal/enrollfail.py
+rehearsal/rollbackorder.py
+rehearsal/tmp/

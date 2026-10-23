@@ -1,0 +1,20 @@
+[queue] START available=23933MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+mutant 1 killed (1 failing): if (lower(l1Sender) === lower(owner) ||
+mutant 2 killed (1 failing): if (!isPlainOrDelegatedEoa(s.ownerCode)) refuse
+mutant 3 killed (1 failing): if (!s.held.env || (Number(sess.envs)
+mutant 4 killed (1 failing): if (s.seq === undefined || BigInt(s.seq) !== (nonce
+mutant 5 killed (1 failing): if (((BigInt(sess.actions) >> BigInt(action)) & 1n) !== 1n) refuse
+mutant 6 killed (1 failing): if (op === 'release' && lower(m.to)
+mutant 7 killed (1 failing): if (String(auth.nonce).toLowerCase() !== topUp.toLowerCase()) refuse
+mutant 8 killed (1 failing): if (sep.toLowerCase() !== String(token.separator).toLowerCase()) refuse
+mutant 9 killed (1 failing): if (s.ownerNonceUsed !== false) refuse
+mutant 10 killed (1 failing): if (lower(l1Snapshot.implementation) !== lower(pin.implementation)) refuse
+mutant 11 killed (1 failing): export const L1_VERIFIERS = Object.freeze(['l1-light-client', 'l1-execution-proof']);
+mutant 12 killed (1 failing): if (forced !== undefined) refuse
+mutant 13 killed (1 failing): if (Number(r.renewWindow) < window) refuse
+mutant 14 killed (2 failing): if (budget > BigInt(r.maxPerOpWei)) refuse
+mutant 15 killed (2 failing): deadline: BigInt(c.head.timestamp + window)
+survivors: 0 of 15
+[memory-guard] exit=0 peakTreeRssMiB=238 minHostAvailableMiB=23713
+[memory-guard] at peak: node:107 node:56 anvil:35 anvil:28 mutants-closure:6 timeout:4 mutants-closure:2
+[queue] EXIT 0

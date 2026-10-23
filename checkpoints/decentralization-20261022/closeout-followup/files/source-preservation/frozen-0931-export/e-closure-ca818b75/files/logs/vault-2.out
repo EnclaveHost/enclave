@@ -1,0 +1,123 @@
+[queue] START available=23583MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+159fd1480ddab9652043cce5163348ff4fa6996b
+ M src/forced-inclusion.mjs
+ M test/forced-inclusion.anvil.test.mjs
+?? evidence/capture/
+?? fixtures/artifacts/EnclaveAddressBook.json
+?? fixtures/artifacts/Mock1271Owner.json
+?? fixtures/artifacts/MockUSDC3009.json
+?? fixtures/artifacts/SessionVault.json
+?? fixtures/artifacts/SessionVaultFactory.json
+?? fixtures/artifacts/SessionVaultLib.json
+?? fixtures/sources/EnclaveAddressBook.sol
+?? fixtures/sources/MockUSDC.sol
+?? fixtures/sources/SessionMocks.sol
+?? fixtures/sources/SessionVault.sol
+?? jobs/capture-x.sh
+?? jobs/capture.sh
+?? logs/capture-1.guard.log
+?? logs/capture-1.out
+?? logs/capture-2.guard.log
+?? logs/capture-2.out
+?? logs/capture-3.guard.log
+anvil Version: 1.7.1
+v22.23.3
+  "version": "2.53.1",
+fbfe452b4401efa35b63ae39f3c687cf31ba715bee9ef1f3cc039d0fd7fb15b8  src/forced-inclusion.mjs
+a0401e08e6f51586e8776fc9bd7356c4a1e76f260dd4a74dc270de4fab5bb821  src/vault-deposit.mjs
+1944496dba0f4eaa4eafba95f2ce27d1061ffef790ba890b5fc179c86c9557c8  test/forced-inclusion.anvil.test.mjs
+748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
+784ba86de7d3f08cb6cf0df1164c7bc9c5d1ef5bcccc125e3d05e2c966355c2d  test/tracker.test.mjs
+6454c1ceae8ab9ead612be07490ae962c7da51c19a13629320135209f3e17af4  test/vault-deposit.anvil.test.mjs
+966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  fixtures/artifacts/EnclaveAddressBook.json
+0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
+dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
+aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
+aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
+66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
+613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d  fixtures/artifacts/Mock1271Owner.json
+10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
+524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
+9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946  fixtures/artifacts/MockUSDC3009.json
+f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc  fixtures/artifacts/SessionVault.json
+eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e  fixtures/artifacts/SessionVaultFactory.json
+bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478  fixtures/artifacts/SessionVaultLib.json
+b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8  fixtures/sources/EnclaveAddressBook.sol
+2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
+dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
+1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
+e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
+a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703  fixtures/sources/MockUSDC.sol
+47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d  fixtures/sources/SessionMocks.sol
+a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c  fixtures/sources/SessionVault.sol
+47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
+97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
+65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
+5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
+external network: unreachable (as intended)
+TAP version 13
+# Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+ok 1 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+  ---
+  duration_ms: 457.600928
+  type: 'test'
+  ...
+# Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+ok 2 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+  ---
+  duration_ms: 63.133492
+  type: 'test'
+  ...
+# Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+ok 3 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+  ---
+  duration_ms: 67.433048
+  type: 'test'
+  ...
+# Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+ok 4 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+  ---
+  duration_ms: 108.961746
+  type: 'test'
+  ...
+# Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+ok 5 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+  ---
+  duration_ms: 128.738024
+  type: 'test'
+  ...
+# Subtest: release recipient: only the owner or the owner's vault at the book's current factory; any other recipient is refused
+not ok 6 - release recipient: only the owner or the owner's vault at the book's current factory; any other recipient is refused
+  ---
+  duration_ms: 21.866971
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/vault-deposit.anvil.test.mjs:213:1'
+  failureType: 'testCodeFailure'
+  error: "release-recipient: only the owner or the owner's vault at the book's current factory"
+  code: 'release-recipient'
+  stack: |-
+    refuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/forced-inclusion.mjs:90:49)
+    Module.planVaultOwnerOp (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/vault-deposit.mjs:192:5)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/vault-deposit.anvil.test.mjs:219:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+  ---
+  duration_ms: 108.051084
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5199.228158
+[memory-guard] exit=1 peakTreeRssMiB=224 minHostAvailableMiB=23438
+[memory-guard] at peak: node:104 node:55 anvil:33 anvil:28 timeout:4
+[queue] EXIT 1

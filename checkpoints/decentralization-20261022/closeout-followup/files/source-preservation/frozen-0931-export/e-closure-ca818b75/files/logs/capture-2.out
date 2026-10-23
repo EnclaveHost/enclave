@@ -1,0 +1,32 @@
+[queue] START available=23165MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+2026-10-23T07:19:20Z
+83c7e95bf8b890bdb407ebacea748df191fc4d6e01500125b9971d5cfce87df5  tools/capture-state.mjs
+34c4269e2df81a5b886f10d06d530b7eef1cf31255db3055105136eef8156d5d  evidence/capture/spec-l1-portal-x.json
+89a4de6d4e104cb9a32f513a5dda18858ce4f2742c9abded47e4941a491c8808  evidence/capture/spec-l2-gpo-x.json
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:18
+  if (!r.ok) throw new Error(`${rpc}: HTTP ${r.status}`);
+                   ^
+
+Error: https://eth.llamarpc.com: HTTP 525
+    at post (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:18:20)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async one (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:32:56)
+    at async file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:60:13
+
+Node.js v22.23.3
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:18
+  if (!r.ok) throw new Error(`${rpc}: HTTP ${r.status}`);
+                   ^
+
+Error: https://base.llamarpc.com: HTTP 525
+    at post (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:18:20)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async one (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:32:56)
+    at async file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:60:13
+
+Node.js v22.23.3
+34c4269e2df81a5b886f10d06d530b7eef1cf31255db3055105136eef8156d5d  evidence/capture/spec-l1-portal-x.json
+89a4de6d4e104cb9a32f513a5dda18858ce4f2742c9abded47e4941a491c8808  evidence/capture/spec-l2-gpo-x.json
+[memory-guard] exit=0 peakTreeRssMiB=88 minHostAvailableMiB=23114
+[memory-guard] at peak: node:79 capture-x.sh:6 timeout:4
+[queue] EXIT 0

@@ -1,0 +1,5 @@
+Reth Version: 2.8.0
+Commit SHA: 05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915
+Build Timestamp: 2026-10-20T17:56:57.432728107Z
+Build Features: asm_keccak,jemalloc,keccak_cache_global,min_trace_logs,otlp,otlp_logs
+Build Profile: maxperf

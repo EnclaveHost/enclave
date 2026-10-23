@@ -1,0 +1,1047 @@
+From 349318a0600917bad8f391ad628fa0c7f134b3f6 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 01:55:42 -0700
+Subject: [PATCH 2/2] Keep every browser chain consumer on the confirmed
+ profile's routes
+
+Independent mode (confirmed profile):
+- balances, the page's gas estimate and the payer code check read only the
+  profile's RPCs (wallet.js, fund.js, pay.js); the wallet is asked only to sign
+  and broadcast; no read falls back to the wallet's provider
+- custody reads use every profile RPC with its quorum, confirmations and
+  block-age limit (custody.js), not the first three with a fixed 2
+- grant page session reads use the profile quorum client, not rpcs[0]
+- all routes down: transactions refuse by name ('none of the network
+  profile's RPC endpoints...'), receipts report the outage; an invalid or
+  unconfirmed profile refuses before any origin or wallet read
+- the wallet popover states that the wallet broadcasts through its own RPC,
+  lists the profile's RPCs and offers the HTTPS ones via EIP-3085 on click
+
+Profile changes (either mode): a tab whose saved profile changed in another
+tab refuses every chain read (baseRpc, quorum readers, custody, receipts) and
+every transaction (assertPlatformTransactionCurrent) until it reloads; sign-out
+keeps its key. A session opened under a profile (no relay) is not served by a
+hosted page through its stored RPC; independent records store no RPC.
+
+Hosted mode is unchanged (wallet-first reads, the public default pool).
+Admin migrator: no estimate request without a selected RPC.
+
+Tests: site-browser-rpc-closure (real modules per profile state, e820e2405
+control: 8/8 checks fail there), site-browser-rpc-routes (Chromium rig).
+site-independent-management-unit reset keeps the saved profile.
+---
+ docs/network/independent-dashboard.md         |  30 +++-
+ site/components/admin-console/migrator.js     |   4 +-
+ site/js/core/chain.js                         |  17 +-
+ site/js/core/config.js                        |  11 +-
+ site/js/core/custody.js                       |  16 +-
+ site/js/core/fund.js                          |   2 +
+ site/js/core/independent-chain.js             |   7 +-
+ site/js/core/independent.js                   |   8 +
+ site/js/core/pay.js                           |   7 +-
+ site/js/core/platform-addresses.js            |   8 +-
+ site/js/core/sessions.js                      |  15 +-
+ site/js/core/wallet.js                        |  62 +++++--
+ site/js/pages/grant.js                        |   6 +-
+ test/helpers/browser-rpc-scenario.mjs         | 159 +++++++++++++++++
+ test/site-browser-rpc-closure.test.mjs        | 162 ++++++++++++++++++
+ test/site-browser-rpc-routes.test.mjs         | 104 +++++++++++
+ .../site-independent-management-unit.test.mjs |   3 +-
+ 17 files changed, 581 insertions(+), 40 deletions(-)
+ create mode 100644 test/helpers/browser-rpc-scenario.mjs
+ create mode 100644 test/site-browser-rpc-closure.test.mjs
+ create mode 100644 test/site-browser-rpc-routes.test.mjs
+
+diff --git a/docs/network/independent-dashboard.md b/docs/network/independent-dashboard.md
+index e787b1450c787f070b4c1a38c6ca50717defe438..bfbc8aa2d121f95eb6137d23b28d7d125b5151ae 100644
+--- a/docs/network/independent-dashboard.md
++++ b/docs/network/independent-dashboard.md
+@@ -515,10 +515,30 @@ follow-up).
+ - **RPC agreement is not a light client.** Colluding RPCs, or origins that all front
+   one provider, can agree on a false answer. Writes go to the pinned contracts, which
+   enforce their own rules.
+-- **Wallet providers.** Ordinary display reads use the profile's RPCs in rotation.
+-  The wallet's own provider still estimates gas and broadcasts transactions. Balance
+-  reads the wallet cannot answer use only the profile's RPCs, and the chain the wallet
+-  is asked to add names only those RPCs.
++- **Wallet providers.** Every read, estimate and receipt the page makes uses only the
++  profile's RPCs: rotating for display reads (balances, the gas estimate the page sets,
++  receipts) and agreeing for decisions. The wallet's own provider is never asked for a
++  read, so an outage of every profile route shows as unavailable instead of being
++  answered by the wallet's RPC. The wallet still signs and broadcasts, through the RPC
++  it has set for Base. The page can neither see nor change that RPC. The wallet popover
++  says so, lists the profile's RPCs, and offers the HTTPS ones through EIP-3085
++  (`wallet_addEthereumChain`) on an explicit click. The wallet decides; most keep their
++  own RPC for a network they already know. WalletConnect is off in independent mode.
++  Its initializer refuses an invalid or unconfirmed profile, and otherwise uses the
++  profile's first RPC.
++- **Profile changes.** A tab fixes its profile when it loads. If another tab saves,
++  replaces or removes the saved profile, this tab refuses every chain read and every
++  transaction until it reloads. That includes custody reads and sign-out, which keeps
++  the session key. A hosted tab behaves the same when a profile is saved elsewhere. A
++  session opened under a profile (no relay) is not served by a hosted page: it would
++  read through the RPC stored with it.
++- **Custody.** Custody reads use every RPC in the profile, with its quorum,
++  confirmations and block-age limit.
++- **Hosted mode** (no profile) is unchanged until a production self-hosted service
++  exists. It reads through the wallet first, then a pool of public Base RPCs
++  (`base-rpc.publicnode.com`, `base.drpc.org`, `1rpc.io/base`, `mainnet.base.org`). Its
++  WalletConnect and session SDK default to `mainnet.base.org` and
++  `base-rpc.publicnode.com`, unless the relay names an RPC.
+ - **Deployed code, not source.** Before relying on a method, the dashboard checks that
+   the agreed runtime contains that method's selector. For example, the deployed
+   registry is schema 4 and has no `registerRelay`/`setCaps`; the dashboard reads only
+@@ -544,6 +564,8 @@ follow-up).
+ node --test test/site-independent-profile.test.mjs test/site-independent-quorum.test.mjs test/site-independent-review.test.mjs \
+   test/site-independent-storage.test.mjs test/site-independent-network.test.mjs test/site-independent-bundle.test.mjs \
+   test/browser-profile.test.mjs
++node --test test/site-browser-rpc-closure.test.mjs   # RPC routing per profile state on the real modules, with an e820e2405 control
++node --test test/site-browser-rpc-routes.test.mjs    # Chromium: routes, wallet RPC only for signing and broadcast, failover, profile change
+ node --test test/sessions-owner-ops.test.mjs          # anvil + forge: owner operations on the real pinned vault
+ node --test test/site-independent-management-unit.test.mjs   # the Manage module on the source AND the shipped bundle
+ node --test test/site-independent-browser.test.mjs   # anvil, openssl and Playwright's Chromium (cd e2e && npm ci)
+diff --git a/site/components/admin-console/migrator.js b/site/components/admin-console/migrator.js
+index c0279cae1711162dd5eae1580f4c510e1775904e..f3074bd53f99be2c4d1adb6a81fb136522b847f2 100644
+--- a/site/components/admin-console/migrator.js
++++ b/site/components/admin-console/migrator.js
+@@ -148,7 +148,9 @@ export async function feeData() {
+    short timeout, then trust the planner's (measured, padded) figure. */
+ export async function gasFor({ from, to, data }, fallback) {
+   let g = BigInt(Math.round(fallback * 1.25));
+-  try {
++  // no RPC selected (an unconfirmed or invalid independent profile): no request at all - the model stands, and the
++  // broadcast through baseRpc refuses with the profile's reason
++  if (APP_CATALOG_RPCS.length) try {
+     const r = await fetch(APP_CATALOG_RPCS[0], {
+       method: "POST", headers: { "content-type": "application/json" },
+       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_estimateGas",
+diff --git a/site/js/core/chain.js b/site/js/core/chain.js
+index 7b159a2c9d9198babac2893f6b8afd48361f1faf..f745a9f77ce5c6afbb0281b5aee7f9f5e92cab92 100644
+--- a/site/js/core/chain.js
++++ b/site/js/core/chain.js
+@@ -4,7 +4,7 @@
+    EnclaveDeployments / EnclaveAppCatalog contract surface.
+    No web3 library loads on the site.
+    ============================================================ */
+-import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, FEATURED_ADDRESS, REVIEWS_ADDRESS, HOST_REVIEWS_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS, INDEPENDENT } from "./config.js";
++import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, FEATURED_ADDRESS, REVIEWS_ADDRESS, HOST_REVIEWS_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS, INDEPENDENT, assertProfileCurrent } from "./config.js";
+ import { EnclaveError, Enclave } from "./api.js";
+ import { wait } from "./util.js";
+ import { fleetPrice } from "./pricing.js";
+@@ -279,6 +279,7 @@ export async function baseRpc(method, params, opts){
+   if (!APP_CATALOG_RPCS.length) throw new EnclaveError(INDEPENDENT.state === "invalid"
+     ? "The saved independent profile is invalid (" + INDEPENDENT.error + "). Fix or remove it in Settings."
+     : "Confirm the independent profile in Settings before reading the chain.", 0);
++  try { assertProfileCurrent(); } catch(e){ throw new EnclaveError(e.message, 0); }
+   let lastErr = null;
+   for (let attempt = 0; attempt < APP_CATALOG_RPCS.length * 2; attempt++){
+     const url = APP_CATALOG_RPCS[_rpcIdx % APP_CATALOG_RPCS.length];
+@@ -613,10 +614,16 @@ export async function catOwner(){ const r = await ethCall("0x" + CAT_SEL.owner);
+ export async function waitReceipt(hash, tries){
+   tries = tries || 45;
+   const DROP_AFTER = 20;            // ~40s: long enough that a live tx is in its own node's pool
+-  let seen = false;
++  let seen = false, answered = false, lastErr = null;
+   for (let i = 0; i < tries; i++){
+     let rec = null;
+-    try { rec = await baseRpc("eth_getTransactionReceipt", [hash]); } catch(e){}
++    try { assertProfileCurrent(); } catch(e){ throw new EnclaveError(e.message, 0); }   // never keep polling old routes
++    try { rec = await baseRpc("eth_getTransactionReceipt", [hash]); answered = true; }
++    catch(e){
++      // an unconfirmed or invalid profile selects no RPC: that refusal is final, not a slow receipt
++      if (!APP_CATALOG_RPCS.length) throw e;
++      lastErr = e;
++    }
+     if (rec){ if (hexBig(rec.status) === 0n) throw new EnclaveError("transaction reverted", 0); return rec; }
+     if (!seen && i >= DROP_AFTER){
+       // Ask the SUBMITTING provider. No provider (or an errored one) means we
+@@ -636,5 +643,9 @@ export async function waitReceipt(hash, tries){
+     }
+     await new Promise(res => setTimeout(res, 2000));
+   }
++  // independent mode: no route the profile names ever answered - an outage, not a slow transaction
++  if (INDEPENDENT.state !== "off" && !answered && lastErr)
++    throw new EnclaveError("none of the network profile's RPC endpoints answered for this transaction (" + (lastErr.message || lastErr)
++      + "). It may still land: check again once they are reachable.", 0);
+   throw new EnclaveError("timed out waiting for confirmation (it may still land; hit refresh shortly)", 0);
+ }
+diff --git a/site/js/core/config.js b/site/js/core/config.js
+index 64914cb4ab644d48fd42d125b144561efb5ad4d7..33420688f3f017a7f45f62e2f16a33f933cd10aa 100644
+--- a/site/js/core/config.js
++++ b/site/js/core/config.js
+@@ -3,7 +3,7 @@
+    addresses. One place to edit when anything is redeployed
+    (scripts/sync-contract-addresses.sh rewrites the addresses).
+    ============================================================ */
+-import { loadProfileState } from "./independent.js";
++import { loadProfileState, profileChangedSince } from "./independent.js";
+ 
+ /* Production API gateway (mirrors openapi.json servers[0].url; the Deploy
+    page lets a user point at an enclave directly and persists the override). */
+@@ -20,6 +20,15 @@ export const DEFAULT_API_BASE = "https://api.enclave.host/v1";
+ export const INDEPENDENT = loadProfileState();
+ const IND = INDEPENDENT.state === "on" ? INDEPENDENT.profile : null;
+ const IND_ANY = INDEPENDENT.state !== "off";
++/* Every chain read (chain.js baseRpc, the quorum readers, custody) and every transaction (wallet.js sendTx) asks this
++   first: a deliberate profile change in another tab stops this tab until it reloads, in either mode. */
++export function assertProfileCurrent(){
++  if (profileChangedSince(INDEPENDENT))
++    throw Object.assign(new Error("The network profile changed in another tab. Reload this page before reading the chain or signing; nothing was sent."),
++      { code: "profile_changed" });
++}
++// a quorum reader's JSON-RPC function (quorum.js jsonRpc), refusing once the profile changed
++export const profileGuardedRpc = (rpc) => (url, method, params) => { assertProfileCurrent(); return rpc(url, method, params); };
+ 
+ /* Through the gateway each deployment gets its OWN origin:
+    https://<label>.app.enclave.host (see appLabel in the deploy page). */
+diff --git a/site/js/core/custody.js b/site/js/core/custody.js
+index 1fe3fe1a6b013a0993ff35787038c219db14997c..1c117fac1833e9d7742714cae62c62b56e39fc73 100644
+--- a/site/js/core/custody.js
++++ b/site/js/core/custody.js
+@@ -11,16 +11,26 @@
+ 
+    The committee keys the shares are sealed to are read through
+    TWO RPCs that must agree (a single lying RPC could otherwise
+-   hand the page an attacker's keys).
++   hand the page an attacker's keys). Independent mode: through
++   every RPC of the confirmed profile, with its quorum, its
++   confirmations and its block-age limit - never fewer routes or a
++   weaker agreement than the rest of the dashboard.
+    ============================================================ */
+-import { SECRET_VAULT_ADDRESS, CUSTODY_COMMITTEE, APP_CATALOG_RPCS, APP_CATALOG_CHAIN } from "./config.js";
++import { SECRET_VAULT_ADDRESS, CUSTODY_COMMITTEE, APP_CATALOG_RPCS, APP_CATALOG_CHAIN, INDEPENDENT, assertProfileCurrent } from "./config.js";
+ 
+ let _lib = null;
+ const lib = () => (_lib ||= import("../../vendor/custody.js"));
+ export const custodyAvailable = () => /^0x[0-9a-fA-F]{40}$/.test(SECRET_VAULT_ADDRESS);
+ 
+ function reader(L){
+-  return L.createChainReader({ rpcs: APP_CATALOG_RPCS.slice(0, 3), vault: SECRET_VAULT_ADDRESS.toLowerCase(), minAgree: Math.min(2, APP_CATALOG_RPCS.length) });
++  assertProfileCurrent();
++  const vault = SECRET_VAULT_ADDRESS.toLowerCase();
++  if (INDEPENDENT.state !== "off"){
++    if (INDEPENDENT.state !== "on") throw new Error("Confirm a valid independent profile in Settings before reading custody.");
++    const p = INDEPENDENT.profile;
++    return L.createChainReader({ rpcs: [...p.rpcs], vault, minAgree: p.quorum, confirmations: p.confirmations, maxAgeSec: p.maxBlockAgeSeconds });
++  }
++  return L.createChainReader({ rpcs: APP_CATALOG_RPCS.slice(0, 3), vault, minAgree: Math.min(2, APP_CATALOG_RPCS.length) });
+ }
+ 
+ /* the deployment's custody state, for the panel: null = no custody policy */
+diff --git a/site/js/core/fund.js b/site/js/core/fund.js
+index 1e5d527a4490e05df65245e85419512b39239056..f2c54641dd18cc8ee2f1da2abe8d2cc40e9c982c 100644
+--- a/site/js/core/fund.js
++++ b/site/js/core/fund.js
+@@ -64,6 +64,8 @@ const dataFund = (ref, amt6) => "0x" + DEP_SEL.fund + encBytes32(ref) + encUint(
+    (Exported: pay.js routes the PaymentRouter permit path the same way.) */
+ export async function payerHasCode(){
+   const params = [Enclave.address, "latest"];
++  // independent mode: the profile's RPCs only - not the wallet's provider, and no guess when none of them answers
++  if (INDEPENDENT_MODE) return (await baseRpc("eth_getCode", params)) !== "0x";
+   try {
+     const code = await Enclave.provider.request({ method: "eth_getCode", params });
+     if (code != null) return code !== "0x";
+diff --git a/site/js/core/independent-chain.js b/site/js/core/independent-chain.js
+index 63e76f9269f83312fd7f68ca27e11789741888ba..941cb2b040064bf2f0592f5132e29e1781ceb900 100644
+--- a/site/js/core/independent-chain.js
++++ b/site/js/core/independent-chain.js
+@@ -17,8 +17,8 @@
+    Whether an app is actually answering is not a ledger fact: a live
+    lease reads "claimed", never "running".
+    ============================================================ */
+-import { INDEPENDENT, DEPLOYMENTS_ADDRESS, REGISTRY_ADDRESS, APP_CATALOG_ADDRESS, SESSION_FACTORY_ADDRESS, USDC_BASE } from "./config.js";
+-import { createQuorumReader, QuorumError } from "./quorum.js";
++import { INDEPENDENT, DEPLOYMENTS_ADDRESS, REGISTRY_ADDRESS, APP_CATALOG_ADDRESS, SESSION_FACTORY_ADDRESS, USDC_BASE, profileGuardedRpc, assertProfileCurrent } from "./config.js";
++import { createQuorumReader, QuorumError, jsonRpc } from "./quorum.js";
+ import { platformBookEnabled, platformBookReader, resolvePlatformAddresses } from "./platform-addresses.js";
+ import { capacityEvidence, livenessOf, authenticatedSeen, admitted, evidenceNote } from "./host-liveness.js";
+ import { policyDecisions, policyNote, assertHostAdmitted as policyAssert, leaseAdmission } from "./host-policy.js";
+@@ -38,11 +38,12 @@ let _reader = null;
+ export function reader(){
+   if (INDEPENDENT.state !== "on") throw new QuorumError(INDEPENDENT.state === "off"
+     ? "independent mode is off" : "the independent profile is not active in this tab");
++  try { assertProfileCurrent(); } catch(e){ throw new QuorumError(e.message); }   // say why, before any endpoint is asked
+   const p = INDEPENDENT.profile;
+   if (!_reader){
+     const raw = platformBookEnabled ? platformBookReader() : createQuorumReader({
+       rpcs: [...p.rpcs], quorum: p.quorum, confirmations: p.confirmations,
+-      maxBlockAgeSeconds: p.maxBlockAgeSeconds, chainId: p.chainId });
++      maxBlockAgeSeconds: p.maxBlockAgeSeconds, chainId: p.chainId, rpc: profileGuardedRpc(jsonRpc()) });
+     _reader = platformBookEnabled ? {...raw, snapshot: async () => {
+       const snapshot = await raw.snapshot();
+       await resolvePlatformAddresses({reader:raw,snapshot});
+diff --git a/site/js/core/independent.js b/site/js/core/independent.js
+index 33d16863cd873e26a776ebfff5e3639032949748..fda45526a2354bb6baf340cd3f990a0b4e9829b7 100644
+--- a/site/js/core/independent.js
++++ b/site/js/core/independent.js
+@@ -267,6 +267,14 @@ export function loadProfileState(store = storage(), builtIn = BUILT_IN_PROFILE_T
+   return { state, profile, text, source, error: null };
+ }
+ 
++/* Did the SAVED profile change after this tab loaded `loaded` (another tab saved, replaced or removed one)? This tab's
++   bindings and RPCs were fixed at load, so it must stop reading and signing until it reloads - never continue on the
++   old routes, and never pick up the new ones half-way. */
++export function profileChangedSince(loaded, store = storage()){
++  let now = null; try { now = store ? store.getItem(PROFILE_KEY) : null; } catch { now = null; }
++  return now !== (loaded && loaded.source === "saved" ? loaded.text : null);
++}
++
+ // Saving is an explicit user action in this tab, so it also confirms the profile here.
+ export function saveProfile(text, store = storage(), tab = tabStorage()){
+   const profile = parseProfile(text);          // never persist something that would not load
+diff --git a/site/js/core/pay.js b/site/js/core/pay.js
+index 2dba64b3fd7022bc1ce994f28615022a3f39a459..1d760872cbfa92487fcdf380163f7f4fdc28c92d 100644
+--- a/site/js/core/pay.js
++++ b/site/js/core/pay.js
+@@ -24,7 +24,7 @@
+    ERC-20 ABIs in test/pay.test.mjs (the chain.js convention:
+    hand-computed selectors have burned us before).
+    ============================================================ */
+-import { Enclave, EnclaveError } from "./api.js";
++import { Enclave, EnclaveError, INDEPENDENT_MODE } from "./api.js";
+ import { BASE_CHAIN } from "./config.js";
+ import { encUint, encAddr, encBytes32, baseRpc, waitReceipt, hexBig } from "./chain.js";
+ import { ensureBaseChain, sendTx } from "./wallet.js";
+@@ -41,9 +41,10 @@ const dataPayWithPermit = (amt6, ref, deadline, v, r, s) =>
+   "0x" + SEL_PAY_PERMIT + encUint(amt6) + encBytes32(ref) + encUint(deadline)
+        + encUint(v) + encBytes32(r) + encBytes32(s);
+ 
++// Independent mode reads only through the profile's RPCs (baseRpc), never the wallet's provider.
+ async function tokenNonce(usdc, owner){
+   const call = { to: usdc, data: "0x" + SEL_NONCES + encAddr(owner) };
+-  try {
++  if (!INDEPENDENT_MODE) try {
+     const hex = await Enclave.provider.request({ method: "eth_call", params: [call, "latest"] });
+     if (hex && hex !== "0x") return hexBig(hex);
+   } catch(_){}
+@@ -51,7 +52,7 @@ async function tokenNonce(usdc, owner){
+ }
+ async function routerAllowance(usdc, owner, router){
+   const call = { to: usdc, data: "0x" + SEL_ALLOWANCE + encAddr(owner) + encAddr(router) };
+-  try {
++  if (!INDEPENDENT_MODE) try {
+     const hex = await Enclave.provider.request({ method: "eth_call", params: [call, "latest"] });
+     if (hex && hex !== "0x") return hexBig(hex);
+   } catch(_){}
+diff --git a/site/js/core/platform-addresses.js b/site/js/core/platform-addresses.js
+index 45fc7e495e694af7cb25c6dc8efbe9869b1b236f..f8594a30dae73d58755a800bfa2497f61a07499b 100644
+--- a/site/js/core/platform-addresses.js
++++ b/site/js/core/platform-addresses.js
+@@ -1,8 +1,8 @@
+ // Serverless platform governance: follow the explicitly selected on-chain book
+ // through agreeing RPC reads. No hosted API, retained authority cache, or
+ // mutation of the saved profile's trust root.
+-import { INDEPENDENT, ADDRESS_BOOK_ADDRESS, __applyAddresses } from "./config.js";
+-import { createQuorumReader, QuorumError } from "./quorum.js";
++import { INDEPENDENT, ADDRESS_BOOK_ADDRESS, __applyAddresses, profileGuardedRpc, assertProfileCurrent } from "./config.js";
++import { createQuorumReader, QuorumError, jsonRpc } from "./quorum.js";
+ import { readAddressBook } from "./addressbook-reader.js";
+ import { emit } from "./util.js";
+ 
+@@ -22,7 +22,7 @@ export function platformBookReader(){
+   if (!platformBookEnabled) return null;
+   const p = INDEPENDENT.profile;
+   return _reader ||= createQuorumReader({rpcs:[...p.rpcs],quorum:p.quorum,confirmations:p.confirmations,
+-    maxBlockAgeSeconds:p.maxBlockAgeSeconds,chainId:p.chainId});
++    maxBlockAgeSeconds:p.maxBlockAgeSeconds,chainId:p.chainId,rpc:profileGuardedRpc(jsonRpc())});
+ }
+ 
+ export async function resolvePlatformAddresses({ reader = platformBookReader(), snapshot } = {}){
+@@ -103,6 +103,8 @@ export function isLedgerRecoveryCall(data){
+ // available. Do not silently retarget calldata prepared for a retired contract;
+ // recovery calls to a replaced ledger stay possible (isLedgerRecoveryCall).
+ export async function assertPlatformTransactionCurrent(to, data = "0x"){
++  // every transaction path asks here first, in either mode: a tab whose profile changed elsewhere sends nothing
++  try { assertProfileCurrent(); } catch(e){ throw new QuorumError(e.message); }
+   if (!platformBookEnabled) return;
+   const result = await resolvePlatformAddresses();
+   if (result.changed.length)
+diff --git a/site/js/core/sessions.js b/site/js/core/sessions.js
+index fed5bb116791dc489ac663e9060e08c858d06da1..353a9e4e69ed69587a3a6f54954b0a1cf3f4bbb9 100644
+--- a/site/js/core/sessions.js
++++ b/site/js/core/sessions.js
+@@ -13,7 +13,7 @@
+    vendored as /vendor/sessions.js, loaded on first use).
+    ============================================================ */
+ import { Enclave, EnclaveError, WALLET_SESSION_KEY, INDEPENDENT_MODE } from "./api.js";
+-import { APP_CATALOG_RPCS, USDC_BASE, SESSION_FACTORY_ADDRESS, INDEPENDENT, DEPLOYMENTS_ADDRESS } from "./config.js";
++import { APP_CATALOG_RPCS, USDC_BASE, SESSION_FACTORY_ADDRESS, INDEPENDENT, DEPLOYMENTS_ADDRESS, assertProfileCurrent } from "./config.js";
+ import { $, esc, lsGet, lsSet, lsDel, showToast, emit } from "./util.js";
+ import { decodeLedgerCall, walletRecordPlan, needsCap } from "./ledger-calls.js";
+ import * as ID from "./identity.js";
+@@ -62,6 +62,9 @@ const rpcFor = (cfg) => (cfg && cfg.rpc) || APP_CATALOG_RPCS[0];
+ const sessionClient = async (S, cfg) => INDEPENDENT_MODE
+   ? (await import("./independent-chain.js")).quorumSessionClient()
+   : S.chainClient(cfg.chainId, rpcFor(cfg));
++/** The chain client session pages read through: the profile's agreeing RPCs in independent mode (never one origin), the
++ *  relay's RPC otherwise. */
++export const sessionReadClient = async (cfg) => sessionClient(await sdk(), cfg);
+ /* Enclave.base is the API root WITH /v1 (api.js); the sessions client wants the origin */
+ export const relayRoot = () => String(Enclave.base || "").replace(/\/v1\/?$/, "");
+ const store = async () => new (await sdk()).IndexedDbStore();
+@@ -78,6 +81,9 @@ export async function currentSession(){
+   const rec = await (await store()).load(id).catch(() => null);
+   if (!rec || !rec.handle){ lsSet(key, ""); return null; }
+   if (acct && lower(rec.handle.owner) !== acct) return null;
++  // a session an independent profile opened (no relay) is not served once the profile is gone: its record would read
++  // through whatever RPC was stored with it. It stays in the store, and serves again when that profile is back.
++  if (!INDEPENDENT_MODE && !(rec.handle.relay || rec.relay)) return null;
+   const session = await S.sessionFromRecord(rec, INDEPENDENT_MODE ? {
+     publicClient: (await import("./independent-chain.js")).quorumSessionClient(),
+     fetch: async () => { throw new Error("Independent sessions do not contact a relay."); },
+@@ -216,6 +222,8 @@ export async function accountFromSession(){
+ 
+ /** Sign out: the session key ends its own session, the budget comes back, the account token dies with it. */
+ export async function endSession({ quiet = false } = {}){
++  // a tab whose profile changed elsewhere keeps its key until it reloads: ending needs the current routes
++  try { assertProfileCurrent(); } catch(e){ if (!quiet) showToast(e.message); return null; }
+   const c = await currentSession().catch(() => null);
+   lsSet(activeKey(), "");
+   _cur = null; _st = null; Enclave._ownerSession = null;
+@@ -732,7 +740,8 @@ async function startDirectSession({ budgetUsd, hours }){
+   catch(e){ await st.remove(record.id).catch(() => {}); throw new EnclaveError(e.message || String(e), 0); }
+   try { await submitPrepared(prepared); }
+   catch(e){ await st.remove(record.id).catch(() => {}); throw signError(e, "open a session"); }
+-  const rec = await S.completeSession(st, record, { vault: prepared.vault, owner: Enclave.address, grant, rpc: cfg.rpc });
++  // no RPC is stored with an independent session: it always reads through the profile this tab loaded
++  const rec = await S.completeSession(st, record, { vault: prepared.vault, owner: Enclave.address, grant, rpc: undefined });
+   lsSet(WALLET_SESSION_KEY, rec.id);
+   _cur = null; _st = null; Enclave._ownerSession = null;
+   emit("enclave:session", { active: true });
+@@ -960,7 +969,7 @@ export async function prepareAccountSession(profile, { budgetUsd = 0, hours = 12
+   try { await OS.verifyOwnerSubmission({ prep, owner: profile.safe, signatures: rec.signatures }); }
+   catch(e){ await drop(); throw new EnclaveError(e.message || String(e), 0); }
+   return { prep, budget, cancel: drop, finish: async () => {
+-    const open = await S.completeSession(st, record, { vault: prep.vault, owner: lower(profile.safe), grant, rpc: cfg.rpc });
++    const open = await S.completeSession(st, record, { vault: prep.vault, owner: lower(profile.safe), grant, rpc: undefined });
+     setAccountSession(profile.safe, open.id);
+     return open;
+   } };
+diff --git a/site/js/core/wallet.js b/site/js/core/wallet.js
+index b330924264f077d691b72bdb904c35a0dc4b597d..1952056b0641cbb1c9df6cd77366ca863d937234 100644
+--- a/site/js/core/wallet.js
++++ b/site/js/core/wallet.js
+@@ -24,6 +24,9 @@ import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID, INDEPE
+ 
+ /* A read the wallet could not answer. Hosted: Base's public RPC. Independent mode: only the profile's RPCs (the
+    rotating pool; nothing else is contacted), and no profile RPC means no answer rather than a default origin. */
++// Independent mode never asks the WALLET's provider for a read or estimate: that would quietly answer from the
++// wallet's own RPC (often a public provider) and hide that every route the profile names is down.
++const walletReads = () => INDEPENDENT.state === "off";
+ async function fallbackRead(method, params){
+   if (INDEPENDENT.state !== "off") return baseRpc(method, params);
+   const r = await fetch("https://mainnet.base.org", { method: "POST", headers: { "content-type": "application/json" },
+@@ -34,6 +37,9 @@ async function fallbackRead(method, params){
+ const addChainRpcs = () => INDEPENDENT.state !== "off"
+   ? APP_CATALOG_RPCS.filter((u) => u.startsWith("https://")).slice(0, 3)
+   : ["https://mainnet.base.org"];
++// EIP-3085 wallet_addEthereumChain for Base, naming only those RPCs
++const baseChainParams = () => ({ chainId: BASE_CHAIN_HEX, chainName: "Base", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
++  rpcUrls: addChainRpcs(), blockExplorerUrls: ["https://basescan.org"] });
+ import { Enclave, EnclaveError } from "./api.js";
+ import { baseRpc } from "./chain.js";
+ // Measured from what Base actually includes (3,569 txs / 30 blocks: largest
+@@ -326,7 +332,7 @@ export function openDepositModal(){
+ 
+ export async function usdcBalanceOf(addr){
+   const call = { to: USDC_BASE, data: "0x70a08231" + addr.toLowerCase().replace(/^0x/, "").padStart(64, "0") };
+-  try {
++  if (walletReads()) try {
+     const hex = await Enclave.provider.request({ method: "eth_call", params: [call, "latest"] });
+     if (hex && hex !== "0x") return parseInt(hex, 16) / 1e6;
+   } catch(_){}
+@@ -335,7 +341,7 @@ export async function usdcBalanceOf(addr){
+ }
+ export async function ethBalanceOf(addr){
+   const params = [addr, "latest"];
+-  try {
++  if (walletReads()) try {
+     const hex = await Enclave.provider.request({ method: "eth_getBalance", params });
+     if (hex && hex !== "0x") return Number(BigInt(hex)) / 1e18;
+   } catch(_){}
+@@ -385,11 +391,7 @@ async function ensureBaseChainOnConnect(provider){
+   } catch(e){
+     if (e && e.code === 4902){
+       try {
+-        await provider.request({ method: "wallet_addEthereumChain", params: [{
+-          chainId: BASE_CHAIN_HEX, chainName: "Base",
+-          nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+-          rpcUrls: addChainRpcs(), blockExplorerUrls: ["https://basescan.org"]
+-        }] });
++        await provider.request({ method: "wallet_addEthereumChain", params: [baseChainParams()] });
+       } catch(_){}
+     }
+   }
+@@ -674,6 +676,7 @@ export async function renderWalletPop(){
+       ? '<a class="wp-link" href="https://basescan.org/address/' + esc(Enclave.address) + '" target="_blank" rel="noopener" title="Your wallet on Basescan">Base</a>'
+       : ("chain " + (Enclave.chainId || "–"))) + (offBase ? ' <button class="wp-mini" id="wpSwitch">switch to Base</button>' : "") + '</span></div>' +
+     '<div class="wp-row"><span class="wp-k">Balance</span><button class="wp-v wp-link" id="wpBal" type="button" title="Deposit"><span id="wpBalUsdc">…</span>' + UP + '</button></div>' +
++    (INDEPENDENT.state === "on" ? broadcastRow() : "") +
+     '<hr class="wp-sep">' +   // the wallet above, this browser's session below
+     // the session row ends the popover: its budget and time, then All (every session) and Sign out, right-aligned
+     '<div class="wp-row wp-row-sess"><span class="wp-k">Session</span><span class="wp-sess-r"><span class="wp-v" id="wpSess">…</span>' +
+@@ -690,9 +693,36 @@ export async function renderWalletPop(){
+     (b) => { const u = $("#wpBalUsdc"); if (u) u.textContent = b.toFixed(2) + " USDC"; },
+     ()  => { const u = $("#wpBalUsdc"); if (u) u.textContent = "unavailable"; });
+   const s = $("#wpSwitch"); if (s) s.addEventListener("click", () => Enclave.provider && ensureBaseChainOnConnect(Enclave.provider).then(renderWalletPop));
++  wireBroadcastRow();
+   renderSessionRow();
+ }
+ 
++/* Independent mode: reads, estimates and receipts here use only the profile's RPCs, but a transaction the WALLET
++   broadcasts goes through the RPC the wallet itself has for Base - the page can neither see nor change it. Say so,
++   name the profile's routes, and offer them through the one standard request (EIP-3085) on an explicit click; the
++   wallet decides, and most keep their own RPC for a network they already know. */
++function broadcastRow(){
++  const https = addChainRpcs();
++  return '<div class="wp-row"><span class="wp-k">Broadcast</span><span class="wp-v">your wallet’s own RPC <button class="wp-mini" id="wpRpc" type="button" aria-expanded="false">routes</button></span></div>' +
++    '<div id="wpRpcBox" hidden><p class="wp-note">This page reads the chain only through the network profile’s RPCs. Transactions you sign are <b>broadcast by your wallet</b> through the RPC it has set for Base, which this page cannot change. To keep them on the profile’s routes too, set your wallet’s Base RPC to one of these:</p>' +
++    '<p class="wp-note">' + APP_CATALOG_RPCS.map((u) => "<code>" + esc(u) + "</code>").join("<br>") + '</p>' +
++    (https.length ? '<button class="wp-mini" id="wpRpcOffer" type="button">Offer ' + (https.length === 1 ? "it" : "them") + ' to the wallet</button>'
++      : '<p class="wp-note">Wallets accept only HTTPS RPCs, and this profile names none: set the wallet’s RPC by hand.</p>') +
++    '<p class="wp-note" id="wpRpcSt" role="status"></p></div>';
++}
++function wireBroadcastRow(){
++  const t = $("#wpRpc"), box = $("#wpRpcBox"); if (!t || !box) return;
++  t.addEventListener("click", () => { box.hidden = !box.hidden; t.setAttribute("aria-expanded", String(!box.hidden)); });
++  const o = $("#wpRpcOffer"); if (!o) return;
++  o.addEventListener("click", async () => {
++    const st = $("#wpRpcSt");
++    try {
++      await Enclave.provider.request({ method: "wallet_addEthereumChain", params: [baseChainParams()] });
++      if (st) st.textContent = "The wallet took the request. Check its Base network settings: the wallet decides which RPC it broadcasts through.";
++    } catch(e){ if (st) st.textContent = "The wallet did not take them (" + ((e && e.message) || e) + "). Set its Base RPC by hand."; }
++  });
++}
++
+ /* the popover's session row: the budget left (click it to top up) and the time left (click it to extend), or
+    "start". The full list is All, beside it; ending this browser's session is Sign out, beside that. */
+ async function renderSessionRow(){
+@@ -753,6 +783,7 @@ export async function ensureBaseChain(){
+   catch(e){ throw new EnclaveError("Switch your wallet to Base to pay.", 0); }
+ }
+ export async function sendTx(to, data, value, gasLimit){
++  // also refuses once the network profile changed in another tab (config.js assertProfileCurrent)
+   await (await import("./platform-addresses.js")).assertPlatformTransactionCurrent(to, data);
+   const tx = { from: Enclave.address, data, value: value || "0x0" };
+   if (to) tx.to = to; // omitted = contract creation
+@@ -789,12 +820,15 @@ export async function sendTx(to, data, value, gasLimit){
+     wcNudge();
+     return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
+   }
+-  // Otherwise: estimate (provider first, public Base RPC as fallback) and pad
+-  // 25% so a wallet that trusts our limit never under-provisions. A failed
+-  // estimate falls through - the wallet estimates for itself.
++  // Otherwise: estimate (provider first, public Base RPC as fallback; independent
++  // mode: the profile's RPCs only) and pad 25% so a wallet that trusts our limit
++  // never under-provisions. A failed estimate falls through - the wallet
++  // estimates for itself.
+   let est = null;
+-  try { est = await Enclave.provider.request({ method: "eth_estimateGas", params: [tx] }); }
+-  catch(_){ try { est = await baseRpc("eth_estimateGas", [tx]); } catch(_2){} }
++  if (walletReads()){
++    try { est = await Enclave.provider.request({ method: "eth_estimateGas", params: [tx] }); }
++    catch(_){ try { est = await baseRpc("eth_estimateGas", [tx]); } catch(_2){} }
++  } else { try { est = await baseRpc("eth_estimateGas", [tx]); } catch(_){} }
+   if (est) tx.gas = "0x" + (BigInt(est) + BigInt(est) / 4n).toString(16);
+   else {
+     // Both estimators refused a tx we have no calibrated number for. On this
+@@ -810,6 +844,10 @@ export async function sendTx(to, data, value, gasLimit){
+     // through to the wallet's estimator.
+     try { await baseRpc("eth_call", [tx, "latest"]); }
+     catch(e){
++      // independent mode: no route the profile names answered - say so, not "would revert"
++      if (!walletReads() && !/revert/i.test((e && e.message) || ""))
++        throw new EnclaveError("none of the network profile's RPC endpoints could check this transaction - nothing was sent ("
++          + ((e && e.message) || e) + ")", 0);
+       throw new EnclaveError("this transaction would revert - nothing was sent ("
+         + ((e && e.message) || e) + ")", 0);
+     }
+diff --git a/site/js/pages/grant.js b/site/js/pages/grant.js
+index 9720bcfdd8c20f117f68d750b4f638c7ffe4e4b5..34799e800ae4ba2a82578d43e0f19049cc260d50 100644
+--- a/site/js/pages/grant.js
++++ b/site/js/pages/grant.js
+@@ -17,7 +17,7 @@ import "../../components/section-head/section-head.js";
+ import { Enclave, INDEPENDENT_MODE } from "../core/api.js";
+ import { connectWallet } from "../core/wallet.js";
+ import { $, esc, showToast, copyText } from "../core/util.js";
+-import { sdk, sessionsConfig, fmtUsd, relayRoot } from "../core/sessions.js";
++import { sdk, sessionsConfig, fmtUsd, relayRoot, sessionReadClient } from "../core/sessions.js";
+ import { parseTypedGrant, checkTypedGrant } from "../core/grant-check.js";
+ 
+ function mount(){
+@@ -200,7 +200,7 @@ async function independentCard(box, { grant: g, typed, owner, cfg, S, source }){
+       // the very openFor the command will submit, simulated at an agreed block: the vault's own ECDSA/ERC-1271 check
+       // decides whether this signature is handed over at all
+       msg.textContent = "Checking the signature with the session vault…";
+-      const pc = S.chainClient(cfg.chainId, cfg.rpc);
++      const pc = await sessionReadClient(cfg);
+       const prep = await S.prepareSessionOpen({ publicClient: pc, factory: cfg.factory, chainId: cfg.chainId, grant: g,
+         owner: { address: ownerAddr, signTypedData: async () => sig } });
+       if (String(prep.vault).toLowerCase() !== vault) throw new Error("The chain endpoints disagree about your session vault; nothing was handed over.");
+@@ -217,7 +217,7 @@ async function independentCard(box, { grant: g, typed, owner, cfg, S, source }){
+   $("#grOpen").addEventListener("click", async () => {
+     busy(true); msg.textContent = "Check your wallet…";
+     try {
+-      const pc = S.chainClient(cfg.chainId, cfg.rpc);
++      const pc = await sessionReadClient(cfg);
+       const usdc = g.budget > 0n ? await S.usdcDomain(pc, cfg.usdc, cfg.chainId) : undefined;
+       if (!Enclave.address && !(acting && acting.ownGas))
+         throw new Error("Connect a wallet to pay the gas of the open (it only pays; the session belongs to " + ownerAddr + "), let your passkey account pay its own gas (Passkey account → Gas), or use Sign only.");
+diff --git a/test/helpers/browser-rpc-scenario.mjs b/test/helpers/browser-rpc-scenario.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..7a225ad9fe38764309a3d64a27e38ffd0d466753
+--- /dev/null
++++ b/test/helpers/browser-rpc-scenario.mjs
+@@ -0,0 +1,159 @@
++// One browser RPC routing scenario, in its own process (config.js fixes the profile when it loads): the REAL site modules
++// of <site root> (this tree's, or an older commit's extracted for a control) with browser globals, a fake Base chain
++// behind the profile's RPC origins, an inert wallet provider (generated test address, no key), and a fetch that refuses
++// every other origin the way a blocked public network does. Prints one JSON line: what each call returned and every
++// origin and wallet method the page reached.
++//   node test/helpers/browser-rpc-scenario.mjs <site root> '<scenario json>'
++// Used by test/site-browser-rpc-closure.test.mjs.
++import path from "node:path";
++import { pathToFileURL } from "node:url";
++import { encodeAbiParameters, encodeFunctionResult, decodeFunctionData } from "viem";
++import { VAULT_ABI } from "../../custody/chain.mjs";
++
++const [siteRoot, raw] = process.argv.slice(2);
++const sc = JSON.parse(raw);
++const n = sc.rpcs || 3;
++const RPCS = Array.from({ length: n }, (_, i) => `https://rpc${i}.operator.example`);
++const down = new Set(sc.down || []);
++const BOOK = "0x" + "b0".repeat(20), VAULT = "0x" + "5e".repeat(20), OWNER = "0x" + "9e".repeat(20);
++const contracts = { registry: "0x" + "11".repeat(20), deployments: "0x" + "22".repeat(20), appCatalog: "0x" + "33".repeat(20),
++  proofOfTime: "0x" + "44".repeat(20), enclavePay: "0x" + "00".repeat(20), verificationFees: "0x" + "00".repeat(20),
++  sessionVaultFactory: "0x" + "55".repeat(20), secretVaultV2: "0x" + "00".repeat(20) };
++const profile = { format: "enclave-browser-profile", version: 1, chainId: 8453, rpcs: RPCS, quorum: sc.quorum || 2, confirmations: 0,
++  contractPins: { version: 1, chainId: 8453, contracts }, usdc: "0x" + "66".repeat(20), ...(sc.book ? { addressBook: BOOK } : {}) };
++const text = sc.badProfile ? JSON.stringify({ ...profile, rpcs: [RPCS[0]] }) : JSON.stringify(profile);
++
++const mem = (m = new Map()) => ({ getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) });
++const saved = sc.state === "off" || sc.state === "appeared" ? [] : [["enclave_independent_profile", text]];
++globalThis.localStorage = mem(new Map(saved));
++globalThis.sessionStorage = mem(new Map(sc.state === "on" || sc.state === "changed" ? [["enclave_independent_ack", text]] : []));
++const doc = new EventTarget(); doc.querySelector = () => null; doc.querySelectorAll = () => []; doc.getElementById = () => null;
++globalThis.document = doc;
++globalThis.window = globalThis; globalThis.addEventListener ??= () => {};
++globalThis.location = { hostname: "dashboard.example", origin: "https://dashboard.example", pathname: "/", hash: "", search: "" };
++
++/* ---- the fake chain behind the profile's origins ---- */
++const NOW = Math.floor(Date.now() / 1000), HEAD = 100;
++const word = (v) => BigInt(v).toString(16).padStart(64, "0");
++const ADDR_ABI = [{ type: "function", name: "addr", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] }];
++const key = (s) => "0x" + Buffer.from(s).toString("hex").padEnd(64, "0");
++const bookAll = () => encodeAbiParameters([{ type: "bytes32[]" }, { type: "address[]" }],
++  [["registry", "deployments", "appCatalog", "secretVault"].map(key), [contracts.registry, contracts.deployments, contracts.appCatalog, VAULT]]);
++function call({ to, data }){
++  to = String(to).toLowerCase();
++  if (data.startsWith("0x70a08231")) return "0x" + word(42_000000);                 // balanceOf: 42 USDC on the chain
++  if (to === BOOK && data === "0x10c4e8b0") return bookAll();
++  if (to === BOOK && data === "0x8da5cb5b") return "0x" + word(0xad);               // owner(): the book administrator
++  if (to === BOOK){ decodeFunctionData({ abi: ADDR_ABI, data }); return "0x" + word(0); }   // addr(key): unset
++  if (to === VAULT){
++    const { functionName } = decodeFunctionData({ abi: VAULT_ABI, data });
++    const out = { policyOf: [[OWNER, 0, 0, "0x" + "00".repeat(32), false, "0x"]], bundleOf: [[0, 0, "0x"]], book: [BOOK], beneficialOwnerOf: [OWNER] }[functionName];
++    if (!out) throw new Error("unexpected vault read " + functionName);
++    return encodeFunctionResult({ abi: VAULT_ABI, functionName, result: out.length === 1 ? out[0] : out });
++  }
++  try { decodeFunctionData({ abi: ADDR_ABI, data }); return "0x" + word(0); } catch {}
++  return "0x" + word(0);
++}
++function chain(method, params){
++  switch (method){
++    case "eth_chainId": return "0x2105";
++    case "eth_blockNumber": return "0x" + HEAD.toString(16);
++    case "eth_getBlockByNumber": {
++      const b = params[0] === "latest" ? HEAD : Number(params[0]);
++      return { number: "0x" + b.toString(16), hash: "0x" + word(b + 0xb10c), parentHash: "0x" + word(b + 0xb10b), timestamp: "0x" + (NOW - (HEAD - b) * 2).toString(16),
++        baseFeePerGas: "0x1", gasLimit: "0x1c9c380", gasUsed: "0x0", transactions: [], miner: "0x" + "00".repeat(20), difficulty: "0x0", extraData: "0x",
++        logsBloom: "0x" + "00".repeat(256), nonce: "0x0000000000000000", sha3Uncles: "0x" + word(0), size: "0x1", stateRoot: "0x" + word(1), receiptsRoot: "0x" + word(2),
++        transactionsRoot: "0x" + word(3), uncles: [], mixHash: "0x" + word(4) };
++    }
++    case "eth_call": return call(params[0]);
++    case "eth_getBalance": return "0xde0b6b3a7640000";                                   // 1 ETH on the chain
++    case "eth_estimateGas": return "0x5208";
++    case "eth_getCode": return String(params[0]).toLowerCase() === OWNER ? "0x" : "0x6080";
++    case "eth_getTransactionReceipt": return { status: "0x1", transactionHash: params[0], blockNumber: "0x64" };
++    case "eth_getLogs": return [];
++    default: throw new Error("fake chain: no " + method);
++  }
++}
++const reached = [], refused = [], chainErrors = [];
++globalThis.fetch = async (input, init = {}) => {
++  const url = String(input && input.url ? input.url : input);
++  let origin; try { origin = new URL(url).origin; } catch { origin = url; }
++  const body = init.body ? JSON.parse(init.body) : null;
++  const calls = Array.isArray(body) ? body : [body];
++  for (const c of calls) reached.push({ origin, method: c && c.method });
++  if (!RPCS.includes(origin) || down.has(RPCS.indexOf(origin))){
++    if (!RPCS.includes(origin)) refused.push(origin);
++    throw new TypeError("fetch failed (" + (RPCS.includes(origin) ? "endpoint down" : "public network refused") + ")");
++  }
++  const answer = (c) => { try { return { jsonrpc: "2.0", id: c.id, result: chain(c.method, c.params || []) }; }
++    catch (e){ chainErrors.push(c.method + ": " + String(e.message || e).slice(0, 160)); return { jsonrpc: "2.0", id: c.id, error: { code: -32000, message: String(e.message || e) } }; } };
++  const out = Array.isArray(body) ? calls.map(answer) : answer(body);
++  return new Response(JSON.stringify(out), { status: 200, headers: { "content-type": "application/json" } });
++};
++
++/* ---- an inert wallet: answers differently from the chain, so a read it served is visible ---- */
++const walletCalls = [];
++const wallet = { request: async ({ method, params }) => {
++  walletCalls.push(method);
++  switch (method){
++    case "eth_chainId": return "0x2105";
++    case "eth_accounts": case "eth_requestAccounts": return [OWNER];
++    case "eth_call": return "0x" + word(7_000000);                                       // the wallet's RPC says 7 USDC
++    case "eth_getBalance": return "0x1bc16d674ec80000";                                  // and 2 ETH
++    case "eth_estimateGas": return "0x1";
++    case "eth_getCode": return "0x60";
++    case "eth_sendTransaction": wallet.lastTx = params[0]; return "0x" + "ab".repeat(32);
++    case "eth_getTransactionByHash": return null;
++    default: throw Object.assign(new Error("inert wallet: " + method), { code: 4200 });
++  } }, on() {}, removeListener() {} };
++
++const core = (m) => import(pathToFileURL(path.join(siteRoot, "js/core", m)).href);
++const out = {};
++const attempt = async (name, fn) => {
++  const from = reached.length, w = walletCalls.length;
++  try { out[name] = { ok: await fn() }; } catch (e){ out[name] = { error: String((e && e.message) || e) }; }
++  out[name].origins = [...new Set(reached.slice(from).map((r) => r.origin))];
++  out[name].wallet = walletCalls.slice(w);
++};
++const settle = () => new Promise((r) => setTimeout(r, 50));
++
++const { Enclave } = await core("api.js");
++const W = await core("wallet.js");
++const C = await core("chain.js");
++const F = await core("fund.js");
++const CU = await core("custody.js");
++if (sc.book) await core("addressbook.js");            // boot.js loads it: the platform book resolves once at load
++Enclave.provider = wallet; Enclave.address = OWNER; Enclave.chainId = 8453;
++if (sc.book) for (let i = 0; i < 40 && !CU.custodyAvailable(); i++) await settle();   // addressbook.js resolves the book at load
++
++if (sc.debug) out.debugChanged = await (await core("platform-addresses.js")).resolvePlatformAddresses().then((r) => r && r.changed, (e) => "error " + e.message);
++for (const i of sc.downAfterLoad || []) down.add(i);
++if (sc.state === "changed") globalThis.localStorage.setItem("enclave_independent_profile", JSON.stringify({ ...profile, name: "replaced elsewhere" }));
++if (sc.state === "appeared") globalThis.localStorage.setItem("enclave_independent_profile", text);
++
++await attempt("usdcBalance", () => W.usdcBalanceOf(OWNER));
++await attempt("ethBalance", () => W.ethBalanceOf(OWNER));
++await attempt("payerHasCode", () => F.payerHasCode());
++let sent = null;
++await attempt("sendTx", async () => { sent = await W.sendTx(contracts.deployments, "0x6485d678" + word(1) + word(0), "0x0"); return sent; });
++out.sendTx.gas = (wallet.lastTx || {}).gas;
++await attempt("receipt", () => C.waitReceipt("0x" + "ab".repeat(32), 1).then((r) => r.status));
++await attempt("baseRpc", () => C.baseRpc("eth_blockNumber", []));
++if (sc.state !== "off") await attempt("quorumSnapshot", async () => (await (await core("independent-chain.js")).reader().snapshot()).number);
++if (sc.book) await attempt("custody", () => CU.custodyStatus("0x" + "cd".repeat(32)));
++out.custodyAvailable = CU.custodyAvailable();
++if (sc.sessions){
++  // the session store holds a record opened under an independent profile (no relay) with an RPC stored beside it
++  const S = await core("sessions.js");
++  const opened = [];
++  S._useSdkForTests({ IndexedDbStore: class { async load(id){ return id === "sid1" ? { id, relay: "", handle: { chainId: 8453, vault: VAULT, sid: "0x" + "51".repeat(32), owner: OWNER, relay: "", rpc: "https://old-profile.example" } } : null; } async remove(){} },
++    sessionFromRecord: async (rec, opts) => { opened.push(opts && opts.publicClient ? "profile client" : "stored rpc " + rec.handle.rpc); return { handle: rec.handle, status: async () => ({ live: true }) }; } });
++  globalThis.localStorage.setItem("enclave_wallet_session", "sid1");
++  await attempt("currentSession", async () => { const c = await S.currentSession(); return c ? opened.join() : null; });
++  await attempt("endSession", async () => { await S.endSession({ quiet: true }); return globalThis.localStorage.getItem("enclave_wallet_session"); });
++}
++out.refused = [...new Set(refused)];
++out.chainErrors = [...new Set(chainErrors)].slice(0, 6);
++out.rpcs = RPCS;
++process.stdout.write(JSON.stringify(out) + "\n");
++process.exit(0);
+diff --git a/test/site-browser-rpc-closure.test.mjs b/test/site-browser-rpc-closure.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..d5f430b862664db8cf0d5cfca5684425b453060a
+--- /dev/null
++++ b/test/site-browser-rpc-closure.test.mjs
+@@ -0,0 +1,162 @@
++// The dashboard's chain consumers under a network profile, on the REAL site modules (config, independent, chain, wallet,
++// fund, custody, sessions, independent-chain, platform-addresses, addressbook and the vendored custody bundle), each
++// profile state in its own process (test/helpers/browser-rpc-scenario.mjs): a fake Base chain behind the profile's RPC
++// origins, an inert wallet provider that answers differently from the chain, and a fetch that refuses every other
++// origin as a blocked public network does.
++//   confirmed profile: reads, estimates, receipts, quorum and custody reads reach only the profile's origins, and the
++//     wallet is asked only to send; one endpoint down fails over; all down (or too few for the quorum) is refused by name;
++//   invalid / unconfirmed profile: no origin and no wallet read at all;
++//   profile changed in another tab after load: every read and transaction refuses until reload (sign-out keeps its key);
++//   hosted mode (no profile): unchanged - wallet-first reads and the public default pool, which this test refuses.
++// A CONTROL runs the same scenarios on e820e2405's site (git archive) and shows where it reached the wallet, used fewer
++// routes or a weaker agreement, kept reading after a profile change, or read through an RPC stored with a session.
++// Not a browser: page rendering, the wallet popover and real wallet extensions are outside it (see
++// test/site-independent-browser.test.mjs for the Chromium run).
++//   run: node --test test/site-browser-rpc-closure.test.mjs
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { spawn, execFileSync } from "node:child_process";
++import { fileURLToPath } from "node:url";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const HELPER = path.join(REPO, "test/helpers/browser-rpc-scenario.mjs");
++const OLD = "e820e2405af91010c18913acf4740f651618c644";
++const HOSTED_POOL = ["https://base-rpc.publicnode.com", "https://base.drpc.org", "https://1rpc.io", "https://mainnet.base.org"];
++
++function run(siteRoot, sc){
++  return new Promise((resolve, reject) => {
++    const p = spawn(process.execPath, [HELPER, siteRoot, JSON.stringify(sc)], { stdio: ["ignore", "pipe", "pipe"] });
++    let out = "", err = "";
++    p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));
++    const t = setTimeout(() => p.kill("SIGKILL"), 60000);
++    p.on("close", (code) => {
++      clearTimeout(t);
++      const line = out.trim().split("\n").pop();
++      if (code !== 0 || !line || !line.startsWith("{")) return reject(new Error("scenario " + JSON.stringify(sc) + " exited " + code + "\n" + err.slice(-2000)));
++      resolve(JSON.parse(line));
++    });
++  });
++}
++const SITE = path.join(REPO, "site");
++const onlyProfile = (r, what) => { for (const o of r[what].origins) assert.ok(r.rpcs.includes(o), what + " reached " + o); };
++const noWalletRead = (r, what) => assert.deepEqual(r[what].wallet.filter((m) => m !== "eth_sendTransaction"), [], what + " asked the wallet");
++const READS = ["usdcBalance", "ethBalance", "payerHasCode", "receipt", "baseRpc"];
++
++test("confirmed profile: every read, estimate and receipt uses only its RPCs; the wallet only broadcasts", async () => {
++  const r = await run(SITE, { state: "on", sessions: true });
++  for (const k of [...READS, "sendTx", "quorumSnapshot"]){ onlyProfile(r, k); noWalletRead(r, k); }
++  assert.equal(r.usdcBalance.ok, 42, "the chain's answer, not the wallet's 7");
++  assert.equal(r.ethBalance.ok, 1);
++  assert.equal(r.payerHasCode.ok, false);
++  assert.deepEqual(r.sendTx.wallet, ["eth_sendTransaction"]);
++  assert.equal(r.sendTx.gas, "0x668a", "the profile's estimate (0x5208) padded 25%, not the wallet's");
++  assert.equal(r.receipt.ok, "0x1");
++  assert.equal(r.quorumSnapshot.ok, 100);
++  assert.deepEqual(r.quorumSnapshot.origins.sort(), [...r.rpcs].sort());
++  assert.equal(r.currentSession.ok, "profile client", "a stored session reads through this profile, not the RPC stored with it");
++  assert.deepEqual(r.refused, []);
++});
++
++test("one configured endpoint down: the reads fail over to the profile's other routes", async () => {
++  const r = await run(SITE, { state: "on", down: [0] });
++  for (const k of [...READS, "sendTx", "quorumSnapshot"]){ onlyProfile(r, k); noWalletRead(r, k); }
++  assert.equal(r.usdcBalance.ok, 42);
++  assert.ok(r.usdcBalance.origins.includes(r.rpcs[1]), "rotated past the dead first origin");
++  assert.equal(r.sendTx.gas, "0x668a");
++  assert.equal(r.quorumSnapshot.ok, 100, "2 of the 3 still agree");
++  assert.deepEqual(r.refused, []);
++});
++
++test("every configured endpoint down: refused by name, nothing sent, no hidden route", async () => {
++  const r = await run(SITE, { state: "on", down: [0, 1, 2] });
++  for (const k of [...READS, "sendTx", "quorumSnapshot"]){ onlyProfile(r, k); assert.deepEqual(r[k].wallet, [], k + " reached the wallet"); assert.ok(r[k].error, k + " answered"); }
++  assert.match(r.sendTx.error, /none of the network profile's RPC endpoints could check this transaction - nothing was sent/);
++  assert.match(r.receipt.error, /none of the network profile's RPC endpoints answered/);
++  assert.match(r.quorumSnapshot.error, /only 0 of 3 chain endpoints answered/);
++  assert.deepEqual(r.refused, []);
++});
++
++for (const [state, sc, why] of [["invalid", { state: "invalid", badProfile: true }, /independent profile is invalid/],
++  ["unconfirmed", { state: "unconfirmed" }, /Confirm the independent profile/]])
++  test(`${state} profile: no origin and no wallet read, never a public default`, async () => {
++    const r = await run(SITE, sc);
++    for (const k of [...READS, "sendTx"]){
++      assert.deepEqual(r[k].origins, [], k + " reached an origin");
++      assert.deepEqual(r[k].wallet, [], k + " reached the wallet");
++      assert.ok(r[k].error, k + " answered");
++    }
++    for (const k of ["usdcBalance", "baseRpc", "receipt"]) assert.match(r[k].error, why);
++    assert.match(r.quorumSnapshot.error, /not active in this tab/);
++    assert.deepEqual(r.refused, []);
++  });
++
++test("profile changed in another tab after load: reads and transactions refuse until reload; sign-out keeps its key", async () => {
++  const r = await run(SITE, { state: "changed", sessions: true });
++  for (const k of [...READS, "sendTx", "quorumSnapshot"]){
++    assert.deepEqual(r[k].origins, [], k + " kept using the old routes");
++    assert.deepEqual(r[k].wallet, [], k + " reached the wallet");
++    assert.match(r[k].error, /network profile changed in another tab/);
++  }
++  assert.equal(r.endSession.ok, "sid1", "the session pointer survives a refused sign-out");
++});
++
++test("hosted mode unchanged: wallet-first reads, the public default pool, and no independent session served", async () => {
++  const r = await run(SITE, { state: "off", sessions: true });
++  assert.equal(r.usdcBalance.ok, 7); assert.deepEqual(r.usdcBalance.wallet, ["eth_call"]);
++  assert.equal(r.ethBalance.ok, 2);
++  assert.equal(r.payerHasCode.ok, true);
++  assert.deepEqual(r.sendTx.wallet, ["eth_estimateGas", "eth_sendTransaction"]);
++  // the hosted defaults are still public RPCs (disclosed until cutover); here the network refuses them
++  assert.deepEqual(r.refused, HOSTED_POOL);
++  assert.equal(r.currentSession.ok, null, "a session an independent profile opened is not served through its stored RPC");
++});
++
++test("a profile saved in another tab stops a hosted tab from sending", async () => {
++  const r = await run(SITE, { state: "appeared" });
++  assert.match(r.sendTx.error, /network profile changed in another tab/);
++  assert.ok(!r.sendTx.wallet.includes("eth_sendTransaction"));
++  assert.match(r.baseRpc.error, /network profile changed/);
++  assert.deepEqual(r.baseRpc.origins, []);
++});
++
++test("custody reads use every profile RPC with the profile's quorum (book-resolved vault)", async () => {
++  const a = await run(SITE, { state: "on", book: true });
++  assert.equal(a.custodyAvailable, true, "the platform book named the vault");
++  assert.equal(a.custody.ok, null, "no policy on the fake vault");
++  onlyProfile(a, "custody"); assert.deepEqual(a.custody.wallet, []);
++  assert.ok(a.sendTx.ok, "the book's current ledger accepts the transaction");
++  const b = await run(SITE, { state: "on", book: true, rpcs: 4, quorum: 3, down: [0] });
++  assert.equal(b.custody.ok, null);
++  assert.ok(b.custody.origins.includes(b.rpcs[3]), "the fourth route is used (not only the first three)");
++  const c = await run(SITE, { state: "on", book: true, rpcs: 4, quorum: 3, downAfterLoad: [0, 1] });
++  assert.match(c.custody.error, /only 2 of 4 RPCs answered \(need 3\)/, "the profile's quorum, not a fixed 2");
++});
++
++const haveGit = (() => { try { execFileSync("git", ["-C", REPO, "cat-file", "-e", OLD + "^{commit}"], { stdio: "ignore" }); return true; } catch { return false; } })();
++test("CONTROL: e820e2405's site fails the same checks", { skip: !haveGit && "needs the repository's git objects" }, async () => {
++  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "rpc-closure-old-"));
++  try {
++    execFileSync("sh", ["-c", `git -C "${REPO}" archive ${OLD} site network | tar -x -C "${tmp}"`]);
++    const old = path.join(tmp, "site");
++    const fails = [];
++    const on = await run(old, { state: "on", sessions: true });
++    if (on.usdcBalance.ok === 7 && on.usdcBalance.wallet.includes("eth_call")) fails.push("confirmed profile: balance read through the wallet's RPC");
++    if (on.sendTx.wallet.includes("eth_estimateGas")) fails.push("confirmed profile: gas estimated through the wallet's RPC");
++    const inv = await run(old, { state: "invalid", badProfile: true });
++    if (inv.usdcBalance.wallet.length) fails.push("invalid profile: the wallet was still asked for a balance");
++    const ch = await run(old, { state: "changed", sessions: true });
++    if (ch.baseRpc.ok && ch.baseRpc.origins.length) fails.push("profile changed elsewhere: kept reading the old routes");
++    if (ch.sendTx.ok) fails.push("profile changed elsewhere: still sent a transaction");
++    const off = await run(old, { state: "off", sessions: true });
++    if (String(off.currentSession.ok).includes("stored rpc https://old-profile.example")) fails.push("hosted mode: served an independent session through its stored RPC");
++    const c4 = await run(old, { state: "on", book: true, rpcs: 4, quorum: 3, down: [0] });
++    if (!c4.custody.origins.includes(c4.rpcs[3])) fails.push("custody: only the first three routes");
++    const cq = await run(old, { state: "on", book: true, rpcs: 4, quorum: 3, downAfterLoad: [0, 1] });
++    if (!/need 3/.test(cq.custody.error || "")) fails.push("custody: agreement of 2 regardless of the profile's quorum");
++    console.log("old source failures:\n  " + fails.join("\n  "));
++    assert.equal(fails.length, 8, "each check this test makes fails on the old source: " + JSON.stringify(fails));
++  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
++});
+diff --git a/test/site-browser-rpc-routes.test.mjs b/test/site-browser-rpc-routes.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..d0c023be784b3b8d6af948c794acb6afe44bf813
+--- /dev/null
++++ b/test/site-browser-rpc-routes.test.mjs
+@@ -0,0 +1,104 @@
++// Chromium on the independent rig (test/helpers/independent-browser-rig.mjs): the unbundled dashboard under a confirmed
++// profile whose three RPC origins are the rig's local proxies, with every non-loopback origin refused. The WALLET's own
++// RPC is the rig's anvil port (walletScript proxies every wallet request there), so what reaches it is exactly what the
++// page asked the wallet: only signing and broadcast may. Covers the wallet popover's route disclosure, a balance and a real
++// transaction with its receipt through the profile, one origin down, all origins down, and a profile changed in a
++// second tab. Generated anvil keys only; no real wallet, no public network.
++//   run: node --test test/site-browser-rpc-routes.test.mjs     (anvil, openssl, Playwright's Chromium, the Foundry build)
++import test from "node:test";
++import assert from "node:assert/strict";
++import { createRequire } from "node:module";
++import { startRig, haveTools, walletScript } from "./helpers/independent-browser-rig.mjs";
++const require = createRequire(new URL("../e2e/package.json", import.meta.url));
++let chromium; try { ({ chromium } = require("playwright")); } catch {}
++const skip = haveTools() || (!chromium && "needs Playwright (cd e2e && npm ci) and its Chromium");
++const SIGN_OR_SEND = new Set(["eth_sendTransaction", "eth_signTypedData_v4", "personal_sign", "eth_getTransactionByHash"]);
++
++test("browser chain consumers stay on the profile's routes; the wallet only signs and broadcasts", { skip, timeout: 300000 }, async () => {
++  let rig, browser;
++  const forbidden = [], walletRpc = [];
++  try {
++    rig = await startRig();
++    browser = await chromium.launch({ args: ["--disable-gpu", "--disable-dev-shm-usage", "--renderer-process-limit=1", "--disable-extensions",
++      "--disable-features=site-per-process,IsolateOrigins,Translate,OptimizationHints,MediaRouter,AudioServiceOutOfProcess",
++      "--enable-features=NetworkServiceInProcess,NetworkServiceInProcess2", "--js-flags=--max-old-space-size=192"] });
++    const context = await browser.newContext({ ignoreHTTPSErrors: true, reducedMotion: "reduce" });
++    // the public network refuses: any origin that is not this machine
++    await context.route("**/*", (route) => {
++      const u = new URL(route.request().url());
++      if (!["localhost", "127.0.0.1", "[::1]"].includes(u.hostname)){ forbidden.push(u.href); return route.abort("blockedbyclient"); }
++      return route.continue();
++    });
++    context.on("request", (r) => {
++      if (!r.url().startsWith(rig.rpc)) return;
++      try { const b = JSON.parse(r.postData() || "null"); for (const c of [].concat(b)) if (c && c.method) walletRpc.push(c.method); } catch {}
++    });
++    await context.addInitScript(({ profile, address }) => {
++      const text = JSON.stringify(profile);
++      if (!sessionStorage.getItem("enclave_independent_ack")){ localStorage.setItem("enclave_independent_profile", text); sessionStorage.setItem("enclave_independent_ack", text); }
++      localStorage.setItem("enclave_session", JSON.stringify({ address, rdns: "test.local.wallet" }));
++    }, { profile: rig.profile, address: rig.owner });
++    await context.addInitScript({ content: walletScript({ rpc: rig.rpc, address: rig.owner }) });
++    const page = await context.newPage();
++    await page.goto(rig.site + "/dashboard");
++    await page.waitForFunction(async () => !!(await import("/js/core/api.js")).Enclave.address, null, { timeout: 30000 });
++    const usdc6 = await rig.pc.readContract({ address: rig.addresses.usdc, abi: rig.abi.usdc, functionName: "balanceOf", args: [rig.owner] });
++
++    // the popover: the balance through the profile, and a reviewable statement of who broadcasts
++    await page.click("#walletBtn");
++    await page.waitForSelector("#walletPop:not([hidden]) #wpRpc");
++    await page.waitForFunction(() => !/…/.test(document.querySelector("#wpBalUsdc")?.textContent || "…"), null, { timeout: 20000 });
++    assert.equal(await page.textContent("#wpBalUsdc"), (Number(usdc6) / 1e6).toFixed(2) + " USDC");
++    await page.click("#wpRpc");
++    const box = await page.textContent("#wpRpcBox");
++    assert.match(box, /broadcast by your wallet/);
++    for (const u of rig.profile.rpcs) assert.ok(box.includes(u), "the popover names " + u);
++    assert.match(box, /Wallets accept only HTTPS RPCs/, "the rig's loopback routes are plain HTTP: nothing is offered to the wallet");
++    assert.equal(await page.$("#wpRpcOffer"), null);
++    assert.deepEqual(walletRpc, [], "the wallet's RPC answered no read for the popover");
++
++    // one origin down: the balance and an agreed read fail over; a real transaction is broadcast by the wallet and its
++    // receipt is read through the profile
++    rig.rpcModes[0] = "down";
++    const one = await page.evaluate(async ({ owner, usdc }) => {
++      const W = await import("/js/core/wallet.js"), C = await import("/js/core/chain.js"), IC = await import("/js/core/independent-chain.js");
++      const bal = await W.usdcBalanceOf(owner);
++      const snap = await IC.reader().snapshot();
++      const hash = await W.sendTx(usdc, "0x095ea7b3" + owner.slice(2).toLowerCase().padStart(64, "0") + "0".repeat(64), "0x0");
++      const rec = await C.waitReceipt(hash);
++      return { bal, agreed: snap.rpcs.length, status: rec.status };
++    }, { owner: rig.owner, usdc: rig.addresses.usdc });
++    assert.equal(one.bal, Number(usdc6) / 1e6);
++    assert.equal(one.agreed, 2);
++    assert.equal(one.status, "0x1");
++    assert.deepEqual(walletRpc, ["eth_sendTransaction"], "the wallet was asked to broadcast, and for nothing else");
++
++    // every origin down: refused by name, nothing broadcast, no fallback to the wallet's RPC
++    rig.rpcModes[0] = rig.rpcModes[1] = rig.rpcModes[2] = "down";
++    const all = await page.evaluate(async ({ owner, usdc }) => {
++      const W = await import("/js/core/wallet.js");
++      const err = (p) => p.then(() => "answered", (e) => String(e.message || e));
++      return { bal: await err(W.usdcBalanceOf(owner)), send: await err(W.sendTx(usdc, "0x095ea7b3" + "0".repeat(128), "0x0")) };
++    }, { owner: rig.owner, usdc: rig.addresses.usdc });
++    assert.notEqual(all.bal, "answered");
++    assert.match(all.send, /none of the network profile's RPC endpoints could check this transaction - nothing was sent/);
++    assert.deepEqual(walletRpc, ["eth_sendTransaction"], "nothing more reached the wallet");
++    rig.rpcModes[0] = rig.rpcModes[1] = rig.rpcModes[2] = "ok";
++
++    // the profile is replaced in a second tab: this tab stops reading and sending until it reloads
++    const other = await context.newPage();
++    await other.goto(rig.site + "/dashboard");
++    await other.evaluate((profile) => localStorage.setItem("enclave_independent_profile", JSON.stringify({ ...profile, name: "replaced in another tab" })), rig.profile);
++    const stale = await page.evaluate(async ({ owner, usdc }) => {
++      const W = await import("/js/core/wallet.js"), C = await import("/js/core/chain.js");
++      const err = (p) => p.then(() => "answered", (e) => String(e.message || e));
++      return { read: await err(C.baseRpc("eth_blockNumber", [])), send: await err(W.sendTx(usdc, "0x095ea7b3" + "0".repeat(128), "0x0")) };
++    }, { owner: rig.owner, usdc: rig.addresses.usdc });
++    assert.match(stale.read, /network profile changed in another tab/);
++    assert.match(stale.send, /network profile changed in another tab/);
++    assert.deepEqual(walletRpc, ["eth_sendTransaction"]);
++
++    for (const m of walletRpc) assert.ok(SIGN_OR_SEND.has(m), "the wallet's RPC was asked " + m);
++    assert.deepEqual(forbidden, [], "no public origin was attempted");
++  } finally { await browser?.close(); await rig?.stop(); }
++});
+diff --git a/test/site-independent-management-unit.test.mjs b/test/site-independent-management-unit.test.mjs
+index d5b5a45cf8c9a5be4d848334efe5010d0e8c2d0c..6c27595052799cd6380ef801d512535162036230 100644
+--- a/test/site-independent-management-unit.test.mjs
++++ b/test/site-independent-management-unit.test.mjs
+@@ -44,7 +44,8 @@ async function webKey(){
+ 
+ const world = {};
+ function reset(){
+-  globalThis.localStorage.m.clear();
++  // per-test state (management floors); the tab's saved profile stays - removing it is a profile change (config.js)
++  for (const k of [...globalThis.localStorage.m.keys()]) if (k !== "enclave_independent_profile") globalThis.localStorage.m.delete(k);
+   Object.assign(world, {
+     lease: { id: ID, owner: VAULT, runner: RUNNER, runnerOperator: operator.address.toLowerCase(), chainId: 8453, deployments: LEDGER, active: true,
+              isPublic: false, leaseUntil: Date.now() + 600e3, validUntil: Date.now() + 90e3, blockNumber: "1234" },

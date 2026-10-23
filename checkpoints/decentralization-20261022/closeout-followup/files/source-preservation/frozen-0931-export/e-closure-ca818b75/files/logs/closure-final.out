@@ -1,0 +1,210 @@
+[queue] START available=24089MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+017b8aae5baf1f764e127176a3c6e4d20b3c3ba3
+?? logs/closure-final.out
+anvil Version: 1.7.1
+v22.23.3
+  "version": "2.53.1",
+fbfe452b4401efa35b63ae39f3c687cf31ba715bee9ef1f3cc039d0fd7fb15b8  src/forced-inclusion.mjs
+30cfd9e7ba27740b55f5b4f3b8d603d4da2b44a7583a3f8c4b5107874b71fb2c  src/lease-signing-policy.mjs
+a0401e08e6f51586e8776fc9bd7356c4a1e76f260dd4a74dc270de4fab5bb821  src/vault-deposit.mjs
+4fc17967ebba4601161160ce4d7df8b2e24db5888d898d5af9defd620d92a090  test/fee-audit.anvil.test.mjs
+1944496dba0f4eaa4eafba95f2ce27d1061ffef790ba890b5fc179c86c9557c8  test/forced-inclusion.anvil.test.mjs
+748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
+8474c4c04f793c377f2ddd55b4d5d4e42689cf64b41907d8e5236d6cba7215af  test/lease-signing-policy.anvil.test.mjs
+784ba86de7d3f08cb6cf0df1164c7bc9c5d1ef5bcccc125e3d05e2c966355c2d  test/tracker.test.mjs
+39422d45f9d1e91f2d2a49aa0da9fafd31f1f77c0654d7ab483ba3e3cfc210a3  test/vault-deposit.anvil.test.mjs
+966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  fixtures/artifacts/EnclaveAddressBook.json
+0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
+dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
+aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
+aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
+66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
+613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d  fixtures/artifacts/Mock1271Owner.json
+10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
+524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
+9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946  fixtures/artifacts/MockUSDC3009.json
+f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc  fixtures/artifacts/SessionVault.json
+eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e  fixtures/artifacts/SessionVaultFactory.json
+bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478  fixtures/artifacts/SessionVaultLib.json
+b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8  fixtures/sources/EnclaveAddressBook.sol
+2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
+dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
+1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
+e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
+a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703  fixtures/sources/MockUSDC.sol
+47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d  fixtures/sources/SessionMocks.sol
+a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c  fixtures/sources/SessionVault.sol
+47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
+97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
+65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
+5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
+external network: unreachable (as intended)
+TAP version 13
+# Subtest: provenance: the replayed production GasPriceOracle answers getL1FeeUpperBound(460) exactly as the provider did
+ok 1 - provenance: the replayed production GasPriceOracle answers getL1FeeUpperBound(460) exactly as the provider did
+  ---
+  duration_ms: 422.183558
+  type: 'test'
+  ...
+# Subtest: a forced-inclusion CLAIM: the reserve pays its payee ONLY the L1-fee upper bound (gas price 0); the L1 deposit costs orders of magnitude more
+ok 2 - a forced-inclusion CLAIM: the reserve pays its payee ONLY the L1-fee upper bound (gas price 0); the L1 deposit costs orders of magnitude more
+  ---
+  duration_ms: 53.022307
+  type: 'test'
+  ...
+# FEE {"reservePaidWei":"3135045021","laterLeasesWei":"2586495097","l1GasUsed":"832268","l1BaseFeeWei":"1000000000","l1CostWei":"832268000000000","coverage":0.0000037668695912854994}
+# Subtest: every existing knob at its limit: the maximum the reserve can pay a deposit lease is still the L1 bound; the contracts refuse more
+ok 3 - every existing knob at its limit: the maximum the reserve can pay a deposit lease is still the L1 bound; the contracts refuse more
+  ---
+  duration_ms: 14.980903
+  type: 'test'
+  ...
+# Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ok 4 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+  ---
+  duration_ms: 554.332551
+  type: 'test'
+  ...
+# Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ok 5 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+  ---
+  duration_ms: 74.65163
+  type: 'test'
+  ...
+# claim deposit gasUsed 334205 of limit 800000
+# Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ok 6 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+  ---
+  duration_ms: 49.717154
+  type: 'test'
+  ...
+# Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ok 7 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+  ---
+  duration_ms: 93.585143
+  type: 'test'
+  ...
+# Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ok 8 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+  ---
+  duration_ms: 25.234304
+  type: 'test'
+  ...
+# Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ok 9 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+  ---
+  duration_ms: 27.273378
+  type: 'test'
+  ...
+# Subtest: provenance: the replayed production portal answers version() and params() as the provider did at the captured block
+ok 10 - provenance: the replayed production portal answers version() and params() as the provider did at the captured block
+  ---
+  duration_ms: 181.185681
+  type: 'test'
+  ...
+# Subtest: the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
+ok 11 - the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
+  ---
+  duration_ms: 34.461802
+  type: 'test'
+  ...
+# EOA deposit: L1 gasUsed 834932 at base fee 1 gwei
+# Subtest: a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
+ok 12 - a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
+  ---
+  duration_ms: 25.394862
+  type: 'test'
+  ...
+# 7702-delegated EOA via relayer: deposit from 0x3E25ccD24B9f82fE1EaEfEf3dfA002Da2b4E487e (EOA 0x3E25ccD24B9f82fE1EaEfEf3dfA002Da2b4E487e, alias 0x4f36cCd24B9F82Fe1eaEFEf3dfa002dA2B4E598f)
+# Subtest: L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
+ok 13 - L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
+  ---
+  duration_ms: 548.113219
+  type: 'test'
+  ...
+# L1_COST [{"baseFeeGwei":0.1,"l2GasLimit":400000,"l1GasUsed":435082,"effectiveGasPrice":"100000000","l1CostWei":"43508200000000"},{"baseFeeGwei":0.1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"87862569","l1CostWei":"73358303972049"},{"baseFeeGwei":1,"l2GasLimit":400000,"l1GasUsed":435069,"effectiveGasPrice":"1000000000","l1CostWei":"435069000000000"},{"baseFeeGwei":1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"878625575","l1CostWei":"733582943704575"},{"baseFeeGwei":5,"l2GasLimit":400000,"l1GasUsed":114994,"effectiveGasPrice":"5000000000","l1CostWei":"574970000000000"},{"baseFeeGwei":5,"l2GasLimit":800000,"l1GasUsed":217683,"effectiveGasPrice":"4379791417","l1CostWei":"953406135026811"},{"baseFeeGwei":30,"l2GasLimit":400000,"l1GasUsed":72267,"effectiveGasPrice":"30000000000","l1CostWei":"2168010000000000"},{"baseFeeGwei":30,"l2GasLimit":800000,"l1GasUsed":69431,"effectiveGasPrice":"26268066750","l1CostWei":"1823818142519250"}]
+# Subtest: refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
+ok 14 - refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
+  ---
+  duration_ms: 23.582697
+  type: 'test'
+  ...
+# Subtest: relay route is today's: deadline head + 300 s; forced options without the forced route are refused
+ok 15 - relay route is today's: deadline head + 300 s; forced options without the forced route are refused
+  ---
+  duration_ms: 408.473425
+  type: 'test'
+  ...
+# Subtest: forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
+ok 16 - forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
+  ---
+  duration_ms: 39.88455
+  type: 'test'
+  ...
+# continuity: the protocol may delay a deposit up to 43200 s, longer than the 1800-s lease the ledger grants: a withholding sequencer can let the lease lapse before the renew lands
+# Subtest: forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
+ok 17 - forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
+  ---
+  duration_ms: 14.695965
+  type: 'test'
+  ...
+# Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+ok 18 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+  ---
+  duration_ms: 1.376949
+  type: 'test'
+  ...
+# Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+ok 19 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+  ---
+  duration_ms: 443.531543
+  type: 'test'
+  ...
+# Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+ok 20 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+  ---
+  duration_ms: 66.109087
+  type: 'test'
+  ...
+# Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+ok 21 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+  ---
+  duration_ms: 63.832084
+  type: 'test'
+  ...
+# Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+ok 22 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+  ---
+  duration_ms: 105.600699
+  type: 'test'
+  ...
+# Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+ok 23 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+  ---
+  duration_ms: 129.071107
+  type: 'test'
+  ...
+# Subtest: release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+ok 24 - release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+  ---
+  duration_ms: 58.329266
+  type: 'test'
+  ...
+# Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+ok 25 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+  ---
+  duration_ms: 96.693948
+  type: 'test'
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 24872.447998
+[memory-guard] exit=0 peakTreeRssMiB=251 minHostAvailableMiB=22247
+[memory-guard] at peak: node:101 node:61 anvil:34 anvil:29 anvil:23 timeout:4
+[queue] EXIT 0

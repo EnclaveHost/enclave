@@ -1,0 +1,71 @@
+[queue] START available=23650MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+== pins
+a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+f26b94a8af333c67bc51f4ea4111ca231a8e5f3a0bf6ba22079731ef9ee70890  l1pair/PINS.json
+a2bcc3aabff16977e29e84ed46b1734028ec58c66dbc8c4523ae1bcf62accefa  l1pair/vendor/VENDOR.json
+f1f748833dbb7a1a32702daace04588441cf5b40b93b5046dd1ef3f4c1b985fd  l1pair/test/mutate.py
+86cb2a3558882ec5699d83d68ee11f6d1a0224f1d8b5de36147a3e62bf16cf44  l1pair/test/realrig.py
+6dc6fc2e92136842d4278f56b8194c9fca83fe959f5f52009677f543c94ab4cf  l1pair/test/run_side.py
+9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
+1ff3c408e7e4f4137b975e3d12e2bb70c6796315bfb96c08eea687467eb5291b  l1pair/test/test_l1pair.py
+5dd17163f49cd2dfebbc9af96b9bbd8c61e05566cf5d6fe9fd5d6b370e8fe3f6  l1pair/test/test_lighthouse_offline.py
+60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
+ec20b6d91b5c2ad38ae25b19d76043fa7e33ee2b4fa95ff6572a2c1908dc0b77  l1pair/test/test_tx_broadcast_offline.py
+vendor: OK (S 959e56f byte-identical)
+8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250  bin/reth-v2.8.0
+11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96  bin-staging/lighthouse-v8.3.2/lighthouse
+test_real_lighthouse_refusal_pairing_and_counter_control (__main__.LighthouseOffline.test_real_lighthouse_refusal_pairing_and_counter_control) ... {
+ "label": "mainnet config, offline, empty datadirs; pairing run starts from the EMBEDDED genesis via TEST-ONLY --allow-insecure-genesis-sync",
+ "refusal": {
+  "ready": null,
+  "exitCode": 1,
+  "after": 2.5,
+  "lines": [
+   "{\"event\": \"started\", \"pid\": 3171382, \"argvSha256\": \"27e75d3f41c87f464354d815ddbb41be60062314d293caaa8db48b92a320a218\"}",
+   "Oct 23 01:08:22.342 INFO  Starting from known genesis state           ",
+   "Oct 23 01:08:22.359 CRIT  Failed to start beacon node                   reason: \"Syncing from genesis is insecure and incompatible with data availability checks. You should instead perform a checkpoint sync from a truste",
+   "{\"event\": \"exited\", \"code\": 1, \"stopping\": false}"
+  ]
+ },
+ "reth": {
+  "exitCode": 0,
+  "datadir": {
+   "apparent": 4297253817,
+   "allocated": 3178496,
+   "files": 73
+  }
+ }
+}
+FAIL
+/usr/lib/python3.14/unittest/case.py:668: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/scratch/l1el-0rcx7fkp/cl-badjwt/cl.log' mode='w' encoding='UTF-8'>
+  with outcome.testPartExecutor(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+
+======================================================================
+FAIL: test_real_lighthouse_refusal_pairing_and_counter_control (__main__.LighthouseOffline.test_real_lighthouse_refusal_pairing_and_counter_control)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/l1pair/test/test_lighthouse_offline.py", line 58, in test_real_lighthouse_refusal_pairing_and_counter_control
+    self.assertIsNotNone(ready, cl.text()[-3000:])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : {"event": "started", "pid": 3171657, "argvSha256": "120c2acf7a8c57133076f9c439e0e8b54ea072e02337fcfe8725006caa3126c6"}
+Oct 23 01:08:22.743 INFO  Lighthouse started                            version: "Lighthouse/v8.3.2"
+Oct 23 01:08:22.743 INFO  Configured network                            network_name: "mainnet"
+Oct 23 01:08:22.745 INFO  Data directory initialised                    datadir: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/scratch/l1el-0rcx7fkp/mnt/data/cl-badjwt
+Oct 23 01:08:22.745 INFO  Deposit contract                              deploy_block: 11184524, address: 0x00000000219ab540356cbb839cbe05303d7705fa
+Oct 23 01:08:24.843 INFO  Starting from known genesis state           
+Oct 23 01:08:24.884 INFO  Block production enabled                    
+Oct 23 01:08:24.904 CRIT  Failed to start beacon node                   reason: "Failed to build beacon chain: The current head state is outside the weak subjectivity period. A node in this state is susceptible to long range attacks. You should purge your db and checkpoint sync. For more information please read this blog post: https://blog.ethereum.org/2014/11/25/proof-stake-learned-love-weak-subjectivity If you understand the risks, it is possible to ignore this error with the --ignore-ws-check flag."
+Oct 23 01:08:24.904 INFO  Internal shutdown received                  
+Oct 23 01:08:24.904 INFO  Shutting down..                               reason: Failure("Failed to start beacon node")
+Failed to start beacon node
+{"event": "exited", "code": 1, "stopping": false}
+
+
+----------------------------------------------------------------------
+Ran 1 test in 5.845s
+
+FAILED (failures=1)
+[memory-guard] exit=1 peakTreeRssMiB=521 minHostAvailableMiB=23298
+[memory-guard] at peak: reth-v2.8.0:276 lighthouse:164 python3:31 python3:25 python3:25
+[queue] EXIT 1

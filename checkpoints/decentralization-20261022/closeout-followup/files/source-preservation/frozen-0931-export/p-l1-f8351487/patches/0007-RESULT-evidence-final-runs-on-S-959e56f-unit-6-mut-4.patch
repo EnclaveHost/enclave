@@ -1,0 +1,332 @@
+From 8ea82585c5ac105169fc769a80228e7fe0950454 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 00:54:15 -0700
+Subject: [PATCH 07/12] RESULT/evidence: final runs on S 959e56f (unit-6,
+ mut-4, reth-4, base-3); shared NVMe ledger; disclosures
+
+---
+ RESULT.md         | 62 +++++++++++++++++--------------
+ TEST-EVIDENCE.txt | 95 ++++++++++++++++++++++++++++++++++++++++++-----
+ 2 files changed, 120 insertions(+), 37 deletions(-)
+
+diff --git a/RESULT.md b/RESULT.md
+index 5258e9b3b18a9733638432b0849ce9357eaf52df..418f4883ba353db882c925109112569eba0b26f0 100644
+--- a/RESULT.md
++++ b/RESULT.md
+@@ -98,14 +98,17 @@ Traced in the vendored source `base/base 5476069f`, read-only at `rpc-priority/v
+   - `ready` (the data gate);
+   - `checkpoint-inspect`.
+ - **Reuse, no parallel framework:**
+-  - **Library** (`vendor/holder/`): S's FINAL immutable launcher (`fresh-witness-supply` `6b9dae92`, including root's
+-    `fd0134d` stop-on-failed-teardown unwind; byte-identical, `VENDOR.json` pins), imported as a library for:
++  - **Library** (`vendor/holder/`): S's FINAL immutable source (`fresh-witness-supply` `959e56fd`, root-reviewed budget
++    v2: shared ledger plus rounding fix; includes root's `c3efff41` and `fd0134d` unwind fixes and `b1b6f184`;
++    byte-identical, `VENDOR.json` pins), imported as a library for:
+     - `Supervisor`: own process group, PDEATHSIG, SIGTERM then SIGKILL, `sd_notify`;
+     - `backing_disks` (sysfs HDD/NVMe placement) and `port_in_use`;
+     - `validate_storage`: origin bounds, writethrough-only cache, 250 GB aggregate cap;
+     - `only()`: unknown and credential-named fields are refused.
+   - **Storage script:** S's `holder-storage.sh.in`, **byte-identical**, rendered with `NAME=enclave-l1-pair`. The pair and
+-    the holder never adopt each other's mappings, and the aggregate is measured from ONE shared inventory TSV.
++    the holder never adopt each other's mappings. A cache is admitted, allocated and verified only through S's
++    `budget.py` against the ONE canonical ledger `/etc/enclave-rpc-cache/nvme-cache-budget.json`. That ledger holds fixed
++    reservations charged at `maxBytes`, per-host shares, cap 250e9 and target 200e9.
+ - **Validation refuses:**
+   - **Chain and pins:**
+     - any network other than mainnet, or any client other than reth/Lighthouse;
+@@ -172,15 +175,15 @@ in `unshare -rn` with loopback brought up. Digest: `TEST-EVIDENCE.txt`; full log
+ 
+ | Run | What | Result | Peak |
+ |---|---|---|---|
+-| **reth-3** | **REAL official reth v2.8.0** (`8cdd1f35`) under `l1pair.py run-el`, mainnet, empty datadir | **PASS** (see below) | 293 MiB |
+-| **base-2** | **REAL official base v1.5.1** (S's staged `9c44836d`, read-only) under S's FINAL launcher, `l1.executionRpc` = the REAL reth above, `l1.beacon` = a LABELLED stand-in | **PASS**: alive the full 120 s, `0x2105` at 1.5 s | 569 MiB |
+-| **unit-5** | unit suite on `l1pair.py` `a1de2806` | **19/19 OK** | 256 lane |
+-| **mut-3** | 19 launcher mutants on `a1de2806` | **19/19 killed** | 256 lane |
+-| **scan-3** | crypto-key scanner + gitleaks over all 4 commits; gitleaks over `evidence/` | **0 / no leaks / no leaks** | |
++| **reth-4** | **REAL official reth v2.8.0** (`8cdd1f35`) under `l1pair.py run-el`, mainnet, empty datadir | **PASS** (see below) | 290 MiB |
++| **base-3** | **REAL official base v1.5.1** (S's staged `9c44836d`, read-only) under S's FINAL launcher, `l1.executionRpc` = the REAL reth above, `l1.beacon` = a LABELLED stand-in | **PASS**: alive the full 120 s, `0x2105` at 1.5 s | 565 MiB |
++| **unit-6** | unit suite on `l1pair.py` `3635472d` | **19/19 OK** (about 60 subtests) | 256 lane |
++| **mut-4** | 20 launcher mutants on `3635472d` | **20/20 killed** | 256 lane |
++| **scan-4** | crypto-key scanner + gitleaks over all commits; gitleaks over `evidence/` | see `logs/scan-4.out` | |
+ | rhelp-1, fetch-1..5, inv-1 | the binary's own help (offline), pinned primary sources, read-only inventory | rc 0 | ≤ 54 MiB |
+ 
+-**reth-3 measured, on the real binary:**
+-- ready 0.2 s after start;
++**reth-4 measured, on the real binary** (reth-3 on the previous S pin gave the same values):
++- ready 0.5 s after the launcher started;
+ - `eth_chainId 0x1`, `net_version 1`, genesis `0xd4e56740…8fa3`;
+ - **every Base L1 execution call answered on `eth,net,web3`:**
+   - `eth_blockNumber`;
+@@ -206,7 +209,7 @@ in `unshare -rn` with loopback brought up. Digest: `TEST-EVIDENCE.txt`; full log
+ - **SIGTERM:** exit 0 in 1.67 s, no leftover listener.
+ - **Datadir:** 4.3 GB apparent but **1.5 MB allocated** (sparse MDBX).
+ 
+-**base-2:** the official Base v1.5.1 under S's committed launcher. **Reference:** with L1 unreachable, S's bp-off1 exited
++**base-3** (base-2 on the previous S pin: identical outcome): the official Base v1.5.1 under S's final launcher `959e56f`. **Reference:** with L1 unreachable, S's bp-off1 exited
+ 1 at 5.8 s. **Here it:**
+ - stayed alive for the full 120 s observation and answered `0x2105` at 1.5 s;
+ - logged no L1 retry exhaustion and no "Retrying L1 latest block number lookup";
+@@ -216,7 +219,7 @@ in `unshare -rn` with loopback brought up. Digest: `TEST-EVIDENCE.txt`; full log
+ - started derivation, received the L1 head (genesis), and skipped derivation, as expected without a synced L1.
+ 
+ **What these tests do NOT show:** sync, peers, a live head, Lighthouse behaviour, blob serving, derivation progress, HDD
+-throughput, or any mainnet independence. The beacon side of base-2 is a stand-in.
++throughput, or any mainnet independence. The beacon side of base-3 is a stand-in.
+ 
+ **Failures during development, disclosed:**
+ - **unit-1:** S's `only()` refuses credential-named fields; renamed to `engineAuthPath`.
+@@ -230,6 +233,8 @@ throughput, or any mainnet independence. The beacon side of base-2 is a stand-in
+   responses were replaced by `RELEASES-EXTRACT.json` (with the originals' sha256 kept), and the unpublished commit was
+   amended.
+ - **reth-1:** never started: the background time limit was reached while the large lane was held by another worker.
++- **Re-pins:** root handoffs moved the vendored S source `08f2efe` → `6b9dae92` → `959e56f` (shared budget ledger v2).
++  Unit, mutants and both real-binary tests were rerun on the final pin (unit-6, mut-4, reth-4, base-3).
+ 
+ **Tested vs source-only:**
+ 
+@@ -278,9 +283,13 @@ Sources are pinned docs; **estimates are labelled.**
+ **NVMe cache share:**
+ - The hard cap is 250,000,000,000 bytes across all caches of this work.
+ - S's example plan is 199,140,835,328 bytes.
+-- What remains: **50.86 GB under the cap, 0.86 GB under the 200 GB target.**
+-- The pair defaults to **no cache**. `validate` refuses any share that pushes the declared total over 200 GB, unless the
+-  holder's share is reduced (for example holder 150 GB + pair 48 GB passes; tested).
++- What remains: **0.86 GB under the 200 GB host share/target.** The 50 GB between target and cap is unassigned (S ledger
++  note).
++- The pair defaults to **no cache** and then reserves **nothing** in the ledger, so there is no per-package duplicate
++  allowance.
++- A pair cache requires its OWN ledger reservation (`validate` refuses the holder's id, a non-canonical ledger, a cache
++  without a ledger, and a ledger without a cache). The aggregate, share and target are enforced by `budget.py` at
++  admit/allocate/verify. A 45 GiB pair cache renders its reservation entry; tested.
+ 
+ **Network:** Lighthouse recommends 100/20 Mb/s and reth 24 Mb/s+; the semi-supernode adds column traffic. This is on S4's
+ single uplink. **Not measured.**
+@@ -297,7 +306,7 @@ single uplink. **Not measured.**
+    - 28 GiB for the pair (60 GiB with the holder) against ~24 GiB available today.
+    - Decide which non-GPU workload yields memory, or a different host. Lowering MemoryMax below the vendor figures is not
+      proposed.
+-3. **D3, cache share.** Either none (the default), or rebalance S's 199 GB.
++3. **D3, cache share.** Either none (the default), or root reduces the holder's ledger reservation and adds a pair reservation.
+ 4. **D4, anchor.** One state and block pair plus ≥ 2 independent root observations, after which the node exports its own.
+ 5. **D5, Lighthouse binary download.** A 31 MB tarball, digest-checked. Also decide whether to establish the Sigma Prime
+    PGP key.
+@@ -341,18 +350,17 @@ single uplink. **Not measured.**
+ 
+ **Source:**
+ - repo `work/rpc-l1-source-package`, branch `main`;
+-- **commit `e373dca68176a45bc642b9091ad3cefe5afa2968`** (tree `0e4f7afb…`) holds all source, tests, evidence and logs;
+-- this RESULT.md is the next commit;
++- **commit `1260cdcb202a93b383fb78303a8068d6ac01b309`** holds the final source and tests; the RESULT/evidence commit follows it;
+ - not pushed.
+ 
+ | File | sha256 |
+ |---|---|
+-| `l1pair/l1pair.py` | `a1de2806dc321b411b71dcffb7b10b324bf73146fcbc40e57722e7caa54bbb74` |
++| `l1pair/l1pair.py` | `3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975` |
+ | `l1pair/PINS.json` | `46deaf02b28a96d2806a71de21b7559cdaa657f3dd718bfd5623ab4b91810d6a` |
+-| `l1pair/vendor/VENDOR.json` (S `6b9dae92` byte-identical: `holder.py` `30cd71a5…`, `holder-storage.sh.in` `334737ae…`) | `a5440bc77ab55aa68f541b768acca438df75025eeea6c0d42a99c31a6eaabb53` |
+-| `l1pair/l1pair.example.json` (refused until pins are recorded) | `0d709d12d561e3ff…` |
+-| `l1pair/RUNBOOK.md` | `731c2ba75dbd45c5…` |
+-| tests: `test_l1pair.py` / `test_reth_offline.py` / `test_base_l1_offline.py` / `realrig.py` / `mutate.py` | `a394a5f0…` / `60ef25b1…` / `af415813…` / `a3c26785…` / `51b8a2d1…` |
++| `l1pair/vendor/VENDOR.json` (S `959e56fd` byte-identical: `holder.py` `c73a4351…`, `budget.py` `529e155f…`, `holder-storage.sh.in` `eb6a209d…`) | `a2bcc3aabff16977e29e84ed46b1734028ec58c66dbc8c4523ae1bcf62accefa` |
++| `l1pair/l1pair.example.json` (refused until pins are recorded) | `ad3a100b3137217e…` |
++| `l1pair/RUNBOOK.md` | `864ff263a487d79d…` |
++| tests: `test_l1pair.py` / `test_reth_offline.py` / `test_base_l1_offline.py` / `realrig.py` / `mutate.py` | `e129dce2…` / `60ef25b1…` / `9ef5d9d7…` / `a3c26785…` / `35c60ff6…` |
+ 
+ **Existing client pin evidence:**
+ - **reth v2.8.0:**
+@@ -375,7 +383,7 @@ single uplink. **Not measured.**
+ | 1 | Install reth from the existing tarball; download and digest-check Lighthouse; record its sha256 |
+ | 2 | Service user; JWT secret generated locally (0640 `root:enclave-l1`) |
+ | 3 | Config: `validate`, `render`, review |
+-| 4 | Storage: S's script (`create`, `verify-cap`, `assemble`), no cache by default |
++| 4 | Storage: S's script (`create`, `verify-cap`, `assemble`); no cache and no ledger reservation by default |
+ | 5 | Anchor files with sha256, wss and ≥ 2 provenance observations; `checkpoint-inspect` |
+ | 6 | `preflight` (refuses today on memory: D2); start EL then CL |
+ | 7 | `ready` gate with `--need-from-block` / `--need-blobs-from-slot` covering the holder's safe-head L1 origin minus 3600 |
+@@ -392,9 +400,9 @@ No existing service, VM, filesystem, wallet or admin control is touched.
+ **Gates for root** (all must hold before the holder uses the pair):
+ - **G1:** D1 decided. If HDD is chosen, a bounded follow test after sync: head lag ≤ 120 s sustained, measured iowait.
+ - **G2:** D2 decided, and `preflight` passes on CURRENT MemAvailable with the co-resident reservation.
+-- **G3:** the shared NVMe inventory has ONE canonical identity (root note: the holder's
+-  `/etc/enclave-base-holder/nvme-cache-inventory.tsv`, now the example's path), with fixed aggregate reservations ≤ 250e9
+-  and target 200e9. The L1 pair stays at no cache unless rebalanced.
++- **G3:** ONE canonical shared ledger, `/etc/enclave-rpc-cache/nvme-cache-budget.json` (S `budget.py` v2, root-reviewed
++  at `959e56f`), with fixed reservations ≤ 250e9 and target 200e9. The L1 pair stays at no cache, with no reservation,
++  unless the ledger is rebalanced.
+ - **G4:** Lighthouse binary digest-checked and pinned; `preflight` flag/help check passes.
+ - **G5:** anchor provenance recorded (≥ 2 distinct sources); after the first start, `checkpoint.mode` is set to `resume`.
+ - **G6:** `ready` exits 0, including `--need-blobs-from-slot` covering the holder's derivation start.
+diff --git a/TEST-EVIDENCE.txt b/TEST-EVIDENCE.txt
+index c8b4d3fc2922f5c489c4f32b7626b812216690bb..4efbc9e765c077fceaf947b1fc80ed66dd8be5e5 100644
+--- a/TEST-EVIDENCE.txt
++++ b/TEST-EVIDENCE.txt
+@@ -7,7 +7,7 @@
+     [memory-guard] exit=0 peakTreeRssMiB=54 minHostAvailableMiB=23596
+     [queue] EXIT 0
+ 
+-## fetch-1  rc=0  sha256 d7e2684d944f694f051cdb7718c9125908a8378745b7972e6492f64792449cd6  bytes 1724  -- release metadata
++## fetch-1  rc=0  sha256 d7e2684d944f694f051cdb7718c9125908a8378745b7972e6492f64792449cd6  bytes 1724  -- release metadata (raw JSON later trimmed to RELEASES-EXTRACT.json)
+     [queue] START available=24404MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+     [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=24347
+     [queue] EXIT 0
+@@ -48,7 +48,7 @@
+     [memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+     [queue] EXIT 1
+ 
+-## unit-2  rc=1  sha256 4b1e80ad109546317edec2b6de9c3cd57b0befd522cd7daf2ca8c2396ec5fd3b  bytes 6696  -- DEV: loopback down in netns; check count; cache share arithmetic
++## unit-2  rc=1  sha256 4b1e80ad109546317edec2b6de9c3cd57b0befd522cd7daf2ca8c2396ec5fd3b  bytes 6696  -- DEV: loopback down in netns; check count; cache arithmetic
+     [queue] START available=24185MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+     77acff290c005ea219e0d9b4274ea076fdcfa2b60b3c8c51d06bf2a08c3ab129  l1pair/l1pair.py
+     07bd79fa7cfed931e39e77331419ce1bd2bc6fffeffc26be8f1169dec39ed6ec  l1pair/test/test_l1pair.py
+@@ -58,7 +58,7 @@
+     [memory-guard] exit=1 peakTreeRssMiB=35 minHostAvailableMiB=24106
+     [queue] EXIT 1
+ 
+-## unit-3  rc=0  sha256 85fbc047a49c351ea6a751f693bed20dbd29fe156daffcacc0ee21fb3b4b8f49  bytes 2516  -- unit 19/19 (pre re-vendor)
++## unit-3  rc=0  sha256 85fbc047a49c351ea6a751f693bed20dbd29fe156daffcacc0ee21fb3b4b8f49  bytes 2516  -- unit 19/19 (S 08f2efe pin)
+     [queue] START available=24421MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+     77acff290c005ea219e0d9b4274ea076fdcfa2b60b3c8c51d06bf2a08c3ab129  l1pair/l1pair.py
+     3b02e9e3352ddde96e8303683082f71df579064bbb7c99465256a4d9a8d5f421  l1pair/test/test_l1pair.py
+@@ -68,7 +68,7 @@
+     [memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=24249
+     [queue] EXIT 0
+ 
+-## mut-1  rc=0  sha256 9f338a0c82ec9c67a45d8c3d163c794b76ef08135c4ca6f1df25a3f5917a9e0d  bytes 2922  -- mutants 19/19 (pre re-vendor)
++## mut-1  rc=0  sha256 9f338a0c82ec9c67a45d8c3d163c794b76ef08135c4ca6f1df25a3f5917a9e0d  bytes 2922  -- mutants 19/19 (S 08f2efe pin)
+     [queue] START available=23868MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+     f9f3dc42edcdc240328c26db14cca8f9eae5945e82d9d0c592336bb2ce0f3b9d  l1pair/l1pair.py
+     3b02e9e3352ddde96e8303683082f71df579064bbb7c99465256a4d9a8d5f421  l1pair/test/test_l1pair.py
+@@ -77,7 +77,7 @@
+     [memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=23723
+     [queue] EXIT 0
+ 
+-## unit-4  rc=0  sha256 94bf2c8d81ad0197f28058a456febeadd7ec884540901d8d09f3ac574a3c4b6a  bytes 2985  -- unit 19/19 after re-vendor S 6b9dae92
++## unit-4  rc=0  sha256 94bf2c8d81ad0197f28058a456febeadd7ec884540901d8d09f3ac574a3c4b6a  bytes 2985  -- unit 19/19 (S 6b9dae92 pin)
+     [queue] START available=23915MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+     a008183607760acb73d97cca36f59ac5fed99939ee0e4d0b499704e54ad20a1a  l1pair/l1pair.py
+     a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+@@ -87,7 +87,7 @@
+     [memory-guard] exit=0 peakTreeRssMiB=35 minHostAvailableMiB=23749
+     [queue] EXIT 0
+ 
+-## mut-2  rc=0  sha256 d4822799051b7603818c049c05dc5667631606fb81848bfd7008d1c50cfa4400  bytes 2923  -- mutants 19/19 after re-vendor
++## mut-2  rc=0  sha256 d4822799051b7603818c049c05dc5667631606fb81848bfd7008d1c50cfa4400  bytes 2923  -- mutants 19/19 (S 6b9dae92 pin)
+     [queue] START available=23923MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+     a008183607760acb73d97cca36f59ac5fed99939ee0e4d0b499704e54ad20a1a  l1pair/l1pair.py
+     a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+@@ -110,7 +110,7 @@
+     [memory-guard] exit=1 peakTreeRssMiB=58 minHostAvailableMiB=23840
+     [queue] EXIT 1
+ 
+-## reth-3  rc=0  sha256 e711739aa0bc1695e662d22f9161d944ade9364db3fba83918342d9815c3253c  bytes 10285  -- FINAL real reth v2.8.0 under run-el: PASS
++## reth-3  rc=0  sha256 e711739aa0bc1695e662d22f9161d944ade9364db3fba83918342d9815c3253c  bytes 10285  -- real reth PASS (S 6b9dae92 pin)
+     [queue] START available=24224MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+     a1de2806dc321b411b71dcffb7b10b324bf73146fcbc40e57722e7caa54bbb74  l1pair/l1pair.py
+     a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+@@ -124,7 +124,7 @@
+     [memory-guard] exit=0 peakTreeRssMiB=293 minHostAvailableMiB=24023
+     [queue] EXIT 0
+ 
+-## unit-5  rc=0  sha256 44a8c4746b9093767988d5cad4681fc15c048c6e67375428ea3820e086e12623  bytes 2985  -- FINAL unit 19/19 on a1de2806
++## unit-5  rc=0  sha256 44a8c4746b9093767988d5cad4681fc15c048c6e67375428ea3820e086e12623  bytes 2985  -- unit 19/19 (S 6b9dae92 pin, a1de2806)
+     [queue] START available=23897MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+     a1de2806dc321b411b71dcffb7b10b324bf73146fcbc40e57722e7caa54bbb74  l1pair/l1pair.py
+     a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+@@ -134,7 +134,7 @@
+     [memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=23801
+     [queue] EXIT 0
+ 
+-## mut-3  rc=0  sha256 80980f18e8df9abc54d3e835bb55a60c192bc9063434f766be698b65805f76e0  bytes 2923  -- FINAL mutants 19/19 on a1de2806
++## mut-3  rc=0  sha256 80980f18e8df9abc54d3e835bb55a60c192bc9063434f766be698b65805f76e0  bytes 2923  -- mutants 19/19 (a1de2806)
+     [queue] START available=23883MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+     a1de2806dc321b411b71dcffb7b10b324bf73146fcbc40e57722e7caa54bbb74  l1pair/l1pair.py
+     a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+@@ -158,7 +158,7 @@
+     [memory-guard] exit=1 peakTreeRssMiB=479 minHostAvailableMiB=23157
+     [queue] EXIT 1
+ 
+-## base-2  rc=0  sha256 48f8a2db920a071eab8e5f4fcdf6c75c4a35fe7a21d02a207d80a346f447f287  bytes 3627  -- FINAL official base v1.5.1 on real reth: alive 120 s, 0x2105: PASS
++## base-2  rc=0  sha256 48f8a2db920a071eab8e5f4fcdf6c75c4a35fe7a21d02a207d80a346f447f287  bytes 3627  -- real base on real reth PASS (S 6b9dae92 pin)
+     [queue] START available=23865MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+     a1de2806dc321b411b71dcffb7b10b324bf73146fcbc40e57722e7caa54bbb74  l1pair/l1pair.py
+     a394a5f07ed87545522959f81eb2b46ff077934641ba12f74734c1f9db8e149d  l1pair/test/test_l1pair.py
+@@ -172,3 +172,78 @@
+     OK
+     [memory-guard] exit=0 peakTreeRssMiB=569 minHostAvailableMiB=23367
+     [queue] EXIT 0
++
++## scan-1  rc=1  sha256 4234010e912c27f0063c83407e8407d24ced332322804a47ddcfb070455348d6  bytes 1689  -- gitleaks 13 generic-api-key in raw lighthouse release JSON (public PGP fingerprint etc.)
++    [queue] START available=23698MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++    12:44AM WRN leaks found: 13
++    12:44AM WRN leaks found: 13
++    [scan] scan-crypto-keys=0 gitleaks-git=1 gitleaks-evidence=1
++    [memory-guard] exit=1 peakTreeRssMiB=81 minHostAvailableMiB=23626
++    [memory-guard] at peak: gitleaks:71 bash:6 timeout:4
++    [queue] EXIT 1
++
++## scan-2  rc=1  sha256 ddf5b1fab5d8359f4778e9789b262cdf10ca2e7e39c186c8e1cfca464ebed18d  bytes 1699  -- same, with JSON report
++    [queue] START available=23593MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++    12:44AM WRN leaks found: 13
++    12:44AM WRN leaks found: 13
++    [scan] scan-crypto-keys=0 gitleaks-git=1 gitleaks-evidence=1
++    [memory-guard] exit=1 peakTreeRssMiB=84 minHostAvailableMiB=23523
++    [memory-guard] at peak: gitleaks:74 bash:6 timeout:4
++    [queue] EXIT 1
++
++## scan-3  rc=0  sha256 595c318462f07a62f3f3761ee008fa6850f0dd3041c32eb8a076a1d7ff2971a1  bytes 1697  -- clean after trimming raw release JSON
++    [queue] START available=23538MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++    12:45AM INF no leaks found
++    12:45AM INF no leaks found
++    [scan] scan-crypto-keys=0 gitleaks-git=0 gitleaks-evidence=0
++    [memory-guard] exit=0 peakTreeRssMiB=69 minHostAvailableMiB=23483
++    [memory-guard] at peak: gitleaks:59 bash:6 timeout:4
++    [queue] EXIT 0
++
++## unit-6  rc=0  sha256 863fabbd12f70a2babb33d6536d41f2e918851eb7f51cddfa9eb1db7945a66f6  bytes 2984  -- FINAL unit 19/19 (S 959e56f pin, l1pair 3635472d)
++    [queue] START available=24060MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++    3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
++    e129dce22fd352ef748bb7089ae72f0536a03455ee7d5450da42cad6b87351d3  l1pair/test/test_l1pair.py
++    vendor: OK (S 959e56f byte-identical)
++    Ran 19 tests in 7.239s
++    OK
++    [memory-guard] exit=0 peakTreeRssMiB=35 minHostAvailableMiB=24004
++    [queue] EXIT 0
++
++## mut-4  rc=0  sha256 f16fa850312855ad8d30fba3650e75a2df800e035714fc7db221afec2c52bc15  bytes 3051  -- FINAL mutants 20/20 killed (3635472d)
++    [queue] START available=22805MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++    3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
++    e129dce22fd352ef748bb7089ae72f0536a03455ee7d5450da42cad6b87351d3  l1pair/test/test_l1pair.py
++    vendor: OK (S 959e56f byte-identical)
++    20/20 killed
++    [memory-guard] exit=0 peakTreeRssMiB=55 minHostAvailableMiB=20347
++    [queue] EXIT 0
++
++## reth-4  rc=0  sha256 57314aebfb1ee4323a36e52e639941083a7dc81e2defffda555f5f26c2b7c612  bytes 10276  -- FINAL real reth v2.8.0 under run-el PASS (S 959e56f)
++    [queue] START available=23668MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
++    3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
++    e129dce22fd352ef748bb7089ae72f0536a03455ee7d5450da42cad6b87351d3  l1pair/test/test_l1pair.py
++    vendor: OK (S 959e56f byte-identical)
++    8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250  bin/reth-v2.8.0
++     "readyAfterSec": 0.5,
++     "exitCode": 0,
++     "stopSec": 1.67,
++    Ran 1 test in 2.183s
++    OK
++    [memory-guard] exit=0 peakTreeRssMiB=290 minHostAvailableMiB=23456
++    [queue] EXIT 0
++
++## base-3  rc=0  sha256 2b8693c21ecff2b4e881c9dec7209f4f03b98ed53d2aa9338292716a259a9515  bytes 3472  -- FINAL official base v1.5.1 on real reth PASS (S 959e56f)
++    [queue] START available=23639MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
++    3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
++    e129dce22fd352ef748bb7089ae72f0536a03455ee7d5450da42cad6b87351d3  l1pair/test/test_l1pair.py
++    vendor: OK (S 959e56f byte-identical)
++    9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f  ../fresh-witness-supply/staging/base-v1.5.1-20261023T053947Z/base
++     "aliveAfterSec": 120.0,
++     "exitedAfterSec": null,
++     "exitCode": 0,
++     "chainId": "0x2105",
++    Ran 1 test in 121.136s
++    OK
++    [memory-guard] exit=0 peakTreeRssMiB=565 minHostAvailableMiB=21422
++    [queue] EXIT 0

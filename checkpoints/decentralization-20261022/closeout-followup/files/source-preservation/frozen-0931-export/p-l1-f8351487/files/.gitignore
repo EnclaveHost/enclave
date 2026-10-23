@@ -1,0 +1,5 @@
+bin/
+scratch/
+__pycache__/
+*.pyc
+bin-staging/

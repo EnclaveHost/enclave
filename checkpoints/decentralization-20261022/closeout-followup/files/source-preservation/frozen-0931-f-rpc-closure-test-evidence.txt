@@ -1,0 +1,376 @@
+# F host-service-rpc-closure (14d1e495) job log digest; generated from resume-after-checkpoint-20261022/host-service-rpc-closure/logs; full logs stay local.
+
+## b1-build-js  out-sha256 aac3c4dec17b0663e59b0eec146128dd00b9eb833f05b7de429bed976ce58158  bytes 1019  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=582 minHostAvailableMiB=21975
+    [queue] START available=23122MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    network/build.mjs exit=1
+    network/build.mjs exit=1
+    [memory-guard] exit=0 peakTreeRssMiB=582 minHostAvailableMiB=21975
+    [memory-guard] at peak: esbuild:222 esbuild:170 node:103 node:63 bash:6 sh:6 timeout:4 tail:4
+    [queue] EXIT 0
+
+## c1-commit  out-sha256 0866b47a116033267132759fc59476a6a7a9abd5c39197b2f4ec8f791463c956  bytes 366  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] START available=23694MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [memory-guard] at peak:
+    [queue] EXIT 0
+
+## c2-commit  out-sha256 7fefe2d91808f457df8d6b8af8d5f10bb80ea81840e035dbbbb970aba4dcf1ed  bytes 984  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=21 minHostAvailableMiB=22911
+    [queue] START available=22386MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [memory-guard] exit=0 peakTreeRssMiB=21 minHostAvailableMiB=22911
+    [memory-guard] at peak: git:15 bash:6
+    [queue] EXIT 0
+
+## c3-commit  out-sha256 ccc06bb9fa221ccdc5bc760c3083508ffae6f224559c4911fa2c986eee9a212f  bytes 2020  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] START available=23056MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [memory-guard] at peak:
+    [queue] EXIT 0
+
+## g1-regress-light  out-sha256 fb3951b058697822a4584c472036460c9341ef9ea1270841e3ddc2cb2238ff05  bytes 6735  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=541 minHostAvailableMiB=23308
+    [queue] START available=23785MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    ℹ tests 251
+    ℹ pass 220
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 30
+    ✖ modes: the platform network enforces by default (production constants), a profile field configures any book, others are off (3.139454ms)
+    ✖ modes: the platform network enforces by default (production constants), a profile field configures any book, others are off (3.139454ms)
+    ℹ tests 12
+    ℹ pass 11
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ modes: the platform network enforces by default (production constants), a profile field configures any book, others are off (2.630368ms)
+    ✖ modes: the platform network enforces by default (production constants), a profile field configures any book, others are off (2.630368ms)
+    [regress] candidate exit=1
+    [memory-guard] exit=0 peakTreeRssMiB=541 minHostAvailableMiB=23308
+    [memory-guard] at peak: esbuild:321 node:79 node:63 node:55 bash:6 bash:6 timeout:4 tee:4
+    [queue] EXIT 0
+
+## g2-h1-agent  out-sha256 a6086aafcd97276797a25d6a2d38fc76a1c97bf7ca0ffc0fd7a0ae2746eb6405  bytes 1670  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=581 minHostAvailableMiB=22402
+    [queue] START available=23684MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
+    ℹ tests 62
+    ℹ pass 60
+    ℹ fail 2
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (587.443548ms)
+    ✖ the shipped bundle runs the app-less daemon: admitted -> host services (1095.350925ms)
+    ✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (587.443548ms)
+    ✖ the shipped bundle runs the app-less daemon: admitted -> host services (1095.350925ms)
+    ℹ tests 21
+    ℹ pass 20
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (590.771769ms)
+    ✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (590.771769ms)
+    [regress] candidate exit=1
+    [memory-guard] exit=0 peakTreeRssMiB=581 minHostAvailableMiB=22402
+    [memory-guard] at peak: esbuild:298 node:108 node:90 node:61 bash:6 bash:6 timeout:4 tee:4
+    [queue] EXIT 0
+
+## g3-h2a-roles  out-sha256 57b81e4a7cd996c082b15902d75dbc5c20ba8d661e1521df531df35e0adf6d11  bytes 911  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=616 minHostAvailableMiB=23039
+    [queue] START available=23591MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    ℹ tests 26
+    ℹ pass 24
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 2
+    [regress] candidate exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=616 minHostAvailableMiB=23039
+    [memory-guard] at peak: node:105 node:99 node:92 node:79 node:61 node:61 node:59 anvil:35
+    [queue] EXIT 0
+
+## g4-h2b-anvil  out-sha256 91627609dad919792446d853bd6d524619b43995150811f24b44c8a722787c91  bytes 728  rc 99
+    [memory-guard] exit=SIGTERM peakTreeRssMiB=1029 minHostAvailableMiB=22992 STOPPED: process tree RSS 1029 MiB > 1024 MiB
+    [queue] START available=23447MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] STOPPING own job: process tree RSS 1029 MiB > 1024 MiB
+    [memory-guard] exit=SIGTERM peakTreeRssMiB=1029 minHostAvailableMiB=22992 STOPPED: process tree RSS 1029 MiB > 1024 MiB
+    [memory-guard] at peak: node:356 chrome-headless:232 chrome-headless:122 chrome-headless:117 node:61 chrome-headless:40 chrome-headless:40 anvil:36
+    [queue] EXIT 99
+
+## g5-agent-two  out-sha256 7047411140a040b581f97bbdd7785451265df6c1dc64e16e11b0443625d6050f  bytes 455  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=598 minHostAvailableMiB=23058
+    [queue] START available=23670MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    ℹ tests 21
+    ℹ pass 21
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [regress] candidate exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=598 minHostAvailableMiB=23058
+    [memory-guard] at peak: esbuild:323 node:108 node:89 node:54 bash:6 bash:6 timeout:4 tee:4
+    [queue] EXIT 0
+
+## g5-cand  out-sha256 3b30cd88b2babebbb23888a3db1f262bd0f07bdda11c82caa8e01babb2f191c8  bytes 4000  rc absent
+    [job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-rpc-closure/candidate head bb86e0cebdd43c4ab4a5182c42fc143b30eafa6b dirty=9
+    ℹ tests 21
+    ℹ pass 21
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    [job] exit=0
+
+## g6-anvil-a  out-sha256 2cea36ef99443ffd411ddae4b7c4705d82b91637e0b82bcc2ea233ca1b2caa83  bytes 1254  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=605 minHostAvailableMiB=22108
+    [queue] START available=22654MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
+    ℹ tests 39
+    ℹ pass 38
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked (166.328751ms)
+    ✖ the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked (166.328751ms)
+    ℹ tests 15
+    ℹ pass 14
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked (176.219198ms)
+    ✖ the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked (176.219198ms)
+    [regress] candidate exit=1
+    [memory-guard] exit=0 peakTreeRssMiB=605 minHostAvailableMiB=22108
+    [memory-guard] at peak: node:297 node:96 node:91 node:60 anvil:38 bash:6 bash:6 timeout:4
+    [queue] EXIT 0
+
+## g6-base  out-sha256 5320e657b10fe5304d37ab4e06fb0e8e6c310ff6243570ceadd148ffdf8399ff  bytes 3584  rc absent
+    [job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-rpc-closure/base head 4106c3114dd13f39692195c182d3152efa5e212c dirty=0
+    ✖ the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked (176.219198ms)
+    ℹ tests 15
+    ℹ pass 14
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked (176.219198ms)
+    [job] exit=1
+
+## g6-cand  out-sha256 b1d04de759ee4f963aa336cab74e51a4aebf5bbbe00e8386fce8e3d307962f92  bytes 7803  rc absent
+    [job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-rpc-closure/candidate head bb86e0cebdd43c4ab4a5182c42fc143b30eafa6b dirty=9
+    ✖ the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked (166.328751ms)
+    ℹ tests 39
+    ℹ pass 38
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked (166.328751ms)
+    [job] exit=1
+
+## g7-anvil-b  out-sha256 eeec3fd205f5b5cdaa4d0637dc04bca52c633c3492b52fe6fe82ebe2d2d820a9  bytes 3356  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=1057 minHostAvailableMiB=23142
+    [queue] START available=23585MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+    ℹ tests 25
+    ℹ pass 17
+    ℹ fail 8
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ every operation through the Manage tab: status, logs, host-reported attestation, app token, CPU profile, restart (595.787343ms)
+    ✖ a restart whose answer is lost: outcome unknown, check status, never resent (631.05971ms)
+    ✖ records: a directory-swapped record is ignored; a replayed older record after a newer one is refused, across a reload (616.016973ms)
+    ✖ a record that does not list this dashboard, and a gateway that refuses its CORS: nothing reaches the supervisor (516.419866ms)
+    ✖ DNS and CA failures: refused with the native fallback; the native path is named, never the SPKI claimed (483.987385ms)
+    ✖ no agreeing RPCs: the page refuses before contacting the host; a gateway without quorum refuses before forwarding (553.923162ms)
+    ✖ a passkey account (Safe) as the identity: Manage signs with the account's own session; a Safe-held record needs the Safe's own delegation; the wallet's identity cannot act for it (264.967141ms)
+    ✖ nothing reached Enclave; only the dashboard, the operator origins, the profile's RPCs and directory; the app token is in no log or storage (4.5613ms)
+    ✖ every operation through the Manage tab: status, logs, host-reported attestation, app token, CPU profile, restart (595.787343ms)
+    ✖ a restart whose answer is lost: outcome unknown, check status, never resent (631.05971ms)
+    ✖ records: a directory-swapped record is ignored; a replayed older record after a newer one is refused, across a reload (616.016973ms)
+    ✖ a record that does not list this dashboard, and a gateway that refuses its CORS: nothing reaches the supervisor (516.419866ms)
+    ✖ DNS and CA failures: refused with the native fallback; the native path is named, never the SPKI claimed (483.987385ms)
+    ✖ no agreeing RPCs: the page refuses before contacting the host; a gateway without quorum refuses before forwarding (553.923162ms)
+    ✖ a passkey account (Safe) as the identity: Manage signs with the account's own session; a Safe-held record needs the Safe's own delegation; the wallet's identity cannot act for it (264.967141ms)
+    ✖ nothing reached Enclave; only the dashboard, the operator origins, the profile's RPCs and directory; the app token is in no log or storage (4.5613ms)
+    ℹ tests 10
+    ℹ pass 0
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 10
+    [regress] candidate exit=1
+    [memory-guard] exit=0 peakTreeRssMiB=1057 minHostAvailableMiB=23142
+    [memory-guard] at peak: node:366 chrome-headless:252 chrome-headless:130 chrome-headless:112 node:59 chrome-headless:39 chrome-headless:39 anvil:35
+    [queue] EXIT 0
+
+## g7-base  out-sha256 bb3663a751ddb5fac6674ff4b676207ca18cf81df95303ac62aed7a979f3bbf2  bytes 2718  rc absent
+    [job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-rpc-closure/base head 4106c3114dd13f39692195c182d3152efa5e212c dirty=0
+    ℹ tests 10
+    ℹ pass 0
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 10
+    ℹ todo 0
+    [job] exit=0
+
+## g7-cand  out-sha256 6054785e2f433d8180d68b481ff18cc38aee4d0d978eeb6470c3a0d4afbe737f  bytes 15838  rc absent
+    [job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-rpc-closure/candidate head bb86e0cebdd43c4ab4a5182c42fc143b30eafa6b dirty=9
+    ✖ every operation through the Manage tab: status, logs, host-reported attestation, app token, CPU profile, restart (595.787343ms)
+    ✖ a restart whose answer is lost: outcome unknown, check status, never resent (631.05971ms)
+    ✖ records: a directory-swapped record is ignored; a replayed older record after a newer one is refused, across a reload (616.016973ms)
+    ✖ a record that does not list this dashboard, and a gateway that refuses its CORS: nothing reaches the supervisor (516.419866ms)
+    ✖ DNS and CA failures: refused with the native fallback; the native path is named, never the SPKI claimed (483.987385ms)
+    ✖ no agreeing RPCs: the page refuses before contacting the host; a gateway without quorum refuses before forwarding (553.923162ms)
+    ✖ a passkey account (Safe) as the identity: Manage signs with the account's own session; a Safe-held record needs the Safe's own delegation; the wallet's identity cannot act for it (264.967141ms)
+    ✖ nothing reached Enclave; only the dashboard, the operator origins, the profile's RPCs and directory; the app token is in no log or storage (4.5613ms)
+    ℹ tests 25
+    ℹ pass 17
+    ℹ fail 8
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ every operation through the Manage tab: status, logs, host-reported attestation, app token, CPU profile, restart (595.787343ms)
+    ✖ a restart whose answer is lost: outcome unknown, check status, never resent (631.05971ms)
+    ✖ records: a directory-swapped record is ignored; a replayed older record after a newer one is refused, across a reload (616.016973ms)
+    ✖ a record that does not list this dashboard, and a gateway that refuses its CORS: nothing reaches the supervisor (516.419866ms)
+    ✖ DNS and CA failures: refused with the native fallback; the native path is named, never the SPKI claimed (483.987385ms)
+    ✖ no agreeing RPCs: the page refuses before contacting the host; a gateway without quorum refuses before forwarding (553.923162ms)
+    ✖ a passkey account (Safe) as the identity: Manage signs with the account's own session; a Safe-held record needs the Safe's own delegation; the wallet's identity cannot act for it (264.967141ms)
+    ✖ nothing reached Enclave; only the dashboard, the operator origins, the profile's RPCs and directory; the app token is in no log or storage (4.5613ms)
+    [job] exit=1
+
+## g8-site-base  out-sha256 4397f7fea5b80e0223c161cd61c9ca80a2b290bf7c9048fb0518159f1a428a0f  bytes 16116  rc 1
+    [memory-guard] exit=1 peakTreeRssMiB=1086 minHostAvailableMiB=22925
+    [queue] START available=23487MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-rpc-closure/base head 4106c3114dd13f39692195c182d3152efa5e212c dirty=0
+    ✖ every operation through the Manage tab: status, logs, host-reported attestation, app token, CPU profile, restart (613.365051ms)
+    ✖ a restart whose answer is lost: outcome unknown, check status, never resent (503.672422ms)
+    ✖ records: a directory-swapped record is ignored; a replayed older record after a newer one is refused, across a reload (494.304153ms)
+    ✖ a record that does not list this dashboard, and a gateway that refuses its CORS: nothing reaches the supervisor (499.932246ms)
+    ✖ DNS and CA failures: refused with the native fallback; the native path is named, never the SPKI claimed (517.458482ms)
+    ✖ no agreeing RPCs: the page refuses before contacting the host; a gateway without quorum refuses before forwarding (532.288665ms)
+    ✖ a passkey account (Safe) as the identity: Manage signs with the account's own session; a Safe-held record needs the Safe's own delegation; the wallet's identity cannot act for it (265.593076ms)
+    ✖ nothing reached Enclave; only the dashboard, the operator origins, the profile's RPCs and directory; the app token is in no log or storage (4.777729ms)
+    ℹ tests 25
+    ℹ pass 17
+    ℹ fail 8
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ every operation through the Manage tab: status, logs, host-reported attestation, app token, CPU profile, restart (613.365051ms)
+    ✖ a restart whose answer is lost: outcome unknown, check status, never resent (503.672422ms)
+    ✖ records: a directory-swapped record is ignored; a replayed older record after a newer one is refused, across a reload (494.304153ms)
+    ✖ a record that does not list this dashboard, and a gateway that refuses its CORS: nothing reaches the supervisor (499.932246ms)
+    ✖ DNS and CA failures: refused with the native fallback; the native path is named, never the SPKI claimed (517.458482ms)
+    ✖ no agreeing RPCs: the page refuses before contacting the host; a gateway without quorum refuses before forwarding (532.288665ms)
+    ✖ a passkey account (Safe) as the identity: Manage signs with the account's own session; a Safe-held record needs the Safe's own delegation; the wallet's identity cannot act for it (265.593076ms)
+    ✖ nothing reached Enclave; only the dashboard, the operator origins, the profile's RPCs and directory; the app token is in no log or storage (4.777729ms)
+    [job] exit=1
+    [memory-guard] exit=1 peakTreeRssMiB=1086 minHostAvailableMiB=22925
+    [memory-guard] at peak: node:393 chrome-headless:255 chrome-headless:122 chrome-headless:119 node:59 chrome-headless:41 chrome-headless:41 anvil:37
+    [queue] EXIT 1
+
+## k1-compose-a  out-sha256 16e2123a927836ea1a714dc8d2268e31d0ac093a15a67d7d926f9b3643a3d523  bytes 942  rc 4
+    [memory-guard] exit=4 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] START available=23689MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] exit=4 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [memory-guard] at peak:
+    [queue] EXIT 4
+
+## p1-pkg  out-sha256 7210a07500e21860db25ba6894d500118591e4e142a3121282f5ad1366908926  bytes 1621  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=545 minHostAvailableMiB=23442
+    [queue] START available=23614MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] exit=0 peakTreeRssMiB=545 minHostAvailableMiB=23442
+    [memory-guard] at peak: esbuild:221 esbuild:133 node:103 node:63 bash:6 sh:6 timeout:4 tail:4
+    [queue] EXIT 0
+
+## r1-race  out-sha256 1b452f1ff3cd02cfe44908fae4ba31fb4811df5dbc0f2f7628d9e492c7120174  bytes 3671  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=172 minHostAvailableMiB=23313
+    [queue] START available=23419MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97); anvil: none
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-rpc-closure/candidate head 4106c3114dd13f39692195c182d3152efa5e212c dirty=1
+    ℹ tests 2
+    ℹ pass 2
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    [job] strict: skipped+cancelled=0
+    [job] exit=0
+    [job] ssh/scp/sftp -> denial stubs (rc=97); anvil: none
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-rpc-closure/base head 4106c3114dd13f39692195c182d3152efa5e212c dirty=0
+    ✖ a publication that lands while a sync verifies is kept; the sync judges only what it captured (232.004212ms)
+    ℹ tests 2
+    ℹ pass 1
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ a publication that lands while a sync verifies is kept; the sync judges only what it captured (232.004212ms)
+    [job] exit=1
+    [memory-guard] exit=0 peakTreeRssMiB=172 minHostAvailableMiB=23313
+    [memory-guard] at peak: node:93 node:55 bash:6 bash:6 timeout:4 tee:4 unshare:4
+    [queue] EXIT 0
+
+## s1-setup  out-sha256 8ec24ec3a7c84b16496408a605459f66ffa3cf623568fc27188814ebbe1621ab  bytes 304  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=208 minHostAvailableMiB=23322
+    [queue] START available=23592MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+    [memory-guard] exit=0 peakTreeRssMiB=208 minHostAvailableMiB=23322
+    [memory-guard] at peak: git:132 git:41 git:17 git-upload-pack:12 bash:6
+    [queue] EXIT 0
+
+## s2-scan  out-sha256 d99811831aa24d1a1f63fed54792983ecea9564bc9b8ca847df00df79b819c7e  bytes 1165  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=60 minHostAvailableMiB=22817
+    [queue] START available=22872MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    2:02AM INF no leaks found
+    [scan] scan-crypto-keys=0 gitleaks=0
+    [memory-guard] exit=0 peakTreeRssMiB=60 minHostAvailableMiB=22817
+    [memory-guard] at peak: gitleaks:50 bash:6 timeout:4
+    [queue] EXIT 0
+
+## v1-verifier  out-sha256 175cfdb56934e42e152b15589c199f33b275ba1f20015ed0032fc2683e40c743  bytes 9505  rc 1
+    [memory-guard] exit=1 peakTreeRssMiB=554 minHostAvailableMiB=23362
+    [queue] START available=23804MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-rpc-closure/candidate head bb86e0cebdd43c4ab4a5182c42fc143b30eafa6b dirty=9
+    ✖ config: one explicit authority, the verifier local only and never a provider vote; the legacy quorum rule unchanged (3729.675554ms)
+    ✖ settlement pinned reads: anchors and metered bytes at the snapshot block, verified or refused (2.68532ms)
+    ℹ tests 40
+    ℹ pass 38
+    ℹ fail 2
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ config: one explicit authority, the verifier local only and never a provider vote; the legacy quorum rule unchanged (3729.675554ms)
+    ✖ settlement pinned reads: anchors and metered bytes at the snapshot block, verified or refused (2.68532ms)
+    [job] strict: skipped+cancelled=0
+    [job] exit=1
+    [memory-guard] exit=1 peakTreeRssMiB=554 minHostAvailableMiB=23362
+    [memory-guard] at peak: node:121 node:95 node:91 node:67 node:67 node:59 anvil:36 bash:6
+    [queue] EXIT 1
+
+## v2-verifier  out-sha256 542eb8c06cd7a56f715cb640693e303faaf0f7c6d342fcf41653cd1f05e6b5b7  bytes 6369  rc 7
+    [memory-guard] exit=7 peakTreeRssMiB=548 minHostAvailableMiB=23406
+    [queue] START available=23792MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-rpc-closure/candidate head bb86e0cebdd43c4ab4a5182c42fc143b30eafa6b dirty=9
+    ℹ tests 39
+    ℹ pass 39
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    [job] strict: skipped+cancelled=0
+    [job] exit=7
+    [memory-guard] exit=7 peakTreeRssMiB=548 minHostAvailableMiB=23406
+    [memory-guard] at peak: node:123 node:95 node:82 node:67 node:67 node:59 anvil:38 bash:6
+    [queue] EXIT 7

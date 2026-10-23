@@ -1,0 +1,30 @@
+[queue] START available=23143MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+2026-10-23T07:19:32Z
+83c7e95bf8b890bdb407ebacea748df191fc4d6e01500125b9971d5cfce87df5  tools/capture-state.mjs
+739d9bf1c5e7cc29e48d9bc9125850943a3ec1ca620a6ea69bccdb1aa5fc82df  evidence/capture/spec-l1-portal-x.json
+b70820d60fc3e4b2ee1f1376b381ee5f309f77879bf394c837b11ac9a0dcfe92  evidence/capture/spec-l2-gpo-x.json
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:32
+const one = async (rpc, method, params) => { const j = await post(rpc, { jsonrpc: '2.0', id: 1, method, params }); if (j.error) throw new Error(`${method}: ${JSON.stringify(j.error)}`); return j.result; };
+                                                                                                                                      ^
+
+Error: eth_getBlockByNumber: {"code":-32001,"message":"You've reached the usage limit for your current plan. To continue with higher limits and uninterrupted access, please upgrade here: https://www.1rpc.io/#pricing"}
+    at one (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:32:135)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:60:13
+
+Node.js v22.23.3
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:32
+const one = async (rpc, method, params) => { const j = await post(rpc, { jsonrpc: '2.0', id: 1, method, params }); if (j.error) throw new Error(`${method}: ${JSON.stringify(j.error)}`); return j.result; };
+                                                                                                                                      ^
+
+Error: eth_getBlockByNumber: {"code":-32001,"message":"You've reached the usage limit for your current plan. To continue with higher limits and uninterrupted access, please upgrade here: https://www.1rpc.io/#pricing"}
+    at one (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:32:135)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tools/capture-state.mjs:60:13
+
+Node.js v22.23.3
+739d9bf1c5e7cc29e48d9bc9125850943a3ec1ca620a6ea69bccdb1aa5fc82df  evidence/capture/spec-l1-portal-x.json
+b70820d60fc3e4b2ee1f1376b381ee5f309f77879bf394c837b11ac9a0dcfe92  evidence/capture/spec-l2-gpo-x.json
+[memory-guard] exit=0 peakTreeRssMiB=87 minHostAvailableMiB=23091
+[memory-guard] at peak: node:77 capture-x.sh:6 timeout:4
+[queue] EXIT 0

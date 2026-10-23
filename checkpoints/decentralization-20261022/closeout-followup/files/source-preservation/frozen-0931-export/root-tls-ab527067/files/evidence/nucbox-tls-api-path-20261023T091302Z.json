@@ -1,0 +1,38 @@
+{
+  "at": "2026-10-23T09:13:02.126955+00:00",
+  "fronts": [
+    {
+      "ip": "134.199.235.187",
+      "rc": 0,
+      "status": "200",
+      "body": "{\"ok\":true,\"enclaves\":2,\"of\":5,\"updatedAt\":\"2026-10-23T09:12:51.152Z\"}",
+      "error": ""
+    },
+    {
+      "ip": "134.209.248.172",
+      "rc": 0,
+      "status": "200",
+      "body": "{\"ok\":true,\"enclaves\":2,\"of\":5,\"updatedAt\":\"2026-10-23T09:12:51.152Z\"}",
+      "error": ""
+    },
+    {
+      "ip": "146.190.246.39",
+      "rc": 0,
+      "status": "200",
+      "body": "{\"ok\":true,\"enclaves\":2,\"of\":5,\"updatedAt\":\"2026-10-23T09:12:51.152Z\"}",
+      "error": ""
+    },
+    {
+      "ip": "165.245.191.129",
+      "rc": 0,
+      "status": "200",
+      "body": "{\"ok\":true,\"enclaves\":2,\"of\":5,\"updatedAt\":\"2026-10-23T09:12:51.152Z\"}",
+      "error": ""
+    }
+  ],
+  "controlVm": {
+    "exit": 255,
+    "out": "",
+    "error": "ssh: connect to host 127.0.0.1 port 32423: Connection refused\n"
+  }
+}

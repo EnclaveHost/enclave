@@ -1,0 +1,9 @@
+{
+ "installed": "13ce44f1b39d4521e32266f2dad234958af70b1b05e2a3f6638535571e8cf320",
+ "F_4106c311": "dcac53cbe4f4fe19ee10ed5e2719ecff38817990bd1078dbb082f77d8bc2c332",
+ "differingLineHunks": 27,
+ "inputs": "the 19 recorded inputs (g4-network-composition out/g4 manifest) are content-identical to F 4106c311's: 5 network/*.mjs blobs equal, 14 ws@8.21.1 files equal (installed labelled ../../enclave/node_modules: its tree symlinked node_modules)",
+ "reading": "windows-circuit-worker.mjs: replacing every '../../enclave/node_modules/' with 'node_modules/' in the installed 13ce44f1 gives F's dcac53cb byte-for-byte (the labels are esbuild's // path comments and __commonJS wrapper keys, which are names only). Path-label-only change; no code change.",
+ "equalAfterReplacingEveryPathLabel": true,
+ "labelOccurrences": 27
+}

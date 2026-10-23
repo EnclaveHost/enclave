@@ -1,0 +1,73 @@
+D -> F (host-service-rpc-closure) and A (rpc-priority): the Windows upgrade delta, installed baseline vs F 4106c311 / A df8fbafa
+Written 2026-10-23T09:26Z (date -u). Handoff by file only: nothing in your trees was edited. Root owns activation.
+Full report, receipts and tests: work/resume-after-checkpoint-20261022/windows-upgrade-delta-review/RESULT.md
+
+THE INSTALLED BASELINE IS NEWER THAN F'S CHALLENGE SOURCE
+  - NucBox privacy-agent cfb69370 = work/g4-challenge-retry-package-20261022 (1938-input manifest): the g4 composition
+    (managed challenge front) plus root's lifecycle fixes.
+  - F's network/challenge-replica-host.mjs and network/enclave-network-host.mjs come from the lease-readiness baseline
+    32fecf5 (F's own commit d7f520bf8 says so), plus C's carrier edit. That is two layers older than the installed source.
+
+F1 (REQUIRED) - port the challenge lifecycle and the managed front onto F. Without it, the upgrade regresses the installed
+retry, progress readiness, admin recheck, cancellation and managed front.
+  network/challenge-replica-host.mjs = git merge-file
+      ours   installed 9c3e4d10
+      base   32fecf5's 33433eb3
+      theirs F 52e02b93
+    -> clean, 93bc81fda381e0d775f72453f32027d3a1ae7d1d3ef62bb04a50d238c4c813c8
+       (proposal: receipts/proposals/challenge/challenge-replica-host.merged.mjs)
+  network/enclave-network-host.mjs = installed 2c1b84aa as is (F's is 32fecf5's byte for byte)
+  network/challenge-front-declaration.mjs = installed 67e67a01 (new to F)
+  tests, from work/g4-config-independent-review-20261021/revision2/network-tree/test/:
+    challenge-replica-supervise.test.mjs 1dbd849d   new
+    challenge-front-managed.test.mjs     a6918e69   new
+    challenge-replica-host.test.mjs      f9918823   REPLACES F's 5ef2b89c
+      F's #8 asserts the pre-fix behavior: a missing release rejects createNetworkHost. F never changed this file from
+      32fecf5, so the 3-way merge result is exactly f9918823.
+  Source for the installed files: the two src trees above. enclave-network-host 2c1b84aa (blob c02bb1f1) is in no git repo yet.
+  Measured on a throwaway clone of F 4106c311, queue 768, private netns:
+    F as-is: the supervise and front suites fail to load, and the installed host suite #8 fails.
+    F + port: supervise 8/8, front 5/5, installed host suite 9/9 (including e2e and F's carrier-gate cases #5-#7).
+      F's enclave-network-host-canary, privacy-agent-lifecycle, network-policy-outage and local-byo-config: 12/12, as on F.
+  Keep F's network/entries/privacy-agent.mjs + main-guard.mjs: the installed cfb lacks that guard. A challengeReplica with
+  hostPolicy.carriers dynamically imports host-services/runner.mjs, whose main-script check is true inside the bundle
+  (source reading).
+
+F2 (REQUIRED) - the admission default mirrors.
+  F's windows/node/host-admission.bundle.mjs 3438cdf2 = the installed 6bef372d with exactly ONE change: PRODUCTION_MIRRORS
+  [] -> the 4 former DigitalOcean fronts (byte proof: receipts/bundles/host-admission-delta.json).
+  Your in-progress compose-a 3-way merge of network/platform-host-policy-config.mjs KEEPS the list (base 9fdc1418c and A both
+  have [], so "ours" wins).
+  Fix: PRODUCTION_MIRRORS = Object.freeze([]) as in A, then rebuild. Before A's port, F + that one line should rebuild to
+  6bef372d exactly (a checkable target).
+
+F3 / A (PORT) - A df8fbafa's Windows consumers are on the 493 lineage.
+  Trial 3-way merges onto F 4106c311 (base A-before 71448f63, theirs df8fbafa), proposals in receipts/proposals/a-port/:
+    clean: windows/node agent.mjs, chain.mjs, host.mjs, network-enroll.mjs, host-identity.mjs, host-onchain.mjs,
+      session-api-auth.mjs, and network/verified-read-client.mjs (new).
+      chain.mjs and host.mjs merge onto the KEEPER's 3e9fae03 / ea0f6b8a, which are the installed files.
+    new to F (take whole): windows/node/chain-reader.mjs, network/host-admission-node.mjs, network/verified-chain.mjs
+      (your compose-a already TAKEs verified-chain and lease-reader)
+    doc conflict only: windows/node/node-config.example.cmd
+    rebuild: host-admission.bundle.mjs, after F2
+  These merges are textual only: run your suites on the composed tree.
+
+NOT REGRESSIONS (proven; no action)
+  windows-circuit-worker 13ce44f1 -> dcac53cb: path labels only. Replacing ../../enclave/node_modules/ with node_modules/
+    gives F's bytes exactly.
+  lease-gas-runtime.bundle 159108d1 -> 008cdca1: minifier renames only, same length. The changed lease-gas-owner and
+    route-record code is not reachable from the runtime entry.
+  host-service-ingress, host.mjs, chain.mjs, host-service-names, rpc-identity: identical.
+  75 of the 87 node deploy files: identical.
+  relay/snp-verify: comment only.
+  privacy-agent inputs: 1926 of 1938 have the same bytes, and all node_modules are identical. F's other changes are
+    host-services-gated, plus two small default-path hardenings (agent start/stop timer, circuit cancellation).
+  F's rebuild reproduced 6480ca9b / dcac53cb / c952dce4 exactly (w1).
+
+GO EXECUTABLES (root read-only capture needed; no SSH from D)
+  enclave-circuit-firewall: source unchanged since 2026-10-14 (6b7b4e476), so 78daec71 -> 243a371c should be stamp-only.
+    Unproven until the installed buildinfo is read.
+  enclave-wg: F's source adds udpIngress / UDP 53 (udpforward.go) for a host's DNS role. That is functional and additive.
+    Whether the installed cbaf8313 has it is unknown.
+  Also missing: the installed hashes of control\windows\node\fetch-cid.py, install-node.cmd, package.json and
+    package-lock.json (F: 729e6a0c, 28633765, 2192d65f, f8964448).

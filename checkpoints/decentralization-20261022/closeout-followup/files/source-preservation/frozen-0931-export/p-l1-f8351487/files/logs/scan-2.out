@@ -1,0 +1,14 @@
+[queue] START available=23593MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+7dae6f5a90e1f4a273bb984514b701bd16e24ee9 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> tests: short datadir for the official base binary (engine.ipc sun_path); evidence, logs, test digest
+5ccee1960534b3b15cee0a27354723e504f2ff11 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: each run unit pins only its own binary (run-el no longer requires lighthouse); found by the real reth test
+c0282ca5062122f1e1b5d931fefa99052e23936e SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: re-vendor S's final immutable 6b9dae92 (fd0134d unwind stop-on-failure, Supervisor cwd); child cwd via Supervisor; example uses the holder's single shared NVMe inventory
+e318e38ba146fbbbe3e4757e381aafde889be1e8 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> / SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: strict launcher/config/preflight/readiness gate for a non-validating reth v2.8.0 + lighthouse v8.3.2 mainnet L1 source for the Base holder
+12:44AM INF 4 commits scanned.
+12:44AM INF scanned ~2848588 bytes (2.85 MB) in 231ms
+12:44AM WRN leaks found: 13
+12:44AM INF scanned ~2509488 bytes (2.51 MB) in 114ms
+12:44AM WRN leaks found: 13
+[scan] scan-crypto-keys=0 gitleaks-git=1 gitleaks-evidence=1
+[memory-guard] exit=1 peakTreeRssMiB=84 minHostAvailableMiB=23523
+[memory-guard] at peak: gitleaks:74 bash:6 timeout:4
+[queue] EXIT 1

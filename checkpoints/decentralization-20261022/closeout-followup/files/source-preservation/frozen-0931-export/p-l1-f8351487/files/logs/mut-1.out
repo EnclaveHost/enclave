@@ -1,0 +1,35 @@
+[queue] START available=23868MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+== pins
+f9f3dc42edcdc240328c26db14cca8f9eae5945e82d9d0c592336bb2ce0f3b9d  l1pair/l1pair.py
+46deaf02b28a96d2806a71de21b7559cdaa657f3dd718bfd5623ab4b91810d6a  l1pair/PINS.json
+fb952770f6a3851b44cff72cc171390b77e92f982e44eaa78d2ebe0c7b82ff99  l1pair/vendor/VENDOR.json
+51b8a2d111dd6aa9fc3d9e1f36031bfe3e3e7990857cdbf804efc25077e8c1fb  l1pair/test/mutate.py
+a3c26785d946be37ca3044fe2eecef21ed4201025dcb254679c177fdfdf87fb7  l1pair/test/realrig.py
+2f7f6a2412fcdc5b5d31cfa088b96b6de49ed7883c65601f015678d5bae908ab  l1pair/test/run_side.py
+542fba12fe5bc3becc48211c4a3d8806aed9bff76adf527ca1967c136fc489d4  l1pair/test/test_base_l1_offline.py
+3b02e9e3352ddde96e8303683082f71df579064bbb7c99465256a4d9a8d5f421  l1pair/test/test_l1pair.py
+60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
+vendor: OK (S 08f2efe byte-identical)
+KILLED nat-any  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
+KILLED public-http  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
+KILLED public-engine  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
+KILLED minimal-prune  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
+KILLED receipts-floor  FAIL: test_refusals (__main__.Validation.test_refusals) [receipts full default]
+KILLED custody-any  FAIL: test_refusals (__main__.Validation.test_refusals) [custody default]
+KILLED upnp-on  FAIL: test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv)
+KILLED tx-gossip-on  FAIL: test_exact_el_argv (__main__.Rendering.test_exact_el_argv)
+KILLED overlap-ignored  FAIL: test_refusals (__main__.Validation.test_refusals) [mount inside holder]
+KILLED target-ignored  FAIL: test_refusals (__main__.Validation.test_refusals) [cache over target]
+KILLED genesis-allowed  FAIL: test_refusals (__main__.Validation.test_refusals) [genesis sync]
+KILLED one-provenance  FAIL: test_refusals (__main__.Validation.test_refusals) [one provenance]
+KILLED stale-checkpoint  FAIL: test_check_checkpoint (__main__.Checkpoint.test_check_checkpoint) [stale]
+KILLED inherit-env  FAIL: test_closed_env (__main__.Rendering.test_closed_env)
+KILLED jwt-mode  FAIL: test_jwt_shape_and_mode (__main__.Jwt.test_jwt_shape_and_mode)
+KILLED gate-chainid-only  FAIL: test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_ch
+KILLED gate-no-custody  FAIL: test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_ch
+KILLED url-default  FAIL: test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv)
+KILLED mount-tmp  FAIL: test_refusals (__main__.Validation.test_refusals) [mount tmp]
+19/19 killed
+[memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=23723
+[memory-guard] at peak: python3:42 python3:17
+[queue] EXIT 0

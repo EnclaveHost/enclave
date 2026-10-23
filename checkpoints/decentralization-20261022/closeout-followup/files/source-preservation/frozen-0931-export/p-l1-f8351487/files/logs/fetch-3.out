@@ -1,0 +1,25 @@
+[queue] START available=24252MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+      1 200 12447
+      1 200 158187
+      1 200 18951
+      1 200 23043
+      1 200 23766
+      1 200 25346
+      1 200 2931
+      1 200 33149
+      1 200 35888
+      1 200 38039
+      1 200 53455
+      1 200 55179
+      1 200 6085
+      1 200 6254
+      1 200 63555
+      1 200 6543
+      1 200 7164
+      1 200 79380
+      1 200 8067
+      1 200 8763
+      1 200 9049
+[memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=24260
+[memory-guard] at peak: curl:16 bash:6
+[queue] EXIT 0

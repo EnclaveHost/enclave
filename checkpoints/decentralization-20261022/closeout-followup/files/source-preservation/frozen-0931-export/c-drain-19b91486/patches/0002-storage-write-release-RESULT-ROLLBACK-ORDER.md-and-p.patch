@@ -1,0 +1,1647 @@
+From 5a3ee31111e942417fbaf3e66b0717255d6e9308 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 01:04:09 -0700
+Subject: [PATCH 2/4] storage-write-release: RESULT-ROLLBACK-ORDER.md and patch
+
+---
+ PROGRESS.txt             |    1 +
+ RESULT-ROLLBACK-ORDER.md |  104 +++
+ rollback-order.patch     | 1509 ++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 1614 insertions(+)
+ create mode 100644 RESULT-ROLLBACK-ORDER.md
+ create mode 100644 rollback-order.patch
+
+diff --git a/PROGRESS.txt b/PROGRESS.txt
+index 3f9b86aefddbfff4bf42e85bfc03b2e4043c7030..e5e37f0dd37eaa9225da4360c277ee405f7a0461 100644
+--- a/PROGRESS.txt
++++ b/PROGRESS.txt
+@@ -2,3 +2,4 @@
+ 2026-10-23T06:03:10Z m1 retired (hosts 14 too few for sia-s3 uploads; B blocker reproduced); rerun m2 at hosts 30
+ 2026-10-23T06:19:45Z m2 guard-stopped 1556>1536 in T2 (not a pass); PG fixture footprint reduced (io_method=sync, autovacuum off, shared_buffers 8MB, max_connections 120); rerun m3
+ 2026-10-23T07:42:57Z DONE: commit 6fd7a929 (package+rehearsal), m3 42/42, e1 11/11, unit 11+3; RESULT.md
++2026-10-23T08:04:09Z ROLLBACK-ORDER done: fbaecfc (r2 19/19, unit 14+3); RESULT-ROLLBACK-ORDER.md
+diff --git a/RESULT-ROLLBACK-ORDER.md b/RESULT-ROLLBACK-ORDER.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..b6c8281765bd090b575cb95ae8adaf8fd1a8d339
+--- /dev/null
++++ b/RESULT-ROLLBACK-ORDER.md
+@@ -0,0 +1,104 @@
++# Rollback ordering (TOCTOU) fix (RESULT-ROLLBACK-ORDER, 2026-10-23)
++
++**Status.** Source and fixture evidence only. No production step, no SSH, no wallet, no push. D exports the immutable
++`6fd7a929`; this is appended, with no history rewritten.
++
++**Commit.** Repository `storage-write-release/`, branch `storage/write-release`:
++- `6fd7a929` → `bbf0a00` → **`fbaecfced41da552a9e138082ecd0bd821c9e0f8`**. Author and committer: SteveDeFacto.
++- Patch: `rollback-order.patch` (`git format-patch -1 fbaecfc`), sha256
++  `cb043a448f98ea638cacc5218e89f7dcb416f281616b36756d8b326777becb21`.
++- 11 paths changed.
++- Scans on the added and modified files: `scan-crypto-keys.py` exit 0; gitleaks no leaks (`logs/gitleaks-rb.json` = `[]`).
++- Root's `ROOT-*.txt` notes are not committed.
++
++## 1. The defect (root's review of 6fd7a929)
++
++- `cutover.py rollback_decision` returned `LEGACY_REDEPLOY_SAFE` from a zero-count snapshot and only THEN instructed
++  "stop any C2 instance, then redeploy 0.1.8". CUTOVER.md (old lines 150-156) read the state before the stop too.
++- A C2 instance, a node respawn or a request already in flight can enrol between that read and the stop. The plan then
++  sends 0.1.8 against an enrolled account, which cannot write: there is no online downgrade.
++- e1 covered only an already-killed C2, never this ordering.
++
++## 2. The fix
++
++**`tools/cutover.py` `rollback_decision(vm_text, c2_activation_disabled)`** (`fa4eca76`; CLI `--c2-activation-disabled`).
++Observation alone never authorizes a legacy redeploy:
++
++| decision | when |
++|---|---|
++| `FORWARD_ONLY` | any fenced or CAS-enrolled account, in ANY snapshot. Enrolment is sticky, so this cannot be undone by later state. |
++| `LEGACY_REDEPLOY_SAFE` | zero counts AND the same snapshot shows the barrier AND the owner's attestation that C2 activation and its retries are disabled |
++| `UNKNOWN` | everything else, with `missing` and the ordered `steps`; repair forward if the barrier cannot be established |
++
++The barrier, in the same snapshot:
++- `allowLiveStart=absent`;
++- `unit.ActiveState` inactive or failed with `MainPID=0`;
++- empty `writerPids`;
++- empty `controllerSessions` and `toolSessions`.
++
++**`primary/vm-state.v2.sh`** (`adacd37f`) is the pinned read-only `vm-state.sh` (`5ac71122`) plus one line,
++`allowLiveStart=present|absent`, read before the database counts. The original script cannot show the barrier, so its
++output is always UNKNOWN for zero counts.
++
++**`CUTOVER.md` §4** (`f1884b17`), the ordered procedure. It reuses the reviewed tools; the decision comes LAST:
++
++| step | who | does | establishes |
++|---|---|---|---|
++| R1 | owner | Disables C2 activation AND its retries: the deployment goes back to the 0.1.8 catalog version, or is stopped. Confirms no C2 instance remains. | No new attempt starts. It cannot recall a request already sent. |
++| R2 | root | `mv /etc/enclave-indexd/ALLOW_LIVE_START …held-<run>` | The unit's `ConditionPathExists` stops systemd from starting indexd. |
++| R3 | root | The reviewed controller `1543577f` `stop` | The only service that applies an enrolment is down and cannot restart, so nothing in flight can complete. |
++| R4 | root | `vm-state.v2.sh`, AFTER R2-R3 | The barrier lines and the counts read behind it, in ONE snapshot. |
++| R5 | root | `rollback-decision --vm-state <R4> [--c2-activation-disabled]` | the decision |
++
++After `LEGACY_REDEPLOY_SAFE`:
++1. Keep C2 disabled.
++2. Restore the guard and start indexd.
++3. Run 0.1.8.
++4. Post-check with `vm-state.v2.sh`: still 0/0. If an account is enrolled now, the decision is FORWARD_ONLY.
++
++**What these steps establish, and what the offline parser cannot.**
++- **The parser verifies** one snapshot's barrier lines and counts, and that zero counts were read while indexd could not
++  run.
++- **It cannot verify** (each needs root or the owner):
++  - that no C2 instance remains or will be respawned (the owner's R1 attestation; node state is invisible from the VM);
++  - that the snapshot is the live primary's latest;
++  - that nobody restores the guard before the decision.
++- **It never takes** an earlier zero count, or a caller-supplied timestamp alone, as quiescence.
++
++**T1 quiescence corrected:**
++- T1.1 quiescence = the legacy writer STOPPED, with node respawn and client retries disabled and in-flight requests
++  drained (the owner's attestation, `legacyStoppedAt`).
++- Root's object and account counts are only a NECESSARY cross-check. Equal counts do not prove no writes: an overwrite, a
++  delete-and-create or a replacement keeps every count.
++- `t1_preflight`'s docstring and its reason text say so, and CUTOVER T1.1/T1.3 no longer imply otherwise. The preflight
++  checks the ORDER of the attested stop against the authenticated capture time, not the stop itself.
++
++**PINS.json** (`87fd654d`) gains `primary.vm-state-v2` (`adacd37f`, `derivedFrom` `5ac71122`): 21 pinned files, all
++matching the workspace (unit test).
++
++## 3. Tests (all through `claude-test-queue.py`)
++
++| run | what | lane / peak | result |
++|---|---|---|---|
++| **r2** `rehearsal/main_rollbackorder.py` `b13b7a41` + `_base.py` `bd92f094`; the original `cutover.py` of 6fd7a929 (`1b05047c`) extracted from git as the negative control; the new `cutover.py` `fa4eca76` | Two REAL v28 indexers with their own databases and wallets, 30 RHP4 hosts, the exact live 0.1.8 and the final 00e9cde0, one account per indexer. **U (unsafe ordering):** U1 0.1.8 writes. U2 a zero snapshot read while indexd RUNS: the ORIGINAL decision says LEGACY_REDEPLOY_SAFE; the NEW one says UNKNOWN even with the attestation. U3 with C2 activation still enabled, C2 enrols **0.21 s** after that snapshot. U4 following the original plan, the redeployed 0.1.8 PUT gets **500**. U5 the new procedure (R1-R4) on that state says **FORWARD_ONLY**. **S (safe, never-enrolled):** S1 0.1.8 writes and reads. S2 C2 runs while its indexer is down, is never ready, and no instance remains. S3 behind the barrier the counts are zero: UNKNOWN (missing only the attestation), then LEGACY_REDEPLOY_SAFE with it. S4 following it: 0.1.8 serves the legacy object on the first attempt, reads byte-exact and writes; the post-check still shows 0 fenced / 0 CAS. | 1536 / 878 MiB | **19/19 PASS**, queue EXIT 0, cleanup complete |
++| r1 (kept as `runs/r1-failed`) | the same U checks all passed; 2 failures were driver defects: a shared expected-key set across the two accounts, and 0.1.8 panicking after its indexer restarted, which crashed the driver | 1536 / 817 MiB | FAILED 13/2, NOT counted |
++| `package/tests/test_cutover.py` `4dfc1051` | 14 tests. **New:** the original 6fd7a929 module (loaded from git) says SAFE on a running zero snapshot, while the new one says UNKNOWN even with the attestation; SAFE only with every barrier field and the attestation, and UNKNOWN when any one is missing (including the original `vm-state.sh` without the guard line); any enrolment is FORWARD_ONLY with or without the barrier; unreadable is UNKNOWN. Plus all the earlier tests. | 512 | **14/14 OK** |
++| `package/backup/test/test_backup_provenance.py` | unchanged; rerun for the reworded preflight | 512 | **3/3 OK** |
++
++The e1 (11/11) and m3 (42/42) evidence is preserved unchanged. m3 was not repeated.
++
++**Observed once, not diagnosed (r1):**
++- Right after its indexer restarted, the live 0.1.8 panicked on a GET for a key that account did not hold:
++  `sia_storage download.rs:336`, "index out of bounds: the len is 27 but the index is 28".
++- r2 read only existing keys and did not see it.
++- CUTOVER notes that after a LEGACY_REDEPLOY_SAFE restart 0.1.8 may need the node's respawn before it serves.
++
++## 4. Limits
++
++- **Fixture only.** The vm-state lines in r2 are DERIVED from fixture state: the unit, PID and writer lines from the
++  harness indexer's up/down; the guard from the driver's own hold; the counts from each indexer's own database. On
++  production they come from `vm-state.v2.sh` on the VM.
++- **Two steps depend on root and the owner.** The R1 attestation (no C2 instance or respawn) and the "one operator"
++  assumption cannot be checked by the parser.
++- **Not validated live.** No production rollback, barrier or controller stop was run.
++- **Ownership.** D and root own publication and activation. F owns the policy-mirror race fix, which is not touched here.
+diff --git a/rollback-order.patch b/rollback-order.patch
+new file mode 100644
+index 0000000000000000000000000000000000000000..84e3c131c603e439fafec19141893dd4f0a29b5a
+--- /dev/null
++++ b/rollback-order.patch
+@@ -0,0 +1,1509 @@
++From fbaecfced41da552a9e138082ecd0bd821c9e0f8 Mon Sep 17 00:00:00 2001
++From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
++Date: Fri, 23 Oct 2026 01:03:31 -0700
++Subject: [PATCH] Rollback ordering: decide only from a snapshot read behind a
++ quiescence barrier
++
++rollback-decision (6fd7a929) returned LEGACY_REDEPLOY_SAFE from a zero-count snapshot and only then said
++"stop any C2 instance": a C2 enrolment in between made the plan recommend 0.1.8 against an enrolled account.
++
++- cutover.py rollback_decision: any fenced/CAS account -> FORWARD_ONLY; zero counts -> LEGACY_REDEPLOY_SAFE only
++  when the same vm-state.v2.sh snapshot shows the barrier (start guard absent, indexd inactive, no process, no
++  controller/tool session) and the owner attests C2 activation and retries are disabled; else UNKNOWN with the
++  ordered barrier steps. It states what the snapshot establishes and what the parser cannot.
++- primary/vm-state.v2.sh: the pinned vm-state.sh plus one read-only allowLiveStart line.
++- CUTOVER.md: R1-R5 (disable C2, move ALLOW_LIVE_START aside, stop indexd with the reviewed controller, read,
++  decide); T1 quiescence is stopped, retry-disabled, drained writers; equal counts are never proof of no writes.
++- rehearsal/main_rollbackorder.py: r2 19/19 on two real v28 indexers - the original decision is SAFE on a running
++  zero snapshot, C2 then enrols and 0.1.8 cannot write, the new procedure says FORWARD_ONLY; the never-enrolled
++  rollback is SAFE only with the full barrier and attestation and then works. r1 (driver defects) kept as failed.
++---
++ .gitignore                            |   2 +
++ package/CUTOVER.md                    |  50 ++-
++ package/PINS.json                     |   6 +
++ package/primary/vm-state.v2.sh        |  34 ++
++ package/tests/test_cutover.py         |  53 ++-
++ package/tools/cutover.py              |  75 +++-
++ rehearsal/main_rollbackorder.py       | 175 ++++++++++
++ rehearsal/rollbackorder.sh            |  16 +
++ rehearsal/runs/r1-failed/RETIRED.txt  |   1 +
++ rehearsal/runs/r1-failed/results.json | 433 +++++++++++++++++++++++
++ rehearsal/runs/r2/results.json        | 478 ++++++++++++++++++++++++++
++ 11 files changed, 1292 insertions(+), 31 deletions(-)
++ create mode 100644 package/primary/vm-state.v2.sh
++ create mode 100644 rehearsal/main_rollbackorder.py
++ create mode 100755 rehearsal/rollbackorder.sh
++ create mode 100644 rehearsal/runs/r1-failed/RETIRED.txt
++ create mode 100644 rehearsal/runs/r1-failed/results.json
++ create mode 100644 rehearsal/runs/r2/results.json
++
++diff --git a/.gitignore b/.gitignore
++index eb6c8a7..7ab7566 100644
++--- a/.gitignore
+++++ b/.gitignore
++@@ -7,3 +7,5 @@ rehearsal/runs/*/*.cwasm
++ rehearsal/runs/*/*.log
++ __pycache__/
++ rehearsal/enrollfail.py
+++rehearsal/rollbackorder.py
+++rehearsal/tmp/
++diff --git a/package/CUTOVER.md b/package/CUTOVER.md
++index d109f4d..5a1f273 100644
++--- a/package/CUTOVER.md
+++++ b/package/CUTOVER.md
++@@ -79,6 +79,12 @@ All pins are in `PINS.json`; `tools/verify_pins.py` checks them (all pinned path
++    - The original tools are unchanged.
++ 7. **T1 order and rollback** (root's review): quiesce → back up → preflight → switch. Rollback is decided by the
++    fenced/CAS state (§4).
+++8. **Rollback ordering (TOCTOU, root's review of 6fd7a929).**
+++   - `rollback-decision` said LEGACY_REDEPLOY_SAFE from a zero-count snapshot and only THEN said "stop any C2 instance".
+++   - A C2 enrolment between that read and the stop made the plan recommend 0.1.8 against an enrolled account (r1 shows it).
+++   - **Fixed:** R1-R5 (§4) establish the barrier first: C2 activation disabled, the start guard moved aside, indexd stopped,
+++     the snapshot read behind it. The decision is UNKNOWN for zero counts without that barrier.
+++   - Count equality is no longer presented as proof of no writes.
++ 
++ **Not blockers, reported:**
++ - **Role comment drift** (ROOT-LIFECYCLE-REVIEW): `storage-indexer-host.mjs:288` says a stop "waits for the in-flight
++@@ -141,21 +147,49 @@ legacy writer is stopped BEFORE the coupled backup is captured and stays stopped
++ 
++ | step | who | what | verify |
++ |---|---|---|---|
++-| T1.1 quiesce | owner | Stop the 0.1.8 deployment and everything else that writes through it. Adapter writes fail from here on. Record `legacyStoppedAt` (UTC, with zone). | `/healthz` of 0.1.8 is gone. Root reads the live counts twice, a few minutes apart (read-only `SELECT count(*) FROM objects` / `accounts`): they are equal. |
+++| T1.1 quiesce | owner | Stop the 0.1.8 deployment so the node neither runs nor respawns it. Disable or stop everything that writes through it: the adapter's writes fail from here on, and client retries end there. Let in-flight requests drain: the deployment is gone and no instance remains. Record `legacyStoppedAt` (UTC, with zone) as that ATTESTED stop. | Quiescence is the STOPPED, retry-disabled writers with no instance left (node status; `/healthz` of 0.1.8 gone). Root's read-only counts (`SELECT count(*) FROM objects` / `accounts`) are only a NECESSARY cross-check. Equal counts do NOT prove no writes: an overwrite, a delete-and-create or a replacement keeps every count. |
++ | T1.2 backup | root | A FRESH coupled v28 backup with the **v3 runner** (`backup/runner/vm_fresh_backup.v3.py`): `--expect-db-version 28 --expect-binary-sha256 2c0e5b06… --expect-geoip-sha256 18bf1695…`, staged and run exactly as the B2 recipe. Then the pinned `pull_encrypt.py` (`ad297d48`) and **`backup/local/verify_archive.v2.py`**. | `…-integrity-v2.json` PASS, with `binarySha256 = 2c0e5b06…`, `dbVersion 28` and the authenticated `capturedAt`. The original B2 runner `62f43690` cannot do this: it reads `/opt/enclave-indexd/indexd`, the v26 binary. |
++-| T1.3 preflight | root | Run `vm-state.sh`, read the live counts into `counts.json`, then `cutover.py t1-preflight --vm-state … --backup …-integrity-v2.json --now <UTC> --legacy-stopped-at <T1.1> --live-counts counts.json` | **GO** only if all of these hold: the primary is exactly as prepared (`2c0e5b06`, schema 28, quiet, 0 fenced, 0 CAS); the backup is CAPTURED ≤ 2 h ago (the authenticated manifest time, never the verification time) and not in the future; it was verified after the capture and ≤ 2 h ago; the legacy writer was stopped BEFORE the capture; the live counts equal the backup's (nothing written since); one account, ≥ 1491 objects, from the minipc VM. It prints `dataLossBoundary` (= the capture time). |
+++| T1.3 preflight | root | Run `vm-state.sh` (or `primary/vm-state.v2.sh`), read the live counts into `counts.json`, then `cutover.py t1-preflight --vm-state … --backup …-integrity-v2.json --now <UTC> --legacy-stopped-at <T1.1> --live-counts counts.json` | **GO** only if all of these hold: the primary is exactly as prepared (`2c0e5b06`, schema 28, quiet, 0 fenced, 0 CAS); the backup is CAPTURED ≤ 2 h ago (the authenticated manifest time, never the verification time) and not in the future; it was verified after the capture and ≤ 2 h ago; the ATTESTED legacy stop (T1.1) precedes the capture (the parser checks the order only, not the stop); the live counts equal the backup's (necessary, NOT proof of no writes); one account, ≥ 1491 objects, from the minipc VM. It prints `dataLossBoundary` (= the capture time). |
++ | T1.4 secret | owner | `cutover.py replicas --stage t1 --inputs replicas.json` → `$SIAS3_REPLICAS` = `[{"name":"<primary>","indexer":"https://sia.enclave.host","appKey":"$SIA_APP_KEY"}]` (the SAME app key 0.1.8 uses, by reference) | |
++ | T1.5 switch | owner | Switch the deployment to the C2 version. The legacy writer stays stopped. ~20-25 min NOT READY is expected after a fresh claim (front binding). Each membership step then takes ~5 min (§0 timing). | `cutover.py verify --stage t1 --healthz … --fact … --inputs replicas.json --account-row <root's read-only "fence\|cas_mode\|seq_enabled\|event_seq">`: ready; this claim's lease16 authority; C2 verified, no clone assumption; ballot = 16<<48\|claimBlock<<16\|logIndex; epoch ≥ 1 stable with the record admitted; W1/N1; the account fenced at that generation and in CAS. Then known CIDs and one write. |
++ 
++-**Rollback is decided by the live enrolment state, never by readiness.** Enrolment can commit before a later startup or
++-readiness failure: the FIXTURE `rehearsal/main_enrollfail.py` kills C2 right after its fence install, never ready, and the
++-account is enrolled. Run `cutover.py rollback-decision --vm-state <fresh vm-state.sh output>`:
+++**Rollback is decided by the live enrolment state read BEHIND a quiescence barrier, never by readiness and never by an
+++earlier observation.**
+++- **Readiness is not the criterion.** Enrolment can commit before a later startup or readiness failure:
+++  `rehearsal/main_enrollfail.py` (e1) kills C2 right after its fence install, never ready, and the account is enrolled.
+++- **An earlier zero count is not the criterion either.** A C2 instance, a retry or a request already in flight can enrol
+++  between that read and any later stop. `rehearsal/main_rollbackorder.py` (r1) shows exactly that: the 6fd7a929
+++  `rollback-decision` said LEGACY_REDEPLOY_SAFE, and the account was then enrolled.
+++
+++**The ordered procedure** (existing tools; the decision comes LAST):
+++
+++| # | who | step | what it establishes |
+++|---|---|---|---|
+++| R1 | owner | Disable C2 activation AND its retries: switch the deployment back to the 0.1.8 catalog version, or stop it, so the node neither runs nor respawns C2. Confirm no C2 instance of the deployment remains (node status). | No NEW C2 attempt starts. It cannot recall a request already sent. |
+++| R2 | root | `mv /etc/enclave-indexd/ALLOW_LIVE_START /etc/enclave-indexd/ALLOW_LIVE_START.held-<run>` | systemd will not start indexd: the unit's `ConditionPathExists`. |
+++| R3 | root | Stop indexd with the reviewed controller `1543577f` (`replicactl … stop`, i.e. `systemctl stop enclave-indexd`). | No request in flight can complete an enrolment: the only service that applies it is down and cannot restart. PostgreSQL stays up for reads. |
+++| R4 | root | `primary/vm-state.v2.sh` (the pinned `vm-state.sh` plus one read-only `allowLiveStart` line), captured AFTER R2-R3. | This one snapshot shows the barrier (`allowLiveStart=absent`, `unit.ActiveState=inactive`, `MainPID=0`, empty `writerPids`, no controller/tool session) AND the fenced/CAS counts read behind it. |
+++| R5 | root | `cutover.py rollback-decision --vm-state <R4> [--c2-activation-disabled]`; the flag is the owner's R1 attestation. | See the table below. |
++ 
++ | decision | when | what is allowed |
++ |---|---|---|
++-| `LEGACY_REDEPLOY_SAFE` | `fencedAccounts` = 0 AND `casEnrolledAccounts` = 0 | Stop any C2 instance, redeploy 0.1.8. A full rollback, nothing lost. |
++-| `FORWARD_ONLY` | either count > 0 | Keep C2: restart it, or stay at N = 1, and repair forward. 0.1.8 cannot write to an enrolled account and there is no online downgrade (sticky CAS; no force-unenrol). |
++-| `UNKNOWN` | the state is unreadable | Do nothing until it is re-read. |
+++| `FORWARD_ONLY` | any fenced or CAS account, in ANY snapshot (enrolment is sticky) | Keep C2: restart it, or stay at N = 1, and repair forward. 0.1.8 cannot write to an enrolled account and there is no online downgrade (sticky CAS; no force-unenrol). |
+++| `LEGACY_REDEPLOY_SAFE` | zero counts read BEHIND the barrier (R4) AND the R1 attestation | Keep C2 disabled. Restore the guard and start indexd (`replicactl … start`), then run 0.1.8. Post-check with `vm-state.v2.sh`: still 0/0 and 0.1.8 writes. If an account is now enrolled (a C2 instance survived), the decision is FORWARD_ONLY: switch back to C2. |
+++| `UNKNOWN` | zero counts WITHOUT the full barrier or attestation, or an unreadable state | NOT a rollback authorization: establish R1-R4 and re-read. If the barrier cannot be established, repair forward (C2). |
+++
+++**Observed once, not diagnosed (FIXTURE r1).** Right after its indexer restarted, the live 0.1.8 panicked on a GET:
+++`sia_storage download.rs:336`, "index out of bounds: the len is 27 but the index is 28". That GET was for a key the account
+++did not hold. r2, reading only existing keys, did not see it. After the LEGACY_REDEPLOY_SAFE restart, expect that 0.1.8 may
+++need the node's respawn before it serves; that is availability, not data.
+++
+++**What the steps establish, and what the offline parser cannot.**
+++- **The parser** reads ONE snapshot. It verifies the barrier lines and the counts in that snapshot, and that zero counts
+++  were read while indexd could not run.
+++- **It cannot verify:**
+++  - that no C2 instance remains or will be respawned: the owner's R1 attestation; node state is not visible from the VM;
+++  - that the snapshot is the live primary's and the latest: root's capture;
+++  - that nobody restores the guard between R4 and the decision: one operator.
+++- **It never accepts** an earlier zero count or a caller-supplied timestamp as quiescence.
++ 
++ **Restoring the T1.2 backup is NOT a routine rollback.** On the same VM with the same seed it discards every write
++ acknowledged after `dataLossBoundary`: all C2 writes, since the legacy writer was stopped before the capture. It is root's
++diff --git a/package/PINS.json b/package/PINS.json
++index 662b247..063b457 100644
++--- a/package/PINS.json
+++++ b/package/PINS.json
++@@ -92,6 +92,12 @@
++   "primary.backup.common": {
++    "path": "work/claude-resumed-20261022/storage-fresh-backup/local/common.py",
++    "sha256": "be0a9b0cd45ebcc5df1691c7169ceb7eb83c1e0ff1973d3cb56a60124fff9ba3"
+++  },
+++  "primary.vm-state-v2": {
+++   "path": "work/resume-after-checkpoint-20261022/storage-write-release/package/primary/vm-state.v2.sh",
+++   "sha256": "adacd37fc82e05a272db6a7732999a296ac954b132d521406efdcaee078b9a64",
+++   "derivedFrom": "5ac71122e2c13bffd53443f040bbc19e6b3dd622162882d19567e5a90efbb616",
+++   "use": "T1 preflight and the rollback barrier snapshot R4 (adds the allowLiveStart line)"
++   }
++  },
++  "never": {
++diff --git a/package/primary/vm-state.v2.sh b/package/primary/vm-state.v2.sh
++new file mode 100644
++index 0000000..7aceba5
++--- /dev/null
+++++ b/package/primary/vm-state.v2.sh
++@@ -0,0 +1,34 @@
+++#!/bin/bash
+++# vm-state.v2.sh - READ-ONLY state of the live primary (vm-state.sh 5ac71122 + one allowLiveStart line).
+++# - Root runs it on the VM: $VMSSH 'sudo bash -s' < vm-state.sh
+++# - It changes nothing and prints no secret.
+++# - It reads the database only through the container's GNU `timeout --foreground` (never an orphan to the postmaster).
+++# - Its sessions are tagged application_name=root-state.
+++set -u
+++R=/opt/enclave-indexd/releases PG=enclave-indexd-postgres U=enclave-indexd
+++echo "current=$(readlink "$R/current" 2>/dev/null || echo NONE)"
+++echo "currentSha=$(sha256sum "$R/current/indexd" 2>/dev/null | cut -c1-64)"
+++systemctl show "$U" -p ActiveState -p SubState -p MainPID -p NRestarts -p NeedDaemonReload -p ExecStart --no-pager | sed 's/^/unit./'
+++pid=$(systemctl show -p MainPID --value "$U")
+++[ "${pid:-0}" != 0 ] && echo "runningExeSha=$(sha256sum "/proc/$pid/exe" 2>/dev/null | cut -c1-64)"
+++echo "writerPids=$(pgrep -u "$U" -x indexd | tr '\n' ' ')"
+++# v2 (storage-write-release, rollback ordering): the unit's start guard (ConditionPathExists): "absent" means systemd will
+++# not start indexd, so no request can reach its application API while this snapshot's database counts are read
+++echo "allowLiveStart=$([ -e /etc/enclave-indexd/ALLOW_LIVE_START ] && echo present || echo absent)"
+++tv=$(timeout 30 docker exec "$PG" timeout --version 2>/dev/null | head -1)
+++echo "containerTimeout=$tv"
+++case "$tv" in *"GNU coreutils"*) ;; *) echo "db=SKIPPED: no GNU coreutils timeout in the container"; exit 0 ;; esac
+++q() {   # $1 db, $2 sql: bounded INSIDE the container (20 s, KILL reaped by timeout itself) and server-side (15 s)
+++  timeout 40 docker exec -e PGAPPNAME=root-state -e PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=15000 -c lock_timeout=2000' \
+++    "$PG" sh -c 'exec timeout --foreground -s KILL 20 psql -U "${POSTGRES_USER:-postgres}" -d "$1" -X -A -t -q -v ON_ERROR_STOP=1 -c "$2"' psql "$1" "$2"
+++}
+++v=$(q indexd 'SELECT db_version FROM global_settings;') || v=UNREADABLE
+++echo "dbVersion=$v"
+++echo "fsync=$(q indexd 'SHOW fsync;') synchronous_commit=$(q indexd 'SHOW synchronous_commit;')"
+++case "$v" in 27|28) echo "fencedAccounts=$(q indexd 'SELECT count(*) FROM accounts WHERE fence IS NOT NULL;')" ;; esac
+++[ "$v" = 28 ] && echo "casEnrolledAccounts=$(q indexd 'SELECT count(*) FROM accounts WHERE cas_mode;')"
+++echo "scratchDatabases=$(q postgres "SELECT coalesce(string_agg(datname, ','), '') FROM pg_database WHERE datname LIKE 'indexd\_verify%';")"
+++echo "controllerSessions=$(q postgres "SELECT coalesce(string_agg(pid || ':' || application_name || ':' || state, ' '), '') FROM pg_stat_activity WHERE application_name LIKE 'replicactl-%';")"
+++echo "toolSessions=$(q postgres "SELECT coalesce(string_agg(pid || ':' || application_name || ':' || coalesce(datname, ''), ' '), '') FROM pg_stat_activity WHERE application_name IN ('pg_dump', 'psql', 'pg_restore');")"
+++L=/run/enclave-indexd-snapshot.lock   # flock would create an absent file: only probe an existing one
+++if [ -e "$L" ]; then echo "lockHeld=$(flock -n "$L" true 2>/dev/null && echo no || echo yes)"; else echo "lockHeld=no (absent)"; fi
++diff --git a/package/tests/test_cutover.py b/package/tests/test_cutover.py
++index f60861d..ce305e1 100644
++--- a/package/tests/test_cutover.py
+++++ b/package/tests/test_cutover.py
++@@ -92,15 +92,54 @@ class Preflight(unittest.TestCase):
++             self.assertTrue(any(want in x for x in r["reasons"]), (want, r["reasons"]))
++ 
++ 
+++def barrier_state(text, **over):
+++    """the v28 vm-state behind the quiescence barrier (R2-R4): start guard absent, indexd stopped, no session"""
+++    kv = {"unit.ActiveState": "inactive", "unit.SubState": "dead", "unit.MainPID": "0", "writerPids": "", "allowLiveStart": "absent", **over}
+++    lines = [l for l in text.splitlines() if l.split("=", 1)[0] not in kv]
+++    return "\n".join(lines + [f"{k}={v}" for k, v in kv.items()]) + "\n"
+++
+++
++ class Rollback(unittest.TestCase):
++-    def test_decided_by_the_live_enrolment_state_only(self):
+++    def test_original_6fd7a929_decides_from_an_unquiesced_zero_count(self):
+++        import subprocess, importlib.util
+++        src = subprocess.run(["git", "-C", os.path.join(HERE, "..", ".."), "show", "6fd7a9299c53121142ab59d8ff9a7406c1f2b845:package/tools/cutover.py"],
+++                             capture_output=True, check=True).stdout
+++        with tempfile.NamedTemporaryFile("wb", suffix=".py", delete=False) as f:
+++            f.write(src)
+++        spec = importlib.util.spec_from_file_location("cutover_6fd7", f.name); old = importlib.util.module_from_spec(spec); spec.loader.exec_module(old)
+++        os.unlink(f.name)
+++        running = txt("vm-state-v28-from-postcheck2.out")                       # indexd RUNNING, start guard unknown
+++        self.assertEqual(old.rollback_decision(running)["decision"], "LEGACY_REDEPLOY_SAFE", "the counterexample: observation alone authorized it")
+++        self.assertEqual(C.rollback_decision(running)["decision"], "UNKNOWN")
+++        self.assertEqual(C.rollback_decision(running, True)["decision"], "UNKNOWN", "an attestation without the barrier authorizes nothing")
+++
+++    def test_legacy_redeploy_only_behind_the_full_barrier_with_the_attestation(self):
+++        v28 = txt("vm-state-v28-from-postcheck2.out")
+++        full = barrier_state(v28)
+++        d = C.rollback_decision(full, True)
+++        self.assertEqual(d["decision"], "LEGACY_REDEPLOY_SAFE", d)
+++        self.assertTrue(d["notEstablished"] and any("C2 instance" in x for x in d["notEstablished"]))
+++        self.assertEqual(C.rollback_decision(full, False)["missing"], ["c2ActivationDisabledAttested"])
+++        for k, v in (("allowLiveStart", "present"), ("unit.ActiveState", "active"), ("unit.MainPID", "4242"), ("writerPids", "4242"),
+++                     ("controllerSessions", "99:replicactl-x:active"), ("toolSessions", "7:psql:indexd")):
+++            d = C.rollback_decision(barrier_state(v28, **{k: v}), True)
+++            self.assertEqual(d["decision"], "UNKNOWN", k); self.assertTrue(d["missing"], k); self.assertTrue(d["steps"])
+++        self.assertEqual(C.rollback_decision(barrier_state(v28).replace("allowLiveStart=absent\n", ""), True)["decision"], "UNKNOWN",
+++                         "a snapshot without the guard line (the original vm-state.sh) never shows the barrier")
+++
+++    def test_any_enrolment_is_forward_only_whatever_the_barrier(self):
+++        v28 = txt("vm-state-v28-from-postcheck2.out")
+++        for text in (v28.replace("casEnrolledAccounts=0", "casEnrolledAccounts=1"), v28.replace("fencedAccounts=0", "fencedAccounts=1"),
+++                     barrier_state(v28.replace("casEnrolledAccounts=0", "casEnrolledAccounts=1"))):
+++            for att in (False, True):
+++                d = C.rollback_decision(text, att)
+++                self.assertEqual(d["decision"], "FORWARD_ONLY"); self.assertIn("NOT a routine rollback", d["do"])
+++
+++    def test_unreadable_is_unknown(self):
++         v28 = txt("vm-state-v28-from-postcheck2.out")
++-        self.assertEqual(C.rollback_decision(v28)["decision"], "LEGACY_REDEPLOY_SAFE")
++-        for text in (v28.replace("casEnrolledAccounts=0", "casEnrolledAccounts=1"), v28.replace("fencedAccounts=0", "fencedAccounts=1")):
++-            d = C.rollback_decision(text)
++-            self.assertEqual(d["decision"], "FORWARD_ONLY"); self.assertIn("NOT a routine rollback", d["do"])
++-        for text in (txt("vm-state-v26-real.out"), v28.replace("casEnrolledAccounts=0\n", ""), v28.replace("casEnrolledAccounts=0", "casEnrolledAccounts=UNREADABLE")):
++-            self.assertEqual(C.rollback_decision(text)["decision"], "UNKNOWN")
+++        for text in (txt("vm-state-v26-real.out"), barrier_state(v28).replace("casEnrolledAccounts=0\n", ""),
+++                     barrier_state(v28).replace("casEnrolledAccounts=0", "casEnrolledAccounts=UNREADABLE")):
+++            self.assertEqual(C.rollback_decision(text, True)["decision"], "UNKNOWN")
++ 
++ 
++ class VerifyT1(unittest.TestCase):
++diff --git a/package/tools/cutover.py b/package/tools/cutover.py
++index 4b03991..5135334 100644
++--- a/package/tools/cutover.py
+++++ b/package/tools/cutover.py
++@@ -12,8 +12,9 @@ connection, reads a key, or changes anything. Exit 0 = GO / PASS, 1 = NO-GO / FA
++             --legacy-stopped-at <ISO8601+zone> --live-counts counts.json [--max-capture-age-hours 2] [--max-verify-age-hours 2]
++       GO only for the live primary EXACTLY as prepared (release 2c0e5b06, schema 28, quiet, NO account fenced or enrolled),
++       the legacy writer stopped BEFORE a fresh coupled v28 capture of the running release, and nothing written since
++-  cutover.py rollback-decision --vm-state vm-state.out
++-      LEGACY_REDEPLOY_SAFE / FORWARD_ONLY / UNKNOWN from the live fenced/CAS counts (never from readiness)
+++  cutover.py rollback-decision --vm-state <vm-state.v2.sh output> [--c2-activation-disabled]
+++      FORWARD_ONLY on any fenced/CAS account; LEGACY_REDEPLOY_SAFE only for zero counts read BEHIND the quiescence barrier
+++      (start guard absent, indexd stopped, no session) with C2 activation attested disabled; otherwise UNKNOWN
++   cutover.py verify --stage t1|t2|t4a|t4b --healthz healthz.json --fact lease16.json --inputs replicas.json [--account-row row.txt]
++       the public /healthz of the C2 deployment (and, for t1, root's read-only account row) against the stage's expectation
++ """
++@@ -128,8 +129,11 @@ def t1_preflight(vm_text, receipt, now, legacy_stopped_at, live_counts, max_capt
++     """GO only when, at `now`:
++       - the live primary is exactly as prepared (vm-state.sh): release 2c0e5b06 current and running, schema 28, quiet, NO
++         account fenced or CAS-enrolled;
++-      - the legacy writer (sia-s3 0.1.8 and anything else writing) was stopped at `legacy_stopped_at`, BEFORE the coupled
++-        backup was CAPTURED, and nothing was written since: the live counts root read now equal the backup's;
+++      - the legacy writer (sia-s3 0.1.8 and anything else writing) was stopped - deployment stopped, node respawn and client
+++        retries disabled, in-flight requests drained: the OWNER's attestation, recorded as `legacy_stopped_at` - BEFORE the
+++        coupled backup was CAPTURED (this parser checks only that ordering, never the stop itself), and the live object and
+++        account counts root reads now equal the backup's. Equal counts are a NECESSARY check only: an overwrite, a delete
+++        followed by a create, or a replacement keeps every count, so they never prove that nothing was written;
++       - (release: the pinned live release; only the fixture tests pass their own binary's hash)
++       - the backup is a v2 integrity result (package/backup/local/verify_archive.v2.py) that passed every check, is bound to
++         its run, bundles the running release 2c0e5b06 with a schema-28 database from the minipc VM, and was CAPTURED (the
++@@ -190,27 +194,65 @@ def t1_preflight(vm_text, receipt, now, legacy_stopped_at, live_counts, max_capt
++         why.append(str(e))
++     lc = live_counts or {}
++     if lc.get("objects") != counts.get("objects") or lc.get("accounts") != counts.get("accounts"):
++-        why.append(f"live counts {lc!r} != the backup's {counts!r}: something wrote after the capture (or the backup is not this database's)")
+++        why.append(f"live counts {lc!r} != the backup's {counts!r}: something wrote after the capture (or the backup is not this database's); "
+++                   "equal counts would NOT have proved the opposite")
++     return {"verdict": "GO" if not why else "NO-GO", "reasons": why, "release": kv.get("currentSha"), "schema": kv.get("dbVersion"),
++             "capturedAt": r.get("capturedAt"), "dataLossBoundary": r.get("capturedAt")}
++ 
++ 
++-def rollback_decision(vm_text):
++-    """What a T1 rollback may do, decided ONLY by the live enrolment state (vm-state.sh), never by readiness: enrolment can
++-    commit before a later startup or readiness failure."""
+++FORWARD = ("keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and there is "
+++           "no online downgrade (sticky CAS; no force-unenrol). Restoring the pre-enrolment backup is NOT a routine rollback: it "
+++           "discards every write acknowledged after that backup's capture time - root's explicit decision only, writers stopped.")
+++BARRIER_STEPS = [
+++    "owner: disable C2 activation AND its retries - switch the deployment back to the 0.1.8 catalog version (or stop it) so the "
+++    "node neither runs nor respawns the C2 version; confirm no C2 instance of the deployment remains (node status)",
+++    "root: move the start guard aside: mv /etc/enclave-indexd/ALLOW_LIVE_START /etc/enclave-indexd/ALLOW_LIVE_START.held-<run> "
+++    "(the unit's ConditionPathExists: systemd will not start indexd while it is absent)",
+++    "root: stop indexd with the reviewed controller (replicactl ... stop, i.e. systemctl stop enclave-indexd): after this no "
+++    "request in flight from any C2 instance can complete an enrolment",
+++    "root: capture vm-state.v2.sh (read-only) and decide with --c2-activation-disabled",
+++]
+++
+++
+++def rollback_decision(vm_text, c2_activation_disabled=False):
+++    """What a T1 rollback may do. OBSERVATION ALONE NEVER AUTHORIZES A LEGACY REDEPLOY.
+++      - Any fenced or CAS-enrolled account -> FORWARD_ONLY (enrolment is sticky: no later state can undo it).
+++      - Zero counts authorize LEGACY_REDEPLOY_SAFE only when the SAME vm-state.v2.sh snapshot shows the quiescence barrier
+++        (allowLiveStart absent, the unit inactive with no main PID, no indexd process, no controller/tool session) AND the
+++        owner attests that C2 activation and its retries are disabled. Otherwise -> UNKNOWN: establish the barrier, re-read.
+++    A zero count read while indexd can still serve says nothing about the next instant: a C2 instance (or a retry, or a
+++    request already in flight) can enrol between that read and any later stop (storage-write-release rehearsal r1)."""
++     kv = parse_kv(vm_text)
++     cas, fenced = kv.get("casEnrolledAccounts"), kv.get("fencedAccounts")
+++    not_established = ["that no C2 instance of the deployment remains or will be respawned (the owner's attestation: "
+++                       "--c2-activation-disabled; node state is not visible from the VM)",
+++                       "that this snapshot comes from the live primary VM and is the latest (root's capture)",
+++                       "that the start guard stays absent until root restores it (no concurrent operator)"]
++     if kv.get("dbVersion") != "28" or cas is None or fenced is None or not (str(cas).isdigit() and str(fenced).isdigit()):
++         return {"decision": "UNKNOWN", "do": "nothing: re-read the state (an unread enrolment state is never 'not enrolled')",
++                 "state": {"dbVersion": kv.get("dbVersion"), "casEnrolledAccounts": cas, "fencedAccounts": fenced}}
++-    if cas == "0" and fenced == "0":
++-        return {"decision": "LEGACY_REDEPLOY_SAFE", "do": "stop any C2 instance, then redeploy 0.1.8: the account is neither fenced nor enrolled",
+++    if cas != "0" or fenced != "0":
+++        return {"decision": "FORWARD_ONLY", "do": FORWARD, "state": {"casEnrolledAccounts": int(cas), "fencedAccounts": int(fenced)},
+++                "established": "an account IS fenced or CAS-enrolled; enrolment is sticky, so this holds whatever happens next"}
+++    barrier = {"allowLiveStart": kv.get("allowLiveStart") == "absent",
+++               "unitInactive": kv.get("unit.ActiveState") in ("inactive", "failed") and kv.get("unit.MainPID") == "0",
+++               "noIndexdProcess": kv.get("writerPids", None) == "",
+++               "noControllerOrToolSession": kv.get("controllerSessions") == "" and kv.get("toolSessions") == "",
+++               "c2ActivationDisabledAttested": c2_activation_disabled is True}
+++    missing = [k for k, ok in barrier.items() if not ok]
+++    if missing:
+++        return {"decision": "UNKNOWN", "missing": missing, "steps": BARRIER_STEPS,
+++                "do": "NOT a rollback authorization: zero counts without the quiescence barrier say nothing about the next "
+++                      "instant. Establish the barrier in this order, then re-read. If it cannot be established, repair forward (C2).",
++                 "state": {"casEnrolledAccounts": 0, "fencedAccounts": 0}}
++-    return {"decision": "FORWARD_ONLY",
++-            "do": "keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and there is no "
++-                  "online downgrade. Restoring the pre-enrolment backup is NOT a routine rollback: it discards every write acknowledged "
++-                  "after that backup's capture time - root's explicit decision only, with the writers stopped.",
++-            "state": {"casEnrolledAccounts": int(cas), "fencedAccounts": int(fenced)}}
+++    return {"decision": "LEGACY_REDEPLOY_SAFE",
+++            "established": "with the start guard absent and indexd stopped (no process, no session), no enrolment can complete; "
+++                           "the database then shows no fenced and no CAS account",
+++            "notEstablished": not_established,
+++            "do": ["keep C2 activation disabled", "root: restore ALLOW_LIVE_START and start indexd (replicactl ... start)",
+++                   "owner: run 0.1.8", "root: post-check with vm-state.v2.sh: still 0 fenced / 0 CAS and 0.1.8 writes; if an account "
+++                   "is now enrolled (a C2 instance survived), the decision becomes FORWARD_ONLY: switch back to C2"],
+++            "state": {"casEnrolledAccounts": 0, "fencedAccounts": 0}}
++ 
++ 
++ # ---------------- step verification from the public /healthz ----------------
++@@ -291,6 +333,7 @@ def main(argv):
++     b.add_argument("--now", required=True); b.add_argument("--legacy-stopped-at", required=True); b.add_argument("--live-counts", required=True)
++     b.add_argument("--max-capture-age-hours", type=float, default=2.0); b.add_argument("--max-verify-age-hours", type=float, default=2.0)
++     d = sub.add_parser("rollback-decision"); d.add_argument("--vm-state", required=True)
+++    d.add_argument("--c2-activation-disabled", action="store_true", help="the owner's attestation: C2 activation and its retries are disabled")
++     c = sub.add_parser("verify"); c.add_argument("--stage", required=True, choices=["t1", "t2", "t4a", "t4b"]); c.add_argument("--healthz", required=True)
++     c.add_argument("--fact", required=True); c.add_argument("--inputs", required=True); c.add_argument("--account-row")
++     o = ap.parse_args(argv)
++@@ -302,7 +345,7 @@ def main(argv):
++             print(json.dumps({"stage": o.stage, "members": members, "writeQuorum": wq}), file=sys.stderr)
++             return 0
++         if o.cmd == "rollback-decision":
++-            r = rollback_decision(read(o.vm_state))
+++            r = rollback_decision(read(o.vm_state), o.c2_activation_disabled)
++             print(json.dumps(r, indent=1))
++             return 0 if r["decision"] != "UNKNOWN" else 1
++         if o.cmd == "t1-preflight":
++diff --git a/rehearsal/main_rollbackorder.py b/rehearsal/main_rollbackorder.py
++new file mode 100644
++index 0000000..92cae3f
++--- /dev/null
+++++ b/rehearsal/main_rollbackorder.py
++@@ -0,0 +1,175 @@
+++
+++
+++# ======================================================================================================================
+++# ROLLBACK ORDERING (root's review of 6fd7a929, 2026-10-23): observation alone must never authorize a legacy redeploy.
+++# The same interop16.py helpers; TWO independent indexers (r0, r1: own databases and wallets), 30 loopback RHP4 hosts, the
+++# exact live 0.1.8 and the final 00e9cde0. One account per indexer, as the live primary has one.
+++#   U (account A on r0) - the ORIGINAL ordering is unsafe:
+++#     U1 0.1.8 writes; S0 = a zero snapshot read while indexd RUNS;
+++#     U2 the ORIGINAL rollback-decision (the exact 6fd7a929 cutover.py) says LEGACY_REDEPLOY_SAFE; the new one says UNKNOWN;
+++#     U3 C2 activation is still enabled: a C2 instance enrols AFTER S0 (deterministic: started after S0, awaited in the DB);
+++#     U4 following the original plan ("stop any C2 instance, then redeploy 0.1.8") - 0.1.8 cannot write: the plan was wrong;
+++#     U5 the NEW procedure (R1 C2 disabled, R2 guard absent, R3 indexd stopped, R4 snapshot) on that state: FORWARD_ONLY.
+++#   S (account B on r1) - the safe never-enrolled rollback, only with its full preconditions:
+++#     S1 0.1.8 writes; S2 C2 starts while r1 is down (it cannot enrol); R1-R4: the snapshot behind the barrier has zero counts;
+++#     S3 the decision: UNKNOWN without the owner's attestation, LEGACY_REDEPLOY_SAFE with it;
+++#     S4 following it (guard back, indexd started, 0.1.8): 0.1.8 writes and reads; the post-check still shows 0 fenced / 0 CAS.
+++# The vm-state.v2.sh lines are DERIVED from fixture state: unit/MainPID/writerPids from the harness indexer's up/down, the
+++# start guard from the driver's own hold, the counts from the indexer's own database. FIXTURE, loopback only.
+++# ======================================================================================================================
+++sys.path.insert(0, os.path.join(RELEASE, "package", "tools"))
+++import cutover  # noqa: E402
+++import importlib.util  # noqa: E402
+++_spec = importlib.util.spec_from_file_location("cutover_6fd7a929", os.environ["OLD_CUTOVER"])
+++old_cutover = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(old_cutover)
+++GUARD = {0: "present", 1: "present"}
+++
+++
+++def vm_state(pg, h, i):
+++    """vm-state.v2.sh's lines for indexer i (DERIVED from the fixture, see the header)"""
+++    up = [x for x in h.post("/manifest")["indexers"]][i]["up"]
+++    db = f"r{i}"
+++    return "\n".join([f"dbVersion={pg.q('SELECT db_version FROM global_settings', db)}",
+++                      f"unit.ActiveState={'active' if up else 'inactive'}", f"unit.SubState={'running' if up else 'dead'}",
+++                      f"unit.MainPID={'4242' if up else '0'}", f"writerPids={'4242' if up else ''}", f"allowLiveStart={GUARD[i]}",
+++                      f"fencedAccounts={pg.q('SELECT count(*) FROM accounts WHERE fence IS NOT NULL', db)}",
+++                      f"casEnrolledAccounts={pg.q('SELECT count(*) FROM accounts WHERE cas_mode', db)}",
+++                      "controllerSessions=", "toolSessions="]) + "\n"
+++
+++
+++def cas_of(pg, i):
+++    return pg.q("SELECT count(*) FROM accounts WHERE cas_mode", f"r{i}")
+++
+++
+++def main():
+++    global EGRESS
+++    preconditions()
+++    pg = PG()
+++    h = None
+++    EGRESS = None
+++    try:
+++        h = Harness(pg, hosts=30, indexers=2)
+++        EGRESS = Egress()
+++        urls = [x["url"] for x in h.post("/manifest")["indexers"]]
+++        seeds = [hashlib.sha256(f"{run_id}/rollbackorder-{n}".encode()).digest() for n in ("A", "B")]
+++        for i in (0, 1):
+++            h.post(f"/register?idx={i}&pk={pubkey_hex(seeds[i])}")
+++        cw = {k: precompile(k) for k in ART}
+++        prod = json.load(open(CATALOG_C2))
+++        cfg018 = lambda i: {"indexer": urls[i], "appKey": seeds[i].hex(), "region": REGION, "buckets": BUCKETS, "credentials": [{"accessKeyId": AK, "secretAccessKey": SK}]}
+++        c2env = lambda i: (f"SIA_APP_KEY={seeds[i].hex()}", f"S3_ACCESS_KEY_ID={AK}", f"S3_SECRET_ACCESS_KEY={SK}",
+++                           "SIAS3_REPLICAS=" + json.dumps([{"name": f"r{i}", "indexer": urls[i], "appKey": "$SIA_APP_KEY"}], separators=(",", ":")),
+++                           *front_env(lease16(*CLAIM1)))
+++
+++        # ================= U: the original ordering =================
+++        o = Instance("U-v018", "v018", cfg018(0), cw["v018"])
+++        check("U1: 0.1.8 is ready on r0 (account A unenrolled)", o.wait_ready())
+++        st, _, _ = put(o, "ipfs", "legacy/a", "a1", 2 * MIB); check("U1: 0.1.8 PUT", st == 200, st)
+++        o.stop()
+++        s0 = vm_state(pg, h, 0); R["U.S0"] = s0
+++        d_old, d_new = old_cutover.rollback_decision(s0), cutover.rollback_decision(s0, True)
+++        R["U.decisionOld"], R["U.decisionNew"] = d_old, d_new
+++        check("U2: S0 is a zero snapshot read while indexd RUNS; the ORIGINAL 6fd7a929 decision says LEGACY_REDEPLOY_SAFE",
+++              "casEnrolledAccounts=0" in s0 and "unit.ActiveState=active" in s0 and d_old["decision"] == "LEGACY_REDEPLOY_SAFE", d_old)
+++        check("U2: the NEW decision on the same unquiesced zero snapshot is UNKNOWN (even with the attestation)", d_new["decision"] == "UNKNOWN", d_new)
+++        c2 = Instance("U-c2-activation-still-enabled", "final", prod, cw["final"], c2env(0))     # the window: C2 activation not yet disabled
+++        t0 = time.time()
+++        while time.time() - t0 < 300 and cas_of(pg, 0) == "0" and c2.alive():
+++            time.sleep(0.2)
+++        R["U.enrolledAfterSeconds"] = round(time.time() - t0, 2)
+++        check("U3: a C2 instance enrols AFTER S0 (account A now in CAS mode)", cas_of(pg, 0) == "1", R["U.enrolledAfterSeconds"])
+++        c2.stop()                                                                        # the original plan: "stop any C2 instance"
+++        o2 = Instance("U-v018-redeploy", "v018", cfg018(0), cw["v018"])                 # "...then redeploy 0.1.8"
+++        o2.wait_ready(timeout=300)
+++        st = None
+++        if o2.alive():
+++            try:
+++                st, _, _ = s3(o2, "PUT", "ipfs", "after-original-rollback", body=b"must be refused", timeout=300)
+++            except Exception as e:
+++                log("0.1.8 request error:", e)
+++        o2.stop()
+++        check("U4: following the ORIGINAL decision, the redeployed 0.1.8 CANNOT write (the account is enrolled): the plan was unsafe",
+++              st != 200, {"PUT": st})
+++        GUARD[0] = "absent"                                                              # R2 (R1: no C2 instance runs or respawns)
+++        h.post("/stop?idx=0")                                                            # R3
+++        s4 = vm_state(pg, h, 0); R["U.R4"] = s4                                          # R4
+++        d = cutover.rollback_decision(s4, True); R["U.decisionAfterBarrier"] = d
+++        check("U5: the NEW procedure (barrier first, then the read): FORWARD_ONLY", d["decision"] == "FORWARD_ONLY"
+++              and "allowLiveStart=absent" in s4 and "unit.ActiveState=inactive" in s4, d)
+++
+++        # ================= S: the safe never-enrolled rollback =================
+++        EXP.clear()                                                                      # account B's objects only (r1)
+++        o = Instance("S-v018", "v018", cfg018(1), cw["v018"])
+++        check("S1: 0.1.8 is ready on r1 (account B unenrolled)", o.wait_ready())
+++        st, _, _ = put(o, "git", "legacy/b", "b1", 2 * MIB); check("S1: 0.1.8 PUT", st == 200, st)
+++        verify_all(o, "S1: 0.1.8 reads", ranges=False)
+++        o.stop()
+++        h.post("/stop?idx=1")                                                            # r1 unreachable: C2 cannot enrol
+++        c2 = Instance("S-c2-cannot-reach", "final", prod, cw["final"], c2env(1))
+++        ready = c2.wait_ready(timeout=45)
+++        c2.stop()                                                                        # R1: C2 activation disabled, no instance left
+++        check("S2: a C2 instance ran while r1 was down, never became ready, and no instance remains", not ready and not c2.alive(), ready)
+++        GUARD[1] = "absent"                                                              # R2; R3: r1 is stopped
+++        s4 = vm_state(pg, h, 1); R["S.R4"] = s4
+++        d_no, d_yes = cutover.rollback_decision(s4, False), cutover.rollback_decision(s4, True)
+++        R["S.decisionWithoutAttestation"], R["S.decision"] = d_no, d_yes
+++        check("S3: behind the barrier the counts are zero; WITHOUT the owner's attestation the decision is UNKNOWN",
+++              "casEnrolledAccounts=0" in s4 and "fencedAccounts=0" in s4 and d_no["decision"] == "UNKNOWN" and d_no["missing"] == ["c2ActivationDisabledAttested"], d_no)
+++        check("S3: WITH it, LEGACY_REDEPLOY_SAFE", d_yes["decision"] == "LEGACY_REDEPLOY_SAFE", d_yes)
+++        GUARD[1] = "present"; h.post("/start?idx=1")                                     # follow it: guard back, indexd started
+++        # run r1 showed the live 0.1.8 PANICKING on its first GET right after its indexer restarted (sia_storage download.rs:336
+++        # "index out of bounds: the len is 27 but the index is 28"): the node respawns a crashed app, so do the same, bounded,
+++        # until a GET of the legacy object answers; every attempt and panic is recorded
+++        attempts, o, served = [], None, False
+++        for n in range(12):
+++            o = Instance(f"S-v018-redeploy-{n}", "v018", cfg018(1), cw["v018"])
+++            ok = o.wait_ready(timeout=300)
+++            st = None
+++            if ok and o.alive():
+++                try:
+++                    st = s3(o, "GET", "git", "legacy/b", timeout=300)[0]
+++                except Exception as e:
+++                    st = type(e).__name__
+++            text = open(o.log_path, errors="replace").read()
+++            attempts.append({"n": n, "ready": ok, "get": st, "alive": o.alive(), "panic": "panicked at" in text})
+++            if st == 200 and o.alive():
+++                served = True
+++                break
+++            o.stop(); time.sleep(20)
+++        R["S.redeployAttempts"] = attempts
+++        if check("S4: 0.1.8 redeployed serves its legacy object (attempts recorded; restarts only after a crash)", served, attempts):
+++            verify_all(o, "S4: 0.1.8 reads its legacy object", ranges=False)
+++            st, _, _ = put(o, "jot", "after-safe-rollback", "b2", 1 * MIB)
+++            check("S4: and writes (a real rollback, nothing lost)", st == 200, st)
+++        if o:
+++            o.stop()
+++        post = vm_state(pg, h, 1); R["S.post"] = post
+++        check("S4: the post-check still shows 0 fenced / 0 CAS on r1", "casEnrolledAccounts=0" in post and "fencedAccounts=0" in post, post)
+++    finally:
+++        for i in ALL:
+++            if i.alive():
+++                i.stop()
+++        if EGRESS:
+++            EGRESS.close()
+++        if h:
+++            h.close()
+++        pg.close()
+++        for d in (os.path.join(RUN, "harness", "hosts"), pg.data):
+++            shutil.rmtree(d, ignore_errors=True)
+++        for f in os.listdir(RUN):
+++            if f.endswith(".cwasm"):
+++                os.remove(os.path.join(RUN, f))
+++        R["cleanup"] = {"hostSectorsRemoved": not os.path.exists(os.path.join(RUN, "harness", "hosts")), "pgDataRemoved": not os.path.exists(pg.data),
+++                        "pgSocketDirRemoved": not os.path.exists(pg.sock),
+++                        "pidsLeftInNamespace": sorted(int(p) for p in os.listdir("/proc") if p.isdigit() and int(p) != os.getpid())}
+++        R["finished"] = time.time()
+++        R["passed"] = sum(c["ok"] for c in R["checks"])
+++        R["failed"] = sum(not c["ok"] for c in R["checks"])
+++        save()
+++        log("checks passed", R["passed"], "failed", R["failed"], "cleanup", R["cleanup"])
+++
+++
+++signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError("driver wall bound 3000 s")))
+++signal.alarm(3000)
+++main()
+++sys.exit(0 if R.get("failed", 1) == 0 and R["checks"] else 1)
++diff --git a/rehearsal/rollbackorder.sh b/rehearsal/rollbackorder.sh
++new file mode 100755
++index 0000000..8c1897b
++--- /dev/null
+++++ b/rehearsal/rollbackorder.sh
++@@ -0,0 +1,16 @@
+++#!/bin/bash
+++# rollbackorder.sh <run-id>: assemble rollbackorder.py (interop16.py helpers + main_rollbackorder.py), extract the ORIGINAL
+++# cutover.py of commit 6fd7a929 (the negative control) and run it in PRIVATE network + PID namespaces as uid 1000 (PostgreSQL
+++# refuses root). Run it inside ONE claude-test-queue allocation (1536: two indexers + one wasmtime instance at a time).
+++set -euo pipefail
+++here=$(cd "$(dirname "$0")" && pwd)
+++id=${1:?run-id}
+++[[ "$id" =~ ^[a-z0-9]{1,12}$ ]] || { echo "run-id: [a-z0-9]{1,12}"; exit 2; }
+++{ printf '#!/usr/bin/env python3\n"""rollbackorder.py: GENERATED by rollbackorder.sh from _base.py (interop16.py helpers) + main_rollbackorder.py."""\n'
+++  cat "$here/_base.py" "$here/main_rollbackorder.py"; } > "$here/rollbackorder.py"
+++mkdir -p "$here/tmp" "$here/runs"
+++git -C "$here/.." show 6fd7a9299c53121142ab59d8ff9a7406c1f2b845:package/tools/cutover.py > "$here/tmp/cutover-6fd7a929.py"
+++sha256sum "$here/_base.py" "$here/main_rollbackorder.py" "$here/rollbackorder.py" "$here/tmp/cutover-6fd7a929.py" "$here/../package/tools/cutover.py"
+++export OLD_CUTOVER="$here/tmp/cutover-6fd7a929.py"
+++exec unshare -rn --pid --fork --kill-child --mount-proc sh -c \
+++  'ip link set lo up && exec unshare -U --map-user=1000 --map-group=1000 python3 -u -B "$0" "$1"' "$here/rollbackorder.py" "$id"
++diff --git a/rehearsal/runs/r1-failed/RETIRED.txt b/rehearsal/runs/r1-failed/RETIRED.txt
++new file mode 100644
++index 0000000..bf055b3
++--- /dev/null
+++++ b/rehearsal/runs/r1-failed/RETIRED.txt
++@@ -0,0 +1 @@
+++r1: FAILED 13/2 (driver: shared EXP across accounts; S4 0.1.8 panic after indexer restart crashed the driver). Ordering checks U1-U5, S2-S3 passed.
++diff --git a/rehearsal/runs/r1-failed/results.json b/rehearsal/runs/r1-failed/results.json
++new file mode 100644
++index 0000000..9f03deb
++--- /dev/null
+++++ b/rehearsal/runs/r1-failed/results.json
++@@ -0,0 +1,433 @@
+++{
+++ "run": "r1",
+++ "started": 1792742349.451403,
+++ "inputs": {
+++  "adapter-retained/bafybeib7at4cxxzmlp3wb7v45zrhbuggwzegspcacfylztslbcnoe6qrqu.bin": "d1ddecfe7c3e1d06d1921eb779e135f3a64f185a4dbcdd989f56e22f603e07d3",
+++  "storage-wasm-validation/artifacts/candidate-00e9cde0.wasm": "00e9cde0929dc7b8726ca4b7b9c9afb51ec4bf6d952039c907c032256ec79afc",
+++  "claude-resumed-20261022/storage-sdk-regressions/out/c2e-a/harness-block": "cac6651329468aaeb2dd4d90ac9b924a891b121edbe17d2515b34b0dae97eafa",
+++  "resume-after-checkpoint-20261022/storage-client-interop/egress_socks5.py": "77fad264406da15a85830ce1559fbd04feb2f9464b01576512a525112da09086",
+++  "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+++  "resume-after-checkpoint-20261022/storage-public-read/candidate-catalog-config.json": "7b9e7e750521b4bb0fa5925e771a42766673ad728e02e3d8508da4ca6ea554d2",
+++  "resume-after-checkpoint-20261022/storage-write-release/client/catalog-config.c2.json": "f6b48940cf7179b5a7bc61fabfee4667bd14aacd0380d953cae8f878972ff278"
+++ },
+++ "checks": [
+++  {
+++   "name": "U1: 0.1.8 is ready on r0 (account A unenrolled)",
+++   "ok": true,
+++   "detail": ""
+++  },
+++  {
+++   "name": "U1: 0.1.8 PUT",
+++   "ok": true,
+++   "detail": "200"
+++  },
+++  {
+++   "name": "U2: S0 is a zero snapshot read while indexd RUNS; the ORIGINAL 6fd7a929 decision says LEGACY_REDEPLOY_SAFE",
+++   "ok": true,
+++   "detail": "{'decision': 'LEGACY_REDEPLOY_SAFE', 'do': 'stop any C2 instance, then redeploy 0.1.8: the account is neither fenced nor enrolled', 'state': {'casEnrolledAccounts': 0, 'fencedAccounts': 0}}"
+++  },
+++  {
+++   "name": "U2: the NEW decision on the same unquiesced zero snapshot is UNKNOWN (even with the attestation)",
+++   "ok": true,
+++   "detail": "{'decision': 'UNKNOWN', 'missing': ['allowLiveStart', 'unitInactive', 'noIndexdProcess'], 'steps': ['owner: disable C2 activation AND its retries - switch the deployment back to the 0.1.8 catalog version (or stop it) so the node neither runs nor respawns the C2 version; confirm no C2 instance of the deployment remains (node status)', \"root: move the start guard aside: mv /etc/enclave-indexd/ALLOW_LIVE_START /etc/enclave-indexd/ALLOW_LIVE_START.held-<run> (the unit's ConditionPathExists: systemd will not start indexd while it is absent)\", 'root: stop indexd with the reviewed controller (replicactl ... stop, i.e. systemctl stop enclave-indexd): after this no request in flight from any C2 instance can complete an enrolment', 'root: capture vm-state.v2.sh (read-only) and decide with --c2-activation-disabled'], 'do': 'NOT a rollback authorization: zero counts without the quiescence barrier say nothing about the next instant. Establish the barrier in this order, then re-read. If it cannot be established, repair forward (C2).', 'state': {'casEnrolledAccounts': 0, 'fencedAccounts': 0}}"
+++  },
+++  {
+++   "name": "U3: a C2 instance enrols AFTER S0 (account A now in CAS mode)",
+++   "ok": true,
+++   "detail": "0.21"
+++  },
+++  {
+++   "name": "U4: following the ORIGINAL decision, the redeployed 0.1.8 CANNOT write (the account is enrolled): the plan was unsafe",
+++   "ok": true,
+++   "detail": "{'PUT': 500}"
+++  },
+++  {
+++   "name": "U5: the NEW procedure (barrier first, then the read): FORWARD_ONLY",
+++   "ok": true,
+++   "detail": "{'decision': 'FORWARD_ONLY', 'do': \"keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and there is no online downgrade (sticky CAS; no force-unenrol). Restoring the pre-enrolment backup is NOT a routine rollback: it discards every write acknowledged after that backup's capture time - root's explicit decision only, writers stopped.\", 'state': {'casEnrolledAccounts': 1, 'fencedAccounts': 1}, 'established': 'an account IS fenced or CAS-enrolled; enrolment is sticky, so this holds whatever happens next'}"
+++  },
+++  {
+++   "name": "S1: 0.1.8 is ready on r1 (account B unenrolled)",
+++   "ok": true,
+++   "detail": ""
+++  },
+++  {
+++   "name": "S1: 0.1.8 PUT",
+++   "ok": true,
+++   "detail": "200"
+++  },
+++  {
+++   "name": "S1: 0.1.8 reads: every key reads back byte-exact (2 keys)",
+++   "ok": false,
+++   "detail": "['ipfs/legacy/a: 404 163/2097152']"
+++  },
+++  {
+++   "name": "S1: 0.1.8 reads: listings are exact per bucket (deleted keys absent)",
+++   "ok": false,
+++   "detail": "[\"ipfs: 200 got [] want ['legacy/a']\"]"
+++  },
+++  {
+++   "name": "S2: a C2 instance ran while r1 was down, never became ready, and no instance remains",
+++   "ok": true,
+++   "detail": "False"
+++  },
+++  {
+++   "name": "S3: behind the barrier the counts are zero; WITHOUT the owner's attestation the decision is UNKNOWN",
+++   "ok": true,
+++   "detail": "{'decision': 'UNKNOWN', 'missing': ['c2ActivationDisabledAttested'], 'steps': ['owner: disable C2 activation AND its retries - switch the deployment back to the 0.1.8 catalog version (or stop it) so the node neither runs nor respawns the C2 version; confirm no C2 instance of the deployment remains (node status)', \"root: move the start guard aside: mv /etc/enclave-indexd/ALLOW_LIVE_START /etc/enclave-indexd/ALLOW_LIVE_START.held-<run> (the unit's ConditionPathExists: systemd will not start indexd while it is absent)\", 'root: stop indexd with the reviewed controller (replicactl ... stop, i.e. systemctl stop enclave-indexd): after this no request in flight from any C2 instance can complete an enrolment', 'root: capture vm-state.v2.sh (read-only) and decide with --c2-activation-disabled'], 'do': 'NOT a rollback authorization: zero counts without the quiescence barrier say nothing about the next instant. Establish the barrier in this order, then re-read. If it cannot be established, repair forward (C2).', 'state': {'casEnrolledAccounts': 0, 'fencedAccounts': 0}}"
+++  },
+++  {
+++   "name": "S3: WITH it, LEGACY_REDEPLOY_SAFE",
+++   "ok": true,
+++   "detail": "{'decision': 'LEGACY_REDEPLOY_SAFE', 'established': 'with the start guard absent and indexd stopped (no process, no session), no enrolment can complete; the database then shows no fenced and no CAS account', 'notEstablished': [\"that no C2 instance of the deployment remains or will be respawned (the owner's attestation: --c2-activation-disabled; node state is not visible from the VM)\", \"that this snapshot comes from the live primary VM and is the latest (root's capture)\", 'that the start guard stays absent until root restores it (no concurrent operator)'], 'do': ['keep C2 activation disabled', 'root: restore ALLOW_LIVE_START and start indexd (replicactl ... start)', 'owner: run 0.1.8', 'root: post-check with vm-state.v2.sh: still 0 fenced / 0 CAS and 0.1.8 writes; if an account is now enrolled (a C2 instance survived), the decision becomes FORWARD_ONLY: switch back to C2'], 'state': {'casEnrolledAccounts': 0, 'fencedAccounts': 0}}"
+++  },
+++  {
+++   "name": "S4: 0.1.8 redeployed is ready",
+++   "ok": true,
+++   "detail": ""
+++  }
+++ ],
+++ "measure": [
+++  {
+++   "op": "wasmtime compile v018",
+++   "wallS": 1.3
+++  },
+++  {
+++   "op": "wasmtime compile final",
+++   "wallS": 1.7
+++  },
+++  {
+++   "op": "U-v018 PUT ipfs/legacy/a 2097152",
+++   "wallS": 2.07,
+++   "status": 200
+++  },
+++  {
+++   "op": "U-v018 instance",
+++   "maxRssMiB": 150,
+++   "cpuS": 1.71,
+++   "wallS": 4.3,
+++   "sampledPeakRssMiB": 150,
+++   "status": 15
+++  },
+++  {
+++   "op": "U-c2-activation-still-enabled instance",
+++   "maxRssMiB": 87,
+++   "cpuS": 0.01,
+++   "wallS": 0.5,
+++   "sampledPeakRssMiB": 22,
+++   "status": 15
+++  },
+++  {
+++   "op": "U-v018-redeploy instance",
+++   "maxRssMiB": 148,
+++   "cpuS": 1.7,
+++   "wallS": 5.1,
+++   "sampledPeakRssMiB": 148,
+++   "status": 15
+++  },
+++  {
+++   "op": "S-v018 PUT git/legacy/b 2097152",
+++   "wallS": 2.11,
+++   "status": 200
+++  },
+++  {
+++   "op": "S-v018 instance",
+++   "maxRssMiB": 150,
+++   "cpuS": 1.76,
+++   "wallS": 5.7,
+++   "sampledPeakRssMiB": 150,
+++   "status": 15
+++  },
+++  {
+++   "op": "S-c2-cannot-reach instance",
+++   "maxRssMiB": 87,
+++   "cpuS": 0.02,
+++   "wallS": 46.2,
+++   "sampledPeakRssMiB": 19,
+++   "status": 15
+++  }
+++ ],
+++ "events": [
+++  "00:59:11 postgres ready postgres (PostgreSQL) 18.6",
+++  "00:59:15 harness ready http://127.0.0.1:46549",
+++  "00:59:21 U-v018 ready after 2.0 s",
+++  "00:59:21 CHECK PASS U1: 0.1.8 is ready on r0 (account A unenrolled) ",
+++  "00:59:23 CHECK PASS U1: 0.1.8 PUT 200",
+++  "00:59:23 CHECK PASS U2: S0 is a zero snapshot read while indexd RUNS; the ORIGINAL 6fd7a929 decision says LEGACY_REDEPLOY_SAFE {'decision': 'LEGACY_REDEPLOY_SAFE', 'do': 'stop any C2 instance, then redeploy 0.1.8: the account is neither fenced nor enrolled', 'state': {'casEnrolledAccounts': 0, 'fencedAccounts': 0}}",
+++  "00:59:23 CHECK PASS U2: the NEW decision on the same unquiesced zero snapshot is UNKNOWN (even with the attestation) {'decision': 'UNKNOWN', 'missing': ['allowLiveStart', 'unitInactive', 'noIndexdProcess'], 'steps': ['owner: disable C2 activation AND its retries - switch the deployment back to the 0.1.8 catalog version (or stop it) so the node neither runs nor respawns the C2 version; confirm no C2 instance of the",
+++  "00:59:23 CHECK PASS U3: a C2 instance enrols AFTER S0 (account A now in CAS mode) 0.21",
+++  "00:59:26 U-v018-redeploy ready after 2.0 s",
+++  "00:59:29 CHECK PASS U4: following the ORIGINAL decision, the redeployed 0.1.8 CANNOT write (the account is enrolled): the plan was unsafe {'PUT': 500}",
+++  "00:59:30 CHECK PASS U5: the NEW procedure (barrier first, then the read): FORWARD_ONLY {'decision': 'FORWARD_ONLY', 'do': \"keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and there is no online downgrade (sticky CAS; no force-unenrol). Restoring the pre-enrolment backup is NOT a routine rollback: it discards every write acknowledge",
+++  "00:59:32 S-v018 ready after 2.0 s",
+++  "00:59:32 CHECK PASS S1: 0.1.8 is ready on r1 (account B unenrolled) ",
+++  "00:59:34 CHECK PASS S1: 0.1.8 PUT 200",
+++  "00:59:35 CHECK FAIL S1: 0.1.8 reads: every key reads back byte-exact (2 keys) ['ipfs/legacy/a: 404 163/2097152']",
+++  "00:59:35 CHECK FAIL S1: 0.1.8 reads: listings are exact per bucket (deleted keys absent) [\"ipfs: 200 got [] want ['legacy/a']\"]",
+++  "01:00:23 CHECK PASS S2: a C2 instance ran while r1 was down, never became ready, and no instance remains False",
+++  "01:00:23 CHECK PASS S3: behind the barrier the counts are zero; WITHOUT the owner's attestation the decision is UNKNOWN {'decision': 'UNKNOWN', 'missing': ['c2ActivationDisabledAttested'], 'steps': ['owner: disable C2 activation AND its retries - switch the deployment back to the 0.1.8 catalog version (or stop it) so the node neither runs nor respawns the C2 version; confirm no C2 instance of the deployment remains (",
+++  "01:00:23 CHECK PASS S3: WITH it, LEGACY_REDEPLOY_SAFE {'decision': 'LEGACY_REDEPLOY_SAFE', 'established': 'with the start guard absent and indexd stopped (no process, no session), no enrolment can complete; the database then shows no fenced and no CAS account', 'notEstablished': [\"that no C2 instance of the deployment remains or will be respawned (the ",
+++  "01:00:25 S-v018-redeploy ready after 2.0 s",
+++  "01:00:25 CHECK PASS S4: 0.1.8 redeployed is ready "
+++ ],
+++ "db": {},
+++ "isolation": {
+++  "netInterfaces": [
+++   "lo"
+++  ],
+++  "uid": 1000,
+++  "pid": 1
+++ },
+++ "wasmtime": "wasmtime 49.0.3 (f96eabaa1 2026-10-14)",
+++ "pgSocketDir": "/tmp/mgpg-r1-lqai3lq6",
+++ "postgres": "postgres (PostgreSQL) 18.6",
+++ "instances": {
+++  "U-v018": {
+++   "artifact": "v018",
+++   "config": {
+++    "indexer": "http://127.0.0.1:33613",
+++    "appKey": "<fixture app key>",
+++    "region": "auto",
+++    "buckets": [
+++     "ipfs",
+++     "git",
+++     "jot",
+++     "machines"
+++    ],
+++    "credentials": [
+++     {
+++      "accessKeyId": "INTEROPAK",
+++      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+++     }
+++    ]
+++   },
+++   "env": []
+++  },
+++  "U-c2-activation-still-enabled": {
+++   "artifact": "final",
+++   "config": {
+++    "replicas": "$SIAS3_REPLICAS",
+++    "region": "auto",
+++    "buckets": [
+++     "ipfs",
+++     "git",
+++     "jot",
+++     "machines"
+++    ],
+++    "credentials": [
+++     {
+++      "accessKeyId": "$S3_ACCESS_KEY_ID",
+++      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+++     }
+++    ],
+++    "writerFence": "required",
+++    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+++    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+++    "egress": "public-web",
+++    "wasi": "0.2",
+++    "_media": {
+++     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+++     "thumbnailSvg": true,
+++     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+++     "bannerSvg": true
+++    }
+++   },
+++   "env": [
+++    "SIA_APP_KEY=<fixture secret>",
+++    "S3_ACCESS_KEY_ID=INTEROPAK",
+++    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+++    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:33613\",\"appKey\":\"$SIA_APP_KEY\"}]",
+++    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+++    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+++   ]
+++  },
+++  "U-v018-redeploy": {
+++   "artifact": "v018",
+++   "config": {
+++    "indexer": "http://127.0.0.1:33613",
+++    "appKey": "<fixture app key>",
+++    "region": "auto",
+++    "buckets": [
+++     "ipfs",
+++     "git",
+++     "jot",
+++     "machines"
+++    ],
+++    "credentials": [
+++     {
+++      "accessKeyId": "INTEROPAK",
+++      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+++     }
+++    ]
+++   },
+++   "env": []
+++  },
+++  "S-v018": {
+++   "artifact": "v018",
+++   "config": {
+++    "indexer": "http://127.0.0.1:34723",
+++    "appKey": "<fixture app key>",
+++    "region": "auto",
+++    "buckets": [
+++     "ipfs",
+++     "git",
+++     "jot",
+++     "machines"
+++    ],
+++    "credentials": [
+++     {
+++      "accessKeyId": "INTEROPAK",
+++      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+++     }
+++    ]
+++   },
+++   "env": []
+++  },
+++  "S-c2-cannot-reach": {
+++   "artifact": "final",
+++   "config": {
+++    "replicas": "$SIAS3_REPLICAS",
+++    "region": "auto",
+++    "buckets": [
+++     "ipfs",
+++     "git",
+++     "jot",
+++     "machines"
+++    ],
+++    "credentials": [
+++     {
+++      "accessKeyId": "$S3_ACCESS_KEY_ID",
+++      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+++     }
+++    ],
+++    "writerFence": "required",
+++    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+++    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+++    "egress": "public-web",
+++    "wasi": "0.2",
+++    "_media": {
+++     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+++     "thumbnailSvg": true,
+++     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+++     "bannerSvg": true
+++    }
+++   },
+++   "env": [
+++    "SIA_APP_KEY=<fixture secret>",
+++    "S3_ACCESS_KEY_ID=INTEROPAK",
+++    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+++    "SIAS3_REPLICAS=[{\"name\":\"r1\",\"indexer\":\"http://127.0.0.1:34723\",\"appKey\":\"$SIA_APP_KEY\"}]",
+++    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+++    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+++   ]
+++  },
+++  "S-v018-redeploy": {
+++   "artifact": "v018",
+++   "config": {
+++    "indexer": "http://127.0.0.1:34723",
+++    "appKey": "<fixture app key>",
+++    "region": "auto",
+++    "buckets": [
+++     "ipfs",
+++     "git",
+++     "jot",
+++     "machines"
+++    ],
+++    "credentials": [
+++     {
+++      "accessKeyId": "INTEROPAK",
+++      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+++     }
+++    ]
+++   },
+++   "env": []
+++  }
+++ },
+++ "U.S0": "dbVersion=28\nunit.ActiveState=active\nunit.SubState=running\nunit.MainPID=4242\nwriterPids=4242\nallowLiveStart=present\nfencedAccounts=0\ncasEnrolledAccounts=0\ncontrollerSessions=\ntoolSessions=\n",
+++ "U.decisionOld": {
+++  "decision": "LEGACY_REDEPLOY_SAFE",
+++  "do": "stop any C2 instance, then redeploy 0.1.8: the account is neither fenced nor enrolled",
+++  "state": {
+++   "casEnrolledAccounts": 0,
+++   "fencedAccounts": 0
+++  }
+++ },
+++ "U.decisionNew": {
+++  "decision": "UNKNOWN",
+++  "missing": [
+++   "allowLiveStart",
+++   "unitInactive",
+++   "noIndexdProcess"
+++  ],
+++  "steps": [
+++   "owner: disable C2 activation AND its retries - switch the deployment back to the 0.1.8 catalog version (or stop it) so the node neither runs nor respawns the C2 version; confirm no C2 instance of the deployment remains (node status)",
+++   "root: move the start guard aside: mv /etc/enclave-indexd/ALLOW_LIVE_START /etc/enclave-indexd/ALLOW_LIVE_START.held-<run> (the unit's ConditionPathExists: systemd will not start indexd while it is absent)",
+++   "root: stop indexd with the reviewed controller (replicactl ... stop, i.e. systemctl stop enclave-indexd): after this no request in flight from any C2 instance can complete an enrolment",
+++   "root: capture vm-state.v2.sh (read-only) and decide with --c2-activation-disabled"
+++  ],
+++  "do": "NOT a rollback authorization: zero counts without the quiescence barrier say nothing about the next instant. Establish the barrier in this order, then re-read. If it cannot be established, repair forward (C2).",
+++  "state": {
+++   "casEnrolledAccounts": 0,
+++   "fencedAccounts": 0
+++  }
+++ },
+++ "U.enrolledAfterSeconds": 0.21,
+++ "U.R4": "dbVersion=28\nunit.ActiveState=inactive\nunit.SubState=dead\nunit.MainPID=0\nwriterPids=\nallowLiveStart=absent\nfencedAccounts=1\ncasEnrolledAccounts=1\ncontrollerSessions=\ntoolSessions=\n",
+++ "U.decisionAfterBarrier": {
+++  "decision": "FORWARD_ONLY",
+++  "do": "keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and there is no online downgrade (sticky CAS; no force-unenrol). Restoring the pre-enrolment backup is NOT a routine rollback: it discards every write acknowledged after that backup's capture time - root's explicit decision only, writers stopped.",
+++  "state": {
+++   "casEnrolledAccounts": 1,
+++   "fencedAccounts": 1
+++  },
+++  "established": "an account IS fenced or CAS-enrolled; enrolment is sticky, so this holds whatever happens next"
+++ },
+++ "S.R4": "dbVersion=28\nunit.ActiveState=inactive\nunit.SubState=dead\nunit.MainPID=0\nwriterPids=\nallowLiveStart=absent\nfencedAccounts=0\ncasEnrolledAccounts=0\ncontrollerSessions=\ntoolSessions=\n",
+++ "S.decisionWithoutAttestation": {
+++  "decision": "UNKNOWN",
+++  "missing": [
+++   "c2ActivationDisabledAttested"
+++  ],
+++  "steps": [
+++   "owner: disable C2 activation AND its retries - switch the deployment back to the 0.1.8 catalog version (or stop it) so the node neither runs nor respawns the C2 version; confirm no C2 instance of the deployment remains (node status)",
+++   "root: move the start guard aside: mv /etc/enclave-indexd/ALLOW_LIVE_START /etc/enclave-indexd/ALLOW_LIVE_START.held-<run> (the unit's ConditionPathExists: systemd will not start indexd while it is absent)",
+++   "root: stop indexd with the reviewed controller (replicactl ... stop, i.e. systemctl stop enclave-indexd): after this no request in flight from any C2 instance can complete an enrolment",
+++   "root: capture vm-state.v2.sh (read-only) and decide with --c2-activation-disabled"
+++  ],
+++  "do": "NOT a rollback authorization: zero counts without the quiescence barrier say nothing about the next instant. Establish the barrier in this order, then re-read. If it cannot be established, repair forward (C2).",
+++  "state": {
+++   "casEnrolledAccounts": 0,
+++   "fencedAccounts": 0
+++  }
+++ },
+++ "S.decision": {
+++  "decision": "LEGACY_REDEPLOY_SAFE",
+++  "established": "with the start guard absent and indexd stopped (no process, no session), no enrolment can complete; the database then shows no fenced and no CAS account",
+++  "notEstablished": [
+++   "that no C2 instance of the deployment remains or will be respawned (the owner's attestation: --c2-activation-disabled; node state is not visible from the VM)",
+++   "that this snapshot comes from the live primary VM and is the latest (root's capture)",
+++   "that the start guard stays absent until root restores it (no concurrent operator)"
+++  ],
+++  "do": [
+++   "keep C2 activation disabled",
+++   "root: restore ALLOW_LIVE_START and start indexd (replicactl ... start)",
+++   "owner: run 0.1.8",
+++   "root: post-check with vm-state.v2.sh: still 0 fenced / 0 CAS and 0.1.8 writes; if an account is now enrolled (a C2 instance survived), the decision becomes FORWARD_ONLY: switch back to C2"
+++  ],
+++  "state": {
+++   "casEnrolledAccounts": 0,
+++   "fencedAccounts": 0
+++  }
+++ },
+++ "cleanup": {
+++  "hostSectorsRemoved": true,
+++  "pgDataRemoved": true,
+++  "pgSocketDirRemoved": true,
+++  "pidsLeftInNamespace": [
+++   110
+++  ]
+++ },
+++ "finished": 1792742427.8309214,
+++ "passed": 13,
+++ "failed": 2
+++}
++\ No newline at end of file
++diff --git a/rehearsal/runs/r2/results.json b/rehearsal/runs/r2/results.json
++new file mode 100644
++index 0000000..e3fdb63
++--- /dev/null
+++++ b/rehearsal/runs/r2/results.json
++@@ -0,0 +1,478 @@
+++{
+++ "run": "r2",
+++ "started": 1792742475.8917077,
+++ "inputs": {
+++  "adapter-retained/bafybeib7at4cxxzmlp3wb7v45zrhbuggwzegspcacfylztslbcnoe6qrqu.bin": "d1ddecfe7c3e1d06d1921eb779e135f3a64f185a4dbcdd989f56e22f603e07d3",
+++  "storage-wasm-validation/artifacts/candidate-00e9cde0.wasm": "00e9cde0929dc7b8726ca4b7b9c9afb51ec4bf6d952039c907c032256ec79afc",
+++  "claude-resumed-20261022/storage-sdk-regressions/out/c2e-a/harness-block": "cac6651329468aaeb2dd4d90ac9b924a891b121edbe17d2515b34b0dae97eafa",
+++  "resume-after-checkpoint-20261022/storage-client-interop/egress_socks5.py": "77fad264406da15a85830ce1559fbd04feb2f9464b01576512a525112da09086",
+++  "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+++  "resume-after-checkpoint-20261022/storage-public-read/candidate-catalog-config.json": "7b9e7e750521b4bb0fa5925e771a42766673ad728e02e3d8508da4ca6ea554d2",
+++  "resume-after-checkpoint-20261022/storage-write-release/client/catalog-config.c2.json": "f6b48940cf7179b5a7bc61fabfee4667bd14aacd0380d953cae8f878972ff278"
+++ },
+++ "checks": [
+++  {
+++   "name": "U1: 0.1.8 is ready on r0 (account A unenrolled)",
+++   "ok": true,
+++   "detail": ""
+++  },
+++  {
+++   "name": "U1: 0.1.8 PUT",
+++   "ok": true,
+++   "detail": "200"
+++  },
+++  {
+++   "name": "U2: S0 is a zero snapshot read while indexd RUNS; the ORIGINAL 6fd7a929 decision says LEGACY_REDEPLOY_SAFE",
+++   "ok": true,
+++   "detail": "{'decision': 'LEGACY_REDEPLOY_SAFE', 'do': 'stop any C2 instance, then redeploy 0.1.8: the account is neither fenced nor enrolled', 'state': {'casEnrolledAccounts': 0, 'fencedAccounts': 0}}"
+++  },
+++  {
+++   "name": "U2: the NEW decision on the same unquiesced zero snapshot is UNKNOWN (even with the attestation)",
+++   "ok": true,
+++   "detail": "{'decision': 'UNKNOWN', 'missing': ['allowLiveStart', 'unitInactive', 'noIndexdProcess'], 'steps': ['owner: disable C2 activation AND its retries - switch the deployment back to the 0.1.8 catalog version (or stop it) so the node neither runs nor respawns the C2 version; confirm no C2 instance of the deployment remains (node status)', \"root: move the start guard aside: mv /etc/enclave-indexd/ALLOW_LIVE_START /etc/enclave-indexd/ALLOW_LIVE_START.held-<run> (the unit's ConditionPathExists: systemd will not start indexd while it is absent)\", 'root: stop indexd with the reviewed controller (replicactl ... stop, i.e. systemctl stop enclave-indexd): after this no request in flight from any C2 instance can complete an enrolment', 'root: capture vm-state.v2.sh (read-only) and decide with --c2-activation-disabled'], 'do': 'NOT a rollback authorization: zero counts without the quiescence barrier say nothing about the next instant. Establish the barrier in this order, then re-read. If it cannot be established, repair forward (C2).', 'state': {'casEnrolledAccounts': 0, 'fencedAccounts': 0}}"
+++  },
+++  {
+++   "name": "U3: a C2 instance enrols AFTER S0 (account A now in CAS mode)",
+++   "ok": true,
+++   "detail": "0.21"
+++  },
+++  {
+++   "name": "U4: following the ORIGINAL decision, the redeployed 0.1.8 CANNOT write (the account is enrolled): the plan was unsafe",
+++   "ok": true,
+++   "detail": "{'PUT': 500}"
+++  },
+++  {
+++   "name": "U5: the NEW procedure (barrier first, then the read): FORWARD_ONLY",
+++   "ok": true,
+++   "detail": "{'decision': 'FORWARD_ONLY', 'do': \"keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and there is no online downgrade (sticky CAS; no force-unenrol). Restoring the pre-enrolment backup is NOT a routine rollback: it discards every write acknowledged after that backup's capture time - root's explicit decision only, writers stopped.\", 'state': {'casEnrolledAccounts': 1, 'fencedAccounts': 1}, 'established': 'an account IS fenced or CAS-enrolled; enrolment is sticky, so this holds whatever happens next'}"
+++  },
+++  {
+++   "name": "S1: 0.1.8 is ready on r1 (account B unenrolled)",
+++   "ok": true,
+++   "detail": ""
+++  },
+++  {
+++   "name": "S1: 0.1.8 PUT",
+++   "ok": true,
+++   "detail": "200"
+++  },
+++  {
+++   "name": "S1: 0.1.8 reads: every key reads back byte-exact (1 keys)",
+++   "ok": true,
+++   "detail": "[]"
+++  },
+++  {
+++   "name": "S1: 0.1.8 reads: listings are exact per bucket (deleted keys absent)",
+++   "ok": true,
+++   "detail": "[]"
+++  },
+++  {
+++   "name": "S2: a C2 instance ran while r1 was down, never became ready, and no instance remains",
+++   "ok": true,
+++   "detail": "False"
+++  },
+++  {
+++   "name": "S3: behind the barrier the counts are zero; WITHOUT the owner's attestation the decision is UNKNOWN",
+++   "ok": true,
+++   "detail": "{'decision': 'UNKNOWN', 'missing': ['c2ActivationDisabledAttested'], 'steps': ['owner: disable C2 activation AND its retries - switch the deployment back to the 0.1.8 catalog version (or stop it) so the node neither runs nor respawns the C2 version; confirm no C2 instance of the deployment remains (node status)', \"root: move the start guard aside: mv /etc/enclave-indexd/ALLOW_LIVE_START /etc/enclave-indexd/ALLOW_LIVE_START.held-<run> (the unit's ConditionPathExists: systemd will not start indexd while it is absent)\", 'root: stop indexd with the reviewed controller (replicactl ... stop, i.e. systemctl stop enclave-indexd): after this no request in flight from any C2 instance can complete an enrolment', 'root: capture vm-state.v2.sh (read-only) and decide with --c2-activation-disabled'], 'do': 'NOT a rollback authorization: zero counts without the quiescence barrier say nothing about the next instant. Establish the barrier in this order, then re-read. If it cannot be established, repair forward (C2).', 'state': {'casEnrolledAccounts': 0, 'fencedAccounts': 0}}"
+++  },
+++  {
+++   "name": "S3: WITH it, LEGACY_REDEPLOY_SAFE",
+++   "ok": true,
+++   "detail": "{'decision': 'LEGACY_REDEPLOY_SAFE', 'established': 'with the start guard absent and indexd stopped (no process, no session), no enrolment can complete; the database then shows no fenced and no CAS account', 'notEstablished': [\"that no C2 instance of the deployment remains or will be respawned (the owner's attestation: --c2-activation-disabled; node state is not visible from the VM)\", \"that this snapshot comes from the live primary VM and is the latest (root's capture)\", 'that the start guard stays absent until root restores it (no concurrent operator)'], 'do': ['keep C2 activation disabled', 'root: restore ALLOW_LIVE_START and start indexd (replicactl ... start)', 'owner: run 0.1.8', 'root: post-check with vm-state.v2.sh: still 0 fenced / 0 CAS and 0.1.8 writes; if an account is now enrolled (a C2 instance survived), the decision becomes FORWARD_ONLY: switch back to C2'], 'state': {'casEnrolledAccounts': 0, 'fencedAccounts': 0}}"
+++  },
+++  {
+++   "name": "S4: 0.1.8 redeployed serves its legacy object (attempts recorded; restarts only after a crash)",
+++   "ok": true,
+++   "detail": "[{'n': 0, 'ready': True, 'get': 200, 'alive': True, 'panic': False}]"
+++  },
+++  {
+++   "name": "S4: 0.1.8 reads its legacy object: every key reads back byte-exact (1 keys)",
+++   "ok": true,
+++   "detail": "[]"
+++  },
+++  {
+++   "name": "S4: 0.1.8 reads its legacy object: listings are exact per bucket (deleted keys absent)",
+++   "ok": true,
+++   "detail": "[]"
+++  },
+++  {
+++   "name": "S4: and writes (a real rollback, nothing lost)",
+++   "ok": true,
+++   "detail": "200"
+++  },
+++  {
+++   "name": "S4: the post-check still shows 0 fenced / 0 CAS on r1",
+++   "ok": true,
+++   "detail": "dbVersion=28\nunit.ActiveState=active\nunit.SubState=running\nunit.MainPID=4242\nwriterPids=4242\nallowLiveStart=present\nfencedAccounts=0\ncasEnrolledAccounts=0\ncontrollerSessions=\ntoolSessions=\n"
+++  }
+++ ],
+++ "measure": [
+++  {
+++   "op": "wasmtime compile v018",
+++   "wallS": 1.3
+++  },
+++  {
+++   "op": "wasmtime compile final",
+++   "wallS": 1.7
+++  },
+++  {
+++   "op": "U-v018 PUT ipfs/legacy/a 2097152",
+++   "wallS": 2.13,
+++   "status": 200
+++  },
+++  {
+++   "op": "U-v018 instance",
+++   "maxRssMiB": 151,
+++   "cpuS": 1.71,
+++   "wallS": 4.3,
+++   "sampledPeakRssMiB": 151,
+++   "status": 15
+++  },
+++  {
+++   "op": "U-c2-activation-still-enabled instance",
+++   "maxRssMiB": 86,
+++   "cpuS": 0.01,
+++   "wallS": 0.5,
+++   "sampledPeakRssMiB": 23,
+++   "status": 15
+++  },
+++  {
+++   "op": "U-v018-redeploy instance",
+++   "maxRssMiB": 148,
+++   "cpuS": 1.81,
+++   "wallS": 5.1,
+++   "sampledPeakRssMiB": 148,
+++   "status": 15
+++  },
+++  {
+++   "op": "S-v018 PUT git/legacy/b 2097152",
+++   "wallS": 2.17,
+++   "status": 200
+++  },
+++  {
+++   "op": "S-v018 instance",
+++   "maxRssMiB": 150,
+++   "cpuS": 1.79,
+++   "wallS": 5.7,
+++   "sampledPeakRssMiB": 150,
+++   "status": 15
+++  },
+++  {
+++   "op": "S-c2-cannot-reach instance",
+++   "maxRssMiB": 86,
+++   "cpuS": 0.02,
+++   "wallS": 46.2,
+++   "sampledPeakRssMiB": 19,
+++   "status": 15
+++  },
+++  {
+++   "op": "S-v018-redeploy-0 PUT jot/after-safe-rollback 1048576",
+++   "wallS": 2.01,
+++   "status": 200
+++  },
+++  {
+++   "op": "S-v018-redeploy-0 instance",
+++   "maxRssMiB": 149,
+++   "cpuS": 1.84,
+++   "wallS": 7.7,
+++   "sampledPeakRssMiB": 149,
+++   "status": 15
+++  }
+++ ],
+++ "events": [
+++  "01:01:17 postgres ready postgres (PostgreSQL) 18.6",
+++  "01:01:21 harness ready http://127.0.0.1:43365",
+++  "01:01:27 U-v018 ready after 2.0 s",
+++  "01:01:27 CHECK PASS U1: 0.1.8 is ready on r0 (account A unenrolled) ",
+++  "01:01:30 CHECK PASS U1: 0.1.8 PUT 200",
+++  "01:01:30 CHECK PASS U2: S0 is a zero snapshot read while indexd RUNS; the ORIGINAL 6fd7a929 decision says LEGACY_REDEPLOY_SAFE {'decision': 'LEGACY_REDEPLOY_SAFE', 'do': 'stop any C2 instance, then redeploy 0.1.8: the account is neither fenced nor enrolled', 'state': {'casEnrolledAccounts': 0, 'fencedAccounts': 0}}",
+++  "01:01:30 CHECK PASS U2: the NEW decision on the same unquiesced zero snapshot is UNKNOWN (even with the attestation) {'decision': 'UNKNOWN', 'missing': ['allowLiveStart', 'unitInactive', 'noIndexdProcess'], 'steps': ['owner: disable C2 activation AND its retries - switch the deployment back to the 0.1.8 catalog version (or stop it) so the node neither runs nor respawns the C2 version; confirm no C2 instance of the",
+++  "01:01:30 CHECK PASS U3: a C2 instance enrols AFTER S0 (account A now in CAS mode) 0.21",
+++  "01:01:32 U-v018-redeploy ready after 2.0 s",
+++  "01:01:35 CHECK PASS U4: following the ORIGINAL decision, the redeployed 0.1.8 CANNOT write (the account is enrolled): the plan was unsafe {'PUT': 500}",
+++  "01:01:36 CHECK PASS U5: the NEW procedure (barrier first, then the read): FORWARD_ONLY {'decision': 'FORWARD_ONLY', 'do': \"keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and there is no online downgrade (sticky CAS; no force-unenrol). Restoring the pre-enrolment backup is NOT a routine rollback: it discards every write acknowledge",
+++  "01:01:38 S-v018 ready after 2.0 s",
+++  "01:01:38 CHECK PASS S1: 0.1.8 is ready on r1 (account B unenrolled) ",
+++  "01:01:41 CHECK PASS S1: 0.1.8 PUT 200",
+++  "01:01:42 CHECK PASS S1: 0.1.8 reads: every key reads back byte-exact (1 keys) []",
+++  "01:01:42 CHECK PASS S1: 0.1.8 reads: listings are exact per bucket (deleted keys absent) []",
+++  "01:02:29 CHECK PASS S2: a C2 instance ran while r1 was down, never became ready, and no instance remains False",
+++  "01:02:29 CHECK PASS S3: behind the barrier the counts are zero; WITHOUT the owner's attestation the decision is UNKNOWN {'decision': 'UNKNOWN', 'missing': ['c2ActivationDisabledAttested'], 'steps': ['owner: disable C2 activation AND its retries - switch the deployment back to the 0.1.8 catalog version (or stop it) so the node neither runs nor respawns the C2 version; confirm no C2 instance of the deployment remains (",
+++  "01:02:29 CHECK PASS S3: WITH it, LEGACY_REDEPLOY_SAFE {'decision': 'LEGACY_REDEPLOY_SAFE', 'established': 'with the start guard absent and indexd stopped (no process, no session), no enrolment can complete; the database then shows no fenced and no CAS account', 'notEstablished': [\"that no C2 instance of the deployment remains or will be respawned (the ",
+++  "01:02:32 S-v018-redeploy-0 ready after 2.0 s",
+++  "01:02:33 CHECK PASS S4: 0.1.8 redeployed serves its legacy object (attempts recorded; restarts only after a crash) [{'n': 0, 'ready': True, 'get': 200, 'alive': True, 'panic': False}]",
+++  "01:02:35 CHECK PASS S4: 0.1.8 reads its legacy object: every key reads back byte-exact (1 keys) []",
+++  "01:02:35 CHECK PASS S4: 0.1.8 reads its legacy object: listings are exact per bucket (deleted keys absent) []",
+++  "01:02:37 CHECK PASS S4: and writes (a real rollback, nothing lost) 200",
+++  "01:02:37 CHECK PASS S4: the post-check still shows 0 fenced / 0 CAS on r1 dbVersion=28\nunit.ActiveState=active\nunit.SubState=running\nunit.MainPID=4242\nwriterPids=4242\nallowLiveStart=present\nfencedAccounts=0\ncasEnrolledAccounts=0\ncontrollerSessions=\ntoolSessions=\n"
+++ ],
+++ "db": {},
+++ "isolation": {
+++  "netInterfaces": [
+++   "lo"
+++  ],
+++  "uid": 1000,
+++  "pid": 1
+++ },
+++ "wasmtime": "wasmtime 49.0.3 (f96eabaa1 2026-10-14)",
+++ "pgSocketDir": "/tmp/mgpg-r2-h8vreku0",
+++ "postgres": "postgres (PostgreSQL) 18.6",
+++ "instances": {
+++  "U-v018": {
+++   "artifact": "v018",
+++   "config": {
+++    "indexer": "http://127.0.0.1:35691",
+++    "appKey": "<fixture app key>",
+++    "region": "auto",
+++    "buckets": [
+++     "ipfs",
+++     "git",
+++     "jot",
+++     "machines"
+++    ],
+++    "credentials": [
+++     {
+++      "accessKeyId": "INTEROPAK",
+++      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+++     }
+++    ]
+++   },
+++   "env": []
+++  },
+++  "U-c2-activation-still-enabled": {
+++   "artifact": "final",
+++   "config": {
+++    "replicas": "$SIAS3_REPLICAS",
+++    "region": "auto",
+++    "buckets": [
+++     "ipfs",
+++     "git",
+++     "jot",
+++     "machines"
+++    ],
+++    "credentials": [
+++     {
+++      "accessKeyId": "$S3_ACCESS_KEY_ID",
+++      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+++     }
+++    ],
+++    "writerFence": "required",
+++    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+++    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+++    "egress": "public-web",
+++    "wasi": "0.2",
+++    "_media": {
+++     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+++     "thumbnailSvg": true,
+++     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+++     "bannerSvg": true
+++    }
+++   },
+++   "env": [
+++    "SIA_APP_KEY=<fixture secret>",
+++    "S3_ACCESS_KEY_ID=INTEROPAK",
+++    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+++    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:35691\",\"appKey\":\"$SIA_APP_KEY\"}]",
+++    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+++    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+++   ]
+++  },
+++  "U-v018-redeploy": {
+++   "artifact": "v018",
+++   "config": {
+++    "indexer": "http://127.0.0.1:35691",
+++    "appKey": "<fixture app key>",
+++    "region": "auto",
+++    "buckets": [
+++     "ipfs",
+++     "git",
+++     "jot",
+++     "machines"
+++    ],
+++    "credentials": [
+++     {
+++      "accessKeyId": "INTEROPAK",
+++      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+++     }
+++    ]
+++   },
+++   "env": []
+++  },
+++  "S-v018": {
+++   "artifact": "v018",
+++   "config": {
+++    "indexer": "http://127.0.0.1:36325",
+++    "appKey": "<fixture app key>",
+++    "region": "auto",
+++    "buckets": [
+++     "ipfs",
+++     "git",
+++     "jot",
+++     "machines"
+++    ],
+++    "credentials": [
+++     {
+++      "accessKeyId": "INTEROPAK",
+++      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+++     }
+++    ]
+++   },
+++   "env": []
+++  },
+++  "S-c2-cannot-reach": {
+++   "artifact": "final",
+++   "config": {
+++    "replicas": "$SIAS3_REPLICAS",
+++    "region": "auto",
+++    "buckets": [
+++     "ipfs",
+++     "git",
+++     "jot",
+++     "machines"
+++    ],
+++    "credentials": [
+++     {
+++      "accessKeyId": "$S3_ACCESS_KEY_ID",
+++      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+++     }
+++    ],
+++    "writerFence": "required",
+++    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+++    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+++    "egress": "public-web",
+++    "wasi": "0.2",
+++    "_media": {
+++     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+++     "thumbnailSvg": true,
+++     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+++     "bannerSvg": true
+++    }
+++   },
+++   "env": [
+++    "SIA_APP_KEY=<fixture secret>",
+++    "S3_ACCESS_KEY_ID=INTEROPAK",
+++    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+++    "SIAS3_REPLICAS=[{\"name\":\"r1\",\"indexer\":\"http://127.0.0.1:36325\",\"appKey\":\"$SIA_APP_KEY\"}]",
+++    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+++    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+++   ]
+++  },
+++  "S-v018-redeploy-0": {
+++   "artifact": "v018",
+++   "config": {
+++    "indexer": "http://127.0.0.1:36325",
+++    "appKey": "<fixture app key>",
+++    "region": "auto",
+++    "buckets": [
+++     "ipfs",
+++     "git",
+++     "jot",
+++     "machines"
+++    ],
+++    "credentials": [
+++     {
+++      "accessKeyId": "INTEROPAK",
+++      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+++     }
+++    ]
+++   },
+++   "env": []
+++  }
+++ },
+++ "U.S0": "dbVersion=28\nunit.ActiveState=active\nunit.SubState=running\nunit.MainPID=4242\nwriterPids=4242\nallowLiveStart=present\nfencedAccounts=0\ncasEnrolledAccounts=0\ncontrollerSessions=\ntoolSessions=\n",
+++ "U.decisionOld": {
+++  "decision": "LEGACY_REDEPLOY_SAFE",
+++  "do": "stop any C2 instance, then redeploy 0.1.8: the account is neither fenced nor enrolled",
+++  "state": {
+++   "casEnrolledAccounts": 0,
+++   "fencedAccounts": 0
+++  }
+++ },
+++ "U.decisionNew": {
+++  "decision": "UNKNOWN",
+++  "missing": [
+++   "allowLiveStart",
+++   "unitInactive",
+++   "noIndexdProcess"
+++  ],
+++  "steps": [
+++   "owner: disable C2 activation AND its retries - switch the deployment back to the 0.1.8 catalog version (or stop it) so the node neither runs nor respawns the C2 version; confirm no C2 instance of the deployment remains (node status)",
+++   "root: move the start guard aside: mv /etc/enclave-indexd/ALLOW_LIVE_START /etc/enclave-indexd/ALLOW_LIVE_START.held-<run> (the unit's ConditionPathExists: systemd will not start indexd while it is absent)",
+++   "root: stop indexd with the reviewed controller (replicactl ... stop, i.e. systemctl stop enclave-indexd): after this no request in flight from any C2 instance can complete an enrolment",
+++   "root: capture vm-state.v2.sh (read-only) and decide with --c2-activation-disabled"
+++  ],
+++  "do": "NOT a rollback authorization: zero counts without the quiescence barrier say nothing about the next instant. Establish the barrier in this order, then re-read. If it cannot be established, repair forward (C2).",
+++  "state": {
+++   "casEnrolledAccounts": 0,
+++   "fencedAccounts": 0
+++  }
+++ },
+++ "U.enrolledAfterSeconds": 0.21,
+++ "U.R4": "dbVersion=28\nunit.ActiveState=inactive\nunit.SubState=dead\nunit.MainPID=0\nwriterPids=\nallowLiveStart=absent\nfencedAccounts=1\ncasEnrolledAccounts=1\ncontrollerSessions=\ntoolSessions=\n",
+++ "U.decisionAfterBarrier": {
+++  "decision": "FORWARD_ONLY",
+++  "do": "keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and there is no online downgrade (sticky CAS; no force-unenrol). Restoring the pre-enrolment backup is NOT a routine rollback: it discards every write acknowledged after that backup's capture time - root's explicit decision only, writers stopped.",
+++  "state": {
+++   "casEnrolledAccounts": 1,
+++   "fencedAccounts": 1
+++  },
+++  "established": "an account IS fenced or CAS-enrolled; enrolment is sticky, so this holds whatever happens next"
+++ },
+++ "S.R4": "dbVersion=28\nunit.ActiveState=inactive\nunit.SubState=dead\nunit.MainPID=0\nwriterPids=\nallowLiveStart=absent\nfencedAccounts=0\ncasEnrolledAccounts=0\ncontrollerSessions=\ntoolSessions=\n",
+++ "S.decisionWithoutAttestation": {
+++  "decision": "UNKNOWN",
+++  "missing": [
+++   "c2ActivationDisabledAttested"
+++  ],
+++  "steps": [
+++   "owner: disable C2 activation AND its retries - switch the deployment back to the 0.1.8 catalog version (or stop it) so the node neither runs nor respawns the C2 version; confirm no C2 instance of the deployment remains (node status)",
+++   "root: move the start guard aside: mv /etc/enclave-indexd/ALLOW_LIVE_START /etc/enclave-indexd/ALLOW_LIVE_START.held-<run> (the unit's ConditionPathExists: systemd will not start indexd while it is absent)",
+++   "root: stop indexd with the reviewed controller (replicactl ... stop, i.e. systemctl stop enclave-indexd): after this no request in flight from any C2 instance can complete an enrolment",
+++   "root: capture vm-state.v2.sh (read-only) and decide with --c2-activation-disabled"
+++  ],
+++  "do": "NOT a rollback authorization: zero counts without the quiescence barrier say nothing about the next instant. Establish the barrier in this order, then re-read. If it cannot be established, repair forward (C2).",
+++  "state": {
+++   "casEnrolledAccounts": 0,
+++   "fencedAccounts": 0
+++  }
+++ },
+++ "S.decision": {
+++  "decision": "LEGACY_REDEPLOY_SAFE",
+++  "established": "with the start guard absent and indexd stopped (no process, no session), no enrolment can complete; the database then shows no fenced and no CAS account",
+++  "notEstablished": [
+++   "that no C2 instance of the deployment remains or will be respawned (the owner's attestation: --c2-activation-disabled; node state is not visible from the VM)",
+++   "that this snapshot comes from the live primary VM and is the latest (root's capture)",
+++   "that the start guard stays absent until root restores it (no concurrent operator)"
+++  ],
+++  "do": [
+++   "keep C2 activation disabled",
+++   "root: restore ALLOW_LIVE_START and start indexd (replicactl ... start)",
+++   "owner: run 0.1.8",
+++   "root: post-check with vm-state.v2.sh: still 0 fenced / 0 CAS and 0.1.8 writes; if an account is now enrolled (a C2 instance survived), the decision becomes FORWARD_ONLY: switch back to C2"
+++  ],
+++  "state": {
+++   "casEnrolledAccounts": 0,
+++   "fencedAccounts": 0
+++  }
+++ },
+++ "S.redeployAttempts": [
+++  {
+++   "n": 0,
+++   "ready": true,
+++   "get": 200,
+++   "alive": true,
+++   "panic": false
+++  }
+++ ],
+++ "S.post": "dbVersion=28\nunit.ActiveState=active\nunit.SubState=running\nunit.MainPID=4242\nwriterPids=4242\nallowLiveStart=present\nfencedAccounts=0\ncasEnrolledAccounts=0\ncontrollerSessions=\ntoolSessions=\n",
+++ "cleanup": {
+++  "hostSectorsRemoved": true,
+++  "pgDataRemoved": true,
+++  "pgSocketDirRemoved": true,
+++  "pidsLeftInNamespace": []
+++ },
+++ "finished": 1792742559.1702645,
+++ "passed": 19,
+++ "failed": 0
+++}
++\ No newline at end of file
++-- 
++2.56.0
++

@@ -1,0 +1,698 @@
+From e83301df5c8c013f5c0924fbedf069922aa02381 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:26:08 -0700
+Subject: [PATCH 10/12] RESULT-BINARY-CLOSURE: verified lighthouse, real-binary
+ pairing, opt-in broadcast with measured node-side gates (unprotected legacy
+ accepted, no allowlist); E handoff; evidence
+
+---
+ HANDOFF-TO-E-L1-TX-BROADCAST.md          |  35 +++++
+ RESULT-BINARY-CLOSURE.md                 | 182 ++++++++++++++++++++++
+ RESULT.md                                |  12 ++
+ TEST-EVIDENCE.txt                        | 183 +++++++++++++++++++++++
+ l1pair/test/test_tx_broadcast_offline.py |  19 ++-
+ logs/txb-4.guard.log                     |   1 +
+ logs/txb-4.out                           | 167 +++++++++++++++++++++
+ logs/txb-4.rc                            |   1 +
+ 8 files changed, 597 insertions(+), 3 deletions(-)
+ create mode 100644 RESULT-BINARY-CLOSURE.md
+ create mode 100644 logs/txb-4.guard.log
+ create mode 100644 logs/txb-4.out
+ create mode 100644 logs/txb-4.rc
+
+diff --git a/HANDOFF-TO-E-L1-TX-BROADCAST.md b/HANDOFF-TO-E-L1-TX-BROADCAST.md
+index 8bcf97490e9d53dc99ffd11c63b64b2987b2bee1..13d9ff76b01ba674c42185afb35574797a35f79d 100644
+--- a/HANDOFF-TO-E-L1-TX-BROADCAST.md
++++ b/HANDOFF-TO-E-L1-TX-BROADCAST.md
+@@ -33,6 +33,41 @@ tx signed with a PUBLIC test key.
+ - An earlier run (txb-2) without that block saw no propagation in EITHER mode. That shows a receiving peer that is still
+   syncing drops gossip, which is real behaviour for a node that is not yet synced.
+ 
++## What reth itself enforces on `eth_sendRawTransaction`
++
++Measured in txb-4 on the real binary, in both modes, against E's requested gates (`NOTE-FOR-P-L1-BROADCAST.md` §1).
++
++| E's gate | Enforced by reth? | Evidence |
++|---|---|---|
++| chain id = 1 for EIP-155/typed txs | **yes**: `invalid chain ID` (-32000) for a tx signed for another chain | probe `wrongChain` |
++| chain id for **legacy replay-unprotected** (pre-EIP-155, no chain id) txs | **NO**: accepted into the pool and given a hash | probe `unprotected` |
++| `to` = the pinned OptimismPortal only | **NO**: there is no recipient allowlist. A transfer to `0x…dEaD` was accepted and (opt-in) propagated | main tx |
++| fee bound | **yes**: `--rpc.txfeecap`, default 1 ETH (`tx fee … exceeds the configured cap`). Not changed by this package | probe `overFeeCap` |
++| size bound | reth default `--txpool.max-tx-input-bytes` 131072 (help text; not exercised) | binary help |
++| no retries / no public fallback | **yes by construction**: no `--rpc.forwarder` and no proxy; a refusal is returned to the caller | rendered argv |
++
++**So the general eth API on this loopback port is NOT an allowlist.** Under `local-raw-propagate`, ANY local process that
++can reach `127.0.0.1:<execution.httpPort>` can hand reth ANY validly signed transaction, including unprotected legacy
++ones, and reth will gossip it.
++
++The portal-only, chain-1-only and EIP-155-only checks must therefore be done by **E's bounded sender, before the raw
++bytes reach this port**. Root composes E's sender checks with this standard node. No proxy framework is added here to
++hide that.
++
++**Exposure:**
++- **Bound:** loopback only, plus systemd hardening.
++- **Not separated:** the port is not restricted to particular local users.
++
++**Reads E asked for** (§2–3 of E's note) are all on the default `eth`/`net` API:
++- `eth_getStorageAt`/`eth_call` with `{blockHash}`;
++- `eth_getTransactionCount`, `eth_feeHistory`;
++- `eth_getTransactionReceipt`/`eth_getBlockReceipts`, kept for 140,000 blocks;
++- `eth_getBlockByNumber("finalized")`;
++- `net_peerCount`;
++- `eth_getTransactionByHash` for a pending tx (instead of `txpool_content`, whose namespace stays refused).
++
++Finality as a separate field comes from the pair's `ready` gate and the beacon API, not from the send reply.
++
+ **Important:**
+ - **In `disabled` mode the method is NOT refused.** It admits the tx into the local pool and returns its hash, but the tx
+   never leaves the node. A caller that only checks the returned hash would wrongly believe it was broadcast. **E must
+diff --git a/RESULT-BINARY-CLOSURE.md b/RESULT-BINARY-CLOSURE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..525517e7ac2717429f307a52f01ef1b665a998a1
+--- /dev/null
++++ b/RESULT-BINARY-CLOSURE.md
+@@ -0,0 +1,182 @@
++# L1 pair binary closure: verified Lighthouse, real-binary pairing, opt-in L1 broadcast (RESULT-BINARY-CLOSURE, 2026-10-23)
++
++This builds on `RESULT.md` (baseline `1260cdc`, report `83805a1`, kept unchanged in history). Additive commits only.
++
++**Status: SOURCE + OFFLINE REAL-BINARY TESTS.**
++- **Not done:** no install, activation, sync, chain or snapshot download, allocation, SSH, wallet, signing of real funds,
++  push or change to a running app.
++- **The one exception:** the root-authorized download of the already-pinned Lighthouse artifact into the task workspace.
++- **RAM:** the human RAM decision (D2) is still open, so nothing is deployed.
++
++## 1. Lighthouse v8.3.2: download, trust, extraction, pin
++
++| Step | Result | Run / evidence |
++|---|---|---|
++| Download | Into the task workspace (`bin-staging/`, gitignored): tarball 31,384,350 B, `.asc` 833 B, the key fetched BY FINGERPRINT from keys.openpgp.org and keyserver.ubuntu.com, plus metadata. Nothing installed | fetch-lh-1, fetch-lh-2; `evidence/lighthouse-binary-20261023T080144Z/` |
++| Digests | Tarball `ea914e932462d6a93ad78c21377d70f995e05ac224248be0b58c2f4d6740439a` = the pinned GitHub asset digest. `.asc` `4c4ce326…` = pinned | verify-lh-3 |
++| Fingerprint authority | The book page (`installation_binaries.md`) states NONE, and my first check correctly refused on that (verify-lh-1). `15E66D941F697E28F49381F426416DC3F30674B0` is stated by `sigp/lighthouse` @ `a376defa` in `.github/workflows/release.yml:195` (the template that writes every release body) and `SECURITY.md:10` (keybase link), and by the v8.3.2 release body (`release-v8.3.2-signing-statement.json`). **All three are ONE trust root: control of the sigp GitHub repository/account.** No web-of-trust path exists; gpg shows `[unknown]` validity. The key servers are transport only: the key was accepted because its primary fingerprint equals the stated one | verify-lh-3 |
++| Signature | Throwaway keyring with exactly one primary key (`15E66D94…`, plus its encryption subkey `33679A09…`). `VALIDSIG … 15E66D941F697E28F49381F426416DC3F30674B0`, made by the primary key on 2026-10-22. (verify-lh-2 failed on MY check, which counted the subkey's fingerprint; fixed to compare primaries only) | verify-lh-3 |
++| Archive inspection | Before extraction: exactly ONE member, `lighthouse`, a regular file (type `0`), mode 0755, 105,018,160 B, no link. Extracted with Python `tarfile`, using no archive paths, written `O_EXCL`. Any other member or type is refused | verify-lh-3 |
++| **Binary pin** | **`11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96`**: ELF x86-64 PIE, dynamically linked against glibc/libstdc++/libz (`ldd` resolves on this host; glibc 2.44 ≥ the required 2.34) | lhelp-1 |
++| Version / help | `Lighthouse v8.3.2`; `blst-portable`; `Specs: mainnet (true)`. `beacon_node --help` equals the pinned source `help_bn.md` except two build-feature lists (DB backends `redb`, `mdbx`). **Every rendered flag** is in the binary's own help for every mode (file/semi 18, file/super 18, extip 21, url 17; none missing) | lhelp-1 |
++
++`PINS.json` now pins `consensus.binarySha256` and records the signature provenance. Effects:
++- `validate` refuses any other Lighthouse binary;
++- the example config is still refused, but now only for the checkpoint fields;
++- RUNBOOK §1 has the exact recipe.
++
++**Not done for reth:** its signature is not verified. Root authorized the Lighthouse artifact only, and reth's `.asc` was not
++fetched. The reth tarball matches its GitHub digest, and the binary self-reports the tag commit.
++
++## 2. Real-binary tests closing the source-only boundaries
++
++All runs went through the queue (16 GiB floor; one large lane plus small 256 MiB lanes), offline in `unshare -rn` with
++loopback up. All final runs are on launcher `l1pair.py` **`a25bd4ea`**.
++
++| Run | What | Result | Peak RSS |
++|---|---|---|---|
++| **lh-3** | REAL Lighthouse under `run-cl` + REAL reth under `run-el`, mainnet config, empty datadirs | **PASS** | 614 MiB |
++| **txb-4** | Two REAL reth peers, TEST NETWORK (chainId 1337), default vs opt-in broadcast + node-side gate probes | **PASS** | 817 MiB |
++| **reth-5** | REAL reth mainnet: Base L1 methods, refusals, engine JWT, persisted prune config, gate closed | **PASS**, same values as reth-4 (ready 0.8 s; JWT 200/401/401/401; receipts distance 140000) | 385 MiB |
++| unit-9 | Unit suite (adds txBroadcast and the never-render-test-flags assertions) | **20/20 OK** | 256 lane |
++| mut-6 | 22 launcher mutants (adds `broadcast-default-on`, `local-propagation-on`) | **22/22 killed** | 256 lane |
++| lhelp-1 / verify-lh-3 / fetch-lh-1,2 / fetch-6,7 | Binary help, verification, pinned sources | rc 0 | ≤ 128 MiB |
++
++**lh-3: Lighthouse on mainnet config, offline.**
++
++1. **Refusal through the launcher** (exact production argv, `resume` mode, empty DB): `CRIT Failed to start beacon node:
++   "Syncing from genesis is insecure and incompatible with data availability checks. You should instead perform a
++   checkpoint sync…"`.
++   - The process exits 1 after 2.5 s and is never READY.
++   - No hidden checkpoint URL is used: the run is offline and the log has no URL lines.
++2. **Counter-control, wrong engine JWT:**
++   - Lighthouse logs `Execution engine call failed … 401 Unauthorized` every 12 s;
++   - `/eth/v1/node/syncing` keeps `el_offline: true` for the whole 60 s.
++3. **Pairing, right JWT.** The test driver appends the TEST-ONLY flags `--allow-insecure-genesis-sync --ignore-ws-check`,
++   so the node starts from the EMBEDDED mainnet genesis (slot 0, 2020). Production never renders either flag, and a unit
++   test asserts that.
++   - **Startup:**
++     - READY 2.8 s after start (S's Supervisor with the beacon-API probe);
++     - `el_offline: false` at the first poll: the engine API was paired over loopback with the shared JWT.
++   - **APIs:**
++     - version `Lighthouse/v8.3.2/x86_64-linux`;
++     - `custody_group_count 64` (`--semi-supernode`);
++     - genesis validators root `0x4b363db9…`;
++     - spec: `DEPOSIT_CHAIN_ID 1`, `SECONDS_PER_SLOT 12`, `FULU_FORK_EPOCH 411392`, `GLOAS_FORK_EPOCH 2^64-1`,
++       `MIN_EPOCHS_FOR_DATA_COLUMN_SIDECARS_REQUESTS 4096`.
++   - **Blobs endpoint:** `/eth/v1/beacon/blobs/0` returns **400 "block is pre-Deneb and has no blobs"**. The endpoint is
++     served; there is no data at genesis.
++   - **Listeners:** the beacon API is on **127.0.0.1 only**; the only wildcard TCP listener is the configured P2P port.
++   - **Data gate CLOSED for the right reasons:**
++     - pass: `cl.genesis`, `cl.spec`, `cl.version`, `cl.custody`, `el.chainId`, `el.genesis`;
++     - fail: `cl.syncing` (`is_syncing` true, distance 15,493,336 slots), `pair.head` (genesis has no execution payload),
++       `cl.blobs`, `el.head`, `el.finalized`, `el.syncing`.
++   - **Stop:** SIGTERM, exit 0 in 0.16 s, no leftover listener.
++   - **First runs (lh-1):** without `--ignore-ws-check`, the REAL binary itself refused: "The current head state is
++     outside the weak subjectivity period … susceptible to long range attacks". That is independent evidence that a stale
++     anchor is rejected by Lighthouse, not only by the launcher's 14-day bound. **lh-2 was an accidental exact repeat of
++     lh-1:** my test edit had not applied, and I only noticed after the run.
++
++**What remains unproven** (it needs a live network or real data, and is not faked):
++- checkpoint-FILE start from a fresh finalized mainnet state (a chain-state download, not authorized);
++- forward or backfill sync;
++- serving real blobs from `/eth/v1/beacon/blobs/{slot}`;
++- data-column custody under load;
++- finality;
++- HDD throughput.
++
++There is **no pinned public test fixture** offline that contains finalized blob-carrying blocks. Producing one would mean
++running signing validators (keys) or tools outside the release tarball (`lcli`), so it was not done. Fresh-blob
++availability is proven only by `ready … --need-blobs-from-slot` after activation.
++
++## 3. Opt-in local L1 raw-transaction broadcast (for E)
++
++**Config:** `execution.txBroadcast`, default `disabled`.
++- **`disabled`** renders `--disable-tx-gossip --txpool.no-local-transactions-propagation`.
++- **`local-raw-propagate`** (explicit opt-in) renders neither. That is standard reth gossip.
++- **Both modes:**
++  - `--txpool.disable-transactions-backup` (no persisted txs re-sent after a restart);
++  - HTTP on loopback with `eth,net,web3`;
++  - no `--rpc.forwarder`;
++  - no keys, signing, funding or auto-send in the pair;
++  - unknown values are refused, and an absent value means `disabled`.
++
++**txb-4.**
++
++*Setup:*
++- a TEST NETWORK (chainId 1337), a throwaway genesis in the existing reth fixture format, funding only the PUBLIC
++  Hardhat account 0;
++- synthetic EIP-1559 transfers signed offline with that public key, using the already-installed viem 2.53.1;
++- node A runs the launcher argv with only `--chain` replaced (test seam); node B is a normal peer via `--trusted-peers`;
++- both get `forkchoiceUpdatedV3(genesis)` = VALID, then **one empty block** built by reth's own payload builder over
++  the engine API (FCU with attributes → `getPayloadV4` → `newPayloadV4` + FCU on both), as a CL would.
++- **Why that block is needed:** reth drops peers' tx announcements while "initially syncing" (`transactions/mod.rs:662`).
++  That state clears only on a live canonical head (`launch/engine.rs:389`).
++  - txb-2, without the block, saw **no propagation in EITHER mode**. Real behaviour: a still-syncing receiving peer drops
++    gossip.
++
++| Mode on A | Accepted into A's own pool | Reached peer B | Link | Included |
++|---|---|---|---|---|
++| `disabled` | yes: hash `0x88f6fc9f…` returned, and A's `eth_getTransactionByHash` finds it | **no**, 30 s | 1 peer each before and after | no (receipt `null`, heads at block 1) |
++| `local-raw-propagate` | yes, same | **yes**, at the first poll | 1 peer each | no |
++
++**The method is NOT refused in the default mode.** It admits into the local pool and returns a hash, but the tx never
++leaves the node. That difference between admission and propagation is documented for callers. A returned hash is not
++propagation, and peer receipt is not inclusion.
++
++**Node-side gates, measured in both modes:**
++- **Wrong chain ID** (EIP-155/typed): REFUSED, `invalid chain ID`.
++- **Fee above `--rpc.txfeecap`** (default 1 ETH): REFUSED.
++- **Replay-unprotected legacy tx:** **ACCEPTED**.
++- **Recipient:** **no allowlist** (`0x…dEaD` accepted, and in opt-in mode propagated).
++
++**The general eth API is therefore NOT a portal-only or chain-1-only allowlist.** E's requested gates must be enforced by
++E's bounded sender before the bytes reach the port. Root composes E's checks with this standard node. No proxy framework
++was added.
++
++**Handoff:** `HANDOFF-TO-E-L1-TX-BROADCAST.md`. Root's note `ROOT-TRANSACTION-INTERFACE-FINAL.txt` and E's
++`NOTE-FOR-P-L1-BROADCAST.md` were read. E's tree was not edited.
++
++## 4. Cold bootstrap, weak subjectivity and blob coverage
++
++Re-reviewed for the changes; the design is unchanged.
++- **Hidden public defaults:** none in either rendered argv. The real Lighthouse used no URL offline: the genesis state is
++  embedded and checkpoint URLs are never rendered by default. reth's NAT lookup is still forced off (`--nat none`).
++- **Weak subjectivity:** now enforced in two independent layers, both observed:
++  - the launcher's `check_checkpoint` (≤ 14 days, operational);
++  - Lighthouse's own refusals: no anchor on an empty DB (lh-3 part 1), and a head outside the WS period (lh-1).
++- **Blob coverage:** unchanged. A semi-supernode serves blobs only from its start, for ≤ 18 days. The endpoint path is
++  confirmed live on the real binary (400 pre-Deneb). The data is proven only after activation via the gate.
++
++## 5. Resources and native gaps
++
++- **Offline footprint is not production sizing:**
++  - reth ~280–310 MiB RSS and Lighthouse ~250 MiB at genesis;
++  - reth's datadir is 4.3 GB apparent / 1.5–9.9 MB allocated (sparse MDBX).
++- **Production envelope:** unchanged (RESULT.md §6) — 28 GiB of pair MemoryMax against ~24 GiB MemAvailable; D1
++  (HDD vs SSD) and D2 (RAM) are still open.
++- **Native gaps:** these need activation, not more offline tests:
++  - real P2P peering;
++  - sync time on HDD;
++  - blob serving;
++  - mainnet tx propagation through real peers;
++  - inclusion.
++- **Base on real reth (base-3):** not repeated. The rendered EL argv change only adds `--txpool.no-local-transactions-propagation`
++  in the default mode, and Base reads nothing tx-related. reth-5 and lh-3 exercised the final EL argv on mainnet.
++
++## 6. Pins and source
++
++- **Source commits:** `47f4f42` (Lighthouse pin, txBroadcast, real-binary tests, handoff), then this report and the
++  txb-4 probe commit (`git log`). Final launcher `l1pair/l1pair.py` `a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d`.
++- **Binaries:**
++  - reth v2.8.0 `8cdd1f35…` (tarball `809bfe0f…`);
++  - Lighthouse v8.3.2 `11b7bca8…` (tarball `ea914e93…`, sig `15E66D94…`);
++  - Base v1.5.1 `9c44836d…` (S, read-only).
++- **Vendor:** S `959e56fd` byte-identical (`VENDOR.json` `a2bcc3aa…`).
++- **Recipe:** `jobs/fetch-lighthouse.sh`, `jobs/verify-lighthouse.sh`, `jobs/lh-help.sh`; RUNBOOK §1.
++
++**Gates added for root** (on top of RESULT.md G1–G7):
++- **G8:** install the verified Lighthouse bytes (or re-run the recipe). `preflight` must pass its pin, version and flag
++  checks on the installed path.
++- **G9:** `execution.txBroadcast` stays `disabled` unless root explicitly approves `local-raw-propagate` for E's composed
++  sender. E's sender enforces portal-only, chain-1, EIP-155-only, nonce and bounds before submission.
+diff --git a/RESULT.md b/RESULT.md
+index 418f4883ba353db882c925109112569eba0b26f0..0b27b377b235ea2b06cd05b21ae52a970e8df0ef 100644
+--- a/RESULT.md
++++ b/RESULT.md
+@@ -413,3 +413,15 @@ No existing service, VM, filesystem, wallet or admin control is touched.
+ - no RPC/provider independence demonstrated (the pair would remove the *L1 RPC* dependency only once G1–G6 hold);
+ - no blob archive beyond 18 days;
+ - no fresh Base witness supply; that still needs the holder.
++
++## Update 2026-10-23: binary closure (additive; the text above is the reviewed baseline `83805a1`)
++
++See `RESULT-BINARY-CLOSURE.md`. In short:
++- **Lighthouse v8.3.2:** downloaded under root authorization, its signature verified against the officially stated
++  fingerprint, extracted safely and pinned (`11b7bca8…`).
++- **Real tests:** real-Lighthouse refusal, wrong-JWT counter-control and engine pairing with real reth all pass (lh-3).
++- **`execution.txBroadcast`:** a new opt-in, default `disabled`, tested on two offline reth peers (txb-4).
++  - Both modes ADMIT a pre-signed tx locally; only opt-in propagates.
++  - reth refuses wrong-chain-ID and over-fee-cap txs, but ACCEPTS replay-unprotected legacy txs and has no recipient
++    allowlist.
++- **E handoff:** `HANDOFF-TO-E-L1-TX-BROADCAST.md`.
+diff --git a/TEST-EVIDENCE.txt b/TEST-EVIDENCE.txt
+index 4efbc9e765c077fceaf947b1fc80ed66dd8be5e5..854c2383b40aa9fcce0f540394f943c08e42fc4c 100644
+--- a/TEST-EVIDENCE.txt
++++ b/TEST-EVIDENCE.txt
+@@ -247,3 +247,186 @@
+     OK
+     [memory-guard] exit=0 peakTreeRssMiB=565 minHostAvailableMiB=21422
+     [queue] EXIT 0
++
++# ---- binary closure runs (2026-10-23, additive) ----
++
++## fetch-lh-1  rc=0  sha256 aec647db61f2af0a7b67c49b898b10df0d056d73c72da112b8a1723b469d7734  bytes 1015  -- root-authorized Lighthouse download (tarball/asc/key/book page)
++    [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=23683
++    [queue] EXIT 0
++
++## verify-lh-1  rc=3  sha256 68dad4f10bda87e963ff9d27aecb47bc3530c908de68fbfbab1a4883339d833b  bytes 429  -- REFUSED by design: book page states no fingerprint
++    VERIFY FAIL: fingerprint not stated in the pinned book page
++    [memory-guard] exit=3 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++    [queue] EXIT 3
++
++## fetch-lh-2  rc=0  sha256 8121c7fbe925c64ee378c3790185eb4c42eae416062f24a3529329464ff8a5bc  bytes 3909  -- official fingerprint statements: release.yml, SECURITY.md, release body
++    [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=23552
++    [queue] EXIT 0
++
++## verify-lh-2  rc=3  sha256 99c0a668469a5b361a4052a9f445d3fbd244f9915e6a00d4046c27543063b4ee  bytes 1197  -- FAIL: my check counted the subkey fingerprint
++    VERIFY FAIL: keyring contains a key other than the pinned primary (or none); subkeys listed above
++    [memory-guard] exit=3 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++    [queue] EXIT 3
++
++## verify-lh-3  rc=0  sha256 c443f63a7d451d76d1a71f18ca025e9290a339cc5665188be8457be20d0b52a9  bytes 2147  -- FINAL: digests, fingerprint authority, VALIDSIG primary, single-member archive, binary 11b7bca8
++    SIGNATURE OK: VALIDSIG by primary 15E66D941F697E28F49381F426416DC3F30674B0
++    MEMBERS OK: exactly one regular file named lighthouse
++    11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96  bin-staging/lighthouse-v8.3.2/lighthouse
++    [memory-guard] exit=0 peakTreeRssMiB=128 minHostAvailableMiB=23712
++    [queue] EXIT 0
++
++## lhelp-1  rc=0  sha256 bb53818aa036fa2d2aac7f8c4fcb139d294f32b3a2d40bf3524cabbd61f0e7fe  bytes 1384  -- FINAL Lighthouse --version/help offline; every rendered flag present
++    11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96  bin-staging/lighthouse-v8.3.2/lighthouse
++    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++    [queue] EXIT 0
++
++## unit-7  rc=0  sha256 19862bcf83ac2d71c7870c4ebb62ffbe1d668d44891a2a501c2b2b94779551d6  bytes 3089  -- unit 19/19 (Lighthouse pin)
++    3635472db151f3d1dd576e0850f15f00f16d87f2ff00e6d1d9cb96a1df0ae975  l1pair/l1pair.py
++    9677732340c0007e4b9bce86d547b53e67428e81d36ca8e52215cbd63a46ed5d  l1pair/test/test_l1pair.py
++    Ran 19 tests in 7.244s
++    OK
++    [memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=23129
++    [queue] EXIT 0
++
++## lh-1  rc=1  sha256 5e0bbcc5b7d57eb939e7e360687913ae3852343f2d3641ef40636cbe2a495c70  bytes 5232  -- FAIL harness: genesis head outside WS period (needs --ignore-ws-check); refusal part PASS
++    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++    1ff3c408e7e4f4137b975e3d12e2bb70c6796315bfb96c08eea687467eb5291b  l1pair/test/test_l1pair.py
++    11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96  bin-staging/lighthouse-v8.3.2/lighthouse
++      "exitCode": 1,
++      "exitCode": 0,
++    Ran 1 test in 5.845s
++    FAILED (failures=1)
++    [memory-guard] exit=1 peakTreeRssMiB=521 minHostAvailableMiB=23298
++    [queue] EXIT 1
++
++## lh-2  rc=1  sha256 555509cd8bb56226ec816eb18ff410436882f3be3456d07c6c349c4513435cff  bytes 5230  -- accidental repeat of lh-1 (edit not applied)
++    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++    1ff3c408e7e4f4137b975e3d12e2bb70c6796315bfb96c08eea687467eb5291b  l1pair/test/test_l1pair.py
++    11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96  bin-staging/lighthouse-v8.3.2/lighthouse
++      "exitCode": 1,
++      "exitCode": 0,
++    Ran 1 test in 5.842s
++    FAILED (failures=1)
++    [memory-guard] exit=1 peakTreeRssMiB=556 minHostAvailableMiB=23342
++    [queue] EXIT 1
++
++## lh-3  rc=0  sha256 fc72193c89343d80da0d2f5bfa3de0787f5e694bc7d6a0f47894129f6bcdab62  bytes 5755  -- FINAL real Lighthouse refusal / wrong-JWT / pairing PASS
++    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
++    11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96  bin-staging/lighthouse-v8.3.2/lighthouse
++      "exitCode": 1,
++      "readyAfterSec": 2.8,
++      "elOfflineBecameFalse": false,
++      "exitCode": 0,
++      "readyAfterSec": 2.8,
++      "elOnline": true,
++      "exitCode": 0,
++      "exitCode": 0,
++    Ran 1 test in 69.047s
++    OK
++    [memory-guard] exit=0 peakTreeRssMiB=614 minHostAvailableMiB=22748
++    [queue] EXIT 0
++
++## unit-8  rc=0  sha256 80a82be29f5a10a1ecc453aa8f8b0a1dc286a27462a2166e6e23c3b9dfd57e1c  bytes 3191  -- unit 20/20 (txBroadcast)
++    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++    1ff3c408e7e4f4137b975e3d12e2bb70c6796315bfb96c08eea687467eb5291b  l1pair/test/test_l1pair.py
++    Ran 20 tests in 7.242s
++    OK
++    [memory-guard] exit=0 peakTreeRssMiB=35 minHostAvailableMiB=22180
++    [queue] EXIT 0
++
++## mut-5  rc=0  sha256 1d6146bdd22b6731bec0994148f586e2b8ea9b742d32d5cee5e5e70df32412b1  bytes 3487  -- mutants 22/22
++    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++    1ff3c408e7e4f4137b975e3d12e2bb70c6796315bfb96c08eea687467eb5291b  l1pair/test/test_l1pair.py
++    22/22 killed
++    [memory-guard] exit=0 peakTreeRssMiB=54 minHostAvailableMiB=22411
++    [queue] EXIT 0
++
++## txb-1  rc=1  sha256 a292adaf8ed962a31c5a61653e4768bae2e5eec2b7c048e403ab257502e6a20c  bytes 4762  -- FAIL harness: ANSI in reth log broke enode parse
++    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
++    Ran 1 test in 30.787s
++    FAILED (failures=1)
++    [memory-guard] exit=1 peakTreeRssMiB=330 minHostAvailableMiB=23391
++    [queue] EXIT 1
++
++## txb-2  rc=1  sha256 edaa4b6134af85259fd99a2ecb2dc90d5a9dc3963ea817cde93a95ddb3d1a08c  bytes 4029  -- no propagation in either mode: receiver initially syncing (real reth behaviour)
++    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
++      "admittedOnA": true,
++      "seenOnB": false,
++       "exitCode": 0,
++       "exitCode": 0,
++      "admittedOnA": true,
++      "seenOnB": false,
++       "exitCode": 0,
++       "exitCode": 0,
++    Ran 1 test in 62.963s
++    FAILED (failures=1)
++    [memory-guard] exit=1 peakTreeRssMiB=638 minHostAvailableMiB=22978
++    [queue] EXIT 1
++
++## fetch-6  rc=0  sha256 a3683bd82519f7e617f9a3b8a5a8dbf44771c8f01912d2b3b0760a80234134f7  bytes 805  -- reth tx gossip sources
++    [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=23107
++    [queue] EXIT 0
++
++## fetch-7  rc=0  sha256 1f9bbc517bc08eeadee451539fadb2c37dacc691b3adfaa8608c33346acff07a  bytes 802  -- reth engine launch source
++    [memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=22990
++    [queue] EXIT 0
++
++## txb-3  rc=0  sha256 608abf486ecf377c9019980ef90859f22ac8495b7e215e08aa6a6386592a1131  bytes 3761  -- two-peer broadcast PASS (after one engine-API test block)
++    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
++      "admittedOnA": true,
++      "seenOnB": false,
++       "exitCode": 0,
++       "exitCode": 0,
++      "admittedOnA": true,
++      "seenOnB": true,
++       "exitCode": 0,
++       "exitCode": 0,
++    Ran 1 test in 35.937s
++    OK
++    [memory-guard] exit=0 peakTreeRssMiB=688 minHostAvailableMiB=22594
++    [queue] EXIT 0
++
++## unit-9  rc=0  sha256 74cb3b5b564a3fc437bf21620b67095adde0c78f4b0df714dcc9ff21d6aefb04  bytes 3298  -- FINAL unit 20/20 on a25bd4ea
++    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
++    Ran 20 tests in 7.240s
++    OK
++    [memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=23600
++    [queue] EXIT 0
++
++## mut-6  rc=0  sha256 280c21d26c0c221a039a5135495279e547069df3fac23a3c714720b45abb94b8  bytes 3487  -- FINAL mutants 22/22 on a25bd4ea
++    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
++    22/22 killed
++    [memory-guard] exit=0 peakTreeRssMiB=52 minHostAvailableMiB=23325
++    [queue] EXIT 0
++
++## reth-5  rc=0  sha256 7b5a782c7204234e695905a10154a3fac882f67a9265195f12279b6df34baa4e  bytes 10490  -- FINAL real reth mainnet PASS on a25bd4ea
++    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
++     "readyAfterSec": 0.8,
++     "exitCode": 0,
++    Ran 1 test in 2.585s
++    OK
++    [memory-guard] exit=0 peakTreeRssMiB=385 minHostAvailableMiB=24974
++    [queue] EXIT 0
++
++## txb-4  rc=0  sha256 344b3c208fc9be8b5f25de393348b2b28ec3a21a31a56e88a191a7c87e7a58e3  bytes 4645  -- FINAL two-peer broadcast + node-side gate probes PASS
++    a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++    b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
++      "admittedOnA": true,
++      "seenOnB": false,
++       "exitCode": 0,
++       "exitCode": 0,
++      "admittedOnA": true,
++      "seenOnB": true,
++       "exitCode": 0,
++       "exitCode": 0,
++    Ran 1 test in 35.546s
++    OK
++    [memory-guard] exit=0 peakTreeRssMiB=817 minHostAvailableMiB=24875
++    [queue] EXIT 0
+diff --git a/l1pair/test/test_tx_broadcast_offline.py b/l1pair/test/test_tx_broadcast_offline.py
+index 277cf6f30d440bf57416df144638c2e8507703dc..06b1ed9000e8946ccdfe3c5363323ccfe1b7b9cd 100644
+--- a/l1pair/test/test_tx_broadcast_offline.py
++++ b/l1pair/test/test_tx_broadcast_offline.py
+@@ -26,9 +26,15 @@ const req = createRequire(process.argv[1]);
+ const { privateKeyToAccount } = req('viem/accounts');
+ // Hardhat/Anvil default account 0: a PUBLIC test key printed by every Hardhat install; funded only on this test genesis
+ const acct = privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80');
+-acct.signTransaction({ chainId: 1337, type: 'eip1559', nonce: 0, to: '0x000000000000000000000000000000000000dEaD', value: 1n,
+-  gas: 21000n, maxFeePerGas: 3000000000n, maxPriorityFeePerGas: 1000000000n })
+-  .then((raw) => { process.stdout.write(JSON.stringify({ from: acct.address, raw })); });
++const to = '0x000000000000000000000000000000000000dEaD';   // deliberately NOT the Base portal: the API has no allowlist
++Promise.all([
++  acct.signTransaction({ chainId: 1337, type: 'eip1559', nonce: 0, to, value: 1n, gas: 21000n, maxFeePerGas: 3000000000n, maxPriorityFeePerGas: 1000000000n }),
++  acct.signTransaction({ chainId: 1, type: 'eip1559', nonce: 1, to, value: 1n, gas: 21000n, maxFeePerGas: 3000000000n, maxPriorityFeePerGas: 1000000000n }),
++  acct.signTransaction({ type: 'legacy', nonce: 2, to, value: 1n, gas: 21000n, gasPrice: 3000000000n }),
++  acct.signTransaction({ chainId: 1337, type: 'eip1559', nonce: 3, to, value: 1n, gas: 21000n, maxFeePerGas: 100000000000000n, maxPriorityFeePerGas: 1000000000n }),
++]).then(([raw, wrongChain, unprotected, overFeeCap]) => {
++  process.stdout.write(JSON.stringify({ from: acct.address, raw, wrongChain, unprotected, overFeeCap }));
++});
+ """
+ 
+ 
+@@ -132,6 +138,9 @@ def run_pair(scratch, reth, gfile, mode):
+         seen, t_seen = wait(lambda: h and L.rpc(eb, 'eth_getTransactionByHash', [h]), 30)
+         out['seenOnB'], out['seenOnBAfterSec'] = bool(seen), t_seen
+         out['peersAfter'] = {'A': int(L.rpc(ea, 'net_peerCount'), 16), 'B': int(L.rpc(eb, 'net_peerCount'), 16)}
++        # node-side gates of eth_sendRawTransaction (what reth enforces itself; anything else is the caller's job)
++        out['probes'] = {name: (lambda r: {'accepted': 'result' in r, 'answer': str(r.get('result', r.get('error')))[:160]})(
++            R.rpc_raw(ea, 'eth_sendRawTransaction', [signed[name]])) for name in ('wrongChain', 'unprotected', 'overFeeCap')}
+         out['receiptOnA'] = L.rpc(ea, 'eth_getTransactionReceipt', [h]) if h else None
+         out['headAfter'] = {'A': L.rpc(ea, 'eth_blockNumber'), 'B': L.rpc(eb, 'eth_blockNumber')}
+     finally:
+@@ -167,6 +176,10 @@ class TxBroadcastOffline(unittest.TestCase):
+         self.assertFalse(off['seenOnB'], 'default mode: the transaction must not leave node A')
+         self.assertEqual(off['peersAfter'], {'A': 1, 'B': 1}, 'the peer link stayed up during the default-mode window')
+         self.assertTrue(on['seenOnB'], 'opt-in mode: standard reth gossip carries the transaction to the peer')
++        for r in (off, on):
++            self.assertFalse(r['probes']['wrongChain']['accepted'], 'reth refuses a transaction signed for another chain id')
++            self.assertFalse(r['probes']['overFeeCap']['accepted'], 'reth refuses fees above --rpc.txfeecap (default 1 ETH)')
++        # unprotected legacy: recorded, not asserted (documented as measured)
+ 
+ 
+ if __name__ == '__main__':
+diff --git a/logs/txb-4.guard.log b/logs/txb-4.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..8afc9c17a236fd6ec48044600c98893ea0200c52
+--- /dev/null
++++ b/logs/txb-4.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=817 minHostAvailableMiB=24875
+diff --git a/logs/txb-4.out b/logs/txb-4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..14c7786cf22384c24895c733fec08239e0f30559
+--- /dev/null
++++ b/logs/txb-4.out
+@@ -0,0 +1,167 @@
++[queue] START available=25914MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
++== pins
++a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++f26b94a8af333c67bc51f4ea4111ca231a8e5f3a0bf6ba22079731ef9ee70890  l1pair/PINS.json
++a2bcc3aabff16977e29e84ed46b1734028ec58c66dbc8c4523ae1bcf62accefa  l1pair/vendor/VENDOR.json
++f1f748833dbb7a1a32702daace04588441cf5b40b93b5046dd1ef3f4c1b985fd  l1pair/test/mutate.py
++86cb2a3558882ec5699d83d68ee11f6d1a0224f1d8b5de36147a3e62bf16cf44  l1pair/test/realrig.py
++6dc6fc2e92136842d4278f56b8194c9fca83fe959f5f52009677f543c94ab4cf  l1pair/test/run_side.py
++9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
++b568d61c1bf90c6da40a9b4fd0e0f98b334664db265bb1fa0663c5c4397107f9  l1pair/test/test_l1pair.py
++df0e3dfc93e516d26bef54f2f45816e7a571f7c5f55ff86081132594ee7631f2  l1pair/test/test_lighthouse_offline.py
++60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
++85cdd561c066131c2cb611822c047b868d2e83480a490116978ac4cdae7e4f7a  l1pair/test/test_tx_broadcast_offline.py
++vendor: OK (S 959e56f byte-identical)
++8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250  bin/reth-v2.8.0
++test_default_admits_locally_but_never_propagates_and_opt_in_propagates (__main__.TxBroadcastOffline.test_default_admits_locally_but_never_propagates_and_opt_in_propagates) ... {
++ "label": "TEST NETWORK chainId 1337 (throwaway genesis), offline, synthetic tx signed with a PUBLIC test key; not mainnet, no inclusion",
++ "disabled": {
++  "modeUnderTestOnA": "disabled",
++  "argvA_txFlags": [
++   "--txpool.disable-transactions-backup",
++   "--disable-tx-gossip",
++   "--txpool.no-local-transactions-propagation"
++  ],
++  "peersConnected": true,
++  "peerAfterSec": 0.0,
++  "fcu": {
++   "A": [
++    200,
++    "VALID"
++   ],
++   "B": [
++    200,
++    "VALID"
++   ]
++  },
++  "advance": {
++   "block": "0x1",
++   "hash": "0x22cd6bd567b45c78ee4554b6153e77f8853311434379c9ef2093a7c46ce070e1",
++   "txs": 0,
++   "status": {
++    "A": [
++     "VALID",
++     "VALID"
++    ],
++    "B": [
++     "VALID",
++     "VALID"
++    ]
++   }
++  },
++  "bothAtBlock1": true,
++  "sendRawTransactionOnA": "0x88f6fc9f7aeb0a3871b400ceb6c9b3a19b398c9f8b84006831ebd56c7b790208",
++  "admittedOnA": true,
++  "seenOnB": false,
++  "seenOnBAfterSec": 30.0,
++  "peersAfter": {
++   "A": 1,
++   "B": 1
++  },
++  "probes": {
++   "wrongChain": {
++    "accepted": false,
++    "answer": "{'code': -32000, 'message': 'invalid chain ID'}"
++   },
++   "unprotected": {
++    "accepted": true,
++    "answer": "0x4816d88854d914e596bc80338b4169385bb497865073957a223e0ef330a3ae50"
++   },
++   "overFeeCap": {
++    "accepted": false,
++    "answer": "{'code': -32000, 'message': 'tx fee (2100000000000000000 wei) exceeds the configured cap (1000000000000000000 wei)'}"
++   }
++  },
++  "receiptOnA": null,
++  "headAfter": {
++   "A": "0x1",
++   "B": "0x1"
++  },
++  "stopB": {
++   "exitCode": 0,
++   "sec": 0.11
++  },
++  "stopA": {
++   "exitCode": 0,
++   "sec": 0.31
++  }
++ },
++ "localRawPropagate": {
++  "modeUnderTestOnA": "local-raw-propagate",
++  "argvA_txFlags": [
++   "--txpool.disable-transactions-backup"
++  ],
++  "peersConnected": true,
++  "peerAfterSec": 0.0,
++  "fcu": {
++   "A": [
++    200,
++    "VALID"
++   ],
++   "B": [
++    200,
++    "VALID"
++   ]
++  },
++  "advance": {
++   "block": "0x1",
++   "hash": "0x22cd6bd567b45c78ee4554b6153e77f8853311434379c9ef2093a7c46ce070e1",
++   "txs": 0,
++   "status": {
++    "A": [
++     "VALID",
++     "VALID"
++    ],
++    "B": [
++     "VALID",
++     "VALID"
++    ]
++   }
++  },
++  "bothAtBlock1": true,
++  "sendRawTransactionOnA": "0x88f6fc9f7aeb0a3871b400ceb6c9b3a19b398c9f8b84006831ebd56c7b790208",
++  "admittedOnA": true,
++  "seenOnB": true,
++  "seenOnBAfterSec": 0.0,
++  "peersAfter": {
++   "A": 1,
++   "B": 1
++  },
++  "probes": {
++   "wrongChain": {
++    "accepted": false,
++    "answer": "{'code': -32000, 'message': 'invalid chain ID'}"
++   },
++   "unprotected": {
++    "accepted": true,
++    "answer": "0x4816d88854d914e596bc80338b4169385bb497865073957a223e0ef330a3ae50"
++   },
++   "overFeeCap": {
++    "accepted": false,
++    "answer": "{'code': -32000, 'message': 'tx fee (2100000000000000000 wei) exceeds the configured cap (1000000000000000000 wei)'}"
++   }
++  },
++  "receiptOnA": null,
++  "headAfter": {
++   "A": "0x1",
++   "B": "0x1"
++  },
++  "stopB": {
++   "exitCode": 0,
++   "sec": 0.56
++  },
++  "stopA": {
++   "exitCode": 0,
++   "sec": 0.26
++  }
++ }
++}
++ok
++
++----------------------------------------------------------------------
++Ran 1 test in 35.546s
++
++OK
++[memory-guard] exit=0 peakTreeRssMiB=817 minHostAvailableMiB=24875
++[memory-guard] at peak: reth-v2.8.0:431 reth-v2.8.0:306 python3:31 python3:25 python3:25
++[queue] EXIT 0
+diff --git a/logs/txb-4.rc b/logs/txb-4.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/txb-4.rc
+@@ -0,0 +1 @@
++0

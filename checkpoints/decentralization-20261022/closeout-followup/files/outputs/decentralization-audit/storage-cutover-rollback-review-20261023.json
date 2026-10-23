@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-23T07:56:43.428059+00:00",
+  "source": "6fd7a9299c53121142ab59d8ff9a7406c1f2b845",
+  "files": {
+    "package/tools/cutover.py": "1b05047cce27a9a56fde7e4d20c690d202f4114abe59a98c75b187c3eec56f80",
+    "package/CUTOVER.md": "4b7f065e8f0a9a03c75150327a6633b0ab2612c49e3fe75c5eb558a56a04386b"
+  },
+  "review": {
+    "migrationRehearsal": "42 passed, source report reviewed; fixture only, post-retirement test set N2/W2 has no one-loss write tolerance",
+    "enrolmentCrash": "actual e1 log11pass, guardexit0, peak701MiB, cleanupempty; killed afterfence before readiness, oldclientrefused, C2recovered",
+    "remainingRace": "At frozen source, rollback_decision says LEGACY_REDEPLOY_SAFE from zero counts and instructs stopping C2 afterwards. Enrollment can complete between observation and stop. Requires quiesce/drain before fresh enrollment read; C assigned focused regression/fix. Not yet fixed or approved for livecutover by this receipt.",
+    "countLimitation": "Equal object counts alone do not establish no overwrites/deletes/replacements; genuine writer quiescence needed."
+  },
+  "production": "No backup, storage migration, enrollment, or deployment performed."
+}
