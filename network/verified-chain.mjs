@@ -27,14 +27,15 @@ const hexBlock = (b) => '0x' + b.toString(16);
  * remote URL is refused: a remote "verifier" is one unverified server.
  */
 export function verifierEndpoint(v) {
-  if (v && typeof v === 'object' && typeof v.request === 'function') return { request: (m, p, ms) => v.request(m, p, ms), label: 'verifier' };
+  if (v && typeof v === 'object' && typeof v.request === 'function') return { request: (m, p, ms, signal) => v.request(m, p, ms, signal), label: 'verifier' };
   const url = typeof v === 'string' ? v : v?.url;
   let e; try { e = rpcEndpoint(url); } catch (err) { throw new Error('verifier endpoint: ' + err.message); }
   if (!e.loopback) throw new Error('the verifier must be a local endpoint (loopback); a remote server is not a verifier');
   let id = 0;
-  return { label: 'verifier ' + e.label, request: async (method, params, ms) => {
+  return { label: 'verifier ' + e.label, request: async (method, params, ms, signal) => {
+    const timeout = AbortSignal.timeout(Math.max(1, ms));
     const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params }),
-      redirect: 'error', signal: AbortSignal.timeout(Math.max(1, ms)) });
+      redirect: 'error', signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
     if (!r.ok) throw Object.assign(new Error(`verifier HTTP ${r.status}`), { status: r.status });
     const j = await r.json();
     if (j?.error) throw Object.assign(new Error('verifier: ' + String(j.error.message || 'error').slice(0, 300)), { rpcCode: j.error.code });
@@ -55,7 +56,7 @@ export function verifiedHeader(block, b) {
 
 export const PINNED_METHODS = Object.freeze(['getChainId', 'getBlockNumber', 'getBlock', 'readContract', 'getCode', 'getBytecode', 'getStorageAt', 'getBalance']);
 /** The only client a read callback sees: every answer at block `b` (by hash), proof-backed; anything else refuses by name. */
-export function pinnedClient({ b, hash, request, chainId }) {
+export function pinnedClient({ b, hash, request, chainId, alive = () => {} }) {
   const at = (blockNumber, blockTag) => {
     if (blockTag !== undefined) throw new Error(`verified reads are pinned to block ${b} (no block tags)`);
     if (blockNumber !== undefined && BigInt(blockNumber) !== b) throw new Error(`verified reads are pinned to block ${b}`);
@@ -82,7 +83,7 @@ export function pinnedClient({ b, hash, request, chainId }) {
     getBalance: async ({ address, blockNumber, blockTag }) => BigInt(await request('eth_getBalance', [address, at(blockNumber, blockTag)])),
   };
   return new Proxy(Object.freeze({}), { get(_t, key) {
-    if (Object.hasOwn(methods, key)) return methods[key];
+    if (Object.hasOwn(methods, key)) return async (...args) => { alive(); return methods[key](...args); };
     if (typeof key === 'symbol' || key === 'then' || key === 'toJSON') return undefined;
     return () => { throw new Error(`client.${String(key)} is not available under the verifier authority (proof-backed reads only: ${PINNED_METHODS.join(', ')})`); };
   } });
@@ -110,12 +111,19 @@ export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, m
     if (typeof read !== 'function') throw new Error('snapshot(read) needs a read function');
     if (atBlock && !HASH.test(String(atBlock.hash))) throw new Error('resume block hash required');
     let closed = false, timer;
+    const controller = new AbortController();
     const endAt = performance.now() + deadlineMs;
-    const request = (method, params) => {
-      if (closed) return Promise.reject(fail('chain_closed', 'this verified snapshot has already ended'));
+    const alive = () => {
+      if (closed) throw fail('chain_closed', 'this verified snapshot has already ended');
       const left = Math.floor(endAt - performance.now());
-      if (left <= 0) return Promise.reject(fail('chain_timeout', 'the verified read deadline has passed'));
-      return Promise.resolve().then(() => v.request(method, params, left));
+      if (left <= 0) throw fail('chain_timeout', 'the verified read deadline has passed');
+      return left;
+    };
+    const request = async (method, params) => {
+      const value = await v.request(method, params, alive(), controller.signal);
+      // A custom transport may ignore cancellation. Its late answer must not advance the accepted-block floor.
+      alive();
+      return value;
     };
     const fresh = (ts) => ts + maxBlockAgeMs > now();
     const work = (async () => {
@@ -135,11 +143,12 @@ export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, m
       if (floor && b === floor.number && h.hash !== floor.hash) throw fail('chain_rollback', 'the accepted block was replaced');
       if (h.timestamp > now() + futureSkewMs) throw fail('chain_future', 'the verified block is in the future');
       if (!fresh(h.timestamp)) throw fail('chain_stale', `verified block ${b} is older than ${maxBlockAgeMs} ms`);
-      const value = await read(pinnedClient({ b, hash: h.hash, request, chainId }), b, h);
+      const value = await read(pinnedClient({ b, hash: h.hash, request, chainId, alive }), b, h);
       const again = verifiedHeader(await request('eth_getBlockByNumber', [hexBlock(b), false]), b);
       if (again.hash !== h.hash || again.timestamp !== h.timestamp) throw fail('chain_reorg', 'chain reorganized during the read');
       if (!fresh(h.timestamp)) throw fail('chain_stale', `verified block ${b} became older than ${maxBlockAgeMs} ms during the read`);
       if (floor && b < floor.number) throw fail('chain_rollback', `block ${b} is older than block ${floor.number} accepted meanwhile`);
+      alive();
       if (!floor || b > floor.number) floor = { number: b, hash: h.hash };
       return { blockNumber: b, blockHash: h.hash, stateRoot: h.stateRoot, timestamp: h.timestamp, value,
         evidence: { authority: 'local-verifier', tier: 'unsafe', finality: 'none', blockNumber: String(b), blockHash: h.hash, stateRoot: h.stateRoot, verifier: v.label } };
@@ -148,7 +157,7 @@ export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, m
     const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(fail('chain_timeout', `no verified snapshot within ${deadlineMs} ms`)), deadlineMs); });
     try { return await Promise.race([work, deadline]); }
     catch (e) { throw e?.code ? e : fail('chain_unconfirmed', 'no verified chain state: ' + String(e?.message || e).slice(0, 300), e); }
-    finally { closed = true; clearTimeout(timer); work.catch(() => {}); }
+    finally { closed = true; clearTimeout(timer); controller.abort(fail('chain_closed', 'this verified snapshot has already ended')); work.catch(() => {}); }
   };
 }
 
