@@ -58,6 +58,7 @@ import { mayReconcile } from "./network/registry-reconcile.mjs";   // the regist
 import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender } from "./network/lease-gas-runtime.mjs";
 import { checkOwnerNomination, OWNER_NOMINATION_ENV } from "./metal/guest/owner-nomination.mjs";
 import { createOwnerNominator } from "./network/host-owner-nomination.mjs";
+import { chainAuthorityFromEnv, refusingChainAuthority } from "./network/chain-authority.mjs";
 // the public raw attestation document's paths (canonical + the wire-compatibility alias): named in one module
 import { RAD_PATHS, ADVERTISED_RAD_PATH } from "./relay/attestation-paths.mjs";
 // Wallet sessions (SessionVault) as owner credentials, verified on chain: shared with the Windows node.
@@ -319,7 +320,23 @@ const RPC_POOL = process.env.BASE_RPCS
   : [...new Set([BASE_RPC,
   "https://base-rpc.publicnode.com", "https://base.drpc.org",
   "https://1rpc.io/base", "https://mainnet.base.org"])];
-const rpcTransport = () => viemFallback(RPC_POOL.map((u) => viemHttp(u, { retryCount: 2, retryDelay: 500 })));
+// THE LOCAL VERIFIER (the operator's explicit ENCLAVE_CHAIN_AUTHORITY=verifier + ENCLAVE_CHAIN_VERIFIER, network/chain-authority.mjs):
+// every chain read is proven by the local verifier (the unsafe tier: its sequencer-signed head chain), submissions and
+// pending-pool/fee hints go to the operator's OWN backend (ENCLAVE_CHAIN_TX_BACKEND) only, and nothing - not RPC_POOL, not a
+// public default - is ever contacted; an invalid selection refuses every chain operation. Unset: the provider pool, unchanged.
+const CHAIN_AUTHORITY = (() => {
+  try { return chainAuthorityFromEnv(process.env, { chain: base }); }
+  catch (e) { console.error(`[chain] the chain authority selection is INVALID (${e.message}): every chain read and transaction refuses; no provider is used`);
+              return refusingChainAuthority(e.message, { chain: base }); }
+})();
+const rpcTransport = () => CHAIN_AUTHORITY ? CHAIN_AUTHORITY.transport : viemFallback(RPC_POOL.map((u) => viemHttp(u, { retryCount: 2, retryDelay: 500 })));
+if (CHAIN_AUTHORITY) { const d = CHAIN_AUTHORITY.describe();
+  console.log(`[chain] authority: ${d.authority === "refusing" ? "REFUSING (" + d.why + ")" : `local verifier ${d.verifier} (unsafe tier, no L1 finality); `
+    + (d.backend ? `submissions and pool/fee hints via the own backend ${d.backend.label} (bound to the verifier's chain before each send)` : "no own transaction backend: nothing is submitted")
+    + "; logs prove inclusion only; no provider RPC is used"}`); }
+// Before an action that signs or submits (submit) or decides on chain state: the verifier's head is fresh and, to submit, the
+// own backend is bound to its chain. Legacy (no authority): nothing here, exactly as before.
+const chainActionGate = (what, submit = false) => (CHAIN_AUTHORITY ? CHAIN_AUTHORITY.actionGate({ what, submit }) : Promise.resolve());
 const SESSION_TTL    = parseInt(process.env.SESSION_TTL || "604800", 10); // 7d: SIWE is lazy now (only logs/attestation/private data need it) - make the one signature rare
 const DEFAULT_IMAGE  = process.env.DEFAULT_IMAGE || "debian:bookworm-slim"; // any stock image
 // --- worker launch: tenants run as the manager's wasmtime/CUDA processes ------
@@ -5898,6 +5915,8 @@ async function callerRecords(req) {
 // system
 // ============================================================================
 app.get("/v1/health", (_req, res) => res.json({ status: "ok", deployments: deployments.size, platformHostPolicy: HOST_POLICY_GATE.status(),
+  // the selected chain authority (only when the operator selected the local verifier): what is used, and the last action gate
+  ...(CHAIN_AUTHORITY ? { chainAuthority: { ...CHAIN_AUTHORITY.describe(), lastGate: CHAIN_AUTHORITY.status() } } : {}),
   // the operator's owner nomination, only when configured (public: contract, host, proposed owner, tx hash, state)
   ...(OWNER_NOMINATION ? { ownerNomination: ownerNominationStatus() } : {}),
   // watcher freshness is billing-critical: while it's stale, funded clocks are frozen
@@ -9972,9 +9991,10 @@ async function awaitReceipt(hash, timeoutMs = 90_000) {
   }
 }
 function sendOperatorTx(address, abi, functionName, args, { gate = null } = {}) {
-  const p = _txChain.then(() => {
+  const p = _txChain.then(async () => {
     const stale = gate?.();   // the caller's local permission, re-checked when the queue reaches this send (sendLeaseTx)
     if (stale) throw Object.assign(new Error(`${functionName} not sent: ${stale}`), { superseded: true });
+    await chainActionGate(functionName, true);   // a fresh verifier and a bound own backend, before anything is signed
     return claimSigner().wallet.writeContract({ address: getAddress(address), abi, functionName, args });
   });
   const rcptP = p.then((hash) => awaitReceipt(hash));
@@ -10006,6 +10026,8 @@ function ownerNominator() {
   _ownerNominator = createOwnerNominator({ nomination: OWNER_NOMINATION.config,
     local: { chainId: CHAIN_ID, registry: REGISTRY_ADDRESS, endpoint: _advertisedEndpoint, operator: account.address, hostId: _enclaveId },
     queue: operatorQueue, allowLoopbackHttp: !!process.env.OWNER_NOMINATION_SELFTEST,
+    // under the local verifier: its reads use that ONE authority (never the nomination's own RPCs), the broadcast the own backend
+    ...(CHAIN_AUTHORITY ? { clients: [chainClient] } : {}),
     signer: { address: account.address, prepare: (r) => wallet.prepareTransactionRequest({ account, ...r }), sign: (r) => wallet.signTransaction(r),
               broadcast: (raw) => (_ownerNominationBroadcastHook ? _ownerNominationBroadcastHook(raw, broadcast) : broadcast(raw)) },
     store: { load: () => _ownerNominationRecord, save: (r) => { _ownerNominationRecord = r; saveStateNow(); },
@@ -10093,15 +10115,17 @@ function leaseRelayPolicy(gate) {
 }
 function leaseGasSender() {
   if (!_leaseGas) {
-    const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
+    const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings(), chainAuthority: CHAIN_AUTHORITY });
     _leaseGas = configuredLeaseSender({ config, account: claimSigner().account, getBindings: leaseBindings, relayPolicy: leaseRelayPolicy(HOST_POLICY_GATE),
       log: (m) => console.log(m), onSigned: (s) => (_onLeaseSigned ? _onLeaseSigned(s) : undefined) });
   }
   return _leaseGas;
 }
 if (leaseGasActive()) {
-  try { const c = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
-        console.log(`[lease-gas] app-funded leases ON: reserve ${c.reserve}, ${c.relays.length} relay(s), ${c.clients.length} RPC(s) (quorum ${c.quorum}); this key's ETH is never used for claim/renew/release`); }
+  try { const c = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings(), chainAuthority: CHAIN_AUTHORITY });
+        console.log(`[lease-gas] app-funded leases ON: reserve ${c.reserve}, ${c.relays.length} relay(s), `
+          + (c.authority === "local-verifier" ? "reads through the local verifier (configured RPCs unused)" : `${c.clients.length} RPC(s) (quorum ${c.quorum})`)
+          + "; this key's ETH is never used for claim/renew/release"); }
   catch (e) { console.warn(`[lease-gas] app-funded leases are configured but cannot be loaded now (${e.message}); every claim/renew/release refuses until they can`); }
 }
 function leaseGasError(fn, id, e) {
@@ -10121,6 +10145,8 @@ function sendLeaseTx(functionName, args, { gate = null } = {}) {
     const stale = gate?.();
     if (stale) throw Object.assign(new Error(`app-funded ${functionName} not sent: ${stale}`), { superseded: true });
     if (_stateCorrupt) throw leaseGasError(functionName, args[0], new Error(`the release journal failed to load (${_stateCorrupt})`));
+    try { await chainActionGate(`app-funded ${functionName}`); }   // relays submit; this host signs only on a fresh verified head
+    catch (e) { throw leaseGasError(functionName, args[0], e); }
     // ...and asked AGAIN once the lease is signed, before any relay has it (the client's onSigned: a throw there sends it to
     // no relay): the sponsored client reads and admits relays first, and a withdrawal meanwhile must not spend the reserve
     let tripped = null;
@@ -10511,6 +10537,7 @@ async function resolveSponsoredReleaseTx(it, tx) {
 function signAndSendRelease(it) {
   if (leaseGasActive()) return sponsoredRelease(it);   // never this key's ETH once app-funded leases are configured
   const signed = _txChain.then(async () => {
+    await chainActionGate("release", true);              // nothing is signed on a stale verifier or an unbound backend
     const { account, wallet } = claimSigner();
     const request = await wallet.prepareTransactionRequest({ account, to: getAddress(DEPLOYMENTS_ADDRESS),
       data: encodeFunctionData({ abi: CLAIM_TX_ABI, functionName: "release", args: [it.id] }) });
@@ -10534,6 +10561,7 @@ function signAndSendRelease(it) {
 function fenceNonce(it, tx) {
   tx.fence = { at: Date.now() };
   const p = _txChain.then(async () => {
+    await chainActionGate("nonce fence", true);
     const { account, wallet } = claimSigner();
     tx.fence.hash = await wallet.sendTransaction({ account, to: account.address, value: 0n, nonce: tx.nonce });
     saveStateNow();
