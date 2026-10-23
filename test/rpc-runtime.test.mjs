@@ -166,3 +166,36 @@ test('head fan-out: the root store binds first, then the relay; a refused root d
   assert.equal(firstHead, 1, 'the first-head signal fires once');
   assert.deepEqual({ offered: f.counters.offered, rootsBound: f.counters.rootsBound, rootsRefused: f.counters.rootsRefused, relayAccepted: f.counters.relayAccepted }, { offered: 4, rootsBound: 3, rootsRefused: 1, relayAccepted: 1 });
 });
+
+test('glibc runtime: only a tested exact set, only for Helios and the helper; binary staging copy or verify-in-place', async () => {
+  const { PINNED_GLIBC_RUNTIMES } = await import('../network/rpc-runtime.mjs');
+  const [label, files] = Object.entries(PINNED_GLIBC_RUNTIMES)[0];
+  const g = { dir: '/opt/rpc-runtime/glibc', files: { ...files }, binaries: ['helios', 'witnessCheck'] };
+  const c = validateRuntimeConfig(base({ glibcRuntime: g, binaryStaging: 'verify-in-place' }));
+  assert.equal(c.glibcRuntime.build, label); assert.equal(c.binaryStaging, 'verify-in-place');
+  assert.equal(validateRuntimeConfig(base()).binaryStaging, 'copy', 'copy stays the default');
+  assert.equal(validateRuntimeConfig(base()).glibcRuntime, null);
+  bad({ glibcRuntime: { ...g, files: { ...files, 'libc.so.6': 'ab'.repeat(32) } } }, /not a tested glibc runtime/);
+  bad({ glibcRuntime: { ...g, binaries: ['listener'] } }, /helios and\/or witnessCheck/);
+  bad({ glibcRuntime: { ...g, binaries: [] } }, /helios and\/or witnessCheck/);
+  bad({ glibcRuntime: { ...g, files: { ...files, 'libpthread.so.0': 'ab'.repeat(32) } } }, /unknown field/);
+  bad({ glibcRuntime: { ...g, dir: 'glibc' } }, /absolute path/);
+  bad({ binaryStaging: 'symlink' }, /copy or verify-in-place/);
+});
+
+test('verify-in-place refuses a binary others could replace (group/other-writable file or directory), before anything starts', async () => {
+  const dir = path.join(TMP, 'inplace'); fs.mkdirSync(dir, { mode: 0o755 }); fs.chmodSync(dir, 0o755);
+  const fake = path.join(dir, 'listener'); fs.writeFileSync(fake, '#!/bin/sh\n', { mode: 0o555 }); fs.chmodSync(fake, 0o555);
+  const pin = createHash('sha256').update(fs.readFileSync(fake)).digest('hex');
+  const accepted = { ...PINNED_BUILDS, listener: { [pin]: 'test file' } };
+  const b = base().binaries;
+  const cfg = (stateDir) => base({ stateDir, binaryStaging: 'verify-in-place', binaries: { ...b, listener: { path: fake, sha256: pin } } });
+  fs.chmodSync(fake, 0o575);                                        // group-writable file
+  await assert.rejects(startRpcRuntime(cfg(path.join(TMP, 'ip1')), { acceptedBuilds: accepted }), /writable by no one else \(verify-in-place\)/);
+  fs.chmodSync(fake, 0o555); fs.chmodSync(dir, 0o775);              // group-writable directory above it
+  await assert.rejects(startRpcRuntime(cfg(path.join(TMP, 'ip2')), { acceptedBuilds: accepted }), /writable by no one else \(verify-in-place\)/);
+  fs.chmodSync(dir, 0o755);
+  // the positive in-place path (every parent owned by root or this user) runs in the guest chroot E2E; here, inside the test's
+  // user namespace, the host's real-root parents appear as the overflow uid and are refused too, as they should be
+  await lockFree(path.join(TMP, 'ip2'));
+});
