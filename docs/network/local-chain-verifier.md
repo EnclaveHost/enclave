@@ -11,27 +11,35 @@ gossip listener (native, owned child)
   -> head relay       127.0.0.1:ephemeral   (Helios --consensus-rpc)    network/op-head-relay.mjs
   -> witness gateway  127.0.0.1:ephemeral   (Helios --execution-rpc)    network/witness-gateway.mjs
        -> proofSources.untrusted[]  (explicit config; every pinned witness verified before use)
+       -> witnessArchive (optional S3/Sia-S3; untrusted verified history; never contacted to start)  network/s3-witness-cache.mjs
   -> Helios enclave-base-evm  127.0.0.1:<verifier.port>  (owned child, started after the first verified head)
   -> consumers: chainAuthority 'verifier', chainVerifier http://127.0.0.1:<verifier.port>/   network/lease-reader.mjs
 ```
 
 ## Startup order (no race, no remote proof before a local verifier)
 
-1. A lock on `stateDir` (bound to pid and `/proc` start time). Then children left by an earlier run are reaped: the
-   identities it recorded in `children.json`, and any process still executing a binary staged in an earlier run
-   directory.
-2. Each pinned binary is copied into a fresh 0700 run directory, hashed **there** and executed from there. A digest
+1. `stateDir` must be a private (0700) directory owned by the runtime user. The reviewed host tools are preflighted
+   (util-linux `flock`; with an archive, a `curl` with `--aws-sigv4`).
+2. A **kernel lock** (`network/runtime-lock.mjs`): the runtime opens `runtime.lock` (a persistent, empty file), and a
+   short-lived `flock --exclusive --nonblock` acquires the lock on that open file description, which only the runtime
+   process holds. It is released when the runtime closes it or dies; the file is never unlinked, so there is never a
+   second inode or a second owner. Children never inherit the descriptor (an orphaned Helios does not hold it). A
+   NONEMPTY `runtime.lock` is the earlier PID-file protocol: it is refused unchanged (stop the old runtime and review
+   the migration; there is no PID-based reclaim). Then children left by an earlier run are reaped: the identities it
+   recorded in `children.json`, and any process still executing a binary staged in an earlier run directory.
+3. Each pinned binary is copied into a fresh 0700 run directory, hashed **there** and executed from there. A digest
    other than the config's pin, or a pin that is not a tested build (`PINNED_BUILDS`), is refused.
-3. The witness-check helper answers `version` with the pinned chain id and signer. It needs no network.
-4. The root store (pushed heads only), the relay and the gateway start on 127.0.0.1. No upstream is contacted.
-5. The gossip head source starts the listener. Each head it verifies, natively and then in JavaScript, goes to
+4. The witness-check helper answers `version` with the pinned chain id and signer. It needs no network.
+5. The root store (pushed heads only), the relay, the optional archive client and the gateway start; the endpoints
+   bind 127.0.0.1. No upstream and no archive is contacted.
+6. The gossip head source starts the listener. Each head it verifies, natively and then in JavaScript, goes to
    `roots.offer` first and then to the relay. The relay never serves a head whose root is not bound.
-6. **Only after the first fresh verified head**, Helios starts. The verifier port must be free beforehand. Readiness
+7. **Only after the first fresh verified head**, Helios starts. The verifier port must be free beforehand. Readiness
    requires all three of:
    - the port's listening socket belongs to the owned Helios process (`/proc/<pid>/fd`);
    - `eth_chainId` is 8453;
    - Helios's head has reached the first verified head.
-7. `ready.json` is written. `status.json` is rewritten every 2 s from step 5 on; it is present while the runtime is
+8. `ready.json` is written. `status.json` is rewritten every 2 s from step 6 on; it is present while the runtime is
    starting, ready or degraded.
 
 The relay serves only the newest verified head, and Helios polls it, so Helios does not adopt every block as a head.
@@ -40,26 +48,28 @@ contract's slot, proven at its latest verified head. That covers the last 8191 b
 Base since Isthmus. The gateway binds the roots of skipped blocks by authenticated ancestry (at most 256 links).
 
 Any failure runs every registered cleanup in reverse order and the process exits 1. SIGTERM/SIGINT stops it in order
-(Helios, listener, gateway, relay, helper, files, lock) and exits 0. A SIGKILLed runtime leaves an orphaned Helios
+(Helios, listener, gateway, archive, relay, root store, helper, files, lock descriptor) and exits 0. A SIGKILLed runtime leaves an orphaned Helios
 (its own process group); the next start reaps it (tested). Run it under a service manager with a memory limit and
 `KillMode=control-group` so a crash also takes its children down.
 
-## Configuration (`enclave-rpc-runtime/v1`)
+## Configuration (`enclave-rpc-runtime/v2`)
 
 ```json
 {
-  "format": "enclave-rpc-runtime/v1",
+  "format": "enclave-rpc-runtime/v2",
   "chain": { "chainId": 8453, "unsafeSigner": "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a" },
   "binaries": {
     "listener":     { "path": "/opt/enclave/rpc-runtime/enclave-base-head-listener", "sha256": "ebd045b4…" },
     "helios":       { "path": "/opt/enclave/rpc-runtime/helios",                     "sha256": "cc962e2b…" },
-    "witnessCheck": { "path": "/opt/enclave/rpc-runtime/witness-check",              "sha256": "fab2f1ce…" }
+    "witnessCheck": { "path": "/opt/enclave/rpc-runtime/witness-check",              "sha256": "4fe0cd3b…" }
   },
   "proofSources": { "untrusted": ["https://<execution rpc 1>/", "https://<execution rpc 2>/"] },
   "verifier": { "port": 8545 },
   "stateDir": "/var/lib/enclave/rpc-runtime",
   "gossip": { "maxPeers": 20, "discovery": "bounded" },
-  "witnessCache": null
+  "witnessCache": null,
+  "witnessArchive": null,
+  "hostTools": { "flock": "/usr/bin/flock", "curl": "/usr/bin/curl" }
 }
 ```
 
@@ -69,10 +79,21 @@ Any failure runs every registered cleanup in reverse order and the process exits
   witness against a bound root and charges a source that fails. With every source down, reads of new blocks are
   refused. A URL with userinfo or a query string is refused (this config holds no credential).
 - Every endpoint binds 127.0.0.1. There is no bind option. A proof source on the verifier's own port is refused.
-- `witnessCache`: `null` (default) or `{ "kind": "dir", "path": "/abs" }` outside `stateDir`. The cache holds history
-  for its own block only; it is not live availability. Other caches (the Sia/S3 archive) are not part of this
-  composition yet. They would plug into the same `{put, candidates}` interface without becoming a startup dependency.
-  Setting `null` again is the rollback.
+- `witnessCache` must be `null`. A local (NVMe) witness cache would allocate disk, and every NVMe cache for this work
+  must be a root-approved reservation in the ONE central budget (`enclave-rpc-nvme-cache-budget/v2` at
+  `/etc/enclave-rpc-cache/nvme-cache-budget.json`: 250,000,000,000-byte hard aggregate including metadata, temporary
+  and spill files; 200 GB target). Its v2 kinds reserve only preallocated fixed-size files; a growing directory cache
+  has no reviewed kind, and a quota of this runtime's own would compete with the central one, so none is offered. The
+  v1 config's unbudgeted `"dir"` cache is gone (v1 configs are refused).
+- `witnessArchive` (optional): `{ "kind": "s3", "endpoint": "https://…", "bucket": "…", "region"?, "prefix"?,
+  "accessFile": "/abs/path", "writes"?: false }`. It is the gateway's ARCHIVE tier: read only after every proof source
+  failed, every candidate re-verified against a bound root, writes (verified answers only, background, bounded) off
+  unless `writes: true`, since an archived proof names the state this node read. It answers history for its block, never
+  a root and never freshness, and it is never contacted to start: a cold start with Sia down succeeds (tested). The
+  `accessFile` is a 0600 regular file of the runtime user holding `{accessKeyId, secretAccessKey}`; the key reaches curl
+  on its standard input, never argv. Local footprint: request bodies of in-flight writes only (≤ 2 × 4 MiB), in a 0700
+  scratch under `<stateDir>/tmp`, removed on stop. Rollback: `null`.
+- `hostTools`: reviewed absolute paths of util-linux `flock` (always) and `curl` (archive only); preflighted at start.
 - `limits.firstHeadTimeoutMs` (default 180000) and `limits.heliosReadyTimeoutMs` (default 120000) bound startup.
 
 ## Build and run (Linux x86_64)
@@ -80,7 +101,7 @@ Any failure runs every registered cleanup in reverse order and the process exits
 Binaries are built from `scripts/rpc-runtime/closure.json`, offline and from exact commits:
 
 ```
-scripts/rpc-runtime/build-binaries.sh <new-work-dir> <helios repo with aca81764> <listener repo with 5e178676> \
+scripts/rpc-runtime/build-binaries.sh <new-work-dir> <helios repo with ef320298> <listener repo with 5e178676> \
     base-5476069f.tar.gz <CARGO_HOME with the locked crates> release
 ```
 
@@ -91,9 +112,13 @@ scripts/rpc-runtime/build-binaries.sh <new-work-dir> <helios repo with aca81764>
 - A new build digest is not accepted by the runtime until it is added to `PINNED_BUILDS` together with its test
   evidence.
 - Release status (`closure.json` `release`):
-  - the listener (`9ca75047…`) and witness-check (`a33770482…`) release builds exist;
+  - the listener release build (`9ca75047…`) exists and is tested;
+  - witness-check: the accepted helper is the DEBUG build `4fe0cd3b…` of `ef320298` (it adds the `block` op the final
+    gateway needs). The earlier release build `a33770482…` was of `aca81764` and is no longer accepted; no release of
+    `ef320298` was built;
   - the Helios release build (fat LTO) exceeded the 1536 MiB build allocation and was stopped. Until a larger, reviewed
-    allocation builds it, the tested Helios is the debug build `cc962e2b…`.
+    allocation builds it, the tested Helios is the debug build `cc962e2b…`. Debug builds are slower; no optimized or
+    reproducible-release claim is made.
 
 ```
 node network/rpc-runtime-main.mjs check /etc/enclave/rpc-runtime.json   # validate + hash every binary, print the plan
@@ -111,6 +136,7 @@ KillMode=control-group
 TimeoutStopSec=30
 MemoryMax=1536M
 StateDirectory=enclave/rpc-runtime
+StateDirectoryMode=0700
 ```
 
 Consumers opt in per process with `chainAuthority: "verifier"` and `chainVerifier: "http://127.0.0.1:8545/"`, or
@@ -132,9 +158,11 @@ itself.
 ## What it does not do
 
 - **Finality:** heads are the sequencer-signed **unsafe** head. There is no L1-derived safe or finalized tier.
-- **Provider independence:** fresh reads need at least one available upstream proof source. Base has no P2P witness
-  transport today. Failover among sources is not independence from them.
-- **Live availability from cache:** cached witnesses and ancestor roots answer history for their block only.
+- **Provider independence:** fresh reads need at least one configured, reachable proof source (an explicit state
+  holder). No usable maintained peer-proof source is established for this runtime: the reviewed Base clients implement
+  snap/2 serving but ship it off with no Base flag, and whether any peer serves proofs is unknown (not ruled out).
+  Failover among sources is not independence from them.
+- **Live availability from the archive:** archived witnesses and ancestor roots answer history for their block only.
 - **Public serving:** nothing is advertised, granted or exposed. It is not a host-service role. Those roles are
   public, and they are gated by the platform host policy, whose own chain reads may come to depend on this verifier.
 - **Windows:** the supervision uses `/proc` (Linux) and the runtime refuses to start elsewhere. The Windows reader

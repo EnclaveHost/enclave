@@ -9,8 +9,11 @@
 // helios-base-replay.e2e, helios-witness-failover.e2e). Nothing here proves Base availability, finality or independence.
 // The chain's genesis is A's pinned reth dev genesis plus the EIP-2935 history contract Base has (derived:
 // test/fixtures/derive-reth-genesis-2935.py -> reth-dev-8453-genesis-2935.json); asserted at setup.
+// The optional witness ARCHIVE is a REAL MinIO (loopback S3 stand-in for Sia-S3), configured from the first start while
+// it is DOWN (cold start without Sia), started later, then stopped again (archive failure). The stateDir lock is the
+// real kernel flock (util-linux /usr/bin/flock): concurrent starts, a legacy lock, a crash with an orphaned Helios.
 //   env: RIG_CHAIN_NODE=reth, RIG_RETH_BIN, RIG_RETH_GENESIS (the -2935 genesis), RUNTIME_BIN_DIR (helios-eeffcc9, witness-check,
-//        enclave-base-head-listener), TEST_TMP. Needs contracts/foundry/out. Run inside `unshare -r -n` (lo up).
+//        enclave-base-head-listener), MINIO_BIN, TEST_TMP. Needs contracts/foundry/out. Run inside `unshare -r -n` (lo up).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -26,10 +29,15 @@ import { LeaseReader } from '../network/lease-reader.mjs';
 import { createHostAdmission } from '../network/host-admission-runtime.mjs';
 import { hostAdmissionPolicyHash } from '../network/host-admission-policy.mjs';
 import { CONFIG_FORMAT } from '../network/rpc-runtime.mjs';
+import { takeRuntimeLock } from '../network/runtime-lock.mjs';
+import { s3Request } from '../network/s3-witness-cache.mjs';
+import { testCredentials } from './support/s3-test-env.mjs';
+import { createHostPolicyRuntime } from '../network/host-policy-runtime.mjs';
+import { POLICY_FORMAT, policyTypedData, policyDigest, encodeAnchor, ANCHOR_KEYS } from '../network/platform-host-policy.mjs';
 
-const { RUNTIME_BIN_DIR } = process.env;
+const { RUNTIME_BIN_DIR, MINIO_BIN } = process.env;
 const canonical = process.env.RIG_CHAIN_NODE === 'reth';
-const skip = haveTools() || (!RUNTIME_BIN_DIR && 'RUNTIME_BIN_DIR not set') || (!canonical && 'needs a canonical-trie chain (RIG_CHAIN_NODE=reth)');
+const skip = haveTools() || (!RUNTIME_BIN_DIR && 'RUNTIME_BIN_DIR not set') || (!MINIO_BIN && 'MINIO_BIN not set') || (!canonical && 'needs a canonical-trie chain (RIG_CHAIN_NODE=reth)');
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const STANDIN = path.join(HERE, 'fixtures', 'reth-gossip-listener.mjs'), LAUNCHER = path.join(HERE, 'fixtures', 'rpc-runtime-launcher.mjs');
 const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'rpc-runtime-e2e-'));
@@ -39,7 +47,28 @@ const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT
 const sha = (f) => createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const bin = (n) => path.join(RUNTIME_BIN_DIR || '/nonexistent', n);
-let rig, book, bookAbi, leaseId, proxies, rt, reader;
+let rig, book, bookAbi, leaseId, proxies, rt, reader, minio = null;
+const S3 = { creds: testCredentials(), bucket: 'witness', port: 0, dir: '', accessFile: '' };
+/** MinIO on a FIXED loopback port (so the runtime can be configured for it while it is down); keeps its data dir */
+async function minioUp() {
+  const p = spawn(MINIO_BIN, ['server', '--quiet', '--address', `127.0.0.1:${S3.port}`, '--console-address', `127.0.0.1:${await freePort()}`, S3.dir],
+    { env: { PATH: process.env.PATH, HOME: path.dirname(S3.dir), MINIO_ROOT_USER: S3.creds.accessKeyId, MINIO_ROOT_PASSWORD: S3.creds.secretAccessKey, MINIO_BROWSER: 'off' }, stdio: 'ignore' });
+  const endpoint = `http://127.0.0.1:${S3.port}`;
+  await until(async () => (await fetch(endpoint + '/minio/health/ready')).ok, 40000, 'MinIO ready (test environment)');
+  const mk = await s3Request({ method: 'PUT', url: `${endpoint}/${S3.bucket}`, region: 'us-east-1', credentials: S3.creds, timeoutMs: 5000, maxBytes: 65536 });
+  if (![200, 409].includes(mk.status)) throw new Error('bucket not created: HTTP ' + mk.status);
+  minio = { stop: () => new Promise((r) => { p.once('exit', r); p.kill('SIGKILL'); }) };
+}
+/** every live process holding an open descriptor on `file` (by /proc/<pid>/fd link) */
+function lockHolders(file) {
+  const out = [];
+  for (const p of fs.readdirSync('/proc')) {
+    if (!/^\d+$/.test(p)) continue;
+    let fds = []; try { fds = fs.readdirSync(`/proc/${p}/fd`); } catch { continue; }
+    for (const fd of fds) { try { if (fs.readlinkSync(`/proc/${p}/fd/${fd}`) === file) { out.push(Number(p)); break; } } catch {} }
+  }
+  return out;
+}
 
 async function rpc(url, method, params = [], ms = 30000) {
   const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(ms) });
@@ -87,15 +116,17 @@ function listening(port) {
 const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
 
 /** one runtime process through the test launcher (= the main entry + the stand-in's accepted digest/env) */
-function launch(name, { port, untrusted, control = {}, limits, verifierPort } = {}) {
-  const dir = path.join(TMP, name), stateDir = path.join(dir, 'state'), controlFile = path.join(dir, 'control.json');
+function launch(name, { port, untrusted, control = {}, limits, verifierPort, archive = false, stateDir: sharedState } = {}) {
+  const dir = path.join(TMP, name), stateDir = sharedState ?? path.join(dir, 'state'), controlFile = path.join(dir, 'control.json');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(controlFile, JSON.stringify(control));
   const config = { format: CONFIG_FORMAT, chain: { chainId: 8453, unsafeSigner: seqSigner },
     binaries: { listener: { path: STANDIN, sha256: sha(STANDIN) }, helios: { path: bin('helios-eeffcc9'), sha256: sha(bin('helios-eeffcc9')) },
       witnessCheck: { path: bin('witness-check'), sha256: sha(bin('witness-check')) } },
     proofSources: { untrusted: untrusted ?? proxies.map((p) => p.url) }, verifier: { port: verifierPort ?? port }, stateDir,
-    gossip: { discovery: 'off', sessionSecs: 3600 }, ...(limits ? { limits } : {}) };
+    gossip: { discovery: 'off', sessionSecs: 3600 }, ...(limits ? { limits } : {}),
+    ...(archive ? { witnessArchive: { kind: 's3', endpoint: `http://127.0.0.1:${S3.port}`, bucket: S3.bucket, accessFile: S3.accessFile, writes: true } } : {}),
+    hostTools: { flock: '/usr/bin/flock', curl: '/usr/bin/curl' } };
   const cfgFile = path.join(dir, 'rpc-runtime.json');
   fs.writeFileSync(cfgFile, JSON.stringify(config, null, 1));
   const child = spawn(process.execPath, [LAUNCHER, cfgFile], { detached: true, stdio: ['ignore', 'pipe', 'pipe'],
@@ -135,18 +166,22 @@ test.before(async () => {
   await rig.write(dep, book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry]);
   leaseId = rig.createdId(await rig.create(KEYS.owner));
   proxies = [await startProxy(), await startProxy()];
+  S3.port = await freePort(); S3.dir = path.join(TMP, 'minio', 'data'); fs.mkdirSync(S3.dir, { recursive: true });
+  S3.accessFile = path.join(TMP, 's3-access.json');
+  fs.writeFileSync(S3.accessFile, JSON.stringify(S3.creds), { mode: 0o600 });
 });
 test.after(async () => {
   for (const p of proxies || []) p.srv.close();
+  await minio?.stop();
   if (rt && rt.child.exitCode === null) { try { process.kill(-rt.child.pid, 'SIGKILL'); } catch {} }
   await rig?.stop();
   fs.rmSync(TMP, { recursive: true, force: true });
 });
 const T = { skip, timeout: 300000 };
 
-test('startup order: no verifier before the first verified head, and none of it needs a witness source', T, async () => {
+test('startup order: no verifier before the first verified head; neither a witness source nor the (down) Sia archive is needed', T, async () => {
   for (const p of proxies) p.st.mode = 'down';        // every proof source is down for the whole startup
-  rt = launch('main', { port: await freePort(), control: { frozen: true } });
+  rt = launch('main', { port: await freePort(), control: { frozen: true }, archive: true });   // MinIO is NOT running
   await rt.event('head-source-started', 60000);
   await sleep(6000);
   assert.ok(!rt.events.some((e) => ['first-head', 'ready'].includes(e.event)), 'no head yet: not ready');
@@ -167,6 +202,13 @@ test('startup order: no verifier before the first verified head, and none of it 
   assert.match(s.labels.independence, /NOT provider-independent/);
   assert.equal(s.head.fresh, true);
   assert.ok(s.roots.signedHead >= 1, 'every delivered head is bound in the root store');
+  assert.equal(s.witnesses.cache, 'none');
+  assert.equal(s.witnesses.archive.writes, true);
+  // the kernel lock: a persistent empty file, held by the runtime process alone (no child inherited the descriptor)
+  const lock = path.join(rt.stateDir, 'runtime.lock');
+  assert.equal(fs.statSync(lock).size, 0);
+  assert.deepEqual(lockHolders(lock), [rt.child.pid], 'only the runtime parent holds the lock descriptor');
+  await assert.rejects(takeRuntimeLock(lock), /in use/, 'the kernel refuses a second owner');
   for (const p of proxies) p.st.mode = 'ok';
   reader = new LeaseReader({ authority: 'verifier', verifier: rt.url, addressBook: book, confirmations: 1, maxBlockAgeMs: 60000, deadlineMs: 30000 });
 });
@@ -207,6 +249,41 @@ test('block-pinned lease snapshot, host admission, catalog moderation and admin 
   await waitTx(await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry5]));
   assert.equal(await reader.bookAddress('registry'), rig.addresses.registry5.toLowerCase(), 'the admin migration is followed');
   await waitTx(await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry]));
+});
+
+test('platform admin ban through the composed runtime: an admin-anchored policy bans the host operator; an outsider cannot anchor', T, async () => {
+  const admin = privateKeyToAccount(KEYS.deployer), Z32 = '0x' + '00'.repeat(32), docs = [];
+  const own = await rig.deploy(art('EnclaveHostOwnership.sol', 'EnclaveHostOwnership'), [rig.addresses.registry]);
+  const sign = async (deny) => {
+    const prev = docs.length ? docs[docs.length - 1].digest : Z32;
+    const p = { format: POLICY_FORMAT, chainId: 8453, book: book.toLowerCase(), registry: rig.addresses.registry.toLowerCase(), hostOwnership: own.toLowerCase(),
+      sequence: docs.length + 1, issuedAt: Math.floor(Date.now() / 1000) - 5, expiresAt: 0, maxStaleSec: 0, previousDigest: prev, mode: 'denylist', deny, admit: [] };
+    const d = { policy: p, digest: policyDigest(p), document: JSON.stringify(p), signature: await admin.signTypedData(policyTypedData(p)) };
+    docs.push(d); return d;
+  };
+  const anchor = (digest, key = KEYS.deployer) => { const a = encodeAnchor(digest); return rig.write(rig.wc(key), book, bookAbi, 'setMany', [[ANCHOR_KEYS.hi, ANCHOR_KEYS.lo], [a.hi, a.lo]]); };
+  const mirror = http.createServer((q, res) => { const d = docs.find((x) => q.url.endsWith(`/${x.digest}.json`)); if (!d) { res.writeHead(404); return res.end(); } res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ document: d.document, signature: d.signature })); });
+  await new Promise((r) => mirror.listen(0, '127.0.0.1', r));
+  const netFetch = (url, opts) => { const u = new URL(url); return u.hostname === 'pm.policy-test.net' ? fetch(`http://127.0.0.1:${mirror.address().port}${u.pathname}`, opts) : Promise.reject(new TypeError(`no route to ${u.hostname}`)); };
+  try {
+    await sign([]);
+    await waitTx(await anchor(docs[0].digest));
+    const policy = createHostPolicyRuntime({ book: book.toLowerCase(), hostOwnership: own.toLowerCase(), mirrors: ['https://pm.policy-test.net/platform-policy'],
+      activation: 'required', chainAuthority: 'verifier', chainVerifier: rt.url }, { fetch: netFetch });
+    assert.match(policy.status().chainAuthority, /local-verifier/);
+    await policy.gate.refresh();
+    let d = await policy.gate.decide({ registryIds: [rig.runner] });
+    assert.equal(d.anchor, 'anchored');
+    assert.equal(d.decisions[rig.runner].admit, true, JSON.stringify(d.decisions[rig.runner]));
+    await assert.rejects(anchor(policyDigest({ ...docs[0].policy, sequence: 9 }), KEYS.other), undefined, 'an outsider cannot anchor policy in the admin-owned book');
+    await sign([{ kind: 'operator', value: privateKeyToAccount(KEYS.operator).address.toLowerCase(), reason: 'abuse' }]);
+    await waitTx(await anchor(docs[1].digest));
+    await policy.gate.refresh();
+    d = await policy.gate.decide({ registryIds: [rig.runner] });
+    assert.equal(d.decisions[rig.runner].admit, false, 'banned by the admin, read through the composed verifier');
+    assert.equal(policy.gate.accepted().digest, docs[1].digest);
+    policy.stop?.(); policy.close?.();
+  } finally { mirror.close(); }
 });
 
 test('a failing or lying first proof source: the second, correct source serves; the first is charged, never trusted', T, async () => {
@@ -293,6 +370,13 @@ test('a stale head refuses fresh authority, the runtime reports degraded, and it
 
 test('whole-operation deadline through the composed runtime: a never-settling callback and a stopped verifier are both bounded', T, async () => {
   const quick = new LeaseReader({ authority: 'verifier', verifier: rt.url, addressBook: book, confirmations: 1, maxBlockAgeMs: 60000, deadlineMs: 1500 });
+  // a client retained past its operation (success, then a timeout) is closed: data and metadata calls refuse
+  let kept;
+  await reader.agreed(async (c) => { kept = c; return { v: 1 }; });
+  await assert.rejects(kept.readContract({ address: book, abi: bookAbi, functionName: 'addr', args: [stringToHex('deployments', { size: 32 })] }), /closed|deadline/);
+  await assert.rejects(kept.getBlockNumber(), /closed|deadline/);
+  await assert.rejects(quick.agreed(async (c) => { kept = c; return new Promise(() => {}); }), /deadline/);
+  await assert.rejects(kept.getChainId(), /closed|deadline/, 'after the deadline too');
   let t0 = Date.now();
   await assert.rejects(quick.agreed(() => new Promise(() => {})), /deadline/);
   assert.ok(Date.now() - t0 < 4000, `bounded (${Date.now() - t0} ms)`);
@@ -306,13 +390,50 @@ test('whole-operation deadline through the composed runtime: a never-settling ca
   assert.equal(await reader.bookAddress('deployments'), rig.addresses.ledger.toLowerCase(), 'serves again once the verifier answers');
 });
 
+test('Sia/S3 archive: verified history survives every proof source going down; it never serves fresh state; an archive failure only refuses', T, async () => {
+  await minioUp();                                                           // the archive appears after the runtime started
+  const gw = rt.status().internal.gatewayUrl;
+  await changeState();
+  assert.equal(await reader.bookAddress('deployments'), rig.addresses.ledger.toLowerCase());
+  const at = { blockHash: reader.lastEvidence.blockHash };
+  const req = [book, [], at];
+  const live = await rpc(gw, 'eth_getProof', req);                          // verified from a source; archived in the background
+  await until(() => (rt.status()?.witnesses.archive.stats.puts ?? 0) >= 1, 30000, 'a verified witness archived');
+  for (const p of proxies) p.st.mode = 'down';
+  try {
+    const s0 = rt.status().witnesses.gateway;
+    const hist = await rpc(gw, 'eth_getProof', req);                          // history for THAT block, from the archive, re-verified
+    assert.deepEqual(hist.accountProof, live.accountProof);
+    await sleep(2500);
+    assert.ok(rt.status().witnesses.gateway.archiveHits > s0.archiveHits, 'served from the archive');
+    await changeState();
+    await assert.rejects(reader.bookAddress('deployments'), /no fresh verified chain state/, 'the archive holds no fresh witness: new state needs a proof source');
+    await minio.stop(); minio = null;                                         // the archive fails too
+    await assert.rejects(rpc(gw, 'eth_getProof', req), /no verifiable witness|refused/,
+      'with every source and the archive down, even the archived block\'s witness is refused, never invented');
+    assert.equal(rt.child.exitCode, null, 'the runtime keeps running');
+  } finally { for (const p of proxies) p.st.mode = 'ok'; }
+  assert.equal(await reader.bookAddress('deployments'), rig.addresses.ledger.toLowerCase(), 'fresh again once a source answers');
+});
+
+test('kernel lock: a second runtime on a live stateDir is refused and the live one is untouched', T, async () => {
+  const contender = launch('contender', { port: await freePort(), stateDir: rt.stateDir });
+  assert.equal((await contender.exited).code, 1);
+  assert.ok(contender.events.some((e) => e.event === 'startup-failed' && /in use/.test(e.reason)), JSON.stringify(contender.events));
+  assert.equal(Number(await rpc(rt.url, 'eth_chainId')), 8453, 'the live runtime is untouched');
+  assert.equal(rt.child.exitCode, null);
+
+});
+
 test('crash: a SIGKILLed runtime leaves Helios orphaned; the next start reaps it and is ready on the same port', T, async () => {
   const old = rt.children();
   const h = old.find((c) => c.role === 'helios'), l = old.find((c) => c.role === 'listener');
   process.kill(rt.child.pid, 'SIGKILL');
   await rt.exited;
   assert.ok(alive(h.pid), 'Helios survived its parent (own process group): an orphan the next start must reap');
-  assert.ok(fs.existsSync(path.join(rt.stateDir, 'runtime.lock')), 'the crashed run left its lock (taken over: its owner is gone)');
+  const lock = path.join(rt.stateDir, 'runtime.lock');
+  assert.ok(fs.existsSync(lock) && fs.statSync(lock).size === 0, 'the lock file persists, empty');
+  assert.deepEqual(lockHolders(lock), [], 'nobody holds it: the surviving Helios never inherited the descriptor');
   rt = relaunchSame(rt);                                 // the same config and stateDir, a new process
   await rt.event('ready', 180000);
   assert.equal(alive(h.pid), false, 'the orphaned Helios was reaped');
@@ -337,7 +458,7 @@ function relaunchSame(prev) {
     event: (e, ms) => until(() => events.some((x) => x.event === e), ms, `relaunch: event ${e} (events ${JSON.stringify(events.map((x) => x.event))}, stderr ${err.slice(-500)})`) };
 }
 
-test('shutdown: SIGTERM stops everything in order; no child, port, lock or state file is left', T, async () => {
+test('shutdown: SIGTERM stops everything in order; no child, port or state file is left; the lock file persists, released', T, async () => {
   const kids = rt.children();
   assert.ok(kids.length >= 2);
   process.kill(rt.child.pid, 'SIGTERM');
@@ -347,9 +468,35 @@ test('shutdown: SIGTERM stops everything in order; no child, port, lock or state
   for (const k of kids) assert.equal(alive(k.pid), false, `${k.role} reaped`);
   assert.deepEqual(stagedPids(rt.stateDir), []);
   assert.equal(listening(rt.port), false, 'the verifier port is released');
-  for (const f of ['runtime.lock', 'ready.json', 'status.json', 'children.json']) assert.equal(fs.existsSync(path.join(rt.stateDir, f)), false, f);
+  for (const f of ['ready.json', 'status.json', 'children.json']) assert.equal(fs.existsSync(path.join(rt.stateDir, f)), false, f);
+  const lock = path.join(rt.stateDir, 'runtime.lock');
+  assert.equal(fs.statSync(lock).size, 0, 'runtime.lock persists (never unlinked), empty');
+  assert.deepEqual(lockHolders(lock), [], 'released');
+  const again = await takeRuntimeLock(lock); again();                       // reacquirable at once
   assert.deepEqual(fs.readdirSync(path.join(rt.stateDir, 'runs')), [], 'the run directory is removed');
   assert.deepEqual(fs.readdirSync(path.join(rt.stateDir, 'gossip', 'sessions')), [], 'listener sessions are removed');
+});
+
+test('kernel lock: two simultaneous cold starts on one stateDir yield one owner; a legacy nonempty lock is refused unchanged', T, async () => {
+  const shared = path.join(TMP, 'race-state');
+  const pair = [launch('race-1', { port: await freePort(), stateDir: shared }), launch('race-2', { port: await freePort(), stateDir: shared })];
+  const first = await Promise.race(pair.map((x, i) => x.exited.then(() => i)));
+  const loser = pair[first], winner = pair[1 - first];
+  assert.equal((await loser.exited).code, 1);
+  assert.ok(loser.events.some((e) => e.event === 'startup-failed' && /in use/.test(e.reason)), JSON.stringify(loser.events));
+  await winner.event('ready', 180000);
+  assert.deepEqual(lockHolders(path.join(shared, 'runtime.lock')), [winner.child.pid]);
+  process.kill(winner.child.pid, 'SIGTERM');
+  assert.equal((await winner.exited).code, 0);
+
+  const legacy = path.join(TMP, 'legacy-state');
+  fs.mkdirSync(legacy, { mode: 0o700 });
+  fs.writeFileSync(path.join(legacy, 'runtime.lock'), JSON.stringify({ pid: 1, startTime: '1' }) + '\n', { mode: 0o600 });
+  const before = fs.readFileSync(path.join(legacy, 'runtime.lock'), 'utf8');
+  const old = launch('legacy', { port: await freePort(), stateDir: legacy });
+  assert.equal((await old.exited).code, 1);
+  assert.ok(old.events.some((e) => e.event === 'startup-failed' && /legacy runtime lock/.test(e.reason)), JSON.stringify(old.events));
+  assert.equal(fs.readFileSync(path.join(legacy, 'runtime.lock'), 'utf8'), before, 'a legacy lock is never removed or rewritten');
 });
 
 test('a failed startup cleans up: no fresh head in time, and a verifier port taken by another process', T, async () => {
@@ -358,7 +505,7 @@ test('a failed startup cleans up: no fresh head in time, and a verifier port tak
   assert.ok(a.events.some((e) => e.event === 'startup-failed' && /no fresh verified head/.test(e.reason)), JSON.stringify(a.events));
   await sleep(500);
   assert.deepEqual(stagedPids(a.stateDir), []);
-  assert.equal(fs.existsSync(path.join(a.stateDir, 'runtime.lock')), false);
+  assert.deepEqual(lockHolders(path.join(a.stateDir, 'runtime.lock')), [], 'the lock is released');
   assert.deepEqual(fs.readdirSync(path.join(a.stateDir, 'runs')), []);
   assert.equal(listening(a.port), false);
 
@@ -370,6 +517,6 @@ test('a failed startup cleans up: no fresh head in time, and a verifier port tak
     assert.ok(b.events.some((e) => e.event === 'startup-failed' && /already in use|held by another process/.test(e.reason)), JSON.stringify(b.events));
     await sleep(500);
     assert.deepEqual(stagedPids(b.stateDir), [], 'no Helios or listener left behind');
-    assert.equal(fs.existsSync(path.join(b.stateDir, 'runtime.lock')), false);
+    assert.deepEqual(lockHolders(path.join(b.stateDir, 'runtime.lock')), []);
   } finally { squat.close(); }
 });

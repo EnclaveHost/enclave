@@ -15,15 +15,16 @@
    "layout": "Helios's opstack/Cargo.toml names ../../vendor-inspect/base-v1.5.1: the build extracts the tarball (top directory stripped) to <work>/vendor-inspect/base-v1.5.1 next to <work>/helios. The listener's tools/prepare-upstream.py extracts its nine crates from the same tarball into upstream/base-5476069f. No other local tree is read."
   },
   "helios": {
-   "what": "a16z/helios 2af9b418 + enclave-base-evm (4 patches, eeffcc9) + enclave-witness-check (1ec2c1a5, aca81764)",
-   "commit": "aca81764f1d41a34829a3b408cea11c5c186e9e9",
-   "tree": "082c719ec1d63ea923f65cb14598f78efff07e5c",
+   "what": "a16z/helios 2af9b418 + enclave-base-evm (4 patches, eeffcc9) + enclave-witness-check (1ec2c1a5, aca81764, ef320298)",
+   "commit": "ef3202982b475212d9bb6adfdc3eed4ebb0b83c5",
+   "tree": "eec339e18296d850a514f72de2efdd8729302efd",
    "cargoLockSha256": "28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4",
-   "preserved": "checkpoint/decentralization-20261022: rpc-base-evm-export (eeffcc9 patches) + frozen-0318 witness-helios-1ec2c1a5 + frozen-0331 p-history-helios-aca81764 (REBUILD.md)",
+   "preserved": "checkpoint/decentralization-20261022: rpc-base-evm-export (eeffcc9 patches) + witness-helios 1ec2c1a5 + aca81764 + ef320298 (P witness-failover/helios; D owns publication)",
    "binaries": {
     "helios": "-p helios-cli --bin helios",
     "witnessCheck": "-p helios-opstack --bin witness-check"
-   }
+   },
+   "note": "ef320298 changes only opstack/bin/witness-check.rs and opstack/src/witness_check.rs relative to aca81764 (Cargo.lock unchanged), so the Helios CLI built from eeffcc9 (cc962e2b) is functionally the CLI of this commit"
   },
   "listener": {
    "what": "enclave-base-head-listener (rpc-gossip-bridge/listener branch commitment-mode)",
@@ -41,8 +42,9 @@
   "profile": "dev (debug, debuginfo off)",
   "listener": "ebd045b428227530fac1c1b079f47c67ecb874637a1c7dcb4f021dd5929e8d3a",
   "helios": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
-  "witnessCheck": "fab2f1cea2f69a8b2e676f8ffb51d0014408f99b5f92397566772e96e1c1ae93",
-  "heliosNote": "cc962e2b was built from eeffcc9: aca81764 differs from it only by the witness-check binary, its library module (not used by the CLI) and pub(crate) on payload_to_block; Cargo.lock unchanged"
+  "witnessCheck": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
+  "witnessCheckNote": "built by P from ef320298 (debug); the aca81764 helpers fab2f1ce (debug) and a3377048 (release) lack the block op and are no longer accepted",
+  "heliosNote": "cc962e2b was built from eeffcc9; later commits through ef320298 change only the witness-check helper"
  },
  "release": {
   "builtWith": "scripts/rpc-runtime/build-binaries.sh <work> <helios repo> <listener repo> <base tarball> <cargo home> release <one>, offline (unshare -r -n), CARGO_BUILD_JOBS=1, under the host memory guard at 1536 MiB",
@@ -52,9 +54,8 @@
    "at": "2026-10-23T06:02Z"
   },
   "witnessCheck": {
-   "sha256": "a33770482356c92861b77c3630e840761208c6c183aa5a67db795a44e8f85acf",
-   "peakMiB": 1529,
-   "at": "2026-10-23T06:19Z"
+   "sha256": null,
+   "superseded": "a33770482356c92861b77c3630e840761208c6c183aa5a67db795a44e8f85acf was a release of aca81764 (peak 1529 MiB, 7 MiB under the 1536 MiB allocation); it is not accepted. No release of ef320298 was built in this integration."
   },
   "helios": {
    "sha256": null,
@@ -62,5 +63,9 @@
   },
   "pathsInBinaries": "no build-directory or home path strings in the listener and witness-check release binaries (remapped)",
   "reproducedTwice": false
+ },
+ "hostTools": {
+  "flock": "util-linux flock (tested 2.42.4 at /usr/bin/flock): --exclusive --nonblock --conflict-exit-code 73 on an inherited fd 3; reviewed absolute path in config hostTools.flock",
+  "curl": "curl with --aws-sigv4 (only with witnessArchive; credentials on stdin as a config file); reviewed absolute path in config hostTools.curl"
  }
 }

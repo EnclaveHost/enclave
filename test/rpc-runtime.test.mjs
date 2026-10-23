@@ -1,6 +1,7 @@
-// network/rpc-runtime.mjs without any chain: strict config validation (pins, loopback, untrusted sources, no secrets,
-// optional history-only cache), refusals at startup that must leave nothing behind (missing or wrong binary, a held
-// stateDir), and the head fan-out order (root store first, relay second). Offline.
+// network/rpc-runtime.mjs without any chain: strict config validation (pins, loopback, untrusted sources, no secrets, no
+// unbudgeted local cache, an optional untrusted S3 archive, reviewed host tools), refusals at startup that must leave
+// nothing behind (missing or wrong binary, a held, legacy or non-private stateDir, an unsafe archive access file; the
+// kernel lock file persists and is released), and the head fan-out order (root store first, relay second). Offline.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -8,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { validateRuntimeConfig, startRpcRuntime, createHeadFanout, PINNED_BUILDS, CONFIG_FORMAT, LABELS } from '../network/rpc-runtime.mjs';
-import { procIdentity } from '../network/gossip-head-source.mjs';
+import { takeRuntimeLock } from '../network/runtime-lock.mjs';
 
 const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 'rpc-runtime-unit-'));
 test.after(() => fs.rmSync(TMP, { recursive: true, force: true }));
@@ -21,8 +22,12 @@ const base = (over = {}) => ({
   proofSources: { untrusted: ['https://base-a.example/', 'https://base-b.example/'] }, verifier: { port: 8545 }, stateDir: '/var/lib/enclave/rpc-runtime', ...over });
 const bad = (over, re) => assert.throws(() => validateRuntimeConfig(base(over)), re);
 
-test('a valid config normalizes with explicit defaults: loopback bind, no access-list hint, bounded gossip, no cache', () => {
+test('a valid config normalizes with explicit defaults: loopback bind, no access-list hint, bounded gossip, no cache, no archive', () => {
   const c = validateRuntimeConfig(base());
+  assert.equal(c.format, 'enclave-rpc-runtime/v2');
+  assert.equal(c.witnessArchive, null);
+  assert.deepEqual({ ...c.hostTools }, { flock: '/usr/bin/flock', curl: '/usr/bin/curl' });
+  assert.match(c.binaries.witnessCheck.build, /ef320298/);
   assert.equal(c.verifier.bind, '127.0.0.1');
   assert.equal(c.proofSources.accessListHint, false);
   assert.deepEqual({ ...c.gossip }, { maxPeers: 20, discovery: 'bounded', sessionSecs: 3600, restartIfNoHeadMs: 120000 });
@@ -35,6 +40,10 @@ test('a valid config normalizes with explicit defaults: loopback bind, no access
 
 test('pins: chain, signer, format and only tested binary builds', () => {
   bad({ format: 'enclave-rpc-runtime/v0' }, /format/);
+  bad({ format: 'enclave-rpc-runtime/v1' }, /v1 had an unbudgeted local cache/);
+  const b0 = base().binaries;
+  for (const old of ['fab2f1cea2f69a8b2e676f8ffb51d0014408f99b5f92397566772e96e1c1ae93', 'a33770482356c92861b77c3630e840761208c6c183aa5a67db795a44e8f85acf'])
+    bad({ binaries: { ...b0, witnessCheck: { ...b0.witnessCheck, sha256: old } } }, /not a tested build/);   // the aca81764 helpers: no `block` op
   bad({ chain: { chainId: 84532, unsafeSigner: SIGNER } }, /chainId must be 8453/);
   bad({ chain: { chainId: 8453, unsafeSigner: '0x' + '0'.repeat(40) } }, /unsafeSigner/);
   bad({ chain: { chainId: 8453 } }, /unsafeSigner is required/);
@@ -72,19 +81,39 @@ test('no secrets, no unknown fields, no public bind, bounded limits', () => {
   bad({ stateDir: 'state' }, /stateDir must be an absolute path/);
 });
 
-test('the witness cache is optional, local, outside stateDir; other caches are not part of this composition', () => {
-  assert.deepEqual({ ...validateRuntimeConfig(base({ witnessCache: { kind: 'dir', path: '/var/cache/enclave/witness' } })).witnessCache }, { kind: 'dir', path: '/var/cache/enclave/witness' });
-  assert.equal(validateRuntimeConfig(base({ witnessCache: null })).witnessCache, null, 'explicit rollback: null = no cache');
-  bad({ witnessCache: { kind: 's3', path: '/x' } }, /must be "dir"/);
-  bad({ witnessCache: { kind: 'dir', path: '/var/lib/enclave/rpc-runtime/cache' } }, /outside stateDir/);
+test('no unbudgeted local cache; the S3/Sia archive is optional, untrusted, credential-free in config; host tools are reviewed absolute paths', () => {
+  assert.equal(validateRuntimeConfig(base({ witnessCache: null })).witnessCache, null, 'explicit: null = no local cache');
+  bad({ witnessCache: { kind: 'dir', path: '/var/cache/enclave/witness' } }, /central NVMe cache budget/);
+  bad({ witnessCache: { kind: 'dir', path: '/x', maxBytes: 1 << 30 } }, /central NVMe cache budget/);
+  const arc = { kind: 's3', endpoint: 'https://s3.example.net', bucket: 'enclave-witness', accessFile: '/etc/enclave/rpc-runtime/s3-access.json' };
+  const c = validateRuntimeConfig(base({ witnessArchive: arc }));
+  assert.deepEqual({ ...c.witnessArchive }, { kind: 's3', endpoint: 'https://s3.example.net', bucket: 'enclave-witness', region: 'us-east-1', prefix: 'enclave-witness',
+    accessFile: '/etc/enclave/rpc-runtime/s3-access.json', writes: false }, 'archive writes are off unless asked (they reveal which state this node read)');
+  assert.equal(validateRuntimeConfig(base({ witnessArchive: null })).witnessArchive, null, 'rollback: null = no archive');
+  bad({ witnessArchive: { ...arc, kind: 'dir' } }, /must be "s3"/);
+  bad({ witnessArchive: { ...arc, endpoint: 'http://s3.example.net' } }, /witnessArchive.endpoint/);
+  bad({ witnessArchive: { ...arc, endpoint: 'https://s3.example.net/bucket?x=1' } }, /bare https origin/);
+  bad({ witnessArchive: { ...arc, bucket: 'Bad_Bucket' } }, /bucket/);
+  bad({ witnessArchive: { ...arc, writes: 'yes' } }, /boolean/);
+  bad({ witnessArchive: { ...arc, accessFile: 'access.json' } }, /absolute path/);
+  bad({ witnessArchive: { ...arc, secretAccessKey: 'x' } }, /holds no secret/);
+  bad({ hostTools: { flock: 'flock' } }, /absolute path/);
+  bad({ hostTools: { lockTool: '/usr/bin/flock' } }, /unknown field/);
 });
 
-function stateFiles(dir) { return fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f !== 'runs' && f !== 'gossip') : []; }
-test('startup refusals leave nothing behind: a missing binary, a binary that is not the pinned build, a held stateDir', async () => {
+// the lock file persists by design (never unlinked); it must be empty and free again after a refusal
+function stateFiles(dir) { return fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => !['runs', 'gossip', 'runtime.lock'].includes(f)) : []; }
+async function lockFree(dir) {
+  const lock = path.join(dir, 'runtime.lock');
+  assert.equal(fs.statSync(lock).size, 0, 'the lock file stays, empty');
+  const release = await takeRuntimeLock(lock); release();
+}
+test('startup refusals leave nothing behind: a missing binary, a binary that is not the pinned build, a held, legacy or shared stateDir', async () => {
   const stateDir = path.join(TMP, 's1');
   await assert.rejects(startRpcRuntime(base({ stateDir })), /binaries\.listener: .* cannot be read/);
-  assert.deepEqual(stateFiles(stateDir), [], 'no lock or state file');
+  assert.deepEqual(stateFiles(stateDir), [], 'no state file');
   assert.deepEqual(fs.readdirSync(path.join(stateDir, 'runs')), [], 'no run directory');
+  await lockFree(stateDir);
 
   const fake = path.join(TMP, 'not-the-listener'); fs.writeFileSync(fake, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
   const pin = 'cd'.repeat(32);
@@ -94,14 +123,26 @@ test('startup refusals leave nothing behind: a missing binary, a binary that is 
     new RegExp(`has sha256 ${createHash('sha256').update(fs.readFileSync(fake)).digest('hex')}, not the pinned ${pin}`));
   assert.deepEqual(stateFiles(stateDir), []);
   assert.deepEqual(fs.readdirSync(path.join(stateDir, 'runs')), []);
+  await lockFree(stateDir);
 
-  const me = procIdentity(process.pid);
-  fs.writeFileSync(path.join(stateDir, 'runtime.lock'), JSON.stringify({ pid: process.pid, startTime: me.startTime }) + '\n');
-  await assert.rejects(startRpcRuntime(base({ stateDir })), /in use by a running runtime/);
-  assert.ok(fs.existsSync(path.join(stateDir, 'runtime.lock')), 'a live owner\'s lock is never removed');
-  fs.writeFileSync(path.join(stateDir, 'runtime.lock'), JSON.stringify({ pid: process.pid, startTime: '1' }) + '\n');   // recycled pid
-  await assert.rejects(startRpcRuntime(base({ stateDir })), /cannot be read/, 'a stale lock is taken over (then the missing binary refuses)');
-  assert.deepEqual(stateFiles(stateDir), []);
+  // a live owner (here: this process, through the same kernel lock) refuses a second runtime; the file is untouched
+  const held = await takeRuntimeLock(path.join(stateDir, 'runtime.lock'));
+  try { await assert.rejects(startRpcRuntime(base({ stateDir })), /in use by a running runtime/); } finally { held(); }
+  // a nonempty legacy (PID-file) lock is refused and never removed or rewritten, even if its pid is dead
+  const legacy = path.join(TMP, 's-legacy'); fs.mkdirSync(legacy, { mode: 0o700 });
+  fs.writeFileSync(path.join(legacy, 'runtime.lock'), JSON.stringify({ pid: process.pid, startTime: '1' }) + '\n', { mode: 0o600 });
+  await assert.rejects(startRpcRuntime(base({ stateDir: legacy })), /legacy runtime lock/);
+  assert.match(fs.readFileSync(path.join(legacy, 'runtime.lock'), 'utf8'), /"startTime":"1"/);
+  // a stateDir others can read or write is refused before any lock or file
+  const open = path.join(TMP, 's-open'); fs.mkdirSync(open, { mode: 0o755 }); fs.chmodSync(open, 0o755);
+  await assert.rejects(startRpcRuntime(base({ stateDir: open })), /private \(0700\)/);
+  assert.deepEqual(fs.readdirSync(open), []);
+  // an archive access file that others can read is refused right after the lock, before any binary is staged
+  const acc = path.join(TMP, 'access.json'); fs.writeFileSync(acc, JSON.stringify({ accessKeyId: 'abcdefgh', secretAccessKey: 'abcdefghijkl' }), { mode: 0o644 }); fs.chmodSync(acc, 0o644);
+  const s2 = path.join(TMP, 's2');
+  await assert.rejects(startRpcRuntime(base({ stateDir: s2, witnessArchive: { kind: 's3', endpoint: 'https://s3.example.net', bucket: 'witness', accessFile: acc } })), /owner only \(0600\)/);
+  assert.ok(!fs.existsSync(path.join(s2, 'runs')), 'nothing was staged');
+  await lockFree(s2);
   await assert.rejects(startRpcRuntime(base({ stateDir }), { signal: AbortSignal.abort() }), /stopped before start/);
 });
 

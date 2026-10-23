@@ -9,7 +9,7 @@
 // unset chainAuthority there (the legacy provider quorum), never a fallback inside this runtime.
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
-import { validateRuntimeConfig, runRpcRuntimeProcess, LABELS, CHAIN_ID } from './rpc-runtime.mjs';
+import { validateRuntimeConfig, runRpcRuntimeProcess, preflightTools, LABELS, CHAIN_ID } from './rpc-runtime.mjs';
 
 const [cmd, file] = process.argv.slice(2);
 if (!['check', 'run'].includes(cmd) || !file) { console.error('usage: rpc-runtime-main.mjs check|run <rpc-runtime.json>'); process.exit(2); }
@@ -24,10 +24,14 @@ if (cmd === 'check') {
     binaries[role] = { path: b.path, pinned: b.sha256, actual: digest, build: b.build, ok: digest === b.sha256 };
     ok &&= digest === b.sha256;
   }
+  let tools; try { tools = await preflightTools(config.hostTools, { needCurl: !!config.witnessArchive }); } catch (e) { tools = { error: String(e.message || e) }; ok = false; }
   console.log(JSON.stringify({ ok, chainId: CHAIN_ID, unsafeSigner: config.chain.unsafeSigner, verifierUrl: `http://127.0.0.1:${config.verifier.port}/`,
-    order: ['witness-check helper (offline)', 'root store (pushed signed heads only)', 'head relay 127.0.0.1:ephemeral', 'witness gateway 127.0.0.1:ephemeral',
+    order: ['stateDir kernel lock (flock, parent-held descriptor)', 'witness-check helper (offline)', 'root store (pushed signed heads only)', 'head relay 127.0.0.1:ephemeral',
+      ...(config.witnessArchive ? ['S3 archive client (no contact at start; untrusted history)'] : []), 'witness gateway 127.0.0.1:ephemeral',
       'gossip listener (native commitment) -> roots.offer -> relay.offer', 'first fresh verified head', 'Helios 127.0.0.1:' + config.verifier.port, 'ready'],
-    untrustedProofSources: config.proofSources.untrusted.length, witnessCache: config.witnessCache?.kind ?? 'none', binaries, labels: LABELS }, null, 2));
+    untrustedProofSources: config.proofSources.untrusted.length, witnessCache: 'none',
+    witnessArchive: config.witnessArchive ? { endpoint: config.witnessArchive.endpoint, bucket: config.witnessArchive.bucket, writes: config.witnessArchive.writes } : null,
+    hostTools: { ...config.hostTools, probed: tools }, binaries, labels: LABELS }, null, 2));
   process.exit(ok ? 0 : 2);
 }
 await runRpcRuntimeProcess(raw);   // validated again inside, from the same raw document
