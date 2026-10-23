@@ -86,6 +86,7 @@ test('the selection: unset or quorum is the legacy path; verifier needs a local 
   assert.equal(METHODS.eth_getLogs[1].includes('completeness not proven'), true);
   assert.deepEqual(BACKEND_METHODS, ['eth_sendRawTransaction', 'eth_maxPriorityFeePerGas', 'eth_feeHistory', 'eth_gasPrice']);
   assert.ok(!VERIFIED_METHODS.includes('eth_sendRawTransaction'));
+  assert.ok(VERIFIED_METHODS.includes('eth_getTransactionByHash'), 'a transaction is read from its verified block body (the lease receipt check needs it)');
 });
 
 test('the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees', () => {
@@ -108,7 +109,7 @@ test('routing: state, receipts, logs and nonces go to the verifier only; unliste
   assert.deepEqual([...new Set(v.methods())].sort(), ['eth_blockNumber', 'eth_call', 'eth_getTransactionCount', 'eth_getTransactionReceipt']);
   assert.deepEqual(b.methods(), ['eth_getTransactionCount'], 'the backend saw only the pending-pool question');
   const before = v.calls.length + b.calls.length;
-  for (const m of ['eth_sign', 'eth_accounts', 'debug_traceTransaction', 'eth_getProof', 'eth_newFilter', 'txpool_content', 'eth_getTransactionByHash'])
+  for (const m of ['eth_sign', 'eth_accounts', 'debug_traceTransaction', 'eth_getProof', 'eth_newFilter', 'txpool_content', 'eth_getTransactionByBlockHashAndIndex'])
     await assert.rejects(a.client.request({ method: m, params: [] }), (e) => /refused by the local chain authority/.test(String(e.details || e.message)), m);
   assert.equal(v.calls.length + b.calls.length, before, 'a refused method reaches no server');
 });

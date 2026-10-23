@@ -20,6 +20,7 @@ optional `ENCLAVE_CHAIN_TX_BACKEND` is the operator's own Base node at a loopbac
 | `eth_getBalance`, `eth_getCode`, `eth_getStorageAt`, `eth_getTransactionCount` (a block) | local verifier | account/storage/code proof |
 | `eth_blockNumber`, `eth_getBlockByNumber`, `eth_getBlockByHash`, `eth_chainId` | local verifier | the sequencer-signed head chain (signed head or authenticated ancestry) |
 | `eth_getTransactionReceipt`, `eth_getBlockReceipts` | local verifier | the receipts root of a verified block. "Not found" means only *no evidence* (never absence), so callers decide by the proven nonce |
+| `eth_getTransactionByHash` | local verifier | the transaction taken from the validated body of its block (transactions root). None is no evidence |
 | `eth_getLogs` | local verifier | each log proven against its block's receipts. **Inclusion only: completeness is not proven** |
 | `eth_getTransactionCount` (`pending`) | own backend | pool hint |
 | `eth_sendRawTransaction` | own backend, **after** binding it to the verifier (same chain id, same hash at the verifier's confirmed block) and a fresh head | submission only: inclusion is shown solely by a receipt the verifier checks |
