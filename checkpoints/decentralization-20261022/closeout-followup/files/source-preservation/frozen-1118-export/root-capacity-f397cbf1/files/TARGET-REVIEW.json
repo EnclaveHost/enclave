@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-23T09:51:41.115874+00:00",
+  "humanSelectedHost": "NucBox/minipc",
+  "humanAuthorizedHostAllocation": "96 GB (unit/schema to verify before application)",
+  "inventoryReceipt": "rpc-nucbox-target-20261023T094534Z.json",
+  "totalVisibleGiB": 111.82400894165039,
+  "freePhysicalGiB": 45.26963424682617,
+  "vmAssignedGiB": 56.375,
+  "exampleBackendGiB": 60,
+  "exampleGapBeforeGuestOverheadGiB": 14.730365753173828,
+  "localDiskTypes": [
+    "NVMe"
+  ],
+  "changesApplied": false,
+  "experimentReleased": false,
+  "next": "Inspect host allocation schema and durable HDD access; do not equate advertised resource cap with free physical RAM. Prepare bounded deployment plan; no existing apps resized."
+}

@@ -1,0 +1,45 @@
+[queue] START available=25677MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+suite rc=1
+mutant 1 killed (2 failing): if (lower(signer) !== lower(operator)) refuse('bad-signature'
+mutant 2 killed (2 failing): if (u(s.executorNonce, 'executorNonce') !== l.nonce) refuse
+mutant 3 killed (2 failing): if (code !== '0x' \&\& !(size(code) === 23
+mutant 4 killed (2 failing): if (source.submittedVia \&\& source.submittedVia === source.endpoint) refuse
+mutant 5 killed (2 failing): acceptableFrom: \[getAddress(from)\] }
+mutant 6 killed (2 failing): if ((s.operatorCode 
+mutant 7 killed (2 failing): if (paid.length !== 1 
+mutant 8 killed (2 failing): if (e \&\& e.commitment === commitment) return { replay: true, entry: e };
+mutant 9 killed (1 failing): if (e.l1Nonce !== undefined \&\& String(e.l1Nonce) !== String(l1Nonce)) refuse
+mutant 10 killed (2 failing): if (l1Receipt?.status !== 'reverted' 
+survivors: 0 of 10
+old mutants rc=0
+mutant 1 killed (1 failing): if (lower(l1Sender) === lower(owner) ||
+mutant 2 killed (1 failing): if (!isPlainOrDelegatedEoa(s.ownerCode)) refuse
+mutant 3 killed (1 failing): if (!s.held.env || (Number(sess.envs)
+mutant 4 killed (1 failing): if (s.seq === undefined || BigInt(s.seq) !== (nonce
+mutant 5 killed (1 failing): if (((BigInt(sess.actions) >> BigInt(action)) & 1n) !== 1n) refuse
+mutant 6 killed (1 failing): if (op === 'release' && lower(m.to)
+mutant 7 killed (1 failing): if (String(auth.nonce).toLowerCase() !== topUp.toLowerCase()) refuse
+mutant 8 killed (1 failing): if (sep.toLowerCase() !== String(token.separator).toLowerCase()) refuse
+mutant 9 killed (1 failing): if (s.ownerNonceUsed !== false) refuse
+mutant 10 killed (1 failing): if (lower(l1Snapshot.implementation) !== lower(pin.implementation)) refuse
+MUTANT 11 SURVIVED: if (!isMinted(ev) || ev.kind !== kind) refuse(code
+mutant 12 killed (1 failing): if (forced !== undefined) refuse
+mutant 13 killed (1 failing): if (Number(r.renewWindow) < window) refuse
+mutant 14 killed (2 failing): if (budget > BigInt(r.maxPerOpWei)) refuse
+mutant 15 killed (2 failing): deadline: BigInt(c.head.timestamp + window)
+mutant 16 killed (1 failing): acceptEvidence(l1Evidence, 'l1-receipt', { acceptTrust }, 'l1-evidence-unverified');
+MUTANT 17 SURVIVED: if (l2Evidence.finalized === true && l1Final) level
+mutant 18 killed (1 failing): if (!Array.isArray(verifiers) || !verifiers.every((v) => /^test-/.test(String(v)))) refuse
+mutant 19 killed (2 failing): if (!acceptTrust.includes(ev.trust)) refuse
+mutant 20 killed (1 failing): if (l1Receipt !== undefined && l1Receipt !== l1Proof.receipt) refuse
+mutant 21 killed (1 failing): need(fin && fin.hash === clFin.hash
+mutant 22 killed (1 failing): if (canon?.hash !== raw.blockHash) refuse('l1-not-canonical'
+mutant 23 killed (1 failing): need(cur.canonical,
+mutant 24 killed (1 failing): if (!['http:', 'https:'].includes(url.protocol) || !LOOPBACK.has(url.hostname)) refuse('not-local'
+mutant 25 killed (1 failing): need(d.is_syncing === false && d.is_optimistic === false && d.el_offline === false
+mutant 26 killed (1 failing): if (!(block.transactions ?? []).map
+survivors: 2 of 26
+closure mutants rc=2
+[memory-guard] exit=0 peakTreeRssMiB=272 minHostAvailableMiB=24762
+[memory-guard] at peak: node:100 node:61 anvil:51 anvil:27 anvil:23 sh:6 timeout:4
+[queue] EXIT 0

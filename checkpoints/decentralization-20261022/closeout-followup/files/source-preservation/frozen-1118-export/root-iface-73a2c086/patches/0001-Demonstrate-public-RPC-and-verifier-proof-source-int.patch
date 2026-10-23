@@ -1,0 +1,114 @@
+From 73a2c08645a3066f3965bc903001d84a2ef4d8e4 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:59:22 -0700
+Subject: [PATCH] Demonstrate public RPC and verifier proof-source interface
+ gap
+
+---
+ PINS.json   |  6 ++++++
+ RESULT.json | 32 ++++++++++++++++++++++++++++++++
+ RESULT.md   |  7 +++++++
+ probe.log   |  1 +
+ probe.mjs   | 19 +++++++++++++++++++
+ 5 files changed, 65 insertions(+)
+ create mode 100644 PINS.json
+ create mode 100644 RESULT.json
+ create mode 100644 RESULT.md
+ create mode 100644 probe.log
+ create mode 100644 probe.mjs
+
+diff --git a/PINS.json b/PINS.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..b8e12a53b8a11f99d83ef859dd3b586911d50de6
+--- /dev/null
++++ b/PINS.json
+@@ -0,0 +1,6 @@
++{
++  "Bhead": "673601e54f8fdcf2ea72d239c87d92b483ff231b",
++  "witnessGatewaySha256": "7209ef5beea5cf2f1afa471bf9d7b49babfdbb5877de63d9ee5159420d1389cb",
++  "publicRpcSource": "work/root-public-rpc-allowlist-review-20261023/frozen/fixed-public-rpc.mjs",
++  "publicRpcSha256": "aa5c148c4348b42c6d191236dbe44881a07d1595c1fabaf9b4134d891690fba0"
++}
+diff --git a/RESULT.json b/RESULT.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..c9c514533b827e6a9a0d736c496f24638fd01643
+--- /dev/null
++++ b/RESULT.json
+@@ -0,0 +1,32 @@
++{
++  "at": "2026-10-23T10:58:31.648Z",
++  "scope": "Real proposed public-role HTTP server with prior own-property correction; actual verifier exported method list. Backend deliberately unreachable and never contacted. Interface refusal proof, not a full Reth/Helios integration test or production observation.",
++  "results": [
++    {
++      "method": "eth_getProof",
++      "status": 200,
++      "body": {
++        "jsonrpc": "2.0",
++        "id": 1,
++        "error": {
++          "code": -32601,
++          "message": "eth_getProof is not offered by a public endpoint (no administration, debugging, signing, accounts, mempool or filters)"
++        }
++      }
++    },
++    {
++      "method": "eth_getBlockByHash",
++      "status": 200,
++      "body": {
++        "jsonrpc": "2.0",
++        "id": 1,
++        "error": {
++          "code": -32601,
++          "message": "eth_getBlockByHash is not offered by this endpoint"
++        }
++      }
++    }
++  ],
++  "backendCalls": 0,
++  "conclusion": "This public endpoint cannot yet serve as the verifier fresh-proof source. A separate supported proof endpoint or bounded added methods is required."
++}
+diff --git a/RESULT.md b/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..a30f3ff78ccc7d15b15cc3ef8ae5dee104872aab
+--- /dev/null
++++ b/RESULT.md
+@@ -0,0 +1,7 @@
++# Public RPC / verifier interface gap
++
++B's actual witness gateway requires eth_getProof for fresh account/storage witnesses and eth_getBlockByHash for authenticated ancestry/historical blocks. S's current role was intentionally scoped to browser methods and rejects both. Root exercised the real HTTP role, including the previous own-property correction, and both calls returned-32601 before any backend call. Actual verifier WITNESS_METHODS was imported, and exact source hashes/commits are recorded. This is an interface-level counterexample, not a complete Reth/Helios deployment test.
++
++The browser role by itself therefore cannot be the supported fresh-proof source for remote verifier guests. This is a composition gap relative to the overall goal, not a claim that S violated its narrower browser task. Next S scope should expose a bounded own-node proof/header path through supported host ingress, preserve strict validation/limits/admin gating, and test the actual verifier against it with real Reth. Include any full-block shape needed by the actual historical Helios path; do not loosen all RPC methods or trust returned proof contents. No public provider fallback.
++
++Related completion gate: browser note explicitly leaves wallet broadcast on the wallet's own RPC and passkey user operations on their own bundlers. Before claiming complete public-RPC replacement, verify those paths can select supported independent services. Current S browser method list lacks common fee metadata; actual wallet/client requirements must be verified before proposing the minimum compatibility extension. This review did not interact with MetaMask, change networks or verify a particular wallet implementation.
+diff --git a/probe.log b/probe.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/probe.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/probe.mjs b/probe.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..690738aae48c6ddf77031fb842935d6b7b2c96d5
+--- /dev/null
++++ b/probe.mjs
+@@ -0,0 +1,19 @@
++import http from 'node:http';
++import fs from 'node:fs';
++import assert from 'node:assert/strict';
++import {createPublicRpc,SERVED_METHODS} from '../root-public-rpc-allowlist-review-20261023/frozen/fixed-public-rpc.mjs';
++import {WITNESS_METHODS} from '../resume-after-checkpoint-20261022/linux-rpc-runtime-launch/repo/network/witness-gateway.mjs';
++const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));
++let calls=0;
++const role=await createPublicRpc({port,bind:'127.0.0.1',hostId:'0x'+'11'.repeat(32),chainId:8453,node:'http://127.0.0.1:1',allowedOrigins:['http://localhost']},{fetch:()=>{calls++;throw Error('backend must not be contacted by this refusal test')}});
++try{
++ const results=[];
++ for(const [method,params] of [['eth_getProof',['0x'+'22'.repeat(20),[],'0x1']],['eth_getBlockByHash',['0x'+'33'.repeat(32),false]]]){
++  assert.ok(WITNESS_METHODS.includes(method));assert.ok(!SERVED_METHODS.includes(method));
++  const r=await fetch('http://127.0.0.1:'+port+'/',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params}),signal:AbortSignal.timeout(3000)});
++  const body=await r.json();assert.equal(body.error.code,-32601);results.push({method,status:r.status,body});
++ }
++ assert.equal(calls,0);
++ const out={at:new Date().toISOString(),scope:'Real proposed public-role HTTP server with prior own-property correction; actual verifier exported method list. Backend deliberately unreachable and never contacted. Interface refusal proof, not a full Reth/Helios integration test or production observation.',results,backendCalls:calls,conclusion:'This public endpoint cannot yet serve as the verifier fresh-proof source. A separate supported proof endpoint or bounded added methods is required.'};
++ fs.writeFileSync(new URL('./RESULT.json',import.meta.url),JSON.stringify(out,null,2)+'\n');console.log(JSON.stringify(out));
++}finally{await role.close();}

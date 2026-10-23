@@ -1,0 +1,22 @@
+From e917c5265cb6f80c5215674e0567ce113899b7fb Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:51:11 -0700
+Subject: [PATCH 5/5] Handoff: exact count of suites not re-run (25 of 32)
+
+---
+ HANDOFF-EVIDENCE-IMMUTABILITY.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/HANDOFF-EVIDENCE-IMMUTABILITY.md b/HANDOFF-EVIDENCE-IMMUTABILITY.md
+index ff2f666b398211183fbe9ec5b279382a002d4226..ebe19af1d285b375fce14ac20b79f560a7f6b95b 100644
+--- a/HANDOFF-EVIDENCE-IMMUTABILITY.md
++++ b/HANDOFF-EVIDENCE-IMMUTABILITY.md
+@@ -59,7 +59,7 @@ BigInt and receipt identity are kept, and the caller's own object is not frozen.
+   evidence-immutability 3 + finality 1 + source-binding (anvil) 4 + source-binding (scripted) 2 = **10/10**. That
+   includes the positive deposit match on frozen REAL portal logs and safe/finalized through frozen Base evidence.
+ - **Mutants:** 27 (no owned copy) and 28 (shallow freeze only) **killed** (`logs/immut-final.out`).
+-- **Not re-run, and why:** the other 22 suite tests (fee audit, forced inclusion, l1-portal, policy, tracker, vault) mint
++- **Not re-run, and why:** the other 25 of the previous 32 tests (fee audit 3, forced inclusion 6, l1-portal 5, policy 3, tracker 1, vault 7) mint
+   nothing and use only explicit `test-*` labels. The delta (mint + the two adapters' returned receipt) does not reach
+   them.
+ - **Earlier failed runs, kept:**

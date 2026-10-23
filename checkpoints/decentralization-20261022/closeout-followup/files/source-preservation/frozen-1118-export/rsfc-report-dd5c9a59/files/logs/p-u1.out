@@ -1,0 +1,73 @@
+[queue] START available=24888MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+== pins
+a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
+f26b94a8af333c67bc51f4ea4111ca231a8e5f3a0bf6ba22079731ef9ee70890  l1pair/PINS.json
+b0f09d70763b800284045bf92aa2e8132166406136ea5f3670592467a2fa5be6  l1pair/vendor/VENDOR.json
+f1f748833dbb7a1a32702daace04588441cf5b40b93b5046dd1ef3f4c1b985fd  l1pair/test/mutate.py
+86cb2a3558882ec5699d83d68ee11f6d1a0224f1d8b5de36147a3e62bf16cf44  l1pair/test/realrig.py
+6dc6fc2e92136842d4278f56b8194c9fca83fe959f5f52009677f543c94ab4cf  l1pair/test/run_side.py
+9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
+614fc3b2a1b19e20f5d3cbdd23ad4bf315fd74731d700fc486ce1bb5e9b45700  l1pair/test/test_l1pair.py
+df0e3dfc93e516d26bef54f2f45816e7a571f7c5f55ff86081132594ee7631f2  l1pair/test/test_lighthouse_offline.py
+60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
+85cdd561c066131c2cb611822c047b868d2e83480a490116978ac4cdae7e4f7a  l1pair/test/test_tx_broadcast_offline.py
+vendor: OK (S 959e56f byte-identical)
+test_check_checkpoint (__main__.Checkpoint.test_check_checkpoint) ... ok
+test_inspect_reads_the_real_mainnet_genesis_state (__main__.Checkpoint.test_inspect_reads_the_real_mainnet_genesis_state) ... ok
+test_jwt_shape_and_mode (__main__.Jwt.test_jwt_shape_and_mode) ... ok
+test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_check) ... ok
+test_nothing_listening_is_not_ready_and_does_not_crash (__main__.ReadyGate.test_nothing_listening_is_not_ready_and_does_not_crash) ... ok
+test_closed_env (__main__.Rendering.test_closed_env) ... ok
+test_every_lighthouse_flag_is_in_the_pinned_source_help (__main__.Rendering.test_every_lighthouse_flag_is_in_the_pinned_source_help) ... ok
+test_every_reth_flag_is_in_the_executed_binary_help (__main__.Rendering.test_every_reth_flag_is_in_the_executed_binary_help) ... ok
+test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv) ... ok
+test_exact_el_argv (__main__.Rendering.test_exact_el_argv) ... ok
+test_no_hidden_external_default (__main__.Rendering.test_no_hidden_external_default) ... ok
+test_render (__main__.Rendering.test_render) ... ok
+test_storage_script_is_S_template_with_this_pairs_constants (__main__.Rendering.test_storage_script_is_S_template_with_this_pairs_constants) ... ok
+test_tx_broadcast_is_explicit_opt_in (__main__.Rendering.test_tx_broadcast_is_explicit_opt_in) ... ok
+test_units (__main__.Rendering.test_units) ... ok
+test_vendor_files_match_their_pins (__main__.Rendering.test_vendor_files_match_their_pins) ... ok
+test_boundaries_accepted (__main__.Validation.test_boundaries_accepted) ... ok
+test_example_as_shipped_is_refused_until_pins_are_recorded (__main__.Validation.test_example_as_shipped_is_refused_until_pins_are_recorded) ... ok
+test_good_config_validates (__main__.Validation.test_good_config_validates) ... ok
+test_refusals (__main__.Validation.test_refusals) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 7.221s
+
+OK
+{
+ "holder-storage.sh vs vm3 holder-storage.sh": {
+  "vm3Sha256": "025b23c768fb549609fc951c9ad93201492e4dbad47d962131e21066342ffe6e",
+  "composedSha256": "1018e9f7b6f0696fc1e2065dcebaeed36ea10efd41f0a741b1f94b1508f6f4bb",
+  "identical": false,
+  "changedLines": 29
+ },
+ "pair-storage.sh vs vm3 pair-storage.sh": {
+  "vm3Sha256": "046c53a257a4f2c8f477aa4393f20a4d8417e7dcba4187ef824b5a67c5299c86",
+  "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
+  "identical": false,
+  "changedLines": 29
+ },
+ "pair-storage.sh vs vm3 pair-storage.fixed.sh": {
+  "vm3Sha256": "a3c535d4118a6a29ee27404b898168c8312fc6f1b4b2f920d47a0a9eb5203d49",
+  "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
+  "identical": false,
+  "changedLines": 32
+ },
+ "templates": {
+  "s": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+  "pVendored": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+  "pEqualsS": true
+ },
+ "bothRendersUseComposedTemplateBody": true,
+ "constantsIdenticalToVm3": {
+  "holder-storage.sh": true,
+  "pair-storage.sh": true
+ }
+}
+p-unit rc=0 render-diff rc=0
+[memory-guard] exit=0 peakTreeRssMiB=41 minHostAvailableMiB=24738
+[memory-guard] at peak: python3:36 bash:6
+[queue] EXIT 0

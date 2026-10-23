@@ -1,0 +1,9 @@
+[queue] START available=25216MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+suite rc=0
+mutant 11 killed (1 failing): if (!isMinted(ev) || ev.kind !== kind) refuse(code
+mutant 17 killed (1 failing): if (l2Evidence.finalized === true && l1Final) level
+survivors: 0 of 26
+closure mutants 11,17 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=337 minHostAvailableMiB=25167
+[memory-guard] at peak: anvil:115 node:100 node:61 anvil:27 anvil:23 sh:6 timeout:4
+[queue] EXIT 0

@@ -1,0 +1,81 @@
+# cache-native-boundary terminal evidence (digest; full logs and guest receipts committed under logs/ and run/)
+
+## cap-1  rc=0  sha256 440038a39c3e93d1e4c698f21a89e9c3d5bea2d8bf5769c8c8889fea659d00a4  bytes 1758  -- host capability probe
+    [queue] START available=25441MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    ## sudo -n
+    sudo -n: NOT available (no password request made)
+    /dev/mapper/control: open failed: Permission denied
+    mount: /tmp/tmp.X0D2UWzB7o/m: mount failed: Permission denied.
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] EXIT 0
+
+## vmp-1  rc=0  sha256 0690849c1368d4cb19518501db43e98c16c542dfba3687f711f58a6dfeadbced  bytes 2473  -- guest feasibility probe
+    [queue] START available=25692MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [memory-guard] exit=0 peakTreeRssMiB=6 minHostAvailableMiB=25700
+    [queue] EXIT 0
+
+## render-1  rc=0  sha256 e9df3a44466453ad7df37c8920f075b0c51f4aafeac9ef99c8e1394d4b19c596  bytes 504  -- renderer dry run
+    [queue] START available=25010MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] EXIT 0
+
+## vm-1  rc=0  sha256 b2f0bf25072188ef3e7fd57d961e2ff969bf02086d9bce49e71e2070854850fc  bytes 9417  -- guest run 1 (interruption retries hit fix-0001 bug)
+    [queue] START available=25542MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    alloc[start]=1146880 cap=536870912
+    alloc[after-setup]=9592832 cap=536870912
+    qemu phase=one rc=0
+    alloc[after-one]=176992256 cap=536870912
+    qemu phase=two rc=0
+    alloc[after-two]=217755648 cap=536870912
+    leftover qemu: 0
+    [memory-guard] exit=0 peakTreeRssMiB=470 minHostAvailableMiB=25231
+    [queue] EXIT 0
+
+## hostfs-1  rc=0  sha256 f6874150bd163813fd51d848b790d2a582d44581a3694b14e5ec59fb79b5bb0e  bytes 2216  -- host-fs budget on real ext4/dm-crypt (user+mount ns overlay /etc)
+    [queue] START available=25244MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+     "nextRefused": "host 0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f: reservations plus bookkeeping 12738560 exceed its share 12718080",
+     "ok": true
+    [memory-guard] exit=0 peakTreeRssMiB=6 minHostAvailableMiB=25220
+    [queue] EXIT 0
+
+## vm-2  rc=0  sha256 ea7c1775c4633afbac46d09653bd389b1292012dea0cc5ad54d0e39ac2f09adf  bytes 16827  -- guest run 2 (fresh-create sweep: SIGTERM leftovers; probe 10,688 blocks)
+    [queue] START available=25949MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    alloc[start]=1708032 cap=536870912
+    alloc[after-setup]=10203136 cap=536870912
+    qemu phase=one rc=0
+    alloc[after-one]=178032640 cap=536870912
+    qemu phase=two rc=0
+    alloc[after-two]=219418624 cap=536870912
+    leftover qemu: 0
+    [memory-guard] exit=0 peakTreeRssMiB=716 minHostAvailableMiB=25219
+    [queue] EXIT 0
+
+## vm-3  rc=0  sha256 b245d2cfc8892ab40fad8d46e3d9f7dfa2e7429dfabc3f7abc28aaf318c32e8c  bytes 22116  -- FINAL guest run: production + fixed sweeps, all checks
+    [queue] START available=25880MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    alloc[start]=2183168 cap=536870912
+    alloc[after-setup]=10678272 cap=536870912
+    qemu phase=one rc=0
+    alloc[after-one]=165789696 cap=536870912
+    qemu phase=two rc=0
+    alloc[after-two]=219762688 cap=536870912
+    leftover qemu: 0
+    [memory-guard] exit=0 peakTreeRssMiB=715 minHostAvailableMiB=25295
+    [queue] EXIT 0
+run/20261023T094306Z/out/results-one.json  sha256 e2eac80a4a206d8ff8826b5d0ab5f48608b5e0f7ad09f16dfa2eed34cff25acd
+run/20261023T094306Z/out/results-two.json  sha256 d08346f61453e5c8c0e9ae409d0e21479c4656eac587c7e85c51128a8a9bb693
+run/20261023T094306Z/out/receipts-one.jsonl  sha256 6cd6986e13c09f10ee9f10b40af9bfa362770c923cb54b544d915a68199a95cb
+run/20261023T094306Z/out/receipts-two.jsonl  sha256 33524e95e470011f1765503f56d7c00c75998f8011f2d0121ef6ed2f5ae4dae7
+run/20261023T094306Z/out/host-identity-before.json  sha256 0c8bd47c47a91eb35077786d509e4a6978e56c9b7f056f1e2079bcad1d055a4a
+run/20261023T094306Z/out/host-identity-after.json  sha256 b3333c9cbc0a97c8218f75655bda1e33fb7c8a25a8a1d39af3b10a3df8449169
+run/20261023T094724Z/out/results-one.json  sha256 6b6b81a305a5e42c5c663f2f2decd6e244177e6013facdcdbfb960c4fcfe7f9e
+run/20261023T094724Z/out/results-two.json  sha256 07dae30f246387f5c2200cc6b0167a8ac49b9b7699269c2ad2190d15190de87a
+run/20261023T094724Z/out/receipts-one.jsonl  sha256 2bad8df30f1a50d96ae7e1c8b452ed98c27bae406138d24f72bc10a1d1f6d5f9
+run/20261023T094724Z/out/receipts-two.jsonl  sha256 0a865b27df4d75684453efa859c9fd561b5b23d2ebaf8ab3ae05a1b17c67165c
+run/20261023T094724Z/out/host-identity-before.json  sha256 855096d93644b6cd9929f5005bccd80194e9ffbddaaa17c8d60234f4a6361337
+run/20261023T094724Z/out/host-identity-after.json  sha256 89073bd49317e93c394d6ce671756ec79a9e46fb1ce58b1801041ca49efece72
+run/20261023T094842Z/out/results-one.json  sha256 f024babecfb9470a9a79165d2e2577dba79ba14b1be9cca4f7940f5a251b9c68
+run/20261023T094842Z/out/results-two.json  sha256 7d9c518e6385cc7a39ab8f006206882e311439aef5a5a75684f1297536f9c83f
+run/20261023T094842Z/out/receipts-one.jsonl  sha256 6aec02185fc5849b97b8ea2b93eb9a6f82d7f50cf7cc7390eb99b8f81959535d
+run/20261023T094842Z/out/receipts-two.jsonl  sha256 33b8a6399e526c97c44e370b4d186bfb62d95643ca34885a07a318fd186c31b1
+run/20261023T094842Z/out/host-identity-before.json  sha256 61b439d76fc2c2f54e34d0ec398e4c0dd5cfff81987193ce9a33fc1c085844eb
+run/20261023T094842Z/out/host-identity-after.json  sha256 55ec7ffa97e2e879ed32630bb446a230ddfb887a55d88c9ab560dcde377e7548

@@ -1,0 +1,26 @@
+[queue] START available=25149MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+== .
+ccb55b8 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> rpc-storage-final-compose: S 92b7178 + P f8c999e composition of the kernel-tested cache fixes; provenance, render diffs vs vm-3, test logs, RESULT
+4:14AM INF 1 commits scanned.
+4:14AM INF scanned ~84458 bytes (84.46 KB) in 105ms
+4:14AM INF no leaks found
+== s
+92b7178 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> RUNBOOK-CACHE: power loss vs suspect/corrupt cache (stop consumer, disassemble, cache-loss before assemble), stale-origin, replacement, interrupted create, loop policy, one aggregate budget
+c74e302 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> holder-storage: adopt the kernel-tested fixes (signals unwind; owned same-fs free-space credit) and resolve loop policies
+bcd3d9c SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Correct cache-budget report timestamp from actual commit metadata
+4:15AM INF 17 commits scanned.
+4:15AM INF scanned ~6061951 bytes (6.06 MB) in 329ms
+4:15AM INF no leaks found
+== p
+f8c999e SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: re-vendor S's composed holder storage (92b7178: signal unwind, owned same-fs free-space credit, cache-loss/disassemble loop policies, RUNBOOK-CACHE); RUNBOOK cache procedure
+f835148 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> RESULT-BINARY-CLOSURE: scan results and process disclosures; scan logs
+7d5ccb1 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> scan: allowlist exactly the public Sigma Prime PGP fingerprint (trust evidence) for gitleaks
+4:15AM INF 13 commits scanned.
+4:15AM INF scanned ~2811716 bytes (2.81 MB) in 226ms
+4:15AM INF no leaks found
+4:15AM INF scanned ~37101 bytes (37.10 KB) in 3.38ms
+4:15AM INF no leaks found
+[scan] rc=0
+[memory-guard] exit=0 peakTreeRssMiB=90 minHostAvailableMiB=24669
+[memory-guard] at peak: python3:71 git:8 bash:6 timeout:4
+[queue] EXIT 0

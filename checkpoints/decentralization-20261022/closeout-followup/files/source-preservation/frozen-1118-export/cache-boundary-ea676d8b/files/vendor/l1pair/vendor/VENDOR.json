@@ -1,0 +1,13 @@
+{
+ "format": "enclave-l1-pair-vendor/v1",
+ "source": "S's fresh-witness-supply repo, FINAL immutable commit 959e56fd7ea191bfcc7eb94b26a20d4795856bd3 (root-reviewed budget v2: shared ledger + rounding fix; includes fd0134d/c3efff41 unwind and b1b6f184; git show, S working tree NOT used)",
+ "use": "library only (Supervisor, PDEATHSIG, group stop, sd_notify, backing_disks, port_in_use, validate_storage rules, shared NVMe budget ledger tool) and the storage script template; nothing here edits or runs the Base holder",
+ "files": {
+  "holder/holder.py": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
+  "holder/budget.py": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24",
+  "holder/FLAGS.json": "7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59",
+  "holder/BINARY.json": "b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00",
+  "holder/holder-storage.sh.in": "eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00",
+  "holder/holder.example.json": "8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a"
+ }
+}

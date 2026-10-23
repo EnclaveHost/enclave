@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-23T10:09:28.1441700Z",
+  "configured": [
+    {
+      "beforeSha": "80d0fa7e1c262c69e452abc873d8544701aa3aec7c8606ade895df8e120bce2a",
+      "backup": "C:\\ProgramData\\Enclave\\node-config.cmd.pre-ram96-20261023T100928Z",
+      "afterSha": "67192775312d507a99e7094eb0101f8a7c28884830ea0e82ee241ceb7a8b9ff1",
+      "file": "C:\\ProgramData\\Enclave\\node-config.cmd",
+      "valueGiB": 96
+    },
+    {
+      "beforeSha": "405db912b15c73e57334bef4ad2c1071695495010bb95e67c72f200c48e382f0",
+      "backup": "C:\\ProgramData\\Enclave\\node-config.local.cmd.pre-ram96-20261023T100928Z",
+      "afterSha": "f10b77466ac47ea62236a2e8cf90281802cbd5f642e6fa1d0581c0f010e13319",
+      "file": "C:\\ProgramData\\Enclave\\node-config.local.cmd",
+      "valueGiB": 96
+    },
+    {
+      "beforeSha": "135455993c376beeb31edc96ca2ad682bbeeaa8bbcaddc7ce398ce602427daa5",
+      "backup": "C:\\ProgramData\\Enclave\\shield-config.cmd.pre-ram96-20261023T100928Z",
+      "afterSha": "5e7f983d7897308345344b117bf2388f64a838cda06416423c0f8aa8287df518",
+      "file": "C:\\ProgramData\\Enclave\\shield-config.cmd",
+      "valueGiB": 96
+    }
+  ],
+  "servicesRestarted": false,
+  "runtimeActivation": "pending service restart"
+}

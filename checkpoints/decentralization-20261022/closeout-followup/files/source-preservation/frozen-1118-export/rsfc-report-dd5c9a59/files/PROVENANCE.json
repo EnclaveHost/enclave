@@ -1,0 +1,97 @@
+{
+ "format": "rpc-storage-final-compose-provenance/v1",
+ "s": {
+  "base": "bcd3d9ca3b4345f42134342dec28ab5f6d4115f2",
+  "baseIs": "959e56fd budget v2 + 47c2f71 report correction + bcd3d9c timestamp fix (canonical identity). Root's dc767fc3 has the identical tree but a personal-email author and is on no branch.",
+  "treeEqualsDc767fc3": true,
+  "budgetV2Ancestor959e56fd": true,
+  "rootTeardownFixes": {
+   "b1b6f18 validate-before-unmount": {
+    "cherryPickedAs": "08f2efe",
+    "ancestor": true,
+    "textPresent": true
+   },
+   "c3efff4 stop-at-failed-teardown": {
+    "cherryPickedAs": "fd0134d",
+    "ancestor": true,
+    "textPresent": true
+   }
+  },
+  "commits": [
+   "92b71784c9452056eeeb6a97b8e1fcb8ef1815ca SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> RUNBOOK-CACHE: power loss vs suspect/corrupt cache (stop consumer, disassemble, cache-loss before assemble), stale-origin, replacement, interrupted create, loop policy, one aggregate budget",
+   "c74e302c66549658dcf9d46e77ade5d0db06feb9 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> holder-storage: adopt the kernel-tested fixes (signals unwind; owned same-fs free-space credit) and resolve loop policies"
+  ],
+  "head": "92b71784c9452056eeeb6a97b8e1fcb8ef1815ca",
+  "templateBefore": "eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00",
+  "files": {
+   "holder-storage.sh.in": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+   "holder.py": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
+   "budget.py": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24",
+   "RUNBOOK-CACHE.md": "c599d997e740f2863f3ea5cb186526845c180b65033dea8563a04b1264991238",
+   "test/test_storage.py": "1684a85dfd364a905fb9643a6bf26a4e1c6103f2af360b177fb4745c9ead2883",
+   "test/mutate.py": "21ef093d3842c94b9e7e131dbc4ea19556c4131cacba778aa9aa82195df9cbb3",
+   "test/stubs/stubcmd.py": "d779f061ef120023dae801840b884bc905f5eb4907fed6b3d058ca6752844f22"
+  }
+ },
+ "p": {
+  "base": "f83514874646d3be1ea46bc420f0fed5e664f6ef",
+  "commits": [
+   "f8c999ed5a9600ef477ff05ee00b31dee366b2b1 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: re-vendor S's composed holder storage (92b7178: signal unwind, owned same-fs free-space credit, cache-loss/disassemble loop policies, RUNBOOK-CACHE); RUNBOOK cache procedure"
+  ],
+  "head": "f8c999ed5a9600ef477ff05ee00b31dee366b2b1",
+  "vendor": {
+   "format": "enclave-l1-pair-vendor/v1",
+   "source": "S's holder source composed in work/rpc-storage-final-compose/s, commit 92b71784c9452056eeeb6a97b8e1fcb8ef1815ca (= S 959e56fd budget v2 + bcd3d9c report timestamp fix + the kernel-tested storage fixes and loop policies c74e302 + RUNBOOK-CACHE 92b7178; git show, no working tree)",
+   "use": "library only (Supervisor, PDEATHSIG, group stop, sd_notify, backing_disks, port_in_use, validate_storage rules, shared NVMe budget ledger tool) and the storage script template; nothing here edits or runs the Base holder",
+   "files": {
+    "holder/holder.py": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
+    "holder/budget.py": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24",
+    "holder/FLAGS.json": "7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59",
+    "holder/BINARY.json": "b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00",
+    "holder/holder-storage.sh.in": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+    "holder/holder.example.json": "8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a",
+    "holder/RUNBOOK-CACHE.md": "c599d997e740f2863f3ea5cb186526845c180b65033dea8563a04b1264991238"
+   }
+  },
+  "l1pairPyUnchanged": "a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d"
+ },
+ "vm3Reference": "work/cache-native-boundary-20261023 run/20261023T094842Z/out/render; its fixed template = cache-native fixes/holder-storage.sh.in after 0001+0002",
+ "render": {
+  "holder-storage.sh vs vm3 holder-storage.sh": {
+   "vm3Sha256": "025b23c768fb549609fc951c9ad93201492e4dbad47d962131e21066342ffe6e",
+   "composedSha256": "1018e9f7b6f0696fc1e2065dcebaeed36ea10efd41f0a741b1f94b1508f6f4bb",
+   "identical": false,
+   "changedLines": 29
+  },
+  "pair-storage.sh vs vm3 pair-storage.sh": {
+   "vm3Sha256": "046c53a257a4f2c8f477aa4393f20a4d8417e7dcba4187ef824b5a67c5299c86",
+   "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
+   "identical": false,
+   "changedLines": 29
+  },
+  "pair-storage.sh vs vm3 pair-storage.fixed.sh": {
+   "vm3Sha256": "a3c535d4118a6a29ee27404b898168c8312fc6f1b4b2f920d47a0a9eb5203d49",
+   "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
+   "identical": false,
+   "changedLines": 32
+  },
+  "templates": {
+   "s": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+   "pVendored": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+   "pEqualsS": true
+  },
+  "bothRendersUseComposedTemplateBody": true,
+  "constantsIdenticalToVm3": {
+   "holder-storage.sh": true,
+   "pair-storage.sh": true
+  }
+ },
+ "renderFiles": {
+  "holder-storage.sh": "1018e9f7b6f0696fc1e2065dcebaeed36ea10efd41f0a741b1f94b1508f6f4bb",
+  "holder-storage.sh.vs-vm3-holder-storage.sh.diff": "f6527ec991d16f7065b20bc3157cb31fe15490a65eb3371d2ab7a3daa91c0aed",
+  "pair-storage.sh": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
+  "pair-storage.sh.vs-vm3-pair-storage.fixed.sh.diff": "3c1f6cb4b7b3815916e2603b4626d6fee20e95146c2bb9fe01171cb8c962a5a7",
+  "pair-storage.sh.vs-vm3-pair-storage.sh.diff": "d10ac172767bf0bbb998180d90adb08eacfa6de8cb9e2522e825b5a7261c415d",
+  "summary.json": "5a64acb595bbe033fde83d784df20bfe952c0bef6d131245d5adec4be375800e"
+ }
+}

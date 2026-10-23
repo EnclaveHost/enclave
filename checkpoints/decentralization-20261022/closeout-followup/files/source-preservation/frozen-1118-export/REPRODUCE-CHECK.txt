@@ -1,0 +1,47 @@
+tls-m base rebuilt from f58e03ec4 + 10 stored patch(es) in f2db53ff5: tree 1a679ef307a70acf440584a7e991ebf6834d9030 OK
+tls-m 1957ff234: tree fc0ef47a55f045baac30143e505da05cb5b361f5 OK
+tls-m 6f6d22f5d: tree ff40f69395390bedbd2b50bacab0279fb839ad52 OK
+tls-m 9f19b7c66: tree 7c063b02ba32f84a11e7db8897e2049bed0e19e0 OK
+s-compose base rebuilt from empty + 15 stored patch(es) in f2db53ff5: tree 4c50bc8c49fdbf975df405efc94137762d5cf6aa OK
+s-compose c74e302c6: tree ba144bcb0ecedf3043773f7040ce44519e6da793 OK
+s-compose 92b71784c: tree 3540c71a3dea1e13d8f7fada0ce2e0acc7c08f35 OK
+rsfc-report base rebuilt from empty + 0 stored patch(es) in f2db53ff5: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+rsfc-report ccb55b83a: tree 30e63f4bd30fd5a1ad00a05a83ec4935da8745fc OK
+rsfc-report dd5c9a599: tree 5531c8f6050141ead6a3d1bf3d68d455d7ea4e33 OK
+root-ram96 base rebuilt from empty + 0 stored patch(es) in f2db53ff5: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-ram96 d3b8e6877: tree 4c701d189a5e9ba764e8a73b299d4a9654d2d0c4 OK
+root-ram96 2851f923c: tree 3e447274f7acce150fcd76a00ff6067ed29e5e28 OK
+root-ram96 dd7e7af84: tree ff047d83f193da310414f5e2f5771fa1e625b904 OK
+root-allowlist base rebuilt from empty + 0 stored patch(es) in f2db53ff5: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-allowlist a6186636a: tree dbfb80f722e54365ed05519ebb4ac62dda903435 OK
+root-iface base rebuilt from empty + 0 stored patch(es) in f2db53ff5: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-iface 73a2c0864: tree a6c9a313c31d156dd4454b21c2995bbd80fe6140 OK
+root-mem base rebuilt from empty + 0 stored patch(es) in f2db53ff5: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-mem c1f35cf58: tree 562dcef04498ea167323004d4a46862ec1ff805e OK
+root-main-delta base rebuilt from empty + 0 stored patch(es) in f2db53ff5: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-main-delta 2d78c982e: tree 850ac59caa22bae15ca02eb40f83d21826807867 OK
+root-capacity base rebuilt from empty + 0 stored patch(es) in f2db53ff5: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-capacity f397cbf1c: tree b4dc4582895ecb107713f0f50efed24d4de55965 OK
+root-immutability base rebuilt from empty + 0 stored patch(es) in f2db53ff5: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-immutability b0236c87e: tree 5cb301a64dbb87de146a1ab5bcaacf77f0151aa2 OK
+cache-boundary base rebuilt from empty + 0 stored patch(es) in f2db53ff5: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+cache-boundary 94a5f26aa: tree 1cd10ef00eb2dd36c8be7e252c1691bb0916d2b7 OK
+cache-boundary 6a56ddb96: tree 2fcd252d507b3eb9a9836977dee22861a5bf6f24 OK
+cache-boundary 01eb75836: tree fcbef664965c2a1505ee2bc79d779443be676206 OK
+cache-boundary 9ac11f1c5: tree 16a053c42730dacc42539708f1b0f9df3244f9e4 OK
+cache-boundary 195df78bc: tree c44f8dff797141b4b1b4c89ba58f5c95d7c96051 OK
+cache-boundary ff4406ed9: tree 4fe4088b093b85bc9ab5c3ae724866bcd638aab3 OK
+cache-boundary ea676d8bb: tree cf0e322f4b855b80dcf049d9b8e56df802595333 OK
+p-compose base rebuilt from empty + 12 stored patch(es) in f2db53ff5: tree 429d103a55dc59c97a1dc09c57ad72279f64666d OK
+p-compose f8c999ed5: tree 75cde59e432da720c217fcca5756002f2c83da90 OK
+e-final base rebuilt from empty + 5 stored patch(es) in f2db53ff5: tree 6c2d62eec05413ac273ec2490b7c2ff3a918690d OK
+e-final a194afe28: tree 59e731288745c54c53756901680b72af2ff38470 OK
+e-final 46dbfbef3: tree 2d091884b07a5e59663b8e5d9c900223c49bfe5a OK
+e-final 901d7b314: tree 6c638a5b2e863221029ede449e8813ec3689e4b5 OK
+e-final 029fdefe8: excluded-paths-only commit, derived tree 6c638a5b2e863221029ede449e8813ec3689e4b5 unchanged OK
+e-final c08331e93: tree 952baca2d0a9f39214e073373693f59ddf57f2ae OK
+e-final e917c5265: tree 5ff100e320330e8fe7bb6f4fd86ec2b605883d6b OK
+e-final 9c5e0eefd: excluded-paths-only commit, derived tree 5ff100e320330e8fe7bb6f4fd86ec2b605883d6b unchanged OK
+p-compose trees are the ORIGINAL trees minus ['evidence/sources/lighthouse-v8.3.2/common/eth2_network_config/built_in_network_configs/mainnet/genesis.ssz.zip', 'evidence/lighthouse-binary-20261023T080144Z/release.yml', 'logs/fetch-lh-2.out', 'logs/verify-lh-2.out', 'logs/verify-lh-3.out'] (head original fadd90044); exact originals NOT reproduced
+e-final trees are the ORIGINAL trees minus ['fixtures/artifacts/', 'exports/'] (head original 9812accce); exact originals NOT reproduced
+RESULT tls-m reproduced: True, s-compose reproduced: True, rsfc-report reproduced: True, root-ram96 reproduced: True, root-allowlist reproduced: True, root-iface reproduced: True, root-mem reproduced: True, root-main-delta reproduced: True, root-capacity reproduced: True, root-immutability reproduced: True, cache-boundary reproduced: True, p-compose reproduced: True, e-final reproduced: True

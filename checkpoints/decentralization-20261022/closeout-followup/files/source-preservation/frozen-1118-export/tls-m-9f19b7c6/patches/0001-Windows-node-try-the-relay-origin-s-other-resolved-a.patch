@@ -1,0 +1,510 @@
+From 1957ff23425f6ee2e0abe2604bdc9735987eff47 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:42:48 -0700
+Subject: [PATCH 1/3] Windows node: try the relay origin's other resolved
+ addresses when one fails before the request is sent
+
+requestCert (apptls.mjs), secretsExist and fetchSecrets (secrets.mjs) used fetch(), which connects to the
+first resolved address only. A front that completes TCP and then drops the TLS handshake made every
+certificate pickup and secrets-state read fail although the other fronts of the same name were healthy.
+
+origin-request.mjs sends one request to one url over the system resolver's addresses for that url's own
+hostname, in order, with the default trust store, the url's hostname as SNI and verified identity, and Host
+unchanged. It moves to the next address only when the previous one failed before the connection was
+established (nothing of the request sent); a refused certificate, any HTTP answer (refusals, backoff,
+redirects) and any failure after sending end the request. timeoutMs and the caller's signal bound the whole
+request; a hanging handshake gets a share of what is left (at least 2 s).
+---
+ test/windows-node-origin-request.test.mjs | 242 ++++++++++++++++++++++
+ windows/node/apptls.mjs                   |  12 +-
+ windows/node/origin-request.mjs           | 128 ++++++++++++
+ windows/node/secrets.mjs                  |  20 +-
+ 4 files changed, 390 insertions(+), 12 deletions(-)
+ create mode 100644 test/windows-node-origin-request.test.mjs
+ create mode 100644 windows/node/origin-request.mjs
+
+diff --git a/test/windows-node-origin-request.test.mjs b/test/windows-node-origin-request.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..1fa04188f0001ea9cbc0bae41e2d17c82816dc16
+--- /dev/null
++++ b/test/windows-node-origin-request.test.mjs
+@@ -0,0 +1,242 @@
++// windows/node/origin-request.mjs, and the two relay reads/writes the NucBox lost on 2026-10-23 (apptls.requestCert via
++// hvcert.issuer, secrets.mjs secretsExist), over REAL sockets: one name, api.enclave.test, resolved to several loopback
++// addresses on one port, each address behaving like one front (resets after TCP, refuses, black-holes the handshake,
++// serves a valid certificate, a wrong-name one or a self-signed one). The trust is a test CA made here with openssl and
++// installed as the process's DEFAULT trust store (tls.setDefaultCACertificates) - the module is given no `ca` of its own.
++// Every key and signature is generated for this run; no user key is read.
++import test, { before, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import net from "node:net";
++import tls from "node:tls";
++import https from "node:https";
++import { execFileSync } from "node:child_process";
++import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
++import { originRequest } from "../windows/node/origin-request.mjs";
++import { requestCert, makeCsr, selfSigned } from "../windows/node/apptls.mjs";
++import { issuer } from "../windows/node/hvcert.mjs";
++import { secretsExist, fetchSecrets } from "../windows/node/secrets.mjs";
++
++const NAME = "api.enclave.test";
++const ID = "0x" + "7a".repeat(32);
++const ENDPOINT = "https://nucbox.example.test/t/fixture";
++const A = { reset: "127.0.0.2", good: "127.0.0.3", hang: "127.0.0.4", wrong: "127.0.0.5", self: "127.0.0.6",
++            good2: "127.0.0.7", sentReset: "127.0.0.8", refused: "127.0.0.9" };
++const operator = privateKeyToAccount(generatePrivateKey());
++
++let T, PORT, base, ca;
++const servers = [], sockets = new Set();
++const seen = { conns: {}, hellos: {}, reqs: [] };
++let respond = null;                       // (rec, res) => void, per test; null = the default relay answers
++
++const ossl = (args) => execFileSync("openssl", args, { cwd: T, stdio: ["ignore", "ignore", "pipe"] });
++function leaf(cn) {
++  ossl(["ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", `${cn}.key`]);
++  ossl(["req", "-new", "-key", `${cn}.key`, "-subj", `/CN=${cn}`, "-out", `${cn}.csr`]);
++  fs.writeFileSync(path.join(T, `${cn}.ext`), `subjectAltName=DNS:${cn}\nextendedKeyUsage=serverAuth\n`);
++  ossl(["x509", "-req", "-in", `${cn}.csr`, "-CA", "ca.pem", "-CAkey", "ca.key", "-CAcreateserial", "-days", "2",
++        "-out", `${cn}.pem`, "-extfile", `${cn}.ext`]);
++  return { key: fs.readFileSync(path.join(T, `${cn}.key`)), cert: fs.readFileSync(path.join(T, `${cn}.pem`)) };
++}
++
++function relay(addr, creds) {
++  return https.createServer(creds, (req, res) => {
++    const parts = [];
++    req.on("data", (c) => parts.push(c));
++    req.on("end", () => {
++      const rec = { addr, servername: req.socket.servername, host: req.headers.host, method: req.method, url: req.url,
++                    body: Buffer.concat(parts).toString("utf8") };
++      seen.reqs.push(rec);
++      if (addr === A.sentReset) return req.socket.destroy();          // took the request, then dropped the connection
++      if (respond) return respond(rec, res);
++      res.setHeader("content-type", "application/json");
++      if (req.url === "/v1/secrets/exists") return res.end(JSON.stringify({ id: JSON.parse(rec.body).id, exists: true }));
++      if (req.url === "/v1/certs/issue") return res.end(JSON.stringify({ name: JSON.parse(rec.body).name, certPem: "FIXTURE-CHAIN", notAfter: "2027-01-21T00:00:00Z", ca: "test", cached: true }));
++      res.statusCode = 404; res.end("{}");
++    });
++  });
++}
++
++before(async () => {
++  T = fs.mkdtempSync(path.join(os.tmpdir(), "origin-request-"));
++  ossl(["ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", "ca.key"]);
++  ossl(["req", "-x509", "-new", "-key", "ca.key", "-subj", "/CN=origin-request test CA", "-days", "2", "-out", "ca.pem",
++        "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign"]);
++  ca = fs.readFileSync(path.join(T, "ca.pem"), "utf8");
++  tls.setDefaultCACertificates([ca]);
++  const ok = leaf(NAME), wrong = leaf("wrong.enclave.test"), self = selfSigned(NAME);
++  const tlsFor = { [A.good]: relay(A.good, ok), [A.good2]: relay(A.good2, ok), [A.sentReset]: relay(A.sentReset, ok),
++                   [A.wrong]: relay(A.wrong, wrong), [A.self]: relay(A.self, { key: self.key, cert: self.cert }) };
++  const front = (addr) => net.createServer((s) => {
++    sockets.add(s); s.on("close", () => sockets.delete(s)); s.on("error", () => {});
++    seen.conns[addr] = (seen.conns[addr] || 0) + 1;
++    if (addr === A.reset) return s.once("data", (d) => { seen.hellos[addr] = d; s.resetAndDestroy(); });
++    if (addr === A.hang) return;                                      // TCP completes; the handshake never does
++    tlsFor[addr].emit("connection", s);
++  });
++  const first = front(A.good);
++  await new Promise((r) => first.listen(0, A.good, r));
++  PORT = first.address().port;
++  servers.push(first);
++  for (const addr of [A.reset, A.hang, A.wrong, A.self, A.good2, A.sentReset]) {
++    const s = front(addr);
++    await new Promise((r, j) => { s.once("error", j); s.listen(PORT, addr, r); });
++    servers.push(s);
++  }
++  base = `https://${NAME}:${PORT}`;
++});
++after(() => {
++  for (const s of sockets) s.destroy();
++  for (const s of servers) s.close();
++  fs.rmSync(T, { recursive: true, force: true });
++});
++
++const lookups = [];
++const resolver = (...order) => async (name, opts) => { lookups.push({ name, opts }); return order.map((address) => ({ address, family: 4 })); };
++const reset = () => { seen.conns = {}; seen.hellos = {}; seen.reqs = []; respond = null; lookups.length = 0; };
++const conns = (addr) => seen.conns[addr] || 0;
++
++test("a front that resets after TCP is skipped: the next address of the SAME name answers, with its SNI and Host", { timeout: 15_000 }, async () => {
++  reset();
++  assert.equal(await secretsExist({ id: ID, base, lookup: resolver(A.reset, A.good) }), true);
++  assert.deepEqual(lookups, [{ name: NAME, opts: { all: true } }]);
++  assert.equal(conns(A.reset), 1);
++  assert.ok(seen.hellos[A.reset].includes(Buffer.from(NAME)), "the broken front was offered the origin's own SNI");
++  assert.equal(seen.reqs.length, 1);
++  assert.deepEqual(seen.reqs[0], { addr: A.good, servername: NAME, host: `${NAME}:${PORT}`, method: "POST",
++                                   url: "/v1/secrets/exists", body: JSON.stringify({ id: ID }) });
++});
++
++test("the certificate request is signed once and the SAME bytes reach the address that connects (hvcert issuer path)", { timeout: 15_000 }, async () => {
++  reset();
++  const name = "c13d4b6a.app.enclave.test";
++  const csr = makeCsr(name);
++  const sigs = [];
++  const sign = async (m) => { const s = await operator.signMessage({ message: m }); sigs.push({ m, s }); return s; };
++  const lookup = resolver(A.reset, A.refused, A.good);
++  const issue = issuer({ endpoint: ENDPOINT, sign, base, request: (o) => requestCert({ ...o, lookup }) });
++  assert.equal(await issue(name, csr.csrPem, csr.spkiHash), "FIXTURE-CHAIN");
++  assert.equal(sigs.length, 1);
++  assert.equal(seen.reqs.length, 1);
++  const got = JSON.parse(seen.reqs[0].body);
++  const ts = Number(sigs[0].m.split(":").pop());
++  assert.deepEqual(got, { name, csr: csr.csrPem, endpoint: ENDPOINT, ts, opSig: sigs[0].s });
++  assert.equal(sigs[0].m, `enclave-certs-issue:${name}:${ENDPOINT}:${csr.spkiHash}:${ts}`);
++  assert.equal(seen.reqs[0].addr, A.good);
++  assert.equal(seen.reqs[0].servername, NAME);
++});
++
++test("DNS order is kept: a healthy first address is used and nothing else is touched", { timeout: 15_000 }, async () => {
++  reset();
++  const r = await originRequest(`${base}/v1/secrets/exists`, { method: "POST", body: JSON.stringify({ id: ID }), lookup: resolver(A.good, A.good2) });
++  assert.equal(r.status, 200);
++  assert.equal(r.address, A.good);
++  assert.equal(conns(A.good2), 0);
++});
++
++test("every address failing is bounded and stays UNKNOWN (a throw), naming each address", { timeout: 30_000 }, async () => {
++  reset();
++  await assert.rejects(secretsExist({ id: ID, base, lookup: resolver(A.reset, A.refused) }),
++    (e) => /is not known/.test(e.message) && e.message.includes(A.reset) && e.message.includes(A.refused) && /ECONNREFUSED/.test(e.message));
++  assert.equal(seen.reqs.length, 0);
++  // a black-holed handshake gives up its address after its share, so a later healthy one still answers in time
++  reset();
++  let t = Date.now();
++  const r = await originRequest(`${base}/v1/secrets/exists`, { method: "POST", body: "{}", timeoutMs: 6_000, lookup: resolver(A.hang, A.good) });
++  assert.equal(r.address, A.good);
++  assert.ok(Date.now() - t < 4_500, `rotated after the hang's share (${Date.now() - t} ms)`);
++  // and with nothing healthy the whole request ends at its deadline
++  reset();
++  t = Date.now();
++  await assert.rejects(originRequest(`${base}/x`, { timeoutMs: 3_000, lookup: resolver(A.reset, A.refused, A.hang) }),
++    (e) => e.name === "TimeoutError" || e.code === "ORIGIN_UNREACHABLE");
++  assert.ok(Date.now() - t < 3_800, `bounded by the 3 s deadline (${Date.now() - t} ms)`);
++  assert.equal(seen.reqs.length, 0);
++  // and the fetch path keeps refusing to round the wire off to "no secrets"
++  await assert.rejects(fetchSecrets({ id: ID, endpoint: ENDPOINT, sign: (m) => operator.signMessage({ message: m }), base, lookup: resolver(A.reset, A.refused) }),
++    /could not fetch the secrets .* after 3 tries .*ECONNRESET/);
++});
++
++test("an address with a wrong-name or self-signed certificate is refused and NOT routed around", { timeout: 15_000 }, async () => {
++  for (const [bad, code] of [[A.wrong, "ERR_TLS_CERT_ALTNAME_INVALID"], [A.self, "DEPTH_ZERO_SELF_SIGNED_CERT"]]) {
++    reset();
++    await assert.rejects(originRequest(`${base}/v1/secrets/exists`, { method: "POST", body: "{}", lookup: resolver(bad, A.good) }), (e) => e.code === code);
++    assert.equal(conns(A.good), 0, `${code}: the healthy address after it was not tried`);
++    assert.equal(seen.reqs.length, 0, `${code}: the request was never sent`);
++    reset();
++    await assert.rejects(secretsExist({ id: ID, base, lookup: resolver(bad, A.good) }), /is not known/);
++    assert.equal(seen.reqs.length, 0);
++  }
++  reset();
++  await assert.rejects(originRequest(`${base}/`, { lookup: resolver(A.self, A.wrong) }), (e) => e.code === "DEPTH_ZERO_SELF_SIGNED_CERT");
++  assert.equal(seen.reqs.length, 0);
++});
++
++test("the caller's abort and the deadline end the request; a sent request is never re-sent elsewhere", { timeout: 15_000 }, async () => {
++  reset();
++  respond = () => {};                                              // takes the request, never answers
++  const ac = new AbortController();
++  setTimeout(() => ac.abort(), 300);
++  await assert.rejects(requestCert({ name: "x.app.enclave.test", csrPem: "csr", spkiHash: "0".repeat(64), endpoint: ENDPOINT,
++    sign: (m) => operator.signMessage({ message: m }), base, signal: ac.signal, lookup: resolver(A.good, A.good2) }), (e) => e.name === "AbortError");
++  assert.equal(conns(A.good2), 0);
++  reset();
++  respond = () => {};
++  const t = Date.now();
++  await assert.rejects(originRequest(`${base}/v1/certs/issue`, { method: "POST", body: "{}", timeoutMs: 800, lookup: resolver(A.good, A.good2) }),
++    (e) => e.name === "TimeoutError");
++  assert.ok(Date.now() - t < 1_500);
++  assert.equal(conns(A.good2), 0);
++  // an already-aborted signal asks nobody
++  reset();
++  await assert.rejects(originRequest(`${base}/`, { signal: AbortSignal.abort(), lookup: resolver(A.good) }), (e) => e.name === "AbortError");
++  assert.equal(conns(A.good), 0);
++});
++
++test("a connection that dropped AFTER the request was sent is not retried at another address (no duplicate POST)", { timeout: 15_000 }, async () => {
++  reset();
++  const sign = (m) => operator.signMessage({ message: m });
++  await assert.rejects(requestCert({ name: "x.app.enclave.test", csrPem: "csr", spkiHash: "0".repeat(64), endpoint: ENDPOINT, sign, base,
++                                     lookup: resolver(A.sentReset, A.good) }), (e) => !e.notSent);
++  assert.equal(seen.reqs.length, 1);
++  assert.equal(seen.reqs[0].addr, A.sentReset);
++  assert.equal(conns(A.good), 0);
++});
++
++test("HTTP refusals, backoff and redirects are answers: returned once, never rotated around or followed", { timeout: 15_000 }, async () => {
++  const sign = (m) => operator.signMessage({ message: m });
++  const cert = (lookup) => requestCert({ name: "x.app.enclave.test", csrPem: "csr", spkiHash: "0".repeat(64), endpoint: ENDPOINT, sign, base, lookup });
++  reset();
++  respond = (rec, res) => { res.statusCode = 403; res.end(JSON.stringify({ error: "wrong_operator", message: "signed by someone else" })); };
++  assert.deepEqual(await cert(resolver(A.good, A.good2)), { ok: false, error: "wrong_operator", why: "signed by someone else" });
++  assert.equal(conns(A.good2), 0);
++  reset();
++  respond = (rec, res) => { res.statusCode = 202; res.end(JSON.stringify({ retryAfterSec: 30 })); };
++  assert.equal((await cert(resolver(A.good, A.good2))).retryAfterSec, 30);
++  assert.equal(conns(A.good2), 0);
++  reset();
++  respond = (rec, res) => { res.statusCode = 429; res.end(JSON.stringify({ error: "rate_limited" })); };
++  await assert.rejects(secretsExist({ id: ID, base, lookup: resolver(A.good, A.good2) }), /not known \(HTTP 429/);
++  assert.equal(conns(A.good2), 0);
++  assert.equal(seen.reqs.length, 1);
++  reset();
++  respond = (rec, res) => { res.statusCode = 307; res.setHeader("location", `https://${NAME}:${PORT}/elsewhere`); res.end(); };
++  assert.deepEqual(await cert(resolver(A.good, A.good2)), { ok: false, error: "http_307", why: "" });
++  await assert.rejects(secretsExist({ id: ID, base, lookup: resolver(A.good, A.good2) }), /not known \(HTTP 307/);
++  assert.equal(seen.reqs.filter((r) => r.url === "/elsewhere").length, 0, "the redirect was not followed");
++  assert.equal(conns(A.good2), 0);
++  reset();
++  respond = (rec, res) => { res.statusCode = 308; res.setHeader("location", "https://evil.example.test/v1/certs/issue"); res.end(); };
++  assert.equal((await cert(resolver(A.good))).error, "http_308");
++  assert.equal(seen.reqs.length, 1);
++});
++
++test("no address, a failed lookup, or a non-http(s) url is an error, never a default", { timeout: 15_000 }, async () => {
++  await assert.rejects(originRequest(`${base}/`, { lookup: async () => [] }), (e) => e.code === "ORIGIN_UNREACHABLE");
++  await assert.rejects(originRequest(`${base}/`, { lookup: async () => { throw Object.assign(new Error("getaddrinfo ENOTFOUND"), { code: "ENOTFOUND" }); } }),
++    (e) => e.code === "ENOTFOUND");
++  await assert.rejects(originRequest("ftp://api.enclave.test/"), /not an http\(s\) origin/);
++  await assert.rejects(originRequest(`https://u:p@${NAME}/`), /credentials/);
++});
+diff --git a/windows/node/apptls.mjs b/windows/node/apptls.mjs
+index 12fcc9b6fc786a2387948e95befb72975e4ad646..20ff7a5f0b73299fc53d2ced987f1ab50f2e8c91 100644
+--- a/windows/node/apptls.mjs
++++ b/windows/node/apptls.mjs
+@@ -20,6 +20,7 @@
+ import crypto from "node:crypto";
+ import fs from "node:fs";
+ import path from "node:path";
++import { originRequest } from "./origin-request.mjs";
+ 
+ /** The label the platform gives a deployment's origin: the first 8 hex of its id (domains.js). */
+ export const labelFor = (id) => {
+@@ -112,7 +113,7 @@ export function makeCsr(name) {
+  * words, because they name the thing to fix on this box (an unregistered endpoint, a lease that is
+  * not ours, a clock outside ±600s).
+  */
+-export async function requestCert({ name, csrPem, spkiHash, endpoint, sign, base = "https://api.enclave.host" }) {
++export async function requestCert({ name, csrPem, spkiHash, endpoint, sign, base = "https://api.enclave.host", signal, lookup }) {
+   // "" is a host with no certificate service (independent mode without RELAY_BASE): say so, sign nothing, ask nobody.
+   if (!String(base || "").trim()) return { ok: false, error: "no_certificate_service", why: "no certificate service is configured on this host" };
+   const ts = Math.floor(Date.now() / 1000);
+@@ -122,12 +123,15 @@ export async function requestCert({ name, csrPem, spkiHash, endpoint, sign, base
+   // the request.
+   const message = `enclave-certs-issue:${name}:${ep}:${spkiHash}:${ts}`;
+   const opSig = await sign(message);
+-  const r = await fetch(`${base.replace(/\/+$/, "")}/v1/certs/issue`, {
++  // Signed ONCE, and the same bytes go to whichever of the origin's addresses connects (origin-request.mjs): the relay
++  // spends each opSig once (409 sig_replayed) and keys its orders by (name, key), so a request is never re-sent once it
++  // may have arrived - and one front that drops the handshake no longer strands a certificate the relay already holds.
++  const r = await originRequest(`${base.replace(/\/+$/, "")}/v1/certs/issue`, {
+     method: "POST", headers: { "content-type": "application/json" },
+     body: JSON.stringify({ name, csr: csrPem, endpoint: ep, ts, opSig }),
+-    signal: AbortSignal.timeout(60_000),
++    timeoutMs: 60_000, signal, ...(lookup ? { lookup } : {}),
+   });
+-  const text = await r.text();
++  const text = r.text;
+   let body = {}; try { body = JSON.parse(text || "{}"); } catch {}
+   if (r.status === 200 && body.certPem) return { ok: true, certPem: body.certPem, notAfter: body.notAfter, ca: body.ca, cached: !!body.cached };
+   if (r.status === 202) return { ok: false, retryAfterSec: Number(body.retryAfterSec) || 60, why: "the relay is still getting it" };
+diff --git a/windows/node/origin-request.mjs b/windows/node/origin-request.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..9993cfc34c60086163e910b845d36aafd4b093f6
+--- /dev/null
++++ b/windows/node/origin-request.mjs
+@@ -0,0 +1,128 @@
++// windows/node/origin-request.mjs -- one HTTP(S) request to ONE origin, over whichever of that origin's own resolved
++// addresses completes a verified connection.
++//
++// WHY THIS EXISTS. api.enclave.host resolves to several front addresses, and the node's fetch() connects to the first
++// one only. On 2026-10-23 two fronts completed TCP and then closed the TLS handshake, and the NucBox's resolver put one
++// of them first: every certificate pickup (apptls.requestCert) and every secrets-state read (secrets.mjs) failed with
++// ECONNRESET while the other fronts were healthy, so certificates the relay had already issued were never collected and
++// every claim held on "secrets not known".
++//
++// WHAT IT CHANGES, and nothing more:
++//   * The SAME url. Every address it tries is one the system resolver returned for the url's own hostname: no address,
++//     provider or authority is configured here, and none is added.
++//   * The SAME trust. TLS verifies the certificate against the default trust store with the url's hostname as SNI and
++//     as the identity checked (Node's checkServerIdentity). A certificate this box does not trust is NOT routed around:
++//     an untrusted or mismatched identity is interception or a broken front, and either one has to surface, not be
++//     hidden behind the next address. It ends the request.
++//   * The SAME request, sent at most ONCE. Another address is tried only when the previous one failed BEFORE the
++//     connection was established (TCP for http:, the full verified handshake for https:). Until then not one byte of the
++//     request has left this box - Node holds the method, headers and body until the socket connects - so the next
++//     address receives the identical bytes and the service sees them once. A failure after that point (a reset while
++//     waiting for the answer, a timeout) is thrown: the request may have been delivered, and whether to ask again is the
++//     caller's decision, exactly as before.
++//   * The SAME answer. Any HTTP response - 403, 409, 429, 503, a redirect - is the service's answer and is returned as it
++//     is: a refusal or a backoff is never retried at another address, and a redirect is never followed.
++//   * The SAME deadline. timeoutMs and the caller's AbortSignal bound the whole request, every address included. A
++//     handshake that hangs gives up its address after a share of what is left, so one black-holed front cannot spend
++//     the whole budget.
++import http from "node:http";
++import https from "node:https";
++import dns from "node:dns";
++import net from "node:net";
++
++/** The shortest handshake an address is given before the next one is tried (unless less than that remains). */
++export const MIN_CONNECT_MS = 2000;
++
++// Failures that say only "this address is not answering": nothing of the request has been sent, and no identity was
++// presented that this box refused. An `ERR_SSL_*` code is OpenSSL's protocol layer (an alert from the peer, a peer that
++// does not speak TLS); a certificate this box refuses has its own codes (UNABLE_TO_VERIFY_LEAF_SIGNATURE,
++// DEPTH_ZERO_SELF_SIGNED_CERT, CERT_HAS_EXPIRED, ERR_TLS_CERT_ALTNAME_INVALID, ...) and is never on this list.
++const UNAVAILABLE = new Set(["ECONNRESET", "ECONNREFUSED", "ECONNABORTED", "EHOSTUNREACH", "EHOSTDOWN", "ENETUNREACH",
++  "ENETDOWN", "ETIMEDOUT", "EPIPE", "ENOTCONN", "EADDRNOTAVAIL", "ORIGIN_CONNECT_TIMEOUT"]);
++const unavailable = (e) => UNAVAILABLE.has(e?.code) || /^ERR_SSL_/.test(String(e?.code || ""));
++
++const aborted = (signal) => signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason || "aborted"));
++
++/**
++ * originRequest(url, { method, headers, body, timeoutMs, signal, lookup, maxBytes }) -> { status, headers, text, address }
++ *   lookup    dns.promises.lookup's shape; the default is the system resolver, in its own order
++ *   maxBytes  the largest answer read (a certificate chain or a small JSON body; anything bigger is not one)
++ * Throws when no address connects (code ORIGIN_UNREACHABLE, with every address's reason), when the connection that did
++ * carry the request fails before the answer is complete, when an address presents an identity TLS refuses, and on the
++ * deadline or the caller's abort.
++ */
++export async function originRequest(url, { method = "GET", headers = {}, body, timeoutMs = 30_000, signal,
++                                           lookup = dns.promises.lookup, maxBytes = 1 << 20 } = {}) {
++  const u = new URL(url);
++  if (u.protocol !== "https:" && u.protocol !== "http:") throw new Error(`${u.protocol} is not an http(s) origin`);
++  if (u.username || u.password) throw new Error("the origin url must not carry credentials");
++  const deadline = Date.now() + timeoutMs;
++  const all = AbortSignal.any([AbortSignal.timeout(timeoutMs), ...(signal ? [signal] : [])]);
++  if (all.aborted) throw aborted(all);
++  const hostname = u.hostname.replace(/^\[|\]$/g, "");
++  const tlsOn = u.protocol === "https:";
++  const payload = body === undefined || body === null ? null : Buffer.from(body);
++
++  let addrs;
++  if (net.isIP(hostname)) addrs = [{ address: hostname, family: net.isIP(hostname) }];
++  else {
++    let onAbort;
++    try {
++      addrs = await Promise.race([lookup(hostname, { all: true }),
++        new Promise((_, reject) => { onAbort = () => reject(aborted(all)); all.addEventListener("abort", onAbort, { once: true }); })]);
++    } finally { all.removeEventListener("abort", onAbort); }
++  }
++  const seen = new Set();
++  addrs = (Array.isArray(addrs) ? addrs : []).filter((a) => a && net.isIP(a.address) && !seen.has(a.address) && seen.add(a.address));
++  if (!addrs.length) throw Object.assign(new Error(`${hostname} resolved to no address`), { code: "ORIGIN_UNREACHABLE" });
++
++  const failed = [];
++  for (let i = 0; i < addrs.length; i++) {
++    const { address, family } = addrs[i];
++    const left = deadline - Date.now();
++    const connectMs = Math.min(left, Math.max(MIN_CONNECT_MS, left / (addrs.length - i)));
++    try {
++      return await once({ u, hostname, address, family, tlsOn, method, headers, payload, signal: all, connectMs, maxBytes });
++    } catch (e) {
++      if (all.aborted) throw aborted(all);
++      if (!e.notSent || !unavailable(e)) throw e;
++      failed.push(`${address} ${e.code}`);
++    }
++  }
++  throw Object.assign(new Error(`${u.origin}: no address answered before the request was sent (${failed.join(", ")})`),
++    { code: "ORIGIN_UNREACHABLE", notSent: true });
++}
++
++/** One address. A rejection carries notSent: true when the connection was never established. */
++function once({ u, hostname, address, family, tlsOn, method, headers, payload, signal, connectMs, maxBytes }) {
++  return new Promise((resolve, reject) => {
++    let connected = false, settled = false;
++    const done = (fn, v) => { if (!settled) { settled = true; clearTimeout(timer); fn(v); } };
++    const req = (tlsOn ? https : http).request({
++      host: hostname, port: u.port || (tlsOn ? 443 : 80), path: `${u.pathname}${u.search}`, method,
++      // The url's own name, for SNI and for the identity TLS checks; an address literal sends no SNI, as before.
++      ...(tlsOn && !net.isIP(hostname) ? { servername: hostname } : {}),
++      headers: { ...headers, host: u.host, ...(payload ? { "content-length": payload.length } : {}) },
++      // Pinned to this one resolved address of the same name; a fresh socket, so no pooled one to another address.
++      lookup: (_h, opts, cb) => (opts && opts.all ? cb(null, [{ address, family }]) : cb(null, address, family)),
++      autoSelectFamily: false, agent: false, signal,
++    });
++    const timer = setTimeout(() => {
++      if (!connected) req.destroy(Object.assign(new Error(`${address}: no ${tlsOn ? "TLS handshake" : "connection"} within ${Math.round(connectMs)} ms`),
++        { code: "ORIGIN_CONNECT_TIMEOUT" }));
++    }, connectMs);
++    req.on("socket", (s) => s.once(tlsOn ? "secureConnect" : "connect", () => { connected = true; clearTimeout(timer); }));
++    req.on("error", (e) => { if (!connected) e.notSent = true; done(reject, e); });
++    req.on("response", (res) => {
++      const parts = []; let n = 0;
++      res.on("data", (c) => {
++        n += c.length;
++        if (n > maxBytes) { res.destroy(); done(reject, new Error(`${u.origin} answered more than ${maxBytes} bytes`)); } else parts.push(c);
++      });
++      res.on("error", (e) => done(reject, e));
++      res.on("aborted", () => done(reject, new Error(`${u.origin} closed the answer before it was complete`)));
++      res.on("end", () => done(resolve, { status: res.statusCode, headers: res.headers, text: Buffer.concat(parts).toString("utf8"), address }));
++    });
++    req.end(payload || undefined);
++  });
++}
+diff --git a/windows/node/secrets.mjs b/windows/node/secrets.mjs
+index f7e1c31768115f739d178f05a93d90a02b9567b4..7535c77a8ccface0e16f115d948d60b83cf1d23e 100644
+--- a/windows/node/secrets.mjs
++++ b/windows/node/secrets.mjs
+@@ -36,6 +36,8 @@
+ // Values never reach a log line or an error message here, only NAMES and byte counts: a log on this
+ // box is readable by whoever holds the machine, and an error string ends up on /v1/deployments.
+ 
++import { originRequest } from "./origin-request.mjs";
++
+ // The relay's own bounds, spelled here so a refusal can name the suspect. FETCH_SKEW_SEC is why a
+ // box with a wrong clock is refused rather than served, and this is the only refusal an operator
+ // fixes by looking at their own machine instead of the chain.
+@@ -77,7 +79,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  *   "not-on-ledger" the relay's ledger view has no such deployment, or no fetch route (404)
+  * and throws on every other outcome.
+  */
+-export async function fetchSecrets({ id, endpoint, sign, base = "https://api.enclave.host", log = () => {} }) {
++export async function fetchSecrets({ id, endpoint, sign, base = "https://api.enclave.host", log = () => {}, lookup }) {
+   // Checked against the relay's own parser first, because a request it would 422 is a request we
+   // should not have signed: a signature is a small commitment, but it is the box's identity, and
+   // signing tuples built from junk is how a key ends up over a message nobody audited.
+@@ -123,12 +125,12 @@ export async function fetchSecrets({ id, endpoint, sign, base = "https://api.enc
+     try {
+       // No `sig` field at all: this box holds no fleet key and sending an empty one would only
+       // make the relay's refusal log read as a failed HMAC instead of what it is.
+-      const r = await fetch(`${api}/v1/secrets/fetch`, {
++      const r = await originRequest(`${api}/v1/secrets/fetch`, {
+         method: "POST", headers: { "content-type": "application/json" },
+         body: JSON.stringify({ id: idL, endpoint: ep, ts, opSig }),
+-        signal: AbortSignal.timeout(TIMEOUT_MS) });
++        timeoutMs: TIMEOUT_MS, ...(lookup ? { lookup } : {}) });
+       status = r.status;
+-      text = await r.text();
++      text = r.text;
+     } catch (e) { last = e.message || String(e); continue; }   // the wire: worth another go
+ 
+     if (status === 200) {
+@@ -219,8 +221,10 @@ export function mergeEnv(base, secrets) {
+  * lease holder's fetch it works BEFORE a claim, and for a lease holder the relay does not hold eligible - the fetch
+  * refuses both (409 not_lease_holder; 403 host_ineligible since U7), which left d1's live test 1 held as "not known".
+  * Anything but a 200 that names this id with a boolean is a throw (unknown): never "no". A 5xx or the wire is retried once.
++ * Each go may use any of the relay origin's resolved addresses (origin-request.mjs); when none of them answers it is
++ * still a throw, never "no".
+  */
+-export async function secretsExist({ id, base = "https://api.enclave.host" } = {}) {
++export async function secretsExist({ id, base = "https://api.enclave.host", lookup } = {}) {
+   const idL = String(id || "").toLowerCase();
+   if (!/^0x[0-9a-f]{64}$/.test(idL)) throw new Error(`secrets: "${id}" is not a bytes32 deployment id`);
+   const api = String(base || "").trim().replace(/\/+$/, "");
+@@ -230,9 +234,9 @@ export async function secretsExist({ id, base = "https://api.enclave.host" } = {
+     if (attempt) await sleep(1000);
+     let status = 0, text = "";
+     try {
+-      const r = await fetch(`${api}/v1/secrets/exists`, { method: "POST", headers: { "content-type": "application/json" },
+-        body: JSON.stringify({ id: idL }), signal: AbortSignal.timeout(TIMEOUT_MS) });
+-      status = r.status; text = await r.text();
++      const r = await originRequest(`${api}/v1/secrets/exists`, { method: "POST", headers: { "content-type": "application/json" },
++        body: JSON.stringify({ id: idL }), timeoutMs: TIMEOUT_MS, ...(lookup ? { lookup } : {}) });
++      status = r.status; text = r.text;
+     } catch (e) { last = e.message || String(e); continue; }
+     if (status === 200) {
+       let b; try { b = JSON.parse(text); } catch { throw new Error("secrets: the relay's exists answer is not JSON"); }

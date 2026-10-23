@@ -1,0 +1,4 @@
+/init: line 20: chmod: command not found
+guest-exit phase=two rc=0
+[    4.000488] sysrq: Power Off
+[    4.006202] reboot: Power down

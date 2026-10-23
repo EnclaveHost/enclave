@@ -1,0 +1,15 @@
+F HANDOFF — windows-memory-accounting (2026-10-23, Claude worker; root review required before native activation)
+Patch: work/windows-memory-accounting-20261023/windows-memory-accounting.patch
+  sha256 eeab54d2292a49341125f249a1124ff7bc2a042aa6bec90800c5af681491cb92 = commit 9f19b7c66c156dc3f1052ece121de89e4c741912 on 6f6d22f5
+Apply: git am (or git apply --3way) in your compose tree. Checked: applies clean on 14d1e4954; applies (offsets 1-61) onto
+  copies of your UNCOMMITTED host.mjs/agent.mjs/chain.mjs taken 11:15Z. Re-check if those files moved since.
+Files: windows/vbslike/manager/server.mjs, windows/node/{host,agent,chain}.mjs, windows/installer/install-host.ps1,
+  docs/operations/host-ram-budget.md, test/windows-hv-memory-accounting.test.mjs (new), test/windows-installer-app-ram.test.mjs
+  (new), test/windows-node-{preclaim,scan-slot}.test.mjs (fixtures state the manager RAM view the agent reads first).
+After composing, rerun in YOUR tree (queue, --test-concurrency=1): the 2 new files (256, peak 166 MiB) and the coupled set
+  of j3-coupled.sh + j4 (512, peak 295 MiB). test/windows-node-hv-attach-relay needs the gitignored
+  relay/network-runtime.bundle.mjs present.
+Behaviour to expect: an isolated node advertises 0 free app RAM and claims nothing until the manager's /health memory
+  has been read (agent reads it before the first scan); installer refuses (machine checks) a malformed/out-of-range
+  owner NODE_APP_RAM_GB instead of clamping; NucBox 96 on 111 GiB passes with a "warn" checks line (15 GiB outside pool).
+Do not deploy from this note; RESULT.md lists activation steps and remaining physical-headroom/restart-resize gaps.

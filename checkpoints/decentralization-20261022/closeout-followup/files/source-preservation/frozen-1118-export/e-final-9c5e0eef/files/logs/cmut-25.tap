@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
+ok 1 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
+  ---
+  duration_ms: 450.405585
+  type: 'test'
+  ...
+# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
+ok 2 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
+  ---
+  duration_ms: 298.498175
+  type: 'test'
+  ...
+# finality: {"state":"l2-included","level":"finalized","depositL1Final":true,"gates":[]}
+# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
+not ok 3 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
+  ---
+  duration_ms: 46.42045
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-25/test/source-binding.anvil.test.mjs:112:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async expect (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-25/test/source-binding.anvil.test.mjs:115:60)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-25/test/source-binding.anvil.test.mjs:120:59)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
+ok 4 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
+  ---
+  duration_ms: 35.375865
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1107.290458

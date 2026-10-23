@@ -1,0 +1,642 @@
+From 901d7b314612f198dad9d639af5ff0bbe09be1bb Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:45:49 -0700
+Subject: [PATCH 3/5] RESULT-SOURCE-BINDING: adapters, label-free evidence,
+ tests 32/32, 36/36 mutants, app-funding decision
+
+---
+ RESULT-SOURCE-BINDING.md | 183 ++++++++++++++++++++++++++++
+ logs/cmut-11.tap         |  53 ++++----
+ logs/cmut-17.tap         |  53 ++++++--
+ logs/final-sb2-suite.out | 256 +++++++++++++++++++++++++++++++++++++++
+ logs/final-sb2.guard.log |   1 +
+ logs/final-sb2.out       |   9 ++
+ logs/final-sb2.rc        |   1 +
+ 7 files changed, 522 insertions(+), 34 deletions(-)
+ create mode 100644 RESULT-SOURCE-BINDING.md
+ create mode 100644 logs/final-sb2-suite.out
+ create mode 100644 logs/final-sb2.guard.log
+ create mode 100644 logs/final-sb2.out
+ create mode 100644 logs/final-sb2.rc
+
+diff --git a/RESULT-SOURCE-BINDING.md b/RESULT-SOURCE-BINDING.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..07bb03462bfa7abb5d786f8aab0d75f535a37047
+--- /dev/null
++++ b/RESULT-SOURCE-BINDING.md
+@@ -0,0 +1,183 @@
++# Source binding of transaction verification + the app-funding decision (2026-10-23)
++
++Source and offline tests only.
++- **Not done:** no live endpoint, SSH, wallet, signing outside local fixtures, funding, contract deploy, push, toolchain
++  or sync.
++- **Trees:** P, S, B, A and F were not edited (file handoff only).
++- **Author and committer:** SteveDeFacto.
++- **Earlier work preserved:** `a460c36c`, `159fd148`, `017b8aae`, `027ff549` (26 pass / 27 mutants), `ca818b75`. The
++  single-provider capture limitation stands.
++
++## Commits
++
++| commit | content |
++|---|---|
++| `a194afe28dbf39f6716c415cc4609e00f25ea9a7` | source binding: adapters, evidence minting, checks require minted evidence, tests, proposal, handoff, artifact recipe |
++| `46dbfbef32a25e23c7d1045f2458f00a7470cb32` | **final source**: tracker unit test on test-labels; mutants 11/17 re-pointed |
++| (this report and the D export) | follow-up commit |
++
++**Source file sha256 at `46dbfbef`:**
++
++| file | sha256 |
++|---|---|
++| `src/evidence-brand.mjs` | `e0aa7363…` |
++| `src/l1-source-binding.mjs` | `d4a48790…` |
++| `src/base-source-binding.mjs` | `5b5922b3…` |
++| `src/forced-inclusion.mjs` | `438e9c77…` |
++| `src/vault-deposit.mjs` | `a0401e08…`, unchanged |
++| `src/lease-signing-policy.mjs` | `30cfd9e7…`, unchanged |
++
++## What changed: a label is no longer evidence
++
++Before this change, `matchDepositEvent`, `checkPortalPin`, `resolveFailedL1`, `classifyL2Outcome` and
++`classifyFinality` accepted any object whose `verifiedBy` string was in an allowlist. Now, by default, they accept only
++objects **minted** by a read adapter (`src/evidence-brand.mjs`, a module-private WeakSet). Each must also:
++- be of the expected kind;
++- carry an accepted `trust`;
++- for receipts, be the very receipt object the adapter returned.
++
++Explicit `verifiers` lists are accepted only for `test-*` labels. `verifiers: ['l1-execution-proof']` is refused
++(`labels-are-not-evidence`).
++
++The minting is an in-process capability, not cryptography. It stops callers, config files and endpoints from asserting
++evidence. It does not stop code inside the same process.
++
++### `createL1PairSource` (`src/l1-source-binding.mjs`): bound to P's reth + Lighthouse pair
++
++Every read is from the two configured loopback endpoints only: non-loopback, credentials, or the same URL for both
++clients is refused, and there is no fallback list. Before every evidence read it checks readiness, which is P's
++`l1pair.py ready` fact set:
++
++| side | checks |
++|---|---|
++| EL | chain 1, mainnet genesis `0xd4e5…8fa3`, `eth_syncing` false, peers ≥ 1, head lag ≤ 120 s, finalized present and lag ≤ 1 h, safe present |
++| CL | GVR `0x4b36…fe95`, not syncing / optimistic / EL-offline, peers ≥ 1 |
++| **PAIRING** | the beacon finalized payload `(block_number, block_hash)` is the EL block at that number AND the EL's `finalized` block; the beacon head payload is the EL block at that height |
++
++- **`receipt(txHash)`:**
++  - binds receipt ↔ transaction (`eth_getTransactionByHash`: nonce, from, blockHash) ↔ block (by hash, listing the tx);
++  - re-checks readiness AND the canonical hash at that number AFTER the read: a reorg is refused, a regressed
++    finalized checkpoint is refused, a missing receipt is `pending`;
++  - `finalized` comes only from the paired finalized checkpoint.
++- **`portalSnapshot(portal)`:** reads the EIP-1967 implementation and `version()` pinned to the paired finalized block.
++- **Trust:**
++  - `local-validated-pair` only for the mainnet identity: local full-node validation. reth executed every block from
++    genesis; Lighthouse follows consensus from its weak-subjectivity anchor (P's checkpoint provenance). It is not a
++    portable proof.
++  - Anything else mints `test-fixture`, which the defaults refuse.
++  - `minPeers: 0` is refused for mainnet.
++
++### `createBaseNodeSource` (`src/base-source-binding.mjs`): bound to S's Base holder AND the same L1 adapter
++
++- **Readiness:**
++  - chain `0x2105`, genesis `0xf712…73dd`, `eth_syncing` false;
++  - `optimism_syncStatus` (snake_case; field names from base/base v1.5.1 `crates/consensus/protocol/src/sync.rs`) with
++    a fresh unsafe head;
++  - unsafe, safe and finalized heads are the EL's blocks;
++  - the node's `current_l1` must be canonical, and `finalized_l1` canonical AND final, in OUR L1 pair. A holder
++    deriving from another L1 is refused.
++- **`receipt(txHash)`:** canonical re-check after the read; `level` = finalized / safe / unsafe from the node's heads.
++- **`classifyFinality`** returns `finalized` only if the L2 receipt's block is derivation-finalized AND the deposit's
++  L1 block is final in the pair (`depositL1Final`).
++
++**Never upgraded:** an unsafe head (sequencer-signed), a Sia or archive history entry, a send reply, a Helios label.
++
++## Tests (actual runs)
++
++**Final suite:** **32/32 pass** on `46dbfbef` (`logs/final-sb2-suite.out`, one 512-MiB job, peak 337 MiB). That is the
++previous 26 plus 6 new.
++
++- **`source-binding.anvil` (4), the adapters over real components:**
++  - **L1:** anvil running the PRODUCTION portal bytecode (single-provider capture). It started at the captured block
++    and is labelled with a FIXTURE CLOCK and identity.
++  - **L2:** real lease contracts.
++  - **Fixtures:** a LABELLED beacon fixture (mirrors anvil's tags; NOT Lighthouse) and a LABELLED `optimism_syncStatus`
++    fixture.
++  - **Shown:**
++    - configuration refusals: public URL, same URL, a Base source without an L1 source, mainnet identity with
++      `minPeers 0`;
++    - the mainnet identity refuses the anvil fixture (genesis, GVR, peers);
++    - a forced lease read back only through minted evidence. The default trust refuses the fixture; a spread copy and a
++      foreign receipt are refused. Then deposit match → real L2 execution → Base evidence: **unsafe → safe (L2
++      finalized while the L1 deposit block is not final) → finalized after the L1 pair finalizes it**;
++    - fail closed on: an unpaired beacon (a payload that is a real EL block but not the EL's finalized block); syncing,
++      optimistic, EL offline; no peers; a stale head; a Base node on another L1; a reorged-away receipt (`pending`, not
++      evidence);
++    - nonce and resend binding uses the node's nonce.
++- **`source-binding` (2), scripted control flow** (labelled stubs):
++  - a pair reporting mainnet identity on loopback mints `local-validated-pair`. The configured loopback pair is the
++    trust anchor; that is stated, not hidden;
++  - reorg between reads → `l1-not-canonical`; another tx's receipt, or a tx not in its block → `l1-receipt-mismatch`;
++    no finalized tag → not ready.
++- **Updated** for "labels are not evidence":
++  - `finality` (1): labelled JSON refused;
++  - `forced-inclusion` (6): `helios` label refused by default and when whitelisted;
++  - `tracker` (1): production-label JSON refused.
++
++**Mutation controls:** **36/36 killed.**
++- The original 10 (`logs/final-sb.out`).
++- 26 closure mutants: 16 earlier plus 10 new for minting, trust, receipt identity, pairing, canonical re-check, the
++  Base L1 view, loopback-only, beacon sync flags, block-lists-tx and test-only labels.
++- Mutants 11/17 first survived because they pointed at suites that no longer exercise those guards. Re-pointed to the
++  source-binding suite and killed (`logs/final-sb2.out`).
++
++**Earlier failed runs, kept as evidence:**
++- `bind-1`: an `await` syntax error.
++- `bind-2`: stopped while queued, never started.
++- `bind-3`: anvil fixture plumbing (genesis number, `net_peerCount`, clock, finalized depth).
++- `bind-4` / `final-sb`: a stub reorg modelling error; the tracker test on old labels.
++
++**Scans:** crypto-key scan clean, gitleaks no leaks.
++
++## What can run once the resource gate closes (no code change needed)
++
++1. P's pair synced, with `l1pair.py ready` passing → `createL1PairSource({execution:{url:'http://127.0.0.1:18645'},
++   consensus:{url:'http://127.0.0.1:15052'}})`. Its `readiness()` must be ok.
++2. S's holder deriving from that pair → `createBaseNodeSource({execution:{url}, rollup:{url}, l1})`.
++3. Read only, before any signing: `checkPortalPin(await l1.portalSnapshot(portal), {portal, implementation:
++   0x03863ab7…, versions:['6.0.1']})`. This is the first validated (not provider-claimed) reading of the production
++   portal pin.
++4. The forced path: plan (unsigned) → signed elsewhere → P's opt-in local broadcast → `l1.receipt` →
++   `matchDepositEvent` → `base.receipt` → `classifyL2Outcome` / `classifyFinality`.
++
++**Still a gate, not claimed:**
++- the pair actually synced;
++- real Lighthouse/reth behaviour on these exact calls (P's binary-closure tests);
++- the Base holder's rollup RPC port and `optimism_syncStatus` from the real binary;
++- any portable proof. Full-consensus evidence is explicit only once P's live pair is synchronized.
++
++**Handoff:** `HANDOFF-SOURCE-BINDING.md` gives the exact RPC surfaces for P and S, the wiring for B, and the display
++rules for A. The earlier `NOTE-FOR-P-L1-BROADCAST.md` stands.
++
++## App-funding decision (`PROPOSAL-FORCED-INCLUSION-COMPENSATION.md`)
++
++- **Routine Base broadcast fees** are app-funded today: the reserve's `finish()` formula covers the normal relay path.
++- **Emergency forced-inclusion L1 fees** are NOT, and the existing contracts cannot make them automatic:
++  - The reserve pays only through `finish()`, where `tx.gasprice` is 0 for deposits (measured coverage 3.8e-6), or
++    through the owner's own `withdraw`.
++  - That `withdraw` is keyed to `msg.sender` and refused mid-operation. There is no allowance, delegate or module path.
++  - SessionVault-owned apps reach the reserve only through the DIRECT-ONLY `ownerCall`, and session keys have no
++    reserve action.
++  - The only existing workaround is an owner-prepaid FLOAT: one owner signature per float, to a TRUSTED submitter. It
++    pays L2 ETH, while the submitter needs L1 ETH (about 7 days back through the canonical bridge).
++- **Lease continuity delay** (up to 43,200 s against a 1,800-s lease) is protocol-bound and unchanged by any payment.
++- **Minimal proposal** (additive, not implemented, not deployed): an optional `EnclaveForcedLeaseCompensator`. Called
++  by the deposit, it runs the existing executor's lease and atomically pays the host-named submitter from the owner's
++  own escrow. The payment is bounded by the operator-signed `ForcedTerms`, the owner's caps, and an L1Block-basefee
++  estimate.
++  - The proposal includes the unsigned call and permission inventory, plus the liquidity, race, estimate and admin
++    requirements.
++  - **No funding or authorization is requested now.** The decision is external (root / contract owners).
++
++## D source preservation
++
++- `exports/source-only/`: `git format-patch` of all commits, EXCLUDING compiled fixture artifacts
++  (`fixtures/artifacts/*.json`) and bytecode captures (`evidence/capture/*.json`).
++- `exports/source-only/ARTIFACT-RECIPE.json` (`tools/artifact-recipe.mjs`) pins each omitted file:
++
++  | omitted file | pinned with |
++  |---|---|
++  | each of the 13 compiled artifacts | origin path, sha256, solc 0.8.35 settings, source keccak, runtime keccak, links |
++  | the 2 captures | spec, block, provider, account code hashes |
++
++- Old history is not rewritten.
+diff --git a/logs/cmut-11.tap b/logs/cmut-11.tap
+index ffc3e31c72bc7b3e70f8cce321c7f06e45a1f3de..c1a8301a652b4f1f036481eaeee56210f238da69 100644
+--- a/logs/cmut-11.tap
++++ b/logs/cmut-11.tap
+@@ -1,43 +1,44 @@
+ TAP version 13
+-# Subtest: provenance: the replayed production portal answers version() and params() as the provider did at the captured block
+-ok 1 - provenance: the replayed production portal answers version() and params() as the provider did at the captured block
++# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++ok 1 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
+   ---
+-  duration_ms: 177.075725
++  duration_ms: 454.087093
+   type: 'test'
+   ...
+-# Subtest: the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
+-ok 2 - the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
++# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++not ok 2 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
+   ---
+-  duration_ms: 34.777518
++  duration_ms: 32.363835
+   type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-11/test/source-binding.anvil.test.mjs:65:1'
++  failureType: 'testCodeFailure'
++  error: 'Missing expected exception: a copy is not minted'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-11/test/source-binding.anvil.test.mjs:74:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+   ...
+-# EOA deposit: L1 gasUsed 834932 at base fee 1 gwei
+-# Subtest: a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
+-ok 3 - a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
++# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++ok 3 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
+   ---
+-  duration_ms: 24.493508
++  duration_ms: 123.6091
+   type: 'test'
+   ...
+-# 7702-delegated EOA via relayer: deposit from 0xb91a6b26032b315F5EaB1c0D1977910eD8b898cE (EOA 0xb91a6b26032b315F5EaB1c0D1977910eD8b898cE, alias 0xca2B6B26032b315f5Eab1C0d1977910ed8b8a9Df)
+-# Subtest: L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
+-ok 4 - L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
++# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++ok 4 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
+   ---
+-  duration_ms: 541.308478
++  duration_ms: 29.034213
+   type: 'test'
+   ...
+-# L1_COST [{"baseFeeGwei":0.1,"l2GasLimit":400000,"l1GasUsed":435082,"effectiveGasPrice":"100000000","l1CostWei":"43508200000000"},{"baseFeeGwei":0.1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"87862569","l1CostWei":"73358303972049"},{"baseFeeGwei":1,"l2GasLimit":400000,"l1GasUsed":435069,"effectiveGasPrice":"1000000000","l1CostWei":"435069000000000"},{"baseFeeGwei":1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"878625575","l1CostWei":"733582943704575"},{"baseFeeGwei":5,"l2GasLimit":400000,"l1GasUsed":114994,"effectiveGasPrice":"5000000000","l1CostWei":"574970000000000"},{"baseFeeGwei":5,"l2GasLimit":800000,"l1GasUsed":217683,"effectiveGasPrice":"4379791417","l1CostWei":"953406135026811"},{"baseFeeGwei":30,"l2GasLimit":400000,"l1GasUsed":72267,"effectiveGasPrice":"30000000000","l1CostWei":"2168010000000000"},{"baseFeeGwei":30,"l2GasLimit":800000,"l1GasUsed":69431,"effectiveGasPrice":"26268066750","l1CostWei":"1823818142519250"}]
+-# Subtest: refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
+-ok 5 - refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
+-  ---
+-  duration_ms: 22.776973
+-  type: 'test'
+-  ...
+-1..5
+-# tests 5
++1..4
++# tests 4
+ # suites 0
+-# pass 5
+-# fail 0
++# pass 3
++# fail 1
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5049.435277
++# duration_ms 901.001777
+diff --git a/logs/cmut-17.tap b/logs/cmut-17.tap
+index be198cda059ee0eba15ba024911bf658d9f9de43..f80c60bf5c8d1328dd666e603e0b994e50a6cf34 100644
+--- a/logs/cmut-17.tap
++++ b/logs/cmut-17.tap
+@@ -1,16 +1,53 @@
+ TAP version 13
+-# Subtest: no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
+-ok 1 - no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
++# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++ok 1 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
+   ---
+-  duration_ms: 1.391318
++  duration_ms: 438.07475
+   type: 'test'
+   ...
+-1..1
+-# tests 1
++# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++not ok 2 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++  ---
++  duration_ms: 209.760159
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-17/test/source-binding.anvil.test.mjs:65:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    no finalized L2 while the deposit L1 block is not final
++    + actual - expected
++    
++    + 'finalized'
++    - 'safe'
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: 'safe'
++  actual: 'finalized'
++  operator: 'strictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-17/test/source-binding.anvil.test.mjs:100:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++ok 3 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++  ---
++  duration_ms: 116.257173
++  type: 'test'
++  ...
++# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++ok 4 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++  ---
++  duration_ms: 33.039269
++  type: 'test'
++  ...
++1..4
++# tests 4
+ # suites 0
+-# pass 1
+-# fail 0
++# pass 3
++# fail 1
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 245.242178
++# duration_ms 4633.514653
+diff --git a/logs/final-sb2-suite.out b/logs/final-sb2-suite.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..85cf0b5ea34af66fda92847d92030b183162e73e
+--- /dev/null
++++ b/logs/final-sb2-suite.out
+@@ -0,0 +1,256 @@
++46dbfbef32a25e23c7d1045f2458f00a7470cb32
++?? logs/final-sb2-suite.out
++?? logs/final-sb2.out
++anvil Version: 1.7.1
++v22.23.3
++  "version": "2.53.1",
++5b5922b3fdddb6384d06529fb86cadd29df5b14c1a1adf30aee97554d145487b  src/base-source-binding.mjs
++e0aa736375584b5707fe81924f68be2f6312de2cc5623f9a7ae71a9be31636ce  src/evidence-brand.mjs
++438e9c77382eeb9e60bd57cfaf4c98ee2f831d93aec7b0c75e7fbc151b87942c  src/forced-inclusion.mjs
++d4a4879d841863910c4cf1a8467a48e42583c85f8d87d1f2cd1a9b50718a9742  src/l1-source-binding.mjs
++30cfd9e7ba27740b55f5b4f3b8d603d4da2b44a7583a3f8c4b5107874b71fb2c  src/lease-signing-policy.mjs
++a0401e08e6f51586e8776fc9bd7356c4a1e76f260dd4a74dc270de4fab5bb821  src/vault-deposit.mjs
++4fc17967ebba4601161160ce4d7df8b2e24db5888d898d5af9defd620d92a090  test/fee-audit.anvil.test.mjs
++fe95a0f355e4dac08243af2b4562a0082ff3849e7619db45b01ed743f5b0388e  test/finality.test.mjs
++a1781760e1f270318fd60e2c6baf74f1ebaf6b5c1d62891b15d93403583b3b98  test/forced-inclusion.anvil.test.mjs
++748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
++8474c4c04f793c377f2ddd55b4d5d4e42689cf64b41907d8e5236d6cba7215af  test/lease-signing-policy.anvil.test.mjs
++6fc792a6c395df86d105cbaf72ff3b105da671071e93fe2885667c1ebf1dc008  test/source-binding.anvil.test.mjs
++dd1da4b52e93bdd0e2c8327a7549b265d609335ab3925eb6e98ce9109358778a  test/source-binding.test.mjs
++f7a35189255cc88168fe0927e44bf06d4c9677ef910cef381f031615bb5cb5c1  test/tracker.test.mjs
++39422d45f9d1e91f2d2a49aa0da9fafd31f1f77c0654d7ab483ba3e3cfc210a3  test/vault-deposit.anvil.test.mjs
++966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  fixtures/artifacts/EnclaveAddressBook.json
++0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
++dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
++aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
++aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
++66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
++613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d  fixtures/artifacts/Mock1271Owner.json
++10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
++524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
++9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946  fixtures/artifacts/MockUSDC3009.json
++f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc  fixtures/artifacts/SessionVault.json
++eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e  fixtures/artifacts/SessionVaultFactory.json
++bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478  fixtures/artifacts/SessionVaultLib.json
++b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8  fixtures/sources/EnclaveAddressBook.sol
++2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
++dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
++1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
++e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
++a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703  fixtures/sources/MockUSDC.sol
++47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d  fixtures/sources/SessionMocks.sol
++a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c  fixtures/sources/SessionVault.sol
++47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
++97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
++65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
++5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: provenance: the replayed production GasPriceOracle answers getL1FeeUpperBound(460) exactly as the provider did
++ok 1 - provenance: the replayed production GasPriceOracle answers getL1FeeUpperBound(460) exactly as the provider did
++  ---
++  duration_ms: 412.695756
++  type: 'test'
++  ...
++# Subtest: a forced-inclusion CLAIM: the reserve pays its payee ONLY the L1-fee upper bound (gas price 0); the L1 deposit costs orders of magnitude more
++ok 2 - a forced-inclusion CLAIM: the reserve pays its payee ONLY the L1-fee upper bound (gas price 0); the L1 deposit costs orders of magnitude more
++  ---
++  duration_ms: 43.50425
++  type: 'test'
++  ...
++# FEE {"reservePaidWei":"3135045021","laterLeasesWei":"2586495097","l1GasUsed":"832244","l1BaseFeeWei":"1000000000","l1CostWei":"832244000000000","coverage":0.0000037669782191280442}
++# Subtest: every existing knob at its limit: the maximum the reserve can pay a deposit lease is still the L1 bound; the contracts refuse more
++ok 3 - every existing knob at its limit: the maximum the reserve can pay a deposit lease is still the L1 bound; the contracts refuse more
++  ---
++  duration_ms: 15.606197
++  type: 'test'
++  ...
++# Subtest: no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
++ok 4 - no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
++  ---
++  duration_ms: 1.343739
++  type: 'test'
++  ...
++# Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
++ok 5 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
++  ---
++  duration_ms: 518.716724
++  type: 'test'
++  ...
++# Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
++ok 6 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
++  ---
++  duration_ms: 63.184752
++  type: 'test'
++  ...
++# claim deposit gasUsed 334193 of limit 800000
++# Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
++ok 7 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
++  ---
++  duration_ms: 43.860227
++  type: 'test'
++  ...
++# Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
++ok 8 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
++  ---
++  duration_ms: 82.131551
++  type: 'test'
++  ...
++# Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
++ok 9 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
++  ---
++  duration_ms: 24.946747
++  type: 'test'
++  ...
++# Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
++ok 10 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
++  ---
++  duration_ms: 24.727589
++  type: 'test'
++  ...
++# Subtest: provenance: the replayed production portal answers version() and params() as the provider did at the captured block
++ok 11 - provenance: the replayed production portal answers version() and params() as the provider did at the captured block
++  ---
++  duration_ms: 180.558584
++  type: 'test'
++  ...
++# Subtest: the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
++ok 12 - the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
++  ---
++  duration_ms: 37.516011
++  type: 'test'
++  ...
++# EOA deposit: L1 gasUsed 834932 at base fee 1 gwei
++# Subtest: a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
++ok 13 - a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
++  ---
++  duration_ms: 26.020688
++  type: 'test'
++  ...
++# 7702-delegated EOA via relayer: deposit from 0xD5E00EA57E8c6bd0a68dCD7B7098CD1960310287 (EOA 0xD5E00EA57E8c6bd0a68dCD7B7098CD1960310287, alias 0xE6F10Ea57e8c6bd0A68DCD7b7098Cd1960311398)
++# Subtest: L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
++ok 14 - L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
++  ---
++  duration_ms: 548.730491
++  type: 'test'
++  ...
++# L1_COST [{"baseFeeGwei":0.1,"l2GasLimit":400000,"l1GasUsed":435082,"effectiveGasPrice":"100000000","l1CostWei":"43508200000000"},{"baseFeeGwei":0.1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"87862569","l1CostWei":"73358303972049"},{"baseFeeGwei":1,"l2GasLimit":400000,"l1GasUsed":435069,"effectiveGasPrice":"1000000000","l1CostWei":"435069000000000"},{"baseFeeGwei":1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"878625575","l1CostWei":"733582943704575"},{"baseFeeGwei":5,"l2GasLimit":400000,"l1GasUsed":114994,"effectiveGasPrice":"5000000000","l1CostWei":"574970000000000"},{"baseFeeGwei":5,"l2GasLimit":800000,"l1GasUsed":217683,"effectiveGasPrice":"4379791417","l1CostWei":"953406135026811"},{"baseFeeGwei":30,"l2GasLimit":400000,"l1GasUsed":72267,"effectiveGasPrice":"30000000000","l1CostWei":"2168010000000000"},{"baseFeeGwei":30,"l2GasLimit":800000,"l1GasUsed":69431,"effectiveGasPrice":"26268066750","l1CostWei":"1823818142519250"}]
++# Subtest: refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
++ok 15 - refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
++  ---
++  duration_ms: 23.154763
++  type: 'test'
++  ...
++# Subtest: relay route is today's: deadline head + 300 s; forced options without the forced route are refused
++ok 16 - relay route is today's: deadline head + 300 s; forced options without the forced route are refused
++  ---
++  duration_ms: 413.88789
++  type: 'test'
++  ...
++# Subtest: forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
++ok 17 - forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
++  ---
++  duration_ms: 42.423519
++  type: 'test'
++  ...
++# continuity: the protocol may delay a deposit up to 43200 s, longer than the 1800-s lease the ledger grants: a withholding sequencer can let the lease lapse before the renew lands
++# Subtest: forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
++ok 18 - forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
++  ---
++  duration_ms: 17.513021
++  type: 'test'
++  ...
++# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++ok 19 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++  ---
++  duration_ms: 432.92757
++  type: 'test'
++  ...
++# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++ok 20 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++  ---
++  duration_ms: 289.253691
++  type: 'test'
++  ...
++# finality: {"state":"l2-included","level":"finalized","depositL1Final":true,"gates":[]}
++# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++ok 21 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++  ---
++  duration_ms: 108.24963
++  type: 'test'
++  ...
++# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++ok 22 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++  ---
++  duration_ms: 27.032921
++  type: 'test'
++  ...
++# Subtest: a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++ok 23 - a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++  ---
++  duration_ms: 73.433005
++  type: 'test'
++  ...
++# Subtest: fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++ok 24 - fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++  ---
++  duration_ms: 92.372135
++  type: 'test'
++  ...
++# Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
++ok 25 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
++  ---
++  duration_ms: 1.581667
++  type: 'test'
++  ...
++# Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
++ok 26 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
++  ---
++  duration_ms: 446.524305
++  type: 'test'
++  ...
++# Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
++ok 27 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
++  ---
++  duration_ms: 62.123152
++  type: 'test'
++  ...
++# Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
++ok 28 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
++  ---
++  duration_ms: 63.59235
++  type: 'test'
++  ...
++# Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
++ok 29 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
++  ---
++  duration_ms: 106.190477
++  type: 'test'
++  ...
++# Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
++ok 30 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
++  ---
++  duration_ms: 126.187938
++  type: 'test'
++  ...
++# Subtest: release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
++ok 31 - release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
++  ---
++  duration_ms: 54.003941
++  type: 'test'
++  ...
++# Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
++ok 32 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
++  ---
++  duration_ms: 99.269006
++  type: 'test'
++  ...
++1..32
++# tests 32
++# suites 0
++# pass 32
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 30180.479548
+diff --git a/logs/final-sb2.guard.log b/logs/final-sb2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..cfee37e8b943097f9d0b3976aa1d984e508fbb04
+--- /dev/null
++++ b/logs/final-sb2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=337 minHostAvailableMiB=25167
+diff --git a/logs/final-sb2.out b/logs/final-sb2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..6012de390d081e63188af093a51a513113c6cac3
+--- /dev/null
++++ b/logs/final-sb2.out
+@@ -0,0 +1,9 @@
++[queue] START available=25216MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++suite rc=0
++mutant 11 killed (1 failing): if (!isMinted(ev) || ev.kind !== kind) refuse(code
++mutant 17 killed (1 failing): if (l2Evidence.finalized === true && l1Final) level
++survivors: 0 of 26
++closure mutants 11,17 rc=0
++[memory-guard] exit=0 peakTreeRssMiB=337 minHostAvailableMiB=25167
++[memory-guard] at peak: anvil:115 node:100 node:61 anvil:27 anvil:23 sh:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/final-sb2.rc b/logs/final-sb2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca916d098dabfe85979d791e4534bf1def02ef84
+--- /dev/null
++++ b/logs/final-sb2.rc
+@@ -0,0 +1 @@
++exit 0

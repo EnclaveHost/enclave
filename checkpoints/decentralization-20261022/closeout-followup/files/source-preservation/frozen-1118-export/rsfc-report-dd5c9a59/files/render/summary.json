@@ -1,0 +1,30 @@
+{
+ "holder-storage.sh vs vm3 holder-storage.sh": {
+  "vm3Sha256": "025b23c768fb549609fc951c9ad93201492e4dbad47d962131e21066342ffe6e",
+  "composedSha256": "1018e9f7b6f0696fc1e2065dcebaeed36ea10efd41f0a741b1f94b1508f6f4bb",
+  "identical": false,
+  "changedLines": 29
+ },
+ "pair-storage.sh vs vm3 pair-storage.sh": {
+  "vm3Sha256": "046c53a257a4f2c8f477aa4393f20a4d8417e7dcba4187ef824b5a67c5299c86",
+  "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
+  "identical": false,
+  "changedLines": 29
+ },
+ "pair-storage.sh vs vm3 pair-storage.fixed.sh": {
+  "vm3Sha256": "a3c535d4118a6a29ee27404b898168c8312fc6f1b4b2f920d47a0a9eb5203d49",
+  "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
+  "identical": false,
+  "changedLines": 32
+ },
+ "templates": {
+  "s": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+  "pVendored": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+  "pEqualsS": true
+ },
+ "bothRendersUseComposedTemplateBody": true,
+ "constantsIdenticalToVm3": {
+  "holder-storage.sh": true,
+  "pair-storage.sh": true
+ }
+}

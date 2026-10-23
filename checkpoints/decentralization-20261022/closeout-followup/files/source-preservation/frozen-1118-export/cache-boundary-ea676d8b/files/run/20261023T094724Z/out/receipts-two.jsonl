@@ -1,0 +1,90 @@
+{"kind": "disks", "t": 1792748860.891, "hdd": "/dev/sda", "hddRotational": "1", "nvme": "/dev/sdb", "nvmeRotational": "0", "kernel": "7.2.11-arch1-1"}
+{"kind": "cmd", "t": 1792748860.912, "label": "modprobe loop", "cmd": "modprobe loop", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748860.943, "label": "modprobe dm-crypt", "cmd": "modprobe dm-crypt", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748860.99, "label": "open dm-crypt", "cmd": "cryptsetup open --key-file /out/fixture.key /dev/sdb vmtest-crypt", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748861.08, "label": "mount /vmtest", "cmd": "mount /dev/mapper/vmtest-crypt /vmtest", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748861.101, "label": "mount /usbtest", "cmd": "mount /dev/sda /usbtest", "rc": 0, "out": "", "err": ""}
+{"kind": "ledger", "t": 1792748861.102, "path": "/etc/enclave-rpc-cache/nvme-cache-budget.json", "sha256": "4afcc8140dd4c4172ab12f12857c1483730228e1a3cf52b3054b396fb2d6ab04", "uid": 0}
+{"kind": "cmd", "t": 1792748861.122, "label": "id", "cmd": "losetup -J -l -O NAME,BACK-FILE,BACK-INO,MAJ:MIN", "rc": 0, "out": "{\n   \"loopdevices\": [\n\n   ]\n}\n", "err": ""}
+{"kind": "cmd", "t": 1792748861.143, "label": "id", "cmd": "dmsetup info -c --noheadings -o name,major,minor,open", "rc": 0, "out": "vmtest-crypt:253:0:1\n", "err": ""}
+{"kind": "cmd", "t": 1792748861.164, "label": "id", "cmd": "dmsetup table", "rc": 0, "out": "vmtest-crypt: 0 294912 crypt aes-xts-plain64 :64:logon:cryptsetup:c9e5f25a-2135-4c0e-88df-cca7e36f62b6-d0 0 8:16 32768\n", "err": ""}
+{"kind": "identity", "t": 1792748861.164, "tag": "boot-after-crash", "loops": [], "dm": ["vmtest-crypt:253:0:1"], "tables": ["vmtest-crypt: 0 294912 crypt aes-xts-plain64 :64:logon:cryptsetup:c9e5f25a-2135-4c0e-88df-cca7e36f62b6-d0 0 8:16 32768"], "mounts": ["/vmtest /dev/mapper/vmtest-crypt", "/usbtest /dev/sda"]}
+{"kind": "cmd", "t": 1792748861.799, "label": "holder-storage.sh assemble", "cmd": "/out/render/holder-storage.sh assemble", "rc": 0, "out": "", "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder\n"}
+{"kind": "result", "t": 1792748861.799, "key": "afterCrash.directAssemble.rc", "value": 0}
+{"kind": "cmd", "t": 1792748861.82, "label": "status", "cmd": "dmsetup status enclave-base-holder", "rc": 0, "out": "0 327680 cache 8 10/4096 512 101/256 432 198 21 9 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw - \n", "err": ""}
+{"kind": "dmstatus", "t": 1792748861.82, "tag": "after-crash-direct-assemble", "status": "0 327680 cache 8 10/4096 512 101/256 432 198 21 9 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
+{"kind": "result", "t": 1792748861.82, "key": "afterCrash.directAssemble.status", "value": "0 327680 cache 8 10/4096 512 101/256 432 198 21 9 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
+{"kind": "cmd", "t": 1792748861.847, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
+{"kind": "verify", "t": 1792748862.437, "tag": "after-crash-direct", "files": 10, "mismatches": {}}
+{"kind": "result", "t": 1792748862.437, "key": "afterCrash.directAssemble.data", "value": true}
+{"kind": "result", "t": 1792748862.437, "key": "afterCrash.unsyncedPresent", "value": false}
+{"kind": "cmd", "t": 1792748862.646, "label": "holder-storage.sh disassemble", "cmd": "/out/render/holder-storage.sh disassemble", "rc": 0, "out": "", "err": "holder-storage: disassembled\n"}
+{"kind": "cmd", "t": 1792748862.719, "label": "holder-storage.sh cache-loss", "cmd": "/out/render/holder-storage.sh cache-loss", "rc": 0, "out": "Pass 1: Checking inodes, blocks, and sizes\nPass 2: Checking directory structure\nPass 3: Checking directory connectivity\nPass 4: Checking reference counts\nPass 5: Checking group summary information\nenclave-holder: 25/40960 files (4.0% non-contiguous), 57068/163840 blocks\n", "err": "e2fsck 1.47.4 (6-Mar-2025)\nholder-storage: cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache\n"}
+{"kind": "result", "t": 1792748862.719, "key": "afterCrash.cacheLoss.rc", "value": 0}
+{"kind": "cmd", "t": 1792748862.977, "label": "holder-storage.sh assemble", "cmd": "/out/render/holder-storage.sh assemble", "rc": 0, "out": "", "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder\n"}
+{"kind": "result", "t": 1792748862.978, "key": "afterCrash.reviewedAssemble.rc", "value": 0}
+{"kind": "cmd", "t": 1792748863.001, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
+{"kind": "verify", "t": 1792748863.325, "tag": "after-crash-reviewed", "files": 10, "mismatches": {}}
+{"kind": "result", "t": 1792748863.325, "key": "afterCrash.reviewedProcedure.data", "value": true}
+{"kind": "cmd", "t": 1792748863.355, "label": "status", "cmd": "dmsetup status enclave-base-holder", "rc": 0, "out": "0 327680 cache 8 7/4096 512 166/256 88 315 4 4 0 166 0 1 writethrough 2 migration_threshold 2048 smq 0 rw - \n", "err": ""}
+{"kind": "dmstatus", "t": 1792748863.355, "tag": "after-crash-reviewed", "status": "0 327680 cache 8 7/4096 512 166/256 88 315 4 4 0 166 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
+{"kind": "cmd", "t": 1792748863.427, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
+{"kind": "verify", "t": 1792748863.491, "tag": "promote-pass-0", "files": 10, "mismatches": {}}
+{"kind": "cmd", "t": 1792748863.517, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
+{"kind": "verify", "t": 1792748863.582, "tag": "promote-pass-1", "files": 10, "mismatches": {}}
+{"kind": "cmd", "t": 1792748863.601, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
+{"kind": "verify", "t": 1792748863.662, "tag": "promote-pass-2", "files": 10, "mismatches": {}}
+{"kind": "cmd", "t": 1792748863.679, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
+{"kind": "verify", "t": 1792748863.743, "tag": "promote-pass-3", "files": 10, "mismatches": {}}
+{"kind": "cmd", "t": 1792748863.765, "label": "status", "cmd": "dmsetup status enclave-base-holder", "rc": 0, "out": "0 327680 cache 8 7/4096 512 167/256 950 315 7 5 0 167 0 1 writethrough 2 migration_threshold 2048 smq 0 rw - \n", "err": ""}
+{"kind": "dmstatus", "t": 1792748863.765, "tag": "before-corruption", "status": "0 327680 cache 8 7/4096 512 167/256 950 315 7 5 0 167 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
+{"kind": "result", "t": 1792748863.765, "key": "beforeCorruption.status", "value": "0 327680 cache 8 7/4096 512 167/256 950 315 7 5 0 167 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
+{"kind": "cmd", "t": 1792748863.772, "label": "foreign loop", "cmd": "losetup --find --show /vmtest/foreign/foreign.img", "rc": 0, "out": "/dev/loop3\n", "err": ""}
+{"kind": "cmd", "t": 1792748863.778, "label": "foreign size", "cmd": "blockdev --getsz /dev/loop3", "rc": 0, "out": "8192\n", "err": ""}
+{"kind": "cmd", "t": 1792748863.786, "label": "foreign mapping", "cmd": "dmsetup create foreign-linear --table 0 8192 linear /dev/loop3 0", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748863.805, "label": "id", "cmd": "lsblk -dno MAJ:MIN /dev/loop3", "rc": 0, "out": "  7:3  \n", "err": ""}
+{"kind": "foreign", "t": 1792748863.805, "file": "/vmtest/foreign/foreign.img", "inode": 14, "sha256": "32a470e9d3f33aa0e0dae9af3c6f02656d1158b5e1a7a42ce3e44ef3477f16c5", "loop": "/dev/loop3", "loopMajMin": "7:3"}
+{"kind": "cmd", "t": 1792748863.995, "label": "holder-storage.sh disassemble", "cmd": "/out/render/holder-storage.sh disassemble", "rc": 0, "out": "", "err": "holder-storage: disassembled\n"}
+{"kind": "cmd", "t": 1792748864.376, "label": "probe origin loop", "cmd": "losetup --find --show /usbtest/enclave-base-holder/origin.img", "rc": 0, "out": "/dev/loop0\n", "err": ""}
+{"kind": "cmd", "t": 1792748864.383, "label": "probe data loop", "cmd": "losetup --find --show /vmtest/enclave-base-holder-cache/cache-data.img", "rc": 0, "out": "/dev/loop1\n", "err": ""}
+{"kind": "cmd", "t": 1792748864.388, "label": "probe meta loop", "cmd": "losetup --find --show /vmtest/enclave-base-holder-cache/cache-meta.img", "rc": 0, "out": "/dev/loop2\n", "err": ""}
+{"kind": "cmd", "t": 1792748864.393, "label": "id", "cmd": "blockdev --getsz /dev/loop0", "rc": 0, "out": "327680\n", "err": ""}
+{"kind": "cmd", "t": 1792748864.404, "label": "id", "cmd": "lsblk -dno MAJ:MIN /dev/loop2", "rc": 0, "out": "  7:2  \n", "err": ""}
+{"kind": "cmd", "t": 1792748864.414, "label": "id", "cmd": "lsblk -dno MAJ:MIN /dev/loop1", "rc": 0, "out": "  7:1  \n", "err": ""}
+{"kind": "cmd", "t": 1792748864.424, "label": "id", "cmd": "lsblk -dno MAJ:MIN /dev/loop0", "rc": 0, "out": "  7:0  \n", "err": ""}
+{"kind": "cmd", "t": 1792748864.434, "label": "READ-ONLY probe mapping over the corrupted cache", "cmd": "dmsetup create cachetest-probe --readonly --table 0 327680 cache 7:2 7:1 7:0 512 1 writethrough smq 0", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748864.451, "label": "status", "cmd": "dmsetup status cachetest-probe", "rc": 0, "out": "0 327680 cache 8 10/4096 512 167/256 950 315 11 5 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw - \n", "err": ""}
+{"kind": "dmstatus", "t": 1792748864.451, "tag": "probe", "status": "0 327680 cache 8 10/4096 512 167/256 950 315 11 5 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
+{"kind": "cmd", "t": 1792748865.764, "label": "probe mount ro,noload", "cmd": "mount -o ro,noload /dev/mapper/cachetest-probe /mnt-raw", "rc": 32, "out": "", "err": "mount: /mnt-raw: fsconfig() failed: btrfs: Unknown parameter 'noload'.\n       dmesg(1) may have more information after failed mount system call.\n"}
+{"kind": "cmd", "t": 1792748865.823, "label": "remove probe mapping", "cmd": "dmsetup remove cachetest-probe", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748865.829, "label": "detach probe loop", "cmd": "losetup -d /dev/loop0", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748865.834, "label": "detach probe loop", "cmd": "losetup -d /dev/loop1", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748865.84, "label": "detach probe loop", "cmd": "losetup -d /dev/loop2", "rc": 0, "out": "", "err": ""}
+{"kind": "result", "t": 1792748865.84, "key": "corruptCacheWithoutCacheLoss.readOnlyProbe", "value": {"probeStatus": "0 327680 cache 8 10/4096 512 167/256 950 315 11 5 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -", "blocksCompared4k": 40960, "blocksDifferent4k": 10688, "mountRc": 32}}
+{"kind": "cmd", "t": 1792748865.908, "label": "holder-storage.sh cache-loss", "cmd": "/out/render/holder-storage.sh cache-loss", "rc": 0, "out": "Pass 1: Checking inodes, blocks, and sizes\nPass 2: Checking directory structure\nPass 3: Checking directory connectivity\nPass 4: Checking reference counts\nPass 5: Checking group summary information\nenclave-holder: 25/40960 files (4.0% non-contiguous), 57068/163840 blocks\n", "err": "e2fsck 1.47.4 (6-Mar-2025)\nholder-storage: cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache\n"}
+{"kind": "result", "t": 1792748865.908, "key": "corruptCache.cacheLoss.rc", "value": 0}
+{"kind": "cmd", "t": 1792748866.165, "label": "holder-storage.sh assemble", "cmd": "/out/render/holder-storage.sh assemble", "rc": 0, "out": "", "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder\n"}
+{"kind": "result", "t": 1792748866.165, "key": "corruptCache.assemble.rc", "value": 0}
+{"kind": "cmd", "t": 1792748866.192, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
+{"kind": "verify", "t": 1792748866.227, "tag": "after-corrupt-cache-reviewed", "files": 10, "mismatches": {}}
+{"kind": "result", "t": 1792748866.227, "key": "corruptCache.reviewedProcedure.data", "value": true}
+{"kind": "cmd", "t": 1792748866.234, "label": "id", "cmd": "losetup -j /vmtest/foreign/foreign.img -O NAME -n", "rc": 0, "out": "/dev/loop3\n", "err": ""}
+{"kind": "cmd", "t": 1792748866.257, "label": "id", "cmd": "dmsetup info foreign-linear", "rc": 0, "out": "Name:              foreign-linear\nState:             ACTIVE\nRead Ahead:        256\nTables present:    LIVE\nOpen count:        0\nEvent number:      0\nMajor, minor:      253, 2\nNumber of targets: 1\n\n", "err": ""}
+{"kind": "foreignIntact", "t": 1792748866.257, "tag": "phase-two", "ok": true}
+{"kind": "result", "t": 1792748866.257, "key": "foreign.phaseTwo", "value": true}
+{"kind": "cmd", "t": 1792748866.335, "label": "holder-storage.sh verify-cap", "cmd": "/out/render/holder-storage.sh verify-cap", "rc": 0, "out": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}\n", "err": ""}
+{"kind": "result", "t": 1792748866.335, "key": "final.verifyCap", "value": {"rc": 0, "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"}}
+{"kind": "cmd", "t": 1792748866.534, "label": "holder-storage.sh disassemble", "cmd": "/out/render/holder-storage.sh disassemble", "rc": 0, "out": "", "err": "holder-storage: disassembled\n"}
+{"kind": "result", "t": 1792748866.534, "key": "final.disassemble.rc", "value": 0}
+{"kind": "cmd", "t": 1792748866.58, "label": "pair-storage.sh disassemble", "cmd": "/out/render/pair-storage.sh disassemble", "rc": 0, "out": "", "err": "holder-storage: disassembled\n"}
+{"kind": "result", "t": 1792748866.58, "key": "final.pairDisassemble.rc", "value": 0}
+{"kind": "cmd", "t": 1792748866.634, "label": "remove OWN foreign-linear (test fixture)", "cmd": "dmsetup remove foreign-linear", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748866.641, "label": "detach OWN foreign loop (test fixture)", "cmd": "losetup -d /dev/loop3", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748866.654, "label": "umount /vmtest", "cmd": "umount /vmtest", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748866.667, "label": "umount /usbtest", "cmd": "umount /usbtest", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748866.722, "label": "close dm-crypt", "cmd": "cryptsetup close vmtest-crypt", "rc": 0, "out": "", "err": ""}
+{"kind": "cmd", "t": 1792748866.738, "label": "id", "cmd": "losetup -J -l -O NAME,BACK-FILE,BACK-INO,MAJ:MIN", "rc": 0, "out": "{\n   \"loopdevices\": [\n\n   ]\n}\n", "err": ""}
+{"kind": "cmd", "t": 1792748866.754, "label": "id", "cmd": "dmsetup info -c --noheadings -o name,major,minor,open", "rc": 0, "out": "No devices found\n", "err": ""}
+{"kind": "cmd", "t": 1792748866.77, "label": "id", "cmd": "dmsetup table", "rc": 0, "out": "No devices found\n", "err": ""}
+{"kind": "identity", "t": 1792748866.77, "tag": "final", "loops": [], "dm": ["No", "devices", "found"], "tables": ["No devices found"], "mounts": []}
+{"kind": "result", "t": 1792748866.77, "key": "final.noLeftovers", "value": {"loops": [], "dm": ["No", "devices", "found"], "mounts": [], "clean": true}}

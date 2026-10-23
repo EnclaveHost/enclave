@@ -1,0 +1,31 @@
+# M windows-memory-accounting (9f19b7c6) job log digest; generated from windows-memory-accounting-20261023/logs; full logs stay local.
+
+## j1-new  out-sha256 b91507ebd6503c1c134796b6cdb10ba671429d2ddfb0b35081b8adace13c1425  bytes 130  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=162 minHostAvailableMiB=24786
+    [queue] START available=24906MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [queue] EXIT 0
+    exit=0
+
+## j2-negctl  out-sha256 95ca1c82d54e2e793db575d9278929e9112e3a07df8eb82adb7810ab927022f7  bytes 130  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=166 minHostAvailableMiB=24703
+    [queue] START available=24760MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [queue] EXIT 0
+    exit=0
+
+## j3-coupled  out-sha256 7f751c22d1c5c43936b60433caf9f569b3803236bdfbf890e6c2a9d2a476a0b5  bytes 120  rc 1
+    [memory-guard] exit=1 peakTreeRssMiB=270 minHostAvailableMiB=24983
+    [queue] START available=25218MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [queue] EXIT 1
+    exit=1
+
+## j4-fixtures  out-sha256 8ddfae5583a371260ab517688adb7d107713da62e37796e03390cd4d13fecb78  bytes 120  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=295 minHostAvailableMiB=24398
+    [queue] START available=24993MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [queue] EXIT 0
+    exit=0
+
+## j5-commit  out-sha256 496ab86e5ee1aa94b02c6d5eccbeeb2733f64f94612357d956b40c26cf3daabe  bytes 130  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] START available=25109MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [queue] EXIT 0
+    exit=0

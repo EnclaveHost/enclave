@@ -1,0 +1,59 @@
+[queue] START available=25441MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+## date
+2026-10-23T09:34:59Z
+## id
+uid=1000(steven) gid=1000(steven) groups=1000(steven),955(docker),968(libvirt),990(kvm),998(wheel)
+## sudo -n
+sudo: a password is required
+sudo -n: NOT available (no password request made)
+## control nodes
+crw-rw---- 1 root disk 10, 237 Oct 18 09:07 /dev/loop-control
+crw------- 1 root root 10, 236 Oct 18 09:07 /dev/mapper/control
+## existing loops (count)
+0
+## existing dm devices (names only)
+control
+cryptroot
+cryptvm
+## modules present (read /sys only)
+loop not-loaded
+dm_mod loaded
+dm_cache not-loaded
+dm_cache_smq not-loaded
+dm_crypt loaded
+dm_persistent_data not-loaded
+dm_bio_prison not-loaded
+## dm targets (needs no root?)
+/dev/mapper/control: open failed: Permission denied
+Failure to communicate with kernel device-mapper driver.
+Failed to communicate with device-mapper kernel driver (libdevmapper 1.02.217 (2026-09-30)).
+Command failed.
+## userns
+1
+510689
+## unshare -rm + overlay (private ns, throwaway dirs)
+x
+overlay-in-userns: OK
+## unshare -rm + ext4 loop mount attempt (expected to fail unprivileged)
+mkfs-on-file: OK
+mount: /tmp/tmp.X0D2UWzB7o/m: mount failed: Permission denied.
+mount-rc=32
+## tools
+losetup /usr/sbin/losetup
+dmsetup /usr/sbin/dmsetup
+mkfs.ext4 /usr/sbin/mkfs.ext4
+e2fsck /usr/sbin/e2fsck
+debugfs /usr/sbin/debugfs
+dumpe2fs /usr/sbin/dumpe2fs
+cryptsetup /usr/sbin/cryptsetup
+blockdev /usr/sbin/blockdev
+fallocate /usr/sbin/fallocate
+cache_check missing
+## workspace filesystem
+TARGET SOURCE                FSTYPE
+/      /dev/mapper/cryptroot ext4
+cryptroot crypt 0
+## end
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

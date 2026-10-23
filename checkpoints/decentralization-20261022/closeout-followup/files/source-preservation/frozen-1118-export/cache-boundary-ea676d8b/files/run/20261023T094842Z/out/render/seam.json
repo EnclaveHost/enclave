@@ -1,0 +1,44 @@
+{
+ "renderers": {
+  "holder.py": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
+  "l1pair.py": "a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d",
+  "template": "eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00",
+  "budget.py": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24"
+ },
+ "templateBodyIdentical": true,
+ "constants": {
+  "holder-storage.sh": "MECHANISM='dm-cache'\nORIGIN='/usbtest/enclave-base-holder/origin.img'\nORIGIN_BYTES='167772160'\nORIGIN_FREE_MARGIN='0'\nMNT='/srv/enclave-base-holder'\nDATADIR='/srv/enclave-base-holder/data'\nOWNER='enclave-holder'\nNAME='enclave-base-holder'\nPY='/usr/bin/python3'\nBUDGET_TOOL='/src/vendor/holder/budget.py'\nLEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'\nRESERVATION='base-holder-dm-cache'\nCDATA='/vmtest/enclave-base-holder-cache/cache-data.img'\nCDATA_BYTES='67108864'\nCMETA='/vmtest/enclave-base-holder-cache/cache-meta.img'\nCMETA_BYTES='16777216'\nBLOCK_SECTORS='512'\nNVME_FREE_MARGIN='0'",
+  "pair-storage.sh": "MECHANISM='dm-cache'\nORIGIN='/usbtest/enclave-l1-pair/origin.img'\nORIGIN_BYTES='33554432'\nORIGIN_FREE_MARGIN='0'\nMNT='/srv/enclave-l1-pair'\nDATADIR='/srv/enclave-l1-pair/data'\nOWNER='enclave-l1'\nNAME='enclave-l1-pair'\nPY='/usr/bin/python3'\nBUDGET_TOOL='/src/vendor/holder/budget.py'\nLEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'\nRESERVATION='l1-pair-dm-cache'\nCDATA='/vmtest/enclave-l1-pair-cache/cache-data.img'\nCDATA_BYTES='8388608'\nCMETA='/vmtest/enclave-l1-pair-cache/cache-meta.img'\nCMETA_BYTES='8388608'\nBLOCK_SECTORS='512'\nNVME_FREE_MARGIN='0'"
+ },
+ "productionValues": {
+  "origin.bytes": "3,100,000,000,000 (S example; validator minimum 1.5e12)",
+  "cache.dataBytes": "197,999,984,640 (S example; minimum 1 GiB)",
+  "cache.metadataBytes": "1,073,741,824",
+  "freeMargins": "500e9 / 200e9",
+  "originDir": "/mnt/usb (NTFS)",
+  "cacheDir": "/vm (ext4 on dm-crypt)"
+ },
+ "ledger": {
+  "shareBytes": 101027840,
+  "bookkeeping": 77824,
+  "reservations": {
+   "base-holder-dm-cache": 84115456,
+   "l1-pair-dm-cache": 16834560
+  },
+  "slack": {
+   "base-holder-dm-cache": 229376,
+   "l1-pair-dm-cache": 57344
+  },
+  "nextReservationRefused": "host 0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f: reservations plus bookkeeping 101048320 exceed its share 101027840"
+ },
+ "fixedTemplate": "fbe8c575bb48411165ab3c9425c5cdc4a2c6481dde116c2d5cba5768ed4ede7e",
+ "files": {
+  "holder-storage.sh": "025b23c768fb549609fc951c9ad93201492e4dbad47d962131e21066342ffe6e",
+  "pair-storage.sh": "046c53a257a4f2c8f477aa4393f20a4d8417e7dcba4187ef824b5a67c5299c86",
+  "ledger.json": "4afcc8140dd4c4172ab12f12857c1483730228e1a3cf52b3054b396fb2d6ab04",
+  "ledger-over.json": "1c74794967a255f1dbb83f1584326e9b42a319958a64bdabedd4f21ac6cb352c",
+  "holder.json": "029b1b2a04747afc6a49dc09c5f0de0f16e0f361a0abcafafb224e0025f4ebdc",
+  "pair.json": "c4a93b74970a2e08afd496958c231dd6177e544cfaec4b8afcda700942abcad9",
+  "pair-storage.fixed.sh": "a3c535d4118a6a29ee27404b898168c8312fc6f1b4b2f920d47a0a9eb5203d49"
+ }
+}

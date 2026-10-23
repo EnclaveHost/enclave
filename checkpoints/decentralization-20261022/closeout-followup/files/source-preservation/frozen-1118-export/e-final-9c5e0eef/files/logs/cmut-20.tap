@@ -1,0 +1,44 @@
+TAP version 13
+# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
+ok 1 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
+  ---
+  duration_ms: 426.343854
+  type: 'test'
+  ...
+# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
+not ok 2 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
+  ---
+  duration_ms: 68.309019
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-20/test/source-binding.anvil.test.mjs:65:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception: evidence cannot be paired with another receipt object'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-20/test/source-binding.anvil.test.mjs:82:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
+ok 3 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
+  ---
+  duration_ms: 121.847177
+  type: 'test'
+  ...
+# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
+ok 4 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
+  ---
+  duration_ms: 29.170748
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4723.508429

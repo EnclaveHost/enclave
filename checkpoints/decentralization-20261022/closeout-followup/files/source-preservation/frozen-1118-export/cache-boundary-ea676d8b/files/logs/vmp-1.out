@@ -1,0 +1,55 @@
+[queue] START available=25692MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+## uname
+7.2.8-arch1-2
+## qemu
+/usr/sbin/qemu-system-x86_64
+QEMU emulator version 11.1.2
+## kvm
+crw-rw-rw- 1 root kvm 10, 232 Oct 22 17:53 /dev/kvm
+## kernel image readable
+-rwxr-xr-x 1 root root 133290213 Oct 18 09:15 initramfs-linux.img
+-rwxr-xr-x 1 root root  17244672 Oct 18 09:09 vmlinuz-linux
+/boot/vmlinuz-linux readable
+## modules on disk
+dm-cache             /lib/modules/7.2.8-arch1-2/kernel/drivers/md/dm-cache.ko.zst
+dm-cache-smq         /lib/modules/7.2.8-arch1-2/kernel/drivers/md/dm-cache-smq.ko.zst
+dm-persistent-data   /lib/modules/7.2.8-arch1-2/kernel/drivers/md/persistent-data/dm-persistent-data.ko.zst
+dm-bio-prison        /lib/modules/7.2.8-arch1-2/kernel/drivers/md/dm-bio-prison.ko.zst
+dm-bufio             /lib/modules/7.2.8-arch1-2/kernel/drivers/md/dm-bufio.ko.zst
+dm-crypt             /lib/modules/7.2.8-arch1-2/kernel/drivers/md/dm-crypt.ko.zst
+loop                 /lib/modules/7.2.8-arch1-2/kernel/drivers/block/loop.ko.zst
+9p                   /lib/modules/7.2.8-arch1-2/kernel/fs/9p/9p.ko.zst
+9pnet                /lib/modules/7.2.8-arch1-2/kernel/net/9p/9pnet.ko.zst
+9pnet_virtio         /lib/modules/7.2.8-arch1-2/kernel/net/9p/9pnet_virtio.ko.zst
+netfs                /lib/modules/7.2.8-arch1-2/kernel/fs/netfs/netfs.ko.zst
+virtio_scsi          (builtin or missing)
+sd_mod               (builtin or missing)
+ext4                 (builtin or missing)
+jbd2                 (builtin or missing)
+mbcache              (builtin or missing)
+crc16                (builtin or missing)
+kernel/fs/ext4/ext4.ko
+kernel/drivers/block/virtio_blk.ko
+kernel/drivers/scsi/virtio_scsi.ko
+kernel/drivers/scsi/sd_mod.ko
+## qemu virtfs/9p + virtio-scsi + rotation_rate support
+name "scsi-hd", bus SCSI, desc "virtual SCSI disk"
+name "virtio-9p-pci", bus PCI, alias "virtio-9p"
+name "virtio-9p-pci-non-transitional", bus PCI
+name "virtio-9p-pci-transitional", bus PCI
+name "virtio-scsi-pci", bus PCI, alias "virtio-scsi"
+name "virtio-scsi-pci-non-transitional", bus PCI
+name "virtio-scsi-pci-transitional", bus PCI
+  rotation_rate=<uint16> -  (default: 0)
+## tools for an initramfs
+cpio /usr/sbin/cpio
+busybox missing
+bash /usr/sbin/bash
+kmod /usr/sbin/kmod
+modprobe /usr/sbin/modprobe
+mount /usr/sbin/mount
+python3 /usr/sbin/python3
+## end
+[memory-guard] exit=0 peakTreeRssMiB=6 minHostAvailableMiB=25700
+[memory-guard] at peak: bash:6
+[queue] EXIT 0

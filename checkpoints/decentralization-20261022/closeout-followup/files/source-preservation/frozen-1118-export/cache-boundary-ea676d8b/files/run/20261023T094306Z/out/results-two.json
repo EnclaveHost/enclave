@@ -1,0 +1,32 @@
+{
+ "afterCrash.directAssemble.rc": 0,
+ "afterCrash.directAssemble.status": "0 327680 cache 8 10/4096 512 1/256 309 323 1 29 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -",
+ "afterCrash.directAssemble.data": true,
+ "afterCrash.unsyncedPresent": false,
+ "afterCrash.cacheLoss.rc": 0,
+ "afterCrash.reviewedAssemble.rc": 0,
+ "afterCrash.reviewedProcedure.data": true,
+ "corruptCacheWithoutCacheLoss.readOnlyProbe": {
+  "mountRc": 32
+ },
+ "corruptCache.cacheLoss.rc": 0,
+ "corruptCache.assemble.rc": 0,
+ "corruptCache.reviewedProcedure.data": true,
+ "foreign.phaseTwo": true,
+ "final.verifyCap": {
+  "rc": 0,
+  "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"
+ },
+ "final.disassemble.rc": 0,
+ "final.pairDisassemble.rc": 0,
+ "final.noLeftovers": {
+  "loops": [],
+  "dm": [
+   "No",
+   "devices",
+   "found"
+  ],
+  "mounts": [],
+  "clean": true
+ }
+}

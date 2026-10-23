@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-23T10:42:14.492Z",
+  "scope": "Actual Host.capacity and Hyper-V appMemoryForShare code with one synthetic running app. No VM, production, chain or physical-memory measurement performed. Backend floor accounting differs from manager reservation; not proof this caused any particular outage.",
+  "result": [
+    {
+      "poolGiB": 64,
+      "appMinimumMiB": 512,
+      "cpuShare": 0.25,
+      "managerReservedAppMiB": 16384,
+      "nodeAdvertisedFreeMiB": 65024,
+      "managerPoolFreeMiB": 49152,
+      "overstatementMiB": 15872
+    },
+    {
+      "poolGiB": 96,
+      "appMinimumMiB": 512,
+      "cpuShare": 0.25,
+      "managerReservedAppMiB": 24576,
+      "nodeAdvertisedFreeMiB": 97792,
+      "managerPoolFreeMiB": 73728,
+      "overstatementMiB": 24064
+    }
+  ]
+}

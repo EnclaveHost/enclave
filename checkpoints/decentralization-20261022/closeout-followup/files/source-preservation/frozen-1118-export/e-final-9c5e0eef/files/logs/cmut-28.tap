@@ -1,0 +1,86 @@
+TAP version 13
+# fatal: pathspec 'src' did not match any files
+# Subtest: counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
+not ok 1 - counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
+  ---
+  duration_ms: 6.119845
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:94:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: git -C /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28 archive 46dbfbef32a25e23c7d1045f2458f00a7470cb32 src
+    fatal: pathspec 'src' did not match any files
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:983:15)
+    wrappedFn (node:internal/errors:537:14)
+    checkExecSyncError (node:child_process:916:11)
+    execFileSync (node:child_process:952:15)
+    extractOld (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:24:15)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:95:3)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
+not ok 2 - current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
+  ---
+  duration_ms: 274.36289
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:105:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the recorded L1 nonce 999 is not the node's nonce 7
+    + actual - expected
+    
+      [
+    +   'written',
+    +   'dead'
+    -   'refused',
+    -   'refused:l1-receipt-mismatch'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'refused'
+    1: 'refused:l1-receipt-mismatch'
+  actual:
+    0: 'written'
+    1: 'dead'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:107:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
+not ok 3 - mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
+  ---
+  duration_ms: 0.867004
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:114:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:122:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 0
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 432.6914

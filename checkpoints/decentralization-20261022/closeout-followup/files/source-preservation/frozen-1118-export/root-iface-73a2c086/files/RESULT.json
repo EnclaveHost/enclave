@@ -1,0 +1,32 @@
+{
+  "at": "2026-10-23T10:58:31.648Z",
+  "scope": "Real proposed public-role HTTP server with prior own-property correction; actual verifier exported method list. Backend deliberately unreachable and never contacted. Interface refusal proof, not a full Reth/Helios integration test or production observation.",
+  "results": [
+    {
+      "method": "eth_getProof",
+      "status": 200,
+      "body": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "code": -32601,
+          "message": "eth_getProof is not offered by a public endpoint (no administration, debugging, signing, accounts, mempool or filters)"
+        }
+      }
+    },
+    {
+      "method": "eth_getBlockByHash",
+      "status": 200,
+      "body": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "code": -32601,
+          "message": "eth_getBlockByHash is not offered by this endpoint"
+        }
+      }
+    }
+  ],
+  "backendCalls": 0,
+  "conclusion": "This public endpoint cannot yet serve as the verifier fresh-proof source. A separate supported proof endpoint or bounded added methods is required."
+}

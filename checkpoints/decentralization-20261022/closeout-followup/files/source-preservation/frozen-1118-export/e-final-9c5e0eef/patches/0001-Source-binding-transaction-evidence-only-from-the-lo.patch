@@ -1,0 +1,1730 @@
+From a194afe28dbf39f6716c415cc4609e00f25ea9a7 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:36:11 -0700
+Subject: [PATCH 1/5] Source binding: transaction evidence only from the local
+ validated L1 pair and Base node
+
+- src/evidence-brand.mjs: in-process minting; labels and caller JSON are not evidence.
+- src/l1-source-binding.mjs: reads reth+Lighthouse on loopback only; readiness
+  (P's gate facts), beacon finalized/head payload == execution blocks, receipt
+  + tx + block binding, canonical re-check after the read, finality only from
+  the paired finalized checkpoint; portal pin at the finalized block.
+- src/base-source-binding.mjs: Base node on loopback; syncStatus heads == EL
+  blocks; the node's L1 view canonical and final in the L1 pair; levels
+  unsafe/safe/finalized from derivation.
+- forced-inclusion checks require minted evidence by default (test-* labels only
+  when passed explicitly); resolveFailedL1 uses the node's nonce.
+- tests: adapters over the real portal on a local L1 and real lease contracts on
+  a local L2 with labelled beacon/rollup fixtures; scripted reorg/mismatch
+  control flow; mutants for every new guard.
+- PROPOSAL-FORCED-INCLUSION-COMPENSATION.md, HANDOFF-SOURCE-BINDING.md,
+  tools/artifact-recipe.mjs (source-only recipe for D).
+---
+ HANDOFF-SOURCE-BINDING.md                 |  94 ++++++++++++
+ PROPOSAL-FORCED-INCLUSION-COMPENSATION.md | 124 ++++++++++++++++
+ ROOT-P-BROADCAST-AND-A-CONSUMERS.txt      |   1 +
+ jobs/mutants-closure.sh                   |  13 +-
+ logs/bind-1.guard.log                     |   1 +
+ logs/bind-1.out                           |  99 +++++++++++++
+ logs/bind-2.out                           |   0
+ logs/bind-3.guard.log                     |   1 +
+ logs/bind-3.out                           | 173 ++++++++++++++++++++++
+ logs/bind-3.rc                            |   1 +
+ logs/bind-4.guard.log                     |   1 +
+ logs/bind-4.out                           | 132 +++++++++++++++++
+ logs/bind-4.rc                            |   1 +
+ logs/bind-5.guard.log                     |   1 +
+ logs/bind-5.out                           |  91 ++++++++++++
+ src/base-source-binding.mjs               |  97 ++++++++++++
+ src/evidence-brand.mjs                    |  15 ++
+ src/forced-inclusion.mjs                  |  76 +++++++---
+ src/l1-source-binding.mjs                 | 156 +++++++++++++++++++
+ test/finality.test.mjs                    |  21 +--
+ test/forced-inclusion.anvil.test.mjs      |  12 +-
+ test/source-binding.anvil.test.mjs        | 152 +++++++++++++++++++
+ test/source-binding.test.mjs              |  71 +++++++++
+ test/support/pair-stubs.mjs               |  66 +++++++++
+ tools/artifact-recipe.mjs                 |  35 +++++
+ 25 files changed, 1393 insertions(+), 41 deletions(-)
+ create mode 100644 HANDOFF-SOURCE-BINDING.md
+ create mode 100644 PROPOSAL-FORCED-INCLUSION-COMPENSATION.md
+ create mode 100644 ROOT-P-BROADCAST-AND-A-CONSUMERS.txt
+ create mode 100644 logs/bind-1.guard.log
+ create mode 100644 logs/bind-1.out
+ create mode 100644 logs/bind-2.out
+ create mode 100644 logs/bind-3.guard.log
+ create mode 100644 logs/bind-3.out
+ create mode 100644 logs/bind-3.rc
+ create mode 100644 logs/bind-4.guard.log
+ create mode 100644 logs/bind-4.out
+ create mode 100644 logs/bind-4.rc
+ create mode 100644 logs/bind-5.guard.log
+ create mode 100644 logs/bind-5.out
+ create mode 100644 src/base-source-binding.mjs
+ create mode 100644 src/evidence-brand.mjs
+ create mode 100644 src/l1-source-binding.mjs
+ create mode 100644 test/source-binding.anvil.test.mjs
+ create mode 100644 test/source-binding.test.mjs
+ create mode 100644 test/support/pair-stubs.mjs
+ create mode 100644 tools/artifact-recipe.mjs
+
+diff --git a/HANDOFF-SOURCE-BINDING.md b/HANDOFF-SOURCE-BINDING.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..5831b3f3f42832edb470137f0cad922721afaae6
+--- /dev/null
++++ b/HANDOFF-SOURCE-BINDING.md
+@@ -0,0 +1,94 @@
++# Source-binding handoff (file interface; root dispatches)
++
++E's transaction checks (`src/forced-inclusion.mjs`, `src/vault-deposit.mjs`) now accept inclusion and finality ONLY as
++objects MINTED by two read adapters. Labels and caller JSON are refused by default. Explicit labels are allowed only
++as `test-*`.
++
++| adapter | binds to | mints |
++|---|---|---|
++| `createL1PairSource({execution:{url}, consensus:{url}})` (`src/l1-source-binding.mjs`) | P's reth + Lighthouse pair on loopback | `kind 'l1-receipt'` (`receipt(txHash)`) and `kind 'l1-portal'` (`portalSnapshot(portal)`), trust `local-validated-pair` |
++| `createBaseNodeSource({execution:{url}, rollup:{url}, l1})` (`src/base-source-binding.mjs`) | S's Base holder (base-reth + base-consensus) on loopback, bound to that same L1 adapter | `kind 'l2-receipt'`, `verifiedBy 'base-derivation'`, level unsafe / safe / finalized |
++
++**Trust = local full-node validation** (the node executed and validated the chain; the beacon node finalized it). It
++is NOT a portable cryptographic proof. A submission-only endpoint cannot mint anything. The validated pair may serve
++sends and reads; evidence comes from its validated state.
++
++## To P (rpc-l1-source-package, rpc-l1-binary-closure): the exact RPC surface the L1 adapter calls
++
++All calls are on loopback only, with no fallback. Defaults are reth `127.0.0.1:18645` and Lighthouse
++`127.0.0.1:15052`, per `l1pair.example.json`.
++
++**Execution (`eth,net` namespaces; `web3` unused):**
++
++| call | used for |
++|---|---|
++| `eth_chainId` | must be `0x1` |
++| `eth_getBlockByNumber(0x0)` | genesis `0xd4e5…8fa3` |
++| `eth_syncing` | must be `false` |
++| `net_peerCount` | must be ≥ minPeers (default 1) |
++| `eth_getBlockByNumber(latest \| finalized \| safe \| <n>, false)` | head and tag reads |
++| `eth_getBlockByHash(h, false)` (`transactions` must list the tx hash) | receipt-block binding |
++| `eth_getTransactionReceipt` | receipt read |
++| `eth_getTransactionByHash` (nonce/from/blockHash binding) | nonce and sender binding |
++| `eth_getStorageAt(portal, EIP-1967 slot, {blockHash})` | portal pin |
++| `eth_call(version(), {blockHash})` | portal pin |
++
++EIP-1898 `{blockHash}` must be accepted.
++
++**Beacon:**
++
++| path | used for |
++|---|---|
++| `/eth/v1/beacon/genesis` | GVR `0x4b36…fe95` |
++| `/eth/v1/node/syncing` | `is_syncing` / `is_optimistic` / `el_offline` all false |
++| `/eth/v1/node/peer_count` | `connected` ≥ minPeers |
++| `/eth/v2/beacon/blocks/finalized` and `/head` | `message.body.execution_payload.{block_number, block_hash}`, `message.slot` |
++
++**Pairing rule the adapter enforces:** CL finalized payload == EL block at that number == EL `finalized`; CL head
++payload == EL block at that height. This is the same fact P's `l1pair.py ready` checks.
++
++**Broadcast** (P's opt-in task): E does NOT need P to proxy or allowlist. E's sender check before signing is
++`checkPortalPin(adapter.portalSnapshot(portal), pin)`, plus E's chain-1 / portal-only plan. P documents what reth itself
++can and cannot enforce. A send reply is never evidence; E reads the receipt back through `receipt(txHash)`.
++
++## To S (Base holder): what the Base adapter calls
++
++**Execution:**
++
++| call | used for |
++|---|---|
++| `eth_chainId` | must be `0x2105` |
++| `eth_getBlockByNumber(0x0)` | genesis `0xf712…73dd` |
++| `eth_syncing` | must be `false` |
++| `eth_getBlockByNumber(<n>)` | pairing and canonical re-checks |
++| `eth_getTransactionReceipt` | receipt read |
++
++**Rollup:** `optimism_syncStatus`, snake_case top level. It needs `current_l1`, `finalized_l1`, and
++`unsafe_l2` / `safe_l2` / `finalized_l2` with `hash` / `number` / `timestamp`.
++
++**Rules:**
++- The unsafe/safe/finalized hashes must be the EL's blocks at those numbers.
++- `current_l1` must be canonical in P's pair.
++- `finalized_l1` must be canonical AND final in P's pair. This refuses a holder deriving from another L1 source.
++- The holder's rollup RPC port goes in its config; E takes it as `rollup.url`.
++
++## To B (runtime composition)
++
++- **Config:** construct both adapters from root's config, with loopback URLs only, and pass them where E's planners
++  and checks run.
++- **Calls:**
++  - `checkPortalPin(await l1.portalSnapshot(portal), PIN)` before any signing;
++  - `matchDepositEvent(plan, undefined, (await l1.receipt(l1Tx)).evidence)`;
++  - `classifyL2Outcome({..., source: {evidence: (await base.receipt(l2Tx)).evidence}})`;
++  - `classifyFinality({outcome, depositL1BlockHash, l1Evidence, l2Evidence})`;
++  - `tracker.resolveFailedL1(key, ev.receipt, ev)`.
++- **Helios (B's verifier):** its unsafe-head receipt path needs its OWN minting adapter if B wants it accepted
++  (`kind 'l2-receipt'` at level unsafe). A `verifier: 'helios'` label is refused by default.
++- **No retry:** a public-RPC outage surfaces as `*-source-not-ready`. There is no hidden retry anywhere.
++
++## To A (CLI / MCP)
++
++- Show the adapter readiness checks verbatim (`readiness().checks`).
++- Show the evidence `trust` and `level` verbatim. Never print "finalized" from a send reply or a label.
++- Show the gates `classifyFinality` returns.
++- `test-fixture` trust must never appear in production output. If it does, treat it as a configuration error.
+diff --git a/PROPOSAL-FORCED-INCLUSION-COMPENSATION.md b/PROPOSAL-FORCED-INCLUSION-COMPENSATION.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..f78668b624fb5ada67c73cdd03ea7258d8b6d09e
+--- /dev/null
++++ b/PROPOSAL-FORCED-INCLUSION-COMPENSATION.md
+@@ -0,0 +1,124 @@
++# App funding for FORCED (L1-deposit) lease operations: decision record and minimal compatibility proposal
++
++**Status:** PROPOSAL ONLY.
++- No contract was written, deployed or bound. No funding or withdrawal was automated.
++- No existing contract or balance is touched. Root owns the decision.
++
++## Three costs that must not be conflated
++
++| cost | when | who pays today | status |
++|---|---|---|---|
++| **Routine Base broadcast fee** | the normal relay path: the host's signed Lease in a type-2/4 L2 transaction via the sequencer/builders | the app's `EnclaveLeaseGasReserve`: `finish()` pays the relay `gas × min(tx.gasprice, owner cap, admin ceiling) + l1Bps × getL1FeeUpperBound` | **app-funded, works** (fee audit "normal relay" quote > 0) |
++| **Emergency forced-inclusion L1 fee** | every public RPC and the sequencer refuse, so the same Lease goes in through OptimismPortal on L1 | whoever signs the L1 transaction: about 4e14–2e15 wei per deposit (measured on production portal 6.0.1 bytecode) | **NOT app-funded.** The reserve paid 3.1e9 wei against 8.3e14 wei of L1 cost (coverage 3.8e-6); a deposit has `tx.gasprice` 0 |
++| **Lease continuity delay** | a withholding sequencer delays a deposit up to the sequencing window (43,200 s) | nobody pays; the app is DOWN past its 1,800-s lease | protocol bound. Forced renew is refused under the production renewWindow 300; claim after lapse |
++
++## What the existing deployed contracts allow (inspected, and tested where marked)
++
++- **`EnclaveLeaseGasReserve`** (source `1d173473…`, the artifact tested here):
++  - It pays only in `finish()`, using the formula above. At gas price 0 only the L1-data-bound term remains, capped by
++    `l1Bps ≤ 10000`; `setLimits(l1Bps 10001)` reverts (tested).
++  - `withdraw(id, amount, to)` is keyed to `msg.sender` (`budgetKey(id, msg.sender)`), and it is refused inside a lease
++    operation (`_tload(T_ID) == 0`).
++  - There is no allowance, delegate or module path. Nobody but the owner of record can move reserve ETH to an
++    arbitrary payee.
++- **Owner of record = an EOA:** each `withdraw` is that owner's own L2 transaction (tested: the owner's withdraw to an
++  arbitrary address works). That means one owner signature per transfer, not per lease.
++- **Owner of record = a SessionVault:**
++  - The reserve's owner of record is the vault. `withdraw` is reachable only through `vault.ownerCall(reserve, …)`,
++    which is DIRECT ONLY (`msg.sender == owner`, never signable).
++  - Session keys have no reserve action: the action table stops at `app.publish` (`ACT_LAST = 8`).
++  - Owner-signed operations (`topUp`/`withdraw`/…) move the vault's USDC, not the reserve's ETH.
++  - So no automation is possible without the owner's direct transaction each time.
++- **Ledger:** `fundEth` / `fundWithAuthorization` fund COMPUTE in, and nothing pays out to a submitter.
++
++**The one existing, bounded, owner-authorized workaround:** the owner prepays a FLOAT. It is one `reserve.withdraw` of a
++bounded amount to a designated L1 submitter's L2 address, made before any emergency. It has these properties:
++- one owner signature per float, not per operation;
++- the submitter must be TRUSTED: it can keep the float without ever submitting;
++- it is paid in L2 ETH, while the submitter needs L1 ETH up front. L2 ETH is not L1 liquidity: returning it to L1 takes
++  a Base withdrawal (prove + finalize; about 7 days under fault proofs) or a third-party bridge, with that bridge's trust
++  and fees.
++
++This keeps the cost app-paid economically, but it is manual, trust-based and liquidity-bound. It is not an automated
++app-funded forced lease.
++
++## Decision
++
++The existing contracts **cannot** pay forced-inclusion L1 costs automatically from the app's reserve without one of:
++- a host fronting ETH;
++- an owner signature per transfer;
++- a trusted float.
++
++The **exact unmet requirement:**
++
++> A per-operation payment from the app's own escrow to the L1 submitter, executed atomically with the forced lease
++> itself, bounded by (a) the host's signed maximum, (b) the owner's per-operation and per-epoch caps, and (c) an on-L2
++> estimate of the L1 cost from the L1 base fee Base itself exposes (L1Block predeploy), and paid only if the lease
++> operation succeeds. The current reserve cannot express this: its charge is a function of `tx.gasprice`, which is 0
++> for every deposit.
++
++## Minimal compatibility proposal (additive; nothing existing changes)
++
++One NEW, optional contract, `EnclaveForcedLeaseCompensator`:
++- It sits beside the existing ledger, registry, reserve and executor, unchanged.
++- An app opts in only by funding it.
++- No migration, no re-delegation, no change to any balance or admin right.
++
++**Interface sketch** (a specification, not an implementation):
++
++```solidity
++interface IEnclaveForcedLeaseCompensator {
++    struct Policy { bool enabled; uint64 maxPerOpWei; uint64 epochCapWei; uint32 epochSec;
++                    uint32 l1GasAllowance;   // L1 execution gas of depositTransaction the owner agrees to repay (~70k-120k)
++                    uint64 maxL1BaseFeeWei; uint64 resourceFeeWei;  // caps on the L1 price inputs, owner-set
++                    address submitter; }     // 0 = any submitter the host names in ForcedTerms
++    struct ForcedTerms { bytes32 leaseDigest; address submitter; uint256 maxCompensationWei; uint64 deadline; }
++    // owner of record (EOA directly; a SessionVault through ownerCall); anyone may deposit (a gift to that owner)
++    function deposit(bytes32 id) external payable;
++    function configure(bytes32 id, Policy calldata p) external;
++    function withdraw(bytes32 id, uint256 amountWei, address payable to) external;   // the owner's own escrow only
++    // called BY the L1 deposit: runs the existing executor's lease, then pays the submitter, atomically
++    function forcedLease(address operator, EnclaveLeaseExecutor.Lease calldata l, bytes calldata leaseSig,
++                         ForcedTerms calldata t, bytes calldata termsSig) external;
++    // admin (Enclave): pause, block a deployment/operator, global ceilings; NO path to any escrow
++    function setPaused(bool) external; function setBlocked(bytes32 id, bool) external; function setCeilings(uint64 maxPerOpWei, uint64 maxL1BaseFeeWei) external;
++}
++```
++
++**Rules `forcedLease` enforces:**
++1. `tx.gasprice == 0`. On Base only deposits run at price 0, so this is deposit-only. That assumption must be reviewed
++   per fork.
++2. `termsSig` is the OPERATOR's EIP-712 signature over `ForcedTerms`, so the payout is bound to this lease and this
++   submitter. It uses the host's existing key, off-chain, with no ETH.
++3. `tx.origin` is `t.submitter` or its L1→L2 alias, so only the named submitter's own deposit is paid.
++4. It calls `operator.lease(l, leaseSig)` with the exact canonical encoding. The existing executor and reserve run
++   unchanged; any revert reverts everything, and nothing is paid.
++5. It pays `min(t.maxCompensationWei, policy.maxPerOpWei, epoch left, escrow,
++   (l1GasAllowance + l2GasLimit × resourceFeeWei / max(L1Block.basefee, 1 gwei)) × min(L1Block.basefee, maxL1BaseFeeWei))`
++   to `t.submitter` on L2.
++   - This mirrors the portal's own metering formula, with owner-capped inputs. It is an estimate, not a measurement of
++     the L1 receipt.
++
++**Unsigned call and permission inventory** (who would authorize what; nothing here is requested now):
++
++| step | call | authorized by | chain | funding |
++|---|---|---|---|---|
++| 1 | deploy `EnclaveForcedLeaseCompensator(ledger, registry)` | Enclave admin, after root and security review | Base | admin L2 gas |
++| 2 | `configure(id, policy)` | the deployment's owner of record: EOA direct, or `vault.ownerCall(compensator, configure)` | Base | owner L2 gas (routine) |
++| 3 | `deposit(id)` | anyone (credited to the owner of record) | Base | the app's ETH. A separate escrow: reserve balances are NOT moved automatically. The owner may move them by its own `reserve.withdraw` → `deposit` |
++| 4 | sign `Lease` + `ForcedTerms` | host operator key, off-chain, under the opt-in policy (`src/lease-signing-policy.mjs`) | none | none |
++| 5 | `portal.depositTransaction(compensator, 0, gasLimit, false, forcedLease(...))` | the L1 submitter (any funded L1 EOA), via P's opt-in local broadcast | Ethereum | **L1 ETH fronted by the submitter**, repaid in L2 ETH on success |
++| 6 | `withdraw(id, amount, to)` | owner of record | Base | none |
++
++**Remaining trust, cost and race requirements, even with the proposal:**
++- **Liquidity.** The submitter fronts L1 ETH and is repaid in L2 ETH. Returning value to L1 takes about 7 days via the
++  canonical bridge, or a third party. Someone must hold an L1 float sized to the expected number of forced operations ×
++  about 1e15 wei.
++- **Races.** Anyone can submit the same signed Lease directly (sequencer or another deposit). If theirs lands first, the
++  named submitter's deposit reverts as a whole (BadNonce), so it is not paid and its L1 cost is lost. That is bounded per
++  operation and should be disclosed. Resend rules are unchanged: same L1 nonce only; the tracker owns them.
++- **Estimate.** The L1 cost is an on-L2 estimate (L1Block base fee, owner-capped allowances), not the L1 receipt.
++  Owners set the caps.
++- **Continuity.** Payment does not shorten the protocol delay; the lease may still lapse (see the table above).
++- **Admin.** Enclave keeps pause, block and ceilings, and has no path to any escrow, matching the reserve's admin model.
++  Owner admin migration is unaffected: escrows stay keyed to the owner of record.
+diff --git a/ROOT-P-BROADCAST-AND-A-CONSUMERS.txt b/ROOT-P-BROADCAST-AND-A-CONSUMERS.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..dc009683cf4102f8e79e55e2ee3e1cbb3010a357
+--- /dev/null
++++ b/ROOT-P-BROADCAST-AND-A-CONSUMERS.txt
+@@ -0,0 +1 @@
++Root reviewed P terminalf835148, RESULT-BINARY-CLOSURE and HANDOFF-TO-E-L1-TX-BROADCAST.md in work/rpc-l1-source-package. Realreth acceptsrawtxbydefaultbutdoesnotgossip; optinmodegossips, noportalallowlistorunprotectedlegacyrefusal. Youractualsendergatesmustbindtocorrectmodeandpair, nothashreturned. A terminale32dd607b adds CLI/MCPverifierreads but receipttransportawaitBlock onlyprovesheadreached, notreceipt/inclusion/success. A nowowns external-signerread-your-writesandcustody/credit-vaultfeatureparity; do notduplicateit. Coordinatevia immutableinterfaces inNOTE toA; yoursownsverifiedreceipt/readsourcebinding. No livewrites/sign/funds.
+diff --git a/jobs/mutants-closure.sh b/jobs/mutants-closure.sh
+index e6eda602d29d42823c13f8bb163b8827f7ff85ea..b2d2b50621bef5da1f6a78d1545fc4e36c09e330 100755
+--- a/jobs/mutants-closure.sh
++++ b/jobs/mutants-closure.sh
+@@ -15,13 +15,22 @@ M=(
+   "src/vault-deposit.mjs ##~## $V ##~## if (sep.toLowerCase() !== String(token.separator).toLowerCase()) refuse ##~## if (false) refuse"
+   "src/vault-deposit.mjs ##~## $V ##~## if (s.ownerNonceUsed !== false) refuse ##~## if (false) refuse"
+   "src/forced-inclusion.mjs ##~## $L ##~## if (lower(l1Snapshot.implementation) !== lower(pin.implementation)) refuse ##~## if (false) refuse"
+-  "src/forced-inclusion.mjs ##~## $L ##~## export const L1_VERIFIERS = Object.freeze(['l1-light-client', 'l1-execution-proof']); ##~## export const L1_VERIFIERS = Object.freeze(['l1-light-client', 'l1-execution-proof', 'test-anvil-l1']);"
++  "src/forced-inclusion.mjs ##~## $L ##~## if (!isMinted(ev) || ev.kind !== kind) refuse(code ##~## if (false) refuse(code"
+   "src/lease-signing-policy.mjs ##~## $P ##~## if (forced !== undefined) refuse ##~## if (false) refuse"
+   "src/lease-signing-policy.mjs ##~## $P ##~## if (Number(r.renewWindow) < window) refuse ##~## if (false) refuse"
+   "src/lease-signing-policy.mjs ##~## $P ##~## if (budget > BigInt(r.maxPerOpWei)) refuse ##~## if (false) refuse"
+   "src/lease-signing-policy.mjs ##~## $P ##~## deadline: BigInt(c.head.timestamp + window) ##~## deadline: BigInt(c.head.timestamp + window * 10)"
+-  "src/forced-inclusion.mjs ##~## test/finality.test.mjs ##~## if (!L1_VERIFIERS.includes(l1Evidence.verifiedBy)) refuse ##~## if (false) refuse"
++  "src/forced-inclusion.mjs ##~## test/finality.test.mjs ##~## acceptEvidence(l1Evidence, 'l1-receipt', { acceptTrust }, 'l1-evidence-unverified'); ##~## "
+   "src/forced-inclusion.mjs ##~## test/finality.test.mjs ##~## if (l2Evidence.finalized === true && l1Final) level ##~## if (l2Evidence.finalized === true) level"
++  "src/forced-inclusion.mjs ##~## test/forced-inclusion.anvil.test.mjs ##~## if (!Array.isArray(verifiers) || !verifiers.every((v) => /^test-/.test(String(v)))) refuse ##~## if (false) refuse"
++  "src/forced-inclusion.mjs ##~## test/source-binding.anvil.test.mjs ##~## if (!acceptTrust.includes(ev.trust)) refuse ##~## if (false) refuse"
++  "src/forced-inclusion.mjs ##~## test/source-binding.anvil.test.mjs ##~## if (l1Receipt !== undefined && l1Receipt !== l1Proof.receipt) refuse ##~## if (false) refuse"
++  "src/l1-source-binding.mjs ##~## test/source-binding.anvil.test.mjs ##~## need(fin && fin.hash === clFin.hash ##~## need(true"
++  "src/l1-source-binding.mjs ##~## test/source-binding.test.mjs ##~## if (canon?.hash !== raw.blockHash) refuse('l1-not-canonical' ##~## if (false) refuse('l1-not-canonical'"
++  "src/base-source-binding.mjs ##~## test/source-binding.anvil.test.mjs ##~## need(cur.canonical, ##~## need(true,"
++  "src/l1-source-binding.mjs ##~## test/source-binding.anvil.test.mjs ##~## if (!['http:', 'https:'].includes(url.protocol) || !LOOPBACK.has(url.hostname)) refuse('not-local' ##~## if (false) refuse('not-local'"
++  "src/l1-source-binding.mjs ##~## test/source-binding.anvil.test.mjs ##~## need(d.is_syncing === false && d.is_optimistic === false && d.el_offline === false ##~## need(true"
++  "src/l1-source-binding.mjs ##~## test/source-binding.test.mjs ##~## if (!(block.transactions ?? []).map ##~## if (false && !(block.transactions ?? []).map"
+ )
+ fails=0; i=0
+ for m in "${M[@]}"; do
+diff --git a/logs/bind-1.guard.log b/logs/bind-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..988c6ecd097c56daa91087043fdbcf1faaed6a2a
+--- /dev/null
++++ b/logs/bind-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=135 minHostAvailableMiB=23704
+diff --git a/logs/bind-1.out b/logs/bind-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..16ebb6d042237e440edf9c03a7e824feab579101
+--- /dev/null
++++ b/logs/bind-1.out
+@@ -0,0 +1,99 @@
++[queue] START available=23772MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++ca818b759172adc98c5089796784133f9310e597
++ M src/forced-inclusion.mjs
++ M test/finality.test.mjs
++ M test/forced-inclusion.anvil.test.mjs
++?? logs/bind-1.out
++?? src/base-source-binding.mjs
++?? src/evidence-brand.mjs
++?? src/l1-source-binding.mjs
++?? test/source-binding.anvil.test.mjs
++?? test/support/pair-stubs.mjs
++anvil Version: 1.7.1
++v22.23.3
++  "version": "2.53.1",
++5b5922b3fdddb6384d06529fb86cadd29df5b14c1a1adf30aee97554d145487b  src/base-source-binding.mjs
++e0aa736375584b5707fe81924f68be2f6312de2cc5623f9a7ae71a9be31636ce  src/evidence-brand.mjs
++438e9c77382eeb9e60bd57cfaf4c98ee2f831d93aec7b0c75e7fbc151b87942c  src/forced-inclusion.mjs
++1eeda6f9ccdd74f826391e2e15588d24b6c02b0b1eb55d874cc7855d69766260  src/l1-source-binding.mjs
++30cfd9e7ba27740b55f5b4f3b8d603d4da2b44a7583a3f8c4b5107874b71fb2c  src/lease-signing-policy.mjs
++a0401e08e6f51586e8776fc9bd7356c4a1e76f260dd4a74dc270de4fab5bb821  src/vault-deposit.mjs
++4fc17967ebba4601161160ce4d7df8b2e24db5888d898d5af9defd620d92a090  test/fee-audit.anvil.test.mjs
++fe95a0f355e4dac08243af2b4562a0082ff3849e7619db45b01ed743f5b0388e  test/finality.test.mjs
++a1781760e1f270318fd60e2c6baf74f1ebaf6b5c1d62891b15d93403583b3b98  test/forced-inclusion.anvil.test.mjs
++748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
++8474c4c04f793c377f2ddd55b4d5d4e42689cf64b41907d8e5236d6cba7215af  test/lease-signing-policy.anvil.test.mjs
++d1df9f1a47bbb0e46f1f4871f5fa89cb1deb2d5e3c2f6ee88eefb6f60e6ef1ac  test/source-binding.anvil.test.mjs
++784ba86de7d3f08cb6cf0df1164c7bc9c5d1ef5bcccc125e3d05e2c966355c2d  test/tracker.test.mjs
++39422d45f9d1e91f2d2a49aa0da9fafd31f1f77c0654d7ab483ba3e3cfc210a3  test/vault-deposit.anvil.test.mjs
++966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  fixtures/artifacts/EnclaveAddressBook.json
++0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
++dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
++aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
++aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
++66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
++613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d  fixtures/artifacts/Mock1271Owner.json
++10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
++524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
++9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946  fixtures/artifacts/MockUSDC3009.json
++f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc  fixtures/artifacts/SessionVault.json
++eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e  fixtures/artifacts/SessionVaultFactory.json
++bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478  fixtures/artifacts/SessionVaultLib.json
++b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8  fixtures/sources/EnclaveAddressBook.sol
++2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
++dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
++1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
++e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
++a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703  fixtures/sources/MockUSDC.sol
++47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d  fixtures/sources/SessionMocks.sol
++a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c  fixtures/sources/SessionVault.sol
++47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
++97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
++65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
++5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
++ok 1 - no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
++  ---
++  duration_ms: 1.358378
++  type: 'test'
++  ...
++# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/source-binding.anvil.test.mjs:84
++#   assert.throws(() => F.classifyL2Outcome({ plan, l2TransactionHash: m.l2TransactionHash, receipt: b1.receipt, head: await l2.headNow(), source: { evidence: b1.evidence } }), (e) => e.code === 'receipt-unverified');
++#                                                                                                                      ^^^^^
++# SyntaxError: Unexpected reserved word
++#     at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
++#     at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:110:18)
++#     at \#translate (node:internal/modules/esm/loader:559:20)
++#     at afterLoad (node:internal/modules/esm/loader:612:29)
++#     at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:617:12)
++#     at \#createModuleJob (node:internal/modules/esm/loader:640:36)
++#     at \#getJobFromResolveResult (node:internal/modules/esm/loader:353:34)
++#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:321:41)
++#     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:680:25)
++# Node.js v22.23.3
++# Subtest: test/source-binding.anvil.test.mjs
++not ok 2 - test/source-binding.anvil.test.mjs
++  ---
++  duration_ms: 23.370563
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/source-binding.anvil.test.mjs:1:1'
++  failureType: 'testCodeFailure'
++  exitCode: 1
++  signal: ~
++  error: 'test failed'
++  code: 'ERR_TEST_FAILURE'
++  ...
++1..2
++# tests 2
++# suites 0
++# pass 1
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 258.389614
++[memory-guard] exit=1 peakTreeRssMiB=135 minHostAvailableMiB=23704
++[memory-guard] at peak: node:76 node:55 timeout:4
++[queue] EXIT 1
+diff --git a/logs/bind-2.out b/logs/bind-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/logs/bind-3.guard.log b/logs/bind-3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..db9d64d2b14372dada26dc3f99165fcbb80459cb
+--- /dev/null
++++ b/logs/bind-3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=261 minHostAvailableMiB=24550
+diff --git a/logs/bind-3.out b/logs/bind-3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..8ea0a3d6d5b9f6cd3db6c98c588a0cf3e455d770
+--- /dev/null
++++ b/logs/bind-3.out
+@@ -0,0 +1,173 @@
++[queue] START available=25691MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++ca818b759172adc98c5089796784133f9310e597
++ M jobs/mutants-closure.sh
++ M src/forced-inclusion.mjs
++ M test/finality.test.mjs
++ M test/forced-inclusion.anvil.test.mjs
++?? HANDOFF-SOURCE-BINDING.md
++?? PROPOSAL-FORCED-INCLUSION-COMPENSATION.md
++?? exports/source-only/
++?? logs/bind-1.guard.log
++?? logs/bind-1.out
++?? logs/bind-2.out
++?? logs/bind-3.out
++?? src/base-source-binding.mjs
++?? src/evidence-brand.mjs
++?? src/l1-source-binding.mjs
++?? test/source-binding.anvil.test.mjs
++?? test/source-binding.test.mjs
++?? test/support/pair-stubs.mjs
++?? tools/artifact-recipe.mjs
++anvil Version: 1.7.1
++v22.23.3
++  "version": "2.53.1",
++5b5922b3fdddb6384d06529fb86cadd29df5b14c1a1adf30aee97554d145487b  src/base-source-binding.mjs
++e0aa736375584b5707fe81924f68be2f6312de2cc5623f9a7ae71a9be31636ce  src/evidence-brand.mjs
++438e9c77382eeb9e60bd57cfaf4c98ee2f831d93aec7b0c75e7fbc151b87942c  src/forced-inclusion.mjs
++1eeda6f9ccdd74f826391e2e15588d24b6c02b0b1eb55d874cc7855d69766260  src/l1-source-binding.mjs
++30cfd9e7ba27740b55f5b4f3b8d603d4da2b44a7583a3f8c4b5107874b71fb2c  src/lease-signing-policy.mjs
++a0401e08e6f51586e8776fc9bd7356c4a1e76f260dd4a74dc270de4fab5bb821  src/vault-deposit.mjs
++4fc17967ebba4601161160ce4d7df8b2e24db5888d898d5af9defd620d92a090  test/fee-audit.anvil.test.mjs
++fe95a0f355e4dac08243af2b4562a0082ff3849e7619db45b01ed743f5b0388e  test/finality.test.mjs
++a1781760e1f270318fd60e2c6baf74f1ebaf6b5c1d62891b15d93403583b3b98  test/forced-inclusion.anvil.test.mjs
++748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
++8474c4c04f793c377f2ddd55b4d5d4e42689cf64b41907d8e5236d6cba7215af  test/lease-signing-policy.anvil.test.mjs
++7c58f6f730926b0d4acba2b4d46be1db0646d2aec7eea4852bb0c8ce61525f33  test/source-binding.anvil.test.mjs
++7ae49bca66f8f5e147960af8ae1c79ace4f087d0e0048f48ccdff2da24c125e9  test/source-binding.test.mjs
++784ba86de7d3f08cb6cf0df1164c7bc9c5d1ef5bcccc125e3d05e2c966355c2d  test/tracker.test.mjs
++39422d45f9d1e91f2d2a49aa0da9fafd31f1f77c0654d7ab483ba3e3cfc210a3  test/vault-deposit.anvil.test.mjs
++966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  fixtures/artifacts/EnclaveAddressBook.json
++0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
++dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
++aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
++aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
++66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
++613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d  fixtures/artifacts/Mock1271Owner.json
++10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
++524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
++9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946  fixtures/artifacts/MockUSDC3009.json
++f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc  fixtures/artifacts/SessionVault.json
++eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e  fixtures/artifacts/SessionVaultFactory.json
++bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478  fixtures/artifacts/SessionVaultLib.json
++b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8  fixtures/sources/EnclaveAddressBook.sol
++2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
++dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
++1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
++e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
++a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703  fixtures/sources/MockUSDC.sol
++47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d  fixtures/sources/SessionMocks.sol
++a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c  fixtures/sources/SessionVault.sol
++47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
++97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
++65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
++5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++not ok 1 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++  ---
++  duration_ms: 436.282298
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/source-binding.anvil.test.mjs:44:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly deep-equal:
++    + actual - expected
++    
++      [
++        'cl.genesis',
++    +   'el.finalized',
++        'el.genesis',
++    +   'el.head',
++    +   'el.peers',
++    +   'el.safe',
++    +   'pair.finalized'
++      ]
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected:
++    0: 'cl.genesis'
++    1: 'el.genesis'
++  actual:
++    0: 'cl.genesis'
++    1: 'el.finalized'
++    2: 'el.genesis'
++    3: 'el.head'
++    4: 'el.peers'
++    5: 'el.safe'
++    6: 'pair.finalized'
++  operator: 'deepStrictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/source-binding.anvil.test.mjs:51:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
++  ...
++# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++not ok 2 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++  ---
++  duration_ms: 39.741907
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/source-binding.anvil.test.mjs:57:1'
++  failureType: 'testCodeFailure'
++  error: 'l1-source-not-ready: el.genesis: genesis undefined; el.peers: execution net_peerCount: Method not found; el.head: head lag 6397 s; el.finalized: no finalized block; el.safe: no safe block; pair.finalized: consensus /eth/v2/beacon/blocks/finalized: HTTP 500'
++  code: 'l1-source-not-ready'
++  stack: |-
++    refuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/forced-inclusion.mjs:108:49)
++    readyOrRefuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/l1-source-binding.mjs:103:16)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Object.portalSnapshot (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/l1-source-binding.mjs:138:15)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/source-binding.anvil.test.mjs:62:18)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++not ok 3 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++  ---
++  duration_ms: 8124.049414
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/source-binding.anvil.test.mjs:104:1'
++  failureType: 'testCodeFailure'
++  error: 'l1-source-not-ready: el.genesis: genesis undefined; el.peers: execution net_peerCount: Method not found; el.head: head lag 6404 s; el.finalized: no finalized block; el.safe: no safe block; pair.finalized: consensus /eth/v2/beacon/blocks/finalized: HTTP 500'
++  code: 'l1-source-not-ready'
++  stack: |-
++    refuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/forced-inclusion.mjs:108:49)
++    readyOrRefuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/l1-source-binding.mjs:103:16)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Object.receipt (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/l1-source-binding.mjs:113:16)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/source-binding.anvil.test.mjs:126:17)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++not ok 4 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++  ---
++  duration_ms: 18.995055
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/source-binding.anvil.test.mjs:129:1'
++  failureType: 'testCodeFailure'
++  error: 'l1-source-not-ready: el.genesis: genesis undefined; el.peers: execution net_peerCount: Method not found; el.head: head lag 6404 s; el.finalized: no finalized block; el.safe: no safe block; pair.finalized: consensus /eth/v2/beacon/blocks/finalized: HTTP 500'
++  code: 'l1-source-not-ready'
++  stack: |-
++    refuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/forced-inclusion.mjs:108:49)
++    readyOrRefuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/l1-source-binding.mjs:103:16)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Object.receipt (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/l1-source-binding.mjs:113:16)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/source-binding.anvil.test.mjs:134:15)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Error: Test hook "before" at test/source-binding.anvil.test.mjs:31:6 generated asynchronous activity after the test ended. This activity created the error "TypeError: Cannot read properties of null (reading 'hash')" and would have caused the test to fail, but instead triggered an unhandledRejection event.
++1..4
++# tests 4
++# suites 0
++# pass 0
++# fail 4
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 12919.085687
++[memory-guard] exit=1 peakTreeRssMiB=261 minHostAvailableMiB=24550
++[memory-guard] at peak: node:102 anvil:71 node:55 anvil:29 timeout:4
++[queue] EXIT 1
+diff --git a/logs/bind-3.rc b/logs/bind-3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..379a4c986e3265e08e9da42c56ec747619c56a33
+--- /dev/null
++++ b/logs/bind-3.rc
+@@ -0,0 +1 @@
++exit 1
+diff --git a/logs/bind-4.guard.log b/logs/bind-4.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..76b9b7361e8d4a49ae9c6956f965e13cbe54a61c
+--- /dev/null
++++ b/logs/bind-4.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=309 minHostAvailableMiB=25820
+diff --git a/logs/bind-4.out b/logs/bind-4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a09f0f7f6cb9cfaf91b61d748505292fa4fcd4a9
+--- /dev/null
++++ b/logs/bind-4.out
+@@ -0,0 +1,132 @@
++[queue] START available=25998MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++ca818b759172adc98c5089796784133f9310e597
++ M jobs/mutants-closure.sh
++ M src/forced-inclusion.mjs
++ M test/finality.test.mjs
++ M test/forced-inclusion.anvil.test.mjs
++?? HANDOFF-SOURCE-BINDING.md
++?? PROPOSAL-FORCED-INCLUSION-COMPENSATION.md
++?? ROOT-P-BROADCAST-AND-A-CONSUMERS.txt
++?? exports/source-only/
++?? logs/bind-1.guard.log
++?? logs/bind-1.out
++?? logs/bind-2.out
++?? logs/bind-3.guard.log
++?? logs/bind-3.out
++?? logs/bind-3.rc
++?? logs/bind-4.out
++?? src/base-source-binding.mjs
++?? src/evidence-brand.mjs
++?? src/l1-source-binding.mjs
++?? test/source-binding.anvil.test.mjs
++?? test/source-binding.test.mjs
++anvil Version: 1.7.1
++v22.23.3
++  "version": "2.53.1",
++5b5922b3fdddb6384d06529fb86cadd29df5b14c1a1adf30aee97554d145487b  src/base-source-binding.mjs
++e0aa736375584b5707fe81924f68be2f6312de2cc5623f9a7ae71a9be31636ce  src/evidence-brand.mjs
++438e9c77382eeb9e60bd57cfaf4c98ee2f831d93aec7b0c75e7fbc151b87942c  src/forced-inclusion.mjs
++d4a4879d841863910c4cf1a8467a48e42583c85f8d87d1f2cd1a9b50718a9742  src/l1-source-binding.mjs
++30cfd9e7ba27740b55f5b4f3b8d603d4da2b44a7583a3f8c4b5107874b71fb2c  src/lease-signing-policy.mjs
++a0401e08e6f51586e8776fc9bd7356c4a1e76f260dd4a74dc270de4fab5bb821  src/vault-deposit.mjs
++4fc17967ebba4601161160ce4d7df8b2e24db5888d898d5af9defd620d92a090  test/fee-audit.anvil.test.mjs
++fe95a0f355e4dac08243af2b4562a0082ff3849e7619db45b01ed743f5b0388e  test/finality.test.mjs
++a1781760e1f270318fd60e2c6baf74f1ebaf6b5c1d62891b15d93403583b3b98  test/forced-inclusion.anvil.test.mjs
++748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
++8474c4c04f793c377f2ddd55b4d5d4e42689cf64b41907d8e5236d6cba7215af  test/lease-signing-policy.anvil.test.mjs
++6fc792a6c395df86d105cbaf72ff3b105da671071e93fe2885667c1ebf1dc008  test/source-binding.anvil.test.mjs
++7ae49bca66f8f5e147960af8ae1c79ace4f087d0e0048f48ccdff2da24c125e9  test/source-binding.test.mjs
++784ba86de7d3f08cb6cf0df1164c7bc9c5d1ef5bcccc125e3d05e2c966355c2d  test/tracker.test.mjs
++39422d45f9d1e91f2d2a49aa0da9fafd31f1f77c0654d7ab483ba3e3cfc210a3  test/vault-deposit.anvil.test.mjs
++966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  fixtures/artifacts/EnclaveAddressBook.json
++0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
++dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
++aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
++aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
++66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
++613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d  fixtures/artifacts/Mock1271Owner.json
++10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
++524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
++9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946  fixtures/artifacts/MockUSDC3009.json
++f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc  fixtures/artifacts/SessionVault.json
++eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e  fixtures/artifacts/SessionVaultFactory.json
++bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478  fixtures/artifacts/SessionVaultLib.json
++b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8  fixtures/sources/EnclaveAddressBook.sol
++2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
++dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
++1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
++e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
++a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703  fixtures/sources/MockUSDC.sol
++47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d  fixtures/sources/SessionMocks.sol
++a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c  fixtures/sources/SessionVault.sol
++47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
++97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
++65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
++5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
++ok 1 - no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
++  ---
++  duration_ms: 1.400747
++  type: 'test'
++  ...
++# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++ok 2 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++  ---
++  duration_ms: 437.953856
++  type: 'test'
++  ...
++# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++ok 3 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++  ---
++  duration_ms: 281.506914
++  type: 'test'
++  ...
++# finality: {"state":"l2-included","level":"finalized","depositL1Final":true,"gates":[]}
++# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++ok 4 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++  ---
++  duration_ms: 109.203187
++  type: 'test'
++  ...
++# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++ok 5 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++  ---
++  duration_ms: 26.375767
++  type: 'test'
++  ...
++# Subtest: a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++ok 6 - a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++  ---
++  duration_ms: 71.479464
++  type: 'test'
++  ...
++# Subtest: fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++not ok 7 - fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++  ---
++  duration_ms: 23.215367
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/source-binding.test.mjs:53:1'
++  failureType: 'testCodeFailure'
++  error: 'l1-not-canonical'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/source-binding.test.mjs:61:11)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++1..7
++# tests 7
++# suites 0
++# pass 6
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 5391.469268
++[memory-guard] exit=1 peakTreeRssMiB=309 minHostAvailableMiB=25820
++[memory-guard] at peak: anvil:112 node:104 node:56 anvil:33 timeout:4
++[queue] EXIT 1
+diff --git a/logs/bind-4.rc b/logs/bind-4.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..379a4c986e3265e08e9da42c56ec747619c56a33
+--- /dev/null
++++ b/logs/bind-4.rc
+@@ -0,0 +1 @@
++exit 1
+diff --git a/logs/bind-5.guard.log b/logs/bind-5.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..43112ee32c6e84fcba69d2e746cd81d82c45a11b
+--- /dev/null
++++ b/logs/bind-5.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=145 minHostAvailableMiB=25767
+diff --git a/logs/bind-5.out b/logs/bind-5.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..7084c9e84544b9e47c3e918fb02369e4fae9c22c
+--- /dev/null
++++ b/logs/bind-5.out
+@@ -0,0 +1,91 @@
++[queue] START available=25796MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++ca818b759172adc98c5089796784133f9310e597
++ M jobs/mutants-closure.sh
++ M src/forced-inclusion.mjs
++ M test/finality.test.mjs
++ M test/forced-inclusion.anvil.test.mjs
++?? HANDOFF-SOURCE-BINDING.md
++?? PROPOSAL-FORCED-INCLUSION-COMPENSATION.md
++?? ROOT-P-BROADCAST-AND-A-CONSUMERS.txt
++?? exports/source-only/
++?? logs/bind-1.guard.log
++?? logs/bind-1.out
++?? logs/bind-2.out
++?? logs/bind-3.guard.log
++?? logs/bind-3.out
++?? logs/bind-3.rc
++?? logs/bind-4.guard.log
++?? logs/bind-4.out
++?? logs/bind-4.rc
++?? logs/bind-5.out
++?? src/base-source-binding.mjs
++?? src/evidence-brand.mjs
++anvil Version: 1.7.1
++v22.23.3
++  "version": "2.53.1",
++5b5922b3fdddb6384d06529fb86cadd29df5b14c1a1adf30aee97554d145487b  src/base-source-binding.mjs
++e0aa736375584b5707fe81924f68be2f6312de2cc5623f9a7ae71a9be31636ce  src/evidence-brand.mjs
++438e9c77382eeb9e60bd57cfaf4c98ee2f831d93aec7b0c75e7fbc151b87942c  src/forced-inclusion.mjs
++d4a4879d841863910c4cf1a8467a48e42583c85f8d87d1f2cd1a9b50718a9742  src/l1-source-binding.mjs
++30cfd9e7ba27740b55f5b4f3b8d603d4da2b44a7583a3f8c4b5107874b71fb2c  src/lease-signing-policy.mjs
++a0401e08e6f51586e8776fc9bd7356c4a1e76f260dd4a74dc270de4fab5bb821  src/vault-deposit.mjs
++4fc17967ebba4601161160ce4d7df8b2e24db5888d898d5af9defd620d92a090  test/fee-audit.anvil.test.mjs
++fe95a0f355e4dac08243af2b4562a0082ff3849e7619db45b01ed743f5b0388e  test/finality.test.mjs
++a1781760e1f270318fd60e2c6baf74f1ebaf6b5c1d62891b15d93403583b3b98  test/forced-inclusion.anvil.test.mjs
++748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
++8474c4c04f793c377f2ddd55b4d5d4e42689cf64b41907d8e5236d6cba7215af  test/lease-signing-policy.anvil.test.mjs
++6fc792a6c395df86d105cbaf72ff3b105da671071e93fe2885667c1ebf1dc008  test/source-binding.anvil.test.mjs
++dd1da4b52e93bdd0e2c8327a7549b265d609335ab3925eb6e98ce9109358778a  test/source-binding.test.mjs
++784ba86de7d3f08cb6cf0df1164c7bc9c5d1ef5bcccc125e3d05e2c966355c2d  test/tracker.test.mjs
++39422d45f9d1e91f2d2a49aa0da9fafd31f1f77c0654d7ab483ba3e3cfc210a3  test/vault-deposit.anvil.test.mjs
++966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  fixtures/artifacts/EnclaveAddressBook.json
++0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
++dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
++aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
++aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
++66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
++613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d  fixtures/artifacts/Mock1271Owner.json
++10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
++524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
++9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946  fixtures/artifacts/MockUSDC3009.json
++f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc  fixtures/artifacts/SessionVault.json
++eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e  fixtures/artifacts/SessionVaultFactory.json
++bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478  fixtures/artifacts/SessionVaultLib.json
++b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8  fixtures/sources/EnclaveAddressBook.sol
++2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
++dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
++1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
++e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
++a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703  fixtures/sources/MockUSDC.sol
++47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d  fixtures/sources/SessionMocks.sol
++a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c  fixtures/sources/SessionVault.sol
++47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
++97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
++65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
++5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++ok 1 - a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++  ---
++  duration_ms: 77.911718
++  type: 'test'
++  ...
++# Subtest: fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++ok 2 - fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++  ---
++  duration_ms: 95.104951
++  type: 'test'
++  ...
++1..2
++# tests 2
++# suites 0
++# pass 2
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 431.568464
++[memory-guard] exit=0 peakTreeRssMiB=145 minHostAvailableMiB=25767
++[memory-guard] at peak: node:86 node:55 timeout:4
++[queue] EXIT 0
+diff --git a/src/base-source-binding.mjs b/src/base-source-binding.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..32ad0ffe26e372281f3bdcbd32cdb893d05c35a8
+--- /dev/null
++++ b/src/base-source-binding.mjs
+@@ -0,0 +1,97 @@
++// READ ADAPTER binding L2 receipt/finality verification to the LOCAL Base node (S's holder: the official `base`
++// v1.5.1, base-reth execution + in-process base-consensus deriving from the LOCAL L1 pair, `trustRpc: false`) and to
++// the L1 pair adapter (src/l1-source-binding.mjs).
++//
++// Every call, from these configured endpoints only (loopback, no fallback):
++//   1. readiness: chain 8453, Base mainnet genesis hash, eth_syncing false, optimism_syncStatus present with a fresh
++//      unsafe head; the consensus heads (unsafe/safe/finalized) ARE the execution node's canonical blocks at those
++//      numbers (EL/CL pairing);
++//   2. L1 binding: the node's own L1 view (current_l1, and finalized_l1 for finality) is canonical in OUR validated L1
++//      pair, and finalized_l1 is final there. A Base node deriving from some other L1 source is refused;
++//   3. the receipt, by hash, its block canonical at its number after the read; level from the node's heads:
++//      <= finalized_l2 -> 'finalized', <= safe_l2 -> 'safe', else 'unsafe' (sequencer-signed / not yet derived).
++// Output: MINTED L2 evidence `verifiedBy: 'base-derivation'` with the same trust as the L1 pair (local full-node
++// validation, not a portable proof). An unsafe head, a Sia/archive history entry or a submission reply is never
++// upgraded to safe/finalized here.
++import { formatTransactionReceipt } from 'viem';
++import { refuse } from './forced-inclusion.mjs';
++import { TRUST, mint } from './evidence-brand.mjs';
++
++/** Base mainnet identity (base/base v1.5.1 crates/common/chains/src/config.rs MAINNET). */
++export const BASE_MAINNET_L2 = Object.freeze({ chainIdHex: '0x2105', genesisHash: '0xf712aa9241cc24369b143cf6dce85f0902a9731e70d66818a3a5845b296c73dd', label: 'base-mainnet' });
++const LOOPBACK = new Set(['127.0.0.1', '::1', '[::1]', 'localhost']);
++const num = (v) => (typeof v === 'string' ? Number(BigInt(v)) : Number(v));
++function endpoint(u, name) {
++  let url;
++  try { url = new URL(u); } catch { refuse('bad-config', `${name} url`); }
++  if (!['http:', 'https:'].includes(url.protocol) || !LOOPBACK.has(url.hostname)) refuse('not-local', `${name} must be the local node on loopback`);
++  return url.href.replace(/\/$/, '');
++}
++
++/** config: {execution: {url}, rollup: {url}, l1 (createL1PairSource), identity?, maxUnsafeLagSec?} */
++export function createBaseNodeSource({ execution, rollup, l1, identity = BASE_MAINNET_L2, maxUnsafeLagSec = 120, timeoutMs = 8000, fetch = globalThis.fetch, now = () => Math.floor(Date.now() / 1000) } = {}) {
++  const el = endpoint(execution?.url, 'execution'), cl = endpoint(rollup?.url, 'rollup');
++  if (!l1?.blockStanding) refuse('bad-config', 'the Base source must be bound to the L1 pair source it derives from');
++  const trust = identity === BASE_MAINNET_L2 && l1.trust === TRUST.LOCAL_VALIDATED_PAIR ? TRUST.LOCAL_VALIDATED_PAIR : TRUST.TEST_FIXTURE;
++  let id = 0;
++  const call = async (url, method, params = []) => {
++    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params }), signal: AbortSignal.timeout(timeoutMs) });
++    if (!r.ok) throw new Error(`${method}: HTTP ${r.status}`);
++    const j = await r.json(); if (j.error) throw new Error(`${method}: ${j.error.message ?? JSON.stringify(j.error)}`); return j.result;
++  };
++  const rpc = (m, p) => call(el, m, p), roll = (m, p) => call(cl, m, p);
++  const ref = (b) => ({ number: num(b.number), hash: b.hash, timestamp: num(b.timestamp), l1origin: b.l1origin ? { number: num(b.l1origin.number), hash: b.l1origin.hash } : null });
++
++  async function readiness() {
++    const checks = [];
++    const chk = async (name, fn) => { try { checks.push({ name, ok: true, detail: await fn() }); } catch (e) { checks.push({ name, ok: false, detail: String(e.message || e) }); } };
++    const need = (c, m) => { if (!c) throw new Error(m); };
++    let st;
++    await chk('l2.chain', async () => { const c = await rpc('eth_chainId'); need(c === identity.chainIdHex, `chain ${c}`); return c; });
++    await chk('l2.genesis', async () => { const g = await rpc('eth_getBlockByNumber', ['0x0', false]); need(g?.hash === identity.genesisHash, `genesis ${g?.hash}`); return g.hash; });
++    await chk('l2.syncing', async () => { need(await rpc('eth_syncing') === false, 'eth_syncing is not false'); return false; });
++    await chk('l2.syncStatus', async () => {
++      st = await roll('optimism_syncStatus');
++      need(st?.unsafe_l2 && st.safe_l2 && st.finalized_l2 && st.current_l1 && st.finalized_l1, 'incomplete optimism_syncStatus');
++      const lag = now() - num(st.unsafe_l2.timestamp); need(lag <= maxUnsafeLagSec, `unsafe head lag ${lag} s`);
++      return { unsafe: num(st.unsafe_l2.number), safe: num(st.safe_l2.number), finalized: num(st.finalized_l2.number) };
++    });
++    await chk('l2.pair', async () => {
++      for (const k of ['unsafe_l2', 'safe_l2', 'finalized_l2']) {
++        const b = await rpc('eth_getBlockByNumber', ['0x' + num(st[k].number).toString(16), false]);
++        need(b?.hash === st[k].hash, `${k} is not the execution node's block at that height`);
++      }
++      return true;
++    });
++    await chk('l2.l1view', async () => {
++      const cur = await l1.blockStanding(num(st.current_l1.number), st.current_l1.hash);
++      need(cur.canonical, 'the Base node\'s current L1 block is not canonical in the local L1 pair (another L1 source?)');
++      const fin = await l1.blockStanding(num(st.finalized_l1.number), st.finalized_l1.hash);
++      need(fin.canonical && fin.finalized, 'the Base node\'s finalized L1 block is not final in the local L1 pair');
++      return { currentL1: num(st.current_l1.number), finalizedL1: num(st.finalized_l1.number) };
++    });
++    const ok = checks.every((c) => c.ok);
++    return { ok, checks, status: ok ? { unsafe: ref(st.unsafe_l2), safe: ref(st.safe_l2), finalized: ref(st.finalized_l2), finalizedL1: { number: num(st.finalized_l1.number), hash: st.finalized_l1.hash } } : null };
++  }
++  async function readyOrRefuse() { const r = await readiness(); if (!r.ok) refuse('l2-source-not-ready', r.checks.filter((c) => !c.ok).map((c) => `${c.name}: ${c.detail}`).join('; ')); return r; }
++
++  /** -> {state: 'pending'} | {state: 'included', receipt, evidence: {verifiedBy: 'base-derivation', level, safe, finalized, ...}} */
++  async function receipt(txHash) {
++    const r0 = await readyOrRefuse();
++    const raw = await rpc('eth_getTransactionReceipt', [txHash]);
++    if (!raw) return { state: 'pending' };
++    if (raw.transactionHash?.toLowerCase() !== String(txHash).toLowerCase()) refuse('l2-receipt-mismatch', 'another transaction');
++    const r1 = await readyOrRefuse();
++    const canon = await rpc('eth_getBlockByNumber', [raw.blockNumber, false]);
++    if (canon?.hash !== raw.blockHash) refuse('l2-not-canonical', 'the receipt\'s block is no longer canonical (reorg)');
++    if (r1.status.finalized.number < r0.status.finalized.number || r1.status.safe.number < r0.status.safe.number) refuse('l2-source-regressed');
++    const n = num(raw.blockNumber), s = r1.status;
++    const finalized = n <= s.finalized.number, safe = n <= s.safe.number;
++    const receiptOut = formatTransactionReceipt(raw);
++    const evidence = mint({ kind: 'l2-receipt', verifiedBy: 'base-derivation', trust, source: { execution: el, rollup: cl, l1: l1.source, identity: identity.label ?? 'custom' },
++      txHash: raw.transactionHash, blockHash: raw.blockHash, blockNumber: n, level: finalized ? 'finalized' : safe ? 'safe' : 'unsafe', safe, finalized,
++      heads: { safe: s.safe, finalized: s.finalized, finalizedL1: s.finalizedL1 }, readAt: now(), receipt: receiptOut });
++    return { state: 'included', receipt: receiptOut, evidence };
++  }
++  return { readiness, receipt, trust };
++}
+diff --git a/src/evidence-brand.mjs b/src/evidence-brand.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6e193e20b27dded29536f5ad8d85f48c78621023
+--- /dev/null
++++ b/src/evidence-brand.mjs
+@@ -0,0 +1,15 @@
++// Evidence that only the SOURCE-BINDING adapters can mint (src/l1-source-binding.mjs, src/base-source-binding.mjs).
++// A string label ('l1-execution-proof') or caller-supplied JSON is not evidence: the transaction checks in
++// src/forced-inclusion.mjs accept an L1/L2 inclusion or finality claim by default ONLY when the object was produced by
++// an adapter that read it from an explicitly configured, readiness-checked local client pair.
++//
++// Scope of this guarantee: it is an in-process capability (a module-private WeakSet), not cryptography. It stops a
++// caller, a config file or a remote endpoint from asserting evidence; it does not defend against code running in the
++// same process. The TRUST behind a minted object is recorded on it (`trust`): 'local-validated-pair' means "the local
++// full nodes executed/validated this chain and their consensus client finalized it" (local full-node validation
++// trust); it is NOT a portable proof another party can check. 'test-fixture' marks objects from labelled fixtures,
++// which the default checks refuse.
++const MINTED = new WeakSet();
++export const TRUST = Object.freeze({ LOCAL_VALIDATED_PAIR: 'local-validated-pair', TEST_FIXTURE: 'test-fixture' });
++export function mint(obj) { const o = Object.freeze(obj); MINTED.add(o); return o; }
++export const isMinted = (obj) => obj !== null && typeof obj === 'object' && MINTED.has(obj);
+diff --git a/src/forced-inclusion.mjs b/src/forced-inclusion.mjs
+index 0df5d1d3a105edd1a9485e79d094370e70cd3e43..60b897853de5a05fa633d0a5f0c140ceb50f316c 100644
+--- a/src/forced-inclusion.mjs
++++ b/src/forced-inclusion.mjs
+@@ -32,6 +32,24 @@ import {
+ } from 'viem';
+ import { base } from 'viem/chains';
+ import { extractTransactionDepositedLogs, getL2TransactionHash, opaqueDataToDepositData } from 'viem/op-stack';
++import { TRUST, isMinted } from './evidence-brand.mjs';
++
++/**
++ * EVIDENCE ACCEPTANCE (one rule for every check below). By default only an object MINTED by a source-binding adapter
++ * (src/l1-source-binding.mjs, src/base-source-binding.mjs) of the expected kind, with an accepted trust, counts. A
++ * label string or caller-supplied JSON is provenance, never evidence. `verifiers` may be passed explicitly ONLY with
++ * `test-*` labels (labelled fixtures); production labels cannot be whitelisted that way.
++ */
++export function acceptEvidence(ev, kind, { verifiers, acceptTrust = [TRUST.LOCAL_VALIDATED_PAIR] } = {}, code) {
++  if (verifiers !== undefined) {
++    if (!Array.isArray(verifiers) || !verifiers.every((v) => /^test-/.test(String(v)))) refuse('labels-are-not-evidence', 'only test-* labels may be passed; production evidence must be minted by a source-binding adapter');
++    if (!ev || !verifiers.includes(ev.verifiedBy ?? ev.head?.verifiedBy)) refuse(code);
++    return 'test-label';
++  }
++  if (!isMinted(ev) || ev.kind !== kind) refuse(code, 'not minted by a source-binding adapter (a label or caller JSON is not evidence)');
++  if (!acceptTrust.includes(ev.trust)) refuse(code, `trust '${ev.trust}' is not accepted here`);
++  return 'minted';
++}
+ 
+ // ---- pinned protocol facts ------------------------------------------------------------------------------------------
+ export const BASE_MAINNET = Object.freeze({
+@@ -150,10 +168,13 @@ export class ForcedInclusionTracker {
+     return this.mark(key, 'l1-sent', { l1Nonce: String(l1Nonce) });
+   }
+   /** A VERIFIED failed L1 receipt of the recorded transaction: no TransactionDeposited, no L2 effect, the slot frees. */
+-  resolveFailedL1(key, l1Receipt, l1Proof, { verifiers = ['l1-light-client', 'l1-execution-proof'] } = {}) {
++  resolveFailedL1(key, l1Receipt, l1Proof, opts = {}) {
+     const e = this.entries.get(key);
+     if (!e || !ForcedInclusionTracker.open(e)) refuse('unknown-commitment', key);
+-    if (!l1Proof || !verifiers.includes(l1Proof.verifiedBy)) refuse('l1-receipt-unverified');
++    if (acceptEvidence(l1Proof, 'l1-receipt', opts, 'l1-receipt-unverified') === 'minted') {
++      if (l1Receipt !== l1Proof.receipt) refuse('l1-receipt-mismatch', 'not the receipt the evidence covers');
++      l1Receipt = { ...l1Proof.receipt, nonce: l1Proof.transaction.nonce };   // the node's nonce, not the caller's
++    }
+     if (l1Receipt?.status !== 'reverted' || l1Receipt.blockHash?.toLowerCase() !== l1Proof.headerHash?.toLowerCase()) refuse('not-failed');
+     if (e.l1Nonce === undefined || String(l1Receipt.nonce) !== String(e.l1Nonce)) refuse('l1-receipt-mismatch', 'not the recorded L1 nonce');
+     return this.mark(key, 'dead', { l1Failed: l1Receipt.transactionHash });
+@@ -342,8 +363,9 @@ export function planDirectDeposit({ network = BASE_MAINNET, op, target, data, fr
+  *  EIP-1967 implementation of the proxy and its version() (the aliasing and gas rules depend on the version).
+  *  l1Snapshot: {head: {verifiedBy}, portal, implementation, version}; pin: {portal, implementation, versions[]}. */
+ export const EIP1967_IMPLEMENTATION_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
+-export function checkPortalPin(l1Snapshot, pin, { verifiers = L1_VERIFIERS } = {}) {
+-  if (!l1Snapshot?.head || !verifiers.includes(l1Snapshot.head.verifiedBy)) refuse('l1-state-unverified');
++export function checkPortalPin(l1Snapshot, pin, opts = {}) {
++  if (!l1Snapshot?.head) refuse('l1-state-unverified');
++  acceptEvidence(l1Snapshot, 'l1-portal', opts, 'l1-state-unverified');
+   if (!pin || !isAddress(pin.portal || '') || !isAddress(pin.implementation || '') || !Array.isArray(pin.versions)) refuse('no-portal-pin');
+   if (lower(l1Snapshot.portal) !== lower(pin.portal)) refuse('portal-pin-mismatch', `portal ${l1Snapshot.portal}`);
+   if (lower(l1Snapshot.implementation) !== lower(pin.implementation)) refuse('portal-pin-mismatch', `implementation ${l1Snapshot.implementation} is not the reviewed ${pin.implementation}`);
+@@ -369,9 +391,12 @@ export const UNSUPPORTED = Object.freeze({
+  * (l1Proof = {verifiedBy, headerHash}). Exactly one TransactionDeposited log of the portal must match the plan.
+  * -> {l2TransactionHash, from, sourceLog}
+  */
+-export const L1_VERIFIERS = Object.freeze(['l1-light-client', 'l1-execution-proof']);
+-export function matchDepositEvent(plan, l1Receipt, l1Proof, { verifiers = L1_VERIFIERS } = {}) {
+-  if (!l1Proof || !verifiers.includes(l1Proof.verifiedBy)) refuse('l1-receipt-unverified');
++export function matchDepositEvent(plan, l1Receipt, l1Proof, opts = {}) {
++  if (acceptEvidence(l1Proof, 'l1-receipt', opts, 'l1-receipt-unverified') === 'minted') {
++    // the adapter's receipt, exactly: a caller cannot pair real evidence with another receipt
++    if (l1Receipt !== undefined && l1Receipt !== l1Proof.receipt) refuse('l1-receipt-mismatch', 'not the receipt the evidence covers');
++    l1Receipt = l1Proof.receipt;
++  }
+   if (!l1Receipt || l1Receipt.status !== 'success') refuse('l1-transaction-failed');
+   // the L1 transaction may be addressed to a contract wallet that calls the portal: only the portal's own log counts
+   if (l1Receipt.blockHash?.toLowerCase() !== l1Proof.headerHash?.toLowerCase()) refuse('l1-receipt-mismatch', 'block hash vs verified header');
+@@ -393,9 +418,17 @@ export function matchDepositEvent(plan, l1Receipt, l1Proof, { verifiers = L1_VER
+  *   level 'unsafe': the block is under a sequencer-signed head (the same operator that sequences: not yet L1-derived).
+  */
+ export function classifyL2Outcome({ plan, l2TransactionHash, receipt, head, source, now = Math.floor(Date.now() / 1000), maxHeadAgeSec = 120, reserve,
+-  verifiers = ['helios'] }) {
+-  if (!source || !verifiers.includes(source.verifier) || !source.endpoint) refuse('receipt-unverified', 'a receipt counts only from the local verifier');
+-  if (source.submittedVia && source.submittedVia === source.endpoint) refuse('receipt-not-independent', 'the verifier\'s data endpoint is the submission endpoint');
++  verifiers, acceptTrust }) {
++  if (!source) refuse('receipt-unverified');
++  if (verifiers !== undefined) {
++    // labelled fixtures only (test-*): the label names the fixture, it validates nothing
++    acceptEvidence({ verifiedBy: source.verifier }, 'l2-receipt', { verifiers }, 'receipt-unverified');
++    if (!source.endpoint) refuse('receipt-unverified');
++    if (source.submittedVia && source.submittedVia === source.endpoint) refuse('receipt-not-independent', 'the verifier\'s data endpoint is the submission endpoint');
++  } else {
++    acceptEvidence(source.evidence, 'l2-receipt', { acceptTrust }, 'receipt-unverified');
++    if (receipt && receipt !== source.evidence.receipt) refuse('receipt-mismatch', 'not the receipt the evidence covers');
++  }
+   checkHead(head, now, maxHeadAgeSec);
+   if (!receipt) return { state: 'pending', level: null };
+   if (receipt.transactionHash?.toLowerCase() !== l2TransactionHash.toLowerCase()) refuse('receipt-mismatch', 'transaction hash');
+@@ -415,30 +448,29 @@ export function classifyL2Outcome({ plan, l2TransactionHash, receipt, head, sour
+ }
+ 
+ /**
+- * FINALITY ADAPTER (integration gate, fail closed). Starts from a classifyL2Outcome() result (level 'unsafe': under a
+- * sequencer-signed head) and upgrades it ONLY with evidence from a named verifier:
+- *   l1Evidence: {verifiedBy: 'l1-execution-proof' | 'l1-light-client', blockHash, finalized: true, source} for the
+- *     deposit's L1 block (P's validated reth+Lighthouse pair, or a light client) -> the deposit itself is irrevocable;
+- *   l2Evidence: {verifiedBy: 'base-derivation', blockNumber, blockHash, safe, finalized, source} for the receipt's
+- *     block, from a node that DERIVED it from L1 (S's holder / B's verifier) -> 'safe' / 'finalized'.
+- * Missing or mislabelled evidence leaves the level where it is and names the gate; evidence from the endpoint that
+- * accepted the transaction is refused. Nothing here invents a boolean.
++ * FINALITY ADAPTER (integration gate, fail closed). Starts from a classifyL2Outcome() result and upgrades it ONLY with
++ * evidence MINTED by the source-binding adapters (acceptEvidence):
++ *   l1Evidence: kind 'l1-receipt' from createL1PairSource().receipt(depositL1Tx): its `finalized` comes from the
++ *     validated pair's beacon-finalized checkpoint, bound to the execution chain -> the deposit is irrevocable;
++ *   l2Evidence: kind 'l2-receipt' from createBaseNodeSource().receipt(l2Tx): `safe` / `finalized` from the local Base
++ *     node's derivation, its L1 view checked against the same L1 pair.
++ * Missing evidence leaves the level where it is and names the gate. A submission-only endpoint cannot mint evidence;
++ * a label or caller JSON is refused. Trust is local full-node validation, not a portable proof.
+  */
+-export function classifyFinality({ outcome, depositL1BlockHash, l1Evidence, l2Evidence, submittedVia }) {
++export function classifyFinality({ outcome, depositL1BlockHash, l1Evidence, l2Evidence, acceptTrust }) {
+   if (!outcome || outcome.state !== 'l2-included' || outcome.level !== 'unsafe') refuse('no-included-outcome');
+   const rc = outcome.receipt;
+   const gates = [];
+   let l1Final = false, level = 'unsafe';
+   if (l1Evidence) {
+-    if (!L1_VERIFIERS.includes(l1Evidence.verifiedBy)) refuse('l1-evidence-unverified', String(l1Evidence.verifiedBy));
+-    if (submittedVia && l1Evidence.source === submittedVia) refuse('evidence-not-independent', 'from the submission endpoint');
++    acceptEvidence(l1Evidence, 'l1-receipt', { acceptTrust }, 'l1-evidence-unverified');
+     if (String(l1Evidence.blockHash).toLowerCase() !== String(depositL1BlockHash).toLowerCase()) refuse('l1-evidence-mismatch', 'not the deposit\'s L1 block');
+     l1Final = l1Evidence.finalized === true;
+     if (!l1Final) gates.push('the deposit\'s L1 block is not finalized yet');
+   } else gates.push('no verified L1 finality evidence (P\'s L1 pair or a light client)');
+   if (l2Evidence) {
++    acceptEvidence(l2Evidence, 'l2-receipt', { acceptTrust }, 'l2-evidence-unverified');
+     if (l2Evidence.verifiedBy !== 'base-derivation') refuse('l2-evidence-unverified', String(l2Evidence.verifiedBy));
+-    if (submittedVia && l2Evidence.source === submittedVia) refuse('evidence-not-independent', 'from the submission endpoint');
+     if (BigInt(l2Evidence.blockNumber) !== BigInt(rc.blockNumber) || String(l2Evidence.blockHash).toLowerCase() !== String(rc.blockHash).toLowerCase())
+       refuse('l2-evidence-mismatch', 'the derived block is not the receipt\'s block (reorged or wrong)');
+     if (l2Evidence.finalized === true && l1Final) level = 'finalized';
+diff --git a/src/l1-source-binding.mjs b/src/l1-source-binding.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..239a894462079f5103449887c9152c2e14f8908e
+--- /dev/null
++++ b/src/l1-source-binding.mjs
+@@ -0,0 +1,156 @@
++// READ ADAPTER binding transaction verification to the LOCAL, VALIDATED Ethereum L1 pair (P's package: reth v2.8.0
++// execution on 127.0.0.1:18645, Lighthouse v8.3.2 beacon on 127.0.0.1:15052; work/rpc-l1-source-package 1260cdc).
++//
++// What it does, on every call (never cached across calls, no fallback endpoint of any kind):
++//   1. readiness, the same facts P's `l1pair.py ready` gate checks, read from THESE two configured endpoints only:
++//      EL chain id 1, mainnet genesis hash, eth_syncing false, at least minPeers peers, head fresh, finalized present
++//      and fresh; CL mainnet genesis_validators_root, not syncing, not optimistic, EL online, at least minPeers peers;
++//   2. PAIRING: the beacon node's finalized block's execution payload (block_number, block_hash) IS the execution
++//      node's block at that number AND its `finalized` block; the beacon head payload is the EL block at that height.
++//      Two URLs that are not a real EL/CL pair (or one untrusted backend behind both) cannot produce this unless that
++//      backend fakes BOTH a consensus finalized chain and a matching execution chain;
++//   3. the requested receipt / block / storage, pinned by hash, re-checked canonical at its number AFTER the read
++//      (reorg -> refused), and classified final ONLY by number <= the paired finalized block with the canonical hash.
++// What it returns is MINTED evidence (src/evidence-brand.mjs) carrying `trust: 'local-validated-pair'`: local full-node
++// validation trust (reth executed every block from genesis; Lighthouse follows consensus from its weak-subjectivity
++// anchor), NOT a portable cryptographic proof. A submission-only endpoint can never mint this; the same validated pair
++// may serve sends (P's opt-in broadcast) and reads, because the evidence comes from its validated state, not from the
++// reply to a send.
++import { formatTransactionReceipt, getAddress, slice } from 'viem';
++import { refuse } from './forced-inclusion.mjs';
++import { TRUST, mint } from './evidence-brand.mjs';
++
++/** Ethereum mainnet identity, as pinned by P (l1pair/PINS.json at 1260cdc). */
++export const MAINNET_L1 = Object.freeze({
++  chainIdHex: '0x1',
++  elGenesisHash: '0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3',
++  clGenesisValidatorsRoot: '0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95',
++  label: 'ethereum-mainnet',
++});
++const LOOPBACK = new Set(['127.0.0.1', '::1', '[::1]', 'localhost']);
++const num = (v) => (typeof v === 'string' ? Number(BigInt(v)) : Number(v));
++
++function endpoint(u, name) {
++  let url;
++  try { url = new URL(u); } catch { refuse('bad-config', `${name} url`); }
++  if (!['http:', 'https:'].includes(url.protocol) || !LOOPBACK.has(url.hostname)) refuse('not-local', `${name} must be the local node on loopback (no remote or public endpoint)`);
++  if (url.username || url.password) refuse('bad-config', `${name}: no credentials in the url`);
++  return url.href.replace(/\/$/, '');
++}
++
++/**
++ * config: {execution: {url}, consensus: {url}, identity?, trust?, minPeers?, maxHeadLagSec?, maxFinalizedLagSec?, timeoutMs?}
++ * identity/trust overrides exist ONLY for labelled test fixtures: anything but the mainnet identity mints
++ * `trust: 'test-fixture'`, which the default transaction checks refuse.
++ */
++export function createL1PairSource({ execution, consensus, identity = MAINNET_L1, minPeers = 1, maxHeadLagSec = 120, maxFinalizedLagSec = 3600, timeoutMs = 8000,
++  fetch = globalThis.fetch, now = () => Math.floor(Date.now() / 1000) } = {}) {
++  const el = endpoint(execution?.url, 'execution'), cl = endpoint(consensus?.url, 'consensus');
++  if (el === cl) refuse('bad-config', 'execution and consensus must be the two clients of the pair, not one endpoint');
++  const trust = identity === MAINNET_L1 ? TRUST.LOCAL_VALIDATED_PAIR : TRUST.TEST_FIXTURE;
++  if (!(Number.isInteger(minPeers) && minPeers >= 0)) refuse('bad-config', 'minPeers');
++  if (minPeers === 0 && trust !== TRUST.TEST_FIXTURE) refuse('bad-config', 'a production pair must have peers: minPeers 0 is for labelled fixtures only');
++  let id = 0;
++  async function rpc(method, params = []) {
++    const r = await fetch(el, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params }), signal: AbortSignal.timeout(timeoutMs) });
++    if (!r.ok) throw new Error(`execution ${method}: HTTP ${r.status}`);
++    const j = await r.json();
++    if (j.error) throw new Error(`execution ${method}: ${j.error.message ?? JSON.stringify(j.error)}`);
++    return j.result;
++  }
++  async function beacon(path) {
++    const r = await fetch(cl + path, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(timeoutMs) });
++    if (!r.ok) throw new Error(`consensus ${path}: HTTP ${r.status}`);
++    return (await r.json()).data;
++  }
++
++  /** -> {ok, checks: [{name, ok, detail}], head, finalized, safe} (finalized = the PAIRED finalized execution block) */
++  async function readiness() {
++    const checks = [];
++    const chk = async (name, fn) => { try { const d = await fn(); checks.push({ name, ok: true, detail: d }); return true; } catch (e) { checks.push({ name, ok: false, detail: String(e.message || e) }); return false; } };
++    const need = (c, msg) => { if (!c) throw new Error(msg); };
++    let head, fin, safe, clFin;
++    await chk('el.chain', async () => { const c = await rpc('eth_chainId'); need(c === identity.chainIdHex, `chain ${c}`); return c; });
++    await chk('el.genesis', async () => { const g = await rpc('eth_getBlockByNumber', ['0x' + (identity.genesisNumber ?? 0).toString(16), false]); need(g?.hash === identity.elGenesisHash, `genesis ${g?.hash}`); return g.hash; });
++    await chk('el.syncing', async () => { const s = await rpc('eth_syncing'); need(s === false, 'eth_syncing is not false'); return false; });
++    await chk('el.peers', async () => { if (minPeers === 0) return 'skipped (labelled fixture, minPeers 0)'; const p = num(await rpc('net_peerCount')); need(p >= minPeers, `${p} peers`); return p; });
++    await chk('el.head', async () => { head = await rpc('eth_getBlockByNumber', ['latest', false]); const lag = now() - num(head.timestamp); need(lag <= maxHeadLagSec, `head lag ${lag} s`); return num(head.number); });
++    await chk('el.finalized', async () => { fin = await rpc('eth_getBlockByNumber', ['finalized', false]); need(fin, 'no finalized block'); const lag = now() - num(fin.timestamp); need(lag <= maxFinalizedLagSec, `finalized lag ${lag} s`); return num(fin.number); });
++    await chk('el.safe', async () => { safe = await rpc('eth_getBlockByNumber', ['safe', false]); need(safe, 'no safe block'); return num(safe.number); });
++    await chk('cl.genesis', async () => { const g = await beacon('/eth/v1/beacon/genesis'); need(g.genesis_validators_root === identity.clGenesisValidatorsRoot, 'genesis_validators_root differs'); return true; });
++    await chk('cl.syncing', async () => { const d = await beacon('/eth/v1/node/syncing'); need(d.is_syncing === false && d.is_optimistic === false && d.el_offline === false, `syncing=${d.is_syncing} optimistic=${d.is_optimistic} el_offline=${d.el_offline}`); return num(d.head_slot); });
++    await chk('cl.peers', async () => { const d = await beacon('/eth/v1/node/peer_count'); need(num(d.connected) >= minPeers, `${d.connected} peers`); return num(d.connected); });
++    await chk('pair.finalized', async () => {
++      const b = await beacon('/eth/v2/beacon/blocks/finalized');
++      const pl = b.message.body.execution_payload;
++      clFin = { number: num(pl.block_number), hash: pl.block_hash, slot: num(b.message.slot) };
++      const at = await rpc('eth_getBlockByNumber', ['0x' + clFin.number.toString(16), false]);
++      need(at?.hash === clFin.hash, 'the beacon finalized payload is not the execution block at that height');
++      need(fin && fin.hash === clFin.hash, 'the execution node\'s finalized block is not the beacon node\'s finalized payload');
++      return clFin;
++    });
++    await chk('pair.head', async () => {
++      const b = await beacon('/eth/v2/beacon/blocks/head');
++      const pl = b.message.body.execution_payload;
++      const at = await rpc('eth_getBlockByNumber', ['0x' + num(pl.block_number).toString(16), false]);
++      need(at?.hash === pl.block_hash, 'the beacon head payload is not the execution block at that height');
++      return num(pl.block_number);
++    });
++    const ok = checks.every((c) => c.ok);
++    return { ok, checks, head: head && { number: num(head.number), hash: head.hash, timestamp: num(head.timestamp) },
++      finalized: ok ? { number: clFin.number, hash: clFin.hash, slot: clFin.slot } : null, safe: safe && { number: num(safe.number), hash: safe.hash } };
++  }
++  async function readyOrRefuse() {
++    const r = await readiness();
++    if (!r.ok) refuse('l1-source-not-ready', r.checks.filter((c) => !c.ok).map((c) => `${c.name}: ${c.detail}`).join('; '));
++    return r;
++  }
++  const sourceId = { execution: el, consensus: cl, identity: identity.label ?? 'custom' };
++
++  /**
++   * The L1 receipt of `txHash`, its block bound by hash and canonical at its number, with finality from the paired
++   * finalized checkpoint. -> {state: 'pending'} | {state: 'included', receipt, evidence}
++   */
++  async function receipt(txHash) {
++    const r0 = await readyOrRefuse();
++    const raw = await rpc('eth_getTransactionReceipt', [txHash]);
++    if (!raw) return { state: 'pending', readiness: r0 };
++    if (raw.transactionHash?.toLowerCase() !== String(txHash).toLowerCase()) refuse('l1-receipt-mismatch', 'the node answered another transaction');
++    const tx = await rpc('eth_getTransactionByHash', [txHash]);
++    if (!tx || tx.blockHash !== raw.blockHash || tx.hash?.toLowerCase() !== raw.transactionHash.toLowerCase()) refuse('l1-receipt-mismatch', 'transaction not bound to the receipt\'s block');
++    const block = await rpc('eth_getBlockByHash', [raw.blockHash, false]);
++    if (!block || block.hash !== raw.blockHash || block.number !== raw.blockNumber) refuse('l1-receipt-mismatch', 'receipt block not served by hash');
++    if (!(block.transactions ?? []).map((t) => (typeof t === 'string' ? t : t.hash).toLowerCase()).includes(raw.transactionHash.toLowerCase())) refuse('l1-receipt-mismatch', 'the block does not list the transaction');
++    // re-read readiness and the canonical hash AFTER the receipt: a reorg in between is refused, not reported
++    const r1 = await readyOrRefuse();
++    const canon = await rpc('eth_getBlockByNumber', [raw.blockNumber, false]);
++    if (canon?.hash !== raw.blockHash) refuse('l1-not-canonical', 'the receipt\'s block is no longer canonical (reorg)');
++    if (r1.finalized.number < r0.finalized.number) refuse('l1-source-regressed', 'finalized checkpoint went backwards');
++    const n = num(raw.blockNumber);
++    const receiptOut = formatTransactionReceipt(raw);
++    const evidence = mint({ kind: 'l1-receipt', verifiedBy: 'l1-local-validated-pair', trust, source: sourceId, txHash: raw.transactionHash, blockHash: raw.blockHash, blockNumber: n,
++      finalized: n <= r1.finalized.number, safe: !!r1.safe && n <= r1.safe.number, finalizedCheckpoint: r1.finalized, readAt: now(), receipt: receiptOut,
++      transaction: { from: getAddress(tx.from), to: tx.to ? getAddress(tx.to) : null, nonce: Number(BigInt(tx.nonce)) },
++      headerHash: raw.blockHash });
++    return { state: 'included', receipt: receiptOut, evidence };
++  }
++
++  /** The portal pin facts at the paired FINALIZED block (EIP-1967 implementation slot + version()), minted. */
++  async function portalSnapshot(portal) {
++    const r = await readyOrRefuse();
++    const at = { blockHash: r.finalized.hash };
++    const implWord = await rpc('eth_getStorageAt', [portal, '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc', at]);
++    const verRaw = await rpc('eth_call', [{ to: portal, data: '0x54fd4d50' }, at]);
++    const len = Number(BigInt(slice(verRaw, 32, 64))), version = Buffer.from(slice(verRaw, 64, 64 + len).slice(2), 'hex').toString('utf8');
++    return mint({ kind: 'l1-portal', verifiedBy: 'l1-local-validated-pair', trust, source: sourceId, head: { number: r.finalized.number, hash: r.finalized.hash, verifiedBy: 'l1-local-validated-pair' },
++      portal: getAddress(portal), implementation: getAddress(slice(implWord, 12)), version });
++  }
++
++  /** An L1 block's standing (for the Base adapter's L1-view check): canonical hash at `number`, and whether final. */
++  async function blockStanding(number, hash) {
++    const r = await readyOrRefuse();
++    const b = await rpc('eth_getBlockByNumber', ['0x' + Number(number).toString(16), false]);
++    return { canonical: b?.hash === hash, finalized: b?.hash === hash && Number(number) <= r.finalized.number, finalizedCheckpoint: r.finalized };
++  }
++  return { readiness, receipt, portalSnapshot, blockStanding, trust, source: sourceId };
++}
+diff --git a/test/finality.test.mjs b/test/finality.test.mjs
+index 294059f144d4677982e84b937ca3a5fba97ed459..e5610cb32c41738292c5868fd6b092b6d68e6eb4 100644
+--- a/test/finality.test.mjs
++++ b/test/finality.test.mjs
+@@ -1,4 +1,6 @@
+-// The finality adapter alone (pure): upgrades only on named-verifier evidence about the RIGHT blocks; fails closed.
++// The finality adapter alone (pure): without minted evidence it stays 'unsafe' and names its gates; caller JSON with
++// production labels is refused. Positive upgrades (safe / finalized) come only from the source-binding adapters and
++// are exercised in test/source-binding.anvil.test.mjs.
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import { classifyFinality } from '../src/forced-inclusion.mjs';
+@@ -6,19 +8,12 @@ import { classifyFinality } from '../src/forced-inclusion.mjs';
+ const rc = { blockNumber: 100n, blockHash: '0x' + 'aa'.repeat(32) };
+ const outcome = { state: 'l2-included', level: 'unsafe', receipt: rc };
+ const L1 = '0x' + 'bb'.repeat(32);
+-test('no evidence: unsafe with explicit gates; evidence only from named verifiers, for the right blocks, never from the submitter', () => {
++test('no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence', () => {
+   const none = classifyFinality({ outcome, depositL1BlockHash: L1 });
+   assert.deepEqual([none.level, none.depositL1Final, none.gates.length], ['unsafe', false, 2]);
+-  const l1ok = { verifiedBy: 'l1-execution-proof', blockHash: L1, finalized: true, source: 'reth-local' };
+-  const l2safe = { verifiedBy: 'base-derivation', blockNumber: 100n, blockHash: rc.blockHash, safe: true, finalized: false, source: 'holder' };
+-  assert.equal(classifyFinality({ outcome, depositL1BlockHash: L1, l1Evidence: l1ok, l2Evidence: l2safe }).level, 'safe');
+-  assert.equal(classifyFinality({ outcome, depositL1BlockHash: L1, l1Evidence: l1ok, l2Evidence: { ...l2safe, finalized: true } }).level, 'finalized');
+-  assert.equal(classifyFinality({ outcome, depositL1BlockHash: L1, l1Evidence: { ...l1ok, finalized: false }, l2Evidence: { ...l2safe, finalized: true } }).level, 'safe', 'no finalized L2 without a finalized L1 deposit block');
+-  assert.throws(() => classifyFinality({ outcome, depositL1BlockHash: L1, l1Evidence: { ...l1ok, verifiedBy: 'rpc' } }), (e) => e.code === 'l1-evidence-unverified');
+-  assert.throws(() => classifyFinality({ outcome, depositL1BlockHash: L1, l1Evidence: { ...l1ok, verifiedBy: 'test-anvil-l1' } }), (e) => e.code === 'l1-evidence-unverified');
+-  assert.throws(() => classifyFinality({ outcome, depositL1BlockHash: L1, l1Evidence: { ...l1ok, blockHash: rc.blockHash } }), (e) => e.code === 'l1-evidence-mismatch');
+-  assert.throws(() => classifyFinality({ outcome, depositL1BlockHash: L1, l2Evidence: { ...l2safe, verifiedBy: 'sequencer' } }), (e) => e.code === 'l2-evidence-unverified');
+-  assert.throws(() => classifyFinality({ outcome, depositL1BlockHash: L1, l2Evidence: { ...l2safe, blockHash: '0x' + 'cc'.repeat(32) } }), (e) => e.code === 'l2-evidence-mismatch');
+-  assert.throws(() => classifyFinality({ outcome, depositL1BlockHash: L1, l2Evidence: { ...l2safe, source: 'https://seq' }, submittedVia: 'https://seq' }), (e) => e.code === 'evidence-not-independent');
++  const l1json = { kind: 'l1-receipt', verifiedBy: 'l1-execution-proof', trust: 'local-validated-pair', blockHash: L1, finalized: true };
++  const l2json = { kind: 'l2-receipt', verifiedBy: 'base-derivation', trust: 'local-validated-pair', blockNumber: 100n, blockHash: rc.blockHash, safe: true, finalized: true };
++  assert.throws(() => classifyFinality({ outcome, depositL1BlockHash: L1, l1Evidence: l1json }), (e) => e.code === 'l1-evidence-unverified');
++  assert.throws(() => classifyFinality({ outcome, depositL1BlockHash: L1, l2Evidence: l2json }), (e) => e.code === 'l2-evidence-unverified');
+   assert.throws(() => classifyFinality({ outcome: { ...outcome, state: 'pending' }, depositL1BlockHash: L1 }), (e) => e.code === 'no-included-outcome');
+ });
+diff --git a/test/forced-inclusion.anvil.test.mjs b/test/forced-inclusion.anvil.test.mjs
+index 11738a7891d79eb1a9067d71fbc74da71ef64e21..57392ca310de772cdc6a1b142772a683dae9346b 100644
+--- a/test/forced-inclusion.anvil.test.mjs
++++ b/test/forced-inclusion.anvil.test.mjs
+@@ -334,10 +334,14 @@ test('outcome checks fail closed: unverified receipt, same endpoint as submissio
+   const rc = { transactionHash: '0x' + '11'.repeat(32), type: 'deposit', status: 'success', blockNumber: BigInt(h.number), logs: [] };
+   const base = { plan, l2TransactionHash: rc.transactionHash, receipt: rc, head: h, now: h.timestamp + 5 };
+   assert.throws(() => F.classifyL2Outcome({ ...base, source: { verifier: 'rpc', endpoint: url } }), (e) => e.code === 'receipt-unverified');
+-  assert.throws(() => F.classifyL2Outcome({ ...base, source: { verifier: 'helios', endpoint: url, submittedVia: url } }), (e) => e.code === 'receipt-not-independent');
+-  assert.throws(() => F.classifyL2Outcome({ ...base, source: { verifier: 'helios', endpoint: url }, now: h.timestamp + 3600 }), (e) => e.code === 'stale-head');
+-  assert.throws(() => F.classifyL2Outcome({ ...base, receipt: { ...rc, blockNumber: BigInt(h.number + 5) }, source: { verifier: 'helios', endpoint: url } }), (e) => e.code === 'receipt-above-verified-head');
+-  assert.equal(F.classifyL2Outcome({ ...base, receipt: null, source: { verifier: 'helios', endpoint: url } }).state, 'pending');
++  // a production label is not evidence: neither by default nor by whitelisting it
++  assert.throws(() => F.classifyL2Outcome({ ...base, source: { verifier: 'helios', endpoint: url } }), (e) => e.code === 'receipt-unverified');
++  assert.throws(() => F.classifyL2Outcome({ ...base, source: { verifier: 'helios', endpoint: url }, verifiers: ['helios'] }), (e) => e.code === 'labels-are-not-evidence');
++  assert.throws(() => F.matchDepositEvent({ deposit: {} }, {}, { verifiedBy: 'l1-execution-proof', headerHash: ZERO32 }, { verifiers: ['l1-execution-proof'] }), (e) => e.code === 'labels-are-not-evidence');
++  assert.throws(() => F.classifyL2Outcome({ ...base, source: { verifier: 'test-helios-fixture', endpoint: url, submittedVia: url }, verifiers: ['test-helios-fixture'] }), (e) => e.code === 'receipt-not-independent');
++  assert.throws(() => F.classifyL2Outcome({ ...base, source: { verifier: 'test-helios-fixture', endpoint: url }, verifiers: ['test-helios-fixture'], now: h.timestamp + 3600 }), (e) => e.code === 'stale-head');
++  assert.throws(() => F.classifyL2Outcome({ ...base, receipt: { ...rc, blockNumber: BigInt(h.number + 5) }, source: { verifier: 'test-helios-fixture', endpoint: url }, verifiers: ['test-helios-fixture'] }), (e) => e.code === 'receipt-above-verified-head');
++  assert.equal(F.classifyL2Outcome({ ...base, receipt: null, source: { verifier: 'test-helios-fixture', endpoint: url }, verifiers: ['test-helios-fixture'] }).state, 'pending');
+   const s = await snap(3);
+   const lease = { id, kind: 3, enclaveId: ZERO32, nonce: 2n, deadline: BigInt(s.head.timestamp + 6 * 3600), payee: l1Sender, maxChargeWei: 10n ** 15n };
+   const p = (await F.planLeaseDeposit({ pins: pins(), operator, lease, signature: await signLease(opKey, lease), snapshot: s, l1Sender, l2GasLimit: 800_000n, now: s.head.timestamp + 5 })).plan;
+diff --git a/test/source-binding.anvil.test.mjs b/test/source-binding.anvil.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..e30b2b5f402fa0027c06ff3f9f2575a04c15b183
+--- /dev/null
++++ b/test/source-binding.anvil.test.mjs
+@@ -0,0 +1,152 @@
++// SOURCE BINDING end to end, offline: transaction verification reads ONLY through the adapters
++// (src/l1-source-binding.mjs, src/base-source-binding.mjs), and every inclusion/finality claim is minted by them.
++//   L1 execution = anvil running the PRODUCTION Base portal bytecode (test/support/l1-portal.mjs; research capture).
++//   L1 consensus = a LABELLED beacon fixture mirroring anvil's finalized/head tags (test/support/pair-stubs.mjs): it
++//                  is NOT Lighthouse and validates nothing; it exists to drive the adapter's pairing/readiness logic.
++//   L2 execution = anvil `--network optimism` with the REAL lease contracts (test/support/l2-world.mjs).
++//   L2 rollup    = a LABELLED optimism_syncStatus fixture over those two anvils.
++// Because the identities are not Ethereum/Base mainnet, every minted object carries trust 'test-fixture', and the
++// DEFAULT checks refuse it: these tests opt in with acceptTrust: ['test-fixture'] and assert the default refusal.
++// What this does NOT show: that a real reth+Lighthouse pair is synced or honest (P's live pair gate), or any portable
++// cryptographic proof. Full-consensus evidence stays an explicit gate until P's pair is synchronized.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import * as viem from 'viem';
++import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
++import { extractTransactionDepositedLogs } from 'viem/op-stack';
++import * as F from '../src/forced-inclusion.mjs';
++import { createL1PairSource, MAINNET_L1 } from '../src/l1-source-binding.mjs';
++import { createBaseNodeSource } from '../src/base-source-binding.mjs';
++import { TRUST } from '../src/evidence-brand.mjs';
++import { startL1, CAPTURE } from './support/l1-portal.mjs';
++import { startL2, setupLeaseWorld } from './support/l2-world.mjs';
++import { startBeaconFixture, startRollupFixture, jrpc } from './support/pair-stubs.mjs';
++
++const T = { timeout: 180000 };
++const FIX = { acceptTrust: [TRUST.TEST_FIXTURE] };
++const GVR = '0x' + '7e'.repeat(32);
++let l1, l2, w, beacon, rollup, l1src, l2src, l1Identity, l2Identity, clockOffset = 0;
++const fixtureNow = () => Math.floor(Date.now() / 1000) + clockOffset;   // FIXTURE CLOCK: the replayed L1's own time
++const PIN = { portal: F.BASE_MAINNET.portal, implementation: viem.getAddress(viem.slice(CAPTURE.accounts[F.BASE_MAINNET.portal.toLowerCase()].storage[F.EIP1967_IMPLEMENTATION_SLOT], 12)), versions: ['6.0.1'] };
++
++test.before(async () => {
++  [l1, l2] = [await startL1(), await startL2()];
++  w = await setupLeaseWorld(l2);
++  beacon = await startBeaconFixture({ el: l1.url, gvr: GVR });
++  rollup = await startRollupFixture({ l2: l2.url, l1: l1.url });
++  // the replayed L1 starts at the captured block number and timestamp: its genesis is that block, its clock is the
++  // capture's (FIXTURE CLOCK below), and anvil has a finalized tag only 64 blocks back
++  l1Identity = { chainIdHex: '0x1', genesisNumber: Number(BigInt(CAPTURE.block.number)), elGenesisHash: (await jrpc(l1.url, 'eth_getBlockByNumber', ['0x' + BigInt(CAPTURE.block.number).toString(16), false])).hash,
++    clGenesisValidatorsRoot: GVR, label: 'TEST-FIXTURE anvil L1 + beacon fixture' };
++  await l1.rpc('anvil_mine', ['0x50']);
++  const l1ts = Number(BigInt((await jrpc(l1.url, 'eth_getBlockByNumber', ['latest', false])).timestamp));
++  clockOffset = l1ts - Math.floor(Date.now() / 1000);
++  l2Identity = { chainIdHex: '0x2105', genesisHash: (await jrpc(l2.url, 'eth_getBlockByNumber', ['0x0', false])).hash, label: 'TEST-FIXTURE anvil L2 + rollup fixture' };
++  l1src = createL1PairSource({ execution: { url: l1.url }, consensus: { url: beacon.url }, identity: l1Identity, minPeers: 0, now: fixtureNow });
++  l2src = createBaseNodeSource({ execution: { url: l2.url }, rollup: { url: rollup.url }, l1: l1src, identity: l2Identity });
++});
++test.after(() => { l1?.stop(); l2?.stop(); beacon?.close(); rollup?.close(); });
++
++test('configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust', T, async () => {
++  assert.throws(() => createL1PairSource({ execution: { url: 'https://ethereum-rpc.publicnode.com' }, consensus: { url: beacon.url } }), (e) => e.code === 'not-local');
++  assert.throws(() => createL1PairSource({ execution: { url: l1.url }, consensus: { url: l1.url } }), (e) => e.code === 'bad-config');
++  assert.throws(() => createBaseNodeSource({ execution: { url: l2.url }, rollup: { url: rollup.url } }), (e) => e.code === 'bad-config', 'a Base source must name its L1 source');
++  assert.throws(() => createL1PairSource({ execution: { url: l1.url }, consensus: { url: beacon.url }, identity: MAINNET_L1, minPeers: 0 }), (e) => e.code === 'bad-config', 'a production pair cannot waive peers');
++  const mainnet = createL1PairSource({ execution: { url: l1.url }, consensus: { url: beacon.url }, identity: MAINNET_L1, now: fixtureNow });
++  const r = await mainnet.readiness();
++  assert.equal(r.ok, false);
++  const failed = r.checks.filter((c) => !c.ok).map((c) => c.name);
++  for (const n of ['el.genesis', 'cl.genesis', 'el.peers']) assert.ok(failed.includes(n), `${n} refuses the anvil fixture under the mainnet identity`);
++  assert.equal(l1src.trust, TRUST.TEST_FIXTURE);
++  const ok = await l1src.readiness();
++  assert.equal(ok.ok, true, JSON.stringify(ok.checks.filter((c) => !c.ok)));
++});
++
++test('a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized', T, async (t) => {
++  const relayer = generatePrivateKey(), sender = privateKeyToAccount(relayer).address;
++  const snap = await F.readLeaseSnapshot({ client: l2.pc, head: await l2.headNow(), pins: w.pins, operator: w.operator, id: w.id, kind: 1, enclaveId: w.enclaveId });
++  const lease = { id: w.id, kind: 1, enclaveId: w.enclaveId, nonce: 0n, deadline: BigInt(snap.head.timestamp + 6 * 3600), payee: sender, maxChargeWei: 10n ** 14n };
++  const { plan } = await F.planLeaseDeposit({ pins: w.pins, operator: w.operator, lease, signature: await w.signLease(lease), snapshot: snap, l1Sender: sender, l2GasLimit: 800_000n, now: snap.head.timestamp + 5 });
++  const portal = await l1src.portalSnapshot(F.BASE_MAINNET.portal);
++  assert.equal(portal.version, '6.0.1');
++  F.checkPortalPin(portal, PIN, FIX);
++  assert.throws(() => F.checkPortalPin(portal, PIN), (e) => e.code === 'l1-state-unverified', 'default trust refuses the fixture');
++  assert.throws(() => F.checkPortalPin(structuredClone(portal), PIN, FIX), (e) => e.code === 'l1-state-unverified', 'a copy is not minted');
++  const sent = await l1.send(relayer, plan.l1Transaction);
++  const got = await l1src.receipt(sent.transactionHash);
++  assert.equal(got.state, 'included');
++  const ev = got.evidence;
++  assert.deepEqual([ev.verifiedBy, ev.trust, ev.finalized, ev.transaction.from], ['l1-local-validated-pair', TRUST.TEST_FIXTURE, false, sender]);
++  assert.throws(() => F.matchDepositEvent(plan, undefined, ev), (e) => e.code === 'l1-receipt-unverified', 'default trust refuses fixture evidence');
++  assert.throws(() => F.matchDepositEvent(plan, undefined, { ...ev }, FIX), (e) => e.code === 'l1-receipt-unverified', 'a spread copy is caller JSON');
++  assert.throws(() => F.matchDepositEvent(plan, sent, ev, FIX), (e) => e.code === 'l1-receipt-mismatch', 'evidence cannot be paired with another receipt object');
++  const m = F.matchDepositEvent(plan, undefined, ev, FIX);
++  const [log] = extractTransactionDepositedLogs({ logs: ev.receipt.logs });
++  const exec = await l2.executeLog(log);
++  assert.equal(exec.hash, m.l2TransactionHash);
++  // L2: unsafe (the rollup fixture's safe/finalized heads are at 0)
++  const b1 = await l2src.receipt(m.l2TransactionHash);
++  assert.equal(b1.evidence.level, 'unsafe');
++  const outcome = F.classifyL2Outcome({ plan, l2TransactionHash: m.l2TransactionHash, receipt: b1.receipt, head: await l2.headNow(), source: { evidence: b1.evidence }, ...FIX });
++  assert.equal(outcome.state, 'l2-included');
++  const h1 = await l2.headNow();
++  assert.throws(() => F.classifyL2Outcome({ plan, l2TransactionHash: m.l2TransactionHash, receipt: b1.receipt, head: h1, source: { evidence: b1.evidence } }), (e) => e.code === 'receipt-unverified');
++  assert.equal(F.classifyFinality({ outcome, depositL1BlockHash: ev.blockHash, l1Evidence: ev, l2Evidence: b1.evidence, ...FIX }).level, 'unsafe');
++  // the derivation fixture marks the block safe, then finalized; the L1 deposit block is not final yet -> at most safe
++  rollup.state.safeNumber = Number(b1.evidence.blockNumber); rollup.state.finalizedNumber = Number(b1.evidence.blockNumber);
++  const b2 = await l2src.receipt(m.l2TransactionHash);
++  assert.equal(b2.evidence.level, 'finalized');
++  const out2 = F.classifyL2Outcome({ plan, l2TransactionHash: m.l2TransactionHash, receipt: b2.receipt, head: await l2.headNow(), source: { evidence: b2.evidence }, ...FIX });
++  assert.equal(F.classifyFinality({ outcome: out2, depositL1BlockHash: ev.blockHash, l1Evidence: ev, l2Evidence: b2.evidence, ...FIX }).level, 'safe', 'no finalized L2 while the deposit L1 block is not final');
++  // the L1 pair finalizes the deposit block (anvil: finalized = latest - 64); the adapter re-reads it
++  await l1.rpc('anvil_mine', ['0x50']);
++  const ev2 = (await l1src.receipt(sent.transactionHash)).evidence;
++  assert.equal(ev2.finalized, true);
++  const fin = F.classifyFinality({ outcome: out2, depositL1BlockHash: ev2.blockHash, l1Evidence: ev2, l2Evidence: (await l2src.receipt(m.l2TransactionHash)).evidence, ...FIX });
++  t.diagnostic(`finality: ${JSON.stringify(fin)}`);
++  assert.equal(fin.level, 'finalized');
++  assert.equal(fin.depositL1Final, true);
++  rollup.state.safeNumber = 0; rollup.state.finalizedNumber = 0;
++});
++
++test('fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt', T, async () => {
++  const key = generatePrivateKey();
++  const rc = await l1.send(key, { to: privateKeyToAccount(key).address, data: '0x' });
++  const expect = async (mut, code, undo) => { mut(); try { await assert.rejects(l1src.receipt(rc.transactionHash), (e) => e.code === code); } finally { undo(); } };
++  await expect(() => { beacon.state.finalizedOverride = { block_number: '1', block_hash: '0x' + '99'.repeat(32), slot: '1' }; }, 'l1-source-not-ready', () => { beacon.state.finalizedOverride = null; });
++  // a beacon finalized payload that IS an execution block (number and hash match) but NOT the EL's finalized block
++  const latest = await jrpc(l1.url, 'eth_getBlockByNumber', ['latest', false]);
++  await expect(() => { beacon.state.finalizedOverride = { block_number: String(Number(BigInt(latest.number))), block_hash: latest.hash, slot: '1' }; }, 'l1-source-not-ready', () => { beacon.state.finalizedOverride = null; });
++  for (const k of ['syncing', 'optimistic', 'elOffline']) await expect(() => { beacon.state[k] = true; }, 'l1-source-not-ready', () => { beacon.state[k] = false; });
++  const strict = createL1PairSource({ execution: { url: l1.url }, consensus: { url: beacon.url }, identity: l1Identity, minPeers: 1, now: fixtureNow });
++  await assert.rejects(strict.receipt(rc.transactionHash), (e) => e.code === 'l1-source-not-ready' && /el.peers/.test(e.message), 'anvil has no peers: a real pair needs some');
++  const later = createL1PairSource({ execution: { url: l1.url }, consensus: { url: beacon.url }, identity: l1Identity, minPeers: 0, now: () => fixtureNow() + 3 * 3600 });
++  await assert.rejects(later.receipt(rc.transactionHash), (e) => e.code === 'l1-source-not-ready' && /el.head/.test(e.message));
++  // a Base node whose L1 view is not in OUR pair
++  rollup.state.l1Override = { hash: '0x' + '42'.repeat(32), number: 5, parentHash: '0x' + '00'.repeat(32), timestamp: 1 };
++  try { assert.equal((await l2src.readiness()).ok, false); } finally { rollup.state.l1Override = null; }
++  // a receipt whose block is reorged away before it is read: missing, never evidence
++  const snapId = await l1.rpc('evm_snapshot');
++  const k2 = generatePrivateKey();
++  const gone = await l1.send(k2, { to: privateKeyToAccount(k2).address, data: '0x' });
++  await l1.rpc('evm_revert', [snapId]);
++  await l1.rpc('anvil_mine', ['0x2']);
++  assert.equal((await l1src.receipt(gone.transactionHash)).state, 'pending');
++});
++
++test('nonce/resend tracking binds to the node\'s own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce', T, async () => {
++  const key = generatePrivateKey(), from = privateKeyToAccount(key).address;
++  const data = viem.encodeFunctionData({ abi: F.PORTAL_ABI, functionName: 'depositTransaction', args: [from, 0n, 30_000n, false, '0x' + 'ab'.repeat(388)] });
++  const rc = await l1.send(key, { chainId: 1, to: F.BASE_MAINNET.portal, value: 0n, data });
++  assert.equal(rc.status, 'reverted');
++  const ev = (await l1src.receipt(rc.transactionHash)).evidence;
++  const tr = new F.ForcedInclusionTracker();
++  tr.admit('k', '0x01', {});
++  tr.checkL1Send('k', ev.transaction.nonce + 1);
++  assert.throws(() => tr.resolveFailedL1('k', ev.receipt, ev, FIX), (e) => e.code === 'l1-receipt-mismatch', 'not the recorded L1 nonce');
++  const tr2 = new F.ForcedInclusionTracker();
++  tr2.admit('k', '0x01', {}); tr2.checkL1Send('k', ev.transaction.nonce);
++  assert.throws(() => tr2.resolveFailedL1('k', ev.receipt, ev), (e) => e.code === 'l1-receipt-unverified', 'default trust');
++  tr2.resolveFailedL1('k', ev.receipt, ev, FIX);
++  assert.equal(tr2.get('k').state, 'dead');
++});
+diff --git a/test/source-binding.test.mjs b/test/source-binding.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..78029a10d5dafdd49e7923fc7026e31e014908a8
+--- /dev/null
++++ b/test/source-binding.test.mjs
+@@ -0,0 +1,71 @@
++// Source-binding CONTROL FLOW against scripted endpoints (labelled stubs, test/support/pair-stubs.mjs): what anvil cannot
++// produce on demand. A reorg between the receipt read and the canonical re-check, a node that answers another
++// transaction, a transaction not in its block, a missing finalized tag. Also why the mainnet identity matters: a
++// stub that reports mainnet genesis + GVR on loopback mints 'local-validated-pair' trust. The trust anchor is the
++// root-configured loopback pair itself, i.e. local full-node validation, never a portable proof.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { createL1PairSource, MAINNET_L1 } from '../src/l1-source-binding.mjs';
++import { TRUST, isMinted } from '../src/evidence-brand.mjs';
++import { startExecutionStub, startBeaconFixture } from './support/pair-stubs.mjs';
++
++const H = (b) => '0x' + b.repeat(32);
++const now = Math.floor(Date.now() / 1000);
++function chain(over = {}) {
++  const blocks = { 0: { number: '0x0', hash: MAINNET_L1.elGenesisHash, timestamp: '0x0' }, 90: { number: '0x5a', hash: H('90'), timestamp: '0x' + (now - 600).toString(16), transactions: [H('a1')] },
++    100: { number: '0x64', hash: H('64'), timestamp: '0x' + (now - 5).toString(16), transactions: [] } };
++  const st = { blocks, orphans: {}, finalized: 90, safe: 90, latest: 100, reorgAfterReceipt: false, receiptTx: H('a1'), calls: 0, ...over };
++  const tag = (t) => (t === 'latest' ? st.latest : t === 'finalized' ? st.finalized : t === 'safe' ? st.safe : Number(BigInt(t)));
++  const answer = (method, params) => {
++    st.calls++;
++    if (method === 'eth_chainId') return '0x1';
++    if (method === 'eth_syncing') return false;
++    if (method === 'net_peerCount') return '0x5';
++    if (method === 'eth_getBlockByNumber') { const n = tag(params[0]); if (n === null) return null; const b = st.blocks[n]; return b ? { ...b } : null; }
++    if (method === 'eth_getBlockByHash') return Object.values(st.blocks).find((b) => b.hash === params[0]) ?? st.orphans[params[0]] ?? null;
++    if (method === 'eth_getTransactionByHash') return { hash: params[0], blockHash: H('90'), from: '0x' + '11'.repeat(20), to: '0x' + '22'.repeat(20), nonce: '0x7' };
++    if (method === 'eth_getTransactionReceipt') {
++      // the canonical block at 90 changes right after this read; the old one stays retrievable by hash (an orphan), as a real node keeps it
++      if (st.reorgAfterReceipt && !st.orphans[H('90')]) { st.orphans[H('90')] = st.blocks[90]; st.blocks[90] = { ...st.blocks[90], hash: H('91') }; }
++      return { transactionHash: st.receiptTx, blockHash: H('90'), blockNumber: '0x5a', status: '0x1', logs: [], from: '0x' + '11'.repeat(20), to: '0x' + '22'.repeat(20),
++        cumulativeGasUsed: '0x5208', gasUsed: '0x5208', effectiveGasPrice: '0x1', type: '0x2', transactionIndex: '0x0', logsBloom: '0x' + '00'.repeat(256), contractAddress: null };
++    }
++    throw new Error('unsupported ' + method);
++  };
++  return { st, answer };
++}
++async function pair(over = {}, beaconState = {}) {
++  const c = chain(over);
++  const el = await startExecutionStub(c.answer);
++  const cl = await startBeaconFixture({ el: el.url, gvr: MAINNET_L1.clGenesisValidatorsRoot, state: beaconState });
++  return { c, el, cl, src: createL1PairSource({ execution: { url: el.url }, consensus: { url: cl.url } }), close: () => { el.close(); cl.close(); } };
++}
++
++test('a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor', async () => {
++  const p = await pair();
++  try {
++    const r = await p.src.receipt(H('a1'));
++    assert.equal(r.state, 'included');
++    assert.equal(isMinted(r.evidence), true);
++    assert.deepEqual([r.evidence.trust, r.evidence.finalized, r.evidence.transaction.nonce], [TRUST.LOCAL_VALIDATED_PAIR, true, 7]);
++  } finally { p.close(); }
++});
++
++test('fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag', async () => {
++  const cases = [
++    [{ reorgAfterReceipt: true }, 'l1-not-canonical'],
++    [{ receiptTx: H('b2') }, 'l1-receipt-mismatch'],
++    [{ blocks: undefined }, null],
++  ];
++  for (const [over, code] of cases.slice(0, 2)) {
++    const p = await pair(over);
++    try { await assert.rejects(p.src.receipt(H('a1')), (e) => e.code === code, code); } finally { p.close(); }
++  }
++  // the block does not list the transaction
++  const p3 = await pair();
++  p3.c.st.blocks[90] = { ...p3.c.st.blocks[90], transactions: [] };
++  try { await assert.rejects(p3.src.receipt(H('a1')), (e) => e.code === 'l1-receipt-mismatch'); } finally { p3.close(); }
++  // no finalized block at all
++  const p4 = await pair({ finalized: null });
++  try { await assert.rejects(p4.src.receipt(H('a1')), (e) => e.code === 'l1-source-not-ready' && /el.finalized/.test(e.message)); } finally { p4.close(); }
++});
+diff --git a/test/support/pair-stubs.mjs b/test/support/pair-stubs.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..bf390fac0fa55c1da61fa9d8c9fc62cdc0d6bd99
+--- /dev/null
++++ b/test/support/pair-stubs.mjs
+@@ -0,0 +1,66 @@
++// LABELLED FIXTURES for the source-binding adapters. None of these validates anything:
++//   startBeaconFixture: a Beacon-API stand-in that answers from an EXECUTION endpoint's own tags (head/finalized payload
++//     = that endpoint's latest/finalized block). A real Lighthouse derives these from consensus; this mirrors them, and
++//     can be told to lie (override) so the adapter's pairing check is exercised.
++//   startRollupFixture: an `optimism_syncStatus` stand-in over a local L2 (heads at chosen numbers) and L1.
++//   startExecutionStub: a scripted execution JSON-RPC for pure control-flow tests (reorg between reads, etc.).
++import http from 'node:http';
++
++const listen = (handler) => new Promise((ok) => { const s = http.createServer(handler); s.listen(0, '127.0.0.1', () => ok({ server: s, url: `http://127.0.0.1:${s.address().port}` })); });
++const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => ok(b)); });
++export async function jrpc(url, method, params = []) {
++  const j = await (await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })).json();
++  if (j.error) throw new Error(`${method}: ${JSON.stringify(j.error)}`); return j.result;
++}
++
++export async function startBeaconFixture({ el, gvr = '0x' + '7e'.repeat(32), state = {} }) {
++  const st = { syncing: false, optimistic: false, elOffline: false, peers: 3, finalizedOverride: null, ...state };
++  const payload = async (tag) => {
++    if (tag === 'finalized' && st.finalizedOverride) return st.finalizedOverride;
++    const b = await jrpc(el, 'eth_getBlockByNumber', [tag === 'head' ? 'latest' : 'finalized', false]);
++    return { block_number: String(Number(BigInt(b.number))), block_hash: b.hash, slot: String(Number(BigInt(b.number)) + 1000) };
++  };
++  const { server, url } = await listen(async (req, res) => {
++    const send = (d, code = 200) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify({ data: d })); };
++    try {
++      if (req.url === '/eth/v1/beacon/genesis') return send({ genesis_validators_root: gvr, genesis_time: '1606824023' });
++      if (req.url === '/eth/v1/node/syncing') return send({ is_syncing: st.syncing, is_optimistic: st.optimistic, el_offline: st.elOffline, head_slot: '1000' });
++      if (req.url === '/eth/v1/node/peer_count') return send({ connected: String(st.peers) });
++      const m = /^\/eth\/v2\/beacon\/blocks\/(head|finalized)$/.exec(req.url);
++      if (m) { const p = await payload(m[1]); return send({ message: { slot: p.slot, body: { execution_payload: { block_number: p.block_number, block_hash: p.block_hash } } } }); }
++      send({ message: 'not found' }, 404);
++    } catch (e) { send({ message: String(e) }, 500); }
++  });
++  return { url, state: st, close: () => server.close() };
++}
++
++export async function startRollupFixture({ l2, l1, state = {} }) {
++  const st = { safeNumber: null, finalizedNumber: null, l1Override: null, ...state };
++  const ref = async (url, n) => { const b = await jrpc(url, 'eth_getBlockByNumber', [n === null ? 'latest' : '0x' + Number(n).toString(16), false]);
++    return { hash: b.hash, number: Number(BigInt(b.number)), parentHash: b.parentHash, timestamp: Number(BigInt(b.timestamp)) }; };
++  const { server, url } = await listen(async (req, res) => {
++    const j = JSON.parse(await body(req));
++    const out = (result) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, result })); };
++    if (j.method !== 'optimism_syncStatus') return out(null);
++    const unsafe = await ref(l2, null);
++    const l1fin = await jrpc(l1, 'eth_getBlockByNumber', ['finalized', false]);
++    const l1ref = { hash: l1fin.hash, number: Number(BigInt(l1fin.number)), parentHash: l1fin.parentHash, timestamp: Number(BigInt(l1fin.timestamp)) };
++    const cur = st.l1Override ?? (await ref(l1, null));
++    const withOrigin = (r) => ({ ...r, l1origin: { hash: l1ref.hash, number: l1ref.number }, sequenceNumber: 0 });
++    out({ current_l1: cur, current_l1_finalized: l1ref, head_l1: cur, safe_l1: l1ref, finalized_l1: st.l1FinalizedOverride ?? l1ref,
++      unsafe_l2: withOrigin(unsafe), safe_l2: withOrigin(await ref(l2, st.safeNumber ?? 0)), finalized_l2: withOrigin(await ref(l2, st.finalizedNumber ?? 0)) });
++  });
++  return { url, state: st, close: () => server.close() };
++}
++
++/** A scripted execution node: `answer(method, params, call#)` returns the result (or throws). */
++export async function startExecutionStub(answer) {
++  let n = 0;
++  const { server, url } = await listen(async (req, res) => {
++    const j = JSON.parse(await body(req));
++    let result, error;
++    try { result = await answer(j.method, j.params, ++n); } catch (e) { error = { code: -32000, message: String(e.message || e) }; }
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, ...(error ? { error } : { result }) }));
++  });
++  return { url, close: () => server.close() };
++}
+diff --git a/tools/artifact-recipe.mjs b/tools/artifact-recipe.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6d05f0a9124b98ebd533f4a30fa14e0ae2db42b3
+--- /dev/null
++++ b/tools/artifact-recipe.mjs
+@@ -0,0 +1,35 @@
++// Writes exports/source-only/ARTIFACT-RECIPE.json: for every COMPILED fixture artifact and research capture that the
++// source-only export omits, its origin, compiler settings, source binding and hashes, so D can preserve the code
++// without the binaries and anyone can re-derive them.
++import fs from 'node:fs';
++import crypto from 'node:crypto';
++import { keccak256 } from 'viem';
++const sha = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
++const ORIGIN = {
++  EnclaveLeaseExecutor: 'work/app-lease-gas/forge/out/EnclaveLeaseExecutor.sol/EnclaveLeaseExecutor.json',
++  EnclaveLeaseGasReserve: 'work/app-lease-gas/forge/out/EnclaveLeaseGasReserve.sol/EnclaveLeaseGasReserve.json',
++  EnclaveDeployments: 'work/app-lease-gas/forge/out/EnclaveDeployments.sol/EnclaveDeployments.json',
++  EnclaveLedgerBandwidth: 'work/app-lease-gas/forge/out/EnclaveDeployments.sol/EnclaveLedgerBandwidth.json',
++  EnclaveRegistry: 'work/app-lease-gas/forge/out/EnclaveRegistry.sol/EnclaveRegistry.json',
++  MockUSDC: 'work/app-lease-gas/forge/out/MockUSDC.sol/MockUSDC.json',
++  MockFeed: 'work/app-lease-gas/forge/out/LeaseGas.t.sol/MockFeed.json',
++  SessionVault: 'work/history-checkpoint-transport/tree/contracts/foundry/out/SessionVault.sol/SessionVault.json',
++  SessionVaultLib: 'work/history-checkpoint-transport/tree/contracts/foundry/out/SessionVault.sol/SessionVaultLib.json',
++  SessionVaultFactory: 'work/history-checkpoint-transport/tree/contracts/foundry/out/SessionVault.sol/SessionVaultFactory.json',
++  EnclaveAddressBook: 'work/history-checkpoint-transport/tree/contracts/foundry/out/EnclaveAddressBook.sol/EnclaveAddressBook.json',
++  MockUSDC3009: 'work/history-checkpoint-transport/tree/contracts/foundry/out/SessionMocks.sol/MockUSDC3009.json',
++  Mock1271Owner: 'work/history-checkpoint-transport/tree/contracts/foundry/out/SessionMocks.sol/Mock1271Owner.json',
++};
++const artifacts = Object.entries(ORIGIN).map(([name, origin]) => {
++  const p = `fixtures/artifacts/${name}.json`, j = JSON.parse(fs.readFileSync(p, 'utf8')), m = j.metadata;
++  const sources = Object.fromEntries(Object.entries(m.sources).filter(([k]) => !k.includes('forge-std')).map(([k, v]) => [k, v.keccak256]));
++  return { name, file: p, sha256: sha(p), origin, compiler: m.compiler.version, optimizer: m.settings.optimizer, viaIR: m.settings.viaIR ?? false, evmVersion: m.settings.evmVersion,
++    compilationTarget: m.settings.compilationTarget, sourceKeccak256: sources, runtimeKeccak256: keccak256(j.deployedBytecode.object), linkReferences: Object.keys(j.bytecode.linkReferences || {}) };
++});
++const srcs = fs.readdirSync('fixtures/sources').map((f) => ({ file: `fixtures/sources/${f}`, sha256: sha(`fixtures/sources/${f}`), keccak256: keccak256(fs.readFileSync(`fixtures/sources/${f}`)) }));
++const captures = ['l1-portal', 'l2-gpo'].map((n) => { const p = `evidence/capture/${n}.json`, c = JSON.parse(fs.readFileSync(p, 'utf8'));
++  return { file: p, sha256: sha(p), spec: `evidence/capture/spec-${n}.json`, tool: 'tools/capture-state.mjs (jobs/capture.sh)', block: c.block, providers: c.agreeingProviders, capturedAt: c.capturedAt,
++    label: 'research provenance, single provider; re-capture yields a newer block', accounts: Object.fromEntries(Object.entries(c.accounts).map(([a, v]) => [a, v.codeHash])) }; });
++fs.mkdirSync('exports/source-only', { recursive: true });
++fs.writeFileSync('exports/source-only/ARTIFACT-RECIPE.json', JSON.stringify({ format: 'enclave-artifact-recipe/v1', note: 'compiled fixtures and bytecode captures are omitted from the source-only export; this file pins them', artifacts, sources: srcs, captures }, null, 1) + '\n');
++console.log(artifacts.length, 'artifacts', srcs.length, 'sources', captures.length, 'captures');

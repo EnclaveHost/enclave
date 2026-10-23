@@ -1,0 +1,33 @@
+From ff4406ed9d94ff8ffa8da70b701a45f9c330ad85 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:51:28 -0700
+Subject: [PATCH 6/7] RESULT: NucBox-target note and hardware gate H6
+
+---
+ RESULT.md | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/RESULT.md b/RESULT.md
+index cf7916ecfdb7f00451a4ca3a5e286c3ebde5a2ab..924a34e0f26ab91ed18a5d91ad0eb900dd5ea4d9 100644
+--- a/RESULT.md
++++ b/RESULT.md
+@@ -180,3 +180,19 @@ All runs went through `work/claude-test-queue.py` (16 GiB floor, one large + sma
+   - P `f835148`: `l1pair.py` `a25bd4ea…`.
+ - **Evidence:** `run/<ts>/out/*` (receipts, results, consoles, host identity), `logs/`.
+ - **Handoff:** `HANDOFF-TO-S-AND-P-STORAGE-FIXES.md`.
++
++## 8. Note on the NucBox target (root's note, 09:45Z; read after the tests)
++
++Root records NucBox (Windows host, Hyper-V, Linux client VM) as the chosen RPC deployment target. The 33 TB HDD stays on
++the local desktop unless the inventory shows otherwise.
++
++**For this gate:**
++- **What carries over:** the tested shape (dm-cache + ext4 + budget inside a Linux guest, on virtual disks backed by host
++  files) is closer to a Linux client VM than the desktop-native plan was.
++- **Not measured:**
++  - Hyper-V's virtual-disk flush/FUA semantics;
++  - NucBox's physical NVMe;
++  - any HDD reachable from NucBox: an origin on the desktop's USB RAID would cross hosts, and that is not covered.
++- **Added gate H6:** before a NucBox cache is enabled, run this harness's checks inside the actual NucBox Linux VM,
++  using its real virtual disks at a bounded scratch size (crash test included). Decide where the durable HDD origin lives
++  for that VM. Nothing here allocates on NucBox or assumes its 96 GB.

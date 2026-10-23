@@ -1,0 +1,59 @@
+--- vm3/holder-storage.sh
++++ composed/holder-storage.sh
+@@ -69,6 +69,9 @@
+   exit "$rc"
+ }
+ trap unwind EXIT
++# a signal (systemd stop, Ctrl-C, hangup) takes the same unwind path as an error: without these, bash dies on SIGTERM
++# WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel, vm-2/vm-3)
++trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
+ attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
+   local l; l=$(loopof "$1")
+   if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
+@@ -97,7 +100,21 @@
+   [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
+   if cached; then
+     for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
+-    [ "$(avail "$CDATA")" -ge $(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN )) ] || die "not enough NVMe free space for the cache plus margin"
++    # A re-run after an interrupted create ADOPTS this reservation's owned cache files (budget admit/allocate), so only
++    # their not-yet-allocated part needs free space. Credit ONLY a regular file (no symlink) that carries an ownership
++    # marker and lives on the SAME filesystem as the CDATA directory measured here; anything else is credited 0. The
++    # budget admit below still refuses a file whose marker is not this reservation's.
++    credit() {   # credit FILE DECLARED_BYTES -> allocated bytes to subtract (<= DECLARED_BYTES)
++      local a
++      if [ -f "$1" ] && [ ! -L "$1" ] && [ -f "$1.enclave-budget-owner" ] && [ ! -L "$1.enclave-budget-owner" ] \
++         && [ "$(stat -c %d -- "$1")" = "$(stat -c %d -- "$(dirname "$CDATA")")" ]; then
++        a=$(( $(stat -c %b -- "$1") * 512 )); [ "$a" -le "$2" ] || a=$2; echo "$a"
++      else
++        echo 0
++      fi
++    }
++    need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(credit "$CDATA" "$CDATA_BYTES") - $(credit "$CMETA" "$CMETA_BYTES") ))
++    [ "$(avail "$CDATA")" -ge "$need" ] || die "not enough NVMe free space for the cache plus margin"
+     # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
+     # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
+     "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
+@@ -165,7 +182,12 @@
+     dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
+   fi
+   for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
+-    l=$(loopof "$f"); [ -z "$l" ] || losetup -d "$l" || die "detach of $l ($f) failed"
++    l=$(loopof "$f"); [ -n "$l" ] || continue
++    # a loop still mounted anywhere or held by another device (lsblk lists holders as children) is ACTIVE: losetup -d
++    # would only defer the detach (autoclear) under its user, so stop instead and leave it
++    [ -z "$(lsblk -nro MOUNTPOINTS "$l" | tr -d '[:space:]')" ] && [ "$(lsblk -nro NAME "$l" | wc -l)" -le 1 ] \
++      || die "$l ($f) is still mounted or held by another device: not detaching it (stopping)"
++    losetup -d "$l" || die "detach of $l ($f) failed"
+   done
+   log "disassembled"
+   ;;
+@@ -186,6 +208,9 @@
+   # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
+   dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
+   e2fsck -fn "$O"
++  # leave the system as found: detach only the origin loop THIS run attached for the check; a loop that existed before
++  # (e.g. left by an earlier assemble or held by something else) is not ours to remove here
++  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done
+   ATTACHED=()
+   log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
+   ;;

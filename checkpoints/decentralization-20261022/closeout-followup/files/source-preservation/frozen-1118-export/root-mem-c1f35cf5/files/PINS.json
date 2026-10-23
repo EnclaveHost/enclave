@@ -1,0 +1,10 @@
+{
+  "source": "work/nucbox-tls-recovery-20261023/candidate",
+  "head": "6f6d22f5da31bb40b3131deb1f719291602682d0",
+  "sha256": {
+    "windows/node/host.mjs": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
+    "windows/vbslike/manager/memory-share.mjs": "a9d8200b8ccd8c89e64aebadced10068e6ed952ca74dd857f0f99a1a637bfc52",
+    "windows/vbslike/manager/server.mjs": "6e4cca130926539f658905f31b25c855d8cd763d3cce1047e08384085268437f",
+    "test/helpers/fake-base-rpc.mjs": "4bee7b3c73d1f89f93b1c0fdea9fea6fa981297ac341ba0d7779afed739d5296"
+  }
+}

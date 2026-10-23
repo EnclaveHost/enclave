@@ -1,0 +1,260 @@
+From c74e302c66549658dcf9d46e77ade5d0db06feb9 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:48:20 -0700
+Subject: [PATCH 1/2] holder-storage: adopt the kernel-tested fixes (signals
+ unwind; owned same-fs free-space credit) and resolve loop policies
+
+From work/cache-native-boundary-20261023 (vm-2/vm-3, real 7.2.11 guest kernel, root-accepted as source candidates):
+- 0002: trap TERM/INT/HUP -> exit 143/130/129 so a signal takes the existing EXIT unwind (bash skipped it on SIGTERM
+  and left the origin image + loop behind).
+- 0001 (tightened): create's NVMe free-space preflight credits only an OWNED (marker present), regular, non-symlink
+  cache file on the SAME filesystem as the CDATA directory, capped at its declared size; budget admit (unchanged)
+  still refuses a file owned by another reservation.
+- cache-loss detaches only the origin loop it attached for its check (a pre-existing loop stays).
+- disassemble never detaches a loop that is still mounted or held by another device (losetup -d would only set
+  autoclear under its user); it stops instead.
+Root teardown fixes b1b6f18/c3efff4 and budget v2 (959e56f) are unchanged. Seam tests + 8 new shell mutants.
+---
+ holder/holder-storage.sh.in  |  29 ++++++++-
+ holder/test/mutate.py        |  10 +++
+ holder/test/stubs/stubcmd.py |   6 +-
+ holder/test/test_storage.py  | 115 +++++++++++++++++++++++++++++++++++
+ 4 files changed, 157 insertions(+), 3 deletions(-)
+
+diff --git a/holder/holder-storage.sh.in b/holder/holder-storage.sh.in
+index 46e1533d6c2efc75a573194507af0fec98bd1b64..259e3f8125d0f2d9d9f772818809bf72ee267831 100644
+--- a/holder/holder-storage.sh.in
++++ b/holder/holder-storage.sh.in
+@@ -52,6 +52,9 @@ unwind() {
+   exit "$rc"
+ }
+ trap unwind EXIT
++# a signal (systemd stop, Ctrl-C, hangup) takes the same unwind path as an error: without these, bash dies on SIGTERM
++# WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel, vm-2/vm-3)
++trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
+ attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
+   local l; l=$(loopof "$1")
+   if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
+@@ -80,7 +83,21 @@ create)
+   [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
+   if cached; then
+     for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
+-    [ "$(avail "$CDATA")" -ge $(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN )) ] || die "not enough NVMe free space for the cache plus margin"
++    # A re-run after an interrupted create ADOPTS this reservation's owned cache files (budget admit/allocate), so only
++    # their not-yet-allocated part needs free space. Credit ONLY a regular file (no symlink) that carries an ownership
++    # marker and lives on the SAME filesystem as the CDATA directory measured here; anything else is credited 0. The
++    # budget admit below still refuses a file whose marker is not this reservation's.
++    credit() {   # credit FILE DECLARED_BYTES -> allocated bytes to subtract (<= DECLARED_BYTES)
++      local a
++      if [ -f "$1" ] && [ ! -L "$1" ] && [ -f "$1.enclave-budget-owner" ] && [ ! -L "$1.enclave-budget-owner" ] \
++         && [ "$(stat -c %d -- "$1")" = "$(stat -c %d -- "$(dirname "$CDATA")")" ]; then
++        a=$(( $(stat -c %b -- "$1") * 512 )); [ "$a" -le "$2" ] || a=$2; echo "$a"
++      else
++        echo 0
++      fi
++    }
++    need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(credit "$CDATA" "$CDATA_BYTES") - $(credit "$CMETA" "$CMETA_BYTES") ))
++    [ "$(avail "$CDATA")" -ge "$need" ] || die "not enough NVMe free space for the cache plus margin"
+     # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
+     # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
+     "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
+@@ -148,7 +165,12 @@ disassemble)
+     dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
+   fi
+   for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
+-    l=$(loopof "$f"); [ -z "$l" ] || losetup -d "$l" || die "detach of $l ($f) failed"
++    l=$(loopof "$f"); [ -n "$l" ] || continue
++    # a loop still mounted anywhere or held by another device (lsblk lists holders as children) is ACTIVE: losetup -d
++    # would only defer the detach (autoclear) under its user, so stop instead and leave it
++    [ -z "$(lsblk -nro MOUNTPOINTS "$l" | tr -d '[:space:]')" ] && [ "$(lsblk -nro NAME "$l" | wc -l)" -le 1 ] \
++      || die "$l ($f) is still mounted or held by another device: not detaching it (stopping)"
++    losetup -d "$l" || die "detach of $l ($f) failed"
+   done
+   log "disassembled"
+   ;;
+@@ -169,6 +191,9 @@ cache-loss)
+   # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
+   dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
+   e2fsck -fn "$O"
++  # leave the system as found: detach only the origin loop THIS run attached for the check; a loop that existed before
++  # (e.g. left by an earlier assemble or held by something else) is not ours to remove here
++  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done
+   ATTACHED=()
+   log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
+   ;;
+diff --git a/holder/test/mutate.py b/holder/test/mutate.py
+index f235d9ba697877e725adcd421b47a9adf5948181..6c6acebffa5dbeedbce2b7eb8eb716d21b466d71 100755
+--- a/holder/test/mutate.py
++++ b/holder/test/mutate.py
+@@ -11,6 +11,16 @@ MUTANTS = {
+   'sh:no-invalidate': ('  # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost\n  dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none\n',
+                        '  # MUTANT: no invalidation\n'),
+   'sh:no-unwind': ('  [ "$rc" -eq 0 ] && return 0\n', '  return 0\n'),
++  'sh:no-signal-trap': ("trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP\n", '\n'),
++  'sh:credit-unowned': ('[ -f "$1.enclave-budget-owner" ] && [ ! -L "$1.enclave-budget-owner" ] \\\n         && ', ''),
++  'sh:credit-symlink': ('if [ -f "$1" ] && [ ! -L "$1" ] && ', 'if [ -f "$1" ] && '),
++  'sh:credit-other-fs': ('         && [ "$(stat -c %d -- "$1")" = "$(stat -c %d -- "$(dirname "$CDATA")")" ]; then', '         ; then'),
++  'sh:no-credit': ('need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(credit "$CDATA" "$CDATA_BYTES") - $(credit "$CMETA" "$CMETA_BYTES") ))',
++                   'need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN ))'),
++  'sh:cache-loss-keeps-own-loop': ('  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done\n', ''),
++  'sh:cache-loss-detaches-any': ('  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done\n',
++                                 '  losetup -d "$O" || die "detach failed"\n'),
++  'sh:detach-in-use': ('      || die "$l ($f) is still mounted or held by another device: not detaching it (stopping)"', '      || true'),
+   'sh:continue-after-failed-umount': ('umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"', 'umount "$MNT" || true'),
+   'sh:verify-bypassed': ('  if cached; then exec "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION"; fi', '  if false; then :; fi'),
+   'sh:admit-bypassed': ('    "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \\\n      || die "NVMe cache budget reservation refused"',
+diff --git a/holder/test/stubs/stubcmd.py b/holder/test/stubs/stubcmd.py
+index 8bc135acec1bd6ba5c20b839a6ffe0d758115526..34a22a1a9184972e56a37222949c58ac6e9add9b 100755
+--- a/holder/test/stubs/stubcmd.py
++++ b/holder/test/stubs/stubcmd.py
+@@ -2,13 +2,15 @@
+ """TEST STUB for privileged storage commands (invoked through symlinks named losetup, dmsetup, mount, umount, findmnt,
+ lsblk, blockdev, mkfs.ext4, e2fsck, modprobe, chown). State: $STUB_STATE (JSON). Rotational map: $STUB_ROT (JSON
+ {path_prefix: "0"|"1"}). Failure injection: $STUB_FAIL = comma-separated keys (e.g. "dmsetup-create,umount")."""
+-import json, os, sys
++import json, os, sys, time
+ name = os.path.basename(sys.argv[0]); a = sys.argv[1:]
+ SP = os.environ['STUB_STATE']
+ st = json.load(open(SP)) if os.path.exists(SP) else {'loops': {}, 'dm': {}, 'mounts': {}, 'calls': [], 'next': 0}
+ fails = set(filter(None, os.environ.get('STUB_FAIL', '').split(',')))
+ rot = json.loads(os.environ.get('STUB_ROT', '{}'))
+ st['calls'].append([name] + a)
++if name in os.environ.get('STUB_SLEEP', '').split(','):          # a slow step, so a test can signal mid-run
++    json.dump(st, open(SP, 'w')); time.sleep(float(os.environ.get('STUB_SLEEP_SEC', '5')))
+ def save(): json.dump(st, open(SP, 'w'))
+ def done(out=None, rc=0):
+     save()
+@@ -46,6 +48,8 @@ if name == 'lsblk':
+     if 'MAJ:MIN' in a: done(mm(dev))
+     if 'ROTA' in a: done(rot[dev[5:]] if dev.startswith('fake:') else '1')
+     if 'MOUNTPOINTS' in a: done('\n'.join(m for m, x in st['mounts'].items() if x == mm(dev)))
++    if 'NAME' in a:                                              # the device plus its holders (dm tables naming it)
++        done('\n'.join([dev.rsplit('/', 1)[-1]] + [n for n, t in st['dm'].items() if mm(dev) in t.split()]))
+ if name == 'findmnt':
+     if '--target' in a: done('fake:' + prefix(a[a.index('--target') + 1]))
+     m = a[-1]
+diff --git a/holder/test/test_storage.py b/holder/test/test_storage.py
+index ded527271cc29b3e65eafd3cb56e40e9b04978fe..0c1b4d2d818052225b168510b0fbd1054f7a6caa 100644
+--- a/holder/test/test_storage.py
++++ b/holder/test/test_storage.py
+@@ -348,5 +348,120 @@ class Storage(unittest.TestCase):
+         self.assertFalse((self.nvme / 'cache-data.img').exists())
+ 
+ 
++    # -- composed fixes (rpc-storage-final-compose): signal unwind, adoption free-space credit, loop policies --
++    def test_term_signal_takes_the_unwind_path(self):
++        """Fix 0002: SIGTERM to the whole process group (what systemd sends) mid-create runs the same unwind as an
++        error (exit 143); before the fix bash skipped the EXIT trap and left the origin image + loop (vm-2/vm-3)."""
++        import signal, time
++        env = {'PATH': f"{HERE / 'stubs'}:/usr/bin:/bin", 'STUB_STATE': str(self.state), 'STUB_FAIL': '',
++               'STUB_ROT': json.dumps({str(self.hdd): '1', str(self.nvme): '0', str(self.t): '0'}),
++               'STUB_CMETA': str(self.nvme / 'cache-meta.img'), 'STUB_SLEEP': 'mkfs.ext4', 'STUB_SLEEP_SEC': '20'}
++        p = subprocess.Popen(['bash', str(self.script()), 'create'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
++                             text=True, start_new_session=True)
++        for _ in range(200):                                  # wait until the slow mkfs is running (origin + loop exist)
++            if self.state.exists() and self.calls('mkfs.ext4'):
++                break
++            time.sleep(0.05)
++        self.assertTrue((self.hdd / 'origin.img').exists() and self.st()['loops'], 'signal must land mid-create')
++        os.killpg(p.pid, signal.SIGTERM)
++        out, err = p.communicate(timeout=60)
++        self.assertEqual(p.returncode, 143, err)
++        self.assertIn('failed (rc=143): undid only what this run created', err)
++        self.assertFalse((self.hdd / 'origin.img').exists(), 'the image it created is removed')
++        self.assertEqual(self.st()['loops'], {}, 'the loop it attached is detached')
++
++    def margin_for(self, path, keep):
++        """A free margin that leaves exactly `keep` bytes of headroom on path's filesystem (live statvfs)."""
++        st = os.statvfs(path)
++        return st.f_bavail * st.f_frsize - keep
++
++    def test_free_space_credits_owned_existing_cache_files(self):
++        """Fix 0001: a re-run of create that ADOPTS this reservation's complete owned cache files needs free space only
++        for what is not yet allocated (vm-2/vm-3: the production template refused)."""
++        self.create()
++        os.remove(self.hdd / 'origin.img')                    # as after an interrupted create: cache files + markers remain
++        self.c['storage']['nvmeFreeMarginBytes'] = self.margin_for(self.nvme, 8 * MiB)   # < the 20 MiB a full re-allocation needs
++        r = self.run_sh('create')
++        self.assertEqual(r.returncode, 0, r.stderr)
++        self.assertTrue((self.hdd / 'origin.img').exists())
++
++    def test_free_space_does_not_credit_foreign_or_unowned_files(self):
++        for name, marker in (('unmarked', None), ('symlink', 'link')):
++            with self.subTest(name):
++                for f in list(self.nvme.iterdir()):
++                    f.unlink()
++                meta = self.nvme / 'cache-meta.img'
++                if marker == 'link':
++                    real = self.t / 'elsewhere.img'
++                    with open(real, 'wb') as h:
++                        os.posix_fallocate(h.fileno(), 0, 16 * MiB)
++                    meta.symlink_to(real)
++                    Path(str(meta) + '.enclave-budget-owner').write_text(json.dumps({'reservation': self.c['storage']['nvmeBudget']['reservationId']}))
++                else:
++                    with open(meta, 'wb') as h:
++                        os.posix_fallocate(h.fileno(), 0, 16 * MiB)
++                self.c['storage']['nvmeFreeMarginBytes'] = self.margin_for(self.nvme, 8 * MiB)
++                r = self.run_sh('create')
++                self.assertEqual(r.returncode, 2, r.stderr)
++                self.assertIn('not enough NVMe free space', r.stderr, 'no credit for a file that is not an owned regular file')
++                self.assertFalse((self.hdd / 'origin.img').exists())
++
++    def test_admit_still_refuses_a_credited_file_owned_by_another_reservation(self):
++        meta = self.nvme / 'cache-meta.img'
++        with open(meta, 'wb') as h:
++            os.posix_fallocate(h.fileno(), 0, 16 * MiB)
++        Path(str(meta) + '.enclave-budget-owner').write_text(json.dumps({'reservation': 'someone-else', 'path': str(meta), 'bytes': 16 * MiB}))
++        self.c['storage']['nvmeFreeMarginBytes'] = self.margin_for(self.nvme, 8 * MiB)
++        r = self.run_sh('create')
++        self.assertEqual(r.returncode, 2, r.stderr)
++        self.assertIn('ownership marker', r.stderr, 'credit is only a preflight number: admission refuses the foreign owner')
++        self.assertFalse((self.hdd / 'origin.img').exists())
++        self.assertEqual(meta.stat().st_size, 16 * MiB, 'the foreign file is untouched')
++
++    def test_free_space_does_not_credit_a_cache_file_on_another_filesystem(self):
++        scratch = Path(tempfile.mkdtemp(prefix='hf-', dir=os.environ['HOLDER_NVME_SCRATCH']))   # NOT the filesystem of self.t
++        try:
++            if os.stat(scratch).st_dev == os.stat(self.nvme).st_dev:
++                self.skipTest('scratch is on the same filesystem as the test directory')
++            self.c['storage']['cache']['metadataImagePath'] = str(scratch / 'cache-meta.img')
++            self.write_ledger()
++            rot = {str(self.hdd): '1', str(self.nvme): '0', str(self.t): '0', str(scratch): '0'}
++            self.assertEqual(self.run_sh('create', rot=rot).returncode, 0)
++            os.remove(self.hdd / 'origin.img')
++            # crediting BOTH files would pass; crediting only the CDATA-filesystem file must not
++            self.c['storage']['nvmeFreeMarginBytes'] = self.margin_for(self.nvme, 8 * MiB)
++            r = self.run_sh('create', rot=rot)
++            self.assertEqual(r.returncode, 2, r.stderr)
++            self.assertIn('not enough NVMe free space', r.stderr)
++        finally:
++            shutil.rmtree(scratch)
++
++    def test_cache_loss_detaches_only_the_loop_it_attached(self):
++        self.create()
++        r = self.run_sh('cache-loss')
++        self.assertEqual(r.returncode, 0, r.stderr)
++        self.assertEqual(self.st()['loops'], {}, 'its own origin loop is detached after the check')
++        self.seed(loops={'/dev/loop7': str(self.hdd / 'origin.img')}, next=8)    # a loop that existed before
++        r = self.run_sh('cache-loss')
++        self.assertEqual(r.returncode, 0, r.stderr)
++        self.assertEqual(self.st()['loops'], {'/dev/loop7': str(self.hdd / 'origin.img')}, 'a pre-existing loop stays')
++
++    def test_disassemble_never_detaches_an_active_loop(self):
++        self.create()
++        cases = [('held by a foreign mapping', {'foreign-hold': '0 100 linear 7:3 0'}, {}),
++                 ('mounted elsewhere', {}, {str(self.t / 'elsewhere'): '7:3'})]
++        for name, dm, mounts in cases:
++            with self.subTest(name):
++                self.seed(loops={'/dev/loop3': str(self.hdd / 'origin.img')}, dm=dm, mounts=mounts, next=4)
++                r = self.run_sh('disassemble')
++                self.assertEqual(r.returncode, 2, r.stderr)
++                self.assertIn('still mounted or held', r.stderr)
++                s = self.st()
++                self.assertEqual(s['loops'], {'/dev/loop3': str(self.hdd / 'origin.img')}, 'the active loop is kept')
++                self.assertEqual((s['dm'], s['mounts']), (dm, mounts), 'its user is untouched')
++                self.assertFalse(any(c[:2] == ['losetup', '-d'] and c[2] == '/dev/loop3' for c in s['calls']))
++                self.seed(loops={}, dm={}, mounts={})
++
++
+ if __name__ == '__main__':
+     unittest.main(verbosity=2)

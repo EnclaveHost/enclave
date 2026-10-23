@@ -1,0 +1,28 @@
+{
+  "task": "windows-memory-accounting-20261023",
+  "status": "committed+tested-on-local-fixtures; not deployed; not composed; root review required",
+  "baseline": "6f6d22f5da31bb40b3131deb1f719291602682d0",
+  "commit": "9f19b7c66c156dc3f1052ece121de89e4c741912",
+  "patch": { "file": "windows-memory-accounting.patch", "sha256": "eeab54d2292a49341125f249a1124ff7bc2a042aa6bec90800c5af681491cb92",
+             "appliesOnto": ["14d1e4954cf7c9900d5d3e841a23f02de945c1b2 (clean)", "F uncommitted working-tree copies at 2026-10-23T11:15:00Z (offsets)"] },
+  "files_sha256": {
+    "windows/node/host.mjs": "5578a02a824c9b5c9ecabc67b68ac53b63cddf1afb3e08a322fd94917c96d39f",
+    "windows/node/agent.mjs": "3353cae82983ec2b967ed5b04885bb12cea840d3be7a1f935d0bcc22e77776f4",
+    "windows/node/chain.mjs": "818291255a3b15be35e2d814aafaac67ae431a75cf0b4f3832517dc28f637a63",
+    "windows/vbslike/manager/server.mjs": "764834227b6b847e140250fb209acfdeb4e189d3fb768b8b8f0485b28e4ecf26",
+    "windows/installer/install-host.ps1": "9ed6bda04ba5213cec03156663d5f3721794c7a12c8d1a982a39a7e62364b6a4",
+    "test/windows-hv-memory-accounting.test.mjs": "410128e038359f1e3aa62ab920fb1b0f8b1a0aa8e5da767942428dd07f3a5e29",
+    "test/windows-installer-app-ram.test.mjs": "2a4193be5c1fa451c02163e022dc72bbb1a9ae049c11c07ecc4163e6b5366ae4"
+  },
+  "tests": [
+    { "job": "j1-new", "capMiB": 256, "peakMiB": 162, "pass": 12, "fail": 0 },
+    { "job": "j2-negctl candidate", "capMiB": 256, "peakMiB": 166, "pass": 12, "fail": 0 },
+    { "job": "j2-negctl baseline 6f6d22f5 (negative control)", "pass": 0, "fail": 12,
+      "key": { "pool64": { "advertisedFreeMiB": 65024, "expected": 49152 }, "pool96": { "advertisedFreeMiB": 97792, "expected": 73728 } } },
+    { "job": "j3-coupled (41 existing files)", "capMiB": 512, "peakMiB": 270, "pass": 434, "fail": 13,
+      "failures": "9 intended (preclaim/scan-slot fixtures never read the manager -> unknown refuses; fixtures updated), 4 env (missing gitignored relay bundle)" },
+    { "job": "j4-fixtures (the 3 j3-failing files)", "capMiB": 512, "peakMiB": 295, "pass": 22, "fail": 0 }
+  ],
+  "scope": "real manager over loopback HTTP + faked Hyper-V launcher (no VM) + real node Host; installer checks structural (no PowerShell). No native/Windows run.",
+  "gaps": ["no admission component measures physical free RAM", "manager restart at 96 relaunches recovered partitions at 96 x share via existing recovery path", "dashboard figure is app-pool, not physical"]
+}

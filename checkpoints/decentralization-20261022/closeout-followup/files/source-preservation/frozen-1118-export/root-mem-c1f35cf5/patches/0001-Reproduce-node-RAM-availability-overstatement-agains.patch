@@ -1,0 +1,120 @@
+From c1f35cf580d60fe600ffb43c3bc6dbbcb6b1b6fa Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:43:15 -0700
+Subject: [PATCH] Reproduce node RAM availability overstatement against actual
+ Hyper-V share allocator
+
+---
+ PINS.json   | 10 ++++++++++
+ RESULT.json | 24 ++++++++++++++++++++++++
+ RESULT.md   |  9 +++++++++
+ probe.log   |  1 +
+ probe.mjs   | 27 +++++++++++++++++++++++++++
+ 5 files changed, 71 insertions(+)
+ create mode 100644 PINS.json
+ create mode 100644 RESULT.json
+ create mode 100644 RESULT.md
+ create mode 100644 probe.log
+ create mode 100644 probe.mjs
+
+diff --git a/PINS.json b/PINS.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..9610cb4c1731f53567fafaa45361478c9f1e60fa
+--- /dev/null
++++ b/PINS.json
+@@ -0,0 +1,10 @@
++{
++  "source": "work/nucbox-tls-recovery-20261023/candidate",
++  "head": "6f6d22f5da31bb40b3131deb1f719291602682d0",
++  "sha256": {
++    "windows/node/host.mjs": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
++    "windows/vbslike/manager/memory-share.mjs": "a9d8200b8ccd8c89e64aebadced10068e6ed952ca74dd857f0f99a1a637bfc52",
++    "windows/vbslike/manager/server.mjs": "6e4cca130926539f658905f31b25c855d8cd763d3cce1047e08384085268437f",
++    "test/helpers/fake-base-rpc.mjs": "4bee7b3c73d1f89f93b1c0fdea9fea6fa981297ac341ba0d7779afed739d5296"
++  }
++}
+diff --git a/RESULT.json b/RESULT.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..e68d539f860187ee3024f7ca70bdb9156a904e9f
+--- /dev/null
++++ b/RESULT.json
+@@ -0,0 +1,24 @@
++{
++  "at": "2026-10-23T10:42:14.492Z",
++  "scope": "Actual Host.capacity and Hyper-V appMemoryForShare code with one synthetic running app. No VM, production, chain or physical-memory measurement performed. Backend floor accounting differs from manager reservation; not proof this caused any particular outage.",
++  "result": [
++    {
++      "poolGiB": 64,
++      "appMinimumMiB": 512,
++      "cpuShare": 0.25,
++      "managerReservedAppMiB": 16384,
++      "nodeAdvertisedFreeMiB": 65024,
++      "managerPoolFreeMiB": 49152,
++      "overstatementMiB": 15872
++    },
++    {
++      "poolGiB": 96,
++      "appMinimumMiB": 512,
++      "cpuShare": 0.25,
++      "managerReservedAppMiB": 24576,
++      "nodeAdvertisedFreeMiB": 97792,
++      "managerPoolFreeMiB": 73728,
++      "overstatementMiB": 24064
++    }
++  ]
++}
+diff --git a/RESULT.md b/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..88f88d1fc3ce2cfbc0a20dc86cdc47d719030b17
+--- /dev/null
++++ b/RESULT.md
+@@ -0,0 +1,9 @@
++# Windows host RAM accounting mismatch
++
++The actual Host.capacity() reduces the app pool by each running record's declared memMb floor. Hyper-V uses appMemoryForShare(poolMiB,cpuShare,minimumMiB), reserving the purchased CPU share of the entire pool. The isolated branch records the catalog floor before returning through its isolation reconciliation; no appMiB reservation is reflected in capacity().
++
++The bounded offline probe imports the real Host and allocator from the pinned candidate and supplies one synthetic running isolated app (25% CPU, 512 MiB minimum). At64GiB the node reports63.5GiB free while the manager's app-pool reservation leaves48GiB; at96GiB it reports95.5GiB instead of72GiB. Hyper-V VM overhead/host physical memory are additional constraints, not included in these app-pool numbers. The manager's independent admission check remains present; this does not prove actual over-allocation or explain a particular queued app incident.
++
++This also means the UI's47.9GiB figure is not a physical-free-memory measurement. Root's earlier Windows CIM observation independently measured45.27GiB free at09:45. Raising the configured pool does not add physical RAM.
++
++Actual test: no Hyper-V VM or production action, no chain writes/public RPC; local fake chain only, source accounting functions real, exit0 and peak87MiB under256MiB queue. Fix ownership is separate; no production/source implementation changed by this review.
+diff --git a/probe.log b/probe.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..18b37a594ec63e32f1c1df38324a5f56be67d72f
+--- /dev/null
++++ b/probe.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=87 minHostAvailableMiB=24880
+diff --git a/probe.mjs b/probe.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..00d44391bc764ac2e61074183ed871241614754b
+--- /dev/null
++++ b/probe.mjs
+@@ -0,0 +1,27 @@
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import assert from 'node:assert/strict';
++import {fileURLToPath} from 'node:url';
++const repo=new URL('../nucbox-tls-recovery-20261023/candidate/',import.meta.url);
++const {fakeBaseRpc}=await import(new URL('test/helpers/fake-base-rpc.mjs',repo));
++const rpc=await fakeBaseRpc();
++const dirs=[];
++try {
++ const {Host}=await import(new URL('windows/node/host.mjs',repo));
++ const {appMemoryForShare}=await import(new URL('windows/vbslike/manager/memory-share.mjs',repo));
++ const result=[];
++ for(const poolGiB of [64,96]){
++  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'enclave-ram-accounting-'));dirs.push(dir);
++  const h=new Host({dir,endpoint:'https://memory-fixture.invalid/',name:'offline-memory-review',appsEnabled:true,engineRetired:true,ramGb:112,appRamGb:poolGiB,appSlots:16,cpuPricePerSec6:12,log:()=>{}});
++  const id='0x'+'11'.repeat(32),cpuShare=0.25,minimumMiB=512;
++  h.records.set(id,{id,status:'running',cpuShare,gpuShare:0,memMb:minimumMiB,isolationRequired:true});
++  const reservation=appMemoryForShare(poolGiB*1024,cpuShare,minimumMiB),cap=h.capacity();
++  const managerPoolFreeMiB=poolGiB*1024-reservation.appMiB;
++  assert.equal(cap.ramMbFree,poolGiB*1024-minimumMiB);
++  assert.ok(cap.ramMbFree>managerPoolFreeMiB);
++  result.push({poolGiB,appMinimumMiB:minimumMiB,cpuShare,managerReservedAppMiB:reservation.appMiB,nodeAdvertisedFreeMiB:cap.ramMbFree,managerPoolFreeMiB,overstatementMiB:cap.ramMbFree-managerPoolFreeMiB});
++ }
++ const out={at:new Date().toISOString(),scope:'Actual Host.capacity and Hyper-V appMemoryForShare code with one synthetic running app. No VM, production, chain or physical-memory measurement performed. Backend floor accounting differs from manager reservation; not proof this caused any particular outage.',result};
++ fs.writeFileSync(new URL('./RESULT.json',import.meta.url),JSON.stringify(out,null,2)+'\n');console.log(JSON.stringify(out));
++} finally {rpc.close();for(const d of dirs)fs.rmSync(d,{recursive:true,force:true});}

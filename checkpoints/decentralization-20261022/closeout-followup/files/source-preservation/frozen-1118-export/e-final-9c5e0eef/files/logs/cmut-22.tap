@@ -1,0 +1,32 @@
+TAP version 13
+# Subtest: a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
+ok 1 - a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
+  ---
+  duration_ms: 72.272586
+  type: 'test'
+  ...
+# Subtest: fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
+not ok 2 - fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
+  ---
+  duration_ms: 39.108043
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-22/test/source-binding.test.mjs:54:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: l1-not-canonical'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-22/test/source-binding.test.mjs:62:11)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 365.480804

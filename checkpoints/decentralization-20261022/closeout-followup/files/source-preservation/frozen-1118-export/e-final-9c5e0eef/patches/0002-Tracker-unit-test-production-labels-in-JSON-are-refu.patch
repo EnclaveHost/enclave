@@ -1,0 +1,2579 @@
+From 46dbfbef32a25e23c7d1045f2458f00a7470cb32 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:42:44 -0700
+Subject: [PATCH 2/5] Tracker unit test: production labels in JSON are refused;
+ explicit test-* label otherwise; mutants 11/17 point at the source-binding
+ suite
+
+---
+ jobs/mutants-closure.sh |   4 +-
+ logs/cmut-1.tap         |  16 +--
+ logs/cmut-10.tap        |  14 +--
+ logs/cmut-11.tap        |  30 ++---
+ logs/cmut-12.tap        |   8 +-
+ logs/cmut-13.tap        |   8 +-
+ logs/cmut-14.tap        |   8 +-
+ logs/cmut-15.tap        |  16 +--
+ logs/cmut-16.tap        |  12 +-
+ logs/cmut-17.tap        |  32 +----
+ logs/cmut-18.tap        |  57 +++++++++
+ logs/cmut-19.tap        |  54 ++++++++
+ logs/cmut-2.tap         |  16 +--
+ logs/cmut-20.tap        |  44 +++++++
+ logs/cmut-21.tap        |  46 +++++++
+ logs/cmut-22.tap        |  32 +++++
+ logs/cmut-23.tap        |  52 ++++++++
+ logs/cmut-24.tap        |  46 +++++++
+ logs/cmut-25.tap        |  46 +++++++
+ logs/cmut-26.tap        |  32 +++++
+ logs/cmut-3.tap         |  16 +--
+ logs/cmut-4.tap         |  16 +--
+ logs/cmut-5.tap         |  16 +--
+ logs/cmut-6.tap         |  16 +--
+ logs/cmut-7.tap         |  16 +--
+ logs/cmut-8.tap         |  16 +--
+ logs/cmut-9.tap         |  16 +--
+ logs/final-sb-suite.out | 272 ++++++++++++++++++++++++++++++++++++++++
+ logs/final-sb.guard.log |   1 +
+ logs/final-sb.out       |  45 +++++++
+ logs/final-sb.rc        |   1 +
+ logs/mut-1.tap          |  38 ++++--
+ logs/mut-10.tap         |  10 +-
+ logs/mut-2.tap          |  40 ++++--
+ logs/mut-3.tap          |  38 ++++--
+ logs/mut-4.tap          |  42 +++++--
+ logs/mut-5.tap          |  48 ++++---
+ logs/mut-6.tap          |  10 +-
+ logs/mut-7.tap          |  10 +-
+ logs/mut-8.tap          |  28 ++---
+ logs/mut-9.tap          |  18 +--
+ test/tracker.test.mjs   |  12 +-
+ 42 files changed, 1040 insertions(+), 258 deletions(-)
+ create mode 100644 logs/cmut-18.tap
+ create mode 100644 logs/cmut-19.tap
+ create mode 100644 logs/cmut-20.tap
+ create mode 100644 logs/cmut-21.tap
+ create mode 100644 logs/cmut-22.tap
+ create mode 100644 logs/cmut-23.tap
+ create mode 100644 logs/cmut-24.tap
+ create mode 100644 logs/cmut-25.tap
+ create mode 100644 logs/cmut-26.tap
+ create mode 100644 logs/final-sb-suite.out
+ create mode 100644 logs/final-sb.guard.log
+ create mode 100644 logs/final-sb.out
+ create mode 100644 logs/final-sb.rc
+
+diff --git a/jobs/mutants-closure.sh b/jobs/mutants-closure.sh
+index b2d2b50621bef5da1f6a78d1545fc4e36c09e330..cc36b1acedd452c0320717b93167dbeef1df1fb4 100755
+--- a/jobs/mutants-closure.sh
++++ b/jobs/mutants-closure.sh
+@@ -15,13 +15,13 @@ M=(
+   "src/vault-deposit.mjs ##~## $V ##~## if (sep.toLowerCase() !== String(token.separator).toLowerCase()) refuse ##~## if (false) refuse"
+   "src/vault-deposit.mjs ##~## $V ##~## if (s.ownerNonceUsed !== false) refuse ##~## if (false) refuse"
+   "src/forced-inclusion.mjs ##~## $L ##~## if (lower(l1Snapshot.implementation) !== lower(pin.implementation)) refuse ##~## if (false) refuse"
+-  "src/forced-inclusion.mjs ##~## $L ##~## if (!isMinted(ev) || ev.kind !== kind) refuse(code ##~## if (false) refuse(code"
++  "src/forced-inclusion.mjs ##~## test/source-binding.anvil.test.mjs ##~## if (!isMinted(ev) || ev.kind !== kind) refuse(code ##~## if (false) refuse(code"
+   "src/lease-signing-policy.mjs ##~## $P ##~## if (forced !== undefined) refuse ##~## if (false) refuse"
+   "src/lease-signing-policy.mjs ##~## $P ##~## if (Number(r.renewWindow) < window) refuse ##~## if (false) refuse"
+   "src/lease-signing-policy.mjs ##~## $P ##~## if (budget > BigInt(r.maxPerOpWei)) refuse ##~## if (false) refuse"
+   "src/lease-signing-policy.mjs ##~## $P ##~## deadline: BigInt(c.head.timestamp + window) ##~## deadline: BigInt(c.head.timestamp + window * 10)"
+   "src/forced-inclusion.mjs ##~## test/finality.test.mjs ##~## acceptEvidence(l1Evidence, 'l1-receipt', { acceptTrust }, 'l1-evidence-unverified'); ##~## "
+-  "src/forced-inclusion.mjs ##~## test/finality.test.mjs ##~## if (l2Evidence.finalized === true && l1Final) level ##~## if (l2Evidence.finalized === true) level"
++  "src/forced-inclusion.mjs ##~## test/source-binding.anvil.test.mjs ##~## if (l2Evidence.finalized === true && l1Final) level ##~## if (l2Evidence.finalized === true) level"
+   "src/forced-inclusion.mjs ##~## test/forced-inclusion.anvil.test.mjs ##~## if (!Array.isArray(verifiers) || !verifiers.every((v) => /^test-/.test(String(v)))) refuse ##~## if (false) refuse"
+   "src/forced-inclusion.mjs ##~## test/source-binding.anvil.test.mjs ##~## if (!acceptTrust.includes(ev.trust)) refuse ##~## if (false) refuse"
+   "src/forced-inclusion.mjs ##~## test/source-binding.anvil.test.mjs ##~## if (l1Receipt !== undefined && l1Receipt !== l1Proof.receipt) refuse ##~## if (false) refuse"
+diff --git a/logs/cmut-1.tap b/logs/cmut-1.tap
+index d1a5e790ae845995192060a84a2a7526fffc11ed..73cab46c49a49b0ef6fec789dc4c9d387d6399d3 100644
+--- a/logs/cmut-1.tap
++++ b/logs/cmut-1.tap
+@@ -2,19 +2,19 @@ TAP version 13
+ # Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+ ok 1 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+   ---
+-  duration_ms: 446.7907
++  duration_ms: 439.370857
+   type: 'test'
+   ...
+ # Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+ ok 2 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+   ---
+-  duration_ms: 60.550358
++  duration_ms: 61.992319
+   type: 'test'
+   ...
+ # Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+ not ok 3 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+   ---
+-  duration_ms: 48.681171
++  duration_ms: 51.149774
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-1/test/vault-deposit.anvil.test.mjs:114:1'
+   failureType: 'testCodeFailure'
+@@ -30,25 +30,25 @@ not ok 3 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdr
+ # Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+ ok 4 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+   ---
+-  duration_ms: 99.403556
++  duration_ms: 102.945162
+   type: 'test'
+   ...
+ # Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+ ok 5 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+   ---
+-  duration_ms: 128.39187
++  duration_ms: 125.150618
+   type: 'test'
+   ...
+ # Subtest: release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+ ok 6 - release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+   ---
+-  duration_ms: 55.800355
++  duration_ms: 60.997847
+   type: 'test'
+   ...
+ # Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+   ---
+-  duration_ms: 95.902113
++  duration_ms: 96.123231
+   type: 'test'
+   ...
+ 1..7
+@@ -59,4 +59,4 @@ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fu
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 4991.604942
++# duration_ms 5155.841679
+diff --git a/logs/cmut-10.tap b/logs/cmut-10.tap
+index 7de5b907a8bc187a5df1ce4a151301a24f36edb3..d349fff3f1f875444086b98933e357904df774ec 100644
+--- a/logs/cmut-10.tap
++++ b/logs/cmut-10.tap
+@@ -2,34 +2,34 @@ TAP version 13
+ # Subtest: provenance: the replayed production portal answers version() and params() as the provider did at the captured block
+ ok 1 - provenance: the replayed production portal answers version() and params() as the provider did at the captured block
+   ---
+-  duration_ms: 180.403056
++  duration_ms: 176.827886
+   type: 'test'
+   ...
+ # Subtest: the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
+ ok 2 - the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
+   ---
+-  duration_ms: 37.657387
++  duration_ms: 34.789998
+   type: 'test'
+   ...
+ # EOA deposit: L1 gasUsed 834932 at base fee 1 gwei
+ # Subtest: a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
+ ok 3 - a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
+   ---
+-  duration_ms: 27.269517
++  duration_ms: 24.946274
+   type: 'test'
+   ...
+-# 7702-delegated EOA via relayer: deposit from 0x2C2Da22B7992c64dD03dC354A1F80FA8998df8e7 (EOA 0x2C2Da22B7992c64dD03dC354A1F80FA8998df8e7, alias 0x3D3ea22b7992C64Dd03DC354a1f80fa8998E09f8)
++# 7702-delegated EOA via relayer: deposit from 0x0FE9aB22134f7F4524098954b532f03Dcb7405cA (EOA 0x0FE9aB22134f7F4524098954b532f03Dcb7405cA, alias 0x20FaAB22134F7f4524098954B532F03DCb7416Db)
+ # Subtest: L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
+ ok 4 - L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
+   ---
+-  duration_ms: 548.824318
++  duration_ms: 549.837611
+   type: 'test'
+   ...
+ # L1_COST [{"baseFeeGwei":0.1,"l2GasLimit":400000,"l1GasUsed":435082,"effectiveGasPrice":"100000000","l1CostWei":"43508200000000"},{"baseFeeGwei":0.1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"87862569","l1CostWei":"73358303972049"},{"baseFeeGwei":1,"l2GasLimit":400000,"l1GasUsed":435069,"effectiveGasPrice":"1000000000","l1CostWei":"435069000000000"},{"baseFeeGwei":1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"878625575","l1CostWei":"733582943704575"},{"baseFeeGwei":5,"l2GasLimit":400000,"l1GasUsed":114994,"effectiveGasPrice":"5000000000","l1CostWei":"574970000000000"},{"baseFeeGwei":5,"l2GasLimit":800000,"l1GasUsed":217683,"effectiveGasPrice":"4379791417","l1CostWei":"953406135026811"},{"baseFeeGwei":30,"l2GasLimit":400000,"l1GasUsed":72267,"effectiveGasPrice":"30000000000","l1CostWei":"2168010000000000"},{"baseFeeGwei":30,"l2GasLimit":800000,"l1GasUsed":69431,"effectiveGasPrice":"26268066750","l1CostWei":"1823818142519250"}]
+ # Subtest: refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
+ not ok 5 - refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
+   ---
+-  duration_ms: 14.478587
++  duration_ms: 13.926609
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-10/test/l1-portal.anvil.test.mjs:102:1'
+   failureType: 'testCodeFailure'
+@@ -50,4 +50,4 @@ not ok 5 - refusals: gas below the portal floor reverts on L1 (no deposit; the s
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 4494.332778
++# duration_ms 4775.349917
+diff --git a/logs/cmut-11.tap b/logs/cmut-11.tap
+index b55f104a75e0e42e1892f62499ec802f05bfa9e6..ffc3e31c72bc7b3e70f8cce321c7f06e45a1f3de 100644
+--- a/logs/cmut-11.tap
++++ b/logs/cmut-11.tap
+@@ -2,52 +2,42 @@ TAP version 13
+ # Subtest: provenance: the replayed production portal answers version() and params() as the provider did at the captured block
+ ok 1 - provenance: the replayed production portal answers version() and params() as the provider did at the captured block
+   ---
+-  duration_ms: 180.702843
++  duration_ms: 177.075725
+   type: 'test'
+   ...
+ # Subtest: the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
+ ok 2 - the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
+   ---
+-  duration_ms: 37.639387
++  duration_ms: 34.777518
+   type: 'test'
+   ...
+ # EOA deposit: L1 gasUsed 834932 at base fee 1 gwei
+ # Subtest: a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
+ ok 3 - a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
+   ---
+-  duration_ms: 22.419475
++  duration_ms: 24.493508
+   type: 'test'
+   ...
+-# 7702-delegated EOA via relayer: deposit from 0x7EE96927082927392161ebB8471eB6edEd4926d8 (EOA 0x7EE96927082927392161ebB8471eB6edEd4926d8, alias 0x8ffa6927082927392161ebB8471EB6EDEd4937e9)
++# 7702-delegated EOA via relayer: deposit from 0xb91a6b26032b315F5EaB1c0D1977910eD8b898cE (EOA 0xb91a6b26032b315F5EaB1c0D1977910eD8b898cE, alias 0xca2B6B26032b315f5Eab1C0d1977910ed8b8a9Df)
+ # Subtest: L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
+ ok 4 - L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
+   ---
+-  duration_ms: 546.241488
++  duration_ms: 541.308478
+   type: 'test'
+   ...
+ # L1_COST [{"baseFeeGwei":0.1,"l2GasLimit":400000,"l1GasUsed":435082,"effectiveGasPrice":"100000000","l1CostWei":"43508200000000"},{"baseFeeGwei":0.1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"87862569","l1CostWei":"73358303972049"},{"baseFeeGwei":1,"l2GasLimit":400000,"l1GasUsed":435069,"effectiveGasPrice":"1000000000","l1CostWei":"435069000000000"},{"baseFeeGwei":1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"878625575","l1CostWei":"733582943704575"},{"baseFeeGwei":5,"l2GasLimit":400000,"l1GasUsed":114994,"effectiveGasPrice":"5000000000","l1CostWei":"574970000000000"},{"baseFeeGwei":5,"l2GasLimit":800000,"l1GasUsed":217683,"effectiveGasPrice":"4379791417","l1CostWei":"953406135026811"},{"baseFeeGwei":30,"l2GasLimit":400000,"l1GasUsed":72267,"effectiveGasPrice":"30000000000","l1CostWei":"2168010000000000"},{"baseFeeGwei":30,"l2GasLimit":800000,"l1GasUsed":69431,"effectiveGasPrice":"26268066750","l1CostWei":"1823818142519250"}]
+ # Subtest: refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
+-not ok 5 - refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
++ok 5 - refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
+   ---
+-  duration_ms: 14.825354
++  duration_ms: 22.776973
+   type: 'test'
+-  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-11/test/l1-portal.anvil.test.mjs:102:1'
+-  failureType: 'testCodeFailure'
+-  error: 'Missing expected exception: the default accepts only an L1 light client / execution proof'
+-  code: 'ERR_ASSERTION'
+-  name: 'AssertionError'
+-  stack: |-
+-    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-11/test/l1-portal.anvil.test.mjs:119:10)
+-    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+-    async Test.run (node:internal/test_runner/test:1054:7)
+-    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+   ...
+ 1..5
+ # tests 5
+ # suites 0
+-# pass 4
+-# fail 1
++# pass 5
++# fail 0
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 4642.672056
++# duration_ms 5049.435277
+diff --git a/logs/cmut-12.tap b/logs/cmut-12.tap
+index 7e13164c9cc06bb65ee1b9cb679b27dfd7c1476f..63184f881d755fbc5e2023d54171c39b17658a7b 100644
+--- a/logs/cmut-12.tap
++++ b/logs/cmut-12.tap
+@@ -2,7 +2,7 @@ TAP version 13
+ # Subtest: relay route is today's: deadline head + 300 s; forced options without the forced route are refused
+ not ok 1 - relay route is today's: deadline head + 300 s; forced options without the forced route are refused
+   ---
+-  duration_ms: 422.635731
++  duration_ms: 420.508777
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-12/test/lease-signing-policy.anvil.test.mjs:21:1'
+   failureType: 'testCodeFailure'
+@@ -18,14 +18,14 @@ not ok 1 - relay route is today's: deadline head + 300 s; forced options without
+ # Subtest: forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
+ ok 2 - forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
+   ---
+-  duration_ms: 44.759891
++  duration_ms: 46.323698
+   type: 'test'
+   ...
+ # continuity: the protocol may delay a deposit up to 43200 s, longer than the 1800-s lease the ledger grants: a withholding sequencer can let the lease lapse before the renew lands
+ # Subtest: forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
+ ok 3 - forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
+   ---
+-  duration_ms: 15.728747
++  duration_ms: 17.003523
+   type: 'test'
+   ...
+ 1..3
+@@ -36,4 +36,4 @@ ok 3 - forced RENEW against the production renewWindow (300 s) is REFUSED, not r
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 4707.598823
++# duration_ms 4730.385506
+diff --git a/logs/cmut-13.tap b/logs/cmut-13.tap
+index 999760ccdf8461c4e56aedc5469212eb4f63517f..6cde847736a9ea77be07901e2270ec120c224fc9 100644
+--- a/logs/cmut-13.tap
++++ b/logs/cmut-13.tap
+@@ -2,20 +2,20 @@ TAP version 13
+ # Subtest: relay route is today's: deadline head + 300 s; forced options without the forced route are refused
+ ok 1 - relay route is today's: deadline head + 300 s; forced options without the forced route are refused
+   ---
+-  duration_ms: 413.669751
++  duration_ms: 407.222564
+   type: 'test'
+   ...
+ # Subtest: forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
+ ok 2 - forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
+   ---
+-  duration_ms: 40.955032
++  duration_ms: 40.677417
+   type: 'test'
+   ...
+ # continuity: the protocol may delay a deposit up to 43200 s, longer than the 1800-s lease the ledger grants: a withholding sequencer can let the lease lapse before the renew lands
+ # Subtest: forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
+ not ok 3 - forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
+   ---
+-  duration_ms: 9.331778
++  duration_ms: 9.358639
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-13/test/lease-signing-policy.anvil.test.mjs:52:1'
+   failureType: 'testCodeFailure'
+@@ -41,4 +41,4 @@ not ok 3 - forced RENEW against the production renewWindow (300 s) is REFUSED, n
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 4694.560927
++# duration_ms 4677.747325
+diff --git a/logs/cmut-14.tap b/logs/cmut-14.tap
+index 3afdc333b47bee1ade612991801fffff7dd96b9f..b4423e9c597ba5ccd37294d5958b9bda3db78a94 100644
+--- a/logs/cmut-14.tap
++++ b/logs/cmut-14.tap
+@@ -2,13 +2,13 @@ TAP version 13
+ # Subtest: relay route is today's: deadline head + 300 s; forced options without the forced route are refused
+ ok 1 - relay route is today's: deadline head + 300 s; forced options without the forced route are refused
+   ---
+-  duration_ms: 416.154141
++  duration_ms: 414.697551
+   type: 'test'
+   ...
+ # Subtest: forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
+ not ok 2 - forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
+   ---
+-  duration_ms: 7.66471
++  duration_ms: 8.735324
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-14/test/lease-signing-policy.anvil.test.mjs:30:1'
+   failureType: 'testCodeFailure'
+@@ -24,7 +24,7 @@ not ok 2 - forced CLAIM: explicit, bounded, within the owner budget; signed (TES
+ # Subtest: forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
+ not ok 3 - forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
+   ---
+-  duration_ms: 7.949499
++  duration_ms: 6.487754
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-14/test/lease-signing-policy.anvil.test.mjs:52:1'
+   failureType: 'testCodeFailure'
+@@ -46,4 +46,4 @@ not ok 3 - forced RENEW against the production renewWindow (300 s) is REFUSED, n
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 693.649402
++# duration_ms 687.50536
+diff --git a/logs/cmut-15.tap b/logs/cmut-15.tap
+index 8e4d7456d7649337992fc44f333ad472a46bf7d3..1e943cf24c4a0ece2be3546d215cd4dd1d55392f 100644
+--- a/logs/cmut-15.tap
++++ b/logs/cmut-15.tap
+@@ -2,13 +2,13 @@ TAP version 13
+ # Subtest: relay route is today's: deadline head + 300 s; forced options without the forced route are refused
+ ok 1 - relay route is today's: deadline head + 300 s; forced options without the forced route are refused
+   ---
+-  duration_ms: 417.719769
++  duration_ms: 427.940177
+   type: 'test'
+   ...
+ # Subtest: forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
+ not ok 2 - forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
+   ---
+-  duration_ms: 8.494794
++  duration_ms: 10.759567
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-15/test/lease-signing-policy.anvil.test.mjs:30:1'
+   failureType: 'testCodeFailure'
+@@ -16,14 +16,14 @@ not ok 2 - forced CLAIM: explicit, bounded, within the owner budget; signed (TES
+     Expected values to be strictly equal:
+     + actual - expected
+     
+-    + 1792778349n
+-    - 1792745949n
++    + 1792784495n
++    - 1792752095n
+            ^
+     
+   code: 'ERR_ASSERTION'
+   name: 'AssertionError'
+-  expected: 1792745949n
+-  actual: 1792778349n
++  expected: 1792752095n
++  actual: 1792784495n
+   operator: 'strictEqual'
+   stack: |-
+     TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-15/test/lease-signing-policy.anvil.test.mjs:39:10)
+@@ -34,7 +34,7 @@ not ok 2 - forced CLAIM: explicit, bounded, within the owner budget; signed (TES
+ # Subtest: forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
+ not ok 3 - forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
+   ---
+-  duration_ms: 7.057665
++  duration_ms: 3.772377
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-15/test/lease-signing-policy.anvil.test.mjs:52:1'
+   failureType: 'testCodeFailure'
+@@ -56,4 +56,4 @@ not ok 3 - forced RENEW against the production renewWindow (300 s) is REFUSED, n
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 692.936897
++# duration_ms 713.127259
+diff --git a/logs/cmut-16.tap b/logs/cmut-16.tap
+index f67c2fd9a2d5f974130c7981904ba3af2c9366b3..20bde7f0e5f33d9ce1fa132d20c808c9fcdc9c01 100644
+--- a/logs/cmut-16.tap
++++ b/logs/cmut-16.tap
+@@ -1,16 +1,16 @@
+ TAP version 13
+-# Subtest: no evidence: unsafe with explicit gates; evidence only from named verifiers, for the right blocks, never from the submitter
+-not ok 1 - no evidence: unsafe with explicit gates; evidence only from named verifiers, for the right blocks, never from the submitter
++# Subtest: no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
++not ok 1 - no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
+   ---
+-  duration_ms: 1.512928
++  duration_ms: 1.422017
+   type: 'test'
+-  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-16/test/finality.test.mjs:9:1'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-16/test/finality.test.mjs:11:1'
+   failureType: 'testCodeFailure'
+   error: 'Missing expected exception.'
+   code: 'ERR_ASSERTION'
+   name: 'AssertionError'
+   stack: |-
+-    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-16/test/finality.test.mjs:17:10)
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-16/test/finality.test.mjs:16:10)
+     Test.runInAsyncScope (node:async_hooks:214:14)
+     Test.run (node:internal/test_runner/test:1047:25)
+     Test.start (node:internal/test_runner/test:944:17)
+@@ -24,4 +24,4 @@ not ok 1 - no evidence: unsafe with explicit gates; evidence only from named ver
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 235.005045
++# duration_ms 243.140746
+diff --git a/logs/cmut-17.tap b/logs/cmut-17.tap
+index abb2a54ae08f1ab221c9d22b35a51e6aa0370c48..be198cda059ee0eba15ba024911bf658d9f9de43 100644
+--- a/logs/cmut-17.tap
++++ b/logs/cmut-17.tap
+@@ -1,36 +1,16 @@
+ TAP version 13
+-# Subtest: no evidence: unsafe with explicit gates; evidence only from named verifiers, for the right blocks, never from the submitter
+-not ok 1 - no evidence: unsafe with explicit gates; evidence only from named verifiers, for the right blocks, never from the submitter
++# Subtest: no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
++ok 1 - no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
+   ---
+-  duration_ms: 1.670417
++  duration_ms: 1.391318
+   type: 'test'
+-  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-17/test/finality.test.mjs:9:1'
+-  failureType: 'testCodeFailure'
+-  error: |-
+-    no finalized L2 without a finalized L1 deposit block
+-    + actual - expected
+-    
+-    + 'finalized'
+-    - 'safe'
+-    
+-  code: 'ERR_ASSERTION'
+-  name: 'AssertionError'
+-  expected: 'safe'
+-  actual: 'finalized'
+-  operator: 'strictEqual'
+-  stack: |-
+-    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-17/test/finality.test.mjs:16:10)
+-    Test.runInAsyncScope (node:async_hooks:214:14)
+-    Test.run (node:internal/test_runner/test:1047:25)
+-    Test.start (node:internal/test_runner/test:944:17)
+-    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+   ...
+ 1..1
+ # tests 1
+ # suites 0
+-# pass 0
+-# fail 1
++# pass 1
++# fail 0
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 244.064585
++# duration_ms 245.242178
+diff --git a/logs/cmut-18.tap b/logs/cmut-18.tap
+new file mode 100644
+index 0000000000000000000000000000000000000000..40aac2824c937a8b62df02d44a561f07dd3d1985
+--- /dev/null
++++ b/logs/cmut-18.tap
+@@ -0,0 +1,57 @@
++TAP version 13
++# Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
++ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
++  ---
++  duration_ms: 546.575531
++  type: 'test'
++  ...
++# Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
++ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
++  ---
++  duration_ms: 69.730607
++  type: 'test'
++  ...
++# claim deposit gasUsed 334205 of limit 800000
++# Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
++ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
++  ---
++  duration_ms: 48.750248
++  type: 'test'
++  ...
++# Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
++ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
++  ---
++  duration_ms: 92.46287
++  type: 'test'
++  ...
++# Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
++ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
++  ---
++  duration_ms: 24.943794
++  type: 'test'
++  ...
++# Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
++not ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
++  ---
++  duration_ms: 2.460609
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-18/test/forced-inclusion.anvil.test.mjs:331:1'
++  failureType: 'testCodeFailure'
++  error: 'Missing expected exception.'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-18/test/forced-inclusion.anvil.test.mjs:339:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++1..6
++# tests 6
++# suites 0
++# pass 5
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 5016.854145
+diff --git a/logs/cmut-19.tap b/logs/cmut-19.tap
+new file mode 100644
+index 0000000000000000000000000000000000000000..15f3102275d0b3a62249b6b7b156fd838b6707a0
+--- /dev/null
++++ b/logs/cmut-19.tap
+@@ -0,0 +1,54 @@
++TAP version 13
++# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++ok 1 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++  ---
++  duration_ms: 443.315547
++  type: 'test'
++  ...
++# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++not ok 2 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++  ---
++  duration_ms: 34.780239
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-19/test/source-binding.anvil.test.mjs:65:1'
++  failureType: 'testCodeFailure'
++  error: 'Missing expected exception: default trust refuses the fixture'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-19/test/source-binding.anvil.test.mjs:73:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++ok 3 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++  ---
++  duration_ms: 133.385267
++  type: 'test'
++  ...
++# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++not ok 4 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++  ---
++  duration_ms: 31.911234
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-19/test/source-binding.anvil.test.mjs:137:1'
++  failureType: 'testCodeFailure'
++  error: 'Missing expected exception: default trust'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-19/test/source-binding.anvil.test.mjs:149:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++1..4
++# tests 4
++# suites 0
++# pass 2
++# fail 2
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 920.817087
+diff --git a/logs/cmut-2.tap b/logs/cmut-2.tap
+index 7191af0f90392d0dd8eb621e85bfac2b632f8d89..279686d4038447fe341d3e1c7a0277ea4033c0c9 100644
+--- a/logs/cmut-2.tap
++++ b/logs/cmut-2.tap
+@@ -2,31 +2,31 @@ TAP version 13
+ # Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+ ok 1 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+   ---
+-  duration_ms: 457.420478
++  duration_ms: 435.944809
+   type: 'test'
+   ...
+ # Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+ ok 2 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+   ---
+-  duration_ms: 64.652706
++  duration_ms: 62.630024
+   type: 'test'
+   ...
+ # Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+ ok 3 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+   ---
+-  duration_ms: 64.801935
++  duration_ms: 60.960109
+   type: 'test'
+   ...
+ # Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+ ok 4 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+   ---
+-  duration_ms: 107.931239
++  duration_ms: 100.97399
+   type: 'test'
+   ...
+ # Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+ not ok 5 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+   ---
+-  duration_ms: 81.383626
++  duration_ms: 74.421062
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-2/test/vault-deposit.anvil.test.mjs:181:1'
+   failureType: 'testCodeFailure'
+@@ -42,13 +42,13 @@ not ok 5 - owner termination by signed Terminate deposit: the session ends and r
+ # Subtest: release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+ ok 6 - release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+   ---
+-  duration_ms: 69.442209
++  duration_ms: 63.410897
+   type: 'test'
+   ...
+ # Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+   ---
+-  duration_ms: 99.505805
++  duration_ms: 91.967678
+   type: 'test'
+   ...
+ 1..7
+@@ -59,4 +59,4 @@ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fu
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 4949.547553
++# duration_ms 4859.541131
+diff --git a/logs/cmut-20.tap b/logs/cmut-20.tap
+new file mode 100644
+index 0000000000000000000000000000000000000000..9fba009acd954c7fb74beb99371aaa2c8b65f5f8
+--- /dev/null
++++ b/logs/cmut-20.tap
+@@ -0,0 +1,44 @@
++TAP version 13
++# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++ok 1 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++  ---
++  duration_ms: 426.343854
++  type: 'test'
++  ...
++# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++not ok 2 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++  ---
++  duration_ms: 68.309019
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-20/test/source-binding.anvil.test.mjs:65:1'
++  failureType: 'testCodeFailure'
++  error: 'Missing expected exception: evidence cannot be paired with another receipt object'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-20/test/source-binding.anvil.test.mjs:82:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++ok 3 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++  ---
++  duration_ms: 121.847177
++  type: 'test'
++  ...
++# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++ok 4 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++  ---
++  duration_ms: 29.170748
++  type: 'test'
++  ...
++1..4
++# tests 4
++# suites 0
++# pass 3
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 4723.508429
+diff --git a/logs/cmut-21.tap b/logs/cmut-21.tap
+new file mode 100644
+index 0000000000000000000000000000000000000000..2e283a66a207cbd55976b19904ad6c81dbbb2f69
+--- /dev/null
++++ b/logs/cmut-21.tap
+@@ -0,0 +1,46 @@
++TAP version 13
++# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++ok 1 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++  ---
++  duration_ms: 445.845937
++  type: 'test'
++  ...
++# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++ok 2 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++  ---
++  duration_ms: 300.704182
++  type: 'test'
++  ...
++# finality: {"state":"l2-included","level":"finalized","depositL1Final":true,"gates":[]}
++# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++not ok 3 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++  ---
++  duration_ms: 37.818393
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-21/test/source-binding.anvil.test.mjs:112:1'
++  failureType: 'testCodeFailure'
++  error: 'Missing expected rejection.'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async expect (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-21/test/source-binding.anvil.test.mjs:115:60)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-21/test/source-binding.anvil.test.mjs:119:3)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++ok 4 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++  ---
++  duration_ms: 37.147869
++  type: 'test'
++  ...
++1..4
++# tests 4
++# suites 0
++# pass 3
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 4760.274004
+diff --git a/logs/cmut-22.tap b/logs/cmut-22.tap
+new file mode 100644
+index 0000000000000000000000000000000000000000..f0c75e493018fffaf1e1e47f375b28a0442fdf06
+--- /dev/null
++++ b/logs/cmut-22.tap
+@@ -0,0 +1,32 @@
++TAP version 13
++# Subtest: a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++ok 1 - a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++  ---
++  duration_ms: 72.272586
++  type: 'test'
++  ...
++# Subtest: fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++not ok 2 - fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++  ---
++  duration_ms: 39.108043
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-22/test/source-binding.test.mjs:54:1'
++  failureType: 'testCodeFailure'
++  error: 'Missing expected rejection: l1-not-canonical'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-22/test/source-binding.test.mjs:62:11)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++1..2
++# tests 2
++# suites 0
++# pass 1
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 365.480804
+diff --git a/logs/cmut-23.tap b/logs/cmut-23.tap
+new file mode 100644
+index 0000000000000000000000000000000000000000..8fb34094d669f62bd262167f4a9c1c6a348a2514
+--- /dev/null
++++ b/logs/cmut-23.tap
+@@ -0,0 +1,52 @@
++TAP version 13
++# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++ok 1 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++  ---
++  duration_ms: 439.392595
++  type: 'test'
++  ...
++# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++ok 2 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++  ---
++  duration_ms: 301.242369
++  type: 'test'
++  ...
++# finality: {"state":"l2-included","level":"finalized","depositL1Final":true,"gates":[]}
++# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++not ok 3 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++  ---
++  duration_ms: 104.584697
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-23/test/source-binding.anvil.test.mjs:112:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly equal:
++    
++    true !== false
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: false
++  actual: true
++  operator: 'strictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-23/test/source-binding.anvil.test.mjs:127:16)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++ok 4 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++  ---
++  duration_ms: 28.986599
++  type: 'test'
++  ...
++1..4
++# tests 4
++# suites 0
++# pass 3
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 4742.895459
+diff --git a/logs/cmut-24.tap b/logs/cmut-24.tap
+new file mode 100644
+index 0000000000000000000000000000000000000000..66f8b3bbbc659c2032dbe8feb28c0e9a25c14da7
+--- /dev/null
++++ b/logs/cmut-24.tap
+@@ -0,0 +1,46 @@
++TAP version 13
++# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++not ok 1 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++  ---
++  duration_ms: 407.926649
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-24/test/source-binding.anvil.test.mjs:50:1'
++  failureType: 'testCodeFailure'
++  error: 'Missing expected exception.'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-24/test/source-binding.anvil.test.mjs:51:10)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
++  ...
++# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++ok 2 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++  ---
++  duration_ms: 306.775622
++  type: 'test'
++  ...
++# finality: {"state":"l2-included","level":"finalized","depositL1Final":true,"gates":[]}
++# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++ok 3 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++  ---
++  duration_ms: 111.945494
++  type: 'test'
++  ...
++# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++ok 4 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++  ---
++  duration_ms: 27.379504
++  type: 'test'
++  ...
++1..4
++# tests 4
++# suites 0
++# pass 3
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 4721.363806
+diff --git a/logs/cmut-25.tap b/logs/cmut-25.tap
+new file mode 100644
+index 0000000000000000000000000000000000000000..7cc04fe5e236c95ce2e36ce18f86bd834e952696
+--- /dev/null
++++ b/logs/cmut-25.tap
+@@ -0,0 +1,46 @@
++TAP version 13
++# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++ok 1 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++  ---
++  duration_ms: 450.405585
++  type: 'test'
++  ...
++# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++ok 2 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++  ---
++  duration_ms: 298.498175
++  type: 'test'
++  ...
++# finality: {"state":"l2-included","level":"finalized","depositL1Final":true,"gates":[]}
++# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++not ok 3 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++  ---
++  duration_ms: 46.42045
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-25/test/source-binding.anvil.test.mjs:112:1'
++  failureType: 'testCodeFailure'
++  error: 'Missing expected rejection.'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async expect (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-25/test/source-binding.anvil.test.mjs:115:60)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-25/test/source-binding.anvil.test.mjs:120:59)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++ok 4 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++  ---
++  duration_ms: 35.375865
++  type: 'test'
++  ...
++1..4
++# tests 4
++# suites 0
++# pass 3
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 1107.290458
+diff --git a/logs/cmut-26.tap b/logs/cmut-26.tap
+new file mode 100644
+index 0000000000000000000000000000000000000000..3c46b983a7a55cdc9c7100031882c153c95c6b9c
+--- /dev/null
++++ b/logs/cmut-26.tap
+@@ -0,0 +1,32 @@
++TAP version 13
++# Subtest: a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++ok 1 - a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++  ---
++  duration_ms: 72.947041
++  type: 'test'
++  ...
++# Subtest: fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++not ok 2 - fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++  ---
++  duration_ms: 93.367974
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-26/test/source-binding.test.mjs:54:1'
++  failureType: 'testCodeFailure'
++  error: 'Missing expected rejection.'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-26/test/source-binding.test.mjs:67:9)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++1..2
++# tests 2
++# suites 0
++# pass 1
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 410.091983
+diff --git a/logs/cmut-3.tap b/logs/cmut-3.tap
+index 6f883bb3e8b0b9a358b24bd91594d874e2e3d84b..3790daa3295e597bc52b4d90b9c6f3f331dde838 100644
+--- a/logs/cmut-3.tap
++++ b/logs/cmut-3.tap
+@@ -2,25 +2,25 @@ TAP version 13
+ # Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+ ok 1 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+   ---
+-  duration_ms: 456.504105
++  duration_ms: 443.875872
+   type: 'test'
+   ...
+ # Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+ ok 2 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+   ---
+-  duration_ms: 64.851635
++  duration_ms: 64.660677
+   type: 'test'
+   ...
+ # Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+ ok 3 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+   ---
+-  duration_ms: 64.101631
++  duration_ms: 61.084258
+   type: 'test'
+   ...
+ # Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+ not ok 4 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+   ---
+-  duration_ms: 96.643887
++  duration_ms: 94.498637
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-3/test/vault-deposit.anvil.test.mjs:141:1'
+   failureType: 'testCodeFailure'
+@@ -36,19 +36,19 @@ not ok 4 - session-key execute (setActive) by deposit from an ALIASED contract w
+ # Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+ ok 5 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+   ---
+-  duration_ms: 130.97684
++  duration_ms: 129.857978
+   type: 'test'
+   ...
+ # Subtest: release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+ ok 6 - release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+   ---
+-  duration_ms: 73.806295
++  duration_ms: 56.367978
+   type: 'test'
+   ...
+ # Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+   ---
+-  duration_ms: 112.625243
++  duration_ms: 101.329137
+   type: 'test'
+   ...
+ 1..7
+@@ -59,4 +59,4 @@ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fu
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5201.209295
++# duration_ms 5174.012029
+diff --git a/logs/cmut-4.tap b/logs/cmut-4.tap
+index 63ac83c63cb22287d3cad59e3811139704fa34e2..4bdd32f0e10b9699e7147d6302fbd03fe82e7c61 100644
+--- a/logs/cmut-4.tap
++++ b/logs/cmut-4.tap
+@@ -2,25 +2,25 @@ TAP version 13
+ # Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+ ok 1 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+   ---
+-  duration_ms: 443.368377
++  duration_ms: 438.68292
+   type: 'test'
+   ...
+ # Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+ ok 2 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+   ---
+-  duration_ms: 60.34998
++  duration_ms: 61.409815
+   type: 'test'
+   ...
+ # Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+ ok 3 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+   ---
+-  duration_ms: 62.047627
++  duration_ms: 60.960609
+   type: 'test'
+   ...
+ # Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+ not ok 4 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+   ---
+-  duration_ms: 53.642762
++  duration_ms: 50.628779
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-4/test/vault-deposit.anvil.test.mjs:141:1'
+   failureType: 'testCodeFailure'
+@@ -36,19 +36,19 @@ not ok 4 - session-key execute (setActive) by deposit from an ALIASED contract w
+ # Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+ ok 5 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+   ---
+-  duration_ms: 132.927045
++  duration_ms: 125.143381
+   type: 'test'
+   ...
+ # Subtest: release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+ ok 6 - release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+   ---
+-  duration_ms: 62.464454
++  duration_ms: 61.410246
+   type: 'test'
+   ...
+ # Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+   ---
+-  duration_ms: 100.595627
++  duration_ms: 96.396921
+   type: 'test'
+   ...
+ 1..7
+@@ -59,4 +59,4 @@ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fu
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5142.870563
++# duration_ms 5091.340439
+diff --git a/logs/cmut-5.tap b/logs/cmut-5.tap
+index bf242a1e692341c940be528d18a2e407011a1140..9af18ba261a6073b5991463fed9af9c337bca850 100644
+--- a/logs/cmut-5.tap
++++ b/logs/cmut-5.tap
+@@ -2,25 +2,25 @@ TAP version 13
+ # Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+ ok 1 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+   ---
+-  duration_ms: 467.225182
++  duration_ms: 448.519848
+   type: 'test'
+   ...
+ # Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+ ok 2 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+   ---
+-  duration_ms: 66.045686
++  duration_ms: 62.710675
+   type: 'test'
+   ...
+ # Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+ ok 3 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+   ---
+-  duration_ms: 62.389034
++  duration_ms: 63.26476
+   type: 'test'
+   ...
+ # Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+ not ok 4 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+   ---
+-  duration_ms: 78.39948
++  duration_ms: 83.263176
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-5/test/vault-deposit.anvil.test.mjs:141:1'
+   failureType: 'testCodeFailure'
+@@ -41,19 +41,19 @@ not ok 4 - session-key execute (setActive) by deposit from an ALIASED contract w
+ # Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+ ok 5 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+   ---
+-  duration_ms: 134.367634
++  duration_ms: 135.440481
+   type: 'test'
+   ...
+ # Subtest: release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+ ok 6 - release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+   ---
+-  duration_ms: 62.249465
++  duration_ms: 60.500733
+   type: 'test'
+   ...
+ # Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+   ---
+-  duration_ms: 102.148625
++  duration_ms: 97.403892
+   type: 'test'
+   ...
+ 1..7
+@@ -64,4 +64,4 @@ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fu
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5203.552524
++# duration_ms 5145.970203
+diff --git a/logs/cmut-6.tap b/logs/cmut-6.tap
+index b9a263e73c79f78263f50baae8ea53999a02db94..07a1b771c7ee3e213372bff6e7588e7a6bd944d7 100644
+--- a/logs/cmut-6.tap
++++ b/logs/cmut-6.tap
+@@ -2,37 +2,37 @@ TAP version 13
+ # Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+ ok 1 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+   ---
+-  duration_ms: 448.918105
++  duration_ms: 441.028705
+   type: 'test'
+   ...
+ # Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+ ok 2 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+   ---
+-  duration_ms: 64.365019
++  duration_ms: 61.787873
+   type: 'test'
+   ...
+ # Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+ ok 3 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+   ---
+-  duration_ms: 65.396901
++  duration_ms: 59.76097
+   type: 'test'
+   ...
+ # Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+ ok 4 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+   ---
+-  duration_ms: 109.300829
++  duration_ms: 98.202746
+   type: 'test'
+   ...
+ # Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+ ok 5 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+   ---
+-  duration_ms: 128.38835
++  duration_ms: 118.895706
+   type: 'test'
+   ...
+ # Subtest: release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+ not ok 6 - release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+   ---
+-  duration_ms: 50.043881
++  duration_ms: 49.403851
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-6/test/vault-deposit.anvil.test.mjs:213:1'
+   failureType: 'testCodeFailure'
+@@ -48,7 +48,7 @@ not ok 6 - release recipient: only the owner, or the owner's vault at the book's
+ # Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+   ---
+-  duration_ms: 97.936438
++  duration_ms: 102.910635
+   type: 'test'
+   ...
+ 1..7
+@@ -59,4 +59,4 @@ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fu
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5025.078256
++# duration_ms 5161.066601
+diff --git a/logs/cmut-7.tap b/logs/cmut-7.tap
+index 7273d8f291cb500778410cf859245821b0029abe..bf6f301001baf986a840f6afff6ff5b70c0cce96 100644
+--- a/logs/cmut-7.tap
++++ b/logs/cmut-7.tap
+@@ -2,43 +2,43 @@ TAP version 13
+ # Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+ ok 1 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+   ---
+-  duration_ms: 451.260367
++  duration_ms: 440.070976
+   type: 'test'
+   ...
+ # Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+ ok 2 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+   ---
+-  duration_ms: 63.248867
++  duration_ms: 61.696254
+   type: 'test'
+   ...
+ # Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+ ok 3 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+   ---
+-  duration_ms: 67.238696
++  duration_ms: 59.973019
+   type: 'test'
+   ...
+ # Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+ ok 4 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+   ---
+-  duration_ms: 104.922433
++  duration_ms: 100.171469
+   type: 'test'
+   ...
+ # Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+ ok 5 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+   ---
+-  duration_ms: 128.304021
++  duration_ms: 120.365024
+   type: 'test'
+   ...
+ # Subtest: release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+ ok 6 - release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+   ---
+-  duration_ms: 64.779906
++  duration_ms: 60.787342
+   type: 'test'
+   ...
+ # Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+ not ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+   ---
+-  duration_ms: 31.709024
++  duration_ms: 32.000412
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-7/test/vault-deposit.anvil.test.mjs:232:1'
+   failureType: 'testCodeFailure'
+@@ -59,4 +59,4 @@ not ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledge
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5023.107614
++# duration_ms 4988.908505
+diff --git a/logs/cmut-8.tap b/logs/cmut-8.tap
+index 32576bf04e403c76b5bf385e1bcfe5f1777ef405..9e77fb01ca9c393b4807bd603f87a73fb60d9cfb 100644
+--- a/logs/cmut-8.tap
++++ b/logs/cmut-8.tap
+@@ -2,43 +2,43 @@ TAP version 13
+ # Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+ ok 1 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+   ---
+-  duration_ms: 456.339247
++  duration_ms: 453.142384
+   type: 'test'
+   ...
+ # Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+ ok 2 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+   ---
+-  duration_ms: 62.600623
++  duration_ms: 59.289405
+   type: 'test'
+   ...
+ # Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+ ok 3 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+   ---
+-  duration_ms: 64.502918
++  duration_ms: 62.022702
+   type: 'test'
+   ...
+ # Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+ ok 4 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+   ---
+-  duration_ms: 106.206093
++  duration_ms: 105.9178
+   type: 'test'
+   ...
+ # Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+ ok 5 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+   ---
+-  duration_ms: 129.393842
++  duration_ms: 127.82582
+   type: 'test'
+   ...
+ # Subtest: release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+ ok 6 - release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+   ---
+-  duration_ms: 59.04203
++  duration_ms: 57.884328
+   type: 'test'
+   ...
+ # Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+ not ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+   ---
+-  duration_ms: 27.870663
++  duration_ms: 25.917025
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-8/test/vault-deposit.anvil.test.mjs:232:1'
+   failureType: 'testCodeFailure'
+@@ -59,4 +59,4 @@ not ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledge
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 4897.967021
++# duration_ms 5009.499074
+diff --git a/logs/cmut-9.tap b/logs/cmut-9.tap
+index 8edaa40015bcb85cb7323ecc18be173cee192730..88893dead2b2328f583e6d7fb7dad9bef1d25d50 100644
+--- a/logs/cmut-9.tap
++++ b/logs/cmut-9.tap
+@@ -2,13 +2,13 @@ TAP version 13
+ # Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+ ok 1 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
+   ---
+-  duration_ms: 443.888155
++  duration_ms: 433.928483
+   type: 'test'
+   ...
+ # Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+ not ok 2 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
+   ---
+-  duration_ms: 64.094141
++  duration_ms: 62.145351
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-9/test/vault-deposit.anvil.test.mjs:96:1'
+   failureType: 'testCodeFailure'
+@@ -24,31 +24,31 @@ not ok 2 - owner-signed TopUp by deposit (any L1 sender): the session is credite
+ # Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+ ok 3 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
+   ---
+-  duration_ms: 65.233322
++  duration_ms: 67.127478
+   type: 'test'
+   ...
+ # Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+ ok 4 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
+   ---
+-  duration_ms: 107.436784
++  duration_ms: 98.483296
+   type: 'test'
+   ...
+ # Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+ ok 5 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
+   ---
+-  duration_ms: 127.16751
++  duration_ms: 124.199632
+   type: 'test'
+   ...
+ # Subtest: release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+ ok 6 - release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
+   ---
+-  duration_ms: 56.910257
++  duration_ms: 59.169827
+   type: 'test'
+   ...
+ # Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
+   ---
+-  duration_ms: 99.984942
++  duration_ms: 94.249932
+   type: 'test'
+   ...
+ 1..7
+@@ -59,4 +59,4 @@ ok 7 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fu
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5197.317864
++# duration_ms 5165.314779
+diff --git a/logs/final-sb-suite.out b/logs/final-sb-suite.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..0f3642e1548c415f29926ceda22b7447812aaffe
+--- /dev/null
++++ b/logs/final-sb-suite.out
+@@ -0,0 +1,272 @@
++a194afe28dbf39f6716c415cc4609e00f25ea9a7
++?? logs/final-sb-suite.out
++?? logs/final-sb.out
++anvil Version: 1.7.1
++v22.23.3
++  "version": "2.53.1",
++5b5922b3fdddb6384d06529fb86cadd29df5b14c1a1adf30aee97554d145487b  src/base-source-binding.mjs
++e0aa736375584b5707fe81924f68be2f6312de2cc5623f9a7ae71a9be31636ce  src/evidence-brand.mjs
++438e9c77382eeb9e60bd57cfaf4c98ee2f831d93aec7b0c75e7fbc151b87942c  src/forced-inclusion.mjs
++d4a4879d841863910c4cf1a8467a48e42583c85f8d87d1f2cd1a9b50718a9742  src/l1-source-binding.mjs
++30cfd9e7ba27740b55f5b4f3b8d603d4da2b44a7583a3f8c4b5107874b71fb2c  src/lease-signing-policy.mjs
++a0401e08e6f51586e8776fc9bd7356c4a1e76f260dd4a74dc270de4fab5bb821  src/vault-deposit.mjs
++4fc17967ebba4601161160ce4d7df8b2e24db5888d898d5af9defd620d92a090  test/fee-audit.anvil.test.mjs
++fe95a0f355e4dac08243af2b4562a0082ff3849e7619db45b01ed743f5b0388e  test/finality.test.mjs
++a1781760e1f270318fd60e2c6baf74f1ebaf6b5c1d62891b15d93403583b3b98  test/forced-inclusion.anvil.test.mjs
++748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
++8474c4c04f793c377f2ddd55b4d5d4e42689cf64b41907d8e5236d6cba7215af  test/lease-signing-policy.anvil.test.mjs
++6fc792a6c395df86d105cbaf72ff3b105da671071e93fe2885667c1ebf1dc008  test/source-binding.anvil.test.mjs
++dd1da4b52e93bdd0e2c8327a7549b265d609335ab3925eb6e98ce9109358778a  test/source-binding.test.mjs
++784ba86de7d3f08cb6cf0df1164c7bc9c5d1ef5bcccc125e3d05e2c966355c2d  test/tracker.test.mjs
++39422d45f9d1e91f2d2a49aa0da9fafd31f1f77c0654d7ab483ba3e3cfc210a3  test/vault-deposit.anvil.test.mjs
++966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  fixtures/artifacts/EnclaveAddressBook.json
++0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
++dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
++aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
++aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
++66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
++613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d  fixtures/artifacts/Mock1271Owner.json
++10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
++524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
++9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946  fixtures/artifacts/MockUSDC3009.json
++f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc  fixtures/artifacts/SessionVault.json
++eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e  fixtures/artifacts/SessionVaultFactory.json
++bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478  fixtures/artifacts/SessionVaultLib.json
++b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8  fixtures/sources/EnclaveAddressBook.sol
++2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
++dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
++1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
++e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
++a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703  fixtures/sources/MockUSDC.sol
++47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d  fixtures/sources/SessionMocks.sol
++a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c  fixtures/sources/SessionVault.sol
++47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
++97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
++65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
++5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: provenance: the replayed production GasPriceOracle answers getL1FeeUpperBound(460) exactly as the provider did
++ok 1 - provenance: the replayed production GasPriceOracle answers getL1FeeUpperBound(460) exactly as the provider did
++  ---
++  duration_ms: 413.110616
++  type: 'test'
++  ...
++# Subtest: a forced-inclusion CLAIM: the reserve pays its payee ONLY the L1-fee upper bound (gas price 0); the L1 deposit costs orders of magnitude more
++ok 2 - a forced-inclusion CLAIM: the reserve pays its payee ONLY the L1-fee upper bound (gas price 0); the L1 deposit costs orders of magnitude more
++  ---
++  duration_ms: 43.544017
++  type: 'test'
++  ...
++# FEE {"reservePaidWei":"3135045021","laterLeasesWei":"2586495097","l1GasUsed":"832256","l1BaseFeeWei":"1000000000","l1CostWei":"832256000000000","coverage":0.000003766923904423639}
++# Subtest: every existing knob at its limit: the maximum the reserve can pay a deposit lease is still the L1 bound; the contracts refuse more
++ok 3 - every existing knob at its limit: the maximum the reserve can pay a deposit lease is still the L1 bound; the contracts refuse more
++  ---
++  duration_ms: 15.598152
++  type: 'test'
++  ...
++# Subtest: no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
++ok 4 - no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
++  ---
++  duration_ms: 1.373448
++  type: 'test'
++  ...
++# Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
++ok 5 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
++  ---
++  duration_ms: 520.057228
++  type: 'test'
++  ...
++# Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
++ok 6 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
++  ---
++  duration_ms: 66.972101
++  type: 'test'
++  ...
++# claim deposit gasUsed 334205 of limit 800000
++# Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
++ok 7 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
++  ---
++  duration_ms: 46.237954
++  type: 'test'
++  ...
++# Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
++ok 8 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
++  ---
++  duration_ms: 80.911489
++  type: 'test'
++  ...
++# Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
++ok 9 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
++  ---
++  duration_ms: 22.867169
++  type: 'test'
++  ...
++# Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
++ok 10 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
++  ---
++  duration_ms: 31.965069
++  type: 'test'
++  ...
++# Subtest: provenance: the replayed production portal answers version() and params() as the provider did at the captured block
++ok 11 - provenance: the replayed production portal answers version() and params() as the provider did at the captured block
++  ---
++  duration_ms: 177.687749
++  type: 'test'
++  ...
++# Subtest: the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
++ok 12 - the plan's L1 transaction from an EOA: one real TransactionDeposited from the EOA itself; the module derives its 0x7E hash
++  ---
++  duration_ms: 37.607
++  type: 'test'
++  ...
++# EOA deposit: L1 gasUsed 834932 at base fee 1 gwei
++# Subtest: a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
++ok 13 - a contract wallet is ALIASED; a 7702-delegated EOA called by a relayer is NOT (portal 6.0.1 behaviour, measured)
++  ---
++  duration_ms: 24.384636
++  type: 'test'
++  ...
++# 7702-delegated EOA via relayer: deposit from 0x816d41165592743Ab9aFBF4d9C144Cf6aa8cB490 (EOA 0x816d41165592743Ab9aFBF4d9C144Cf6aa8cB490, alias 0x927e41165592743AB9AFbf4d9C144cF6AA8Cc5A1)
++# Subtest: L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
++ok 14 - L1 cost: execution gas plus the resource-metering burn, measured at several L1 base fees
++  ---
++  duration_ms: 544.445407
++  type: 'test'
++  ...
++# L1_COST [{"baseFeeGwei":0.1,"l2GasLimit":400000,"l1GasUsed":435082,"effectiveGasPrice":"100000000","l1CostWei":"43508200000000"},{"baseFeeGwei":0.1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"87862569","l1CostWei":"73358303972049"},{"baseFeeGwei":1,"l2GasLimit":400000,"l1GasUsed":435069,"effectiveGasPrice":"1000000000","l1CostWei":"435069000000000"},{"baseFeeGwei":1,"l2GasLimit":800000,"l1GasUsed":834921,"effectiveGasPrice":"878625575","l1CostWei":"733582943704575"},{"baseFeeGwei":5,"l2GasLimit":400000,"l1GasUsed":114994,"effectiveGasPrice":"5000000000","l1CostWei":"574970000000000"},{"baseFeeGwei":5,"l2GasLimit":800000,"l1GasUsed":217683,"effectiveGasPrice":"4379791417","l1CostWei":"953406135026811"},{"baseFeeGwei":30,"l2GasLimit":400000,"l1GasUsed":72267,"effectiveGasPrice":"30000000000","l1CostWei":"2168010000000000"},{"baseFeeGwei":30,"l2GasLimit":800000,"l1GasUsed":69431,"effectiveGasPrice":"26268066750","l1CostWei":"1823818142519250"}]
++# Subtest: refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
++ok 15 - refusals: gas below the portal floor reverts on L1 (no deposit; the slot frees only with that receipt); wrong pins; a look-alike log
++  ---
++  duration_ms: 23.283955
++  type: 'test'
++  ...
++# Subtest: relay route is today's: deadline head + 300 s; forced options without the forced route are refused
++ok 16 - relay route is today's: deadline head + 300 s; forced options without the forced route are refused
++  ---
++  duration_ms: 439.421102
++  type: 'test'
++  ...
++# Subtest: forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
++ok 17 - forced CLAIM: explicit, bounded, within the owner budget; signed (TEST key) it is exactly what the planner accepts and the real portal + executor run
++  ---
++  duration_ms: 42.885484
++  type: 'test'
++  ...
++# continuity: the protocol may delay a deposit up to 43200 s, longer than the 1800-s lease the ledger grants: a withholding sequencer can let the lease lapse before the renew lands
++# Subtest: forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
++ok 18 - forced RENEW against the production renewWindow (300 s) is REFUSED, not reconfigured; release only where sponsored; a second open authorization is refused
++  ---
++  duration_ms: 18.591567
++  type: 'test'
++  ...
++# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++ok 19 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++  ---
++  duration_ms: 429.089984
++  type: 'test'
++  ...
++# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++ok 20 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++  ---
++  duration_ms: 288.946224
++  type: 'test'
++  ...
++# finality: {"state":"l2-included","level":"finalized","depositL1Final":true,"gates":[]}
++# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++ok 21 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++  ---
++  duration_ms: 111.800259
++  type: 'test'
++  ...
++# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++ok 22 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++  ---
++  duration_ms: 26.741696
++  type: 'test'
++  ...
++# Subtest: a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++ok 23 - a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++  ---
++  duration_ms: 72.169696
++  type: 'test'
++  ...
++# Subtest: fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++ok 24 - fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++  ---
++  duration_ms: 91.064751
++  type: 'test'
++  ...
++# Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
++not ok 25 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
++  ---
++  duration_ms: 1.393137
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/tracker.test.mjs:7:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    The validation function is expected to return "true". Received false
++    
++    Caught error:
++    
++    Error: l1-receipt-unverified: not minted by a source-binding adapter (a label or caller JSON is not evidence)
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/tracker.test.mjs:17:10)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.start (node:internal/test_runner/test:944:17)
++    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
++  ...
++# Subtest: provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
++ok 26 - provenance: the vault, library and factory are the compiled production source; the vault is the pinned clone of an EOA owner
++  ---
++  duration_ms: 448.258066
++  type: 'test'
++  ...
++# Subtest: owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
++ok 27 - owner-signed TopUp by deposit (any L1 sender): the session is credited once; the same signed TopUp relayed on L2 afterwards reverts NonceUsed
++  ---
++  duration_ms: 62.760399
++  type: 'test'
++  ...
++# Subtest: ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
++ok 28 - ordinary L2 attempt FIRST, then the deposit of the same signed Withdraw: one effect; and why the owner's own address may never be the deposit sender
++  ---
++  duration_ms: 61.179613
++  type: 'test'
++  ...
++# Subtest: session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
++ok 29 - session-key execute (setActive) by deposit from an ALIASED contract wallet: P-256 call runs once; replay, unauthorized action, unauthorized target, wrong key are refused
++  ---
++  duration_ms: 103.168765
++  type: 'test'
++  ...
++# Subtest: owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
++ok 30 - owner termination by signed Terminate deposit: the session ends and refunds the owner; afterwards session ops are refused; stale and malformed authorizations are refused
++  ---
++  duration_ms: 119.528091
++  type: 'test'
++  ...
++# Subtest: release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
++ok 31 - release recipient: only the owner, or the owner's vault at the book's CURRENT factory after an admin migration; any other recipient is refused
++  ---
++  duration_ms: 63.80576
++  type: 'test'
++  ...
++# Subtest: USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
++ok 32 - USDC EIP-3009: the owner's topUpWithAuthorization and a payer's ledger fundWithAuthorization by deposit; replay, unbound nonce, wrong token domain, contract payer refused
++  ---
++  duration_ms: 94.732569
++  type: 'test'
++  ...
++1..32
++# tests 32
++# suites 0
++# pass 31
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 22599.799093
+diff --git a/logs/final-sb.guard.log b/logs/final-sb.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b2ca1e4a9ffb428fc9d4f2bd932705f952d4463
+--- /dev/null
++++ b/logs/final-sb.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=272 minHostAvailableMiB=24762
+diff --git a/logs/final-sb.out b/logs/final-sb.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..b7fedd98d415452930eeea73c3dd2420621beb3d
+--- /dev/null
++++ b/logs/final-sb.out
+@@ -0,0 +1,45 @@
++[queue] START available=25677MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++suite rc=1
++mutant 1 killed (2 failing): if (lower(signer) !== lower(operator)) refuse('bad-signature'
++mutant 2 killed (2 failing): if (u(s.executorNonce, 'executorNonce') !== l.nonce) refuse
++mutant 3 killed (2 failing): if (code !== '0x' \&\& !(size(code) === 23
++mutant 4 killed (2 failing): if (source.submittedVia \&\& source.submittedVia === source.endpoint) refuse
++mutant 5 killed (2 failing): acceptableFrom: \[getAddress(from)\] }
++mutant 6 killed (2 failing): if ((s.operatorCode 
++mutant 7 killed (2 failing): if (paid.length !== 1 
++mutant 8 killed (2 failing): if (e \&\& e.commitment === commitment) return { replay: true, entry: e };
++mutant 9 killed (1 failing): if (e.l1Nonce !== undefined \&\& String(e.l1Nonce) !== String(l1Nonce)) refuse
++mutant 10 killed (2 failing): if (l1Receipt?.status !== 'reverted' 
++survivors: 0 of 10
++old mutants rc=0
++mutant 1 killed (1 failing): if (lower(l1Sender) === lower(owner) ||
++mutant 2 killed (1 failing): if (!isPlainOrDelegatedEoa(s.ownerCode)) refuse
++mutant 3 killed (1 failing): if (!s.held.env || (Number(sess.envs)
++mutant 4 killed (1 failing): if (s.seq === undefined || BigInt(s.seq) !== (nonce
++mutant 5 killed (1 failing): if (((BigInt(sess.actions) >> BigInt(action)) & 1n) !== 1n) refuse
++mutant 6 killed (1 failing): if (op === 'release' && lower(m.to)
++mutant 7 killed (1 failing): if (String(auth.nonce).toLowerCase() !== topUp.toLowerCase()) refuse
++mutant 8 killed (1 failing): if (sep.toLowerCase() !== String(token.separator).toLowerCase()) refuse
++mutant 9 killed (1 failing): if (s.ownerNonceUsed !== false) refuse
++mutant 10 killed (1 failing): if (lower(l1Snapshot.implementation) !== lower(pin.implementation)) refuse
++MUTANT 11 SURVIVED: if (!isMinted(ev) || ev.kind !== kind) refuse(code
++mutant 12 killed (1 failing): if (forced !== undefined) refuse
++mutant 13 killed (1 failing): if (Number(r.renewWindow) < window) refuse
++mutant 14 killed (2 failing): if (budget > BigInt(r.maxPerOpWei)) refuse
++mutant 15 killed (2 failing): deadline: BigInt(c.head.timestamp + window)
++mutant 16 killed (1 failing): acceptEvidence(l1Evidence, 'l1-receipt', { acceptTrust }, 'l1-evidence-unverified');
++MUTANT 17 SURVIVED: if (l2Evidence.finalized === true && l1Final) level
++mutant 18 killed (1 failing): if (!Array.isArray(verifiers) || !verifiers.every((v) => /^test-/.test(String(v)))) refuse
++mutant 19 killed (2 failing): if (!acceptTrust.includes(ev.trust)) refuse
++mutant 20 killed (1 failing): if (l1Receipt !== undefined && l1Receipt !== l1Proof.receipt) refuse
++mutant 21 killed (1 failing): need(fin && fin.hash === clFin.hash
++mutant 22 killed (1 failing): if (canon?.hash !== raw.blockHash) refuse('l1-not-canonical'
++mutant 23 killed (1 failing): need(cur.canonical,
++mutant 24 killed (1 failing): if (!['http:', 'https:'].includes(url.protocol) || !LOOPBACK.has(url.hostname)) refuse('not-local'
++mutant 25 killed (1 failing): need(d.is_syncing === false && d.is_optimistic === false && d.el_offline === false
++mutant 26 killed (1 failing): if (!(block.transactions ?? []).map
++survivors: 2 of 26
++closure mutants rc=2
++[memory-guard] exit=0 peakTreeRssMiB=272 minHostAvailableMiB=24762
++[memory-guard] at peak: node:100 node:61 anvil:51 anvil:27 anvil:23 sh:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/final-sb.rc b/logs/final-sb.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca916d098dabfe85979d791e4534bf1def02ef84
+--- /dev/null
++++ b/logs/final-sb.rc
+@@ -0,0 +1 @@
++exit 0
+diff --git a/logs/mut-1.tap b/logs/mut-1.tap
+index cf494f8d7c27457d3bb919f8dec6d9ebba0fa0f0..69fb29043fa4f7a5e6ae840a20fabb132cc0dac1 100644
+--- a/logs/mut-1.tap
++++ b/logs/mut-1.tap
+@@ -2,26 +2,26 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 552.095336
++  duration_ms: 543.650982
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 67.263524
++  duration_ms: 75.388639
+   type: 'test'
+   ...
+ # claim deposit gasUsed 334193 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 49.369204
++  duration_ms: 47.979569
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ not ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 15.34031
++  duration_ms: 14.563082
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-1/test/forced-inclusion.anvil.test.mjs:237:1'
+   failureType: 'testCodeFailure'
+@@ -37,27 +37,43 @@ not ok 4 - negative controls: wrong signer, expired deadline, undelegated key, s
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 26.366404
++  duration_ms: 26.866535
+   type: 'test'
+   ...
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 24.625417
++  duration_ms: 28.135683
+   type: 'test'
+   ...
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+-ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
++not ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 1.37634
++  duration_ms: 1.399808
+   type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-1/test/tracker.test.mjs:7:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    The validation function is expected to return "true". Received false
++    
++    Caught error:
++    
++    Error: l1-receipt-unverified: not minted by a source-binding adapter (a label or caller JSON is not evidence)
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-1/test/tracker.test.mjs:17:10)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.start (node:internal/test_runner/test:944:17)
++    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+   ...
+ 1..7
+ # tests 7
+ # suites 0
+-# pass 6
+-# fail 1
++# pass 5
++# fail 2
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5167.099607
++# duration_ms 5202.481252
+diff --git a/logs/mut-10.tap b/logs/mut-10.tap
+index b0c7b18430ec9f196aaae2c8249f2209424348d4..b9d53e5ff3bccd740159a81716a3aba47d19768e 100644
+--- a/logs/mut-10.tap
++++ b/logs/mut-10.tap
+@@ -1,5 +1,5 @@
+ TAP version 13
+-# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-10/src/forced-inclusion.mjs:157
++# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-10/src/forced-inclusion.mjs:178
+ #     ||if (false && l1Receipt?.status !== 'reverted' |||| l1Receipt.blockHash?.toLowerCase() !== l1Proof.headerHash?.toLowerCase()) refuse('not-failed');
+ #     ^^
+ # SyntaxError: Unexpected token '||'
+@@ -15,7 +15,7 @@ TAP version 13
+ # Subtest: test/forced-inclusion.anvil.test.mjs
+ not ok 1 - test/forced-inclusion.anvil.test.mjs
+   ---
+-  duration_ms: 117.982049
++  duration_ms: 124.311475
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-10/test/forced-inclusion.anvil.test.mjs:1:1'
+   failureType: 'testCodeFailure'
+@@ -24,7 +24,7 @@ not ok 1 - test/forced-inclusion.anvil.test.mjs
+   error: 'test failed'
+   code: 'ERR_TEST_FAILURE'
+   ...
+-# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-10/src/forced-inclusion.mjs:157
++# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-10/src/forced-inclusion.mjs:178
+ #     ||if (false && l1Receipt?.status !== 'reverted' |||| l1Receipt.blockHash?.toLowerCase() !== l1Proof.headerHash?.toLowerCase()) refuse('not-failed');
+ #     ^^
+ # SyntaxError: Unexpected token '||'
+@@ -40,7 +40,7 @@ not ok 1 - test/forced-inclusion.anvil.test.mjs
+ # Subtest: test/tracker.test.mjs
+ not ok 2 - test/tracker.test.mjs
+   ---
+-  duration_ms: 28.20315
++  duration_ms: 28.755259
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-10/test/tracker.test.mjs:1:1'
+   failureType: 'testCodeFailure'
+@@ -57,4 +57,4 @@ not ok 2 - test/tracker.test.mjs
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 152.622378
++# duration_ms 159.33236
+diff --git a/logs/mut-2.tap b/logs/mut-2.tap
+index f7ee170d81011359e0bd5df122634263db5eb038..111d70c8e60810da870003556cc9238541ec249c 100644
+--- a/logs/mut-2.tap
++++ b/logs/mut-2.tap
+@@ -2,26 +2,26 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 604.604676
++  duration_ms: 544.260081
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 105.679365
++  duration_ms: 69.461651
+   type: 'test'
+   ...
+-# claim deposit gasUsed 334193 of limit 800000
++# claim deposit gasUsed 334205 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 68.991971
++  duration_ms: 45.254094
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ not ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 51.557967
++  duration_ms: 30.642522
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-2/test/forced-inclusion.anvil.test.mjs:237:1'
+   failureType: 'testCodeFailure'
+@@ -37,27 +37,43 @@ not ok 4 - negative controls: wrong signer, expired deadline, undelegated key, s
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 39.833288
++  duration_ms: 27.124272
+   type: 'test'
+   ...
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 35.959059
++  duration_ms: 26.19755
+   type: 'test'
+   ...
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+-ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
++not ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 1.337869
++  duration_ms: 1.412758
+   type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-2/test/tracker.test.mjs:7:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    The validation function is expected to return "true". Received false
++    
++    Caught error:
++    
++    Error: l1-receipt-unverified: not minted by a source-binding adapter (a label or caller JSON is not evidence)
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-2/test/tracker.test.mjs:17:10)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.start (node:internal/test_runner/test:944:17)
++    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+   ...
+ 1..7
+ # tests 7
+ # suites 0
+-# pass 6
+-# fail 1
++# pass 5
++# fail 2
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5149.491979
++# duration_ms 5091.255339
+diff --git a/logs/mut-3.tap b/logs/mut-3.tap
+index cdd845b53a27b47b440ff4f989c5973567d3f2d9..5f45d5860a05a739a75789ccda3e3be6661750f6 100644
+--- a/logs/mut-3.tap
++++ b/logs/mut-3.tap
+@@ -2,32 +2,32 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 523.58835
++  duration_ms: 529.611772
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 66.374012
++  duration_ms: 65.17866
+   type: 'test'
+   ...
+ # claim deposit gasUsed 334205 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 45.079248
++  duration_ms: 47.439434
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 85.281544
++  duration_ms: 84.54583
+   type: 'test'
+   ...
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ not ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 22.889372
++  duration_ms: 24.535225
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-3/test/forced-inclusion.anvil.test.mjs:296:1'
+   failureType: 'testCodeFailure'
+@@ -43,21 +43,37 @@ not ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; f
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 32.352357
++  duration_ms: 32.253798
+   type: 'test'
+   ...
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+-ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
++not ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 1.477408
++  duration_ms: 1.376948
+   type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-3/test/tracker.test.mjs:7:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    The validation function is expected to return "true". Received false
++    
++    Caught error:
++    
++    Error: l1-receipt-unverified: not minted by a source-binding adapter (a label or caller JSON is not evidence)
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-3/test/tracker.test.mjs:17:10)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.start (node:internal/test_runner/test:944:17)
++    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+   ...
+ 1..7
+ # tests 7
+ # suites 0
+-# pass 6
+-# fail 1
++# pass 5
++# fail 2
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5243.201152
++# duration_ms 5184.823412
+diff --git a/logs/mut-4.tap b/logs/mut-4.tap
+index 6d76594e8b28d862d2b53f648c7dd6bac038cc9e..27bf9d8fd559ee1f71d32c775f37f464300c204a 100644
+--- a/logs/mut-4.tap
++++ b/logs/mut-4.tap
+@@ -2,38 +2,38 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 550.650629
++  duration_ms: 525.82872
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 76.239804
++  duration_ms: 65.480337
+   type: 'test'
+   ...
+-# claim deposit gasUsed 334193 of limit 800000
++# claim deposit gasUsed 334205 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 55.560226
++  duration_ms: 45.156355
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 92.843615
++  duration_ms: 86.439024
+   type: 'test'
+   ...
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 27.413396
++  duration_ms: 24.472796
+   type: 'test'
+   ...
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ not ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 2.51602
++  duration_ms: 1.931043
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-4/test/forced-inclusion.anvil.test.mjs:331:1'
+   failureType: 'testCodeFailure'
+@@ -41,23 +41,39 @@ not ok 6 - outcome checks fail closed: unverified receipt, same endpoint as subm
+   code: 'ERR_ASSERTION'
+   name: 'AssertionError'
+   stack: |-
+-    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-4/test/forced-inclusion.anvil.test.mjs:337:10)
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-4/test/forced-inclusion.anvil.test.mjs:341:10)
+     process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+     async Test.run (node:internal/test_runner/test:1054:7)
+     async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+   ...
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+-ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
++not ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 1.34723
++  duration_ms: 1.455767
+   type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-4/test/tracker.test.mjs:7:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    The validation function is expected to return "true". Received false
++    
++    Caught error:
++    
++    Error: l1-receipt-unverified: not minted by a source-binding adapter (a label or caller JSON is not evidence)
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-4/test/tracker.test.mjs:17:10)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.start (node:internal/test_runner/test:944:17)
++    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+   ...
+ 1..7
+ # tests 7
+ # suites 0
+-# pass 6
+-# fail 1
++# pass 5
++# fail 2
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5170.784382
++# duration_ms 5188.777251
+diff --git a/logs/mut-5.tap b/logs/mut-5.tap
+index a55b35a7093bf86c2a7ca81c89eaa260ea322976..501df4e344b3ac3317ca886c66ecc3f1dcc95a5c 100644
+--- a/logs/mut-5.tap
++++ b/logs/mut-5.tap
+@@ -2,32 +2,32 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 525.944103
++  duration_ms: 540.249766
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 63.489934
++  duration_ms: 71.617514
+   type: 'test'
+   ...
+ # claim deposit gasUsed 334205 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 45.797392
++  duration_ms: 45.312194
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 77.919912
++  duration_ms: 82.687087
+   type: 'test'
+   ...
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ not ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 5.597107
++  duration_ms: 5.968717
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-5/test/forced-inclusion.anvil.test.mjs:296:1'
+   failureType: 'testCodeFailure'
+@@ -36,17 +36,17 @@ not ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; f
+     + actual - expected
+     
+       [
+-        '0x831470Aca368ad004BdfC81295C22F65c084790b',
+-    +   '0x942570Aca368aD004BDfc81295c22F65C0848a1c'
++        '0xE0cb48E8eF90320fFb93b695982Db96619E492EF',
++    +   '0xF1dC48E8Ef90320fFb93B695982dB96619e4A400'
+       ]
+     
+   code: 'ERR_ASSERTION'
+   name: 'AssertionError'
+   expected:
+-    0: '0x831470Aca368ad004BdfC81295C22F65c084790b'
++    0: '0xE0cb48E8eF90320fFb93b695982Db96619E492EF'
+   actual:
+-    0: '0x831470Aca368ad004BdfC81295C22F65c084790b'
+-    1: '0x942570Aca368aD004BDfc81295c22F65C0848a1c'
++    0: '0xE0cb48E8eF90320fFb93b695982Db96619E492EF'
++    1: '0xF1dC48E8Ef90320fFb93B695982dB96619e4A400'
+   operator: 'deepStrictEqual'
+   stack: |-
+     TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-5/test/forced-inclusion.anvil.test.mjs:303:10)
+@@ -57,21 +57,37 @@ not ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; f
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 26.674302
++  duration_ms: 28.54329
+   type: 'test'
+   ...
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+-ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
++not ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 1.3235
++  duration_ms: 1.362038
+   type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-5/test/tracker.test.mjs:7:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    The validation function is expected to return "true". Received false
++    
++    Caught error:
++    
++    Error: l1-receipt-unverified: not minted by a source-binding adapter (a label or caller JSON is not evidence)
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-5/test/tracker.test.mjs:17:10)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.start (node:internal/test_runner/test:944:17)
++    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+   ...
+ 1..7
+ # tests 7
+ # suites 0
+-# pass 6
+-# fail 1
++# pass 5
++# fail 2
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5195.412244
++# duration_ms 5220.511716
+diff --git a/logs/mut-6.tap b/logs/mut-6.tap
+index ccf704bd41d331033ee97b0e47efa917019dfa4b..3c2b44dc440215616cb247eec33a6df28d8f36a6 100644
+--- a/logs/mut-6.tap
++++ b/logs/mut-6.tap
+@@ -1,5 +1,5 @@
+ TAP version 13
+-# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-6/src/forced-inclusion.mjs:195
++# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-6/src/forced-inclusion.mjs:216
+ #   | '0x').toLowerCase() !== designator) refuse|if (false) refuse|| '0x').toLowerCase() !== designator) refuse('operator-not-delegated', 'the key must already run the executor (its first lease needs a type-4 transaction, not a deposit)');
+ #   ^
+ # SyntaxError: Unexpected token '|'
+@@ -15,7 +15,7 @@ TAP version 13
+ # Subtest: test/forced-inclusion.anvil.test.mjs
+ not ok 1 - test/forced-inclusion.anvil.test.mjs
+   ---
+-  duration_ms: 120.835636
++  duration_ms: 122.030484
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-6/test/forced-inclusion.anvil.test.mjs:1:1'
+   failureType: 'testCodeFailure'
+@@ -24,7 +24,7 @@ not ok 1 - test/forced-inclusion.anvil.test.mjs
+   error: 'test failed'
+   code: 'ERR_TEST_FAILURE'
+   ...
+-# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-6/src/forced-inclusion.mjs:195
++# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-6/src/forced-inclusion.mjs:216
+ #   | '0x').toLowerCase() !== designator) refuse|if (false) refuse|| '0x').toLowerCase() !== designator) refuse('operator-not-delegated', 'the key must already run the executor (its first lease needs a type-4 transaction, not a deposit)');
+ #   ^
+ # SyntaxError: Unexpected token '|'
+@@ -40,7 +40,7 @@ not ok 1 - test/forced-inclusion.anvil.test.mjs
+ # Subtest: test/tracker.test.mjs
+ not ok 2 - test/tracker.test.mjs
+   ---
+-  duration_ms: 25.544161
++  duration_ms: 30.701612
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-6/test/tracker.test.mjs:1:1'
+   failureType: 'testCodeFailure'
+@@ -57,4 +57,4 @@ not ok 2 - test/tracker.test.mjs
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 152.808237
++# duration_ms 159.024
+diff --git a/logs/mut-7.tap b/logs/mut-7.tap
+index 44327aa98dbbd4a7af957a715f026ce1843b42c7..a7e05f206f777e8de820eb5876bbf63bd24b15ac 100644
+--- a/logs/mut-7.tap
++++ b/logs/mut-7.tap
+@@ -1,5 +1,5 @@
+ TAP version 13
+-# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-7/src/forced-inclusion.mjs:410
++# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-7/src/forced-inclusion.mjs:443
+ #     || if (false && paid.length !== 1 |||| paid[0].args.id.toLowerCase() !== b.lease.id.toLowerCase() || lower(paid[0].args.operator) !== lower(b.operator)
+ #     ^^
+ # SyntaxError: Unexpected token '||'
+@@ -15,7 +15,7 @@ TAP version 13
+ # Subtest: test/forced-inclusion.anvil.test.mjs
+ not ok 1 - test/forced-inclusion.anvil.test.mjs
+   ---
+-  duration_ms: 136.378845
++  duration_ms: 124.68117
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-7/test/forced-inclusion.anvil.test.mjs:1:1'
+   failureType: 'testCodeFailure'
+@@ -24,7 +24,7 @@ not ok 1 - test/forced-inclusion.anvil.test.mjs
+   error: 'test failed'
+   code: 'ERR_TEST_FAILURE'
+   ...
+-# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-7/src/forced-inclusion.mjs:410
++# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-7/src/forced-inclusion.mjs:443
+ #     || if (false && paid.length !== 1 |||| paid[0].args.id.toLowerCase() !== b.lease.id.toLowerCase() || lower(paid[0].args.operator) !== lower(b.operator)
+ #     ^^
+ # SyntaxError: Unexpected token '||'
+@@ -40,7 +40,7 @@ not ok 1 - test/forced-inclusion.anvil.test.mjs
+ # Subtest: test/tracker.test.mjs
+ not ok 2 - test/tracker.test.mjs
+   ---
+-  duration_ms: 28.940294
++  duration_ms: 30.696482
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-7/test/tracker.test.mjs:1:1'
+   failureType: 'testCodeFailure'
+@@ -57,4 +57,4 @@ not ok 2 - test/tracker.test.mjs
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 172.138525
++# duration_ms 161.969595
+diff --git a/logs/mut-8.tap b/logs/mut-8.tap
+index 27e311cf4e694105814bc664cf5db5f263a0bbdf..ca0cea927d785eee09699456db8e151171ca98a6 100644
+--- a/logs/mut-8.tap
++++ b/logs/mut-8.tap
+@@ -2,35 +2,35 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 557.087979
++  duration_ms: 526.275092
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 66.793878
++  duration_ms: 65.791655
+   type: 'test'
+   ...
+ # claim deposit gasUsed 334193 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 49.809761
++  duration_ms: 45.610691
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ not ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 62.966519
++  duration_ms: 54.488994
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/test/forced-inclusion.anvil.test.mjs:237:1'
+   failureType: 'testCodeFailure'
+-  error: 'ambiguous-duplicate: lease:8453:0x9db59fc23a1b8b538e20145dc9bc53495a62c9d1:0xccc8454b3ecc4a543d90be2ed6ee66d50e0736c463c4efc216e5c07715132aa8 has an unresolved commitment 0x4f794b8749072d0e… (planned)'
++  error: 'ambiguous-duplicate: lease:8453:0x34fe07f63e4868e692f5ebb0c066e8bf5ad03345:0x257e5b4b41ddcc39b08131ca6872414ee1a2daf136b5a1e2691f5d79822eb15f has an unresolved commitment 0x0a02ea92b1bdf746… (planned)'
+   code: 'ambiguous-duplicate'
+   stack: |-
+-    refuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:90:49)
+-    ForcedInclusionTracker.admit (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:128:41)
+-    Module.planLeaseDeposit (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:229:71)
++    refuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:108:49)
++    ForcedInclusionTracker.admit (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:146:41)
++    Module.planLeaseDeposit (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:250:71)
+     process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+     async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/test/forced-inclusion.anvil.test.mjs:281:17)
+     async Test.run (node:internal/test_runner/test:1054:7)
+@@ -39,27 +39,27 @@ not ok 4 - negative controls: wrong signer, expired deadline, undelegated key, s
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 28.515217
++  duration_ms: 24.435106
+   type: 'test'
+   ...
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 27.756593
++  duration_ms: 25.322659
+   type: 'test'
+   ...
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+ not ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 0.747704
++  duration_ms: 0.700643
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/test/tracker.test.mjs:7:1'
+   failureType: 'testCodeFailure'
+   error: 'ambiguous-duplicate: lease:8453:op:id has an unresolved commitment 0x01… (planned)'
+   code: 'ambiguous-duplicate'
+   stack: |-
+-    refuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:90:49)
+-    ForcedInclusionTracker.admit (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:128:41)
++    refuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:108:49)
++    ForcedInclusionTracker.admit (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:146:41)
+     TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/test/tracker.test.mjs:11:18)
+     Test.runInAsyncScope (node:async_hooks:214:14)
+     Test.run (node:internal/test_runner/test:1047:25)
+@@ -74,4 +74,4 @@ not ok 7 - one open commitment per key; replays are not new sends; L1 resends ke
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5305.394009
++# duration_ms 5171.36399
+diff --git a/logs/mut-9.tap b/logs/mut-9.tap
+index 2d4f8f1a81a977a8eebdae410dd1cbf65cd27fa5..73d4ed2f1fdac57697f54f81115bce7d591c8264 100644
+--- a/logs/mut-9.tap
++++ b/logs/mut-9.tap
+@@ -2,44 +2,44 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 529.811843
++  duration_ms: 538.700847
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 70.39659
++  duration_ms: 72.16247
+   type: 'test'
+   ...
+-# claim deposit gasUsed 334193 of limit 800000
++# claim deposit gasUsed 334205 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 48.417032
++  duration_ms: 48.921353
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 98.975017
++  duration_ms: 81.731586
+   type: 'test'
+   ...
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 25.742459
++  duration_ms: 24.06614
+   type: 'test'
+   ...
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 32.074049
++  duration_ms: 28.260133
+   type: 'test'
+   ...
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+ not ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 1.255051
++  duration_ms: 1.262809
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-9/test/tracker.test.mjs:7:1'
+   failureType: 'testCodeFailure'
+@@ -61,4 +61,4 @@ not ok 7 - one open commitment per key; replays are not new sends; L1 resends ke
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 5269.221557
++# duration_ms 5243.483511
+diff --git a/test/tracker.test.mjs b/test/tracker.test.mjs
+index bb2350de65a94449f65af03f17fb38df0a7a9013..793dfe95ae1245c42e57af6764bf49d740072e69 100644
+--- a/test/tracker.test.mjs
++++ b/test/tracker.test.mjs
+@@ -13,10 +13,14 @@ test('one open commitment per key; replays are not new sends; L1 resends keep th
+   t.checkL1Send(k, 7);
+   t.checkL1Send(k, 7);                                                   // re-broadcast / fee bump: same nonce
+   assert.throws(() => t.checkL1Send(k, 8), (e) => e.code === 'l1-nonce-change');
+-  assert.throws(() => t.resolveFailedL1(k, { status: 'reverted', nonce: 7, blockHash: '0xb' }, { verifiedBy: 'rpc', headerHash: '0xb' }), (e) => e.code === 'l1-receipt-unverified');
+-  assert.throws(() => t.resolveFailedL1(k, { status: 'success', nonce: 7, blockHash: '0xb' }, { verifiedBy: 'l1-light-client', headerHash: '0xb' }), (e) => e.code === 'not-failed');
+-  assert.throws(() => t.resolveFailedL1(k, { status: 'reverted', nonce: 6, blockHash: '0xb' }, { verifiedBy: 'l1-light-client', headerHash: '0xb' }), (e) => e.code === 'l1-receipt-mismatch');
+-  t.resolveFailedL1(k, { status: 'reverted', nonce: 7, blockHash: '0xb', transactionHash: '0xc' }, { verifiedBy: 'l1-light-client', headerHash: '0xb' });
++  // a production label in caller JSON is not evidence (minted evidence comes from src/l1-source-binding.mjs, tested
++  // in test/source-binding.anvil.test.mjs); the rest of this unit test uses an explicit TEST label
++  const FX = { verifiers: ['test-l1-fixture'] }, P = { verifiedBy: 'test-l1-fixture', headerHash: '0xb' };
++  assert.throws(() => t.resolveFailedL1(k, { status: 'reverted', nonce: 7, blockHash: '0xb' }, { verifiedBy: 'l1-light-client', headerHash: '0xb' }), (e) => e.code === 'l1-receipt-unverified');
++  assert.throws(() => t.resolveFailedL1(k, { status: 'reverted', nonce: 7, blockHash: '0xb' }, { verifiedBy: 'rpc', headerHash: '0xb' }, FX), (e) => e.code === 'l1-receipt-unverified');
++  assert.throws(() => t.resolveFailedL1(k, { status: 'success', nonce: 7, blockHash: '0xb' }, P, FX), (e) => e.code === 'not-failed');
++  assert.throws(() => t.resolveFailedL1(k, { status: 'reverted', nonce: 6, blockHash: '0xb' }, P, FX), (e) => e.code === 'l1-receipt-mismatch');
++  t.resolveFailedL1(k, { status: 'reverted', nonce: 7, blockHash: '0xb', transactionHash: '0xc' }, P, FX);
+   assert.equal(t.get(k).state, 'dead');
+   assert.equal(t.admit(k, '0x02', {}).replay, false, 'a new commitment once the old one is provably dead');
+   // expiry: verified head past the deadline, nonce untouched

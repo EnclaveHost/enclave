@@ -1,0 +1,8 @@
+2026-10-23 windows-memory-accounting worker (Claude). Isolated clone ./repo of nucbox-tls-recovery candidate at
+6f6d22f5da31bb40b3131deb1f719291602682d0 (branch windows-memory-accounting). node_modules real copies (root, network, relay).
+F's 14d1e4954 has identical windows/node/host.mjs + manager + installer to 6f6d22f5 (both children of 4106c3114; neither touches them).
+F's UNCOMMITTED tree edits windows/node/host.mjs + agent.mjs: handoff must be a small patch to rebase there.
+Plan: manager memoryView() (one authority: pool, reserved incl. starting/failed/stopping, unknown on recovered) on /health;
+node Host.noteManagerMemory + capacity() HV branch uses it (unreadable/stale/unknown -> 0 free, ramMeasured false);
+installer: validated owner NODE_APP_RAM_GB carried unchanged into both configs, invalid/impossible -> Fail, no silent clamp.
+2026-10-23T11:20Z DONE: commit 9f19b7c6, patch eeab54d2, RESULT.md/RESULT.json/F-HANDOFF.txt. Root review pending; nothing deployed.

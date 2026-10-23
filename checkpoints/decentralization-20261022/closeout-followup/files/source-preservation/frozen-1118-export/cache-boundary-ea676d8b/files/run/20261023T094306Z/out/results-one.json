@@ -1,0 +1,123 @@
+{
+ "nextReservationRefused": {
+  "rc": 3,
+  "err": "{\"refused\": \"host 0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f: reservations plus bookkeeping 101048320 exceed its share 101027840\"}"
+ },
+ "ledgerValid": true,
+ "holder.create.rc": 0,
+ "holder.verifyCap": {
+  "rc": 0,
+  "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 83914752, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"
+ },
+ "holder.accounting": {
+  "actualFilesMarkers": 83894272,
+  "maxBytes": 84115456,
+  "declared": 83886080,
+  "slack": 229376
+ },
+ "pair.create.rc": 0,
+ "pair.verifyCap": {
+  "rc": 0,
+  "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"l1-pair-dm-cache\", \"reservationBytes\": 16834560, \"reservationActualBytes\": 16793600, \"requiredHeadroomBytes\": 57344, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"
+ },
+ "pair.accounting": {
+  "actualFilesMarkers": 16785408,
+  "maxBytes": 16834560,
+  "declared": 16777216,
+  "slack": 57344
+ },
+ "ext4.vmtest.freeDelta": {
+  "usedByCreates": 104873984,
+  "foreignFixture": 4194304,
+  "sumMaxBytes": 100950016
+ },
+ "foreign.afterCreate": true,
+ "sameNameForeignMapping": {
+  "assembleRc": 2,
+  "refusal": "holder-storage: mapping enclave-base-holder exists but is not this holder's (have: 0 8192 linear 7:0 0; want: 0 327680 cache 7:3 7:2 7:1 512 1 writethrough smq 0); leaving it untouched\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
+  "foreignTableAfter": "0 8192 linear 7:0 0",
+  "holderLoopsLeft": ""
+ },
+ "holder.assemble.rc": 0,
+ "writethrough": true,
+ "io.firstRead": true,
+ "io.secondRead": true,
+ "holder.disassemble.rc": 0,
+ "disassemble.clean": true,
+ "foreign.afterDisassemble": true,
+ "holder.reassemble.rc": 0,
+ "io.afterReassemble": true,
+ "staleCacheHazard": {
+  "assembleRc": 2,
+  "refusal": "holder-storage: origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+ },
+ "cacheLoss.afterHazard.rc": 0,
+ "holder.assembleAfterCacheLoss.rc": 0,
+ "io.afterCacheLoss": true,
+ "budget.grownFile": {
+  "rcGrown": 3,
+  "refusal": "{\"refused\": \"/vmtest/enclave-base-holder-cache/cache-meta.img is 16781312 bytes, declared 16777216\"}",
+  "rcRestored": 0
+ },
+ "interruptions": [
+  {
+   "delay": 0.05,
+   "rc": -15,
+   "stderr": "",
+   "originExists": false,
+   "loopLeft": "",
+   "cacheFiles": [
+    true,
+    true
+   ]
+  },
+  {
+   "delay": 0.15,
+   "rc": 2,
+   "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
+   "originExists": false,
+   "loopLeft": "",
+   "cacheFiles": [
+    true,
+    true
+   ]
+  },
+  {
+   "delay": 0.3,
+   "rc": 2,
+   "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
+   "originExists": false,
+   "loopLeft": "",
+   "cacheFiles": [
+    true,
+    true
+   ]
+  },
+  {
+   "delay": 0.6,
+   "rc": 2,
+   "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
+   "originExists": false,
+   "loopLeft": "",
+   "cacheFiles": [
+    true,
+    true
+   ]
+  },
+  {
+   "delay": 1.0,
+   "rc": 2,
+   "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
+   "originExists": false,
+   "loopLeft": "",
+   "cacheFiles": [
+    true,
+    true
+   ]
+  }
+ ],
+ "pair.recreateAfterInterrupts.rc": 2,
+ "pair.verifyAfterInterrupts.rc": 0,
+ "foreign.afterInterrupts": true,
+ "holder.assembleBeforeCrash.rc": 0
+}

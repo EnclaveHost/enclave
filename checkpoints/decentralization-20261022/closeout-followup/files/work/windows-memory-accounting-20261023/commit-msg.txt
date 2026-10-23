@@ -1,0 +1,27 @@
+Windows Hyper-V backend: advertise the app RAM the partition manager actually reserved; keep the owner's NODE_APP_RAM_GB in both configs
+
+The node subtracted each isolated deployment's catalog floor (memMb) from its app pool, while the manager reserves the
+deployment's CPU share of the whole pool (memory-share.mjs). With one 25% partition and a 512 MiB floor a 64 GiB pool
+advertised 63.5 GiB free where the manager had 48 left; at 96 GiB, 95.5 instead of 72 (root c1f35cf5).
+
+Manager (server.mjs): memoryView() is the one statement of the pool. Spawn admits against it and /health states it as
+pool, reserved, free, per-record reservations and VM overhead. Every record it still holds reserves (starting, failed
+but listed, mid-stop, stop-failed); a confirmed remove frees it; a reservation is its spawn's appMiB, never recomputed
+from a changed pool. A recovered or unattributed VM makes free unknown (null), when spawn already refuses. The
+existing spawn refusals (503 recovered, 507 pool) are unchanged.
+
+Node (host.mjs, agent.mjs, chain.mjs): the agent's 15 s /health read and the isolation verdict note that statement.
+On the isolated backend capacity().ramMbFree is min(node pool, manager pool) less the manager's reservations less the
+share each claimed-but-unspawned unit will reserve. An unread, stale (>60 s), malformed or unknown statement advertises
+0 and the claim gate refuses with the reason. A unit already occupying the box is not refused for it. The claim gate
+also refuses a dialed share whose partition would not fit, as the manager would. ramMbPool (pricing) is unchanged.
+In-enclave accounting and a manager without a pool rule keep the floor accounting. No policy floor or charge changes.
+
+Installer: the owner's NODE_APP_RAM_GB (node-config.local.cmd, last set wins) is validated in the machine checks
+(whole GiB, 4..physical GiB) and carried unchanged into node-config.cmd and shield-config.cmd. It was clamped in
+silence to physical-16 for the manager only (95 vs the node's 96 on the NucBox). Invalid values stop setup before
+anything is stopped. A value leaving under 16 GiB outside the pool is reported on the checks line, not refused.
+
+Tests: test/windows-hv-memory-accounting.test.mjs (real manager over loopback HTTP, fake Hyper-V launcher, real
+node), test/windows-installer-app-ram.test.mjs (structural: no PowerShell here). preclaim/scan-slot fixtures now
+state the manager view the agent reads before any scan.

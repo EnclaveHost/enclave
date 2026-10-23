@@ -1,0 +1,60 @@
+{
+  "observedAt": "2026-10-23T10:19:23.211Z",
+  "scope": "Actual candidate HTTP role; scripted loopback backend, not Reth or production. Proves strict method/field allowlist bypass through inherited Object properties, not arbitrary RPC/admin execution.",
+  "counterexample": false,
+  "correctionVerified": true,
+  "results": [
+    {
+      "method": "unlisted_xyz",
+      "status": 200,
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "code": -32601,
+          "message": "unlisted_xyz is not offered by this endpoint"
+        }
+      },
+      "forwarded": []
+    },
+    {
+      "method": "constructor",
+      "status": 200,
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "code": -32601,
+          "message": "constructor is not offered by this endpoint"
+        }
+      },
+      "forwarded": []
+    },
+    {
+      "method": "toString",
+      "status": 200,
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "code": -32601,
+          "message": "toString is not offered by this endpoint"
+        }
+      },
+      "forwarded": []
+    },
+    {
+      "method": "eth_call",
+      "status": 200,
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "code": -32602,
+          "message": "invalid params: unsupported call field \"constructor\""
+        }
+      },
+      "forwarded": []
+    }
+  ]
+}

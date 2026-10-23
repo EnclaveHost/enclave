@@ -1,0 +1,174 @@
+{
+  "observedAt": "2026-10-23T09:45:34.029565+00:00",
+  "readOnly": true,
+  "target": "minipc / NucBox",
+  "inventory": {
+    "at": "2026-10-23T09:45:31.4740848Z",
+    "totalVisibleKiB": 117255972,
+    "freePhysicalKiB": 47468652,
+    "logicalProcessors": 16,
+    "volumes": [
+      {
+        "DeviceID": "C:",
+        "DriveType": 3,
+        "FileSystem": "NTFS",
+        "Size": 2047236632576,
+        "FreeSpace": 617647607808
+      }
+    ],
+    "disks": [
+      {
+        "Number": 0,
+        "FriendlyName": "Lexar SSD NM7A1 2TB",
+        "BusType": "NVMe",
+        "Size": 2048408248320,
+        "OperationalStatus": "Online",
+        "PartitionStyle": "GPT"
+      }
+    ],
+    "vms": [
+      {
+        "Name": "enclave-app-hv3146bdf712f171-3f770400",
+        "state": "Running",
+        "MemoryAssigned": 2147483648,
+        "MemoryDemand": 0,
+        "MemoryStartup": 2147483648,
+        "MemoryMinimum": 536870912,
+        "MemoryMaximum": 1099511627776,
+        "DynamicMemoryEnabled": false,
+        "ProcessorCount": 1
+      },
+      {
+        "Name": "enclave-app-hv637cbe35075047-10c44a8a",
+        "state": "Running",
+        "MemoryAssigned": 2147483648,
+        "MemoryDemand": 0,
+        "MemoryStartup": 2147483648,
+        "MemoryMinimum": 536870912,
+        "MemoryMaximum": 1099511627776,
+        "DynamicMemoryEnabled": false,
+        "ProcessorCount": 1
+      },
+      {
+        "Name": "enclave-app-hv8babaf3c0991fa-ea9d4773",
+        "state": "Running",
+        "MemoryAssigned": 15101591552,
+        "MemoryDemand": 0,
+        "MemoryStartup": 15101591552,
+        "MemoryMinimum": 536870912,
+        "MemoryMaximum": 1099511627776,
+        "DynamicMemoryEnabled": false,
+        "ProcessorCount": 1
+      },
+      {
+        "Name": "enclave-app-hv94a003c5b947f6-9e2053bc",
+        "state": "Running",
+        "MemoryAssigned": 3420454912,
+        "MemoryDemand": 0,
+        "MemoryStartup": 3420454912,
+        "MemoryMinimum": 536870912,
+        "MemoryMaximum": 1099511627776,
+        "DynamicMemoryEnabled": false,
+        "ProcessorCount": 1
+      },
+      {
+        "Name": "enclave-app-hvbf6c56812c25e8-46de1836",
+        "state": "Running",
+        "MemoryAssigned": 2147483648,
+        "MemoryDemand": 0,
+        "MemoryStartup": 2147483648,
+        "MemoryMinimum": 536870912,
+        "MemoryMaximum": 1099511627776,
+        "DynamicMemoryEnabled": false,
+        "ProcessorCount": 1
+      },
+      {
+        "Name": "enclave-app-hvc68a5c73043598-3dfcbff8",
+        "state": "Running",
+        "MemoryAssigned": 2147483648,
+        "MemoryDemand": 0,
+        "MemoryStartup": 2147483648,
+        "MemoryMinimum": 536870912,
+        "MemoryMaximum": 1099511627776,
+        "DynamicMemoryEnabled": false,
+        "ProcessorCount": 1
+      },
+      {
+        "Name": "enclave-app-hvce6a027904d978-322c5206",
+        "state": "Running",
+        "MemoryAssigned": 17850957824,
+        "MemoryDemand": 0,
+        "MemoryStartup": 17850957824,
+        "MemoryMinimum": 536870912,
+        "MemoryMaximum": 1099511627776,
+        "DynamicMemoryEnabled": false,
+        "ProcessorCount": 1
+      },
+      {
+        "Name": "enclave-app-hvd28ea469111245-a79db30f",
+        "state": "Running",
+        "MemoryAssigned": 536870912,
+        "MemoryDemand": 0,
+        "MemoryStartup": 536870912,
+        "MemoryMinimum": 536870912,
+        "MemoryMaximum": 1099511627776,
+        "DynamicMemoryEnabled": false,
+        "ProcessorCount": 1
+      },
+      {
+        "Name": "enclave-app-hvefa9ce2a7bc0ea-f4322953",
+        "state": "Running",
+        "MemoryAssigned": 2147483648,
+        "MemoryDemand": 0,
+        "MemoryStartup": 2147483648,
+        "MemoryMinimum": 536870912,
+        "MemoryMaximum": 1099511627776,
+        "DynamicMemoryEnabled": false,
+        "ProcessorCount": 1
+      },
+      {
+        "Name": "enclave-control",
+        "state": "Running",
+        "MemoryAssigned": 8589934592,
+        "MemoryDemand": 1803550720,
+        "MemoryStartup": 8589934592,
+        "MemoryMinimum": 536870912,
+        "MemoryMaximum": 1099511627776,
+        "DynamicMemoryEnabled": false,
+        "ProcessorCount": 4
+      },
+      {
+        "Name": "enclave-storage",
+        "state": "Running",
+        "MemoryAssigned": 4294967296,
+        "MemoryDemand": 2018508800,
+        "MemoryStartup": 4294967296,
+        "MemoryMinimum": 536870912,
+        "MemoryMaximum": 1099511627776,
+        "DynamicMemoryEnabled": false,
+        "ProcessorCount": 2
+      }
+    ],
+    "availability": {
+      "claimEnabled": true,
+      "isolation": "hyperv-partition-per-app",
+      "attach": {
+        "tier": "hv-node",
+        "hostExcluded": false
+      },
+      "apps": {
+        "isolation": "hyperv-partition-per-app",
+        "tier": "enclave-shield",
+        "hostExcluded": false,
+        "hostOsExcluded": true,
+        "operatorExcluded": false,
+        "inTee": false,
+        "running": 8,
+        "capacity": 16,
+        "scope": "market",
+        "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
+      }
+    }
+  },
+  "authorization": "User selected NucBox, reports47.9GBfree and allows96GBallocatedtohost; no changesmade; currentphysicalcapacitydistinctfromadvertisedcapacity."
+}

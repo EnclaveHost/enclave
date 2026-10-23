@@ -1,0 +1,763 @@
+{
+ "nextReservationRefused": {
+  "rc": 3,
+  "err": "{\"refused\": \"host 0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f: reservations plus bookkeeping 101048320 exceed its share 101027840\"}"
+ },
+ "ledgerValid": true,
+ "holder.create.rc": 0,
+ "holder.verifyCap": {
+  "rc": 0,
+  "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 83914752, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"
+ },
+ "holder.accounting": {
+  "actualFilesMarkers": 83894272,
+  "maxBytes": 84115456,
+  "declared": 83886080,
+  "slack": 229376
+ },
+ "pair.create.rc": 0,
+ "pair.verifyCap": {
+  "rc": 0,
+  "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"l1-pair-dm-cache\", \"reservationBytes\": 16834560, \"reservationActualBytes\": 16793600, \"requiredHeadroomBytes\": 57344, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"
+ },
+ "pair.accounting": {
+  "actualFilesMarkers": 16785408,
+  "maxBytes": 16834560,
+  "declared": 16777216,
+  "slack": 57344
+ },
+ "ext4.vmtest.freeDelta": {
+  "usedByCreates": 104873984,
+  "foreignFixture": 4194304,
+  "sumMaxBytes": 100950016
+ },
+ "foreign.afterCreate": true,
+ "sameNameForeignMapping": {
+  "assembleRc": 2,
+  "refusal": "holder-storage: mapping enclave-base-holder exists but is not this holder's (have: 0 8192 linear 7:0 0; want: 0 327680 cache 7:3 7:2 7:1 512 1 writethrough smq 0); leaving it untouched\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
+  "foreignTableAfter": "0 8192 linear 7:0 0",
+  "holderLoopsLeft": ""
+ },
+ "holder.assemble.rc": 0,
+ "writethrough": true,
+ "io.firstRead": true,
+ "io.secondRead": true,
+ "holder.disassemble.rc": 0,
+ "disassemble.clean": true,
+ "foreign.afterDisassemble": true,
+ "holder.reassemble.rc": 0,
+ "io.afterReassemble": true,
+ "staleCacheHazard": {
+  "assembleRc": 2,
+  "refusal": "holder-storage: origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+ },
+ "cacheLoss.afterHazard.rc": 0,
+ "holder.assembleAfterCacheLoss.rc": 0,
+ "io.afterCacheLoss": true,
+ "budget.grownFile": {
+  "rcGrown": 3,
+  "refusal": "{\"refused\": \"/vmtest/enclave-base-holder-cache/cache-meta.img is 16781312 bytes, declared 16777216\"}",
+  "rcRestored": 0
+ },
+ "pair.createUninterrupted": {
+  "rc": 0,
+  "sec": 0.273
+ },
+ "interruptions": [
+  {
+   "delay": 0.027,
+   "rc": -15,
+   "stderr": "",
+   "left": {
+    "origin": false,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "verifyCapRc": 3,
+   "recoverProduction": {
+    "rc": 0,
+    "err": "holder-storage: created (not assembled)"
+   },
+   "after": {
+    "origin": true,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": [
+      8388608,
+      8388608
+     ],
+     "cache-meta.img": [
+      8388608,
+      8388608
+     ]
+    },
+    "markers": [
+     true,
+     true
+    ]
+   },
+   "verifyAfterRecoveryRc": 0
+  },
+  {
+   "delay": 0.068,
+   "rc": -15,
+   "stderr": "",
+   "left": {
+    "origin": false,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "verifyCapRc": 3,
+   "recoverProduction": {
+    "rc": 0,
+    "err": "holder-storage: created (not assembled)"
+   },
+   "after": {
+    "origin": true,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": [
+      8388608,
+      8388608
+     ],
+     "cache-meta.img": [
+      8388608,
+      8388608
+     ]
+    },
+    "markers": [
+     true,
+     true
+    ]
+   },
+   "verifyAfterRecoveryRc": 0
+  },
+  {
+   "delay": 0.109,
+   "rc": -15,
+   "stderr": "",
+   "left": {
+    "origin": false,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "verifyCapRc": 3,
+   "recoverProduction": {
+    "rc": 0,
+    "err": "holder-storage: created (not assembled)"
+   },
+   "after": {
+    "origin": true,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": [
+      8388608,
+      8388608
+     ],
+     "cache-meta.img": [
+      8388608,
+      8388608
+     ]
+    },
+    "markers": [
+     true,
+     true
+    ]
+   },
+   "verifyAfterRecoveryRc": 0
+  },
+  {
+   "delay": 0.15,
+   "rc": -15,
+   "stderr": "",
+   "left": {
+    "origin": false,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "verifyCapRc": 3,
+   "recoverProduction": {
+    "rc": 0,
+    "err": "holder-storage: created (not assembled)"
+   },
+   "after": {
+    "origin": true,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": [
+      8388608,
+      8388608
+     ],
+     "cache-meta.img": [
+      8388608,
+      8388608
+     ]
+    },
+    "markers": [
+     true,
+     true
+    ]
+   },
+   "verifyAfterRecoveryRc": 0
+  },
+  {
+   "delay": 0.191,
+   "rc": -15,
+   "stderr": "",
+   "left": {
+    "origin": true,
+    "loops": {
+     "origin.img": [
+      "/dev/loop1"
+     ],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "verifyCapRc": 3,
+   "recoverProduction": {
+    "rc": 2,
+    "err": "holder-storage: /usbtest/enclave-l1-pair/origin.img exists: refusing to overwrite or reuse\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+   },
+   "recoverFixed": {
+    "rc": 2,
+    "err": "holder-storage: /usbtest/enclave-l1-pair/origin.img exists: refusing to overwrite or reuse\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+   },
+   "after": {
+    "origin": true,
+    "loops": {
+     "origin.img": [
+      "/dev/loop1"
+     ],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "verifyAfterRecoveryRc": 3
+  },
+  {
+   "delay": 0.232,
+   "rc": -15,
+   "stderr": "",
+   "left": {
+    "origin": true,
+    "loops": {
+     "origin.img": [
+      "/dev/loop1"
+     ],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "verifyCapRc": 3,
+   "recoverProduction": {
+    "rc": 2,
+    "err": "holder-storage: /usbtest/enclave-l1-pair/origin.img exists: refusing to overwrite or reuse\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+   },
+   "recoverFixed": {
+    "rc": 2,
+    "err": "holder-storage: /usbtest/enclave-l1-pair/origin.img exists: refusing to overwrite or reuse\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+   },
+   "after": {
+    "origin": true,
+    "loops": {
+     "origin.img": [
+      "/dev/loop1"
+     ],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "verifyAfterRecoveryRc": 3
+  },
+  {
+   "delay": 0.259,
+   "rc": -15,
+   "stderr": "",
+   "left": {
+    "origin": true,
+    "loops": {
+     "origin.img": [
+      "/dev/loop1"
+     ],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": [
+      8388608,
+      8388608
+     ],
+     "cache-meta.img": [
+      8388608,
+      8388608
+     ]
+    },
+    "markers": [
+     true,
+     true
+    ]
+   },
+   "verifyCapRc": 0,
+   "recoverProduction": {
+    "rc": 2,
+    "err": "holder-storage: /usbtest/enclave-l1-pair/origin.img exists: refusing to overwrite or reuse\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+   },
+   "recoverFixed": {
+    "rc": 2,
+    "err": "holder-storage: /usbtest/enclave-l1-pair/origin.img exists: refusing to overwrite or reuse\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+   },
+   "after": {
+    "origin": true,
+    "loops": {
+     "origin.img": [
+      "/dev/loop1"
+     ],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": [
+      8388608,
+      8388608
+     ],
+     "cache-meta.img": [
+      8388608,
+      8388608
+     ]
+    },
+    "markers": [
+     true,
+     true
+    ]
+   },
+   "verifyAfterRecoveryRc": 0
+  }
+ ],
+ "interruptionsFixed": [
+  {
+   "delay": 0.12,
+   "rc": 143,
+   "completedBeforeSignal": false,
+   "stderr": "Terminated                 \"$PY\" -I \"$BUDGET_TOOL\" admit \"$LEDGER\" \"$RESERVATION\" \"$CDATA=$CDATA_BYTES\" \"$CMETA=$CMETA_BYTES\"\nholder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted",
+   "left": {
+    "origin": false,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "recoverFixed": {
+    "rc": 0,
+    "err": "holder-storage: created (not assembled)"
+   },
+   "verifyAfterRecoveryRc": 0
+  },
+  {
+   "delay": 0.145,
+   "rc": 143,
+   "completedBeforeSignal": false,
+   "stderr": "Terminated                 \"$PY\" -I \"$BUDGET_TOOL\" admit \"$LEDGER\" \"$RESERVATION\" \"$CDATA=$CDATA_BYTES\" \"$CMETA=$CMETA_BYTES\"\nholder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted",
+   "left": {
+    "origin": false,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "recoverFixed": {
+    "rc": 0,
+    "err": "holder-storage: created (not assembled)"
+   },
+   "verifyAfterRecoveryRc": 0
+  },
+  {
+   "delay": 0.17,
+   "rc": 143,
+   "completedBeforeSignal": false,
+   "stderr": "Terminated                 fallocate -l \"$ORIGIN_BYTES\" -- \"$ORIGIN\"\nholder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted",
+   "left": {
+    "origin": false,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "recoverFixed": {
+    "rc": 0,
+    "err": "holder-storage: created (not assembled)"
+   },
+   "verifyAfterRecoveryRc": 0
+  },
+  {
+   "delay": 0.195,
+   "rc": 143,
+   "completedBeforeSignal": false,
+   "stderr": "holder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted",
+   "left": {
+    "origin": false,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "recoverFixed": {
+    "rc": 0,
+    "err": "holder-storage: created (not assembled)"
+   },
+   "verifyAfterRecoveryRc": 0
+  },
+  {
+   "delay": 0.22,
+   "rc": 143,
+   "completedBeforeSignal": false,
+   "stderr": "holder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted",
+   "left": {
+    "origin": false,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "recoverFixed": {
+    "rc": 0,
+    "err": "holder-storage: created (not assembled)"
+   },
+   "verifyAfterRecoveryRc": 0
+  },
+  {
+   "delay": 0.245,
+   "rc": 143,
+   "completedBeforeSignal": false,
+   "stderr": "holder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted",
+   "left": {
+    "origin": false,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "recoverFixed": {
+    "rc": 0,
+    "err": "holder-storage: created (not assembled)"
+   },
+   "verifyAfterRecoveryRc": 0
+  },
+  {
+   "delay": 0.27,
+   "rc": 143,
+   "completedBeforeSignal": false,
+   "stderr": "Terminated                 dd if=/dev/zero of=\"$CMETA\" bs=1M count=8 conv=notrunc,fsync status=none\nholder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted",
+   "left": {
+    "origin": false,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     false,
+     false
+    ]
+   },
+   "recoverFixed": {
+    "rc": 0,
+    "err": "holder-storage: created (not assembled)"
+   },
+   "verifyAfterRecoveryRc": 0
+  },
+  {
+   "delay": 0.295,
+   "rc": 0,
+   "completedBeforeSignal": true,
+   "stderr": "holder-storage: created (not assembled)",
+   "left": {
+    "origin": true,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": [
+      8388608,
+      8388608
+     ],
+     "cache-meta.img": [
+      8388608,
+      8388608
+     ]
+    },
+    "markers": [
+     true,
+     true
+    ]
+   }
+  },
+  {
+   "delay": 0.32,
+   "rc": 0,
+   "completedBeforeSignal": true,
+   "stderr": "holder-storage: created (not assembled)",
+   "left": {
+    "origin": true,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": [
+      8388608,
+      8388608
+     ],
+     "cache-meta.img": [
+      8388608,
+      8388608
+     ]
+    },
+    "markers": [
+     true,
+     true
+    ]
+   }
+  },
+  {
+   "delay": 0.345,
+   "rc": 0,
+   "completedBeforeSignal": true,
+   "stderr": "holder-storage: created (not assembled)",
+   "left": {
+    "origin": true,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": [
+      8388608,
+      8388608
+     ],
+     "cache-meta.img": [
+      8388608,
+      8388608
+     ]
+    },
+    "markers": [
+     true,
+     true
+    ]
+   }
+  },
+  {
+   "delay": 0.37,
+   "rc": 143,
+   "completedBeforeSignal": false,
+   "stderr": "holder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted",
+   "left": {
+    "origin": false,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": null,
+     "cache-meta.img": null
+    },
+    "markers": [
+     true,
+     true
+    ]
+   },
+   "recoverFixed": {
+    "rc": 0,
+    "err": "holder-storage: created (not assembled)"
+   },
+   "verifyAfterRecoveryRc": 0
+  },
+  {
+   "delay": 0.395,
+   "rc": 0,
+   "completedBeforeSignal": true,
+   "stderr": "holder-storage: created (not assembled)",
+   "left": {
+    "origin": true,
+    "loops": {
+     "origin.img": [],
+     "cache-data.img": [],
+     "cache-meta.img": []
+    },
+    "cache": {
+     "cache-data.img": [
+      8388608,
+      8388608
+     ],
+     "cache-meta.img": [
+      8388608,
+      8388608
+     ]
+    },
+    "markers": [
+     true,
+     true
+    ]
+   }
+  }
+ ],
+ "pair.recreateAfterInterrupts.rc": 0,
+ "pair.verifyAfterInterrupts.rc": 0,
+ "foreign.afterInterrupts": true,
+ "holder.assembleBeforeCrash.rc": 0
+}

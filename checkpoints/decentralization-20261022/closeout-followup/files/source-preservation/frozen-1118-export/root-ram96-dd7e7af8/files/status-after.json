@@ -1,0 +1,104 @@
+{
+  "at": "2026-10-23T10:09:53.5125214Z",
+  "node": {
+    "availability": {
+      "status": 200,
+      "nodeRamGb": 64,
+      "machineRamGb": 112,
+      "apps": {
+        "isolation": "hyperv-partition-per-app",
+        "tier": "enclave-shield",
+        "hostExcluded": false,
+        "hostOsExcluded": true,
+        "operatorExcluded": false,
+        "inTee": false,
+        "running": 8,
+        "capacity": 16,
+        "scope": "market",
+        "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
+      },
+      "ramGbFree": 47.9
+    },
+    "manager": {
+      "status": 200,
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 65536
+      },
+      "inventory": {
+        "state": "ready",
+        "recovered": 9,
+        "unattributed": 0,
+        "at": "2026-10-23T08:30:07.329Z"
+      }
+    }
+  },
+  "vms": [
+    {
+      "memory": 2147483648,
+      "name": "enclave-app-hv3146bdf712f171-3f770400",
+      "uptimeSeconds": 4141.83,
+      "state": "Running"
+    },
+    {
+      "memory": 2147483648,
+      "name": "enclave-app-hv637cbe35075047-10c44a8a",
+      "uptimeSeconds": 5516.155,
+      "state": "Running"
+    },
+    {
+      "memory": 15101591552,
+      "name": "enclave-app-hv8babaf3c0991fa-ea9d4773",
+      "uptimeSeconds": 3204.192,
+      "state": "Running"
+    },
+    {
+      "memory": 3420454912,
+      "name": "enclave-app-hv94a003c5b947f6-9e2053bc",
+      "uptimeSeconds": 2926.3399999999997,
+      "state": "Running"
+    },
+    {
+      "memory": 2147483648,
+      "name": "enclave-app-hvbf6c56812c25e8-46de1836",
+      "uptimeSeconds": 3948.9379999999996,
+      "state": "Running"
+    },
+    {
+      "memory": 2147483648,
+      "name": "enclave-app-hvc68a5c73043598-3dfcbff8",
+      "uptimeSeconds": 4016.426,
+      "state": "Running"
+    },
+    {
+      "memory": 17850957824,
+      "name": "enclave-app-hvce6a027904d978-322c5206",
+      "uptimeSeconds": 4076.1299999999997,
+      "state": "Running"
+    },
+    {
+      "memory": 536870912,
+      "name": "enclave-app-hvd28ea469111245-a79db30f",
+      "uptimeSeconds": 5899.947999999999,
+      "state": "Running"
+    },
+    {
+      "memory": 2147483648,
+      "name": "enclave-app-hvefa9ce2a7bc0ea-f4322953",
+      "uptimeSeconds": 3983.3799999999997,
+      "state": "Running"
+    },
+    {
+      "memory": 8589934592,
+      "name": "enclave-control",
+      "uptimeSeconds": 5922.018,
+      "state": "Running"
+    },
+    {
+      "memory": 4294967296,
+      "name": "enclave-storage",
+      "uptimeSeconds": 5952.103,
+      "state": "Running"
+    }
+  ]
+}

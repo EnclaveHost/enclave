@@ -1,0 +1,1009 @@
+From c08331e9397c33db0330e6c4a53c74c5d8f0d98b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:50:52 -0700
+Subject: [PATCH 4/5] Evidence immutability: mint takes an owned deep-frozen
+ snapshot; adapters return that receipt; counter-control on 46dbfbef
+
+- src/evidence-brand.mjs: structuredClone + deep freeze (BigInt kept; binary buffers/functions refused); caller objects untouched.
+- adapters: result.receipt === result.evidence.receipt (frozen), identity API unchanged.
+- test/evidence-immutability.test.mjs: actual adapter over a labelled scripted pair; old source: rewritten nonce frees a
+  foreign slot, forged deposit log matched; current: writes throw, classifiers unchanged.
+- mutants 27/28; HANDOFF-EVIDENCE-IMMUTABILITY.md.
+---
+ HANDOFF-EVIDENCE-IMMUTABILITY.md    |  68 +++++++++++++++
+ jobs/mutants-closure.sh             |   2 +
+ logs/cmut-27.tap                    |  64 ++++++++++++++
+ logs/cmut-28.tap                    |  86 ++++++++++++++++++
+ logs/immut-1.guard.log              |   1 +
+ logs/immut-1.out                    | 113 ++++++++++++++++++++++++
+ logs/immut-2.guard.log              |   1 +
+ logs/immut-2.out                    | 111 +++++++++++++++++++++++
+ logs/immut-3.guard.log              |   1 +
+ logs/immut-3.out                    |  87 ++++++++++++++++++
+ logs/immut-final-suite.out          | 131 ++++++++++++++++++++++++++++
+ logs/immut-final.guard.log          |   1 +
+ logs/immut-final.out                |   9 ++
+ logs/immut-final.rc                 |   1 +
+ src/base-source-binding.mjs         |   2 +-
+ src/evidence-brand.mjs              |  31 +++++--
+ src/l1-source-binding.mjs           |   2 +-
+ test/evidence-immutability.test.mjs | 124 ++++++++++++++++++++++++++
+ 18 files changed, 826 insertions(+), 9 deletions(-)
+ create mode 100644 HANDOFF-EVIDENCE-IMMUTABILITY.md
+ create mode 100644 logs/cmut-27.tap
+ create mode 100644 logs/cmut-28.tap
+ create mode 100644 logs/immut-1.guard.log
+ create mode 100644 logs/immut-1.out
+ create mode 100644 logs/immut-2.guard.log
+ create mode 100644 logs/immut-2.out
+ create mode 100644 logs/immut-3.guard.log
+ create mode 100644 logs/immut-3.out
+ create mode 100644 logs/immut-final-suite.out
+ create mode 100644 logs/immut-final.guard.log
+ create mode 100644 logs/immut-final.out
+ create mode 100644 logs/immut-final.rc
+ create mode 100644 test/evidence-immutability.test.mjs
+
+diff --git a/HANDOFF-EVIDENCE-IMMUTABILITY.md b/HANDOFF-EVIDENCE-IMMUTABILITY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..ff2f666b398211183fbe9ec5b279382a002d4226
+--- /dev/null
++++ b/HANDOFF-EVIDENCE-IMMUTABILITY.md
+@@ -0,0 +1,68 @@
++# Immutable evidence API: handoff for A (consumer parity), B (runtime) and root
++
++**Gap fixed** (root probe `work/resume-after-checkpoint-20261022/root-evidence-immutability-review`, source `46dbfbef`):
++- `mint()` froze only the outer object. After `createL1PairSource().receipt()`, a caller could still rewrite
++  `evidence.transaction.nonce`, `receipt.status` and `receipt.logs`. The object kept its brand and its receipt identity
++  while doing so.
++- No external attacker or real transaction was involved.
++
++## What changed (`src/evidence-brand.mjs`, both adapters)
++
++- **`mint(obj)` = an owned deep snapshot.**
++  - It copies with `structuredClone` (viem BigInts, nested receipts, logs, topics, transaction, heads, finality
++    checkpoint and source all survive), then deep-freezes every object and array in the copy.
++  - Binary buffers and functions are refused. Evidence is plain data with hex strings.
++  - The adapter's working objects and any caller-passed object are NOT frozen. A caller's later writes do not reach the
++    minted copy.
++- **Receipt identity is unchanged:** `receipt(txHash)` returns `{state, receipt, evidence}` with
++  `receipt === evidence.receipt`, the frozen snapshot. Every existing call keeps working:
++  - `matchDepositEvent(plan, undefined | result.receipt, result.evidence)`
++  - `classifyL2Outcome({receipt: result.receipt, source: {evidence}})`
++  - `tracker.resolveFailedL1(key, result.receipt, result.evidence)`
++- **Writes to minted evidence throw** `TypeError` in strict code (all ES modules). In sloppy scripts they are silently
++  ignored; the facts still do not change.
++
++## Consumer rules (A: CLI/MCP parity; B: runtime)
++
++- Never copy evidence to "fix it up". A spread or `structuredClone` copy loses the brand and is refused by every
++  default check.
++- To annotate, keep your own object next to the evidence; never put fields inside it.
++- Display `evidence.trust`, `evidence.level` / `finalized`, and the adapter readiness checks verbatim.
++- `mint` is an ordinary export. Any code in the same process can mint, so this is NOT a cryptographic capability. It
++  protects against callers, configs and endpoints asserting or altering evidence by accident or by data, not against
++  code that deliberately mints its own.
++- **Trust labels are unchanged.** `local-validated-pair` is local full-node validation, not a portable proof.
++  `test-fixture` is refused by default.
++
++## Evidence (tests)
++
++`test/evidence-immutability.test.mjs`: the actual `createL1PairSource.receipt` over a labelled scripted loopback pair,
++no real chain.
++
++**Counter-control: the old source `46dbfbef`, extracted from git.**
++- A rewritten nonce (7 → 999) let `resolveFailedL1` free a slot recorded for a different L1 transaction.
++- A forged `TransactionDeposited` log pushed into a deposit-less receipt was MATCHED as a real deposit.
++- `receipt.status` was writable.
++- Top-level `finalized` was already frozen there, so that case was not exploitable.
++
++**Current source:** every one of those writes throws, and the classifiers see the node's answer:
++- `l1-receipt-mismatch` for the slot;
++- the deposit is not L1-final;
++- no deposit to match.
++
++BigInt and receipt identity are kept, and the caller's own object is not frozen.
++
++## Runs
++
++- `test/evidence-immutability.test.mjs`: **3/3** (`logs/immut-3.out`).
++- **Re-run of only the suites that consume minted evidence**, in one 512-MiB job (`logs/immut-final-suite.out`):
++  evidence-immutability 3 + finality 1 + source-binding (anvil) 4 + source-binding (scripted) 2 = **10/10**. That
++  includes the positive deposit match on frozen REAL portal logs and safe/finalized through frozen Base evidence.
++- **Mutants:** 27 (no owned copy) and 28 (shallow freeze only) **killed** (`logs/immut-final.out`).
++- **Not re-run, and why:** the other 22 suite tests (fee audit, forced inclusion, l1-portal, policy, tracker, vault) mint
++  nothing and use only explicit `test-*` labels. The delta (mint + the two adapters' returned receipt) does not reach
++  them.
++- **Earlier failed runs, kept:**
++  - `immut-1`: the counter-control expected the old top-level `finalized` to be writable; it was already frozen.
++  - `immut-2`: the scenario wrote `status = reverted` before matching.
++- **Scans:** crypto-key scan clean, gitleaks no leaks.
+diff --git a/jobs/mutants-closure.sh b/jobs/mutants-closure.sh
+index cc36b1acedd452c0320717b93167dbeef1df1fb4..13c4bfe452c728d16bce97d490c717a45babdf8b 100755
+--- a/jobs/mutants-closure.sh
++++ b/jobs/mutants-closure.sh
+@@ -31,6 +31,8 @@ M=(
+   "src/l1-source-binding.mjs ##~## test/source-binding.anvil.test.mjs ##~## if (!['http:', 'https:'].includes(url.protocol) || !LOOPBACK.has(url.hostname)) refuse('not-local' ##~## if (false) refuse('not-local'"
+   "src/l1-source-binding.mjs ##~## test/source-binding.anvil.test.mjs ##~## need(d.is_syncing === false && d.is_optimistic === false && d.el_offline === false ##~## need(true"
+   "src/l1-source-binding.mjs ##~## test/source-binding.test.mjs ##~## if (!(block.transactions ?? []).map ##~## if (false && !(block.transactions ?? []).map"
++  "src/evidence-brand.mjs ##~## test/evidence-immutability.test.mjs ##~## const owned = deepFreeze(structuredClone(obj)); ##~## const owned = deepFreeze(obj);"
++  "src/evidence-brand.mjs ##~## test/evidence-immutability.test.mjs ##~## for (const k of Reflect.ownKeys(v)) deepFreeze(v[k]); ##~## "
+ )
+ fails=0; i=0
+ for m in "${M[@]}"; do
+diff --git a/logs/cmut-27.tap b/logs/cmut-27.tap
+new file mode 100644
+index 0000000000000000000000000000000000000000..313b575fca993ccdaf95febc4b1d726604e98861
+--- /dev/null
++++ b/logs/cmut-27.tap
+@@ -0,0 +1,64 @@
++TAP version 13
++# fatal: pathspec 'src' did not match any files
++# Subtest: counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
++not ok 1 - counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
++  ---
++  duration_ms: 6.122265
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-27/test/evidence-immutability.test.mjs:94:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Command failed: git -C /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-27 archive 46dbfbef32a25e23c7d1045f2458f00a7470cb32 src
++    fatal: pathspec 'src' did not match any files
++    
++  code: 'ERR_TEST_FAILURE'
++  stack: |-
++    genericNodeError (node:internal/errors:983:15)
++    wrappedFn (node:internal/errors:537:14)
++    checkExecSyncError (node:child_process:916:11)
++    execFileSync (node:child_process:952:15)
++    extractOld (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-27/test/evidence-immutability.test.mjs:24:15)
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-27/test/evidence-immutability.test.mjs:95:3)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.start (node:internal/test_runner/test:944:17)
++    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
++  ...
++# Subtest: current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
++ok 2 - current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
++  ---
++  duration_ms: 271.071794
++  type: 'test'
++  ...
++# Subtest: mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
++not ok 3 - mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
++  ---
++  duration_ms: 0.889013
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-27/test/evidence-immutability.test.mjs:114:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    the caller's object is untouched
++    
++    true !== false
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: false
++  actual: true
++  operator: 'strictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-27/test/evidence-immutability.test.mjs:118:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++1..3
++# tests 3
++# suites 0
++# pass 1
++# fail 2
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 432.68792
+diff --git a/logs/cmut-28.tap b/logs/cmut-28.tap
+new file mode 100644
+index 0000000000000000000000000000000000000000..467b5408fd17bbaf1f46a745ee2eb004d2247b49
+--- /dev/null
++++ b/logs/cmut-28.tap
+@@ -0,0 +1,86 @@
++TAP version 13
++# fatal: pathspec 'src' did not match any files
++# Subtest: counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
++not ok 1 - counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
++  ---
++  duration_ms: 6.119845
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:94:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Command failed: git -C /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28 archive 46dbfbef32a25e23c7d1045f2458f00a7470cb32 src
++    fatal: pathspec 'src' did not match any files
++    
++  code: 'ERR_TEST_FAILURE'
++  stack: |-
++    genericNodeError (node:internal/errors:983:15)
++    wrappedFn (node:internal/errors:537:14)
++    checkExecSyncError (node:child_process:916:11)
++    execFileSync (node:child_process:952:15)
++    extractOld (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:24:15)
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:95:3)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.start (node:internal/test_runner/test:944:17)
++    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
++  ...
++# Subtest: current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
++not ok 2 - current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
++  ---
++  duration_ms: 274.36289
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:105:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    the recorded L1 nonce 999 is not the node's nonce 7
++    + actual - expected
++    
++      [
++    +   'written',
++    +   'dead'
++    -   'refused',
++    -   'refused:l1-receipt-mismatch'
++      ]
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected:
++    0: 'refused'
++    1: 'refused:l1-receipt-mismatch'
++  actual:
++    0: 'written'
++    1: 'dead'
++  operator: 'deepStrictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:107:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
++not ok 3 - mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
++  ---
++  duration_ms: 0.867004
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:114:1'
++  failureType: 'testCodeFailure'
++  error: 'Missing expected exception.'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected:
++  operator: 'throws'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/cmut-28/test/evidence-immutability.test.mjs:122:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++1..3
++# tests 3
++# suites 0
++# pass 0
++# fail 3
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 432.6914
+diff --git a/logs/immut-1.guard.log b/logs/immut-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..89f4921acbcf5b5a96178d3b420e5d8253d3b432
+--- /dev/null
++++ b/logs/immut-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=161 minHostAvailableMiB=25064
+diff --git a/logs/immut-1.out b/logs/immut-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..273255b2a038bb4c5c05e54a7da1dbdc34095d17
+--- /dev/null
++++ b/logs/immut-1.out
+@@ -0,0 +1,113 @@
++[queue] START available=25122MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++029fdefe8ce50e276fb01a8a54b432dcb289ec50
++ M src/base-source-binding.mjs
++ M src/evidence-brand.mjs
++ M src/l1-source-binding.mjs
++?? logs/immut-1.out
++?? test/evidence-immutability.test.mjs
++anvil Version: 1.7.1
++v22.23.3
++  "version": "2.53.1",
++0fe489489c6fed4dd74dc8a52e1e21296f4152806fc673ff22e2f323ee19f0c0  src/base-source-binding.mjs
++90162e5b797d3ca5a6d53689c5233bfc86536230d3fc3672b4105aec89212171  src/evidence-brand.mjs
++438e9c77382eeb9e60bd57cfaf4c98ee2f831d93aec7b0c75e7fbc151b87942c  src/forced-inclusion.mjs
++a46b94c2e5cb54acba7f2f7cb290e3bbe8849a818dc384c4728f62b7713c407f  src/l1-source-binding.mjs
++30cfd9e7ba27740b55f5b4f3b8d603d4da2b44a7583a3f8c4b5107874b71fb2c  src/lease-signing-policy.mjs
++a0401e08e6f51586e8776fc9bd7356c4a1e76f260dd4a74dc270de4fab5bb821  src/vault-deposit.mjs
++d9adfcf1cbc0edfa655e4bd3480ae7da6ad9e61a27999f7c2e25dd9d93e5bfdc  test/evidence-immutability.test.mjs
++4fc17967ebba4601161160ce4d7df8b2e24db5888d898d5af9defd620d92a090  test/fee-audit.anvil.test.mjs
++fe95a0f355e4dac08243af2b4562a0082ff3849e7619db45b01ed743f5b0388e  test/finality.test.mjs
++a1781760e1f270318fd60e2c6baf74f1ebaf6b5c1d62891b15d93403583b3b98  test/forced-inclusion.anvil.test.mjs
++748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
++8474c4c04f793c377f2ddd55b4d5d4e42689cf64b41907d8e5236d6cba7215af  test/lease-signing-policy.anvil.test.mjs
++6fc792a6c395df86d105cbaf72ff3b105da671071e93fe2885667c1ebf1dc008  test/source-binding.anvil.test.mjs
++dd1da4b52e93bdd0e2c8327a7549b265d609335ab3925eb6e98ce9109358778a  test/source-binding.test.mjs
++f7a35189255cc88168fe0927e44bf06d4c9677ef910cef381f031615bb5cb5c1  test/tracker.test.mjs
++39422d45f9d1e91f2d2a49aa0da9fafd31f1f77c0654d7ab483ba3e3cfc210a3  test/vault-deposit.anvil.test.mjs
++966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  fixtures/artifacts/EnclaveAddressBook.json
++0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
++dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
++aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
++aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
++66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
++613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d  fixtures/artifacts/Mock1271Owner.json
++10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
++524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
++9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946  fixtures/artifacts/MockUSDC3009.json
++f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc  fixtures/artifacts/SessionVault.json
++eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e  fixtures/artifacts/SessionVaultFactory.json
++bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478  fixtures/artifacts/SessionVaultLib.json
++b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8  fixtures/sources/EnclaveAddressBook.sol
++2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
++dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
++1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
++e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
++a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703  fixtures/sources/MockUSDC.sol
++47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d  fixtures/sources/SessionMocks.sol
++a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c  fixtures/sources/SessionVault.sol
++47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
++97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
++65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
++5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
++not ok 1 - counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
++  ---
++  duration_ms: 275.009002
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/evidence-immutability.test.mjs:93:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    a non-final deposit was declared L1-final
++    + actual - expected
++    
++      [
++        false,
++    +   'refused',
++    +   false
++    -   'written',
++    -   true
++      ]
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected:
++    0: false
++    1: 'written'
++    2: true
++  actual:
++    0: false
++    1: 'refused'
++    2: false
++  operator: 'deepStrictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/evidence-immutability.test.mjs:97:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
++  ...
++# Subtest: current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
++ok 2 - current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
++  ---
++  duration_ms: 100.881069
++  type: 'test'
++  ...
++# Subtest: mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
++ok 3 - mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
++  ---
++  duration_ms: 0.890052
++  type: 'test'
++  ...
++1..3
++# tests 3
++# suites 0
++# pass 2
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 520.460878
++[memory-guard] exit=1 peakTreeRssMiB=161 minHostAvailableMiB=25064
++[memory-guard] at peak: node:101 node:55 timeout:4
++[queue] EXIT 1
+diff --git a/logs/immut-2.guard.log b/logs/immut-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..3ce0c06c2871cab1b6de3dd2e2c89c8a7df8826d
+--- /dev/null
++++ b/logs/immut-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=162 minHostAvailableMiB=24595
+diff --git a/logs/immut-2.out b/logs/immut-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..e8849868f2005aa2b378541e9c5b8e1bed0d6a86
+--- /dev/null
++++ b/logs/immut-2.out
+@@ -0,0 +1,111 @@
++[queue] START available=24690MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++029fdefe8ce50e276fb01a8a54b432dcb289ec50
++ M src/base-source-binding.mjs
++ M src/evidence-brand.mjs
++ M src/l1-source-binding.mjs
++?? logs/immut-1.guard.log
++?? logs/immut-1.out
++?? logs/immut-2.out
++?? test/evidence-immutability.test.mjs
++anvil Version: 1.7.1
++v22.23.3
++  "version": "2.53.1",
++0fe489489c6fed4dd74dc8a52e1e21296f4152806fc673ff22e2f323ee19f0c0  src/base-source-binding.mjs
++90162e5b797d3ca5a6d53689c5233bfc86536230d3fc3672b4105aec89212171  src/evidence-brand.mjs
++438e9c77382eeb9e60bd57cfaf4c98ee2f831d93aec7b0c75e7fbc151b87942c  src/forced-inclusion.mjs
++a46b94c2e5cb54acba7f2f7cb290e3bbe8849a818dc384c4728f62b7713c407f  src/l1-source-binding.mjs
++30cfd9e7ba27740b55f5b4f3b8d603d4da2b44a7583a3f8c4b5107874b71fb2c  src/lease-signing-policy.mjs
++a0401e08e6f51586e8776fc9bd7356c4a1e76f260dd4a74dc270de4fab5bb821  src/vault-deposit.mjs
++c8e32c28c4deb62f1f2a2de26c3232ced2c09d68640d70b77639a601d4034911  test/evidence-immutability.test.mjs
++4fc17967ebba4601161160ce4d7df8b2e24db5888d898d5af9defd620d92a090  test/fee-audit.anvil.test.mjs
++fe95a0f355e4dac08243af2b4562a0082ff3849e7619db45b01ed743f5b0388e  test/finality.test.mjs
++a1781760e1f270318fd60e2c6baf74f1ebaf6b5c1d62891b15d93403583b3b98  test/forced-inclusion.anvil.test.mjs
++748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
++8474c4c04f793c377f2ddd55b4d5d4e42689cf64b41907d8e5236d6cba7215af  test/lease-signing-policy.anvil.test.mjs
++6fc792a6c395df86d105cbaf72ff3b105da671071e93fe2885667c1ebf1dc008  test/source-binding.anvil.test.mjs
++dd1da4b52e93bdd0e2c8327a7549b265d609335ab3925eb6e98ce9109358778a  test/source-binding.test.mjs
++f7a35189255cc88168fe0927e44bf06d4c9677ef910cef381f031615bb5cb5c1  test/tracker.test.mjs
++39422d45f9d1e91f2d2a49aa0da9fafd31f1f77c0654d7ab483ba3e3cfc210a3  test/vault-deposit.anvil.test.mjs
++966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  fixtures/artifacts/EnclaveAddressBook.json
++0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
++dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
++aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
++aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
++66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
++613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d  fixtures/artifacts/Mock1271Owner.json
++10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
++524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
++9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946  fixtures/artifacts/MockUSDC3009.json
++f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc  fixtures/artifacts/SessionVault.json
++eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e  fixtures/artifacts/SessionVaultFactory.json
++bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478  fixtures/artifacts/SessionVaultLib.json
++b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8  fixtures/sources/EnclaveAddressBook.sol
++2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
++dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
++1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
++e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
++a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703  fixtures/sources/MockUSDC.sol
++47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d  fixtures/sources/SessionMocks.sol
++a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c  fixtures/sources/SessionVault.sol
++47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
++97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
++65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
++5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
++not ok 1 - counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
++  ---
++  duration_ms: 261.553974
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/evidence-immutability.test.mjs:94:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    a forged deposit log was matched as a real deposit
++    + actual - expected
++    
++      [
++        'written',
++    +   'refused:l1-transaction-failed'
++    -   'matched-forged-deposit'
++      ]
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected:
++    0: 'written'
++    1: 'matched-forged-deposit'
++  actual:
++    0: 'written'
++    1: 'refused:l1-transaction-failed'
++  operator: 'deepStrictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/evidence-immutability.test.mjs:101:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
++  ...
++# Subtest: current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
++ok 2 - current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
++  ---
++  duration_ms: 96.768503
++  type: 'test'
++  ...
++# Subtest: mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
++ok 3 - mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
++  ---
++  duration_ms: 0.803874
++  type: 'test'
++  ...
++1..3
++# tests 3
++# suites 0
++# pass 2
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 496.907964
++[memory-guard] exit=1 peakTreeRssMiB=162 minHostAvailableMiB=24595
++[memory-guard] at peak: node:102 node:55 timeout:4
++[queue] EXIT 1
+diff --git a/logs/immut-3.guard.log b/logs/immut-3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..fc9ea7df6d065f79ab7f3f72976bfe629f37ec4e
+--- /dev/null
++++ b/logs/immut-3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=162 minHostAvailableMiB=25267
+diff --git a/logs/immut-3.out b/logs/immut-3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..b0f4d0e6d0e1853f5a1ba5b8733770bd49884f6a
+--- /dev/null
++++ b/logs/immut-3.out
+@@ -0,0 +1,87 @@
++[queue] START available=25365MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++029fdefe8ce50e276fb01a8a54b432dcb289ec50
++ M src/base-source-binding.mjs
++ M src/evidence-brand.mjs
++ M src/l1-source-binding.mjs
++?? logs/immut-1.guard.log
++?? logs/immut-1.out
++?? logs/immut-2.guard.log
++?? logs/immut-2.out
++?? logs/immut-3.out
++?? test/evidence-immutability.test.mjs
++anvil Version: 1.7.1
++v22.23.3
++  "version": "2.53.1",
++0fe489489c6fed4dd74dc8a52e1e21296f4152806fc673ff22e2f323ee19f0c0  src/base-source-binding.mjs
++90162e5b797d3ca5a6d53689c5233bfc86536230d3fc3672b4105aec89212171  src/evidence-brand.mjs
++438e9c77382eeb9e60bd57cfaf4c98ee2f831d93aec7b0c75e7fbc151b87942c  src/forced-inclusion.mjs
++a46b94c2e5cb54acba7f2f7cb290e3bbe8849a818dc384c4728f62b7713c407f  src/l1-source-binding.mjs
++30cfd9e7ba27740b55f5b4f3b8d603d4da2b44a7583a3f8c4b5107874b71fb2c  src/lease-signing-policy.mjs
++a0401e08e6f51586e8776fc9bd7356c4a1e76f260dd4a74dc270de4fab5bb821  src/vault-deposit.mjs
++8973d82b9825c61a092ae5efc45afc52791a9ddec0058c56377c4636905444ae  test/evidence-immutability.test.mjs
++4fc17967ebba4601161160ce4d7df8b2e24db5888d898d5af9defd620d92a090  test/fee-audit.anvil.test.mjs
++fe95a0f355e4dac08243af2b4562a0082ff3849e7619db45b01ed743f5b0388e  test/finality.test.mjs
++a1781760e1f270318fd60e2c6baf74f1ebaf6b5c1d62891b15d93403583b3b98  test/forced-inclusion.anvil.test.mjs
++748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
++8474c4c04f793c377f2ddd55b4d5d4e42689cf64b41907d8e5236d6cba7215af  test/lease-signing-policy.anvil.test.mjs
++6fc792a6c395df86d105cbaf72ff3b105da671071e93fe2885667c1ebf1dc008  test/source-binding.anvil.test.mjs
++dd1da4b52e93bdd0e2c8327a7549b265d609335ab3925eb6e98ce9109358778a  test/source-binding.test.mjs
++f7a35189255cc88168fe0927e44bf06d4c9677ef910cef381f031615bb5cb5c1  test/tracker.test.mjs
++39422d45f9d1e91f2d2a49aa0da9fafd31f1f77c0654d7ab483ba3e3cfc210a3  test/vault-deposit.anvil.test.mjs
++966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  fixtures/artifacts/EnclaveAddressBook.json
++0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
++dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
++aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
++aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
++66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
++613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d  fixtures/artifacts/Mock1271Owner.json
++10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
++524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
++9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946  fixtures/artifacts/MockUSDC3009.json
++f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc  fixtures/artifacts/SessionVault.json
++eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e  fixtures/artifacts/SessionVaultFactory.json
++bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478  fixtures/artifacts/SessionVaultLib.json
++b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8  fixtures/sources/EnclaveAddressBook.sol
++2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
++dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
++1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
++e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
++a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703  fixtures/sources/MockUSDC.sol
++47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d  fixtures/sources/SessionMocks.sol
++a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c  fixtures/sources/SessionVault.sol
++47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
++97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
++65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
++5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
++ok 1 - counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
++  ---
++  duration_ms: 298.525359
++  type: 'test'
++  ...
++# Subtest: current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
++ok 2 - current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
++  ---
++  duration_ms: 102.287787
++  type: 'test'
++  ...
++# Subtest: mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
++ok 3 - mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
++  ---
++  duration_ms: 0.837523
++  type: 'test'
++  ...
++1..3
++# tests 3
++# suites 0
++# pass 3
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 549.993157
++[memory-guard] exit=0 peakTreeRssMiB=162 minHostAvailableMiB=25267
++[memory-guard] at peak: node:103 node:55 timeout:4
++[queue] EXIT 0
+diff --git a/logs/immut-final-suite.out b/logs/immut-final-suite.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..7e73e68ceb1c5260d6f8c44332b5d67cda9e4f50
+--- /dev/null
++++ b/logs/immut-final-suite.out
+@@ -0,0 +1,131 @@
++029fdefe8ce50e276fb01a8a54b432dcb289ec50
++ M jobs/mutants-closure.sh
++ M src/base-source-binding.mjs
++ M src/evidence-brand.mjs
++ M src/l1-source-binding.mjs
++?? HANDOFF-EVIDENCE-IMMUTABILITY.md
++?? logs/immut-1.guard.log
++?? logs/immut-1.out
++?? logs/immut-2.guard.log
++?? logs/immut-2.out
++?? logs/immut-3.guard.log
++?? logs/immut-3.out
++?? logs/immut-final-suite.out
++?? logs/immut-final.out
++?? test/evidence-immutability.test.mjs
++anvil Version: 1.7.1
++v22.23.3
++  "version": "2.53.1",
++0fe489489c6fed4dd74dc8a52e1e21296f4152806fc673ff22e2f323ee19f0c0  src/base-source-binding.mjs
++90162e5b797d3ca5a6d53689c5233bfc86536230d3fc3672b4105aec89212171  src/evidence-brand.mjs
++438e9c77382eeb9e60bd57cfaf4c98ee2f831d93aec7b0c75e7fbc151b87942c  src/forced-inclusion.mjs
++a46b94c2e5cb54acba7f2f7cb290e3bbe8849a818dc384c4728f62b7713c407f  src/l1-source-binding.mjs
++30cfd9e7ba27740b55f5b4f3b8d603d4da2b44a7583a3f8c4b5107874b71fb2c  src/lease-signing-policy.mjs
++a0401e08e6f51586e8776fc9bd7356c4a1e76f260dd4a74dc270de4fab5bb821  src/vault-deposit.mjs
++8973d82b9825c61a092ae5efc45afc52791a9ddec0058c56377c4636905444ae  test/evidence-immutability.test.mjs
++4fc17967ebba4601161160ce4d7df8b2e24db5888d898d5af9defd620d92a090  test/fee-audit.anvil.test.mjs
++fe95a0f355e4dac08243af2b4562a0082ff3849e7619db45b01ed743f5b0388e  test/finality.test.mjs
++a1781760e1f270318fd60e2c6baf74f1ebaf6b5c1d62891b15d93403583b3b98  test/forced-inclusion.anvil.test.mjs
++748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
++8474c4c04f793c377f2ddd55b4d5d4e42689cf64b41907d8e5236d6cba7215af  test/lease-signing-policy.anvil.test.mjs
++6fc792a6c395df86d105cbaf72ff3b105da671071e93fe2885667c1ebf1dc008  test/source-binding.anvil.test.mjs
++dd1da4b52e93bdd0e2c8327a7549b265d609335ab3925eb6e98ce9109358778a  test/source-binding.test.mjs
++f7a35189255cc88168fe0927e44bf06d4c9677ef910cef381f031615bb5cb5c1  test/tracker.test.mjs
++39422d45f9d1e91f2d2a49aa0da9fafd31f1f77c0654d7ab483ba3e3cfc210a3  test/vault-deposit.anvil.test.mjs
++966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  fixtures/artifacts/EnclaveAddressBook.json
++0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
++dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
++aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
++aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
++66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
++613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d  fixtures/artifacts/Mock1271Owner.json
++10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
++524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
++9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946  fixtures/artifacts/MockUSDC3009.json
++f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc  fixtures/artifacts/SessionVault.json
++eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e  fixtures/artifacts/SessionVaultFactory.json
++bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478  fixtures/artifacts/SessionVaultLib.json
++b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8  fixtures/sources/EnclaveAddressBook.sol
++2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
++dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
++1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
++e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
++a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703  fixtures/sources/MockUSDC.sol
++47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d  fixtures/sources/SessionMocks.sol
++a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c  fixtures/sources/SessionVault.sol
++47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
++97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
++65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
++5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
++ok 1 - counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
++  ---
++  duration_ms: 274.246831
++  type: 'test'
++  ...
++# Subtest: current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
++ok 2 - current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
++  ---
++  duration_ms: 98.903936
++  type: 'test'
++  ...
++# Subtest: mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
++ok 3 - mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
++  ---
++  duration_ms: 0.894184
++  type: 'test'
++  ...
++# Subtest: no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
++ok 4 - no evidence: unsafe with explicit gates; labelled JSON (l1-execution-proof / base-derivation) is NOT evidence
++  ---
++  duration_ms: 1.722328
++  type: 'test'
++  ...
++# Subtest: configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++ok 5 - configuration: only the local pair, two distinct clients; mainnet identity refuses the anvil fixture; the fixture mints only test-fixture trust
++  ---
++  duration_ms: 437.761354
++  type: 'test'
++  ...
++# Subtest: a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++ok 6 - a forced lease, read back ONLY through the adapters: minted L1 evidence -> deposit match -> real L2 execution -> minted Base evidence -> unsafe, safe, finalized
++  ---
++  duration_ms: 297.876759
++  type: 'test'
++  ...
++# finality: {"state":"l2-included","level":"finalized","depositL1Final":true,"gates":[]}
++# Subtest: fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++ok 7 - fail closed: unpaired beacon, syncing / optimistic / EL offline, no peers, stale head, a Base node on another L1, a reorged-away receipt
++  ---
++  duration_ms: 111.249615
++  type: 'test'
++  ...
++# Subtest: nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++ok 8 - nonce/resend tracking binds to the node's own transaction: a reverted L1 deposit frees the slot only with minted evidence at the recorded nonce
++  ---
++  duration_ms: 28.316833
++  type: 'test'
++  ...
++# Subtest: a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++ok 9 - a scripted pair reporting MAINNET identity mints local-validated-pair trust: the configured loopback pair IS the trust anchor
++  ---
++  duration_ms: 71.029619
++  type: 'test'
++  ...
++# Subtest: fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++ok 10 - fail closed: reorg between reads, an answer for another transaction, a transaction not in its block, no finalized tag
++  ---
++  duration_ms: 89.010878
++  type: 'test'
++  ...
++1..10
++# tests 10
++# suites 0
++# pass 10
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 5768.651971
+diff --git a/logs/immut-final.guard.log b/logs/immut-final.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..48bc1fa97b67b01bfac2a237947e225f0d82a6dc
+--- /dev/null
++++ b/logs/immut-final.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=236 minHostAvailableMiB=24866
+diff --git a/logs/immut-final.out b/logs/immut-final.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..3a3a12c9abd38796eed78b7e4cde04c97fdd580a
+--- /dev/null
++++ b/logs/immut-final.out
+@@ -0,0 +1,9 @@
++[queue] START available=24997MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++suite rc=0
++mutant 27 killed (2 failing): const owned = deepFreeze(structuredClone(obj));
++mutant 28 killed (3 failing): for (const k of Reflect.ownKeys(v)) deepFreeze(v[k]);
++survivors: 0 of 28
++mutants rc=0
++[memory-guard] exit=0 peakTreeRssMiB=236 minHostAvailableMiB=24866
++[memory-guard] at peak: node:103 node:61 anvil:32 anvil:30 sh:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/immut-final.rc b/logs/immut-final.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca916d098dabfe85979d791e4534bf1def02ef84
+--- /dev/null
++++ b/logs/immut-final.rc
+@@ -0,0 +1 @@
++exit 0
+diff --git a/src/base-source-binding.mjs b/src/base-source-binding.mjs
+index 32ad0ffe26e372281f3bdcbd32cdb893d05c35a8..7a9bf9920e9b30ebf2f933325e52629afc9050d5 100644
+--- a/src/base-source-binding.mjs
++++ b/src/base-source-binding.mjs
+@@ -91,7 +91,7 @@ export function createBaseNodeSource({ execution, rollup, l1, identity = BASE_MA
+     const evidence = mint({ kind: 'l2-receipt', verifiedBy: 'base-derivation', trust, source: { execution: el, rollup: cl, l1: l1.source, identity: identity.label ?? 'custom' },
+       txHash: raw.transactionHash, blockHash: raw.blockHash, blockNumber: n, level: finalized ? 'finalized' : safe ? 'safe' : 'unsafe', safe, finalized,
+       heads: { safe: s.safe, finalized: s.finalized, finalizedL1: s.finalizedL1 }, readAt: now(), receipt: receiptOut });
+-    return { state: 'included', receipt: receiptOut, evidence };
++    return { state: 'included', receipt: evidence.receipt, evidence };   // the frozen, owned receipt: identity checks hold
+   }
+   return { readiness, receipt, trust };
+ }
+diff --git a/src/evidence-brand.mjs b/src/evidence-brand.mjs
+index 6e193e20b27dded29536f5ad8d85f48c78621023..0a2c74be52dd486178ca354b7478cc58652d0162 100644
+--- a/src/evidence-brand.mjs
++++ b/src/evidence-brand.mjs
+@@ -3,13 +3,30 @@
+ // src/forced-inclusion.mjs accept an L1/L2 inclusion or finality claim by default ONLY when the object was produced by
+ // an adapter that read it from an explicitly configured, readiness-checked local client pair.
+ //
+-// Scope of this guarantee: it is an in-process capability (a module-private WeakSet), not cryptography. It stops a
+-// caller, a config file or a remote endpoint from asserting evidence; it does not defend against code running in the
+-// same process. The TRUST behind a minted object is recorded on it (`trust`): 'local-validated-pair' means "the local
+-// full nodes executed/validated this chain and their consensus client finalized it" (local full-node validation
+-// trust); it is NOT a portable proof another party can check. 'test-fixture' marks objects from labelled fixtures,
+-// which the default checks refuse.
++// IMMUTABILITY: mint() takes an OWNED deep copy of what the adapter read (structuredClone: BigInt, nested receipts,
++// logs, topics, transaction, heads, finality checkpoint, source) and deep-freezes it, so the validated facts a brand
++// vouches for cannot change afterwards: not the receipt's status or logs, not the transaction nonce, not `finalized`.
++// The adapter's own working objects and anything a caller passed in are copied, never frozen in place. The adapters
++// hand callers the frozen receipt itself (`result.receipt === result.evidence.receipt`), so identity checks still work.
++//
++// Scope of this guarantee: an in-process capability (a module-private WeakSet), not cryptography. `mint` is an
++// ordinary export: any code in the same process can call it, so it stops callers, config files and remote endpoints
++// from ASSERTING or ALTERING evidence by accident or by data, not code that deliberately mints its own. The TRUST
++// behind a minted object is recorded on it (`trust`): 'local-validated-pair' = "the local full nodes executed/validated
++// this chain and their consensus client finalized it" (local full-node validation trust), NOT a portable proof.
++// 'test-fixture' marks objects from labelled fixtures, which the default checks refuse.
+ const MINTED = new WeakSet();
+ export const TRUST = Object.freeze({ LOCAL_VALIDATED_PAIR: 'local-validated-pair', TEST_FIXTURE: 'test-fixture' });
+-export function mint(obj) { const o = Object.freeze(obj); MINTED.add(o); return o; }
++
++function deepFreeze(v) {
++  if (v === null || typeof v !== 'object') return v;
++  if (ArrayBuffer.isView(v) || v instanceof ArrayBuffer) throw new TypeError('evidence must not carry binary buffers (hex strings only)');
++  for (const k of Reflect.ownKeys(v)) deepFreeze(v[k]);
++  return Object.freeze(v);
++}
++export function mint(obj) {
++  const owned = deepFreeze(structuredClone(obj));   // throws on functions/symbols: evidence is plain data only
++  MINTED.add(owned);
++  return owned;
++}
+ export const isMinted = (obj) => obj !== null && typeof obj === 'object' && MINTED.has(obj);
+diff --git a/src/l1-source-binding.mjs b/src/l1-source-binding.mjs
+index 239a894462079f5103449887c9152c2e14f8908e..718865bc396e5290a48e40fa5d39008c86936626 100644
+--- a/src/l1-source-binding.mjs
++++ b/src/l1-source-binding.mjs
+@@ -132,7 +132,7 @@ export function createL1PairSource({ execution, consensus, identity = MAINNET_L1
+       finalized: n <= r1.finalized.number, safe: !!r1.safe && n <= r1.safe.number, finalizedCheckpoint: r1.finalized, readAt: now(), receipt: receiptOut,
+       transaction: { from: getAddress(tx.from), to: tx.to ? getAddress(tx.to) : null, nonce: Number(BigInt(tx.nonce)) },
+       headerHash: raw.blockHash });
+-    return { state: 'included', receipt: receiptOut, evidence };
++    return { state: 'included', receipt: evidence.receipt, evidence };   // the frozen, owned receipt: identity checks hold
+   }
+ 
+   /** The portal pin facts at the paired FINALIZED block (EIP-1967 implementation slot + version()), minted. */
+diff --git a/test/evidence-immutability.test.mjs b/test/evidence-immutability.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..936be3a1909a41a217258686c802140659198512
+--- /dev/null
++++ b/test/evidence-immutability.test.mjs
+@@ -0,0 +1,124 @@
++// EVIDENCE IMMUTABILITY: the actual read adapter (createL1PairSource.receipt) over a LABELLED scripted loopback pair
++// (no real chain), run against the CURRENT source and, as a counter-control, the previous source 46dbfbef extracted
++// from git. Old source: nested validated facts are mutable after minting, and each mutation changes a classifier's
++// answer (a tracker slot freed by a rewritten nonce, a forged deposit matched); top-level fields such as `finalized`
++// were already frozen there. Current
++// source: the same writes throw (ES modules are strict) and every classifier still sees what the node said.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import { execFileSync } from 'node:child_process';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++import * as viem from 'viem';
++import { startExecutionStub, startBeaconFixture } from './support/pair-stubs.mjs';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const OLD = path.join(ROOT, 'tmp', 'old-46dbfbef');
++const H = (b) => '0x' + b.repeat(32);
++const PORTAL = '0x49048044D57e1C92A77f79988d21fa8faf74E97e';
++const MAINNET_GENESIS = '0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3', GVR = '0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95';
++
++function extractOld() {
++  fs.rmSync(OLD, { recursive: true, force: true }); fs.mkdirSync(OLD, { recursive: true });
++  const tar = execFileSync('git', ['-C', ROOT, 'archive', '46dbfbef32a25e23c7d1045f2458f00a7470cb32', 'src']);
++  execFileSync('tar', ['-x', '-C', OLD], { input: tar });
++}
++const load = async (dir) => ({
++  F: await import(pathToFileURL(path.join(dir, 'src/forced-inclusion.mjs')).href),
++  L1: await import(pathToFileURL(path.join(dir, 'src/l1-source-binding.mjs')).href),
++});
++
++/** A scripted mainnet-identity pair: the deposit-candidate tx at block 90 (status chosen), finalized at 80 or 90. */
++async function pair({ status = '0x1', finalized = 90 } = {}) {
++  const now = Math.floor(Date.now() / 1000);
++  const blk = (n, h, ago, txs = []) => ({ number: '0x' + n.toString(16), hash: h, parentHash: H('00'), timestamp: '0x' + (now - ago).toString(16), transactions: txs });
++  const blocks = { 0: blk(0, MAINNET_GENESIS, 10 ** 6), 80: blk(80, H('80'), 900), 90: blk(90, H('90'), 600, [H('a1')]), 100: blk(100, H('64'), 5) };
++  const tag = (t) => (t === 'latest' ? 100 : t === 'finalized' || t === 'safe' ? finalized : Number(BigInt(t)));
++  const el = await startExecutionStub((method, params) => {
++    if (method === 'eth_chainId') return '0x1';
++    if (method === 'eth_syncing') return false;
++    if (method === 'net_peerCount') return '0x5';
++    if (method === 'eth_getBlockByNumber') return blocks[tag(params[0])] ?? null;
++    if (method === 'eth_getBlockByHash') return Object.values(blocks).find((b) => b.hash === params[0]) ?? null;
++    if (method === 'eth_getTransactionByHash') return { hash: params[0], blockHash: H('90'), from: '0x' + '11'.repeat(20), to: PORTAL, nonce: '0x7' };
++    if (method === 'eth_getTransactionReceipt') return { transactionHash: H('a1'), blockHash: H('90'), blockNumber: '0x5a', status, logs: [], from: '0x' + '11'.repeat(20), to: PORTAL,
++      cumulativeGasUsed: '0x5208', gasUsed: '0x5208', effectiveGasPrice: '0x1', type: '0x2', transactionIndex: '0x0', logsBloom: '0x' + '00'.repeat(256), contractAddress: null };
++    throw new Error('unsupported ' + method);
++  });
++  const cl = await startBeaconFixture({ el: el.url, gvr: GVR });
++  return { el, cl, close: () => { el.close(); cl.close(); } };
++}
++/** A TransactionDeposited log as the portal would emit it (the forgery a caller might push into a receipt). */
++function forgedDepositLog(F, plan) {
++  const [to, value, gas, isCreation, data] = viem.decodeFunctionData({ abi: F.PORTAL_ABI, data: plan.l1Transaction.data }).args;
++  const opaque = viem.encodePacked(['uint256', 'uint256', 'uint64', 'bool', 'bytes'], [0n, value, gas, isCreation, data]);
++  return { address: PORTAL, blockHash: H('90'), blockNumber: 90n, logIndex: 0, transactionHash: H('a1'), transactionIndex: 0, removed: false,
++    topics: [viem.toEventSelector(F.PORTAL_ABI[1]), viem.pad('0x' + '11'.repeat(20)), viem.pad(to), H('00')], data: viem.encodeAbiParameters([{ type: 'bytes' }], [opaque]) };
++}
++const tryWrite = (fn) => { try { fn(); return 'written'; } catch (e) { return e instanceof TypeError ? 'refused' : 'error:' + e.message; } };
++
++async function scenario(dir) {
++  const { F, L1 } = await load(dir);
++  const out = {};
++  // 1. a REVERTED L1 tx at nonce 7, while the tracker recorded a different L1 transaction at nonce 999
++  let p = await pair({ status: '0x0' });
++  try {
++    const r = await L1.createL1PairSource({ execution: { url: p.el.url }, consensus: { url: p.cl.url } }).receipt(H('a1'));
++    const tr = new F.ForcedInclusionTracker();
++    tr.admit('k', '0x01', {}); tr.checkL1Send('k', 999);
++    out.nonceWrite = tryWrite(() => { r.evidence.transaction.nonce = 999; });
++    try { tr.resolveFailedL1('k', r.receipt, r.evidence); out.slot = tr.get('k').state; } catch (e) { out.slot = 'refused:' + e.code; }
++    out.bigint = typeof r.evidence.receipt.blockNumber;
++  } finally { p.close(); }
++  // 2. the deposit's L1 block (90) is NOT final (finalized = 80); a write of `finalized: true`
++  p = await pair({ finalized: 80 });
++  try {
++    const r = await L1.createL1PairSource({ execution: { url: p.el.url }, consensus: { url: p.cl.url } }).receipt(H('a1'));
++    out.finalizedBefore = r.evidence.finalized;
++    out.finalizedWrite = tryWrite(() => { r.evidence.finalized = true; });
++    const outcome = { state: 'l2-included', level: 'unsafe', receipt: { blockNumber: 5n, blockHash: H('05') } };
++    out.depositL1Final = F.classifyFinality({ outcome, depositL1BlockHash: H('90'), l1Evidence: r.evidence }).depositL1Final;
++    // 3. the receipt has NO deposit log; a forged TransactionDeposited pushed into it, then the plan matched
++    const plan = { operation: 'lease.claim', l1Transaction: { chainId: 1, to: PORTAL, value: 0n, data: viem.encodeFunctionData({ abi: F.PORTAL_ABI, functionName: 'depositTransaction',
++      args: ['0x' + '22'.repeat(20), 0n, 800000n, false, '0x' + 'cd'.repeat(388)] }) }, deposit: { to: viem.getAddress('0x' + '22'.repeat(20)), value: 0n, mint: 0n, gasLimit: 800000n,
++      isCreation: false, data: '0x' + 'cd'.repeat(388), acceptableFrom: [viem.getAddress('0x' + '11'.repeat(20))] } };
++    out.logPush = tryWrite(() => { r.evidence.receipt.logs.push(forgedDepositLog(F, plan)); });
++    try { out.match = F.matchDepositEvent(plan, undefined, r.evidence).l2TransactionHash ? 'matched-forged-deposit' : 'no'; } catch (e) { out.match = 'refused:' + e.code; }
++    out.statusWrite = tryWrite(() => { r.receipt.status = 'reverted'; });
++    out.sameReceipt = r.receipt === r.evidence.receipt;
++  } finally { p.close(); }
++  return out;
++}
++
++test('counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer', async () => {
++  extractOld();
++  const o = await scenario(OLD);
++  assert.deepEqual([o.nonceWrite, o.slot], ['written', 'dead'], 'a rewritten nonce freed a slot held by a different L1 transaction');
++  // the old shallow freeze DID protect top-level fields such as `finalized`: that case was not exploitable
++  assert.deepEqual([o.finalizedBefore, o.finalizedWrite, o.depositL1Final], [false, 'refused', false], 'top level was already frozen');
++  assert.equal(o.statusWrite, 'written', 'but the nested receipt was writable');
++  assert.deepEqual([o.logPush, o.match], ['written', 'matched-forged-deposit'], 'a forged deposit log was matched as a real deposit');
++  fs.rmSync(OLD, { recursive: true, force: true });
++});
++
++test('current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept', async () => {
++  const o = await scenario(ROOT);
++  assert.deepEqual([o.nonceWrite, o.slot], ['refused', 'refused:l1-receipt-mismatch'], 'the recorded L1 nonce 999 is not the node\'s nonce 7');
++  assert.deepEqual([o.finalizedBefore, o.finalizedWrite, o.depositL1Final], [false, 'refused', false]);
++  assert.deepEqual([o.logPush, o.statusWrite, o.match], ['refused', 'refused', 'refused:l1-receipt-mismatch'], 'no deposit log: nothing to match');
++  assert.equal(o.sameReceipt, true, 'the adapter hands callers the frozen receipt itself');
++  assert.equal(o.bigint, 'bigint', 'viem BigInt fields survive the owned copy');
++});
++
++test('mint copies, it does not freeze caller-owned state; binary buffers and functions are refused', async () => {
++  const { mint, isMinted } = await import('../src/evidence-brand.mjs');
++  const caller = { kind: 'x', nested: { list: [1n, 2n] } };
++  const m = mint(caller);
++  assert.equal(Object.isFrozen(caller) || Object.isFrozen(caller.nested) || Object.isFrozen(caller.nested.list), false, 'the caller\'s object is untouched');
++  caller.nested.list.push(3n);
++  assert.deepEqual(m.nested.list, [1n, 2n], 'the minted copy is owned: later caller writes do not reach it');
++  assert.equal(isMinted(m), true); assert.equal(isMinted(caller), false);
++  assert.throws(() => mint({ b: new Uint8Array(2) }), /binary buffers/);
++  assert.throws(() => mint({ f: () => 1 }), (e) => e.name === 'DataCloneError');
++});

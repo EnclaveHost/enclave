@@ -1,0 +1,261 @@
+From f397cbf1c85a670301bcf34a6d2fcd2fbecd9462 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:51:41 -0700
+Subject: [PATCH] Record selected NucBox RPC target and measured memory and
+ storage constraints
+
+---
+ .gitignore            |   2 +
+ TARGET-INVENTORY.json | 174 ++++++++++++++++++++++++++++++++++++++++++
+ TARGET-REVIEW.json    |  17 +++++
+ read-minipc.py        |  15 ++++
+ read-target.py        |   4 +
+ 5 files changed, 212 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 TARGET-INVENTORY.json
+ create mode 100644 TARGET-REVIEW.json
+ create mode 100644 read-minipc.py
+ create mode 100644 read-target.py
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..c606cd896cf05f33da36d8abfec5a1e4b029bd37
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,2 @@
++*.guard.log
++__pycache__/
+diff --git a/TARGET-INVENTORY.json b/TARGET-INVENTORY.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..02f635fbb7b210ef9c291d3842e7ad8ed1b16107
+--- /dev/null
++++ b/TARGET-INVENTORY.json
+@@ -0,0 +1,174 @@
++{
++  "observedAt": "2026-10-23T09:45:34.029565+00:00",
++  "readOnly": true,
++  "target": "minipc / NucBox",
++  "inventory": {
++    "at": "2026-10-23T09:45:31.4740848Z",
++    "totalVisibleKiB": 117255972,
++    "freePhysicalKiB": 47468652,
++    "logicalProcessors": 16,
++    "volumes": [
++      {
++        "DeviceID": "C:",
++        "DriveType": 3,
++        "FileSystem": "NTFS",
++        "Size": 2047236632576,
++        "FreeSpace": 617647607808
++      }
++    ],
++    "disks": [
++      {
++        "Number": 0,
++        "FriendlyName": "Lexar SSD NM7A1 2TB",
++        "BusType": "NVMe",
++        "Size": 2048408248320,
++        "OperationalStatus": "Online",
++        "PartitionStyle": "GPT"
++      }
++    ],
++    "vms": [
++      {
++        "Name": "enclave-app-hv3146bdf712f171-3f770400",
++        "state": "Running",
++        "MemoryAssigned": 2147483648,
++        "MemoryDemand": 0,
++        "MemoryStartup": 2147483648,
++        "MemoryMinimum": 536870912,
++        "MemoryMaximum": 1099511627776,
++        "DynamicMemoryEnabled": false,
++        "ProcessorCount": 1
++      },
++      {
++        "Name": "enclave-app-hv637cbe35075047-10c44a8a",
++        "state": "Running",
++        "MemoryAssigned": 2147483648,
++        "MemoryDemand": 0,
++        "MemoryStartup": 2147483648,
++        "MemoryMinimum": 536870912,
++        "MemoryMaximum": 1099511627776,
++        "DynamicMemoryEnabled": false,
++        "ProcessorCount": 1
++      },
++      {
++        "Name": "enclave-app-hv8babaf3c0991fa-ea9d4773",
++        "state": "Running",
++        "MemoryAssigned": 15101591552,
++        "MemoryDemand": 0,
++        "MemoryStartup": 15101591552,
++        "MemoryMinimum": 536870912,
++        "MemoryMaximum": 1099511627776,
++        "DynamicMemoryEnabled": false,
++        "ProcessorCount": 1
++      },
++      {
++        "Name": "enclave-app-hv94a003c5b947f6-9e2053bc",
++        "state": "Running",
++        "MemoryAssigned": 3420454912,
++        "MemoryDemand": 0,
++        "MemoryStartup": 3420454912,
++        "MemoryMinimum": 536870912,
++        "MemoryMaximum": 1099511627776,
++        "DynamicMemoryEnabled": false,
++        "ProcessorCount": 1
++      },
++      {
++        "Name": "enclave-app-hvbf6c56812c25e8-46de1836",
++        "state": "Running",
++        "MemoryAssigned": 2147483648,
++        "MemoryDemand": 0,
++        "MemoryStartup": 2147483648,
++        "MemoryMinimum": 536870912,
++        "MemoryMaximum": 1099511627776,
++        "DynamicMemoryEnabled": false,
++        "ProcessorCount": 1
++      },
++      {
++        "Name": "enclave-app-hvc68a5c73043598-3dfcbff8",
++        "state": "Running",
++        "MemoryAssigned": 2147483648,
++        "MemoryDemand": 0,
++        "MemoryStartup": 2147483648,
++        "MemoryMinimum": 536870912,
++        "MemoryMaximum": 1099511627776,
++        "DynamicMemoryEnabled": false,
++        "ProcessorCount": 1
++      },
++      {
++        "Name": "enclave-app-hvce6a027904d978-322c5206",
++        "state": "Running",
++        "MemoryAssigned": 17850957824,
++        "MemoryDemand": 0,
++        "MemoryStartup": 17850957824,
++        "MemoryMinimum": 536870912,
++        "MemoryMaximum": 1099511627776,
++        "DynamicMemoryEnabled": false,
++        "ProcessorCount": 1
++      },
++      {
++        "Name": "enclave-app-hvd28ea469111245-a79db30f",
++        "state": "Running",
++        "MemoryAssigned": 536870912,
++        "MemoryDemand": 0,
++        "MemoryStartup": 536870912,
++        "MemoryMinimum": 536870912,
++        "MemoryMaximum": 1099511627776,
++        "DynamicMemoryEnabled": false,
++        "ProcessorCount": 1
++      },
++      {
++        "Name": "enclave-app-hvefa9ce2a7bc0ea-f4322953",
++        "state": "Running",
++        "MemoryAssigned": 2147483648,
++        "MemoryDemand": 0,
++        "MemoryStartup": 2147483648,
++        "MemoryMinimum": 536870912,
++        "MemoryMaximum": 1099511627776,
++        "DynamicMemoryEnabled": false,
++        "ProcessorCount": 1
++      },
++      {
++        "Name": "enclave-control",
++        "state": "Running",
++        "MemoryAssigned": 8589934592,
++        "MemoryDemand": 1803550720,
++        "MemoryStartup": 8589934592,
++        "MemoryMinimum": 536870912,
++        "MemoryMaximum": 1099511627776,
++        "DynamicMemoryEnabled": false,
++        "ProcessorCount": 4
++      },
++      {
++        "Name": "enclave-storage",
++        "state": "Running",
++        "MemoryAssigned": 4294967296,
++        "MemoryDemand": 2018508800,
++        "MemoryStartup": 4294967296,
++        "MemoryMinimum": 536870912,
++        "MemoryMaximum": 1099511627776,
++        "DynamicMemoryEnabled": false,
++        "ProcessorCount": 2
++      }
++    ],
++    "availability": {
++      "claimEnabled": true,
++      "isolation": "hyperv-partition-per-app",
++      "attach": {
++        "tier": "hv-node",
++        "hostExcluded": false
++      },
++      "apps": {
++        "isolation": "hyperv-partition-per-app",
++        "tier": "enclave-shield",
++        "hostExcluded": false,
++        "hostOsExcluded": true,
++        "operatorExcluded": false,
++        "inTee": false,
++        "running": 8,
++        "capacity": 16,
++        "scope": "market",
++        "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
++      }
++    }
++  },
++  "authorization": "User selected NucBox, reports47.9GBfree and allows96GBallocatedtohost; no changesmade; currentphysicalcapacitydistinctfromadvertisedcapacity."
++}
+diff --git a/TARGET-REVIEW.json b/TARGET-REVIEW.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..17ed05ea583eb507269426cf7d9df52c41fa1abb
+--- /dev/null
++++ b/TARGET-REVIEW.json
+@@ -0,0 +1,17 @@
++{
++  "at": "2026-10-23T09:51:41.115874+00:00",
++  "humanSelectedHost": "NucBox/minipc",
++  "humanAuthorizedHostAllocation": "96 GB (unit/schema to verify before application)",
++  "inventoryReceipt": "rpc-nucbox-target-20261023T094534Z.json",
++  "totalVisibleGiB": 111.82400894165039,
++  "freePhysicalGiB": 45.26963424682617,
++  "vmAssignedGiB": 56.375,
++  "exampleBackendGiB": 60,
++  "exampleGapBeforeGuestOverheadGiB": 14.730365753173828,
++  "localDiskTypes": [
++    "NVMe"
++  ],
++  "changesApplied": false,
++  "experimentReleased": false,
++  "next": "Inspect host allocation schema and durable HDD access; do not equate advertised resource cap with free physical RAM. Prepare bounded deployment plan; no existing apps resized."
++}
+diff --git a/read-minipc.py b/read-minipc.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..ffbbfe1060f40f5bfac7b217cd80f7d5b1d4b8ff
+--- /dev/null
++++ b/read-minipc.py
+@@ -0,0 +1,15 @@
++import importlib.util,json
++from pathlib import Path
++from datetime import datetime,timezone
++spec=importlib.util.spec_from_file_location('native', 'work/nucbox-tls-20261021/root-activate-reviewed.py')
++native=importlib.util.module_from_spec(spec);spec.loader.exec_module(native)
++script="""[Console]::OutputEncoding=[Text.UTF8Encoding]::new();
++$o=Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 15;
++$c=Get-CimInstance Win32_ComputerSystem -OperationTimeoutSec 15;
++$d=@(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' -OperationTimeoutSec 15|ForEach-Object{[ordered]@{drive=$_.DeviceID;filesystem=$_.FileSystem;sizeBytes=[long]$_.Size;freeBytes=[long]$_.FreeSpace}});
++[ordered]@{totalVisibleKiB=[long]$o.TotalVisibleMemorySize;freePhysicalKiB=[long]$o.FreePhysicalMemory;logicalProcessors=[int]$c.NumberOfLogicalProcessors;disks=$d}|ConvertTo-Json -Compress -Depth 4
++"""
++result={'observedAt':datetime.now(timezone.utc).isoformat(),'alias':'minipc','readOnly':True,'inventory':native.ps(script,45),
++ 'scope':'Current capacity only, no VM changes, no filesystem writes or allocation on the remote. Does not prove that HDD array is accessible, native Base compatibility, or available resources for deployment.'}
++Path('outputs/decentralization-audit/rpc-minipc-capacity-20261023.json').write_text(json.dumps(result,indent=2)+'\n')
++print(json.dumps(result))
+diff --git a/read-target.py b/read-target.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..f6758d8b41599f2a41684030a3a3371ed1525c52
+--- /dev/null
++++ b/read-target.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib,datetime
++s=importlib.util.spec_from_file_location('n','work/nucbox-tls-20261021/root-activate-reviewed.py');n=importlib.util.module_from_spec(s);s.loader.exec_module(n)
++p=r"""[Console]::OutputEncoding=[Text.UTF8Encoding]::new();$o=Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 10;$c=Get-CimInstance Win32_ComputerSystem -OperationTimeoutSec 10;$d=@(Get-CimInstance Win32_LogicalDisk -OperationTimeoutSec 10|Select-Object DeviceID,DriveType,FileSystem,Size,FreeSpace);$v=@(Get-VM|Select-Object Name,@{n='state';e={$_.State.ToString()}},MemoryAssigned,MemoryDemand,MemoryStartup,MemoryMinimum,MemoryMaximum,DynamicMemoryEnabled,ProcessorCount);$dsk=@(Get-Disk|Select-Object Number,FriendlyName,BusType,Size,OperationalStatus,PartitionStyle);$h=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:9600/v1/host/state;[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');totalVisibleKiB=[long]$o.TotalVisibleMemorySize;freePhysicalKiB=[long]$o.FreePhysicalMemory;logicalProcessors=[int]$c.NumberOfLogicalProcessors;volumes=$d;disks=$dsk;vms=$v;availability=($h.availability|Select-Object claimEnabled,isolation,attach,apps)}|ConvertTo-Json -Depth 7 -Compress"""
++r=n.ps(p,40);out={'observedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'readOnly':True,'target':'minipc / NucBox','inventory':r,'authorization':'User selected NucBox, reports47.9GBfree and allows96GBallocatedtohost; no changesmade; currentphysicalcapacitydistinctfromadvertisedcapacity.'};f=pathlib.Path('outputs/decentralization-audit')/('rpc-nucbox-target-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'.json');f.write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out));print('Saved',f)

@@ -1,0 +1,9 @@
+[queue] START available=24997MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+suite rc=0
+mutant 27 killed (2 failing): const owned = deepFreeze(structuredClone(obj));
+mutant 28 killed (3 failing): for (const k of Reflect.ownKeys(v)) deepFreeze(v[k]);
+survivors: 0 of 28
+mutants rc=0
+[memory-guard] exit=0 peakTreeRssMiB=236 minHostAvailableMiB=24866
+[memory-guard] at peak: node:103 node:61 anvil:32 anvil:30 sh:6 timeout:4
+[queue] EXIT 0

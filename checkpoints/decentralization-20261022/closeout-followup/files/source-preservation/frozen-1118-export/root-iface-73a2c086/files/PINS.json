@@ -1,0 +1,6 @@
+{
+  "Bhead": "673601e54f8fdcf2ea72d239c87d92b483ff231b",
+  "witnessGatewaySha256": "7209ef5beea5cf2f1afa471bf9d7b49babfdbb5877de63d9ee5159420d1389cb",
+  "publicRpcSource": "work/root-public-rpc-allowlist-review-20261023/frozen/fixed-public-rpc.mjs",
+  "publicRpcSha256": "aa5c148c4348b42c6d191236dbe44881a07d1595c1fabaf9b4134d891690fba0"
+}

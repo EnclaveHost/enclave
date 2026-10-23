@@ -1,0 +1,113 @@
+[queue] START available=25122MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+029fdefe8ce50e276fb01a8a54b432dcb289ec50
+ M src/base-source-binding.mjs
+ M src/evidence-brand.mjs
+ M src/l1-source-binding.mjs
+?? logs/immut-1.out
+?? test/evidence-immutability.test.mjs
+anvil Version: 1.7.1
+v22.23.3
+  "version": "2.53.1",
+0fe489489c6fed4dd74dc8a52e1e21296f4152806fc673ff22e2f323ee19f0c0  src/base-source-binding.mjs
+90162e5b797d3ca5a6d53689c5233bfc86536230d3fc3672b4105aec89212171  src/evidence-brand.mjs
+438e9c77382eeb9e60bd57cfaf4c98ee2f831d93aec7b0c75e7fbc151b87942c  src/forced-inclusion.mjs
+a46b94c2e5cb54acba7f2f7cb290e3bbe8849a818dc384c4728f62b7713c407f  src/l1-source-binding.mjs
+30cfd9e7ba27740b55f5b4f3b8d603d4da2b44a7583a3f8c4b5107874b71fb2c  src/lease-signing-policy.mjs
+a0401e08e6f51586e8776fc9bd7356c4a1e76f260dd4a74dc270de4fab5bb821  src/vault-deposit.mjs
+d9adfcf1cbc0edfa655e4bd3480ae7da6ad9e61a27999f7c2e25dd9d93e5bfdc  test/evidence-immutability.test.mjs
+4fc17967ebba4601161160ce4d7df8b2e24db5888d898d5af9defd620d92a090  test/fee-audit.anvil.test.mjs
+fe95a0f355e4dac08243af2b4562a0082ff3849e7619db45b01ed743f5b0388e  test/finality.test.mjs
+a1781760e1f270318fd60e2c6baf74f1ebaf6b5c1d62891b15d93403583b3b98  test/forced-inclusion.anvil.test.mjs
+748b0990f8be824f1046098e26091f074446f21061002fe5c6b7b51a8b351f33  test/l1-portal.anvil.test.mjs
+8474c4c04f793c377f2ddd55b4d5d4e42689cf64b41907d8e5236d6cba7215af  test/lease-signing-policy.anvil.test.mjs
+6fc792a6c395df86d105cbaf72ff3b105da671071e93fe2885667c1ebf1dc008  test/source-binding.anvil.test.mjs
+dd1da4b52e93bdd0e2c8327a7549b265d609335ab3925eb6e98ce9109358778a  test/source-binding.test.mjs
+f7a35189255cc88168fe0927e44bf06d4c9677ef910cef381f031615bb5cb5c1  test/tracker.test.mjs
+39422d45f9d1e91f2d2a49aa0da9fafd31f1f77c0654d7ab483ba3e3cfc210a3  test/vault-deposit.anvil.test.mjs
+966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  fixtures/artifacts/EnclaveAddressBook.json
+0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
+dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
+aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
+aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
+66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
+613a39210cf8d444d4b65d08e97b3ec68f2471cf5b9202593bae9fc5dd1b6d7d  fixtures/artifacts/Mock1271Owner.json
+10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
+524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
+9582696ac30c9f0cb7a07ae4e4adce08279f0307bc1d8aaee5cc8f3179689946  fixtures/artifacts/MockUSDC3009.json
+f475c5b37665771748b326ac1e0cb6b547bdc19b897933bb7f5939051ca0d1cc  fixtures/artifacts/SessionVault.json
+eabe6918b6f83125530637a5165b851f35603881537c7defd2e836db62b5748e  fixtures/artifacts/SessionVaultFactory.json
+bfd62c0607740b4a8d98c35fdd1ae2f7efa2659a020ffdeef6f4d67122d2d478  fixtures/artifacts/SessionVaultLib.json
+b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8  fixtures/sources/EnclaveAddressBook.sol
+2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
+dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
+1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
+e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
+a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703  fixtures/sources/MockUSDC.sol
+47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d  fixtures/sources/SessionMocks.sol
+a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c  fixtures/sources/SessionVault.sol
+47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
+97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
+65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
+5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
+external network: unreachable (as intended)
+TAP version 13
+# Subtest: counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
+not ok 1 - counter-control on the previous source 46dbfbef: nested validated facts are writable and each write changes a classifier answer
+  ---
+  duration_ms: 275.009002
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/evidence-immutability.test.mjs:93:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    a non-final deposit was declared L1-final
+    + actual - expected
+    
+      [
+        false,
+    +   'refused',
+    +   false
+    -   'written',
+    -   true
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: false
+    1: 'written'
+    2: true
+  actual:
+    0: false
+    1: 'refused'
+    2: false
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/evidence-immutability.test.mjs:97:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
+ok 2 - current source: the same writes throw, every classifier sees what the node said; BigInt kept; receipt identity kept
+  ---
+  duration_ms: 100.881069
+  type: 'test'
+  ...
+# Subtest: mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
+ok 3 - mint copies, it does not freeze caller-owned state; binary buffers and functions are refused
+  ---
+  duration_ms: 0.890052
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 2
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 520.460878
+[memory-guard] exit=1 peakTreeRssMiB=161 minHostAvailableMiB=25064
+[memory-guard] at peak: node:101 node:55 timeout:4
+[queue] EXIT 1

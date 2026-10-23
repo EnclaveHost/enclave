@@ -1,0 +1,16 @@
+[queue] START available=25010MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+{
+ "rendered": [
+  "holder-storage.sh",
+  "holder.json",
+  "ledger-over.json",
+  "ledger.json",
+  "pair-storage.sh",
+  "pair.json"
+ ],
+ "share": 101027840,
+ "nextReservationRefused": "host 0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f: reservations plus bookkeeping 101048320 exceed its share 101027840"
+}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

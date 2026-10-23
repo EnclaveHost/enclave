@@ -1,0 +1,1540 @@
+From ccb55b83a0fde536f056512644f7888980f296ac Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 04:14:44 -0700
+Subject: [PATCH 1/2] rpc-storage-final-compose: S 92b7178 + P f8c999e
+ composition of the kernel-tested cache fixes; provenance, render diffs vs
+ vm-3, test logs, RESULT
+
+---
+ .gitignore                                    |   5 +
+ .gitleaks.toml                                |   8 +
+ PROVENANCE.json                               |  97 ++++++++
+ RESULT.md                                     | 153 ++++++++++++
+ jobs/p-unit.sh                                |   7 +
+ jobs/q.sh                                     |   9 +
+ jobs/render-diff.py                           |  32 +++
+ jobs/s-tests.sh                               |  10 +
+ jobs/scan.sh                                  |  13 ++
+ logs/p-u1.guard.log                           |   1 +
+ logs/p-u1.out                                 |  73 ++++++
+ logs/p-u1.rc                                  |   1 +
+ logs/p-u2.guard.log                           |   1 +
+ logs/p-u2.out                                 |  73 ++++++
+ logs/p-u2.rc                                  |   1 +
+ logs/s-m1.guard.log                           |   1 +
+ logs/s-m1.out                                 |  46 ++++
+ logs/s-m1.rc                                  |   1 +
+ logs/s-t1.guard.log                           |   1 +
+ logs/s-t1.out                                 | 134 +++++++++++
+ logs/s-t1.rc                                  |   1 +
+ render/holder-storage.sh                      | 218 ++++++++++++++++++
+ ...r-storage.sh.vs-vm3-holder-storage.sh.diff |  59 +++++
+ render/pair-storage.sh                        | 218 ++++++++++++++++++
+ ...orage.sh.vs-vm3-pair-storage.fixed.sh.diff |  62 +++++
+ ...air-storage.sh.vs-vm3-pair-storage.sh.diff |  59 +++++
+ render/summary.json                           |  30 +++
+ 27 files changed, 1314 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 .gitleaks.toml
+ create mode 100644 PROVENANCE.json
+ create mode 100644 RESULT.md
+ create mode 100755 jobs/p-unit.sh
+ create mode 100755 jobs/q.sh
+ create mode 100644 jobs/render-diff.py
+ create mode 100755 jobs/s-tests.sh
+ create mode 100755 jobs/scan.sh
+ create mode 100644 logs/p-u1.guard.log
+ create mode 100644 logs/p-u1.out
+ create mode 100644 logs/p-u1.rc
+ create mode 100644 logs/p-u2.guard.log
+ create mode 100644 logs/p-u2.out
+ create mode 100644 logs/p-u2.rc
+ create mode 100644 logs/s-m1.guard.log
+ create mode 100644 logs/s-m1.out
+ create mode 100644 logs/s-m1.rc
+ create mode 100644 logs/s-t1.guard.log
+ create mode 100644 logs/s-t1.out
+ create mode 100644 logs/s-t1.rc
+ create mode 100644 render/holder-storage.sh
+ create mode 100644 render/holder-storage.sh.vs-vm3-holder-storage.sh.diff
+ create mode 100644 render/pair-storage.sh
+ create mode 100644 render/pair-storage.sh.vs-vm3-pair-storage.fixed.sh.diff
+ create mode 100644 render/pair-storage.sh.vs-vm3-pair-storage.sh.diff
+ create mode 100644 render/summary.json
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ee9d57293fde9a7b5497b475d5f3c9ee1ba78c
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,5 @@
++s/
++p/
++ROOT-*.txt
++__pycache__/
++scratch/
+diff --git a/.gitleaks.toml b/.gitleaks.toml
+new file mode 100644
+index 0000000000000000000000000000000000000000..f0e32a4dd6a7e17013ca5b7a185019d056a278cf
+--- /dev/null
++++ b/.gitleaks.toml
+@@ -0,0 +1,8 @@
++# Default gitleaks rules plus ONE exact allowlisted value: Sigma Prime's PUBLIC Lighthouse release-signing PGP key
++# fingerprint (stated in sigp/lighthouse release.yml:195, SECURITY.md and release notes; trust evidence, not a secret).
++[extend]
++useDefault = true
++
++[allowlist]
++description = "Sigma Prime public release-signing PGP fingerprint"
++regexes = ['''^15E66D941F697E28F49381F426416DC3F30674B0$''']
+diff --git a/PROVENANCE.json b/PROVENANCE.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..e013b0633c8314de021aadc098d3e23c5ffc0d92
+--- /dev/null
++++ b/PROVENANCE.json
+@@ -0,0 +1,97 @@
++{
++ "format": "rpc-storage-final-compose-provenance/v1",
++ "s": {
++  "base": "bcd3d9ca3b4345f42134342dec28ab5f6d4115f2",
++  "baseIs": "959e56fd budget v2 + 47c2f71 report correction + bcd3d9c timestamp fix (canonical identity). Root's dc767fc3 has the identical tree but a personal-email author and is on no branch.",
++  "treeEqualsDc767fc3": true,
++  "budgetV2Ancestor959e56fd": true,
++  "rootTeardownFixes": {
++   "b1b6f18 validate-before-unmount": {
++    "cherryPickedAs": "08f2efe",
++    "ancestor": true,
++    "textPresent": true
++   },
++   "c3efff4 stop-at-failed-teardown": {
++    "cherryPickedAs": "fd0134d",
++    "ancestor": true,
++    "textPresent": true
++   }
++  },
++  "commits": [
++   "92b71784c9452056eeeb6a97b8e1fcb8ef1815ca SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> RUNBOOK-CACHE: power loss vs suspect/corrupt cache (stop consumer, disassemble, cache-loss before assemble), stale-origin, replacement, interrupted create, loop policy, one aggregate budget",
++   "c74e302c66549658dcf9d46e77ade5d0db06feb9 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> holder-storage: adopt the kernel-tested fixes (signals unwind; owned same-fs free-space credit) and resolve loop policies"
++  ],
++  "head": "92b71784c9452056eeeb6a97b8e1fcb8ef1815ca",
++  "templateBefore": "eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00",
++  "files": {
++   "holder-storage.sh.in": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
++   "holder.py": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
++   "budget.py": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24",
++   "RUNBOOK-CACHE.md": "c599d997e740f2863f3ea5cb186526845c180b65033dea8563a04b1264991238",
++   "test/test_storage.py": "1684a85dfd364a905fb9643a6bf26a4e1c6103f2af360b177fb4745c9ead2883",
++   "test/mutate.py": "21ef093d3842c94b9e7e131dbc4ea19556c4131cacba778aa9aa82195df9cbb3",
++   "test/stubs/stubcmd.py": "d779f061ef120023dae801840b884bc905f5eb4907fed6b3d058ca6752844f22"
++  }
++ },
++ "p": {
++  "base": "f83514874646d3be1ea46bc420f0fed5e664f6ef",
++  "commits": [
++   "f8c999ed5a9600ef477ff05ee00b31dee366b2b1 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: re-vendor S's composed holder storage (92b7178: signal unwind, owned same-fs free-space credit, cache-loss/disassemble loop policies, RUNBOOK-CACHE); RUNBOOK cache procedure"
++  ],
++  "head": "f8c999ed5a9600ef477ff05ee00b31dee366b2b1",
++  "vendor": {
++   "format": "enclave-l1-pair-vendor/v1",
++   "source": "S's holder source composed in work/rpc-storage-final-compose/s, commit 92b71784c9452056eeeb6a97b8e1fcb8ef1815ca (= S 959e56fd budget v2 + bcd3d9c report timestamp fix + the kernel-tested storage fixes and loop policies c74e302 + RUNBOOK-CACHE 92b7178; git show, no working tree)",
++   "use": "library only (Supervisor, PDEATHSIG, group stop, sd_notify, backing_disks, port_in_use, validate_storage rules, shared NVMe budget ledger tool) and the storage script template; nothing here edits or runs the Base holder",
++   "files": {
++    "holder/holder.py": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
++    "holder/budget.py": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24",
++    "holder/FLAGS.json": "7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59",
++    "holder/BINARY.json": "b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00",
++    "holder/holder-storage.sh.in": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
++    "holder/holder.example.json": "8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a",
++    "holder/RUNBOOK-CACHE.md": "c599d997e740f2863f3ea5cb186526845c180b65033dea8563a04b1264991238"
++   }
++  },
++  "l1pairPyUnchanged": "a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d"
++ },
++ "vm3Reference": "work/cache-native-boundary-20261023 run/20261023T094842Z/out/render; its fixed template = cache-native fixes/holder-storage.sh.in after 0001+0002",
++ "render": {
++  "holder-storage.sh vs vm3 holder-storage.sh": {
++   "vm3Sha256": "025b23c768fb549609fc951c9ad93201492e4dbad47d962131e21066342ffe6e",
++   "composedSha256": "1018e9f7b6f0696fc1e2065dcebaeed36ea10efd41f0a741b1f94b1508f6f4bb",
++   "identical": false,
++   "changedLines": 29
++  },
++  "pair-storage.sh vs vm3 pair-storage.sh": {
++   "vm3Sha256": "046c53a257a4f2c8f477aa4393f20a4d8417e7dcba4187ef824b5a67c5299c86",
++   "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
++   "identical": false,
++   "changedLines": 29
++  },
++  "pair-storage.sh vs vm3 pair-storage.fixed.sh": {
++   "vm3Sha256": "a3c535d4118a6a29ee27404b898168c8312fc6f1b4b2f920d47a0a9eb5203d49",
++   "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
++   "identical": false,
++   "changedLines": 32
++  },
++  "templates": {
++   "s": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
++   "pVendored": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
++   "pEqualsS": true
++  },
++  "bothRendersUseComposedTemplateBody": true,
++  "constantsIdenticalToVm3": {
++   "holder-storage.sh": true,
++   "pair-storage.sh": true
++  }
++ },
++ "renderFiles": {
++  "holder-storage.sh": "1018e9f7b6f0696fc1e2065dcebaeed36ea10efd41f0a741b1f94b1508f6f4bb",
++  "holder-storage.sh.vs-vm3-holder-storage.sh.diff": "f6527ec991d16f7065b20bc3157cb31fe15490a65eb3371d2ab7a3daa91c0aed",
++  "pair-storage.sh": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
++  "pair-storage.sh.vs-vm3-pair-storage.fixed.sh.diff": "3c1f6cb4b7b3815916e2603b4626d6fee20e95146c2bb9fe01171cb8c962a5a7",
++  "pair-storage.sh.vs-vm3-pair-storage.sh.diff": "d10ac172767bf0bbb998180d90adb08eacfa6de8cb9e2522e825b5a7261c415d",
++  "summary.json": "5a64acb595bbe033fde83d784df20bfe952c0bef6d131245d5adec4be375800e"
++ }
++}
+diff --git a/RESULT.md b/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..fe9678202e979584fc9f5e9a8252ff0f81c6f450
+--- /dev/null
++++ b/RESULT.md
+@@ -0,0 +1,153 @@
++# Storage final composition: kernel-tested cache fixes adopted into S's holder source and P's L1 package (RESULT, 2026-10-23)
++
++**Status: SOURCE PACKAGE ready for the placement plan.**
++- **Not done:** no production cache, ledger, allocation or activation; no kernel test in this scope; no SSH, no push.
++- **Old trees and evidence untouched:** `fresh-witness-supply`, `rpc-l1-source-package` and
++  `cache-native-boundary-20261023` are unchanged.
++- **New clones:** `s/` and `p/`, author SteveDeFacto, origins removed.
++
++## 1. Exact pins
++
++| | Base (immutable history) | Composed commits | HEAD |
++|---|---|---|---|
++| **S holder** (`s/`) | `bcd3d9ca` = `959e56fd` budget v2 + `47c2f71` + `bcd3d9c` report-timestamp fix. Its tree equals root's `dc767fc3` (which has a personal-email author and is on no branch, so the canonical-identity commit is used) | `c74e302` template fixes + seam tests + mutants; `92b7178` `RUNBOOK-CACHE.md` | **`92b71784c9452056eeeb6a97b8e1fcb8ef1815ca`** |
++| **P L1 pair** (`p/`) | `f8351487` | `f8c999e`: re-vendor S `92b7178`; P RUNBOOK §8a; test pin; runner label | **`f8c999ed5a9600ef477ff05ee00b31dee366b2b1`** |
++
++**Files:**
++- **`holder/holder-storage.sh.in`:** `eb6a209d` → **`cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222`**, identical in S and in P's vendor (`render/summary.json` `pEqualsS: true`).
++- **Unchanged:** `holder.py` `c73a4351`, `budget.py` `529e155f` (budget v2), and P's `l1pair.py` `a25bd4ea`.
++- **New:** `holder/RUNBOOK-CACHE.md` `c599d997`, vendored in P.
++- **P vendor:** `VENDOR.json` pins all seven files.
++
++**Root teardown fixes are present.** They reached S as cherry-picks, so they are ancestors under these hashes, and their
++text is in the composed template (`PROVENANCE.json`):
++- `b1b6f18` → `08f2efe` (validate ownership before unmount);
++- `c3efff4` → `fd0134d` (stop at the first failed teardown).
++
++## 2. What changed (S `c74e302`; P re-vendors it byte-identically)
++
++1. **0002, as kernel-tested in vm-3.** `trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP`, so a signal
++   takes the existing EXIT unwind. The code line is byte-identical to vm-3; only the comment wording differs.
++2. **0001, tightened as root required.** `create`'s NVMe free-space preflight subtracts the allocated bytes of a cache
++   file **only if** all of these hold:
++   - it is a regular file, not a symlink;
++   - its `.enclave-budget-owner` marker exists, as a regular file and not a symlink;
++   - it is on the **same filesystem** (`st_dev`) as the CDATA directory being measured.
++
++   The credit is capped at the declared size; anything else gets 0. `budget.py admit` (unchanged, run right after)
++   still refuses a file whose marker names another reservation. This differs from the vm-3 test patch, which credited
++   any existing file.
++3. **The `cache-loss` loop question, resolved.** Previously it left the origin loop it attached for its own check
++   attached; the next `assemble` reused it. That was not a deliberate design: it only leaked a loop.
++   - **Now:** it detaches **only loops this run attached**. A loop that existed before (left by an earlier `assemble`,
++     or in use) is kept.
++4. **The `disassemble` policy, resolved.** It now **never detaches a loop that is still mounted anywhere or held by
++   another device** (`lsblk` MOUNTPOINTS, and holders listed as children). Instead it stops with exit 2.
++   - **Why:** `losetup -d` on a busy loop "succeeds" by setting autoclear, so the old code could silently schedule
++     detaching an active or foreign-used origin.
++   - **Unchanged:** the ownership checks of the mount and mapping (root `b1b6f18`).
++
++**Renderer output** (`jobs/render-diff.py`):
++- **Configs:** vm-3's holder and pair test configs, rendered with the COMPOSED S `holder.storage_script` and P
++  `l1pair.storage_script`.
++- **Constants:** identical to vm-3's (`constantsIdenticalToVm3: true` for both).
++- **Template body:** both renders use the composed body.
++- **Diffs:**
++  - against vm-3's PRODUCTION render: 29 changed lines each (holder, pair);
++  - against vm-3's FIXED render: **32 lines, exactly the four items above** (see
++    `render/pair-storage.sh.vs-vm3-pair-storage.fixed.sh.diff`).
++
++## 3. Runbook: suspect cache vs power loss (`s/holder/RUNBOOK-CACHE.md`, P RUNBOOK §8a)
++
++**These are distinct, and not automatically the same.**
++- **Power loss with a healthy cache:**
++  - the boot `assemble` is acceptable (vm-3: exit 0, 0 dirty, fsynced data correct);
++  - then `dmsetup status` must show `writethrough`, 0 dirty, no `needs_check`, mode `rw`;
++  - any deviation → treat it as suspect.
++- **Suspect or corrupted cache device:**
++  - **triggers:** I/O errors, SMART warnings, `needs_check`, dirty > 0, fsck errors, tampered or restored images;
++  - **procedure:** **stop the consumer first**, then `disassemble`, then **`cache-loss` BEFORE `assemble`**;
++  - **why:** dm-cache serves corrupted cache content unchecked. Measured: 10,688 / 40,960 4 KiB blocks wrong, and the
++    filesystem unmountable.
++- **Also covered:** uncached origin access (`cache-loss` is mandatory), replacing or dropping the cache device (and the
++  known gap: no single "re-create cache for an existing origin" verb; the manual steps are given), interrupted `create`
++  (signals unwind; SIGKILL/power-loss recovery steps), the loop policy, and the one aggregate budget.
++
++## 4. Tests (delta-required only; no kernel run in this scope)
++
++All through `work/claude-test-queue.py` (16 GiB floor; one large + small 256 MiB lanes; ≤ 1536).
++
++| Run | What | Result |
++|---|---|---|
++| **s-t1** | S's own `run-tests.sh holder` on the composed S (environment pointed at this clone): `test_holder` / `test_storage` / `test_budget` | **18 / 30 / 19 OK**. 7 NEW storage seam tests (below); none skipped |
++| **s-m1** | S's shell mutants (template only changed): 6 existing + 8 new | **13/14 killed**. The survivor, `sh:credit-symlink`, drops the `[ ! -L ]` guard. It is behaviourally equivalent within the test's tolerance: `stat -c %b` without `-L` measures the LINK itself (0 blocks, or 1 block for a long target), so a symlinked cache path is still credited at most 4 KiB. The guard is kept as defence in depth |
++| **p-u2** | P's unit suite on the re-vendored P (final commit) + the byte-level render diff | **20/20 OK**; vendor pins verified; render-diff rc 0 |
++
++P's mutants and the real-binary reth/Lighthouse/Base runs were not repeated, because P's launcher `l1pair.py` is
++unchanged. vm-3's kernel run was not repeated, per scope.
++
++**New seam tests in `test_storage.py`** (real script, stubbed privileged commands, real files):
++- **SIGTERM to the process group** mid-`create` (stub mkfs sleeping, with the origin and loop present): exit **143**,
++  "undid only what this run created", origin removed, loop detached.
++- **Owned complete cache files present** after a removed origin, with free space below a full re-allocation: `create`
++  passes (credit).
++- **No credit for:**
++  - an **unmarked** file;
++  - a **symlinked** cache path;
++  - a cache file on **another filesystem** (CMETA on the workspace ext4 vs CDATA on `/tmp` tmpfs).
++
++  Each is refused with "not enough NVMe free space", and nothing is created.
++- **A credited file whose marker names ANOTHER reservation:** the free-space check passes, but **budget admit refuses**
++  ("ownership marker"); the foreign file is untouched and no origin is created.
++- **`cache-loss`:**
++  - with no prior loop → none left afterwards;
++  - with a pre-existing origin loop → kept.
++- **`disassemble`:** a loop held by a foreign mapping, or mounted elsewhere → exit 2, "still mounted or held", the loop
++  and its user untouched, and no `losetup -d` of it.
++
++**Kernel coverage, stated exactly:**
++- **Kernel-tested in vm-3 (7.2.11 guest):**
++  - 0002 as composed;
++  - the credit concept, with a looser rule (any existing file).
++- **Seam-tested only:**
++  - the tightened credit conditions;
++  - the `cache-loss` own-loop detach;
++  - the `disassemble` in-use refusal (it relies on `lsblk -nro NAME` listing dm holders as children).
++
++  A bounded re-run of `cache-native-boundary` `harness/run.sh` against these renders is the remaining verification. It
++  was not authorized in this scope.
++
++## 5. Budget (unchanged design, one aggregate)
++
++- **One ledger for everything:** the Base holder and the L1 pair, plus any other cache of this work, are charged in ONE
++  ledger, `/etc/enclave-rpc-cache/nvme-cache-budget.json` (budget v2).
++- **Limits:** a cap of 250,000,000,000 B across ALL hosts and caches, with a 200 GB target.
++- **What a reservation is charged:** its maxBytes = files + markers + directory entries + extent metadata + one
++  allocation step's spill. Node temp lives on the HDD mount.
++- **Current shares:**
++  - **L1 pair:** default `cache: none`, which reserves nothing;
++  - **Base holder:** S's example plan is 199,140,835,328 B, leaving 0.86 GB under the target.
++- **No ledger was created, and no allocation was made.**
++
++## 6. Gates remaining for root
++
++- **The NucBox placement plan.** It is owned by the `nucbox-rpc-placement` worker, not this package. Per root's
++  inventory (09:45), NucBox has 45.27 GiB physical free of 111.82 total, VMs assigned 56.375 GiB, and only NVMe
++  attached; the 33 TB HDD is on the desktop.
++  - **This package does not choose:** the placement, a RAM limit, or the HDD transport.
++  - **Its preflight still refuses:** memory, placement and budget gates that are unmet.
++- **Before any production cache:**
++  - run the cache harness inside the **actual NucBox Linux VM** on its real virtual disks, at bounded scratch size (crash
++    test included), with these composed renders;
++  - decide where the durable HDD origin lives for that VM;
++  - create the canonical ledger with real per-host shares.
++- **Still unproven:** a real USB RAID or NTFS origin, throughput, a physical power cut of the enclosure, and the host's
++  running kernel.
++
++## 7. Files
++
++- `PROVENANCE.json`: pins, commits, ancestry and cherry-pick evidence, render shas.
++- `render/`: composed renders, diffs against vm-3 (production and fixed), `summary.json`.
++- `jobs/`: `s-tests.sh`, `p-unit.sh`, `render-diff.py`.
++- `logs/`: s-t1, s-m1, p-u1, p-u2.
++- `s/`, `p/`: the composed source repositories. Root and D capture them; they are not pushed.
+diff --git a/jobs/p-unit.sh b/jobs/p-unit.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..83fece602fd7e26ff0feee2cebb13c1c5b679f36
+--- /dev/null
++++ b/jobs/p-unit.sh
+@@ -0,0 +1,7 @@
++#!/bin/bash
++# P's own unit suite on the re-vendored composed P clone (p/), offline netns; then the byte-level render diff vs vm-3.
++set -u
++C=$(cd "$(dirname "$0")/.." && pwd)
++bash $C/p/jobs/run.sh unit; rc=$?
++python3 -I $C/jobs/render-diff.py; rc2=$?
++echo "p-unit rc=$rc render-diff rc=$rc2"; [ $rc -eq 0 ] && [ $rc2 -eq 0 ]
+diff --git a/jobs/q.sh b/jobs/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..3e272ae2802f11e18516bc45d5c0f8f81fb3e8a3
+--- /dev/null
++++ b/jobs/q.sh
+@@ -0,0 +1,9 @@
++#!/bin/bash
++# q.sh NAME MIB -- command...   retry the shared queue while it answers 98 (not started); write logs/NAME.rc at the end
++name=$1; mib=$2; shift 3
++cd "$(dirname "$0")/.." || exit 2
++for i in $(seq 1 240); do
++  python3 -u ../claude-test-queue.py --mib "$mib" --log logs/$name.guard.log -- "$@" > logs/$name.out 2>&1
++  rc=$?; [ $rc -ne 98 ] && break; sleep 30
++done
++echo $rc > logs/$name.rc
+diff --git a/jobs/render-diff.py b/jobs/render-diff.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..ed9b38ac6ffc14942703b79234620dbb186e68e0
+--- /dev/null
++++ b/jobs/render-diff.py
+@@ -0,0 +1,32 @@
++#!/usr/bin/env python3
++"""Render the vm-3 test configurations with the COMPOSED renderers (S's holder.storage_script from s/, P's
++l1pair.storage_script from p/) and diff them, byte for byte, against what vm-3 actually ran
++(cache-native-boundary-20261023/run/20261023T094842Z/out/render). Output: render/*.sh, render/*.diff, render/summary.json."""
++import difflib, hashlib, importlib.util, json, sys
++from pathlib import Path
++C = Path(__file__).resolve().parent.parent
++VM3 = C.parent / 'cache-native-boundary-20261023/run/20261023T094842Z/out/render'
++OUT = C / 'render'; OUT.mkdir(exist_ok=True)
++def load(n, p):
++    s = importlib.util.spec_from_file_location(n, p); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
++H = load('holder', C / 's/holder/holder.py'); L = load('l1pair', C / 'p/l1pair/l1pair.py')
++hc, pc = json.loads((VM3 / 'holder.json').read_text()), json.loads((VM3 / 'pair.json').read_text())
++new = {'holder-storage.sh': H.storage_script(hc, budget_tool='/src/vendor/holder/budget.py'),
++       'pair-storage.sh': L.storage_script(pc, budget_tool='/src/vendor/holder/budget.py')}
++summary = {}
++for name, vs in (('holder-storage.sh', 'holder-storage.sh'), ('pair-storage.sh', 'pair-storage.sh'), ('pair-storage.sh', 'pair-storage.fixed.sh')):
++    old = (VM3 / vs).read_text()
++    (OUT / name).write_text(new[name])
++    d = list(difflib.unified_diff(old.splitlines(True), new[name].splitlines(True), f'vm3/{vs}', f'composed/{name}'))
++    (OUT / f'{name}.vs-vm3-{vs}.diff').write_text(''.join(d))
++    summary[f'{name} vs vm3 {vs}'] = {'vm3Sha256': hashlib.sha256(old.encode()).hexdigest(), 'composedSha256': hashlib.sha256(new[name].encode()).hexdigest(),
++                                      'identical': old == new[name], 'changedLines': sum(1 for l in d if l[:1] in '+-' and l[:3] not in ('+++', '---'))}
++tpl = (C / 's/holder/holder-storage.sh.in').read_text(); ptpl = (C / 'p/l1pair/vendor/holder/holder-storage.sh.in').read_text()
++summary['templates'] = {'s': hashlib.sha256(tpl.encode()).hexdigest(), 'pVendored': hashlib.sha256(ptpl.encode()).hexdigest(), 'pEqualsS': tpl == ptpl}
++head, tail = tpl.split('@CONSTANTS@')
++summary['bothRendersUseComposedTemplateBody'] = all(s.startswith(head) and s.endswith(tail) for s in new.values())
++import re
++consts = lambda s: [l for l in s.splitlines() if re.fullmatch(r"[A-Z_]+='.*'", l)]
++summary['constantsIdenticalToVm3'] = {n: consts(new[n]) == consts((VM3 / n).read_text()) for n in new}
++(OUT / 'summary.json').write_text(json.dumps(summary, indent=1) + '\n')
++print(json.dumps(summary, indent=1))
+diff --git a/jobs/s-tests.sh b/jobs/s-tests.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..5210d0d1a47812cfeaf0a1d6a0b60a5ac6ba1998
+--- /dev/null
++++ b/jobs/s-tests.sh
+@@ -0,0 +1,10 @@
++#!/bin/bash
++# S's own runners on the COMPOSED S clone (s/), with S's environment pointed at this clone (history for its git-show
++# controls) and at an owned scratch directory on the workspace ext4 filesystem.
++set -u
++C=$(cd "$(dirname "$0")/.." && pwd)
++export HOLDER_NVME_SCRATCH=$C/scratch HOLDER_GIT_REPO=$C/s
++case "${1:-tests}" in
++tests) JOB_SEC=600 exec bash $C/s/holder/run-tests.sh holder ;;
++mutants) shift; JOB_SEC=1800 exec bash $C/s/holder/run-mutants.sh "$@" ;;
++esac
+diff --git a/jobs/scan.sh b/jobs/scan.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..bc5c995dfccca3a9716cf6efd8de6474c2cdd611
+--- /dev/null
++++ b/jobs/scan.sh
+@@ -0,0 +1,13 @@
++#!/bin/bash
++# crypto-key scanner + gitleaks over the compose root and both composed repos (all commits), plus render/
++set -uo pipefail
++C=$(cd "$(dirname "$0")/.." && pwd); cd "$C"
++SCAN=/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-cache-deadline-compose/repo/.githooks/scan-crypto-keys.py
++rc=0
++for r in . s p; do
++  echo "== $r"; (cd "$r" && git log --format='%h %an <%ae> %s' -3)
++  (cd "$r" && timeout -k 5 300 python3 "$SCAN" --range --all) || rc=1
++  timeout -k 5 300 /home/steven/.local/bin/gitleaks git "$r" --config .gitleaks.toml --log-opts="--all" --no-banner --redact --exit-code 1 || rc=1
++done
++timeout -k 5 300 /home/steven/.local/bin/gitleaks dir render --config .gitleaks.toml --no-banner --redact --exit-code 1 || rc=1
++echo "[scan] rc=$rc"; exit $rc
+diff --git a/logs/p-u1.guard.log b/logs/p-u1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d229d6cfd58838165d0bb8ad3f5fbc778022311b
+--- /dev/null
++++ b/logs/p-u1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=41 minHostAvailableMiB=24738
+diff --git a/logs/p-u1.out b/logs/p-u1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..08d8f77c7d233f024dc5a68106578107cae44ebd
+--- /dev/null
++++ b/logs/p-u1.out
+@@ -0,0 +1,73 @@
++[queue] START available=24888MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++== pins
++a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++f26b94a8af333c67bc51f4ea4111ca231a8e5f3a0bf6ba22079731ef9ee70890  l1pair/PINS.json
++b0f09d70763b800284045bf92aa2e8132166406136ea5f3670592467a2fa5be6  l1pair/vendor/VENDOR.json
++f1f748833dbb7a1a32702daace04588441cf5b40b93b5046dd1ef3f4c1b985fd  l1pair/test/mutate.py
++86cb2a3558882ec5699d83d68ee11f6d1a0224f1d8b5de36147a3e62bf16cf44  l1pair/test/realrig.py
++6dc6fc2e92136842d4278f56b8194c9fca83fe959f5f52009677f543c94ab4cf  l1pair/test/run_side.py
++9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
++614fc3b2a1b19e20f5d3cbdd23ad4bf315fd74731d700fc486ce1bb5e9b45700  l1pair/test/test_l1pair.py
++df0e3dfc93e516d26bef54f2f45816e7a571f7c5f55ff86081132594ee7631f2  l1pair/test/test_lighthouse_offline.py
++60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
++85cdd561c066131c2cb611822c047b868d2e83480a490116978ac4cdae7e4f7a  l1pair/test/test_tx_broadcast_offline.py
++vendor: OK (S 959e56f byte-identical)
++test_check_checkpoint (__main__.Checkpoint.test_check_checkpoint) ... ok
++test_inspect_reads_the_real_mainnet_genesis_state (__main__.Checkpoint.test_inspect_reads_the_real_mainnet_genesis_state) ... ok
++test_jwt_shape_and_mode (__main__.Jwt.test_jwt_shape_and_mode) ... ok
++test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_check) ... ok
++test_nothing_listening_is_not_ready_and_does_not_crash (__main__.ReadyGate.test_nothing_listening_is_not_ready_and_does_not_crash) ... ok
++test_closed_env (__main__.Rendering.test_closed_env) ... ok
++test_every_lighthouse_flag_is_in_the_pinned_source_help (__main__.Rendering.test_every_lighthouse_flag_is_in_the_pinned_source_help) ... ok
++test_every_reth_flag_is_in_the_executed_binary_help (__main__.Rendering.test_every_reth_flag_is_in_the_executed_binary_help) ... ok
++test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv) ... ok
++test_exact_el_argv (__main__.Rendering.test_exact_el_argv) ... ok
++test_no_hidden_external_default (__main__.Rendering.test_no_hidden_external_default) ... ok
++test_render (__main__.Rendering.test_render) ... ok
++test_storage_script_is_S_template_with_this_pairs_constants (__main__.Rendering.test_storage_script_is_S_template_with_this_pairs_constants) ... ok
++test_tx_broadcast_is_explicit_opt_in (__main__.Rendering.test_tx_broadcast_is_explicit_opt_in) ... ok
++test_units (__main__.Rendering.test_units) ... ok
++test_vendor_files_match_their_pins (__main__.Rendering.test_vendor_files_match_their_pins) ... ok
++test_boundaries_accepted (__main__.Validation.test_boundaries_accepted) ... ok
++test_example_as_shipped_is_refused_until_pins_are_recorded (__main__.Validation.test_example_as_shipped_is_refused_until_pins_are_recorded) ... ok
++test_good_config_validates (__main__.Validation.test_good_config_validates) ... ok
++test_refusals (__main__.Validation.test_refusals) ... ok
++
++----------------------------------------------------------------------
++Ran 20 tests in 7.221s
++
++OK
++{
++ "holder-storage.sh vs vm3 holder-storage.sh": {
++  "vm3Sha256": "025b23c768fb549609fc951c9ad93201492e4dbad47d962131e21066342ffe6e",
++  "composedSha256": "1018e9f7b6f0696fc1e2065dcebaeed36ea10efd41f0a741b1f94b1508f6f4bb",
++  "identical": false,
++  "changedLines": 29
++ },
++ "pair-storage.sh vs vm3 pair-storage.sh": {
++  "vm3Sha256": "046c53a257a4f2c8f477aa4393f20a4d8417e7dcba4187ef824b5a67c5299c86",
++  "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
++  "identical": false,
++  "changedLines": 29
++ },
++ "pair-storage.sh vs vm3 pair-storage.fixed.sh": {
++  "vm3Sha256": "a3c535d4118a6a29ee27404b898168c8312fc6f1b4b2f920d47a0a9eb5203d49",
++  "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
++  "identical": false,
++  "changedLines": 32
++ },
++ "templates": {
++  "s": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
++  "pVendored": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
++  "pEqualsS": true
++ },
++ "bothRendersUseComposedTemplateBody": true,
++ "constantsIdenticalToVm3": {
++  "holder-storage.sh": true,
++  "pair-storage.sh": true
++ }
++}
++p-unit rc=0 render-diff rc=0
++[memory-guard] exit=0 peakTreeRssMiB=41 minHostAvailableMiB=24738
++[memory-guard] at peak: python3:36 bash:6
++[queue] EXIT 0
+diff --git a/logs/p-u1.rc b/logs/p-u1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/p-u1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/p-u2.guard.log b/logs/p-u2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..1dd7f34cc9cb42e69c0a27b81985f2f9632e447a
+--- /dev/null
++++ b/logs/p-u2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=40 minHostAvailableMiB=24705
+diff --git a/logs/p-u2.out b/logs/p-u2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..75a3a6c526c353bba7429f515df1611f12757b4a
+--- /dev/null
++++ b/logs/p-u2.out
+@@ -0,0 +1,73 @@
++[queue] START available=24755MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++== pins
++a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d  l1pair/l1pair.py
++f26b94a8af333c67bc51f4ea4111ca231a8e5f3a0bf6ba22079731ef9ee70890  l1pair/PINS.json
++b0f09d70763b800284045bf92aa2e8132166406136ea5f3670592467a2fa5be6  l1pair/vendor/VENDOR.json
++f1f748833dbb7a1a32702daace04588441cf5b40b93b5046dd1ef3f4c1b985fd  l1pair/test/mutate.py
++86cb2a3558882ec5699d83d68ee11f6d1a0224f1d8b5de36147a3e62bf16cf44  l1pair/test/realrig.py
++6dc6fc2e92136842d4278f56b8194c9fca83fe959f5f52009677f543c94ab4cf  l1pair/test/run_side.py
++9ef5d9d7fee0c4f0c2c8f3c49651afc6048328696036faafc62b85be324d6af7  l1pair/test/test_base_l1_offline.py
++614fc3b2a1b19e20f5d3cbdd23ad4bf315fd74731d700fc486ce1bb5e9b45700  l1pair/test/test_l1pair.py
++df0e3dfc93e516d26bef54f2f45816e7a571f7c5f55ff86081132594ee7631f2  l1pair/test/test_lighthouse_offline.py
++60ef25b17606d10de19143de3d04e2c1a2cf27d7d612360879a6e6b35200faef  l1pair/test/test_reth_offline.py
++85cdd561c066131c2cb611822c047b868d2e83480a490116978ac4cdae7e4f7a  l1pair/test/test_tx_broadcast_offline.py
++vendor: OK (S composed 92b7178 byte-identical)
++test_check_checkpoint (__main__.Checkpoint.test_check_checkpoint) ... ok
++test_inspect_reads_the_real_mainnet_genesis_state (__main__.Checkpoint.test_inspect_reads_the_real_mainnet_genesis_state) ... ok
++test_jwt_shape_and_mode (__main__.Jwt.test_jwt_shape_and_mode) ... ok
++test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_check) ... ok
++test_nothing_listening_is_not_ready_and_does_not_crash (__main__.ReadyGate.test_nothing_listening_is_not_ready_and_does_not_crash) ... ok
++test_closed_env (__main__.Rendering.test_closed_env) ... ok
++test_every_lighthouse_flag_is_in_the_pinned_source_help (__main__.Rendering.test_every_lighthouse_flag_is_in_the_pinned_source_help) ... ok
++test_every_reth_flag_is_in_the_executed_binary_help (__main__.Rendering.test_every_reth_flag_is_in_the_executed_binary_help) ... ok
++test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv) ... ok
++test_exact_el_argv (__main__.Rendering.test_exact_el_argv) ... ok
++test_no_hidden_external_default (__main__.Rendering.test_no_hidden_external_default) ... ok
++test_render (__main__.Rendering.test_render) ... ok
++test_storage_script_is_S_template_with_this_pairs_constants (__main__.Rendering.test_storage_script_is_S_template_with_this_pairs_constants) ... ok
++test_tx_broadcast_is_explicit_opt_in (__main__.Rendering.test_tx_broadcast_is_explicit_opt_in) ... ok
++test_units (__main__.Rendering.test_units) ... ok
++test_vendor_files_match_their_pins (__main__.Rendering.test_vendor_files_match_their_pins) ... ok
++test_boundaries_accepted (__main__.Validation.test_boundaries_accepted) ... ok
++test_example_as_shipped_is_refused_until_pins_are_recorded (__main__.Validation.test_example_as_shipped_is_refused_until_pins_are_recorded) ... ok
++test_good_config_validates (__main__.Validation.test_good_config_validates) ... ok
++test_refusals (__main__.Validation.test_refusals) ... ok
++
++----------------------------------------------------------------------
++Ran 20 tests in 7.280s
++
++OK
++{
++ "holder-storage.sh vs vm3 holder-storage.sh": {
++  "vm3Sha256": "025b23c768fb549609fc951c9ad93201492e4dbad47d962131e21066342ffe6e",
++  "composedSha256": "1018e9f7b6f0696fc1e2065dcebaeed36ea10efd41f0a741b1f94b1508f6f4bb",
++  "identical": false,
++  "changedLines": 29
++ },
++ "pair-storage.sh vs vm3 pair-storage.sh": {
++  "vm3Sha256": "046c53a257a4f2c8f477aa4393f20a4d8417e7dcba4187ef824b5a67c5299c86",
++  "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
++  "identical": false,
++  "changedLines": 29
++ },
++ "pair-storage.sh vs vm3 pair-storage.fixed.sh": {
++  "vm3Sha256": "a3c535d4118a6a29ee27404b898168c8312fc6f1b4b2f920d47a0a9eb5203d49",
++  "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
++  "identical": false,
++  "changedLines": 32
++ },
++ "templates": {
++  "s": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
++  "pVendored": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
++  "pEqualsS": true
++ },
++ "bothRendersUseComposedTemplateBody": true,
++ "constantsIdenticalToVm3": {
++  "holder-storage.sh": true,
++  "pair-storage.sh": true
++ }
++}
++p-unit rc=0 render-diff rc=0
++[memory-guard] exit=0 peakTreeRssMiB=40 minHostAvailableMiB=24705
++[memory-guard] at peak: python3:34 bash:6
++[queue] EXIT 0
+diff --git a/logs/p-u2.rc b/logs/p-u2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/p-u2.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/s-m1.guard.log b/logs/s-m1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..395fcc5b1b35369721641bc1411680cc9c836fb3
+--- /dev/null
++++ b/logs/s-m1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=79 minHostAvailableMiB=24323
+diff --git a/logs/s-m1.out b/logs/s-m1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..d3a2b399832c92389328f5a67b8e5d64330b08a9
+--- /dev/null
++++ b/logs/s-m1.out
+@@ -0,0 +1,46 @@
++[queue] START available=25188MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++=== sh:adopt-any-mapping KILLED
++  FAIL: test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops)
++=== sh:no-invalidate KILLED
++  FAIL: test_cache_loss_invalidates_before_touching_origin (__main__.Storage.test_cache_loss_invalidates_before_touching_origin)
++=== sh:no-unwind KILLED
++  FAIL: test_assemble_failure_keeps_preexisting_loops (__main__.Storage.test_assemble_failure_keeps_preexisting_loops)
++  FAIL: test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops)
++  FAIL: test_assemble_refuses_foreign_mount (__main__.Storage.test_assemble_refuses_foreign_mount)
++  FAIL: test_create_failure_unwinds_only_its_own_resources (__main__.Storage.test_create_failure_unwinds_only_its_own_resources)
++  FAIL: test_term_signal_takes_the_unwind_path (__main__.Storage.test_term_signal_takes_the_unwind_path)
++  FAIL: test_unwind_keeps_image_when_detach_fails (__main__.Storage.test_unwind_keeps_image_when_detach_fails)
++  FAIL: test_unwind_stops_when_mapping_removal_fails (__main__.Storage.test_unwind_stops_when_mapping_removal_fails)
++  FAIL: test_unwind_stops_when_unmount_fails (__main__.Storage.test_unwind_stops_when_unmount_fails)
++=== sh:no-signal-trap KILLED
++  FAIL: test_term_signal_takes_the_unwind_path (__main__.Storage.test_term_signal_takes_the_unwind_path)
++=== sh:credit-unowned KILLED
++  FAIL: test_free_space_does_not_credit_foreign_or_unowned_files (__main__.Storage.test_free_space_does_not_credit_foreign_or_unowned_files) [unmarked]
++=== sh:credit-symlink SURVIVED
++=== sh:credit-other-fs KILLED
++  FAIL: test_free_space_does_not_credit_a_cache_file_on_another_filesystem (__main__.Storage.test_free_space_does_not_credit_a_cache_file_on_another_filesystem)
++=== sh:no-credit KILLED
++  FAIL: test_admit_still_refuses_a_credited_file_owned_by_another_reservation (__main__.Storage.test_admit_still_refuses_a_credited_file_owned_by_another_reservation)
++  FAIL: test_free_space_credits_owned_existing_cache_files (__main__.Storage.test_free_space_credits_owned_existing_cache_files)
++=== sh:cache-loss-keeps-own-loop KILLED
++  FAIL: test_cache_loss_detaches_only_the_loop_it_attached (__main__.Storage.test_cache_loss_detaches_only_the_loop_it_attached)
++=== sh:cache-loss-detaches-any KILLED
++  FAIL: test_cache_loss_detaches_only_the_loop_it_attached (__main__.Storage.test_cache_loss_detaches_only_the_loop_it_attached)
++=== sh:detach-in-use KILLED
++  FAIL: test_disassemble_never_detaches_an_active_loop (__main__.Storage.test_disassemble_never_detaches_an_active_loop) [held by a foreign mapping]
++  FAIL: test_disassemble_never_detaches_an_active_loop (__main__.Storage.test_disassemble_never_detaches_an_active_loop) [mounted elsewhere]
++=== sh:continue-after-failed-umount KILLED
++  FAIL: test_disassemble_stops_at_failed_unmount (__main__.Storage.test_disassemble_stops_at_failed_unmount)
++=== sh:verify-bypassed KILLED
++  ERROR: test_verify_cap_charges_maxima_and_bounds_every_local_file (__main__.Storage.test_verify_cap_charges_maxima_and_bounds_every_local_file)
++=== sh:admit-bypassed KILLED
++  FAIL: test_admit_still_refuses_a_credited_file_owned_by_another_reservation (__main__.Storage.test_admit_still_refuses_a_credited_file_owned_by_another_reservation)
++  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) (needle='differ from this configuration')
++  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) (needle='host shares sum')
++  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) (needle='not hard-bounded')
++  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) (needle='belongs to host')
++  FAIL: test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating)
++killed 13/14
++[memory-guard] exit=1 peakTreeRssMiB=79 minHostAvailableMiB=24323
++[memory-guard] at peak: python3:32 python3:17 python3:14 timeout:4 bash:4 bash:2 bash:2 tr:2
++[queue] EXIT 1
+diff --git a/logs/s-m1.rc b/logs/s-m1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/s-m1.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/s-t1.guard.log b/logs/s-t1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d0a1c4d8e67b0b4f68457e70587e67bd33aaaccb
+--- /dev/null
++++ b/logs/s-t1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=100 minHostAvailableMiB=24602
+diff --git a/logs/s-t1.out b/logs/s-t1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..54e272b256429b5144c79a45e560fbddc5ff0f85
+--- /dev/null
++++ b/logs/s-t1.out
+@@ -0,0 +1,134 @@
++[queue] START available=24787MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42  holder.py
++529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24  budget.py
++b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00  BINARY.json
++cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222  holder-storage.sh.in
++743acde5c8a6d1a01cc37a7428a3152b34b93582c800954a5405d322363238f1  drill-cache.sh
++7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
++8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a  holder.example.json
++21ef093d3842c94b9e7e131dbc4ea19556c4131cacba778aa9aa82195df9cbb3  test/mutate.py
++111893d22ae200dd6b79e6f844a07fb06445eecadc1332347dddbfa78dc0933e  test/standin-base.py
++83a5b35709882992cbc6b7eb3dae6666e95b502c2f11a98054e0cc9089167f72  test/test_base_offline.py
++e6c1bbe74137a69ef0d9bef55fb99d05c42e569e5e4b61afff93a6fe705546eb  test/test_budget.py
++6ba4f784faaa7505ab7d40af97d48861ef39f593252e07c44063a76747fb333c  test/test_holder.py
++d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
++1684a85dfd364a905fb9643a6bf26a4e1c6103f2af360b177fb4745c9ead2883  test/test_storage.py
++d779f061ef120023dae801840b884bc905f5eb4907fed6b3d058ca6752844f22  test/stubs/stubcmd.py
++=== test/test_holder.py
++test_b_accepts_the_rendered_proof_source (__main__.BInterface.test_b_accepts_the_rendered_proof_source) ... ok
++test_child_failure_propagates_exit_code_and_its_group_is_reaped (__main__.Lifecycle.test_child_failure_propagates_exit_code_and_its_group_is_reaped) ... ok
++test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports) ... ok
++test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop) ... ok
++test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child) ... ok
++test_tampered_binary_never_starts (__main__.Lifecycle.test_tampered_binary_never_starts) ... ok
++test_term_ignoring_child_is_killed_after_grace (__main__.Lifecycle.test_term_ignoring_child_is_killed_after_grace) ... ok
++test_wrong_chain_never_ready_is_a_failure (__main__.Lifecycle.test_wrong_chain_never_ready_is_a_failure) ... ok
++test_real_devices (__main__.Placement.test_real_devices) ... ok
++test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned) ... ok
++test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed) ... ok
++test_render_files (__main__.Render.test_render_files) ... ok
++test_download_like_config_passes_and_default_or_missing_fails (__main__.RethToml.test_download_like_config_passes_and_default_or_missing_fails) ... ok
++test_budget_example_is_a_valid_ledger_once_root_fills_the_host (__main__.Validation.test_budget_example_is_a_valid_ledger_once_root_fills_the_host) ... ok
++test_example_is_review_only (__main__.Validation.test_example_is_review_only) ... ok
++test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting) ... ok
++test_no_cache_layout (__main__.Validation.test_no_cache_layout) ... ok
++test_refusals (__main__.Validation.test_refusals) ... ok
++
++----------------------------------------------------------------------
++Ran 18 tests in 14.917s
++
++OK
++=== test/test_storage.py
++test_admit_still_refuses_a_credited_file_owned_by_another_reservation (__main__.Storage.test_admit_still_refuses_a_credited_file_owned_by_another_reservation) ... ok
++test_assemble_failure_keeps_preexisting_loops (__main__.Storage.test_assemble_failure_keeps_preexisting_loops) ... ok
++test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical (__main__.Storage.test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical) ... ok
++test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops) ... ok
++test_assemble_refuses_foreign_mount (__main__.Storage.test_assemble_refuses_foreign_mount) ... ok
++test_assemble_refuses_origin_mounted_without_cache (__main__.Storage.test_assemble_refuses_origin_mounted_without_cache) ... ok
++test_cache_loss_detaches_only_the_loop_it_attached (__main__.Storage.test_cache_loss_detaches_only_the_loop_it_attached) ... ok
++test_cache_loss_invalidates_before_touching_origin (__main__.Storage.test_cache_loss_invalidates_before_touching_origin) ... ok
++test_create_failure_unwinds_only_its_own_resources (__main__.Storage.test_create_failure_unwinds_only_its_own_resources) ... ok
++test_create_preallocates_exact_sizes_and_leaves_nothing_attached (__main__.Storage.test_create_preallocates_exact_sizes_and_leaves_nothing_attached) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-storage-final-compose/s/holder/test/test_storage.py:84: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/hs-on2sg2p4/nvme/cache-meta.img'>
++  self.assertEqual(open(self.nvme / 'cache-meta.img', 'rb').read(8 * MiB), bytes(8 * MiB))
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++ok
++test_create_refuses_existing_targets_and_touches_nothing (__main__.Storage.test_create_refuses_existing_targets_and_touches_nothing) ... ok
++test_create_refuses_wrong_media_before_allocating (__main__.Storage.test_create_refuses_wrong_media_before_allocating) ... ok
++test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) ... ok
++test_disassemble_checks_mapping_before_unmount (__main__.Storage.test_disassemble_checks_mapping_before_unmount) ... ok
++test_disassemble_clean (__main__.Storage.test_disassemble_clean) ... ok
++test_disassemble_never_detaches_an_active_loop (__main__.Storage.test_disassemble_never_detaches_an_active_loop) ... ok
++test_disassemble_no_cache_refuses_foreign_mount (__main__.Storage.test_disassemble_no_cache_refuses_foreign_mount) ... ok
++test_disassemble_refuses_foreign_mapping (__main__.Storage.test_disassemble_refuses_foreign_mapping) ... ok
++test_disassemble_refuses_foreign_mount_without_mutation (__main__.Storage.test_disassemble_refuses_foreign_mount_without_mutation) ... ok
++test_disassemble_stops_at_failed_unmap (__main__.Storage.test_disassemble_stops_at_failed_unmap) ... ok
++test_disassemble_stops_at_failed_unmount (__main__.Storage.test_disassemble_stops_at_failed_unmount) ... ok
++test_free_space_credits_owned_existing_cache_files (__main__.Storage.test_free_space_credits_owned_existing_cache_files)
++Fix 0001: a re-run of create that ADOPTS this reservation's complete owned cache files needs free space only ... ok
++test_free_space_does_not_credit_a_cache_file_on_another_filesystem (__main__.Storage.test_free_space_does_not_credit_a_cache_file_on_another_filesystem) ... ok
++test_free_space_does_not_credit_foreign_or_unowned_files (__main__.Storage.test_free_space_does_not_credit_foreign_or_unowned_files) ... ok
++test_no_cache_layout_mounts_origin_loop (__main__.Storage.test_no_cache_layout_mounts_origin_loop) ... ok
++test_term_signal_takes_the_unwind_path (__main__.Storage.test_term_signal_takes_the_unwind_path)
++Fix 0002: SIGTERM to the whole process group (what systemd sends) mid-create runs the same unwind as an ... ok
++test_unwind_keeps_image_when_detach_fails (__main__.Storage.test_unwind_keeps_image_when_detach_fails) ... ok
++test_unwind_stops_when_mapping_removal_fails (__main__.Storage.test_unwind_stops_when_mapping_removal_fails) ... ok
++test_unwind_stops_when_unmount_fails (__main__.Storage.test_unwind_stops_when_unmount_fails) ... ok
++test_verify_cap_charges_maxima_and_bounds_every_local_file (__main__.Storage.test_verify_cap_charges_maxima_and_bounds_every_local_file) ... ok
++
++----------------------------------------------------------------------
++Ran 30 tests in 16.854s
++
++OK
++=== test/test_budget.py
++test_allocation_stops_inside_the_maximum_when_the_filesystem_overallocates (__main__.Accounting.test_allocation_stops_inside_the_maximum_when_the_filesystem_overallocates)
++A filesystem whose metadata exceeds the estimate (simulated: every step allocates 2 extra blocks past EOF): ... ok
++test_correctly_budgeted_small_files_pass_exactly_counted (__main__.Accounting.test_correctly_budgeted_small_files_pass_exactly_counted) ... ok
++test_files_and_markers_together_cannot_exceed_the_reservation (__main__.Accounting.test_files_and_markers_together_cannot_exceed_the_reservation) ... ok
++test_filesystem_must_be_supported_with_the_declared_block_size (__main__.Accounting.test_filesystem_must_be_supported_with_the_declared_block_size) ... ok
++test_last_step_overrun_is_caught_after_allocation_and_unwound (__main__.Accounting.test_last_step_overrun_is_caught_after_allocation_and_unwound) ... ok
++test_present_overallocation_refuses_before_writing_the_rest (__main__.Accounting.test_present_overallocation_refuses_before_writing_the_rest) ... ok
++test_root_probe_one_byte_zero_slack_refused_before_any_marker_or_file (__main__.Accounting.test_root_probe_one_byte_zero_slack_refused_before_any_marker_or_file) ... ok
++test_allocate_exact_non_sparse_then_idempotent (__main__.Allocation.test_allocate_exact_non_sparse_then_idempotent) ... ok
++test_failure_unwinds_only_what_this_call_created (__main__.Allocation.test_failure_unwinds_only_what_this_call_created) ... ok
++test_foreign_file_refused_untouched (__main__.Allocation.test_foreign_file_refused_untouched) ... ok
++test_interrupted_create_is_completed_not_regranted (__main__.Allocation.test_interrupted_create_is_completed_not_regranted) ... ok
++test_verify_bounds (__main__.Allocation.test_verify_bounds) ... ok
++test_allocation_waits_for_a_ledger_edit_and_sees_its_result (__main__.Concurrency.test_allocation_waits_for_a_ledger_edit_and_sees_its_result) ... ok
++test_concurrent_allocations_of_one_reservation_grant_once (__main__.Concurrency.test_concurrent_allocations_of_one_reservation_grant_once) ... ok
++test_old_concurrent_creates_both_pass_and_exceed_the_cap (__main__.OldBehaviorControls.test_old_concurrent_creates_both_pass_and_exceed_the_cap) ... /usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=11>
++  result = method()
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=8>
++  result = method()
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=9>
++  result = method()
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=6>
++  result = method()
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=7 encoding='UTF-8'>
++  result = method()
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=4 encoding='UTF-8'>
++  result = method()
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=5 encoding='UTF-8'>
++  result = method()
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=3 encoding='UTF-8'>
++  result = method()
++ResourceWarning: Enable tracemalloc to get the object allocation traceback
++ok
++test_old_missing_path_counts_zero_and_growth_is_unbounded (__main__.OldBehaviorControls.test_old_missing_path_counts_zero_and_growth_is_unbounded) ... ok
++test_example_share_split_across_hosts_never_exceeds_cap (__main__.Rules.test_example_share_split_across_hosts_never_exceeds_cap) ... ok
++test_headroom_is_exact_and_bookkeeping_is_charged (__main__.Rules.test_headroom_is_exact_and_bookkeeping_is_charged) ... ok
++test_ledger_rules (__main__.Rules.test_ledger_rules) ... ok
++
++----------------------------------------------------------------------
++Ran 19 tests in 5.898s
++
++OK
++[memory-guard] exit=0 peakTreeRssMiB=100 minHostAvailableMiB=24602
++[memory-guard] at peak: python3:33 python3:28 python3:25 sh:6 sleep:4 timeout:4
++[queue] EXIT 0
+diff --git a/logs/s-t1.rc b/logs/s-t1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/s-t1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/render/holder-storage.sh b/render/holder-storage.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..191369e8e14422aab07d32e930086f0eb3315965
+--- /dev/null
++++ b/render/holder-storage.sh
+@@ -0,0 +1,218 @@
++#!/bin/bash
++# Enclave Base holder storage (rendered by holder.py from holder-storage.sh.in; ROOT ONLY; review before use).
++# Durable data: ONE new ext4 filesystem inside ONE new image file on the HDD (ORIGIN). Optional cache: dm-cache in
++# WRITETHROUGH mode (smq) on two new fixed-size image files on NVMe (CDATA, CMETA). Existing filesystems, partitions and
++# mappings are never formatted, changed, adopted or removed unless they are provably this holder's own.
++#   create        once, with root's approval: preflight EVERYTHING, then allocate; unwinds only what it created
++#   assemble      at boot: attach and map (or adopt an IDENTICAL existing mapping), mount; unwinds only what it did
++#   disassemble   at stop: unmount, unmap, detach; stops at the first failure (never detaches under a live user)
++#   verify-cap    the shared NVMe cache budget ledger (budget.py verify): this host's reservations charged at their
++#                 declared MAXIMA within its fixed share of the 250,000,000,000-byte cap, every present file exactly
++#                 bounded and owned, this reservation's files present; exit 3 otherwise
++#   cache-loss    holder stopped: unmap, INVALIDATE the cache metadata first, then a read-only check of the origin. Any
++#                 later assemble starts from an empty cache. A cache is never reattached after uncached origin access.
++set -euo pipefail
++umask 077
++MECHANISM='dm-cache'
++ORIGIN='/usbtest/enclave-base-holder/origin.img'
++ORIGIN_BYTES='167772160'
++ORIGIN_FREE_MARGIN='0'
++MNT='/srv/enclave-base-holder'
++DATADIR='/srv/enclave-base-holder/data'
++OWNER='enclave-holder'
++NAME='enclave-base-holder'
++PY='/usr/bin/python3'
++BUDGET_TOOL='/src/vendor/holder/budget.py'
++LEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'
++RESERVATION='base-holder-dm-cache'
++CDATA='/vmtest/enclave-base-holder-cache/cache-data.img'
++CDATA_BYTES='67108864'
++CMETA='/vmtest/enclave-base-holder-cache/cache-meta.img'
++CMETA_BYTES='16777216'
++BLOCK_SECTORS='512'
++NVME_FREE_MARGIN='0'
++log() { echo "holder-storage: $*" >&2; }
++die() { log "$*"; exit 2; }
++rot() { lsblk -nso ROTA "$(findmnt -no SOURCE --target "$(dirname "$1")")" | tail -1 | tr -d ' '; }
++avail() { df --output=avail -B1 "$(dirname "$1")" | tail -1 | tr -d ' '; }
++mm() { lsblk -dno MAJ:MIN "$1" | tr -d ' '; }
++loopof() { losetup -j "$1" -O NAME -n | head -1; }          # the loop bound to exactly this backing file, if any
++CREATED=(); ATTACHED=(); MAPPED=; MOUNTED=
++unwind() {
++  local rc=$?
++  [ "$rc" -eq 0 ] && return 0
++  trap - EXIT
++  set +e
++  # Ownership alone is not enough: a failed teardown leaves its dependencies live.
++  # Preserve the remaining devices/files for recovery and the original failure code.
++  if [ -n "$MOUNTED" ] && ! umount "$MNT"; then
++    log "cleanup stopped: cannot unmount $MNT; mapping, loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  if [ -n "$MAPPED" ] && ! dmsetup remove "$NAME"; then
++    log "cleanup stopped: cannot remove mapping $NAME; loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  for l in "${ATTACHED[@]}"; do
++    if ! losetup -d "$l"; then
++      log "cleanup stopped: cannot detach $l; remaining loops and images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  for f in "${CREATED[@]}"; do
++    if ! rm -f -- "$f"; then
++      log "cleanup stopped: cannot remove $f; remaining images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  log "failed (rc=$rc): undid only what this run created/attached/mapped/mounted"
++  exit "$rc"
++}
++trap unwind EXIT
++# a signal (systemd stop, Ctrl-C, hangup) takes the same unwind path as an error: without these, bash dies on SIGTERM
++# WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel, vm-2/vm-3)
++trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
++attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
++  local l; l=$(loopof "$1")
++  if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
++  printf -v "$2" '%s' "$l"
++}
++expected_table() { echo "0 $(blockdev --getsz "$O") cache $(mm "$M") $(mm "$D") $(mm "$O") $BLOCK_SECTORS 1 writethrough smq 0"; }
++cached() { [ "$MECHANISM" = dm-cache ]; }
++holder_dev() {   # the device the mount must come from; sets DEV
++  if cached; then DEV=/dev/mapper/$NAME; else DEV=$O; fi
++}
++own_mapping() {  # 0 = absent, 1 = present AND identical to ours; anything else refuses
++  dmsetup info "$NAME" >/dev/null 2>&1 || return 0
++  local have want; have=$(dmsetup table "$NAME"); want=$(expected_table)
++  [ "$have" = "$want" ] || die "mapping $NAME exists but is not this holder's (have: $have; want: $want); leaving it untouched"
++  return 1
++}
++
++case "${1:-}" in
++create)
++  # 1. preflight every resource BEFORE allocating anything
++  test ! -e "$ORIGIN" || die "$ORIGIN exists: refusing to overwrite or reuse"
++  for f in "$ORIGIN" ${CDATA:+"$CDATA"} ${CMETA:+"$CMETA"}; do
++    test -d "$(dirname "$f")" || die "$(dirname "$f") does not exist"
++  done
++  [ "$(rot "$ORIGIN")" = 1 ] || die "origin must be on a rotational (HDD) device"
++  [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
++  if cached; then
++    for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
++    # A re-run after an interrupted create ADOPTS this reservation's owned cache files (budget admit/allocate), so only
++    # their not-yet-allocated part needs free space. Credit ONLY a regular file (no symlink) that carries an ownership
++    # marker and lives on the SAME filesystem as the CDATA directory measured here; anything else is credited 0. The
++    # budget admit below still refuses a file whose marker is not this reservation's.
++    credit() {   # credit FILE DECLARED_BYTES -> allocated bytes to subtract (<= DECLARED_BYTES)
++      local a
++      if [ -f "$1" ] && [ ! -L "$1" ] && [ -f "$1.enclave-budget-owner" ] && [ ! -L "$1.enclave-budget-owner" ] \
++         && [ "$(stat -c %d -- "$1")" = "$(stat -c %d -- "$(dirname "$CDATA")")" ]; then
++        a=$(( $(stat -c %b -- "$1") * 512 )); [ "$a" -le "$2" ] || a=$2; echo "$a"
++      else
++        echo 0
++      fi
++    }
++    need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(credit "$CDATA" "$CDATA_BYTES") - $(credit "$CMETA" "$CMETA_BYTES") ))
++    [ "$(avail "$CDATA")" -ge "$need" ] || die "not enough NVMe free space for the cache plus margin"
++    # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
++    # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
++    "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
++      || die "NVMe cache budget reservation refused"
++  fi
++  # 2. allocate, tracking ownership for unwind
++  CREATED+=("$ORIGIN"); fallocate -l "$ORIGIN_BYTES" -- "$ORIGIN"
++  attach "$ORIGIN" O
++  mkfs.ext4 -q -L enclave-holder -E lazy_itable_init=0,lazy_journal_init=0 "$O"   # NEW filesystem in the NEW image
++  if cached; then
++    ALLOC=$("$PY" -I "$BUDGET_TOOL" allocate "$LEDGER" "$RESERVATION") || die "NVMe cache budget allocation refused"
++    while read -r w p; do [ "$w" = created ] && CREATED+=("$p"); done <<< "$ALLOC"
++    dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none   # zeroed: dm-cache formats an empty cache
++  fi
++  losetup -d "$O"; ATTACHED=()
++  CREATED=()
++  log "created (not assembled)"
++  ;;
++assemble)
++  modprobe loop
++  test -f "$ORIGIN" || die "origin image missing"
++  if cached; then modprobe dm-cache; modprobe dm-cache-smq; test -f "$CDATA" && test -f "$CMETA" || die "cache images missing"; fi
++  attach "$ORIGIN" O
++  if cached; then
++    "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION" >/dev/null || die "NVMe cache budget verification failed"
++    attach "$CDATA" D; attach "$CMETA" M
++    if own_mapping; then
++      [ -z "$(lsblk -nro MOUNTPOINTS "$O" | tr -d '[:space:]')" ] || die "origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)"
++      dmsetup create "$NAME" --table "$(expected_table)"; MAPPED=1
++    fi
++    dmsetup status "$NAME" | grep -qw writethrough || die "mapping $NAME is not writethrough"
++  fi
++  holder_dev
++  mkdir -p "$MNT"
++  if findmnt -n "$MNT" >/dev/null; then
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++  else
++    mount -o noatime,nodev,nosuid "$DEV" "$MNT"; MOUNTED=1
++  fi
++  chown "$OWNER:$OWNER" "$MNT"; chmod 0700 "$MNT"
++  for d in "$DATADIR" "$MNT/tmp"; do mkdir -p "$d"; chown "$OWNER:$OWNER" "$d"; chmod 0700 "$d"; done
++  ATTACHED=(); MAPPED=; MOUNTED=
++  log "assembled: $DEV on $MNT"
++  ;;
++disassemble)
++  trap - EXIT
++  # Validate the complete ownership chain BEFORE the first destructive action.
++  # A configured path alone does not identify the filesystem mounted there.
++  O=$(loopof "$ORIGIN")
++  DEV=; REMOVE_MAPPING=
++  if cached && dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$O" ] && [ -n "$D" ] && [ -n "$M" ] || die "mapping $NAME exists but its loops are not ours: leaving it"
++    [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    DEV=/dev/mapper/$NAME; REMOVE_MAPPING=1
++  elif ! cached; then
++    DEV=$O
++  fi
++  if findmnt -n "$MNT" >/dev/null; then
++    [ -n "$DEV" ] || die "$MNT is mounted but this holder's device is absent: leaving it"
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++    umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"
++  fi
++  if [ -n "$REMOVE_MAPPING" ]; then
++    dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
++  fi
++  for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
++    l=$(loopof "$f"); [ -n "$l" ] || continue
++    # a loop still mounted anywhere or held by another device (lsblk lists holders as children) is ACTIVE: losetup -d
++    # would only defer the detach (autoclear) under its user, so stop instead and leave it
++    [ -z "$(lsblk -nro MOUNTPOINTS "$l" | tr -d '[:space:]')" ] && [ "$(lsblk -nro NAME "$l" | wc -l)" -le 1 ] \
++      || die "$l ($f) is still mounted or held by another device: not detaching it (stopping)"
++    losetup -d "$l" || die "detach of $l ($f) failed"
++  done
++  log "disassembled"
++  ;;
++verify-cap)
++  trap - EXIT
++  if cached; then exec "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION"; fi
++  echo '{"cache": "none", "nvmeBytes": 0}'
++  ;;
++cache-loss)
++  cached || die "no cache configured"
++  ! findmnt -n "$MNT" >/dev/null || die "$MNT is mounted: stop the holder and run disassemble first"
++  O=$(loopof "$ORIGIN"); [ -n "$O" ] || attach "$ORIGIN" O
++  if dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$D" ] && [ -n "$M" ] && [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    dmsetup remove "$NAME" || die "dmsetup remove failed"
++  fi
++  # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
++  dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
++  e2fsck -fn "$O"
++  # leave the system as found: detach only the origin loop THIS run attached for the check; a loop that existed before
++  # (e.g. left by an earlier assemble or held by something else) is not ours to remove here
++  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done
++  ATTACHED=()
++  log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
++  ;;
++*) echo "usage: $0 create|assemble|disassemble|verify-cap|cache-loss" >&2; trap - EXIT; exit 64;;
++esac
+diff --git a/render/holder-storage.sh.vs-vm3-holder-storage.sh.diff b/render/holder-storage.sh.vs-vm3-holder-storage.sh.diff
+new file mode 100644
+index 0000000000000000000000000000000000000000..cad35462cf5aa1160d915316b066fd1871157c56
+--- /dev/null
++++ b/render/holder-storage.sh.vs-vm3-holder-storage.sh.diff
+@@ -0,0 +1,59 @@
++--- vm3/holder-storage.sh
+++++ composed/holder-storage.sh
++@@ -69,6 +69,9 @@
++   exit "$rc"
++ }
++ trap unwind EXIT
+++# a signal (systemd stop, Ctrl-C, hangup) takes the same unwind path as an error: without these, bash dies on SIGTERM
+++# WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel, vm-2/vm-3)
+++trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
++ attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
++   local l; l=$(loopof "$1")
++   if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
++@@ -97,7 +100,21 @@
++   [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
++   if cached; then
++     for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
++-    [ "$(avail "$CDATA")" -ge $(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN )) ] || die "not enough NVMe free space for the cache plus margin"
+++    # A re-run after an interrupted create ADOPTS this reservation's owned cache files (budget admit/allocate), so only
+++    # their not-yet-allocated part needs free space. Credit ONLY a regular file (no symlink) that carries an ownership
+++    # marker and lives on the SAME filesystem as the CDATA directory measured here; anything else is credited 0. The
+++    # budget admit below still refuses a file whose marker is not this reservation's.
+++    credit() {   # credit FILE DECLARED_BYTES -> allocated bytes to subtract (<= DECLARED_BYTES)
+++      local a
+++      if [ -f "$1" ] && [ ! -L "$1" ] && [ -f "$1.enclave-budget-owner" ] && [ ! -L "$1.enclave-budget-owner" ] \
+++         && [ "$(stat -c %d -- "$1")" = "$(stat -c %d -- "$(dirname "$CDATA")")" ]; then
+++        a=$(( $(stat -c %b -- "$1") * 512 )); [ "$a" -le "$2" ] || a=$2; echo "$a"
+++      else
+++        echo 0
+++      fi
+++    }
+++    need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(credit "$CDATA" "$CDATA_BYTES") - $(credit "$CMETA" "$CMETA_BYTES") ))
+++    [ "$(avail "$CDATA")" -ge "$need" ] || die "not enough NVMe free space for the cache plus margin"
++     # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
++     # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
++     "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
++@@ -165,7 +182,12 @@
++     dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
++   fi
++   for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
++-    l=$(loopof "$f"); [ -z "$l" ] || losetup -d "$l" || die "detach of $l ($f) failed"
+++    l=$(loopof "$f"); [ -n "$l" ] || continue
+++    # a loop still mounted anywhere or held by another device (lsblk lists holders as children) is ACTIVE: losetup -d
+++    # would only defer the detach (autoclear) under its user, so stop instead and leave it
+++    [ -z "$(lsblk -nro MOUNTPOINTS "$l" | tr -d '[:space:]')" ] && [ "$(lsblk -nro NAME "$l" | wc -l)" -le 1 ] \
+++      || die "$l ($f) is still mounted or held by another device: not detaching it (stopping)"
+++    losetup -d "$l" || die "detach of $l ($f) failed"
++   done
++   log "disassembled"
++   ;;
++@@ -186,6 +208,9 @@
++   # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
++   dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
++   e2fsck -fn "$O"
+++  # leave the system as found: detach only the origin loop THIS run attached for the check; a loop that existed before
+++  # (e.g. left by an earlier assemble or held by something else) is not ours to remove here
+++  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done
++   ATTACHED=()
++   log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
++   ;;
+diff --git a/render/pair-storage.sh b/render/pair-storage.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..1e00b87b21d13b84eaa0165b7a78962c43c6ca21
+--- /dev/null
++++ b/render/pair-storage.sh
+@@ -0,0 +1,218 @@
++#!/bin/bash
++# Enclave Base holder storage (rendered by holder.py from holder-storage.sh.in; ROOT ONLY; review before use).
++# Durable data: ONE new ext4 filesystem inside ONE new image file on the HDD (ORIGIN). Optional cache: dm-cache in
++# WRITETHROUGH mode (smq) on two new fixed-size image files on NVMe (CDATA, CMETA). Existing filesystems, partitions and
++# mappings are never formatted, changed, adopted or removed unless they are provably this holder's own.
++#   create        once, with root's approval: preflight EVERYTHING, then allocate; unwinds only what it created
++#   assemble      at boot: attach and map (or adopt an IDENTICAL existing mapping), mount; unwinds only what it did
++#   disassemble   at stop: unmount, unmap, detach; stops at the first failure (never detaches under a live user)
++#   verify-cap    the shared NVMe cache budget ledger (budget.py verify): this host's reservations charged at their
++#                 declared MAXIMA within its fixed share of the 250,000,000,000-byte cap, every present file exactly
++#                 bounded and owned, this reservation's files present; exit 3 otherwise
++#   cache-loss    holder stopped: unmap, INVALIDATE the cache metadata first, then a read-only check of the origin. Any
++#                 later assemble starts from an empty cache. A cache is never reattached after uncached origin access.
++set -euo pipefail
++umask 077
++MECHANISM='dm-cache'
++ORIGIN='/usbtest/enclave-l1-pair/origin.img'
++ORIGIN_BYTES='33554432'
++ORIGIN_FREE_MARGIN='0'
++MNT='/srv/enclave-l1-pair'
++DATADIR='/srv/enclave-l1-pair/data'
++OWNER='enclave-l1'
++NAME='enclave-l1-pair'
++PY='/usr/bin/python3'
++BUDGET_TOOL='/src/vendor/holder/budget.py'
++LEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'
++RESERVATION='l1-pair-dm-cache'
++CDATA='/vmtest/enclave-l1-pair-cache/cache-data.img'
++CDATA_BYTES='8388608'
++CMETA='/vmtest/enclave-l1-pair-cache/cache-meta.img'
++CMETA_BYTES='8388608'
++BLOCK_SECTORS='512'
++NVME_FREE_MARGIN='0'
++log() { echo "holder-storage: $*" >&2; }
++die() { log "$*"; exit 2; }
++rot() { lsblk -nso ROTA "$(findmnt -no SOURCE --target "$(dirname "$1")")" | tail -1 | tr -d ' '; }
++avail() { df --output=avail -B1 "$(dirname "$1")" | tail -1 | tr -d ' '; }
++mm() { lsblk -dno MAJ:MIN "$1" | tr -d ' '; }
++loopof() { losetup -j "$1" -O NAME -n | head -1; }          # the loop bound to exactly this backing file, if any
++CREATED=(); ATTACHED=(); MAPPED=; MOUNTED=
++unwind() {
++  local rc=$?
++  [ "$rc" -eq 0 ] && return 0
++  trap - EXIT
++  set +e
++  # Ownership alone is not enough: a failed teardown leaves its dependencies live.
++  # Preserve the remaining devices/files for recovery and the original failure code.
++  if [ -n "$MOUNTED" ] && ! umount "$MNT"; then
++    log "cleanup stopped: cannot unmount $MNT; mapping, loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  if [ -n "$MAPPED" ] && ! dmsetup remove "$NAME"; then
++    log "cleanup stopped: cannot remove mapping $NAME; loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  for l in "${ATTACHED[@]}"; do
++    if ! losetup -d "$l"; then
++      log "cleanup stopped: cannot detach $l; remaining loops and images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  for f in "${CREATED[@]}"; do
++    if ! rm -f -- "$f"; then
++      log "cleanup stopped: cannot remove $f; remaining images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  log "failed (rc=$rc): undid only what this run created/attached/mapped/mounted"
++  exit "$rc"
++}
++trap unwind EXIT
++# a signal (systemd stop, Ctrl-C, hangup) takes the same unwind path as an error: without these, bash dies on SIGTERM
++# WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel, vm-2/vm-3)
++trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
++attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
++  local l; l=$(loopof "$1")
++  if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
++  printf -v "$2" '%s' "$l"
++}
++expected_table() { echo "0 $(blockdev --getsz "$O") cache $(mm "$M") $(mm "$D") $(mm "$O") $BLOCK_SECTORS 1 writethrough smq 0"; }
++cached() { [ "$MECHANISM" = dm-cache ]; }
++holder_dev() {   # the device the mount must come from; sets DEV
++  if cached; then DEV=/dev/mapper/$NAME; else DEV=$O; fi
++}
++own_mapping() {  # 0 = absent, 1 = present AND identical to ours; anything else refuses
++  dmsetup info "$NAME" >/dev/null 2>&1 || return 0
++  local have want; have=$(dmsetup table "$NAME"); want=$(expected_table)
++  [ "$have" = "$want" ] || die "mapping $NAME exists but is not this holder's (have: $have; want: $want); leaving it untouched"
++  return 1
++}
++
++case "${1:-}" in
++create)
++  # 1. preflight every resource BEFORE allocating anything
++  test ! -e "$ORIGIN" || die "$ORIGIN exists: refusing to overwrite or reuse"
++  for f in "$ORIGIN" ${CDATA:+"$CDATA"} ${CMETA:+"$CMETA"}; do
++    test -d "$(dirname "$f")" || die "$(dirname "$f") does not exist"
++  done
++  [ "$(rot "$ORIGIN")" = 1 ] || die "origin must be on a rotational (HDD) device"
++  [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
++  if cached; then
++    for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
++    # A re-run after an interrupted create ADOPTS this reservation's owned cache files (budget admit/allocate), so only
++    # their not-yet-allocated part needs free space. Credit ONLY a regular file (no symlink) that carries an ownership
++    # marker and lives on the SAME filesystem as the CDATA directory measured here; anything else is credited 0. The
++    # budget admit below still refuses a file whose marker is not this reservation's.
++    credit() {   # credit FILE DECLARED_BYTES -> allocated bytes to subtract (<= DECLARED_BYTES)
++      local a
++      if [ -f "$1" ] && [ ! -L "$1" ] && [ -f "$1.enclave-budget-owner" ] && [ ! -L "$1.enclave-budget-owner" ] \
++         && [ "$(stat -c %d -- "$1")" = "$(stat -c %d -- "$(dirname "$CDATA")")" ]; then
++        a=$(( $(stat -c %b -- "$1") * 512 )); [ "$a" -le "$2" ] || a=$2; echo "$a"
++      else
++        echo 0
++      fi
++    }
++    need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(credit "$CDATA" "$CDATA_BYTES") - $(credit "$CMETA" "$CMETA_BYTES") ))
++    [ "$(avail "$CDATA")" -ge "$need" ] || die "not enough NVMe free space for the cache plus margin"
++    # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
++    # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
++    "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
++      || die "NVMe cache budget reservation refused"
++  fi
++  # 2. allocate, tracking ownership for unwind
++  CREATED+=("$ORIGIN"); fallocate -l "$ORIGIN_BYTES" -- "$ORIGIN"
++  attach "$ORIGIN" O
++  mkfs.ext4 -q -L enclave-holder -E lazy_itable_init=0,lazy_journal_init=0 "$O"   # NEW filesystem in the NEW image
++  if cached; then
++    ALLOC=$("$PY" -I "$BUDGET_TOOL" allocate "$LEDGER" "$RESERVATION") || die "NVMe cache budget allocation refused"
++    while read -r w p; do [ "$w" = created ] && CREATED+=("$p"); done <<< "$ALLOC"
++    dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none   # zeroed: dm-cache formats an empty cache
++  fi
++  losetup -d "$O"; ATTACHED=()
++  CREATED=()
++  log "created (not assembled)"
++  ;;
++assemble)
++  modprobe loop
++  test -f "$ORIGIN" || die "origin image missing"
++  if cached; then modprobe dm-cache; modprobe dm-cache-smq; test -f "$CDATA" && test -f "$CMETA" || die "cache images missing"; fi
++  attach "$ORIGIN" O
++  if cached; then
++    "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION" >/dev/null || die "NVMe cache budget verification failed"
++    attach "$CDATA" D; attach "$CMETA" M
++    if own_mapping; then
++      [ -z "$(lsblk -nro MOUNTPOINTS "$O" | tr -d '[:space:]')" ] || die "origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)"
++      dmsetup create "$NAME" --table "$(expected_table)"; MAPPED=1
++    fi
++    dmsetup status "$NAME" | grep -qw writethrough || die "mapping $NAME is not writethrough"
++  fi
++  holder_dev
++  mkdir -p "$MNT"
++  if findmnt -n "$MNT" >/dev/null; then
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++  else
++    mount -o noatime,nodev,nosuid "$DEV" "$MNT"; MOUNTED=1
++  fi
++  chown "$OWNER:$OWNER" "$MNT"; chmod 0700 "$MNT"
++  for d in "$DATADIR" "$MNT/tmp"; do mkdir -p "$d"; chown "$OWNER:$OWNER" "$d"; chmod 0700 "$d"; done
++  ATTACHED=(); MAPPED=; MOUNTED=
++  log "assembled: $DEV on $MNT"
++  ;;
++disassemble)
++  trap - EXIT
++  # Validate the complete ownership chain BEFORE the first destructive action.
++  # A configured path alone does not identify the filesystem mounted there.
++  O=$(loopof "$ORIGIN")
++  DEV=; REMOVE_MAPPING=
++  if cached && dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$O" ] && [ -n "$D" ] && [ -n "$M" ] || die "mapping $NAME exists but its loops are not ours: leaving it"
++    [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    DEV=/dev/mapper/$NAME; REMOVE_MAPPING=1
++  elif ! cached; then
++    DEV=$O
++  fi
++  if findmnt -n "$MNT" >/dev/null; then
++    [ -n "$DEV" ] || die "$MNT is mounted but this holder's device is absent: leaving it"
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++    umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"
++  fi
++  if [ -n "$REMOVE_MAPPING" ]; then
++    dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
++  fi
++  for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
++    l=$(loopof "$f"); [ -n "$l" ] || continue
++    # a loop still mounted anywhere or held by another device (lsblk lists holders as children) is ACTIVE: losetup -d
++    # would only defer the detach (autoclear) under its user, so stop instead and leave it
++    [ -z "$(lsblk -nro MOUNTPOINTS "$l" | tr -d '[:space:]')" ] && [ "$(lsblk -nro NAME "$l" | wc -l)" -le 1 ] \
++      || die "$l ($f) is still mounted or held by another device: not detaching it (stopping)"
++    losetup -d "$l" || die "detach of $l ($f) failed"
++  done
++  log "disassembled"
++  ;;
++verify-cap)
++  trap - EXIT
++  if cached; then exec "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION"; fi
++  echo '{"cache": "none", "nvmeBytes": 0}'
++  ;;
++cache-loss)
++  cached || die "no cache configured"
++  ! findmnt -n "$MNT" >/dev/null || die "$MNT is mounted: stop the holder and run disassemble first"
++  O=$(loopof "$ORIGIN"); [ -n "$O" ] || attach "$ORIGIN" O
++  if dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$D" ] && [ -n "$M" ] && [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    dmsetup remove "$NAME" || die "dmsetup remove failed"
++  fi
++  # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
++  dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
++  e2fsck -fn "$O"
++  # leave the system as found: detach only the origin loop THIS run attached for the check; a loop that existed before
++  # (e.g. left by an earlier assemble or held by something else) is not ours to remove here
++  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done
++  ATTACHED=()
++  log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
++  ;;
++*) echo "usage: $0 create|assemble|disassemble|verify-cap|cache-loss" >&2; trap - EXIT; exit 64;;
++esac
+diff --git a/render/pair-storage.sh.vs-vm3-pair-storage.fixed.sh.diff b/render/pair-storage.sh.vs-vm3-pair-storage.fixed.sh.diff
+new file mode 100644
+index 0000000000000000000000000000000000000000..f729e8bd3dc5aaa2b68294bdfff2b7729805348a
+--- /dev/null
++++ b/render/pair-storage.sh.vs-vm3-pair-storage.fixed.sh.diff
+@@ -0,0 +1,62 @@
++--- vm3/pair-storage.fixed.sh
+++++ composed/pair-storage.sh
++@@ -69,8 +69,8 @@
++   exit "$rc"
++ }
++ trap unwind EXIT
++-# a signal (systemd stop, Ctrl-C, hangup) must take the same unwind path as an error: without these, bash dies on
++-# SIGTERM WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel)
+++# a signal (systemd stop, Ctrl-C, hangup) takes the same unwind path as an error: without these, bash dies on SIGTERM
+++# WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel, vm-2/vm-3)
++ trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
++ attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
++   local l; l=$(loopof "$1")
++@@ -100,10 +100,20 @@
++   [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
++   if cached; then
++     for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
++-    # a re-run after an interrupted create ADOPTS owned cache files (budget admit/allocate): only the not-yet-allocated
++-    # part needs free space (allocate truncates an owned incomplete file to zero before re-allocating it)
++-    have() { if [ -e "$1" ]; then echo $(( $(stat -c %b "$1") * 512 )); else echo 0; fi; }
++-    need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(have "$CDATA") - $(have "$CMETA") ))
+++    # A re-run after an interrupted create ADOPTS this reservation's owned cache files (budget admit/allocate), so only
+++    # their not-yet-allocated part needs free space. Credit ONLY a regular file (no symlink) that carries an ownership
+++    # marker and lives on the SAME filesystem as the CDATA directory measured here; anything else is credited 0. The
+++    # budget admit below still refuses a file whose marker is not this reservation's.
+++    credit() {   # credit FILE DECLARED_BYTES -> allocated bytes to subtract (<= DECLARED_BYTES)
+++      local a
+++      if [ -f "$1" ] && [ ! -L "$1" ] && [ -f "$1.enclave-budget-owner" ] && [ ! -L "$1.enclave-budget-owner" ] \
+++         && [ "$(stat -c %d -- "$1")" = "$(stat -c %d -- "$(dirname "$CDATA")")" ]; then
+++        a=$(( $(stat -c %b -- "$1") * 512 )); [ "$a" -le "$2" ] || a=$2; echo "$a"
+++      else
+++        echo 0
+++      fi
+++    }
+++    need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(credit "$CDATA" "$CDATA_BYTES") - $(credit "$CMETA" "$CMETA_BYTES") ))
++     [ "$(avail "$CDATA")" -ge "$need" ] || die "not enough NVMe free space for the cache plus margin"
++     # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
++     # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
++@@ -172,7 +182,12 @@
++     dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
++   fi
++   for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
++-    l=$(loopof "$f"); [ -z "$l" ] || losetup -d "$l" || die "detach of $l ($f) failed"
+++    l=$(loopof "$f"); [ -n "$l" ] || continue
+++    # a loop still mounted anywhere or held by another device (lsblk lists holders as children) is ACTIVE: losetup -d
+++    # would only defer the detach (autoclear) under its user, so stop instead and leave it
+++    [ -z "$(lsblk -nro MOUNTPOINTS "$l" | tr -d '[:space:]')" ] && [ "$(lsblk -nro NAME "$l" | wc -l)" -le 1 ] \
+++      || die "$l ($f) is still mounted or held by another device: not detaching it (stopping)"
+++    losetup -d "$l" || die "detach of $l ($f) failed"
++   done
++   log "disassembled"
++   ;;
++@@ -193,6 +208,9 @@
++   # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
++   dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
++   e2fsck -fn "$O"
+++  # leave the system as found: detach only the origin loop THIS run attached for the check; a loop that existed before
+++  # (e.g. left by an earlier assemble or held by something else) is not ours to remove here
+++  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done
++   ATTACHED=()
++   log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
++   ;;
+diff --git a/render/pair-storage.sh.vs-vm3-pair-storage.sh.diff b/render/pair-storage.sh.vs-vm3-pair-storage.sh.diff
+new file mode 100644
+index 0000000000000000000000000000000000000000..c2c8b61a585fd2c86ed3e40237eae5fbc3701fa5
+--- /dev/null
++++ b/render/pair-storage.sh.vs-vm3-pair-storage.sh.diff
+@@ -0,0 +1,59 @@
++--- vm3/pair-storage.sh
+++++ composed/pair-storage.sh
++@@ -69,6 +69,9 @@
++   exit "$rc"
++ }
++ trap unwind EXIT
+++# a signal (systemd stop, Ctrl-C, hangup) takes the same unwind path as an error: without these, bash dies on SIGTERM
+++# WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel, vm-2/vm-3)
+++trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
++ attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
++   local l; l=$(loopof "$1")
++   if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
++@@ -97,7 +100,21 @@
++   [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
++   if cached; then
++     for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
++-    [ "$(avail "$CDATA")" -ge $(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN )) ] || die "not enough NVMe free space for the cache plus margin"
+++    # A re-run after an interrupted create ADOPTS this reservation's owned cache files (budget admit/allocate), so only
+++    # their not-yet-allocated part needs free space. Credit ONLY a regular file (no symlink) that carries an ownership
+++    # marker and lives on the SAME filesystem as the CDATA directory measured here; anything else is credited 0. The
+++    # budget admit below still refuses a file whose marker is not this reservation's.
+++    credit() {   # credit FILE DECLARED_BYTES -> allocated bytes to subtract (<= DECLARED_BYTES)
+++      local a
+++      if [ -f "$1" ] && [ ! -L "$1" ] && [ -f "$1.enclave-budget-owner" ] && [ ! -L "$1.enclave-budget-owner" ] \
+++         && [ "$(stat -c %d -- "$1")" = "$(stat -c %d -- "$(dirname "$CDATA")")" ]; then
+++        a=$(( $(stat -c %b -- "$1") * 512 )); [ "$a" -le "$2" ] || a=$2; echo "$a"
+++      else
+++        echo 0
+++      fi
+++    }
+++    need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(credit "$CDATA" "$CDATA_BYTES") - $(credit "$CMETA" "$CMETA_BYTES") ))
+++    [ "$(avail "$CDATA")" -ge "$need" ] || die "not enough NVMe free space for the cache plus margin"
++     # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
++     # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
++     "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
++@@ -165,7 +182,12 @@
++     dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
++   fi
++   for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
++-    l=$(loopof "$f"); [ -z "$l" ] || losetup -d "$l" || die "detach of $l ($f) failed"
+++    l=$(loopof "$f"); [ -n "$l" ] || continue
+++    # a loop still mounted anywhere or held by another device (lsblk lists holders as children) is ACTIVE: losetup -d
+++    # would only defer the detach (autoclear) under its user, so stop instead and leave it
+++    [ -z "$(lsblk -nro MOUNTPOINTS "$l" | tr -d '[:space:]')" ] && [ "$(lsblk -nro NAME "$l" | wc -l)" -le 1 ] \
+++      || die "$l ($f) is still mounted or held by another device: not detaching it (stopping)"
+++    losetup -d "$l" || die "detach of $l ($f) failed"
++   done
++   log "disassembled"
++   ;;
++@@ -186,6 +208,9 @@
++   # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
++   dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
++   e2fsck -fn "$O"
+++  # leave the system as found: detach only the origin loop THIS run attached for the check; a loop that existed before
+++  # (e.g. left by an earlier assemble or held by something else) is not ours to remove here
+++  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done
++   ATTACHED=()
++   log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
++   ;;
+diff --git a/render/summary.json b/render/summary.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..5a1d1cb0393b5c4528fdd2984676fc6e054b4fe7
+--- /dev/null
++++ b/render/summary.json
+@@ -0,0 +1,30 @@
++{
++ "holder-storage.sh vs vm3 holder-storage.sh": {
++  "vm3Sha256": "025b23c768fb549609fc951c9ad93201492e4dbad47d962131e21066342ffe6e",
++  "composedSha256": "1018e9f7b6f0696fc1e2065dcebaeed36ea10efd41f0a741b1f94b1508f6f4bb",
++  "identical": false,
++  "changedLines": 29
++ },
++ "pair-storage.sh vs vm3 pair-storage.sh": {
++  "vm3Sha256": "046c53a257a4f2c8f477aa4393f20a4d8417e7dcba4187ef824b5a67c5299c86",
++  "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
++  "identical": false,
++  "changedLines": 29
++ },
++ "pair-storage.sh vs vm3 pair-storage.fixed.sh": {
++  "vm3Sha256": "a3c535d4118a6a29ee27404b898168c8312fc6f1b4b2f920d47a0a9eb5203d49",
++  "composedSha256": "c3aef8c6c81d362e5c793479f8c25400b30dc440b63e4818c87bbeeabedc0eaa",
++  "identical": false,
++  "changedLines": 32
++ },
++ "templates": {
++  "s": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
++  "pVendored": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
++  "pEqualsS": true
++ },
++ "bothRendersUseComposedTemplateBody": true,
++ "constantsIdenticalToVm3": {
++  "holder-storage.sh": true,
++  "pair-storage.sh": true
++ }
++}

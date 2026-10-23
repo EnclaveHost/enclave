@@ -1,0 +1,64 @@
+[queue] START available=25244MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+ls: cannot access '/etc/enclave-rpc-cache': No such file or directory
+{
+ "fs": [
+  "ext4",
+  4096
+ ],
+ "ledgerUidInNamespace": 0,
+ "maxBytes": 12640256,
+ "slack": 57344,
+ "admit": [
+  0,
+  "{\"admitted\": \"host-fs-probe\", \"maxBytes\": 12640256}"
+ ],
+ "allocate": [
+  0,
+  [
+   "created /home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/hostfs-20261023T094523Z/files/cache-data.img.enclave-budget-owner",
+   "created /home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/hostfs-20261023T094523Z/files/cache-meta.img.enclave-budget-owner",
+   "created /home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/hostfs-20261023T094523Z/files/cache-data.img",
+   "created /home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/hostfs-20261023T094523Z/files/cache-meta.img"
+  ]
+ ],
+ "actualBytes": 12599296,
+ "perFile": {
+  "cache-data.img": {
+   "size": 8388608,
+   "allocated": 8388608
+  },
+  "cache-meta.img": {
+   "size": 4194304,
+   "allocated": 4194304
+  }
+ },
+ "freeDeltaNoisy": 12591104,
+ "verify": [
+  0,
+  {
+   "host": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
+   "shareBytes": 12718080,
+   "chargedBytes": 12718080,
+   "actualBytes": 12603392,
+   "reservation": "host-fs-probe",
+   "reservationBytes": 12640256,
+   "reservationActualBytes": 12599296,
+   "requiredHeadroomBytes": 57344,
+   "bookkeepingBytes": 77824,
+   "ledgerHostShares": 12718080,
+   "capBytes": 250000000000,
+   "targetBytes": 200000000000
+  }
+ ],
+ "nextRefused": "host 0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f: reservations plus bookkeeping 12738560 exceed its share 12718080",
+ "grownRefused": [
+  3,
+  "{\"refused\": \"/home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/hostfs-20261023T094523Z/files/cache-meta.img is 4198400 bytes, declared 4194304\"}"
+ ],
+ "ok": true
+}
+rc=0; real /etc/machine-id unchanged: yes
+ls: cannot access '/etc/enclave-rpc-cache': No such file or directory
+[memory-guard] exit=0 peakTreeRssMiB=6 minHostAvailableMiB=25220
+[memory-guard] at peak: bash:6
+[queue] EXIT 0

@@ -1,0 +1,1593 @@
+From 01eb758363b9be049b64ec3930ef3118247a527e Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 02:45:20 -0700
+Subject: [PATCH 3/7] harness: fresh-create interruption sweep with production
+ + fixed recovery; block-level corrupted-cache probe; vm-1 receipts
+
+---
+ harness/build-initramfs.sh                    |   2 +-
+ harness/guest.py                              |  71 ++++--
+ harness/host_budget.py                        |  49 ++++
+ harness/render.py                             |   5 +
+ logs/vm-1.guard.log                           |   1 +
+ logs/vm-1.out                                 | 214 ++++++++++++++++++
+ logs/vm-1.rc                                  |   1 +
+ run/20261023T094306Z/out/console-one.log      |   2 +
+ run/20261023T094306Z/out/console-two.log      |   4 +
+ .../out/disk-identity-after.jsonl             |   2 +
+ .../out/disk-identity-before.jsonl            |   2 +
+ run/20261023T094306Z/out/guest-one.log        |   0
+ run/20261023T094306Z/out/guest-two.log        |   1 +
+ .../out/host-identity-after-one.json          |   1 +
+ .../out/host-identity-after.json              |   1 +
+ .../out/host-identity-before.json             |   1 +
+ run/20261023T094306Z/out/manifest.json        |   1 +
+ run/20261023T094306Z/out/receipts-one.jsonl   | 124 ++++++++++
+ run/20261023T094306Z/out/receipts-two.jsonl   |  77 +++++++
+ .../out/render/holder-storage.sh              | 193 ++++++++++++++++
+ run/20261023T094306Z/out/render/holder.json   |  29 +++
+ .../out/render/ledger-over.json               |  67 ++++++
+ run/20261023T094306Z/out/render/ledger.json   |  52 +++++
+ .../out/render/pair-storage.sh                | 193 ++++++++++++++++
+ run/20261023T094306Z/out/render/pair.json     |  29 +++
+ run/20261023T094306Z/out/render/seam.json     |  42 ++++
+ run/20261023T094306Z/out/results-one.json     | 123 ++++++++++
+ run/20261023T094306Z/out/results-two.json     |  32 +++
+ 28 files changed, 1300 insertions(+), 19 deletions(-)
+ create mode 100644 harness/host_budget.py
+ create mode 100644 logs/vm-1.guard.log
+ create mode 100644 logs/vm-1.out
+ create mode 100644 logs/vm-1.rc
+ create mode 100644 run/20261023T094306Z/out/console-one.log
+ create mode 100644 run/20261023T094306Z/out/console-two.log
+ create mode 100644 run/20261023T094306Z/out/disk-identity-after.jsonl
+ create mode 100644 run/20261023T094306Z/out/disk-identity-before.jsonl
+ create mode 100644 run/20261023T094306Z/out/guest-one.log
+ create mode 100644 run/20261023T094306Z/out/guest-two.log
+ create mode 100644 run/20261023T094306Z/out/host-identity-after-one.json
+ create mode 100644 run/20261023T094306Z/out/host-identity-after.json
+ create mode 100644 run/20261023T094306Z/out/host-identity-before.json
+ create mode 100644 run/20261023T094306Z/out/manifest.json
+ create mode 100644 run/20261023T094306Z/out/receipts-one.jsonl
+ create mode 100644 run/20261023T094306Z/out/receipts-two.jsonl
+ create mode 100755 run/20261023T094306Z/out/render/holder-storage.sh
+ create mode 100644 run/20261023T094306Z/out/render/holder.json
+ create mode 100644 run/20261023T094306Z/out/render/ledger-over.json
+ create mode 100644 run/20261023T094306Z/out/render/ledger.json
+ create mode 100755 run/20261023T094306Z/out/render/pair-storage.sh
+ create mode 100644 run/20261023T094306Z/out/render/pair.json
+ create mode 100644 run/20261023T094306Z/out/render/seam.json
+ create mode 100644 run/20261023T094306Z/out/results-one.json
+ create mode 100644 run/20261023T094306Z/out/results-two.json
+
+diff --git a/harness/build-initramfs.sh b/harness/build-initramfs.sh
+index aebb94c8086ad4dddd95ac303ee5bd11953451fb..f75bfb8455b4e23725a72949bdb40a48b73b5c01 100755
+--- a/harness/build-initramfs.sh
++++ b/harness/build-initramfs.sh
+@@ -5,7 +5,7 @@ set -euo pipefail
+ OUT=$1; KV=$2
+ W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
+ mkdir -p $W/{bin,usr/bin,lib64,usr/lib,mod,proc,sys,dev,newroot}
+-for b in bash insmod mount mkdir ln chroot sed tee sync sleep echo printf; do
++for b in bash insmod mount mkdir ln chroot sed tee sync sleep echo printf chmod; do
+   p=$(command -v $b) || continue; [ "$p" = "$b" ] && continue      # shell builtins
+   cp -L "$p" $W/usr/bin/; for l in $(ldd "$p" | grep -oE '/[^ ]+\.so[^ ]*'); do cp -Ln "$l" $W/usr/lib/ 2>/dev/null || true; done
+ done
+diff --git a/harness/guest.py b/harness/guest.py
+index 6b0178cf04e4166e1aade7a121af37f11b5fcd32..d93f47f924f0c9335656a34fb8afed58333977f0 100644
+--- a/harness/guest.py
++++ b/harness/guest.py
+@@ -229,29 +229,52 @@ def phase_one():
+     os.truncate(meta, n + 4096)
+     v1 = run(HOLDER, 'verify-cap'); os.truncate(meta, n); v2 = run(HOLDER, 'verify-cap')
+     result('budget.grownFile', {'rcGrown': v1.returncode, 'refusal': v1.stderr.strip()[-200:], 'rcRestored': v2.returncode})
+-    # interruption: SIGTERM the real pair create at increasing delays (after removing its origin like an operator would)
++    # interruption: SIGTERM to the whole control group of a FRESH real pair create (production script) at delays across its
++    # measured duration; then recovery with the production script, and (if it refuses on free space) the FIXED template
++    k = PC['storage']['cache']; origin = PC['storage']['origin']['imagePath']; cd, cm = k['dataImagePath'], k['metadataImagePath']
++    MK = '.enclave-budget-owner'
++    def loops_of(f):
++        return re.findall(r'^(/dev/loop\d+):', sh(['losetup', '-j', f], label='id').stdout, re.M)
++    def pair_reset():                                   # operator rollback of the pair to "never created" (its files only)
++        for f in (origin, cd, cm):
++            for l in loops_of(f):
++                sh(['losetup', '-d', l], label=f'reset: detach loop of {Path(f).name}')
++        for f in (origin, cd, cd + MK, cm, cm + MK):
++            if os.path.exists(f):
++                os.remove(f)
++    def state():
++        return {'origin': os.path.exists(origin), 'loops': {Path(f).name: loops_of(f) for f in (origin, cd, cm)},
++                'cache': {Path(f).name: [os.lstat(f).st_size, os.lstat(f).st_blocks * 512] if os.path.exists(f) else None for f in (cd, cm)},
++                'markers': [os.path.exists(cd + MK), os.path.exists(cm + MK)]}
++    pair_reset()
++    t0 = time.monotonic(); p = run(PAIR, 'create'); full = round(time.monotonic() - t0, 3)
++    result('pair.createUninterrupted', {'rc': p.returncode, 'sec': full})
+     attempts = []
+-    origin = PC['storage']['origin']['imagePath']
+-    for delay in (0.05, 0.15, 0.3, 0.6, 1.0):
+-        if os.path.exists(origin):
+-            os.remove(origin)
+-        p = subprocess.Popen([PAIR, 'create'], env=ENV, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
++    for frac in (0.1, 0.25, 0.4, 0.55, 0.7, 0.85, 0.95):
++        pair_reset()
++        delay = round(full * frac, 3)
++        q = subprocess.Popen([PAIR, 'create'], env=ENV, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+         time.sleep(delay)
+         try:
+-            os.killpg(p.pid, signal.SIGTERM)          # like systemd stopping the unit: TERM to the whole control group
++            os.killpg(q.pid, signal.SIGTERM)            # like systemd stopping the unit: TERM to the whole control group
+         except ProcessLookupError:
+             pass
+-        o, e = p.communicate(timeout=120)
+-        left = sh(['losetup', '-j', origin], label='id').stdout.strip()
+-        attempts.append({'delay': delay, 'rc': p.returncode, 'stderr': e.strip()[-300:], 'originExists': os.path.exists(origin),
+-                         'loopLeft': left, 'cacheFiles': [os.path.exists(f['path']) for f in [{'path': PC['storage']['cache']['dataImagePath']}, {'path': PC['storage']['cache']['metadataImagePath']}]]})
+-        if left:                                         # recovery: detach the loop bound to OUR origin file only
+-            for l in re.findall(r'^(/dev/loop\d+):', left, re.M):
+-                sh(['losetup', '-d', l], label='recover: detach interrupted loop (our backing file)')
+-    rec('interruptions', attempts=attempts)
++        o, e = q.communicate(timeout=120)
++        a = {'delay': delay, 'rc': q.returncode, 'stderr': e.strip()[-240:], 'left': state()}
++        v = run(PAIR, 'verify-cap'); a['verifyCapRc'] = v.returncode
++        r1 = run(PAIR, 'create'); a['recoverProduction'] = {'rc': r1.returncode, 'err': r1.stderr.strip()[-200:]}
++        if r1.returncode and 'origin' in r1.stderr and 'exists' in r1.stderr and os.path.exists(origin) and not loops_of(origin):
++            os.remove(origin)                           # documented manual step: the interrupted run's UNMARKED origin
++            a['manualOriginRemoved'] = True
++            r1 = run(PAIR, 'create'); a['recoverProductionAfterOriginRemoval'] = {'rc': r1.returncode, 'err': r1.stderr.strip()[-200:]}
++        if r1.returncode:
++            r2 = run(str(R / 'pair-storage.fixed.sh'), 'create'); a['recoverFixed'] = {'rc': r2.returncode, 'err': r2.stderr.strip()[-200:]}
++        a['after'] = state()
++        a['verifyAfterRecoveryRc'] = run(PAIR, 'verify-cap').returncode
++        attempts.append(a)
++        rec('interruption', **a)
+     result('interruptions', attempts)
+-    if os.path.exists(origin):
+-        os.remove(origin)
++    pair_reset()
+     p = run(PAIR, 'create'); result('pair.recreateAfterInterrupts.rc', p.returncode)
+     v = run(PAIR, 'verify-cap'); result('pair.verifyAfterInterrupts.rc', v.returncode)
+     result('foreign.afterInterrupts', foreign_intact(fid, 'after-interrupts'))
+@@ -285,6 +308,9 @@ def phase_two():
+     p = run(HOLDER, 'assemble'); result('afterCrash.reviewedAssemble.rc', p.returncode)
+     result('afterCrash.reviewedProcedure.data', check_set(man, 'after-crash-reviewed'))
+     status('enclave-base-holder', 'after-crash-reviewed')
++    for i in range(4):                                     # repeated reads so smq promotes origin blocks into the cache
++        check_set(man, f'promote-pass-{i}')
++    result('beforeCorruption.status', status('enclave-base-holder', 'before-corruption'))
+     fid = foreign()
+     # 3. cache DEVICE CONTENT lost/corrupted while its metadata still says "cached": probe read-only, then recover
+     run(HOLDER, 'disassemble')
+@@ -299,9 +325,18 @@ def phase_two():
+     pr = sh(['dmsetup', 'create', 'cachetest-probe', '--readonly', '--table', tbl], label='READ-ONLY probe mapping over the corrupted cache')
+     if pr.returncode:                                       # dm-cache may need a writable table; the MOUNT stays read-only
+         sh(['dmsetup', 'create', 'cachetest-probe', '--table', tbl], label='probe mapping (rw table, ro mount)')
++    probe = {'probeStatus': status('cachetest-probe', 'probe')}
++    diff, total, CH = 0, 0, 4096                           # raw comparison: bytes served THROUGH the cache vs the origin
++    with open('/dev/mapper/cachetest-probe', 'rb') as a, open(o, 'rb') as b:
++        while True:
++            x, y = a.read(CH), b.read(CH)
++            if not y:
++                break
++            total += 1; diff += x != y
++    probe.update(blocksCompared4k=total, blocksDifferent4k=diff)
+     os.makedirs('/mnt-raw', exist_ok=True)
+     mp = sh(['mount', '-o', 'ro,noload', '/dev/mapper/cachetest-probe', '/mnt-raw'], label='probe mount ro,noload')
+-    probe = {'mountRc': mp.returncode}
++    probe['mountRc'] = mp.returncode
+     if mp.returncode == 0:
+         bad = 0
+         for pth, h in man.items():
+diff --git a/harness/host_budget.py b/harness/host_budget.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8caa7467de9f165c841981507d2fa3b8dbe25e99
+--- /dev/null
++++ b/harness/host_budget.py
+@@ -0,0 +1,49 @@
++#!/usr/bin/env python3
++"""S's budget.py (959e56f, unmodified) on the REAL host filesystem holding this workspace (ext4 on dm-crypt `cryptroot`),
++run inside a private user+mount namespace whose /etc is an overlay: the CANONICAL ledger path
++/etc/enclave-rpc-cache/nvme-cache-budget.json and a fixture /etc/machine-id exist only in this namespace (the real /etc
++is never written). Files: 12 MiB in an owned new directory. Measures actual st_blocks against maxBytes and refusals."""
++import hashlib, importlib.util, json, os, subprocess, sys
++from pathlib import Path
++HERE = Path(__file__).resolve().parent
++spec = importlib.util.spec_from_file_location('budget', HERE.parent / 'vendor/holder/budget.py')
++B = importlib.util.module_from_spec(spec); spec.loader.exec_module(B)
++D = Path(sys.argv[1]); D.mkdir(parents=True)
++MID = '0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f'
++assert Path('/etc/machine-id').read_text().strip() == MID, 'overlay /etc not active'
++files = [{'path': str(D / 'cache-data.img'), 'bytes': 8 << 20}, {'path': str(D / 'cache-meta.img'), 'bytes': 4 << 20}]
++slack = B.required_headroom({'blockBytes': 4096, 'files': files})
++r = {'id': 'host-fs-probe', 'host': MID, 'owner': 'cache-native-boundary', 'kind': 'preallocated-files', 'blockBytes': 4096,
++     'maxBytes': (12 << 20) + slack, 'slackBytes': slack, 'files': files}
++ledger = {'format': B.FORMAT, 'capBytes': B.CAP, 'targetBytes': B.TARGET,
++          'hosts': [{'machineId': MID, 'label': 'host-fs-fixture', 'shareBytes': B.BOOKKEEPING_BYTES + r['maxBytes']}], 'reservations': [r]}
++L = B.CANONICAL_PATH
++os.makedirs(os.path.dirname(L), exist_ok=True)
++Path(L).write_text(json.dumps(ledger)); os.chmod(L, 0o644)
++out = {'fs': B.fs_of(str(D)), 'ledgerUidInNamespace': os.lstat(L).st_uid, 'maxBytes': r['maxBytes'], 'slack': slack}
++run = lambda *a: subprocess.run([sys.executable, '-I', str(HERE.parent / 'vendor/holder/budget.py'), *a], capture_output=True, text=True)
++p = run('admit', L, r['id'], f'{files[0]["path"]}={files[0]["bytes"]}', f'{files[1]["path"]}={files[1]["bytes"]}'); out['admit'] = [p.returncode, p.stdout.strip()]
++v0 = os.statvfs(str(D)).f_bfree * 4096
++p = run('allocate', L, r['id']); out['allocate'] = [p.returncode, p.stdout.strip().splitlines()]
++v1 = os.statvfs(str(D)).f_bfree * 4096
++out['actualBytes'] = B.actual_bytes(r)
++out['perFile'] = {Path(f['path']).name: {'size': os.lstat(f['path']).st_size, 'allocated': os.lstat(f['path']).st_blocks * 512} for f in files}
++out['freeDeltaNoisy'] = v0 - v1
++p = run('verify', L, r['id']); out['verify'] = [p.returncode, json.loads(p.stdout) if p.returncode == 0 else p.stderr.strip()]
++over = json.loads(json.dumps(ledger)); over['reservations'].append(dict(r, id='one-more', files=[{'path': str(D / 'x.img'), 'bytes': 4096}],
++                                                                        slackBytes=B.required_headroom({'blockBytes': 4096, 'files': [{'path': str(D / 'x.img'), 'bytes': 4096}]})))
++over['reservations'][1]['maxBytes'] = 4096 + over['reservations'][1]['slackBytes']
++try:
++    B.validate(over); out['nextRefused'] = None
++except B.BudgetError as e:
++    out['nextRefused'] = str(e)
++os.truncate(files[1]['path'], (4 << 20) + 4096)
++p = run('verify', L, r['id']); out['grownRefused'] = [p.returncode, p.stderr.strip()[-200:]]
++os.truncate(files[1]['path'], 4 << 20)
++for f in files:
++    os.remove(f['path']); os.remove(f['path'] + B.MARKER)
++os.rmdir(D)
++out['ok'] = (out['admit'][0] == 0 and out['allocate'][0] == 0 and out['verify'][0] == 0 and out['actualBytes'] <= r['maxBytes']
++             and bool(out['nextRefused']) and out['grownRefused'][0] == 3)
++print(json.dumps(out, indent=1, default=str))
++sys.exit(0 if out['ok'] else 1)
+diff --git a/harness/render.py b/harness/render.py
+index 62282bc79d466d28cfa8f40ee033dd0a87926011..35144da9fcc629d1144629e6a3e631747f16de08 100644
+--- a/harness/render.py
++++ b/harness/render.py
+@@ -86,6 +86,10 @@ files = {'holder-storage.sh': H.storage_script(holder, budget_tool=BUDGET_TOOL),
+          'holder.json': json.dumps(holder, indent=1) + '\n', 'pair.json': json.dumps(pair, indent=1) + '\n'}
+ tpl = (ROOT / 'vendor/holder/holder-storage.sh.in').read_text()
+ head, tail = tpl.split('@CONSTANTS@')
++fixed = (ROOT / 'fixes/holder-storage.sh.in').read_text()
++fh, ft = fixed.split('@CONSTANTS@')
++pc = files['pair-storage.sh'][len(head):len(files['pair-storage.sh']) - len(tail)]
++files['pair-storage.fixed.sh'] = fh + pc + ft                     # SAME constants block; only the template fix differs
+ for n in ('holder-storage.sh', 'pair-storage.sh'):
+     s = files[n]
+     assert s.startswith(head) and s.endswith(tail), f'{n}: template body differs from eb6a209d'
+@@ -102,6 +106,7 @@ seam = {'renderers': {'holder.py': hashlib.sha256((ROOT / 'vendor/holder/holder.
+                              'cache.metadataBytes': '1,073,741,824', 'freeMargins': '500e9 / 200e9', 'originDir': '/mnt/usb (NTFS)', 'cacheDir': '/vm (ext4 on dm-crypt)'},
+         'ledger': {'shareBytes': share, 'bookkeeping': B.BOOKKEEPING_BYTES, 'reservations': {r['id']: r['maxBytes'] for r in reservations},
+                    'slack': {r['id']: r['slackBytes'] for r in reservations}, 'nextReservationRefused': over_refused},
++        'fixedTemplate': hashlib.sha256(fixed.encode()).hexdigest(),
+         'files': {n: hashlib.sha256(t.encode()).hexdigest() for n, t in files.items()}}
+ (OUT / 'seam.json').write_text(json.dumps(seam, indent=1) + '\n')
+ print(json.dumps({'rendered': sorted(files), 'share': share, 'nextReservationRefused': over_refused[:140]}, indent=1))
+diff --git a/logs/vm-1.guard.log b/logs/vm-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..8161c333401cbfe89499f55fa3de708ce9c1c712
+--- /dev/null
++++ b/logs/vm-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=470 minHostAvailableMiB=25231
+diff --git a/logs/vm-1.out b/logs/vm-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..26f0ab2e14c6064420ba2cfb683394d40cb470e5
+--- /dev/null
++++ b/logs/vm-1.out
+@@ -0,0 +1,214 @@
++[queue] START available=25542MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
++{"tag": "before", "loops": "", "dm": "control cryptroot cryptvm ", "block": "dm-0 dm-1 nvme0n1 nvme1n1 sda ", "mountinfoLines": 33, "mountinfoSha256": "df9e600de35769fa9381f254b80f2914cd892f9983f770b52ef0e88aab145d30", "qemu": "0", "testAllocBytes": 1142784}
++alloc[start]=1146880 cap=536870912
++-rw-r--r-- 1 steven steven 8395412 Oct 23 02:43 /home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/20261023T094306Z/initramfs.cpio.gz
++{
++ "rendered": [
++  "holder-storage.sh",
++  "holder.json",
++  "ledger-over.json",
++  "ledger.json",
++  "pair-storage.sh",
++  "pair.json"
++ ],
++ "share": 101027840,
++ "nextReservationRefused": "host 0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f: reservations plus bookkeeping 101048320 exceed its share 101027840"
++}
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/20261023T094306Z/hdd.img", "inode": 218670667, "apparent": 268435456, "allocated": 0}
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/20261023T094306Z/nvme.img", "inode": 218670668, "apparent": 167772160, "allocated": 0}
++alloc[after-setup]=9592832 cap=536870912
++qemu phase=one rc=0
++alloc[after-one]=176992256 cap=536870912
++{"tag": "after-one", "loops": "", "dm": "control cryptroot cryptvm ", "block": "dm-0 dm-1 nvme0n1 nvme1n1 sda ", "mountinfoLines": 33, "mountinfoSha256": "df9e600de35769fa9381f254b80f2914cd892f9983f770b52ef0e88aab145d30", "qemu": "0", "testAllocBytes": 176992256}
++qemu phase=two rc=0
++alloc[after-two]=217755648 cap=536870912
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/20261023T094306Z/hdd.img", "inode": 218670667, "apparent": 268435456, "allocated": 149704}
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/20261023T094306Z/nvme.img", "inode": 218670668, "apparent": 167772160, "allocated": 256696}
++== guest one
++== results one
++{
++ "nextReservationRefused": {
++  "rc": 3,
++  "err": "{\"refused\": \"host 0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f: reservations plus bookkeeping 101048320 exceed its share 101027840\"}"
++ },
++ "ledgerValid": true,
++ "holder.create.rc": 0,
++ "holder.verifyCap": {
++  "rc": 0,
++  "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 83914752, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"
++ },
++ "holder.accounting": {
++  "actualFilesMarkers": 83894272,
++  "maxBytes": 84115456,
++  "declared": 83886080,
++  "slack": 229376
++ },
++ "pair.create.rc": 0,
++ "pair.verifyCap": {
++  "rc": 0,
++  "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"l1-pair-dm-cache\", \"reservationBytes\": 16834560, \"reservationActualBytes\": 16793600, \"requiredHeadroomBytes\": 57344, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"
++ },
++ "pair.accounting": {
++  "actualFilesMarkers": 16785408,
++  "maxBytes": 16834560,
++  "declared": 16777216,
++  "slack": 57344
++ },
++ "ext4.vmtest.freeDelta": {
++  "usedByCreates": 104873984,
++  "foreignFixture": 4194304,
++  "sumMaxBytes": 100950016
++ },
++ "foreign.afterCreate": true,
++ "sameNameForeignMapping": {
++  "assembleRc": 2,
++  "refusal": "holder-storage: mapping enclave-base-holder exists but is not this holder's (have: 0 8192 linear 7:0 0; want: 0 327680 cache 7:3 7:2 7:1 512 1 writethrough smq 0); leaving it untouched\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
++  "foreignTableAfter": "0 8192 linear 7:0 0",
++  "holderLoopsLeft": ""
++ },
++ "holder.assemble.rc": 0,
++ "writethrough": true,
++ "io.firstRead": true,
++ "io.secondRead": true,
++ "holder.disassemble.rc": 0,
++ "disassemble.clean": true,
++ "foreign.afterDisassemble": true,
++ "holder.reassemble.rc": 0,
++ "io.afterReassemble": true,
++ "staleCacheHazard": {
++  "assembleRc": 2,
++  "refusal": "holder-storage: origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
++ },
++ "cacheLoss.afterHazard.rc": 0,
++ "holder.assembleAfterCacheLoss.rc": 0,
++ "io.afterCacheLoss": true,
++ "budget.grownFile": {
++  "rcGrown": 3,
++  "refusal": "{\"refused\": \"/vmtest/enclave-base-holder-cache/cache-meta.img is 16781312 bytes, declared 16777216\"}",
++  "rcRestored": 0
++ },
++ "interruptions": [
++  {
++   "delay": 0.05,
++   "rc": -15,
++   "stderr": "",
++   "originExists": false,
++   "loopLeft": "",
++   "cacheFiles": [
++    true,
++    true
++   ]
++  },
++  {
++   "delay": 0.15,
++   "rc": 2,
++   "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
++   "originExists": false,
++   "loopLeft": "",
++   "cacheFiles": [
++    true,
++    true
++   ]
++  },
++  {
++   "delay": 0.3,
++   "rc": 2,
++   "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
++   "originExists": false,
++   "loopLeft": "",
++   "cacheFiles": [
++    true,
++    true
++   ]
++  },
++  {
++   "delay": 0.6,
++   "rc": 2,
++   "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
++   "originExists": false,
++   "loopLeft": "",
++   "cacheFiles": [
++    true,
++    true
++   ]
++  },
++  {
++   "delay": 1.0,
++   "rc": 2,
++   "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
++   "originExists": false,
++   "loopLeft": "",
++   "cacheFiles": [
++    true,
++    true
++   ]
++  }
++ ],
++ "pair.recreateAfterInterrupts.rc": 2,
++ "pair.verifyAfterInterrupts.rc": 0,
++ "foreign.afterInterrupts": true,
++ "holder.assembleBeforeCrash.rc": 0
++}== guest two
++guest-exit phase=two rc=0
++== results two
++{
++ "afterCrash.directAssemble.rc": 0,
++ "afterCrash.directAssemble.status": "0 327680 cache 8 10/4096 512 1/256 309 323 1 29 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -",
++ "afterCrash.directAssemble.data": true,
++ "afterCrash.unsyncedPresent": false,
++ "afterCrash.cacheLoss.rc": 0,
++ "afterCrash.reviewedAssemble.rc": 0,
++ "afterCrash.reviewedProcedure.data": true,
++ "corruptCacheWithoutCacheLoss.readOnlyProbe": {
++  "mountRc": 32
++ },
++ "corruptCache.cacheLoss.rc": 0,
++ "corruptCache.assemble.rc": 0,
++ "corruptCache.reviewedProcedure.data": true,
++ "foreign.phaseTwo": true,
++ "final.verifyCap": {
++  "rc": 0,
++  "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"
++ },
++ "final.disassemble.rc": 0,
++ "final.pairDisassemble.rc": 0,
++ "final.noLeftovers": {
++  "loops": [],
++  "dm": [
++   "No",
++   "devices",
++   "found"
++  ],
++  "mounts": [],
++  "clean": true
++ }
++}{"tag": "after", "loops": "", "dm": "control cryptroot cryptvm ", "block": "dm-0 dm-1 nvme0n1 nvme1n1 sda ", "mountinfoLines": 33, "mountinfoSha256": "df9e600de35769fa9381f254b80f2914cd892f9983f770b52ef0e88aab145d30", "qemu": "0", "testAllocBytes": 1286144}
++leftover qemu: 0
++/home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/20261023T094306Z:
++total 12
++drwxr-xr-x 3 steven steven 4096 Oct 23 02:43 .
++drwxr-xr-x 3 steven steven 4096 Oct 23 02:43 ..
++drwxr-xr-x 3 steven steven 4096 Oct 23 02:43 out
++
++/home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/20261023T094306Z/out:
++total 108
++drwxr-xr-x 3 steven steven  4096 Oct 23 02:43 .
++drwxr-xr-x 3 steven steven  4096 Oct 23 02:43 ..
++-rw-r--r-- 1 steven steven    75 Oct 23 02:43 console-one.log
++-rw-r--r-- 1 steven steven   137 Oct 23 02:43 console-two.log
++-rw-r--r-- 1 steven steven   369 Oct 23 02:43 disk-identity-after.jsonl
++-rw-r--r-- 1 steven steven   359 Oct 23 02:43 disk-identity-before.jsonl
++-rw-r--r-- 1 steven steven     0 Oct 23 02:43 guest-one.log
++-rw-r--r-- 1 steven steven    26 Oct 23 02:43 guest-two.log
++-rw-r--r-- 1 steven steven   264 Oct 23 02:43 host-identity-after-one.json
++-rw-r--r-- 1 steven steven   258 Oct 23 02:43 host-identity-after.json
++-rw-r--r-- 1 steven steven   259 Oct 23 02:43 host-identity-before.json
++-rw-r--r-- 1 steven steven  1126 Oct 23 02:43 manifest.json
++-rw-r--r-- 1 steven steven 28947 Oct 23 02:43 receipts-one.jsonl
++-rw-r--r-- 1 steven steven 13684 Oct 23 02:43 receipts-two.jsonl
++drwxr-xr-x 2 steven steven  4096 Oct 23 02:43 render
++-rw-r--r-- 1 steven steven  4248 Oct 23 02:43 results-one.json
++-rw-r--r-- 1 steven steven  1219 Oct 23 02:43 results-two.json
++[memory-guard] exit=0 peakTreeRssMiB=470 minHostAvailableMiB=25231
++[memory-guard] at peak: qemu-system-x86:460 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/vm-1.rc b/logs/vm-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/vm-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/run/20261023T094306Z/out/console-one.log b/run/20261023T094306Z/out/console-one.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e3a9d4358e44a7638a71abfd44f4e43edc96a9e1
+--- /dev/null
++++ b/run/20261023T094306Z/out/console-one.log
+@@ -0,0 +1,2 @@
++/init: line 20: chmod: command not found
++[    8.503598] sysrq: Resetting
+diff --git a/run/20261023T094306Z/out/console-two.log b/run/20261023T094306Z/out/console-two.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..73f7d1bbf45fe26389837575e95985c0bb795302
+--- /dev/null
++++ b/run/20261023T094306Z/out/console-two.log
+@@ -0,0 +1,4 @@
++/init: line 20: chmod: command not found
++guest-exit phase=two rc=0
++[    4.000488] sysrq: Power Off
++[    4.006202] reboot: Power down
+diff --git a/run/20261023T094306Z/out/disk-identity-after.jsonl b/run/20261023T094306Z/out/disk-identity-after.jsonl
+new file mode 100644
+index 0000000000000000000000000000000000000000..8f017422b4f5714ca13e1036cc36509db4a98887
+--- /dev/null
++++ b/run/20261023T094306Z/out/disk-identity-after.jsonl
+@@ -0,0 +1,2 @@
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/20261023T094306Z/hdd.img", "inode": 218670667, "apparent": 268435456, "allocated": 149704}
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/20261023T094306Z/nvme.img", "inode": 218670668, "apparent": 167772160, "allocated": 256696}
+diff --git a/run/20261023T094306Z/out/disk-identity-before.jsonl b/run/20261023T094306Z/out/disk-identity-before.jsonl
+new file mode 100644
+index 0000000000000000000000000000000000000000..32c6e0f5afee70b19e02c6b3c7606fdba3bc361c
+--- /dev/null
++++ b/run/20261023T094306Z/out/disk-identity-before.jsonl
+@@ -0,0 +1,2 @@
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/20261023T094306Z/hdd.img", "inode": 218670667, "apparent": 268435456, "allocated": 0}
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-native-boundary-20261023/run/20261023T094306Z/nvme.img", "inode": 218670668, "apparent": 167772160, "allocated": 0}
+diff --git a/run/20261023T094306Z/out/guest-one.log b/run/20261023T094306Z/out/guest-one.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/run/20261023T094306Z/out/guest-two.log b/run/20261023T094306Z/out/guest-two.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..78b60af341692279cbe2237ba1bc0458cabcde67
+--- /dev/null
++++ b/run/20261023T094306Z/out/guest-two.log
+@@ -0,0 +1 @@
++guest-exit phase=two rc=0
+diff --git a/run/20261023T094306Z/out/host-identity-after-one.json b/run/20261023T094306Z/out/host-identity-after-one.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..40a26efa7574f1a7385aa433f406df1d8f9216ea
+--- /dev/null
++++ b/run/20261023T094306Z/out/host-identity-after-one.json
+@@ -0,0 +1 @@
++{"tag": "after-one", "loops": "", "dm": "control cryptroot cryptvm ", "block": "dm-0 dm-1 nvme0n1 nvme1n1 sda ", "mountinfoLines": 33, "mountinfoSha256": "df9e600de35769fa9381f254b80f2914cd892f9983f770b52ef0e88aab145d30", "qemu": "0", "testAllocBytes": 176992256}
+diff --git a/run/20261023T094306Z/out/host-identity-after.json b/run/20261023T094306Z/out/host-identity-after.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..3d5fbf801422b5e5a4c93d9939448050ecc0b688
+--- /dev/null
++++ b/run/20261023T094306Z/out/host-identity-after.json
+@@ -0,0 +1 @@
++{"tag": "after", "loops": "", "dm": "control cryptroot cryptvm ", "block": "dm-0 dm-1 nvme0n1 nvme1n1 sda ", "mountinfoLines": 33, "mountinfoSha256": "df9e600de35769fa9381f254b80f2914cd892f9983f770b52ef0e88aab145d30", "qemu": "0", "testAllocBytes": 1286144}
+diff --git a/run/20261023T094306Z/out/host-identity-before.json b/run/20261023T094306Z/out/host-identity-before.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..428eb64356f4439e7eb47f9e4906d3ec7d60c7c4
+--- /dev/null
++++ b/run/20261023T094306Z/out/host-identity-before.json
+@@ -0,0 +1 @@
++{"tag": "before", "loops": "", "dm": "control cryptroot cryptvm ", "block": "dm-0 dm-1 nvme0n1 nvme1n1 sda ", "mountinfoLines": 33, "mountinfoSha256": "df9e600de35769fa9381f254b80f2914cd892f9983f770b52ef0e88aab145d30", "qemu": "0", "testAllocBytes": 1142784}
+diff --git a/run/20261023T094306Z/out/manifest.json b/run/20261023T094306Z/out/manifest.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..95bd668310efa89c4c020d7777e62a4890372730
+--- /dev/null
++++ b/run/20261023T094306Z/out/manifest.json
+@@ -0,0 +1 @@
++{"/srv/enclave-base-holder/data/t/a-0.bin": "f57f701452170af5438c5e57ab05dfd4e9743046e059b6668fb7c710acdc54eb", "/srv/enclave-base-holder/data/t/a-1.bin": "4d2548b16a54ade1a820487c570549619454f2a8c66fd01bacd53b2c28f78f75", "/srv/enclave-base-holder/data/t/a-2.bin": "b178358b8a7e2b6fcd74a25da78d2bdbe505f6ec4ea7501ed6cb0d00d2438606", "/srv/enclave-base-holder/data/t/a-3.bin": "0ffe1d75b08db30e83d8b047c3f9047f020c950ce622dd591ce5bc7e06237555", "/srv/enclave-base-holder/data/t/a-4.bin": "29f0e0bbf67941b60c9597a95f180882e59eb904530f2ea7e0a0da42024a79a0", "/srv/enclave-base-holder/data/t/a-5.bin": "6f071c6f400602c77a8378c5914f9996a3784f57eeaa028d0d4fb4f96edd73a4", "/srv/enclave-base-holder/data/t/crash-0.bin": "231e90ca148010cc6a9876fc7d3f9cd4fb123e99c49e0d29e65f020dca994b8b", "/srv/enclave-base-holder/data/t/crash-1.bin": "ee8930666aaf30fc40fc0de05f86afebf62b5aed04a925bda472f7ad54475263", "/srv/enclave-base-holder/data/t/crash-2.bin": "ea49a8ea537205d96a1ac0a87b2f1b47b321f840ede9169cdb5994a84953fb0b", "/srv/enclave-base-holder/data/t/crash-3.bin": "d0e3677ed81b6111463858e675bf94398748290861ed52c52c4fa84baa9177ea"}
+\ No newline at end of file
+diff --git a/run/20261023T094306Z/out/receipts-one.jsonl b/run/20261023T094306Z/out/receipts-one.jsonl
+new file mode 100644
+index 0000000000000000000000000000000000000000..b8a2535c4a519998151cfa29596555013a9d83d7
+--- /dev/null
++++ b/run/20261023T094306Z/out/receipts-one.jsonl
+@@ -0,0 +1,124 @@
++{"kind": "disks", "t": 1792748587.789, "hdd": "/dev/sda", "hddRotational": "1", "nvme": "/dev/sdb", "nvmeRotational": "0", "kernel": "7.2.11-arch1-1"}
++{"kind": "cmd", "t": 1792748587.816, "label": "modprobe loop", "cmd": "modprobe loop", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748587.85, "label": "modprobe dm-crypt", "cmd": "modprobe dm-crypt", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748587.921, "label": "luksFormat test nvme disk", "cmd": "cryptsetup luksFormat --batch-mode --type luks2 --pbkdf pbkdf2 --pbkdf-force-iterations 1000 --key-file /out/fixture.key /dev/sdb", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748587.941, "label": "open dm-crypt", "cmd": "cryptsetup open --key-file /out/fixture.key /dev/sdb vmtest-crypt", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748587.968, "label": "mkfs /vmtest (ext4 on dm-crypt)", "cmd": "mkfs.ext4 -q -b 4096 /dev/mapper/vmtest-crypt", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748587.982, "label": "mkfs /usbtest (ext4 on rotational disk)", "cmd": "mkfs.ext4 -q -b 4096 /dev/sda", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748588.001, "label": "mount /vmtest", "cmd": "mount /dev/mapper/vmtest-crypt /vmtest", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748588.014, "label": "mount /usbtest", "cmd": "mount /dev/sda /usbtest", "rc": 0, "out": "", "err": ""}
++{"kind": "ledger", "t": 1792748588.015, "path": "/etc/enclave-rpc-cache/nvme-cache-budget.json", "sha256": "4afcc8140dd4c4172ab12f12857c1483730228e1a3cf52b3054b396fb2d6ab04", "uid": 0}
++{"kind": "cmd", "t": 1792748588.03, "label": "id", "cmd": "losetup -J -l -O NAME,BACK-FILE,BACK-INO,MAJ:MIN", "rc": 0, "out": "{\n   \"loopdevices\": [\n\n   ]\n}\n", "err": ""}
++{"kind": "cmd", "t": 1792748588.048, "label": "id", "cmd": "dmsetup info -c --noheadings -o name,major,minor,open", "rc": 0, "out": "vmtest-crypt:253:0:1\n", "err": ""}
++{"kind": "cmd", "t": 1792748588.063, "label": "id", "cmd": "dmsetup table", "rc": 0, "out": "vmtest-crypt: 0 294912 crypt aes-xts-plain64 :64:logon:cryptsetup:d633b874-8915-4174-be5c-15af4a34000e-d0 0 8:16 32768\n", "err": ""}
++{"kind": "identity", "t": 1792748588.064, "tag": "after-setup", "loops": [], "dm": ["vmtest-crypt:253:0:1"], "tables": ["vmtest-crypt: 0 294912 crypt aes-xts-plain64 :64:logon:cryptsetup:d633b874-8915-4174-be5c-15af4a34000e-d0 0 8:16 32768"], "mounts": ["/vmtest /dev/mapper/vmtest-crypt", "/usbtest /dev/sda"]}
++{"kind": "cmd", "t": 1792748588.453, "label": "foreign loop", "cmd": "losetup --find --show /vmtest/foreign/foreign.img", "rc": 0, "out": "/dev/loop0\n", "err": ""}
++{"kind": "cmd", "t": 1792748588.458, "label": "foreign size", "cmd": "blockdev --getsz /dev/loop0", "rc": 0, "out": "8192\n", "err": ""}
++{"kind": "cmd", "t": 1792748588.465, "label": "foreign mapping", "cmd": "dmsetup create foreign-linear --table 0 8192 linear /dev/loop0 0", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748588.478, "label": "id", "cmd": "lsblk -dno MAJ:MIN /dev/loop0", "rc": 0, "out": "  7:0  \n", "err": ""}
++{"kind": "foreign", "t": 1792748588.478, "file": "/vmtest/foreign/foreign.img", "inode": 14, "sha256": "32a470e9d3f33aa0e0dae9af3c6f02656d1158b5e1a7a42ce3e44ef3477f16c5", "loop": "/dev/loop0", "loopMajMin": "7:0"}
++{"kind": "cmd", "t": 1792748588.552, "label": "budget validate over-share ledger", "cmd": "/usr/bin/python3 -I /src/vendor/holder/budget.py validate /out/render/ledger-over.json", "rc": 3, "out": "", "err": "{\"refused\": \"host 0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f: reservations plus bookkeeping 101048320 exceed its share 101027840\"}\n"}
++{"kind": "result", "t": 1792748588.552, "key": "nextReservationRefused", "value": {"rc": 3, "err": "{\"refused\": \"host 0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f: reservations plus bookkeeping 101048320 exceed its share 101027840\"}"}}
++{"kind": "cmd", "t": 1792748588.616, "label": "budget validate ledger", "cmd": "/usr/bin/python3 -I /src/vendor/holder/budget.py validate /etc/enclave-rpc-cache/nvme-cache-budget.json", "rc": 0, "out": "{\"valid\": true}\n", "err": ""}
++{"kind": "result", "t": 1792748588.616, "key": "ledgerValid", "value": true}
++{"kind": "cmd", "t": 1792748588.928, "label": "holder-storage.sh create", "cmd": "/out/render/holder-storage.sh create", "rc": 0, "out": "{\"admitted\": \"base-holder-dm-cache\", \"maxBytes\": 84115456}\n", "err": "holder-storage: created (not assembled)\n"}
++{"kind": "result", "t": 1792748588.928, "key": "holder.create.rc", "value": 0}
++{"kind": "cmd", "t": 1792748589.006, "label": "holder-storage.sh verify-cap", "cmd": "/out/render/holder-storage.sh verify-cap", "rc": 0, "out": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 83914752, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}\n", "err": ""}
++{"kind": "result", "t": 1792748589.007, "key": "holder.verifyCap", "value": {"rc": 0, "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 83914752, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"}}
++{"kind": "result", "t": 1792748589.007, "key": "holder.accounting", "value": {"actualFilesMarkers": 83894272, "maxBytes": 84115456, "declared": 83886080, "slack": 229376}}
++{"kind": "cmd", "t": 1792748589.311, "label": "pair-storage.sh create", "cmd": "/out/render/pair-storage.sh create", "rc": 0, "out": "{\"admitted\": \"l1-pair-dm-cache\", \"maxBytes\": 16834560}\n", "err": "holder-storage: created (not assembled)\n"}
++{"kind": "result", "t": 1792748589.311, "key": "pair.create.rc", "value": 0}
++{"kind": "cmd", "t": 1792748589.39, "label": "pair-storage.sh verify-cap", "cmd": "/out/render/pair-storage.sh verify-cap", "rc": 0, "out": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"l1-pair-dm-cache\", \"reservationBytes\": 16834560, \"reservationActualBytes\": 16793600, \"requiredHeadroomBytes\": 57344, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}\n", "err": ""}
++{"kind": "result", "t": 1792748589.39, "key": "pair.verifyCap", "value": {"rc": 0, "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"l1-pair-dm-cache\", \"reservationBytes\": 16834560, \"reservationActualBytes\": 16793600, \"requiredHeadroomBytes\": 57344, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"}}
++{"kind": "result", "t": 1792748589.39, "key": "pair.accounting", "value": {"actualFilesMarkers": 16785408, "maxBytes": 16834560, "declared": 16777216, "slack": 57344}}
++{"kind": "result", "t": 1792748589.39, "key": "ext4.vmtest.freeDelta", "value": {"usedByCreates": 104873984, "foreignFixture": 4194304, "sumMaxBytes": 100950016}}
++{"kind": "cmd", "t": 1792748589.407, "label": "id", "cmd": "losetup -J -l -O NAME,BACK-FILE,BACK-INO,MAJ:MIN", "rc": 0, "out": "{\n   \"loopdevices\": [\n      {\n         \"name\": \"/dev/loop0\",\n         \"back-file\": \"/vmtest/foreign/foreign.img\",\n         \"back-ino\": 14,\n         \"maj:min\": \"7:0\"\n      }\n   ]\n}\n", "err": ""}
++{"kind": "cmd", "t": 1792748589.424, "label": "id", "cmd": "dmsetup info -c --noheadings -o name,major,minor,open", "rc": 0, "out": "foreign-linear:253:1:0\nvmtest-crypt:253:0:1\n", "err": ""}
++{"kind": "cmd", "t": 1792748589.442, "label": "id", "cmd": "dmsetup table", "rc": 0, "out": "foreign-linear: 0 8192 linear 7:0 0\nvmtest-crypt: 0 294912 crypt aes-xts-plain64 :64:logon:cryptsetup:d633b874-8915-4174-be5c-15af4a34000e-d0 0 8:16 32768\n", "err": ""}
++{"kind": "identity", "t": 1792748589.442, "tag": "after-create", "loops": [{"name": "/dev/loop0", "back-file": "/vmtest/foreign/foreign.img", "back-ino": 14, "maj:min": "7:0"}], "dm": ["foreign-linear:253:1:0", "vmtest-crypt:253:0:1"], "tables": ["foreign-linear: 0 8192 linear 7:0 0", "vmtest-crypt: 0 294912 crypt aes-xts-plain64 :64:logon:cryptsetup:d633b874-8915-4174-be5c-15af4a34000e-d0 0 8:16 32768"], "mounts": ["/vmtest /dev/mapper/vmtest-crypt", "/usbtest /dev/sda"]}
++{"kind": "cmd", "t": 1792748589.448, "label": "id", "cmd": "losetup -j /vmtest/foreign/foreign.img -O NAME -n", "rc": 0, "out": "/dev/loop0\n", "err": ""}
++{"kind": "cmd", "t": 1792748589.469, "label": "id", "cmd": "dmsetup info foreign-linear", "rc": 0, "out": "Name:              foreign-linear\nState:             ACTIVE\nRead Ahead:        256\nTables present:    LIVE\nOpen count:        0\nEvent number:      0\nMajor, minor:      253, 1\nNumber of targets: 1\n\n", "err": ""}
++{"kind": "foreignIntact", "t": 1792748589.469, "tag": "after-create", "ok": true}
++{"kind": "result", "t": 1792748589.469, "key": "foreign.afterCreate", "value": true}
++{"kind": "cmd", "t": 1792748589.475, "label": "id", "cmd": "blockdev --getsz /dev/loop0", "rc": 0, "out": "8192\n", "err": ""}
++{"kind": "cmd", "t": 1792748589.483, "label": "foreign SAME-NAME mapping", "cmd": "dmsetup create enclave-base-holder --table 0 8192 linear /dev/loop0 0", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748589.7, "label": "holder-storage.sh assemble", "cmd": "/out/render/holder-storage.sh assemble", "rc": 2, "out": "", "err": "holder-storage: mapping enclave-base-holder exists but is not this holder's (have: 0 8192 linear 7:0 0; want: 0 327680 cache 7:3 7:2 7:1 512 1 writethrough smq 0); leaving it untouched\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted\n"}
++{"kind": "cmd", "t": 1792748589.716, "label": "id", "cmd": "dmsetup table enclave-base-holder", "rc": 0, "out": "0 8192 linear 7:0 0\n", "err": ""}
++{"kind": "cmd", "t": 1792748589.722, "label": "id", "cmd": "losetup -j /usbtest/enclave-base-holder/origin.img", "rc": 0, "out": "", "err": ""}
++{"kind": "result", "t": 1792748589.722, "key": "sameNameForeignMapping", "value": {"assembleRc": 2, "refusal": "holder-storage: mapping enclave-base-holder exists but is not this holder's (have: 0 8192 linear 7:0 0; want: 0 327680 cache 7:3 7:2 7:1 512 1 writethrough smq 0); leaving it untouched\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted", "foreignTableAfter": "0 8192 linear 7:0 0", "holderLoopsLeft": ""}}
++{"kind": "cmd", "t": 1792748589.747, "label": "remove OWN same-name foreign fixture", "cmd": "dmsetup remove enclave-base-holder", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748590.017, "label": "holder-storage.sh assemble", "cmd": "/out/render/holder-storage.sh assemble", "rc": 0, "out": "", "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder\n"}
++{"kind": "result", "t": 1792748590.017, "key": "holder.assemble.rc", "value": 0}
++{"kind": "cmd", "t": 1792748590.032, "label": "id", "cmd": "losetup -J -l -O NAME,BACK-FILE,BACK-INO,MAJ:MIN", "rc": 0, "out": "{\n   \"loopdevices\": [\n      {\n         \"name\": \"/dev/loop1\",\n         \"back-file\": \"/usbtest/enclave-base-holder/origin.img\",\n         \"back-ino\": 14,\n         \"maj:min\": \"7:1\"\n      },{\n         \"name\": \"/dev/loop2\",\n         \"back-file\": \"/vmtest/enclave-base-holder-cache/cache-data.img\",\n         \"back-ino\": 17,\n         \"maj:min\": \"7:2\"\n      },{\n         \"name\": \"/dev/loop0\",\n         \"back-file\": \"/vmtest/foreign/foreign.img\",\n         \"back-ino\": 14,\n         \"maj:min\": \"7:0\"\n      },{\n         \"name\": \"/dev/loop3\",\n         \"back-file\": \"/vmtest/enclave-base-holder-cache/cache-meta.img\",\n         \"back-ino\": 18,\n         \"maj:min\": \"7:3\"\n      }\n   ]\n}\n", "err": ""}
++{"kind": "cmd", "t": 1792748590.049, "label": "id", "cmd": "dmsetup info -c --noheadings -o name,major,minor,open", "rc": 0, "out": "enclave-base-holder:253:2:1\nforeign-linear:253:1:0\nvmtest-crypt:253:0:1\n", "err": ""}
++{"kind": "cmd", "t": 1792748590.068, "label": "id", "cmd": "dmsetup table", "rc": 0, "out": "enclave-base-holder: 0 327680 cache 7:3 7:2 7:1 512 1 writethrough smq 0\nforeign-linear: 0 8192 linear 7:0 0\nvmtest-crypt: 0 294912 crypt aes-xts-plain64 :64:logon:cryptsetup:d633b874-8915-4174-be5c-15af4a34000e-d0 0 8:16 32768\n", "err": ""}
++{"kind": "identity", "t": 1792748590.068, "tag": "assembled", "loops": [{"name": "/dev/loop1", "back-file": "/usbtest/enclave-base-holder/origin.img", "back-ino": 14, "maj:min": "7:1"}, {"name": "/dev/loop2", "back-file": "/vmtest/enclave-base-holder-cache/cache-data.img", "back-ino": 17, "maj:min": "7:2"}, {"name": "/dev/loop0", "back-file": "/vmtest/foreign/foreign.img", "back-ino": 14, "maj:min": "7:0"}, {"name": "/dev/loop3", "back-file": "/vmtest/enclave-base-holder-cache/cache-meta.img", "back-ino": 18, "maj:min": "7:3"}], "dm": ["enclave-base-holder:253:2:1", "foreign-linear:253:1:0", "vmtest-crypt:253:0:1"], "tables": ["enclave-base-holder: 0 327680 cache 7:3 7:2 7:1 512 1 writethrough smq 0", "foreign-linear: 0 8192 linear 7:0 0", "vmtest-crypt: 0 294912 crypt aes-xts-plain64 :64:logon:cryptsetup:d633b874-8915-4174-be5c-15af4a34000e-d0 0 8:16 32768"], "mounts": ["/vmtest /dev/mapper/vmtest-crypt", "/usbtest /dev/sda", "/srv/enclave-base-holder /dev/mapper/enclave-base-holder"]}
++{"kind": "cmd", "t": 1792748590.088, "label": "status", "cmd": "dmsetup status enclave-base-holder", "rc": 0, "out": "0 327680 cache 8 7/4096 512 1/256 146 46 0 1 0 1 0 1 writethrough 2 migration_threshold 2048 smq 0 rw - \n", "err": ""}
++{"kind": "dmstatus", "t": 1792748590.088, "tag": "assembled", "status": "0 327680 cache 8 7/4096 512 1/256 146 46 0 1 0 1 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
++{"kind": "result", "t": 1792748590.088, "key": "writethrough", "value": true}
++{"kind": "cmd", "t": 1792748590.956, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
++{"kind": "verify", "t": 1792748590.984, "tag": "first-read", "files": 6, "mismatches": {}}
++{"kind": "result", "t": 1792748590.984, "key": "io.firstRead", "value": true}
++{"kind": "cmd", "t": 1792748591.024, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
++{"kind": "verify", "t": 1792748591.056, "tag": "second-read", "files": 6, "mismatches": {}}
++{"kind": "result", "t": 1792748591.056, "key": "io.secondRead", "value": true}
++{"kind": "cmd", "t": 1792748591.075, "label": "status", "cmd": "dmsetup status enclave-base-holder", "rc": 0, "out": "0 327680 cache 8 7/4096 512 100/256 226 217 11 170 0 100 0 1 writethrough 2 migration_threshold 2048 smq 0 rw - \n", "err": ""}
++{"kind": "dmstatus", "t": 1792748591.075, "tag": "after-io", "status": "0 327680 cache 8 7/4096 512 100/256 226 217 11 170 0 100 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
++{"kind": "cmd", "t": 1792748591.279, "label": "holder-storage.sh disassemble", "cmd": "/out/render/holder-storage.sh disassemble", "rc": 0, "out": "", "err": "holder-storage: disassembled\n"}
++{"kind": "result", "t": 1792748591.279, "key": "holder.disassemble.rc", "value": 0}
++{"kind": "cmd", "t": 1792748591.294, "label": "id", "cmd": "losetup -J -l -O NAME,BACK-FILE,BACK-INO,MAJ:MIN", "rc": 0, "out": "{\n   \"loopdevices\": [\n      {\n         \"name\": \"/dev/loop0\",\n         \"back-file\": \"/vmtest/foreign/foreign.img\",\n         \"back-ino\": 14,\n         \"maj:min\": \"7:0\"\n      }\n   ]\n}\n", "err": ""}
++{"kind": "cmd", "t": 1792748591.31, "label": "id", "cmd": "dmsetup info -c --noheadings -o name,major,minor,open", "rc": 0, "out": "foreign-linear:253:1:0\nvmtest-crypt:253:0:1\n", "err": ""}
++{"kind": "cmd", "t": 1792748591.325, "label": "id", "cmd": "dmsetup table", "rc": 0, "out": "foreign-linear: 0 8192 linear 7:0 0\nvmtest-crypt: 0 294912 crypt aes-xts-plain64 :64:logon:cryptsetup:d633b874-8915-4174-be5c-15af4a34000e-d0 0 8:16 32768\n", "err": ""}
++{"kind": "identity", "t": 1792748591.325, "tag": "after-disassemble", "loops": [{"name": "/dev/loop0", "back-file": "/vmtest/foreign/foreign.img", "back-ino": 14, "maj:min": "7:0"}], "dm": ["foreign-linear:253:1:0", "vmtest-crypt:253:0:1"], "tables": ["foreign-linear: 0 8192 linear 7:0 0", "vmtest-crypt: 0 294912 crypt aes-xts-plain64 :64:logon:cryptsetup:d633b874-8915-4174-be5c-15af4a34000e-d0 0 8:16 32768"], "mounts": ["/vmtest /dev/mapper/vmtest-crypt", "/usbtest /dev/sda"]}
++{"kind": "result", "t": 1792748591.326, "key": "disassemble.clean", "value": true}
++{"kind": "cmd", "t": 1792748591.332, "label": "id", "cmd": "losetup -j /vmtest/foreign/foreign.img -O NAME -n", "rc": 0, "out": "/dev/loop0\n", "err": ""}
++{"kind": "cmd", "t": 1792748591.355, "label": "id", "cmd": "dmsetup info foreign-linear", "rc": 0, "out": "Name:              foreign-linear\nState:             ACTIVE\nRead Ahead:        256\nTables present:    LIVE\nOpen count:        0\nEvent number:      0\nMajor, minor:      253, 1\nNumber of targets: 1\n\n", "err": ""}
++{"kind": "foreignIntact", "t": 1792748591.355, "tag": "after-disassemble", "ok": true}
++{"kind": "result", "t": 1792748591.355, "key": "foreign.afterDisassemble", "value": true}
++{"kind": "cmd", "t": 1792748591.614, "label": "holder-storage.sh assemble", "cmd": "/out/render/holder-storage.sh assemble", "rc": 0, "out": "", "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder\n"}
++{"kind": "result", "t": 1792748591.614, "key": "holder.reassemble.rc", "value": 0}
++{"kind": "cmd", "t": 1792748591.636, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
++{"kind": "verify", "t": 1792748591.674, "tag": "after-reassemble", "files": 6, "mismatches": {}}
++{"kind": "result", "t": 1792748591.674, "key": "io.afterReassemble", "value": true}
++{"kind": "cmd", "t": 1792748591.692, "label": "status", "cmd": "dmsetup status enclave-base-holder", "rc": 0, "out": "0 327680 cache 8 10/4096 512 101/256 523 238 23 173 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw - \n", "err": ""}
++{"kind": "dmstatus", "t": 1792748591.692, "tag": "after-reassemble", "status": "0 327680 cache 8 10/4096 512 101/256 523 238 23 173 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
++{"kind": "cmd", "t": 1792748591.913, "label": "holder-storage.sh disassemble", "cmd": "/out/render/holder-storage.sh disassemble", "rc": 0, "out": "", "err": "holder-storage: disassembled\n"}
++{"kind": "cmd", "t": 1792748591.921, "label": "uncached origin loop (hazard)", "cmd": "losetup --find --show /usbtest/enclave-base-holder/origin.img", "rc": 0, "out": "/dev/loop1\n", "err": ""}
++{"kind": "cmd", "t": 1792748591.935, "label": "mount origin WITHOUT cache (hazard)", "cmd": "mount -o ro /dev/loop1 /mnt-raw", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748592.117, "label": "holder-storage.sh assemble", "cmd": "/out/render/holder-storage.sh assemble", "rc": 2, "out": "", "err": "holder-storage: origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted\n"}
++{"kind": "result", "t": 1792748592.117, "key": "staleCacheHazard", "value": {"assembleRc": 2, "refusal": "holder-storage: origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"}}
++{"kind": "cmd", "t": 1792748592.127, "label": "umount hazard", "cmd": "umount /mnt-raw", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748592.133, "label": "detach hazard loop", "cmd": "losetup -d /dev/loop1", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748592.205, "label": "holder-storage.sh cache-loss", "cmd": "/out/render/holder-storage.sh cache-loss", "rc": 0, "out": "Pass 1: Checking inodes, blocks, and sizes\nPass 2: Checking directory structure\nPass 3: Checking directory connectivity\nPass 4: Checking reference counts\nPass 5: Checking group summary information\nenclave-holder: 21/40960 files (4.8% non-contiguous), 40684/163840 blocks\n", "err": "e2fsck 1.47.4 (6-Mar-2025)\nholder-storage: cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache\n"}
++{"kind": "result", "t": 1792748592.205, "key": "cacheLoss.afterHazard.rc", "value": 0}
++{"kind": "cmd", "t": 1792748592.454, "label": "holder-storage.sh assemble", "cmd": "/out/render/holder-storage.sh assemble", "rc": 0, "out": "", "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder\n"}
++{"kind": "result", "t": 1792748592.454, "key": "holder.assembleAfterCacheLoss.rc", "value": 0}
++{"kind": "cmd", "t": 1792748592.478, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
++{"kind": "verify", "t": 1792748592.5, "tag": "after-cache-loss", "files": 6, "mismatches": {}}
++{"kind": "result", "t": 1792748592.5, "key": "io.afterCacheLoss", "value": true}
++{"kind": "cmd", "t": 1792748592.519, "label": "status", "cmd": "dmsetup status enclave-base-holder", "rc": 0, "out": "0 327680 cache 8 7/4096 512 1/256 148 170 0 8 0 1 0 1 writethrough 2 migration_threshold 2048 smq 0 rw - \n", "err": ""}
++{"kind": "dmstatus", "t": 1792748592.519, "tag": "after-cache-loss", "status": "0 327680 cache 8 7/4096 512 1/256 148 170 0 8 0 1 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
++{"kind": "cmd", "t": 1792748592.714, "label": "holder-storage.sh disassemble", "cmd": "/out/render/holder-storage.sh disassemble", "rc": 0, "out": "", "err": "holder-storage: disassembled\n"}
++{"kind": "cmd", "t": 1792748592.798, "label": "holder-storage.sh verify-cap", "cmd": "/out/render/holder-storage.sh verify-cap", "rc": 3, "out": "", "err": "{\"refused\": \"/vmtest/enclave-base-holder-cache/cache-meta.img is 16781312 bytes, declared 16777216\"}\n"}
++{"kind": "cmd", "t": 1792748592.876, "label": "holder-storage.sh verify-cap", "cmd": "/out/render/holder-storage.sh verify-cap", "rc": 0, "out": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}\n", "err": ""}
++{"kind": "result", "t": 1792748592.876, "key": "budget.grownFile", "value": {"rcGrown": 3, "refusal": "{\"refused\": \"/vmtest/enclave-base-holder-cache/cache-meta.img is 16781312 bytes, declared 16777216\"}", "rcRestored": 0}}
++{"kind": "cmd", "t": 1792748592.938, "label": "id", "cmd": "losetup -j /usbtest/enclave-l1-pair/origin.img", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748593.096, "label": "id", "cmd": "losetup -j /usbtest/enclave-l1-pair/origin.img", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748593.405, "label": "id", "cmd": "losetup -j /usbtest/enclave-l1-pair/origin.img", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748594.013, "label": "id", "cmd": "losetup -j /usbtest/enclave-l1-pair/origin.img", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748595.021, "label": "id", "cmd": "losetup -j /usbtest/enclave-l1-pair/origin.img", "rc": 0, "out": "", "err": ""}
++{"kind": "interruptions", "t": 1792748595.022, "attempts": [{"delay": 0.05, "rc": -15, "stderr": "", "originExists": false, "loopLeft": "", "cacheFiles": [true, true]}, {"delay": 0.15, "rc": 2, "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted", "originExists": false, "loopLeft": "", "cacheFiles": [true, true]}, {"delay": 0.3, "rc": 2, "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted", "originExists": false, "loopLeft": "", "cacheFiles": [true, true]}, {"delay": 0.6, "rc": 2, "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted", "originExists": false, "loopLeft": "", "cacheFiles": [true, true]}, {"delay": 1.0, "rc": 2, "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted", "originExists": false, "loopLeft": "", "cacheFiles": [true, true]}]}
++{"kind": "result", "t": 1792748595.022, "key": "interruptions", "value": [{"delay": 0.05, "rc": -15, "stderr": "", "originExists": false, "loopLeft": "", "cacheFiles": [true, true]}, {"delay": 0.15, "rc": 2, "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted", "originExists": false, "loopLeft": "", "cacheFiles": [true, true]}, {"delay": 0.3, "rc": 2, "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted", "originExists": false, "loopLeft": "", "cacheFiles": [true, true]}, {"delay": 0.6, "rc": 2, "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted", "originExists": false, "loopLeft": "", "cacheFiles": [true, true]}, {"delay": 1.0, "rc": 2, "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted", "originExists": false, "loopLeft": "", "cacheFiles": [true, true]}]}
++{"kind": "cmd", "t": 1792748595.127, "label": "pair-storage.sh create", "cmd": "/out/render/pair-storage.sh create", "rc": 2, "out": "", "err": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted\n"}
++{"kind": "result", "t": 1792748595.127, "key": "pair.recreateAfterInterrupts.rc", "value": 2}
++{"kind": "cmd", "t": 1792748595.207, "label": "pair-storage.sh verify-cap", "cmd": "/out/render/pair-storage.sh verify-cap", "rc": 0, "out": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"l1-pair-dm-cache\", \"reservationBytes\": 16834560, \"reservationActualBytes\": 16793600, \"requiredHeadroomBytes\": 57344, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}\n", "err": ""}
++{"kind": "result", "t": 1792748595.207, "key": "pair.verifyAfterInterrupts.rc", "value": 0}
++{"kind": "cmd", "t": 1792748595.213, "label": "id", "cmd": "losetup -j /vmtest/foreign/foreign.img -O NAME -n", "rc": 0, "out": "/dev/loop0\n", "err": ""}
++{"kind": "cmd", "t": 1792748595.237, "label": "id", "cmd": "dmsetup info foreign-linear", "rc": 0, "out": "Name:              foreign-linear\nState:             ACTIVE\nRead Ahead:        256\nTables present:    LIVE\nOpen count:        0\nEvent number:      0\nMajor, minor:      253, 1\nNumber of targets: 1\n\n", "err": ""}
++{"kind": "foreignIntact", "t": 1792748595.237, "tag": "after-interrupts", "ok": true}
++{"kind": "result", "t": 1792748595.237, "key": "foreign.afterInterrupts", "value": true}
++{"kind": "cmd", "t": 1792748595.5, "label": "holder-storage.sh assemble", "cmd": "/out/render/holder-storage.sh assemble", "rc": 0, "out": "", "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder\n"}
++{"kind": "result", "t": 1792748595.5, "key": "holder.assembleBeforeCrash.rc", "value": 0}
++{"kind": "cmd", "t": 1792748595.807, "label": "status", "cmd": "dmsetup status enclave-base-holder", "rc": 0, "out": "0 327680 cache 8 10/4096 512 1/256 311 205 0 125 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw - \n", "err": ""}
++{"kind": "dmstatus", "t": 1792748595.807, "tag": "before-crash", "status": "0 327680 cache 8 10/4096 512 1/256 311 205 0 125 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
++{"kind": "crash", "t": 1792748595.808, "how": "sysrq b: immediate reboot, no sync, no unmount, cache mapped and mounted"}
+diff --git a/run/20261023T094306Z/out/receipts-two.jsonl b/run/20261023T094306Z/out/receipts-two.jsonl
+new file mode 100644
+index 0000000000000000000000000000000000000000..005cfc7dd7d1a748db05539f002b9bd9ab0b3657
+--- /dev/null
++++ b/run/20261023T094306Z/out/receipts-two.jsonl
+@@ -0,0 +1,77 @@
++{"kind": "disks", "t": 1792748597.017, "hdd": "/dev/sda", "hddRotational": "1", "nvme": "/dev/sdb", "nvmeRotational": "0", "kernel": "7.2.11-arch1-1"}
++{"kind": "cmd", "t": 1792748597.045, "label": "modprobe loop", "cmd": "modprobe loop", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748597.075, "label": "modprobe dm-crypt", "cmd": "modprobe dm-crypt", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748597.1, "label": "open dm-crypt", "cmd": "cryptsetup open --key-file /out/fixture.key /dev/sdb vmtest-crypt", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748597.119, "label": "mount /vmtest", "cmd": "mount /dev/mapper/vmtest-crypt /vmtest", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748597.137, "label": "mount /usbtest", "cmd": "mount /dev/sda /usbtest", "rc": 0, "out": "", "err": ""}
++{"kind": "ledger", "t": 1792748597.138, "path": "/etc/enclave-rpc-cache/nvme-cache-budget.json", "sha256": "4afcc8140dd4c4172ab12f12857c1483730228e1a3cf52b3054b396fb2d6ab04", "uid": 0}
++{"kind": "cmd", "t": 1792748597.153, "label": "id", "cmd": "losetup -J -l -O NAME,BACK-FILE,BACK-INO,MAJ:MIN", "rc": 0, "out": "{\n   \"loopdevices\": [\n\n   ]\n}\n", "err": ""}
++{"kind": "cmd", "t": 1792748597.169, "label": "id", "cmd": "dmsetup info -c --noheadings -o name,major,minor,open", "rc": 0, "out": "vmtest-crypt:253:0:1\n", "err": ""}
++{"kind": "cmd", "t": 1792748597.184, "label": "id", "cmd": "dmsetup table", "rc": 0, "out": "vmtest-crypt: 0 294912 crypt aes-xts-plain64 :64:logon:cryptsetup:d633b874-8915-4174-be5c-15af4a34000e-d0 0 8:16 32768\n", "err": ""}
++{"kind": "identity", "t": 1792748597.185, "tag": "boot-after-crash", "loops": [], "dm": ["vmtest-crypt:253:0:1"], "tables": ["vmtest-crypt: 0 294912 crypt aes-xts-plain64 :64:logon:cryptsetup:d633b874-8915-4174-be5c-15af4a34000e-d0 0 8:16 32768"], "mounts": ["/vmtest /dev/mapper/vmtest-crypt", "/usbtest /dev/sda"]}
++{"kind": "cmd", "t": 1792748597.486, "label": "holder-storage.sh assemble", "cmd": "/out/render/holder-storage.sh assemble", "rc": 0, "out": "", "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder\n"}
++{"kind": "result", "t": 1792748597.486, "key": "afterCrash.directAssemble.rc", "value": 0}
++{"kind": "cmd", "t": 1792748597.503, "label": "status", "cmd": "dmsetup status enclave-base-holder", "rc": 0, "out": "0 327680 cache 8 10/4096 512 1/256 309 323 1 29 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw - \n", "err": ""}
++{"kind": "dmstatus", "t": 1792748597.503, "tag": "after-crash-direct-assemble", "status": "0 327680 cache 8 10/4096 512 1/256 309 323 1 29 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
++{"kind": "result", "t": 1792748597.504, "key": "afterCrash.directAssemble.status", "value": "0 327680 cache 8 10/4096 512 1/256 309 323 1 29 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
++{"kind": "cmd", "t": 1792748597.524, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
++{"kind": "verify", "t": 1792748597.782, "tag": "after-crash-direct", "files": 10, "mismatches": {}}
++{"kind": "result", "t": 1792748597.782, "key": "afterCrash.directAssemble.data", "value": true}
++{"kind": "result", "t": 1792748597.782, "key": "afterCrash.unsyncedPresent", "value": false}
++{"kind": "cmd", "t": 1792748597.967, "label": "holder-storage.sh disassemble", "cmd": "/out/render/holder-storage.sh disassemble", "rc": 0, "out": "", "err": "holder-storage: disassembled\n"}
++{"kind": "cmd", "t": 1792748598.034, "label": "holder-storage.sh cache-loss", "cmd": "/out/render/holder-storage.sh cache-loss", "rc": 0, "out": "Pass 1: Checking inodes, blocks, and sizes\nPass 2: Checking directory structure\nPass 3: Checking directory connectivity\nPass 4: Checking reference counts\nPass 5: Checking group summary information\nenclave-holder: 25/40960 files (4.0% non-contiguous), 57068/163840 blocks\n", "err": "e2fsck 1.47.4 (6-Mar-2025)\nholder-storage: cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache\n"}
++{"kind": "result", "t": 1792748598.034, "key": "afterCrash.cacheLoss.rc", "value": 0}
++{"kind": "cmd", "t": 1792748598.276, "label": "holder-storage.sh assemble", "cmd": "/out/render/holder-storage.sh assemble", "rc": 0, "out": "", "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder\n"}
++{"kind": "result", "t": 1792748598.276, "key": "afterCrash.reviewedAssemble.rc", "value": 0}
++{"kind": "cmd", "t": 1792748598.301, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
++{"kind": "verify", "t": 1792748598.335, "tag": "after-crash-reviewed", "files": 10, "mismatches": {}}
++{"kind": "result", "t": 1792748598.335, "key": "afterCrash.reviewedProcedure.data", "value": true}
++{"kind": "cmd", "t": 1792748598.353, "label": "status", "cmd": "dmsetup status enclave-base-holder", "rc": 0, "out": "0 327680 cache 8 7/4096 512 1/256 148 255 0 8 0 1 0 1 writethrough 2 migration_threshold 2048 smq 0 rw - \n", "err": ""}
++{"kind": "dmstatus", "t": 1792748598.353, "tag": "after-crash-reviewed", "status": "0 327680 cache 8 7/4096 512 1/256 148 255 0 8 0 1 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -"}
++{"kind": "cmd", "t": 1792748598.359, "label": "foreign loop", "cmd": "losetup --find --show /vmtest/foreign/foreign.img", "rc": 0, "out": "/dev/loop3\n", "err": ""}
++{"kind": "cmd", "t": 1792748598.364, "label": "foreign size", "cmd": "blockdev --getsz /dev/loop3", "rc": 0, "out": "8192\n", "err": ""}
++{"kind": "cmd", "t": 1792748598.371, "label": "foreign mapping", "cmd": "dmsetup create foreign-linear --table 0 8192 linear /dev/loop3 0", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748598.387, "label": "id", "cmd": "lsblk -dno MAJ:MIN /dev/loop3", "rc": 0, "out": "  7:3  \n", "err": ""}
++{"kind": "foreign", "t": 1792748598.387, "file": "/vmtest/foreign/foreign.img", "inode": 14, "sha256": "32a470e9d3f33aa0e0dae9af3c6f02656d1158b5e1a7a42ce3e44ef3477f16c5", "loop": "/dev/loop3", "loopMajMin": "7:3"}
++{"kind": "cmd", "t": 1792748598.57, "label": "holder-storage.sh disassemble", "cmd": "/out/render/holder-storage.sh disassemble", "rc": 0, "out": "", "err": "holder-storage: disassembled\n"}
++{"kind": "cmd", "t": 1792748599.333, "label": "probe origin loop", "cmd": "losetup --find --show /usbtest/enclave-base-holder/origin.img", "rc": 0, "out": "/dev/loop0\n", "err": ""}
++{"kind": "cmd", "t": 1792748599.339, "label": "probe data loop", "cmd": "losetup --find --show /vmtest/enclave-base-holder-cache/cache-data.img", "rc": 0, "out": "/dev/loop1\n", "err": ""}
++{"kind": "cmd", "t": 1792748599.344, "label": "probe meta loop", "cmd": "losetup --find --show /vmtest/enclave-base-holder-cache/cache-meta.img", "rc": 0, "out": "/dev/loop2\n", "err": ""}
++{"kind": "cmd", "t": 1792748599.349, "label": "id", "cmd": "blockdev --getsz /dev/loop0", "rc": 0, "out": "327680\n", "err": ""}
++{"kind": "cmd", "t": 1792748599.359, "label": "id", "cmd": "lsblk -dno MAJ:MIN /dev/loop2", "rc": 0, "out": "  7:2  \n", "err": ""}
++{"kind": "cmd", "t": 1792748599.368, "label": "id", "cmd": "lsblk -dno MAJ:MIN /dev/loop1", "rc": 0, "out": "  7:1  \n", "err": ""}
++{"kind": "cmd", "t": 1792748599.377, "label": "id", "cmd": "lsblk -dno MAJ:MIN /dev/loop0", "rc": 0, "out": "  7:0  \n", "err": ""}
++{"kind": "cmd", "t": 1792748599.386, "label": "READ-ONLY probe mapping over the corrupted cache", "cmd": "dmsetup create cachetest-probe --readonly --table 0 327680 cache 7:2 7:1 7:0 512 1 writethrough smq 0", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748599.397, "label": "probe mount ro,noload", "cmd": "mount -o ro,noload /dev/mapper/cachetest-probe /mnt-raw", "rc": 32, "out": "", "err": "mount: /mnt-raw: can't read superblock on /dev/mapper/cachetest-probe.\n       dmesg(1) may have more information after failed mount system call.\n"}
++{"kind": "cmd", "t": 1792748599.447, "label": "remove probe mapping", "cmd": "dmsetup remove cachetest-probe", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748599.452, "label": "detach probe loop", "cmd": "losetup -d /dev/loop0", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748599.457, "label": "detach probe loop", "cmd": "losetup -d /dev/loop1", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748599.462, "label": "detach probe loop", "cmd": "losetup -d /dev/loop2", "rc": 0, "out": "", "err": ""}
++{"kind": "result", "t": 1792748599.462, "key": "corruptCacheWithoutCacheLoss.readOnlyProbe", "value": {"mountRc": 32}}
++{"kind": "cmd", "t": 1792748599.525, "label": "holder-storage.sh cache-loss", "cmd": "/out/render/holder-storage.sh cache-loss", "rc": 0, "out": "Pass 1: Checking inodes, blocks, and sizes\nPass 2: Checking directory structure\nPass 3: Checking directory connectivity\nPass 4: Checking reference counts\nPass 5: Checking group summary information\nenclave-holder: 25/40960 files (4.0% non-contiguous), 57068/163840 blocks\n", "err": "e2fsck 1.47.4 (6-Mar-2025)\nholder-storage: cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache\n"}
++{"kind": "result", "t": 1792748599.525, "key": "corruptCache.cacheLoss.rc", "value": 0}
++{"kind": "cmd", "t": 1792748599.761, "label": "holder-storage.sh assemble", "cmd": "/out/render/holder-storage.sh assemble", "rc": 0, "out": "", "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder\n"}
++{"kind": "result", "t": 1792748599.761, "key": "corruptCache.assemble.rc", "value": 0}
++{"kind": "cmd", "t": 1792748599.787, "label": "drop-caches", "cmd": "sync; echo 3 > /proc/sys/vm/drop_caches", "rc": 0, "out": "", "err": ""}
++{"kind": "verify", "t": 1792748599.822, "tag": "after-corrupt-cache-reviewed", "files": 10, "mismatches": {}}
++{"kind": "result", "t": 1792748599.822, "key": "corruptCache.reviewedProcedure.data", "value": true}
++{"kind": "cmd", "t": 1792748599.829, "label": "id", "cmd": "losetup -j /vmtest/foreign/foreign.img -O NAME -n", "rc": 0, "out": "/dev/loop3\n", "err": ""}
++{"kind": "cmd", "t": 1792748599.851, "label": "id", "cmd": "dmsetup info foreign-linear", "rc": 0, "out": "Name:              foreign-linear\nState:             ACTIVE\nRead Ahead:        256\nTables present:    LIVE\nOpen count:        0\nEvent number:      0\nMajor, minor:      253, 2\nNumber of targets: 1\n\n", "err": ""}
++{"kind": "foreignIntact", "t": 1792748599.851, "tag": "phase-two", "ok": true}
++{"kind": "result", "t": 1792748599.851, "key": "foreign.phaseTwo", "value": true}
++{"kind": "cmd", "t": 1792748599.922, "label": "holder-storage.sh verify-cap", "cmd": "/out/render/holder-storage.sh verify-cap", "rc": 0, "out": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}\n", "err": ""}
++{"kind": "result", "t": 1792748599.922, "key": "final.verifyCap", "value": {"rc": 0, "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"}}
++{"kind": "cmd", "t": 1792748600.103, "label": "holder-storage.sh disassemble", "cmd": "/out/render/holder-storage.sh disassemble", "rc": 0, "out": "", "err": "holder-storage: disassembled\n"}
++{"kind": "result", "t": 1792748600.104, "key": "final.disassemble.rc", "value": 0}
++{"kind": "cmd", "t": 1792748600.148, "label": "pair-storage.sh disassemble", "cmd": "/out/render/pair-storage.sh disassemble", "rc": 0, "out": "", "err": "holder-storage: disassembled\n"}
++{"kind": "result", "t": 1792748600.148, "key": "final.pairDisassemble.rc", "value": 0}
++{"kind": "cmd", "t": 1792748600.189, "label": "remove OWN foreign-linear (test fixture)", "cmd": "dmsetup remove foreign-linear", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748600.195, "label": "detach OWN foreign loop (test fixture)", "cmd": "losetup -d /dev/loop3", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748600.208, "label": "umount /vmtest", "cmd": "umount /vmtest", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748600.22, "label": "umount /usbtest", "cmd": "umount /usbtest", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748600.275, "label": "close dm-crypt", "cmd": "cryptsetup close vmtest-crypt", "rc": 0, "out": "", "err": ""}
++{"kind": "cmd", "t": 1792748600.288, "label": "id", "cmd": "losetup -J -l -O NAME,BACK-FILE,BACK-INO,MAJ:MIN", "rc": 0, "out": "{\n   \"loopdevices\": [\n\n   ]\n}\n", "err": ""}
++{"kind": "cmd", "t": 1792748600.303, "label": "id", "cmd": "dmsetup info -c --noheadings -o name,major,minor,open", "rc": 0, "out": "No devices found\n", "err": ""}
++{"kind": "cmd", "t": 1792748600.317, "label": "id", "cmd": "dmsetup table", "rc": 0, "out": "No devices found\n", "err": ""}
++{"kind": "identity", "t": 1792748600.317, "tag": "final", "loops": [], "dm": ["No", "devices", "found"], "tables": ["No devices found"], "mounts": []}
++{"kind": "result", "t": 1792748600.317, "key": "final.noLeftovers", "value": {"loops": [], "dm": ["No", "devices", "found"], "mounts": [], "clean": true}}
+diff --git a/run/20261023T094306Z/out/render/holder-storage.sh b/run/20261023T094306Z/out/render/holder-storage.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..67028f4a15f2c7a99553dc6b1d82513f4725fa54
+--- /dev/null
++++ b/run/20261023T094306Z/out/render/holder-storage.sh
+@@ -0,0 +1,193 @@
++#!/bin/bash
++# Enclave Base holder storage (rendered by holder.py from holder-storage.sh.in; ROOT ONLY; review before use).
++# Durable data: ONE new ext4 filesystem inside ONE new image file on the HDD (ORIGIN). Optional cache: dm-cache in
++# WRITETHROUGH mode (smq) on two new fixed-size image files on NVMe (CDATA, CMETA). Existing filesystems, partitions and
++# mappings are never formatted, changed, adopted or removed unless they are provably this holder's own.
++#   create        once, with root's approval: preflight EVERYTHING, then allocate; unwinds only what it created
++#   assemble      at boot: attach and map (or adopt an IDENTICAL existing mapping), mount; unwinds only what it did
++#   disassemble   at stop: unmount, unmap, detach; stops at the first failure (never detaches under a live user)
++#   verify-cap    the shared NVMe cache budget ledger (budget.py verify): this host's reservations charged at their
++#                 declared MAXIMA within its fixed share of the 250,000,000,000-byte cap, every present file exactly
++#                 bounded and owned, this reservation's files present; exit 3 otherwise
++#   cache-loss    holder stopped: unmap, INVALIDATE the cache metadata first, then a read-only check of the origin. Any
++#                 later assemble starts from an empty cache. A cache is never reattached after uncached origin access.
++set -euo pipefail
++umask 077
++MECHANISM='dm-cache'
++ORIGIN='/usbtest/enclave-base-holder/origin.img'
++ORIGIN_BYTES='167772160'
++ORIGIN_FREE_MARGIN='0'
++MNT='/srv/enclave-base-holder'
++DATADIR='/srv/enclave-base-holder/data'
++OWNER='enclave-holder'
++NAME='enclave-base-holder'
++PY='/usr/bin/python3'
++BUDGET_TOOL='/src/vendor/holder/budget.py'
++LEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'
++RESERVATION='base-holder-dm-cache'
++CDATA='/vmtest/enclave-base-holder-cache/cache-data.img'
++CDATA_BYTES='67108864'
++CMETA='/vmtest/enclave-base-holder-cache/cache-meta.img'
++CMETA_BYTES='16777216'
++BLOCK_SECTORS='512'
++NVME_FREE_MARGIN='0'
++log() { echo "holder-storage: $*" >&2; }
++die() { log "$*"; exit 2; }
++rot() { lsblk -nso ROTA "$(findmnt -no SOURCE --target "$(dirname "$1")")" | tail -1 | tr -d ' '; }
++avail() { df --output=avail -B1 "$(dirname "$1")" | tail -1 | tr -d ' '; }
++mm() { lsblk -dno MAJ:MIN "$1" | tr -d ' '; }
++loopof() { losetup -j "$1" -O NAME -n | head -1; }          # the loop bound to exactly this backing file, if any
++CREATED=(); ATTACHED=(); MAPPED=; MOUNTED=
++unwind() {
++  local rc=$?
++  [ "$rc" -eq 0 ] && return 0
++  trap - EXIT
++  set +e
++  # Ownership alone is not enough: a failed teardown leaves its dependencies live.
++  # Preserve the remaining devices/files for recovery and the original failure code.
++  if [ -n "$MOUNTED" ] && ! umount "$MNT"; then
++    log "cleanup stopped: cannot unmount $MNT; mapping, loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  if [ -n "$MAPPED" ] && ! dmsetup remove "$NAME"; then
++    log "cleanup stopped: cannot remove mapping $NAME; loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  for l in "${ATTACHED[@]}"; do
++    if ! losetup -d "$l"; then
++      log "cleanup stopped: cannot detach $l; remaining loops and images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  for f in "${CREATED[@]}"; do
++    if ! rm -f -- "$f"; then
++      log "cleanup stopped: cannot remove $f; remaining images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  log "failed (rc=$rc): undid only what this run created/attached/mapped/mounted"
++  exit "$rc"
++}
++trap unwind EXIT
++attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
++  local l; l=$(loopof "$1")
++  if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
++  printf -v "$2" '%s' "$l"
++}
++expected_table() { echo "0 $(blockdev --getsz "$O") cache $(mm "$M") $(mm "$D") $(mm "$O") $BLOCK_SECTORS 1 writethrough smq 0"; }
++cached() { [ "$MECHANISM" = dm-cache ]; }
++holder_dev() {   # the device the mount must come from; sets DEV
++  if cached; then DEV=/dev/mapper/$NAME; else DEV=$O; fi
++}
++own_mapping() {  # 0 = absent, 1 = present AND identical to ours; anything else refuses
++  dmsetup info "$NAME" >/dev/null 2>&1 || return 0
++  local have want; have=$(dmsetup table "$NAME"); want=$(expected_table)
++  [ "$have" = "$want" ] || die "mapping $NAME exists but is not this holder's (have: $have; want: $want); leaving it untouched"
++  return 1
++}
++
++case "${1:-}" in
++create)
++  # 1. preflight every resource BEFORE allocating anything
++  test ! -e "$ORIGIN" || die "$ORIGIN exists: refusing to overwrite or reuse"
++  for f in "$ORIGIN" ${CDATA:+"$CDATA"} ${CMETA:+"$CMETA"}; do
++    test -d "$(dirname "$f")" || die "$(dirname "$f") does not exist"
++  done
++  [ "$(rot "$ORIGIN")" = 1 ] || die "origin must be on a rotational (HDD) device"
++  [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
++  if cached; then
++    for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
++    [ "$(avail "$CDATA")" -ge $(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN )) ] || die "not enough NVMe free space for the cache plus margin"
++    # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
++    # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
++    "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
++      || die "NVMe cache budget reservation refused"
++  fi
++  # 2. allocate, tracking ownership for unwind
++  CREATED+=("$ORIGIN"); fallocate -l "$ORIGIN_BYTES" -- "$ORIGIN"
++  attach "$ORIGIN" O
++  mkfs.ext4 -q -L enclave-holder -E lazy_itable_init=0,lazy_journal_init=0 "$O"   # NEW filesystem in the NEW image
++  if cached; then
++    ALLOC=$("$PY" -I "$BUDGET_TOOL" allocate "$LEDGER" "$RESERVATION") || die "NVMe cache budget allocation refused"
++    while read -r w p; do [ "$w" = created ] && CREATED+=("$p"); done <<< "$ALLOC"
++    dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none   # zeroed: dm-cache formats an empty cache
++  fi
++  losetup -d "$O"; ATTACHED=()
++  CREATED=()
++  log "created (not assembled)"
++  ;;
++assemble)
++  modprobe loop
++  test -f "$ORIGIN" || die "origin image missing"
++  if cached; then modprobe dm-cache; modprobe dm-cache-smq; test -f "$CDATA" && test -f "$CMETA" || die "cache images missing"; fi
++  attach "$ORIGIN" O
++  if cached; then
++    "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION" >/dev/null || die "NVMe cache budget verification failed"
++    attach "$CDATA" D; attach "$CMETA" M
++    if own_mapping; then
++      [ -z "$(lsblk -nro MOUNTPOINTS "$O" | tr -d '[:space:]')" ] || die "origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)"
++      dmsetup create "$NAME" --table "$(expected_table)"; MAPPED=1
++    fi
++    dmsetup status "$NAME" | grep -qw writethrough || die "mapping $NAME is not writethrough"
++  fi
++  holder_dev
++  mkdir -p "$MNT"
++  if findmnt -n "$MNT" >/dev/null; then
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++  else
++    mount -o noatime,nodev,nosuid "$DEV" "$MNT"; MOUNTED=1
++  fi
++  chown "$OWNER:$OWNER" "$MNT"; chmod 0700 "$MNT"
++  for d in "$DATADIR" "$MNT/tmp"; do mkdir -p "$d"; chown "$OWNER:$OWNER" "$d"; chmod 0700 "$d"; done
++  ATTACHED=(); MAPPED=; MOUNTED=
++  log "assembled: $DEV on $MNT"
++  ;;
++disassemble)
++  trap - EXIT
++  # Validate the complete ownership chain BEFORE the first destructive action.
++  # A configured path alone does not identify the filesystem mounted there.
++  O=$(loopof "$ORIGIN")
++  DEV=; REMOVE_MAPPING=
++  if cached && dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$O" ] && [ -n "$D" ] && [ -n "$M" ] || die "mapping $NAME exists but its loops are not ours: leaving it"
++    [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    DEV=/dev/mapper/$NAME; REMOVE_MAPPING=1
++  elif ! cached; then
++    DEV=$O
++  fi
++  if findmnt -n "$MNT" >/dev/null; then
++    [ -n "$DEV" ] || die "$MNT is mounted but this holder's device is absent: leaving it"
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++    umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"
++  fi
++  if [ -n "$REMOVE_MAPPING" ]; then
++    dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
++  fi
++  for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
++    l=$(loopof "$f"); [ -z "$l" ] || losetup -d "$l" || die "detach of $l ($f) failed"
++  done
++  log "disassembled"
++  ;;
++verify-cap)
++  trap - EXIT
++  if cached; then exec "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION"; fi
++  echo '{"cache": "none", "nvmeBytes": 0}'
++  ;;
++cache-loss)
++  cached || die "no cache configured"
++  ! findmnt -n "$MNT" >/dev/null || die "$MNT is mounted: stop the holder and run disassemble first"
++  O=$(loopof "$ORIGIN"); [ -n "$O" ] || attach "$ORIGIN" O
++  if dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$D" ] && [ -n "$M" ] && [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    dmsetup remove "$NAME" || die "dmsetup remove failed"
++  fi
++  # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
++  dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
++  e2fsck -fn "$O"
++  ATTACHED=()
++  log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
++  ;;
++*) echo "usage: $0 create|assemble|disassemble|verify-cap|cache-loss" >&2; trap - EXIT; exit 64;;
++esac
+diff --git a/run/20261023T094306Z/out/render/holder.json b/run/20261023T094306Z/out/render/holder.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..8734f37967d7cf5c9a13f0a27be7f1572633b56a
+--- /dev/null
++++ b/run/20261023T094306Z/out/render/holder.json
+@@ -0,0 +1,29 @@
++{
++ "serviceUser": "enclave-holder",
++ "datadir": "/srv/enclave-base-holder/data",
++ "storage": {
++  "layout": "loop-ext4-image",
++  "mountPoint": "/srv/enclave-base-holder",
++  "origin": {
++   "imagePath": "/usbtest/enclave-base-holder/origin.img",
++   "bytes": 167772160
++  },
++  "cache": {
++   "mechanism": "dm-cache",
++   "mode": "writethrough",
++   "policy": "smq",
++   "dataImagePath": "/vmtest/enclave-base-holder-cache/cache-data.img",
++   "dataBytes": 67108864,
++   "metadataImagePath": "/vmtest/enclave-base-holder-cache/cache-meta.img",
++   "metadataBytes": 16777216,
++   "blockBytes": 262144,
++   "slackBytes": 229376
++  },
++  "nvmeBudget": {
++   "ledgerPath": "/etc/enclave-rpc-cache/nvme-cache-budget.json",
++   "reservationId": "base-holder-dm-cache"
++  },
++  "originFreeMarginBytes": 0,
++  "nvmeFreeMarginBytes": 0
++ }
++}
+diff --git a/run/20261023T094306Z/out/render/ledger-over.json b/run/20261023T094306Z/out/render/ledger-over.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..1a3a2a6a2d50253900604edbceac1ba8cceeba01
+--- /dev/null
++++ b/run/20261023T094306Z/out/render/ledger-over.json
+@@ -0,0 +1,67 @@
++{
++ "format": "enclave-rpc-nvme-cache-budget/v2",
++ "capBytes": 250000000000,
++ "targetBytes": 200000000000,
++ "hosts": [
++  {
++   "machineId": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
++   "label": "guest-fixture",
++   "shareBytes": 101027840
++  }
++ ],
++ "reservations": [
++  {
++   "id": "base-holder-dm-cache",
++   "host": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
++   "owner": "enclave-base-holder",
++   "kind": "preallocated-files",
++   "blockBytes": 4096,
++   "maxBytes": 84115456,
++   "slackBytes": 229376,
++   "files": [
++    {
++     "path": "/vmtest/enclave-base-holder-cache/cache-data.img",
++     "bytes": 67108864
++    },
++    {
++     "path": "/vmtest/enclave-base-holder-cache/cache-meta.img",
++     "bytes": 16777216
++    }
++   ]
++  },
++  {
++   "id": "l1-pair-dm-cache",
++   "host": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
++   "owner": "enclave-l1-pair",
++   "kind": "preallocated-files",
++   "blockBytes": 4096,
++   "maxBytes": 16834560,
++   "slackBytes": 57344,
++   "files": [
++    {
++     "path": "/vmtest/enclave-l1-pair-cache/cache-data.img",
++     "bytes": 8388608
++    },
++    {
++     "path": "/vmtest/enclave-l1-pair-cache/cache-meta.img",
++     "bytes": 8388608
++    }
++   ]
++  },
++  {
++   "id": "one-more",
++   "host": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
++   "owner": "test",
++   "kind": "preallocated-files",
++   "blockBytes": 4096,
++   "slackBytes": 16384,
++   "maxBytes": 20480,
++   "files": [
++    {
++     "path": "/vmtest/extra/one.img",
++     "bytes": 4096
++    }
++   ]
++  }
++ ]
++}
+diff --git a/run/20261023T094306Z/out/render/ledger.json b/run/20261023T094306Z/out/render/ledger.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..4938b307663ce03c0395a5f2db3b029843b402f5
+--- /dev/null
++++ b/run/20261023T094306Z/out/render/ledger.json
+@@ -0,0 +1,52 @@
++{
++ "format": "enclave-rpc-nvme-cache-budget/v2",
++ "capBytes": 250000000000,
++ "targetBytes": 200000000000,
++ "hosts": [
++  {
++   "machineId": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
++   "label": "guest-fixture",
++   "shareBytes": 101027840
++  }
++ ],
++ "reservations": [
++  {
++   "id": "base-holder-dm-cache",
++   "host": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
++   "owner": "enclave-base-holder",
++   "kind": "preallocated-files",
++   "blockBytes": 4096,
++   "maxBytes": 84115456,
++   "slackBytes": 229376,
++   "files": [
++    {
++     "path": "/vmtest/enclave-base-holder-cache/cache-data.img",
++     "bytes": 67108864
++    },
++    {
++     "path": "/vmtest/enclave-base-holder-cache/cache-meta.img",
++     "bytes": 16777216
++    }
++   ]
++  },
++  {
++   "id": "l1-pair-dm-cache",
++   "host": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
++   "owner": "enclave-l1-pair",
++   "kind": "preallocated-files",
++   "blockBytes": 4096,
++   "maxBytes": 16834560,
++   "slackBytes": 57344,
++   "files": [
++    {
++     "path": "/vmtest/enclave-l1-pair-cache/cache-data.img",
++     "bytes": 8388608
++    },
++    {
++     "path": "/vmtest/enclave-l1-pair-cache/cache-meta.img",
++     "bytes": 8388608
++    }
++   ]
++  }
++ ]
++}
+diff --git a/run/20261023T094306Z/out/render/pair-storage.sh b/run/20261023T094306Z/out/render/pair-storage.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..7645aaa1647316c652da3981e48dba40c8d2147d
+--- /dev/null
++++ b/run/20261023T094306Z/out/render/pair-storage.sh
+@@ -0,0 +1,193 @@
++#!/bin/bash
++# Enclave Base holder storage (rendered by holder.py from holder-storage.sh.in; ROOT ONLY; review before use).
++# Durable data: ONE new ext4 filesystem inside ONE new image file on the HDD (ORIGIN). Optional cache: dm-cache in
++# WRITETHROUGH mode (smq) on two new fixed-size image files on NVMe (CDATA, CMETA). Existing filesystems, partitions and
++# mappings are never formatted, changed, adopted or removed unless they are provably this holder's own.
++#   create        once, with root's approval: preflight EVERYTHING, then allocate; unwinds only what it created
++#   assemble      at boot: attach and map (or adopt an IDENTICAL existing mapping), mount; unwinds only what it did
++#   disassemble   at stop: unmount, unmap, detach; stops at the first failure (never detaches under a live user)
++#   verify-cap    the shared NVMe cache budget ledger (budget.py verify): this host's reservations charged at their
++#                 declared MAXIMA within its fixed share of the 250,000,000,000-byte cap, every present file exactly
++#                 bounded and owned, this reservation's files present; exit 3 otherwise
++#   cache-loss    holder stopped: unmap, INVALIDATE the cache metadata first, then a read-only check of the origin. Any
++#                 later assemble starts from an empty cache. A cache is never reattached after uncached origin access.
++set -euo pipefail
++umask 077
++MECHANISM='dm-cache'
++ORIGIN='/usbtest/enclave-l1-pair/origin.img'
++ORIGIN_BYTES='33554432'
++ORIGIN_FREE_MARGIN='0'
++MNT='/srv/enclave-l1-pair'
++DATADIR='/srv/enclave-l1-pair/data'
++OWNER='enclave-l1'
++NAME='enclave-l1-pair'
++PY='/usr/bin/python3'
++BUDGET_TOOL='/src/vendor/holder/budget.py'
++LEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'
++RESERVATION='l1-pair-dm-cache'
++CDATA='/vmtest/enclave-l1-pair-cache/cache-data.img'
++CDATA_BYTES='8388608'
++CMETA='/vmtest/enclave-l1-pair-cache/cache-meta.img'
++CMETA_BYTES='8388608'
++BLOCK_SECTORS='512'
++NVME_FREE_MARGIN='0'
++log() { echo "holder-storage: $*" >&2; }
++die() { log "$*"; exit 2; }
++rot() { lsblk -nso ROTA "$(findmnt -no SOURCE --target "$(dirname "$1")")" | tail -1 | tr -d ' '; }
++avail() { df --output=avail -B1 "$(dirname "$1")" | tail -1 | tr -d ' '; }
++mm() { lsblk -dno MAJ:MIN "$1" | tr -d ' '; }
++loopof() { losetup -j "$1" -O NAME -n | head -1; }          # the loop bound to exactly this backing file, if any
++CREATED=(); ATTACHED=(); MAPPED=; MOUNTED=
++unwind() {
++  local rc=$?
++  [ "$rc" -eq 0 ] && return 0
++  trap - EXIT
++  set +e
++  # Ownership alone is not enough: a failed teardown leaves its dependencies live.
++  # Preserve the remaining devices/files for recovery and the original failure code.
++  if [ -n "$MOUNTED" ] && ! umount "$MNT"; then
++    log "cleanup stopped: cannot unmount $MNT; mapping, loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  if [ -n "$MAPPED" ] && ! dmsetup remove "$NAME"; then
++    log "cleanup stopped: cannot remove mapping $NAME; loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  for l in "${ATTACHED[@]}"; do
++    if ! losetup -d "$l"; then
++      log "cleanup stopped: cannot detach $l; remaining loops and images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  for f in "${CREATED[@]}"; do
++    if ! rm -f -- "$f"; then
++      log "cleanup stopped: cannot remove $f; remaining images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  log "failed (rc=$rc): undid only what this run created/attached/mapped/mounted"
++  exit "$rc"
++}
++trap unwind EXIT
++attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
++  local l; l=$(loopof "$1")
++  if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
++  printf -v "$2" '%s' "$l"
++}
++expected_table() { echo "0 $(blockdev --getsz "$O") cache $(mm "$M") $(mm "$D") $(mm "$O") $BLOCK_SECTORS 1 writethrough smq 0"; }
++cached() { [ "$MECHANISM" = dm-cache ]; }
++holder_dev() {   # the device the mount must come from; sets DEV
++  if cached; then DEV=/dev/mapper/$NAME; else DEV=$O; fi
++}
++own_mapping() {  # 0 = absent, 1 = present AND identical to ours; anything else refuses
++  dmsetup info "$NAME" >/dev/null 2>&1 || return 0
++  local have want; have=$(dmsetup table "$NAME"); want=$(expected_table)
++  [ "$have" = "$want" ] || die "mapping $NAME exists but is not this holder's (have: $have; want: $want); leaving it untouched"
++  return 1
++}
++
++case "${1:-}" in
++create)
++  # 1. preflight every resource BEFORE allocating anything
++  test ! -e "$ORIGIN" || die "$ORIGIN exists: refusing to overwrite or reuse"
++  for f in "$ORIGIN" ${CDATA:+"$CDATA"} ${CMETA:+"$CMETA"}; do
++    test -d "$(dirname "$f")" || die "$(dirname "$f") does not exist"
++  done
++  [ "$(rot "$ORIGIN")" = 1 ] || die "origin must be on a rotational (HDD) device"
++  [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
++  if cached; then
++    for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
++    [ "$(avail "$CDATA")" -ge $(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN )) ] || die "not enough NVMe free space for the cache plus margin"
++    # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
++    # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
++    "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
++      || die "NVMe cache budget reservation refused"
++  fi
++  # 2. allocate, tracking ownership for unwind
++  CREATED+=("$ORIGIN"); fallocate -l "$ORIGIN_BYTES" -- "$ORIGIN"
++  attach "$ORIGIN" O
++  mkfs.ext4 -q -L enclave-holder -E lazy_itable_init=0,lazy_journal_init=0 "$O"   # NEW filesystem in the NEW image
++  if cached; then
++    ALLOC=$("$PY" -I "$BUDGET_TOOL" allocate "$LEDGER" "$RESERVATION") || die "NVMe cache budget allocation refused"
++    while read -r w p; do [ "$w" = created ] && CREATED+=("$p"); done <<< "$ALLOC"
++    dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none   # zeroed: dm-cache formats an empty cache
++  fi
++  losetup -d "$O"; ATTACHED=()
++  CREATED=()
++  log "created (not assembled)"
++  ;;
++assemble)
++  modprobe loop
++  test -f "$ORIGIN" || die "origin image missing"
++  if cached; then modprobe dm-cache; modprobe dm-cache-smq; test -f "$CDATA" && test -f "$CMETA" || die "cache images missing"; fi
++  attach "$ORIGIN" O
++  if cached; then
++    "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION" >/dev/null || die "NVMe cache budget verification failed"
++    attach "$CDATA" D; attach "$CMETA" M
++    if own_mapping; then
++      [ -z "$(lsblk -nro MOUNTPOINTS "$O" | tr -d '[:space:]')" ] || die "origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)"
++      dmsetup create "$NAME" --table "$(expected_table)"; MAPPED=1
++    fi
++    dmsetup status "$NAME" | grep -qw writethrough || die "mapping $NAME is not writethrough"
++  fi
++  holder_dev
++  mkdir -p "$MNT"
++  if findmnt -n "$MNT" >/dev/null; then
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++  else
++    mount -o noatime,nodev,nosuid "$DEV" "$MNT"; MOUNTED=1
++  fi
++  chown "$OWNER:$OWNER" "$MNT"; chmod 0700 "$MNT"
++  for d in "$DATADIR" "$MNT/tmp"; do mkdir -p "$d"; chown "$OWNER:$OWNER" "$d"; chmod 0700 "$d"; done
++  ATTACHED=(); MAPPED=; MOUNTED=
++  log "assembled: $DEV on $MNT"
++  ;;
++disassemble)
++  trap - EXIT
++  # Validate the complete ownership chain BEFORE the first destructive action.
++  # A configured path alone does not identify the filesystem mounted there.
++  O=$(loopof "$ORIGIN")
++  DEV=; REMOVE_MAPPING=
++  if cached && dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$O" ] && [ -n "$D" ] && [ -n "$M" ] || die "mapping $NAME exists but its loops are not ours: leaving it"
++    [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    DEV=/dev/mapper/$NAME; REMOVE_MAPPING=1
++  elif ! cached; then
++    DEV=$O
++  fi
++  if findmnt -n "$MNT" >/dev/null; then
++    [ -n "$DEV" ] || die "$MNT is mounted but this holder's device is absent: leaving it"
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++    umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"
++  fi
++  if [ -n "$REMOVE_MAPPING" ]; then
++    dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
++  fi
++  for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
++    l=$(loopof "$f"); [ -z "$l" ] || losetup -d "$l" || die "detach of $l ($f) failed"
++  done
++  log "disassembled"
++  ;;
++verify-cap)
++  trap - EXIT
++  if cached; then exec "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION"; fi
++  echo '{"cache": "none", "nvmeBytes": 0}'
++  ;;
++cache-loss)
++  cached || die "no cache configured"
++  ! findmnt -n "$MNT" >/dev/null || die "$MNT is mounted: stop the holder and run disassemble first"
++  O=$(loopof "$ORIGIN"); [ -n "$O" ] || attach "$ORIGIN" O
++  if dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$D" ] && [ -n "$M" ] && [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    dmsetup remove "$NAME" || die "dmsetup remove failed"
++  fi
++  # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
++  dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
++  e2fsck -fn "$O"
++  ATTACHED=()
++  log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
++  ;;
++*) echo "usage: $0 create|assemble|disassemble|verify-cap|cache-loss" >&2; trap - EXIT; exit 64;;
++esac
+diff --git a/run/20261023T094306Z/out/render/pair.json b/run/20261023T094306Z/out/render/pair.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..25267298fd8aa34d895eb5f25b6eb4a26292df55
+--- /dev/null
++++ b/run/20261023T094306Z/out/render/pair.json
+@@ -0,0 +1,29 @@
++{
++ "serviceUser": "enclave-l1",
++ "datadir": "/srv/enclave-l1-pair/data",
++ "storage": {
++  "layout": "loop-ext4-image",
++  "mountPoint": "/srv/enclave-l1-pair",
++  "origin": {
++   "imagePath": "/usbtest/enclave-l1-pair/origin.img",
++   "bytes": 33554432
++  },
++  "cache": {
++   "mechanism": "dm-cache",
++   "mode": "writethrough",
++   "policy": "smq",
++   "dataImagePath": "/vmtest/enclave-l1-pair-cache/cache-data.img",
++   "dataBytes": 8388608,
++   "metadataImagePath": "/vmtest/enclave-l1-pair-cache/cache-meta.img",
++   "metadataBytes": 8388608,
++   "blockBytes": 262144,
++   "slackBytes": 57344
++  },
++  "nvmeBudget": {
++   "ledgerPath": "/etc/enclave-rpc-cache/nvme-cache-budget.json",
++   "reservationId": "l1-pair-dm-cache"
++  },
++  "originFreeMarginBytes": 0,
++  "nvmeFreeMarginBytes": 0
++ }
++}
+diff --git a/run/20261023T094306Z/out/render/seam.json b/run/20261023T094306Z/out/render/seam.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..4ec355f5dacabc2b5bd65b1ba3855d66e3ae2011
+--- /dev/null
++++ b/run/20261023T094306Z/out/render/seam.json
+@@ -0,0 +1,42 @@
++{
++ "renderers": {
++  "holder.py": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
++  "l1pair.py": "a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d",
++  "template": "eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00",
++  "budget.py": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24"
++ },
++ "templateBodyIdentical": true,
++ "constants": {
++  "holder-storage.sh": "MECHANISM='dm-cache'\nORIGIN='/usbtest/enclave-base-holder/origin.img'\nORIGIN_BYTES='167772160'\nORIGIN_FREE_MARGIN='0'\nMNT='/srv/enclave-base-holder'\nDATADIR='/srv/enclave-base-holder/data'\nOWNER='enclave-holder'\nNAME='enclave-base-holder'\nPY='/usr/bin/python3'\nBUDGET_TOOL='/src/vendor/holder/budget.py'\nLEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'\nRESERVATION='base-holder-dm-cache'\nCDATA='/vmtest/enclave-base-holder-cache/cache-data.img'\nCDATA_BYTES='67108864'\nCMETA='/vmtest/enclave-base-holder-cache/cache-meta.img'\nCMETA_BYTES='16777216'\nBLOCK_SECTORS='512'\nNVME_FREE_MARGIN='0'",
++  "pair-storage.sh": "MECHANISM='dm-cache'\nORIGIN='/usbtest/enclave-l1-pair/origin.img'\nORIGIN_BYTES='33554432'\nORIGIN_FREE_MARGIN='0'\nMNT='/srv/enclave-l1-pair'\nDATADIR='/srv/enclave-l1-pair/data'\nOWNER='enclave-l1'\nNAME='enclave-l1-pair'\nPY='/usr/bin/python3'\nBUDGET_TOOL='/src/vendor/holder/budget.py'\nLEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'\nRESERVATION='l1-pair-dm-cache'\nCDATA='/vmtest/enclave-l1-pair-cache/cache-data.img'\nCDATA_BYTES='8388608'\nCMETA='/vmtest/enclave-l1-pair-cache/cache-meta.img'\nCMETA_BYTES='8388608'\nBLOCK_SECTORS='512'\nNVME_FREE_MARGIN='0'"
++ },
++ "productionValues": {
++  "origin.bytes": "3,100,000,000,000 (S example; validator minimum 1.5e12)",
++  "cache.dataBytes": "197,999,984,640 (S example; minimum 1 GiB)",
++  "cache.metadataBytes": "1,073,741,824",
++  "freeMargins": "500e9 / 200e9",
++  "originDir": "/mnt/usb (NTFS)",
++  "cacheDir": "/vm (ext4 on dm-crypt)"
++ },
++ "ledger": {
++  "shareBytes": 101027840,
++  "bookkeeping": 77824,
++  "reservations": {
++   "base-holder-dm-cache": 84115456,
++   "l1-pair-dm-cache": 16834560
++  },
++  "slack": {
++   "base-holder-dm-cache": 229376,
++   "l1-pair-dm-cache": 57344
++  },
++  "nextReservationRefused": "host 0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f: reservations plus bookkeeping 101048320 exceed its share 101027840"
++ },
++ "files": {
++  "holder-storage.sh": "025b23c768fb549609fc951c9ad93201492e4dbad47d962131e21066342ffe6e",
++  "pair-storage.sh": "046c53a257a4f2c8f477aa4393f20a4d8417e7dcba4187ef824b5a67c5299c86",
++  "ledger.json": "4afcc8140dd4c4172ab12f12857c1483730228e1a3cf52b3054b396fb2d6ab04",
++  "ledger-over.json": "1c74794967a255f1dbb83f1584326e9b42a319958a64bdabedd4f21ac6cb352c",
++  "holder.json": "029b1b2a04747afc6a49dc09c5f0de0f16e0f361a0abcafafb224e0025f4ebdc",
++  "pair.json": "c4a93b74970a2e08afd496958c231dd6177e544cfaec4b8afcda700942abcad9"
++ }
++}
+diff --git a/run/20261023T094306Z/out/results-one.json b/run/20261023T094306Z/out/results-one.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..12f9d718d8bb8be7d34a96995e3dbcb524503954
+--- /dev/null
++++ b/run/20261023T094306Z/out/results-one.json
+@@ -0,0 +1,123 @@
++{
++ "nextReservationRefused": {
++  "rc": 3,
++  "err": "{\"refused\": \"host 0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f: reservations plus bookkeeping 101048320 exceed its share 101027840\"}"
++ },
++ "ledgerValid": true,
++ "holder.create.rc": 0,
++ "holder.verifyCap": {
++  "rc": 0,
++  "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 83914752, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"
++ },
++ "holder.accounting": {
++  "actualFilesMarkers": 83894272,
++  "maxBytes": 84115456,
++  "declared": 83886080,
++  "slack": 229376
++ },
++ "pair.create.rc": 0,
++ "pair.verifyCap": {
++  "rc": 0,
++  "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"l1-pair-dm-cache\", \"reservationBytes\": 16834560, \"reservationActualBytes\": 16793600, \"requiredHeadroomBytes\": 57344, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"
++ },
++ "pair.accounting": {
++  "actualFilesMarkers": 16785408,
++  "maxBytes": 16834560,
++  "declared": 16777216,
++  "slack": 57344
++ },
++ "ext4.vmtest.freeDelta": {
++  "usedByCreates": 104873984,
++  "foreignFixture": 4194304,
++  "sumMaxBytes": 100950016
++ },
++ "foreign.afterCreate": true,
++ "sameNameForeignMapping": {
++  "assembleRc": 2,
++  "refusal": "holder-storage: mapping enclave-base-holder exists but is not this holder's (have: 0 8192 linear 7:0 0; want: 0 327680 cache 7:3 7:2 7:1 512 1 writethrough smq 0); leaving it untouched\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
++  "foreignTableAfter": "0 8192 linear 7:0 0",
++  "holderLoopsLeft": ""
++ },
++ "holder.assemble.rc": 0,
++ "writethrough": true,
++ "io.firstRead": true,
++ "io.secondRead": true,
++ "holder.disassemble.rc": 0,
++ "disassemble.clean": true,
++ "foreign.afterDisassemble": true,
++ "holder.reassemble.rc": 0,
++ "io.afterReassemble": true,
++ "staleCacheHazard": {
++  "assembleRc": 2,
++  "refusal": "holder-storage: origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
++ },
++ "cacheLoss.afterHazard.rc": 0,
++ "holder.assembleAfterCacheLoss.rc": 0,
++ "io.afterCacheLoss": true,
++ "budget.grownFile": {
++  "rcGrown": 3,
++  "refusal": "{\"refused\": \"/vmtest/enclave-base-holder-cache/cache-meta.img is 16781312 bytes, declared 16777216\"}",
++  "rcRestored": 0
++ },
++ "interruptions": [
++  {
++   "delay": 0.05,
++   "rc": -15,
++   "stderr": "",
++   "originExists": false,
++   "loopLeft": "",
++   "cacheFiles": [
++    true,
++    true
++   ]
++  },
++  {
++   "delay": 0.15,
++   "rc": 2,
++   "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
++   "originExists": false,
++   "loopLeft": "",
++   "cacheFiles": [
++    true,
++    true
++   ]
++  },
++  {
++   "delay": 0.3,
++   "rc": 2,
++   "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
++   "originExists": false,
++   "loopLeft": "",
++   "cacheFiles": [
++    true,
++    true
++   ]
++  },
++  {
++   "delay": 0.6,
++   "rc": 2,
++   "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
++   "originExists": false,
++   "loopLeft": "",
++   "cacheFiles": [
++    true,
++    true
++   ]
++  },
++  {
++   "delay": 1.0,
++   "rc": 2,
++   "stderr": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted",
++   "originExists": false,
++   "loopLeft": "",
++   "cacheFiles": [
++    true,
++    true
++   ]
++  }
++ ],
++ "pair.recreateAfterInterrupts.rc": 2,
++ "pair.verifyAfterInterrupts.rc": 0,
++ "foreign.afterInterrupts": true,
++ "holder.assembleBeforeCrash.rc": 0
++}
+\ No newline at end of file
+diff --git a/run/20261023T094306Z/out/results-two.json b/run/20261023T094306Z/out/results-two.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..04a44d96c8fb913759a6a61bfed77a6ca70521b1
+--- /dev/null
++++ b/run/20261023T094306Z/out/results-two.json
+@@ -0,0 +1,32 @@
++{
++ "afterCrash.directAssemble.rc": 0,
++ "afterCrash.directAssemble.status": "0 327680 cache 8 10/4096 512 1/256 309 323 1 29 0 0 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -",
++ "afterCrash.directAssemble.data": true,
++ "afterCrash.unsyncedPresent": false,
++ "afterCrash.cacheLoss.rc": 0,
++ "afterCrash.reviewedAssemble.rc": 0,
++ "afterCrash.reviewedProcedure.data": true,
++ "corruptCacheWithoutCacheLoss.readOnlyProbe": {
++  "mountRc": 32
++ },
++ "corruptCache.cacheLoss.rc": 0,
++ "corruptCache.assemble.rc": 0,
++ "corruptCache.reviewedProcedure.data": true,
++ "foreign.phaseTwo": true,
++ "final.verifyCap": {
++  "rc": 0,
++  "json": "{\"host\": \"0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f\", \"shareBytes\": 101027840, \"chargedBytes\": 101027840, \"actualBytes\": 100700160, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 84115456, \"reservationActualBytes\": 83902464, \"requiredHeadroomBytes\": 229376, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 101027840, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}"
++ },
++ "final.disassemble.rc": 0,
++ "final.pairDisassemble.rc": 0,
++ "final.noLeftovers": {
++  "loops": [],
++  "dm": [
++   "No",
++   "devices",
++   "found"
++  ],
++  "mounts": [],
++  "clean": true
++ }
++}
+\ No newline at end of file

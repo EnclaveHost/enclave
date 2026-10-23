@@ -1,0 +1,249 @@
+# NucBox TLS recovery: same-origin address failover for the Windows node's relay requests
+
+Status: **source change committed and tested locally. Not deployed, not pushed, not composed.** Root owns activation.
+
+| | |
+|---|---|
+| Base | `4106c3114dd13f39692195c182d3152efa5e212c` (objects fetched from `work/resume-after-checkpoint-20261022/host-services-final-compose/candidate`) |
+| Checkout | `work/nucbox-tls-recovery-20261023/candidate`, branch `nucbox-tls-recovery` |
+| Code commit | `1957ff23425f6ee2e0abe2604bdc9735987eff47` (tree `fc0ef47a55f045baac30143e505da05cb5b361f5`), parent 4106c311, author/committer SteveDeFacto |
+| This file | the next commit on the same branch |
+| Run scripts / logs | `work/nucbox-tls-recovery-20261023/claude-run/` (outside the repo) |
+
+## 1. The failure
+
+`outputs/decentralization-audit/nucbox-tls-host-api-20261023T085853Z.json` shows that NucBox's Node `dns.lookup` returns
+`api.enclave.host` as 165.245.191.129, 146.190.246.39, 134.199.235.187, 134.209.248.172. `fetch("https://api.enclave.host/health")`
+fails with `ECONNRESET` ("Client network socket disconnected before secure TLS connection was established").
+
+Node's `fetch` connects to one address. Happy-eyeballs (`autoSelectFamily`) only moves on when a TCP connect fails. Here TCP
+succeeds and the front then drops the TLS handshake, so nothing tries the healthy fronts. Every call that goes through
+`cfg.relayBase` dies on the first address. Three of those calls are in scope:
+
+| call | caller | effect when it fails |
+|---|---|---|
+| `apptls.requestCert` POST `/v1/certs/issue` | `hvcert.issuer` → `createHvCertPass` (HV partitions such as adapter7ae476a3 and c13d4b6a); `ensureCert` (in-enclave apps, custom domains) | already-issued certificates are never collected; partitions keep their fallback pair |
+| `secrets.secretsExist` POST `/v1/secrets/exists` | `Host.#secretsState` → `isolationVerdict` (pre-claim and spawn) | `null` = UNKNOWN, which holds every claim and renewal |
+| `secrets.fetchSecrets` POST `/v1/secrets/fetch` | `Host.loadSecrets` (in-enclave lease holder) | the launch is refused with "could not fetch the secrets" |
+
+`fetchSecrets` was not named in the task. It is the same module, the same relay origin and the same failure, and it is an
+authenticated read whose existing retry loop already signs each attempt afresh. Leaving it out would only move the hold
+from claim to launch for in-enclave apps. NucBox's HV partitions never call it.
+
+## 2. The change (3 source files, +1 test)
+
+`windows/node/origin-request.mjs` (new, 128 lines) exports one function:
+`originRequest(url, { method, headers, body, timeoutMs, signal, lookup, maxBytes }) -> { status, headers, text, address }`.
+It uses only `node:http`, `node:https`, `node:dns` and `node:net`, with no dependencies. It follows the pattern
+`blob-cache.mjs httpsSource` already uses: resolve with `{ all: true }`, then pin the socket to a checked address with a
+`lookup` override and `servername` set to the hostname. It changes nothing except which resolved address carries the
+request:
+
+- **Same origin.** It only uses addresses the system resolver returns for the URL's own hostname, in the resolver's
+  order, with duplicates removed. There is no address list, provider default, alternate authority or new configuration.
+- **Same trust.** It uses Node's default trust store with no `ca` option. SNI is the URL hostname, and identity is checked
+  against the URL hostname (`checkServerIdentity`). `agent: false` gives each attempt a fresh socket, so a pooled socket
+  to another address is never reused.
+- **A certificate this box refuses ends the request.** Wrong name, untrusted or self-signed, and expired certificates are
+  all terminal. The client tries another address only on an `UNAVAILABLE` code (ECONNRESET, ECONNREFUSED, ECONNABORTED,
+  EHOSTUNREACH, EHOSTDOWN, ENETUNREACH, ENETDOWN, ETIMEDOUT, EPIPE, ENOTCONN, EADDRNOTAVAIL, its own handshake timeout)
+  or on OpenSSL `ERR_SSL_*` protocol errors. X.509 verification codes and `ERR_TLS_CERT_ALTNAME_INVALID` are never on that
+  list. This choice is deliberate: an identity failure is interception or a broken front, and rotating would hide it.
+  Today's behaviour for that case is unchanged: it fails.
+- **The request is sent at most once.** The client tries another address only if the previous one failed *before*
+  `secureConnect` (https) or `connect` (http). Node holds the method, headers and body until the socket connects, so
+  none of the request has left the box at that point. The next address gets the identical bytes, and the server sees the
+  request once. A failure after the connection is established (a reset while waiting, a deadline) is thrown with no
+  `notSent`, and the caller's existing retry policy decides what happens next.
+- **Every HTTP response is the service's answer.** That includes 403, 409, 429, 202, 503 and 3xx. The response is
+  returned once, never retried at another address, and redirects are never followed. (Plain `fetch` used to follow a
+  3xx, including cross-origin. Now a 3xx is a non-200: `requestCert` returns `http_307`, and `secretsExist` throws
+  UNKNOWN.)
+- **Same deadline.** `timeoutMs`, combined with the caller's `signal` through `AbortSignal.any`, bounds the whole request:
+  the lookup, every address, and the response body. A hanging handshake gets `min(left, max(2000 ms, left / addresses
+  left))` before the next address is tried, so one black-holed front cannot use up the budget. An already-aborted signal
+  contacts nobody.
+- **Bounded answer.** `maxBytes` defaults to 1 MiB. The relay caps secrets at 16 KiB, and a certificate chain is a few
+  KiB.
+- An IP-literal or `http:` base (every existing test relay is `http://127.0.0.1:N`) is one address and goes through the
+  same code path.
+
+Call sites:
+- `apptls.requestCert`: `fetch(..., { signal: AbortSignal.timeout(60_000) })` becomes
+  `originRequest(..., { timeoutMs: 60_000, signal })`. New optional parameters are `signal` (the caller's abort) and
+  `lookup` (a test seam; production never passes it).
+- `secrets.secretsExist`: same swap with `TIMEOUT_MS` (5 s). Its existing "retry once on wire/5xx, 4xx breaks" loop is
+  unchanged. Every failure is still a throw, which `Host.#secretsState` maps to `null`, i.e. UNKNOWN, never "no".
+- `secrets.fetchSecrets`: same swap. The 3-try loop, re-signing per try, the 401/403/422 throws, and the 404 and
+  secrets_disabled handling are unchanged.
+
+### Why retrying the certificate POST is safe (relay/certs.js at 4106)
+
+- `opSig` is **single-use**: `sigFresh(opSig, ts + TS_SKEW_SEC)`, and a replay gets `409 sig_replayed`.
+- Orders and issued certificates are keyed by `cacheKey(name, spkiHash)`. A cache hit returns `200 cached:true`, and a
+  second request while an order is in flight joins that order. A new key is needed to start another order, and pacing
+  (`rlEndpoint`) is charged only for new orders.
+- The endpoint is not financial. It moves no funds, and the transport is not used by any wallet, sponsor or lease
+  transaction path.
+
+The transport never re-sends bytes that may have been delivered, so the replay cache is never hit by failover. Collection
+after an ambiguous failure stays the existing caller behaviour. `ensureCert` keeps the pending key and CSR on disk and
+presents it again with a fresh signature. `hvcert`/`ensureGuestCert` keeps the guest's key. The relay answers that
+request from its `(name, spkiHash)` cache. This is how the 08:40 adapter7ae476a3 and c13d4b6a certificates will be
+collected once any front completes a handshake.
+
+### Not changed (still plain `fetch`)
+
+- `domains.mjs` (custom-domain list, a read)
+- `sponsor.mjs` (sponsored lease transactions). Left alone on purpose: this is the financial-write path.
+- `shield-custody.mjs`, `shield-secrets.mjs`, `shield-verdict.mjs`
+- `release-channel.mjs` (it already has its own multi-mirror logic)
+- `agent.mjs`, `client.mjs`
+
+`domains.mjs` is the obvious next read to move if root wants it. It was not needed for certificate or claim recovery.
+
+There is no proxy or global-dispatcher bypass. `windows/` has no `setGlobalDispatcher`, `ProxyAgent`, `HTTP(S)_PROXY` or
+`NODE_USE_ENV_PROXY`, and nothing reassigns `globalThis.fetch` in production. These requests already went direct.
+
+## 3. Evidence (all through `work/claude-test-queue.py`; Node v22.23.3 locally)
+
+### a) New suite, `test/windows-node-origin-request.test.mjs`
+
+The suite uses real TCP/TLS sockets. One name, `api.enclave.test`, resolves through an injected lookup to loopback
+addresses 127.0.0.2 through 127.0.0.9 on one port. Each address behaves as one kind of front:
+
+| address | front behaviour |
+|---|---|
+| 127.0.0.2 | resets after TCP, once the ClientHello arrives |
+| 127.0.0.3, 127.0.0.7 | valid |
+| 127.0.0.4 | handshake never completes |
+| 127.0.0.5 | certificate for `wrong.enclave.test`, issued by the test CA |
+| 127.0.0.6 | self-signed certificate for the right name |
+| 127.0.0.8 | takes the request, then drops the connection |
+| 127.0.0.9 | refused |
+
+openssl generates a fresh P-256 test CA in a temp dir for each run. It is installed as the process's **default** trust
+store with `tls.setDefaultCACertificates`; the module is never given a `ca`. The operator key comes from viem
+`generatePrivateKey()` and the CSR from `makeCsr`. No user key is read.
+
+The suite has 9 tests:
+
+1. The resetting front is skipped and the next address answers. The broken front was offered SNI `api.enclave.test`. The
+   good one saw `servername=api.enclave.test`, `Host: api.enclave.test:PORT`, `POST /v1/secrets/exists` and body
+   `{"id":…}`, with exactly one request.
+2. Through `hvcert.issuer` → `requestCert` (reset, then refused, then good): `sign` is called **once**. The one request
+   received is byte-for-byte `{name, csr, endpoint, ts, opSig}` with that signature and that CSR. The message is
+   `enclave-certs-issue:<name>:<endpoint>:<spkiHash>:<ts>`.
+3. DNS order is kept: a healthy first address is used and the second is never contacted.
+4. When every address fails, `secretsExist` throws "not known" and names each address and code, with no request sent.
+   A black-holed first address gives way to the next after its share (under 4.5 s of a 6 s budget). With nothing
+   healthy, the request ends at the 3 s deadline (under 3.8 s). `fetchSecrets` still throws after 3 tries.
+5. Wrong-name (`ERR_TLS_CERT_ALTNAME_INVALID`) and self-signed (`DEPTH_ZERO_SELF_SIGNED_CERT`) certificates are refused.
+   The healthy address after them gets **0 connections** and 0 requests. `secretsExist` stays UNKNOWN.
+6. A caller abort (`requestCert({ signal })`) and an 800 ms deadline against a front that accepted the request both end
+   the request, and the second address gets 0 connections. An already-aborted signal makes 0 connections.
+7. A connection that drops **after** the request is sent is thrown. Exactly 1 request reaches the first address and 0
+   reach the healthy second one: no duplicate POST.
+8. 403 `wrong_operator`, 202 `retryAfterSec`, 429, 307 to the same origin and 308 to `evil.example.test` are each
+   returned once. The second address is never contacted, and `/elsewhere` is never requested.
+9. An empty lookup, `ENOTFOUND`, `ftp:`, and URL credentials are all errors.
+
+Results:
+- `claude-run/logs/focused-1.log` (sha256 `f5a6654f…aae50`): **9/9 pass**, cap 256, peak 142 MiB.
+- Mutation controls, `claude-run/mutate.py` (sha256 `512bb015…31c`), run in a full scratch copy, never the candidate:
+  `claude-run/logs/mutate-2.log` (sha256 `43916c7c…de7a`), cap 512, peak 163 MiB. The unmutated control passes before
+  and after. **7/7 mutants are killed:**
+
+  | mutant | what it does |
+  |---|---|
+  | M1 | first address only: the 10-23 failure; kills tests 1, 2 and 4 |
+  | M2 | rotates around a certificate refusal |
+  | M3 | rotates after the request was sent |
+  | M4 | Host header set to the address |
+  | M5 | rotates on an HTTP refusal |
+  | M6 | no handshake share |
+  | M7 | ignores the caller's signal |
+
+  The earlier `mutate-1` run is **void**. Its scratch copy lacked cross-directory sources, so its control failed (rc=1),
+  and no mutant result from it is counted.
+
+### b) Regression: existing suites that import the changed modules
+
+`claude-run/regress-files.txt` lists every `test/*.mjs` and `windows/node/*.test.mjs` file that imports
+`windows/node/{apptls,secrets,hvcert,host}.mjs`: 60 files, including the new one. Four files that need forge `out/` or
+Anvil were excluded: offchain-heartbeat-writers, session-api-auth, windows-host-app-funded, windows-release-journal.
+
+- `claude-run/logs/regress-1.tap` (sha256 `c6633af0…260c`): `--test-concurrency=1`, cap 768, peak 296 MiB.
+  **404/411 pass, 7 fail.** The directly affected suites all pass:
+  - windows-node-secrets
+  - windows-node-secrets-unknown
+  - windows-node-preclaim
+  - windows-node-hvcert
+  - windows-node-hvcert-pending
+  - windows-node-appzone-tls
+  - windows-node-domain-lifecycle
+  - windows-node-domain-carryover
+  - windows-node-sni
+  - windows-shield-startup
+  - windows-shield-custody-transport
+- The 7 failures were classified by `claude-run/baseline-1.sh`. It runs the 4 failing files on a pristine 4106 copy (B)
+  and on the candidate (C) in the same environment (`logs/baseline-1-B.tap` `54582fd2…3450`, `logs/baseline-1-C.tap`
+  `eb2ecf18…3964`). **B and C are identical: 14/17 pass, the same 3 fail.**
+
+  | failure | cause | in this patch? |
+  |---|---|---|
+  | catalog-platform-enforcement test 2 | `SyntaxError: Private field '#walletPolicyState'…` | no: baseline 4106 |
+  | registry-reconcile test 8 | "the supervisor sends no heartbeat" | no: baseline 4106 |
+  | windows-node-lease-readiness | "PWSH is required" (no PowerShell here; no new toolchain allowed) | no: environment |
+  | windows-node-hv-attach-relay ×4 | `relay/network-runtime.bundle.mjs` missing: an untracked, gitignored build artifact | no: environment |
+
+  With the bundle present, all 4 hv-attach-relay tests pass on B and C. The bundle was copied read-only from the source
+  compose tree, where sha256 `dced8384…f656` matches that compose's `artifacts-final.sha256`. Its manifest inputs
+  include none of the changed files.
+
+## 4. Baseline assumptions and composition
+
+- This patch is against frozen 4106 only. D is reconstructing the exact installed cfb baseline separately. 4106's
+  challenge-supervisor regressions are **not** addressed here, and 4106 must not be deployed.
+- Composing onto cfb or the A/F RPC work:
+  - Add `windows/node/origin-request.mjs` as-is.
+  - In cfb's `apptls.mjs` and `secrets.mjs`, make the same mechanical swap at the three call sites:
+    `fetch(url, {…, signal: AbortSignal.timeout(X)})` + `await r.text()` becomes
+    `originRequest(url, {…, timeoutMs: X[, signal][, lookup]})` + `r.text`.
+  - Add the import, and the optional `signal`/`lookup` parameters.
+  - Then rerun `test/windows-node-origin-request.test.mjs` and the suites in §3b against the composed tree.
+
+  The hunks touch nothing outside those call sites and the signatures.
+- Runtime: `AbortSignal.any` needs Node 20.3 or later. The installer pins `node-v24.16.0`, and `release-channel.mjs`
+  already uses `AbortSignal.any`. The test's `tls.setDefaultCACertificates` is test-only. The suite ran on Linux Node
+  22.23.3; it has not run on Windows or Node 24.
+- Packaging: `windows/installer/stage-bundle.sh` takes `git archive` of the whole `windows/node`, so the new file ships
+  once it is committed. No bundle (lease-gas runtime, host-admission, network-runtime) includes these modules.
+
+## 5. Activation requirements (root-owned; none performed)
+
+1. Compose with D's cfb baseline (and A/F if they are released together). Rerun §3a and §3b on the composed tree.
+2. NucBox is under the human-priority experiment reservation (`effective-goal-requirements.txt`, 08:41Z). Do nothing on
+   the machine until it is released.
+3. Install the three files (`origin-request.mjs`, `apptls.mjs`, `secrets.mjs`) through the normal Windows release or
+   staging path, then restart the node agent. The restart is required because the modules are loaded at start. There
+   is no configuration change, and `relayBase` stays the same.
+4. Expected observation: the hvcert pass collects the cached certificates for adapter7ae476a3 and c13d4b6a (`cached:true`),
+   and `#secretsState` stops logging "not known". The relay's own refusals (`host_ineligible`, `not_lease_holder`,
+   `app_evidence_required`, the owner-only hold) still apply unchanged.
+5. Once root repairs the two broken fronts, behaviour is identical to today's: the first address answers.
+6. Rollback: restore the three files from the previous package (one new file, two small hunks), then restart the agent.
+
+## 6. Scope compliance
+
+- No SSH, wallet, funds, browser, VM or process restart, live API call or production edit.
+- No push.
+- No other worker tree was modified. The source compose tree was only read: objects were fetched, and node_modules and
+  the bundle were copied out of it.
+- No new toolchain: openssl was already present and existing tests use it.
+- Every test ran through the queue, using one large lane at a time (512 or 768) plus 256, with no queue changes.
+- Commits use SteveDeFacto with no co-author trailers. No repo hooks are configured in this checkout. Gitleaks was not
+  run; the test generates all key material at runtime and commits none.
+- Administrator and privacy checks are unchanged. The owner-only and delegated-owner holds, UNKNOWN-is-not-NO, TLS
+  verification, single-use signatures and relay authorization are all untouched. The transport adds no way to reach a
+  different authority.

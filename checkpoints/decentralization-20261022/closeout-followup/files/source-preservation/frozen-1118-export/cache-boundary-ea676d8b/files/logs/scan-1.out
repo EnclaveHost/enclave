@@ -1,0 +1,15 @@
+[queue] START available=25683MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+68183cd0086590d8b048fcbe56c82ea20cc1fcb7 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> RESULT: real dm-cache writethrough/loss-recovery + budget v2 accounting (guest kernel 7.2.11, <=512 MiB), host-fs budget, two template fixes, S/P handoff, evidence
+9ac11f1c5bc665d45deb692d9bb39e0f2454ad69 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> fix 0002 (isolated, for S): TERM/INT/HUP take the existing unwind path (bash skipped the EXIT trap on SIGTERM; vm-2 left origin + loop); fixed-template interruption sweep; vm-2 receipts
+01eb758363b9be049b64ec3930ef3118247a527e SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> harness: fresh-create interruption sweep with production + fixed recovery; block-level corrupted-cache probe; vm-1 receipts
+6a56ddb96191485e94ad3cdca084fde44609dac7 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> fix (isolated, for S): create's NVMe free-space preflight credits blocks already allocated to adopted owned cache files
+94a5f26aa1b74cb80c8fadd1beea949458cd2771 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> cache-native-boundary: capability probes; throwaway QEMU guest harness exercising S's exact rendered storage scripts + budget v2 (959e56f) and P's pair renderer on real guest-kernel loop/dm-crypt/ext4/dm-cache over owned files (<=512 MiB)
+2:51AM INF 5 commits scanned.
+2:51AM INF scanned ~731734 bytes (731.73 KB) in 137ms
+2:51AM INF no leaks found
+2:51AM INF scanned ~367702 bytes (367.70 KB) in 31.2ms
+2:51AM INF no leaks found
+[scan] scan-crypto-keys=0 gitleaks-git=0 gitleaks-run=0
+[memory-guard] exit=0 peakTreeRssMiB=57 minHostAvailableMiB=25494
+[memory-guard] at peak: gitleaks:47 bash:6 timeout:4
+[queue] EXIT 0

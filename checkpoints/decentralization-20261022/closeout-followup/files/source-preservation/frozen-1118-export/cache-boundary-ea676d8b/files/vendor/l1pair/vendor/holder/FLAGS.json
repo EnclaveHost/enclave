@@ -1,0 +1,164 @@
+{
+ "env": {
+  "BASE_NODE_L1_TRUST_RPC": {
+   "file": "base/base:crates/consensus/cli/src/l1.rs:34",
+   "sha256": "fc47f745098feebd5959287bd5764718010670066ae66855c78c8c54bfbf33ff",
+   "why": "l1_trust_rpc is a bool arg with default true (SetTrue): only the env value can make it false"
+  }
+ },
+ "executed": false,
+ "flags": {
+  "--addr": {
+   "file": "base/reth:crates/node/core/src/args/network.rs:297",
+   "kind": "long",
+   "sha256": "7cbddd346a8eeb3e08055ffce3c5fcede59c6051ac2fff48478b96fc7920705e"
+  },
+  "--chain": {
+   "file": "base/base:bin/base/src/cli.rs:29",
+   "kind": "long",
+   "sha256": "1c4ec3dfd1667168f75ba007ea73afd8c8eb7b8f5a02a951469e3e99600a12d3"
+  },
+  "--datadir": {
+   "file": "base/reth:crates/node/core/src/args/datadir_args.rs:20",
+   "kind": "field:datadir",
+   "sha256": "c65b0d6cb72ceaa5e5331dc30a4a8274fb148805ae17e9dfd9010219c813d9ed"
+  },
+  "--datadir.static-files": {
+   "file": "base/reth:crates/node/core/src/args/datadir_args.rs:24",
+   "kind": "long",
+   "sha256": "c65b0d6cb72ceaa5e5331dc30a4a8274fb148805ae17e9dfd9010219c813d9ed"
+  },
+  "--discovery.addr": {
+   "file": "base/reth:crates/node/core/src/args/network.rs:953",
+   "kind": "long",
+   "sha256": "7cbddd346a8eeb3e08055ffce3c5fcede59c6051ac2fff48478b96fc7920705e"
+  },
+  "--discovery.port": {
+   "file": "base/reth:crates/node/core/src/args/network.rs:957",
+   "kind": "long",
+   "sha256": "7cbddd346a8eeb3e08055ffce3c5fcede59c6051ac2fff48478b96fc7920705e"
+  },
+  "--discovery.v5.addr": {
+   "file": "base/reth:crates/node/core/src/args/network.rs:962",
+   "kind": "long",
+   "sha256": "7cbddd346a8eeb3e08055ffce3c5fcede59c6051ac2fff48478b96fc7920705e"
+  },
+  "--discovery.v5.port": {
+   "file": "base/reth:crates/node/core/src/args/network.rs:972",
+   "kind": "long",
+   "sha256": "7cbddd346a8eeb3e08055ffce3c5fcede59c6051ac2fff48478b96fc7920705e"
+  },
+  "--full": {
+   "file": "base/reth:crates/node/core/src/args/pruning.rs:149",
+   "kind": "field:full",
+   "sha256": "1009fae266116f30cc532b2c11891ac5cee8527718eafbcb9732d35b7066968a"
+  },
+  "--http": {
+   "file": "base/reth:crates/node/core/src/args/rpc_server.rs:433",
+   "kind": "field:http",
+   "sha256": "d5716b8f486e964d08e3b05d71b37e9e398612bcefb216a3f015b0ad64a71101"
+  },
+  "--http.addr": {
+   "file": "base/reth:crates/node/core/src/args/rpc_server.rs:436",
+   "kind": "long",
+   "sha256": "d5716b8f486e964d08e3b05d71b37e9e398612bcefb216a3f015b0ad64a71101"
+  },
+  "--http.api": {
+   "file": "base/reth:crates/node/core/src/args/rpc_server.rs:448",
+   "kind": "long",
+   "sha256": "d5716b8f486e964d08e3b05d71b37e9e398612bcefb216a3f015b0ad64a71101"
+  },
+  "--http.port": {
+   "file": "base/reth:crates/node/core/src/args/rpc_server.rs:440",
+   "kind": "long",
+   "sha256": "d5716b8f486e964d08e3b05d71b37e9e398612bcefb216a3f015b0ad64a71101"
+  },
+  "--ipcdisable": {
+   "file": "base/reth:crates/node/core/src/args/rpc_server.rs:477",
+   "kind": "field:ipcdisable",
+   "sha256": "d5716b8f486e964d08e3b05d71b37e9e398612bcefb216a3f015b0ad64a71101"
+  },
+  "--l1-beacon": {
+   "file": "base/base:crates/consensus/cli/src/l1.rs:40",
+   "kind": "field:l1_beacon",
+   "sha256": "fc47f745098feebd5959287bd5764718010670066ae66855c78c8c54bfbf33ff"
+  },
+  "--l1-eth-rpc": {
+   "file": "base/base:crates/consensus/cli/src/l1.rs:18",
+   "kind": "field:l1_eth_rpc",
+   "sha256": "fc47f745098feebd5959287bd5764718010670066ae66855c78c8c54bfbf33ff"
+  },
+  "--l1.rpc-timeout-ms": {
+   "file": "base/base:crates/consensus/cli/src/l1.rs:21",
+   "kind": "long",
+   "sha256": "fc47f745098feebd5959287bd5764718010670066ae66855c78c8c54bfbf33ff"
+  },
+  "--minimal": {
+   "file": "base/reth:crates/node/core/src/args/pruning.rs:158",
+   "kind": "field:minimal",
+   "sha256": "1009fae266116f30cc532b2c11891ac5cee8527718eafbcb9732d35b7066968a"
+  },
+  "--p2p.listen.ip": {
+   "file": "base/base:crates/consensus/cli/src/p2p.rs:105",
+   "kind": "long",
+   "sha256": "c87167d34ad75d3967bb67519f21b9853f7b88909b26f8915543eb7c22c30585"
+  },
+  "--p2p.listen.tcp": {
+   "file": "base/base:crates/consensus/cli/src/p2p.rs:108",
+   "kind": "long",
+   "sha256": "c87167d34ad75d3967bb67519f21b9853f7b88909b26f8915543eb7c22c30585"
+  },
+  "--p2p.listen.udp": {
+   "file": "base/base:crates/consensus/cli/src/p2p.rs:111",
+   "kind": "long",
+   "sha256": "c87167d34ad75d3967bb67519f21b9853f7b88909b26f8915543eb7c22c30585"
+  },
+  "--port": {
+   "file": "base/reth:crates/node/core/src/args/network.rs:301",
+   "kind": "long",
+   "sha256": "7cbddd346a8eeb3e08055ffce3c5fcede59c6051ac2fff48478b96fc7920705e"
+  },
+  "--rpc.addr": {
+   "file": "base/base:crates/consensus/cli/src/rpc.rs:75",
+   "kind": "long-embedded",
+   "sha256": "7d907e3455f13943355fb209b416fc973e064697a7e0e96581bcb7989d00694a"
+  },
+  "--rpc.eth-proof-window": {
+   "file": "base/reth:crates/node/core/src/args/rpc_server.rs:629",
+   "kind": "long",
+   "sha256": "d5716b8f486e964d08e3b05d71b37e9e398612bcefb216a3f015b0ad64a71101"
+  },
+  "--rpc.forwarding-endpoint": {
+   "file": "base/base:crates/execution/cli/src/standard_node.rs:286",
+   "kind": "long",
+   "sha256": "53ac5d4befd405bfd2ec3f9b9aa6c31460d0120b535b7e1b3b205ece01d10117"
+  },
+  "--rpc.max-connections": {
+   "file": "base/reth:crates/node/core/src/args/rpc_server.rs:547",
+   "kind": "long",
+   "sha256": "d5716b8f486e964d08e3b05d71b37e9e398612bcefb216a3f015b0ad64a71101"
+  },
+  "--rpc.port": {
+   "file": "base/base:crates/consensus/cli/src/rpc.rs:78",
+   "kind": "long-embedded",
+   "sha256": "7d907e3455f13943355fb209b416fc973e064697a7e0e96581bcb7989d00694a"
+  },
+  "--upgrade-signal.mode": {
+   "file": "base/base:crates/utilities/upgrade-signal/src/config/args.rs:18",
+   "kind": "long",
+   "sha256": "40fda794f03f090bb67ab173a32d3df4ed3d66a564f0b5de6b3c939f0b591f84"
+  }
+ },
+ "format": "enclave-base-holder-flags/v1",
+ "release": {
+  "asset": "base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz",
+  "digestSource": "GitHub release API asset digest (evidence/upstream-20261023T043317Z/base-releases.json)",
+  "signature": "base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz.asc (not verified: release key not established)",
+  "tag": "v1.5.1",
+  "tarballSha256": "6779c45dbc6041205cc4e52bc2cd9d40746a5a4366a309899bf6533fccebe2b7"
+ },
+ "sources": {
+  "base/base": "5476069f1eb74a56bccb56fdefd4b4bb0e3cda42 (v1.5.1)",
+  "base/reth": "7134be3b51cf9d9504f988bff3266a23085f0bd9 (base-v2.5.2.8)"
+ }
+}

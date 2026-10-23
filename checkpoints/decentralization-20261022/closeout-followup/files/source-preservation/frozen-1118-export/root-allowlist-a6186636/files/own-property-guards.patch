@@ -1,0 +1,29 @@
+--- a/network/public-rpc.mjs
++++ b/network/public-rpc.mjs
+@@ -84,7 +84,7 @@
+   }
+   const limits = {};
+   if (c.limits !== undefined && !plain(c.limits)) fail('limits must be an object');
+-  for (const k of Object.keys(c.limits || {})) if (!LIMITS[k]) fail(`limits: unknown field ${JSON.stringify(k)}`);
++  for (const k of Object.keys(c.limits || {})) if (!Object.hasOwn(LIMITS, k)) fail(`limits: unknown field ${JSON.stringify(k)}`);
+   for (const [k, [lo, hi, def]] of Object.entries(LIMITS)) {
+     const v = (c.limits || {})[k] ?? def;
+     if (!Number.isInteger(v) || v < lo || v > hi) fail(`limits.${k}: ${lo} to ${hi}`);
+@@ -113,7 +113,7 @@
+ function tx(v) {
+   if (!plain(v)) bad('the call must be a transaction object');
+   for (const [k, x] of Object.entries(v)) {
+-    const t = TX_KEYS[k];
++    const t = Object.hasOwn(TX_KEYS, k) ? TX_KEYS[k] : null;
+     if (!t) bad(`unsupported call field ${JSON.stringify(k).slice(0, 40)}`);
+     if (t === 'qty' ? !(typeof x === 'string' && QTY.test(x)) : t === 'hex' ? !(typeof x === 'string' && HEX.test(x)) : (t(x, k), false)) bad(`invalid ${k}`);
+   }
+@@ -243,7 +243,7 @@
+         return send(res, 200, rpcError(null, -32600, 'invalid JSON-RPC 2.0 request'), { origin: allowed });
+       const method = body.method, params = body.params === undefined ? [] : body.params;
+       if (FORBIDDEN.test(method)) return send(res, 200, rpcError(reqId, -32601, `${method.slice(0, 64)} is not offered by a public endpoint (no administration, debugging, signing, accounts, mempool or filters)`), { origin: allowed });
+-      const check = METHODS[method];
++      const check = Object.hasOwn(METHODS, method) ? METHODS[method] : null;
+       if (!check) return send(res, 200, rpcError(reqId, -32601, `${method.slice(0, 64)} is not offered by this endpoint`), { origin: allowed });
+       if (method === 'eth_sendRawTransaction' && !cfg.rawTransactions)
+         return send(res, 200, rpcError(reqId, -32601, 'eth_sendRawTransaction is not offered: this operator has not stated a transaction propagation route for its node (nothing was submitted)'), { origin: allowed });

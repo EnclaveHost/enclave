@@ -1,0 +1,3 @@
+guest-exit phase=two rc=0
+[   12.438188] sysrq: Power Off
+[   12.440933] reboot: Power down

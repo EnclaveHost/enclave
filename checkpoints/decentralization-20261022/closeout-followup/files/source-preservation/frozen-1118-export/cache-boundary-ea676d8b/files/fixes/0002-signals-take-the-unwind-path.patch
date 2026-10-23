@@ -1,0 +1,12 @@
+--- fixes/holder-storage.sh.in (after 0001)	2026-10-23 02:48:26.480483779 -0700
++++ fixes/holder-storage.sh.in	2026-10-23 02:48:26.496672573 -0700
+@@ -52,6 +52,9 @@
+   exit "$rc"
+ }
+ trap unwind EXIT
++# a signal (systemd stop, Ctrl-C, hangup) must take the same unwind path as an error: without these, bash dies on
++# SIGTERM WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel)
++trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
+ attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
+   local l; l=$(loopof "$1")
+   if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi

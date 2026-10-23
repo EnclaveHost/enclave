@@ -1,0 +1,36 @@
+{
+  "files": {
+    "run-node.cmd": [
+      "call \"C:\\ProgramData\\Enclave\\node-config.cmd\"",
+      "cd /d \"C:\\Program Files\\Enclave\\control\\windows\\node\"",
+      ":loop",
+      "set \"BASE_RPCS=https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org,https://mainnet.base.org\"",
+      "set \"IPFS_GATEWAYS=[\"http://134.199.235.187:8189\",\"http://134.209.248.172:8189\",\"http://165.245.191.129:8189\",\"http://146.190.246.39:8189\",\"https://7ae476a3.app.enclave.host\"]\"",
+      "set \"ENCLAVE_CONTRACT_PINS_FILE=C:\\ProgramData\\Enclave\\node\\contract-pins.json\"",
+      "set \"ENCLAVE_HOST_POLICY_DIR=C:\\ProgramData\\Enclave\\host-policy\"",
+      "\"C:\\Program Files\\Enclave\\runtime\\node\\node.exe\" \"C:\\Program Files\\Enclave\\control\\windows\\node\\agent.mjs\" >> \"C:\\ProgramData\\Enclave\\logs\\node.log\" 2>&1",
+      "echo %date% %time% [run] exited %errorlevel%; restarting in 10 s >> \"C:\\ProgramData\\Enclave\\logs\\node.log\"",
+      "goto loop"
+    ],
+    "run-shield.cmd": [
+      "call \"C:\\ProgramData\\Enclave\\shield-config.cmd\"",
+      "cd /d \"C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\"",
+      ":loop",
+      "\"C:\\Program Files\\Enclave\\runtime\\node\\node.exe\" \"C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\main.mjs\" >> \"C:\\ProgramData\\Enclave\\logs\\shield.log\" 2>&1",
+      "echo %date% %time% [run] exited %errorlevel%; restarting in 10 s >> \"C:\\ProgramData\\Enclave\\logs\\shield.log\"",
+      "goto loop"
+    ],
+    "node-config.local.cmd": [
+      "set NODE_APP_RAM_GB=64",
+      "set APP_SLOTS=16"
+    ],
+    "node-config.cmd": [
+      "set APP_SLOTS=16",
+      "set NODE_APP_RAM_GB=64"
+    ],
+    "shield-config.cmd": [
+      "set NODE_APP_RAM_GB=64"
+    ]
+  },
+  "at": "2026-10-23T10:07:53.9311093Z"
+}

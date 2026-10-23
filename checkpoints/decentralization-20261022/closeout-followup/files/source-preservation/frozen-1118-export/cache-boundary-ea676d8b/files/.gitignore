@@ -1,0 +1,6 @@
+run/*/hdd.img
+run/*/nvme.img
+run/*/initramfs.cpio.gz
+run/*/out/fixture.key
+__pycache__/
+ROOT-*.txt

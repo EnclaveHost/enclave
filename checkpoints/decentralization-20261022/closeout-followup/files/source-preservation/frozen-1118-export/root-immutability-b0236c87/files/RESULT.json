@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-23T09:58:03.096513+00:00",
+  "source": "46dbfbef32a25e23c7d1045f2458f00a7470cb32",
+  "readAdapter": "createL1PairSource.receipt, actual source; scripted loopback pair, not mainnet validation",
+  "before": {
+    "minted": true,
+    "outerFrozen": true,
+    "receiptFrozen": false,
+    "transactionFrozen": false,
+    "nonce": 7,
+    "status": "success",
+    "logs": 0
+  },
+  "after": {
+    "minted": true,
+    "sameReceipt": true,
+    "nonce": 999,
+    "status": "reverted",
+    "logs": 1,
+    "finalized": true
+  },
+  "impact": "Minted identity/reference checks do not protect nested read facts from post-validation mutation; no external attacker exploit or real transaction demonstrated. Need immutable owned evidence snapshots.",
+  "verification": {
+    "exit": 0,
+    "peakTreeRssMiB": 87
+  },
+  "noProductionChanges": true
+}

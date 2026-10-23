@@ -1,0 +1,276 @@
+From f8c999ed5a9600ef477ff05ee00b31dee366b2b1 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:49:06 -0700
+Subject: [PATCH] l1pair: re-vendor S's composed holder storage (92b7178:
+ signal unwind, owned same-fs free-space credit, cache-loss/disassemble loop
+ policies, RUNBOOK-CACHE); RUNBOOK cache procedure
+
+---
+ jobs/run.sh                               |   2 +-
+ l1pair/RUNBOOK.md                         |  18 ++++
+ l1pair/test/test_l1pair.py                |   2 +-
+ l1pair/vendor/VENDOR.json                 |   7 +-
+ l1pair/vendor/holder/RUNBOOK-CACHE.md     | 115 ++++++++++++++++++++++
+ l1pair/vendor/holder/holder-storage.sh.in |  29 +++++-
+ 6 files changed, 166 insertions(+), 7 deletions(-)
+ create mode 100644 l1pair/vendor/holder/RUNBOOK-CACHE.md
+
+diff --git a/jobs/run.sh b/jobs/run.sh
+index 58cd4012f25ff9571838588f5e8fcdd576ed7b84..4b038221474fec0162ea59f4f80a2f9454fa0a2d 100755
+--- a/jobs/run.sh
++++ b/jobs/run.sh
+@@ -15,7 +15,7 @@ import hashlib, json
+ v = json.load(open('l1pair/vendor/VENDOR.json'))
+ for rel, sha in v['files'].items():
+     assert hashlib.sha256(open('l1pair/vendor/' + rel, 'rb').read()).hexdigest() == sha, rel
+-print('vendor: OK (S 959e56f byte-identical)')
++print('vendor: OK (S composed 92b7178 byte-identical)')
+ PY
+ case "${1:-}" in
+ unit)    eval exec $NS python3 -u -I l1pair/test/test_l1pair.py ;;
+diff --git a/l1pair/RUNBOOK.md b/l1pair/RUNBOOK.md
+index 633f58716322c2ce0a7e811c8e6df8e87f7986c4..bbb0dc99f3306084484b2e9153f69b42defaed41 100644
+--- a/l1pair/RUNBOOK.md
++++ b/l1pair/RUNBOOK.md
+@@ -194,6 +194,24 @@ minus the sequencing window.
+ Apply `holder-l1-fragment.json` (`l1.executionRpc`/`l1.beacon` = loopback, `trustRpc: false`) to S's holder config, then
+ follow S's RESULT-HOLDER §7.
+ 
++## 8a. NVMe cache operations (only if root granted a cache, D3)
++
++Follow `vendor/holder/RUNBOOK-CACHE.md` (S's composed runbook, pinned in `VENDOR.json`).
++
++**Power loss with a healthy cache:** the boot `assemble` is fine. Check `dmsetup status enclave-l1-pair` shows
++`writethrough`, 0 dirty, no `needs_check`, and mode `rw`.
++
++**A suspect or corrupted cache device, or any status deviation:**
++1. **stop `enclave-l1-cl` and `enclave-l1-el` first**;
++2. `l1pair-storage.sh disassemble`;
++3. `l1pair-storage.sh cache-loss`;
++4. `l1pair-storage.sh assemble`.
++
++dm-cache serves corrupted cache content unchecked (measured), so never assemble a suspect cache.
++
++**Interrupted `create`:** a signal now unwinds. After a SIGKILL or power loss: detach the loop on the unmarked origin,
++remove that origin, and re-run `create`. It adopts the owned cache files.
++
+ ## 9. Rollback
+ 
+ 1. In S's config, revert `l1` to the previous endpoints. S owns this step and the holder restart.
+diff --git a/l1pair/test/test_l1pair.py b/l1pair/test/test_l1pair.py
+index c251423d634296e1d791723243e5369e65d4f654..f6408062e5996c51d3cba8fa8b3e21213fece1fe 100644
+--- a/l1pair/test/test_l1pair.py
++++ b/l1pair/test/test_l1pair.py
+@@ -261,7 +261,7 @@ class Rendering(unittest.TestCase):
+ 
+     def test_vendor_files_match_their_pins(self):
+         v = json.loads((PKG / 'vendor/VENDOR.json').read_text())
+-        self.assertIn('959e56fd7ea191bfcc7eb94b26a20d4795856bd3', v['source'])
++        self.assertIn('92b71784c9452056eeeb6a97b8e1fcb8ef1815ca', v['source'])
+         for rel, sha in v['files'].items():
+             self.assertEqual(hashlib.sha256((PKG / 'vendor' / rel).read_bytes()).hexdigest(), sha, rel)
+ 
+diff --git a/l1pair/vendor/VENDOR.json b/l1pair/vendor/VENDOR.json
+index 4670983b1c3461e4082d3be9219a625ba2e0897a..e52b1cc7a89fbe26753b62a9bae4722583734328 100644
+--- a/l1pair/vendor/VENDOR.json
++++ b/l1pair/vendor/VENDOR.json
+@@ -1,13 +1,14 @@
+ {
+  "format": "enclave-l1-pair-vendor/v1",
+- "source": "S's fresh-witness-supply repo, FINAL immutable commit 959e56fd7ea191bfcc7eb94b26a20d4795856bd3 (root-reviewed budget v2: shared ledger + rounding fix; includes fd0134d/c3efff41 unwind and b1b6f184; git show, S working tree NOT used)",
++ "source": "S's holder source composed in work/rpc-storage-final-compose/s, commit 92b71784c9452056eeeb6a97b8e1fcb8ef1815ca (= S 959e56fd budget v2 + bcd3d9c report timestamp fix + the kernel-tested storage fixes and loop policies c74e302 + RUNBOOK-CACHE 92b7178; git show, no working tree)",
+  "use": "library only (Supervisor, PDEATHSIG, group stop, sd_notify, backing_disks, port_in_use, validate_storage rules, shared NVMe budget ledger tool) and the storage script template; nothing here edits or runs the Base holder",
+  "files": {
+   "holder/holder.py": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
+   "holder/budget.py": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24",
+   "holder/FLAGS.json": "7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59",
+   "holder/BINARY.json": "b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00",
+-  "holder/holder-storage.sh.in": "eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00",
+-  "holder/holder.example.json": "8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a"
++  "holder/holder-storage.sh.in": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
++  "holder/holder.example.json": "8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a",
++  "holder/RUNBOOK-CACHE.md": "c599d997e740f2863f3ea5cb186526845c180b65033dea8563a04b1264991238"
+  }
+ }
+diff --git a/l1pair/vendor/holder/RUNBOOK-CACHE.md b/l1pair/vendor/holder/RUNBOOK-CACHE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..a02915a2b612f0c660ed7cd8a6a1174d4b45eddc
+--- /dev/null
++++ b/l1pair/vendor/holder/RUNBOOK-CACHE.md
+@@ -0,0 +1,115 @@
++# Holder storage: NVMe cache operations (writethrough dm-cache over an HDD origin)
++
++This runbook is root-only and applies to any package that renders `holder-storage.sh.in`: the Base holder
++`enclave-base-holder` and the L1 pair `enclave-l1-pair`.
++
++**Evidence:** `work/cache-native-boundary-20261023` (real 7.2.11 kernel in a throwaway guest, scale-only sizes) and the
++seam tests in `holder/test/test_storage.py`. None of it was on the production `/vm` NVMe, the USB RAID or NTFS.
++
++## Principles
++
++- **The HDD origin is authoritative.** In writethrough mode every write completes on the origin before it is
++  acknowledged, so the cache holds no data that the origin lacks. Measured: 0 dirty blocks at all times.
++- **dm-cache does NOT checksum cache content.**
++  - It serves whatever the cache device returns for a block it believes is cached.
++  - Measured with garbage written over the cache data device: 10,688 of 40,960 4 KiB blocks read wrong through the
++    cache, and ext4 could not be mounted.
++  - **A cache device you do not trust must never be assembled.**
++- **`cache-loss` is always safe.** It zeroes the cache metadata BEFORE the origin is touched, then runs a read-only
++  `e2fsck -fn` of the origin. The only cost is a cold cache.
++
++## Which situation are you in?
++
++### 1. Power loss / unclean host shutdown, cache device believed healthy
++
++This is NOT automatically the same as cache corruption.
++
++1. Let the storage unit's `assemble` run at boot. Measured: exit 0; all fsynced data correct; data that was never
++   fsynced may be lost.
++2. Then check `dmsetup status <NAME>`. It must show **all** of:
++   - `writethrough`;
++   - dirty = 0;
++   - no `needs_check`;
++   - mode `rw`, not `ro` or `Fail`.
++3. Also check the kernel log for errors on the cache images' device.
++4. **Any deviation** → treat it as §2.
++5. **If in doubt** → §2. It is cheap.
++
++### 2. Suspect or corrupted cache device
++
++**Triggers:**
++- media or I/O errors;
++- SMART warnings on the NVMe;
++- `needs_check`;
++- dirty > 0 (impossible in writethrough);
++- `e2fsck` or ext4 errors;
++- unexpected data;
++- the cache images were modified, copied or restored;
++- the cache filesystem was repaired.
++
++**Procedure — STOP THE CONSUMER FIRST:**
++
++1. `systemctl stop <holder or l1 units>`. Nothing may read through the mapping while you work.
++2. `holder-storage.sh disassemble`. It refuses, and stops, if:
++   - the mount or mapping is not this holder's own;
++   - any of its loops is still mounted or held by another device.
++
++   Resolve the user it reports. Never force it.
++3. `holder-storage.sh cache-loss`: invalidate the cache metadata, then the read-only origin check.
++   - It refuses while the mount point is mounted.
++   - It detaches only the origin loop it attached itself.
++4. If the cache DEVICE itself is bad, stop here and replace it (§4). Otherwise run `holder-storage.sh assemble`. The
++   cache starts empty.
++5. Start the consumer.
++
++### 3. The origin was accessed WITHOUT the cache
++
++For example: mounted directly, fsck'd, or restored. `assemble` refuses ("run cache-loss first (stale-cache hazard)").
++Run `cache-loss`, then `assemble`. **Never re-attach an old cache after uncached origin writes.**
++
++### 4. Replacing or dropping the cache device
++
++1. Stop the consumer, then run `disassemble` and `cache-loss`.
++2. Delete the two cache images and their `.enclave-budget-owner` markers.
++3. Root removes or adjusts the reservation in the shared ledger `/etc/enclave-rpc-cache/nvme-cache-budget.json`.
++
++**To run without a cache:** render the config with `cache.mechanism: none`.
++
++**To re-create cache files for an EXISTING origin there is no single command.** `create` refuses while the origin
++exists. Root's manual steps:
++1. `budget.py allocate <ledger> <reservation>`;
++2. zero the first 8 MiB of the metadata image (as `create` does);
++3. `assemble`.
++
++That is a known gap: a `create-cache` verb would be a source change for review.
++
++### 5. An interrupted `create`
++
++- **SIGTERM, SIGINT or SIGHUP** (e.g. `systemctl stop`, Ctrl-C) now runs the normal unwind: exit 143/130/129. It removes
++  exactly what that run created and detaches exactly what it attached.
++- **SIGKILL or power loss** cannot unwind. Then:
++  1. detach the loop bound to the run's origin file (`losetup -j <origin>`);
++  2. remove that **unmarked** origin image;
++  3. re-run `create`.
++
++  The re-run adopts this reservation's owned cache files and markers. Its free-space check credits only owned regular
++  files on the cache filesystem.
++
++## Loop policy (why loops are left or removed)
++
++- **`assemble`:** attaches or adopts this holder's three loops and keeps them under the mapping.
++- **`disassemble`:** detaches this holder's loops after unmapping, but **never** a loop that is still mounted anywhere
++  or held by another device. `losetup -d` on a busy loop only defers the detach (autoclear) under its user.
++- **`cache-loss`:** detaches only the origin loop it attached for its check. A loop that existed before is left alone.
++- **Unwind (error or signal):** detaches only loops this run attached, and stops at the first failed teardown, keeping
++  images under live users (root fixes `b1b6f18`, `c3efff4`).
++
++## Budget
++
++- **One aggregate:** every cache of this work (Base holder, L1 pair, any other) is ONE ledger, capped at
++  250,000,000,000 B with a 200 GB target.
++- **Charging:** each reservation is charged its maxBytes: files + markers + directory entries + extent metadata +
++  allocation-step spill.
++- **Node temp:** goes to the HDD mount (`TMPDIR`), never to NVMe.
++- **Measured** (guest ext4 on dm-crypt, and the host's ext4 on dm-crypt): actual allocation ≤ maxBytes, and the next
++  reservation at a full share is refused.
+diff --git a/l1pair/vendor/holder/holder-storage.sh.in b/l1pair/vendor/holder/holder-storage.sh.in
+index 46e1533d6c2efc75a573194507af0fec98bd1b64..259e3f8125d0f2d9d9f772818809bf72ee267831 100644
+--- a/l1pair/vendor/holder/holder-storage.sh.in
++++ b/l1pair/vendor/holder/holder-storage.sh.in
+@@ -52,6 +52,9 @@ unwind() {
+   exit "$rc"
+ }
+ trap unwind EXIT
++# a signal (systemd stop, Ctrl-C, hangup) takes the same unwind path as an error: without these, bash dies on SIGTERM
++# WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel, vm-2/vm-3)
++trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
+ attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
+   local l; l=$(loopof "$1")
+   if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
+@@ -80,7 +83,21 @@ create)
+   [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
+   if cached; then
+     for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
+-    [ "$(avail "$CDATA")" -ge $(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN )) ] || die "not enough NVMe free space for the cache plus margin"
++    # A re-run after an interrupted create ADOPTS this reservation's owned cache files (budget admit/allocate), so only
++    # their not-yet-allocated part needs free space. Credit ONLY a regular file (no symlink) that carries an ownership
++    # marker and lives on the SAME filesystem as the CDATA directory measured here; anything else is credited 0. The
++    # budget admit below still refuses a file whose marker is not this reservation's.
++    credit() {   # credit FILE DECLARED_BYTES -> allocated bytes to subtract (<= DECLARED_BYTES)
++      local a
++      if [ -f "$1" ] && [ ! -L "$1" ] && [ -f "$1.enclave-budget-owner" ] && [ ! -L "$1.enclave-budget-owner" ] \
++         && [ "$(stat -c %d -- "$1")" = "$(stat -c %d -- "$(dirname "$CDATA")")" ]; then
++        a=$(( $(stat -c %b -- "$1") * 512 )); [ "$a" -le "$2" ] || a=$2; echo "$a"
++      else
++        echo 0
++      fi
++    }
++    need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(credit "$CDATA" "$CDATA_BYTES") - $(credit "$CMETA" "$CMETA_BYTES") ))
++    [ "$(avail "$CDATA")" -ge "$need" ] || die "not enough NVMe free space for the cache plus margin"
+     # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
+     # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
+     "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
+@@ -148,7 +165,12 @@ disassemble)
+     dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
+   fi
+   for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
+-    l=$(loopof "$f"); [ -z "$l" ] || losetup -d "$l" || die "detach of $l ($f) failed"
++    l=$(loopof "$f"); [ -n "$l" ] || continue
++    # a loop still mounted anywhere or held by another device (lsblk lists holders as children) is ACTIVE: losetup -d
++    # would only defer the detach (autoclear) under its user, so stop instead and leave it
++    [ -z "$(lsblk -nro MOUNTPOINTS "$l" | tr -d '[:space:]')" ] && [ "$(lsblk -nro NAME "$l" | wc -l)" -le 1 ] \
++      || die "$l ($f) is still mounted or held by another device: not detaching it (stopping)"
++    losetup -d "$l" || die "detach of $l ($f) failed"
+   done
+   log "disassembled"
+   ;;
+@@ -169,6 +191,9 @@ cache-loss)
+   # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
+   dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
+   e2fsck -fn "$O"
++  # leave the system as found: detach only the origin loop THIS run attached for the check; a loop that existed before
++  # (e.g. left by an earlier assemble or held by something else) is not ours to remove here
++  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done
+   ATTACHED=()
+   log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
+   ;;

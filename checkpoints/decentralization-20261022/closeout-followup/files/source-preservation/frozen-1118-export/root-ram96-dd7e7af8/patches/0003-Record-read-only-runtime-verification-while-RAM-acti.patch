@@ -1,0 +1,142 @@
+From dd7e7af849e641be10e61e92be266e9ecea93722 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 04:09:22 -0700
+Subject: [PATCH 3/3] Record read-only runtime verification while RAM
+ activation awaits experiment release
+
+---
+ RESULT.md                 |   2 +
+ status-current-check.json | 104 ++++++++++++++++++++++++++++++++++++++
+ status-current-check.log  |   1 +
+ 3 files changed, 107 insertions(+)
+ create mode 100644 status-current-check.json
+ create mode 100644 status-current-check.log
+
+diff --git a/RESULT.md b/RESULT.md
+index be066f088dcc94fb8ba4e294b889d45e211b690b..f816d6c569d43cfd4759be1f2001bed7c126bc66 100644
+--- a/RESULT.md
++++ b/RESULT.md
+@@ -13,3 +13,5 @@ Follow-up installer hazard: install-host.ps1 clamps the manager budget to floor(
+ First atomic write attempt failed because PowerShell converted a null backup argument to an invalid path; it made no config change. Corrected File.Replace uses an explicit backup path, then succeeded. Extra .pre-ram96 backups and the first attempt's sibling .tmp may remain. No secrets are present in the tracked receipts.
+ 
+ Activation procedure prepared (not executed): `activate.py` defaults to a no-contact dry run. After direct human restart release, execute individual `--execute --step` actions through the existing 256 MiB queue. It checks saved config hashes, exact scheduled task actions, physical headroom, successful preceding receipts, and old task/listener absence. Shield must expose poolMiB98304 before Node is started. It does not explicitly stop VMs, reboot, install code or edit config. Runtime/app health must still be verified afterward using status.py and endpoint checks. Only Python parsing and local dry-run generation have been verified; PowerShell/runtime behavior has not been executed or validated. Keep the ongoing experiment protected until the human replies.
++
++Read-only verification at2026-10-23T11:07:35Z still reports node64GiB and manager65536MiB, both HTTP200, eight running tenant apps and eleven running VMs. No restart was executed; the human restart/experiment question remains unanswered. Receipt: status-current-check.json.
+diff --git a/status-current-check.json b/status-current-check.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..1fe3b9a507765bf8674dc549e82a9d000d6e2d44
+--- /dev/null
++++ b/status-current-check.json
+@@ -0,0 +1,104 @@
++{
++  "at": "2026-10-23T11:07:35.4495010Z",
++  "node": {
++    "availability": {
++      "status": 200,
++      "nodeRamGb": 64,
++      "machineRamGb": 112,
++      "apps": {
++        "isolation": "hyperv-partition-per-app",
++        "tier": "enclave-shield",
++        "hostExcluded": false,
++        "hostOsExcluded": true,
++        "operatorExcluded": false,
++        "inTee": false,
++        "running": 8,
++        "capacity": 16,
++        "scope": "market",
++        "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
++      },
++      "ramGbFree": 47.9
++    },
++    "manager": {
++      "status": 200,
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 65536
++      },
++      "inventory": {
++        "state": "ready",
++        "recovered": 9,
++        "unattributed": 0,
++        "at": "2026-10-23T08:30:07.329Z"
++      }
++    }
++  },
++  "vms": [
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv3146bdf712f171-3f770400",
++      "uptimeSeconds": 7603.781999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv637cbe35075047-10c44a8a",
++      "uptimeSeconds": 8978.110999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 15101591552,
++      "name": "enclave-app-hv8babaf3c0991fa-ea9d4773",
++      "uptimeSeconds": 6666.15,
++      "state": "Running"
++    },
++    {
++      "memory": 3420454912,
++      "name": "enclave-app-hv94a003c5b947f6-9e2053bc",
++      "uptimeSeconds": 6388.307,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvbf6c56812c25e8-46de1836",
++      "uptimeSeconds": 7410.911,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvc68a5c73043598-3dfcbff8",
++      "uptimeSeconds": 7478.406,
++      "state": "Running"
++    },
++    {
++      "memory": 17850957824,
++      "name": "enclave-app-hvce6a027904d978-322c5206",
++      "uptimeSeconds": 7538.112999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 536870912,
++      "name": "enclave-app-hvd28ea469111245-a79db30f",
++      "uptimeSeconds": 9361.931999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvefa9ce2a7bc0ea-f4322953",
++      "uptimeSeconds": 7445.369,
++      "state": "Running"
++    },
++    {
++      "memory": 8589934592,
++      "name": "enclave-control",
++      "uptimeSeconds": 9384.003999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 4294967296,
++      "name": "enclave-storage",
++      "uptimeSeconds": 9414.091999999999,
++      "state": "Running"
++    }
++  ]
++}
+\ No newline at end of file
+diff --git a/status-current-check.log b/status-current-check.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..221314f23658abcaf4f62f8a5bab457533148b27
+--- /dev/null
++++ b/status-current-check.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=24953

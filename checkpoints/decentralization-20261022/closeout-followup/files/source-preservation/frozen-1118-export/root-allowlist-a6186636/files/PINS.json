@@ -1,0 +1,10 @@
+{
+  "capturedAt": "2026-10-23T10:18:49.155991+00:00",
+  "source": "work/public-rpc-host-role/repo/network",
+  "baseline": "14d1e4954cf7c9900d5d3e841a23f02de945c1b2",
+  "dirtyCandidate": true,
+  "sha256": {
+    "public-rpc.mjs": "cc071ecd5aa25cb68421df478268887fe63959acbb39aac388c4db1d9854cc23",
+    "rpc-identity.mjs": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57"
+  }
+}

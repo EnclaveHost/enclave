@@ -1,0 +1,71 @@
+{
+  "observedAt": "2026-10-23T10:18:49.312Z",
+  "scope": "Actual candidate HTTP role; scripted loopback backend, not Reth or production. Proves strict method/field allowlist bypass through inherited Object properties, not arbitrary RPC/admin execution.",
+  "counterexample": true,
+  "results": [
+    {
+      "method": "unlisted_xyz",
+      "status": 200,
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "code": -32601,
+          "message": "unlisted_xyz is not offered by this endpoint"
+        }
+      },
+      "forwarded": []
+    },
+    {
+      "method": "constructor",
+      "status": 200,
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "BACKEND_FORWARDED"
+      },
+      "forwarded": [
+        {
+          "method": "constructor",
+          "params": []
+        }
+      ]
+    },
+    {
+      "method": "toString",
+      "status": 200,
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "BACKEND_FORWARDED"
+      },
+      "forwarded": [
+        {
+          "method": "toString",
+          "params": []
+        }
+      ]
+    },
+    {
+      "method": "eth_call",
+      "status": 200,
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "BACKEND_FORWARDED"
+      },
+      "forwarded": [
+        {
+          "method": "eth_call",
+          "params": [
+            {
+              "to": "0x1111111111111111111111111111111111111111",
+              "constructor": "unexpected"
+            },
+            "latest"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,375 @@
+From d3b8e68779d5970df463e4238ef5a0f0ae142f27 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:11:13 -0700
+Subject: [PATCH 1/3] Configure NucBox 96 GiB app pool with verified backups;
+ activation pending experiment release
+
+---
+ RESULT.md               |  13 +++++
+ activation-readiness.py |   4 ++
+ config-before.json      |  36 ++++++++++++++
+ configure.py            |   4 ++
+ configured.json         |  28 +++++++++++
+ status-after.json       | 104 ++++++++++++++++++++++++++++++++++++++++
+ status-before.json      | 104 ++++++++++++++++++++++++++++++++++++++++
+ status.py               |   5 ++
+ 8 files changed, 298 insertions(+)
+ create mode 100644 RESULT.md
+ create mode 100644 activation-readiness.py
+ create mode 100644 config-before.json
+ create mode 100644 configure.py
+ create mode 100644 configured.json
+ create mode 100644 status-after.json
+ create mode 100644 status-before.json
+ create mode 100644 status.py
+
+diff --git a/RESULT.md b/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..0721e2163fd241d974422c685a01dfc0048ba299
+--- /dev/null
++++ b/RESULT.md
+@@ -0,0 +1,13 @@
++# NucBox host RAM allocation: configured 96 GiB, activation pending
++
++Direct user instruction: increase the current 64 GB allocation to 96 GB.
++
++At 2026-10-23T10:09:28Z, root backed up and atomically changed only NODE_APP_RAM_GB=64 to 96 in node-config.cmd, node-config.local.cmd, and shield-config.cmd under C:\ProgramData\Enclave. Every resulting file was read back and checked. No source, contracts, VM settings, physical RAM, or application data changed. Backups remain only on the host; no private configuration contents are copied into this repository.
++
++Verification at 10:09:53Z: both services healthy; runtime still 64 GiB / manager 65536 MiB because setting is startup-only. All eleven VMs retain identical assigned memory and increasing uptime; eight tenant apps running. No service or VM restarted.
++
++Activation needs BOTH run-node and run-shield scheduled-task wrappers relaunched, not just their child node.exe processes: the wrappers load config before their restart loop. A manager restart destroys its live relays; recovered app VMs are not serving until reconciled. Root asked whether the ongoing NucBox experiment now permits that interruption. Do not activate merely because this config is staged.
++
++Follow-up installer hazard: install-host.ps1 clamps the manager budget to floor(physicalGiB)-16 (95 here), while the owner local override remains 96 for the node. F composition owner notified: a future updater must not silently create this mismatch. Current three files all have 96.
++
++First atomic write attempt failed because PowerShell converted a null backup argument to an invalid path; it made no config change. Corrected File.Replace uses an explicit backup path, then succeeded. Extra .pre-ram96 backups and the first attempt's sibling .tmp may remain. No secrets are present in the tracked receipts.
+diff --git a/activation-readiness.py b/activation-readiness.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..02488bd397b516697a1c4c24c4170d3e011f007a
+--- /dev/null
++++ b/activation-readiness.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''try {$tasks=@(Get-ScheduledTask | Where-Object {$_.TaskName -match 'Enclave' -or $_.TaskPath -match 'Enclave'} | ForEach-Object {@{name=$_.TaskName;path=$_.TaskPath;state=$_.State.ToString();actions=@($_.Actions|ForEach-Object {@{execute=$_.Execute;arguments=$_.Arguments}})}});$ps=@(Get-CimInstance Win32_Process -Filter "Name='node.exe' OR Name='cmd.exe'" -OperationTimeoutSec 10 | Where-Object {$_.CommandLine -like '*\Enclave\*' -and ($_.CommandLine -match 'run-node.cmd|run-shield.cmd|node\\agent.mjs|manager\\main.mjs')} | ForEach-Object {@{pid=$_.ProcessId;parent=$_.ParentProcessId;exe=$_.ExecutablePath;command=$_.CommandLine;created=$_.CreationDate.ToUniversalTime().ToString('o')}});@{tasks=$tasks;processes=$ps}|ConvertTo-Json -Depth 6 -Compress}catch{@{error=$_.Exception.Message}|ConvertTo-Json -Compress}'''
++r=m.ps(p,35);pathlib.Path('work/nucbox-ram96-20261023/activation-readiness.json').write_text(json.dumps(r,indent=2));print(json.dumps(r))
+diff --git a/config-before.json b/config-before.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..6597a0401980a876b45535bfc3acf64d904f9a94
+--- /dev/null
++++ b/config-before.json
+@@ -0,0 +1,36 @@
++{
++  "files": {
++    "run-node.cmd": [
++      "call \"C:\\ProgramData\\Enclave\\node-config.cmd\"",
++      "cd /d \"C:\\Program Files\\Enclave\\control\\windows\\node\"",
++      ":loop",
++      "set \"BASE_RPCS=https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org,https://mainnet.base.org\"",
++      "set \"IPFS_GATEWAYS=[\"http://134.199.235.187:8189\",\"http://134.209.248.172:8189\",\"http://165.245.191.129:8189\",\"http://146.190.246.39:8189\",\"https://7ae476a3.app.enclave.host\"]\"",
++      "set \"ENCLAVE_CONTRACT_PINS_FILE=C:\\ProgramData\\Enclave\\node\\contract-pins.json\"",
++      "set \"ENCLAVE_HOST_POLICY_DIR=C:\\ProgramData\\Enclave\\host-policy\"",
++      "\"C:\\Program Files\\Enclave\\runtime\\node\\node.exe\" \"C:\\Program Files\\Enclave\\control\\windows\\node\\agent.mjs\" >> \"C:\\ProgramData\\Enclave\\logs\\node.log\" 2>&1",
++      "echo %date% %time% [run] exited %errorlevel%; restarting in 10 s >> \"C:\\ProgramData\\Enclave\\logs\\node.log\"",
++      "goto loop"
++    ],
++    "run-shield.cmd": [
++      "call \"C:\\ProgramData\\Enclave\\shield-config.cmd\"",
++      "cd /d \"C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\"",
++      ":loop",
++      "\"C:\\Program Files\\Enclave\\runtime\\node\\node.exe\" \"C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\main.mjs\" >> \"C:\\ProgramData\\Enclave\\logs\\shield.log\" 2>&1",
++      "echo %date% %time% [run] exited %errorlevel%; restarting in 10 s >> \"C:\\ProgramData\\Enclave\\logs\\shield.log\"",
++      "goto loop"
++    ],
++    "node-config.local.cmd": [
++      "set NODE_APP_RAM_GB=64",
++      "set APP_SLOTS=16"
++    ],
++    "node-config.cmd": [
++      "set APP_SLOTS=16",
++      "set NODE_APP_RAM_GB=64"
++    ],
++    "shield-config.cmd": [
++      "set NODE_APP_RAM_GB=64"
++    ]
++  },
++  "at": "2026-10-23T10:07:53.9311093Z"
++}
+\ No newline at end of file
+diff --git a/configure.py b/configure.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..1cb21c3cb03357ec20a0125bae32d8318aa26f78
+--- /dev/null
++++ b/configure.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''try {$base='C:\ProgramData\Enclave';$names=@('node-config.cmd','node-config.local.cmd','shield-config.cmd');$items=@();foreach($n in $names){$p=Join-Path $base $n;$raw=[IO.File]::ReadAllBytes($p);$text=[Text.Encoding]::UTF8.GetString($raw);$rx=[regex]'(?m)^set NODE_APP_RAM_GB=64\r?$';if($rx.Matches($text).Count -ne 1){throw "Expected exactly one 64 GiB setting in $n"};$new=$text -replace '(?m)^set NODE_APP_RAM_GB=64(?=\r?$)','set NODE_APP_RAM_GB=96';$items+=@{path=$p;raw=$raw;text=$new;sha=(FileSha $p)}};$stamp=(Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ');$done=@();foreach($i in $items){if((FileSha $i.path) -ne $i.sha){throw 'Configuration changed concurrently'};$bak=$i.path+'.pre-ram96-'+$stamp;[IO.File]::Copy($i.path,$bak,$false);$tmp=$i.path+'.ram96-'+$stamp+'.tmp';[IO.File]::WriteAllText($tmp,$i.text,[Text.UTF8Encoding]::new($false));[IO.File]::Replace($tmp,$i.path,($bak+'.replaced'));$read=[IO.File]::ReadAllText($i.path);if(([regex]::Matches($read,'(?m)^set NODE_APP_RAM_GB=96\r?$')).Count -ne 1){throw 'Post-write validation failed'};$done+=@{file=$i.path;backup=$bak;beforeSha=$i.sha;afterSha=(FileSha $i.path);valueGiB=96}};[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');configured=$done;servicesRestarted=$false;runtimeActivation='pending service restart'}|ConvertTo-Json -Depth 5 -Compress}catch{@{error=$_.Exception.Message}|ConvertTo-Json -Compress}'''
++r=m.ps(p,35);pathlib.Path('work/nucbox-ram96-20261023/configured.json').write_text(json.dumps(r,indent=2));print(json.dumps(r));raise SystemExit(1 if 'error' in r else 0)
+diff --git a/configured.json b/configured.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..b03e6ab9cff5f9cd7dda716618a134b61ee5aa82
+--- /dev/null
++++ b/configured.json
+@@ -0,0 +1,28 @@
++{
++  "at": "2026-10-23T10:09:28.1441700Z",
++  "configured": [
++    {
++      "beforeSha": "80d0fa7e1c262c69e452abc873d8544701aa3aec7c8606ade895df8e120bce2a",
++      "backup": "C:\\ProgramData\\Enclave\\node-config.cmd.pre-ram96-20261023T100928Z",
++      "afterSha": "67192775312d507a99e7094eb0101f8a7c28884830ea0e82ee241ceb7a8b9ff1",
++      "file": "C:\\ProgramData\\Enclave\\node-config.cmd",
++      "valueGiB": 96
++    },
++    {
++      "beforeSha": "405db912b15c73e57334bef4ad2c1071695495010bb95e67c72f200c48e382f0",
++      "backup": "C:\\ProgramData\\Enclave\\node-config.local.cmd.pre-ram96-20261023T100928Z",
++      "afterSha": "f10b77466ac47ea62236a2e8cf90281802cbd5f642e6fa1d0581c0f010e13319",
++      "file": "C:\\ProgramData\\Enclave\\node-config.local.cmd",
++      "valueGiB": 96
++    },
++    {
++      "beforeSha": "135455993c376beeb31edc96ca2ad682bbeeaa8bbcaddc7ce398ce602427daa5",
++      "backup": "C:\\ProgramData\\Enclave\\shield-config.cmd.pre-ram96-20261023T100928Z",
++      "afterSha": "5e7f983d7897308345344b117bf2388f64a838cda06416423c0f8aa8287df518",
++      "file": "C:\\ProgramData\\Enclave\\shield-config.cmd",
++      "valueGiB": 96
++    }
++  ],
++  "servicesRestarted": false,
++  "runtimeActivation": "pending service restart"
++}
+\ No newline at end of file
+diff --git a/status-after.json b/status-after.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..558c9a7003ab3030e2027c642eebbb2800d22355
+--- /dev/null
++++ b/status-after.json
+@@ -0,0 +1,104 @@
++{
++  "at": "2026-10-23T10:09:53.5125214Z",
++  "node": {
++    "availability": {
++      "status": 200,
++      "nodeRamGb": 64,
++      "machineRamGb": 112,
++      "apps": {
++        "isolation": "hyperv-partition-per-app",
++        "tier": "enclave-shield",
++        "hostExcluded": false,
++        "hostOsExcluded": true,
++        "operatorExcluded": false,
++        "inTee": false,
++        "running": 8,
++        "capacity": 16,
++        "scope": "market",
++        "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
++      },
++      "ramGbFree": 47.9
++    },
++    "manager": {
++      "status": 200,
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 65536
++      },
++      "inventory": {
++        "state": "ready",
++        "recovered": 9,
++        "unattributed": 0,
++        "at": "2026-10-23T08:30:07.329Z"
++      }
++    }
++  },
++  "vms": [
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv3146bdf712f171-3f770400",
++      "uptimeSeconds": 4141.83,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv637cbe35075047-10c44a8a",
++      "uptimeSeconds": 5516.155,
++      "state": "Running"
++    },
++    {
++      "memory": 15101591552,
++      "name": "enclave-app-hv8babaf3c0991fa-ea9d4773",
++      "uptimeSeconds": 3204.192,
++      "state": "Running"
++    },
++    {
++      "memory": 3420454912,
++      "name": "enclave-app-hv94a003c5b947f6-9e2053bc",
++      "uptimeSeconds": 2926.3399999999997,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvbf6c56812c25e8-46de1836",
++      "uptimeSeconds": 3948.9379999999996,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvc68a5c73043598-3dfcbff8",
++      "uptimeSeconds": 4016.426,
++      "state": "Running"
++    },
++    {
++      "memory": 17850957824,
++      "name": "enclave-app-hvce6a027904d978-322c5206",
++      "uptimeSeconds": 4076.1299999999997,
++      "state": "Running"
++    },
++    {
++      "memory": 536870912,
++      "name": "enclave-app-hvd28ea469111245-a79db30f",
++      "uptimeSeconds": 5899.947999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvefa9ce2a7bc0ea-f4322953",
++      "uptimeSeconds": 3983.3799999999997,
++      "state": "Running"
++    },
++    {
++      "memory": 8589934592,
++      "name": "enclave-control",
++      "uptimeSeconds": 5922.018,
++      "state": "Running"
++    },
++    {
++      "memory": 4294967296,
++      "name": "enclave-storage",
++      "uptimeSeconds": 5952.103,
++      "state": "Running"
++    }
++  ]
++}
+\ No newline at end of file
+diff --git a/status-before.json b/status-before.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..154670bb113c495ff3933c0448fff1964b3d3c90
+--- /dev/null
++++ b/status-before.json
+@@ -0,0 +1,104 @@
++{
++  "at": "2026-10-23T10:08:46.8359078Z",
++  "node": {
++    "availability": {
++      "status": 200,
++      "nodeRamGb": 64,
++      "machineRamGb": 112,
++      "apps": {
++        "isolation": "hyperv-partition-per-app",
++        "tier": "enclave-shield",
++        "hostExcluded": false,
++        "hostOsExcluded": true,
++        "operatorExcluded": false,
++        "inTee": false,
++        "running": 8,
++        "capacity": 16,
++        "scope": "market",
++        "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
++      },
++      "ramGbFree": 47.9
++    },
++    "manager": {
++      "status": 200,
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 65536
++      },
++      "inventory": {
++        "state": "ready",
++        "recovered": 9,
++        "unattributed": 0,
++        "at": "2026-10-23T08:30:07.329Z"
++      }
++    }
++  },
++  "vms": [
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv3146bdf712f171-3f770400",
++      "uptimeSeconds": 4075.1569999999997,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv637cbe35075047-10c44a8a",
++      "uptimeSeconds": 5449.483,
++      "state": "Running"
++    },
++    {
++      "memory": 15101591552,
++      "name": "enclave-app-hv8babaf3c0991fa-ea9d4773",
++      "uptimeSeconds": 3137.5229999999997,
++      "state": "Running"
++    },
++    {
++      "memory": 3420454912,
++      "name": "enclave-app-hv94a003c5b947f6-9e2053bc",
++      "uptimeSeconds": 2859.676,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvbf6c56812c25e8-46de1836",
++      "uptimeSeconds": 3882.2729999999997,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvc68a5c73043598-3dfcbff8",
++      "uptimeSeconds": 3949.768,
++      "state": "Running"
++    },
++    {
++      "memory": 17850957824,
++      "name": "enclave-app-hvce6a027904d978-322c5206",
++      "uptimeSeconds": 4009.473,
++      "state": "Running"
++    },
++    {
++      "memory": 536870912,
++      "name": "enclave-app-hvd28ea469111245-a79db30f",
++      "uptimeSeconds": 5833.29,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvefa9ce2a7bc0ea-f4322953",
++      "uptimeSeconds": 3916.7259999999997,
++      "state": "Running"
++    },
++    {
++      "memory": 8589934592,
++      "name": "enclave-control",
++      "uptimeSeconds": 5855.364,
++      "state": "Running"
++    },
++    {
++      "memory": 4294967296,
++      "name": "enclave-storage",
++      "uptimeSeconds": 5885.451999999999,
++      "state": "Running"
++    }
++  ]
++}
+\ No newline at end of file
+diff --git a/status.py b/status.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..f593d6962ba4ce21e8b53869f19317f366324ca8
+--- /dev/null
++++ b/status.py
+@@ -0,0 +1,5 @@
++import importlib.util,json,pathlib,base64,sys
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++j='''(async()=>{let o={};for(const [k,u] of Object.entries({availability:'http://127.0.0.1:9600/availability',manager:'http://127.0.0.1:8091/health'})){try{const r=await fetch(u,{signal:AbortSignal.timeout(5000)});const b=await r.json();o[k]={status:r.status,...(k==='manager'?{memory:b.memory,inventory:b.inventory}:{nodeRamGb:b.nodeRamGb,machineRamGb:b.machineRamGb,apps:b.apps,capacity:b.capacity,ramGbFree:b.ramGbFree})}}catch(e){o[k]={error:e.message}}}console.log(JSON.stringify(o))})()'''
++p=r'''try {$js="eval(Buffer.from('ENC','base64').toString())";$n=& 'C:\Program Files\Enclave\runtime\node\node.exe' -e $js;[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');node=($n|ConvertFrom-Json);vms=@(Get-VM|ForEach-Object {@{name=$_.Name;state=$_.State.ToString();memory=$_.MemoryAssigned;uptimeSeconds=$_.Uptime.TotalSeconds}})}|ConvertTo-Json -Depth 8 -Compress}catch{@{error=$_.Exception.Message}|ConvertTo-Json -Compress}'''.replace('ENC',base64.b64encode(j.encode()).decode())
++r=m.ps(p,35);pathlib.Path('work/nucbox-ram96-20261023/status-'+(sys.argv[1] if len(sys.argv)>1 else 'before')+'.json').write_text(json.dumps(r,indent=2));print(json.dumps(r))

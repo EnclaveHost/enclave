@@ -1,0 +1,16 @@
+{
+  "observedAt": "2026-10-23T11:16:43.850880+00:00",
+  "repository": "https://github.com/EnclaveHost/enclave",
+  "branch": "checkpoint/decentralization-20261022",
+  "commit": "f2db53ff5691fa691760ce2a102126291a1354f6",
+  "mainReportedByPush": "68b82926968c99503d38ae78dbcb04694cc2c56c",
+  "evidence": "Read actual frozen-0931-checkpoint-push.out: git push success, subsequent ls-remote matches, queue exit0; root inspected local commit metadata and export scope. Root separate remote read did not start (small queue occupied, exit98).",
+  "scope": "Append-only source/evidence checkpoint; no normal-tree merge or deployment. P/E source-only derivatives with omitted artifact recipes, not exact original trees. Newer root reviews and worker changes await subsequent capture.",
+  "rootIndependentRemoteVerification": {
+    "at": "2026-10-23T11:19:29.221338+00:00",
+    "checkpoint": "f2db53ff5691fa691760ce2a102126291a1354f6",
+    "main": "68b82926968c99503d38ae78dbcb04694cc2c56c",
+    "exit": 0,
+    "queue": "256MiB, peak30MiB"
+  }
+}
