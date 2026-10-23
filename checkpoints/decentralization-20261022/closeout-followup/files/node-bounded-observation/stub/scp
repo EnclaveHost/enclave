@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "scp: denied by native-issuer-implementation stub (no remote access)" >&2
+exit 255

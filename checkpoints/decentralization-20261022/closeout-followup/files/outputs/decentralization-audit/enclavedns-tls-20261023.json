@@ -1,0 +1,42 @@
+{
+  "checkedAt": "2026-10-23T00:31:21.405459+00:00",
+  "deployment": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+  "url": "https://59f1273d.app.enclave.host/",
+  "observations": [
+    {
+      "at": "2026-10-23T00:28:55Z",
+      "event": "Existing automatic retry installed ZeroSSL certificate in isolated VM",
+      "expires": "2027-01-20T23:59:59Z"
+    },
+    {
+      "at": "2026-10-23T00:29:14Z",
+      "event": "Network agent reported app egress restored"
+    },
+    {
+      "at": "2026-10-23T00:30:08Z",
+      "event": "Authoritative DNS NOERROR, public HTTPS200, valid certificate chain and hostname"
+    },
+    {
+      "at": "2026-10-23T00:31:00Z",
+      "event": "Both advertised edge addresses HTTP200 TLSverify0; /api/status version0.1.5; example.com A returned NOERROR Security=secure AD=true"
+    }
+  ],
+  "causeEvidence": [
+    "Relay had issued certificate at23:59:06; app had not retrieved/installed it until00:28:55",
+    "Intermittent catalog component CID verification failures and certificate request timeouts",
+    "Node exponential retries reached960seconds; network proof refused self-signed certificate until installation"
+  ],
+  "changesMade": "No production mutation or wallet transaction; recovery occurred through existing retry while diagnosis was in progress",
+  "remaining": "Investigate timeout/retry recurrence; one recovery is not proof of durable availability or completed decentralization.",
+  "latestProbe": {
+    "at": "2026-10-23T00:32:15.633349+00:00",
+    "httpAndTlsVerify": "200 0",
+    "curlExit": 0
+  },
+  "dnssecNegativeTest": {
+    "name": "dnssec-failed.org",
+    "Status": "SERVFAIL",
+    "Security": "bogus",
+    "AD": false
+  }
+}

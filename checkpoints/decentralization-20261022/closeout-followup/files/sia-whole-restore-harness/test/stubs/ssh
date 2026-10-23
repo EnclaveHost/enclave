@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+"""Test stub for ssh: records argv and stdin (to $STUB_DIR), then runs the remote command LOCALLY with every
+`sudo -n ` removed (the 'VM' is a local directory). Never contacts a network."""
+import json
+import os
+import subprocess
+import sys
+
+d = os.environ['STUB_DIR']
+stdin = sys.stdin.buffer.read() if not sys.stdin.isatty() else b''
+n = len([x for x in os.listdir(d) if x.startswith('ssh-')])
+with open(os.path.join(d, 'ssh-%03d.json' % n), 'w') as f:
+    json.dump({'argv': sys.argv[1:], 'stdinBytes': len(stdin)}, f)
+if stdin:
+    with open(os.path.join(d, 'ssh-%03d.stdin' % n), 'wb') as f:
+        f.write(stdin)
+command = sys.argv[-1].replace('sudo -n ', '')
+sys.exit(subprocess.run(['sh', '-c', command], input=stdin).returncode)

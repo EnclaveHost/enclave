@@ -1,0 +1,89 @@
+{
+  "format": "sia-whole-restore-blocked/v1",
+  "comment": "EXAMPLE for --target local (workstation). Root reviews and completes it. outsideMustConnect endpoints must answer OUTSIDE the scope at start (positive control) and be unreachable inside.",
+  "endpoints": [
+    {
+      "label": "storage VM SSH forward (the workstation's route to indexd)",
+      "ip": "127.0.0.1",
+      "port": 32422,
+      "outsideMustConnect": true
+    },
+    {
+      "label": "Nan",
+      "ip": "62.238.4.214",
+      "port": 443
+    },
+    {
+      "label": "DigitalOcean front 134.199.235.187 (HTTPS)",
+      "ip": "134.199.235.187",
+      "port": 443
+    },
+    {
+      "label": "DigitalOcean front 134.199.235.187 (IPFS gateway)",
+      "ip": "134.199.235.187",
+      "port": 8189
+    },
+    {
+      "label": "DigitalOcean front 146.190.246.39 (HTTPS)",
+      "ip": "146.190.246.39",
+      "port": 443
+    },
+    {
+      "label": "DigitalOcean front 146.190.246.39 (IPFS gateway)",
+      "ip": "146.190.246.39",
+      "port": 8189
+    },
+    {
+      "label": "DigitalOcean front 165.245.191.129 (HTTPS)",
+      "ip": "165.245.191.129",
+      "port": 443
+    },
+    {
+      "label": "DigitalOcean front 165.245.191.129 (IPFS gateway)",
+      "ip": "165.245.191.129",
+      "port": 8189
+    },
+    {
+      "label": "DigitalOcean front 134.209.248.172 (HTTPS)",
+      "ip": "134.209.248.172",
+      "port": 443
+    },
+    {
+      "label": "DigitalOcean front 134.209.248.172 (IPFS gateway)",
+      "ip": "134.209.248.172",
+      "port": 8189
+    },
+    {
+      "label": "minipc LAN control endpoint (10-19 isolation proof)",
+      "ip": "192.168.8.238",
+      "port": 443
+    },
+    {
+      "label": "LAN router DNS",
+      "ip": "192.168.8.1",
+      "port": 53
+    },
+    {
+      "label": "public DNS",
+      "ip": "1.1.1.1",
+      "port": 53
+    }
+  ],
+  "names": [
+    {
+      "label": "indexer",
+      "name": "sia.enclave.host",
+      "port": 443
+    },
+    {
+      "label": "site",
+      "name": "enclave.host",
+      "port": 443
+    },
+    {
+      "label": "platform API",
+      "name": "api.enclave.host",
+      "port": 443
+    }
+  ]
+}

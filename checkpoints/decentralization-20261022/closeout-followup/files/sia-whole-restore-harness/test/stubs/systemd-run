@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+"""Test stub for systemd-run: records argv/env to $STUB_DIR, then runs the unit's command synchronously with
+INVOCATION_ID set, and keeps a unit state file that the systemctl stub reports. $STUB_TAMPER (a path) is appended to
+just before the command runs (to simulate a swapped binary)."""
+import json
+import os
+import secrets
+import subprocess
+import sys
+
+d = os.environ['STUB_DIR']
+args = sys.argv[1:]
+n = len([x for x in os.listdir(d) if x.startswith('systemd-run-')])
+with open(os.path.join(d, 'systemd-run-%03d.json' % n), 'w') as f:
+    json.dump({'argv': args, 'env': dict(os.environ)}, f)
+unit = next(a.split('=', 1)[1] for a in args if a.startswith('--unit='))
+i = 0
+while i < len(args) and (args[i].startswith('-')):
+    i += 2 if args[i] == '-p' else 1
+command = args[i:]
+inv = secrets.token_hex(16)
+units = os.path.join(d, 'units')
+os.makedirs(units, exist_ok=True)
+state = os.path.join(units, unit + '.json')
+if os.environ.get('STUB_ACTIVE_OTHER'):  # another invocation holds this unit name
+    json.dump({'ActiveState': 'active', 'InvocationID': secrets.token_hex(16), 'LoadState': 'loaded'}, open(state, 'w'))
+if os.environ.get('STUB_TAMPER'):
+    with open(os.environ['STUB_TAMPER'], 'ab') as f:
+        f.write(b'\0')
+env = {'PATH': os.environ['PATH'], 'INVOCATION_ID': inv, 'STUB_DIR': d}
+code = subprocess.run(command, env=env, stdin=subprocess.DEVNULL).returncode
+if not os.environ.get('STUB_ACTIVE_OTHER'):
+    json.dump({'ActiveState': 'inactive' if code == 0 else 'failed', 'Result': 'success' if code == 0 else 'exit-code',
+               'ExecMainStatus': str(code), 'InvocationID': inv, 'MemoryPeak': '1234', 'LoadState': 'loaded'}, open(state, 'w'))

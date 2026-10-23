@@ -1,12 +1,26 @@
 {
-  "capturedAt": "2026-10-23T00:41:46.882932+00:00",
+  "capturedAt": "2026-10-23T01:09:51.469983+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
+    {
+      "label": "ROOT public receipt: TLS recovered through the existing retry; no production mutation; one recovery is not durable availability",
+      "source": "outputs/decentralization-audit/enclavedns-tls-20261023.json",
+      "stored": "files/outputs/decentralization-audit/enclavedns-tls-20261023.json",
+      "sha256": "e133d501cebc661485e8f0dcf410676dd4a112d1a1bc10fbe0451cee70ac1159",
+      "bytes": 1705
+    },
     {
       "source": "outputs/decentralization-audit/native-control-hardware-canary-20261022.json",
       "stored": "files/outputs/decentralization-audit/native-control-hardware-canary-20261022.json",
       "sha256": "4ea372a39d53b5ef60b259f84453b1066d394529fe78987de8888420b9e8ca89",
       "bytes": 2322
+    },
+    {
+      "label": "ROOT progress snapshot: status labels only (Windows staged, not activated; RPC incomplete; storage restore not run)",
+      "source": "outputs/decentralization-audit/progress-20261023T0040.json",
+      "stored": "files/outputs/decentralization-audit/progress-20261023T0040.json",
+      "sha256": "7c14b632a4625b6f39d7feabe3d2aca888420e830189789858ee64ed63455146",
+      "bytes": 1452
     },
     {
       "label": "ROOT receipt: encrypted archive copy verified on a second attached device, same workstation/site; NOT offsite or a complete cold recovery",
@@ -2384,6 +2398,146 @@
       "bytes": 2928
     },
     {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/INITIAL.md",
+      "stored": "files/node-bounded-observation/INITIAL.md",
+      "sha256": "8eeef9e102e3c4077b3244e9cf746002b337c53e4f612d2faf575791b2625f70",
+      "bytes": 3580
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/RESULT.md",
+      "stored": "files/node-bounded-observation/RESULT.md",
+      "sha256": "cc2b33cdb941be6889e938b39c0e85b49c35aacb32425b86793162138bc7d938",
+      "bytes": 7057
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/helper/node-pair-observe.ps1",
+      "stored": "files/node-bounded-observation/helper/node-pair-observe.ps1",
+      "sha256": "f7a775988e31ca1090420241ecc597f137314c5d5126db4393bf8da720c3c5c2",
+      "bytes": 68349
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/helper/provenance.json",
+      "stored": "files/node-bounded-observation/helper/provenance.json",
+      "sha256": "521b7bfa316eecb6349f4b464ed42d00915e981997d17b6dbad2049a54a39e74",
+      "bytes": 2272
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/jobs/mutants-r1.py",
+      "stored": "files/node-bounded-observation/jobs/mutants-r1.py",
+      "sha256": "41d4e0d07e4d9e11abe61e75fe84d991926a07008b2be7a1e67e0d249653c482",
+      "bytes": 2559
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/jobs/mutants-r1.sh",
+      "stored": "files/node-bounded-observation/jobs/mutants-r1.sh",
+      "sha256": "5000ef63a5ea45fbe29135ed743f465a34eb552560a5a6e1c7cbf75d7803859f",
+      "bytes": 362
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/jobs/suite-r1.sh",
+      "stored": "files/node-bounded-observation/jobs/suite-r1.sh",
+      "sha256": "90238f87df6461b3ff025eab15dac3423aee94887387771c544cde5660daa8f1",
+      "bytes": 1114
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/offline.sh",
+      "stored": "files/node-bounded-observation/offline.sh",
+      "sha256": "06867971564b76c0326f90a9897b33c2daa1b1e8636816ba733b2e6b8319ad3d",
+      "bytes": 781
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/q.sh",
+      "stored": "files/node-bounded-observation/q.sh",
+      "sha256": "67ea1f6e3a7b66ce7aee4dd767ae9181cafd79f4ce566976735d266e0c68614b",
+      "bytes": 914
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/source/node-hold-cutover.df2e58f2.ps1",
+      "stored": "files/node-bounded-observation/source/node-hold-cutover.df2e58f2.ps1",
+      "sha256": "df2e58f2569d04b2021a570d8525769ef84976335d2c2657e7e2a3a92604a5d8",
+      "bytes": 69674
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/stub/scp",
+      "stored": "files/node-bounded-observation/stub/scp",
+      "sha256": "7a5186d7ff86f7ccb2b34d9ca828c6408f03af074dcfcc04dd69ddbe5d5eafa3",
+      "bytes": 98
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/stub/sftp",
+      "stored": "files/node-bounded-observation/stub/sftp",
+      "sha256": "2dd2ab985db95d131cb1eb828406feff77202176fd497c880223edae709d08e3",
+      "bytes": 99
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/stub/ssh",
+      "stored": "files/node-bounded-observation/stub/ssh",
+      "sha256": "f7a98be4cd1c0103434ea308f952c705e77bc63a099d29fc2719ea68ec1ee64d",
+      "bytes": 98
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/tools/ast-case-lint.ps1",
+      "stored": "files/node-bounded-observation/tools/ast-case-lint.ps1",
+      "sha256": "aa637f83c597798f2a5948b94103fa27925bf7c6fbdc2a33621dc0414af0c8a2",
+      "bytes": 1570
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/tools/compose.py",
+      "stored": "files/node-bounded-observation/tools/compose.py",
+      "sha256": "74501be67ab9d860367b17ed84158a0b51d5e303dc98ce09be5c99547adab303",
+      "bytes": 3507
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/tools/observe-template.ps1",
+      "stored": "files/node-bounded-observation/tools/observe-template.ps1",
+      "sha256": "4ba70558cba566cb79fae88cc3dddce932feb4d4ecf3273c34f08efaca4718a9",
+      "bytes": 51221
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/tools/observe-test.py",
+      "stored": "files/node-bounded-observation/tools/observe-test.py",
+      "sha256": "c39c9f7dd41830d70180bf978595b9403350386e55fb91b98ef3327b8176405f",
+      "bytes": 24938
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/tools/pair-mock.ps1",
+      "stored": "files/node-bounded-observation/tools/pair-mock.ps1",
+      "sha256": "7360f38d2f8fe5c66e0b3a9a29c7f3ba29c200169b03c85bae8cb25866a93faa",
+      "bytes": 13780
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/tools/provenance-test.ps1",
+      "stored": "files/node-bounded-observation/tools/provenance-test.ps1",
+      "sha256": "0e9b253b110d555f93b4296f604f432690d5b082103afd7eaa6c1313a9d35d6f",
+      "bytes": 2006
+    },
+    {
+      "label": "FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/node-bounded-observation/tools/swap-prelude.ps1",
+      "stored": "files/node-bounded-observation/tools/swap-prelude.ps1",
+      "sha256": "507c36b911bbfe863f0e335e88507b3ab23e6866623632281dcb36cb89276590",
+      "bytes": 2928
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/node-pair-runner/PARAMS.md",
       "stored": "files/node-pair-runner/PARAMS.md",
       "sha256": "435a382a943cdd021de6a6d8d98f93c351207e301b67ac1a29cceaa4f32b42d7",
@@ -2882,6 +3036,13 @@
       "bytes": 2957
     },
     {
+      "label": "ROOT-RUN source: builds the e8f0997f recovery binary (dev profile, sha256 3ef760ed); not a release",
+      "source": "work/resume-after-checkpoint-20261022/production-run/build-whole-recovery.sh",
+      "stored": "files/production-run/build-whole-recovery.sh",
+      "sha256": "a2c518d48f0e536921ad147669a67bf62815e8c65189ec77f357d4873160cab4",
+      "bytes": 602
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/production-run/capture-fresh.py",
       "stored": "files/production-run/capture-fresh.py",
       "sha256": "ad5e702f6dd4dc68336aadbd00f56c9a402fd70bb4e3a2164eaec2ebabf5cbe0",
@@ -3007,6 +3168,13 @@
       "stored": "files/production-run/reviewed-steps/upgrade-common.sh",
       "sha256": "97eeaa1e99df6cb24717c38d18d307427e1850fd463ca07351bd8b913b4732b1",
       "bytes": 2957
+    },
+    {
+      "label": "ROOT-RUN source: offline (unshare -rn) zero-budget size refusal; no restore, no network",
+      "source": "work/resume-after-checkpoint-20261022/production-run/whole-recovery-size.py",
+      "stored": "files/production-run/whole-recovery-size.py",
+      "sha256": "9400dae3c6cd6880c07e9654d8135086638bb1be1924bb92ebd6b78f964517fe",
+      "bytes": 1973
     },
     {
       "source": "work/resume-after-checkpoint-20261022/public-health/ROOT-ADAPTER-CAUSE.txt",
@@ -3773,6 +3941,76 @@
       "bytes": 1589
     },
     {
+      "label": "FINAL FROZEN CANDIDATE e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03, two-file swap): source only here; root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/serving-first-fixes/INITIAL.md",
+      "stored": "files/serving-first-fixes/INITIAL.md",
+      "sha256": "978dd5bdb477d4d52db3649f41fa8fb1e0a9b1bb3f11244645210d4acf318b6b",
+      "bytes": 3785
+    },
+    {
+      "label": "FINAL FROZEN CANDIDATE e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03, two-file swap): source only here; root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/serving-first-fixes/RESULT.md",
+      "stored": "files/serving-first-fixes/RESULT.md",
+      "sha256": "ac9fa5f8866375c463dc5526539dbac97b5717a19eadbb01d0a4ba81323fad56",
+      "bytes": 5264
+    },
+    {
+      "label": "FINAL FROZEN CANDIDATE e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03, two-file swap): source only here; root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/serving-first-fixes/candidate/test/windows-node-lease-renewal-keeper.test.mjs",
+      "stored": "files/serving-first-fixes/candidate/test/windows-node-lease-renewal-keeper.test.mjs",
+      "sha256": "519c431cec67fda2d8d2a84085760470f74517a66e74efdaa86a71ebe230f267",
+      "bytes": 33838
+    },
+    {
+      "label": "FINAL FROZEN CANDIDATE e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03, two-file swap): source only here; root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/serving-first-fixes/candidate/windows/node/chain.mjs",
+      "stored": "files/serving-first-fixes/candidate/windows/node/chain.mjs",
+      "sha256": "3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938",
+      "bytes": 58660
+    },
+    {
+      "label": "FINAL FROZEN CANDIDATE e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03, two-file swap): source only here; root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/serving-first-fixes/candidate/windows/node/host.mjs",
+      "stored": "files/serving-first-fixes/candidate/windows/node/host.mjs",
+      "sha256": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
+      "bytes": 306881
+    },
+    {
+      "label": "FINAL FROZEN CANDIDATE e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03, two-file swap): source only here; root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/serving-first-fixes/job-tests.sh",
+      "stored": "files/serving-first-fixes/job-tests.sh",
+      "sha256": "07df2556059c970a2a4e770d51b62b933f8d6e78b1ce292fdc8f8680e23efafd",
+      "bytes": 1212
+    },
+    {
+      "label": "FINAL FROZEN CANDIDATE e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03, two-file swap): source only here; root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/serving-first-fixes/serving-first-fixes.patch",
+      "stored": "files/serving-first-fixes/serving-first-fixes.patch",
+      "sha256": "1dc8e0115efb8179826fecbb005a96850fb7037dd9a2cafa11153f532418590f",
+      "bytes": 10328
+    },
+    {
+      "label": "FINAL FROZEN CANDIDATE e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03, two-file swap): source only here; root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/serving-first-fixes/stubs/scp",
+      "stored": "files/serving-first-fixes/stubs/scp",
+      "sha256": "4cea176f719fcc20c12fc857d3d3fc54f5365d31f28a3314c425b65fc7743c40",
+      "bytes": 101
+    },
+    {
+      "label": "FINAL FROZEN CANDIDATE e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03, two-file swap): source only here; root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/serving-first-fixes/stubs/sftp",
+      "stored": "files/serving-first-fixes/stubs/sftp",
+      "sha256": "f46b0a849dc7c5f059cfa67795f0a31b830a875d9b1c36961aa768ec50f72fd2",
+      "bytes": 102
+    },
+    {
+      "label": "FINAL FROZEN CANDIDATE e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03, two-file swap): source only here; root has it staged and IDENTIFIED, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/serving-first-fixes/stubs/ssh",
+      "stored": "files/serving-first-fixes/stubs/ssh",
+      "sha256": "8208583a09c44fbb98919fb2671c60c199c8314257520495351bd1f709a88fa4",
+      "bytes": 101
+    },
+    {
       "label": "independent read-only review of the serving-first candidate (no blocker; should-fix items open)",
       "source": "work/resume-after-checkpoint-20261022/serving-first-review/RESULT.md",
       "stored": "files/serving-first-review/RESULT.md",
@@ -3836,10 +4074,94 @@
       "bytes": 32829
     },
     {
+      "label": "SOURCE + OFFLINE TESTS ONLY: root-run isolated whole-snapshot restore harness; nothing run against production, no restore performed",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-restore-harness/RESULT.md",
+      "stored": "files/sia-whole-restore-harness/RESULT.md",
+      "sha256": "b4ad0de06d1475b87112986735db7c86f6e707ffc6d351c7921e52f49d5ddcae",
+      "bytes": 18230
+    },
+    {
+      "label": "SOURCE + OFFLINE TESTS ONLY: root-run isolated whole-snapshot restore harness; nothing run against production, no restore performed",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-restore-harness/blocked.vm.example.json",
+      "stored": "files/sia-whole-restore-harness/blocked.vm.example.json",
+      "sha256": "f2c03d7455cb65a060388122bda8b3232e563e664e2d1c2feb702b1bfb3f14ad",
+      "bytes": 1974
+    },
+    {
+      "label": "SOURCE + OFFLINE TESTS ONLY: root-run isolated whole-snapshot restore harness; nothing run against production, no restore performed",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-restore-harness/blocked.workstation.example.json",
+      "stored": "files/sia-whole-restore-harness/blocked.workstation.example.json",
+      "sha256": "c2ce83a38d69e982f51beca7e2f02c09d4a6a0310c13931cb1a2cd2146190354",
+      "bytes": 2123
+    },
+    {
+      "label": "SOURCE + OFFLINE TESTS ONLY: root-run isolated whole-snapshot restore harness; nothing run against production, no restore performed",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-restore-harness/run-tests.sh",
+      "stored": "files/sia-whole-restore-harness/run-tests.sh",
+      "sha256": "903f55745b089be52fa2397dc9b846b1d5c71a3c86befa7d07ad067221adc850",
+      "bytes": 609
+    },
+    {
+      "label": "SOURCE + OFFLINE TESTS ONLY: root-run isolated whole-snapshot restore harness; nothing run against production, no restore performed",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-restore-harness/runner.py",
+      "stored": "files/sia-whole-restore-harness/runner.py",
+      "sha256": "d11f7bca1a879fb9bf1583782d9456aedff70c55a30b1404480d0fb4d24b4587",
+      "bytes": 14579
+    },
+    {
+      "label": "SOURCE + OFFLINE TESTS ONLY: root-run isolated whole-snapshot restore harness; nothing run against production, no restore performed",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-restore-harness/test/fake-sia-s3",
+      "stored": "files/sia-whole-restore-harness/test/fake-sia-s3",
+      "sha256": "13b7ec74511acedb43212543927d050e97683dabfa6240df28f28aa1a99814ab",
+      "bytes": 2745
+    },
+    {
+      "label": "SOURCE + OFFLINE TESTS ONLY: root-run isolated whole-snapshot restore harness; nothing run against production, no restore performed",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-restore-harness/test/stubs/ssh",
+      "stored": "files/sia-whole-restore-harness/test/stubs/ssh",
+      "sha256": "ab0524263163aa971fa82d1388e234e7ee6818d6648a0105cb2433884b4e077f",
+      "bytes": 762
+    },
+    {
+      "label": "SOURCE + OFFLINE TESTS ONLY: root-run isolated whole-snapshot restore harness; nothing run against production, no restore performed",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-restore-harness/test/stubs/systemctl",
+      "stored": "files/sia-whole-restore-harness/test/stubs/systemctl",
+      "sha256": "9566f16c05e3cf9d6ecd0a34a9f0903d5fdb5b05f897463db607236fa964fb48",
+      "bytes": 716
+    },
+    {
+      "label": "SOURCE + OFFLINE TESTS ONLY: root-run isolated whole-snapshot restore harness; nothing run against production, no restore performed",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-restore-harness/test/stubs/systemd-run",
+      "stored": "files/sia-whole-restore-harness/test/stubs/systemd-run",
+      "sha256": "4f91c3256faea833d2586074b71412143fb1da9c93110470fa640f51bc4fe4dd",
+      "bytes": 1701
+    },
+    {
+      "label": "SOURCE + OFFLINE TESTS ONLY: root-run isolated whole-snapshot restore harness; nothing run against production, no restore performed",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-restore-harness/test/test_harness.py",
+      "stored": "files/sia-whole-restore-harness/test/test_harness.py",
+      "sha256": "917a9d2b8ce974e488975c3adaead6b528122e35d2f5f7a00a72bbbcf97c5d4b",
+      "bytes": 25102
+    },
+    {
+      "label": "SOURCE + OFFLINE TESTS ONLY: root-run isolated whole-snapshot restore harness; nothing run against production, no restore performed",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-restore-harness/test/test_real_systemd.py",
+      "stored": "files/sia-whole-restore-harness/test/test_real_systemd.py",
+      "sha256": "548e5cd235748575e8e06e2246fe07b6f66582b8000498ddd2e800414280b6dc",
+      "bytes": 4244
+    },
+    {
+      "label": "SOURCE + OFFLINE TESTS ONLY: root-run isolated whole-snapshot restore harness; nothing run against production, no restore performed",
+      "source": "work/resume-after-checkpoint-20261022/sia-whole-restore-harness/whole_restore.py",
+      "stored": "files/sia-whole-restore-harness/whole_restore.py",
+      "sha256": "8a6cc0d30ce0cfdd8d2a9f1362d1b8f4eb24de630975f15a84a9f3184b5a0b9e",
+      "bytes": 30442
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "d53839307000d6dcc351ad27141f29a40db1c64ca27d17967cd90c93ca566094",
-      "bytes": 24847
+      "sha256": "d3d030ee2eb5daf29d4d7cad98d38675802cf546045ca934a784258854c9817f",
+      "bytes": 28289
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",

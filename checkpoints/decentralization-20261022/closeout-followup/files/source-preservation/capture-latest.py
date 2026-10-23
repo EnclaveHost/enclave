@@ -281,6 +281,31 @@ for p in (base / 'node-updater-readonly').iterdir():
         paths.add(p)
 # Root's second-device copy receipt (hashes, sizes and booleans only).
 outputs.append(root / 'outputs/decentralization-audit/storage-cold-recovery-second-device-20261023.json')
+# The root-run isolated whole-snapshot restore harness: its launcher, runner, example deny lists, offline tests, fake binary,
+# stubs and result. Never its logs/.
+harness = base / 'sia-whole-restore-harness'
+for name in ('whole_restore.py', 'runner.py', 'run-tests.sh', 'blocked.workstation.example.json', 'blocked.vm.example.json',
+             'RESULT.md', 'test/test_harness.py', 'test/test_real_systemd.py', 'test/fake-sia-s3',
+             'test/stubs/ssh', 'test/stubs/systemd-run', 'test/stubs/systemctl'):
+    paths.add(harness / name)
+# The FINAL frozen serving-first pair e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03) and its bounded test recipe; never
+# its dependency trees, logs, tmp/, cutover/ fixture copy or the rest of the candidate tree.
+sff = base / 'serving-first-fixes'
+for name in ('candidate/windows/node/host.mjs', 'candidate/windows/node/chain.mjs', 'candidate/test/windows-node-lease-renewal-keeper.test.mjs',
+             'serving-first-fixes.patch', 'INITIAL.md', 'RESULT.md', 'job-tests.sh', 'stubs/ssh', 'stubs/scp', 'stubs/sftp'):
+    paths.add(sff / name)
+# The finished bounded-observation helper f7a77598 (node-pair-observe.ps1): helper, tools, jobs, its source copy, deny stubs and
+# reports. Never logs/, tmp/ or __pycache__.
+nbo = base / 'node-bounded-observation'
+for name in ('INITIAL.md', 'RESULT.md', 'offline.sh', 'q.sh'):
+    paths.add(nbo / name)
+for directory in ('helper', 'tools', 'jobs', 'source', 'stub'):
+    for p in (nbo / directory).rglob('*'):
+        if p.is_file() and not p.is_symlink() and '__pycache__' not in p.parts:
+            paths.add(p)
+# Root's public receipts: the EnclaveDNS TLS recovery observation and the 00:40Z progress snapshot.
+outputs += [root / 'outputs/decentralization-audit/enclavedns-tls-20261023.json',
+            root / 'outputs/decentralization-audit/progress-20261023T0040.json']
 # what each new group IS, recorded on its manifest entries (nothing here is activated by this checkpoint)
 LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; not funded: no transaction signed or sent (root prepared intent '
                                    'tx-mvk6qcjl-d745ad9e, nonce 1144, pending the user signature)',
@@ -300,7 +325,21 @@ LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; n
                                     'no signed release policy present; no policy changed',
           'production-run/copy-encrypted-recovery.py': 'ROOT-RUN: copies only the pinned encrypted archive (no keys or passphrase) to the '
                                                        'attached array, with read-back verification',
-          'outputs/decentralization-audit/storage-cold-recovery-second-device': 'ROOT receipt: encrypted archive copy verified on a second '
+          'production-run/build-whole-recovery.sh': 'ROOT-RUN source: builds the e8f0997f recovery binary (dev profile, '
+                                                    'sha256 3ef760ed); not a release',
+          'production-run/whole-recovery-size.py': 'ROOT-RUN source: offline (unshare -rn) zero-budget size refusal; no restore, '
+                                                   'no network',
+          'sia-whole-restore-harness/':'SOURCE + OFFLINE TESTS ONLY: root-run isolated whole-snapshot restore harness; nothing run '
+                                        'against production, no restore performed',
+          'serving-first-fixes/': 'FINAL FROZEN CANDIDATE e7e5057a (host.mjs ea0f6b8a + chain.mjs 3e9fae03, two-file swap): source only '
+                                  'here; root has it staged and IDENTIFIED, NOT activated',
+          'node-bounded-observation/': 'FINISHED SOURCE-ONLY HELPER f7a77598 (node-pair-observe.ps1): root has it staged and IDENTIFIED, '
+                                       'NOT activated',
+          'outputs/decentralization-audit/enclavedns-tls-20261023': 'ROOT public receipt: TLS recovered through the existing retry; no '
+                                                                    'production mutation; one recovery is not durable availability',
+          'outputs/decentralization-audit/progress-20261023T0040': 'ROOT progress snapshot: status labels only (Windows staged, not '
+                                                                   'activated; RPC incomplete; storage restore not run)',
+          'outputs/decentralization-audit/storage-cold-recovery-second-device':'ROOT receipt: encrypted archive copy verified on a second '
                                                                                'attached device, same workstation/site; NOT offsite or a '
                                                                                'complete cold recovery',
           'cron-placement/': 'Cron moved to nucbox by the existing dashboard wallet flow; native running 23:58:37Z, 3 RPCs agree at block '

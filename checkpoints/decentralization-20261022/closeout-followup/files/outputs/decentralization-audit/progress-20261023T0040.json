@@ -1,0 +1,22 @@
+{
+  "previousGoalTurn": "progress: established real TLS recovery and verified live HTTPS/DNSSEC; pending recurrence work",
+  "effectiveRequirements": "Preserve Enclave administrator controls, per direct human clarification; resistance to external provider failures. Original stored goal anti-admin wording is superseded.",
+  "windows": {
+    "staged": true,
+    "activated": false,
+    "hostSha": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
+    "helperSha": "f7a775988e31ca1090420241ecc597f137314c5d5126db4393bf8da720c3c5c2",
+    "runningAppsObserved": 9,
+    "waitReason": "Required lease runway plus reserved rollback not yet available"
+  },
+  "rpc": {
+    "defaultClientSnapDisabled": "Source confirmed at pinned Base/reth revision",
+    "liveHelloProbe": "10 published addresses refused TCP; inconclusive about rest of Base peers",
+    "transactionGossip": "Base source disables P2P transaction gossip",
+    "heliosCompatibility": "Under independent verification; initial no0x79 claim must account for PostExec variant",
+    "complete": false
+  },
+  "tlsFixReview": "Rejected proposed whole-verdict reuse until fresh chain/catalog authorization checks preserved; Claude revising",
+  "storage": "Whole-snapshot restore source suite40/40; production restore not yet run",
+  "imageGenerator": "Live supervisor has memory gate; long verdict-to-launch interval leaves resource race. Fresh preclaim check under implementation."
+}

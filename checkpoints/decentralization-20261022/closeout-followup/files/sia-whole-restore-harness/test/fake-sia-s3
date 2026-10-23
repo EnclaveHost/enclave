@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Test stand-in for `sia-s3 recovery restore SNAPSHOT SHA256 NEW_OUTDIR MAX_TOTAL_BYTES DEADLINE_SECS`: reads one object
+from every host endpoint of the snapshot over TCP and writes objects/NNNNNN.bin + inventory.json in the real format.
+The snapshot's "fake" field picks a mode: ok | partial | corrupt; "tryBlocked" lists ip:port pairs it tries to reach."""
+import hashlib
+import json
+import os
+import socket
+import sys
+
+_, op, sub, snap_path, sha, outdir, max_total, deadline = sys.argv
+assert (op, sub) == ('recovery', 'restore')
+assert set(os.environ) <= {'PATH', 'LANG', 'SIA_RECOVERY_KEY_FILE', 'LC_CTYPE'}, sorted(os.environ)
+key = open(os.environ['SIA_RECOVERY_KEY_FILE'], 'rb').read()
+assert key and not any(key.strip().decode() in a for a in sys.argv)
+raw = open(snap_path, 'rb').read()
+assert hashlib.sha256(raw).hexdigest() == sha
+snap = json.loads(raw)
+fake = snap.get('fake', {})
+reached = []
+for ip, port in fake.get('tryBlocked', []):
+    try:
+        socket.create_connection((ip, port), 2).close()
+        reached.append(True)
+    except OSError:
+        reached.append(False)
+os.mkdir(outdir, 0o700)
+os.mkdir(os.path.join(outdir, 'objects'), 0o700)
+files, failed, total = [], [], 0
+endpoints = [a['address'] for h in snap['hosts'] for a in h['addresses']]
+for n, addr in enumerate(endpoints, 1):
+    ip, port = addr.rsplit(':', 1)
+    with socket.create_connection((ip, int(port)), 5) as s:
+        data = b''
+        while chunk := s.recv(65536):
+            data += chunk
+    total += len(data)
+    if fake.get('mode') == 'partial' and n == len(endpoints):
+        failed.append({'key': {'bucket': 'b', 'key': 'k%d' % n}, 'error': 'the hosts did not answer'})
+        continue
+    name = 'objects/%06d.bin' % n
+    with open(os.path.join(outdir, name), 'xb') as f:
+        f.write(data)
+    digest = hashlib.sha256(data if fake.get('mode') != 'corrupt' else data + b'x').hexdigest()
+    files.append({'bucket': 'b', 'key': 'k%d' % n, 'file': name, 'bytes': len(data), 'source': 'inline', 'etag': 'e',
+                  'etagCheck': 'md5', 'outputSha256': digest, 'independentSha256': 'not-provided'})
+complete = not failed
+inv = {'format': 'sia-s3-recovery-restore/v1', 'complete': complete, 'keys': len(endpoints), 'restored': len(files),
+       'restoredBytes': sum(f['bytes'] for f in files), 'totalBytes': total, 'failed': failed, 'notAttempted': [],
+       'expectedButAbsent': [], 'files': files, 'indexerUsed': False, 'writesToSia': False, 'fakeBlockedReached': reached,
+       'fakeArgs': [max_total, deadline]}
+with open(os.path.join(outdir, 'inventory.json'), 'x') as f:
+    json.dump(inv, f)
+print(json.dumps({'complete': complete, 'keys': len(endpoints)}))
+sys.exit(0 if complete else 1)
