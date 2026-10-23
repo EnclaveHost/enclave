@@ -1,0 +1,7 @@
+{
+  "at": "2026-10-23T02:58:20Z",
+  "pid": 2361978,
+  "startTime": "102736987",
+  "action": "SIGINT owned Claude CLI to deliver scheduling/correctness steering",
+  "reason": "Single 35-minute test batch blocks other workers; preserve current jobs and inspect actual terminal state before resuming. No production operation."
+}

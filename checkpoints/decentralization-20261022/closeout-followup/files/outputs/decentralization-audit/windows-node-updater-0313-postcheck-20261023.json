@@ -1,0 +1,62 @@
+{
+  "observedAt": "2026-10-23T03:16:45.5424488Z",
+  "updater": {
+    "last": "2026-10-23T03:13:37.0000000Z",
+    "result": 0,
+    "next": "2026-10-23T04:13:36.0000000Z",
+    "state": "Ready"
+  },
+  "scheduledRunObserved": true,
+  "matchesReviewedRuntime": true,
+  "hostSha256": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
+  "chainSha256": "3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938",
+  "runningApps": 9,
+  "deployments": [
+    {
+      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "status": "running",
+      "leaseUntil": 1792726987
+    },
+    {
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "status": "running",
+      "leaseUntil": 1792726051
+    },
+    {
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "status": "running",
+      "leaseUntil": 1792726949
+    },
+    {
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "status": "running",
+      "leaseUntil": 1792726955
+    },
+    {
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "running",
+      "leaseUntil": 1792727235
+    },
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "running",
+      "leaseUntil": 1792727071
+    },
+    {
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "status": "running",
+      "leaseUntil": 1792727041
+    },
+    {
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "status": "running",
+      "leaseUntil": 1792727065
+    },
+    {
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "status": "running",
+      "leaseUntil": 1792725959
+    }
+  ],
+  "limitation": "Native observation of this scheduled run only. Lease values are not independent cryptographic proofs; source release completeness and future updates are not established."
+}

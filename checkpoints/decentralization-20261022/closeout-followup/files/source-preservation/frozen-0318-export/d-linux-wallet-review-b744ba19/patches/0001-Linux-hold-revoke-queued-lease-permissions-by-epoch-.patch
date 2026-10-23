@@ -1,0 +1,642 @@
+From b744ba19022763e9688c6b006e8cecd24e21cc18 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 20:09:49 -0700
+Subject: [PATCH] Linux hold: revoke queued lease permissions by epoch; free
+ nothing on an unconfirmed stop
+
+Root review (ROOT-LINUX-HOLD-REVIEW.txt) of 09ff3ed5, both concerns verified in the source flow:
+
+1. walletSendGate checked only rec.walletHeld and the deadline. A renewal queued under an allow survived a verified
+   refusal (retireForPlacement never sets walletHeld; its release queues BEHIND the renewal), and hold -> allow
+   deleted walletHeld, so an older permit became valid again on the same record.
+   - revokeLeasePermits: a per-record lease epoch, moved synchronously before any await by every stop (stopContainer
+     first line), every (re)provision (provisionTenant), every withdrawal (withdrawService: hold, retire, held release).
+   - walletSendGate binds the record object (a replacement never inherits), its epoch, its status at the decision,
+     a per-deployment count of later refused/unknown wallet answers (voids a queued CLAIM, which has no record) and
+     the decision deadline.
+   - app-funded: the gate is asked again in the client's onSigned seam (after signing, before any relay); a throw
+     there sends the lease to no relay (NotPersisted) and the renewal reports superseded.
+
+2. walletHoldLocal freed the GPU slice and marked the record terminated even when stopContainer returned false.
+   - withdrawService (before any await): status leaves running (every /x/ ingress, bridge, isolation splice and the
+     egress SOCKS admit only running/claimed), established upgrade streams of the deployment are destroyed
+     (new _depStreams registry in the upgrade handler) and its egress connections closed (egress.closeDeployment).
+   - settleStop: the slice is freed only when stopContainer succeeded AND a fresh backend listing names no instance
+     of it; otherwise it stays reserved (_stopPending, persisted; restore keeps it) and considerClaim/tryClaim
+     refuse any resume, claim or replacement of the id. The reconciler confirms from its own listing
+     (settlePendingStops) before reaping. A held record clears only after a confirmed stop.
+   - retireForPlacement (refusal/pin) uses the same withdraw-first and confirmed-free steps; the release itself is
+     unchanged (administrator refusal still enforced).
+
+Tests: review cases in test/supervisor-wallet-unknown-hold.test.mjs (real supervisor functions, real stopContainer,
+listing, stream registry and provisionTenant, real admission bundle, both senders); egress closeDeployment case with
+real sockets; tenant-provision-race harness extracts the real revokeLeasePermits.
+---
+ egress.js                                    |   8 +-
+ supervisor.js                                | 148 ++++++++++++++---
+ test/egress.test.mjs                         |  19 ++-
+ test/supervisor-wallet-policy.test.mjs       |   1 +
+ test/supervisor-wallet-unknown-hold.test.mjs | 160 +++++++++++++++++--
+ test/tenant-provision-race.test.mjs          |   2 +-
+ 6 files changed, 298 insertions(+), 40 deletions(-)
+
+diff --git a/egress.js b/egress.js
+index ec2e2c04205df8dab172d954950d75809aa03cc9..bd14b5b477c2844743c6bcb27e44d4b2817d3c6e 100644
+--- a/egress.js
++++ b/egress.js
+@@ -42,8 +42,11 @@ async function address(read, type) {
+ export function createEgress({ secret, socksPort = 1080, upstream, isKnown, lookup = dns.lookup, log = () => {} }) {
+   const target = new URL(upstream);
+   if (target.protocol !== 'socks5:' || !target.hostname || !target.port || target.username || target.password) throw new Error('SOCKS upstream required');
+-  const connections = new Set();
++  const connections = new Set(), byDeployment = new Map();
+   const track = s => { connections.add(s); s.on('error', () => s.destroy()); s.once('close', () => connections.delete(s)); return s; };
++  // an admitted connection is named by its deployment, so closeDeployment(id) can end what is already open
++  const nameConnection = (id, s) => { let set = byDeployment.get(id); if (!set) byDeployment.set(id, set = new Set()); set.add(s);
++    s.once('close', () => { set.delete(s); if (!set.size && byDeployment.get(id) === set) byDeployment.delete(id); }); };
+   async function connect(sock) {
+     const input = reader(sock); let output, remote;
+     sock.setTimeout(15000, () => sock.destroy(new Error('SOCKS handshake timed out')));
+@@ -60,6 +63,7 @@ export function createEgress({ secret, socksPort = 1080, upstream, isKnown, look
+         sock.end(Buffer.from([1, 1])); return;
+       }
+       sock.write(Buffer.from([1, 0]));
++      nameConnection(id, sock);
+       const req = await input.take(4);
+       if (req[0] !== 5 || req[1] !== 1 || req[2] !== 0) {sock.end(reply(7)); return;}
+       const host = await address(input, req[3]), port = (await input.take(2)).readUInt16BE(0);
+@@ -95,6 +99,8 @@ export function createEgress({ secret, socksPort = 1080, upstream, isKnown, look
+   return {
+     start() { return new Promise((resolve, reject) => {socks.once('error', reject); socks.listen(socksPort, '127.0.0.1', resolve);}); },
+     stop() {socks.close(); for (const s of connections) s.destroy();},
++    // every connection this deployment opened ends now (its remote side follows: each side closes the other)
++    closeDeployment(id) {const set = byDeployment.get(String(id)); if (!set) return 0; const n = set.size; for (const s of [...set]) s.destroy(); return n;},
+     socksPort: () => socks.address()?.port ?? socksPort,
+     envFor(id) {return `socks5h://${id}:${egressToken(secret, id)}@127.0.0.1:${socks.address()?.port ?? socksPort}`;},
+   };
+diff --git a/supervisor.js b/supervisor.js
+index 48a475deecbeda120d08afaa168d9490b2abba11..89db620f30ad6af2f3fa1908571e3f884c30d9e9 100644
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -611,51 +611,112 @@ async function hostWalletDecision(deploymentId,appRef,forPrivate=false) {
+     // an image pairing this supervisor with an older bundle cannot tell unknown from allowed: everything is held, loudly
+     if(typeof _hostWalletAdmission.decision!=='function')throw new Error('the host-admission bundle has no decision() (an older bundle than this supervisor needs)');
+     const r=await _hostWalletAdmission.decision({deploymentId,appRef,forPrivate});
++    if(r?.refusal)noteWalletWithdrawn(deploymentId);
+     return {refusal:r?.refusal||null,unknown:null,validUntil:Number(r?.validUntil)||0};
+   }catch(e){
++    noteWalletWithdrawn(deploymentId);
+     const m=String(e.message).slice(0,240);
+     // a deployment the policy cannot judge by its form is refused by the policy itself, not unknown (as on Windows)
+     if(/^catalog app reference required/.test(m))return {refusal:'host wallet policy: '+m,unknown:null};
+     return {refusal:null,unknown:m};
+   }
+ }
+-// A lease transaction's local permission, asked again when the operator's queue reaches the send (sendLeaseTx opts.gate):
+-// the record was held meanwhile, or the decision it rides on passed its chain deadline -> not sent (superseded).
+-function walletSendGate(rec,validUntil){
+-  return ()=>rec?.walletHeld ? 'the host wallet policy became unavailable (held here)'
+-    : Date.now()>=validUntil ? 'the host wallet decision expired before the send' : null;
++// Per deployment: how many times a wallet decision has come back refused or unknown. A permission records the count it was
++// decided under; any later non-allow answer for the same id - from any caller - voids it (walletSendGate), so a claim
++// decided before a refusal never goes out even though no local record exists to revoke.
++const _walletWithdrawn=new Map();
++function noteWalletWithdrawn(id){const k=String(id||'').toLowerCase();_walletWithdrawn.set(k,(_walletWithdrawn.get(k)||0)+1);}
++// A lease send's permission: the RECORD it was decided for (object identity: a replaced record never inherits it), that
++// record's lease epoch and status at the decision, and the decision's chain deadline. revokeLeasePermits() moves the
++// epoch, synchronously, before any await of whatever withdraws service: every stop (stopContainer), every (re)provision
++// (provisionTenant), a hold and a refusal. So a permission taken before a withdrawal never becomes valid again, not after
++// hold -> allow -> resume, nor after a refusal, an owner stop, a lapse or a restart. Asked when the operator queue reaches
++// the send (sendLeaseTx opts.gate) and, app-funded, again after the lease is signed and before any relay has it.
++function revokeLeasePermits(rec){
++  if(rec)rec._leaseEpoch=(rec._leaseEpoch||0)+1;
++}
++function walletSendGate(rec,validUntil,id=rec?.id){
++  const epoch=rec?(rec._leaseEpoch||0):0,status=rec?.status,key=String(id||'').toLowerCase(),verdicts=_walletWithdrawn.get(key)||0;
++  return ()=>{
++    if((_walletWithdrawn.get(key)||0)!==verdicts)return 'a later host wallet decision for it was a refusal or unavailable';
++    if(rec){
++      if(deployments.get(rec.id)!==rec)return 'the record it was decided for was replaced';
++      if((rec._leaseEpoch||0)!==epoch)return 'service was withdrawn here since it was decided';
++      if(rec.walletHeld)return 'the host wallet policy became unavailable (held here)';
++      if(rec.status!==status)return `the record changed since it was decided (${status} -> ${rec.status})`;
++    }
++    return Date.now()>=validUntil?'the host wallet decision expired before the send':null;
++  };
++}
++// Is this record's instance verifiably gone? Only when its stop succeeded AND a fresh backend listing names no instance of it
++// (its instance id, or its deployment name). An unreadable listing is not gone.
++async function instanceGone(rec){
++  const list=await listBackendInstances().catch(()=>null);
++  if(!Array.isArray(list))return false;
++  return !list.some((v)=>v&&((rec._vmId&&String(v.id)===String(rec._vmId))||String(v.name||v.id||"")===String(rec.id)));
++}
++// After a teardown's stop: the slice is freed only once the instance is confirmed gone; otherwise it STAYS reserved on the
++// record (_stopPending, persisted) and no resume, claim or replacement of this id starts here (considerClaim, tryClaim)
++// until a later stop or the instance reconciler confirms it (settlePendingStops). A failed stop is not isolation.
++async function settleStop(rec,stopped){
++  const gone=stopped===true&&await instanceGone(rec);
++  if(gone){if(rec._gpu){releaseGpu(rec._gpu);rec._gpu=null;}delete rec._stopPending;}
++  else rec._stopPending={since:rec._stopPending?.since||new Date().toISOString()};
++  return gone;
++}
++// The reconciler's half (reconcileInstances, after its listing): a pending stop whose instance the backend no longer lists
++// is confirmed now, and only then is its slice given back.
++function settlePendingStops(instances){
++  for(const rec of deployments.values()){
++    if(!rec._stopPending||!Array.isArray(instances))continue;
++    if(instances.some((v)=>v&&((rec._vmId&&String(v.id)===String(rec._vmId))||String(v.name||v.id||"")===String(rec.id))))continue;
++    if(rec._gpu){releaseGpu(rec._gpu);rec._gpu=null;}
++    delete rec._stopPending;if(rec.walletHeld)rec.walletHeld.stopConfirmed=true;
++    console.log(`[stop] ${rec.id}: instance confirmed gone by the backend listing; its slice is free`);
++    saveStateSoon();
++  }
++}
++// Service withdrawn HERE, now, before any await: the record leaves "running" (every ingress - /x/:id, the HTTPS/TCP/UDP
++// bridges, the isolation splice - and egress admit only running/claimed records), established upgrade streams and egress
++// connections of it are cut, and its lease permissions are revoked. Physical shutdown is a separate, confirmed step.
++function withdrawService(rec,status,why){
++  revokeLeasePermits(rec);rec.status=status;rec.error=why;
++  cutDeploymentStreams(rec.id);try{egress?.closeDeployment(rec.id);}catch{}
+ }
+ // UNKNOWN host wallet policy on a deployment this host leases: stop SERVING it here and give nothing back. Linux has no
+-// network-agent hold acknowledgement (the Windows channel), so the tenant is stopped locally as a retire stops it, but the
+-// lease stays: no release, no renewal, no re-claim. The record goes terminal (it holds no slice), so the claim sweep's
+-// resume path - every gate of a claim, the wallet decision included, and no transaction - serves it again once the policy
+-// allows it on a still-live lease; a definite refusal meanwhile retires it (walletHeldReview); a lapse simply ends it. A
+-// held id is never vouched for as an unresumed lease (unresumedOwnLeases), so the instance reconciler finishes an
+-// unconfirmed stop instead of keeping that guest alive.
++// network-agent hold acknowledgement (the Windows channel), so service is withdrawn locally (withdrawService) and the
++// instance stopped as a retire stops it, but the lease stays: no release, no renewal, no re-claim. The slice is freed only
++// on a CONFIRMED stop (settleStop); until then nothing else may use it and this id is neither resumed nor replaced. The
++// record is terminal, so a held id is never vouched for (unresumedOwnLeases) and the reconciler reaps an unconfirmed
++// instance. Once the stop is confirmed and the policy allows it on a still-live lease, the claim sweep's resume path (every
++// gate of a claim, the wallet decision included, no transaction) serves it again; a definite refusal releases it.
+ async function walletHoldLocal(rec,unknown){
+-  const why=`host wallet policy unavailable (${unknown}): stopped here; the lease is kept (not renewed or released) until the policy is established`;
++  const why=`host wallet policy unavailable (${unknown}): not served here; the lease is kept (not renewed or released) until the policy is established`;
+   const first=!rec.walletHeld;
+   rec.walletHeld={since:rec.walletHeld?.since||new Date().toISOString(),why:unknown,stopConfirmed:false};   // FIRST: an in-flight send's gate sees it
++  withdrawService(rec,"terminated",why);
+   if(first)console.warn(`[claim] ${rec.id} ${why}`);
+   let stopped=false;try{stopped=await stopContainer(rec);}catch{}
+-  if(rec._gpu){releaseGpu(rec._gpu);rec._gpu=null;}
+-  rec.status="terminated";rec.error=why;rec.walletHeld.stopConfirmed=stopped===true;
++  rec.walletHeld.stopConfirmed=await settleStop(rec,stopped);
++  if(!rec.walletHeld.stopConfirmed)rec.error=why+"; its instance is NOT confirmed stopped yet (its slice stays reserved; retried each pass)";
+   saveStateSoon();
+ }
+ // A held record on the audit pass, against the page's ledger row d. Not this host's live lease any more: nothing left to
+ // hold. Owner stop or a placement pin elsewhere: released as for a serving record. Otherwise the wallet is asked again: a
+ // definite refusal releases it as a retire does (no final proof: nothing was served while held, so that tail is forfeit),
+-// unknown keeps it held (re-trying an unconfirmed stop), an allow clears the hold and the claim sweep resumes it.
++// unknown keeps it held, an allow clears the hold and the claim sweep resumes it - but only after its instance is
++// confirmed stopped: until then every pass retries the stop and nothing is resumed or replaced.
+ async function walletHeldReview(rec,d){
+-  const end=async(why)=>{delete rec.walletHeld;rec.status="terminated";rec.error=why;saveStateSoon();await releaseLease(rec.id,why);};
++  const end=async(why)=>{delete rec.walletHeld;withdrawService(rec,"terminated",why);saveStateSoon();await releaseLease(rec.id,why);};
+   if(lc(d.runner)!==lc(_enclaveId)||Number(d.leaseUntil)*1000<=Date.now()){delete rec.walletHeld;saveStateSoon();return;}
+   if(!d.active)return end("owner setActive(false)");
+   const pinRefusal=placementRefusal(d.configCid,_enclaveId);
+   if(pinRefusal)return end(pinRefusal);
+   const w=await hostWalletDecision(rec.id,d.appRef,d.isPublic===false);
+   if(w.refusal)return end(w.refusal);
+-  if(w.unknown){if(!rec.walletHeld.stopConfirmed)await walletHoldLocal(rec,w.unknown);else rec.walletHeld.why=w.unknown;return;}
+-  console.log(`[claim] ${rec.id} host wallet policy established again (allowed): the claim sweep resumes its live lease`);
++  if(!rec.walletHeld.stopConfirmed){await walletHoldLocal(rec,w.unknown||rec.walletHeld.why);if(!rec.walletHeld.stopConfirmed||w.unknown)return;}
++  else if(w.unknown){rec.walletHeld.why=w.unknown;return;}
++  console.log(`[claim] ${rec.id} host wallet policy established again (allowed) and its instance confirmed stopped: the claim sweep resumes its live lease`);
+   delete rec.walletHeld;saveStateSoon();
+ }
+ const hostCatalogAddress=()=>process.env.ENCLAVE_HOST_CATALOG_PIN || APP_CATALOG_ADDRESS;
+@@ -2179,10 +2240,14 @@ function placementRefusal(raw, enclaveId) {
+ }
+ 
+ async function retireForPlacement(rec, why) {
+-  // Stop before releasing: two hosts must never serve this pin concurrently.
+-  await stopContainer(rec);
++  // Service withdrawn first and synchronously (routes, streams, egress, lease permissions: withdrawService), then stopped
++  // before releasing: two hosts must never serve this pin concurrently. The slice is freed only on a CONFIRMED stop
++  // (settleStop); an unconfirmed one keeps it reserved until the reconciler confirms the instance gone.
++  withdrawService(rec, "terminated", why);
++  let stopped = false;
++  try { stopped = await stopContainer(rec); } catch {}
+   await proveAndRelease(rec, why);
+-  if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
++  await settleStop(rec, stopped);
+   rec.status = "terminated";
+   rec.error = why;
+   saveStateSoon();
+@@ -3977,7 +4042,9 @@ function loadState() {
+     // terminal records never hold resources (see TERMINAL_STATUSES) - a
+     // persisted handle on one is crash drift; drop it instead of re-reserving
+     // a slice nothing would ever release (the 2026-07-18 kryptos leak)
+-    if (r._gpu && TERMINAL_STATUSES.has(r.status)) r._gpu = null;
++    // ...except a slice whose instance was never confirmed stopped (settleStop): it stays reserved until the reconciler
++    // confirms the instance gone (settlePendingStops), or another tenant could be placed on hardware it still holds
++    if (r._gpu && TERMINAL_STATUSES.has(r.status) && !r._stopPending) r._gpu = null;
+     if (r._gpu) {                       // re-reserve the slices this deployment still holds
+       if (r._gpu.cpu) cpuPool.shareFree = Math.max(0, cpuPool.shareFree - r._gpu.share);
+       else {
+@@ -4373,6 +4440,7 @@ async function reconcileInstances() {
+     stamp({ ok: false, reason: "listing unavailable (non-200 or unexpected shape)", seen: 0, orphans: 0, reaped: 0 });
+     return [];
+   }
++  settlePendingStops(instances);   // unconfirmed stops whose instance the backend no longer lists: confirmed, slice freed
+   // Per-app guest tier: guests live on the HOST and outlive this node CVM, so after a node restart guestd still
+   // runs the guests this node's leases launched. Until the claim loop has resumed those leases, no record owns
+   // them yet and every one would read as an orphan: reaping then would end a live tenant only for the resumed
+@@ -4718,6 +4786,8 @@ function stopUnconfirmed(rec, why) {
+   return false;
+ }
+ async function stopContainer(rec) {
++  // every teardown and relaunch comes here first: lease permissions and established streams end NOW, before any await
++  revokeLeasePermits(rec); cutDeploymentStreams(rec.id);
+   if (PROVISION_BACKEND === "vm") {
+     if (!rec._vmId) return true;               // nothing was ever provisioned
+     try {
+@@ -5205,6 +5275,19 @@ function wafGate(rec, req, res) {
+ }
+ 
+ // /x/:id/https upgrade path (browser TLS terminated in-enclave).
++// Established upgrade streams (the HTTPS/TCP/UDP bridges and isolation splices) by deployment: the data path admits only a
++// running record when a stream STARTS, so a withdrawal must end the ones already open (cutDeploymentStreams).
++const _depStreams = new Map();
++function trackDeploymentStream(id, socket) {
++  let set = _depStreams.get(id); if (!set) _depStreams.set(id, set = new Set());
++  set.add(socket);
++  socket.once("close", () => { set.delete(socket); if (!set.size && _depStreams.get(id) === set) _depStreams.delete(id); });
++}
++function cutDeploymentStreams(id) {
++  const set = _depStreams.get(id); if (!set) return 0;
++  let n = 0; for (const s of [...set]) { try { s.destroy(); n++; } catch {} }
++  return n;
++}
+ function depByIdOrPrefix(id) {
+   let rec = deployments.get(id);
+   if (!rec && /^0x[0-9a-f]{8,64}$/.test(id)) {
+@@ -7621,6 +7704,7 @@ async function launchSpec(rec) {
+ // still recover a claimed record whose launch never finished.
+ const tenantProvisions = new WeakMap();
+ function provisionTenant(rec) {
++  revokeLeasePermits(rec);   // a (re)launch starts a new serving life: no lease permission decided before it applies to it
+   const active = tenantProvisions.get(rec);
+   if (active) return active;
+   const pending = Promise.resolve().then(() => performTenantProvision(rec))
+@@ -9274,6 +9358,8 @@ async function isolationHttps(req, socket, head, rec, deny) {
+ server.on("upgrade", async (req, socket, head) => {
+   const deny = (line) => { socket.write(`HTTP/1.1 ${line}\r\n\r\n`); socket.destroy(); };
+   if (/^\/x\//.test(req.url || "") && HOST_POLICY_GATE.serviceRefusal()) return deny("403 Forbidden");   // platform host policy
++  // every established stream into a deployment is named, so a withdrawal of it (withdrawService, stopContainer) can end it
++  { const xm = /^\/x\/([^/?]+)/.exec(req.url || ""); const xr = xm && depByIdOrPrefix(xm[1]); if (xr) trackDeploymentStream(xr.id, socket); }
+ 
+   // ---- app HTTPS: /x/:id/https — the browser's TLS, terminated IN-ENCLAVE ----
+   // The passthrough relay tunnels the raw TLS bytes of <label>.APP_CERT_DOMAIN
+@@ -10018,8 +10104,19 @@ function sendLeaseTx(functionName, args, { gate = null } = {}) {
+     const stale = gate?.();
+     if (stale) throw Object.assign(new Error(`app-funded ${functionName} not sent: ${stale}`), { superseded: true });
+     if (_stateCorrupt) throw leaseGasError(functionName, args[0], new Error(`the release journal failed to load (${_stateCorrupt})`));
++    // ...and asked AGAIN once the lease is signed, before any relay has it (the client's onSigned: a throw there sends it to
++    // no relay): the sponsored client reads and admits relays first, and a withdrawal meanwhile must not spend the reserve
++    let tripped = null;
++    if (gate) _onLeaseSigned = (s) => {
++      if (s.kind !== functionName || lc(s.lease?.id) !== lc(args[0])) return;
++      const why = gate();
++      if (why) { tripped = why; throw new Error(`permission withdrawn after signing: ${why}`); }
++    };
+     try { const r = await leaseGasSender()[functionName](...args); return { hash: r.hash, receipt: r.receipt }; }
+-    catch (e) { throw leaseGasError(functionName, args[0], e); }
++    catch (e) {
++      if (tripped) throw Object.assign(new Error(`app-funded ${functionName} not sent: ${tripped} (signed, given to no relay)`), { superseded: true });
++      throw leaseGasError(functionName, args[0], e);
++    } finally { if (gate) _onLeaseSigned = null; }
+   };
+   const started = _txChain.then(job, job);
+   _txChain = started.then(() => {}, () => {});
+@@ -11521,6 +11618,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
+   if (!teeOk()) return "this enclave's attestation document presents no confidential CPU (" + (vmTech() || "unread") + "); not claiming";
+   const ex = deployments.get(d.id);
+   if (ex && !CLAIM_TERMINAL.has(ex.status)) return "already serving it here (status " + ex.status + ")";
++  // its previous instance here may still run (an unconfirmed stop, settleStop): no resume, claim or replacement of it yet
++  if (ex && ex._stopPending) return "its previous instance here is not confirmed stopped yet (since " + ex._stopPending.since + "); waiting for the reconciler";
+   // A release of this id from this host may still land: resuming (no transaction) or claiming now would hand it a lease
+   // that release ends. Held until every release it signed is resolved (releaseLease).
+   const held = releaseHold(d.id);
+@@ -11938,6 +12037,7 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false
+   // resumes nothing, and the claim below is sent only while this decision's own chain deadline holds
+   const wallet = await hostWalletDecision(d.id, d.appRef, d.isPublic === false);
+   if (wallet.refusal) return wallet.refusal;
++  if (deployments.get(d.id)?._stopPending) return "its previous instance here is not confirmed stopped yet";
+   if (wallet.unknown) return "host wallet policy unavailable: " + wallet.unknown;
+   if (resume) {
+     // we already HOLD this lease (a previous life of this enclave claimed
+@@ -11959,7 +12059,7 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false
+   if (releaseHold(d.id)) return releaseHold(d.id);
+   let rcpt;
+   try {
+-    const sent = sendLeaseTx("claim", [d.id, _enclaveId], { gate: walletSendGate(null, wallet.validUntil) });
++    const sent = sendLeaseTx("claim", [d.id, _enclaveId], { gate: walletSendGate(null, wallet.validUntil, d.id) });
+     await sent;
+     rcpt = await sent.receipt;
+   } catch (e) { console.log(`[claim] ${d.id} claim tx failed (${e.shortMessage || e.message})`); return; }
+diff --git a/test/egress.test.mjs b/test/egress.test.mjs
+index 7724da0968d43d0bd41317d7f272f14fa64a234a..fc26c3dee36d6275ce95776f2a54615e7132887a 100644
+--- a/test/egress.test.mjs
++++ b/test/egress.test.mjs
+@@ -115,6 +115,23 @@ test("bytes round-trip through the tunnel both ways", async () => {
+   sock.destroy(); h.teardown();
+ });
+ 
++// ---- withdrawal: closeDeployment ends one deployment's open tunnels, not another's --------------------------
++test("closeDeployment(id) ends that deployment's established tunnels now; another deployment's keep flowing", async () => {
++  const h = await harness();
++  try {
++    const a = await socks({ port: h.socksPort, user: "depA", pass: egressToken(SECRET, "depA"), atyp: 0x03, host: "echo.test", dport: 7 });
++    const b = await socks({ port: h.socksPort, user: "depB", pass: egressToken(SECRET, "depB"), atyp: 0x03, host: "echo.test", dport: 7 });
++    assert.equal(a.reply[1], 0x00); assert.equal(b.reply[1], 0x00);
++    const closed = once(a.sock, "close");
++    assert.equal(h.egress.closeDeployment("depA"), 1);
++    await closed;
++    const read = reader(b.sock); b.sock.write(Buffer.from("still-here"));
++    assert.equal((await read(10)).toString(), "still-here");
++    assert.equal(h.egress.closeDeployment("depC"), 0);
++    b.sock.destroy();
++  } finally { h.teardown(); }
++});
++
+ // ---- guardrail 2: SSRF at the front (literal internal IP) -------------------
+ test("CONNECT to a loopback literal is denied before leaving the enclave", async () => {
+   const h = await harness();
+@@ -178,7 +195,7 @@ async function phase2Harness(dialTarget) {
+     lookup: async host => [{address:host === "private.test" ? "127.0.0.1" : "93.184.216.34"}],
+     isKnown:id=>id.startsWith("dep")});
+   await egress.start();
+-  return {socksPort:egress.socksPort(), opens, teardown() {for(const s of handles)s.destroy();provider.close();egress.stop();}};
++  return {socksPort:egress.socksPort(), egress, opens, teardown() {for(const s of handles)s.destroy();provider.close();egress.stop();}};
+ }
+ 
+ // Spawn `wasmtime run` on a command guest with the given TARGET; capture stdout.
+diff --git a/test/supervisor-wallet-policy.test.mjs b/test/supervisor-wallet-policy.test.mjs
+index 6d20b0fee4aeee602ee5254447b6c2e5b555ef5a..562a6ee6c328b828fed21eaae2ed3083c7d46575 100644
+--- a/test/supervisor-wallet-policy.test.mjs
++++ b/test/supervisor-wallet-policy.test.mjs
+@@ -25,6 +25,7 @@ function fixture(){
+    sendLeaseTx:()=>{throw Error('denied work must not renew');},_yankBusy:false,
+    HOST_POLICY_GATE:{serviceRefusal:()=>null},_stateCorrupt:null,leaseGasActive:()=>false,TERMINAL_STATUSES:new Set(['expired','failed','terminated','stopping']),
+    lc:v=>String(v||'').toLowerCase(),releaseGpu:()=>{},releaseLease:async()=>{state.events.push('release');},
++   cutDeploymentStreams:()=>0,listBackendInstances:async()=>[],
+  });
+  vm.runInContext(between('let _hostWalletAdmission = null;', '\nconst hostCatalogAddress='),ctx);vm.runInContext('_hostWalletAdmission=__adm',ctx);
+  vm.runInContext(between('async function gateAppReference(', '// A paid app is servable'),ctx);
+diff --git a/test/supervisor-wallet-unknown-hold.test.mjs b/test/supervisor-wallet-unknown-hold.test.mjs
+index 4b26b2527767b119bb2482601ec1b05550ef556b..feff727d5f5152d5265034aac9bd3f2553bcae9b 100644
+--- a/test/supervisor-wallet-unknown-hold.test.mjs
++++ b/test/supervisor-wallet-unknown-hold.test.mjs
+@@ -8,6 +8,8 @@ import {test} from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ import vm from 'node:vm';
++import net from 'node:net';
++import {once} from 'node:events';
+ const SUPERVISOR=process.env.SUPERVISOR_JS||new URL('../supervisor.js',import.meta.url);
+ const source=fs.readFileSync(SUPERVISOR,'utf8');
+ const {createHostAdmission}=await import('../windows/node/host-admission.bundle.mjs');
+@@ -35,7 +37,14 @@ function admission(){
+ }
+ function fixture(){
+  const w=admission();
+- const s={events:[],writes:[],adopted:[],stopOk:true,lease:Math.floor(Date.now()/1000)+3600};
++ const s={events:[],writes:[],adopted:[],stopOk:true,listOk:true,keepListed:false,deleteGate:null,egressClosed:[],lease:Math.floor(Date.now()/1000)+3600,
++   instances:[{id:'vm-1',name:dep,status:'running'}]};
++ // guestd's /vms at the edge: DELETE stops the guest (200, gone from the listing) or fails; GET lists what still runs
++ const vmReq=async(method,path)=>{
++  if(method==='DELETE'){s.events.push('stop');if(s.deleteGate)await s.deleteGate;if(!s.stopOk)return {status:500,body:{}};
++   if(!s.keepListed)s.instances=s.instances.filter(v=>v.id!==decodeURIComponent(path.split('/').pop()));return {status:200,body:{}};}
++  if(method==='GET'&&path==='/vms')return s.listOk?{status:200,body:{vms:s.instances}}:{status:503,body:{}};
++  return {status:200,body:{}};};
+  const row=(over={})=>({id:dep,appRef:ref,isPublic:true,active:true,owner,runner:host,leaseUntil:BigInt(s.lease),configCid:'',gpuMilli:0,cpuMilli:100,
+    spent6:0n,balance6:1000000n,rate:1n,...over});
+  const ctx=vm.createContext({console,Date,Number,BigInt,Set,Map,Error,String,Object,Promise,JSON,Math,Array,Infinity,
+@@ -47,11 +56,12 @@ function fixture(){
+    if(q.functionName==='getApp')return {appId:app,versionCount:2,active:true,publisher:catalog,slug:'test'};
+    if(q.functionName==='getVersion')return {cid:'cid',version:'1',active:true,yanked:false,approval:1,config:'{}'};
+    if(q.functionName==='versionFee')return 0n;if(q.functionName==='versionConfigCid')return '';throw Error('unexpected read');}},
+-  _reach:{tripped:false},RENEW_MARGIN_SEC:900,tenantProvisions:new Set(),_releaseIntents:new Map(),
++  _reach:{tripped:false},RENEW_MARGIN_SEC:900,tenantProvisions:new Map(),_releaseIntents:new Map(),
+   HOST_POLICY_GATE:{enabled:false,serviceRefusal:()=>null,status:()=>({})},_stateCorrupt:null,leaseGasActive:()=>false,leaseGasRenewDue:async()=>true,
+   TERMINAL_STATUSES:new Set(['expired','failed','terminated','stopping']),lc:v=>String(v||'').toLowerCase(),
+   placementRefusal:()=>null,readLedgerContract:async()=>row(),
+-  stopContainer:async()=>{s.events.push('stop');return s.stopOk;},releaseGpu:()=>{},
++  releaseGpu:()=>{s.events.push('freeGpu');},reconcileInstancesSoon:()=>{},egress:{closeDeployment:id=>{s.egressClosed.push(id);return 0;}},
++  performTenantProvision:async rec=>{rec.status='running';return true;},
+   proveAndRelease:async()=>{s.events.push('prove+release');},releaseLease:async()=>{s.events.push('release');return true;},
+   saveStateSoon:()=>{},releaseHold:()=>null,
+   // the operator queue's edge: the signer and the receipt
+@@ -60,19 +70,25 @@ function fixture(){
+   awaitReceipt:async()=>({status:'success',blockNumber:7n}),leaseFromReceipt:()=>s.lease+1800,noteLeaseFloor:()=>{},
+   // the rest of the audit's healthy pass (nothing to switch, edit or relaunch)
+   shareResizeVerdict:()=>s.resize?'resize':'same',needsVersionSwitch:()=>false,envelopeEditVerdict:()=>'skip',instanceAlive:async()=>true,
+-  provisionTenant:async()=>true,noteProvisionFailure:()=>{},IS_GPU:true,parseDepOptions:()=>({}),bootstrapIntent:()=>false,
++  noteProvisionFailure:()=>{},IS_GPU:true,parseDepOptions:()=>({}),bootstrapIntent:()=>false,
+   // tryClaim's edges
+-  claimBondReady:async()=>true,PROVISION_BACKEND:'vm',vmReq:async()=>({status:200,body:{}}),openForUs:async()=>true,
+-  adopt:async(d,g,f,sl,o)=>{s.adopted.push(o?.resume?'resume':'claim');},_ownLeases:null,
++  claimBondReady:async()=>true,PROVISION_BACKEND:'vm',vmReq,mgrReq:vmReq,openForUs:async()=>true,
++  adopt:async(d,g,f,sl,o)=>{s.adopted.push(o?.resume?'resume':'claim');},_ownLeases:null,_onLeaseSigned:null,deployments:new Map(),
+  });
+  for(const [a,b] of [['let _hostWalletAdmission = null;','\nconst hostCatalogAddress='],['async function gateAppReference(','// A paid app is servable'],
+    ['async function retireForPlacement(','\nfunction parseDepOptions('],['function sendOperatorTx(',"\n// ---- the operator's owner nomination"],
+    ['function sendLeaseTx(','\n/** A sponsored renew'],['async function renewLeases()','\nasync function switchTenantVersion('],
+    ['async function switchTenantVersion(','\nasync function applyEnvelopeEdit('],['async function auditClaims(','\nasync function fetchLedger('],
+-   ['async function tryClaim(','\n// On-chain record -> local rec'],['const HOST_POLICY_EXPLICIT','\nasync function reconcileInstances()']])
++   ['async function tryClaim(','\n// On-chain record -> local rec'],['const HOST_POLICY_EXPLICIT','\nasync function reconcileInstances()'],
++   ['function stopUnconfirmed(','\n// What app ran'],['async function listBackendInstances()','\n// ---- the heartbeat half'],
++   ['// Established upgrade streams','\nfunction depByIdOrPrefix('],['function provisionTenant(rec) {','\n// Spawn the tenant']]){
++  // an older supervisor (the 09ff3ed5 control) has no stream registry: inert stand-ins, so its cases fail on behaviour
++  if(a==='// Established upgrade streams'&&!source.includes(a)){ctx.trackDeploymentStream=()=>{};ctx.cutDeploymentStreams=()=>0;continue;}
+   vm.runInContext(between(a,b),ctx);
++ }
+  ctx.__adm=w.admission;vm.runInContext('_hostWalletAdmission=__adm',ctx);
+- const rec=(over={})=>({id:dep,status:'running',_onchain:true,_leaseUntil:s.lease,owner,image:{reference:ref},resources:{gpuShare:0,cpuShare:0.1},...over});
++ const rec=(over={})=>({id:dep,status:'running',_onchain:true,_leaseUntil:s.lease,owner,image:{reference:ref},resources:{gpuShare:0,cpuShare:0.1},
++   _vmId:'vm-1',_gpu:{cpu:true,share:0.1},...over});
+  const audit=(over={})=>ctx.auditClaims(new Map([[dep,row(over)]]));
+  const releases=()=>s.events.filter(e=>/release/.test(e));
+  return {w,s,ctx,rec,row,audit,releases,serve:(r)=>{ctx.deployments=new Map([[dep,r]]);return r;}};
+@@ -91,7 +107,7 @@ test('explicit refusal - the platform administrator yanks the version, or the ho
+   for(const action of ['audit','renew']){
+    const f=fixture();set(f.w);const r=f.serve(f.rec({_leaseUntil:Math.floor(Date.now()/1000)+60}));
+    if(action==='audit')await f.audit();else await f.ctx.renewLeases();
+-   assert.deepEqual(f.s.events,['stop','prove+release'],`${why}/${action}`);assert.equal(r.status,'terminated');
++   assert.deepEqual(f.s.events,['stop','prove+release','freeGpu'],`${why}/${action}: freed only after the confirmed stop`);assert.equal(r.status,'terminated');
+    assert.equal(r.walletHeld,undefined,'a definite refusal is no hold');assert.deepEqual(f.s.writes,[],'never renewed');
+   }
+  }
+@@ -103,7 +119,7 @@ test('unknown (RPC quorum unavailable): stopped here, never renewed or released,
+  for(const action of ['audit','renew']){
+   const f=fixture();f.w.down=true;const r=f.serve(f.rec({_leaseUntil:Math.floor(Date.now()/1000)+60}));
+   if(action==='audit')await f.audit();else await f.ctx.renewLeases();
+-  assert.deepEqual(f.s.events,['stop'],`${action}: stopped, nothing released`);assert.deepEqual(f.s.writes,[],`${action}: nothing sent`);
++  assert.deepEqual(f.s.events,['stop','freeGpu'],`${action}: stopped (confirmed: slice freed), nothing released`);assert.deepEqual(f.s.writes,[],`${action}: nothing sent`);
+   assert.equal(r.status,'terminated');assert.match(r.walletHeld.why,/chain quorum unavailable/);assert.equal(r.walletHeld.stopConfirmed,true);
+   assert.match(r.error,/lease is kept \(not renewed or released\)/);
+  }
+@@ -160,7 +176,7 @@ test('recovery: the policy becomes known again - allowed: the hold clears and th
+  assert.deepEqual(f.s.adopted,['resume'],'resumed without a transaction');assert.deepEqual(f.s.writes,[]);
+  const g=fixture();g.w.down=true;const h=g.serve(g.rec());await g.audit();
+  g.w.down=false;g.w.catalog={...g.w.catalog,yanked:true};await g.audit();
+- assert.deepEqual(g.s.events,['stop','release'],'refused after the hold: released, nothing proven for the held time');
++ assert.deepEqual(g.s.events,['stop','freeGpu','release'],'refused after the hold: released, nothing proven for the held time');
+  const refusal=(await g.w.admission.decision({deploymentId:dep,appRef:ref,forPrivate:false})).refusal;assert.ok(refusal);
+  assert.equal(h.walletHeld,undefined);assert.equal(h.error,refusal,'the platform moderation refusal, verbatim');
+ });
+@@ -188,16 +204,134 @@ test('an older admission bundle (refusal() only, no decision()) is held as unkno
+  const f=fixture();const old=f.w.admission;f.ctx.__old={hostId:old.hostId,refusal:q=>old.refusal(q)};
+  vm.runInContext('_hostWalletAdmission=__old',f.ctx);const r=f.serve(f.rec({_leaseUntil:Math.floor(Date.now()/1000)+60}));
+  await f.audit();await f.ctx.renewLeases();
+- assert.deepEqual(f.s.events,['stop']);assert.deepEqual(f.s.writes,[]);assert.match(r.walletHeld.why,/no decision\(\) \(an older bundle/);
++ assert.deepEqual(f.s.events,['stop','freeGpu']);assert.deepEqual(f.s.writes,[]);assert.match(r.walletHeld.why,/no decision\(\) \(an older bundle/);
+  assert.equal((await f.ctx.gateAppReference(ref,{deploymentId:dep})).error.status,503);
+ });
+ 
++// ---- root review 1: a queued permission never outlives a withdrawal ------------------------------------------------
++const blockQueue=f=>{let open;f.ctx._txChain=new Promise(r=>{open=r;});return ()=>open();};
++// the sponsored client's documented order (client/lease-executor-client.mjs): relays read and admitted, the lease SIGNED,
++// onSigned (a throw = NotPersisted, sent to no relay), then the relay POST - stubbed at exactly that seam
++function appFunded(f,{delayMs=0}={}){
++ f.ctx.leaseGasActive=()=>true;f.ctx.leaseGasError=(fn,id,e)=>e;
++ f.ctx.leaseGasSender=()=>({renew:async id=>{await sleep(delayMs);
++  try{f.ctx._onLeaseSigned?.({kind:'renew',lease:{id}});}catch(e){throw Object.assign(new Error('NotPersisted: '+e.message),{code:'NotPersisted'});}
++  f.s.writes.push('relay POST renew');return {hash:'0x'+'bb'.repeat(32),receipt:{status:'success',blockNumber:7n}};}});
++}
++test('review 1: a VERIFIED refusal voids a renewal already queued under an earlier allow (operator-paid and app-funded)',{timeout:20_000},async()=>{
++ for(const sponsored of [false,true]){
++  const f=fixture();if(sponsored)appFunded(f);const r=f.serve(f.rec({_leaseUntil:Math.floor(Date.now()/1000)+60}));
++  const open=blockQueue(f);const pass=f.ctx.renewLeases();await sleep(50);   // allowed and queued
++  f.w.catalog={...f.w.catalog,yanked:true};await f.audit({leaseUntil:BigInt(r._leaseUntil)});   // the administrator's yank: retired
++  open();await pass;
++  assert.deepEqual(f.s.writes,[],`sponsored=${sponsored}: the old permission sends nothing and spends no reserve gas`);
++  assert.ok(f.s.events.includes('prove+release'),'the refusal itself is enforced (released)');assert.equal(r.walletHeld,undefined);
++ }
++});
++test('review 1: hold -> fresh allow cannot resurrect an earlier permission, even when the SAME record object serves again',{timeout:20_000},async()=>{
++ for(const sponsored of [false,true]){
++  const f=fixture();if(sponsored)appFunded(f);const r=f.serve(f.rec({_leaseUntil:Math.floor(Date.now()/1000)+60}));
++  const open=blockQueue(f);const pass=f.ctx.renewLeases();await sleep(50);
++  f.w.down=true;await f.audit({leaseUntil:BigInt(r._leaseUntil)});assert.ok(r.walletHeld);
++  f.w.down=false;await f.audit({leaseUntil:BigInt(r._leaseUntil)});assert.equal(r.walletHeld,undefined,'allowed again: hold cleared');
++  r.status='running';   // as if the resume reused this very object (walletHeld cleared, status back): the boolean alone would pass
++  open();await pass;
++  assert.deepEqual(f.s.writes,[],`sponsored=${sponsored}: superseded by the epoch, not by a flag`);
++  r._renewing=false;await f.ctx.renewLeases();   // control: a renewal DECIDED after the recovery goes out
++  assert.equal(f.s.writes.length,1,'a fresh decision renews');
++ }
++});
++test('review 1: owner stop, a restart (re-provision) and a replaced record each void a queued renewal',{timeout:20_000},async()=>{
++ for(const change of ['owner-stop','restart','replace']){
++  const f=fixture();const r=f.serve(f.rec({_leaseUntil:Math.floor(Date.now()/1000)+60}));
++  const open=blockQueue(f);const pass=f.ctx.renewLeases();await sleep(50);
++  if(change==='owner-stop')await f.audit({leaseUntil:BigInt(r._leaseUntil),active:false});
++  if(change==='restart'){await f.ctx.provisionTenant(r);assert.equal(r.status,'running','serving again after the restart');}
++  if(change==='replace')f.ctx.deployments.set(dep,{...r});
++  open();await pass;assert.deepEqual(f.s.writes,[],`${change}: nothing sent`);
++ }
++});
++test('review 1: a renewal that reaches the queue WHILE an owner stop is still waiting for its DELETE is not sent (revoked before the await)',{timeout:20_000},async()=>{
++ for(const sponsored of [false,true]){
++  const f=fixture();if(sponsored)appFunded(f);const r=f.serve(f.rec({_leaseUntil:Math.floor(Date.now()/1000)+60}));
++  const open=blockQueue(f);const pass=f.ctx.renewLeases();await sleep(50);
++  let answer;f.s.deleteGate=new Promise(res=>{answer=res;});
++  const stopping=f.audit({leaseUntil:BigInt(r._leaseUntil),active:false});await sleep(30);
++  assert.equal(r.status,'running','the owner-stop path still reads running while its DELETE is outstanding');
++  open();await pass;   // the queued renewal runs NOW, mid-stop
++  assert.deepEqual(f.s.writes,[],`sponsored=${sponsored}: stopContainer revoked it synchronously`);
++  answer();await stopping;
++ }
++});
++test('review 1: app-funded - a hold that lands while the sponsored client is still admitting relays stops the SIGNED lease before any relay',{timeout:20_000},async()=>{
++ const f=fixture();appFunded(f,{delayMs:300});const r=f.serve(f.rec({_leaseUntil:Math.floor(Date.now()/1000)+60}));
++ const pass=f.ctx.renewLeases();await sleep(60);   // the queue's gate already passed; the client is inside its relay work
++ f.w.down=true;await f.audit({leaseUntil:BigInt(r._leaseUntil)});assert.ok(r.walletHeld);
++ await pass;
++ assert.deepEqual(f.s.writes,[],'signed, given to no relay: the reserve pays nothing');
++ assert.ok(!(r._renewBackoffUntil>Date.now()),'superseded, not a relay failure');
++});
++test('review 1: a claim decided ALLOWED is voided by a later refusal for that deployment from any caller (no local record to revoke)',{timeout:20_000},async()=>{
++ const t=fixture();const open=blockQueue(t);
++ const p=t.ctx.tryClaim(t.row({leaseUntil:0n,runner:'0x'+'00'.repeat(32)}),{wasmRef:'catalog'},[],{},{hinted:true});await sleep(50);
++ t.w.catalog={...t.w.catalog,yanked:true};assert.ok((await t.ctx.hostWalletDecision(dep,ref,false)).refusal);
++ open();await p;assert.deepEqual(t.s.writes,[]);assert.deepEqual(t.s.adopted,[]);
++});
++
++// ---- root review 2: a failed stop is not isolation ---------------------------------------------------------------
++test('review 2: on a FAILED stop service is withdrawn at once (routes, open streams, egress, permits), the slice stays reserved and nothing resumes or replaces it until the backend confirms the guest gone',{timeout:30_000},async()=>{
++ const f=fixture();const r=f.serve(f.rec());f.ctx._ownLeases=new Map([[dep,f.s.lease]]);
++ // a REAL established stream into the deployment (an upgrade socket the data path handed over)
++ const srv=net.createServer(sock=>{f.ctx.trackDeploymentStream(dep,sock);});srv.listen(0,'127.0.0.1');await once(srv,'listening');
++ const client=net.connect(srv.address().port,'127.0.0.1');client.on('error',()=>{});await once(client,'connect');await sleep(30);
++ let release;f.s.deleteGate=new Promise(res=>{release=res;});f.s.stopOk=false;f.w.down=true;
++ const closed=once(client,'close');const pass=f.audit();await sleep(50);   // the guest's DELETE has not answered yet
++ assert.equal(r.status,'terminated','withdrawn BEFORE the stop answers: every ingress admits only running records');
++ await Promise.race([closed,sleep(2000).then(()=>{throw Error('the established stream was NOT cut');})]);
++ assert.deepEqual(f.s.egressClosed,[dep],'its egress connections were closed');assert.ok(r._leaseEpoch>=1,'its lease permissions revoked');
++ release();await pass;srv.close();
++ assert.deepEqual(f.s.events,['stop'],'no slice freed on a failed stop');assert.ok(r._gpu,'the slice stays reserved');
++ assert.ok(r._stopPending);assert.equal(r.walletHeld.stopConfirmed,false);assert.match(r.error,/NOT confirmed stopped/);
++ assert.match(await f.ctx.tryClaim(f.row(),{wasmRef:'catalog'},[],{},{hinted:true,resume:true}),/not confirmed stopped/);
++ assert.deepEqual(f.s.adopted,[],'no resume onto hardware the old guest may still hold');
++ f.w.down=false;await f.audit();assert.ok(r.walletHeld,'allowed again, but the hold stays until the stop is confirmed');
++ assert.deepEqual([...f.ctx.unresumedOwnLeases()],[],'still not vouched for');
++ f.s.stopOk=true;f.s.keepListed=true;await f.audit();
++ assert.ok(r.walletHeld&&r._stopPending,'DELETE answered 200 but the listing still shows the guest: not confirmed');
++ assert.equal(f.s.events.filter(e=>e==='freeGpu').length,0);
++ f.s.instances=[];f.ctx.settlePendingStops(f.s.instances);   // the reconciler's listing no longer names it
++ assert.deepEqual(f.s.events.filter(e=>e==='freeGpu'),['freeGpu'],'freed exactly once, on confirmation');
++ assert.equal(r._stopPending,undefined);assert.equal(r.walletHeld.stopConfirmed,true);
++ await f.audit();assert.equal(r.walletHeld,undefined,'confirmed and allowed: the hold clears');
++ assert.equal(await f.ctx.tryClaim(f.row(),{wasmRef:'catalog'},[],{},{hinted:true,resume:true}),undefined);assert.deepEqual(f.s.adopted,['resume']);
++ assert.deepEqual(f.releases(),[],'and through all of it the lease was never released');
++});
++test('review 2: an administrator refusal with a FAILED stop still releases the lease, but the slice waits for the confirmed stop',{timeout:20_000},async()=>{
++ const f=fixture();const r=f.serve(f.rec());f.s.stopOk=false;f.w.catalog={...f.w.catalog,yanked:true};
++ await f.audit();
++ assert.deepEqual(f.s.events,['stop','prove+release'],'the ban is enforced; no slice freed');assert.ok(r._gpu&&r._stopPending);assert.equal(r.status,'terminated');
++ f.w.catalog={...f.w.catalog,yanked:false};   // even once the version is admitted again, nothing reclaims this id onto its slice
++ assert.match(await f.ctx.tryClaim(f.row({leaseUntil:0n,runner:'0x'+'00'.repeat(32)}),{wasmRef:'catalog'},[],{},{hinted:true}),/not confirmed stopped/);
++ assert.deepEqual(f.s.writes,[]);assert.deepEqual(f.s.adopted,[]);
++ f.s.listOk=false;f.ctx.settlePendingStops(null);assert.ok(r._stopPending,'an unreadable listing confirms nothing');
++ f.ctx.settlePendingStops([]);assert.ok(f.s.events.includes('freeGpu'));assert.equal(r._stopPending,undefined);
++});
++
+ test('source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal',()=>{
+  assert.equal(source.includes('hostWalletRefusal'),false);
+  for(const s of ['sendLeaseTx("renew", [rec.id], { gate })','sendLeaseTx("claim", [rec.id, _enclaveId], { gate })',
+                  'sendLeaseTx("claim", [rec.id, _enclaveId], { gate: walletSendGate(rec, w.validUntil) })',
+-                 'sendLeaseTx("claim", [d.id, _enclaveId], { gate: walletSendGate(null, wallet.validUntil) })'])
++                 'sendLeaseTx("claim", [d.id, _enclaveId], { gate: walletSendGate(null, wallet.validUntil, d.id) })'])
+   assert.ok(source.includes(s),s);
+  assert.equal((source.match(/sendLeaseTx\("(claim|renew)"/g)||[]).length,4,'no other claim/renew send');
+  assert.equal((source.match(/hostWalletDecision\(/g)||[]).length,6,'definition + gate + renew + audit + held review + tryClaim');
++ for(const pin of ['async function stopContainer(rec) {\n  // every teardown and relaunch comes here first: lease permissions and established streams end NOW, before any await\n  revokeLeasePermits(rec); cutDeploymentStreams(rec.id);',
++   'revokeLeasePermits(rec);   // a (re)launch starts a new serving life',
++   'settlePendingStops(instances);   // unconfirmed stops',
++   'if (r._gpu && TERMINAL_STATUSES.has(r.status) && !r._stopPending) r._gpu = null;',
++   'if (ex && ex._stopPending) return "its previous instance here is not confirmed stopped yet',
++   'if (xr) trackDeploymentStream(xr.id, socket);'])
++  assert.ok(source.includes(pin),pin.slice(0,80));
++ const rec=source.slice(source.indexOf('async function reconcileInstances()'));
++ assert.ok(rec.indexOf('settlePendingStops(instances)')<rec.indexOf('orphanInstancePlan('),'settled from the same listing, before reaping');
+ });
+diff --git a/test/tenant-provision-race.test.mjs b/test/tenant-provision-race.test.mjs
+index 426188cadc45e540cc8791f3709955265412a7de..e8b69d7e235fd1a52e0933ede2db154764a90e69 100644
+--- a/test/tenant-provision-race.test.mjs
++++ b/test/tenant-provision-race.test.mjs
+@@ -20,7 +20,7 @@ function harness(spawnContainer) {
+     const {deployments,spawnContainer,launchSpec,acmeReconcileSoon,releaseGpu,
+            claimSigner,CLAIM_TERMINAL,console}=deps;
+     const tenantProvisions = new WeakMap();
+-    ${['provisionTenant', 'performTenantProvision', 'auditClaims', 'adopt'].map(body).join('\n')}
++    ${['revokeLeasePermits', 'provisionTenant', 'performTenantProvision', 'auditClaims', 'adopt'].map(body).join('\n')}
+     return {provisionTenant,auditClaims,adopt,tenantProvisions};
+   `)(deps);
+   return { ...api, deployments, freed: () => freed };

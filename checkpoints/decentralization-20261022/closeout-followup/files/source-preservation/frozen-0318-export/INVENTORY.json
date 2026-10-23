@@ -1,0 +1,319 @@
+{
+ "format": "enclave-frozen-0318-export/v1",
+ "checkpointHeadAtExport": "7b477d578973dd11ebada8cc448bc1b3913f3bd9",
+ "label": "SOURCE + OFFLINE TESTS ONLY. Not deployed, not merged into the normal tree, not imaged. witness-enclave bfbd649d + witness-helios 1ec2c1a5: proof-aware witness failover (native witness-check verifies each untrusted witness against a root from a signed head) and a content-addressed cache; offline proof and availability tests only, NOT production and NOT RPC independence. d-review b744ba19: UNREADY candidate; root later found a permit-capture window in tryClaim (gate built after an await) and the stop handling is incomplete on other teardown paths; worker D is repairing.",
+ "sides": {
+  "witness-enclave": {
+   "repo": "witness-failover/repo",
+   "branch": "witness-failover",
+   "headReachableFromBranch": true,
+   "base": "9fdc1418caff88d1baa5c5967ac7eaaf9cf2a368",
+   "baseProvenance": "9fdc1418c = worker A finished rpc-priority candidate, preserved in checkpoint 9f40daae as rpc-base-evm-export/enclave-rpc-priority-9fdc1418c (4 patches on public dfe020abf, head tree 5c84c3da); the base is rebuilt from those stored patches, not from A's active tree",
+   "head": "bfbd649d8c416922691a6dd1eaada8a81765bba5",
+   "headTree": "eec364504ce589bfee6f0e1643b06d6b371c7ef0",
+   "commits": [
+    {
+     "commit": "ee45734df2b736a1847ce0383f7bbb51042be1e1",
+     "parent": "9fdc1418caff88d1baa5c5967ac7eaaf9cf2a368",
+     "tree": "26a7b7df82ef3b4430513985cc2730e6e3859a1a",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T19:45:16-07:00",
+     "subject": "Verify block-hash-pinned witnesses in the gateway: proof-aware failover and a poisoning-resistant cache"
+    },
+    {
+     "commit": "bfbd649d8c416922691a6dd1eaada8a81765bba5",
+     "parent": "ee45734df2b736a1847ce0383f7bbb51042be1e1",
+     "tree": "eec364504ce589bfee6f0e1643b06d6b371c7ef0",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T19:45:16-07:00",
+     "subject": "Run the Helios E2Es through the verifying witness gateway"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "network/witness-gateway.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "233045a384ad7b3113ce3e30fdeb0437d1ce2ad0",
+     "sha256": "bb5963a06bf64a768783a9b270ddfdcf52e98fa5cdf1db63a64cebc7bce4fc82",
+     "bytes": 17067,
+     "baseBlob": "82bf203b1ae7e19501ed0071038ccc674194a162"
+    },
+    {
+     "path": "network/witness-verify.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1cf4dbb7064a4f53fc77533051834e2b4f5d10b2",
+     "sha256": "d55ac997323383259e05307b808ae5b146503fc9dfe16de8f1137cd3de2359ef",
+     "bytes": 8210,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-base-replay.e2e.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "bc81a6fa11551a4ba56cf02843035152471f746d",
+     "sha256": "7622f806ce636ba7fc8cddd8f799a1877d4aad6b65380292890d75273d787323",
+     "bytes": 7961,
+     "baseBlob": "a87d9381a0ff34aa3878b3281fa7257bf3e07d72"
+    },
+    {
+     "path": "test/helios-witness-failover.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7a34bda8267d6666f539f24b3979153638d992f5",
+     "sha256": "2816a691aa81d6dc4efe49ffce73d8c1c49af6eebe73109511590cf48fa01e29",
+     "bytes": 9627,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-witness.e2e.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f868841c416e1ef6836ca460efb8b366ccdbc377",
+     "sha256": "ee3d144c5c60049e46fe66f6f54638dce3af737aeb997a0c9be3e49464c636a2",
+     "bytes": 17826,
+     "baseBlob": "fa753d192a03abec45c4accbd5832ea61c9be696"
+    },
+    {
+     "path": "test/witness-failover.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d761851f66a9dbf14f5593ece10efeebf4d3366b",
+     "sha256": "d16601f70549c6e41bd373b0fce9a636f284cfd29718f2dd49d12292186c1159",
+     "bytes": 16525,
+     "baseBlob": null
+    },
+    {
+     "path": "test/witness-gateway.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "0f7be1bea277b36dc8cb9ccf82a4ffa957a3f9be",
+     "sha256": "f0930fbc510d60e8fef967a811df8c33b92b3dd9347e07018ab90c8321c4870e",
+     "bytes": 5915,
+     "baseBlob": "b994da1f2e147b27c813002235fa82617827fa77"
+    }
+   ],
+   "patches": [
+    {
+     "file": "witness-enclave-bfbd649d/patches/0001-Verify-block-hash-pinned-witnesses-in-the-gateway-pr.patch",
+     "sha256": "63c2c0e74cd51c806e2e795e991a9b4d05528c9d94b82fd6d2e9c3628d7d1e33"
+    },
+    {
+     "file": "witness-enclave-bfbd649d/patches/0002-Run-the-Helios-E2Es-through-the-verifying-witness-ga.patch",
+     "sha256": "c534e1b171034338f5ae4a9f254bd352ac3d7926f411e5512a89c9cb9fafe75f"
+    }
+   ]
+  },
+  "witness-helios": {
+   "repo": "witness-failover/helios",
+   "branch": "enclave-witness-check",
+   "headReachableFromBranch": true,
+   "base": "eeffcc980a4a9aa092e23e07b1077c1f3fdfc95e",
+   "baseProvenance": "eeffcc9 = enclave-base-evm (upstream a16z/helios 0.12.0 2af9b418 + 4 patches), preserved in checkpoint 9f40daae as rpc-base-evm-export/helios-enclave-base-evm-eeffcc9 (head tree 2171ad2b; its one binary test object is rebuilt from the stored hex fixture)",
+   "head": "1ec2c1a52399b6a8d0fc1eb7658bf030987e132a",
+   "headTree": "88bc44a0922a09236e35ea5a45442ceed1d03205",
+   "commits": [
+    {
+     "commit": "1ec2c1a52399b6a8d0fc1eb7658bf030987e132a",
+     "parent": "eeffcc980a4a9aa092e23e07b1077c1f3fdfc95e",
+     "tree": "88bc44a0922a09236e35ea5a45442ceed1d03205",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T19:45:01-07:00",
+     "subject": "opstack: witness-check, a local verifier of execution witnesses for an untrusted witness gateway"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "opstack/Cargo.toml",
+     "status": "M",
+     "mode": "100644",
+     "blob": "197a9148d928a8d8f7b8b0fbdd4121b637b9d2d6",
+     "sha256": "2a90a6dbd4ea7675cb5bc4e6e0695347065bb0a04abc0cd8e8881a0ad6c364a6",
+     "bytes": 2762,
+     "baseBlob": "6748e57250a199563230846608c7350edc6c2f7e"
+    },
+    {
+     "path": "opstack/bin/witness-check.rs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "96ce1fb210f525d4a061826bbabaa014eb2200e7",
+     "sha256": "5cce8297f4079ecc2fdb8cb10be01f10b3ef27477a1acd8f6ce3fd79307fe0ef",
+     "bytes": 5484,
+     "baseBlob": null
+    },
+    {
+     "path": "opstack/src/consensus.rs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2dafd3c9ab3cde9435fc9e8fd7445235d3806ba4",
+     "sha256": "ba44764441a1d22a7718867a84cb6408231757e904119dcbc65ac04e5735c4f8",
+     "bytes": 17451,
+     "baseBlob": "8692c9279830201f1fd8a9e941a34285d034f481"
+    },
+    {
+     "path": "opstack/src/lib.rs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "33eda1741f71133246a00cd68d4bf61b241f83e1",
+     "sha256": "8f3b0f724d066a1aa9d86cb156a06e88aa36bb970832255dd30a31835b044060",
+     "bytes": 2081,
+     "baseBlob": "d4796d56bbf817861e5de2dc81e4a72562a1355e"
+    },
+    {
+     "path": "opstack/src/witness_check.rs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a6861159bd8a0e30fc393a32b3334a6b4d4393e5",
+     "sha256": "9c3abaac5bcc31a1e6d1fe296048399054be246b0e717202c80e75c4958b9b0d",
+     "bytes": 11218,
+     "baseBlob": null
+    },
+    {
+     "path": "opstack/tests/data/witness-check-52965249.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8114176d2529392ad3fb849026d6309355da037d",
+     "sha256": "7779339ed052dd4ac698bbb18177cbc497836d2f5640e35debf037f25161382f",
+     "bytes": 12421,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "witness-helios-1ec2c1a5/patches/0001-opstack-witness-check-a-local-verifier-of-execution-.patch",
+     "sha256": "0945bf1fe48bedc0dedd9b715e7380561760cadd1682588f687918909714257f"
+    }
+   ]
+  },
+  "d-review": {
+   "repo": "linux-wallet-unknown/candidate",
+   "branch": "fix/linux-wallet-unknown-hold",
+   "headReachableFromBranch": true,
+   "base": "09ff3ed553ba97f5fd5a880ab4197d3209a83d0a",
+   "baseProvenance": "09ff3ed5 = D's first hold commit, preserved in checkpoint 7b477d57 as rpc-native-codec-export/d-linux-wallet-unknown-09ff3ed5 (1 patch on pushed 2bbea898)",
+   "head": "b744ba19022763e9688c6b006e8cecd24e21cc18",
+   "headTree": "2a6ff7c71d78e9a7ed0ea47bd2cd79ffd2bb2522",
+   "commits": [
+    {
+     "commit": "b744ba19022763e9688c6b006e8cecd24e21cc18",
+     "parent": "09ff3ed553ba97f5fd5a880ab4197d3209a83d0a",
+     "tree": "2a6ff7c71d78e9a7ed0ea47bd2cd79ffd2bb2522",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:09:49-07:00",
+     "subject": "Linux hold: revoke queued lease permissions by epoch; free nothing on an unconfirmed stop"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "egress.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "bd14b5b477c2844743c6bcb27e44d4b2817d3c6e",
+     "sha256": "bd960a2b6ff51e8269dd3979e7d6e1c842796d351fe0e82257e7c84f8f897843",
+     "bytes": 6598,
+     "baseBlob": "ec2e2c04205df8dab172d954950d75809aa03cc9"
+    },
+    {
+     "path": "supervisor.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "89db620f30ad6af2f3fa1908571e3f884c30d9e9",
+     "sha256": "3b9b371b7c1f84aaeb98ea4b7fc3920c75b5c28a2228f89009e82cebd0406983",
+     "bytes": 850554,
+     "baseBlob": "48a475deecbeda120d08afaa168d9490b2abba11"
+    },
+    {
+     "path": "test/egress.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "fc26c3dee36d6275ce95776f2a54615e7132887a",
+     "sha256": "309d4367b3a6de547c18dc06e7d63955313ef085f9d65a0aa596a8084b792989",
+     "bytes": 25383,
+     "baseBlob": "7724da0968d43d0bd41317d7f272f14fa64a234a"
+    },
+    {
+     "path": "test/supervisor-wallet-policy.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "562a6ee6c328b828fed21eaae2ed3083c7d46575",
+     "sha256": "503265a419dceb9fbb23bce6ac4dcb7831c756a9e9f3b3e5db79a3f63a47c4b9",
+     "bytes": 5368,
+     "baseBlob": "6d20b0fee4aeee602ee5254447b6c2e5b555ef5a"
+    },
+    {
+     "path": "test/supervisor-wallet-unknown-hold.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "feff727d5f5152d5265034aac9bd3f2553bcae9b",
+     "sha256": "c2d9d5d8a83e52fc3067367ee3a1d2a8aeb88718f49bd33fc4ee41b51a8f6d41",
+     "bytes": 28487,
+     "baseBlob": "4b26b2527767b119bb2482601ec1b05550ef556b"
+    },
+    {
+     "path": "test/tenant-provision-race.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "e8b69d7e235fd1a52e0933ede2db154764a90e69",
+     "sha256": "2485fbce033aa4fcb463b69b8724c0343ebf28a2ac30fe951cf22a2f77a9df19",
+     "bytes": 3395,
+     "baseBlob": "426188cadc45e540cc8791f3709955265412a7de"
+    }
+   ],
+   "patches": [
+    {
+     "file": "d-linux-wallet-review-b744ba19/patches/0001-Linux-hold-revoke-queued-lease-permissions-by-epoch-.patch",
+     "sha256": "98ac78b8cb562b8c2408726319644d3f97ff986b72dbc8e469d14422af0484df"
+    }
+   ]
+  }
+ },
+ "frozenSources": {
+  "witness-failover/RESULT.md": "bcb2cb2d54d3e476f95bf3c0ddd8ed406d3463279b88013194c716c64fe8a46f",
+  "witness-failover/PROVENANCE.json": "af259c44a2c92708a469567ecbcd68c7adb33af2ddc65976b604ad54c3a58e73",
+  "witness-failover/TEST-EVIDENCE.txt": "833b6f9157fca10fe37c776bea8e1a429bc39e086201d3c6bf94650d16fecc85",
+  "linux-wallet-unknown/RESULT-REVIEW.md": "b1f833e8fad506e70a48895b3e9d56f6b4a845c48deee52b41a4bf67aded41fb"
+ },
+ "rootEvidence": {
+  "ROOT-LINUX-DECISION-WINDOW-REVIEW.txt": "0b097de8f2df4cc6bec1585378df6467b7b705830030044001df4fc2b1c314d3",
+  "root-linux-decision-window-probe.mjs": "ba390766eb9abc21ce79cd4dc375ae16d70c39f5f460937da76144ebf557e201",
+  "root-linux-decision-window-result.json": "1c65641e6495f043e74e42bb9edf0fd7aed3b4d2d1e24c5badcba03439d6acc2",
+  "root-linux-decision-window-probe.guard.log": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+  "ROOT-VERIFIER-DEADLINE-REVIEW.txt": "7ee1fecb067b76b7a108019c809ee9fe2571a8fca500f14db1a1de88da61fa31",
+  "root-verifier-deadline-probe.mjs": "ae0c91cdf26bd77c88fd4d199bdb3b5666f003b9fce6da9014f8efb20b7ddfde",
+  "root-verifier-deadline-result.json": "9e6d63897dc11e17e92bd61cd9e8097c2e32ca63c4c63be9ee6cec7dbfa8b7ee",
+  "root-verifier-deadline-probe.guard.log": "0d05d9462d3bf2a8d18f401434061d32b5838d0911eacaebc60dc8bf3b1dc02f",
+  "ROOT-VERIFIER-POSITIVE-CONSUMER-REVIEW.txt": "8e7e018a3429d31832c095b8ce5a9ae67db97beb959b74cdd03b07cd26666133",
+  "node-updater-readonly/check-0313.py": "91eb11614a2aafd86310dcb0da311054c138db8757d78be358090945472c365a",
+  "check-dns-tls-current.py": "641cfadf4b776703421ec40ab58e7d4385544f1f0e50efa6336c40c9378e1e2a",
+  "dns-tls-0317.guard.log": "41eaa599faf7f5987bab57633699d74aca946abe2ed94210abcf73a80bd74618",
+  "storage-worker-steering-interrupt.json": "0e4e35398bd1b31294d147f4047703286500843a4e16ebaa3dff0dea3c40161d",
+  "ROOT-BRIDGE-HALFCLOSE-REVIEW.txt": "a56fa9be4763a5eb901c0993fdc699093ef79903a7428590f0aa3beb20d52f4b",
+  "root-bridge-halfclose/probe.py": "ef91bd417c58f31e23564ea858794513478c25316c6a337205deeab387d75c35",
+  "root-bridge-halfclose/result.json": "64779e4c6e2edf5c8c5c0cf55a283cf62e0cdda9162a6898ceb3362feaba90d7",
+  "root-bridge-halfclose/probe.guard.log": "c8e0026d9790288c1ec3e0b73fd543e6b1e08f50bf90fde73bbfb44514a19c9a",
+  "root-bridge-halfclose/runner-snapshot.py": "160db08b6eb708694dbcf1241d00849f5162f19a953837303ce06b0de953b770"
+ },
+ "receipts": {
+  "windows-node-updater-0313-postcheck-20261023.json": "010af9629ab05e3fbdd83892995dda04062e87e5085c6d3a0390786b044febdf",
+  "enclavedns-tls-followup-20261023T0317Z.json": "a26ae25f3540f53e325a1983817e5e694095a8c5bf73ee84bae18ccca990253a",
+  "storage-failed-attempt-cleanup-20261023.json": "f6f7fb4bdc57ca722bafaf9b951404704c8fb514f004fae38ea21da535a58d58",
+  "rpc-hdd-feasibility-primary-source-20261023.json": "e571f7fb135012fbc60ac6b6cc0b0131ff2d387077f156c1a560addf349c4495"
+ },
+ "rootProbeSourceNotes": {
+  "root-linux-decision-window-probe": "probed D working source sha256 db73a7f2 (r1b, 02:51Z); the committed b744ba19 supervisor.js is 3b9b371b (D reports a whitespace-only reformat of revokeLeasePermits). The finding concerns tryClaim ordering",
+  "root-verifier-deadline-probe": "probed worker A lease-reader.mjs sha256 3d1850b2 (A commit 921d60c2, ACTIVE, not captured here)",
+  "root-bridge-halfclose": "root snapshot runner-snapshot.py = S bridge runner 160db08b (S is ACTIVE with fixes; the snapshot is the reviewed defective version, never a release)"
+ },
+ "notPreserved": [
+  "worktrees and anything after the exported heads: the witness-failover worker has since committed newer work on both branches (root-history follow-up; not reviewed for this checkpoint) and D is ACTIVE repairing; none of that newer work or working state is captured",
+  "witness-failover target/, bin/ (helper 42a8a841, Helios copies), cargo-home/, vendor-inspect/, fixtures/ (copy of the already-preserved base-calls fixture), test-scratch/, logs/ (digest = TEST-EVIDENCE.txt), jobs/, patches/ (equivalent to these exports)",
+  "D logs/, tmp/ (mutants, control copies), stubs/, job scripts and its own .patch files (equivalent to these exports)",
+  "root-bridge-halfclose/__pycache__",
+  "restored storage data, raw logs, keys, backups and remote handles"
+ ]
+}

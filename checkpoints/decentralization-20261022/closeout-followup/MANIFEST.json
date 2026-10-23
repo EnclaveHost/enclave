@@ -6997,6 +6997,419 @@
       "stored": "files/windows-source-composition-task.txt",
       "sha256": "46806afdc0e513e47a206e3a1822983fe085f4ee6f217a542e057f1118459a2c",
       "bytes": 2025
+    },
+    {
+      "label": "FROZEN 03:18Z commits exported from Git objects (never worktrees); every commit tree rebuilt exactly from the prior pushed exports + these patches (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/INVENTORY.json",
+      "stored": "files/source-preservation/frozen-0318-export/INVENTORY.json",
+      "sha256": "255029ca9d29c28de792fa3e84da9507229223e7ca38ca99cf14ccdc88794c83",
+      "bytes": 15632
+    },
+    {
+      "label": "FROZEN 03:18Z commits exported from Git objects (never worktrees); every commit tree rebuilt exactly from the prior pushed exports + these patches (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/REBUILD.md",
+      "stored": "files/source-preservation/frozen-0318-export/REBUILD.md",
+      "sha256": "98892a4613742b898c948f8f0b3d1620f0ec5927d385c0ea70fdfaad9bcf24c7",
+      "bytes": 3899
+    },
+    {
+      "label": "FROZEN 03:18Z commits exported from Git objects (never worktrees); every commit tree rebuilt exactly from the prior pushed exports + these patches (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/REPRODUCE-CHECK.txt",
+      "stored": "files/source-preservation/frozen-0318-export/REPRODUCE-CHECK.txt",
+      "sha256": "5274a753327bc938a2bc8a020c66e5464af316176997caa5dd34f104a245b9b3",
+      "bytes": 896
+    },
+    {
+      "label": "witness-failover Enclave bfbd649d (2 patches on A's 9fdc1418c): gateway verifies each block-hash-pinned eth_getProof/eth_getCode answer with the native witness-check against a root from a signed head, fails over to the next untrusted source, content-addressed re-verified cache, bounded reads; offline proof/availability tests only (JS 30/30 + 1 skip, real recorded witnesses). NOT production, NOT RPC independence: with every fresh witness source down only cached block-pinned history remains",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/patches/0001-Verify-block-hash-pinned-witnesses-in-the-gateway-pr.patch",
+      "stored": "files/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/patches/0001-Verify-block-hash-pinned-witnesses-in-the-gateway-pr.patch",
+      "sha256": "63c2c0e74cd51c806e2e795e991a9b4d05528c9d94b82fd6d2e9c3628d7d1e33",
+      "bytes": 65376
+    },
+    {
+      "label": "witness-failover Enclave bfbd649d (2 patches on A's 9fdc1418c): gateway verifies each block-hash-pinned eth_getProof/eth_getCode answer with the native witness-check against a root from a signed head, fails over to the next untrusted source, content-addressed re-verified cache, bounded reads; offline proof/availability tests only (JS 30/30 + 1 skip, real recorded witnesses). NOT production, NOT RPC independence: with every fresh witness source down only cached block-pinned history remains",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/patches/0002-Run-the-Helios-E2Es-through-the-verifying-witness-ga.patch",
+      "stored": "files/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/patches/0002-Run-the-Helios-E2Es-through-the-verifying-witness-ga.patch",
+      "sha256": "c534e1b171034338f5ae4a9f254bd352ac3d7926f411e5512a89c9cb9fafe75f",
+      "bytes": 9314
+    },
+    {
+      "label": "witness-failover Enclave bfbd649d (2 patches on A's 9fdc1418c): gateway verifies each block-hash-pinned eth_getProof/eth_getCode answer with the native witness-check against a root from a signed head, fails over to the next untrusted source, content-addressed re-verified cache, bounded reads; offline proof/availability tests only (JS 30/30 + 1 skip, real recorded witnesses). NOT production, NOT RPC independence: with every fresh witness source down only cached block-pinned history remains",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/network/witness-gateway.mjs",
+      "stored": "files/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/network/witness-gateway.mjs",
+      "sha256": "bb5963a06bf64a768783a9b270ddfdcf52e98fa5cdf1db63a64cebc7bce4fc82",
+      "bytes": 17067
+    },
+    {
+      "label": "witness-failover Enclave bfbd649d (2 patches on A's 9fdc1418c): gateway verifies each block-hash-pinned eth_getProof/eth_getCode answer with the native witness-check against a root from a signed head, fails over to the next untrusted source, content-addressed re-verified cache, bounded reads; offline proof/availability tests only (JS 30/30 + 1 skip, real recorded witnesses). NOT production, NOT RPC independence: with every fresh witness source down only cached block-pinned history remains",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/network/witness-verify.mjs",
+      "stored": "files/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/network/witness-verify.mjs",
+      "sha256": "d55ac997323383259e05307b808ae5b146503fc9dfe16de8f1137cd3de2359ef",
+      "bytes": 8210
+    },
+    {
+      "label": "witness-failover Enclave bfbd649d (2 patches on A's 9fdc1418c): gateway verifies each block-hash-pinned eth_getProof/eth_getCode answer with the native witness-check against a root from a signed head, fails over to the next untrusted source, content-addressed re-verified cache, bounded reads; offline proof/availability tests only (JS 30/30 + 1 skip, real recorded witnesses). NOT production, NOT RPC independence: with every fresh witness source down only cached block-pinned history remains",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/test/helios-base-replay.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/test/helios-base-replay.e2e.test.mjs",
+      "sha256": "7622f806ce636ba7fc8cddd8f799a1877d4aad6b65380292890d75273d787323",
+      "bytes": 7961
+    },
+    {
+      "label": "witness-failover Enclave bfbd649d (2 patches on A's 9fdc1418c): gateway verifies each block-hash-pinned eth_getProof/eth_getCode answer with the native witness-check against a root from a signed head, fails over to the next untrusted source, content-addressed re-verified cache, bounded reads; offline proof/availability tests only (JS 30/30 + 1 skip, real recorded witnesses). NOT production, NOT RPC independence: with every fresh witness source down only cached block-pinned history remains",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/test/helios-witness-failover.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/test/helios-witness-failover.e2e.test.mjs",
+      "sha256": "2816a691aa81d6dc4efe49ffce73d8c1c49af6eebe73109511590cf48fa01e29",
+      "bytes": 9627
+    },
+    {
+      "label": "witness-failover Enclave bfbd649d (2 patches on A's 9fdc1418c): gateway verifies each block-hash-pinned eth_getProof/eth_getCode answer with the native witness-check against a root from a signed head, fails over to the next untrusted source, content-addressed re-verified cache, bounded reads; offline proof/availability tests only (JS 30/30 + 1 skip, real recorded witnesses). NOT production, NOT RPC independence: with every fresh witness source down only cached block-pinned history remains",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/test/helios-witness.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/test/helios-witness.e2e.test.mjs",
+      "sha256": "ee3d144c5c60049e46fe66f6f54638dce3af737aeb997a0c9be3e49464c636a2",
+      "bytes": 17826
+    },
+    {
+      "label": "witness-failover Enclave bfbd649d (2 patches on A's 9fdc1418c): gateway verifies each block-hash-pinned eth_getProof/eth_getCode answer with the native witness-check against a root from a signed head, fails over to the next untrusted source, content-addressed re-verified cache, bounded reads; offline proof/availability tests only (JS 30/30 + 1 skip, real recorded witnesses). NOT production, NOT RPC independence: with every fresh witness source down only cached block-pinned history remains",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/test/witness-failover.test.mjs",
+      "stored": "files/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/test/witness-failover.test.mjs",
+      "sha256": "d16601f70549c6e41bd373b0fce9a636f284cfd29718f2dd49d12292186c1159",
+      "bytes": 16525
+    },
+    {
+      "label": "witness-failover Enclave bfbd649d (2 patches on A's 9fdc1418c): gateway verifies each block-hash-pinned eth_getProof/eth_getCode answer with the native witness-check against a root from a signed head, fails over to the next untrusted source, content-addressed re-verified cache, bounded reads; offline proof/availability tests only (JS 30/30 + 1 skip, real recorded witnesses). NOT production, NOT RPC independence: with every fresh witness source down only cached block-pinned history remains",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/test/witness-gateway.test.mjs",
+      "stored": "files/source-preservation/frozen-0318-export/witness-enclave-bfbd649d/files/test/witness-gateway.test.mjs",
+      "sha256": "f0930fbc510d60e8fef967a811df8c33b92b3dd9347e07018ab90c8321c4870e",
+      "bytes": 5915
+    },
+    {
+      "label": "Helios fork 1ec2c1a5 on eeffcc9: exact witness-check proof-check source (Helios's own SequencerCommitment::verify / payload_to_block / proof verifiers + exact request binding); Rust 6/6 debug. No binary (helper 42a8a841 not stored), no cargo cache or vendor download. The worker's newer UNCOMMITTED edits are not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/patches/0001-opstack-witness-check-a-local-verifier-of-execution-.patch",
+      "stored": "files/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/patches/0001-opstack-witness-check-a-local-verifier-of-execution-.patch",
+      "sha256": "0945bf1fe48bedc0dedd9b715e7380561760cadd1682588f687918909714257f",
+      "bytes": 34575
+    },
+    {
+      "label": "Helios fork 1ec2c1a5 on eeffcc9: exact witness-check proof-check source (Helios's own SequencerCommitment::verify / payload_to_block / proof verifiers + exact request binding); Rust 6/6 debug. No binary (helper 42a8a841 not stored), no cargo cache or vendor download. The worker's newer UNCOMMITTED edits are not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/files/opstack/Cargo.toml",
+      "stored": "files/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/files/opstack/Cargo.toml",
+      "sha256": "2a90a6dbd4ea7675cb5bc4e6e0695347065bb0a04abc0cd8e8881a0ad6c364a6",
+      "bytes": 2762
+    },
+    {
+      "label": "Helios fork 1ec2c1a5 on eeffcc9: exact witness-check proof-check source (Helios's own SequencerCommitment::verify / payload_to_block / proof verifiers + exact request binding); Rust 6/6 debug. No binary (helper 42a8a841 not stored), no cargo cache or vendor download. The worker's newer UNCOMMITTED edits are not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/files/opstack/bin/witness-check.rs",
+      "stored": "files/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/files/opstack/bin/witness-check.rs",
+      "sha256": "5cce8297f4079ecc2fdb8cb10be01f10b3ef27477a1acd8f6ce3fd79307fe0ef",
+      "bytes": 5484
+    },
+    {
+      "label": "Helios fork 1ec2c1a5 on eeffcc9: exact witness-check proof-check source (Helios's own SequencerCommitment::verify / payload_to_block / proof verifiers + exact request binding); Rust 6/6 debug. No binary (helper 42a8a841 not stored), no cargo cache or vendor download. The worker's newer UNCOMMITTED edits are not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/files/opstack/src/consensus.rs",
+      "stored": "files/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/files/opstack/src/consensus.rs",
+      "sha256": "ba44764441a1d22a7718867a84cb6408231757e904119dcbc65ac04e5735c4f8",
+      "bytes": 17451
+    },
+    {
+      "label": "Helios fork 1ec2c1a5 on eeffcc9: exact witness-check proof-check source (Helios's own SequencerCommitment::verify / payload_to_block / proof verifiers + exact request binding); Rust 6/6 debug. No binary (helper 42a8a841 not stored), no cargo cache or vendor download. The worker's newer UNCOMMITTED edits are not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/files/opstack/src/lib.rs",
+      "stored": "files/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/files/opstack/src/lib.rs",
+      "sha256": "8f3b0f724d066a1aa9d86cb156a06e88aa36bb970832255dd30a31835b044060",
+      "bytes": 2081
+    },
+    {
+      "label": "Helios fork 1ec2c1a5 on eeffcc9: exact witness-check proof-check source (Helios's own SequencerCommitment::verify / payload_to_block / proof verifiers + exact request binding); Rust 6/6 debug. No binary (helper 42a8a841 not stored), no cargo cache or vendor download. The worker's newer UNCOMMITTED edits are not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/files/opstack/src/witness_check.rs",
+      "stored": "files/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/files/opstack/src/witness_check.rs",
+      "sha256": "9c3abaac5bcc31a1e6d1fe296048399054be246b0e717202c80e75c4958b9b0d",
+      "bytes": 11218
+    },
+    {
+      "label": "Helios fork 1ec2c1a5 on eeffcc9: exact witness-check proof-check source (Helios's own SequencerCommitment::verify / payload_to_block / proof verifiers + exact request binding); Rust 6/6 debug. No binary (helper 42a8a841 not stored), no cargo cache or vendor download. The worker's newer UNCOMMITTED edits are not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/files/opstack/tests/data/witness-check-52965249.json",
+      "stored": "files/source-preservation/frozen-0318-export/witness-helios-1ec2c1a5/files/opstack/tests/data/witness-check-52965249.json",
+      "sha256": "7779339ed052dd4ac698bbb18177cbc497836d2f5640e35debf037f25161382f",
+      "bytes": 12421
+    },
+    {
+      "label": "UNREADY CANDIDATE D b744ba19 (on 09ff3ed5): lease-permit epoch, failed-stop slice retention, stream/egress cut. Root LATER found a permit-capture window (tryClaim builds its send gate after awaiting openForUs, so a withdrawal during that await is absorbed: ROOT-LINUX-DECISION-WINDOW-REVIEW) and other teardown paths still free the slice on an unconfirmed stop; worker D is repairing. Not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/patches/0001-Linux-hold-revoke-queued-lease-permissions-by-epoch-.patch",
+      "stored": "files/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/patches/0001-Linux-hold-revoke-queued-lease-permissions-by-epoch-.patch",
+      "sha256": "98ac78b8cb562b8c2408726319644d3f97ff986b72dbc8e469d14422af0484df",
+      "bytes": 50467
+    },
+    {
+      "label": "UNREADY CANDIDATE D b744ba19 (on 09ff3ed5): lease-permit epoch, failed-stop slice retention, stream/egress cut. Root LATER found a permit-capture window (tryClaim builds its send gate after awaiting openForUs, so a withdrawal during that await is absorbed: ROOT-LINUX-DECISION-WINDOW-REVIEW) and other teardown paths still free the slice on an unconfirmed stop; worker D is repairing. Not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/files/egress.js",
+      "stored": "files/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/files/egress.js",
+      "sha256": "bd960a2b6ff51e8269dd3979e7d6e1c842796d351fe0e82257e7c84f8f897843",
+      "bytes": 6598
+    },
+    {
+      "label": "UNREADY CANDIDATE D b744ba19 (on 09ff3ed5): lease-permit epoch, failed-stop slice retention, stream/egress cut. Root LATER found a permit-capture window (tryClaim builds its send gate after awaiting openForUs, so a withdrawal during that await is absorbed: ROOT-LINUX-DECISION-WINDOW-REVIEW) and other teardown paths still free the slice on an unconfirmed stop; worker D is repairing. Not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/files/supervisor.js",
+      "stored": "files/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/files/supervisor.js",
+      "sha256": "3b9b371b7c1f84aaeb98ea4b7fc3920c75b5c28a2228f89009e82cebd0406983",
+      "bytes": 850554
+    },
+    {
+      "label": "UNREADY CANDIDATE D b744ba19 (on 09ff3ed5): lease-permit epoch, failed-stop slice retention, stream/egress cut. Root LATER found a permit-capture window (tryClaim builds its send gate after awaiting openForUs, so a withdrawal during that await is absorbed: ROOT-LINUX-DECISION-WINDOW-REVIEW) and other teardown paths still free the slice on an unconfirmed stop; worker D is repairing. Not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/files/test/egress.test.mjs",
+      "stored": "files/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/files/test/egress.test.mjs",
+      "sha256": "309d4367b3a6de547c18dc06e7d63955313ef085f9d65a0aa596a8084b792989",
+      "bytes": 25383
+    },
+    {
+      "label": "UNREADY CANDIDATE D b744ba19 (on 09ff3ed5): lease-permit epoch, failed-stop slice retention, stream/egress cut. Root LATER found a permit-capture window (tryClaim builds its send gate after awaiting openForUs, so a withdrawal during that await is absorbed: ROOT-LINUX-DECISION-WINDOW-REVIEW) and other teardown paths still free the slice on an unconfirmed stop; worker D is repairing. Not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/files/test/supervisor-wallet-policy.test.mjs",
+      "stored": "files/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/files/test/supervisor-wallet-policy.test.mjs",
+      "sha256": "503265a419dceb9fbb23bce6ac4dcb7831c756a9e9f3b3e5db79a3f63a47c4b9",
+      "bytes": 5368
+    },
+    {
+      "label": "UNREADY CANDIDATE D b744ba19 (on 09ff3ed5): lease-permit epoch, failed-stop slice retention, stream/egress cut. Root LATER found a permit-capture window (tryClaim builds its send gate after awaiting openForUs, so a withdrawal during that await is absorbed: ROOT-LINUX-DECISION-WINDOW-REVIEW) and other teardown paths still free the slice on an unconfirmed stop; worker D is repairing. Not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/files/test/supervisor-wallet-unknown-hold.test.mjs",
+      "stored": "files/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/files/test/supervisor-wallet-unknown-hold.test.mjs",
+      "sha256": "c2d9d5d8a83e52fc3067367ee3a1d2a8aeb88718f49bd33fc4ee41b51a8f6d41",
+      "bytes": 28487
+    },
+    {
+      "label": "UNREADY CANDIDATE D b744ba19 (on 09ff3ed5): lease-permit epoch, failed-stop slice retention, stream/egress cut. Root LATER found a permit-capture window (tryClaim builds its send gate after awaiting openForUs, so a withdrawal during that await is absorbed: ROOT-LINUX-DECISION-WINDOW-REVIEW) and other teardown paths still free the slice on an unconfirmed stop; worker D is repairing. Not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/files/test/tenant-provision-race.test.mjs",
+      "stored": "files/source-preservation/frozen-0318-export/d-linux-wallet-review-b744ba19/files/test/tenant-provision-race.test.mjs",
+      "sha256": "2485fbce033aa4fcb463b69b8724c0343ebf28a2ac30fe951cf22a2f77a9df19",
+      "bytes": 3395
+    },
+    {
+      "label": "witness-failover worker report files at their stable bytes (hash-frozen at export): describe exactly bfbd649d / 1ec2c1a5; source + offline tests only, NOT production or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/witness-failover/RESULT.md",
+      "stored": "files/witness-failover/RESULT.md",
+      "sha256": "bcb2cb2d54d3e476f95bf3c0ddd8ed406d3463279b88013194c716c64fe8a46f",
+      "bytes": 11721
+    },
+    {
+      "label": "witness-failover worker report files at their stable bytes (hash-frozen at export): describe exactly bfbd649d / 1ec2c1a5; source + offline tests only, NOT production or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/witness-failover/PROVENANCE.json",
+      "stored": "files/witness-failover/PROVENANCE.json",
+      "sha256": "af259c44a2c92708a469567ecbcd68c7adb33af2ddc65976b604ad54c3a58e73",
+      "bytes": 5940
+    },
+    {
+      "label": "witness-failover worker report files at their stable bytes (hash-frozen at export): describe exactly bfbd649d / 1ec2c1a5; source + offline tests only, NOT production or RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/witness-failover/TEST-EVIDENCE.txt",
+      "stored": "files/witness-failover/TEST-EVIDENCE.txt",
+      "sha256": "833b6f9157fca10fe37c776bea8e1a429bc39e086201d3c6bf94650d16fecc85",
+      "bytes": 14428
+    },
+    {
+      "label": "D's report for b744ba19 at its stable bytes. SUPERSEDED IN PART: root later found the tryClaim permit-capture window; UNREADY candidate, no image or deployment",
+      "source": "work/resume-after-checkpoint-20261022/linux-wallet-unknown/RESULT-REVIEW.md",
+      "stored": "files/linux-wallet-unknown/RESULT-REVIEW.md",
+      "sha256": "b1f833e8fad506e70a48895b3e9d56f6b4a845c48deee52b41a4bf67aded41fb",
+      "bytes": 15401
+    },
+    {
+      "label": "ROOT source review (02:51Z) of D working source db73a7f2: permit captured after an await in tryClaim; review only, the fix is pending in D",
+      "source": "work/resume-after-checkpoint-20261022/ROOT-LINUX-DECISION-WINDOW-REVIEW.txt",
+      "stored": "files/ROOT-LINUX-DECISION-WINDOW-REVIEW.txt",
+      "sha256": "0b097de8f2df4cc6bec1585378df6467b7b705830030044001df4fc2b1c314d3",
+      "bytes": 1557
+    },
+    {
+      "label": "ROOT offline probe (queue 256): the ACTUAL gate functions in vm with a synthetic allow->await->withdrawal->gate ordering; gate built after withdrawal returns null (accepts). Not a full tryClaim run, not a production transaction",
+      "source": "work/resume-after-checkpoint-20261022/root-linux-decision-window-probe.mjs",
+      "stored": "files/root-linux-decision-window-probe.mjs",
+      "sha256": "ba390766eb9abc21ce79cd4dc375ae16d70c39f5f460937da76144ebf557e201",
+      "bytes": 1600
+    },
+    {
+      "label": "ROOT offline probe (queue 256): the ACTUAL gate functions in vm with a synthetic allow->await->withdrawal->gate ordering; gate built after withdrawal returns null (accepts). Not a full tryClaim run, not a production transaction",
+      "source": "work/resume-after-checkpoint-20261022/root-linux-decision-window-result.json",
+      "stored": "files/root-linux-decision-window-result.json",
+      "sha256": "1c65641e6495f043e74e42bb9edf0fd7aed3b4d2d1e24c5badcba03439d6acc2",
+      "bytes": 452
+    },
+    {
+      "label": "ROOT offline probe (queue 256): the ACTUAL gate functions in vm with a synthetic allow->await->withdrawal->gate ordering; gate built after withdrawal returns null (accepts). Not a full tryClaim run, not a production transaction",
+      "source": "work/resume-after-checkpoint-20261022/root-linux-decision-window-probe.guard.log",
+      "stored": "files/root-linux-decision-window-probe.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT review (02:34Z) of worker A source 921d60c2: LeaseReader.agreed deadline does not bound a never-settling callback; no production outage claimed",
+      "source": "work/resume-after-checkpoint-20261022/ROOT-VERIFIER-DEADLINE-REVIEW.txt",
+      "stored": "files/ROOT-VERIFIER-DEADLINE-REVIEW.txt",
+      "sha256": "7ee1fecb067b76b7a108019c809ee9fe2571a8fca500f14db1a1de88da61fa31",
+      "bytes": 1234
+    },
+    {
+      "label": "ROOT offline probe (queue 256, unshare -rn): actual LeaseReader.agreed with a 100 ms deadline still pending at 401 ms. A's probed source (3d1850b2) is ACTIVE and not captured here",
+      "source": "work/resume-after-checkpoint-20261022/root-verifier-deadline-probe.mjs",
+      "stored": "files/root-verifier-deadline-probe.mjs",
+      "sha256": "ae0c91cdf26bd77c88fd4d199bdb3b5666f003b9fce6da9014f8efb20b7ddfde",
+      "bytes": 1470
+    },
+    {
+      "label": "ROOT offline probe (queue 256, unshare -rn): actual LeaseReader.agreed with a 100 ms deadline still pending at 401 ms. A's probed source (3d1850b2) is ACTIVE and not captured here",
+      "source": "work/resume-after-checkpoint-20261022/root-verifier-deadline-result.json",
+      "stored": "files/root-verifier-deadline-result.json",
+      "sha256": "9e6d63897dc11e17e92bd61cd9e8097c2e32ca63c4c63be9ee6cec7dbfa8b7ee",
+      "bytes": 363
+    },
+    {
+      "label": "ROOT offline probe (queue 256, unshare -rn): actual LeaseReader.agreed with a 100 ms deadline still pending at 401 ms. A's probed source (3d1850b2) is ACTIVE and not captured here",
+      "source": "work/resume-after-checkpoint-20261022/root-verifier-deadline-probe.guard.log",
+      "stored": "files/root-verifier-deadline-probe.guard.log",
+      "sha256": "0d05d9462d3bf2a8d18f401434061d32b5838d0911eacaebc60dc8bf3b1dc02f",
+      "bytes": 66
+    },
+    {
+      "label": "HISTORICAL ROOT review (02:50Z): proof-refusal tests are not positive consumer evidence. Worker A has since moved to Reth positives; NOT final, nothing verified",
+      "source": "work/resume-after-checkpoint-20261022/ROOT-VERIFIER-POSITIVE-CONSUMER-REVIEW.txt",
+      "stored": "files/ROOT-VERIFIER-POSITIVE-CONSUMER-REVIEW.txt",
+      "sha256": "8e7e018a3429d31832c095b8ce5a9ae67db97beb959b74cdd03b07cd26666133",
+      "bytes": 1520
+    },
+    {
+      "label": "ROOT source: read-only check of the 03:13Z scheduled updater run (one status query); writes the windows-node-updater-0313-postcheck receipt",
+      "source": "work/resume-after-checkpoint-20261022/node-updater-readonly/check-0313.py",
+      "stored": "files/node-updater-readonly/check-0313.py",
+      "sha256": "91eb11614a2aafd86310dcb0da311054c138db8757d78be358090945472c365a",
+      "bytes": 1756
+    },
+    {
+      "label": "ROOT source: public HTTPS/TLS check of the current DNS addresses; writes the enclavedns-tls-followup receipt",
+      "source": "work/resume-after-checkpoint-20261022/check-dns-tls-current.py",
+      "stored": "files/check-dns-tls-current.py",
+      "sha256": "641cfadf4b776703421ec40ab58e7d4385544f1f0e50efa6336c40c9378e1e2a",
+      "bytes": 1755
+    },
+    {
+      "label": "queue guard line for root's 03:17Z DNS/TLS check (exit 0)",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-0317.guard.log",
+      "stored": "files/dns-tls-0317.guard.log",
+      "sha256": "41eaa599faf7f5987bab57633699d74aca946abe2ed94210abcf73a80bd74618",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT note: SIGINT of the storage worker CLI to deliver scheduling steering; no production operation",
+      "source": "work/resume-after-checkpoint-20261022/storage-worker-steering-interrupt.json",
+      "stored": "files/storage-worker-steering-interrupt.json",
+      "sha256": "0e4e35398bd1b31294d147f4047703286500843a4e16ebaa3dff0dea3c40161d",
+      "bytes": 326
+    },
+    {
+      "label": "ROOT real-socket review (02:38Z) of S bridge runner 160db08b: _room() evicts an actively transferring half-closed connection. REVIEW ONLY; S is active with fixes, no final claim. Byte-identical copy also at work/storage-restore-memory/",
+      "source": "work/resume-after-checkpoint-20261022/ROOT-BRIDGE-HALFCLOSE-REVIEW.txt",
+      "stored": "files/ROOT-BRIDGE-HALFCLOSE-REVIEW.txt",
+      "sha256": "a56fa9be4763a5eb901c0993fdc699093ef79903a7428590f0aa3beb20d52f4b",
+      "bytes": 1357
+    },
+    {
+      "label": "ROOT offline probe (queue 256, unshare -rn) + its snapshot of S runner 160db08b (the reviewed DEFECTIVE version, never a release): healthy half-closed transfer terminated, halfClosedEvicted=1",
+      "source": "work/resume-after-checkpoint-20261022/root-bridge-halfclose/probe.py",
+      "stored": "files/root-bridge-halfclose/probe.py",
+      "sha256": "ef91bd417c58f31e23564ea858794513478c25316c6a337205deeab387d75c35",
+      "bytes": 2441
+    },
+    {
+      "label": "ROOT offline probe (queue 256, unshare -rn) + its snapshot of S runner 160db08b (the reviewed DEFECTIVE version, never a release): healthy half-closed transfer terminated, halfClosedEvicted=1",
+      "source": "work/resume-after-checkpoint-20261022/root-bridge-halfclose/result.json",
+      "stored": "files/root-bridge-halfclose/result.json",
+      "sha256": "64779e4c6e2edf5c8c5c0cf55a283cf62e0cdda9162a6898ceb3362feaba90d7",
+      "bytes": 472
+    },
+    {
+      "label": "ROOT offline probe (queue 256, unshare -rn) + its snapshot of S runner 160db08b (the reviewed DEFECTIVE version, never a release): healthy half-closed transfer terminated, halfClosedEvicted=1",
+      "source": "work/resume-after-checkpoint-20261022/root-bridge-halfclose/probe.guard.log",
+      "stored": "files/root-bridge-halfclose/probe.guard.log",
+      "sha256": "c8e0026d9790288c1ec3e0b73fd543e6b1e08f50bf90fde73bbfb44514a19c9a",
+      "bytes": 65
+    },
+    {
+      "label": "ROOT offline probe (queue 256, unshare -rn) + its snapshot of S runner 160db08b (the reviewed DEFECTIVE version, never a release): healthy half-closed transfer terminated, halfClosedEvicted=1",
+      "source": "work/resume-after-checkpoint-20261022/root-bridge-halfclose/runner-snapshot.py",
+      "stored": "files/root-bridge-halfclose/runner-snapshot.py",
+      "sha256": "160db08b6eb708694dbcf1241d00849f5162f19a953837303ce06b0de953b770",
+      "bytes": 32862
+    },
+    {
+      "label": "ROOT receipt: the 03:13:37Z scheduled updater run kept the reviewed runtime (host ea0f6b8a, chain 3e9fae03), 9 apps running; native observation only, future updates unproven",
+      "source": "outputs/decentralization-audit/windows-node-updater-0313-postcheck-20261023.json",
+      "stored": "files/outputs/decentralization-audit/windows-node-updater-0313-postcheck-20261023.json",
+      "sha256": "010af9629ab05e3fbdd83892995dda04062e87e5085c6d3a0390786b044febdf",
+      "bytes": 2041
+    },
+    {
+      "label": "ROOT receipt: REAL live observation 03:17Z: both current DNS addresses served HTTPS 200 with a trusted ZeroSSL cert expiring 2027-01-20. Future renewal and provider independence UNPROVEN",
+      "source": "outputs/decentralization-audit/enclavedns-tls-followup-20261023T0317Z.json",
+      "stored": "files/outputs/decentralization-audit/enclavedns-tls-followup-20261023T0317Z.json",
+      "sha256": "a26ae25f3540f53e325a1983817e5e694095a8c5bf73ee84bae18ccca990253a",
+      "bytes": 1457
+    },
+    {
+      "label": "ROOT receipt: failed whole-recovery attempt staging removed; counts only, not a verified inventory. The OOM FAILURE remains the LATEST full-restore status (NOT passed)",
+      "source": "outputs/decentralization-audit/storage-failed-attempt-cleanup-20261023.json",
+      "stored": "files/outputs/decentralization-audit/storage-failed-attempt-cleanup-20261023.json",
+      "sha256": "f6f7fb4bdc57ca722bafaf9b951404704c8fb514f004fae38ea21da535a58d58",
+      "bytes": 369
+    },
+    {
+      "label": "ROOT receipt: primary-source Base node requirements + read-only USB RAID observation; HDD-only suitability UNSUPPORTED and unbenchmarked; no NVMe hosting, sync, format or purchase",
+      "source": "outputs/decentralization-audit/rpc-hdd-feasibility-primary-source-20261023.json",
+      "stored": "files/outputs/decentralization-audit/rpc-hdd-feasibility-primary-source-20261023.json",
+      "sha256": "e571f7fb135012fbc60ac6b6cc0b0131ff2d387077f156c1a560addf349c4495",
+      "bytes": 1555
+    },
+    {
+      "label": "frozen-0318 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-frozen-0318.py",
+      "stored": "files/source-preservation/export-frozen-0318.py",
+      "sha256": "3ba32d5511a63f1469b27882b48d82661a0ea2edc649faab75f61c0a2104da48",
+      "bytes": 11993
+    },
+    {
+      "label": "frozen-0318 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-frozen-0318-export.py",
+      "stored": "files/source-preservation/verify-frozen-0318-export.py",
+      "sha256": "cfb40ee49b4ddad639cb624fb9128e8a35320b070897f5f7acc71c0ac1349878",
+      "bytes": 5497
+    },
+    {
+      "label": "frozen-0318 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-frozen-0318.py",
+      "stored": "files/source-preservation/capture-frozen-0318.py",
+      "sha256": "44c70e6ff1194806d01d64ae3386e7448684c64309b297bd9ea8a70623bb0e3b",
+      "bytes": 12923
+    },
+    {
+      "label": "frozen-0318 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-pins.json",
+      "stored": "files/source-preservation/frozen-0318-pins.json",
+      "sha256": "63321f938197290001950d8f76c5e38f88152a3f2c853994d652ce5645b2e7f2",
+      "bytes": 265
+    },
+    {
+      "label": "frozen-0318 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-export.sh",
+      "stored": "files/source-preservation/frozen-0318-export.sh",
+      "sha256": "1b922ef37ebff31f514cad577bb3f73baf135dc9df239164bda8f40be7397fb1",
+      "bytes": 365
+    },
+    {
+      "label": "frozen-0318 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-capture.sh",
+      "stored": "files/source-preservation/frozen-0318-capture.sh",
+      "sha256": "85737665f2a92a7d565d348e8ba867ce356ace7f187e13602b57699cffcdae6b",
+      "bytes": 1933
+    },
+    {
+      "label": "frozen-0318 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0318-q.sh",
+      "stored": "files/source-preservation/frozen-0318-q.sh",
+      "sha256": "8dc6db0d8e9c0deb71c6800c0a881784f893f959ede28bc59aacc5d75b427760",
+      "bytes": 391
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -7033,5 +7446,16 @@
     "live run directories and raw transcripts",
     "generated images/binaries and dependency caches",
     "copied base trees preserved earlier"
+  ],
+  "appends": [
+    {
+      "at": "2026-10-23T03:26:06.077704+00:00",
+      "by": "source-preservation/capture-frozen-0318.py",
+      "onCheckpoint": "7b477d578973dd11ebada8cc448bc1b3913f3bd9",
+      "entriesBefore": 1085,
+      "added": 59,
+      "bytes": 1370196,
+      "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run"
+    }
   ]
 }

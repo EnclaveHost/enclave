@@ -1,0 +1,7 @@
+{
+  "at": "2026-10-23T02:51:36.797Z",
+  "sourceSha256": "db73a7f2d0c4bcb357e91c6c4fc5c7db9f81e3e74bcf2df853e83ecc095bc1d3",
+  "gateConstructedAfterWithdrawal": null,
+  "gateConstructedBeforeWithdrawal": "a later host wallet decision for it was a refusal or unavailable",
+  "note": "Actual candidate gate functions in vm, synthetic allow->await->withdrawal->gate ordering visible in tryClaim. Not a production transaction or full tryClaim execution."
+}

@@ -1,0 +1,89 @@
+[package]
+name = "helios-opstack"
+version.workspace = true
+edition = "2021"
+
+[[bin]]
+name = "opstack-server"
+path = "./bin/server.rs"
+
+[[bin]]
+name = "witness-check"
+path = "./bin/witness-check.rs"
+
+[dependencies]
+tokio.workspace = true
+eyre.workspace = true
+tracing.workspace = true
+hex.workspace = true
+serde.workspace = true
+typenum.workspace = true
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+reqwest.workspace = true
+url.workspace = true
+futures.workspace = true
+async-trait.workspace = true
+serde_json.workspace = true
+
+# consensus
+alloy.workspace = true
+alloy-trie.workspace = true
+revm.workspace = true
+op-revm = { version = "20.0.0", default-features = false, features = [
+    "std",
+    "serde",
+    "optional_block_gas_limit",
+    "optional_eip3607",
+    "optional_no_base_fee",
+] }
+sha2.workspace = true
+ethereum_ssz_derive.workspace = true
+ethereum_ssz.workspace = true
+ssz_types.workspace = true
+alloy-rlp = "0.3.12"
+op-alloy-consensus.workspace = true
+op-alloy-network.workspace = true
+op-alloy-rpc-types.workspace = true
+snap = "1"
+
+# config
+figment = { version = "0.10.7", features = ["toml", "env"] }
+
+# self crates
+helios-common = { path = "../common" }
+helios-core = { path = "../core" }
+helios-ethereum = { path = "../ethereum" }
+helios-consensus-core = { path = "../ethereum/consensus-core" }
+helios-revm-utils = { path = "../revm-utils" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Base execution rules (base/base v1.5.1 = 5476069f1eb74a56bccb56fdefd4b4bb0e3cda42, MIT): the maintained Base EVM
+# (BaseSpecId per upgrade, Base precompile sets incl. state-backed Cobalt precompiles) on its own REVM 42.
+base-common-evm = { path = "../../vendor-inspect/base-v1.5.1/crates/common/evm", features = [
+    "optional_block_gas_limit",
+    "optional_eip3607",
+    "optional_no_base_fee",
+] }
+base-common-chains = { path = "../../vendor-inspect/base-v1.5.1/crates/common/chains" }
+alloy-evm = { version = "0.38.0", default-features = false, features = ["std"] }
+base-revm = { package = "revm", version = "42.0.1", default-features = false, features = ["std"] }
+
+# server
+axum = "0.7.6"
+clap = { version = "4.5.4", features = ["derive", "env"] }
+# networking
+libp2p = { version = "0.51.3", features = ["macros", "tokio", "tcp", "mplex", "noise", "gossipsub", "ping"] }
+discv5 = "0.7.0"
+libp2p-identity = { version = "0.1.2", features = ["secp256k1"] }
+unsigned-varint = "0.7.1"
+
+[target.wasm32-unknown-unknown.dependencies]
+parking_lot = { version = "0.12.2" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4.37"
+getrandom = { version = "0.2.1", features = ["js"] }
+
+[dev-dependencies]
+jsonrpsee = { version = "0.19.0", features = ["server"] }
+serde_json.workspace = true

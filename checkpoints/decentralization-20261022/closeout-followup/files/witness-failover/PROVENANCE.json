@@ -1,0 +1,121 @@
+{
+ "format": "witness-failover-provenance/v1",
+ "label": "SOURCE CANDIDATE + OFFLINE TESTS ONLY: not deployed, not merged, not published. Isolated clones; A/E/B trees untouched.",
+ "enclave": {
+  "repo": "witness-failover/repo (clone of rpc-priority/repo, origin removed)",
+  "branch": "witness-failover",
+  "base": "9fdc1418caff88d1baa5c5967ac7eaaf9cf2a368 (finished rpc-priority candidate; preserved in checkpoint 9f40daae)",
+  "head": "bfbd649d8c416922691a6dd1eaada8a81765bba5",
+  "tree": "eec364504ce589bfee6f0e1643b06d6b371c7ef0",
+  "commits": [
+   "ee45734df2b736a1847ce0383f7bbb51042be1e1 Verify block-hash-pinned witnesses in the gateway: proof-aware failover and a poisoning-resistant cache",
+   "bfbd649d8c416922691a6dd1eaada8a81765bba5 Run the Helios E2Es through the verifying witness gateway"
+  ],
+  "changedFiles": [
+   {
+    "path": "network/witness-gateway.mjs",
+    "blob": "233045a384ad7b3113ce3e30fdeb0437d1ce2ad0",
+    "sha256": "bb5963a06bf64a768783a9b270ddfdcf52e98fa5cdf1db63a64cebc7bce4fc82"
+   },
+   {
+    "path": "network/witness-verify.mjs",
+    "blob": "1cf4dbb7064a4f53fc77533051834e2b4f5d10b2",
+    "sha256": "d55ac997323383259e05307b808ae5b146503fc9dfe16de8f1137cd3de2359ef"
+   },
+   {
+    "path": "test/helios-base-replay.e2e.test.mjs",
+    "blob": "bc81a6fa11551a4ba56cf02843035152471f746d",
+    "sha256": "7622f806ce636ba7fc8cddd8f799a1877d4aad6b65380292890d75273d787323"
+   },
+   {
+    "path": "test/helios-witness-failover.e2e.test.mjs",
+    "blob": "7a34bda8267d6666f539f24b3979153638d992f5",
+    "sha256": "2816a691aa81d6dc4efe49ffce73d8c1c49af6eebe73109511590cf48fa01e29"
+   },
+   {
+    "path": "test/helios-witness.e2e.test.mjs",
+    "blob": "f868841c416e1ef6836ca460efb8b366ccdbc377",
+    "sha256": "ee3d144c5c60049e46fe66f6f54638dce3af737aeb997a0c9be3e49464c636a2"
+   },
+   {
+    "path": "test/witness-failover.test.mjs",
+    "blob": "d761851f66a9dbf14f5593ece10efeebf4d3366b",
+    "sha256": "d16601f70549c6e41bd373b0fce9a636f284cfd29718f2dd49d12292186c1159"
+   },
+   {
+    "path": "test/witness-gateway.test.mjs",
+    "blob": "0f7be1bea277b36dc8cb9ccf82a4ffa957a3f9be",
+    "sha256": "f0930fbc510d60e8fef967a811df8c33b92b3dd9347e07018ab90c8321c4870e"
+   }
+  ]
+ },
+ "helios": {
+  "repo": "witness-failover/helios (clone of rpc-priority/helios-patched, origin removed)",
+  "branch": "enclave-witness-check",
+  "base": "eeffcc980a4a9aa092e23e07b1077c1f3fdfc95e (enclave-base-evm; upstream a16z/helios 0.12.0 2af9b418 + 4 patches, preserved in checkpoint 9f40daae)",
+  "head": "1ec2c1a52399b6a8d0fc1eb7658bf030987e132a",
+  "tree": "88bc44a0922a09236e35ea5a45442ceed1d03205",
+  "commits": [
+   "1ec2c1a52399b6a8d0fc1eb7658bf030987e132a opstack: witness-check, a local verifier of execution witnesses for an untrusted witness gateway"
+  ],
+  "changedFiles": [
+   {
+    "path": "opstack/Cargo.toml",
+    "blob": "197a9148d928a8d8f7b8b0fbdd4121b637b9d2d6",
+    "sha256": "2a90a6dbd4ea7675cb5bc4e6e0695347065bb0a04abc0cd8e8881a0ad6c364a6"
+   },
+   {
+    "path": "opstack/bin/witness-check.rs",
+    "blob": "96ce1fb210f525d4a061826bbabaa014eb2200e7",
+    "sha256": "5cce8297f4079ecc2fdb8cb10be01f10b3ef27477a1acd8f6ce3fd79307fe0ef"
+   },
+   {
+    "path": "opstack/src/consensus.rs",
+    "blob": "2dafd3c9ab3cde9435fc9e8fd7445235d3806ba4",
+    "sha256": "ba44764441a1d22a7718867a84cb6408231757e904119dcbc65ac04e5735c4f8"
+   },
+   {
+    "path": "opstack/src/lib.rs",
+    "blob": "33eda1741f71133246a00cd68d4bf61b241f83e1",
+    "sha256": "8f3b0f724d066a1aa9d86cb156a06e88aa36bb970832255dd30a31835b044060"
+   },
+   {
+    "path": "opstack/src/witness_check.rs",
+    "blob": "a6861159bd8a0e30fc393a32b3334a6b4d4393e5",
+    "sha256": "9c3abaac5bcc31a1e6d1fe296048399054be246b0e717202c80e75c4958b9b0d"
+   },
+   {
+    "path": "opstack/tests/data/witness-check-52965249.json",
+    "blob": "8114176d2529392ad3fb849026d6309355da037d",
+    "sha256": "7779339ed052dd4ac698bbb18177cbc497836d2f5640e35debf037f25161382f"
+   }
+  ],
+  "pathDependency": "base/base v1.5.1 5476069f1eb74a56bccb56fdefd4b4bb0e3cda42 at ../vendor-inspect/base-v1.5.1 (copied, unmodified)",
+  "cargoLockChanged": false,
+  "toolchain": "Rust 1.96.0 (installed; RUSTUP_TOOLCHAIN), debug, CARGO_PROFILE_DEV_DEBUG=0, offline"
+ },
+ "binaries": {
+  "witness-check": "42a8a84184d5691153285b325ec6d1fd03b8813df26762a69494dd54f3097e80",
+  "helios-eeffcc9": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+  "helios-compat-0a02256": "0929f7f383a082b8aa7fda97c3058e72a4acc93cbf250a24c7a08ae4e1df98fc"
+ },
+ "binarySources": {
+  "witness-check": "built here from enclave-witness-check (jobs/helper-build-test-r2.sh); not preserved",
+  "helios-eeffcc9": "copy of rpc-priority/helios-target-base/debug/helios (A, enclave-base-evm eeffcc9 r4 build)",
+  "helios-compat-0a02256": "copy of rpc-priority/helios-target/debug/helios (A, enclave-base-compat 0a02256)"
+ },
+ "fixture": {
+  "dir": "witness-failover/fixtures/base-calls-20261023T014412Z (copy of rpc-priority fixture: fixture.json + 49 witnesses; public chain state)",
+  "sha256OfSortedFileHashes": "1ddcb4da35b41f655896ca85b161206b17b286bbd458529705fa0f3f7b8e9891"
+ },
+ "patches": {
+  "patches/enclave/0001-Verify-block-hash-pinned-witnesses-in-the-gateway-pr.patch": "63c2c0e74cd51c806e2e795e991a9b4d05528c9d94b82fd6d2e9c3628d7d1e33",
+  "patches/enclave/0002-Run-the-Helios-E2Es-through-the-verifying-witness-ga.patch": "c534e1b171034338f5ae4a9f254bd352ac3d7926f411e5512a89c9cb9fafe75f",
+  "patches/helios/0001-opstack-witness-check-a-local-verifier-of-execution-.patch": "0945bf1fe48bedc0dedd9b715e7380561760cadd1682588f687918909714257f"
+ },
+ "notCommitted": [
+  "repo/node_modules (symlink to native-front-abort/repo/node_modules, as in rpc-priority/repo)",
+  "repo/contracts/foundry/out/EnclaveAddressBook.sol/EnclaveAddressBook.json (ignored build artifact copied from rpc-priority/repo, sha256 966f7662)",
+  "target/, cargo-home/ (copies), bin/ binaries, logs/, test-scratch/"
+ ]
+}

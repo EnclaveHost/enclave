@@ -1,0 +1,8 @@
+{
+  "at": "2026-10-23T02:34:29.362Z",
+  "sourceSha256": "3d1850b2ca7161e6efbe35976e9b5050ad56abf67b94ee8c1acc5b0e5a71e37d",
+  "configuredDeadlineMs": 100,
+  "observedMs": 401,
+  "outcome": "still-pending-after-400ms",
+  "note": "Actual LeaseReader.agreed with synthetic valid chain transport; callback never settles. No network, no claim of production outage."
+}

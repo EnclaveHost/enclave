@@ -1,0 +1,555 @@
+From 1ec2c1a52399b6a8d0fc1eb7658bf030987e132a Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 19:45:01 -0700
+Subject: [PATCH] opstack: witness-check, a local verifier of execution
+ witnesses for an untrusted witness gateway
+
+A gateway in front of Helios's --execution-rpc cannot tell a valid eth_getProof/eth_getCode answer from an invalid
+one, so one malformed answer from the first source denies a witness the next source could prove, and an unverified
+cache can keep a bad answer forever. This exposes Helios's own checks to such a gateway, with no new crypto:
+
+* witness_check::verify_head: SequencerCommitment::verify (pinned signer + chain id), then the same
+  ExecutionPayload -> payload_to_block conversion the opstack consensus client applies before it adopts a head.
+  It yields the authenticated (block hash -> state root) binding; payload_to_block is now pub(crate) for this.
+* witness_check::verify_get_proof: the checks RpcExecutionProvider::get_account makes (address, account proof
+  against the root, storage proofs), plus exact request binding: the request must be pinned to that block hash,
+  and the storage proofs must cover exactly the requested keys.
+* witness_check::verify_get_code: the code checked against the code hash of a verified account proof
+  (verify_code_hash_proof).
+* bin/witness-check: one JSON request per stdin line, one answer per stdout line. Signer and chain id are fixed at
+  startup, there is no network access, and request lines are bounded (48 MiB).
+
+Tests use the real Base gossip object (block 52965074, real signer) and real recorded mainnet witnesses for block
+52965249 (tests/data/witness-check-52965249.json: public chain state from the rpc-priority fixture). They cover
+malformed, tampered, wrong-root, wrong-block, wrong-address, extra and missing slot, unpinned, and wrong or empty code.
+---
+ opstack/Cargo.toml                            |   5 +
+ opstack/bin/witness-check.rs                  | 142 +++++++++
+ opstack/src/consensus.rs                      |   2 +-
+ opstack/src/lib.rs                            |   2 +
+ opstack/src/witness_check.rs                  | 270 ++++++++++++++++++
+ .../tests/data/witness-check-52965249.json    |  40 +++
+ 6 files changed, 460 insertions(+), 1 deletion(-)
+ create mode 100644 opstack/bin/witness-check.rs
+ create mode 100644 opstack/src/witness_check.rs
+ create mode 100644 opstack/tests/data/witness-check-52965249.json
+
+diff --git a/opstack/Cargo.toml b/opstack/Cargo.toml
+index 6748e57250a199563230846608c7350edc6c2f7e..197a9148d928a8d8f7b8b0fbdd4121b637b9d2d6 100644
+--- a/opstack/Cargo.toml
++++ b/opstack/Cargo.toml
+@@ -7,6 +7,10 @@ edition = "2021"
+ name = "opstack-server"
+ path = "./bin/server.rs"
+ 
++[[bin]]
++name = "witness-check"
++path = "./bin/witness-check.rs"
++
+ [dependencies]
+ tokio.workspace = true
+ eyre.workspace = true
+@@ -19,6 +23,7 @@ reqwest.workspace = true
+ url.workspace = true
+ futures.workspace = true
+ async-trait.workspace = true
++serde_json.workspace = true
+ 
+ # consensus
+ alloy.workspace = true
+diff --git a/opstack/bin/witness-check.rs b/opstack/bin/witness-check.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..96ce1fb210f525d4a061826bbabaa014eb2200e7
+--- /dev/null
++++ b/opstack/bin/witness-check.rs
+@@ -0,0 +1,142 @@
++//! `witness-check --chain-id <id> --signer <address>`: a local, offline verifier for an execution-witness gateway.
++//!
++//! One JSON request per stdin line, one JSON answer per stdout line, in order. No network access, no state beyond the
++//! pinned signer and chain id; every check is `helios_opstack::witness_check` (Helios's own verification):
++//!
++//!   {"id":1,"op":"head","commitment":{"data":"0x..","signature":{..}}}
++//!       -> {"id":1,"ok":true,"blockHash":..,"parentHash":..,"number":..,"timestamp":..,"stateRoot":..}
++//!   {"id":2,"op":"getProof","blockHash":..,"stateRoot":..,"params":[address,[keys],blockHash],"result":{..}}
++//!       -> {"id":2,"ok":true,"address":..,"codeHash":..}
++//!   {"id":3,"op":"getCode","blockHash":..,"stateRoot":..,"params":[address,blockHash],"result":"0x..","account":{..}}
++//!       -> {"id":3,"ok":true}
++//!   any failure -> {"id":..,"ok":false,"error":"..."}
++//!
++//! A line longer than MAX_LINE bytes is answered with an error (id null) and skipped without being buffered.
++use std::io::{BufRead, Write};
++
++use alloy::primitives::{Address, B256};
++use clap::Parser;
++use eyre::{eyre, Result};
++use serde_json::{json, Value};
++
++use helios_opstack::witness_check::{verify_get_code, verify_get_proof, verify_head};
++use helios_opstack::SequencerCommitment;
++
++const MAX_LINE: usize = 48 << 20;
++
++#[derive(Parser)]
++struct Cli {
++    #[clap(long)]
++    chain_id: u64,
++    #[clap(long)]
++    signer: Address,
++}
++
++fn field<T: serde::de::DeserializeOwned>(req: &Value, name: &str) -> Result<T> {
++    serde_json::from_value(
++        req.get(name)
++            .cloned()
++            .ok_or_else(|| eyre!("missing {name}"))?,
++    )
++    .map_err(|e| eyre!("invalid {name}: {e}"))
++}
++
++fn answer(cli: &Cli, req: &Value) -> Result<Value> {
++    let params = || -> Result<Vec<Value>> { field(req, "params") };
++    let result = || {
++        req.get("result")
++            .cloned()
++            .ok_or_else(|| eyre!("missing result"))
++    };
++    match req.get("op").and_then(Value::as_str) {
++        Some("head") => {
++            let commitment: SequencerCommitment = field(req, "commitment")?;
++            Ok(serde_json::to_value(verify_head(
++                &commitment,
++                cli.signer,
++                cli.chain_id,
++            )?)?)
++        }
++        Some("getProof") => {
++            let (root, hash): (B256, B256) = (field(req, "stateRoot")?, field(req, "blockHash")?);
++            let proof = verify_get_proof(root, hash, &params()?, &result()?)?;
++            Ok(json!({ "address": proof.address, "codeHash": proof.code_hash }))
++        }
++        Some("getCode") => {
++            let (root, hash): (B256, B256) = (field(req, "stateRoot")?, field(req, "blockHash")?);
++            let account = req
++                .get("account")
++                .cloned()
++                .ok_or_else(|| eyre!("missing account"))?;
++            verify_get_code(root, hash, &params()?, &result()?, &account)?;
++            Ok(json!({}))
++        }
++        Some("version") => Ok(
++            json!({ "version": env!("CARGO_PKG_VERSION"), "chainId": cli.chain_id, "signer": cli.signer }),
++        ),
++        _ => Err(eyre!("unknown op")),
++    }
++}
++
++fn main() -> Result<()> {
++    let cli = Cli::parse();
++    let stdin = std::io::stdin();
++    let mut input = stdin.lock();
++    let mut out = std::io::stdout().lock();
++    let mut line = Vec::new();
++    loop {
++        line.clear();
++        let mut overflow = false;
++        // bounded line read: never buffer more than MAX_LINE bytes of one request
++        loop {
++            let buf = input.fill_buf()?;
++            if buf.is_empty() {
++                if line.is_empty() && !overflow {
++                    return Ok(());
++                }
++                break;
++            }
++            let (chunk, done) = match buf.iter().position(|b| *b == b'\n') {
++                Some(i) => (&buf[..i], i + 1),
++                None => (buf, buf.len()),
++            };
++            if !overflow && line.len() + chunk.len() <= MAX_LINE {
++                line.extend_from_slice(chunk);
++            } else {
++                overflow = true;
++                line.clear();
++            }
++            let newline = done > chunk.len();
++            input.consume(done);
++            if newline {
++                break;
++            }
++        }
++        let reply = if overflow {
++            json!({ "id": null, "ok": false, "error": "request line too long" })
++        } else if line.iter().all(u8::is_ascii_whitespace) {
++            continue;
++        } else {
++            match serde_json::from_slice::<Value>(&line) {
++                Err(e) => json!({ "id": null, "ok": false, "error": format!("parse error: {e}") }),
++                Ok(req) => {
++                    let id = req.get("id").cloned().unwrap_or(Value::Null);
++                    match answer(&cli, &req) {
++                        Ok(Value::Object(mut m)) => {
++                            m.insert("id".into(), id);
++                            m.insert("ok".into(), Value::Bool(true));
++                            Value::Object(m)
++                        }
++                        Ok(_) => unreachable!("answers are objects"),
++                        Err(e) => {
++                            json!({ "id": id, "ok": false, "error": format!("{e:#}").chars().take(300).collect::<String>() })
++                        }
++                    }
++                }
++            }
++        };
++        serde_json::to_writer(&mut out, &reply)?;
++        out.write_all(b"\n")?;
++        out.flush()?;
++    }
++}
+diff --git a/opstack/src/consensus.rs b/opstack/src/consensus.rs
+index 8692c9279830201f1fd8a9e941a34285d034f481..2dafd3c9ab3cde9435fc9e8fd7445235d3806ba4 100644
+--- a/opstack/src/consensus.rs
++++ b/opstack/src/consensus.rs
+@@ -281,7 +281,7 @@ fn verify_unsafe_signer(config: Config, signer: Arc<Mutex<Address>>) {
+     });
+ }
+ 
+-fn payload_to_block(value: ExecutionPayload) -> Result<Block<Transaction>> {
++pub(crate) fn payload_to_block(value: ExecutionPayload) -> Result<Block<Transaction>> {
+     let empty_nonce = fixed_bytes!("0000000000000000");
+     let empty_uncle_hash =
+         b256!("1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347");
+diff --git a/opstack/src/lib.rs b/opstack/src/lib.rs
+index d4796d56bbf817861e5de2dc81e4a72562a1355e..33eda1741f71133246a00cd68d4bf61b241f83e1 100644
+--- a/opstack/src/lib.rs
++++ b/opstack/src/lib.rs
+@@ -18,6 +18,8 @@ pub(crate) mod evm;
+ pub mod server;
+ pub mod spec;
+ pub mod types;
++#[cfg(not(target_arch = "wasm32"))]
++pub mod witness_check;
+ 
+ pub use builder::OpStackClientBuilder;
+ pub type OpStackClient = HeliosClient<OpStack>;
+diff --git a/opstack/src/witness_check.rs b/opstack/src/witness_check.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..a6861159bd8a0e30fc393a32b3334a6b4d4393e5
+--- /dev/null
++++ b/opstack/src/witness_check.rs
+@@ -0,0 +1,270 @@
++//! Witness checks for an untrusted execution-witness gateway, built ONLY from the verification Helios itself runs, so a
++//! gateway can tell a valid witness from an invalid one before it serves or caches it:
++//!
++//! * `verify_head`: a sequencer commitment against a pinned signer and chain id (`SequencerCommitment::verify`), decoded
++//!   and converted exactly as the opstack consensus client adopts a head (`payload_to_block`). The resulting
++//!   (block hash -> state root) binding is the authenticated root every witness for that block is checked against. It
++//!   never comes from a witness source.
++//! * `verify_get_proof`: an `eth_getProof` answer against that root, bound to the exact request (address, the requested
++//!   storage keys and nothing else, the block hash), with Helios's account and storage MPT proof checks.
++//! * `verify_get_code`: an `eth_getCode` answer against the code hash of a verified account proof for the same address
++//!   and block (Helios's `verify_code_hash_proof`).
++//!
++//! Proofs are checked semantically: two providers may encode a valid proof differently, and both pass.
++
++use alloy::eips::BlockId;
++use alloy::primitives::{Address, Bytes, B256};
++use alloy::rpc::types::EIP1186AccountProofResponse;
++use alloy::serde::JsonStorageKey;
++use eyre::{bail, eyre, Result};
++use helios_core::execution::proof::{
++    verify_account_proof, verify_code_hash_proof, verify_storage_proof,
++};
++use serde::Serialize;
++use serde_json::Value;
++
++use crate::{consensus::payload_to_block, types::ExecutionPayload, SequencerCommitment};
++
++/// A head that passed the same signature and conversion checks the opstack consensus client applies.
++#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
++#[serde(rename_all = "camelCase")]
++pub struct VerifiedHead {
++    pub block_hash: B256,
++    pub parent_hash: B256,
++    pub number: u64,
++    pub timestamp: u64,
++    pub state_root: B256,
++}
++
++pub fn verify_head(
++    commitment: &SequencerCommitment,
++    signer: Address,
++    chain_id: u64,
++) -> Result<VerifiedHead> {
++    commitment.verify(signer, chain_id)?;
++    let payload = ExecutionPayload::try_from(commitment)?;
++    let block = payload_to_block(payload)?;
++    Ok(VerifiedHead {
++        block_hash: block.header.hash,
++        parent_hash: block.header.parent_hash,
++        number: block.header.number,
++        timestamp: block.header.timestamp,
++        state_root: block.header.state_root,
++    })
++}
++
++/// The block an `eth_getProof`/`eth_getCode` request is pinned to: only a block hash pins a witness.
++fn pinned_hash(at: &Value) -> Result<B256> {
++    match serde_json::from_value::<BlockId>(at.clone())
++        .map_err(|e| eyre!("invalid block id: {e}"))?
++    {
++        BlockId::Hash(h) => Ok(h.block_hash),
++        BlockId::Number(_) => bail!("request is not pinned by block hash"),
++    }
++}
++
++fn param<'a>(params: &'a [Value], i: usize, n: usize) -> Result<&'a Value> {
++    if params.len() != n {
++        bail!("expected {n} params, got {}", params.len());
++    }
++    Ok(&params[i])
++}
++
++fn check_block(params: &[Value], block_hash: B256) -> Result<()> {
++    let at = pinned_hash(params.last().ok_or_else(|| eyre!("missing block id"))?)?;
++    if at != block_hash {
++        bail!("request block {at} is not the authenticated block {block_hash}");
++    }
++    Ok(())
++}
++
++/// `params` = [address, [storage keys], blockHash]: the exact request the answer is for.
++pub fn verify_get_proof(
++    state_root: B256,
++    block_hash: B256,
++    params: &[Value],
++    result: &Value,
++) -> Result<EIP1186AccountProofResponse> {
++    check_block(params, block_hash)?;
++    let address: Address = serde_json::from_value(param(params, 0, 3)?.clone())
++        .map_err(|e| eyre!("invalid address: {e}"))?;
++    let keys: Vec<JsonStorageKey> = serde_json::from_value(param(params, 1, 3)?.clone())
++        .map_err(|e| eyre!("invalid storage keys: {e}"))?;
++    let proof: EIP1186AccountProofResponse =
++        serde_json::from_value(result.clone()).map_err(|e| eyre!("malformed proof: {e}"))?;
++
++    // Exactly the checks Helios's RpcExecutionProvider::get_account makes ...
++    if proof.address != address {
++        bail!(
++            "proof is for {}, not the requested {address}",
++            proof.address
++        );
++    }
++    verify_account_proof(&proof, state_root)?;
++    verify_storage_proof(&proof)?;
++    // ... and the request binding made exact: the answer proves the requested keys, each once, and nothing else.
++    let mut want: Vec<B256> = keys.iter().map(|k| k.as_b256()).collect();
++    let mut got: Vec<B256> = proof
++        .storage_proof
++        .iter()
++        .map(|p| p.key.as_b256())
++        .collect();
++    want.sort();
++    got.sort();
++    if want != got {
++        bail!("storage proofs do not match the requested keys");
++    }
++    Ok(proof)
++}
++
++/// `params` = [address, blockHash]; `account` = a verified account proof for that address at that block (any keys).
++pub fn verify_get_code(
++    state_root: B256,
++    block_hash: B256,
++    params: &[Value],
++    result: &Value,
++    account: &Value,
++) -> Result<()> {
++    check_block(params, block_hash)?;
++    let address: Address = serde_json::from_value(param(params, 0, 2)?.clone())
++        .map_err(|e| eyre!("invalid address: {e}"))?;
++    let code: Bytes =
++        serde_json::from_value(result.clone()).map_err(|e| eyre!("malformed code: {e}"))?;
++    let proof: EIP1186AccountProofResponse = serde_json::from_value(account.clone())
++        .map_err(|e| eyre!("malformed account proof: {e}"))?;
++    if proof.address != address {
++        bail!("account proof is for {}, not {address}", proof.address);
++    }
++    verify_account_proof(&proof, state_root)?;
++    // empty code for an account without code; otherwise keccak(code) must equal the proven code hash
++    verify_code_hash_proof(&proof, &code)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use alloy::primitives::address;
++    use serde_json::json;
++    use std::str::FromStr;
++
++    const DATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
++
++    fn real_commitment() -> SequencerCommitment {
++        let bytes = std::fs::read(format!(
++            "{DATA}/ec197b9f01acd9b93c900014b5b16142183fc77b559e0e0a727687d171e3e467.v4.snappy"
++        ))
++        .unwrap();
++        SequencerCommitment::new(&bytes).unwrap()
++    }
++    // Base mainnet's unsafe block signer (the real signer of the test object).
++    const BASE_SIGNER: Address = address!("Af6E19BE0F9cE7f8afd49a1824851023A8249e8a");
++
++    #[test]
++    fn a_real_base_head_verifies_with_the_real_signer_and_nothing_else() {
++        let c = real_commitment();
++        let head = verify_head(&c, BASE_SIGNER, 8453).unwrap();
++        assert_eq!(head.number, 52965074);
++        assert_ne!(head.state_root, B256::ZERO);
++        // the commitment's JSON form (what a consensus server's /latest answers) verifies to the same head
++        let again: SequencerCommitment =
++            serde_json::from_value(serde_json::to_value(&c).unwrap()).unwrap();
++        assert_eq!(verify_head(&again, BASE_SIGNER, 8453).unwrap(), head);
++        assert!(
++            verify_head(&c, Address::ZERO, 8453).is_err(),
++            "wrong signer"
++        );
++        assert!(
++            verify_head(&c, BASE_SIGNER, 84532).is_err(),
++            "wrong chain id"
++        );
++    }
++
++    /// The recorded real Base proof (block 52965249, AddressBook 0xab21…0907, no slots) from the base-calls fixture.
++    fn recorded() -> (B256, B256, Value) {
++        let v: Value = serde_json::from_str(
++            &std::fs::read_to_string(format!("{DATA}/witness-check-52965249.json")).unwrap(),
++        )
++        .unwrap();
++        (
++            B256::from_str(v["stateRoot"].as_str().unwrap()).unwrap(),
++            B256::from_str(v["blockHash"].as_str().unwrap()).unwrap(),
++            v,
++        )
++    }
++
++    #[test]
++    fn a_recorded_real_proof_verifies_bound_to_its_exact_request() {
++        let (root, hash, v) = recorded();
++        let p = &v["getProof"];
++        verify_get_proof(root, hash, p["params"].as_array().unwrap(), &p["result"]).unwrap();
++        // the bare-hash form alloy sends and the EIP-1898 object form pin the same block
++        let mut obj = p["params"].as_array().unwrap().clone();
++        obj[2] = json!({ "blockHash": hash });
++        verify_get_proof(root, hash, &obj, &p["result"]).unwrap();
++    }
++
++    #[test]
++    fn invalid_or_unbound_proofs_are_refused() {
++        let (root, hash, v) = recorded();
++        let p = &v["getProof"];
++        let params = p["params"].as_array().unwrap().clone();
++        let ok = &p["result"];
++        // malformed (root's probe), tampered balance, tampered proof node, wrong root, wrong block, wrong address,
++        // an extra unrequested storage proof, a missing requested key, an unpinned request
++        assert!(verify_get_proof(
++            root,
++            hash,
++            &params,
++            &json!({ "accountProof": "not-an-array" })
++        )
++        .is_err());
++        let mut t = ok.clone();
++        t["balance"] = json!("0x1");
++        assert!(verify_get_proof(root, hash, &params, &t).is_err());
++        let mut t = ok.clone();
++        let node = t["accountProof"][0].as_str().unwrap().to_string();
++        t["accountProof"][0] = json!(format!(
++            "{}{}",
++            &node[..node.len() - 2],
++            if node.ends_with("00") { "01" } else { "00" }
++        ));
++        assert!(verify_get_proof(root, hash, &params, &t).is_err());
++        assert!(verify_get_proof(B256::repeat_byte(7), hash, &params, ok).is_err());
++        assert!(verify_get_proof(root, B256::repeat_byte(7), &params, ok).is_err());
++        let mut wrong = params.clone();
++        wrong[0] = json!("0x0000000000000000000000000000000000000001");
++        assert!(verify_get_proof(root, hash, &wrong, ok).is_err());
++        let mut extra = ok.clone();
++        extra["storageProof"] = json!([{ "key": "0x0", "value": "0x0", "proof": [] }]);
++        assert!(verify_get_proof(root, hash, &params, &extra).is_err());
++        let mut more = params.clone();
++        more[1] = json!(["0x0"]);
++        assert!(verify_get_proof(root, hash, &more, ok).is_err());
++        let mut latest = params.clone();
++        latest[2] = json!("latest");
++        assert!(verify_get_proof(root, hash, &latest, ok).is_err());
++    }
++
++    #[test]
++    fn recorded_real_code_verifies_against_the_proven_code_hash_only() {
++        let (root, hash, v) = recorded();
++        let c = &v["getCode"];
++        let params = c["params"].as_array().unwrap();
++        let account = &v["getProof"]["result"];
++        verify_get_code(root, hash, params, &c["result"], account).unwrap();
++        let code = c["result"].as_str().unwrap();
++        let tampered = json!(format!(
++            "{}{}",
++            &code[..code.len() - 2],
++            if code.ends_with("00") { "01" } else { "00" }
++        ));
++        assert!(verify_get_code(root, hash, params, &tampered, account).is_err());
++        assert!(verify_get_code(root, hash, params, &json!("0x"), account).is_err());
++        let mut forged = account.clone();
++        forged["codeHash"] = json!(format!("{}", alloy::primitives::keccak256([0u8])));
++        assert!(
++            verify_get_code(root, hash, params, &json!("0x00"), &forged).is_err(),
++            "forged code hash fails the account proof"
++        );
++    }
++}
+diff --git a/opstack/tests/data/witness-check-52965249.json b/opstack/tests/data/witness-check-52965249.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..8114176d2529392ad3fb849026d6309355da037d
+--- /dev/null
++++ b/opstack/tests/data/witness-check-52965249.json
+@@ -0,0 +1,40 @@
++{
++ "source": "rpc-priority/fixtures/base-calls-20261023T014412Z (recorded from mainnet.base.org 2026-10-23T01:44Z; public chain state)",
++ "blockNumber": 52965249,
++ "blockHash": "0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5",
++ "stateRoot": "0x3b94c43efbb24d38900eb3ff1edf25419c5139cbbc4b1e35fc97697128f1f1b4",
++ "getProof": {
++  "method": "eth_getProof",
++  "params": [
++   "0xab214342d5a490150a4a977063a2f88e21f80907",
++   [],
++   "0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5"
++  ],
++  "result": {
++   "address": "0xab214342d5a490150a4a977063a2f88e21f80907",
++   "balance": "0x0",
++   "codeHash": "0xe4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152",
++   "nonce": "0x1",
++   "storageHash": "0xa32fd51ce6b8d054ccc9ea8535f5c93839a79f3cd55d1650d36f21ae9fdb9a14",
++   "accountProof": [
++    "0xf90211a05d833902ec9841c9c038b8a197d3251787984f43d3ab2bee6c60ab989d9da2eea0547efff53d170b8f2c04d6524b5d66f569d1ba09f3251684a0894e47450d99bfa0ad5e0621d4aa7a34d197956794f803614a09419c1c1dc1c7ee5edc098dde275ca0f87a46b75c97c76075c712d2e2aa61703901657594391e23e3d2f9515b152b38a0261655b6d9953077f6b4ca65b01eade1d5f293217c04652a601da6a2596b43b6a09308b8e90673d72e86e7963c8d6cd43e7c59affb3eafa33b6830a30b3ff2ebe9a083eb89d39de250aa9952c74b2216cbba8f51d19933c0240c34b6644c70990e9ba01714a9e637c185c43b051199d7f88443b2778cdf4ec422551b6c21dd1a058067a084b17c0592092d884b2f8d52f5388b25de2d0edabd25f4e140f0a85e54a00438a00c5e6261236749b0137e3273a170dfb07c731d692fa0e23525c7f2fc43f1da61a0f748c81fddf1441a78fa65c15bda994a17a72671636750c4d10b59910cb15bf9a0e82b761f431c648dacd92a7ffb1a32651bd67e8a0d06615f9c1041cbc8af944ca040e74b0b676b9ba226bba1fda1404120ecb831884c5cda837b0fa3f391a84a00a05fd5388ea9acd83b6038b6d0d1f8bf32ebb0db05fd124663847b307c525d2332a0b716454b3e8e8febe93d53d7031ad0ca96e3f8df69d1a653fac29db8ea393b31a049104d8230078c7cd0075838e3e0cc795bbf6a710af2e4ff5bff2ad654ed99e880",
++    "0xf90211a010d6cbf7446daef7ecd5b3ceb50b01be9fd03724d7a604f583e38863ab67ed15a061a284ba1292d1edfca900441dacb12cfaf3590f752d330f18d05a246e89f4fda0754ee03f7898d00ed60b68805c0130bda644d761588d404e987306893e675e56a00afd0fc5fc523f08be689e9cbaf427bbc75cb84d1a0dd825f6f07988a2c470c4a034b09fc25167b5efb24f73a05b2e763c0b798eb3abe0f761953b3aa97c92b942a01cbd04fe86c3974954ebb63fc8d79043a464ee51fb70c65aeeddc50552bfdd0da0619432cf84c330d8f6051542a33b3a62262598512c8f8a47aa08c253d687ecc2a0224d7aca368c2207c0b4f7a639aa555b0c12ab10b5479daf4900c48d1d585efda088a8796f4d9b9374fb78d60e4942b1f929f190bc3d1624985900f9b915e7e155a05db1c9ed92a0ba32ef3e27ce8c3155a0c1446e4d88783bd911b2592d101d9e71a06a750a6ae6b8ea33e60b26dfb54b6edd1369eca34673b05e64b7706a73518647a0fe669ea13bf63ef19838204301f2ddbba398881cb4f2c92633492fa76f6eb8d7a0b27253df6b0620b0e671bbe35f08ffe5609f0ef0034be14231d4c2606e2f796ca0a8e0a13d1c41b5cc0f27f07d17f2526d0e4995b0bdfb981f5d1b5896b921e6e7a037dc88e7e074f897be98790b4de12baf12397514c568e5ffa1047d9f18453c30a0b6511de441d2b8589c4cd5313d70426150c2628b094c918cb5cd5ce8b2aba67780",
++    "0xf90211a0f9722b802c068fd892d195e963d95c3b7006cad31305d0f7c96b877f5a50aa24a05210085d64fe53fbd54448e87433b43b5719b1c48a1136bded151d2b0a831996a0dfc80c97af9e5358616943452da1f5c89adc4b56aae1fe871db11709b8640aeea070144a7f8ee2f1725c8d14d8fd6fcc619474d841b1d9ebced2de10545e459cfda05dd76dd104b087ff15dbd46c6cdec60d4fc91f3645d44b2d63a556353655f1fca0a6060ae6d8582000551930103d3709a9148e7645f5e29f48cc9f8aafabb3a36fa00f4fa96a3ed2bb2552c107a817ffef63f8e4b82ae2b1fb1b4b91cbb84c823b31a098398040112ca4f8aeb672602251dac0a463924cc7826261769ba33a479d170fa0090f6fa752464ab4d95c859fc95d74bb70a6a5c78b3d6e3b6e4bd2bdca88b649a04e517b0a91a7a04963a96d90bc92a5c23930522cddd7da10ab828196caa8c9fda0de3b51b1300c46ad8e7dd6fce436d761db1a39bbcb28f51480847ee08ffe053ca0f81b2f8a34633d8ed05d4afe7a6a28ee08755827e20679eba0c430b8075a3c75a090069ac2360595f47b68d242b34b278e7abfff5317bf553431f933dd4f9aff83a0e34e513a0ac52b980daf9831e992d07e461e015709abd8fed43bac7e23ed3ea0a0afa0afd050c728790c23c84f382a8d1f28bd3d650d0a3cc5da7d06f234d09350a0828534f581eea02769a13a84220e22ba49632a008fae4659667f06f7233d912280",
++    "0xf90211a085dd774dbf6da40eb94bd282996576d5e9c69b42dfc1105a03f11fc9dec6ad99a0e2b39f5f9fea7f26aff36b7e57cae2da95c760aca24a125688bd8f183f09f6eca030b67e2658f3a08af07bfddd58e7820160bf9ab8dec96aa2aece4bb9868c47aea0e8885032a7ca92b4c7a87f71f77f2b1b56f7cdfded443f64dd712f4b586fababa0af2789aaa3e4f4290a0e1a624637f7ead375b8e062453569fc959c34d2db17f0a048794c446a9f291bc375de8eaad2b251b7ba27bac0c2b32039e179ef89ed2c42a0b61dcdfce8e2127f6b6390e4d4da89f11098503f8854d01ce82257384a85d6e5a0dd0596f9c4941c812e6acf6b0931a1ef79eddf661f0cef5d4b0b0bc4c550232ca05db07975fb4a57eabeae00257dc8767e7699a92f55644938b1160f17d90163d3a05ab590f19c5ddebb4f664e0886919515ddc1d0fc8faf2e42d210587b90bcc085a04013583789862b8fd1603d376a328f3f80fff7f45919be9889a104c51c0bcd66a0228decea6f76edc72d9fdf441b10e6aacd1496ad21011ddfbad331d491cbf1cfa0ba6c80d92d8e67e7c2cf551a66a5d9ad5b101a0553b996a9982e75ee64738796a0380c196c98127211a47ce776484812711acef45fc98b52ebc825cc6feecbad3ea0fc4348f666278f472964f97cc7a408c1f7c4e6b744fc08c429cc1e050c0b1ad6a0cae370a1349c21a0e5f77111ed303f4258baffad3d235fb657596211c93b298380",
++    "0xf90211a032cd986b6520e9997f32fa3b35eab00433181025f66cf6d0e98a0e5ca4d0302aa07593f780b1fd60aa1ab0b97ecdf85e103da4e9eb986c8bcc55f6175268dd2175a0821a1529cb5524b5d1b0e51634f6428b4741400431e8d9af88cc2363a925ea67a06fde24a4453754948a549703364c83e352cae5db67eac18315f44a87e16c3712a03cc99c625349358a3732079538a6937bac58cf65b28141108b0b112896ce16e3a004dd30b5b8e8c45e219e570b1f9650e539de32fd0a56fa245d69dd2bfe433deda04dea9f34eea86fe479608a4d57001fcaafb04e39e853b61fa26b29bd82698409a01edcc52eeca79af9226ecac2c8a55f4ee6e8d3833f71d5e5059eef2028a56e61a038c8224091cf6f3367fa88310721a88db8821da7d81a4ff8866587d0dbef3fada0011f113c18f7330cf049436e9e5a797a4d990e0e12d8f7414b40029c370f2372a0b008c90b6bc8750c35d324849d498116f5835773f6d9e0b226b753023f3a71dea06159e5e2dc0e2a637aebaacbcd3b890fe000c97bd4ccac963216060698ee4d5fa020d6c3243692e184e9b68c7bead71020738c05994de46e2fd560cce34e1f1c57a007bd614e8d30ca13139d40d21e2f60a3900e5eb274c595de576c1cea34c55c26a0264831b56348d40e76fa8f99105ab2e7b380ea32c48ee96db01cdf5bc48c0a9ea0d2997659f9b7b8ce1c06922bc03bb9f8bb37bee43b52d951a406d95cf1190cf680",
++    "0xf90211a06e3724eef94f172b95016fd2ba97110d02527c797fc475ca65a292b48407e337a0fbf66bfb30fc34b091d8fbca17cde4eec93a71b5d4fc30246ae687c2e42d37eca061f3dfc204656266ec963475745c3e89d45ad1b1fac3598d9a835bf5320f720ea026fabcfda30f5eba9db910c5f25106386638da97b831c323d2e45b703731ff9da07c0f56f532c0e7111d5bad3b0dca01fca66586c6de7645579d6bc041095ee095a09a22d9954a0162b656eabe693df9a26721934470796b6b73d8965eb38dc2e241a0e931737f5d3500a4c757b5dfe4d77c8736ab4ba980060d4c9da34fd3d06ff4d7a00cd88214c71ce753f5c76ad91245303372db10d20bb8b950e95a92c27ff6c5b1a09d8e28e33ef6d409feca0cfcbc48b4bd384c4c0be2bf51a513bdb220d75f2234a08941ef1796cafc2303d13115493a0c1a3455ae0308b8b83f1aa048eb45b1865ba0be48a697a28d0af5a4c7843d7e2076e1bea5909c655eb0ffa5d7594c51697a3ea09f3625f43eede38964ff4079aba21cdda1e1c9a2296fc1ce3c97e5cf6bc1820da0bac02b4970ac8bc9cc4dbd15bbc7069363b3ee13eb5d3ed4f0c6bd31b7279d89a01b7aa29a225753528d8a6a661910e7240371f1fc6a53a0d8ccd4276be4ad7409a09a5192f42b069f91c6affb73b9bd482ce2f30a77956b875a40779b11ab7dd149a07cb277451b3abea16cd36d698694d28fd29c53bb9a2d86d6b67dd7394d29176c80",
++    "0xf90211a09ba7c1118ea6cba3c4fa6167cd2f48fa58083c0c5fac35e5a83a2400125f6518a0e98dfc5ba1a34568a5d72c4799ecf3f6ecb8dcb20604a5c5688621b4f5bc258da085b812201228cf9470820eb89dfcde72d19ba52391befcf10c12956bc631219ba08d55be77be3e23db1d7bd8067e82246297babe2332a43eb866091c251f113e36a03e6233cbda70e9de92d8513dfe5be17bba1ea1bb3a4df7ed3bae6d9e7b4c5d5aa07d1dd419ebe3c60ec3cbdec84cfc1189d9399a6fcb16f739954097366d7dc173a0b528f80bf2564593b786190b67d257e6255d24ae34c618f5d6957d3af7dd1062a0cc6f946ff3e860d1c44a26d444c68b38ff10e06e2bd60f01c0277fee9ae33288a0d33662b2960e0e6640c6f8df390caaec5cbb830d54369715c00cd85b3a45f259a03bd1b58a3b50ef1e656ff951bb31807c5eae0644925ebc15e8b641349836b5dea0fecfe63a8a9ddd32844be1b95b00d55e2ceee3907334ad463e0791d830a9b64ba08d8a84de21dd403f635e866eb46f83e4c5a5b595913de07c22b4f3a3eed5539aa09798e718fb07d2f37eda98652a19eab4c86a8435e538b4e54042d7b5d1c03ef0a0c991e09be8931284187bb9d32ceeba0573f1b866340c629dd8e3ec991f862217a0bcffaa2a1a875dc4976b9a810ca17ea95542797202d8c53901e1c84780269fc8a077d7cbb62ba32f32bae867907eaf201307a8d84fb129b1d9aba9d5b8614d36f380",
++    "0xf8669d38614bdc419574f22419b1c5deb21c3841df4cc55904c5924c192abefbb846f8440180a0a32fd51ce6b8d054ccc9ea8535f5c93839a79f3cd55d1650d36f21ae9fdb9a14a0e4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152"
++   ],
++   "storageProof": []
++  }
++ },
++ "getCode": {
++  "method": "eth_getCode",
++  "params": [
++   "0xab214342d5a490150a4a977063a2f88e21f80907",
++   "0x117db438e945b68030939fe5f9309a34bd28855b08d4765c2f36457567eb89c5"
++  ],
++  "result": "0x608060405234801561000f575f5ffd5b506004361061007a575f3560e01c806313af40351161005857806313af4035146100bf5780633b3b57de146100d25780638da5cb5b14610112578063ba44593c14610124575f5ffd5b806306661abd1461007e57806310c4e8b01461009457806312d1a4a8146100aa575b5f5ffd5b6001546040519081526020015b60405180910390f35b61009c610137565b60405161008b9291906104fa565b6100bd6100b83660046105cb565b610256565b005b6100bd6100cd366004610652565b6102ec565b6100fa6100e0366004610672565b60026020525f90815260409020546001600160a01b031681565b6040516001600160a01b03909116815260200161008b565b5f546100fa906001600160a01b031681565b6100bd610132366004610689565b6103c1565b606080600180548060200260200160405190810160405280929190818152602001828054801561018457602002820191905f5260205f20905b815481526020019060010190808311610170575b5050600154939550505067ffffffffffffffff82111590506101a8576101a86106b3565b6040519080825280602002602001820160405280156101d1578160200160208202803683370190505b5090505f5b6001548110156102515760025f600183815481106101f6576101f66106c7565b905f5260205f20015481526020019081526020015f205f9054906101000a90046001600160a01b0316828281518110610231576102316106c7565b6001600160a01b03909216602092830291909101909101526001016101d6565b509091565b8281146102905760405162461bcd60e51b81526020600482015260036024820152623632b760e91b60448201526064015b60405180910390fd5b5f5b838110156102e5576102dd8585838181106102af576102af6106c7565b905060200201358484848181106102c8576102c86106c7565b90506020020160208101906101329190610652565b600101610292565b5050505050565b5f546001600160a01b0316331461032e5760405162461bcd60e51b815260206004820152600660248201526510b7bbb732b960d11b6044820152606401610287565b6001600160a01b03811661036e5760405162461bcd60e51b815260206004820152600760248201526606f776e65723d360cc1b6044820152606401610287565b5f80546001600160a01b0319166001600160a01b0383169081179091556040519081527fa2ea9883a321a3e97b8266c2b078bfeec6d50c711ed71f874a90d500ae2eaf369060200160405180910390a150565b5f546001600160a01b031633146104035760405162461bcd60e51b815260206004820152600660248201526510b7bbb732b960d11b6044820152606401610287565b816104385760405162461bcd60e51b815260206004820152600560248201526406b65793d360dc1b6044820152606401610287565b5f8281526003602052604090205460ff16610497575f828152600360205260408120805460ff191660019081179091558054808201825591527fb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6018290555b5f8281526002602090815260409182902080546001600160a01b0319166001600160a01b038516908117909155915191825283917fb37614c7d254ea8d16eb81fa11dddaeb266aa8ba4917980859c7740aff30c691910160405180910390a25050565b604080825283519082018190525f9060208501906060840190835b81811015610533578351835260209384019390920191600101610515565b5050838103602080860191909152855180835291810192508501905f5b818110156105775782516001600160a01b0316845260209384019390920191600101610550565b50919695505050505050565b5f5f83601f840112610593575f5ffd5b50813567ffffffffffffffff8111156105aa575f5ffd5b6020830191508360208260051b85010111156105c4575f5ffd5b9250929050565b5f5f5f5f604085870312156105de575f5ffd5b843567ffffffffffffffff8111156105f4575f5ffd5b61060087828801610583565b909550935050602085013567ffffffffffffffff81111561061f575f5ffd5b61062b87828801610583565b95989497509550505050565b80356001600160a01b038116811461064d575f5ffd5b919050565b5f60208284031215610662575f5ffd5b61066b82610637565b9392505050565b5f60208284031215610682575f5ffd5b5035919050565b5f5f6040838503121561069a575f5ffd5b823591506106aa60208401610637565b90509250929050565b634e487b7160e01b5f52604160045260245ffd5b634e487b7160e01b5f52603260045260245ffdfea26469706673582212202bedd0ece74a720c2e286460efde57ec0c0557cfcd76debb8b4066c5399ce98464736f6c63430008230033"
++ }
++}

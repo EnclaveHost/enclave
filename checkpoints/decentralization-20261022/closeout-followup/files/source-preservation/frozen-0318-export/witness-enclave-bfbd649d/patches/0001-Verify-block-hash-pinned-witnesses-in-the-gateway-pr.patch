@@ -1,0 +1,973 @@
+From ee45734df2b736a1847ce0383f7bbb51042be1e1 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 19:45:16 -0700
+Subject: [PATCH 1/2] Verify block-hash-pinned witnesses in the gateway:
+ proof-aware failover and a poisoning-resistant cache
+
+Before this change, the witness gateway (d1944b1f) returned the first JSON-RPC success for eth_getProof/eth_getCode
+without checking it. Root's offline probe showed two defects:
+- one malformed answer from the first source denied a witness that the second source could prove;
+- the create-only, single-slot cache kept that bad first answer for good, even after a later replacement.
+call() also read the whole body before applying its size limit.
+
+* network/witness-verify.mjs:
+  - createWitnessChecker: a client of the witness-check helper (patched Helios fork, enclave-witness-check 1ec2c1a5:
+    Helios's own commitment, MPT proof and code-hash checks). A crash, timeout or full queue REJECTS, and the
+    gateway refuses.
+  - createRootStore: block hash -> state root bindings, taken only from signed sequencer commitments on the consensus
+    head API (the same source Helios reads) and verified by the helper. Roots never come from a witness source or
+    from Helios, so there is no circular dependency.
+  - readBounded: stops at the byte limit WHILE reading.
+* network/witness-gateway.mjs, eth_getProof/eth_getCode:
+  - These need `proofs`, and so does any cache: there is no unverified witness mode.
+  - Order of service: verified cache entries first, then upstreams in order. An invalid answer costs its source the
+    try, and the next source is asked. Without an authenticated root, or with the verifier unavailable, the request
+    is refused.
+  - Code is checked against a verified account proof for the same address and block.
+* The cache:
+  - Content-addressed and create-only: <block>/<request>/<sha256(result)>.json, written with an atomic link.
+  - Every entry, including a legacy single-slot one, is re-verified on read. Failures are quarantined (skipped),
+    never deleted or overwritten.
+  - A store with only get/put (e.g. a Sia store) still works; with `candidates(w)` it cannot be shadowed.
+* Explicit bounds: per-try timeout, one deadline per request, response bytes (limited while reading), upstream
+  requests in flight.
+* Other methods keep ordered first-answer failover; Helios verifies those against its signed head.
+
+Tests:
+- test/witness-failover.test.mjs (10 tests): the real helper with real recorded Base mainnet witnesses.
+- test/helios-witness-failover.e2e.test.mjs (3 tests): the real patched Helios, with a lying first source and a
+  pre-poisoned cache, then cache-only.
+- test/witness-gateway.test.mjs: kept for plain failover. Its unverified-cache test is replaced by the
+  refusal-without-verifier test.
+---
+ network/witness-gateway.mjs               | 204 ++++++++++++++----
+ network/witness-verify.mjs                | 138 ++++++++++++
+ test/helios-witness-failover.e2e.test.mjs | 145 +++++++++++++
+ test/witness-failover.test.mjs            | 248 ++++++++++++++++++++++
+ test/witness-gateway.test.mjs             |  47 ++--
+ 5 files changed, 706 insertions(+), 76 deletions(-)
+ create mode 100644 network/witness-verify.mjs
+ create mode 100644 test/helios-witness-failover.e2e.test.mjs
+ create mode 100644 test/witness-failover.test.mjs
+
+diff --git a/network/witness-gateway.mjs b/network/witness-gateway.mjs
+index 82bf203b1ae7e19501ed0071038ccc674194a162..233045a384ad7b3113ce3e30fdeb0437d1ce2ad0 100644
+--- a/network/witness-gateway.mjs
++++ b/network/witness-gateway.mjs
+@@ -3,28 +3,43 @@
+ // block's state root, code against the proven code hash, receipts against the receipts root), so the sources behind
+ // this gateway are untrusted: any one honest, available source is enough, and none of them is a vote.
+ //
+-//   * Ordered failover over untrusted JSON-RPC upstreams (https, or plain http on loopback; network/rpc-identity.mjs).
+-//   * A method allowlist: only what Helios's execution provider calls (a16z/helios 2af9b418 core/src/execution/providers/
+-//     rpc.rs, opstack evm) plus broadcast. Anything else is refused, so the gateway is not a general RPC proxy.
+-//   * Witnesses Helios pins BY BLOCK HASH (eth_getProof, eth_getCode with {blockHash}) are immutable: they may be kept in
+-//     an immutable cache and served from it when every upstream fails. A cache hit is availability for THAT block only -
+-//     never freshness: the verifier still needs a fresh signed head, and Helios rejects a witness that does not match it.
+-//     Cache entries are create-only, and a wrong entry costs nothing but a failed verification.
++//   * Witnesses pinned BY BLOCK HASH (eth_getProof, eth_getCode) are VERIFIED HERE before they are served or cached,
++//     with Helios's own proof code (network/witness-verify.mjs -> the witness-check helper) against the state root of a
++//     signed sequencer head for that block (the root store; never a root from a witness source). A malformed or invalid
++//     answer costs its source the try: the next source is asked. One lying source therefore cannot deny a witness
++//     another source can prove, and nothing unverified is ever returned. Without an authenticated root for the block
++//     (or with the verifier unavailable) the request is REFUSED; it is never passed through unchecked.
++//   * The witness cache is content-addressed and create-only: each verified answer is one immutable entry named by
++//     the sha256 of its content, so a bad entry (an older unverified write, or a tampered or shared store such as a
++//     Sia bucket) can never shadow a good one. Every cache read is re-verified before use, a failing entry is
++//     quarantined (skipped, never deleted or overwritten), and verified entries are served before any upstream is
++//     asked. A cache hit is availability for THAT block only, never freshness: the verifier still needs a fresh signed
++//     head, and Helios rejects a witness that does not match it.
++//   * Other methods (blocks, receipts, logs, fee data) keep ordered first-answer failover: Helios verifies those
++//     against its signed head itself. A method allowlist keeps the gateway from being a general RPC proxy
++//     (a16z/helios 2af9b418 core/src/execution/providers/rpc.rs, opstack evm, plus broadcast).
+ //   * eth_sendRawTransaction goes to every upstream. A broadcast proves nothing about inclusion (a receipt in a verified
+ //     block does), and with every upstream down nothing can be sent: the gateway says so.
++//   * Bounds: request body, upstream response bytes (enforced while reading), per-try timeout, one total deadline per
++//     request, batch size and upstream requests in flight.
+ // No P2P witness transport exists for Base today (rpc-peer-audit RESULT §2: snap/2 off by default, no flag; GetNodeData
+-// empty), so none is offered; a future transport is one more entry in `upstreams` behind the same interface.
++// empty), so none is offered; a future transport is one more entry in `upstreams` behind the same interface. Failover
++// between sources is NOT independence from them: with every fresh witness source down, only cached history remains.
+ import http from 'node:http';
+ import fs from 'node:fs';
+ import path from 'node:path';
+-import { createHash } from 'node:crypto';
++import { createHash, randomBytes } from 'node:crypto';
+ import { rpcEndpoint, rpcLabel } from './rpc-identity.mjs';
++import { readBounded } from './witness-verify.mjs';
+ 
+ export const WITNESS_METHODS = Object.freeze(['eth_chainId', 'eth_blockNumber', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_getProof', 'eth_getCode',
+   'eth_createAccessList', 'eth_getBlockReceipts', 'eth_getTransactionReceipt', 'eth_getTransactionByHash', 'eth_getLogs', 'eth_gasPrice',
+   'eth_maxPriorityFeePerGas', 'eth_feeHistory', 'eth_sendRawTransaction']);
+-const PINNED = new Set(['eth_getProof', 'eth_getCode']);
+-const MAX_BODY = 1 << 20, MAX_RESPONSE = 16 << 20, HASH = /^0x[0-9a-fA-F]{64}$/;
++/** Methods whose answers this gateway verifies (and may cache): they need `proofs`. */
++export const VERIFIED_METHODS = Object.freeze(['eth_getProof', 'eth_getCode']);
++const PINNED = new Set(VERIFIED_METHODS);
++const MAX_BODY = 1 << 20, HASH = /^0x[0-9a-fA-F]{64}$/, ENTRY = /^[0-9a-f]{64}\.json$/;
++const sha256 = (s) => createHash('sha256').update(s).digest('hex');
+ 
+ /** The cache key of a block-hash-pinned witness request, or null when the request is not immutable. */
+ export function witnessKey(method, params) {
+@@ -36,77 +51,178 @@ export function witnessKey(method, params) {
+     : at && typeof at === 'object' && !Array.isArray(at) && HASH.test(at.blockHash || '') && Object.keys(at).every((k) => k === 'blockHash' || k === 'requireCanonical') ? at.blockHash : null;
+   if (!hash) return null;
+   const norm = JSON.stringify([method, JSON.parse(JSON.stringify(params).toLowerCase())]);
+-  return { key: createHash('sha256').update(norm).digest('hex'), blockHash: hash.toLowerCase(), norm };
++  return { key: sha256(norm), blockHash: hash.toLowerCase(), norm };
+ }
+ 
+-/** Create-only directory cache of block-hash-pinned witnesses: <dir>/<blockHash>/<sha256(request)>.json. */
+-export function dirWitnessCache(dir) {
+-  const file = (w) => path.join(dir, w.blockHash, w.key + '.json');
++/**
++ * Directory witness cache: <dir>/<blockHash>/<sha256(request)>/<sha256(result JSON)>.json, create-only (atomic link,
++ * never overwritten). `candidates(w)` returns every stored answer for the request (bounded), including a legacy
++ * single-slot <dir>/<blockHash>/<sha256(request)>.json entry. Entries are UNTRUSTED: the gateway verifies each one.
++ */
++export function dirWitnessCache(dir, { maxCandidates = 32, maxEntryBytes = 16 << 20 } = {}) {
++  const folder = (w) => path.join(dir, w.blockHash, w.key);
++  async function read(file, w) {
++    try {
++      if ((await fs.promises.stat(file)).size > maxEntryBytes) return undefined;
++      const e = JSON.parse(await fs.promises.readFile(file, 'utf8'));
++      return e?.format === 'enclave-witness-rpc/v1' && e.request === w.norm ? e.result : undefined;
++    } catch { return undefined; }
++  }
++  async function candidates(w) {
++    const out = [];
++    let names = [];
++    try { names = (await fs.promises.readdir(folder(w))).filter((n) => ENTRY.test(n)).sort().slice(0, maxCandidates); } catch {}
++    for (const n of names) {
++      const r = await read(path.join(folder(w), n), w);
++      if (r !== undefined && sha256(JSON.stringify(r)) === n.slice(0, 64)) out.push(r);   // content addressing holds
++    }
++    const legacy = await read(path.join(dir, w.blockHash, w.key + '.json'), w);
++    if (legacy !== undefined && out.length < maxCandidates) out.push(legacy);
++    return out;
++  }
+   return {
+-    async get(w) {
+-      try {
+-        const e = JSON.parse(await fs.promises.readFile(file(w), 'utf8'));
+-        return e?.format === 'enclave-witness-rpc/v1' && e.request === w.norm ? e.result : undefined;
+-      } catch { return undefined; }
+-    },
++    candidates,
++    /** Compatibility: the first stored answer (unverified, like every cache read). */
++    async get(w) { return (await candidates(w))[0]; },
+     async put(w, result) {
+-      await fs.promises.mkdir(path.dirname(file(w)), { recursive: true });
+-      try { await fs.promises.writeFile(file(w), JSON.stringify({ format: 'enclave-witness-rpc/v1', request: w.norm, result }), { flag: 'wx' }); }
+-      catch (e) { if (e.code !== 'EEXIST') throw e; }
++      const body = JSON.stringify({ format: 'enclave-witness-rpc/v1', request: w.norm, result });
++      const file = path.join(folder(w), sha256(JSON.stringify(result)) + '.json');
++      await fs.promises.mkdir(folder(w), { recursive: true });
++      const tmp = path.join(folder(w), `.tmp-${process.pid}-${randomBytes(6).toString('hex')}`);
++      await fs.promises.writeFile(tmp, body, { flag: 'wx' });
++      try { await fs.promises.link(tmp, file); } catch (e) { if (e.code !== 'EEXIST') throw e; } finally { await fs.promises.unlink(tmp).catch(() => {}); }
+     },
+   };
+ }
+ 
+-async function call(url, body, fetch, timeoutMs) {
++async function call(url, body, fetch, timeoutMs, maxBytes) {
+   const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body, redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(timeoutMs) });
+-  if (!r.ok) throw new Error('HTTP ' + r.status);
+-  const text = await r.text();
+-  if (text.length > MAX_RESPONSE) throw new Error('response too large');
+-  const j = JSON.parse(text);
++  if (!r.ok) { await r.body?.cancel?.().catch(() => {}); throw new Error('HTTP ' + r.status); }
++  const j = JSON.parse(await readBounded(r, maxBytes));
+   if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('malformed JSON-RPC response');
+   return j;
+ }
+ 
++function limiter(max) {
++  let active = 0; const waiting = [];
++  return async (fn) => {
++    if (active >= max) await new Promise((r) => waiting.push(r));
++    active++;
++    try { return await fn(); } finally { active--; waiting.shift()?.(); }
++  };
++}
++
+ /**
+- * upstreams: untrusted execution JSON-RPC URLs, tried in order. cache: optional {get(w), put(w, result)} (dirWitnessCache).
+- * methods: a subset of WITNESS_METHODS to offer (e.g. without the eth_createAccessList prefetch hint, so the verifier
+- * fetches exactly the witnesses execution touches and a recorded cache replays deterministically).
++ * upstreams: untrusted execution JSON-RPC URLs, tried in order. methods: a subset of WITNESS_METHODS to offer (e.g.
++ * without the eth_createAccessList prefetch hint, so the verifier fetches exactly the witnesses execution touches).
++ * proofs: {checker, roots} (network/witness-verify.mjs), REQUIRED when eth_getProof/eth_getCode are offered or a cache
++ * is given: there is no unverified witness mode. cache: optional {put(w, result), candidates(w)} (dirWitnessCache); a
++ * store with only {get, put} works, but a single-slot store can still be shadowed by a bad first write.
++ * Bounds: timeoutMs per try, deadlineMs per request (all tries and checks), maxResponseBytes per answer (while
++ * reading), maxInFlight upstream requests at once.
+  * -> {handle(request) -> response, listen(port) -> url (127.0.0.1 only), close(), stats()}
+  */
+-export function createWitnessGateway({ upstreams = [], cache = null, timeoutMs = 8000, fetch = globalThis.fetch, methods = WITNESS_METHODS } = {}) {
++export function createWitnessGateway({ upstreams = [], cache = null, proofs = null, timeoutMs = 8000, deadlineMs = 30000, maxResponseBytes = 16 << 20,
++  maxInFlight = 8, fetch = globalThis.fetch, methods = WITNESS_METHODS } = {}) {
+   if (!Array.isArray(methods) || methods.some((m) => !WITNESS_METHODS.includes(m))) throw new Error('methods must be a subset of WITNESS_METHODS');
+   if (!Array.isArray(upstreams) || upstreams.length > 16) throw new Error('0 to 16 upstreams');
+   const ids = upstreams.map((u) => rpcEndpoint(u).identity);
+   if (new Set(ids).size !== ids.length) throw new Error('upstreams must be distinct endpoints');
+   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60000) throw new Error('invalid timeoutMs');
+-  const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0 }])), cacheHits: 0, cachePuts: 0, refused: {}, unavailable: 0 };
++  if (!Number.isSafeInteger(deadlineMs) || deadlineMs < timeoutMs || deadlineMs > 300000) throw new Error('invalid deadlineMs');
++  if (!Number.isSafeInteger(maxResponseBytes) || maxResponseBytes < 1024 || maxResponseBytes > 64 << 20) throw new Error('invalid maxResponseBytes');
++  if (!Number.isSafeInteger(maxInFlight) || maxInFlight < 1 || maxInFlight > 64) throw new Error('invalid maxInFlight');
++  if ((methods.some((m) => PINNED.has(m)) || cache) && !(proofs?.checker?.check && proofs?.roots?.rootFor))
++    throw new Error('eth_getProof/eth_getCode and the witness cache need proofs: {checker, roots} (no unverified witness serving)');
++  const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0, invalid: 0 }])), cacheHits: 0, cachePuts: 0,
++    cacheInvalid: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0 };
++  const slot = limiter(maxInFlight);
++  const quarantine = new Set(), accounts = new Map();   // bounded: known-bad cache contents; recent verified account proofs
++  const remember = (set, k, v) => { if (set instanceof Map) set.set(k, v); else set.add(k); if (set.size > (set instanceof Map ? 1024 : 4096)) set.delete(set.keys().next().value); };
+   let server = null;
+   const err = (id, code, message) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } });
++  const ok = (id, result) => ({ jsonrpc: '2.0', id: id ?? null, result });
++
++  async function ask(u, body, deadline) {
++    const left = deadline - Date.now();
++    if (left <= 0) throw new Error('request deadline exceeded');
++    return slot(() => call(u, body, fetch, Math.max(1, Math.min(timeoutMs, left)), maxResponseBytes));
++  }
++
++  /** A verified answer for a block-hash-pinned witness request -> {result} | {error}. */
++  async function witness(method, params, deadline) {
++    const w = witnessKey(method, params);
++    if (!w) return { error: 'witness requests must be pinned by block hash', code: -32602 };
++    const root = await proofs.roots.rootFor(w.blockHash);
++    if (!root) { stats.unauthenticatedBlock++; return { error: `no authenticated state root for block ${w.blockHash}: refused, not passed through` }; }
++    const at = { blockHash: root.blockHash, stateRoot: root.stateRoot }, who = `${root.blockHash}:${String(params[0]).toLowerCase()}`;
++    let verify;
++    if (method === 'eth_getProof') {
++      verify = async (result) => {
++        const r = await proofs.checker.check({ op: 'getProof', ...at, params, result });
++        if (r.ok) remember(accounts, who, result);
++        return r;
++      };
++    } else {
++      // code is checked against the code hash of a VERIFIED account proof for the same address and block (usually the
++      // one Helios just fetched); without one the code cannot be checked, so the request is refused
++      const account = accounts.get(who) ?? (await witness('eth_getProof', [params[0], [], params[1]], deadline)).result;
++      if (account === undefined) return { error: 'no verified account proof for the code hash: refused' };
++      verify = (result) => proofs.checker.check({ op: 'getCode', ...at, params, result, account });
++    }
++    const reasons = [];
++    try {
++      for (const c of cache ? await (cache.candidates ? cache.candidates(w) : cache.get(w).then((x) => (x === undefined ? [] : [x]))) : []) {
++        const tag = `${w.key}:${sha256(JSON.stringify(c))}`;
++        if (quarantine.has(tag)) continue;
++        const v = await verify(c);
++        if (v.ok) { stats.cacheHits++; return { result: c }; }
++        remember(quarantine, tag); stats.cacheInvalid++;
++      }
++      const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method, params });
++      for (const u of upstreams) {
++        const s = stats.upstream[rpcLabel(u)];
++        let j;
++        try { j = await ask(u, body, deadline); } catch (e) { s.failed++; reasons.push(`${rpcLabel(u)}: ${String(e?.message || e).slice(0, 80)}`); continue; }
++        if (j.error || !('result' in j)) { s.failed++; reasons.push(`${rpcLabel(u)}: ${String(j.error?.message ?? 'no result').slice(0, 80)}`); continue; }
++        const v = await verify(j.result);
++        if (!v.ok) { s.invalid++; reasons.push(`${rpcLabel(u)}: invalid witness (${String(v.error).slice(0, 80)})`); continue; }
++        s.ok++;
++        if (cache) await cache.put(w, j.result).then(() => { stats.cachePuts++; }, () => {});
++        return { result: j.result };
++      }
++    } catch (e) {
++      stats.verifierUnavailable++;
++      return { error: `witness verifier unavailable (${String(e?.message || e).slice(0, 80)}): refused` };
++    }
++    return { error: `no verifiable witness${reasons.length ? ': ' + reasons.join('; ').slice(0, 400) : ' (no cached entry, no upstream)'}` };
++  }
+ 
+   async function handle(req) {
+     if (!req || typeof req !== 'object' || req.jsonrpc !== '2.0' || typeof req.method !== 'string') return err(req?.id, -32600, 'invalid request');
+     const params = req.params === undefined ? [] : req.params;
+     if (!methods.includes(req.method)) { stats.refused[req.method.slice(0, 64)] = (stats.refused[req.method.slice(0, 64)] || 0) + 1; return err(req.id, -32601, 'method not offered by the witness gateway'); }
++    const deadline = Date.now() + deadlineMs;
++    if (PINNED.has(req.method)) {
++      const r = await witness(req.method, params, deadline);
++      if ('result' in r) return ok(req.id, r.result);
++      stats.unavailable++;
++      return err(req.id, r.code ?? -32000, r.error);
++    }
+     const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: req.method, params });
+-    const w = cache ? witnessKey(req.method, params) : null;
+     const broadcast = req.method === 'eth_sendRawTransaction';
+     let lastError = null, sent = null;
+     for (const u of upstreams) {
+       const s = stats.upstream[rpcLabel(u)];
+       try {
+-        const j = await call(u, body, fetch, timeoutMs);
++        const j = await ask(u, body, deadline);
+         if (j.error) { s.failed++; lastError = j.error; continue; }
+         s.ok++;
+-        if (w) cache.put(w, j.result).then(() => { stats.cachePuts++; }, () => {});
+-        if (!broadcast) return { jsonrpc: '2.0', id: req.id ?? null, result: j.result };
++        if (!broadcast) return ok(req.id, j.result);
+         sent ??= j.result;
+       } catch (e) { s.failed++; lastError = { code: -32000, message: `${rpcLabel(u)}: ${String(e?.message || e).slice(0, 120)}` }; }
+     }
+-    if (sent !== null) return { jsonrpc: '2.0', id: req.id ?? null, result: sent };
+-    if (w) {
+-      const hit = await cache.get(w);
+-      if (hit !== undefined) { stats.cacheHits++; return { jsonrpc: '2.0', id: req.id ?? null, result: hit }; }
+-    }
++    if (sent !== null) return ok(req.id, sent);
+     stats.unavailable++;
+     return err(req.id, lastError?.code ?? -32000, broadcast ? 'no upstream accepted the transaction; nothing was sent' : `no witness source answered${lastError?.message ? ': ' + String(lastError.message).slice(0, 160) : ''}`);
+   }
+@@ -128,5 +244,5 @@ export function createWitnessGateway({ upstreams = [], cache = null, timeoutMs =
+     return `http://127.0.0.1:${server.address().port}/`;
+   }
+   async function close() { if (server) { server.closeAllConnections?.(); await new Promise((r) => server.close(() => r())); server = null; } }
+-  return { handle, listen, close, stats: () => structuredClone(stats) };
++  return { handle, listen, close, stats: () => structuredClone({ ...stats, quarantined: quarantine.size }) };
+ }
+diff --git a/network/witness-verify.mjs b/network/witness-verify.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..1cf4dbb7064a4f53fc77533051834e2b4f5d10b2
+--- /dev/null
++++ b/network/witness-verify.mjs
+@@ -0,0 +1,138 @@
++// What the witness gateway (network/witness-gateway.mjs) needs to tell a VALID witness from an invalid one before it
++// serves or caches it, without trusting any witness source:
++//
++//   * createWitnessChecker: a client of `witness-check`, a small native helper built from the patched Helios fork
++//     (opstack/bin/witness-check.rs, branch enclave-witness-check). Every check is Helios's own code: the sequencer
++//     commitment signature + payload conversion its opstack consensus client applies, and the account/storage MPT
++//     proof and code-hash checks its execution provider applies, plus exact request binding. No crypto is reimplemented
++//     here. The helper is offline, holds only the pinned signer and chain id, and answers one JSON line per request.
++//   * createRootStore: authenticated (block hash -> state root) bindings, taken ONLY from signed sequencer commitments
++//     read from the consensus head API (GET <consensusUrl>/latest: the same source and API Helios's --consensus-rpc
++//     reads) and verified by the helper. Never from an execution/witness source, and never from Helios: the gateway
++//     serves Helios, so asking Helios for roots would be circular.
++//     A root is a binding for THAT block only. It says nothing about freshness: a block-hash-pinned witness is history,
++//     and Helios's own head checks (check_head_age) decide what is fresh.
++//   * readBounded: an HTTP body read that stops at a byte limit WHILE reading.
++import { spawn } from 'node:child_process';
++import { rpcEndpoint } from './rpc-identity.mjs';
++
++const HASH = /^0x[0-9a-fA-F]{64}$/;
++
++/** Read a fetch Response body as text, refusing (and cancelling the stream) as soon as it exceeds maxBytes. */
++export async function readBounded(response, maxBytes) {
++  const declared = Number(response.headers?.get?.('content-length'));
++  if (Number.isFinite(declared) && declared > maxBytes) { await response.body?.cancel?.().catch(() => {}); throw new Error('response too large'); }
++  const reader = response.body?.getReader?.();
++  if (!reader) throw new Error('response has no readable body stream');
++  const chunks = []; let size = 0;
++  for (;;) {
++    const { done, value } = await reader.read();
++    if (done) break;
++    size += value.byteLength;
++    if (size > maxBytes) { await reader.cancel().catch(() => {}); throw new Error('response too large'); }
++    chunks.push(value);
++  }
++  return Buffer.concat(chunks.map((c) => Buffer.from(c.buffer, c.byteOffset, c.byteLength)), size).toString('utf8');
++}
++
++/**
++ * bin: the witness-check executable; chainId, signer: the pinned chain and unsafe-block signer (the same pins Helios is
++ * given). -> {check(request) -> {ok, ...}, close()}. A check that cannot complete (helper missing, crashed, over
++ * timeoutMs, queue full) REJECTS: the caller must refuse, never treat it as a pass. The helper is restarted on next use.
++ */
++export function createWitnessChecker({ bin, chainId, signer, timeoutMs = 10000, maxPending = 256, maxRequestBytes = 48 << 20 } = {}) {
++  if (typeof bin !== 'string' || !bin) throw new Error('witness-check binary path required');
++  if (!Number.isSafeInteger(chainId) || chainId <= 0) throw new Error('chainId required');
++  if (!/^0x[0-9a-fA-F]{40}$/.test(signer || '')) throw new Error('signer address required');
++  let child = null, buffer = '', seq = 0;
++  const pending = new Map();
++  const failAll = (why) => { for (const p of pending.values()) { clearTimeout(p.timer); p.reject(new Error(why)); } pending.clear(); };
++  function start() {
++    const c = spawn(bin, ['--chain-id', String(chainId), '--signer', signer], { stdio: ['pipe', 'pipe', 'ignore'] });
++    c.stdout.setEncoding('utf8');
++    c.stdout.on('data', (d) => {
++      buffer += d;
++      if (buffer.length > 1 << 20) { failAll('witness verifier output too long'); c.kill('SIGKILL'); return; }
++      for (let i; (i = buffer.indexOf('\n')) >= 0;) {
++        const line = buffer.slice(0, i); buffer = buffer.slice(i + 1);
++        let reply; try { reply = JSON.parse(line); } catch { continue; }
++        const p = pending.get(reply.id);
++        if (!p) continue;
++        pending.delete(reply.id); clearTimeout(p.timer); p.resolve(reply);
++      }
++    });
++    c.stdin.on('error', () => {});
++    c.on('error', () => {});
++    c.on('exit', () => { if (child === c) { child = null; buffer = ''; failAll('witness verifier exited'); } });
++    return c;
++  }
++  async function check(request) {
++    if (pending.size >= maxPending) throw new Error('witness verifier queue full');
++    const id = ++seq;
++    const line = JSON.stringify({ ...request, id }) + '\n';
++    if (Buffer.byteLength(line) > maxRequestBytes) throw new Error('witness check request too large');
++    child ??= start();
++    const c = child;
++    return new Promise((resolve, reject) => {
++      const timer = setTimeout(() => {
++        // a hung verifier is killed: every pending check fails (callers refuse) and the next check restarts it
++        if (child === c) { child = null; buffer = ''; }
++        failAll('witness verifier timed out'); c.kill('SIGKILL');
++      }, timeoutMs);
++      pending.set(id, { resolve, reject, timer });
++      c.stdin.write(line);
++    });
++  }
++  function close() { const c = child; child = null; failAll('witness verifier closed'); c?.kill('SIGKILL'); }
++  return { check, close };
++}
++
++/**
++ * checker: createWitnessChecker. consensusUrl: the consensus head API (https, or http on loopback). -> {rootFor(hash),
++ * addCommitment(commitment), refresh(), start(pollMs), stop(), stats()}. Keeps at most maxRoots bindings (oldest by
++ * insertion dropped). A block hash seen with two different state roots is never served (it cannot happen for a valid
++ * hash; if it does, the store refuses rather than choose).
++ */
++export function createRootStore({ checker, consensusUrl, fetch = globalThis.fetch, timeoutMs = 5000, maxRoots = 8192, maxCommitmentBytes = 8 << 20 } = {}) {
++  if (!checker?.check) throw new Error('checker required');
++  const base = consensusUrl === undefined ? null : rpcEndpoint(consensusUrl).url.href.replace(/\/?$/, '/');
++  const roots = new Map(), conflicted = new Set();
++  const stats = { verified: 0, refused: 0, conflicts: 0, polls: 0, pollFailures: 0 };
++  let inflight = null, timer = null;
++
++  async function addCommitment(commitment) {
++    const r = await checker.check({ op: 'head', commitment });
++    if (!r.ok) { stats.refused++; return null; }
++    const hash = String(r.blockHash).toLowerCase(), stateRoot = String(r.stateRoot).toLowerCase();
++    if (!HASH.test(hash) || !HASH.test(stateRoot)) { stats.refused++; return null; }
++    const had = roots.get(hash);
++    if (had && had.stateRoot !== stateRoot) { conflicted.add(hash); stats.conflicts++; return null; }
++    if (!had) {
++      stats.verified++;
++      roots.set(hash, { blockHash: hash, stateRoot, number: r.number, timestamp: r.timestamp });
++      if (roots.size > maxRoots) roots.delete(roots.keys().next().value);
++    }
++    return roots.get(hash);
++  }
++  async function poll() {
++    if (!base) return null;
++    stats.polls++;
++    try {
++      const res = await fetch(base + 'latest', { redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(timeoutMs) });
++      if (!res.ok) throw new Error('HTTP ' + res.status);
++      const c = JSON.parse(await readBounded(res, maxCommitmentBytes));
++      return c ? await addCommitment(c) : null;     // null: the source has no head to offer (e.g. stale)
++    } catch { stats.pollFailures++; return null; }
++  }
++  /** One coalesced poll of the head source. */
++  function refresh() { return (inflight ??= poll().finally(() => { inflight = null; })); }
++  async function rootFor(blockHash) {
++    const h = String(blockHash).toLowerCase();
++    if (conflicted.has(h)) return null;
++    if (!roots.has(h)) await refresh();             // a head Helios just adopted may be newer than our last poll
++    return conflicted.has(h) ? null : roots.get(h) || null;
++  }
++  function start(pollMs = 1000) { stop(); timer = setInterval(() => { refresh(); }, pollMs); timer.unref?.(); }
++  function stop() { if (timer) clearInterval(timer); timer = null; }
++  return { rootFor, addCommitment, refresh, start, stop, stats: () => ({ ...stats, roots: roots.size, conflicted: conflicted.size }) };
++}
+diff --git a/test/helios-witness-failover.e2e.test.mjs b/test/helios-witness-failover.e2e.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..7a34bda8267d6666f539f24b3979153638d992f5
+--- /dev/null
++++ b/test/helios-witness-failover.e2e.test.mjs
+@@ -0,0 +1,145 @@
++// END-TO-END (offline, `unshare -r -n`): the REAL patched Helios (enclave-base-evm) recomputes REAL Base mainnet calls
++// (fixture base-calls-20261023T014412Z, block 52965249) through the witness gateway while the FIRST witness source lies
++// on every answer and the second answers from the recorded real witnesses. The gateway verifies each answer with the
++// native witness-check helper (Helios's proof code) against the root of the signed fixture head (from the consensus
++// API, never from a witness source), so the liar costs one try per witness and Helios still gets every witness.
++// Then every source is gone and a fresh gateway serves Helios from the cache alone, although that cache also holds
++// the malformed single-slot entries the earlier gateway would have kept forever and forged content-addressed entries.
++// The head signature is the fixture's TEST key: this proves witness failover and cache integrity on real state, not
++// head authenticity or fresh-source availability.
++//   env: HELIOS_BASE_BIN, WITNESS_CHECK_BIN, BASE_FIXTURE_DIR, TEST_TMP
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { spawn } from 'node:child_process';
++import fs from 'node:fs';
++import path from 'node:path';
++import http from 'node:http';
++import net from 'node:net';
++import { createWitnessGateway, dirWitnessCache, witnessKey, WITNESS_METHODS } from '../network/witness-gateway.mjs';
++import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
++
++const { HELIOS_BASE_BIN, WITNESS_CHECK_BIN, BASE_FIXTURE_DIR } = process.env;
++const fixture = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'fixture.json'), 'utf8'));
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'witness-failover-'));
++const NO_HINT = WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList');
++const CALLS = fixture.calls.filter((c) => c.helios?.result !== undefined && c.helios.result === c.p1.result);
++const RECORDED = new Map();
++for (const f of fs.readdirSync(path.join(BASE_FIXTURE_DIR, 'cache', fixture.block.hash))) {
++  const e = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'cache', fixture.block.hash, f), 'utf8'));
++  const [method, params] = JSON.parse(e.request);
++  RECORDED.set(witnessKey(method, params).key, e.result);
++}
++const children = new Set(), servers = [];
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const freePort = () => new Promise((r) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
++async function rpc(url, method, params = []) {
++  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(90000) });
++  const j = await r.json();
++  if (j.error) throw Object.assign(new Error(j.error.message || JSON.stringify(j.error)), { rpc: j.error });
++  return j.result;
++}
++async function serve(handler) {
++  const s = http.createServer((q, res) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', () => res.end(JSON.stringify(handler(b ? JSON.parse(b) : null, q)))); });
++  servers.push(s);
++  await new Promise((r) => s.listen(0, '127.0.0.1', r));
++  return `http://127.0.0.1:${s.address().port}/`;
++}
++// the liar rotates through malformed, cryptographically invalid and unbound answers
++let lies = 0;
++function lie(j, r) {
++  const v = structuredClone(r);
++  switch (lies++ % 4) {
++    case 0: return { accountProof: 'not-an-array' };
++    case 1: if (typeof v === 'string') return v.slice(0, -2) + (v.endsWith('00') ? '01' : '00');
++      v.balance = '0x' + (BigInt(v.balance) + 1n).toString(16); return v;
++    case 2: if (typeof v === 'string') return '0x';
++      v.accountProof[v.accountProof.length - 1] = v.accountProof.at(-1).slice(0, -2) + (v.accountProof.at(-1).endsWith('00') ? '01' : '00'); return v;
++    default: if (typeof v === 'string') return v + '00';
++      v.storageProof = v.storageProof.slice(1); v.nonce = '0x' + (BigInt(v.nonce) + 1n).toString(16); return v;
++  }
++}
++let consensusUrl, goodUrl, liarUrl, checker;
++const lied = [];
++test.before(async () => {
++  consensusUrl = await serve((_, q) => (q.url === '/chain_id' ? 8453 : fixture.commitment));
++  goodUrl = await serve((j) => { const r = RECORDED.get(witnessKey(j.method, j.params)?.key); return r === undefined ? { jsonrpc: '2.0', id: j.id, error: { code: -32000, message: 'not recorded' } } : { jsonrpc: '2.0', id: j.id, result: r }; });
++  liarUrl = await serve((j) => { const r = RECORDED.get(witnessKey(j.method, j.params)?.key); if (r === undefined) return { jsonrpc: '2.0', id: j.id, error: { code: -32000, message: 'x' } }; lied.push(j.method); return { jsonrpc: '2.0', id: j.id, result: lie(j, r) }; });
++  checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: fixture.testSequencerSigner });
++});
++test.after(async () => {
++  for (const p of [...children]) p.kill('SIGKILL');
++  checker?.close();
++  for (const s of servers) { s.closeAllConnections?.(); s.close(); }
++  fs.rmSync(TMP, { recursive: true, force: true });
++});
++async function helios(gatewayUrl, tag) {
++  const home = path.join(TMP, 'home-' + tag); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
++  fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${fixture.testSequencerSigner}"\n`);
++  const port = await freePort();
++  const p = spawn(HELIOS_BASE_BIN, ['opstack', '--network', 'base', '--consensus-rpc', consensusUrl, '--execution-rpc', gatewayUrl, '--rpc-port', String(port)],
++    { env: { HOME: home, PATH: process.env.PATH }, stdio: 'ignore' });
++  children.add(p); p.on('exit', () => children.delete(p));
++  const url = `http://127.0.0.1:${port}/`, num = '0x' + fixture.block.number.toString(16);
++  for (let i = 0; i < 240; i++) { try { if ((await rpc(url, 'eth_getBlockByNumber', [num, false]))?.hash === fixture.block.hash) return { p, url }; } catch {} await sleep(250); }
++  throw new Error('helios did not adopt the fixture head');
++}
++async function gateway(upstreams, cacheDir) {
++  const roots = createRootStore({ checker, consensusUrl });
++  const g = createWitnessGateway({ upstreams, cache: cacheDir && dirWitnessCache(cacheDir), proofs: { checker, roots }, methods: NO_HINT });
++  return { g, url: await g.listen(0) };
++}
++const AT = () => ({ blockHash: fixture.block.hash });
++const T = { timeout: 600000 };
++const CACHE = () => path.join(TMP, 'cache');
++
++test('a lying first source cannot deny service: every real call still matches the providers, and only verified witnesses are cached', T, async (t) => {
++  // pre-poison the cache the way the earlier gateway would have kept it: a malformed single-slot (legacy) entry for
++  // EVERY recorded request, under the recorded request's own key
++  const { g, url } = await gateway([liarUrl, goodUrl], CACHE());
++  for (const f of fs.readdirSync(path.join(BASE_FIXTURE_DIR, 'cache', fixture.block.hash))) {
++    const e = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'cache', fixture.block.hash, f), 'utf8'));
++    fs.mkdirSync(path.join(CACHE(), fixture.block.hash), { recursive: true });
++    fs.writeFileSync(path.join(CACHE(), fixture.block.hash, f), JSON.stringify({ ...e, result: { accountProof: 'not-an-array' } }));
++  }
++  const h = await helios(url, 'liar-first');
++  t.after(async () => { h.p.kill('SIGKILL'); await g.close(); });
++  for (const c of CALLS) {
++    assert.equal(await rpc(h.url, 'eth_call', [c.tx, AT()]), c.p1.result, c.name);
++    t.diagnostic(`${c.name}: ok`);
++  }
++  const st = g.stats();
++  t.diagnostic(`gateway stats: ${JSON.stringify(st)}`);
++  const [liar, good] = Object.values(st.upstream);
++  assert.equal(liar.ok, 0, 'no lie was ever accepted');
++  assert.ok(liar.invalid >= CALLS.length && liar.invalid === lied.length, `every lie was judged invalid (${liar.invalid}/${lied.length})`);
++  assert.equal(good.invalid, 0);
++  assert.equal(st.unavailable, 0, 'no witness was denied');
++  assert.ok(st.cacheInvalid >= good.ok, 'each poisoned legacy entry was checked and quarantined before a source was asked');
++  assert.equal(st.cachePuts, good.ok, 'exactly the verified answers were stored');
++});
++
++test('every source gone: a fresh cache-only gateway serves the verified witnesses and refuses everything else', T, async (t) => {
++  const { g, url } = await gateway([], CACHE());
++  const h = await helios(url, 'cache-only');
++  t.after(async () => { h.p.kill('SIGKILL'); await g.close(); });
++  for (const c of CALLS) assert.equal(await rpc(h.url, 'eth_call', [c.tx, AT()]), c.p1.result, c.name);
++  const st = g.stats();
++  t.diagnostic(`gateway stats: ${JSON.stringify(st)}`);
++  assert.equal(st.unavailable, 0);
++  assert.ok(st.cacheHits > 0);
++  // a witness never verified (an account the calls never touched) has no source: refused, not guessed
++  await assert.rejects(rpc(h.url, 'eth_getBalance', ['0x000000000000000000000000000000000000dEaD', AT()]));
++});
++
++test('with only the lying source, Helios gets refusals and nothing is cached', T, async (t) => {
++  const dir = path.join(TMP, 'cache-liar-only');
++  const { g, url } = await gateway([liarUrl], dir);
++  const h = await helios(url, 'liar-only');
++  t.after(async () => { h.p.kill('SIGKILL'); await g.close(); });
++  await assert.rejects(rpc(h.url, 'eth_call', [CALLS[0].tx, AT()]));
++  const st = g.stats();
++  assert.equal(Object.values(st.upstream)[0].ok, 0);
++  assert.ok(Object.values(st.upstream)[0].invalid >= 1);
++  assert.equal(st.cachePuts, 0);
++  assert.ok(!fs.existsSync(dir) || fs.readdirSync(dir, { recursive: true }).every((n) => !n.endsWith('.json')), 'no entry written');
++});
+diff --git a/test/witness-failover.test.mjs b/test/witness-failover.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..d761851f66a9dbf14f5593ece10efeebf4d3366b
+--- /dev/null
++++ b/test/witness-failover.test.mjs
+@@ -0,0 +1,248 @@
++// Proof-aware failover and cache-poisoning resistance of network/witness-gateway.mjs, checked with the REAL native
++// verifier (witness-check, built from the patched Helios fork: Helios's own commitment and proof code) against REAL
++// recorded Base mainnet witnesses (block 52965249, rpc-priority fixture base-calls-20261023T014412Z). No injected
++// validator: every accept/refuse below is the helper's verdict against the state root of a signed head.
++// The head is signed by the fixture's TEST key (as in the replay E2E): this checks witness verification, not head
++// authenticity. Upstreams are local stubs. Run offline (`unshare -r -n`).
++//   env: WITNESS_CHECK_BIN, BASE_FIXTURE_DIR, TEST_TMP
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { createHash } from 'node:crypto';
++import { createWitnessGateway, dirWitnessCache, witnessKey, WITNESS_METHODS } from '../network/witness-gateway.mjs';
++import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
++
++const { WITNESS_CHECK_BIN, BASE_FIXTURE_DIR } = process.env;
++const fixture = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'fixture.json'), 'utf8'));
++const HASH = fixture.block.hash;
++const RECORDED = new Map();                     // witnessKey -> recorded real answer (from mainnet.base.org)
++for (const f of fs.readdirSync(path.join(BASE_FIXTURE_DIR, 'cache', HASH))) {
++  const e = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'cache', HASH, f), 'utf8'));
++  const [method, params] = JSON.parse(e.request);
++  RECORDED.set(witnessKey(method, params).key, { method, params, result: e.result });
++}
++const pick = (method, addr, nkeys) => [...RECORDED.values()].find((r) => r.method === method && r.params[0] === addr && (nkeys === undefined || r.params[1].length === nkeys));
++const BOOK = '0xab214342d5a490150a4a977063a2f88e21f80907';
++const PROOF = pick('eth_getProof', BOOK, 1), PROOF0 = pick('eth_getProof', BOOK, 0), CODE = pick('eth_getCode', BOOK);
++const req = (r, id = 1) => ({ jsonrpc: '2.0', id, method: r.method, params: r.params });
++const tmp = () => fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 'wf-'));
++const flipLast = (hex) => hex.slice(0, -1) + (hex.endsWith('0') ? '1' : '0');
++const NO_HINT = WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList');
++
++// Upstream stubs: `answer(j)` -> a JSON-RPC body object, or a function (req, res) taking over the response.
++const servers = [];
++function upstream(answer) {
++  const seen = []; let active = 0, maxActive = 0;
++  const s = http.createServer((q, res) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', async () => {
++    const j = JSON.parse(b); seen.push(j.method); active++; maxActive = Math.max(maxActive, active);
++    res.on('close', () => { active--; });
++    const out = await answer(j);
++    if (typeof out === 'function') return out(q, res);
++    res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, ...out }));
++  }); });
++  servers.push(s);
++  return new Promise((r) => s.listen(0, '127.0.0.1', () => r({ s, seen, url: `http://127.0.0.1:${s.address().port}/`, maxActive: () => maxActive })));
++}
++const good = () => upstream((j) => { const r = RECORDED.get(witnessKey(j.method, j.params)?.key); return r ? { result: r.result } : { error: { code: -32000, message: 'not recorded' } }; });
++// a lying source: `mutate` rewrites its answers to `method` (default: every witness method); other answers stay recorded
++const bad = (mutate, method) => upstream((j) => { const r = RECORDED.get(witnessKey(j.method, j.params)?.key); return r ? { result: !method || j.method === method ? mutate(structuredClone(r.result), j) : r.result } : { error: { code: -32000, message: 'not recorded' } }; });
++
++let consensus, checker;
++test.before(async () => {
++  consensus = http.createServer((q, res) => res.end(JSON.stringify(q.url === '/chain_id' ? 8453 : fixture.commitment)));
++  await new Promise((r) => consensus.listen(0, '127.0.0.1', r));
++  checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: fixture.testSequencerSigner });
++});
++test.after(() => { checker?.close(); consensus?.close(); for (const s of servers) { s.closeAllConnections?.(); s.close(); } });
++const consensusUrl = () => `http://127.0.0.1:${consensus.address().port}/`;
++function gw(upstreams, opts = {}) {
++  const roots = createRootStore({ checker, consensusUrl: consensusUrl() });
++  return createWitnessGateway({ upstreams: upstreams.map((u) => u.url), methods: NO_HINT, proofs: { checker, roots }, ...opts });
++}
++
++test('roots come only from a signed head verified by the native helper; a wrong signer yields no root and a refusal', async () => {
++  const roots = createRootStore({ checker, consensusUrl: consensusUrl() });
++  const r = await roots.rootFor(HASH);
++  assert.equal(r.blockHash, HASH.toLowerCase());
++  assert.equal(r.stateRoot, fixture.block.stateRoot.toLowerCase());
++  assert.equal(r.number, fixture.block.number);
++  const other = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: '0x' + '11'.repeat(20) });
++  try {
++    const wrong = createRootStore({ checker: other, consensusUrl: consensusUrl() });
++    assert.equal(await wrong.rootFor(HASH), null);
++    assert.equal(wrong.stats().refused, 1);
++    const g0 = await good();
++    const g = createWitnessGateway({ upstreams: [g0.url], methods: NO_HINT, proofs: { checker: other, roots: wrong } });
++    const out = await g.handle(req(PROOF));
++    assert.match(out.error.message, /no authenticated state root/);
++    assert.deepEqual(g0.seen, [], 'no upstream is asked for a block without an authenticated root');
++  } finally { other.close(); }
++});
++
++test("root's probe: a malformed first answer costs only that try; the second source's valid proof is served and cached", async (t) => {
++  const dir = tmp(); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const first = await bad(() => ({ accountProof: 'not-an-array' })), second = await good();
++  const cache = dirWitnessCache(dir);
++  const g = gw([first, second], { cache });
++  const out = await g.handle(req(PROOF));
++  assert.deepEqual(out.result, PROOF.result);
++  assert.deepEqual([first.seen, second.seen], [['eth_getProof'], ['eth_getProof']]);
++  const st = g.stats();
++  assert.deepEqual(Object.values(st.upstream).map((x) => [x.ok, x.invalid]), [[0, 1], [1, 0]]);
++  const w = witnessKey(PROOF.method, PROOF.params);
++  assert.deepEqual(await cache.candidates(w), [PROOF.result], 'only the verified answer was stored');
++});
++
++test('cryptographically invalid but well-formed answers are refused, each in favour of the next source', async (t) => {
++  const g1 = await good();
++  const cases = [
++    ['tampered account proof node', PROOF, (r) => { r.accountProof[r.accountProof.length - 1] = flipLast(r.accountProof[r.accountProof.length - 1]); return r; }],
++    ['tampered storage value', PROOF, (r) => { r.storageProof[0].value = '0x1234'; return r; }],
++    ['forged balance', PROOF, (r) => { r.balance = '0xde0b6b3a7640000'; return r; }],
++    ['proof for another account', PROOF0, () => pick('eth_getProof', '0x4200000000000000000000000000000000000015', 0).result],
++    ['an extra, unrequested storage proof', PROOF0, (r) => { r.storageProof = PROOF.result.storageProof; return r; }],
++    ['a requested storage proof missing', PROOF, (r) => { r.storageProof = []; return r; }],
++    ['code that does not hash to the proven code hash', CODE, (r) => flipLast(r)],
++    ['empty code for an account with code', CODE, () => '0x'],
++    ['null', PROOF, () => null],
++  ];
++  for (const [name, rec, mutate] of cases) {
++    const b = await bad(mutate, rec.method);
++    const g = gw([b, g1]);
++    const out = await g.handle(req(rec));
++    assert.deepEqual(out.result, rec.result, name);
++    const [sb, sg] = Object.values(g.stats().upstream);
++    assert.equal(sb.invalid, 1, `${name}: the bad source was judged invalid`);
++    assert.equal(sg.invalid, 0, name);
++    // and with ONLY the bad source, nothing is returned
++    const alone = gw([b]);
++    const refused = await alone.handle(req(rec));
++    assert.equal(refused.result, undefined, name);
++    assert.match(refused.error.message, /no verifiable witness/, name);
++  }
++});
++
++test('valid proofs need not be byte-identical: a differently encoded valid answer is accepted on its merits', async () => {
++  // same proof, other spellings: upper-case hex digits in the address and in every proof node
++  const b = await bad((r) => ({ ...r, address: '0x' + r.address.slice(2).toUpperCase(),
++    accountProof: r.accountProof.map((n) => '0x' + n.slice(2).toUpperCase()) }));
++  const g = gw([b]);
++  const out = await g.handle(req(PROOF));
++  assert.ok(out.result, out.error?.message);
++  assert.notDeepEqual(out.result, PROOF.result);
++  assert.equal(Object.values(g.stats().upstream)[0].ok, 1);
++});
++
++test('the cache: a bad first write never shadows a verified entry; cache-only later serves verified data and quarantines the rest', async (t) => {
++  const dir = tmp(); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const w = witnessKey(PROOF.method, PROOF.params), wc = witnessKey(CODE.method, CODE.params);
++  // root's probe exactly: the earlier gateway's single-slot create-only file holds the malformed first answer ...
++  fs.mkdirSync(path.join(dir, w.blockHash), { recursive: true });
++  fs.writeFileSync(path.join(dir, w.blockHash, w.key + '.json'), JSON.stringify({ format: 'enclave-witness-rpc/v1', request: w.norm, result: { accountProof: 'not-an-array' } }));
++  // ... and a tampered store adds a well-formed forgery under its own (correct) content address
++  const cache = dirWitnessCache(dir);
++  await cache.put(wc, flipLast(CODE.result));
++  const forgedProof = structuredClone(PROOF.result); forgedProof.balance = '0x1';
++  await cache.put(w, forgedProof);
++  // a gateway with a bad and a good source verifies, serves and stores the good answers
++  const b = await bad(() => ({ accountProof: 'not-an-array' })), g1 = await good();
++  const g = gw([b, g1], { cache });
++  for (const r of [PROOF, CODE]) assert.deepEqual((await g.handle(req(r))).result, r.result);
++  assert.equal(g.stats().cacheInvalid, 3, 'the legacy malformed entry and both forgeries were checked and quarantined');
++  // later, every source is gone: a fresh cache-only gateway serves exactly the verified answers
++  const later = gw([], { cache: dirWitnessCache(dir) });
++  for (const r of [PROOF, CODE]) assert.deepEqual((await later.handle(req(r))).result, r.result, r.method);
++  const st = later.stats();
++  assert.equal(st.unavailable, 0);
++  assert.equal(st.cacheHits, 2, JSON.stringify(st));
++  // nothing was ever overwritten: the malformed legacy file and the forgeries are still there, just never served
++  assert.match(fs.readFileSync(path.join(dir, w.blockHash, w.key + '.json'), 'utf8'), /not-an-array/);
++  assert.equal((await dirWitnessCache(dir).candidates(w)).length, 3);
++  // a cache holding only bad entries refuses
++  const onlyBad = tmp(); t.after(() => fs.rmSync(onlyBad, { recursive: true, force: true }));
++  await dirWitnessCache(onlyBad).put(w, forgedProof);
++  const refused = await gw([], { cache: dirWitnessCache(onlyBad) }).handle(req(PROOF));
++  assert.equal(refused.result, undefined);
++  assert.match(refused.error.message, /no verifiable witness/);
++});
++
++test('cache entries are content-addressed, create-only and bound to their request', async (t) => {
++  const dir = tmp(); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const cache = dirWitnessCache(dir), w = witnessKey(PROOF.method, PROOF.params);
++  await cache.put(w, PROOF.result); await cache.put(w, PROOF.result);
++  const files = fs.readdirSync(path.join(dir, w.blockHash, w.key));
++  assert.deepEqual(files, [createHash('sha256').update(JSON.stringify(PROOF.result)).digest('hex') + '.json'], 'one immutable entry, no temp files');
++  // a file whose name is not the hash of its content, or whose request differs, is not a candidate
++  fs.writeFileSync(path.join(dir, w.blockHash, w.key, '0'.repeat(64) + '.json'), JSON.stringify({ format: 'enclave-witness-rpc/v1', request: w.norm, result: { x: 1 } }));
++  const other = { x: 2 };
++  fs.writeFileSync(path.join(dir, w.blockHash, w.key, createHash('sha256').update(JSON.stringify(other)).digest('hex') + '.json'),
++    JSON.stringify({ format: 'enclave-witness-rpc/v1', request: '["eth_getProof",[]]', result: other }));
++  assert.deepEqual(await cache.candidates(w), [PROOF.result]);
++});
++
++test('requests not pinned by block hash are refused; every refusal is an error, never an unchecked answer', async () => {
++  const g1 = await good();
++  const g = gw([g1]);
++  const out = await g.handle({ jsonrpc: '2.0', id: 1, method: 'eth_getProof', params: [BOOK, [], 'latest'] });
++  assert.equal(out.error.code, -32602);
++  assert.deepEqual(g1.seen, []);
++  assert.throws(() => createWitnessGateway({ upstreams: [g1.url] }), /need proofs/);
++  assert.throws(() => createWitnessGateway({ upstreams: [g1.url], methods: ['eth_chainId'], cache: dirWitnessCache(tmp()) }), /need proofs/);
++});
++
++test('bounds: oversized bodies are cut off while reading, hung sources cost one timeout, the request deadline holds', async (t) => {
++  let sentBytes = 0, closedEarly = false;
++  const huge = await upstream(() => (q, res) => {
++    res.writeHead(200, { 'content-type': 'application/json' });
++    const chunk = Buffer.alloc(64 * 1024, 0x20);
++    const pump = () => { while (sentBytes < 256 << 20) { sentBytes += chunk.length; if (!res.write(chunk)) { res.once('drain', pump); return; } } res.end(); };
++    res.on('close', () => { if (sentBytes < 256 << 20) closedEarly = true; });
++    res.write('{"jsonrpc":"2.0","id":1,"result":"'); pump();
++  });
++  const declared = await upstream(() => (q, res) => { res.writeHead(200, { 'content-length': String(64 << 20) }); res.write('{'); });
++  const hung = await upstream(() => () => {});
++  const g1 = await good();
++  const g = gw([huge, declared, hung, g1], { maxResponseBytes: 1 << 20, timeoutMs: 400, deadlineMs: 5000 });
++  const t0 = Date.now();
++  assert.deepEqual((await g.handle(req(PROOF))).result, PROOF.result);
++  assert.ok(Date.now() - t0 < 4000);
++  await new Promise((r) => setTimeout(r, 100));
++  assert.ok(closedEarly && sentBytes < 64 << 20, `the oversized stream was abandoned early (${sentBytes} bytes offered)`);
++  const fails = Object.values(g.stats().upstream).map((x) => x.failed);
++  assert.deepEqual(fails, [1, 1, 1, 0]);
++  // with only hung sources the whole request ends at its deadline
++  const g2 = gw([hung, (await upstream(() => () => {}))], { timeoutMs: 600, deadlineMs: 800 });
++  const t1 = Date.now();
++  assert.match((await g2.handle(req(PROOF))).error.message, /no verifiable witness/);
++  assert.ok(Date.now() - t1 < 1500, `deadline held (${Date.now() - t1} ms)`);
++});
++
++test('bounds: upstream requests in flight are capped across a batch', async () => {
++  const slow = await upstream(async (j) => { await new Promise((r) => setTimeout(r, 60)); const r = RECORDED.get(witnessKey(j.method, j.params)?.key); return r ? { result: r.result } : { error: { code: -32000, message: 'x' } }; });
++  const g = gw([slow], { maxInFlight: 2 });
++  const proofs = [...RECORDED.values()].filter((r) => r.method === 'eth_getProof').slice(0, 10);
++  const out = await Promise.all(proofs.map((r, i) => g.handle(req(r, i))));
++  assert.ok(out.every((o, i) => JSON.stringify(o.result) === JSON.stringify(proofs[i].result)));
++  assert.ok(slow.maxActive() <= 2, `max in flight ${slow.maxActive()}`);
++});
++
++test('an unavailable or hung verifier fails closed: refusal, never the unverified answer', async (t) => {
++  const dir = tmp(); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const hang = path.join(dir, 'hang.sh');
++  fs.writeFileSync(hang, '#!/bin/sh\nexec cat >/dev/null\n', { mode: 0o755 });
++  const g1 = await good();
++  for (const bin of ['/bin/false', hang]) {
++    const c = createWitnessChecker({ bin, chainId: 8453, signer: fixture.testSequencerSigner, timeoutMs: 500 });
++    try {
++      // the real checker still authenticates the root; only the proof verifier is broken
++      const roots = createRootStore({ checker, consensusUrl: consensusUrl() });
++      const g = createWitnessGateway({ upstreams: [g1.url], methods: NO_HINT, proofs: { checker: c, roots } });
++      const out = await g.handle(req(PROOF));
++      assert.equal(out.result, undefined, bin);
++      assert.match(out.error.message, /verifier unavailable/, bin);
++    } finally { c.close(); }
++  }
++});
+diff --git a/test/witness-gateway.test.mjs b/test/witness-gateway.test.mjs
+index b994da1f2e147b27c813002235fa82617827fa77..0f7be1bea277b36dc8cb9ccf82a4ffa957a3f9be 100644
+--- a/test/witness-gateway.test.mjs
++++ b/test/witness-gateway.test.mjs
+@@ -1,12 +1,12 @@
+-// network/witness-gateway.mjs: allowlist, ordered failover, block-hash-pinned cache (create-only, outage fallback only),
+-// broadcast fan-out and refusal when every upstream is down. Upstreams are local stubs.
++// network/witness-gateway.mjs: allowlist, ordered failover for the methods Helios verifies itself, broadcast fan-out and
++// refusal when every upstream is down. Upstreams are local stubs. Verified witnesses (eth_getProof/eth_getCode) and the
++// cache need the real verifier: test/witness-failover.test.mjs.
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import http from 'node:http';
+-import fs from 'node:fs';
+-import os from 'node:os';
+-import path from 'node:path';
+-import { createWitnessGateway, dirWitnessCache, witnessKey } from '../network/witness-gateway.mjs';
++import { createWitnessGateway, witnessKey, WITNESS_METHODS, VERIFIED_METHODS } from '../network/witness-gateway.mjs';
++
++const PLAIN = WITNESS_METHODS.filter((m) => !VERIFIED_METHODS.includes(m));
+ 
+ const H = '0x' + 'ab'.repeat(32);
+ function stub(answer) {
+@@ -20,7 +20,6 @@ function stub(answer) {
+   return new Promise((r) => s.listen(0, '127.0.0.1', () => r({ s, seen, url: `http://127.0.0.1:${s.address().port}/` })));
+ }
+ const req = (method, params, id = 1) => ({ jsonrpc: '2.0', id, method, params });
+-const tmp = () => fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 'wg-'));
+ 
+ test('only block-hash-pinned proof and code requests are cache keys', () => {
+   assert.ok(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], { blockHash: H }]));
+@@ -38,7 +37,7 @@ test('only block-hash-pinned proof and code requests are cache keys', () => {
+ test('methods outside the witness allowlist are refused without touching an upstream', async (t) => {
+   const up = await stub(() => ({ result: '0x1' }));
+   t.after(() => up.s.close());
+-  const g = createWitnessGateway({ upstreams: [up.url] });
++  const g = createWitnessGateway({ upstreams: [up.url], methods: PLAIN });
+   for (const m of ['eth_accounts', 'eth_sign', 'debug_traceTransaction', 'admin_peers', 'eth_call', 'personal_unlockAccount'])
+     assert.equal((await g.handle(req(m, []))).error.code, -32601, m);
+   assert.deepEqual(up.seen, []);
+@@ -48,38 +47,22 @@ test('methods outside the witness allowlist are refused without touching an upst
+ test('upstreams are tried in order; a failed or erroring one costs a try, not the answer', async (t) => {
+   const a = await stub(() => 500), b = await stub(() => ({ error: { code: -32000, message: 'missing trie node' } })), c = await stub(() => ({ result: '0x2105' }));
+   t.after(() => { a.s.close(); b.s.close(); c.s.close(); });
+-  const g = createWitnessGateway({ upstreams: [a.url, b.url, c.url] });
++  const g = createWitnessGateway({ upstreams: [a.url, b.url, c.url], methods: PLAIN });
+   assert.equal((await g.handle(req('eth_chainId', []))).result, '0x2105');
+   const st = g.stats();
+   assert.deepEqual(Object.values(st.upstream).map((x) => [x.ok, x.failed]), [[0, 1], [0, 1], [1, 0]]);
+ });
+ 
+-test('pinned witnesses are cached create-only and served from the cache only when every upstream fails', async (t) => {
+-  const dir = tmp(); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+-  let value = '0xproof-1', up = await stub((j) => ({ result: j.method === 'eth_getProof' ? { v: value } : '0x1' }));
+-  const cache = dirWitnessCache(dir);
+-  const g = createWitnessGateway({ upstreams: [up.url], cache });
+-  const p = req('eth_getProof', ['0x' + '01'.repeat(20), ['0x0'], { blockHash: H }]);
+-  assert.deepEqual((await g.handle(p)).result, { v: '0xproof-1' });
+-  await new Promise((r) => setTimeout(r, 50));
+-  value = '0xproof-2';                                  // upstream answers differently: upstream wins while it is up
+-  assert.deepEqual((await g.handle(p)).result, { v: '0xproof-2' });
+-  await new Promise((r) => setTimeout(r, 50));
+-  up.s.close();                                         // every upstream down
+-  assert.deepEqual((await g.handle(p)).result, { v: '0xproof-1' }, 'create-only: the first entry stands');
+-  assert.equal(g.stats().cacheHits, 1);
+-  // a request at a block NUMBER is never cached, so it is simply unavailable now
+-  assert.match((await g.handle(req('eth_getProof', ['0x' + '01'.repeat(20), ['0x0'], 'latest']))).error.message, /no witness source answered/);
+-  // an entry whose recorded request differs (a misfiled or tampered file) is a miss
+-  const w = witnessKey(p.method, p.params);
+-  const f = path.join(dir, w.blockHash, w.key + '.json');
+-  fs.writeFileSync(f, JSON.stringify({ format: 'enclave-witness-rpc/v1', request: '["eth_getProof",[]]', result: { v: 'evil' } }));
+-  assert.match((await g.handle(p)).error.message, /no witness source answered/);
++test('witness methods and a cache are refused without a verifier: there is no unverified witness mode', () => {
++  assert.throws(() => createWitnessGateway({ upstreams: [] }), /need proofs/);
++  assert.throws(() => createWitnessGateway({ upstreams: [], methods: ['eth_getCode'] }), /need proofs/);
++  assert.throws(() => createWitnessGateway({ upstreams: [], methods: PLAIN, cache: { get: async () => undefined, put: async () => {} } }), /need proofs/);
++  assert.ok(createWitnessGateway({ upstreams: [], methods: PLAIN }));
+ });
+ 
+ test('a transaction goes to every upstream; with every upstream down nothing is sent and the caller is told', async (t) => {
+   const a = await stub(() => ({ result: '0x' + 'cd'.repeat(32) })), b = await stub(() => ({ result: '0x' + 'cd'.repeat(32) }));
+-  const g = createWitnessGateway({ upstreams: [a.url, b.url] });
++  const g = createWitnessGateway({ upstreams: [a.url, b.url], methods: PLAIN });
+   assert.equal((await g.handle(req('eth_sendRawTransaction', ['0x02']))).result, '0x' + 'cd'.repeat(32));
+   assert.deepEqual([a.seen, b.seen], [['eth_sendRawTransaction'], ['eth_sendRawTransaction']]);
+   a.s.close(); b.s.close();
+@@ -89,7 +72,7 @@ test('a transaction goes to every upstream; with every upstream down nothing is
+ 
+ test('the HTTP endpoint is loopback-only, bounds bodies and answers batches', async (t) => {
+   const up = await stub(() => ({ result: '0x2105' }));
+-  const g = createWitnessGateway({ upstreams: [up.url] });
++  const g = createWitnessGateway({ upstreams: [up.url], methods: PLAIN });
+   const url = await g.listen(0);
+   t.after(async () => { await g.close(); up.s.close(); });
+   assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/$/);

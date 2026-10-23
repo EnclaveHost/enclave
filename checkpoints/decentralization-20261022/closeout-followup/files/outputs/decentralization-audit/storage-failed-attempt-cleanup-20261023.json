@@ -1,0 +1,9 @@
+{
+  "stagingAbsent": true,
+  "restoredFiles": 1461,
+  "restoredBytes": 12651512877,
+  "resultPresent": false,
+  "checkedAt": "2026-10-23T02:32:40.033187+00:00",
+  "fullRecoveryVerified": false,
+  "note": "Failed attempt staging removed after terminal-handle verification; restored data retained. Counts include any incomplete files and are not a verified inventory."
+}

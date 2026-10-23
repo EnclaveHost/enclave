@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-23T02:38:50Z",
+  "sourceSha256": "160db08b6eb708694dbcf1241d00849f5162f19a953837303ce06b0de953b770",
+  "firstTransferBytes": 1024,
+  "newConnectionStatus": "01",
+  "healthyHalfClosedTransferTerminated": true,
+  "halfClosedEvicted": 1,
+  "loopError": null,
+  "openAtStop": 0,
+  "note": "Offline real AF_UNIX to TCP bridge. Old peer half-closes request and continuously receives response; new connection arrives at configured cap1. No production test."
+}

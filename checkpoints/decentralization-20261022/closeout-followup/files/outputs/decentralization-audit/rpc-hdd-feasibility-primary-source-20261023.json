@@ -1,0 +1,36 @@
+{
+  "checkedAt": "2026-10-23T02:50:01.986067+00:00",
+  "primarySources": [
+    {
+      "url": "https://docs.base.org/specifications/node-operators/performance-tuning",
+      "facts": [
+        "Minimum recommended CPU: modern 8+ cores with good single-core performance.",
+        "32 GB RAM minimum; 64 GB recommended.",
+        "Locally attached NVMe SSD recommended; RAID 0 can improve performance.",
+        "Capacity formula: 2 x current chain size + snapshot size +20% buffer."
+      ]
+    },
+    {
+      "url": "https://docs.base.org/specifications/node-operators/run-a-node",
+      "facts": [
+        "Base node requires Ethereum L1 execution and beacon endpoints; self-hosted L1 must be synced first."
+      ]
+    }
+  ],
+  "localReadOnlyObservation": {
+    "device": "/dev/sda",
+    "model": "JMicron H/W RAID5",
+    "sizeReported": "32.7 TiB",
+    "rotational": true,
+    "transport": "usb",
+    "queueDepth": 1
+  },
+  "benchmarkPerformed": false,
+  "reasonNoBenchmark": "No passwordless sudo available and current user lacks raw-disk access; no privileged-container workaround or device permission change attempted.",
+  "interpretation": "The earlier report uncertainty about 32/64 GB is resolved: these figures are RAM. HDD-only Base-node suitability remains unsupported and unbenchmarked, not a measured impossibility. Capacity alone does not establish live-node I/O performance.",
+  "unchangedConstraints": [
+    "No NVMe node hosting",
+    "No full-chain sync or node deployment",
+    "No formatting, RAID reconfiguration or purchase"
+  ]
+}
