@@ -10,7 +10,11 @@
 // them). The verifier REFUSES such proofs. The ledger, catalog and ownership contracts write zeros, so on anvil their
 // verified reads must refuse - asserted here; positive consumer paths over those contracts need a canonical chain.
 // AddressBook paths (no zero writes) are positive here.
-//   env: HELIOS_BASE_BIN, TEST_TMP. Needs anvil and contracts/foundry/out (as the rig does). Run inside `unshare -r -n`.
+// COMPOSED with the proof-aware gateway (witness-failover ce7c1b73), which serves no unverified witness: the gateway is
+// given the witness-check helper and a root store, and the head feed pushes each signed head to the root store before
+// serving it (the runtime's order). The feed signs each block's real parent beacon root, so a commitment's block hash
+// matches its contents (the native listener verifies that; Helios alone does not).
+//   env: HELIOS_BASE_BIN, WITNESS_CHECK_BIN, TEST_TMP. Needs anvil and contracts/foundry/out (as the rig does). Run inside `unshare -r -n`.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -24,10 +28,11 @@ import { LeaseReader } from '../network/lease-reader.mjs';
 import { createHostAdmission } from '../network/host-admission-runtime.mjs';
 import { hostAdmissionPolicyHash } from '../network/host-admission-policy.mjs';
 import { createWitnessGateway } from '../network/witness-gateway.mjs';
+import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
 import { makeCommitment, blockFields } from './fixtures/op-commitment.mjs';
 
-const { HELIOS_BASE_BIN } = process.env;
-const skip = haveTools() || (!HELIOS_BASE_BIN && 'HELIOS_BASE_BIN not set');
+const { HELIOS_BASE_BIN, WITNESS_CHECK_BIN } = process.env;
+const skip = haveTools() || (!HELIOS_BASE_BIN && 'HELIOS_BASE_BIN not set') || (!WITNESS_CHECK_BIN && 'WITNESS_CHECK_BIN not set');
 // RIG_CHAIN_NODE=reth: canonical state tries -> the positive consumer paths over ledger/catalog/ownership run; on anvil
 // (non-canonical zero leaves) the same reads must refuse.
 const canonical = process.env.RIG_CHAIN_NODE === 'reth';
@@ -36,7 +41,7 @@ const SEQ_KEY = '0x' + '5e'.repeat(32), seqSigner = privateKeyToAccount(SEQ_KEY)
 const OUT = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'contracts/foundry/out');
 const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, `${name}.json`), 'utf8')); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-let rig, helios, heliosUrl, feed, proxy, gateway, reader, book, bookAbi, leaseId, miner;
+let rig, helios, heliosUrl, feed, proxy, gateway, reader, book, bookAbi, leaseId, miner, checker, roots;
 const proxyMode = { value: 'ok' };
 
 async function rpc(url, method, params = []) {
@@ -61,7 +66,8 @@ function startFeed() {
         const n = served + 1n;
         const b = await rig.rpcCall('eth_getBlockByNumber', [toHex(n), false]);
         const txs = await Promise.all(b.transactions.map((h) => rig.rpcCall('eth_getRawTransactionByHash', [h])));
-        current = await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs });
+        current = await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs, ...(b.parentBeaconBlockRoot ? { parentBeaconRoot: b.parentBeaconBlockRoot } : {}) });
+        await roots.offer(current);     // bound before Helios can see the head
         served = n;
       }
     } catch {}
@@ -93,8 +99,10 @@ test.before(async () => {
   await rig.write(dep, book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry]);
   const created = await rig.create(KEYS.owner);
   leaseId = rig.createdId(created);
+  checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: seqSigner });
+  roots = createRootStore({ checker });
   feed = await startFeed(); proxy = await startProxy();
-  gateway = createWitnessGateway({ upstreams: [proxy.url] }); const gUrl = await gateway.listen(0);
+  gateway = createWitnessGateway({ upstreams: [proxy.url], proofs: { checker, roots } }); const gUrl = await gateway.listen(0);
   const home = path.join(TMP, 'home'); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
   fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${seqSigner}"\n`);
   const port = await freePort();
@@ -106,7 +114,7 @@ test.before(async () => {
 test.after(async () => {
   clearInterval(miner);
   helios?.kill('SIGKILL');
-  await gateway?.close(); feed?.srv.close(); proxy?.srv.close();
+  await gateway?.close(); feed?.srv.close(); proxy?.srv.close(); checker?.close();
   await rig?.stop();
   fs.rmSync(TMP, { recursive: true, force: true });
 });

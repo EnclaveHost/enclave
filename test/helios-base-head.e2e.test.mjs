@@ -13,7 +13,7 @@ import path from 'node:path';
 import net from 'node:net';
 import { createHash } from 'node:crypto';
 import { createHeadRelay, verifyCommitment, BASE_MAINNET } from '../network/op-head-relay.mjs';
-import { createWitnessGateway } from '../network/witness-gateway.mjs';
+import { createWitnessGateway, WITNESS_METHODS, VERIFIED_METHODS } from '../network/witness-gateway.mjs';
 
 const { HELIOS_BASE_BIN, OPSTACK_SERVER_BIN, BASE_HEADS_DIR } = process.env;
 const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'base-head-'));
@@ -82,7 +82,9 @@ test('our relay accepts the real signature but refuses to serve heads that are n
 });
 
 test('the patched Helios client adopts the real Base head with the real signer, and refuses "latest" because it is stale', T, async (t) => {
-  const g = createWitnessGateway({ upstreams: [] });
+  // no source and no witness methods: Helios needs an execution URL here, never a witness (the proof-aware gateway
+  // offers pinned witnesses only with a verifier, witness-failover ce7c1b73)
+  const g = createWitnessGateway({ upstreams: [], methods: WITNESS_METHODS.filter((m) => !VERIFIED_METHODS.includes(m)) });
   const gUrl = await g.listen(0);
   const port = await freePort();
   const home = path.join(TMP, 'home'); fs.mkdirSync(home, { recursive: true });   // no helios.toml: shipped Base config
