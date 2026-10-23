@@ -38,7 +38,7 @@ the parameter choice, `results/` for the raw data.
 Recommendation: do NOT integrate this into the engine for the CVM tier as it stands.
 The measured payoff against the batch-4 VNNI refill is ~1.0-1.3x on the 27B's mix of
 layers, for a second copy of the weights in the enclave (or a layout change to the
-refill path), a new pad derivation on the dealer, and an unreviewed hardness
+refill path), a new pad derivation, and an unreviewed hardness
 assumption over a ring. Where it WOULD pay is stated in section 7.
 
 ## 1. What was built
@@ -395,15 +395,11 @@ default-off switch with the selector deciding per node.
    `e` into two `vpmulld` passes costs ~2x the Z_2^32 kernel measured here, still
    bandwidth-bound on 8 threads at B <= 4.
 4. **Pad derivation.** `(s, e)` from the same ChaCha stream the bank uses today; `r`
-   materialised through the Toeplitz product, which also gives the dealer a cheaper
-   mint and changes the `.pads` shipment nothing (u is u).
-5. **Freivalds, pad check, PADACK, windows: unchanged.** `u.s == r.(W.s) mod M`
-   holds for any u = r.W.
+   materialised through the Toeplitz product.
 
 When it pays: (a) a refill that is compute-bound rather than bandwidth-bound --
 16-deep pools, or a wide-memory box with few cores per GB/s -- where the 0.3 FLOP
-ratio delivers 1.7-3x; (b) a TEE that cannot batch pads at all (a per-token dealer
-mint, a phone anchor filling one pad at a time), where the 2-3.6x byte figure is
+ratio delivers 1.7-3x; (b) a TEE that cannot batch pads at all (a phone anchor filling one pad at a time), where the 2-3.6x byte figure is
 real. The CVM tier today is neither: bandwidth-bound at batch 4 on 8-16 vCPUs, with
 refill already off the critical path.
 

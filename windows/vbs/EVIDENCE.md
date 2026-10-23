@@ -9,7 +9,7 @@ same tunnel handshake, one extra round for the TPM credential.
 ## Keys generated INSIDE the enclave, at start, per boot
 - `transportKey`: Ed25519, SPKI DER (44 bytes). Signs the binding transcript; its
   fingerprint is the tunnel's `transportKeyFp`.
-- `padKey`: X25519 public key, 32 bytes, hex. The dealer encrypts pad seeds to it.
+- `padKey`: X25519 public key, 32 bytes, hex. Bound into the attestation transcript.
 Neither private key ever leaves VTL1. The enclave refuses to sign a transcript
 it did not build from its own keys.
 

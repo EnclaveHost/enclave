@@ -61,8 +61,6 @@ Do not add nested/background timings to claim an exact wall-time decomposition. 
    double t0 = now_ms();
    ```
 
-   Includes dealt_wait/take_pads and mask_planes at 1870 plus request packing. Actual pad-wait counter is 0 in both trials, so this is not evidence of waiting for pad generation.
-
 6. `wasm/ggml-shielded/shielded-tee.c:1935`
 
    ```cpp
@@ -132,7 +130,6 @@ Before token generation, the `output.weight` registration alone took 30.971 s in
 - Timers surround blocks and their callees, not isolated instructions. Background MTP activity and nested overlap mean rows should not be summed into an exact wall-time budget.
 - Only socket source spans have separate thread-CPU measurements here. For the other five blocks, elapsed time must not be called CPU time.
 - Kernel samples expose allocator/compaction call chains but do not provide exact per-line blocked wall time. Guest kernel stack attribution is unavailable in this capture.
-- Startup/model registration, pad delivery, GPU kernels and Android bridge have additional nested or concurrent costs; the table isolates instrumented token-generation regions.
 
 The three kernel locations currently under investigation are `virtio_transport_alloc_pkt` → `kmalloc` → `try_to_compact_pages`. Recorded stack samples establish that path runs; they do not provide exact elapsed milliseconds for each kernel source line. The 8 KiB cap experiment targets its allocation-size boundary.
 

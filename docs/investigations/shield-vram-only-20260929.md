@@ -36,13 +36,12 @@ Artifact: `/home/steven/enclave-bench/shield-vram-only-20260929/weight-inventory
 | Approach | Security / operational consequence | Result |
 |---|---|---|
 | Ask the same untrusted GPU to compute the secret masking correction directly | Reveals the mask or correction to the party holding the masked activation/result. It can remove the intended protection. | Reject. |
-| Existing required public worker-cache mode | Requires a dealt-pad link, authenticated model and pad checks. A separate untrusted dealer introduces a non-collusion assumption; moving full weights to another trusted CPU merely relocates RAM. Cache loss currently refuses work. | Not a drop-in solution under the requested guarantees. |
 | Authenticate source tensors, discard their original private copies, retain encoded rows | Preserves local pad generation. Small CPU-required tensors remain resident. Reloads must authenticate private bytes before use, including reconnect/fallback. | Best near-term candidate. |
-| Stream encoded weights from authenticated NVMe in batches, generate pads inside the same isolation boundary | Avoids a resident full encoded model without adding a dealer trust assumption. Requires bounded private tiles, safe group lifetimes and enough sustained I/O/compute. | Research candidate; no throughput qualification. |
+| Stream encoded weights from authenticated NVMe in batches, generate pads inside the same isolation boundary | Avoids a resident full encoded model. Requires bounded private tiles, safe group lifetimes and enough sustained I/O/compute. | Research candidate; no throughput qualification. |
 | Precompute pads inside the trusted boundary and store encrypted/authenticated batches on NVMe | Can remove model rows during the online phase; fresh pad indices must never be reused across restart, rollback, exhaustion or retry. Refill still requires trusted computation over authenticated weights. | Plausible design, not an unlimited-performance result. |
 | Use confidential GPU hardware | Changes the available hardware and attestation boundary. Current V100s are not this path. | Not a software solution for the current hosts. |
 
-The Slalom paper describes precomputing blinding corrections and storing them encrypted in untrusted memory/disk (Section 3.3). Its benchmarks do not establish current 27B/MTP performance: https://arxiv.org/pdf/1806.03287 . The repository's existing dealer documentation explicitly adds a non-collusion assumption: `docs/shielded-inference.md`, “Dealt pads”.
+The Slalom paper describes precomputing blinding corrections and storing them encrypted in untrusted memory/disk (Section 3.3). Its benchmarks do not establish current 27B/MTP performance: https://arxiv.org/pdf/1806.03287 .
 
 ## Why NVMe batching needs measurement
 

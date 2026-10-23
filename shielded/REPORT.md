@@ -3,6 +3,12 @@
 Date: 2026-08-14. Companion to [docs/shielded-inference.md](../docs/shielded-inference.md)
 (design) and [SECURITY.md](SECURITY.md) (leakage argument).
 
+**Reading this historical log (2026-10-23):** the dated sections preserve successive
+experiments, including conclusions later superseded. For the corrected refill ceiling,
+27B isolated-guest/native measurements and baseline comparison,
+start with the [current evidence summary](../docs/shielded-inference.md#performance-evidence-update-2026-10-23).
+The August primitive figures below are not end-to-end application throughput.
+
 **Bottom line up front.** The confidentiality design holds, and as of 2026-08-25 it also
 RUNS: a real GGUF model generates real tokens with every linear op masked and executed on
 an untrusted GPU, and the output is bit-identical to the same model run entirely in-TEE.
@@ -1618,11 +1624,6 @@ Not applied, with the measurement that closed each:
 - The row pool: no gain, discarded.
 - LPN-structured pads (`shielded/lpn/REPORT.md`): refill is off the critical path
   and 4 threads suffice; pad generation is not what this tier is waiting on.
-- Dealt pads: not deployable from here (the relay routes are Steven's manual
-  step). The prefill result is their strongest argument: minted pads make
-  on-card prefill cost a weight pass per 64 rows even with the wide batch, and
-  dealt pads would make it cost nothing.
-
 ### 14.6 The wall was the repack, and the target is met (2026-09-21)
 
 Every number in 14.1-14.5 was taken through an engine drop that predates the
