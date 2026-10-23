@@ -1,0 +1,6 @@
+a-policy-callers base 0c43e4db8 rebuilt from dfe020abf + 6 stored patch(es) in 34723cba5: tree 63f1746a6036d71e527ca37cb94b166e2d9a66b5 OK
+a-policy-callers 437d6ced6: tree 2c968f818be146a3ecabff57b9741bfee11d9720 OK
+a-policy-callers 2efc4a83e: tree 88475d04f10c422d22faa97c5026e6ce65f07e24 OK
+d-root-adopt-stop base f1d0666b9 rebuilt from 2bbea8987 + 3 stored patch(es) in 34723cba5: tree 2db82e4f4e013540afa727a2377884ce1893bd7f OK
+d-root-adopt-stop 1086cf234: tree 786057a3b21ba3eb93dfeabe17dda1ab6c2e58c6 OK
+RESULT a-policy-callers head tree reproduced: True, d-root-adopt-stop head tree reproduced: True

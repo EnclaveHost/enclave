@@ -1,0 +1,324 @@
+{
+ "format": "enclave-frozen-0420-export/v1",
+ "checkpointHeadAtExport": "34723cba51f4fbcaff3963b979b7fc45f05e8ee3",
+ "label": "SOURCE + OFFLINE TESTS ONLY. Nothing here is merged into the normal tree, imaged or deployed. a-policy-callers 437d6ced/2efc4a83 (on 0c43e4db): service-index and platform host policy read through the local verifier when chosen, and independent CLI/MCP, management and native callers can choose it; 7 canonical-Reth policy E2Es pass, 130/135 with 5 baseline failures; the existing default authority is preserved. d-root-adopt-stop 1086cf23 (ROOT, on D f1d0666b): adopt() snapshots record identity/epoch/withdrawal before its await and checks the pending-stop hold before and after, preserving a fresh adoption; REQUIRED before D can be called rollout-ready. ROOT fix, source only, NOT activated.",
+ "sides": {
+  "a-policy-callers": {
+   "repo": "work/resume-after-checkpoint-20261022/rpc-priority/repo",
+   "branch": "rpc-priority",
+   "headReachableFromBranch": true,
+   "base": "0c43e4db89f1be615ff11319abc43aefd69a9fcb",
+   "baseProvenance": "0c43e4db preserved in 34723cba as frozen-0420-export/a-reth-e2e-0c43e4db (1 patch on 921d60c2)",
+   "head": "2efc4a83ec6636f875fa4523d50674bda06bcdcb",
+   "headTree": "88475d04f10c422d22faa97c5026e6ce65f07e24",
+   "commits": [
+    {
+     "commit": "437d6ced66aae416258ba44abc175c731a396d55",
+     "parent": "0c43e4db89f1be615ff11319abc43aefd69a9fcb",
+     "tree": "2c968f818be146a3ecabff57b9741bfee11d9720",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:57:49-07:00",
+     "subject": "Read the service index and platform host policy through the local verifier when chosen"
+    },
+    {
+     "commit": "2efc4a83ec6636f875fa4523d50674bda06bcdcb",
+     "parent": "437d6ced66aae416258ba44abc175c731a396d55",
+     "tree": "88475d04f10c422d22faa97c5026e6ce65f07e24",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T21:08:19-07:00",
+     "subject": "Let independent CLI/MCP, management and native callers choose the local verifier"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "cli/enclave.mjs",
+     "status": "M",
+     "mode": "100755",
+     "blob": "4ef7f7a15904a2279d3cfdda872ac4aafeb7f786",
+     "sha256": "cc080e6a534ea544767f800ebc19a363bb5de01fb20c6e31604eb0d6810b899b",
+     "bytes": 422590,
+     "baseBlob": "cf48a8da6dfd2acfca3452c8d9ece3596c2aca03"
+    },
+    {
+     "path": "cli/independent-host.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "241ef833d87797fffeadc61d37663efe28b66059",
+     "sha256": "2efd94d8dc0dd33c717f41c07165cd17080b3b2145f36be3a40819268b01d101",
+     "bytes": 4365,
+     "baseBlob": "5e775d8dac52e9f9f03399c99ef7875aa4b9e4a5"
+    },
+    {
+     "path": "cli/independent.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "7f25ca280bd8e4db6b66ff6e9e3ecc410f8e42ac",
+     "sha256": "12245443fff2fc345ed654de7303258168018ae674f0dd1b11631a006dd18453",
+     "bytes": 37411,
+     "baseBlob": "32058357f023130e795c364758838920d579104c"
+    },
+    {
+     "path": "mcp/independent-tools.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "a65dabc73e37da69036e099327a3203b842411e6",
+     "sha256": "f559cb737d26fda5ff28174aaa25e20333b73c86f0cde362ca5b90b9a76ea0fa",
+     "bytes": 55355,
+     "baseBlob": "79b5a1d0d67d2a32af11c37220290f0fea3c68c5"
+    },
+    {
+     "path": "mcp/independent.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "7224bd370754cea6bf5e10961865792810df21ab",
+     "sha256": "62fbcff321c4bcf01256651bbb58abb7a18f9a7bdb2f41207918031a4afbcfd1",
+     "bytes": 31934,
+     "baseBlob": "93d0d1ae00212c03e5423ab2c643d374b8a1d5ef"
+    },
+    {
+     "path": "network/cold-bootstrap.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "6a279f35e150442d0c381083d40ef5e2f443239e",
+     "sha256": "2ee2cd8c63861466408d31f55fe9610a9facf045b23e954ed67c14fa1cf557ec",
+     "bytes": 8940,
+     "baseBlob": "bd9b832d8689810d2655fef49145be0ed41ba94d"
+    },
+    {
+     "path": "network/host-policy-runtime.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "95930152ebc12331d0dddc6f9cad57384df3b84b",
+     "sha256": "6d4a9b5a75abccf7d566bee75375fd16bf86428e427c4744140be9f3055d9139",
+     "bytes": 9869,
+     "baseBlob": "7eb8bdec66217dc54976b9c40575644f0d784e52"
+    },
+    {
+     "path": "network/host-service-gate-carriers.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "128903936c14be20e314f5365251cfeed1871c91",
+     "sha256": "053923fcdae3e68b4ff362b2d5681a2b95b3573674d46eaa92c650340bf8b00c",
+     "bytes": 7198,
+     "baseBlob": "e70a0a81eae25972cd493428bb59f0ad2466f5d6"
+    },
+    {
+     "path": "network/host-services/policy-mirror.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d393150e7eb499f249f63355f1318aa2c4de538a",
+     "sha256": "b0c1dc28b4365c5f1a1d35194cd49e0afd847d295f07aebf257d31b01d6001a0",
+     "bytes": 9188,
+     "baseBlob": "fa8dd4de0bc757095bfe2b4fddbbf3f71909b0f2"
+    },
+    {
+     "path": "network/host-services/roles.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "323711d6e4ef6fe41968d437b6c4a03bfc364671",
+     "sha256": "da453afd65c484b8cfe9717bbc389bd0b8430a43fcd40fbc2efacc79e3f78a25",
+     "bytes": 17393,
+     "baseBlob": "79a8cf16a06c4b9e2f65dfd1c777043760901132"
+    },
+    {
+     "path": "network/host-services/runner.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "3d7d934608641628f539b623f4ddf58039075f06",
+     "sha256": "dae2fc81919b410c49e4d2e00f497f0921d4b75b47e3d6700004789adcd10c5a",
+     "bytes": 25465,
+     "baseBlob": "be3b88233a048b12a6ae8c6c510bbb07959937d8"
+    },
+    {
+     "path": "network/host-services/storage-indexer-host.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "6a769ad0809ceabf4f609dc33e575dc4be4171fc",
+     "sha256": "ef565f7ee9161f06fe6554e9440efc0fdae80714fbe2ddf090417692b2e07178",
+     "bytes": 31935,
+     "baseBlob": "befaa5361f8bac5a410ed654ff0f613e66dd2add"
+    },
+    {
+     "path": "network/lease-gas-runtime.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d73dff44f3c6f345ff31b2dfc2c4cfe039b5aee1",
+     "sha256": "4ab0d467ab523f4a81b3e987b3292c4caea2e0d1ba0e7f23e57f8e018dc83d75",
+     "bytes": 10647,
+     "baseBlob": "8d50889f1dbcbfa46076e3af97bc94bb62198d29"
+    },
+    {
+     "path": "network/management-client.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "bb3c5056f715e8ebe1119d7c1ecd36fe95c5c076",
+     "sha256": "8715250a3af57f03f8be952c2321c2652f5545538eeec2c3fe3203907fce2c33",
+     "bytes": 19385,
+     "baseBlob": "60c5bdf57947219b5aaa298861887b5c68c1478e"
+    },
+    {
+     "path": "network/native-client.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "9b268d7941dec10263f9fff16b6fd6801ad344f6",
+     "sha256": "2323211bba89270b241a55961c918a5196d984ee06493438969e24f94d4cc926",
+     "bytes": 36228,
+     "baseBlob": "57632de047c9fc948d1c22aa7f90007f058d5585"
+    },
+    {
+     "path": "network/native-control-routes.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "1f58a76efdefb26eb44ed051de30e46670bd3b5e",
+     "sha256": "e224aaf4b7e1f8c61087ed479f683ea926bae4d2bec72fb62f3b1c4306278126",
+     "bytes": 24251,
+     "baseBlob": "3ba6a6cd2446ba51e0129426a95828aba288dba0"
+    },
+    {
+     "path": "network/platform-host-policy-config.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "1bc4609e74d248b455f82c9b010bf3bddaa500ab",
+     "sha256": "8a151bc08892c154bbb4023329f002b33627030ca987108fc1abfe69fefd4a06",
+     "bytes": 6760,
+     "baseBlob": "f2340dff6a5e21462fda8313d59a81db933e73e2"
+    },
+    {
+     "path": "network/policy-carriers.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "0fe205e0de294f30184b57eb1243b21102a93274",
+     "sha256": "0c08837e91f317fce81585b484091362bbd6af1444d38f4b26be414358a31691",
+     "bytes": 11918,
+     "baseBlob": "7f56e0bceaf31191bc4b4113c570037ca5ad4b1e"
+    },
+    {
+     "path": "network/service-index.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d7350364a4802743415057f3c8bc32bcbd666d4d",
+     "sha256": "0c38f700aed373a037157ab5e0635e19ea15b5b75e493a87e94249f4b0fa0221",
+     "bytes": 45551,
+     "baseBlob": "4475fbd63ac89f98b4c8c442224e8a8a7e3acf2c"
+    },
+    {
+     "path": "network/verified-chain.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3ab58a8c0f60b7d9bb062e84d9e1bed5ce309a84",
+     "sha256": "747d51480eca034df4a011e028aaa7c3b0753b2de92e74baa62fb4861ca05546",
+     "bytes": 13050,
+     "baseBlob": null
+    },
+    {
+     "path": "test/caller-verifier-wiring.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bd9fffe9a689994d79e3232cd17b2b704b1ae28c",
+     "sha256": "72eb44c7381433f729b99e1d79a83999654bb937d1dfd7e4f20cbcb20e1866d6",
+     "bytes": 6237,
+     "baseBlob": null
+    },
+    {
+     "path": "test/policy-verifier.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2ee4b25991da44b7bab8265536bfba62eaa3636e",
+     "sha256": "7aff4325dccd4d1333f693be225a3448252e9503c6d29ca27f28b276402fa323",
+     "bytes": 17146,
+     "baseBlob": null
+    },
+    {
+     "path": "test/verified-chain.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "774a4273d05db8b1e1a590c38748c6c56f8dcad2",
+     "sha256": "9bc7d8167874335e23a0467ee8e12bfaab6a7282d78464109c31e51cc391dfd5",
+     "bytes": 14188,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "a-policy-callers-2efc4a83/patches/0001-Read-the-service-index-and-platform-host-policy-thro.patch",
+     "sha256": "4c9a81af4d3ce4b84b937bab3c81d1ffa40e1f5c8ad2dbe9edcfbc30abef0f52"
+    },
+    {
+     "file": "a-policy-callers-2efc4a83/patches/0002-Let-independent-CLI-MCP-management-and-native-caller.patch",
+     "sha256": "c1bbe5481e4afda38eca049563ded4d7a23edcb3e3a34f54410f08b75cab5d17"
+    }
+   ]
+  },
+  "d-root-adopt-stop": {
+   "repo": "work/resume-after-checkpoint-20261022/linux-adopt-stop-review",
+   "branch": "fix/adopt-pending-stop",
+   "headReachableFromBranch": true,
+   "base": "f1d0666b9fc80d25a7c4cbacf4025f3a33152111",
+   "baseProvenance": "f1d0666b preserved in 34723cba as frozen-0420-export/d-linux-hold-final-f1d0666b (1 patch on b744ba19)",
+   "head": "1086cf2346b913177e38cf02e0b2b571628cc758",
+   "headTree": "786057a3b21ba3eb93dfeabe17dda1ab6c2e58c6",
+   "commits": [
+    {
+     "commit": "1086cf2346b913177e38cf02e0b2b571628cc758",
+     "parent": "f1d0666b9fc80d25a7c4cbacf4025f3a33152111",
+     "tree": "786057a3b21ba3eb93dfeabe17dda1ab6c2e58c6",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T21:16:01-07:00",
+     "subject": "Guard Linux adoption against concurrent teardown and policy withdrawal"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "ROOT-REVIEW.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a69c57a1974236a22829bbdb5c24046f10c81869",
+     "sha256": "c92fa583c649a1e58ddc1197cecf523900494089d71f218e8c473ca9d00850cb",
+     "bytes": 2136,
+     "baseBlob": null
+    },
+    {
+     "path": "supervisor.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2c652c6bae125d6f152ef9ecce190fc7a7026cf1",
+     "sha256": "7389d61399d0e94a0f226c8604bd90635db30723c41a7d8aa2c62aaa9dbefbe2",
+     "bytes": 853222,
+     "baseBlob": "2ea81f150d6c88ec790377c90deb58f62615c429"
+    },
+    {
+     "path": "test/adopt-pending-stop.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "75becff44459eaa12a14bb647635021b79c95047",
+     "sha256": "4c6db6da29a05a85328bd38b87f1fc0b391cfbf5d0a385d9f35b4d1d19685633",
+     "bytes": 3180,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "d-root-adopt-stop-1086cf23/patches/0001-Guard-Linux-adoption-against-concurrent-teardown-and.patch",
+     "sha256": "026e50637793f7c4c32e725ac0d68b01948909f0fab07b187b2382c5e023b4e9"
+    }
+   ]
+  }
+ },
+ "frozenSources": {
+  "rpc-priority/RESULT-CONSUMER-CLOSURE.md": "9413f1e471d1e1b1f77a8c0efc871038e81bbfb5ed4bc70118acf017178611b4"
+ },
+ "alreadyCapturedUnchanged": {},
+ "rootEvidence": {
+  "root-linux-adopt-stop-race.mjs": "5524bc90dbaf63bae9057d840304d455161cbb4a7b857a3517cc7f9d00db4c2b",
+  "root-linux-adopt-stop-race-result.json": "891bc73e22e339ba08642321a97b0fe57abaa940791dbc12559667828eb1b8e4",
+  "node-updater-readonly/check-0413.py": "efcf08a743ae2df36580267a3976fa820cd07701a5cdd51acebe4f1e6e6ebd03",
+  "../../outputs/decentralization-audit/windows-node-updater-0413-postcheck-20261023.json": "28da2b60dde89fba53af0f7dcf5484eca5f462817f2612f8607eae5b4dc4b67d"
+ },
+ "notPreserved": [
+  "A worktree and anything after 2efc4a83 (A's new relay/native closure, mutable)",
+  "root-linux-adopt-stop-race.guard.log, the review tree's node_modules symlink and every raw log, run handle, key, mutable live Sia receipt, binary, dependency and build cache"
+ ]
+}

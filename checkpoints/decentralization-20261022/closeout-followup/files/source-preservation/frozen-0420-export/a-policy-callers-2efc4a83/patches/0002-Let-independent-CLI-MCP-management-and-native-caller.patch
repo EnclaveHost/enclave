@@ -1,0 +1,355 @@
+From 2efc4a83ec6636f875fa4523d50674bda06bcdcb Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 21:05:02 -0700
+Subject: [PATCH 2/2] Let independent CLI/MCP, management and native callers
+ choose the local verifier
+
+--chain-verifier (CLI, independent mode only) and the MCP profile key chainVerifier take a
+loopback verifier URL. When set, the management LeaseReader and the platform host policy
+read through it (no quorum fallback after a refusal); every other independent-mode read and
+every transaction still uses the explicit RPC quorum, which remains required. The
+ManagementClient and NativeClient accept chainAuthority/chainVerifier and pass them to
+their LeaseReader. A remote verifier URL is refused.
+---
+ cli/enclave.mjs                      | 24 ++++++---
+ cli/independent-host.mjs             |  4 +-
+ cli/independent.mjs                  | 13 ++++-
+ mcp/independent-tools.mjs            | 10 ++--
+ mcp/independent.mjs                  |  6 +--
+ network/management-client.mjs        |  6 +--
+ network/native-client.mjs            |  4 +-
+ test/caller-verifier-wiring.test.mjs | 74 ++++++++++++++++++++++++++++
+ 8 files changed, 117 insertions(+), 24 deletions(-)
+ create mode 100644 test/caller-verifier-wiring.test.mjs
+
+diff --git a/cli/enclave.mjs b/cli/enclave.mjs
+index cf48a8da6dfd2acfca3452c8d9ece3596c2aca03..4ef7f7a15904a2279d3cfdda872ac4aafeb7f786 100755
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -352,10 +352,10 @@ const opt = { json: false, trace: false, base: null, rpc: null, yes: false,
+               expect: null, minTcb: null, collateralDir: null,
+               // ---- independent mode (docs/network/independent-cli.md): explicit authorities and an agreeing RPC quorum,
+               // never the Enclave API, the mutable address book or a first-answer RPC ----
+-              independent: false, profile: null, profileDigest: null, quorum: null, confirmations: null, maxBlockAge: null,
++              independent: false, profile: null, profileDigest: null, quorum: null, confirmations: null, maxBlockAge: null, chainVerifier: null,
+               usdcToken: null, directories: null, stateDir: null, nativeProfile: null, maxFeeGwei: null };
+ const IND_VALUE_FLAGS = { "--profile": "profile", "--profile-digest": "profileDigest", "--quorum": "quorum",
+-  "--confirmations": "confirmations", "--max-block-age": "maxBlockAge", "--usdc-token": "usdcToken", "--directories": "directories",
++  "--confirmations": "confirmations", "--max-block-age": "maxBlockAge", "--chain-verifier": "chainVerifier", "--usdc-token": "usdcToken", "--directories": "directories",
+   "--state-dir": "stateDir", "--native-profile": "nativeProfile", "--max-fee-gwei": "maxFeeGwei" };
+ // The value of `flag` as written AFTER the command word `cmd` in the raw argv, or null. The global parser takes its flags
+ // out wherever they appear; a command whose own flag shares a global name (custody migrate --from FILE) gets it back.
+@@ -432,9 +432,12 @@ let INDEPENDENT = null;
+ let _hostPolicy;
+ async function independentHostPolicy() {
+   if (_hostPolicy !== undefined) return _hostPolicy;
+-  const { createHostPolicyRuntime, resolveHostPolicyConfig, clientSnapshot } = await import("../network/host-policy-runtime.mjs");
++  const { createHostPolicyRuntime, resolveHostPolicyConfig, clientSnapshot, verifiedHostSnapshot } = await import("../network/host-policy-runtime.mjs");
+   const r = resolveHostPolicyConfig({ env, chainId: INDEPENDENT.chain.chainId, book: env.ENCLAVE_ADDRESS_BOOK !== undefined ? env.ENCLAVE_ADDRESS_BOOK : DEFAULTS.ADDRESS_BOOK_ADDRESS });
+-  _hostPolicy = r.on ? createHostPolicyRuntime(r, { snapshot: clientSnapshot((fn) => INDEPENDENT.chain.snapshot(fn).then((x) => x.value)), log: (m) => trace(m) }) : null;
++  // --chain-verifier: the policy is read from the local proof-backed verifier (no quorum fallback); else on this CLI's quorum
++  const snapshot = INDEPENDENT.trust.chainVerifier ? verifiedHostSnapshot({ verifier: INDEPENDENT.trust.chainVerifier, chainId: INDEPENDENT.chain.chainId })
++    : clientSnapshot((fn) => INDEPENDENT.chain.snapshot(fn).then((x) => x.value));
++  _hostPolicy = r.on ? createHostPolicyRuntime(r, { snapshot, log: (m) => trace(m) }) : null;
+   return _hostPolicy;
+ }
+ // -> null (off) | { [registry id]: decision }; an unreadable policy refuses every host (never lists a banned one as live)
+@@ -4793,6 +4796,9 @@ first-answer RPC. Authorities come from --profile FILE --profile-digest sha256:
+ (a reviewed authority profile) or --contract-pins FILE [--usdc-token ADDR]; every
+ read needs --quorum N (default 2) of --rpc A,B[,C…] to agree at one block
+ --confirmations deep (default 2) and at most --max-block-age seconds old (120).
++--chain-verifier http://127.0.0.1:PORT/ (optional): management lease reads and the
++platform host policy come from that LOCAL proof-backed verifier instead (unsafe
++tier; a refusal never falls back); other reads and all transactions keep the quorum.
+ Transactions are signed once, broadcast unchanged and confirmed by the quorum;
+ an unconfirmed outcome is reported, never resent (--max-fee-gwei, default 5).
+   ls [--owner ADDR] · status <id> · hosts [--all] · pricing · apps · whoami
+@@ -4839,7 +4845,8 @@ async function cmdHost(rest) {
+     const t = INDEPENDENT.trust, pinsFile = opt.contractPins || env.ENCLAVE_CONTRACT_PINS_FILE;
+     const auth = sub !== "init" ? [] : [
+       ...(opt.profile ? ["--profile", opt.profile, "--profile-digest", opt.profileDigest] : ["--contract-pins", pinsFile]),
+-      "--rpc", t.rpcs.join(","), "--quorum", String(t.quorum), "--confirmations", String(t.confirmations), "--max-block-age", String(t.maxBlockAgeMs / 1000)];
++      "--rpc", t.rpcs.join(","), "--quorum", String(t.quorum), "--confirmations", String(t.confirmations), "--max-block-age", String(t.maxBlockAgeMs / 1000),
++      ...(t.chainVerifier ? ["--chain-verifier", t.chainVerifier] : [])];
+     // --json is also a global flag (taken out of argv); `check` is the one lifecycle command that prints JSON
+     const code = await hostLifecycle([sub, ...rest, ...(sub === "check" && opt.json ? ["--json"] : []), ...auth]);
+     if (code) exit(code);
+@@ -5201,9 +5208,9 @@ const INDEPENDENT_REFUSALS = {
+ };
+ async function configureIndependent() {
+   const asked = opt.independent || opt.profile || opt.profileDigest;
+-  const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei", "signerMode"].filter((k) => opt[k] !== null);
++  const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei", "signerMode", "chainVerifier"].filter((k) => opt[k] !== null);
+   if (!asked) {
+-    if (strays.length) throw new Error("--quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei and --signer-mode apply to independent mode: add --independent");
++    if (strays.length) throw new Error("--quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei, --signer-mode and --chain-verifier apply to independent mode: add --independent");
+     return;
+   }
+   const external = !!opt.signer || opt.signerMode === "handoff";
+@@ -5213,7 +5220,8 @@ async function configureIndependent() {
+   if (!(opt.rpc || env.ENCLAVE_RPC)) throw new Error("independent mode needs explicit RPCs: --rpc https://a,https://b[,…] (at least two; there is no default set)");
+   const I = await import("./independent.mjs");
+   const trust = I.loadIndependentTrust({ profileFile: opt.profile, profileDigest: opt.profileDigest, contractPins: CONTRACT_PINS,
+-    usdc: opt.usdcToken, defaultUsdc: DEFAULTS.USDC_ADDRESS, rpcs: RPCS, quorum: opt.quorum, confirmations: opt.confirmations, maxBlockAgeSec: opt.maxBlockAge });
++    usdc: opt.usdcToken, defaultUsdc: DEFAULTS.USDC_ADDRESS, rpcs: RPCS, quorum: opt.quorum, confirmations: opt.confirmations, maxBlockAgeSec: opt.maxBlockAge,
++    chainVerifier: opt.chainVerifier });
+   CONTRACT_PINS = trust.pins;
+   for (const [key, name] of Object.entries({ deployments: "DEPLOYMENTS_ADDRESS", registry: "REGISTRY_ADDRESS", appCatalog: "APP_CATALOG_ADDRESS",
+     sessionVaultFactory: "SESSION_VAULT_FACTORY_ADDRESS" })) DEFAULTS[name] = /^0x0{40}$/i.test(trust.pins[key]) ? trust.pins[key] : getAddress(trust.pins[key]);
+diff --git a/cli/independent-host.mjs b/cli/independent-host.mjs
+index 5e775d8dac52e9f9f03399c99ef7875aa4b9e4a5..241ef833d87797fffeadc61d37663efe28b66059 100644
+--- a/cli/independent-host.mjs
++++ b/cli/independent-host.mjs
+@@ -32,8 +32,8 @@ export async function managementClient({ trust, chain, deploymentId, directories
+   if (typeof stateDir !== "string" || !path.isAbsolute(stateDir)) throw new Error("management needs --state-dir ABSOLUTE_DIR (it keeps per-runner rollback floors)");
+   fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+   const authorityPins = networkAuthorities(trust);
+-  const { leaseReaderClients } = await import("./independent.mjs");
+-  const reader = new LeaseReader({ clients: leaseReaderClients(chain), chainId: chain.chainId, addressBook: ZERO, authorityPins,
++  const { independentReaderAuthority } = await import("./independent.mjs");
++  const reader = new LeaseReader({ ...independentReaderAuthority(trust, chain), chainId: chain.chainId, addressBook: ZERO, authorityPins,
+     includeHostPayout: true, maxBlockAgeMs: Math.max(1000, Math.min(trust.maxBlockAgeMs, 120000)), confirmations: Math.max(1, trust.confirmations), now });
+   const signer = sessionRequestSigner({ vault: rec.handle.vault, sid: rec.handle.sid, privateKey: sessionKey(rec), now });
+   return new ManagementClient({ deploymentId, chainId: chain.chainId, authorityPins, directories, stateDir, signer, reader, now, hostAdmission });
+diff --git a/cli/independent.mjs b/cli/independent.mjs
+index 32058357f023130e795c364758838920d579104c..7f25ca280bd8e4db6b66ff6e9e3ecc410f8e42ac 100644
+--- a/cli/independent.mjs
++++ b/cli/independent.mjs
+@@ -5,6 +5,7 @@
+ // A read that cannot reach quorum fails, and a failure is never reported as an empty answer.
+ // Transactions are signed once, broadcast unchanged and confirmed by the same quorum; an outcome that cannot be
+ // confirmed is reported as unknown and never re-signed or resent.
++import { chainVerifierOf } from "../network/verified-chain.mjs";
+ import fs from "node:fs";
+ import { createPublicClient, http as viemHttp, keccak256, toBytes, getAddress, encodeFunctionData } from "viem";
+ import { base } from "viem/chains";
+@@ -48,7 +49,7 @@ function intIn(v, lo, hi, dflt, what) {
+  *  contractPins (already validated by network/contract-pins.mjs) and usdc: the pin-only alternative.
+  *  If both a profile and pins are given they must be identical. -> {pins, usdc, profile, digest, rpcs, quorum, ...}
+  */
+-export function loadIndependentTrust({ profileFile, profileDigest, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec }) {
++export function loadIndependentTrust({ profileFile, profileDigest, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec, chainVerifier }) {
+   let profile = null, digest = null, pins = contractPins || null, token = usdc ? String(usdc) : null;
+   if (profileDigest && !profileFile) throw new Error("--profile-digest needs --profile");
+   if (profileFile) {
+@@ -71,8 +72,12 @@ export function loadIndependentTrust({ profileFile, profileDigest, contractPins,
+   if (!nonZero(token)) throw new Error("independent mode needs a payment token address (--usdc)");
+   const origins = validateRpcOrigins(rpcs);
+   const q = intIn(quorum, 2, origins.length, 2, "--quorum");
++  // --chain-verifier (optional, loopback only): the local proof-backed verifier for the reads that can use it - LeaseReader
++  // management reads and the platform host policy. Every other independent-mode read and every transaction still uses the
++  // RPC quorum (it is not replaced, and a verifier refusal never falls back to it).
++  const verifier = chainVerifier ? chainVerifierOf({ chainAuthority: "verifier", chainVerifier }, "--chain-verifier") : null;
+   return Object.freeze({ pins, usdc: getAddress(token), profile, digest, rpcs: origins, quorum: q,
+-    confirmations: intIn(confirmations, 0, 64, 2, "--confirmations"), maxBlockAgeMs: intIn(maxBlockAgeSec, 10, 86400, 120, "--max-block-age") * 1000 });
++    confirmations: intIn(confirmations, 0, 64, 2, "--confirmations"), maxBlockAgeMs: intIn(maxBlockAgeSec, 10, 86400, 120, "--max-block-age") * 1000, chainVerifier: verifier });
+ }
+ 
+ // ---- quorum reads ----------------------------------------------------------------------------------------------------
+@@ -495,4 +500,8 @@ export function quorumPublicClient(chain) {
+ export function leaseReaderClients(chain) {
+   return chain.peers.map(({ client }) => client);
+ }
++/** LeaseReader authority options for independent mode: the local verifier when --chain-verifier is set, else the quorum's clients. */
++export function independentReaderAuthority(trust, chain) {
++  return trust.chainVerifier ? { authority: "verifier", verifier: trust.chainVerifier } : { clients: leaseReaderClients(chain) };
++}
+ export { ZERO };
+diff --git a/mcp/independent-tools.mjs b/mcp/independent-tools.mjs
+index 79b5a1d0d67d2a32af11c37220290f0fea3c68c5..a65dabc73e37da69036e099327a3203b842411e6 100644
+--- a/mcp/independent-tools.mjs
++++ b/mcp/independent-tools.mjs
+@@ -39,7 +39,7 @@ async function hostPolicy(B) {
+   const a = B.authority;
+   if (policies.has(a)) return policies.get(a);
+   const p = (async () => {
+-    const { createHostPolicyRuntime, resolveHostPolicyConfig, clientSnapshot } = await import("../network/host-policy-runtime.mjs");
++    const { createHostPolicyRuntime, resolveHostPolicyConfig, clientSnapshot, verifiedHostSnapshot } = await import("../network/host-policy-runtime.mjs");
+     const b = await currentScope().bindings();
+     const hp = a.cfg.hostPolicy;
+     const env = hp === null || hp === undefined ? {} : { ENCLAVE_PLATFORM_HOST_POLICY: typeof hp === "string" ? hp : JSON.stringify(hp) };
+@@ -47,7 +47,9 @@ async function hostPolicy(B) {
+     // the policy is read on this profile's own agreed quorum, unless the operator's policy configuration names its own
+     // read quorum (rpcs): then that one (network/host-policy-runtime.mjs builds it)
+     const ownRpcs = hp && typeof hp === "object" && Array.isArray(hp.rpcs) && hp.rpcs.length > 0;
+-    const rt = r.on ? createHostPolicyRuntime(r, ownRpcs ? {} : { snapshot: clientSnapshot((fn) => a.chain.snapshot(fn).then((x) => x.value)) }) : null;
++    // chainVerifier (profile): the local proof-backed verifier decides, whatever RPCs are configured (no fallback)
++    const rt = !r.on ? null : a.trust?.chainVerifier ? createHostPolicyRuntime(r, { snapshot: verifiedHostSnapshot({ verifier: a.trust.chainVerifier, chainId: a.chain.chainId }) })
++      : createHostPolicyRuntime(r, ownRpcs ? {} : { snapshot: clientSnapshot((fn) => a.chain.snapshot(fn).then((x) => x.value)) });
+     return { rt, source: r.on ? r.source : r.reason };
+   })();
+   policies.set(a, p);
+@@ -217,10 +219,10 @@ async function managementCall(B, a, op, { opts, runner, repeat } = {}) {
+   const { ManagementClient } = await import("../network/management-client.mjs");
+   const { LeaseReader } = await import("../network/lease-reader.mjs");
+   const { networkAuthorities } = await import("../cli/independent-host.mjs");
+-  const { leaseReaderClients } = await import("../cli/independent.mjs");
++  const { independentReaderAuthority } = await import("../cli/independent.mjs");
+   const { apiMessage, sha256Hex } = await import("../windows/node/session-api-auth.mjs");
+   const authorityPins = networkAuthorities(trust);
+-  const reader = new LeaseReader({ clients: leaseReaderClients(B.authority.chain), chainId: B.authority.chain.chainId, addressBook: ZERO, authorityPins,
++  const reader = new LeaseReader({ ...independentReaderAuthority(trust, B.authority.chain), chainId: B.authority.chain.chainId, addressBook: ZERO, authorityPins,
+     includeHostPayout: true, maxBlockAgeMs: Math.max(1000, Math.min(trust.maxBlockAgeMs, 120000)), confirmations: Math.max(1, trust.confirmations) });
+   const signer = async ({ method, hostPath, body }) => {
+     if (header) return header;
+diff --git a/mcp/independent.mjs b/mcp/independent.mjs
+index 93d0d1ae00212c03e5423ab2c643d374b8a1d5ef..7224bd370754cea6bf5e10961865792810df21ab 100644
+--- a/mcp/independent.mjs
++++ b/mcp/independent.mjs
+@@ -45,7 +45,7 @@ class SnapshotChanged extends Error { constructor(what) { super(what); this.name
+ // ---- operator configuration --------------------------------------------------------------------------------------
+ const PROFILE_KEYS = ["contractPins", "profile", "profileDigest", "usdc", "rpcs", "quorum", "confirmations", "maxBlockAgeSec", "addressBook",
+   "managementDirectories", "capacityDirectories", "capacityCold", "maxHosts", "storagePlan", "grantFrontend", "sessionScan", "stateDir",
+-  "hostPolicy", "custody", "remote"];
++  "hostPolicy", "custody", "remote", "chainVerifier"];
+ function readBounded(file, max, what) {
+   const st = fs.statSync(file);
+   if (!st.isFile() || st.size > max) throw new IndependentError("config", `${what} ${file} is not a file of at most ${max} bytes`);
+@@ -87,7 +87,7 @@ export function loadConfig(file) {
+     if (Object.keys(scan).some((k) => !["fromBlock", "chunk", "maxChunks"].includes(k))) throw new IndependentError("config", `profile ${name}.sessionScan: fromBlock, chunk, maxChunks`);
+     profiles.set(name, Object.freeze({
+       name, contractPins: rel(p.contractPins), profile: rel(p.profile), profileDigest: p.profileDigest, usdc: p.usdc, rpcs: p.rpcs,
+-      quorum: p.quorum, confirmations: p.confirmations, maxBlockAgeSec: p.maxBlockAgeSec,
++      quorum: p.quorum, confirmations: p.confirmations, maxBlockAgeSec: p.maxBlockAgeSec, chainVerifier: p.chainVerifier,
+       addressBook: p.addressBook === undefined ? null : getAddress(p.addressBook),
+       managementDirectories: literalIpOrigins(p.managementDirectories, `${name}.managementDirectories`),
+       capacityDirectories: literalIpOrigins(p.capacityDirectories, `${name}.capacityDirectories`),
+@@ -116,7 +116,7 @@ export class Authority {
+       const pinned = cfg.contractPins ? validateContractPins(parseUniqueJSON(readBounded(cfg.contractPins, 16384, "contract pins").toString("utf8"))) : null;
+       return loadIndependentTrust({ profileFile: cfg.profile, profileDigest: cfg.profileDigest, contractPins: pinned, usdc: cfg.usdc,
+         defaultUsdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", rpcs: cfg.rpcs, quorum: cfg.quorum, confirmations: cfg.confirmations,
+-        maxBlockAgeSec: cfg.maxBlockAgeSec });
++        maxBlockAgeSec: cfg.maxBlockAgeSec, chainVerifier: cfg.chainVerifier });
+     })();
+     this.trustPromise.catch(() => {});   // surfaced by ready()
+     this.deps = deps;
+diff --git a/network/management-client.mjs b/network/management-client.mjs
+index 60c5bdf57947219b5aaa298861887b5c68c1478e..bb3c5056f715e8ebe1119d7c1ecd36fe95c5c076 100644
+--- a/network/management-client.mjs
++++ b/network/management-client.mjs
+@@ -21,7 +21,7 @@ import path from 'node:path';
+ import {isIP} from 'node:net';
+ import {createHash, createPrivateKey, createPublicKey, randomBytes, sign as signBytes, verify as verifyBytes} from 'node:crypto';
+ import {PassThrough, Transform, pipeline} from 'node:stream';
+-import {LeaseReader} from './lease-reader.mjs';
++import {LeaseReader, chainAuthorityOptions} from './lease-reader.mjs';
+ import {DirectoryClient} from './directory-client.mjs';
+ import {DurableState} from './durable-state.mjs';
+ import {validateNetworkAuthorities} from './network-authorities.mjs';
+@@ -73,12 +73,12 @@ export class ManagementError extends Error {
+ export class ManagementClient {
+   // hostAdmission(lease) -> {admit, reason}: the platform host policy for the host a request would go to (current lease
+   // holder or an owner-named host). Asked before anything is sent; anything but an explicit admit refuses. null = off.
+-  constructor({deploymentId, chainId = 8453, authorityPins, rpc, directories, stateDir, signer, reader, fetch = globalThis.fetch, now = Date.now, hostAdmission = null}) {
++  constructor({deploymentId, chainId = 8453, authorityPins, rpc, directories, stateDir, signer, reader, fetch = globalThis.fetch, now = Date.now, hostAdmission = null, chainAuthority, chainVerifier}) {
+     if (!/^0x[0-9a-f]{64}$/.test(deploymentId || '') || typeof stateDir !== 'string' || !path.isAbsolute(stateDir) || typeof signer !== 'function')
+       throw Error('explicit deployment, state directory and session signer required');
+     this.pins = validateNetworkAuthorities(authorityPins);
+     Object.assign(this, {deploymentId, chainId, signer, now, hostAdmission});
+-    this.reader = reader || new LeaseReader({rpc, chainId, addressBook: ZERO, authorityPins: this.pins, includeHostPayout: true, now});
++    this.reader = reader || new LeaseReader({rpc, chainId, addressBook: ZERO, authorityPins: this.pins, includeHostPayout: true, now, ...chainAuthorityOptions({chainAuthority, chainVerifier})});
+     this.directories = new DirectoryClient({origins: directories, fetch});
+     // Literal directory origins keep host discovery independent of any DNS authority.
+     if (this.directories.origins.some(o => !isIP(new URL(o).hostname.replace(/^\[|\]$/g, '')))) throw Error('management discovery requires literal directory addresses');
+diff --git a/network/native-client.mjs b/network/native-client.mjs
+index 57632de047c9fc948d1c22aa7f90007f058d5585..9b268d7941dec10263f9fff16b6fd6801ad344f6 100644
+--- a/network/native-client.mjs
++++ b/network/native-client.mjs
+@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
+ import path from 'node:path';
+ import {PassThrough,Readable,Transform,pipeline} from 'node:stream';
+ import WebSocket from 'ws';
+-import {LeaseReader} from './lease-reader.mjs';
++import {LeaseReader,chainAuthorityOptions} from './lease-reader.mjs';
+ import {PublicDirectory} from './public-directory.mjs';
+ import {DirectoryClient} from './directory-client.mjs';
+ import {validateNetworkAuthorities} from './network-authorities.mjs';
+@@ -46,7 +46,7 @@ export class NativeClient {
+     this.pins=validateNetworkAuthorities(p.authorityPins);
+     if(p.linux?.vcekBase64)p.linux.vcek=Buffer.from(p.linux.vcekBase64,'base64');
+     if(p.linux?.certChainPem)seedCertChain(p.linux.product,p.linux.certChainPem);
+-    this.reader=reader||new LeaseReader({rpc:p.rpc,chainId:p.chainId,addressBook:ZERO,authorityPins:this.pins,includeHostPayout:true,now});
++    this.reader=reader||new LeaseReader({rpc:p.rpc,chainId:p.chainId,addressBook:ZERO,authorityPins:this.pins,includeHostPayout:true,now,...chainAuthorityOptions({chainAuthority:p.chainAuthority,chainVerifier:p.chainVerifier})});
+     this.transport=new DirectoryClient({origins:p.directories,fetch});
+     // Literal directory origins make the DNS-independent claim enforceable.
+     if(this.transport.origins.some(o=>!isIP(new URL(o).hostname.replace(/^\[|\]$/g,''))))throw Error('native discovery requires literal directory addresses');
+diff --git a/test/caller-verifier-wiring.test.mjs b/test/caller-verifier-wiring.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..bd9fffe9a689994d79e3232cd17b2b704b1ae28c
+--- /dev/null
++++ b/test/caller-verifier-wiring.test.mjs
+@@ -0,0 +1,74 @@
++// Caller configuration of the local-verifier chain authority where an existing LeaseReader / host-policy snapshot can take
++// it: independent-mode trust (--chain-verifier), its LeaseReader options, the management and native clients, the CLI
++// flag, and the MCP profile key. Everything else in those callers (their RPC-quorum reads and every transaction) is unchanged.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { spawnSync } from 'node:child_process';
++import { loadIndependentTrust, independentReaderAuthority } from '../cli/independent.mjs';
++import { ManagementClient } from '../network/management-client.mjs';
++import { NativeClient } from '../network/native-client.mjs';
++import { loadConfig, Authority } from '../mcp/independent.mjs';
++
++const tmp = fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 'caller-verifier-'));
++test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
++const PINS = Object.freeze({ registry: '0x' + '11'.repeat(20), deployments: '0x' + '22'.repeat(20), appCatalog: '0x' + '33'.repeat(20), proofOfTime: '0x' + '44'.repeat(20),
++  enclavePay: '0x' + '00'.repeat(20), verificationFees: '0x' + '00'.repeat(20), sessionVaultFactory: '0x' + '00'.repeat(20), secretVaultV2: '0x' + '00'.repeat(20) });
++const trustArgs = { contractPins: PINS, usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', rpcs: ['https://a.example.org', 'https://b.example.org'] };
++
++test('independent trust: --chain-verifier is optional, local only, and selects the verifier for LeaseReader reads', () => {
++  const q = loadIndependentTrust(trustArgs);
++  assert.equal(q.chainVerifier, null);
++  const chain = { peers: [{ client: { a: 1 } }, { client: { b: 2 } }] };
++  assert.deepEqual(Object.keys(independentReaderAuthority(q, chain)), ['clients']);
++  const v = loadIndependentTrust({ ...trustArgs, chainVerifier: 'http://127.0.0.1:8545/' });
++  assert.equal(v.chainVerifier, 'http://127.0.0.1:8545/');
++  assert.deepEqual(independentReaderAuthority(v, chain), { authority: 'verifier', verifier: 'http://127.0.0.1:8545/' });
++  assert.throws(() => loadIndependentTrust({ ...trustArgs, chainVerifier: 'https://rpc.example.org/' }), /local endpoint/);
++  // the RPC quorum itself is still required: the verifier replaces no other read and no transaction
++  assert.throws(() => loadIndependentTrust({ ...trustArgs, rpcs: [], chainVerifier: 'http://127.0.0.1:8545/' }), /RPC/);
++});
++
++test('the management client builds its LeaseReader on the verifier when told, never on the RPC list', () => {
++  const common = { deploymentId: '0x' + 'cd'.repeat(32), authorityPins: { deployments: PINS.deployments, registry: PINS.registry, connectivity: '0x' + '00'.repeat(20), sessionVaultFactory: '0x' + '00'.repeat(20) },
++    directories: ['http://8.8.8.8:1/'], stateDir: path.join(tmp, 'mgmt'), signer: async () => 'x' };
++  const v = new ManagementClient({ ...common, rpc: ['https://a.example.org', 'https://b.example.org'], chainAuthority: 'verifier', chainVerifier: 'http://127.0.0.1:8545/' });
++  assert.equal(v.reader.authority, 'verifier');
++  assert.equal(v.reader.clients.length, 0);
++  const q = new ManagementClient({ ...common, rpc: ['https://a.example.org', 'https://b.example.org'] });
++  assert.equal(q.reader.authority, 'quorum');
++  assert.throws(() => new ManagementClient({ ...common, rpc: ['https://a.example.org', 'https://b.example.org'], chainVerifier: 'http://127.0.0.1:8545/' }), /not verifier/);
++});
++
++test('a native trust profile may choose the verifier for its LeaseReader', () => {
++  const profile = { version: 1, deploymentId: '0x' + 'cd'.repeat(32), hostname: 'app.example.org', stateDir: path.join(tmp, 'native'), chainId: 8453, linux: {}, checkers: ['0x' + '55'.repeat(20)],
++    expected: { appRef: 'ref', configCid: 'cid', appSha256: 'ab'.repeat(32), runtimeId: 'cd'.repeat(32) },
++    authorityPins: { deployments: PINS.deployments, registry: PINS.registry, connectivity: '0x' + '00'.repeat(20), sessionVaultFactory: '0x' + '00'.repeat(20) }, directories: ['http://192.0.2.1:1/'], rpc: ['https://a.example.org', 'https://b.example.org'] };
++  const opts = { hostAdmission: async () => ({ admit: true }), fetch: async () => { throw Error('no I/O at construction'); } };
++  const v = new NativeClient({ ...profile, chainAuthority: 'verifier', chainVerifier: 'http://127.0.0.1:8545/' }, opts);
++  assert.equal(v.reader.authority, 'verifier');
++  assert.equal(v.reader.clients.length, 0);
++  assert.equal(new NativeClient(profile, opts).reader.authority, 'quorum');
++  assert.throws(() => new NativeClient({ ...profile, chainAuthority: 'verifier', chainVerifier: 'https://rpc.example.org/' }, opts), /local endpoint/);
++});
++
++test('the CLI flag: --chain-verifier belongs to independent mode', () => {
++  const cli = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'cli', 'enclave.mjs');
++  const r = spawnSync(process.execPath, [cli, 'ls', '--chain-verifier', 'http://127.0.0.1:8545/'], { encoding: 'utf8', timeout: 30000,
++    env: { PATH: process.env.PATH, HOME: tmp, ENCLAVE_NO_UPDATE_CHECK: '1' } });
++  assert.match(r.stderr + r.stdout, /--chain-verifier apply to independent mode/);
++});
++
++test('the MCP profile key reaches the profile trust (and a remote URL is refused there)', async () => {
++  fs.writeFileSync(path.join(tmp, 'pins.json'), JSON.stringify({ version: 1, chainId: 8453, contracts: PINS }));
++  const cfgFile = (extra) => { const f = path.join(tmp, `mcp-${Math.random().toString(16).slice(2)}.json`);
++    fs.writeFileSync(f, JSON.stringify({ format: 'enclave-mcp-independent/v1', profiles: { p: { contractPins: 'pins.json', rpcs: ['https://a.example.org', 'https://b.example.org'], stateDir: 'state', ...extra } } })); return f; };
++  const prof = loadConfig(cfgFile({ chainVerifier: 'http://127.0.0.1:8545/' })).profiles.get('p');
++  assert.equal(prof.chainVerifier, 'http://127.0.0.1:8545/');
++  const a = new Authority(prof);
++  assert.equal((await a.trustPromise).chainVerifier, 'http://127.0.0.1:8545/');
++  const bad = new Authority(loadConfig(cfgFile({ chainVerifier: 'https://rpc.example.org/' })).profiles.get('p'));
++  await assert.rejects(bad.trustPromise, /local endpoint/);
++});

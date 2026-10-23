@@ -8551,6 +8551,314 @@
       "stored": "files/source-preservation/frozen-0410-labels.json",
       "sha256": "33a05113024d6edeff897b148500d091be12170424198c84d28f13e2e1ee5355",
       "bytes": 4704
+    },
+    {
+      "label": "FROZEN 04:20Z commits exported from Git objects (never worktrees); both bases rebuilt from pushed 34723cba material and every commit tree reproduced exactly (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/INVENTORY.json",
+      "stored": "files/source-preservation/frozen-0420-export/INVENTORY.json",
+      "sha256": "dc3a23b69b653aecfc9b9dbba6f588a56bb899e2a1ab88d113aa437090d181ca",
+      "bytes": 13123
+    },
+    {
+      "label": "FROZEN 04:20Z commits exported from Git objects (never worktrees); both bases rebuilt from pushed 34723cba material and every commit tree reproduced exactly (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/REBUILD.md",
+      "stored": "files/source-preservation/frozen-0420-export/REBUILD.md",
+      "sha256": "018d076a3f8b27b421f61ecc6840e9f116872f3f617c61a647f3f5c4ad599577",
+      "bytes": 1635
+    },
+    {
+      "label": "FROZEN 04:20Z commits exported from Git objects (never worktrees); both bases rebuilt from pushed 34723cba material and every commit tree reproduced exactly (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/REPRODUCE-CHECK.txt",
+      "stored": "files/source-preservation/frozen-0420-export/REPRODUCE-CHECK.txt",
+      "sha256": "ef3bd63e297538f35616b7d84db6e482b16144b6cbbc584919152b1661cc3d83",
+      "bytes": 608
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/patches/0001-Read-the-service-index-and-platform-host-policy-thro.patch",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/patches/0001-Read-the-service-index-and-platform-host-policy-thro.patch",
+      "sha256": "4c9a81af4d3ce4b84b937bab3c81d1ffa40e1f5c8ad2dbe9edcfbc30abef0f52",
+      "bytes": 93397
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/patches/0002-Let-independent-CLI-MCP-management-and-native-caller.patch",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/patches/0002-Let-independent-CLI-MCP-management-and-native-caller.patch",
+      "sha256": "c1bbe5481e4afda38eca049563ded4d7a23edcb3e3a34f54410f08b75cab5d17",
+      "bytes": 29681
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/cli/enclave.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/cli/enclave.mjs",
+      "sha256": "cc080e6a534ea544767f800ebc19a363bb5de01fb20c6e31604eb0d6810b899b",
+      "bytes": 422590
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/cli/independent-host.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/cli/independent-host.mjs",
+      "sha256": "2efd94d8dc0dd33c717f41c07165cd17080b3b2145f36be3a40819268b01d101",
+      "bytes": 4365
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/cli/independent.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/cli/independent.mjs",
+      "sha256": "12245443fff2fc345ed654de7303258168018ae674f0dd1b11631a006dd18453",
+      "bytes": 37411
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/mcp/independent-tools.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/mcp/independent-tools.mjs",
+      "sha256": "f559cb737d26fda5ff28174aaa25e20333b73c86f0cde362ca5b90b9a76ea0fa",
+      "bytes": 55355
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/mcp/independent.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/mcp/independent.mjs",
+      "sha256": "62fbcff321c4bcf01256651bbb58abb7a18f9a7bdb2f41207918031a4afbcfd1",
+      "bytes": 31934
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/cold-bootstrap.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/cold-bootstrap.mjs",
+      "sha256": "2ee2cd8c63861466408d31f55fe9610a9facf045b23e954ed67c14fa1cf557ec",
+      "bytes": 8940
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/host-policy-runtime.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/host-policy-runtime.mjs",
+      "sha256": "6d4a9b5a75abccf7d566bee75375fd16bf86428e427c4744140be9f3055d9139",
+      "bytes": 9869
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/host-service-gate-carriers.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/host-service-gate-carriers.mjs",
+      "sha256": "053923fcdae3e68b4ff362b2d5681a2b95b3573674d46eaa92c650340bf8b00c",
+      "bytes": 7198
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/host-services/policy-mirror.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/host-services/policy-mirror.mjs",
+      "sha256": "b0c1dc28b4365c5f1a1d35194cd49e0afd847d295f07aebf257d31b01d6001a0",
+      "bytes": 9188
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/host-services/roles.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/host-services/roles.mjs",
+      "sha256": "da453afd65c484b8cfe9717bbc389bd0b8430a43fcd40fbc2efacc79e3f78a25",
+      "bytes": 17393
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/host-services/runner.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/host-services/runner.mjs",
+      "sha256": "dae2fc81919b410c49e4d2e00f497f0921d4b75b47e3d6700004789adcd10c5a",
+      "bytes": 25465
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/host-services/storage-indexer-host.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/host-services/storage-indexer-host.mjs",
+      "sha256": "ef565f7ee9161f06fe6554e9440efc0fdae80714fbe2ddf090417692b2e07178",
+      "bytes": 31935
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/lease-gas-runtime.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/lease-gas-runtime.mjs",
+      "sha256": "4ab0d467ab523f4a81b3e987b3292c4caea2e0d1ba0e7f23e57f8e018dc83d75",
+      "bytes": 10647
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/management-client.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/management-client.mjs",
+      "sha256": "8715250a3af57f03f8be952c2321c2652f5545538eeec2c3fe3203907fce2c33",
+      "bytes": 19385
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/native-client.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/native-client.mjs",
+      "sha256": "2323211bba89270b241a55961c918a5196d984ee06493438969e24f94d4cc926",
+      "bytes": 36228
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/native-control-routes.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/native-control-routes.mjs",
+      "sha256": "e224aaf4b7e1f8c61087ed479f683ea926bae4d2bec72fb62f3b1c4306278126",
+      "bytes": 24251
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/platform-host-policy-config.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/platform-host-policy-config.mjs",
+      "sha256": "8a151bc08892c154bbb4023329f002b33627030ca987108fc1abfe69fefd4a06",
+      "bytes": 6760
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/policy-carriers.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/policy-carriers.mjs",
+      "sha256": "0c08837e91f317fce81585b484091362bbd6af1444d38f4b26be414358a31691",
+      "bytes": 11918
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/service-index.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/service-index.mjs",
+      "sha256": "0c38f700aed373a037157ab5e0635e19ea15b5b75e493a87e94249f4b0fa0221",
+      "bytes": 45551
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/verified-chain.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/network/verified-chain.mjs",
+      "sha256": "747d51480eca034df4a011e028aaa7c3b0753b2de92e74baa62fb4861ca05546",
+      "bytes": 13050
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/test/caller-verifier-wiring.test.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/test/caller-verifier-wiring.test.mjs",
+      "sha256": "72eb44c7381433f729b99e1d79a83999654bb937d1dfd7e4f20cbcb20e1866d6",
+      "bytes": 6237
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/test/policy-verifier.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/test/policy-verifier.e2e.test.mjs",
+      "sha256": "7aff4325dccd4d1333f693be225a3448252e9503c6d29ca27f28b276402fa323",
+      "bytes": 17146
+    },
+    {
+      "label": "A 437d6ced -> 2efc4a83 on 0c43e4db: service-index and platform host policy read through the local verifier when chosen; independent CLI/MCP, management and native callers can choose the local verifier; the existing default authority is preserved (never weakened). 7 canonical-Reth policy E2Es pass; 130/135 with 5 baseline failures (identical before). Still needs composition and a local Helios binary; A's newer relay/native closure is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/test/verified-chain.test.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/a-policy-callers-2efc4a83/files/test/verified-chain.test.mjs",
+      "sha256": "9bc7d8167874335e23a0467ee8e12bfaab6a7282d78464109c31e51cc391dfd5",
+      "bytes": 14188
+    },
+    {
+      "label": "ROOT fix 1086cf23 on D f1d0666b (supervisor 7389d613): adopt() snapshots record identity, epoch and withdrawals before its await and checks the pending-stop hold before and after, preserving a fresh adoption; root: 8 new cases pass, old f1d0666b fails 6 guard cases (2 positive pass), 37/37 offline focused regression (peak 168 MiB). REQUIRED before D is called rollout-ready. ROOT fix, SOURCE ONLY, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/d-root-adopt-stop-1086cf23/patches/0001-Guard-Linux-adoption-against-concurrent-teardown-and.patch",
+      "stored": "files/source-preservation/frozen-0420-export/d-root-adopt-stop-1086cf23/patches/0001-Guard-Linux-adoption-against-concurrent-teardown-and.patch",
+      "sha256": "026e50637793f7c4c32e725ac0d68b01948909f0fab07b187b2382c5e023b4e9",
+      "bytes": 8173
+    },
+    {
+      "label": "ROOT fix 1086cf23 on D f1d0666b (supervisor 7389d613): adopt() snapshots record identity, epoch and withdrawals before its await and checks the pending-stop hold before and after, preserving a fresh adoption; root: 8 new cases pass, old f1d0666b fails 6 guard cases (2 positive pass), 37/37 offline focused regression (peak 168 MiB). REQUIRED before D is called rollout-ready. ROOT fix, SOURCE ONLY, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/d-root-adopt-stop-1086cf23/files/ROOT-REVIEW.md",
+      "stored": "files/source-preservation/frozen-0420-export/d-root-adopt-stop-1086cf23/files/ROOT-REVIEW.md",
+      "sha256": "c92fa583c649a1e58ddc1197cecf523900494089d71f218e8c473ca9d00850cb",
+      "bytes": 2136
+    },
+    {
+      "label": "ROOT fix 1086cf23 on D f1d0666b (supervisor 7389d613): adopt() snapshots record identity, epoch and withdrawals before its await and checks the pending-stop hold before and after, preserving a fresh adoption; root: 8 new cases pass, old f1d0666b fails 6 guard cases (2 positive pass), 37/37 offline focused regression (peak 168 MiB). REQUIRED before D is called rollout-ready. ROOT fix, SOURCE ONLY, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/d-root-adopt-stop-1086cf23/files/supervisor.js",
+      "stored": "files/source-preservation/frozen-0420-export/d-root-adopt-stop-1086cf23/files/supervisor.js",
+      "sha256": "7389d61399d0e94a0f226c8604bd90635db30723c41a7d8aa2c62aaa9dbefbe2",
+      "bytes": 853222
+    },
+    {
+      "label": "ROOT fix 1086cf23 on D f1d0666b (supervisor 7389d613): adopt() snapshots record identity, epoch and withdrawals before its await and checks the pending-stop hold before and after, preserving a fresh adoption; root: 8 new cases pass, old f1d0666b fails 6 guard cases (2 positive pass), 37/37 offline focused regression (peak 168 MiB). REQUIRED before D is called rollout-ready. ROOT fix, SOURCE ONLY, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export/d-root-adopt-stop-1086cf23/files/test/adopt-pending-stop.test.mjs",
+      "stored": "files/source-preservation/frozen-0420-export/d-root-adopt-stop-1086cf23/files/test/adopt-pending-stop.test.mjs",
+      "sha256": "4c6db6da29a05a85328bd38b87f1fc0b391cfbf5d0a385d9f35b4d1d19685633",
+      "bytes": 3180
+    },
+    {
+      "label": "A consumer-closure report at its frozen bytes (2efc4a83): 7 canonical-Reth policy E2Es, 130/135 with 5 baseline failures; source + offline tests only",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/RESULT-CONSUMER-CLOSURE.md",
+      "stored": "files/rpc-priority/RESULT-CONSUMER-CLOSURE.md",
+      "sha256": "9413f1e471d1e1b1f77a8c0efc871038e81bbfb5ed4bc70118acf017178611b4",
+      "bytes": 15856
+    },
+    {
+      "label": "ROOT probe + result (04:11:51Z) on D f1d0666b's supervisor (e50da21d): the actual adopt() body + real releaseGpu with a scripted held-guest await: old guest still listed, pending stop, yet the reserved slice was freed and the record removed. Actual function + scripted edges, NOT a physical VM",
+      "source": "work/resume-after-checkpoint-20261022/root-linux-adopt-stop-race.mjs",
+      "stored": "files/root-linux-adopt-stop-race.mjs",
+      "sha256": "5524bc90dbaf63bae9057d840304d455161cbb4a7b857a3517cc7f9d00db4c2b",
+      "bytes": 1565
+    },
+    {
+      "label": "ROOT probe + result (04:11:51Z) on D f1d0666b's supervisor (e50da21d): the actual adopt() body + real releaseGpu with a scripted held-guest await: old guest still listed, pending stop, yet the reserved slice was freed and the record removed. Actual function + scripted edges, NOT a physical VM",
+      "source": "work/resume-after-checkpoint-20261022/root-linux-adopt-stop-race-result.json",
+      "stored": "files/root-linux-adopt-stop-race-result.json",
+      "sha256": "891bc73e22e339ba08642321a97b0fe57abaa940791dbc12559667828eb1b8e4",
+      "bytes": 377
+    },
+    {
+      "label": "ROOT read-only check of the scheduled Windows updater run (one status query; never changes a task or runtime)",
+      "source": "work/resume-after-checkpoint-20261022/node-updater-readonly/check-0413.py",
+      "stored": "files/node-updater-readonly/check-0413.py",
+      "sha256": "efcf08a743ae2df36580267a3976fa820cd07701a5cdd51acebe4f1e6e6ebd03",
+      "bytes": 1756
+    },
+    {
+      "label": "ROOT receipt, ACTUAL observation 2026-10-23T04:15:02Z: the scheduled updater run at 04:13:38Z returned 0; runtime still host ea0f6b8a + chain 3e9fae03; 9 apps running. Native observation of one run only; leases are not independent proofs; release completeness/future updates not established",
+      "source": "outputs/decentralization-audit/windows-node-updater-0413-postcheck-20261023.json",
+      "stored": "files/outputs/decentralization-audit/windows-node-updater-0413-postcheck-20261023.json",
+      "sha256": "28da2b60dde89fba53af0f7dcf5484eca5f462817f2612f8607eae5b4dc4b67d",
+      "bytes": 2041
+    },
+    {
+      "label": "frozen-0420 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-frozen-0420.py",
+      "stored": "files/source-preservation/export-frozen-0420.py",
+      "sha256": "ff4bcb89a2f9899bb1592b45b03944e399547ecbc9948f820d522cbd8d53f588",
+      "bytes": 10241
+    },
+    {
+      "label": "frozen-0420 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-frozen-0420-export.py",
+      "stored": "files/source-preservation/verify-frozen-0420-export.py",
+      "sha256": "eb9ec99a995ae49c0159ad8985e4ce4b5f563d605fec4eb91dd0eef399c2f04c",
+      "bytes": 5459
+    },
+    {
+      "label": "frozen-0420 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-frozen-0420.py",
+      "stored": "files/source-preservation/capture-frozen-0420.py",
+      "sha256": "67abe16d94e8fbf2ab0d7e126937c6d3c1c6392f5988bc7e5e7424d378031031",
+      "bytes": 6962
+    },
+    {
+      "label": "frozen-0420 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-pins.json",
+      "stored": "files/source-preservation/frozen-0420-pins.json",
+      "sha256": "08dfe260c190660731e9c050c86ac750e1c84638c69a76434ddaa02106fc9951",
+      "bytes": 265
+    },
+    {
+      "label": "frozen-0420 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-export.sh",
+      "stored": "files/source-preservation/frozen-0420-export.sh",
+      "sha256": "9b26d7e54b5386b13e63fb6e76d6702fef634666199de68aa825a0cd68b5f063",
+      "bytes": 1092
+    },
+    {
+      "label": "frozen-0420 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-capture.sh",
+      "stored": "files/source-preservation/frozen-0420-capture.sh",
+      "sha256": "631137e14d21cfb71facfe9dabbb541578278f6d38a22cb302c5e8e7214bd39f",
+      "bytes": 1933
+    },
+    {
+      "label": "frozen-0420 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0420-labels.json",
+      "stored": "files/source-preservation/frozen-0420-labels.json",
+      "sha256": "d98c7a4025579133ca046b8e02f76f27ba05afc3a660d8d3378430ce8f3a03e5",
+      "bytes": 2477
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -8614,6 +8922,15 @@
       "entriesBefore": 1232,
       "added": 75,
       "bytes": 2159398,
+      "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run"
+    },
+    {
+      "at": "2026-10-23T04:22:28.110211+00:00",
+      "by": "source-preservation/capture-frozen-0420.py",
+      "onCheckpoint": "34723cba51f4fbcaff3963b979b7fc45f05e8ee3",
+      "entriesBefore": 1307,
+      "added": 44,
+      "bytes": 1922183,
       "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run"
     }
   ]

@@ -19,6 +19,8 @@ Frozen 03:31Z append (2026-10-23): S bounded bridge f98786e9 (offline/loopback t
 
 Frozen 04:10Z append (2026-10-23): A canonical-trie Reth E2E 0c43e4db, B whole-operation verifier deadline 8d110101, C host-services cold start 427780bb (NOT rollout-ready: late-start/close race, DO-mirror-only gate), D Linux wallet hold final f1d0666b (needs a measured image + the decision() bundle; not deployed), E S3 witness ARCHIVE tier 27785278 (not live Sia) and P bounded real-history 7b4dd692 (real proof recording FAILED: no real proof); root's stop-race mock probe and the 04:06-04:07Z EnclaveDNS receipts. See `MANIFEST.json` `appends`. The whole-bucket OOM failure above remains the latest terminal full-restore status.
 
+Frozen 04:20Z append (2026-10-23): A policy readers + callers choosing the local verifier 437d6ced/2efc4a83 (7 canonical-Reth policy E2Es; 130/135 with 5 baseline failures) and ROOT's Linux adopt() pending-stop guard 1086cf23 on D f1d0666b (required before D is rollout-ready; source only, NOT activated); root's adopt-race probe (actual function + scripted edges, not a physical VM) and the 04:15Z Windows updater post-check. See `MANIFEST.json` `appends`. The whole-bucket OOM failure above remains the latest terminal full-restore status.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

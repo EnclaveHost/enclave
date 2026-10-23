@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-23T04:11:51.498Z",
+  "sourceSha256": "e50da21dac2cbbd79d06dc971558c17a8352bb590811b7366a08f2597579e04d",
+  "oldGuestStillListed": true,
+  "pendingStop": true,
+  "reservationFreed": true,
+  "recordRemoved": true,
+  "scope": "Actual complete adopt() body and real releaseGpu() from f1d0666b, scripted held-guest await/allocator; no production or actual VM."
+}
