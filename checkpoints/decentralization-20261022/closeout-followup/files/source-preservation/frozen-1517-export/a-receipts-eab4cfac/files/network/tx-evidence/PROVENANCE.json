@@ -1,0 +1,38 @@
+{
+  "kind": "enclave.vendored-source",
+  "from": "work/rpc-transaction-independence (worker E, immutable final)",
+  "commit": "c08331e9397c33db0330e6c4a53c74c5d8f0d98b",
+  "report": "e917c5265cb6f80c5215674e0567ce113899b7fb",
+  "handoffs": [
+    "HANDOFF-SOURCE-BINDING.md",
+    "HANDOFF-EVIDENCE-IMMUTABILITY.md"
+  ],
+  "rule": "byte-identical copies; never edited here. Changes go to E and are re-vendored.",
+  "files": {
+    "network/tx-evidence/evidence-brand.mjs": {
+      "source": "src/evidence-brand.mjs",
+      "gitBlob": "0a2c74be52dd486178ca354b7478cc58652d0162",
+      "sha256": "90162e5b797d3ca5a6d53689c5233bfc86536230d3fc3672b4105aec89212171"
+    },
+    "network/tx-evidence/l1-source-binding.mjs": {
+      "source": "src/l1-source-binding.mjs",
+      "gitBlob": "718865bc396e5290a48e40fa5d39008c86936626",
+      "sha256": "a46b94c2e5cb54acba7f2f7cb290e3bbe8849a818dc384c4728f62b7713c407f"
+    },
+    "network/tx-evidence/base-source-binding.mjs": {
+      "source": "src/base-source-binding.mjs",
+      "gitBlob": "7a9bf9920e9b30ebf2f933325e52629afc9050d5",
+      "sha256": "0fe489489c6fed4dd74dc8a52e1e21296f4152806fc673ff22e2f323ee19f0c0"
+    },
+    "network/tx-evidence/forced-inclusion.mjs": {
+      "source": "src/forced-inclusion.mjs",
+      "gitBlob": "60b897853de5a05fa633d0a5f0c140ceb50f316c",
+      "sha256": "438e9c77382eeb9e60bd57cfaf4c98ee2f831d93aec7b0c75e7fbc151b87942c"
+    },
+    "test/fixtures/tx-evidence/pair-stubs.mjs": {
+      "source": "test/support/pair-stubs.mjs",
+      "gitBlob": "bf390fac0fa55c1da61fa9d8c9fc62cdc0d6bd99",
+      "sha256": "d13dff49f1d95b7d69753a7f302c725067a73158fdf4a148ee3ad34693f21aaa"
+    }
+  }
+}

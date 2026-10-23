@@ -1,0 +1,21 @@
+privacy agent: a stop during startup is a clean cancellation, a failed release never is
+
+A SIGTERM/SIGINT that arrived while the daemon was still starting made runPrivacy throw a plain Error("privacy agent
+stopped during startup") and the command line exit 1, as if startup had failed. Host services can report STARTED before
+agent.start() settles, so a stop right after that readiness line exited 1 (S c3 run3, F j2, root probe 56b68c0).
+
+- StartupCancelled (code ENCLAVE_STARTUP_CANCELLED, same message) is thrown only for that stop, and only after everything
+  the daemon holds has been released. runPrivacyCli (both entries) exits 0 for it, 1 for anything else.
+- One release() for the signal and for startup's own unwinding: every owned close is attempted and awaited whatever an
+  earlier one did (host gate, host proof, agent, control transport, host services, paid network, network host last).
+  Startup checks for a stop after each step that holds resources, so nothing new is created once a stop is asked for.
+  It now also closes the control transport and paid network on a startup failure (they were left open before).
+- PrivacyAgent.close() returns one promise however often it is called (a second caller waits for the first), attempts the
+  manager close, the status write and the router close each, and rejects if any failed.
+- A release that fails is never a clean stop: a cancelled startup throws an AggregateError (exit 1), and a stop after
+  startup sets exit code 1 ("stop incomplete"). A genuine startup error is rethrown as itself even if a stop arrived.
+
+Tests: test/privacy-agent-startup-cancel.test.mjs runs the REAL daemon held deterministically (test preload, released
+only by SIGTERM after the daemon's own handler) at network host creation, control transport start, authorization and
+the final startup snapshot; a genuine error while a stop is pending; and injected manager-close / status-write
+failures during and after startup. The generated preload is syntax-checked before use.

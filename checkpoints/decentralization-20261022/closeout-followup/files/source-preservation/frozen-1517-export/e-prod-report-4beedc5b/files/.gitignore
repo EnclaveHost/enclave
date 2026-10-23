@@ -1,0 +1,4 @@
+repo/
+build-tree/
+tmp/
+outputs/*.tar

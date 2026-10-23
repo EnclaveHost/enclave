@@ -1,0 +1,45 @@
+From fb9ce4a726e16b0652e9bdbfa851c01c6553fb07 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 07:17:12 -0700
+Subject: [PATCH] storage_nbd: refuse a foreign/non-empty mount point BEFORE
+ mapping, so a refused start never consumes the cache-reuse marker (found by
+ the guest test C3/C4)
+
+---
+ holder/storage_nbd.py | 16 +++++++++++++---
+ 1 file changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/holder/storage_nbd.py b/holder/storage_nbd.py
+index 3ada96196e89a20714acc1cec16230c5b7de94c0..aa1c46eea173711a0b7105ca10c27ba79cf1c346 100644
+--- a/holder/storage_nbd.py
++++ b/holder/storage_nbd.py
+@@ -293,6 +293,19 @@
+     cached = c["mechanism"] == "dm-cache"
+     if mountpoints_of(dev):
+         die(f"{dev} (the origin) is mounted at {mountpoints_of(dev)} without this layer: refusing (stale-cache / two-view hazard)")
++    # every refusal about the mount point BEFORE anything is mapped (a refused start must not consume the cache marker)
++    mnt = c["mountPoint"]
++    if not os.path.isdir(os.path.dirname(mnt)):
++        die(f"{os.path.dirname(mnt)} does not exist")
++    if os.path.lexists(mnt) and (os.path.islink(mnt) or not os.path.isdir(mnt)):
++        die(f"{mnt} must be a real directory")
++    pre = mounted_at(mnt) if os.path.lexists(mnt) else None
++    if pre is not None:
++        want_top = f"/dev/mapper/{c['name']}" if cached else dev
++        if not os.path.exists(want_top) or pre != majmin(want_top):
++            die(f"{mnt} is mounted from another device ({pre}); leaving it")
++    elif os.path.lexists(mnt) and os.listdir(mnt):
++        die(f"{mnt} is not empty: something wrote into the bare mount point (on the VM disk); investigate first")
+     top = dev
+     if cached:
+         for f in (c["cdata"], c["cmeta"]):
+@@ -319,9 +332,6 @@
+     sig = dict(l.split("=", 1) for l in probe.splitlines() if "=" in l)
+     if sig.get("TYPE") != "ext4" or sig.get("UUID") != c["fsUuid"]:
+         die(f"{top} holds {sig.get('TYPE')} {sig.get('UUID')}, not ext4 {c['fsUuid']}")
+-    mnt = c["mountPoint"]
+-    if not os.path.isdir(os.path.dirname(mnt)):
+-        die(f"{os.path.dirname(mnt)} does not exist")
+     if not os.path.lexists(mnt):
+         os.mkdir(mnt, 0o000)                         # the bare mount point: no one but root can write into it
+     if os.path.islink(mnt) or not os.path.isdir(mnt):

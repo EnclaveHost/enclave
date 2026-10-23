@@ -1,0 +1,98 @@
+From cfa165fbffce2f5693043c3512bec459606fbd69 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 05:49:24 -0700
+Subject: [PATCH] transport: capability-less supervisor identifies the daemon
+ by pid+starttime+argv (no exe readlink); test relay closes silently when the
+ export is down
+
+---
+ test/fwd_relay.py      | 5 ++++-
+ transport/common.py    | 9 ++++++---
+ transport/hddattach.py | 8 ++++----
+ transport/hddwatch.py  | 2 +-
+ 4 files changed, 15 insertions(+), 9 deletions(-)
+
+diff --git a/test/fwd_relay.py b/test/fwd_relay.py
+index 4931ca4bebe70ce3fdaae6e9ea76722e08786b68..afc60441728ff0588887a190d063436041ba7452 100755
+--- a/test/fwd_relay.py
++++ b/test/fwd_relay.py
+@@ -9,7 +9,10 @@
+ host, port = sys.argv[1], int(sys.argv[2])
+ if host != "127.0.0.1":
+     sys.exit("relay only targets 127.0.0.1")
+-s = socket.create_connection((host, port), timeout=10)
++try:
++    s = socket.create_connection((host, port), timeout=10)
++except OSError:
++    os._exit(1)        # export down: close the guest connection without writing anything into the NBD stream
+ s.settimeout(None)
+ 
+ 
+diff --git a/transport/common.py b/transport/common.py
+index 9fc83b112c5760bcaa1afd831d6cff1eac3b7ba1..ed26b9bc5c4712d07fde7250037ffe8d9fae9869 100644
+--- a/transport/common.py
++++ b/transport/common.py
+@@ -259,13 +259,16 @@
+         time.sleep(0.05)
+ 
+ 
+-def is_owned(rec):
+-    """True only if the pid is alive AND is the very process recorded (same start time, executable and argv)."""
++def is_owned(rec, check_exe=True):
++    """True only if the pid is alive AND is the very process recorded (same start time, executable and argv).
++    check_exe=False is for a capability-less observer (the hddwatch supervisor). The kernel refuses it readlink of
++    /proc/<pid>/exe of a root process with more capabilities (ptrace access check), so it compares pid + boot-relative
++    start time + full argv. Those still identify one process; it is never used to signal anything."""
+     ident = proc_identity(rec.get("pid", -1)) if isinstance(rec.get("pid"), int) and rec["pid"] > 1 else None
+     if ident is None:
+         return False
+     start, exe, argv = ident
+-    return start == rec.get("starttime") and exe == rec.get("exe") and argv_digest(argv) == rec.get("argvSha256")
++    return start == rec.get("starttime") and (not check_exe or exe == rec.get("exe")) and argv_digest(argv) == rec.get("argvSha256")
+ 
+ 
+ def write_state_exclusive(path, obj):
+diff --git a/transport/hddattach.py b/transport/hddattach.py
+index 31472a450dd417bc413a4d9c2f91dfc16d1870b4..33f000151f13bb3b4066afa4f528cda315408424 100644
+--- a/transport/hddattach.py
++++ b/transport/hddattach.py
+@@ -115,11 +115,11 @@
+     return os.path.join(cfg["stateDir"], "attach.json")
+ 
+ 
+-def owned_state(cfg):
++def owned_state(cfg, check_exe=True):
+     st = read_state(state_path(cfg))
+     if st is None:
+         refuse("not attached by this tool (no state record)")
+-    if st.get("device") != cfg["device"] or not is_owned(st["proc"]):
++    if st.get("device") != cfg["device"] or not is_owned(st["proc"], check_exe):
+         refuse(f"the recorded attachment is not live/owned (device {st.get('device')}, pid {st['proc'].get('pid')})")
+     kp = kernel_pid_in(cfg["device"], st["proc"]["pid"])
+     if kp is None or kp < 0:
+@@ -266,10 +266,10 @@
+         return []
+ 
+ 
+-def verify_attached(cfg):
++def verify_attached(cfg, check_exe=True):
+     """The RAW attachment only: this tool's live qemu-nbd connects the device, with the placement statement's exact size.
+     Says nothing about mounts: in the composed storage layer the filesystem may be mounted through a cache mapping."""
+-    st = owned_state(cfg)
++    st = owned_state(cfg, check_exe)
+     size = int(sysblk(st["device"], "size") or 0) * 512
+     if size != cfg["placement"]["imageBytes"]:
+         refuse(f"{st['device']} is {size} bytes, not the placement statement's {cfg['placement']['imageBytes']}")
+diff --git a/transport/hddwatch.py b/transport/hddwatch.py
+index 98d4e331ea9e2b530b6bb6e834134d237f0e02dd..d787cad6418046f20490f0352789f25dada55511 100644
+--- a/transport/hddwatch.py
++++ b/transport/hddwatch.py
+@@ -119,7 +119,7 @@
+ 
+ 
+ def one_pass(w, a, base_errors=None, n=0):
+-    st = hddattach.verify_attached(a)
++    st = hddattach.verify_attached(a, check_exe=False)   # sandboxed without CAP_SYS_PTRACE: pid+starttime+argv
+     dev = w["device"]
+     expect = mapping_ok(w["mapping"], dev) if w["mapping"] else dev
+     m = mount_at(w["mountPoint"])

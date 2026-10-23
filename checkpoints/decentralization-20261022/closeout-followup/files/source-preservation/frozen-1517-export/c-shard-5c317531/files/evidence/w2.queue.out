@@ -1,0 +1,8 @@
+[queue] START available=25570MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+    Finished `release` profile [optimized] target(s) in 44.22s
+cargo exit=0
+-rw-r--r-- 2 steven steven 4555871 Oct 23 02:44 /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/target/wasm32-wasip2/release/sia-s3.wasm
+00e9cde0929dc7b8726ca4b7b9c9afb51ec4bf6d952039c907c032256ec79afc  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/target/wasm32-wasip2/release/sia-s3.wasm
+[memory-guard] exit=0 peakTreeRssMiB=1041 minHostAvailableMiB=24581
+[memory-guard] at peak: rustc:965 cargo:69 wasm-step.sh:6
+[queue] EXIT 0

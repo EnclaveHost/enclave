@@ -1,0 +1,80 @@
+From 4beedc5b6811393cd400b5ace2f2018e32ba05db Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 07:57:39 -0700
+Subject: [PATCH] RESULT: scans, patch-apply match, root F startup note
+
+---
+ RESULT-PRODUCTION-BUILD.md | 11 +++++++++++
+ logs/s1.guard.log          |  1 +
+ logs/s1.out                | 23 +++++++++++++++++++++++
+ logs/s1.rc                 |  1 +
+ 4 files changed, 36 insertions(+)
+ create mode 100644 logs/s1.guard.log
+ create mode 100644 logs/s1.out
+ create mode 100644 logs/s1.rc
+
+diff --git a/RESULT-PRODUCTION-BUILD.md b/RESULT-PRODUCTION-BUILD.md
+index ae2f7aabb6e705101938c2d2cd276141dd9a313d..ad4c692504324325cf372643b8e2ab1992a60e67 100644
+--- a/RESULT-PRODUCTION-BUILD.md
++++ b/RESULT-PRODUCTION-BUILD.md
+@@ -130,6 +130,17 @@
+ 
+ No test was skipped to look green: the built-site test can only skip when `BUILT_SITE_DIR` is unset, and it ran.
+ 
++**Root input received during the run:** `ROOT-F-ACCOUNT-STARTUP-OWNER.txt`. F owns the
++`site-independent-account-startup` prepareOnly/catalog fixture diagnosis; root reads it as a fixture moderation mismatch,
++not a wallet regression. This work did not touch or duplicate it. Root says to await F's result before integration.
++
++**Scans (`s1`, 256):**
++- Crypto-key scanner and gitleaks (the source repo's policy) over `dc2e5d740..ae00cd965`: no leaks.
++- The report repo: no leaks.
++- `git am` of patches 0001–0004 on `dc2e5d740` gives tree `5159185616aa0600be92cb9d3308645ad59b4cf3`, which **matches**
++  `ae00cd965`.
++- The bundle verifies.
++
+ ## Not claimed
+ 
+ - **MetaMask** broadcasts through the RPC configured in the wallet. The page cannot override it; EIP-3085 is only an offer.
+diff --git a/logs/s1.guard.log b/logs/s1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e86f15d20a5e6f2067432482d9ac421fec3b1241
+--- /dev/null
++++ b/logs/s1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=121 minHostAvailableMiB=24572
+diff --git a/logs/s1.out b/logs/s1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..8922faba621646af84434eb0718e4a40a01aa267
+--- /dev/null
++++ b/logs/s1.out
+@@ -0,0 +1,23 @@
++[queue] START available=24626MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++== source dc2e5d740..HEAD
++ae00cd965 Test the dropped-wallet receipt check on both routes, and the wallet route in the built site
++e078490da Merge main 68b82926 (docs-only PRODUCT/README/security wording) into the wallet-route production candidate
++68b829269 docs(README): simpler wording for the protections paragraph [skip ci]
++544088d1b docs(README): host-OS exclusion is by the isolation mechanism (demonstrated), not separation alone; keep operator unexcluded [skip ci]
++d2ea087fa docs: Windows host-OS memory exclusion demonstrated box-local (E3) [skip ci]
++source crypto scan rc=0
++7:57AM INF 4 commits scanned.
++7:57AM INF scanned ~29639 bytes (29.64 KB) in 119ms
++7:57AM INF no leaks found
++== report repo
++3d47052 RESULT, S method handoff, D export, build/test jobs and logs for rpc-wallet-production-build ae00cd965
++7:57AM INF 1 commits scanned.
++7:57AM INF scanned ~129189 bytes (129.19 KB) in 127ms
++7:57AM INF no leaks found
++== D patch-apply check: patches/*.patch on dc2e5d740 -> tree of ae00cd965
++applied tree 5159185616aa0600be92cb9d3308645ad59b4cf3  final tree 5159185616aa0600be92cb9d3308645ad59b4cf3  MATCH
++The bundle uses this hash algorithm: sha1
++scan rc=0
++[memory-guard] exit=0 peakTreeRssMiB=121 minHostAvailableMiB=24572
++[memory-guard] at peak: git:116 bash:6
++[queue] EXIT 0
+diff --git a/logs/s1.rc b/logs/s1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/s1.rc
+@@ -0,0 +1 @@
++0

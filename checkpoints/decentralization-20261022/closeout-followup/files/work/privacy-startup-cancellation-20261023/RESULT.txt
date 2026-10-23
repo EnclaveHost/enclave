@@ -1,0 +1,134 @@
+PRIVACY-AGENT STARTUP CANCELLATION — RESULT (M session 2ff627b0, 2026-10-23)
+Status: source COMMITTED and tested on the REAL daemon (Linux rig, local fixtures). Source-only: not deployed, not bundled
+into any package. Root review is required before S/F/D integration. Native Windows activation remains gated.
+
+PROVENANCE
+  base       4c059b997360483c743deca343c2e42b1b534eeb (work/public-rpc-host-role/repo, immutable)
+             network/privacy-agent.mjs sha256 5e56973dfd27bc76781ea2f70646803019044d56d7bd97988bcfe8cffca6f705 (as root's probe)
+  clone      work/privacy-startup-cancellation-20261023/repo, branch privacy-startup-cancellation
+             node_modules, network/, relay/ and e2e/node_modules are SYMLINKS to S's existing directories (no fetch or install)
+  commits    (all SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>, repo pre-commit crypto scan run inside the queue)
+    1c386e2346f33267512079582b3a11d7d730d0c6  tree 7666841441e6406f1872b95d18ce1df8b24980ca  fix + daemon tests
+    808f36c5760cf22afa06c8c70f6e82fcfcc743bd  tree a19e71cbf0de24fc1dd489b94b97509b7183e28f  failed-release message keeps its context
+    3746e4fcbc163a743fbd1fb35a989e8ca0763b7c  tree 77680c022a2df2e0ee297ff9b384ea55ef1cc052  FINAL (test asserts the contract, not wording)
+  patch      privacy-startup-cancellation.patch (git format-patch 4c059b9..3746e4f, 3 commits)
+             sha256 7facefccce3d380f367fa2ff0b443f3de99225850a35ae3c8a783aa858288eb1
+             privacy-startup-cancellation.diff (one combined diff 4c059b9..3746e4f)
+             sha256 45387e0e1bb3ea6e5476922e516bdeaf56d134d64a6cbdeb010102f36ce79a16
+  files at 3746e4f: 3 files changed, 237 insertions, 16 deletions
+    network/privacy-agent.mjs                  0c222eb7a0f3ceff1a8c71b5e502cf119dc8d00750ad77b70517a88f4d0a95a1
+    network/entries/privacy-agent.mjs          5f50fd9d05c9ee66c62622e17530d0025a548eec2f983b92668ee091fe6f2c51
+    test/privacy-agent-startup-cancel.test.mjs 4e6c48e10276dd2b906f13e66535fd136dcca5e5b2a5f8b8265fc29f6f31508e (new)
+  The combined diff passes `git apply --check` on read-only copies of these trees:
+    S HEAD 36919aaf (it has not touched these 2 files since 4c059b9);
+    S's working tree;
+    F's work/windows-final-runtime-integration-20261023/candidate working tree (HEAD dda47a35).
+
+WHAT WAS WRONG (baseline 4c059b9)
+  1. A SIGTERM/SIGINT during startup made runPrivacy throw a plain Error "privacy agent stopped during startup". The CLI then
+     set exit code 1, as for a genuine startup failure. Host services can print STARTED before agent.start() settles, so a
+     stop right after that readiness line exited 1. Real-daemon occurrences: S c3 run3; F j2-shared (carriers d.stop code 0).
+  2. The two startup catch paths cleaned up different sets of resources.
+     - A failure before agent.start never closed the control transport or the paid network.
+     - Neither path awaited the signal handler's own in-flight close: the agent's close() returned at once when already
+       closed.
+     - The signal handler's Promise.all skipped the paid close when any earlier close rejected.
+  3. Root review: cleanup failures were logged and dropped.
+     - A failed release looked like a clean cancellation (exit 0) or a clean stop (exit 0).
+     - PrivacyAgent.close skipped the status write and router close when manager.close rejected.
+
+THE FIX (network/privacy-agent.mjs; network/entries/privacy-agent.mjs uses the shared CLI)
+  - StartupCancelled (Error; name StartupCancelled; code ENCLAVE_STARTUP_CANCELLED; same message) is the ONLY outcome treated
+    as a clean stop during startup. It is thrown only after everything owned has been released.
+  - runPrivacyCli(configFile), used by both entries: StartupCancelled leaves the exit code at 0, so the process exits once
+    nothing it started remains. Anything else sets exit code 1. There is no process.exit and no swallowed error.
+  - release() is the one path used by the signal handler and by startup's own unwinding. It attempts and awaits every
+    owned close, whatever an earlier step did: host-policy gate, host proof, agent, control transport, host services,
+    paid network, and the network host last. It returns (and logs) the failures. Each close is idempotent, and
+    PrivacyAgent.close() now returns one shared promise, so a second caller waits for the first.
+  - Startup checks for a stop after each awaited step that leaves resources (network host creation, control transport
+    start, paid network), so nothing new is created once a stop has been requested. Anything an in-flight step created is
+    released when that step returns.
+  - Genuine failures are not hidden: startup's unwinding rethrows the ORIGINAL error (exit 1) even if a stop arrived
+    meanwhile. A cancelled startup whose release failed throws an AggregateError instead: "...stopped during startup, and
+    releasing what it held failed: ..." (exit 1).
+  - Stops after startup: a stop whose release failed logs "stop incomplete" and sets exit code 1.
+  - PrivacyAgent.close() attempts manager.close, the status write and router.close each, then rejects if any failed.
+  - Unchanged: the admission, admin and host-policy gates, the order of startup, the timers, and the ownership checks. No
+    contract, wallet or custody change.
+
+TESTS (all through python3 work/claude-test-queue.py with the 16 GiB floor unchanged; logs in logs/)
+  New: test/privacy-agent-startup-cancel.test.mjs, against the REAL daemon `node network/privacy-agent.mjs --config`.
+  Rig: the lifecycle test's Linux rig (canary listeners, enclave.host refused) plus control circuits to a local directory
+  that refuses connections.
+  Deterministic holds: a test preload wraps the production method at each boundary and returns its promise only after
+  SIGTERM, once the daemon's own handler has run (setImmediate after the signal). No sleep orders the race. The GENERATED
+  preload is checked with `node --check` before any daemon starts.
+
+  Cases:
+   1-4  SIGTERM held at each boundary below. Each must exit 0 by itself (signal null), print the stop message, free the
+        TCP/UDP listeners, and make no enclave.host lookup.
+          - network: DirectRuntime.listen inside createNetworkHost
+          - control: WgControlTransport.start
+          - authorization: the agent's first refreshAuthorization
+          - final-snapshot: the snapshot that start awaits after its proofs
+   5    A genuine failure (status.json is a directory) at the held final snapshot while a stop is pending: exit 1 with EISDIR,
+        not the stop message, and the listeners are freed.
+   6-7  An injected manager.close or closing-status-write failure during a cancelled startup: exit 1, the error names the
+        stop and the failure, ROUTER CLOSED is printed (later close steps still ran), and the network listeners are freed.
+   8    The same manager.close failure on a stop AFTER startup: exit 1, "stop incomplete", ROUTER CLOSED, listeners freed.
+  Existing test/privacy-agent-lifecycle.test.mjs (unchanged) also covers:
+    - a post-start SIGTERM exits 0 and frees every listener;
+    - a genuine failed start exits 1 (EISDIR) and frees every listener;
+    - a malformed probe exits 1 before anything binds.
+
+  Results:
+  j1-daemon   512, peak 233  first fix, uncommitted (network diff 3cc3f551)
+                             candidate: new cases 1-5 plus lifecycle, 8/8 pass
+                             baseline: 4 cancellation cases fail on exit code 1 vs 0; the genuine case passes
+  j3-all      512, peak 507  at 1c386e2
+                             A: 9/11. Cases 6-7 failed on message wording only (exit 1 and ROUTER CLOSED already held);
+                                fixed in 808f36c.
+                             B: baseline 1/8 (expected negative control).
+                             C: coupled suites 57/59 (see LIMITS for the two failures).
+  j5-recheck  512            A at 808f36c's exact content (diff 1c386e2..808f36c = 363befe6): new file plus lifecycle 11/11.
+                             B was memory-guard stopped at 528 MiB (esbuild 332): exit 99, NOT a result.
+  j6-bundle-diag 512, peak 493  at 808f36c
+                             network-consumer-bundle 1/1 pass, run as its own process. Its gitignored relay bundle prerequisite
+                             was copied byte-identical (sha256 a5915d4c…) from S's tree, not rebuilt.
+                             diag38: see LIMITS.
+  j7-newfile  512, peak 235  at FINAL 3746e4f (clean tree)
+                             candidate 8/8 pass
+                             baseline 4c059b9 1/8 pass; 7 fail as intended:
+                               - cancellation cases exit 1 instead of 0;
+                               - cases 6-7 lack the combined error and the router close;
+                               - case 8 exits 0 despite the failed release.
+  The source is unchanged between 808f36c and 3746e4f (3746e4f changes only the test), so j5's lifecycle 3/3 and j6's bundle
+  pass apply to the final source. The coupled suites (j3 C) ran at 1c386e2; 808f36c changed only how the cleanup-failure
+  message is composed. They were not rerun after it.
+
+LIMITS / NOT PROVEN
+  - A cold-start failure that predates this fix: host-services-cold-start "zero apps, unknown chain policy" (STARTED
+    count 1, expected 0) fails identically on the untouched baseline 4c059b9 (j6 diag38, which printed the daemon
+    output).
+    - The daemon read the LIVE production platform policy over this host's network and logged
+      "[host-policy] this host is ADMITTED" for the fixture host. The test assumes no network, so on this host the outcome
+      depends on the network and the live chain state.
+    - It is not a readiness-guard regression and not caused by this patch. It is left to S/root; the test was not
+      weakened or edited.
+  - A signal that arrives BEFORE runPrivacy registers its handler takes Node's default SIGTERM termination (signal exit,
+    no code). This is unchanged and untested. That window covers reading the config and key, loading apps, the verifier
+    import, and constructing the platform-policy gate.
+  - These release paths are covered in code but not exercised by any daemon test here:
+    - Windows ShieldHostProof (the rig is Linux);
+    - the paid network (no paid config);
+    - guestd and pVM ingress.
+  - Host-services cancellation (a judge in flight) is covered only by S's existing carriers and cold-start daemon tests, run
+    once each on the candidate. They pass except the case above.
+  - Two existing assertions still tolerate exit 1 with "stopped during startup":
+    test/host-services-carriers.test.mjs:127 and test/host-services-cold-start.test.mjs:148. They are S's tests and were not
+    edited. They can now require exit 0.
+  - No package or bundle was rebuilt. F/D must rebuild the privacy-agent bundle from network/entries/privacy-agent.mjs.
+  - A second SIGTERM during release still takes the default termination (process.once), as before.
+  - Outside the queue: two `node --check` syntax checks on the edited source (no test run). The daemon tests exercise real
+    local listeners and refused local endpoints only. There is no native Windows run and no production contact.

@@ -1,0 +1,28 @@
+{
+  "kind": "enclave.rewritten-source-provenance",
+  "version": 1,
+  "file": "test/fixtures/registry-schema4/EnclaveRegistry.sol",
+  "published": {
+    "sha256": "771a22d361dde5e19cfc8a1db66b7739e6b447e6185153be9fc8c248be0fd2a9",
+    "gitBlob": "3086cf4245dc0804afd45ee666d9c8efe50549f2"
+  },
+  "original": {
+    "manifest": "contracts/deployments/source-verification-base.json",
+    "build": "registry-schema4",
+    "unit": "EnclaveRegistry.sol",
+    "commit": "b17db9a33b3500783a67774f4e47ec648e833699",
+    "gitBlob": "d7fb9740a29cc3d6dc7c197ddf62937112b22a6c",
+    "sha256": "e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360"
+  },
+  "rewrite": "The user-authorized 2026-10-21 history rewrite of the repository (one product name replaced in every blob) changed this file in three COMMENT lines only (8 and 64: // comments; 294: inside a /* */ block). No statement, string literal or identifier changed, so the executable runtime is the deployed one; solc's trailing CBOR metadata hashes the source text and therefore differs.",
+  "runtime": {
+    "executable": "identical to the deployed registry (manifest contracts.registry.codeHash) once the deployed CBOR metadata (manifest contracts.registry.metadataIpfs, compiler 0.8.35) is appended: test/cli-independent.test.mjs recomputes this from the published file",
+    "publishedMetadataDiffers": true
+  },
+  "offlineCheck": {
+    "date": "2026-10-23",
+    "by": "rpc-priority (A)",
+    "method": "the original blob d7fb9740 read from the local pre-rewrite history (never republished); applying the rewrite's exact byte replacement to it yields this file byte for byte; compiling the original with the manifest's compiler and settings reproduces the deployed runtime (keccak 0x39911d6f\u2026) including its metadata",
+    "evidence": "work/resume-after-checkpoint-20261022/rpc-priority/RESULT-RECEIPT-SOURCE.md (registry provenance section) and test-scratch/registry-prov/"
+  }
+}

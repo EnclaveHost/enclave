@@ -1,0 +1,5 @@
+privacy agent: a failed release keeps its context (the stop during startup it followed)
+
+cleanupFailed no longer hands back a lone inner AggregateError as-is: a cancelled startup whose release failed reports
+"privacy agent stopped during startup, and releasing what it held failed: <each failure>" (root cleanup-error review;
+the daemon already exited 1 with the router and network host closed, j3 cases 9-10, only the message lost its context).

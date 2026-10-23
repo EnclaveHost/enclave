@@ -1,0 +1,102 @@
+[    0.091320] virt/tdx: TDX not supported by the host platform
+P+q6E616D65\[18t7[32766;32766H[6n8[!p]104\[0m[?7h[1G[0J]3008;start=6d391a13b6574792a8607f6e295ab080;user=root;hostname=hddtest;machineid=1d0c0de0a1b2c3d4e5f60718293a4b5c;bootid=667bf1fc800946d982f2a27d1a686fbc;pid=1;pidfdid=1;comm=systemd;type=boot\[   11.624064] block nbd0: Other side returned error (5)
+[   11.624912] I/O error, dev nbd0, sector 66134 op 0x1:(WRITE) flags 0x809800 phys_seg 2 prio class 2
+[   11.626267] Aborting journal on device nbd0-8.
+[   11.627027] EXT4-fs error (device nbd0): ext4_journal_check_start:86: comm python3: Detected aborted journal
+[   11.628030] block nbd0: Other side returned error (5)
+[   11.635052] I/O error, dev nbd0, sector 65538 op 0x1:(WRITE) flags 0x829800 phys_seg 1 prio class 2
+[   11.636507] Buffer I/O error on dev nbd0, logical block 32769, lost sync page write
+[   11.637744] JBD2: I/O error when updating journal superblock for nbd0-8.
+[   11.638945] block nbd0: Other side returned error (5)
+[   11.639823] I/O error, dev nbd0, sector 2 op 0x1:(WRITE) flags 0x823800 phys_seg 1 prio class 2
+[   11.641237] Buffer I/O error on dev nbd0, logical block 1, lost sync page write
+[   11.642423] EXT4-fs (nbd0): I/O error while writing superblock
+[   11.643319] EXT4-fs (nbd0): Remounting filesystem read-only
+[   11.644159] EXT4-fs (nbd0): ext4_do_writepages: jbd2_start: 9223372036854775807 pages, ino 33; err -30
+[   18.110456] block nbd0: Other side returned error (5)
+[   18.111346] block nbd0: Other side returned error (5)
+[   18.112170] I/O error, dev nbd0, sector 518 op 0x1:(WRITE) flags 0x803800 phys_seg 2 prio class 2
+[   18.112175] Buffer I/O error on dev nbd0, logical block 259, lost async page write
+[   18.112181] Buffer I/O error on dev nbd0, logical block 260, lost async page write
+[   18.116054] block nbd0: Other side returned error (5)
+[   18.116895] I/O error, dev nbd0, sector 544 op 0x1:(WRITE) flags 0x803800 phys_seg 1 prio class 2
+[   18.116899] Buffer I/O error on dev nbd0, logical block 272, lost async page write
+[   18.119528] I/O error, dev nbd0, sector 566 op 0x1:(WRITE) flags 0x803800 phys_seg 1 prio class 2
+[   18.120155] block nbd0: Other side returned error (5)
+[   18.120927] Buffer I/O error on dev nbd0, logical block 283, lost async page write
+[   18.121771] block nbd0: Other side returned error (5)
+[   18.122968] I/O error, dev nbd0, sector 572 op 0x1:(WRITE) flags 0x803800 phys_seg 1 prio class 2
+[   18.122971] Buffer I/O error on dev nbd0, logical block 286, lost async page write
+[   18.126426] I/O error, dev nbd0, sector 576 op 0x1:(WRITE) flags 0x803800 phys_seg 3 prio class 2
+[   18.127158] block nbd0: Other side returned error (5)
+[   18.127826] Buffer I/O error on dev nbd0, logical block 288, lost async page write
+[   18.128637] block nbd0: Other side returned error (5)
+[   18.129815] I/O error, dev nbd0, sector 1590 op 0x1:(WRITE) flags 0x803800 phys_seg 1 prio class 2
+[   18.129818] Buffer I/O error on dev nbd0, logical block 795, lost async page write
+[   18.129822] Buffer I/O error on dev nbd0, logical block 289, lost async page write
+[   18.130648] I/O error, dev nbd0, sector 12854 op 0x1:(WRITE) flags 0x803800 phys_seg 1 prio class 2
+[   18.132061] Buffer I/O error on dev nbd0, logical block 290, lost async page write
+[   18.133265] Buffer I/O error on dev nbd0, logical block 6427, lost async page write
+[   18.134761] block nbd0: Other side returned error (5)
+[   18.139185] block nbd0: Other side returned error (5)
+[   18.139984] block nbd0: Other side returned error (5)
+[   18.140811] I/O error, dev nbd0, sector 12882 op 0x1:(WRITE) flags 0x803800 phys_seg 1 prio class 2
+[   18.140823] I/O error, dev nbd0, sector 12908 op 0x1:(WRITE) flags 0x803800 phys_seg 1 prio class 2
+[   18.143725] I/O error, dev nbd0, sector 12946 op 0x1:(WRITE) flags 0x803800 phys_seg 5 prio class 2
+[   41.230811] block nbd1: Other side returned error (5)
+[   41.231835] I/O error, dev nbd1, sector 4680 op 0x1:(WRITE) flags 0x800 phys_seg 9 prio class 2
+[   41.334308] block nbd1: Other side returned error (5)
+[   41.340612] I/O error, dev nbd1, sector 36866 op 0x1:(WRITE) flags 0x800 phys_seg 9 prio class 2
+[   41.342050] EXT4-fs (dm-0): failed to convert unwritten extents to written extents -- potential data loss!  (inode 33, error -5)
+[   41.343913] Buffer I/O error on device dm-0, logical block 18433
+[   41.344885] Buffer I/O error on device dm-0, logical block 18434
+[   41.345844] Buffer I/O error on device dm-0, logical block 18435
+[   41.346798] Buffer I/O error on device dm-0, logical block 18436
+[   41.347752] Buffer I/O error on device dm-0, logical block 18437
+[   41.348704] Buffer I/O error on device dm-0, logical block 18438
+[   41.349668] Buffer I/O error on device dm-0, logical block 18439
+[   41.350635] Buffer I/O error on device dm-0, logical block 18440
+[   41.351591] Buffer I/O error on device dm-0, logical block 18441
+[   41.352545] Buffer I/O error on device dm-0, logical block 18442
+[   41.842806] block nbd1: Other side returned error (5)
+[   41.843628] I/O error, dev nbd1, sector 24 op 0x0:(READ) flags 0x800 phys_seg 1 prio class 2
+[   47.118435] block nbd1: Other side returned error (5)
+[   47.119351] I/O error, dev nbd1, sector 131912 op 0x1:(WRITE) flags 0x9800 phys_seg 7 prio class 2
+[   47.120829] Aborting journal on device dm-0-8.
+[   47.121656] block nbd1: Other side returned error (5)
+[   47.122497] I/O error, dev nbd1, sector 131074 op 0x1:(WRITE) flags 0x29800 phys_seg 1 prio class 2
+[   47.123953] Buffer I/O error on dev dm-0, logical block 65537, lost sync page write
+[   47.125187] JBD2: I/O error when updating journal superblock for dm-0-8.
+[   47.349843] block nbd1: Other side returned error (5)
+[   47.350688] block nbd1: Other side returned error (5)
+[   47.351454] I/O error, dev nbd1, sector 2 op 0x1:(WRITE) flags 0x3000 phys_seg 1 prio class 2
+[   47.351460] Buffer I/O error on dev dm-0, logical block 1, lost async page write
+[   47.353878] I/O error, dev nbd1, sector 522 op 0x1:(WRITE) flags 0x3000 phys_seg 1 prio class 2
+[   47.353975] block nbd1: Other side returned error (5)
+[   47.355227] Buffer I/O error on dev dm-0, logical block 261, lost async page write
+[   47.357405] I/O error, dev nbd1, sector 584 op 0x1:(WRITE) flags 0x3000 phys_seg 1 prio class 2
+[   47.358810] Buffer I/O error on dev dm-0, logical block 292, lost async page write
+[   47.358855] block nbd1: Other side returned error (5)
+[   47.360821] block nbd1: Other side returned error (5)
+[   47.361586] I/O error, dev nbd1, sector 596 op 0x1:(WRITE) flags 0x3000 phys_seg 2 prio class 2
+[   47.361590] Buffer I/O error on dev dm-0, logical block 298, lost async page write
+[   47.361593] Buffer I/O error on dev dm-0, logical block 299, lost async page write
+[   47.365156] I/O error, dev nbd1, sector 15972 op 0x1:(WRITE) flags 0x3000 phys_seg 1 prio class 2
+[   47.366491] Buffer I/O error on dev dm-0, logical block 7986, lost async page write
+[   47.366497] block nbd1: Other side returned error (5)
+[   47.368456] I/O error, dev nbd1, sector 15998 op 0x1:(WRITE) flags 0x3000 phys_seg 1 prio class 2
+[   47.369168] block nbd1: Other side returned error (5)
+[   47.369892] Buffer I/O error on dev dm-0, logical block 7999, lost async page write
+[   47.370650] block nbd1: Other side returned error (5)
+[   47.371865] I/O error, dev nbd1, sector 0 op 0x0:(READ) flags 0x0 phys_seg 16 prio class 2
+[   47.373888] I/O error, dev nbd1, sector 0 op 0x1:(WRITE) flags 0x800 phys_seg 0 prio class 2
+[   47.375983] block nbd1: Other side returned error (5)
+[   47.377341] block nbd1: Other side returned error (5)
+[   47.378248] block nbd1: Other side returned error (5)
+[   47.379205] EXT4-fs (dm-0): previous I/O error to superblock detected
+[   47.380229] block nbd1: Other side returned error (5)
+[   47.381011] Buffer I/O error on dev dm-0, logical block 1, lost sync page write
+[   47.382136] EXT4-fs (dm-0): I/O error while writing superblock
+[   47.382234] block nbd1: Other side returned error (5)
+[   57.315557] sysrq: Power Off
+[   57.320513] reboot: Power down

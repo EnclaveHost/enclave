@@ -1,0 +1,196 @@
+From cdcbdf5924164acea67046ea32f0705d08687887 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 07:43:51 -0700
+Subject: [PATCH 20/22] Fix the two baseline regressions: anvil receipt race,
+ rewritten registry fixture provenance
+
+credit-vault-relay-concurrency: anvil answers a submission before its automined
+block is sealed (measured: the transaction is already out of the pool and its
+receipt appears ~20 ms later, mined once). The test read the receipt in that
+window after the operator's rebroadcast (and once after the owner's deploy). It
+now waits for the mined receipt at those two reads; every exactly-once
+assertion (broadcast counts, signatures, payer nonce, balances, journal
+"confirmed", same hash) is unchanged.
+
+cli-independent / lease-gas-fixtures: the registry schema-4 fixture is the
+published copy changed by the user-authorized 2026-10-21 history rewrite
+(comment lines only). test/fixtures/registry-schema4/PROVENANCE.json ties it
+(sha256 771a22d3, blob 3086cf42) to the manifest's pinned original (b17db9a3,
+blob d7fb9740, sha256 e81f5d51), which is left unchanged. The test proves what
+the published repository can: compiling the published file gives the deployed
+executable bytes, and with the deployed CBOR metadata rebuilt from the
+manifest's metadataIpfs the runtime hashes to the live codeHash 39911d6f; its
+own metadata differs, so the rewritten text is never claimed as the deployed
+source. No removed text is restored.
+---
+ test/cli-independent.test.mjs                 | 25 +++++++++++++----
+ test/credit-vault-relay-concurrency.test.mjs  |  8 ++++--
+ .../fixtures/registry-schema4/PROVENANCE.json | 28 +++++++++++++++++++
+ test/helpers/solc-metadata.mjs                | 16 +++++++++++
+ test/lease-gas-fixtures.test.mjs              | 14 +++++++++-
+ 5 files changed, 82 insertions(+), 9 deletions(-)
+ create mode 100644 test/fixtures/registry-schema4/PROVENANCE.json
+ create mode 100644 test/helpers/solc-metadata.mjs
+
+diff --git a/test/cli-independent.test.mjs b/test/cli-independent.test.mjs
+index 10f7ecb9a..a5e5c4e96 100644
+--- a/test/cli-independent.test.mjs
++++ b/test/cli-independent.test.mjs
+@@ -17,6 +17,7 @@ import { keccak256 } from "viem";
+ import { privateKeyToAccount } from "viem/accounts";
+ import { haveTools, startRig, startManagement, openSession, compileRegistrySchema4, KEYS, PUBLIC_MANAGEMENT } from "./helpers/cli-independent-rig.mjs";
+ import { REGISTRY_SCHEMA4_SOURCE, validateRpcOrigins, loadIndependentTrust } from "../cli/independent.mjs";
++import { splitCborMetadata, solcCborMetadata } from "./helpers/solc-metadata.mjs";
+ 
+ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+ const CLI = process.env.ENCLAVE_CLI_ENTRY || path.join(REPO, "cli", "enclave.mjs");   // the staged bundle can be tested in place of the source
+@@ -66,13 +67,27 @@ function noEnclave() {
+ const ledgerGet = (id) => r.pc.readContract({ address: r.addresses.ledger, abi: r.A.ledger.abi, functionName: "get", args: [id] });
+ const reset = () => { for (const k of Object.keys(r.rpcModes)) delete r.rpcModes[k]; };
+ 
+-test("the registry under test is the deployed schema-4 bytecode, built from the source-verified historical file", T, () => {
++test("the registry under test is the deployed schema-4 executable: the published (history-rewritten) fixture is tied to the pinned original, and compiles to the deployed runtime once the deployed CBOR metadata replaces its own", T, () => {
+   const src = fs.readFileSync(path.join(REPO, "test/fixtures/registry-schema4/EnclaveRegistry.sol"));
+-  assert.equal(createHash("sha256").update(src).digest("hex"), REGISTRY_SCHEMA4_SOURCE.sha256);
++  const prov = JSON.parse(fs.readFileSync(path.join(REPO, "test/fixtures/registry-schema4/PROVENANCE.json"), "utf8"));
+   const manifest = JSON.parse(fs.readFileSync(path.join(REPO, "contracts/deployments/source-verification-base.json"), "utf8"));
+-  assert.equal(manifest.builds["registry-schema4"].sources["EnclaveRegistry.sol"].sha256, REGISTRY_SCHEMA4_SOURCE.sha256);
+-  // no immutables: the compiled runtime IS the live registry's runtime, byte for byte
+-  assert.equal(keccak256(compileRegistrySchema4().runtime), manifest.contracts.registry.codeHash);
++  // the published bytes are exactly the recorded rewritten copy; its original is exactly the manifest's pinned build source
++  assert.equal(createHash("sha256").update(src).digest("hex"), prov.published.sha256);
++  assert.equal(createHash("sha1").update(`blob ${src.length}\0`).update(src).digest("hex"), prov.published.gitBlob);
++  const pin = manifest.builds["registry-schema4"];
++  assert.deepEqual([prov.original.commit, prov.original.gitBlob, prov.original.sha256], [pin.commit, pin.sources["EnclaveRegistry.sol"].gitBlob, pin.sources["EnclaveRegistry.sol"].sha256]);
++  assert.deepEqual([REGISTRY_SCHEMA4_SOURCE.commit, REGISTRY_SCHEMA4_SOURCE.gitBlob, REGISTRY_SCHEMA4_SOURCE.sha256], [pin.commit, pin.sources["EnclaveRegistry.sol"].gitBlob, pin.sources["EnclaveRegistry.sol"].sha256]);
++  assert.notEqual(prov.published.sha256, pin.sources["EnclaveRegistry.sol"].sha256, "the published file is NOT the deployed source text; it is its comment-only rewrite");
++  // no immutables: the published file's executable bytes + the DEPLOYED metadata (its published hash, the pinned compiler)
++  // ARE the live registry's runtime, byte for byte; the published text's own metadata differs (it hashes other comments)
++  const { runtime } = compileRegistrySchema4();
++  const { code, tail } = splitCborMetadata(runtime);
++  const deployedTail = solcCborMetadata(manifest.contracts.registry.metadataIpfs, manifest.compiler.version);
++  assert.equal(code.length + deployedTail.length, manifest.contracts.registry.runtimeBytes);
++  assert.equal(keccak256(`0x${Buffer.concat([code, deployedTail]).toString("hex")}`), manifest.contracts.registry.codeHash);
++  assert.equal(manifest.contracts.registry.codeHash, "0x39911d6f53959c610b9108bb906fc36ea8f57016c4b2571b5cd52c9c32a6f518");
++  assert.notEqual(tail.toString("hex"), deployedTail.toString("hex"));
++  assert.notEqual(keccak256(runtime), manifest.contracts.registry.codeHash, "the rewritten text alone does not claim the deployed bytecode");
+ });
+ 
+ test("trust inputs: explicit, distinct RPC origins and a reviewed profile only with its digest", T, () => {
+diff --git a/test/credit-vault-relay-concurrency.test.mjs b/test/credit-vault-relay-concurrency.test.mjs
+index 73f5a9580..851afb81c 100644
+--- a/test/credit-vault-relay-concurrency.test.mjs
++++ b/test/credit-vault-relay-concurrency.test.mjs
+@@ -82,7 +82,9 @@ test("the credit-vault relay under concurrent requests: one flight per digest, o
+   const sign = async (V, op, params) => CV.signPrepared(lib, await CV.prepareVaultOp(lib, V.profile, op, params, opts), V.profile,
+     { pins: PINS, origin: F.ORIGIN, getFn: V.K.getFn(), intent: { op, params } });
+   const spec = { appRef: "catalog://app/0", gpuMilli: 0, cpuMilli: 500, appPort: 8080, ports: "", isPublic: true, configCid: "", maxRate6: "1000" };
+-  const deploymentOf = async (hash) => (await A.pub.getTransactionReceipt({ hash })).logs.find((l) => lc(l.address) === lc(S.ledger)).topics[1];
++  // anvil answers a submission BEFORE its automined block is sealed (measured: the transaction is already out of the pool,
++  // its receipt appears ~20 ms later), so a receipt read straight after a submission must wait for the mined block
++  const deploymentOf = async (hash) => (await A.pub.waitForTransactionReceipt({ hash })).logs.find((l) => lc(l.address) === lc(S.ledger)).topics[1];
+   const waitFor = async (f, what) => { const end = Date.now() + 10000; while (!f()) { if (Date.now() > end) throw new Error("timed out: " + what); await F.sleep(5); } };
+   const settled = (ps) => Promise.allSettled(ps).then((rs) => rs.map((r) => r.status === "fulfilled" ? { ok: r.value } : { error: String(r.reason && r.reason.message || r.reason).slice(0, 160) }));
+ 
+@@ -218,8 +220,8 @@ test("the credit-vault relay under concurrent requests: one flight per digest, o
+         // the operator's resolution: the SAME signed bytes, re-broadcast (the only safe repeat), land once
+         const raw = rpcs[0].st.raws.at(-1);
+         assert.equal(lib.keccak256(raw), H);
+-        await A.raw("eth_sendRawTransaction", [raw]);
+-        assert.equal((await A.pub.getTransactionReceipt({ hash: H })).status, "success");
++        assert.equal(await A.raw("eth_sendRawTransaction", [raw]), H);
++        assert.equal((await A.pub.waitForTransactionReceipt({ hash: H })).status, "success");   // mined (anvil seals after answering)
+         assert.equal(await F.usdcOf(A, S, V2.vault), bal - 1_000000n, "exactly once");
+         assert.deepEqual(await submit(req), { txHash: H, unknown: true }, "the relay still answers the held transaction");
+         if (signerRpc){
+diff --git a/test/fixtures/registry-schema4/PROVENANCE.json b/test/fixtures/registry-schema4/PROVENANCE.json
+new file mode 100644
+index 000000000..a5b1262b2
+--- /dev/null
++++ b/test/fixtures/registry-schema4/PROVENANCE.json
+@@ -0,0 +1,28 @@
++{
++  "kind": "enclave.rewritten-source-provenance",
++  "version": 1,
++  "file": "test/fixtures/registry-schema4/EnclaveRegistry.sol",
++  "published": {
++    "sha256": "771a22d361dde5e19cfc8a1db66b7739e6b447e6185153be9fc8c248be0fd2a9",
++    "gitBlob": "3086cf4245dc0804afd45ee666d9c8efe50549f2"
++  },
++  "original": {
++    "manifest": "contracts/deployments/source-verification-base.json",
++    "build": "registry-schema4",
++    "unit": "EnclaveRegistry.sol",
++    "commit": "b17db9a33b3500783a67774f4e47ec648e833699",
++    "gitBlob": "d7fb9740a29cc3d6dc7c197ddf62937112b22a6c",
++    "sha256": "e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360"
++  },
++  "rewrite": "The user-authorized 2026-10-21 history rewrite of the repository (one product name replaced in every blob) changed this file in three COMMENT lines only (8 and 64: // comments; 294: inside a /* */ block). No statement, string literal or identifier changed, so the executable runtime is the deployed one; solc's trailing CBOR metadata hashes the source text and therefore differs.",
++  "runtime": {
++    "executable": "identical to the deployed registry (manifest contracts.registry.codeHash) once the deployed CBOR metadata (manifest contracts.registry.metadataIpfs, compiler 0.8.35) is appended: test/cli-independent.test.mjs recomputes this from the published file",
++    "publishedMetadataDiffers": true
++  },
++  "offlineCheck": {
++    "date": "2026-10-23",
++    "by": "rpc-priority (A)",
++    "method": "the original blob d7fb9740 read from the local pre-rewrite history (never republished); applying the rewrite's exact byte replacement to it yields this file byte for byte; compiling the original with the manifest's compiler and settings reproduces the deployed runtime (keccak 0x39911d6f\u2026) including its metadata",
++    "evidence": "work/resume-after-checkpoint-20261022/rpc-priority/RESULT-RECEIPT-SOURCE.md (registry provenance section) and test-scratch/registry-prov/"
++  }
++}
+diff --git a/test/helpers/solc-metadata.mjs b/test/helpers/solc-metadata.mjs
+new file mode 100644
+index 000000000..39168196d
+--- /dev/null
++++ b/test/helpers/solc-metadata.mjs
+@@ -0,0 +1,16 @@
++// solc's trailing CBOR metadata on a runtime: { ipfs: <34-byte multihash>, solc: <major, minor, patch> } followed by its
++// 2-byte length. Split it off a compiled runtime, or rebuild the exact bytes a deployed contract carries from its
++// published metadata hash (contracts/deployments/source-verification-base.json metadataIpfs) and compiler version.
++export function splitCborMetadata(runtimeHex) {
++  const b = Buffer.from(String(runtimeHex).replace(/^0x/, ""), "hex"), n = b.readUInt16BE(b.length - 2);
++  if (n + 2 > b.length) throw new Error("no CBOR metadata length");
++  return { code: b.subarray(0, b.length - 2 - n), tail: b.subarray(b.length - 2 - n) };
++}
++export function solcCborMetadata(ipfsMultihashHex, compilerVersion) {
++  const ipfs = Buffer.from(String(ipfsMultihashHex).replace(/^0x/, ""), "hex");
++  if (ipfs.length !== 34) throw new Error("metadataIpfs must be a 34-byte multihash");
++  const [maj, min, pat] = /^(\d+)\.(\d+)\.(\d+)/.exec(compilerVersion).slice(1).map(Number);
++  const body = Buffer.concat([Buffer.from([0xa2, 0x64]), Buffer.from("ipfs"), Buffer.from([0x58, 0x22]), ipfs, Buffer.from([0x64]), Buffer.from("solc"), Buffer.from([0x43, maj, min, pat])]);
++  const len = Buffer.alloc(2); len.writeUInt16BE(body.length);
++  return Buffer.concat([body, len]);
++}
+diff --git a/test/lease-gas-fixtures.test.mjs b/test/lease-gas-fixtures.test.mjs
+index 39a264c76..4b91ad507 100644
+--- a/test/lease-gas-fixtures.test.mjs
++++ b/test/lease-gas-fixtures.test.mjs
+@@ -1,7 +1,8 @@
+ // Provenance of what the app-funded lease tests deploy or etch on their local anvil (test/helpers/lease-gas-world.mjs):
+ // every contract SOURCE is the repository's own, and the live-ledger/registry/SessionVault sources are byte-for-byte the
+ // ones contracts/deployments/source-verification-base.json pins for the deployed contracts (sha256 AND git blob, so a
+-// copy can be matched to the repository history). The third-party Base code snapshots carry the hash of the code they
++// copy can be matched to the repository history) - or, for a fixture the user-authorized history rewrite changed, its
++// recorded published copy whose PROVENANCE.json names that pinned original. The third-party Base code snapshots carry the hash of the code they
+ // store. No compiled artifact of ours is kept in the repository: the tests build from these sources.
+ import { test } from "node:test";
+ import assert from "node:assert/strict";
+@@ -25,6 +26,17 @@ test("the deployed-contract sources the lease tests compile are exactly the pinn
+     const pin = manifest.builds[build]?.sources?.[name];
+     assert.ok(pin, `${build} pins ${name}`);
+     const bytes = read(file);
++    // a fixture rewritten by the user-authorized history rewrite carries a PROVENANCE.json tying it to the pinned original
++    // (comment-only change; test/cli-independent.test.mjs proves the executable is the deployed one)
++    const provFile = path.join(path.dirname(file), "PROVENANCE.json");
++    if (fs.existsSync(path.join(REPO, provFile))) {
++      const prov = JSON.parse(read(provFile));
++      assert.equal(prov.file, file);
++      assert.equal(sha256(bytes), prov.published.sha256, `${file} sha256 (published copy)`);
++      assert.equal(gitBlob(bytes), prov.published.gitBlob, `${file} git blob (published copy)`);
++      assert.deepEqual([prov.original.sha256, prov.original.gitBlob], [pin.sha256, pin.gitBlob], `${file}: its recorded original is the pinned build source`);
++      continue;
++    }
+     assert.equal(sha256(bytes), pin.sha256, `${file} sha256`);
+     assert.equal(gitBlob(bytes), pin.gitBlob, `${file} git blob`);
+   }
+-- 
+2.56.0
+

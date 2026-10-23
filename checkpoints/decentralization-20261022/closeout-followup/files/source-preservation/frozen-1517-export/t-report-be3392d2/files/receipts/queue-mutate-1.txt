@@ -1,0 +1,4 @@
+[queue] START available=25152MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[memory-guard] exit=1 peakTreeRssMiB=466 minHostAvailableMiB=24229
+[memory-guard] at peak: qemu-system-x86:357 python3:35 python3:22 python3:16 qemu-nbd:11 bash:6 mutate-1.sh:6 bash:6
+[queue] EXIT 1

@@ -1,0 +1,8 @@
+[queue] START available=25059MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+fence(fixed) rc=0
+./logs/focused.sh: line 6: /usr/bin/time: No such file or directory
+cat: logs/overwrite-baseline.time: No such file or directory
+overwrite(baseline) rc=127 
+[memory-guard] exit=0 peakTreeRssMiB=617 minHostAvailableMiB=24686
+[memory-guard] at peak: rustc:533 cargo:72 unit-step.sh:6 focused.sh:6
+[queue] EXIT 0

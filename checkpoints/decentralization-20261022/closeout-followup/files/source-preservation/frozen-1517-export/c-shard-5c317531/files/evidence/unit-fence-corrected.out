@@ -1,0 +1,9 @@
+   Compiling sia_storage v0.13.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/unit)
+    Finished `test` profile [optimized] target(s) in 1.93s
+     Running unittests /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/sia-s3/vendor/sia-sdk-rs/sia_storage/src/lib.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/target/x86_64-unknown-linux-gnu/debug/build/sia_storage/e9e57ba48257493b/out/sia_storage-e9e57ba48257493b)
+
+running 1 test
+test fence::tests::tokens_order_by_generation_counter_iid_and_parse_strictly ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 174 filtered out; finished in 0.00s
+

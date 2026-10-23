@@ -1,0 +1,38 @@
+[q] 2026-10-23T07:34:15-07:00 try 1 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:35:45-07:00 try 2 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:37:15-07:00 try 3 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:38:45-07:00 try 4 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:40:15-07:00 try 5 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:41:45-07:00 try 6 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:43:15-07:00 try 7 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:44:45-07:00 try 8 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:46:15-07:00 try 9 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:47:45-07:00 try 10 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:49:16-07:00 try 11 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:50:46-07:00 try 12 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:52:16-07:00 try 13 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:53:46-07:00 try 14 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:55:16-07:00 try 15 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:56:46-07:00 try 16 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:58:16-07:00 try 17 cmd: bash -c jobs/mutate-2.sh > logs/mutate-2.out 2>&1
+[queue] START available=25290MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[memory-guard] exit=0 peakTreeRssMiB=457 minHostAvailableMiB=23777
+[memory-guard] at peak: qemu-system-x86:348 python3:35 python3:22 python3:16 qemu-nbd:11 bash:6 bash:6 mutate-2.sh:6
+[queue] EXIT 0
+[q] 2026-10-23T08:01:09-07:00 exit=0

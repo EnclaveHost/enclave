@@ -1,0 +1,248 @@
+From 0ed6b6d953a018a585f5fe9fadc64e0d7eca9d46 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 07:35:46 -0700
+Subject: [PATCH] Tests: heartbeat placement vs the owner-nomination self-test,
+ real Host catalog gate, real catalog version for the Safe startup flow
+
+Test-only repairs of three suites that were reported as baseline failures; no product, policy or trust source changes.
+
+- registry-reconcile: the blanket "no heartbeat send anywhere in supervisor.js" regex could not tell the explicit
+  OWNER_NOMINATION_SELFTEST block (a one-shot nonce-concurrency load that exits) from a routine writer. It now asserts
+  the placement invariant - every heartbeat send is inside that block, the block always ends in process.exit, routine
+  owner nomination never runs under the self-test, and REGISTRY_HEARTBEAT_SEC only names the reconcile cadence - with
+  two negative controls: an injected routine heartbeat timer and the REAL pre-change supervisor (9a307f3ea^) are both
+  caught. Routine behaviour on a real chain stays test/offchain-heartbeat-writers.test.mjs.
+- catalog-platform-enforcement #2: the harness rebuilt walletPolicyRefusal from the source text, which stopped
+  compiling once the method moved behind the private #walletPolicyState (the behaviour was intact). It now runs the
+  REAL Host over the REAL createHostAdmission with an in-memory chain: forPrivate only for a ledger-private record,
+  delisted/yanked/rejected refused for public and private records, the owner's denial, a non-catalog reference refused
+  definitely, an unreadable chain UNKNOWN, and the hold channel's decision() path.
+- site-independent-account-startup: the Safe-held deployOnChain(prepareOnly) created nothing because the fixture
+  deployed catalog://0x11..11/0, an app the rig's catalog does not have, and the browser's catalog moderation gate
+  refused it ("could not verify current catalog moderation"). The test now publishes a real version as a third-party
+  publisher and proves the refusals (unknown app, pending for a public record, delisted, administrator-rejected; each
+  leaves the ledger count unchanged and names its reason) before the administrator approves it and the Safe creates
+  the record itself; deployOnChain's return value, error, toasts and run-log lines are captured into its assertions.
+---
+ test/catalog-platform-enforcement.test.mjs    | 55 +++++++++++++---
+ test/registry-reconcile.test.mjs              | 63 ++++++++++++++++++-
+ .../site-independent-account-startup.test.mjs | 50 ++++++++++++---
+ 3 files changed, 152 insertions(+), 16 deletions(-)
+
+diff --git a/test/catalog-platform-enforcement.test.mjs b/test/catalog-platform-enforcement.test.mjs
+index e125c32a2db1cd6bbfab119f9193819699870c48..709aa473a77b56ba20be7c2a3f062f2bdc308f6a 100644
+--- a/test/catalog-platform-enforcement.test.mjs
++++ b/test/catalog-platform-enforcement.test.mjs
+@@ -26,14 +26,53 @@
+  assert.equal(await browserGate({version:{...approved,approval:0}}).run(),'refused');
+  assert.equal(await browserGate({version:{...approved,approval:0},isPublic:false}).run(),'admitted');
+ });
++// The REAL Windows Host (windows/node/host.mjs) over the REAL host admission (network/host-admission-runtime.mjs
++// createHostAdmission): only the chain is a fixture (one agreed block of the host-ownership extension and the app catalog).
++// The node derives forPrivate from its ledger record (isPublic === false, nothing else) and the admission enforces
++// platform catalog moderation (delisted app, yanked or rejected version) for public AND private records, pending private
++// development only for a ledger-private record, the host owner's own denial, and refuses as UNKNOWN when the chain
++// cannot be read. (The earlier harness rebuilt walletPolicyRefusal from the source text, which stopped compiling when the
++// method moved behind the private #walletPolicyState; the behaviour itself was intact.)
+ test('actual Windows wallet gate passes only ledger-authoritative private visibility',async()=>{
+- const source=fs.readFileSync(new URL('../windows/node/host.mjs',import.meta.url),'utf8');
+- const start=source.indexOf('  async walletPolicyRefusal(d)'),end=source.indexOf('  claimRefusal(',start);
+- const ctx=vm.createContext({String});const Class=vm.runInContext('(class Host {'+source.slice(start,end)+'})',ctx);
+- const host=new Class(),seen=[];host.hostAdmission={refusal:async q=>{seen.push(q);return null;}};
+- for(const isPublic of [false,true,undefined,'false']){
+-  await host.walletPolicyRefusal({id:'id',appRef:'ref',isPublic});assert.equal(seen.at(-1).forPrivate,isPublic===false);
++ const os=await import('node:os'),path=await import('node:path');
++ const {Host}=await import('../windows/node/host.mjs');
++ const {createHostAdmission}=await import('../network/host-admission-runtime.mjs');
++ const {hostAdmissionPolicyHash}=await import('../network/host-admission-policy.mjs');
++ const hostId='0x'+'ab'.repeat(32),id='0x'+'cd'.repeat(32),app='0x'+'ef'.repeat(32),appRef=`catalog://${app}/1`;
++ const ownership='0x'+'11'.repeat(20),registry='0x'+'22'.repeat(20),catalog='0x'+'33'.repeat(20),owner='0x'+'44'.repeat(20);
++ const doc0={version:1,chainId:8453,ownershipContract:ownership,hostId,requireCatalogApproval:false,denyDeployments:[],denyAppRefs:[]};
++ const st={now:1_000_000,doc:doc0,revision:1,failure:false,catalog:{active:true,approval:1,yanked:false},reads:0};
++ const client={readContract:async q=>{st.reads++;
++  if(q.functionName==='registry')return registry;
++  if(q.functionName==='authority')return [owner,owner,BigInt(st.revision),hostAdmissionPolicyHash(st.doc)];
++  if(q.functionName==='getApp')return {appId:app,versionCount:2,active:st.catalog.active};
++  if(q.functionName==='getVersion')return {yanked:st.catalog.yanked,approval:st.catalog.approval};
++  throw Error('unexpected read '+q.functionName);}};
++ const reader={agreed:async fn=>{if(st.failure)throw Error('chain quorum unavailable');return {timestamp:st.now,...await fn(client,100n)};}};
++ const admission=createHostAdmission({hostId,ownershipContract:ownership,registry,catalog,reader,loadPolicy:async()=>st.doc,now:()=>st.now,cacheMs:0});
++ const h=new Host({dir:fs.mkdtempSync(path.join(os.tmpdir(),'catalog-gate-')),endpoint:'https://box.example',name:'test',appsEnabled:true,vcpus:8,ramGb:16,cpuPricePerSec6:0,log:()=>{}});
++ h.hostAdmission=admission;
++ const ask=(isPublic,over={})=>h.walletPolicyRefusal({id,appRef,isPublic,...over});
++ // approved, active: admitted whatever the visibility
++ for(const v of [false,true,undefined])assert.equal(await ask(v),null);
++ // pending catalog approval: ONLY a ledger-private record (isPublic === false) is pending private development
++ st.catalog={active:true,approval:0,yanked:false};
++ assert.equal(await ask(false),null);
++ for(const v of [true,undefined,'false',0,null])assert.match(await ask(v),/PRIVATE/,`isPublic ${String(v)} is not ledger-private`);
++ // platform moderation binds private records too: a delisted app, a yanked or a rejected version
++ for(const c of [{active:false,approval:1,yanked:false},{active:true,approval:1,yanked:true},{active:true,approval:2,yanked:false}]){
++  st.catalog=c;for(const v of [false,true])assert.ok(await ask(v),`refused: ${JSON.stringify(c)} isPublic ${v}`);
+  }
+- host.hostAdmission.refusal=async()=>{throw Error('quorum unavailable');};
+- assert.match(await host.walletPolicyRefusal({}),/unavailable/);
++ st.catalog={active:true,approval:1,yanked:false};
++ // the host owner's own wallet denial
++ st.doc={...doc0,denyDeployments:[id]};st.revision++;assert.match(await ask(true),/declines/);
++ st.doc=doc0;st.revision++;assert.equal(await ask(true),null);
++ // the policy cannot judge a non-catalog reference: refused by the policy itself (definite, not unknown)
++ assert.match(await ask(true,{appRef:'docker://x'}),/^host wallet policy: catalog app reference required/);
++ // the chain cannot be read: UNKNOWN, never admitted and never a definite refusal
++ st.failure=true;assert.match(await ask(false),/^host wallet policy unavailable: .*chain quorum unavailable/);
++ // the hold channel asks decision() (same policy, with its chain deadline): same answers
++ st.failure=false;h.walletChannel={};st.catalog={active:true,approval:0,yanked:false};
++ assert.equal(await ask(false),null);assert.match(await ask(true),/PRIVATE/);
++ assert.ok(st.reads>0,'the admission read the chain');
+ });
+diff --git a/test/registry-reconcile.test.mjs b/test/registry-reconcile.test.mjs
+index 3392866ec820cb92e4973129c5c3a2221da3e065..20b746bdcebd086e3a15f34582e2b7f162a951e1 100644
+--- a/test/registry-reconcile.test.mjs
++++ b/test/registry-reconcile.test.mjs
+@@ -44,10 +44,71 @@
+   const sup = fs.readFileSync(path.join(REPO, "supervisor.js"), "utf8"), win = fs.readFileSync(path.join(REPO, "windows/node/host.mjs"), "utf8");
+   assert.match(sup, /from "\.\/network\/registry-reconcile\.mjs"/);
+   assert.match(win, /from "\.\.\/\.\.\/network\/registry-reconcile\.mjs"/);
+-  assert.doesNotMatch(sup, /sendOperatorTx\([^)]*"heartbeat"/, "the supervisor sends no heartbeat");
++  // the only heartbeat sends are the owner-nomination SELF-TEST's nonce-concurrency load (OWNER_NOMINATION_SELFTEST, a
++  // one-shot process that exits), never a routine writer: see heartbeatOutsideSelftest below and, for the behaviour on a
++  // real chain, test/offchain-heartbeat-writers.test.mjs
++  assert.deepEqual(heartbeatOutsideSelftest(sup), [], "the supervisor sends no heartbeat outside its explicit self-test");
+   assert.doesNotMatch(fs.readFileSync(path.join(REPO, "windows/node/chain.mjs"), "utf8"), /"heartbeat"/, "the Windows chain module has no heartbeat call");
+   assert.match(fs.readFileSync(path.join(REPO, "Dockerfile"), "utf8"), /^COPY .*network\/registry-reconcile\.mjs .*\.\/network\/$/m);
+   const { files, problems } = closure();
+   assert.deepEqual(problems, []);
+   assert.ok(files.includes("network/registry-reconcile.mjs"), "the Windows deploy closure carries the rule");
+ });
++
++// ---- heartbeat placement in supervisor.js ----------------------------------------------------------------------------
++// A PLACEMENT invariant, not a behaviour test (the behaviour - zero registry writes from a running supervisor over several
++// periods, with the pre-change heartbeating supervisor as the counter's negative control - is
++// test/offchain-heartbeat-writers.test.mjs). supervisor.js keeps ONE deliberate heartbeat writer: the
++// OWNER_NOMINATION_SELFTEST block (test/owner-nomination.test.mjs), which loads the operator's transaction queue with
++// heartbeats to test nonce concurrency and then exits. The invariant: every heartbeat send is inside that block, the
++// block always ends in process.exit, and the routine owner-nomination starter never runs under the self-test.
++function block(src, start) {             // [start, end) of the {...} opening at or after `start`, skipping strings/comments
++  let i = src.indexOf("{", start), depth = 0, q = null, tpl = [];
++  for (; i < src.length; i++) {
++    const c = src[i], n = src[i + 1];
++    if (q) { if (c === "\\") { i++; continue; } if (c === q) q = null; else if (q === "`" && c === "$" && n === "{") { tpl.push(depth); depth++; q = null; i++; } continue; }
++    if (c === "/" && n === "/") { i = src.indexOf("\n", i); if (i < 0) break; continue; }
++    if (c === "/" && n === "*") { i = src.indexOf("*/", i + 2) + 1; continue; }
++    if (c === '"' || c === "'" || c === "`") { q = c; continue; }
++    if (c === "{") depth++;
++    else if (c === "}") { depth--; if (tpl.length && depth === tpl[tpl.length - 1]) { tpl.pop(); q = "`"; continue; } if (depth === 0) return [start, i + 1]; }
++  }
++  throw new Error("unbalanced block");
++}
++function heartbeatOutsideSelftest(src) {
++  const at = src.indexOf("if (process.env.OWNER_NOMINATION_SELFTEST) {");
++  const [b0, b1] = at < 0 ? [-1, -1] : block(src, at);
++  const sends = [...src.matchAll(/sendOperatorTx\([^;]*?"heartbeat"/g)].map((m) => m.index);
++  return sends.filter((i) => !(i > b0 && i < b1)).map((i) => src.slice(src.lastIndexOf("\n", i) + 1, src.indexOf("\n", i)).trim().slice(0, 160));
++}
++
++test("heartbeat placement: the supervisor's only heartbeat sends are its explicit owner-nomination self-test, which exits", () => {
++  const sup = fs.readFileSync(path.join(REPO, "supervisor.js"), "utf8");
++  const at = sup.indexOf("if (process.env.OWNER_NOMINATION_SELFTEST) {");
++  assert.ok(at > 0, "the self-test block exists");
++  const [b0, b1] = block(sup, at), body = sup.slice(b0, b1);
++  assert.ok((body.match(/sendOperatorTx\([^;]*?"heartbeat"/g) || []).length >= 1, "the self-test still loads the queue with heartbeats (nonce concurrency)");
++  assert.match(body.slice(-80), /process\.exit\(0\);\s*\}$/, "the self-test block always ends the process");
++  assert.match(sup, /if \(OWNER_NOMINATION\?\.config && !process\.env\.OWNER_NOMINATION_SELFTEST\) \{/, "routine nomination never runs under the self-test");
++  assert.deepEqual(heartbeatOutsideSelftest(sup), []);
++  // the old period name survives only as an alias of the reconcile cadence (a status/config check, no heartbeat send)
++  const uses = sup.split("\n").filter((l) => l.includes("REGISTRY_HEARTBEAT_SEC") && !/^\s*\/\//.test(l));
++  assert.deepEqual(uses.map((l) => /^const RECONCILE_SEC\s*=\s*parseInt\(process\.env\.REGISTRY_RECONCILE_SEC \|\| process\.env\.REGISTRY_HEARTBEAT_SEC /.test(l)), [true],
++    "REGISTRY_HEARTBEAT_SEC only names the reconcile cadence");
++});
++
++test("heartbeat placement, negative controls: an injected routine timer and the REAL pre-change supervisor are both caught", async () => {
++  const sup = fs.readFileSync(path.join(REPO, "supervisor.js"), "utf8");
++  // a routine heartbeat timer added after the self-test block
++  const mark = "// ---- app-funded lease gas";
++  assert.ok(sup.includes(mark));
++  const injected = sup.replace(mark, 'setInterval(() => sendOperatorTx(REGISTRY_ADDRESS, HEARTBEAT_ABI, "heartbeat", [_enclaveId]), 60_000);\n' + mark);
++  assert.equal(heartbeatOutsideSelftest(injected).length, 1);
++  // the supervisor before the off-chain liveness change (9a307f3ea's parent in this history): its timer heartbeat is caught
++  const { execFileSync } = await import("node:child_process");
++  let base = null;
++  try { base = execFileSync("git", ["show", "9a307f3ea^:supervisor.js"], { cwd: REPO, encoding: "utf8", maxBuffer: 64 << 20, stdio: ["ignore", "pipe", "ignore"] }); } catch {}
++  if (base === null) return;   // a source archive without history: the injected control above still stands
++  assert.match(base, /REGISTRY_HEARTBEAT_SEC/, "the pre-change supervisor had a routine heartbeat period");
++  assert.ok(heartbeatOutsideSelftest(base).length >= 1, "its routine heartbeat send is outside any self-test");
++});
+diff --git a/test/site-independent-account-startup.test.mjs b/test/site-independent-account-startup.test.mjs
+index b0e2a966c5fa87583e5d2856d920938a1356e15d..4b62e096c2ceb24660aba61f4f905fac0139db05 100644
+--- a/test/site-independent-account-startup.test.mjs
++++ b/test/site-independent-account-startup.test.mjs
+@@ -1,6 +1,6 @@
+ // The Startup tab on a record a passkey account (a Safe) holds itself, in a real headless Chromium against the local rig
+ // (test/helpers/independent-browser-rig.mjs: anvil with the repository's schema-16 ledger, three HTTPS storage adapters that
+-// verify the upload signature, registry hosts) with the PINNED Safe passkey code copied from Base (test/helpers/
++// verify the upload signature, registry hosts) with the PINNED Safe passkey code etched from the recorded Base snapshot (test/helpers/
+ // safe-passkey-code.mjs). The account is made through the account panel (one passkey with its own signer, deployed by the
+ // connected wallet as gas payer), selected as the dashboard identity, and creates - BY ITSELF, one passkey approval - a record
+ // waiting for owner-committed startup settings. The Startup tab then publishes the package: the ACCOUNT signs every storage
+@@ -10,7 +10,7 @@
+ import test from "node:test";
+ import assert from "node:assert/strict";
+ import { createRequire } from "node:module";
+-import { startRig, haveTools, walletScript } from "./helpers/independent-browser-rig.mjs";
++import { startRig, haveTools, walletScript, KEYS } from "./helpers/independent-browser-rig.mjs";
+ import { copySafePasskeyCode } from "./helpers/safe-passkey-code.mjs";
+ import { verifyPackage, packageCID } from "../sdk/bootstrap/package.mjs";
+ 
+@@ -77,11 +77,47 @@
+   await page.locator(".acct-use").click();
+   await waitAcct(/the dashboard now acts as your passkey account/);
+   // the account creates a record awaiting its own startup settings - by itself (no account session: one passkey approval)
+-  const n0 = await rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.abi.ledger, functionName: "count" });
+-  await page.evaluate(async () => (await import("/js/pages/deploy.js")).deployOnChain({ reference: "catalog://0x" + "11".repeat(32) + "/0", gpuMilli: 0, cpuMilli: 100,
+-    ports: "", isPublic: true, fundUsd: 0, prepareOnly: true }));
+-  const n1 = await rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.abi.ledger, functionName: "count" });
+-  assert.equal(n1, n0 + 1n, "one record: " + (await page.locator("c-deployments").textContent()).slice(-500));
++  // deployOnChain as the dashboard calls it, with its own outcome: return value or error, every toast and run-log line
++  const create = (reference) => page.evaluate(async (reference) => {
++    const toasts = [], lines = [];
++    const t = (e) => toasts.push(String(e.detail?.message)), l = (e) => { if (e.detail?.type === "line") lines.push(e.detail.txt); };
++    document.addEventListener("enclave:toast", t); document.addEventListener("enclave:runlog", l);
++    let ret, error = null;
++    try { ret = await (await import("/js/pages/deploy.js")).deployOnChain({ reference, gpuMilli: 0, cpuMilli: 100, ports: "", isPublic: true, fundUsd: 0, prepareOnly: true }); }
++    catch (e) { error = String(e?.message || e); }
++    document.removeEventListener("enclave:toast", t); document.removeEventListener("enclave:runlog", l);
++    return { ret: ret === undefined ? "undefined" : JSON.stringify(ret), error, toasts, lines };
++  }, reference);
++  const count = () => rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.abi.ledger, functionName: "count" });
++  const refused = async (reference, re, what) => {
++    const before = await count(), o = await create(reference);
++    assert.equal(await count(), before, what + ": nothing is created; outcome " + JSON.stringify(o));
++    assert.match(o.toasts.join(" | "), re, what + ": " + JSON.stringify(o));
++  };
++  // A REAL catalog version: the browser refuses a deploy unless the app and version are currently listed and approved
++  // (catalog moderation, read at deploy time). A third-party publisher's release starts PENDING; the catalog owner - the
++  // platform administrator, the rig's deployer - rules on it; the publisher may delist its own app.
++  const publisher = rig.wc(KEYS.operator2), slug = "safe-startup-app", CAT = { address: rig.addresses.catalog, abi: rig.abi.catalog };
++  const sim = await rig.pc.simulateContract({ ...CAT, account: publisher.account, functionName: "publishVersion",
++    args: [slug, "Safe startup app", "the account-startup fixture app", "1.0.0", "bafkreisafestartupfixtureapp0000000000000000000000000000000", [0, 0, 256, 100], "", "", 0n] });
++  const [appId, index] = sim.result;
++  await rig.write(publisher, CAT.address, CAT.abi, "publishVersion", sim.request.args);
++  const reference = "catalog://" + appId.toLowerCase() + "/" + index;
++  const admin = rig.wc(KEYS.deployer);
++  await refused("catalog://0x" + "11".repeat(32) + "/0", /could not verify current catalog moderation|delisted/, "an app the catalog does not have");
++  await refused(reference, /requires catalog approval; pending versions may only be deployed PRIVATE/, "a pending version for a public record");
++  await rig.write(admin, CAT.address, CAT.abi, "setApproval", [appId, index, 1]);
++  await rig.write(publisher, CAT.address, CAT.abi, "setActive", [slug, false]);
++  await refused(reference, /delisted/, "a delisted app");
++  await rig.write(publisher, CAT.address, CAT.abi, "setActive", [slug, true]);
++  await rig.write(admin, CAT.address, CAT.abi, "setApproval", [appId, index, 2]);
++  await refused(reference, /rejected by the catalog owner/, "a version the administrator rejected");
++  await rig.write(admin, CAT.address, CAT.abi, "setApproval", [appId, index, 1]);
++  // listed and approved: the account creates the record itself, waiting for its own startup settings
++  const n0 = await count();
++  const outcome = await create(reference);
++  const n1 = await count();
++  assert.equal(n1, n0 + 1n, "one record; deployOnChain outcome: " + JSON.stringify(outcome, null, 1));
+   const rec = (await rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.abi.ledger, functionName: "getPage", args: [n0, 1n] }))[0];
+   const id = rec.id.toLowerCase();
+   assert.equal(rec.owner.toLowerCase(), safe, "the Safe holds it itself");

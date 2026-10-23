@@ -1,0 +1,19 @@
+{
+  "at": "2026-10-23T15:08:03.345433+00:00",
+  "tlsVerified": false,
+  "results": [
+    {
+      "path": "/",
+      "error": "<urlopen error [Errno -3] Temporary failure in name resolution>"
+    },
+    {
+      "path": "/health",
+      "error": "<urlopen error [Errno -3] Temporary failure in name resolution>"
+    },
+    {
+      "path": "/mcp",
+      "error": "<urlopen error [Errno -3] Temporary failure in name resolution>"
+    }
+  ],
+  "note": "DNS resolution failed before any TLS handshake; no certificate result."
+}

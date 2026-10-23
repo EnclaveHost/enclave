@@ -1,0 +1,6 @@
+[q] 2026-10-23T05:24:20-07:00 try 1 cmd: bash -c jobs/unit-1.sh > logs/unit-1.out 2>&1
+[queue] START available=24964MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+[memory-guard] exit=0 peakTreeRssMiB=112 minHostAvailableMiB=23620
+[memory-guard] at peak: python3:34 python3:28 python3:24 bash:6 unit-1.sh:6 sh:6 sleep:4 timeout:4
+[queue] EXIT 0
+[q] 2026-10-23T05:25:06-07:00 exit=0

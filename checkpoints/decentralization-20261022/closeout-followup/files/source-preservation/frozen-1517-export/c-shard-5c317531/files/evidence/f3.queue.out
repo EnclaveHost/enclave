@@ -1,0 +1,49 @@
+[queue] START available=25185MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+bd92f094f88ee7bf0e005171ac5d26d6fdd3879ef3bf9c707271cd15fa361b6b  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/fixture/../../storage-write-release/rehearsal/_base.py
+4a890833c4b8c248d5338cff504752c75b459b7ac179019b3734dff0900427e7  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/fixture/main_shardloss.py
+c37ceb53593029cde78f29dadd28f3757d1562824ec4734cbb32897a6037afe9  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/fixture/shardloss.py
+55888a41033c5c913f64adc7dc601d314cbe387b377445a23e5475643bea7918  /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/fixture/../artifacts/candidate-55888a41.wasm
+04:51:54 postgres ready postgres (PostgreSQL) 18.6
+04:51:56 harness ready http://127.0.0.1:45823
+04:52:04 P-v018 ready after 2.0 s
+04:52:04 CHECK PASS P: the live 0.1.8 is ready (account unenrolled) 
+04:52:07 CHECK PASS P: 0.1.8 writes the legacy object 200
+04:52:09 W-fixed ready after 2.0 s
+04:52:09 CHECK PASS W: the fixed C2 is ready (enrols the account) 
+04:52:13 CHECK PASS W: the fixed C2 writes 'one' (2097152 bytes) 200
+04:52:17 CHECK PASS W: the fixed C2 writes 'big' (46137344 bytes) 200
+04:52:33 CHECK PASS W: fixed C2, all hosts: every key reads back byte-exact (3 keys) []
+04:52:33 CHECK PASS W: fixed C2, all hosts: listings are exact per bucket (deleted keys absent) []
+04:52:33 CHECK PASS W: the account is fenced and CAS-enrolled {'fenceHex': '0010032153d800030000000000000001729b85858d624f0531074418ee530ef3', 'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 6, 'objects': 4}
+04:52:34 S1 hosts below the usability uptime: 1
+04:52:36 S1-old-0 ready after 2.0 s
+04:52:37 S1-old-0 {"gets": {"big": {"status": 200, "contentLength": 46137344, "received": 98304, "exact": false, "signalledFailure": true, "processDied": true}}, "alive": false, "panic336": true, "panicLine": "index out of bounds: the len is 29 but the index is 29"}
+04:52:39 S1-old-1 ready after 2.0 s
+04:52:39 S1-old-1 {"gets": {"big": {"status": 200, "contentLength": 46137344, "received": 0, "exact": false, "signalledFailure": true, "processDied": true}}, "alive": false, "panic336": true, "panicLine": "index out of bounds: the len is 29 but the index is 29"}
+04:52:41 S1-old-2 ready after 2.0 s
+04:52:42 S1-old-2 {"gets": {"big": {"status": 200, "contentLength": 46137344, "received": 0, "exact": false, "signalledFailure": true, "processDied": true}}, "alive": false, "panic336": true, "panicLine": "index out of bounds: the len is 29 but the index is 29"}
+04:52:42 S1 old artifact (recorded, not a check): 3 of 3 instances panicked
+04:52:44 S1-fixed ready after 2.0 s
+04:52:44 CHECK PASS S1: the fixed C2 is ready with one storage endpoint lost 
+04:52:58 S1-fixed {"gets": {"big": {"status": 200, "contentLength": 46137344, "received": 46137344, "exact": true, "signalledFailure": false}, "legacy": {"status": 200, "contentLength": 3145728, "received": 3145728, "exact": true, "signalledFailure": false}, "one": {"status": 200, "contentLength": 2097152, "received": 2097152, "exact": true, "signalledFailure": false}}, "alive": true, "panic336": false, "panicLine"
+04:52:58 CHECK PASS S1: one endpoint lost: the fixed C2 reads every object byte-exact and stays up {'gets': {'big': {'status': 200, 'contentLength': 46137344, 'received': 46137344, 'exact': True, 'signalledFailure': False}, 'legacy': {'status': 200, 'contentLength': 3145728, 'received': 3145728, 'exact': True, 'signalledFailure': False}, 'one': {'status': 200, 'contentLength': 2097152, 'received'
+04:53:13 CHECK PASS S1: fixed C2, ranges: every key reads back byte-exact (3 keys) []
+04:53:15 CHECK PASS S1: fixed C2, ranges: ranged reads (incl. across the slab boundary) are byte-exact []
+04:53:15 CHECK PASS S1: fixed C2, ranges: listings are exact per bucket (deleted keys absent) []
+04:53:15 D hosts below the usability uptime: 15
+04:53:17 D-old ready after 2.0 s
+04:53:17 D-old {"gets": {"big": {"status": 200, "contentLength": 46137344, "received": 0, "exact": false, "signalledFailure": true, "processDied": true}}, "alive": false, "panic336": true, "panicLine": "index out of bounds: the len is 15 but the index is 19"}
+04:53:17 CHECK PASS D NEGATIVE CONTROL: the old artifact 00e9cde0 traps at download.rs:336 (index out of bounds) and its GET gets no answer {'gets': {'big': {'status': 200, 'contentLength': 46137344, 'received': 0, 'exact': False, 'signalledFailure': True, 'processDied': True}}, 'alive': False, 'panic336': True, 'panicLine': 'index out of bounds: the len is 15 but the index is 19'}
+04:53:19 D-fixed ready after 2.0 s
+04:53:19 CHECK PASS D: the fixed C2 is ready with 15 of 30 hosts lost 
+04:53:28 D-fixed {"gets": {"big": {"status": 200, "contentLength": 46137344, "received": 46137344, "exact": true, "signalledFailure": false}, "legacy": {"status": 200, "contentLength": 3145728, "received": 3145728, "exact": true, "signalledFailure": false}, "one": {"status": 200, "contentLength": 2097152, "received": 2097152, "exact": true, "signalledFailure": false}}, "alive": true, "panic336": false, "panicLine"
+04:53:28 CHECK PASS D: the fixed C2 reads every object byte-exact (the one-slab object from parity shards 15-29 only) and stays up {'gets': {'big': {'status': 200, 'contentLength': 46137344, 'received': 46137344, 'exact': True, 'signalledFailure': False}, 'legacy': {'status': 200, 'contentLength': 3145728, 'received': 3145728, 'exact': True, 'signalledFailure': False}, 'one': {'status': 200, 'contentLength': 2097152, 'received'
+04:53:28 I hosts below the usability uptime: 21
+04:53:30 I-fixed ready after 2.0 s
+04:53:30 I-fixed {"gets": {"big": {"status": 200, "contentLength": 46137344, "received": 0, "exact": false, "signalledFailure": true}, "legacy": {"status": 200, "contentLength": 3145728, "received": 0, "exact": false, "signalledFailure": true}, "one": {"status": 200, "contentLength": 2097152, "received": 0, "exact": false, "signalledFailure": true}}, "alive": true, "panic336": false, "panicLine": null}
+04:53:31 CHECK PASS I: 9 of 30 shards left: every GET signals failure (an error status, or a body SHORTER than its Content-Length: never a complete-looking object); C2 logs 'not enough shards', keeps running and serves /healthz {'res': {'gets': {'big': {'status': 200, 'contentLength': 46137344, 'received': 0, 'exact': False, 'signalledFailure': True}, 'legacy': {'status': 200, 'contentLength': 3145728, 'received': 0, 'exact': False, 'signalledFailure': True}, 'one': {'status': 200, 'contentLength': 2097152, 'received': 0, 
+04:53:31 CHECK PASS custody: the readers changed neither the fence generation, CAS enrolment, the event sequence nor the objects; the same-generation ballot counter rose by exactly one per reader start (7), as C2 installs at every start {'before': {'fenceHex': '0010032153d800030000000000000001729b85858d624f0531074418ee530ef3', 'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 6, 'objects': 4}, 'after': {'fenceHex': '0010032153d800030000000000000008e34a689f558fb90790e4755d82
+04:53:32 SUMMARY {"checks": 18, "failed": []}
+[memory-guard] exit=0 peakTreeRssMiB=1183 minHostAvailableMiB=23988
+[memory-guard] at peak: harness-block:536 wasmtime:380 postgres:35 postgres:33 python3:32 postgres:32 postgres:29 python3:26
+[queue] EXIT 0

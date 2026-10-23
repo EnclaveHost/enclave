@@ -1,0 +1,181 @@
+0229198637920f8147a7bcc3d685abb55f619415c993f624c98dbebcb2bd1a21  holder.py
+529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24  budget.py
+b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00  BINARY.json
+cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222  holder-storage.sh.in
+743acde5c8a6d1a01cc37a7428a3152b34b93582c800954a5405d322363238f1  drill-cache.sh
+7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
+8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a  holder.example.json
+21ef093d3842c94b9e7e131dbc4ea19556c4131cacba778aa9aa82195df9cbb3  test/mutate.py
+111893d22ae200dd6b79e6f844a07fb06445eecadc1332347dddbfa78dc0933e  test/standin-base.py
+83a5b35709882992cbc6b7eb3dae6666e95b502c2f11a98054e0cc9089167f72  test/test_base_offline.py
+e6c1bbe74137a69ef0d9bef55fb99d05c42e569e5e4b61afff93a6fe705546eb  test/test_budget.py
+6ba4f784faaa7505ab7d40af97d48861ef39f593252e07c44063a76747fb333c  test/test_holder.py
+e9f18996cd5dee93fd037063dc858a576d732321e2c9707fed99364b86898cdc  test/test_network_layout.py
+d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
+1684a85dfd364a905fb9643a6bf26a4e1c6103f2af360b177fb4745c9ead2883  test/test_storage.py
+d779f061ef120023dae801840b884bc905f5eb4907fed6b3d058ca6752844f22  test/stubs/stubcmd.py
+=== test/test_holder.py
+test_b_accepts_the_rendered_proof_source (__main__.BInterface.test_b_accepts_the_rendered_proof_source) ... ok
+test_child_failure_propagates_exit_code_and_its_group_is_reaped (__main__.Lifecycle.test_child_failure_propagates_exit_code_and_its_group_is_reaped) ... ok
+test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports) ... ok
+test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop) ... ok
+test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-hdd-storage-compose-20261023/s/holder/test/test_holder.py:324: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/3757627/stat' mode='r' encoding='UTF-8'>
+  return open(f'/proc/{pid}/stat').read().split()[2] != 'Z'
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_tampered_binary_never_starts (__main__.Lifecycle.test_tampered_binary_never_starts) ... ok
+test_term_ignoring_child_is_killed_after_grace (__main__.Lifecycle.test_term_ignoring_child_is_killed_after_grace) ... ok
+test_wrong_chain_never_ready_is_a_failure (__main__.Lifecycle.test_wrong_chain_never_ready_is_a_failure) ... ok
+test_real_devices (__main__.Placement.test_real_devices) ... ok
+test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned) ... ok
+test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed) ... ok
+test_render_files (__main__.Render.test_render_files) ... ok
+test_download_like_config_passes_and_default_or_missing_fails (__main__.RethToml.test_download_like_config_passes_and_default_or_missing_fails) ... ok
+test_budget_example_is_a_valid_ledger_once_root_fills_the_host (__main__.Validation.test_budget_example_is_a_valid_ledger_once_root_fills_the_host) ... ok
+test_example_is_review_only (__main__.Validation.test_example_is_review_only) ... ok
+test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting) ... ok
+test_no_cache_layout (__main__.Validation.test_no_cache_layout) ... ok
+test_refusals (__main__.Validation.test_refusals) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 15.036s
+
+OK
+=== test/test_storage.py
+test_admit_still_refuses_a_credited_file_owned_by_another_reservation (__main__.Storage.test_admit_still_refuses_a_credited_file_owned_by_another_reservation) ... ok
+test_assemble_failure_keeps_preexisting_loops (__main__.Storage.test_assemble_failure_keeps_preexisting_loops) ... ok
+test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical (__main__.Storage.test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical) ... ok
+test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops) ... ok
+test_assemble_refuses_foreign_mount (__main__.Storage.test_assemble_refuses_foreign_mount) ... ok
+test_assemble_refuses_origin_mounted_without_cache (__main__.Storage.test_assemble_refuses_origin_mounted_without_cache) ... ok
+test_cache_loss_detaches_only_the_loop_it_attached (__main__.Storage.test_cache_loss_detaches_only_the_loop_it_attached) ... ok
+test_cache_loss_invalidates_before_touching_origin (__main__.Storage.test_cache_loss_invalidates_before_touching_origin) ... ok
+test_create_failure_unwinds_only_its_own_resources (__main__.Storage.test_create_failure_unwinds_only_its_own_resources) ... ok
+test_create_preallocates_exact_sizes_and_leaves_nothing_attached (__main__.Storage.test_create_preallocates_exact_sizes_and_leaves_nothing_attached) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-hdd-storage-compose-20261023/s/holder/test/test_storage.py:84: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/hs-iym0_qzm/nvme/cache-meta.img'>
+  self.assertEqual(open(self.nvme / 'cache-meta.img', 'rb').read(8 * MiB), bytes(8 * MiB))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_create_refuses_existing_targets_and_touches_nothing (__main__.Storage.test_create_refuses_existing_targets_and_touches_nothing) ... ok
+test_create_refuses_wrong_media_before_allocating (__main__.Storage.test_create_refuses_wrong_media_before_allocating) ... ok
+test_create_requires_the_exact_ledger_reservation_before_allocating (__main__.Storage.test_create_requires_the_exact_ledger_reservation_before_allocating) ... ok
+test_disassemble_checks_mapping_before_unmount (__main__.Storage.test_disassemble_checks_mapping_before_unmount) ... ok
+test_disassemble_clean (__main__.Storage.test_disassemble_clean) ... ok
+test_disassemble_never_detaches_an_active_loop (__main__.Storage.test_disassemble_never_detaches_an_active_loop) ... ok
+test_disassemble_no_cache_refuses_foreign_mount (__main__.Storage.test_disassemble_no_cache_refuses_foreign_mount) ... ok
+test_disassemble_refuses_foreign_mapping (__main__.Storage.test_disassemble_refuses_foreign_mapping) ... ok
+test_disassemble_refuses_foreign_mount_without_mutation (__main__.Storage.test_disassemble_refuses_foreign_mount_without_mutation) ... ok
+test_disassemble_stops_at_failed_unmap (__main__.Storage.test_disassemble_stops_at_failed_unmap) ... ok
+test_disassemble_stops_at_failed_unmount (__main__.Storage.test_disassemble_stops_at_failed_unmount) ... ok
+test_free_space_credits_owned_existing_cache_files (__main__.Storage.test_free_space_credits_owned_existing_cache_files)
+Fix 0001: a re-run of create that ADOPTS this reservation's complete owned cache files needs free space only ... ok
+test_free_space_does_not_credit_a_cache_file_on_another_filesystem (__main__.Storage.test_free_space_does_not_credit_a_cache_file_on_another_filesystem) ... ok
+test_free_space_does_not_credit_foreign_or_unowned_files (__main__.Storage.test_free_space_does_not_credit_foreign_or_unowned_files) ... ok
+test_no_cache_layout_mounts_origin_loop (__main__.Storage.test_no_cache_layout_mounts_origin_loop) ... ok
+test_term_signal_takes_the_unwind_path (__main__.Storage.test_term_signal_takes_the_unwind_path)
+Fix 0002: SIGTERM to the whole process group (what systemd sends) mid-create runs the same unwind as an ... ok
+test_unwind_keeps_image_when_detach_fails (__main__.Storage.test_unwind_keeps_image_when_detach_fails) ... ok
+test_unwind_stops_when_mapping_removal_fails (__main__.Storage.test_unwind_stops_when_mapping_removal_fails) ... ok
+test_unwind_stops_when_unmount_fails (__main__.Storage.test_unwind_stops_when_unmount_fails) ... ok
+test_verify_cap_charges_maxima_and_bounds_every_local_file (__main__.Storage.test_verify_cap_charges_maxima_and_bounds_every_local_file) ... ok
+
+----------------------------------------------------------------------
+Ran 30 tests in 17.839s
+
+OK
+=== test/test_budget.py
+test_allocation_stops_inside_the_maximum_when_the_filesystem_overallocates (__main__.Accounting.test_allocation_stops_inside_the_maximum_when_the_filesystem_overallocates)
+A filesystem whose metadata exceeds the estimate (simulated: every step allocates 2 extra blocks past EOF): ... ok
+test_correctly_budgeted_small_files_pass_exactly_counted (__main__.Accounting.test_correctly_budgeted_small_files_pass_exactly_counted) ... ok
+test_files_and_markers_together_cannot_exceed_the_reservation (__main__.Accounting.test_files_and_markers_together_cannot_exceed_the_reservation) ... ok
+test_filesystem_must_be_supported_with_the_declared_block_size (__main__.Accounting.test_filesystem_must_be_supported_with_the_declared_block_size) ... ok
+test_last_step_overrun_is_caught_after_allocation_and_unwound (__main__.Accounting.test_last_step_overrun_is_caught_after_allocation_and_unwound) ... ok
+test_present_overallocation_refuses_before_writing_the_rest (__main__.Accounting.test_present_overallocation_refuses_before_writing_the_rest) ... ok
+test_root_probe_one_byte_zero_slack_refused_before_any_marker_or_file (__main__.Accounting.test_root_probe_one_byte_zero_slack_refused_before_any_marker_or_file) ... ok
+test_allocate_exact_non_sparse_then_idempotent (__main__.Allocation.test_allocate_exact_non_sparse_then_idempotent) ... ok
+test_failure_unwinds_only_what_this_call_created (__main__.Allocation.test_failure_unwinds_only_what_this_call_created) ... ok
+test_foreign_file_refused_untouched (__main__.Allocation.test_foreign_file_refused_untouched) ... ok
+test_interrupted_create_is_completed_not_regranted (__main__.Allocation.test_interrupted_create_is_completed_not_regranted) ... ok
+test_verify_bounds (__main__.Allocation.test_verify_bounds) ... ok
+test_allocation_waits_for_a_ledger_edit_and_sees_its_result (__main__.Concurrency.test_allocation_waits_for_a_ledger_edit_and_sees_its_result) ... ok
+test_concurrent_allocations_of_one_reservation_grant_once (__main__.Concurrency.test_concurrent_allocations_of_one_reservation_grant_once) ... ok
+test_old_concurrent_creates_both_pass_and_exceed_the_cap (__main__.OldBehaviorControls.test_old_concurrent_creates_both_pass_and_exceed_the_cap) ... /usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=11>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=8>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=9>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=6>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=7 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=4 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=5 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=3 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_old_missing_path_counts_zero_and_growth_is_unbounded (__main__.OldBehaviorControls.test_old_missing_path_counts_zero_and_growth_is_unbounded) ... ok
+test_example_share_split_across_hosts_never_exceeds_cap (__main__.Rules.test_example_share_split_across_hosts_never_exceeds_cap) ... ok
+test_headroom_is_exact_and_bookkeeping_is_charged (__main__.Rules.test_headroom_is_exact_and_bookkeeping_is_charged) ... ok
+test_ledger_rules (__main__.Rules.test_ledger_rules) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 5.940s
+
+OK
+=== S test_network_layout
+test_false_or_foreign_placements_are_refused (__main__.Network.test_false_or_foreign_placements_are_refused) ... ok
+test_local_layout_renders_byte_identically_to_the_pinned_original (__main__.Network.test_local_layout_renders_byte_identically_to_the_pinned_original)
+The local loop layout (holder-storage.sh.in cab32bbe and its units) must not change. ... ok
+test_render_gates_the_consumer_on_the_supervisor (__main__.Network.test_render_gates_the_consumer_on_the_supervisor) ... ok
+test_valid_and_pinned (__main__.Network.test_valid_and_pinned) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.019s
+
+OK
+=== P test/test_l1pair.py
+test_check_checkpoint (__main__.Checkpoint.test_check_checkpoint) ... ok
+test_inspect_reads_the_real_mainnet_genesis_state (__main__.Checkpoint.test_inspect_reads_the_real_mainnet_genesis_state) ... ok
+test_jwt_shape_and_mode (__main__.Jwt.test_jwt_shape_and_mode) ... ok
+test_gate_is_the_conjunction_of_every_check (__main__.ReadyGate.test_gate_is_the_conjunction_of_every_check) ... ok
+test_nothing_listening_is_not_ready_and_does_not_crash (__main__.ReadyGate.test_nothing_listening_is_not_ready_and_does_not_crash) ... ok
+test_closed_env (__main__.Rendering.test_closed_env) ... ok
+test_every_lighthouse_flag_is_in_the_pinned_source_help (__main__.Rendering.test_every_lighthouse_flag_is_in_the_pinned_source_help) ... ok
+test_every_reth_flag_is_in_the_executed_binary_help (__main__.Rendering.test_every_reth_flag_is_in_the_executed_binary_help) ... ok
+test_exact_cl_argv (__main__.Rendering.test_exact_cl_argv) ... ok
+test_exact_el_argv (__main__.Rendering.test_exact_el_argv) ... ok
+test_no_hidden_external_default (__main__.Rendering.test_no_hidden_external_default) ... ok
+test_render (__main__.Rendering.test_render) ... ok
+test_storage_script_is_S_template_with_this_pairs_constants (__main__.Rendering.test_storage_script_is_S_template_with_this_pairs_constants) ... ok
+test_tx_broadcast_is_explicit_opt_in (__main__.Rendering.test_tx_broadcast_is_explicit_opt_in) ... ok
+test_units (__main__.Rendering.test_units) ... ok
+test_vendor_files_match_their_pins (__main__.Rendering.test_vendor_files_match_their_pins) ... ok
+test_boundaries_accepted (__main__.Validation.test_boundaries_accepted) ... ok
+test_example_as_shipped_is_refused_until_pins_are_recorded (__main__.Validation.test_example_as_shipped_is_refused_until_pins_are_recorded) ... ok
+test_good_config_validates (__main__.Validation.test_good_config_validates) ... ok
+test_refusals (__main__.Validation.test_refusals) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 7.251s
+
+OK
+=== P test/test_network_layout.py
+test_both_node_units_bind_to_the_supervisor (__main__.Network.test_both_node_units_bind_to_the_supervisor) ... ok
+test_l1_role_only (__main__.Network.test_l1_role_only) ... ok
+test_local_layout_renders_byte_identically_to_the_pinned_original (__main__.Network.test_local_layout_renders_byte_identically_to_the_pinned_original) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.029s
+
+OK
+unit rc=0

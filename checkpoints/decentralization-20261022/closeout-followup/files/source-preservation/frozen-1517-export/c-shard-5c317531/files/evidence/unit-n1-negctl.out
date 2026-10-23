@@ -1,0 +1,54 @@
+   Compiling sia_storage v0.13.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/unit)
+    Finished `test` profile [unoptimized] target(s) in 7.93s
+     Running unittests /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs/sia_storage/src/lib.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/target/x86_64-unknown-linux-gnu/debug/build/sia_storage/36e02f19a463b3bf/out/sia_storage-36e02f19a463b3bf)
+
+running 6 tests
+test download::test::shard_topology::insufficient_shards_fail_cleanly ... FAILED
+test download::test::shard_topology::malformed_shard_indices_are_refused ... FAILED
+test download::test::shard_topology::one_unknown_host_out_of_order_recovers_exact_bytes ... FAILED
+test download::test::shard_topology::parity_only_noncontiguous_recovers_exact_bytes ... FAILED
+test download::test::shard_topology::single_host_loss_at_each_position_recovers_exact_bytes ... FAILED
+test download::test::shard_topology::trailing_hosts_unknown_recovers_exact_bytes ... ok
+
+failures:
+
+---- download::test::shard_topology::insufficient_shards_fail_cleanly stdout ----
+
+thread 'download::test::shard_topology::insufficient_shards_fail_cleanly' (3441153) panicked at /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs/sia_storage/src/download.rs:336:35:
+index out of bounds: the len is 15 but the index is 21
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- download::test::shard_topology::malformed_shard_indices_are_refused stdout ----
+
+thread 'download::test::shard_topology::malformed_shard_indices_are_refused' (3441653) panicked at /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs/sia_storage/src/download.rs:336:35:
+index out of bounds: the len is 10 but the index is 30
+
+---- download::test::shard_topology::one_unknown_host_out_of_order_recovers_exact_bytes stdout ----
+
+thread 'download::test::shard_topology::one_unknown_host_out_of_order_recovers_exact_bytes' (3442147) panicked at /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs/sia_storage/src/download.rs:336:35:
+index out of bounds: the len is 29 but the index is 29
+
+---- download::test::shard_topology::parity_only_noncontiguous_recovers_exact_bytes stdout ----
+
+thread 'download::test::shard_topology::parity_only_noncontiguous_recovers_exact_bytes' (3442591) panicked at /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs/sia_storage/src/download.rs:336:35:
+index out of bounds: the len is 27 but the index is 27
+
+---- download::test::shard_topology::single_host_loss_at_each_position_recovers_exact_bytes stdout ----
+
+thread 'download::test::shard_topology::single_host_loss_at_each_position_recovers_exact_bytes' (3443082) panicked at /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs/sia_storage/src/download.rs:336:35:
+index out of bounds: the len is 29 but the index is 29
+
+thread 'download::test::shard_topology::single_host_loss_at_each_position_recovers_exact_bytes' (3443082) panicked at /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs/sia_storage/src/download.rs:1916:75:
+host of shard 0 unknown: download: Custom { kind: Other, error: JoinError::Panic(Id(1479), "index out of bounds: the len is 29 but the index is 29", ...) }
+
+
+failures:
+    download::test::shard_topology::insufficient_shards_fail_cleanly
+    download::test::shard_topology::malformed_shard_indices_are_refused
+    download::test::shard_topology::one_unknown_host_out_of_order_recovers_exact_bytes
+    download::test::shard_topology::parity_only_noncontiguous_recovers_exact_bytes
+    download::test::shard_topology::single_host_loss_at_each_position_recovers_exact_bytes
+
+test result: FAILED. 1 passed; 5 failed; 0 ignored; 0 measured; 169 filtered out; finished in 192.38s
+
+error: test failed, to rerun pass `--lib`

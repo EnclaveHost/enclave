@@ -1,0 +1,5 @@
+target/
+logs/
+__pycache__/
+sia-s3/target/
+unit/Cargo.lock

@@ -1,0 +1,40 @@
+{
+  "at": "2026-10-23T15:05:55.8294702Z",
+  "manager": {
+    "ok": true,
+    "pid": 7880,
+    "started": "2026-10-23T08:30:01.0781920Z",
+    "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+    "parent": "cmd.exe"
+  },
+  "vm": [],
+  "host": [
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "failed",
+      "reason": "isolation: 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77 did not become ready within 300000 ms (last status starting)"
+    }
+  ],
+  "node": [],
+  "shield": [
+    "09:10:58 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "11:27:58 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 4444 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 4444 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An established connection was aborted by the software in your host machine. (os error 10053) (ConnectionAborted); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 124 B",
+    "23:55:33 [egress] 5839fea9 the egress bridge: shielded bridge connection ended: guest->worker An established connection was aborted by the software in your host machine. (os error 10053) (ConnectionAborted); worker->guest ended after 4540908 B",
+    "23:58:08 [egress] 5839fea9 the egress bridge: shielded bridge connection ended: guest->worker An established connection was aborted by the software in your host machine. (os error 10053) (ConnectionAborted); worker->guest ended after 22897156 B",
+    "00:00:14 [egress] 5839fea9 the egress bridge: shielded bridge connection ended: guest->worker An established connection was aborted by the software in your host machine. (os error 10053) (ConnectionAborted); worker->guest ended after 8990044 B",
+    "00:00:14 [egress] 5839fea9 the egress bridge: shielded bridge connection ended: guest->worker An established connection was aborted by the software in your host machine. (os error 10053) (ConnectionAborted); worker->guest ended after 6750948 B",
+    "01:07:40 [egress] 5839fea9 the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 311164 B",
+    "01:17:36 [egress] 5839fea9 the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 99484 B"
+  ],
+  "network": []
+}

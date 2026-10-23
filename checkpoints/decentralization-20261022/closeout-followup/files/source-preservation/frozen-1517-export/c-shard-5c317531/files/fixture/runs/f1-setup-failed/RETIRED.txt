@@ -1,0 +1,1 @@
+Run f1: RETIRED (setup only, no check ran): _base.py resolved the C2 catalog config under this tree; fixed by passing its real pinned path.

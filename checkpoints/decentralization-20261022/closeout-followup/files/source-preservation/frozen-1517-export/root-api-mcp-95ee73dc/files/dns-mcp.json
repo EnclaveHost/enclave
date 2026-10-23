@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-23T15:11:13.140654+00:00",
+  "checks": {
+    "publicDns": {
+      "exit": 0,
+      "stdout": "a69dcbba.app.enclave.host. 15\tIN\tA\t165.245.191.129\na69dcbba.app.enclave.host. 15\tIN\tA\t146.190.246.39\n",
+      "stderr": ""
+    },
+    "defaultDns": {
+      "exit": 0,
+      "stdout": "165.245.191.129 STREAM a69dcbba.app.enclave.host\n165.245.191.129 DGRAM  \n165.245.191.129 RAW    \n146.190.246.39  STREAM \n146.190.246.39  DGRAM  \n146.190.246.39  RAW    \n",
+      "stderr": ""
+    },
+    "mcpAuth": {
+      "exit": 0,
+      "stdout": "{\"error\":{\"code\":-32001,\"message\":\"unauthorized: send the deployment's API key as `X-Api-Key: <key>` (on enclave.host the gateway consumes `Authorization`, so a bearer never arrives here), or a sign-in token as `X-Sso-Token`\"},\"id\":null,\"jsonrpc\":\"2.0\"}\n401",
+      "stderr": ""
+    }
+  }
+}

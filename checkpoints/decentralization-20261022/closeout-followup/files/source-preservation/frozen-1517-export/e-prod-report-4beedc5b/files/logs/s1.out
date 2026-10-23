@@ -1,0 +1,23 @@
+[queue] START available=24626MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+== source dc2e5d740..HEAD
+ae00cd965 Test the dropped-wallet receipt check on both routes, and the wallet route in the built site
+e078490da Merge main 68b82926 (docs-only PRODUCT/README/security wording) into the wallet-route production candidate
+68b829269 docs(README): simpler wording for the protections paragraph [skip ci]
+544088d1b docs(README): host-OS exclusion is by the isolation mechanism (demonstrated), not separation alone; keep operator unexcluded [skip ci]
+d2ea087fa docs: Windows host-OS memory exclusion demonstrated box-local (E3) [skip ci]
+source crypto scan rc=0
+7:57AM INF 4 commits scanned.
+7:57AM INF scanned ~29639 bytes (29.64 KB) in 119ms
+7:57AM INF no leaks found
+== report repo
+3d47052 RESULT, S method handoff, D export, build/test jobs and logs for rpc-wallet-production-build ae00cd965
+7:57AM INF 1 commits scanned.
+7:57AM INF scanned ~129189 bytes (129.19 KB) in 127ms
+7:57AM INF no leaks found
+== D patch-apply check: patches/*.patch on dc2e5d740 -> tree of ae00cd965
+applied tree 5159185616aa0600be92cb9d3308645ad59b4cf3  final tree 5159185616aa0600be92cb9d3308645ad59b4cf3  MATCH
+The bundle uses this hash algorithm: sha1
+scan rc=0
+[memory-guard] exit=0 peakTreeRssMiB=121 minHostAvailableMiB=24572
+[memory-guard] at peak: git:116 bash:6
+[queue] EXIT 0

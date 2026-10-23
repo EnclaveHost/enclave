@@ -1,0 +1,24 @@
+[q] 2026-10-23T05:49:24-07:00 try 1 cmd: bash -c itest/run.sh > logs/itest-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T05:50:54-07:00 try 2 cmd: bash -c itest/run.sh > logs/itest-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T05:52:24-07:00 try 3 cmd: bash -c itest/run.sh > logs/itest-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T05:53:54-07:00 try 4 cmd: bash -c itest/run.sh > logs/itest-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T05:55:24-07:00 try 5 cmd: bash -c itest/run.sh > logs/itest-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T05:56:54-07:00 try 6 cmd: bash -c itest/run.sh > logs/itest-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T05:58:24-07:00 try 7 cmd: bash -c itest/run.sh > logs/itest-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T05:59:54-07:00 try 8 cmd: bash -c itest/run.sh > logs/itest-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:01:24-07:00 try 9 cmd: bash -c itest/run.sh > logs/itest-2.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:02:54-07:00 try 10 cmd: bash -c itest/run.sh > logs/itest-2.out 2>&1
+[queue] START available=25371MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[memory-guard] exit=1 peakTreeRssMiB=414 minHostAvailableMiB=24409
+[memory-guard] at peak: qemu-system-x86:334 python3:31 python3:22 qemu-nbd:11 run.sh:6 bash:6 timeout:4
+[queue] EXIT 1
+[q] 2026-10-23T06:04:35-07:00 exit=1

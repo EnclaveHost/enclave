@@ -1,0 +1,800 @@
+{
+ "run": "f2",
+ "started": 1792755820.284788,
+ "inputs": {
+  "adapter-retained/bafybeib7at4cxxzmlp3wb7v45zrhbuggwzegspcacfylztslbcnoe6qrqu.bin": "d1ddecfe7c3e1d06d1921eb779e135f3a64f185a4dbcdd989f56e22f603e07d3",
+  "storage-wasm-validation/artifacts/candidate-00e9cde0.wasm": "00e9cde0929dc7b8726ca4b7b9c9afb51ec4bf6d952039c907c032256ec79afc",
+  "claude-resumed-20261022/storage-sdk-regressions/out/c2e-a/harness-block": "cac6651329468aaeb2dd4d90ac9b924a891b121edbe17d2515b34b0dae97eafa",
+  "resume-after-checkpoint-20261022/storage-client-interop/egress_socks5.py": "77fad264406da15a85830ce1559fbd04feb2f9464b01576512a525112da09086",
+  "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+  "resume-after-checkpoint-20261022/storage-public-read/candidate-catalog-config.json": "7b9e7e750521b4bb0fa5925e771a42766673ad728e02e3d8508da4ca6ea554d2",
+  "resume-after-checkpoint-20261022/storage-write-release/client/catalog-config.c2.json": "f6b48940cf7179b5a7bc61fabfee4667bd14aacd0380d953cae8f878972ff278",
+  "resume-after-checkpoint-20261022/storage-shard-recovery/artifacts/candidate-55888a41.wasm": "55888a41033c5c913f64adc7dc601d314cbe387b377445a23e5475643bea7918"
+ },
+ "checks": [
+  {
+   "name": "P: the live 0.1.8 is ready (account unenrolled)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "P: 0.1.8 writes the legacy object",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "W: the fixed C2 is ready (enrols the account)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "W: the fixed C2 writes 'one' (2097152 bytes)",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "W: the fixed C2 writes 'big' (46137344 bytes)",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "W: fixed C2, all hosts: every key reads back byte-exact (3 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "W: fixed C2, all hosts: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "W: the account is fenced and CAS-enrolled",
+   "ok": true,
+   "detail": "{'fenceHex': '0010032153d800030000000000000001ca96f8b11b3c7c8dbab9967cddbd04c3', 'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 6, 'objects': 4}"
+  },
+  {
+   "name": "S1: the fixed C2 is ready with one storage endpoint lost",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "S1: one endpoint lost: the fixed C2 reads every object byte-exact and stays up",
+   "ok": true,
+   "detail": "{'gets': {'big': {'status': 200, 'exact': True}, 'legacy': {'status': 200, 'exact': True}, 'one': {'status': 200, 'exact': True}}, 'alive': True, 'panic336': False, 'panicLine': None}"
+  },
+  {
+   "name": "S1: fixed C2, ranges: every key reads back byte-exact (3 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "S1: fixed C2, ranges: ranged reads (incl. across the slab boundary) are byte-exact",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "S1: fixed C2, ranges: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "D NEGATIVE CONTROL: the old artifact 00e9cde0 traps at download.rs:336 (index out of bounds) and its GET gets no answer",
+   "ok": true,
+   "detail": "{'gets': {'big': {'status': 200, 'exact': False, 'processDied': True}}, 'alive': False, 'panic336': True, 'panicLine': 'index out of bounds: the len is 15 but the index is 23'}"
+  },
+  {
+   "name": "D: the fixed C2 is ready with 15 of 30 hosts lost",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "D: the fixed C2 reads every object byte-exact (the one-slab object from parity shards 15-29 only) and stays up",
+   "ok": true,
+   "detail": "{'gets': {'big': {'status': 200, 'exact': True}, 'legacy': {'status': 200, 'exact': True}, 'one': {'status': 200, 'exact': True}}, 'alive': True, 'panic336': False, 'panicLine': None}"
+  },
+  {
+   "name": "I: 9 of 30 shards left: the fixed C2 answers each GET with an error (never bytes), keeps running and serving /healthz",
+   "ok": false,
+   "detail": "{'res': {'gets': {'big': {'status': 200, 'exact': False}, 'legacy': {'status': 200, 'exact': False}, 'one': {'status': 200, 'exact': False}}, 'alive': True, 'panic336': False, 'panicLine': None}, 'healthz': {'ready': True, 'status': None}}"
+  },
+  {
+   "name": "custody: reads changed neither the fence, nor CAS enrolment, nor the event sequence",
+   "ok": false,
+   "detail": "{'before': {'fenceHex': '0010032153d800030000000000000001ca96f8b11b3c7c8dbab9967cddbd04c3', 'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 6, 'objects': 4}, 'after': {'fenceHex': '0010032153d80003000000000000000801d297ad72109673399520fd40a20057', 'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 8, 'casMode': True, 'seqEnabled': True, 'eventSeq': 6, 'objects': 4}}"
+  }
+ ],
+ "measure": [
+  {
+   "op": "wasmtime compile v018",
+   "wallS": 1.3
+  },
+  {
+   "op": "wasmtime compile final",
+   "wallS": 1.7
+  },
+  {
+   "op": "wasmtime compile fixed",
+   "wallS": 1.7
+  },
+  {
+   "op": "P-v018 PUT ipfs/legacy 3145728",
+   "wallS": 2.18,
+   "status": 200
+  },
+  {
+   "op": "P-v018 instance",
+   "maxRssMiB": 151,
+   "cpuS": 1.85,
+   "wallS": 4.3,
+   "sampledPeakRssMiB": 150,
+   "status": 15
+  },
+  {
+   "op": "W-fixed PUT ipfs/one 2097152",
+   "wallS": 4.29,
+   "status": 200
+  },
+  {
+   "op": "W-fixed PUT ipfs/big 46137344",
+   "wallS": 4.41,
+   "status": 200
+  },
+  {
+   "op": "W-fixed instance",
+   "maxRssMiB": 380,
+   "cpuS": 8.47,
+   "wallS": 27.5,
+   "sampledPeakRssMiB": 380,
+   "status": 15
+  },
+  {
+   "op": "S1-old-0 instance",
+   "maxRssMiB": 85,
+   "cpuS": 0.07,
+   "wallS": 3.0,
+   "sampledPeakRssMiB": 27,
+   "status": 34304
+  },
+  {
+   "op": "S1-old-1 instance",
+   "maxRssMiB": 85,
+   "cpuS": 0.04,
+   "wallS": 2.4,
+   "sampledPeakRssMiB": 25,
+   "status": 34304
+  },
+  {
+   "op": "S1-old-2 instance",
+   "maxRssMiB": 85,
+   "cpuS": 0.06,
+   "wallS": 2.6,
+   "sampledPeakRssMiB": 26,
+   "status": 34304
+  },
+  {
+   "op": "S1-fixed instance",
+   "maxRssMiB": 85,
+   "cpuS": 2.49,
+   "wallS": 34.4,
+   "sampledPeakRssMiB": 43,
+   "status": 15
+  },
+  {
+   "op": "D-old instance",
+   "maxRssMiB": 85,
+   "cpuS": 0.02,
+   "wallS": 2.2,
+   "sampledPeakRssMiB": 22,
+   "status": 34304
+  },
+  {
+   "op": "D-fixed instance",
+   "maxRssMiB": 85,
+   "cpuS": 1.09,
+   "wallS": 10.9,
+   "sampledPeakRssMiB": 42,
+   "status": 15
+  },
+  {
+   "op": "I-fixed instance",
+   "maxRssMiB": 85,
+   "cpuS": 0.01,
+   "wallS": 2.3,
+   "sampledPeakRssMiB": 22,
+   "status": 15
+  }
+ ],
+ "events": [
+  "04:43:42 postgres ready postgres (PostgreSQL) 18.6",
+  "04:43:44 harness ready http://127.0.0.1:40751",
+  "04:43:51 P-v018 ready after 2.0 s",
+  "04:43:51 CHECK PASS P: the live 0.1.8 is ready (account unenrolled) ",
+  "04:43:54 CHECK PASS P: 0.1.8 writes the legacy object 200",
+  "04:43:56 W-fixed ready after 2.0 s",
+  "04:43:56 CHECK PASS W: the fixed C2 is ready (enrols the account) ",
+  "04:44:00 CHECK PASS W: the fixed C2 writes 'one' (2097152 bytes) 200",
+  "04:44:05 CHECK PASS W: the fixed C2 writes 'big' (46137344 bytes) 200",
+  "04:44:21 CHECK PASS W: fixed C2, all hosts: every key reads back byte-exact (3 keys) []",
+  "04:44:21 CHECK PASS W: fixed C2, all hosts: listings are exact per bucket (deleted keys absent) []",
+  "04:44:21 CHECK PASS W: the account is fenced and CAS-enrolled {'fenceHex': '0010032153d800030000000000000001ca96f8b11b3c7c8dbab9967cddbd04c3', 'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 6, 'objects': 4}",
+  "04:44:21 S1 hosts below the usability uptime: 1",
+  "04:44:23 S1-old-0 ready after 2.1 s",
+  "04:44:24 S1-old-0 {\"gets\": {\"big\": {\"status\": 200, \"exact\": false, \"processDied\": true}}, \"alive\": false, \"panic336\": true, \"panicLine\": \"index out of bounds: the len is 29 but the index is 29\"}",
+  "04:44:26 S1-old-1 ready after 2.0 s",
+  "04:44:27 S1-old-1 {\"gets\": {\"big\": {\"status\": 200, \"exact\": false, \"processDied\": true}}, \"alive\": false, \"panic336\": true, \"panicLine\": \"index out of bounds: the len is 29 but the index is 29\"}",
+  "04:44:29 S1-old-2 ready after 2.0 s",
+  "04:44:29 S1-old-2 {\"gets\": {\"big\": {\"status\": 200, \"exact\": false, \"processDied\": true}}, \"alive\": false, \"panic336\": true, \"panicLine\": \"index out of bounds: the len is 29 but the index is 29\"}",
+  "04:44:29 S1 old artifact (recorded, not a check): 3 of 3 instances panicked",
+  "04:44:31 S1-fixed ready after 2.0 s",
+  "04:44:31 CHECK PASS S1: the fixed C2 is ready with one storage endpoint lost ",
+  "04:44:46 S1-fixed {\"gets\": {\"big\": {\"status\": 200, \"exact\": true}, \"legacy\": {\"status\": 200, \"exact\": true}, \"one\": {\"status\": 200, \"exact\": true}}, \"alive\": true, \"panic336\": false, \"panicLine\": null}",
+  "04:44:46 CHECK PASS S1: one endpoint lost: the fixed C2 reads every object byte-exact and stays up {'gets': {'big': {'status': 200, 'exact': True}, 'legacy': {'status': 200, 'exact': True}, 'one': {'status': 200, 'exact': True}}, 'alive': True, 'panic336': False, 'panicLine': None}",
+  "04:45:02 CHECK PASS S1: fixed C2, ranges: every key reads back byte-exact (3 keys) []",
+  "04:45:03 CHECK PASS S1: fixed C2, ranges: ranged reads (incl. across the slab boundary) are byte-exact []",
+  "04:45:04 CHECK PASS S1: fixed C2, ranges: listings are exact per bucket (deleted keys absent) []",
+  "04:45:04 D hosts below the usability uptime: 15",
+  "04:45:06 D-old ready after 2.0 s",
+  "04:45:06 D-old {\"gets\": {\"big\": {\"status\": 200, \"exact\": false, \"processDied\": true}}, \"alive\": false, \"panic336\": true, \"panicLine\": \"index out of bounds: the len is 15 but the index is 23\"}",
+  "04:45:06 CHECK PASS D NEGATIVE CONTROL: the old artifact 00e9cde0 traps at download.rs:336 (index out of bounds) and its GET gets no answer {'gets': {'big': {'status': 200, 'exact': False, 'processDied': True}}, 'alive': False, 'panic336': True, 'panicLine': 'index out of bounds: the len is 15 but the index is 23'}",
+  "04:45:08 D-fixed ready after 2.0 s",
+  "04:45:08 CHECK PASS D: the fixed C2 is ready with 15 of 30 hosts lost ",
+  "04:45:17 D-fixed {\"gets\": {\"big\": {\"status\": 200, \"exact\": true}, \"legacy\": {\"status\": 200, \"exact\": true}, \"one\": {\"status\": 200, \"exact\": true}}, \"alive\": true, \"panic336\": false, \"panicLine\": null}",
+  "04:45:17 CHECK PASS D: the fixed C2 reads every object byte-exact (the one-slab object from parity shards 15-29 only) and stays up {'gets': {'big': {'status': 200, 'exact': True}, 'legacy': {'status': 200, 'exact': True}, 'one': {'status': 200, 'exact': True}}, 'alive': True, 'panic336': False, 'panicLine': None}",
+  "04:45:17 I hosts below the usability uptime: 21",
+  "04:45:19 I-fixed ready after 2.0 s",
+  "04:45:19 I-fixed {\"gets\": {\"big\": {\"status\": 200, \"exact\": false}, \"legacy\": {\"status\": 200, \"exact\": false}, \"one\": {\"status\": 200, \"exact\": false}}, \"alive\": true, \"panic336\": false, \"panicLine\": null}",
+  "04:45:19 CHECK FAIL I: 9 of 30 shards left: the fixed C2 answers each GET with an error (never bytes), keeps running and serving /healthz {'res': {'gets': {'big': {'status': 200, 'exact': False}, 'legacy': {'status': 200, 'exact': False}, 'one': {'status': 200, 'exact': False}}, 'alive': True, 'panic336': False, 'panicLine': None}, 'healthz': {'ready': True, 'status': None}}",
+  "04:45:19 CHECK FAIL custody: reads changed neither the fence, nor CAS enrolment, nor the event sequence {'before': {'fenceHex': '0010032153d800030000000000000001ca96f8b11b3c7c8dbab9967cddbd04c3', 'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 6, 'objects': 4}, 'after': {'fenceHex': '0010032153d80003000000000000000801d297ad72109673399520fd40"
+ ],
+ "db": {
+  "rowAfterWrites": {
+   "fenceHex": "0010032153d800030000000000000001ca96f8b11b3c7c8dbab9967cddbd04c3",
+   "fenceGeneration": "0x0010032153d80003",
+   "fenceCounter": 1,
+   "casMode": true,
+   "seqEnabled": true,
+   "eventSeq": 6,
+   "objects": 4
+  },
+  "oneSlabHosts": {
+   "0": "476a6aa75d11029f",
+   "1": "b7126e269cc60382",
+   "2": "6d961c85f134bf4a",
+   "3": "0a93a012cb5fdbfc",
+   "4": "5c71be1029f6fc51",
+   "5": "3e301955e6fb73ad",
+   "6": "0fde0d769d8d6043",
+   "7": "d381332b45eb7913",
+   "8": "a7791e3312a79be1",
+   "9": "33b89f632aedf6d9",
+   "10": "73de83a13bcb09b4",
+   "11": "f932a91b347e9836",
+   "12": "0e77e7669ab5d160",
+   "13": "c93c5e9a216bee5a",
+   "14": "aba315595e2af394",
+   "15": "4f70cefc4c2df8bd",
+   "16": "89d82376aed9d0aa",
+   "17": "b56c244152ad32e5",
+   "18": "f5dc0a598b915ef1",
+   "19": "69bf616958bfd425",
+   "20": "6ae254664567b6df",
+   "21": "729fd5c9f129edff",
+   "22": "815334da8a65c95e",
+   "23": "2ecb0310f5b29d92",
+   "24": "3cbc1d21bf6a1941",
+   "25": "92b9f5976bb4ef49",
+   "26": "560a78c47ecdeb68",
+   "27": "43d214f22dc7a582",
+   "28": "d2ef8a0001d93d94",
+   "29": "9934c8d2f26ec485"
+  },
+  "lost": {
+   "S1": 1,
+   "D": 15,
+   "I": 6
+  },
+  "rowAfterReads": {
+   "fenceHex": "0010032153d80003000000000000000801d297ad72109673399520fd40a20057",
+   "fenceGeneration": "0x0010032153d80003",
+   "fenceCounter": 8,
+   "casMode": true,
+   "seqEnabled": true,
+   "eventSeq": 6,
+   "objects": 4
+  }
+ },
+ "isolation": {
+  "netInterfaces": [
+   "lo"
+  ],
+  "uid": 1000,
+  "pid": 1
+ },
+ "wasmtime": "wasmtime 49.0.3 (f96eabaa1 2026-10-14)",
+ "pgSocketDir": "/tmp/mgpg-f2-n96munuq",
+ "postgres": "postgres (PostgreSQL) 18.6",
+ "instances": {
+  "P-v018": {
+   "artifact": "v018",
+   "config": {
+    "indexer": "http://127.0.0.1:42929",
+    "appKey": "<fixture app key>",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "INTEROPAK",
+      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+     }
+    ]
+   },
+   "env": []
+  },
+  "W-fixed": {
+   "artifact": "fixed",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:42929\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "S1-old-0": {
+   "artifact": "final",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:42929\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "S1-old-1": {
+   "artifact": "final",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:42929\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "S1-old-2": {
+   "artifact": "final",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:42929\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "S1-fixed": {
+   "artifact": "fixed",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:42929\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "D-old": {
+   "artifact": "final",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:42929\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "D-fixed": {
+   "artifact": "fixed",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:42929\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "I-fixed": {
+   "artifact": "fixed",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:42929\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  }
+ },
+ "reads": {
+  "S1-old-0": {
+   "gets": {
+    "big": {
+     "status": 200,
+     "exact": false,
+     "processDied": true
+    }
+   },
+   "alive": false,
+   "panic336": true,
+   "panicLine": "index out of bounds: the len is 29 but the index is 29"
+  },
+  "S1-old-1": {
+   "gets": {
+    "big": {
+     "status": 200,
+     "exact": false,
+     "processDied": true
+    }
+   },
+   "alive": false,
+   "panic336": true,
+   "panicLine": "index out of bounds: the len is 29 but the index is 29"
+  },
+  "S1-old-2": {
+   "gets": {
+    "big": {
+     "status": 200,
+     "exact": false,
+     "processDied": true
+    }
+   },
+   "alive": false,
+   "panic336": true,
+   "panicLine": "index out of bounds: the len is 29 but the index is 29"
+  },
+  "S1-fixed": {
+   "gets": {
+    "big": {
+     "status": 200,
+     "exact": true
+    },
+    "legacy": {
+     "status": 200,
+     "exact": true
+    },
+    "one": {
+     "status": 200,
+     "exact": true
+    }
+   },
+   "alive": true,
+   "panic336": false,
+   "panicLine": null
+  },
+  "D-old": {
+   "gets": {
+    "big": {
+     "status": 200,
+     "exact": false,
+     "processDied": true
+    }
+   },
+   "alive": false,
+   "panic336": true,
+   "panicLine": "index out of bounds: the len is 15 but the index is 23"
+  },
+  "D-fixed": {
+   "gets": {
+    "big": {
+     "status": 200,
+     "exact": true
+    },
+    "legacy": {
+     "status": 200,
+     "exact": true
+    },
+    "one": {
+     "status": 200,
+     "exact": true
+    }
+   },
+   "alive": true,
+   "panic336": false,
+   "panicLine": null
+  },
+  "I-fixed": {
+   "gets": {
+    "big": {
+     "status": 200,
+     "exact": false
+    },
+    "legacy": {
+     "status": 200,
+     "exact": false
+    },
+    "one": {
+     "status": 200,
+     "exact": false
+    }
+   },
+   "alive": true,
+   "panic336": false,
+   "panicLine": null
+  }
+ },
+ "S1.old": [
+  {
+   "gets": {
+    "big": {
+     "status": 200,
+     "exact": false,
+     "processDied": true
+    }
+   },
+   "alive": false,
+   "panic336": true,
+   "panicLine": "index out of bounds: the len is 29 but the index is 29"
+  },
+  {
+   "gets": {
+    "big": {
+     "status": 200,
+     "exact": false,
+     "processDied": true
+    }
+   },
+   "alive": false,
+   "panic336": true,
+   "panicLine": "index out of bounds: the len is 29 but the index is 29"
+  },
+  {
+   "gets": {
+    "big": {
+     "status": 200,
+     "exact": false,
+     "processDied": true
+    }
+   },
+   "alive": false,
+   "panic336": true,
+   "panicLine": "index out of bounds: the len is 29 but the index is 29"
+  }
+ ],
+ "cleanup": {
+  "pgDataRemoved": true,
+  "noWasmtime": true
+ },
+ "finished": 1792755921.1177862,
+ "summary": {
+  "checks": 18,
+  "failed": [
+   "I: 9 of 30 shards left: the fixed C2 answers each GET with an error (never bytes), keeps running and serving /healthz",
+   "custody: reads changed neither the fence, nor CAS enrolment, nor the event sequence"
+  ]
+ }
+}

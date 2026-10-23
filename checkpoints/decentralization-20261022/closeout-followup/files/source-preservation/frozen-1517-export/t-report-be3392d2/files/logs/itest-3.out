@@ -1,0 +1,23 @@
+run=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-hdd-storage-compose-20261023/run/20261023T141549Z
+t c55917de41d64052896a9f53fc485ef96ef1748c dirty=0
+s 97758444e4d63607061c92f761443281946e6ced dirty=0
+p 1db4d4083ab9e6db16fa5affb05c1cc74619c91a dirty=0
+{"ok": true, "step": "namespace"}
+{"create": "run/20261023T141549Z/mnt-hdd/enclave-rpc/l1-origin.img\"}, \"placement\": \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-hdd-storage-compose-20261023/run/20261023T141549Z/state-l1/placement.json\"}\n", "ok": true, "start": "Sha256\": \"8a3753374ca56ce3e3bf570a96154c7c55880dd8fe87d87fee76883a8164656c\", \"exe\": \"/usr/bin/qemu-nbd\", \"pid\": 3913557, \"purpose\": \"qemu-nbd export\", \"role\": \"l1\", \"starttime\": 107006370, \"uid\": 0}}\n", "step": "export-l1"}
+{"create": "20261023T141549Z/mnt-hdd/enclave-rpc/base-origin.img\"}, \"placement\": \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-hdd-storage-compose-20261023/run/20261023T141549Z/state-base/placement.json\"}\n", "ok": true, "start": "a256\": \"ceb9bf0073fd6a99220789ace62e39f4a7e8f1cebe2aa80f44ae8b7df0ffe5d2\", \"exe\": \"/usr/bin/qemu-nbd\", \"pid\": 3913590, \"purpose\": \"qemu-nbd export\", \"role\": \"base\", \"starttime\": 107006430, \"uid\": 0}}\n", "step": "export-base"}
+{"ok": true, "sha256": {"enclave-base-holder-storage.service": "8d0adbb1c05b094fcd49c16bc4920ad8fad43a6dea9da401c70fae4f449cd37d", "enclave-base-holder-watch.service": "9889615b537ea64fd24f18c3bb333b9277d6f8aa8dfffb1b0bacbb270121620b", "enclave-base-holder.service": "76cf7b9fa5d7eec83dcd0191006762fcfb7182928b18516f69daef92a8992d02", "enclave-l1-cl.service": "7b5442bac022d906f4e8b600a1f2435123bda440a7496a0caec48af75d0df3b2", "enclave-l1-el.service": "1f07d20fd90ae4f5ad0f5802fbf036471e7e7b7c2c4f7b0065641e6053f08bcb", "enclave-l1-pair-storage.service": "5218d82975617595ddb2b2dc826c7ecc3c3340f8655d8ddf5d536d30a64541d7", "enclave-l1-pair-watch.service": "4dc0d03308172798b80105e30cf08a69b6212c538b5d6d21074a32c8dc651f65", "enclave-rpc-hdd-attach@.service": "a2d0117b696c6a7228e46216d409827f3c8f778acd964a4a622bea97fea5119d"}, "step": "generated-units"}
+{"capBytes": 250000000000, "ledgerShareBytes": 42151936, "ok": true, "step": "fixture-configs", "targetBytes": 200000000000}
+{"ok": true, "out": "", "step": "initramfs"}
+{"ok": true, "out": "{\"stopped\": 3913557}\n", "step": "guest-request-1-stop-l1"}
+{"ok": true, "out": "Sha256\": \"8a3753374ca56ce3e3bf570a96154c7c55880dd8fe87d87fee76883a8164656c\", \"exe\": \"/usr/bin/qemu-nbd\", \"pid\": 3914120, \"purpose\": \"qemu-nbd export\", \"role\": \"l1\", \"starttime\": 107008487, \"uid\": 0}}\n", "step": "guest-request-2-start-l1"}
+{"ok": true, "out": "{\"stopped\": 3913590}\n", "step": "guest-request-3-stop-base"}
+{"ok": true, "out": "a256\": \"ceb9bf0073fd6a99220789ace62e39f4a7e8f1cebe2aa80f44ae8b7df0ffe5d2\", \"exe\": \"/usr/bin/qemu-nbd\", \"pid\": 3914534, \"purpose\": \"qemu-nbd export\", \"role\": \"base\", \"starttime\": 107011370, \"uid\": 0}}\n", "step": "guest-request-4-start-base"}
+{"ok": true, "rc": 0, "step": "guest-exit"}
+{"failed": ["C4-stray-file-in-bare-mount-point-refused", "done"], "ok": false, "step": "guest-results", "steps": 38}
+{"ok": true, "out": "{\"stopped\": 3914120}\n", "step": "teardown-stop-l1"}
+{"ok": true, "out": "{\"stopped\": 3914534}\n", "step": "teardown-stop-base"}
+{"leftover": "", "ok": true, "step": "teardown-no-leftover-qemu-nbd"}
+{"afterCleanupBytes": 602112, "capBytes": 536870912, "note": "peak = largest du of the run directory sampled every ~2 s while the guest ran (sparse disk images count allocated blocks only)", "ok": true, "peakAt": "after-guest", "peakBytes": 120266752, "step": "allocation"}
+{"failed": ["guest-results"], "ok": false, "step": "summary", "total": 16}
+host rc=1
+leftover qemu-system: 0  leftover qemu-nbd: 0

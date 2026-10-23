@@ -1,0 +1,182 @@
+{
+  "at": "2026-10-23T15:12:10.0054589Z",
+  "deployments": [
+    {
+      "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+      "status": "queued",
+      "reason": "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no (this box charges 62/sec per whole node, 1% of it here)"
+    },
+    {
+      "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+      "status": "refused",
+      "reason": "This version requires catalog approval; pending versions may only be deployed PRIVATE for testing."
+    },
+    {
+      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "status": "running",
+      "reason": null
+    },
+    {
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "status": "running",
+      "reason": null
+    },
+    {
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "status": "running",
+      "reason": null
+    },
+    {
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "running",
+      "reason": null
+    },
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "running",
+      "reason": null
+    },
+    {
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "status": "running",
+      "reason": null
+    },
+    {
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "status": "running",
+      "reason": null
+    },
+    {
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "status": "running",
+      "reason": null
+    },
+    {
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "status": "running",
+      "reason": null
+    },
+    {
+      "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
+      "status": "stopped",
+      "reason": "the lease expired; a new claim must pass the current funding and hosting policy"
+    },
+    {
+      "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
+      "status": "stopped",
+      "reason": "the lease expired; a new claim must pass the current funding and hosting policy"
+    },
+    {
+      "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
+      "status": "refused",
+      "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer"
+    },
+    {
+      "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
+      "status": "refused",
+      "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer"
+    },
+    {
+      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+      "status": "refused",
+      "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app"
+    },
+    {
+      "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
+      "status": "refused",
+      "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app"
+    },
+    {
+      "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
+      "status": "refused",
+      "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app"
+    },
+    {
+      "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
+      "status": "refused",
+      "reason": "Pinned to host 0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658; fallback is disabled."
+    }
+  ],
+  "vms": [
+    {
+      "id": "hvd28ea46911124592b22295222ea20e77",
+      "name": "shield-readiness-v1",
+      "status": "running",
+      "recovered": null,
+      "vmState": null,
+      "reason": null
+    },
+    {
+      "id": "hv637cbe350750475365cfe02d2e02da0d",
+      "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "status": "running",
+      "recovered": null,
+      "vmState": null,
+      "reason": null
+    },
+    {
+      "id": "hv3146bdf712f171ac9fee72b25f91017c",
+      "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "status": "running",
+      "recovered": null,
+      "vmState": null,
+      "reason": null
+    },
+    {
+      "id": "hvce6a027904d978a106749070b9b77d38",
+      "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "status": "running",
+      "recovered": null,
+      "vmState": null,
+      "reason": null
+    },
+    {
+      "id": "hvc68a5c730435984d2bdaa2260a477ff8",
+      "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "status": "running",
+      "recovered": null,
+      "vmState": null,
+      "reason": null
+    },
+    {
+      "id": "hvefa9ce2a7bc0ea2db9283e1208da0e02",
+      "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "status": "running",
+      "recovered": null,
+      "vmState": null,
+      "reason": null
+    },
+    {
+      "id": "hvbf6c56812c25e819b5e6251d09884a56",
+      "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "status": "running",
+      "recovered": null,
+      "vmState": null,
+      "reason": null
+    },
+    {
+      "id": "hv8babaf3c0991fac56e8b036e49d7b561",
+      "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "status": "running",
+      "recovered": null,
+      "vmState": null,
+      "reason": null
+    },
+    {
+      "id": "hv94a003c5b947f6d2bdb272448442a814",
+      "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "running",
+      "recovered": null,
+      "vmState": null,
+      "reason": null
+    },
+    {
+      "id": "hvbbab6d5ca75ab0fbde41465bcc4b2089",
+      "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "running",
+      "recovered": null,
+      "vmState": null,
+      "reason": null
+    }
+  ]
+}

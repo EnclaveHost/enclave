@@ -1,0 +1,15 @@
+{
+    "format": "enclave-l1-pair-vendor/v1",
+    "source": "S's holder source composed in work/rpc-storage-final-compose/s, commit 92b71784c9452056eeeb6a97b8e1fcb8ef1815ca (= S 959e56fd budget v2 + bcd3d9c report timestamp fix + the kernel-tested storage fixes and loop policies c74e302 + RUNBOOK-CACHE 92b7178; git show, no working tree); plus the network-HDD layout (storage_nbd.py, holder.py network rendering/placement) composed in work/rpc-hdd-storage-compose-20261023/s (S commit recorded in that workspace's PROVENANCE.json)",
+    "use": "library only (Supervisor, PDEATHSIG, group stop, sd_notify, backing_disks, port_in_use, validate_storage rules, shared NVMe budget ledger tool) and the storage script template; nothing here edits or runs the Base holder",
+    "files": {
+        "holder/holder.py": "0229198637920f8147a7bcc3d685abb55f619415c993f624c98dbebcb2bd1a21",
+        "holder/budget.py": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24",
+        "holder/FLAGS.json": "7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59",
+        "holder/BINARY.json": "b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00",
+        "holder/holder-storage.sh.in": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+        "holder/holder.example.json": "8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a",
+        "holder/RUNBOOK-CACHE.md": "c599d997e740f2863f3ea5cb186526845c180b65033dea8563a04b1264991238",
+        "holder/storage_nbd.py": "4c755cfb263f6a6231c2d8a542b9300ee33c1cf8d66aff3fb576591ef234b517"
+    }
+}

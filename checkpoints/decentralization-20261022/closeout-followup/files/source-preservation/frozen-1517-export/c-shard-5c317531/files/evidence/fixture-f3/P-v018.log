@@ -1,0 +1,3 @@
+[sia-s3] listening on 127.0.0.1:33567; indexer http://127.0.0.1:39731; buckets ["ipfs", "git", "jot", "machines"]
+[sia-s3] index: 0 events, 0 objects, 0 keys, 0 open uploads, 0 orphans, 0 superseded entries, 0 foreign objects
+[sia-s3] ready

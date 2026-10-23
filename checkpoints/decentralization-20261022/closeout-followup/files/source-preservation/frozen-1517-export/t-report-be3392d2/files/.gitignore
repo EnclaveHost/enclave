@@ -1,0 +1,8 @@
+t/
+s/
+p/
+run/
+scratch/
+__pycache__/
+*.pyc
+ROOT-*.txt

@@ -1,0 +1,32 @@
+[queue] START available=25104MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+tests HEAD ae00cd9659e46e3dffe5407bdf34442416a9e69a  dist built from ae00cd9659e46e3dffe5407bdf34442416a9e69a
+dist manifest now: 9904f5e0a44e00ed4d7e621b9a318e10256c055699683fa859799dd6df3b8ba8
+TAP version 13
+# Subtest: built dashboard: the Broadcast choice, the profile route with its receipt, a lost profile-sent transaction past the drop check, and the wallet route
+ok 1 - built dashboard: the Broadcast choice, the profile route with its receipt, a lost profile-sent transaction past the drop check, and the wallet route
+  ---
+  duration_ms: 91744.545651
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 92410.137041
+built-site test rc=0
+D1-profile-sent-not-exempt rc 1 KILLED
+   not ok 3 - profile route, accepted: the wallet is never asked (it would answer null), the receipt comes through the profile after poll 20, nothing is resent
+   not ok 4 - profile route, outcome unknown and the transaction exists nowhere: the wallet is never asked; the wait ends with the ordinary timeout, not 'dropped by your wallet'
+D2-wallet-never-consulted rc 1 KILLED
+   not ok 1 - wallet route, normal drop behaviour preserved: after 20 absent polls the wallet's RPC is asked once; it never had the transaction -> refused as dropped
+   not ok 2 - wallet route, the wallet has it pending: seen once, the wait continues, the receipt comes through the profile
+killed 2 of 2
+restored: clean
+job rc=0
+[memory-guard] exit=0 peakTreeRssMiB=830 minHostAvailableMiB=24024
+[memory-guard] at peak: node:311 chrome-headless:146 chrome-headless:102 chrome-headless:93 node:53 chrome-headless:40 chrome-headless:40 anvil:35
+[queue] EXIT 0

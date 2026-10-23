@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-23T15:12:46.163087+00:00",
+  "deployment": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+  "url": "https://a69dcbba.app.enclave.host",
+  "status": {
+    "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+    "status": "running",
+    "reason": null
+  },
+  "recovery": "One guarded operator claim hint; no VM existed for the target before retry. Existing policy/admission checks retained.",
+  "claimTransaction": "0x0237b9630c732390b1b781762462ff98358e693d66d3e2e0d34544f2fefc12eb",
+  "cause": "Prior startup was blocked by sealed-secret relay HTTP403/fetch errors, timed out after five minutes, released its lease and stayed locally blocked. Other hosts reported its pin restriction.",
+  "verification": {
+    "secretsDelivered": true,
+    "certificateInstalled": true,
+    "bothAdvertisedIngressAddressesServePingAndStatus": true,
+    "configuredTools": 8,
+    "unauthenticatedMcpResponse": 401,
+    "priorVmIdsStillRunning": true,
+    "priorVmCount": 9,
+    "afterVmCount": 10
+  },
+  "limits": "No authenticated downstream tool invocation performed. No node/manager restart, placement change, source deployment or RAM activation."
+}

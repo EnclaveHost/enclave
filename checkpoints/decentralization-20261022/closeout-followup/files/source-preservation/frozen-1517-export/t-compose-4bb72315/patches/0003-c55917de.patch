@@ -1,0 +1,27 @@
+From c55917de41d64052896a9f53fc485ef96ef1748c Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 06:04:55 -0700
+Subject: [PATCH] hddwatch: judge read-only from the superblock options (the
+ supervisor's own ProtectSystem=strict namespace shows every mount ro)
+
+---
+ transport/hddwatch.py | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/transport/hddwatch.py b/transport/hddwatch.py
+index d787cad6418046f20490f0352789f25dada55511..2372448f4732cfcaf80aeab5250b1d7d34de4514 100644
+--- a/transport/hddwatch.py
++++ b/transport/hddwatch.py
+@@ -127,8 +127,10 @@
+         refuse(f"{w['mountPoint']} is not mounted")
+     if m["fstype"] != "ext4" or os.path.realpath(m["source"]) != os.path.realpath(expect):
+         refuse(f"{w['mountPoint']} is {m['fstype']} from {m['source']}, not ext4 from {expect}")
+-    if "rw" not in m["options"].split(",") or "ro" in m["super"].split(","):
+-        refuse(f"{w['mountPoint']} is no longer read-write ({m['options']} / {m['super']})")
++    # the SUPERBLOCK options (an ext4 error remount turns them ro). The per-mount flags in this unit's own namespace are
++    # ro by design (ProtectSystem=strict makes the whole tree read-only for the supervisor; measured in the guest).
++    if "ro" in m["super"].split(",") or "rw" not in m["super"].split(","):
++        refuse(f"{w['mountPoint']} filesystem is no longer read-write (superblock options {m['super']})")
+     errs = errors_count(expect)
+     if base_errors is not None and errs > base_errors:
+         refuse(f"ext4 on {expect} recorded {errs - base_errors} new error(s)")

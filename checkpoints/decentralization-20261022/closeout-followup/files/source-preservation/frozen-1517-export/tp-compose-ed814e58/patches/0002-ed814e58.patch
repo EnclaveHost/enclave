@@ -1,0 +1,57 @@
+From ed814e5832639ecf863547536e3c8a742e39b9fb Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 07:17:12 -0700
+Subject: [PATCH] l1pair: re-vendor S storage_nbd.py (mount-point refusals
+ before mapping)
+
+---
+ l1pair/vendor/VENDOR.json           |  2 +-
+ l1pair/vendor/holder/storage_nbd.py | 16 +++++++++++++---
+ 2 files changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/l1pair/vendor/VENDOR.json b/l1pair/vendor/VENDOR.json
+index 6c8df320a4e9da7a32bff54441181cf2d4a15e76..47e514d6cea14b4f4973faddc036ff507bc18493 100644
+--- a/l1pair/vendor/VENDOR.json
++++ b/l1pair/vendor/VENDOR.json
+@@ -10,6 +10,6 @@
+         "holder/holder-storage.sh.in": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+         "holder/holder.example.json": "8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a",
+         "holder/RUNBOOK-CACHE.md": "c599d997e740f2863f3ea5cb186526845c180b65033dea8563a04b1264991238",
+-        "holder/storage_nbd.py": "ee52c8784152ebe7047a9b0d51b0634fa07d6c5bf45314a0ca8ec15ffa14ab6b"
++        "holder/storage_nbd.py": "4c755cfb263f6a6231c2d8a542b9300ee33c1cf8d66aff3fb576591ef234b517"
+     }
+ }
+diff --git a/l1pair/vendor/holder/storage_nbd.py b/l1pair/vendor/holder/storage_nbd.py
+index 3ada96196e89a20714acc1cec16230c5b7de94c0..aa1c46eea173711a0b7105ca10c27ba79cf1c346 100644
+--- a/l1pair/vendor/holder/storage_nbd.py
++++ b/l1pair/vendor/holder/storage_nbd.py
+@@ -293,6 +293,19 @@
+     cached = c["mechanism"] == "dm-cache"
+     if mountpoints_of(dev):
+         die(f"{dev} (the origin) is mounted at {mountpoints_of(dev)} without this layer: refusing (stale-cache / two-view hazard)")
++    # every refusal about the mount point BEFORE anything is mapped (a refused start must not consume the cache marker)
++    mnt = c["mountPoint"]
++    if not os.path.isdir(os.path.dirname(mnt)):
++        die(f"{os.path.dirname(mnt)} does not exist")
++    if os.path.lexists(mnt) and (os.path.islink(mnt) or not os.path.isdir(mnt)):
++        die(f"{mnt} must be a real directory")
++    pre = mounted_at(mnt) if os.path.lexists(mnt) else None
++    if pre is not None:
++        want_top = f"/dev/mapper/{c['name']}" if cached else dev
++        if not os.path.exists(want_top) or pre != majmin(want_top):
++            die(f"{mnt} is mounted from another device ({pre}); leaving it")
++    elif os.path.lexists(mnt) and os.listdir(mnt):
++        die(f"{mnt} is not empty: something wrote into the bare mount point (on the VM disk); investigate first")
+     top = dev
+     if cached:
+         for f in (c["cdata"], c["cmeta"]):
+@@ -319,9 +332,6 @@
+     sig = dict(l.split("=", 1) for l in probe.splitlines() if "=" in l)
+     if sig.get("TYPE") != "ext4" or sig.get("UUID") != c["fsUuid"]:
+         die(f"{top} holds {sig.get('TYPE')} {sig.get('UUID')}, not ext4 {c['fsUuid']}")
+-    mnt = c["mountPoint"]
+-    if not os.path.isdir(os.path.dirname(mnt)):
+-        die(f"{os.path.dirname(mnt)} does not exist")
+     if not os.path.lexists(mnt):
+         os.mkdir(mnt, 0o000)                         # the bare mount point: no one but root can write into it
+     if os.path.islink(mnt) or not os.path.isdir(mnt):

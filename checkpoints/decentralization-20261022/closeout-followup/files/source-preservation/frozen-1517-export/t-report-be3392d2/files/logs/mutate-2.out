@@ -1,0 +1,3 @@
+CONTROL rc=0 guestSteps=39 failed=[]
+KILLED G4b-assemble-ignores-nonempty-mountpoint-both-checks: rc=1 guestSteps=36 failed=['C4-stray-file-in-bare-mount-point-refused', 'driver-exception']
+RESULT PASS (0 problem(s))

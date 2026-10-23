@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "denied: ssh (offline candidate)" >&2
+exit 97

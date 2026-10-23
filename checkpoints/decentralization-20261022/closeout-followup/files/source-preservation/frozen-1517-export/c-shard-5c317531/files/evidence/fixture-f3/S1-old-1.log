@@ -1,0 +1,43 @@
+[sia-s3] config: resolved $SIAS3_REPLICAS from the environment
+[sia-s3] config: resolved $SIA_APP_KEY from the environment
+[sia-s3] config: replica r0 uses plain HTTP; only for an indexer on a trusted path
+[sia-s3] config: resolved $S3_ACCESS_KEY_ID from the environment
+[sia-s3] config: resolved $S3_SECRET_ACCESS_KEY from the environment
+[sia-s3] config: resolved $ENCLAVE_WRITER_AUTHORITY from the environment
+[sia-s3] config: resolved $ENCLAVE_INSTANCE_ISOLATION from the environment
+[sia-s3] listening on 127.0.0.1:44739; indexers ["http://127.0.0.1:39731"] (write quorum 1); buckets ["ipfs", "git", "jot", "machines"]
+[sia-s3] writer fencing: ballot gen 0x10032153d80003 counter 3 installed on 1 of 1 replicas
+[sia-s3] index: 4 objects, 3 keys, 0 open uploads, 0 orphans, 0 tombstoned keys, 0 floors in 0 ledgers (0 unread), 0 manifests (0 unread), 0 superseded entries
+[sia-s3] membership: Legacy (ready), epoch 0 -> 1, 1 voting of 1 needed
+[sia-s3] ready
+
+thread 'main' (1) panicked at vendor/sia-sdk-rs/sia_storage/src/download.rs:336:35:
+index out of bounds: the len is 29 but the index is 29
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+Error: failed to run main module `/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/fixture/runs/f3/final.cwasm`
+
+Caused by:
+    0: failed to invoke `run` function
+    1: error while executing at wasm backtrace:
+    0: 0x3aba3f - <unknown>!<wasm function 4401>
+    1: 0x357175 - <unknown>!<wasm function 3886>
+    2: 0x35455a - <unknown>!<wasm function 3844>
+    3: 0x354abf - <unknown>!<wasm function 3851>
+    4: 0x354ab5 - <unknown>!<wasm function 3850>
+    5: 0x353af9 - <unknown>!<wasm function 3837>
+    6: 0x352eb7 - <unknown>!<wasm function 3825>
+    7: 0x352e0d - <unknown>!<wasm function 3824>
+    8: 0x354af8 - <unknown>!<wasm function 3852>
+    9:  0x1de1f - <unknown>!<wasm function 258>
+   10:  0x1ffa6 - <unknown>!<wasm function 274>
+   11: 0x31a284 - <unknown>!<wasm function 3498>
+   12: 0x2f303d - <unknown>!<wasm function 3346>
+   13: 0x2f28bd - <unknown>!<wasm function 3345>
+   14: 0x372d32 - <unknown>!<wasm function 4116>
+   15: 0x11f4ad - <unknown>!<wasm function 1814>
+   16: 0x120286 - <unknown>!<wasm function 1817>
+   17: 0x197979 - <unknown>!<wasm function 2505>
+   18: 0x111d31 - <unknown>!<wasm function 1766>
+   19: 0x111b5e - <unknown>!<wasm function 1764>
+    2: wasm trap: wasm `unreachable` instruction executed
+

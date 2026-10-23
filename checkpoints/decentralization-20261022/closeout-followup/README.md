@@ -33,6 +33,8 @@ Frozen 1118 append (2026-10-23; "1118" = the batch start 11:18Z, an identifier):
 
 Frozen 1339 append (2026-10-23; "1339" = the batch start 13:39Z, an identifier): root-designated terminal heads S public RPC role 36919aaf + report bea9b760, A consumer gaps 554a251c (SOURCE-ONLY: compiled MCP bundle omitted, validated rebuild recipe), B launch 673601e5 + result d9c1bb19, F baseline 30339303 + evidence 1f19ad15, E wallet dc2e5d74 + report ec2be533 (exports/ omitted), T HDD transport a9f0155c, P cache kernel e8e86801, ROOT wallet interface 66b67c35, shutdown 2f702e76 and RAM receipts 2ed6ba61; root receipts and journal snapshots. Source/test candidates, not production completion; nothing deployed. See `MANIFEST.json` `appends`.
 
+Frozen 1517 append (2026-10-23; "1517" = the batch start 15:17Z, an identifier): root-designated terminal heads A receipts eab4cfac (SOURCE-ONLY: compiled MCP bundle + manifest held, manifest converted, rebuild validated), E production build ae00cd96 (incl. merge of published main 68b82926) + report 4beedc5b, F runtime 0de09415/dda47a35 + gap repair 0ed6b6d9, M startup cancellation 3746e4fc, S consumer interface 4f7632d7 + report a32d209e, C shard recovery 5c317531, T storage compose t 4bb72315 / s fb9ce4a7 / p ed814e58 (SOURCE-ONLY) + report be3392d2, ROOT api-mcp recovery 95ee73dc; root notes, receipts and journal snapshots. Source/test candidates, not production completion. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

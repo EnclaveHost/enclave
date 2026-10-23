@@ -1,0 +1,25 @@
+From 4bb723151e93e916f01829c2322440c0370f6919 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 07:34:11 -0700
+Subject: [PATCH] hddwatch: treat ext4 emergency_ro (7.2.11 journal-abort
+ state, mount still listed rw) as a failure
+
+---
+ transport/hddwatch.py | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/transport/hddwatch.py b/transport/hddwatch.py
+index 2372448f4732cfcaf80aeab5250b1d7d34de4514..1ce4b885c7b53fd71ffa6dbdd5b8093a166229f2 100644
+--- a/transport/hddwatch.py
++++ b/transport/hddwatch.py
+@@ -129,7 +129,9 @@
+         refuse(f"{w['mountPoint']} is {m['fstype']} from {m['source']}, not ext4 from {expect}")
+     # the SUPERBLOCK options (an ext4 error remount turns them ro). The per-mount flags in this unit's own namespace are
+     # ro by design (ProtectSystem=strict makes the whole tree read-only for the supervisor; measured in the guest).
+-    if "ro" in m["super"].split(",") or "rw" not in m["super"].split(","):
++    # ext4 on 7.2.11 reports "rw,emergency_ro" after a journal abort while the mount still lists rw (measured)
++    sup = m["super"].split(",")
++    if "ro" in sup or "emergency_ro" in sup or "rw" not in sup:
+         refuse(f"{w['mountPoint']} filesystem is no longer read-write (superblock options {m['super']})")
+     errs = errors_count(expect)
+     if base_errors is not None and errs > base_errors:

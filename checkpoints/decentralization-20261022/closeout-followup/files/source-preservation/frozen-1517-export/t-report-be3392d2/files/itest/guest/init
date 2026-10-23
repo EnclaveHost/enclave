@@ -1,0 +1,25 @@
+#!/bin/bash
+# Guest /init: throwaway KVM guest on the host's installed kernel package (7.2.11). Root = tmpfs + the HOST /usr read-only
+# over 9p; /src = the composition workspace (ro), /gin = this run's inputs (ro), /out = this run's output dir (rw).
+# Only network path: a user-mode NIC (restrict=on) whose guestfwd relays reach the two loopback exports.
+# After installing the run's inputs, PID 1 becomes the host's systemd (262) so the GENERATED units run under real systemd.
+export PATH=/usr/bin:/bin
+mount -t proc proc /proc; mount -t sysfs sys /sys; mount -t devtmpfs dev /dev
+for m in netfs 9pnet 9pnet_virtio 9p failover net_failover virtio_net; do insmod /mod/$m.ko || echo "init: insmod $m failed"; done
+R=/newroot; mkdir -p $R; mount -t tmpfs -o size=256m,mode=0755 root $R
+mkdir -p $R/usr $R/src $R/gin $R/out $R/proc $R/sys $R/dev $R/run $R/tmp $R/etc $R/root $R/srv $R/opt $R/var $R/vm
+for d in bin sbin; do ln -s usr/bin $R/$d; done; ln -s usr/lib $R/lib; ln -s usr/lib $R/lib64
+mount -t 9p -o trans=virtio,version=9p2000.L,ro,msize=262144 usr $R/usr
+mount -t 9p -o trans=virtio,version=9p2000.L,ro,msize=262144 src $R/src
+mount -t 9p -o trans=virtio,version=9p2000.L,ro,msize=262144 gin $R/gin
+mount -t 9p -o trans=virtio,version=9p2000.L,rw,msize=262144 out $R/out
+mount --move /proc $R/proc; mount --move /sys $R/sys; mount --move /dev $R/dev
+# Fixture artifact: over 9p (security_model=none) the host's setuid mount/umount appear owned by the host user, so they
+# would drop euid to it. Root-owned copies (from this initramfs, same util-linux build) are bound over them.
+mkdir -p $R/run/fixture-bin; cp /usr/bin/mount /usr/bin/umount $R/run/fixture-bin/
+for b in mount umount; do mount --bind $R/run/fixture-bin/$b $R/usr/bin/$b; done
+chroot $R /usr/bin/python3 -u -I /src/itest/guest/install.py > $R/out/install.log 2>&1
+echo "install rc=$?" >> $R/out/install.log
+cd $R && mount --move . / && exec chroot . /usr/lib/systemd/systemd
+echo "init: could not exec systemd" > /dev/console
+echo o > /proc/sysrq-trigger

@@ -1,0 +1,65 @@
+PUBLIC-RPC CONSUMER INTERFACE: HANDOFF (S -> root, D, F, B, E; 2026-10-23)
+
+WHAT TO TAKE
+  - Source: 4f7632d7f283bb38396a44d775b6a80afcd62f1b (tree b246ba51c100ed57bc1bae9481627d492feda970), branch
+    public-rpc-consumer-interface in work/public-rpc-consumer-interface-20261023/repo.
+  - Additive patch on 36919aaf: patch/public-rpc-consumer-interface-36919..4f7632d7.patch (0c98a380…).
+  - Package: public-rpc.package.json 78f06b5b546fa2f7d6e57fb4d073e4e12f542cf0886fa1005cc80c51966d6319.
+  - D: 36919aaf / 29794c3e and report bea9b760 stay immutable. Nothing in work/public-rpc-host-role was edited.
+
+RUNTIME / BUNDLE CONSUMERS OF THE CHANGED FILES
+  - network/public-rpc.mjs: only the public-rpc package (bundle b1e8f62e…).
+  - network/public-rpc-config.mjs: the public-rpc package, plus network/host-services/roles.mjs.
+      - roles.mjs uses its validator, SERVED_METHODS and VERIFIABLE_METHODS.
+      - So the host-services RUNNER and STAGE-TOOL bundles (hs2 kits bin/host-services-runner.mjs, bin/stage-tool.mjs)
+        change: the role's "serves" text, and the validator now accepts limits.maxProofKeys.
+  - F (Windows and Linux hs2 composition): rebuild the public-rpc package, and the runner/stage-tool bundles from a tree
+    containing 4f7632d7.
+      - The five other role packages are unchanged.
+      - The privacy-agent, ingress, provider and Windows node bundles are unchanged since 36919: names, transport,
+        runtime and provider were not touched.
+  - B: no bundle change. Configuration only: NOTE-B-WITNESS-SOURCE.md.
+      - proofSources.untrusted may name the role. Same host: http://127.0.0.1:<port>. Remote: only
+        https://rpc-<b32>.<zone>/ after TLS.
+      - accessListHint must stay false.
+  - E: no bundle change. ae00cd96 has the same site/js + network as the composed dc2e5d74 (NOTE-E-WALLET-ROUTE.md).
+
+DEPENDENCIES ON OTHER OWNERS (not composed)
+  - M (privacy-startup cancellation):
+      - Candidate 3746e4fcbc163a743fbd1fb35a989e8ca0763b7c in work/privacy-startup-cancellation-20261023/repo, on
+        4c059b99.
+      - Root's notes there say final acceptance is still pending, so it is NOT composed and the explicit gate stays.
+      - It touches only network/privacy-agent.mjs, network/entries/privacy-agent.mjs and
+        test/privacy-agent-startup-cancel.test.mjs. Those files are disjoint from 36919..4f7632d7, so it composes
+        without textual overlap once reviewed.
+      - Until then the daemon stop exit 1 ("privacy agent stopped during startup") is unresolved, and its suites are not
+        claimed green.
+  - A: schema-4 registry fixture provenance. The service-index checker failure is unchanged and not claimed green. No
+    production runtime pin was changed and no old history was restored.
+  - G3 TLS: NOTE-F-PUBLIC-RPC-TLS-CLOSURE.md gives the exact closure.
+      - In G3 service-tls.mjs, FRONTED (L52) and the name map (L332-333) must add HOST_RPC_ROLE -> hostRpcName.
+      - The runner must refuse tlsPorts['public-rpc'] unless the role runs in the same config, and the upstream port must
+        equal its config.port.
+      - The names module must be re-pinned to F's lineage.
+      - Decide rpc inclusion BEFORE the first approved issuance (SAN-change re-issue hazard).
+      - TLS is NOT integrated and NO packaged HTTPS test ran.
+
+REMAINING PRODUCTION GATES (root-owned; nothing activated)
+  1. G3 TLS for rpc-<b32>.<zone>: the closure above, a packaged HTTPS test with a local ACME CA, the APPROVE upgrade, and
+     READY evidence through every exit.
+  2. Exits opted in (hostServices.rpc), route-dns publication of the rpc name, an activated platform host policy.
+  3. The operator's own SYNCED Base node on NucBox (root's chosen target). Proof window (--rpc.eth-proof-window) sized
+     for B's witness lag. A propagation statement only if the node actually forwards (gossip/sequencer route).
+  4. B: the real gossip head path, not the test-signed head. Coverage for the EIP-2935 full-block path and the
+     receipt/fee methods this role does not serve.
+  5. E: the built dist on HTTPS profile URLs. Real MetaMask stays on the wallet route (unsupported on the profile
+     route, by name).
+  6. M's reviewed cancellation fix and A's schema-4 fixture, for the unrelated suites.
+  7. Profiles that list RPCs of different hosts with different nodes. Two names of one host count as one vote.
+
+FILES HERE
+  - RESULT.txt, HANDOFF.txt, NOTE-B-WITNESS-SOURCE.md, NOTE-E-WALLET-ROUTE.md, NOTE-F-PUBLIC-RPC-TLS-CLOSURE.md
+  - patch/
+  - consumers/*.SHA256SUMS
+  - jobs/
+  - logs/e1.*, logs/f1.*

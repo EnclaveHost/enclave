@@ -1,0 +1,6 @@
+[queue] START available=25483MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+fixed rc=101
+baseline rc=101
+[memory-guard] exit=0 peakTreeRssMiB=950 minHostAvailableMiB=24796
+[memory-guard] at peak: rustc:866 cargo:72 unit-step.sh:6 fence-both.sh:6
+[queue] EXIT 0

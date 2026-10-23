@@ -1,0 +1,83 @@
+{
+  "at": "2026-10-23T15:08:52.475948+00:00",
+  "host": "a69dcbba.app.enclave.host",
+  "note": "Explicit existing ingress IPs; TLS hostname and CA validation enabled. Default local resolver failed separately.",
+  "results": [
+    {
+      "ip": "134.199.235.187",
+      "requests": [
+        {
+          "path": "/ping",
+          "exit": 35,
+          "status": "000",
+          "body": "",
+          "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+        },
+        {
+          "path": "/api/status",
+          "exit": 35,
+          "status": "000",
+          "body": "",
+          "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+        }
+      ]
+    },
+    {
+      "ip": "134.209.248.172",
+      "requests": [
+        {
+          "path": "/ping",
+          "exit": 35,
+          "status": "000",
+          "body": "",
+          "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+        },
+        {
+          "path": "/api/status",
+          "exit": 35,
+          "status": "000",
+          "body": "",
+          "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+        }
+      ]
+    },
+    {
+      "ip": "146.190.246.39",
+      "requests": [
+        {
+          "path": "/ping",
+          "exit": 35,
+          "status": "000",
+          "body": "",
+          "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+        },
+        {
+          "path": "/api/status",
+          "exit": 35,
+          "status": "000",
+          "body": "",
+          "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+        }
+      ]
+    },
+    {
+      "ip": "165.245.191.129",
+      "requests": [
+        {
+          "path": "/ping",
+          "exit": 35,
+          "status": "000",
+          "body": "",
+          "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+        },
+        {
+          "path": "/api/status",
+          "exit": 35,
+          "status": "000",
+          "body": "",
+          "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+        }
+      ]
+    }
+  ]
+}

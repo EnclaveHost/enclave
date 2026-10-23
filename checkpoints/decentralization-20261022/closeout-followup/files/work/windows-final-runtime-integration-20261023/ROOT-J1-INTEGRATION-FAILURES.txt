@@ -1,0 +1,9 @@
+Root J1 review, 2026-10-23. Your journal confirms you are fixing the Shield manager-health fixture; no duplicate work or source edit by root.
+
+J1 has 644 tests: 636 pass, 6 fail, 1 cancelled, 1 skipped. Calculated from the four actual chunk summaries. Do not report a pass.
+
+Other exact failures: catalog-platform-enforcement extracts a method using vm.runInContext but #walletPolicyState is now private and absent from that enclosing class: SyntaxError before actual policy coverage. Adapt to actual Host behavior rather than delete moderation checks. registry-reconcile regex matches sendOperatorTx heartbeat only in the explicit OWNER_NOMINATION_SELFTEST block around supervisor.js9885; this is not proof of periodic production writes. Preserve executable offchain coverage and any genuinely forbidden timer writes; avoid blanket removing the assertion without replacement.
+
+offchain-heartbeat-writers has a test timeout900000 but runner invokes --test-timeout=300000. It deliberately waits10s+195s+65s=270s PLUS compile/start, price reconciliation up to90s, inactive reconciliation up to90s. Outer300s can cut off a healthy run. Set a bounded truthful allowance for that named long scenario, or use faithful controllable cadence/clock without losing actual chain observations; do not suppress/cancel/pass it. Negative control currently requires OFFCHAIN_HEARTBEAT_BASE_SUPERVISOR; any missing negative control must be reported, not green by skip. Native namespace non-loopback skip remains a distinct environment limitation.
+
+Actual logs: j1-0.00.out/j1-0.02.out/j1-0.03.out and j1-3.08.out. Root did no broad rerun. Preserve all admin admission/privacy/lease checks and unchanged memory queue.

@@ -1,0 +1,64 @@
+{
+ "format": "rpc-hdd-storage-compose-provenance/v1",
+ "clones": {
+  "t": {
+   "base": "a9f0155c55d9284bd38b7bfc3a8015c2d01fb17d",
+   "head": "4bb723151e93e916f01829c2322440c0370f6919",
+   "tree": "bf6d3c7a33dd883b85c5c670d8370b77355e9bc1",
+   "commits": [
+    "4bb723151e93e916f01829c2322440c0370f6919 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> hddwatch: treat ext4 emergency_ro (7.2.11 journal-abort state, mount still listed rw) as a failure",
+    "c55917de41d64052896a9f53fc485ef96ef1748c SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> hddwatch: judge read-only from the superblock options (the supervisor's own ProtectSystem=strict namespace shows every mount ro)",
+    "cfa165fbffce2f5693043c3512bec459606fbd69 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> transport: capability-less supervisor identifies the daemon by pid+starttime+argv (no exe readlink); test relay closes silently when the export is down",
+    "29c6de874fa60482fa5d3f56cb8522fbd915bdc3 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> transport: compose with network-HDD storage: verify-attached (raw), detach refuses while held or mounted, hddwatch supervisor (Type=notify), raw-attach-only unit"
+   ]
+  },
+  "s": {
+   "base": "92b71784c9452056eeeb6a97b8e1fcb8ef1815ca",
+   "head": "fb9ce4a726e16b0652e9bdbfa851c01c6553fb07",
+   "tree": "95fb9917a593f4db359844053b1c6b14e1faf32d",
+   "commits": [
+    "fb9ce4a726e16b0652e9bdbfa851c01c6553fb07 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> storage_nbd: refuse a foreign/non-empty mount point BEFORE mapping, so a refused start never consumes the cache-reuse marker (found by the guest test C3/C4)",
+    "97758444e4d63607061c92f761443281946e6ced SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> holder: network-hdd-nbd layout (authenticated NBD origin, pinned placement statement, optional writethrough cache on the raw device before the one mount, cache-reuse marker by origin superblock fingerprint, supervisor-gated units); local layout unchanged"
+   ]
+  },
+  "p": {
+   "base": "f8c999ed5a9600ef477ff05ee00b31dee366b2b1",
+   "head": "ed814e5832639ecf863547536e3c8a742e39b9fb",
+   "tree": "84a0b214aab4218ac6128c26340c286f7991132f",
+   "commits": [
+    "ed814e5832639ecf863547536e3c8a742e39b9fb SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: re-vendor S storage_nbd.py (mount-point refusals before mapping)",
+    "1db4d4083ab9e6db16fa5affb05c1cc74619c91a SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> l1pair: network-hdd-nbd layout (l1 role), both node units bound to the supervisor; re-vendor S storage_nbd.py + holder.py; local layout unchanged"
+   ]
+  }
+ },
+ "references": {
+  "rootCompose": "work/rpc-storage-final-compose dd5c9a599ab1a298396724f2a0c5de41b70df080 (read only)",
+  "kernelDelta": "work/cache-composed-kernel-delta-20261023 e8e8680121cd4262104dc8b3af8ed846d196f82b (read only)",
+  "templateKeptByteIdentical": "holder/holder-storage.sh.in cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222 (S and P vendor)"
+ },
+ "tests": {
+  "run4": "receipts/run4 (t c55917d, s fb9ce4a, p ed814e5): guest 39/39, host 16/16, peak 136429568 B",
+  "finalControl": "receipts/final-control/run.out (t 4bb7231, s fb9ce4a, p ed814e5): guest 39/39, host 16/16, peak 139022336 B",
+  "mutations": "receipts/mutate-1.txt, receipts/mutate-2.txt",
+  "units": "receipts/unit-2.txt (final commits)"
+ },
+ "fileSha256": {
+  "p/l1pair/l1pair.py": "ebbbdf3b8d97dc8a4e5bbe1f558155a94d3b5e07204d0c6a325a11edfdd0a407",
+  "p/l1pair/vendor/VENDOR.json": "e24e32889e619b0667bed9a0afcffba7f67e9c09c592b30d8693d8a1c0120e80",
+  "p/l1pair/vendor/holder/holder-storage.sh.in": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+  "p/l1pair/vendor/holder/holder.py": "0229198637920f8147a7bcc3d685abb55f619415c993f624c98dbebcb2bd1a21",
+  "p/l1pair/vendor/holder/storage_nbd.py": "4c755cfb263f6a6231c2d8a542b9300ee33c1cf8d66aff3fb576591ef234b517",
+  "s/holder/holder-storage.sh.in": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+  "s/holder/holder.py": "0229198637920f8147a7bcc3d685abb55f619415c993f624c98dbebcb2bd1a21",
+  "s/holder/storage_nbd.py": "4c755cfb263f6a6231c2d8a542b9300ee33c1cf8d66aff3fb576591ef234b517",
+  "t/templates/enclave-rpc-hdd-attach@.service": "a2d0117b696c6a7228e46216d409827f3c8f778acd964a4a622bea97fea5119d",
+  "t/transport/common.py": "6860339532dc7f49fe9713b087bbdcd2f00daf1692ae9d993e5d1b2a55ccbe89",
+  "t/transport/hddattach.py": "26c4ea61e7ad5bdfdb105ef643d96f7a0dcc7752219f317fb4cf04250f4a1971",
+  "t/transport/hddwatch.py": "03bb3dd4df53106acf5d2ab4a7599242c75fa6fbe7b1d48cd9389b9960abd7cd"
+ },
+ "vendorEqualsS": {
+  "storage_nbd.py": true,
+  "holder.py": true,
+  "holder-storage.sh.in": true
+ }
+}

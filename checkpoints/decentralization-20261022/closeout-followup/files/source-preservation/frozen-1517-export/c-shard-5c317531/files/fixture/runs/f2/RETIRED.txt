@@ -1,0 +1,9 @@
+Run f2: 16/18 checks passed, then RETIRED (NOT counted). Both failures were DRIVER expectations, not product behaviour.
+- I: C2 sends Content-Length with the response head; when the download then fails ("not enough shards: 9/10") it closes
+  the connection with a SHORT body (sia-s3 src/s3.rs: "the only honest signal left is a short body"). The driver's helper
+  reads in chunks and does not raise on a short body. It counted status 200 as "not an error" instead of comparing the
+  received length with Content-Length.
+- custody: each C2 start installs the same-generation ballot with counter+1 (1 -> 8 after 7 reader starts). The driver
+  compared the whole fence value instead of the generation and the counter rule. Generation, CAS, sequence and objects
+  were unchanged.
+Fixed in main_shardloss.py and repeated as f3.

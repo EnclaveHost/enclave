@@ -1,0 +1,28 @@
+From 808f36c5760cf22afa06c8c70f6e82fcfcc743bd Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 07:53:44 -0700
+Subject: [PATCH] privacy agent: a failed release keeps its context (the stop
+ during startup it followed)
+
+cleanupFailed no longer hands back a lone inner AggregateError as-is: a cancelled startup whose release failed reports
+"privacy agent stopped during startup, and releasing what it held failed: <each failure>" (root cleanup-error review;
+the daemon already exited 1 with the router and network host closed, j3 cases 9-10, only the message lost its context).
+---
+ network/privacy-agent.mjs | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/network/privacy-agent.mjs b/network/privacy-agent.mjs
+index 35d78e3e6b822373c8061320d1bbd575dc6288c6..32549d3a9b9cfada251fe890a81bd09912cccbf5 100644
+--- a/network/privacy-agent.mjs
++++ b/network/privacy-agent.mjs
+@@ -56,8 +56,8 @@
+ export class StartupCancelled extends Error{constructor(){super('privacy agent stopped during startup');this.name='StartupCancelled';this.code='ENCLAVE_STARTUP_CANCELLED';}}
+ // Owned resources that could not be released: never reported as a clean stop (runPrivacy, runPrivacyCli)
+ // (one failure seen by two releases - the stop's and the startup's unwinding - is one failure)
+-const cleanupFailed=(what,all)=>{const failed=[...new Set(all)];return failed.length===1&&failed[0] instanceof AggregateError?failed[0]
+-  :new AggregateError(failed,`${what} failed: ${failed.map(e=>e?.message??String(e)).join('; ')}`);};
++const cleanupFailed=(what,all)=>{const failed=[...new Set(all)];
++  return new AggregateError(failed,`${what} failed: ${failed.map(e=>e?.message??String(e)).join('; ')}`);};
+ export const NETWORK_REQUIRED='enclaveNetwork configuration required: TUNA is retired, and apps are served only on the Enclave network (docs/design/enclave-network.md)';
+ 
+ // Timely admission is independent of slow allocation and publication work. Even

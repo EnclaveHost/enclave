@@ -1,0 +1,143 @@
+[queue] START available=25009MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+source HEAD ae00cd9659e46e3dffe5407bdf34442416a9e69a
+== inputs
+9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20  package-lock.json
+0664477d58b95a4cf8d6e4c78c997382e7afa6e9788ec380c03a2993d020a420  scripts/build-site.mjs
+0185417716d6d0699dc03ae2161084ea0f6d3dcd4c861fbc9c5d3860fed82d1e  scripts/build-contract-artifacts.mjs
+abd423f104468964737795cc60d29b34fba589295663b4c8654ee89a102f9df8  scripts/site-built-in-profile.mjs
+esbuild 0.28.1
+@tailwindcss/cli 4.3.2
+tailwindcss 4.3.2
+solc 0.8.35
+viem 2.53.1
+site/ tree: ab28986e71f7489ce4ad4952dc3c706a410b403b  contracts/ tree: df8466e8ad4bc25ad5850acb0b35bf6c80c1905c
+== build (no network)
+[build] clean dist/
+[build] no built-in network profile (hosted defaults; a saved browser profile still applies)
+[build] contract artifacts (admin console deploy bytecode + selectors)
+[build] tailwind css/src/main.css -> css/site.css
+npm notice run enclave-supervisor@0.1.0 npx
+npm notice run 'tailwindcss' -i site/css/src/main.css -o site/css/site.css --minify
+≈ tailwindcss v4.3.2
+
+Done in 136ms
+[build] esbuild (router entry + code-split pages, templates inlined)
+▲ [WARNING] The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected [commonjs-variable-in-esm]
+
+    site/js/lib/qr.js:2300:6:
+      2300 │       module.exports = factory();
+           ╵       ~~~~~~
+
+  This file is considered to be an ECMAScript module because of the "export" keyword here:
+
+    site/js/lib/qr.js:2306:0:
+      2306 │ export function qrSvg(text, opts){
+           ╵ ~~~~~~
+
+[build] recover/ (passkey account recovery signer)
+[build] credit/ (independent credit vault)
+[build] copy pages (components prerendered) + static files
+[build] csp-script-src.txt: 6 inline-script hashes (server CSP can now drop 'unsafe-inline' + esm.sh)
+      3.7 KB  dist/js/chunks/link-JWY5VKOC.js
+      5.1 KB  dist/js/chunks/authorize-5MU4BNSA.js
+      1.1 KB  dist/js/chunks/host-UWLU5GUG.js
+      3.5 KB  dist/js/chunks/sso-authorize-IUL2MPX7.js
+     15.5 KB  dist/js/chunks/grant-N4RZCNSZ.js
+     11.7 KB  dist/js/chunks/sessions-SOJA3KXC.js
+     14.3 KB  dist/js/chunks/develop-TMS3PCR5.js
+     22.0 KB  dist/js/chunks/account-ui-S4DZAOJ5.js
+      2.4 KB  dist/js/chunks/dashboard-ULHABLDT.js
+     38.8 KB  dist/js/chunks/migrator-4TNFNC7K.js
+    442.7 KB  dist/js/chunks/admin-VG676IW7.js
+      0.4 KB  dist/js/chunks/terms-XEU6Y5RT.js
+      0.4 KB  dist/js/chunks/privacy-SXFPNSHR.js
+      6.4 KB  dist/js/chunks/checkout-YLVHIE6X.js
+      2.4 KB  dist/js/chunks/native-instructions-DJHERWWD.js
+      0.9 KB  dist/js/chunks/startup-package-AEB5BPZX.js
+      5.6 KB  dist/js/chunks/history-checkpoint-ITD3PBPL.js
+     34.2 KB  dist/js/chunks/enclave-network-FCFATXH5.js
+     24.6 KB  dist/js/chunks/deploy-QECBKOAQ.js
+    191.0 KB  dist/js/chunks/chunk-LV77MRR5.js
+     13.0 KB  dist/js/chunks/chunk-B4Y43EBO.js
+      0.3 KB  dist/js/chunks/independent-ui-NPVONEXU.js
+     10.4 KB  dist/js/chunks/chunk-DJIQ5AIN.js
+     71.2 KB  dist/js/chunks/apps-7GCDVMYZ.js
+      7.6 KB  dist/js/chunks/chunk-3NHBBNQ4.js
+      0.6 KB  dist/js/chunks/architecture-XOQAIE5E.js
+      0.4 KB  dist/js/chunks/chunk-7IQEQZSV.js
+     21.4 KB  dist/js/chunks/chunk-FOVT4RE2.js
+      4.0 KB  dist/js/chunks/chunk-VAKMSUPZ.js
+      3.3 KB  dist/js/chunks/chunk-T5S3WJMT.js
+     11.4 KB  dist/js/chunks/chunk-EXHMYFDI.js
+      3.0 KB  dist/js/chunks/owner-signature-5Q7PWBY4.js
+      1.0 KB  dist/js/chunks/sessions-DVRJ6ISW.js
+     39.6 KB  dist/js/chunks/chunk-M54V5PDH.js
+     12.5 KB  dist/js/chunks/independent-management-SKS7GGER.js
+      0.3 KB  dist/js/chunks/api-UUXL2AZP.js
+     19.6 KB  dist/js/chunks/overview-FTD6356T.js
+      1.6 KB  dist/js/chunks/chunk-ODIPE4IP.js
+      7.3 KB  dist/js/chunks/chunk-32OJJND4.js
+      0.3 KB  dist/js/chunks/chunk-D7VGFCH5.js
+     11.8 KB  dist/js/chunks/chunk-4O4I4O2U.js
+      4.5 KB  dist/js/chunks/storage-plan-P2BWPZZ2.js
+      1.6 KB  dist/js/chunks/chunk-IBX6L24F.js
+      2.5 KB  dist/js/chunks/chunk-ACELWRLG.js
+    301.5 KB  dist/js/chunks/custody-ZIMHB3XW.js
+      6.1 KB  dist/js/chunks/app-access-MHE7L56H.js
+      0.5 KB  dist/js/chunks/account-providers-3EIACWUA.js
+     21.7 KB  dist/js/chunks/passkey-account-OBUV3VHG.js
+     12.8 KB  dist/js/chunks/chunk-G2JKSLQT.js
+      0.5 KB  dist/js/chunks/identity-3IS5OQKE.js
+      5.6 KB  dist/js/chunks/chunk-NCYFYUWM.js
+     11.2 KB  dist/js/chunks/account-transport-RIIBDJY6.js
+      0.4 KB  dist/js/chunks/vault-XCT3LORE.js
+      4.9 KB  dist/js/chunks/chunk-XULNJDU7.js
+      7.1 KB  dist/js/chunks/profile-broadcast-3WV7XJKR.js
+      0.8 KB  dist/js/chunks/wallet-565HYD4N.js
+      0.5 KB  dist/js/chunks/account-Z34YWWON.js
+      6.6 KB  dist/js/chunks/chunk-WDVMJZHU.js
+     47.9 KB  dist/js/chunks/chunk-7NDZTWA7.js
+      0.3 KB  dist/js/boot.js
+      9.2 KB  dist/js/chunks/chunk-CESSLLHU.js
+      2.6 KB  dist/js/chunks/chunk-TXG5D22N.js
+      1.0 KB  dist/js/chunks/config-JWL7LCOP.js
+      0.4 KB  dist/js/chunks/util-GSDZF5ZA.js
+      0.5 KB  dist/js/chunks/platform-addresses-XSKIENQ6.js
+      1.6 KB  dist/js/chunks/chain-EJGGNIZV.js
+      3.7 KB  dist/js/chunks/independent-list-Q3O2NVMR.js
+    103.8 KB  dist/js/chunks/aa-MVXSHBOR.js
+      1.1 KB  dist/js/chunks/independent-chain-C3DV47IY.js
+     34.0 KB  dist/js/chunks/chunk-7OOA4LZX.js
+      3.2 KB  dist/js/chunks/chunk-UMK2F3SL.js
+      8.8 KB  dist/js/chunks/chunk-HYR2JLMY.js
+      1.9 KB  dist/js/chunks/chunk-2YYAZ6B6.js
+     15.0 KB  dist/js/chunks/chunk-BALWBPPP.js
+     26.3 KB  dist/js/chunks/chunk-NGVHR5VH.js
+      3.2 KB  dist/js/chunks/chunk-D3OHU7VL.js
+     10.4 KB  dist/js/chunks/chunk-BF6F5NAF.js
+      3.8 KB  dist/js/chunks/chunk-DRRCG5VQ.js
+[build] dist/: 238 files · 28.6 MB
+== tracked files the build rewrote
+ M site/css/site.css
+ M site/js/gen/contract-artifacts.js
+ site/css/site.css                 | 2 +-
+ site/js/gen/contract-artifacts.js | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+== outputs
+238
+dist manifest sha256: 9904f5e0a44e00ed4d7e621b9a318e10256c055699683fa859799dd6df3b8ba8
+profile-broadcast-3WV7XJKR.js
+profile-broadcast-3WV7XJKR.js.map
+dist js files containing [eth_signTransaction]: 4
+dist js files containing [every endpoint of the network profile refused]: 2
+dist js files containing [does not sign a transaction without broadcasting]: 2
+dist js files containing [Enclave runs part of this account]: 2
+dist js files containing [the network profile (your wallet signs only)]: 2
+dist js files containing [never relayed it]: 2
+pre-rewrite literal (tinfoil, any case) in dist: 0
+b2373096ef02eaf4bed358cf683eef3f24df7e1af58e72a664b9bf46a5274a98  site/dist/csp-script-src.txt
+9f7872733585ede9b5a168868ad04e73a4041d022f859eb10c27ef115acd77b1  site/dist/dashboard.html
+3f98ea600c1c8ce5d295bb0b8feae8e03695051bf7f3d0915054fbdd8705c633  site/dist/js/boot.js
+[memory-guard] exit=0 peakTreeRssMiB=413 minHostAvailableMiB=24147
+[memory-guard] at peak: node:340 node:63 bash:6 timeout:4
+[queue] EXIT 0

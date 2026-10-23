@@ -1,0 +1,1302 @@
+From eb7f0db64091f116431fbdb9df4a29efbc1f1ca4 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 08:08:27 -0700
+Subject: [PATCH] Public RPC consumer interface: RESULT, HANDOFF, notes for
+ B/E/F, patch on 36919, consumer pins, jobs and logs (e1, f1)
+
+---
+ .gitignore                       |   4 +
+ HANDOFF.txt                      |  65 +++++
+ NOTE-B-WITNESS-SOURCE.md         |  57 ++++
+ NOTE-E-WALLET-ROUTE.md           |  44 ++++
+ NOTE-F-PUBLIC-RPC-TLS-CLOSURE.md |  67 +++++
+ RESULT.txt                       | 107 ++++++++
+ ROOT-E-BUILT-SITE-FINAL.txt      |   1 +
+ consumers/b-673601e5.SHA256SUMS  |   6 +
+ consumers/e-dc2e5d74.SHA256SUMS  | 437 +++++++++++++++++++++++++++++++
+ jobs/build-and-test.sh           |  19 ++
+ jobs/build-packages.sh           |   8 +
+ jobs/e2e.sh                      |   5 +
+ jobs/final.sh                    |   8 +
+ jobs/job.sh                      |  20 ++
+ jobs/only.sh                     |   9 +
+ jobs/q.sh                        |  11 +
+ jobs/scan-report.sh              |   6 +
+ logs/e1.guard.log                |   1 +
+ logs/e1.out                      |  92 +++++++
+ logs/e1.rc                       |   1 +
+ logs/f1.guard.log                |   1 +
+ logs/f1.out                      |  95 +++++++
+ logs/f1.rc                       |   1 +
+ stubs/go                         |   3 +
+ stubs/scp                        |   3 +
+ stubs/sftp                       |   3 +
+ stubs/ssh                        |   3 +
+ 27 files changed, 1077 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 HANDOFF.txt
+ create mode 100644 NOTE-B-WITNESS-SOURCE.md
+ create mode 100644 NOTE-E-WALLET-ROUTE.md
+ create mode 100644 NOTE-F-PUBLIC-RPC-TLS-CLOSURE.md
+ create mode 100644 RESULT.txt
+ create mode 100644 ROOT-E-BUILT-SITE-FINAL.txt
+ create mode 100644 consumers/b-673601e5.SHA256SUMS
+ create mode 100644 consumers/e-dc2e5d74.SHA256SUMS
+ create mode 100755 jobs/build-and-test.sh
+ create mode 100755 jobs/build-packages.sh
+ create mode 100755 jobs/e2e.sh
+ create mode 100755 jobs/final.sh
+ create mode 100755 jobs/job.sh
+ create mode 100755 jobs/only.sh
+ create mode 100755 jobs/q.sh
+ create mode 100755 jobs/scan-report.sh
+ create mode 100644 logs/e1.guard.log
+ create mode 100644 logs/e1.out
+ create mode 100644 logs/e1.rc
+ create mode 100644 logs/f1.guard.log
+ create mode 100644 logs/f1.out
+ create mode 100644 logs/f1.rc
+ create mode 100755 stubs/go
+ create mode 100755 stubs/scp
+ create mode 100755 stubs/sftp
+ create mode 100755 stubs/ssh
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..8c7981be690a7be237f51a0fcda857695c3e925e
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,4 @@
++repo/
++consumers/b-673601e5/
++consumers/e-dc2e5d74/
++tmp/
+diff --git a/HANDOFF.txt b/HANDOFF.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..7aa7bfecb095058d4fde73d9c0308c479a683ce8
+--- /dev/null
++++ b/HANDOFF.txt
+@@ -0,0 +1,65 @@
++PUBLIC-RPC CONSUMER INTERFACE: HANDOFF (S -> root, D, F, B, E; 2026-10-23)
++
++WHAT TO TAKE
++  - Source: 4f7632d7f283bb38396a44d775b6a80afcd62f1b (tree b246ba51c100ed57bc1bae9481627d492feda970), branch
++    public-rpc-consumer-interface in work/public-rpc-consumer-interface-20261023/repo.
++  - Additive patch on 36919aaf: patch/public-rpc-consumer-interface-36919..4f7632d7.patch (0c98a380…).
++  - Package: public-rpc.package.json 78f06b5b546fa2f7d6e57fb4d073e4e12f542cf0886fa1005cc80c51966d6319.
++  - D: 36919aaf / 29794c3e and report bea9b760 stay immutable. Nothing in work/public-rpc-host-role was edited.
++
++RUNTIME / BUNDLE CONSUMERS OF THE CHANGED FILES
++  - network/public-rpc.mjs: only the public-rpc package (bundle b1e8f62e…).
++  - network/public-rpc-config.mjs: the public-rpc package, plus network/host-services/roles.mjs.
++      - roles.mjs uses its validator, SERVED_METHODS and VERIFIABLE_METHODS.
++      - So the host-services RUNNER and STAGE-TOOL bundles (hs2 kits bin/host-services-runner.mjs, bin/stage-tool.mjs)
++        change: the role's "serves" text, and the validator now accepts limits.maxProofKeys.
++  - F (Windows and Linux hs2 composition): rebuild the public-rpc package, and the runner/stage-tool bundles from a tree
++    containing 4f7632d7.
++      - The five other role packages are unchanged.
++      - The privacy-agent, ingress, provider and Windows node bundles are unchanged since 36919: names, transport,
++        runtime and provider were not touched.
++  - B: no bundle change. Configuration only: NOTE-B-WITNESS-SOURCE.md.
++      - proofSources.untrusted may name the role. Same host: http://127.0.0.1:<port>. Remote: only
++        https://rpc-<b32>.<zone>/ after TLS.
++      - accessListHint must stay false.
++  - E: no bundle change. ae00cd96 has the same site/js + network as the composed dc2e5d74 (NOTE-E-WALLET-ROUTE.md).
++
++DEPENDENCIES ON OTHER OWNERS (not composed)
++  - M (privacy-startup cancellation):
++      - Candidate 3746e4fcbc163a743fbd1fb35a989e8ca0763b7c in work/privacy-startup-cancellation-20261023/repo, on
++        4c059b99.
++      - Root's notes there say final acceptance is still pending, so it is NOT composed and the explicit gate stays.
++      - It touches only network/privacy-agent.mjs, network/entries/privacy-agent.mjs and
++        test/privacy-agent-startup-cancel.test.mjs. Those files are disjoint from 36919..4f7632d7, so it composes
++        without textual overlap once reviewed.
++      - Until then the daemon stop exit 1 ("privacy agent stopped during startup") is unresolved, and its suites are not
++        claimed green.
++  - A: schema-4 registry fixture provenance. The service-index checker failure is unchanged and not claimed green. No
++    production runtime pin was changed and no old history was restored.
++  - G3 TLS: NOTE-F-PUBLIC-RPC-TLS-CLOSURE.md gives the exact closure.
++      - In G3 service-tls.mjs, FRONTED (L52) and the name map (L332-333) must add HOST_RPC_ROLE -> hostRpcName.
++      - The runner must refuse tlsPorts['public-rpc'] unless the role runs in the same config, and the upstream port must
++        equal its config.port.
++      - The names module must be re-pinned to F's lineage.
++      - Decide rpc inclusion BEFORE the first approved issuance (SAN-change re-issue hazard).
++      - TLS is NOT integrated and NO packaged HTTPS test ran.
++
++REMAINING PRODUCTION GATES (root-owned; nothing activated)
++  1. G3 TLS for rpc-<b32>.<zone>: the closure above, a packaged HTTPS test with a local ACME CA, the APPROVE upgrade, and
++     READY evidence through every exit.
++  2. Exits opted in (hostServices.rpc), route-dns publication of the rpc name, an activated platform host policy.
++  3. The operator's own SYNCED Base node on NucBox (root's chosen target). Proof window (--rpc.eth-proof-window) sized
++     for B's witness lag. A propagation statement only if the node actually forwards (gossip/sequencer route).
++  4. B: the real gossip head path, not the test-signed head. Coverage for the EIP-2935 full-block path and the
++     receipt/fee methods this role does not serve.
++  5. E: the built dist on HTTPS profile URLs. Real MetaMask stays on the wallet route (unsupported on the profile
++     route, by name).
++  6. M's reviewed cancellation fix and A's schema-4 fixture, for the unrelated suites.
++  7. Profiles that list RPCs of different hosts with different nodes. Two names of one host count as one vote.
++
++FILES HERE
++  - RESULT.txt, HANDOFF.txt, NOTE-B-WITNESS-SOURCE.md, NOTE-E-WALLET-ROUTE.md, NOTE-F-PUBLIC-RPC-TLS-CLOSURE.md
++  - patch/
++  - consumers/*.SHA256SUMS
++  - jobs/
++  - logs/e1.*, logs/f1.*
+diff --git a/NOTE-B-WITNESS-SOURCE.md b/NOTE-B-WITNESS-SOURCE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..d3fd818b76550e789b500cbabd66415f3757d243
+--- /dev/null
++++ b/NOTE-B-WITNESS-SOURCE.md
+@@ -0,0 +1,57 @@
++# For B: the public-rpc role as a fresh witness source (from S, 2026-10-23)
++
++S edited none of B's trees. Source: S `4f7632d7f283bb38396a44d775b6a80afcd62f1b` (tree `b246ba51…`), on `36919aaf`.
++Package `public-rpc.package.json` `78f06b5b546fa2f7d6e57fb4d073e4e12f542cf0886fa1005cc80c51966d6319`.
++
++## What the role now serves for your gateway
++
++- **`eth_getProof [address, storageKeys, block]`**
++  - storageKeys: an array of at most `limits.maxProofKeys` (default 128, range 1-1024) distinct hex words.
++  - block: an EIP-1898 `{blockHash[, requireCanonical]}`, a BARE 32-byte hash (what alloy sends), a number or a tag.
++    `pending` is refused.
++- **`eth_getBlockByHash [hash, false]`**
++  - Headers only. `true` (full transactions) is refused before the node is asked.
++- **The labels.** Every answer carries `X-Enclave-Rpc-Class: proof-material-unverified` and
++  `X-Enclave-Rpc-Source: node`. The role verifies nothing. Your gateway must keep verifying with witness-check against
++  roots from signed heads only, as it does.
++
++## Composed proof (`test/public-rpc-witness-consumer.e2e.test.mjs`, f1: 5/5)
++
++- **The chain under test.** Helios `helios-eeffcc9` reads through your gateway (git archive of `673601e54`, files
++  hash-pinned: `witness-gateway.mjs` `7209ef5b…`, `witness-verify.mjs` `729496b0…`, `op-commitment.mjs` `13263acf…`). The
++  gateway's ONLY upstream is the packaged role under the runner. Behind it are a fault proxy and `reth-v2.8.0` on your
++  `reth-dev-8453-genesis-2935.json` (`99138899…`).
++- **Gateway config.** `methods` = your runtime's `NO_HINT`.
++- **Positive results.**
++  - Fresh `eth_call`/balance/storage/code through Helios equal the chain at the same block. Proofs were verified and none
++    was invalid.
++  - Ancestry via `eth_getBlockByHash` through the role recovers a block older than every signed head (`via: 'ancestor'`).
++    The bare-hash form works too.
++- **Refusals.** In each case the consumer refused, and recovered once the source was honest again:
++  - a tampered header (the role served it, labelled unverified);
++  - tampered storage proofs;
++  - the node down;
++  - a stale node;
++  - a frozen signed head (`newer-than-every-bound-head`).
++- **What the node saw.** Only methods the role serves. No full-transaction block, no access-list hint, no pending proof.
++- **Head authority.** The head is TEST-SIGNED (key `0x5e…5e`, `helios.toml unsafe_signer`). It says nothing about the
++  real Base sequencer path.
++
++## What you would configure (no action taken by S)
++
++- **`proofSources.untrusted`.**
++  - On the same host, the role is `http://127.0.0.1:<port>`.
++  - A REMOTE operator's role is reachable only as `https://rpc-<b32>.<zone>/`, after the TLS closure in
++    `NOTE-F-PUBLIC-RPC-TLS-CLOSURE.md`. Nothing is integrated or tested over HTTPS.
++- **`proofSources.accessListHint` must stay false** for this source. `eth_createAccessList` is refused by name.
++- **No bundle of yours changes.** Your gateway and runtime code are unchanged.
++
++## Gaps (listed, not dropped)
++
++- **Helios's EIP-2935 historical path** asks `eth_getBlockByHash(h, true)`. The role refuses full transactions (root's
++  scope), so a BLOCKHASH for a never-delivered block cannot be served from this source. Your cache, archive or another
++  source must cover it, or it refuses.
++- **Not served:** `eth_getBlockReceipts`, `eth_feeHistory` and `eth_gasPrice`. With this role as the only source,
++  Helios paths that need them refuse. `eth_getLogs`, `eth_getTransactionReceipt` and `eth_getTransactionByHash` are
++  served.
++- **Failover is not independence.** One operator's role fronts that operator's node.
+diff --git a/NOTE-E-WALLET-ROUTE.md b/NOTE-E-WALLET-ROUTE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..ef24005229b90e6ef9cb543ef303c6b38c078b5d
+--- /dev/null
++++ b/NOTE-E-WALLET-ROUTE.md
+@@ -0,0 +1,44 @@
++# For E: your profile-broadcast route through packaged public-rpc roles (from S, 2026-10-23)
++
++S edited none of E's trees and did not rebuild your production site. Source: S `4f7632d7f283bb38396a44d775b6a80afcd62f1b`.
++Package `public-rpc.package.json` `78f06b5b…`.
++
++## What the role now serves for your route (`HANDOFF-S-PROFILE-RPC-METHODS.md`)
++
++- **`eth_getTransactionCount [from, "pending"]`.** Only this method accepts `pending`; it is refused for
++  balance/call/code/storage/proof. The answer is labelled `X-Enclave-Rpc-Class: mempool-unverified`, which means the
++  node's own mempool view.
++- **`eth_maxPriorityFeePerGas []`.** Labelled `fee-quote-unverified`. A node that refuses it gets its error passed back
++  unchanged, so your 0.001 gwei fallback applies.
++- **Unchanged:**
++  - `eth_call` to ecrecover at `{blockHash}`;
++  - `eth_sendRawTransaction`, only with an operator-stated propagation route (otherwise -32601 by name, before the node).
++    It is labelled `submission` and `X-Enclave-Rpc-Propagation: operator-stated`;
++  - `eth_getTransactionReceipt` (`chain-state`).
++- **Never served:** `eth_sign`, `eth_signTransaction`, `eth_sendTransaction`, accounts, `txpool` and `wallet_*`.
++
++## Composed proof (`test/public-rpc-wallet-consumer.e2e.test.mjs`, f1: 3/3)
++
++- **What ran.** Your actual site modules from `dc2e5d74` (git archive, 437 files pinned by `SHA256SUMS` `78650716…`;
++  `profile-broadcast.js` `14917fda…`, `wallet.js` `d0e7482a…`, `chain.js` `adc2bea3…`) in Node, as your own test runs
++  them. Your final production commit `ae00cd96` has the identical `site/js` and `network/` (git diff empty).
++- **The two roles.** Two PACKAGED roles under the runner: host A without a propagation statement, host B with one. Both
++  front ONE reth v2.8.0, so this is not two independent nodes. The signer is a LOCAL TEST SIGNER (the public dev key).
++- **Flow and results:**
++  - the snapshot, then the tip, then the pending nonce, all labelled, through the roles;
++  - sign-only;
++  - the identical raw bytes go to A (refused by name) and then to B (accepted);
++  - the node received the bytes once;
++  - the receipt came through the profile.
++- **Fallback tip.** The node refused the tip quote, and the signed tip was exactly 1,000,000 wei.
++- **Refusals.**
++  - A broadcast-only wallet (as MetaMask) is refused as `unsupported`. Nothing is signed or sent, and there is no
++    `eth_sendTransaction` fallback.
++  - With the node down, nothing is signed.
++- **The page's network.** It went to loopback only.
++
++## Not covered
++
++- **Your built `dist`** was not run here. That is your scope and root's ROOT-E note.
++- **HTTPS** was not tested. `rpc-<b32>` HTTPS needs the TLS closure.
++- **Real MetaMask** stays unsupported on this route. That is explicit, not wallet independence.
+diff --git a/NOTE-F-PUBLIC-RPC-TLS-CLOSURE.md b/NOTE-F-PUBLIC-RPC-TLS-CLOSURE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..7a84000ce8f78c31c5a79504bfa38d65f429c2a7
+--- /dev/null
++++ b/NOTE-F-PUBLIC-RPC-TLS-CLOSURE.md
+@@ -0,0 +1,67 @@
++# Public HTTPS for `rpc-<b32>.<zone>`: the TLS closure F needs (from S, 2026-10-23)
++
++**Status: NOT integrated, NOT tested over HTTPS.** No packaged HTTPS test of the RPC name has run. The browser and
++consumer fixtures in S's trees are plain HTTP on loopback. They prove the role, not production HTTPS readiness.
++
++S read the G3 package as a dependency and edited nothing of it: `work/host-service-tls-20261021/g3-final-package`
++(`FINAL-PACKAGE-RESULT.txt`, `SHA256SUMS.txt` `48d9f541…`). In that package:
++- `network/host-services/service-tls.mjs` is `0aac3061…`;
++- `network/host-service-names.mjs` is `08bda1e6…`;
++- `network/host-service-ingress.mjs` is `5465684f…`.
++
++## Where TLS is terminated
++
++The G3 terminator is the **`service-tls` host-services role**, a child of the hs2 runner.
++- **Ingress (not the terminator).** The ingress worker does not terminate TLS ("no TLS termination, no rewrite"). It
++  routes raw `:443` by SNI to `127.0.0.1:tlsPorts[role]`, and `:80` by Host to `httpPort`.
++- **service-tls.** It holds the host's one certificate, as one atomic key+chain document `keys/current.pem`. It
++  terminates TLS and pipes plain bytes to `127.0.0.1:upstreams[role]`.
++- **The backend role.** It holds no certificate. For `public-rpc`, `upstreams['public-rpc']` is the role's own `config.port`.
++
++## What does NOT cover `rpc` today (exact lines in the G3 tree)
++
++1. **`service-tls.mjs` L52** reads `const FRONTED = Object.keys(HOST_SERVICE_ROLES);`, which gives only
++   directory/bootstrap/policy. L76 then refuses `tlsPorts: "public-rpc" has no derived service name`.
++2. **`service-tls.mjs` L332-333** reads `all = hostServiceNames(c.hostId, c.zone); certNames = tlsRoles.map((r) =>
++   all[r])`. `hostServiceNames` returns only the three fixed labels. The `rpc` name comes from `hostRpcName()`, which is in
++   S's `host-service-names.mjs` (F lineage `14d1e495` + S `36919aaf`), not in G3's `08bda1e6`.
++3. **The G3 tree pins its names module (`08bda1e6`).** F's lineage has S's names module with `HOST_RPC_LABEL`,
++   `hostRpcName` and `rpc` in `isHostServiceName`. Composing G3 on F means re-pinning to F's names module. Keep
++   `hostServiceNames()` unchanged: the RPC name is conditional, so it must never join the fixed three for every host.
++
++## The closure, as a minimal diff for F to compose (S has not applied it)
++
++- **The fronted set.** In `service-tls.mjs`, the fronted roles become
++  `[...Object.keys(HOST_SERVICE_ROLES), HOST_RPC_ROLE]`, and the name map becomes
++  `{ ...hostServiceNames(hostId, zone), [HOST_RPC_ROLE]: hostRpcName(hostId, zone) }`. That map is used for both
++  `certNames` and `routes`. The `rpc` name enters the SAN only when the operator lists `public-rpc` in `tlsPorts`.
++- **Runner agreement.** `tlsPorts['public-rpc']` must be refused unless the same hs2 config runs a `public-rpc` service.
++  Its `upstreams['public-rpc']` must equal that service's `config.port`. That is the same rule as the existing roles.
++- **Agent.** `hostServices.tls = { httpPort, tlsPorts }` gains the `public-rpc` port. The privacy agent requests the
++  `rpc` grant only with that port (S's transport change). The exit grants it only with `hostServices.rpc: true`
++  (S's provider change).
++- **Ingress.** No change on F's lineage: S's `isHostServiceName` already accepts `rpc-<b32>.<zone>`.
++- **CN and SAN.** `rpc-<b32>.<zone>` has the same length class as the other derived names (73-76 bytes), so it goes in
++  the SAN only. The subject stays empty, because the CN rule takes the first name of 64 bytes or fewer, which is none.
++- **SAN-change hazard.** Adding `public-rpc` to `tlsPorts` changes the host's exact SAN set, and a new order follows.
++  - The local budget is 2 per 7 days.
++  - Decide `rpc` inclusion BEFORE the first approved issuance (G3 APPROVE upgrade `47f3e1f5 → 84e5120d`, not built).
++    Then one order covers all four names.
++  - Adding it after approval costs one re-issue, and the same-set renewal exemption no longer applies.
++- **CORS.** `allowedOrigins` must be the `https://` dashboard origins. The role never sends credentials.
++- **Tests F needs before any HTTPS claim.**
++  - A packaged `service-tls` + `public-rpc` run under the runner with a local ACME test CA (as G3's own tests do).
++  - A TLS client checks that SNI `rpc-<b32>.<zone>` reaches the role.
++  - The certificate's SAN contains exactly the configured names.
++  - A name for a role without a port gets no certificate entry and is refused at SNI.
++  - None of this has run.
++
++## Remaining production gates (unchanged, root-owned)
++
++- G3 P2/P3: agent restarts carrying `enclaveNetwork.hostServices`.
++- G1 HTTP canary.
++- DNS publication of the derived names (including `rpc-…`) through the delegated authority.
++- READY evidence through every exit.
++- APPROVE config.
++- Exits opted in with `hostServices.rpc`.
++- An activated platform host policy.
+diff --git a/RESULT.txt b/RESULT.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..d375f2c1f7c4c7bbcb1a5939b1b87c74aa0ab040
+--- /dev/null
++++ b/RESULT.txt
+@@ -0,0 +1,107 @@
++PUBLIC-RPC CONSUMER INTERFACE: RESULT (S, 2026-10-23, work/public-rpc-consumer-interface-20261023)
++
++FOUNDATION (immutable, untouched)
++  - S 36919aafe76c743272b323c8bca27871b5219ab9 (tree 29794c3e3d0156e1a7ddf59a01cd56d78907a7b9).
++  - Report repository bea9b760b70df03012fb218942fe9098441ca47c in work/public-rpc-host-role. Neither changed; the only
++    entries there are root's own untracked ROOT-*.txt files.
++
++SOURCE (repo/, branch public-rpc-consumer-interface, author and committer SteveDeFacto)
++  - commit 4f7632d7f283bb38396a44d775b6a80afcd62f1b, tree b246ba51c100ed57bc1bae9481627d492feda970, parent 36919aafe.
++  - Additive patch: patch/public-rpc-consumer-interface-36919..4f7632d7.patch,
++    sha256 0c98a3801b1dccae910ee739b56176b09255bb3f7adb04bdbae4ccc6aad1e015. 8 files, +673/-19.
++      network/public-rpc.mjs          68433c77…  methods, validation, class labels
++      network/public-rpc-config.mjs   9cf0456a…  SERVED_METHODS +3, getProof unforbidden, LIMITS.maxProofKeys
++      test/public-rpc.test.mjs        updated lists + consumer-interface negative/prototype test
++      test/helpers/reth-dev.mjs       genesis option
++      test/helpers/packaged-rpc-role.mjs   new: packaged role under the runner; pin checks (a mismatch FAILS)
++      test/fixtures/reth-dev-8453-genesis-2935.json   B's fixture, byte-identical (99138899…)
++      test/public-rpc-witness-consumer.e2e.test.mjs   new (B composition)
++      test/public-rpc-wallet-consumer.e2e.test.mjs    new (E composition)
++
++INTERFACE CHANGES (role public-rpc)
++  - eth_getProof [address, keys, block]
++      - keys: an array of at most maxProofKeys (default 128, range 1-1024) hex words of 1-64 digits, with no repeats by
++        value.
++      - block: EIP-1898 {blockHash, requireCanonical?}, a bare 32-byte hash, a quantity or a tag. "pending" is refused.
++      - exactly 3 parameters.
++  - eth_getBlockByHash [hash, false]: full transactions are refused; exactly 2 parameters.
++  - eth_getTransactionCount [addr, "pending"]: "pending" is accepted for this method ONLY. Balance, call, code,
++    storage, proof and logs still refuse it.
++  - eth_maxPriorityFeePerGas []: no parameters.
++  - Block selectors elsewhere now also accept a bare 32-byte hash. eth_getBlockByNumber stays tags or numbers only.
++  - Every answer: X-Enclave-Rpc-Class is one of chain-state, proof-material-unverified (getProof, getBlockByHash),
++    mempool-unverified (pending nonce), fee-quote-unverified (tip) or submission. The header is exposed to CORS. Nothing
++    is labelled verified by method name.
++  - Unchanged:
++      - still forbidden by name: eth_createAccessList, eth_sign*, eth_sendTransaction, accounts, txpool, filters,
++        admin/debug/personal/wallet;
++      - the own-property allowlist;
++      - all body, response, deadline, rate and in-flight bounds;
++      - the health gate (syncing/stale -> 503);
++      - kind null; explicit profile URLs; source and host headers; no hidden fallback;
++      - the verifier's methods are unchanged (getProof/getBlockByHash are node material only).
++
++PACKAGES (scripts/build-host-service-packages.mjs, run in f1)
++  - public-rpc.package.json 300cdc81… -> 78f06b5b546fa2f7d6e57fb4d073e4e12f542cf0886fa1005cc80c51966d6319.
++  - public-rpc.mjs bundle aaca601b… -> b1e8f62e12ef152b5e5adbfee43a5bffd4a3d67694c72df9ea5d98505884ea81.
++  - directory-replica, bootstrap-replica, route-dns, policy-mirror and credit-vault-submitter: byte-identical to F's
++    14d1e495 build (bundles and manifests).
++  - Packages are untracked build output, as in 36919. The pin is recorded here.
++
++DEPENDENCY PINS (checked by the job and again inside each E2E)
++  - B 673601e54f8fdcf2ea72d239c87d92b483ff231b, git archive -> consumers/b-673601e5.
++      - list consumers/b-673601e5.SHA256SUMS = 1ec87930d684ac5dd6fb0fd6e7afe51cbfd181aa4efed79aefda7f2759770ff6
++      - witness-gateway 7209ef5b…, witness-verify 729496b0…, rpc-identity 74cb965e…, op-head-relay ed71c069…,
++        op-commitment 13263acf…
++  - E dc2e5d7402327bdd376cf3b90cfa23a551a37ba8, site/ + network/ (no packages), git archive -> consumers/e-dc2e5d74.
++      - list e-dc2e5d74.SHA256SUMS = 786507164c8b3642ff002a7feb3e77c7a8223a28f8d0e1bb68e5b480eb109831 (437 files)
++      - profile-broadcast 14917fda…, wallet d0e7482a…, chain adc2bea3…, independent-chain b8e56460…, quorum e2936e13…
++      - E's final production commit ae00cd9659e46e3dffe5407bdf34442416a9e69a has identical site/js and network/
++        (git diff empty).
++  - Package locks: root 9ada1611… and network 12c8c6eb… are equal in B, E and S. node_modules are real copies of S's.
++  - Binaries: rpc-runtime-final-integration/bin/PINS.sha256 69db0ff5… (sha256sum -c ok).
++      - reth-v2.8.0 8cdd1f35…, helios-eeffcc9 cc962e2b…, witness-check 4fe0cd3b…
++  - Genesis reth-dev-8453-genesis-2935.json 99138899… (= B 673601e54 test/fixtures; adds the EIP-2935 contract).
++
++TESTS (work/claude-test-queue.py via jobs/q.sh; job.sh: ssh/scp/sftp denial stubs, unshare -rn loopback only)
++  - e1, cap 1024, peak 661 MiB, rc 1, on the uncommitted tree: 19/20.
++      - The one failure was my wallet E2E's assertion. reth --dev quotes a 0 tip, and viem's parseTransaction leaves a
++        zero field undefined.
++      - Fixed by reading the tip with E's own decodeSigned. No product change.
++  - f1, cap 1536, peak 1082 MiB, rc 0, on the committed 4f7632d7 (dirty=0): FINAL.
++      - key scan 36919aafe..HEAD rc 0;
++      - package rebuild and comparison as above;
++      - STRICT: 39 tests, 39 pass, 0 fail, 0 skipped, 0 cancelled.
++      - Suites:
++          public-rpc.test (12, incl. the new consumer-interface test)
++          public-rpc-wallet-consumer.e2e (3), public-rpc-witness-consumer.e2e (5)
++          public-rpc-browser (2, Chromium)
++          host-service-verifier-roles (4: admin ban/unban + AddressBook migration, no provider fallback)
++          host-service-lifecycle (13: rpc opt-in grant, unchanged 3-name grant, refusal by name)
++  - The witness composition, end to end:
++      - Chain: Helios -> B gateway (sole upstream) -> packaged role -> proxy -> reth.
++      - Positive: fresh reads equal the chain; ancestry via getBlockByHash through the role.
++      - Refusals, each of which then recovered: a tampered header (the role served it as unverified), tampered proofs,
++        node down, stale node, frozen signed head.
++      - The node saw only role-served methods.
++  - The wallet composition, end to end:
++      - Route: E modules -> two packaged roles (A without propagation, B with it), one reth.
++      - Before signing, labelled: the tip, then the pending nonce.
++      - Signing: a local test signer, sign-only.
++      - Broadcast: identical raw bytes A (refused) -> B; the node got them once; the receipt came through the profile.
++      - The fallback tip is exact (1e6 wei).
++      - A broadcast-only (MetaMask-like) wallet is refused, with nothing sent. With the node down, nothing is signed.
++  - NOT rerun (no new affected scope; NOT claimed green):
++      - service-index schema-4 registry checker: A owns the fixture provenance;
++      - host-services-cold-start/carriers daemon stop exit 1: M owns it;
++      - hosted-services-stage (needs STAGE_TAR).
++
++LIMITS (see HANDOFF.txt for gates)
++  - TEST-SIGNED local OP head only.
++  - Both wallet roles front one node.
++  - Plain HTTP on loopback only. TLS is NOT integrated and NOT tested.
++  - Helios EIP-2935 full-block-by-hash is refused (no full transactions), so it is unserved by this source.
++  - eth_createAccessList, eth_getBlockReceipts, eth_feeHistory and eth_gasPrice are not served.
++  - Real MetaMask is unsupported on the profile route.
++  - Propagation is operator-stated, not checked.
++  - E's built dist is not run here.
+diff --git a/ROOT-E-BUILT-SITE-FINAL.txt b/ROOT-E-BUILT-SITE-FINAL.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..d23dcf28ad0cfff796bb2c4bdbfd4f49688d85f8
+--- /dev/null
++++ b/ROOT-E-BUILT-SITE-FINAL.txt
+@@ -0,0 +1 @@
++Eproductionbuild finalae00cd9659e46e3dffe5407bdf34442416a9e69a immutablework/rpc-wallet-production-build-20261023/repo; actualdistbrowserpassed1/1,receipt4/4/2mutants. ReadHANDOFF-S-PROFILE-RPC-METHODS.md inouterdirforactualmethods inclpendingnonce/ecrecover/rawsend. Sourcewalletunchangedsincedc2. Enewscope onlygenerateddeployartifacts/CSSreconciliation, no interfacechanges. No needduplicatewholeproductionbuild; youractualpackagedRPCcompositionremainsrequired.
+diff --git a/consumers/b-673601e5.SHA256SUMS b/consumers/b-673601e5.SHA256SUMS
+new file mode 100644
+index 0000000000000000000000000000000000000000..216011250f51290988a02100a250a8de11e04bc6
+--- /dev/null
++++ b/consumers/b-673601e5.SHA256SUMS
+@@ -0,0 +1,6 @@
++ed71c0695230c9400d759e792ae44da3a8fc27cf065abe9dddd9bec09411fe27  ./network/op-head-relay.mjs
++74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57  ./network/rpc-identity.mjs
++7209ef5beea5cf2f1afa471bf9d7b49babfdbb5877de63d9ee5159420d1389cb  ./network/witness-gateway.mjs
++729496b0e85475b7ca9b2dd6d8a25e365e798230be745e42de14b54edb81fd4b  ./network/witness-verify.mjs
++176365e77ddfe0cef859d07a2916e702f177854f34b23abfd1b806df9200de93  ./package.json
++13263acfb371966888b11158fefb80a82c1d0d1b739bf8203eed0a5d2b1d98b3  ./test/fixtures/op-commitment.mjs
+diff --git a/consumers/e-dc2e5d74.SHA256SUMS b/consumers/e-dc2e5d74.SHA256SUMS
+new file mode 100644
+index 0000000000000000000000000000000000000000..aa1742d2e1f967ca2e0477f072633781cd6f15f2
+--- /dev/null
++++ b/consumers/e-dc2e5d74.SHA256SUMS
+@@ -0,0 +1,437 @@
++d788d924f2fb3a6a7ab58f11cf0894ea26d30de8e1f43437cf9ed93427947b54  ./network/.gitignore
++ef08c7567b43fad0fee7851ee6f06c8a5f9b13fc9a04742e40c9061a8b39552f  ./network/README.md
++fcedbe9ff9c9c706508f0675cc1f16380b83d78c275942756ba999004c49f374  ./network/app-broker.mjs
++4d2d38d1d62ddc647e7e8a3ab530539dbff50d7ca6b68c59d726b3e0e9b03988  ./network/app-ingress.mjs
++b7122c98f759458ba7a4c1c6d6f2e3c4ea4e78564c81d6836924e89423bd57bb  ./network/app-redirect.mjs
++1a75caaf69fa192514c45b33c878306265a87fe25d2bb28f8ace86e560498ad9  ./network/app-zone-challenge.mjs
++b9ae9365feb4e84deda8a69c62fffcd376933ff30c8c92efe3f5025eeeb6e88b  ./network/app-zone-shield.mjs
++fd760b317a9b48153419919979d025190e2992b2afee6ad148e5ed02e0db0328  ./network/authority-profile.mjs
++bac818554bee24b8b9b78ed1f2fdc61c6d217cfe190715515c42a4c4c21ce244  ./network/bootstrap-gateway.mjs
++8bf488ba6eb4971c370463e69dd42b7cee23aa730ac82f400d405ef5873a9dd2  ./network/bootstrap/release-bootstrap-direct.mjs
++378b0fc63f24fc1ede9bad98462d05c86abde011869068014e4197e94a51260c  ./network/broker-client.mjs
++69ba8d18d91798400a0b4743942dc3341ac08bd419d85a6b782be736a74e0792  ./network/build.mjs
++5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3  ./network/canonical.mjs
++68e85b6abbffc4c7a80e20eeaf72af9200f3df05acc0896f93e1741e2ec668fa  ./network/challenge-replica-cli.mjs
++f025324b36592acffab698e16b2ef357df63357ebe1ae6a53e466295c9a1bb01  ./network/challenge-replica-host.mjs
++df4737cb87c2b68dbb3f1f0eede7d8e549b160de03842bc63fa5c8fd5f479bca  ./network/client-hello.mjs
++2ee2cd8c63861466408d31f55fe9610a9facf045b23e954ed67c14fa1cf557ec  ./network/cold-bootstrap.mjs
++c857a08f5b6eb1a94ff173041e353d9041b937083eb062382608e0dd5cfb17a7  ./network/connectivity-chain.mjs
++0a89412be69ee07be51d34e7b677e44bf0a397342e247cd1ad75a2cd887cbb1e  ./network/contract-pins.mjs
++2f361c888679246a332fc82f32280cb06ce5d5899a285826031c4a0baea101be  ./network/credit-vault-submitter.mjs
++8939a32af3ee41f4a9f172c74234f21ce0ae97ad7b97ed86856af3187c2c0da6  ./network/custody-vaults.mjs
++17a8fa7f4d8f64d7f3ff2f1f6d637f8ceb72061163f70cacad75d862b24c091f  ./network/direct-egress.mjs
++bbd7a453eb6cf8c65bd69668ba920440fede41ae06aeef48cea678449659c605  ./network/direct-runtime.mjs
++eb601c1d737f062bb1f7031980846feb93533fc5789512215051b4eacf571a09  ./network/directory-client.mjs
++b99b7ee80e1d015846153f013927b5c55e946160d60ccf564ff46d405a30e1e4  ./network/directory-server.mjs
++982107aed024d3682fc044a50ae98e44824972aa7afc49e610f9969e69adcf06  ./network/discovery-http.mjs
++523b69effc155f1d192902ef4ae6245e9a45cac2ec5d623a2ced3c6031aa40f1  ./network/discovery.mjs
++cbff291541b46975604c3338a5626685327832ed1a7daefabec72e91d4d754f2  ./network/durable-state.mjs
++24712de0ef45f8c363c7d96ce686fa6ac2a2e4ce35b9239f9f20c797a245264e  ./network/egress-map.mjs
++5f501a07145805e600dd7eddf7e7eb0353917addb430263d85723db5426bdb9b  ./network/egress-probes.mjs
++7af9e9a5cd2b8768f3bb9d1d6b57287b6dc3026bbb58a5d6ffec61d3eda8b318  ./network/enclave-network-host.mjs
++0559a0ece3084671e4d745d2d17218473584b84f393b79c724e0db8d9b668a34  ./network/guarded-fetch.mjs
++e26da7ff8175ad70bc1a3b506ba8f7c9567173ebc0f73e42061d12daf153ab56  ./network/guest-probe.mjs
++bbd237cbb52bd21be8081d6d81bdaf5dd6918e1108c706a5913a6f1821258463  ./network/guestd-ingress.mjs
++3ec697f489433cf4ee1f9a2a5e4000bc292edbcb48cd351188e278511b748982  ./network/host-admission-node.mjs
++a15c05ea4dfd963ba72be60af03f0a712f39974423abe4b1abc80cbfabc145e0  ./network/host-admission-policy.mjs
++db9b0738f84921cf1333e9f0381d2a27f0f4b069be4b90ad9d27ccdf02dded5c  ./network/host-admission-runtime.mjs
++d99a50e4c59c0b16f97d0832df9ba32b2cb06f0de4dd8b81d0700fa3c0441de9  ./network/host-capacity-http.mjs
++d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0  ./network/host-capacity-producer.mjs
++62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551  ./network/host-capacity-record.mjs
++ef92bba48fe197b81e7d7aa59b0daf44dedde849c2a05a79121d1ae42ccc8e72  ./network/host-capacity.mjs
++797bdf0628b6853bb68fb2a5d4cc10ea696fe34d524272713ef02ea72182f1fe  ./network/host-egress.mjs
++b856e5628c50185cb87813378f9e9a22d48257e876d0757dbbcb19e3261affa5  ./network/host-liveness.mjs
++10ba547e9a1237c0978701d8521055839b8042af9444e3606ed0ebf16c7635f6  ./network/host-owner-nomination.mjs
++6d641432912f26592543a61b202b287298c2eca13dcc9c4f98c3214618395c84  ./network/host-policy-adapters.mjs
++d7295d3806f00304d1ebb596fd380857a0f6b4a2702cb5f8e04427cfb4207660  ./network/host-policy-mirrors.mjs
++6d4a9b5a75abccf7d566bee75375fd16bf86428e427c4744140be9f3055d9139  ./network/host-policy-runtime.mjs
++053923fcdae3e68b4ff362b2d5681a2b95b3573674d46eaa92c650340bf8b00c  ./network/host-service-gate-carriers.mjs
++f829ec3b3aa9957853ac84dafe773184dcac282d9419d18eedcfcad9e0a91840  ./network/host-service-gate.mjs
++35238208b03e4377f7dfc8c82a5b42f2b55211a935928a7d31148ed8d52b35cb  ./network/host-services/argv-guard.mjs
++e38306bf4dc06b5bd8c7a19f47590f83ed8d701819e7c19b76be76d1770c7132  ./network/host-services/credit-vault-submitter.mjs
++30ff3688e825e39cd34a16b7ce4631c95c511053700fe5d894b5601ddb2b5e32  ./network/host-services/entries/credit-vault-submitter.mjs
++e866a2d8beb87db803d5b52fefd5b7292c82169b05d5bd4321f16dbb606bf37c  ./network/host-services/entries/route-dns.mjs
++2483aa0e2e70c1efe0f9a334b7b439baa2e4d400bba94f10b032c124b1963f75  ./network/host-services/entries/stage-tool.mjs
++05b7c409d5c9526fe3cdc898e7ce4b4036ea6348fd11b8bed2b33b82e25b8e19  ./network/host-services/lease-relay-host.mjs
++b0c1dc28b4365c5f1a1d35194cd49e0afd847d295f07aebf257d31b01d6001a0  ./network/host-services/policy-mirror.mjs
++38ae3befc07ac110b907ab37f0d33fda5e770aa4d0740820ca0ce8f48f2f3fa5  ./network/host-services/roles.mjs
++dae2fc81919b410c49e4d2e00f497f0921d4b75b47e3d6700004789adcd10c5a  ./network/host-services/runner.mjs
++1bfca53cb503681bad883cd608caa628c4fbdabc968d418b0056aa475cfb7a86  ./network/host-services/stage-tool.mjs
++ef565f7ee9161f06fe6554e9440efc0fdae80714fbe2ddf090417692b2e07178  ./network/host-services/storage-indexer-host.mjs
++9da71e20cb9c012b41e004d2731c19155af2235152e807561a03cbd24b19e586  ./network/host-services/windows-supervisor/go.mod
++c5aa31f1f2b470a810c0dc6bf49bcc63eb42a100ad9b093ba23a54895bf63f64  ./network/host-services/windows-supervisor/go.sum
++c14706afa862eba3f1d8aaca6a05afb712682211d61f1294a56c3cbd15f88283  ./network/host-services/windows-supervisor/job_windows.go
++f54be2cacd241ed65b5d2cf00f90526c2601f01684cd63f80ffbe9a6f8d49047  ./network/host-services/windows-supervisor/launcher_other.go
++f1a4e0736d7dbf3f15ad630910d126e2b00fd8d3a00e6e0ead567a431499a27b  ./network/host-services/windows-supervisor/main.go
++4ae51dde1dbb644f8b0e7e80d650d2eeeacdeabcf1eaf9d461c47800c6f08f06  ./network/host-services/windows-supervisor/supervise.go
++bce9efb84ec49db2f009172ade4ece800a82f6c82eb67d7cc1c6b7becb02478b  ./network/host-services/windows-supervisor/supervise_test.go
++d69633f84ccb88308868a4ce68a21eb911ff5949ecb8cd30e888d57684fcd369  ./network/host-services/windows-supervisor/supervisor.template.json
++88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99  ./network/lease-executor-authority.mjs
++c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a  ./network/lease-executor-client.mjs
++1974ad9378a45b0bffa1bf30e32802ef7abd7f863f7ec81371cd2c9650e1aaa9  ./network/lease-gas-conduit.mjs
++92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988  ./network/lease-gas-owner.mjs
++4ab0d467ab523f4a81b3e987b3292c4caea2e0d1ba0e7f23e57f8e018dc83d75  ./network/lease-gas-runtime.mjs
++a7c23474df4ef8a307c9c7b63f27c7bda2af02fc7c9786cc424545ebfa133d9c  ./network/lease-reader.mjs
++fe81d1581960b4c68694e140f20f2ff6b77755b105c32ca1d38e130db04c6f38  ./network/lease-relay-check.mjs
++c54749b70ca746bfc33922c1ca59b5860783d3a102443c17a0bfec6470cfbb42  ./network/lease-relay-discovery.mjs
++5b1864d4c86935339ec58a743dded5a6bc4c50cd7a27ef60004daffb8dc09be8  ./network/lease-relay-migration-check.mjs
++8565bb5d46017a78261ecbc87e5d979d35e61acb7808f4a59b95e411af9c816b  ./network/lease-relay-service.mjs
++6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6  ./network/lease-release-journal.mjs
++9654ed33662fbba11e7e76f492cb1cb9ba77b81b4ed783a89dcd61edc8c8a9fe  ./network/local-app-router.mjs
++4c4b3ce1c963cb326b722111999e0cfb4580a775d9cd5ad10d0415c21e9847f0  ./network/local-app-transport.mjs
++6513dd48a798bd3d5769eab715c3d5c2c4726af9cbb824e98a37e11516291c71  ./network/management-auth.mjs
++857dbfb5545951e02325a6e6959e1957394804cd1e4ec64a2b95fa95b7cd614b  ./network/management-browser.mjs
++8715250a3af57f03f8be952c2321c2652f5545538eeec2c3fe3203907fce2c33  ./network/management-client.mjs
++bf25025f03c883df4dd50e5c734bba6336e2f879175245a92a3a3622ba902724  ./network/management-gateway.mjs
++1998c241ab1f1d67467f508018d4827bbd7d37a1afd984a477aa8268b03604d4  ./network/management-host.mjs
++fea5703454b1cc9323eacc931a42c0f99f1895526f4926e787155d57e44c0398  ./network/management-outcome.mjs
++d946589d7f43a6169fcb8f88cbef9c9e933e24f42ecd3e72a41a38e936285eda  ./network/management-record.mjs
++0a47239553d4c4389227b5b56241fce955af87892907e7b70016bc4a9882dd93  ./network/management-routes.mjs
++e2f1f734e5fa422c0de596a30e2667c218ac0b75b4d4a76c622b15a29fb3feb8  ./network/metal-host-policy.mjs
++2323211bba89270b241a55961c918a5196d984ee06493438969e24f94d4cc926  ./network/native-client.mjs
++e224aaf4b7e1f8c61087ed479f683ea926bae4d2bec72fb62f3b1c4306278126  ./network/native-control-routes.mjs
++c24ef0a84ca02a535b5fe4352afc97686a75c8148b6c5ee3be67f30beb9e7e4b  ./network/native-direct-auth.patch
++0742176cf63c1a25fec4740b2377986cd8a5e221f507a344331db95a6fa5b54b  ./network/native-host-policy.mjs
++fbe3141976ef22a87173fb56def5d5545520c13667f61355d5a889b82f497448  ./network/network-authorities.mjs
++6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064  ./network/network-policy-core.mjs
++b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f  ./network/network-policy.mjs
++ca8d4b9dcd68dd5309f7bbe40f29597ae6256ea6e87c07e300e9455b1f7b8518  ./network/onchain-qualification.mjs
++ed71c0695230c9400d759e792ae44da3a8fc27cf065abe9dddd9bec09411fe27  ./network/op-head-relay.mjs
++66dfc694094979bd69456992b0343dbd6a1879791a92e054bcf7e0883a8d78b3  ./network/owner-names.mjs
++54c4670074acc1100c204f0830b9c1adcd48bea355bb8c43de64a09e20794a50  ./network/owner-signature.mjs
++12c8c6eba44bb9cbc2c25ab5a8e8c2d469306d96d135ed8f4d9955d129f44e72  ./network/package-lock.json
++0d8938c75532cd7e562c321370aff797ba79eca23fa740503a12dcd43247aae8  ./network/package.json
++e4cf1536557c93d647cfa9734bcb681ca093b0a5b819f0268dd69f8658dfad63  ./network/paid-network.mjs
++8a151bc08892c154bbb4023329f002b33627030ca987108fc1abfe69fefd4a06  ./network/platform-host-policy-config.mjs
++8198228d436f144a8d62126adc479df21649e098e076153939937e6eaf70dde2  ./network/platform-host-policy.mjs
++0c08837e91f317fce81585b484091362bbd6af1444d38f4b26be414358a31691  ./network/policy-carriers.mjs
++60d5b98d166443be4f2488b4c07c5be47040567b580060d9ca57f1d7c92a60e3  ./network/preflight.mjs
++3a2508680df2eb63673064cad9f99f2147d440580ef8bf2e1f5a9026ced27cc1  ./network/privacy-agent.mjs
++fcba87cbf15092565702dadae2a80668a09d8af3ab20225fffa294d466964a0b  ./network/probe-scheduler.mjs
++6805410319d6511ed0e6e4e88461bb344b85c96cb24ee120647a8c2c6c36cd35  ./network/provider-bootstrap.mjs
++b232f5c6223528ece273239a159366a88fc3d39af64801ebdc52a829145d65b0  ./network/provider-canary.mjs
++88d3bbf0bcc5ffb922f8a97c858238ef589bb5cff7d3c0c27cbc45e051e6f6db  ./network/provider-directory.mjs
++4d75313476ff8822924073de968ebd448580a4608351e0002daf4ca2b43d1e57  ./network/provider-probes.mjs
++a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9  ./network/provider-qualification.mjs
++dad131831db37c2ac1a060c969ec120ef1742f6c23840e8264e23dd32939b49c  ./network/provider-settlement.mjs
++befd0d68e3b1ac6f42efce82330013d94612b0d08ab2f82a648550c4cc8f0495  ./network/provider/enclave-provider-qualification@.service
++d13475c3d4c12df2ff4b65c522176c69c99031f8c39676a787a85613259cd726  ./network/provider/enclave-provider-qualification@.timer
++95edf767bb1958f65fd7d7b2dd4b88c3f2a09ed88526c8ff43cc927fb2135083  ./network/public-directory.mjs
++e69a9747e49f1134619f1c2ad850ec90ec6ba312e554c778b311c399b53e22b3  ./network/pvm-app-transport.mjs
++4436ac6e74bea1e7520d26ee1f72341aee8ba293ead16eaa9c3c4a55f4c7a718  ./network/reconcile-apps.mjs
++addd704e94df954deb77aaa70897f6ead3319f2217b5d781566613d35cb4063a  ./network/reconcile-core.mjs
++4973d7ad4800b683d23ff531dd2bfabb5cd00ba3c46767f223b53965839fc02d  ./network/registry-abi.mjs
++ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e  ./network/registry-reconcile.mjs
++32c7e6431482671ad0a278f6a98c696cd63b56101198a0fdaef6fb8cdb31443e  ./network/replicate-artifacts.py
++29b35689f26dda6704f4b3639e13bedc76e06dfb32274f4bdb65d471aac9fbb1  ./network/route-publisher.mjs
++9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1  ./network/route-record.mjs
++74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57  ./network/rpc-identity.mjs
++0c38f700aed373a037157ab5e0635e19ea15b5b75e493a87e94249f4b0fa0221  ./network/service-index.mjs
++b2f46b6879e3d0a3fd87911cf414710569eac8222ac326bbaae7461e32ffd2e0  ./network/session-authority.mjs
++487c8303a2bbdb8c1e1a6bc6f5cfd0977682d60df69c318649f6b404d278e4e2  ./network/session-factories.mjs
++1af59d09f6edbc42071f7ded3fb8d42c90232c57c12ae17cfec6724de66f1a4a  ./network/shield-expectation.mjs
++ab918908635334ee5179d2201270312b5517df6e0031457e1703c292601b0cba  ./network/shield-host-proof.mjs
++740a8be6d9415b3d79ae27104900283ea0984aa542ae0bb3fcae49abe75bd957  ./network/shield-ingress.mjs
++a10dbd620438438c4b9b257cfa48df9e4ec4aa1ff4cd846f7c2d73b608570f0e  ./network/shield-starting-transport.mjs
++5cedac9e6f3420f7381ea96b9cdf1d09f45012293f1af8b141b4c8bd9f8cdc74  ./network/socks-connect.mjs
++b90be5bb4b5185ebaf25759088819bf60f699c6b1be0bd1dc19e62c9bf9da4c8  ./network/startup-expectation.mjs
++5304f0bb52571f153cf9973df045f7add2d5cb833e88adaffc57057992588047  ./network/test/discovery.test.mjs
++3bd4895dbe68c6133c4d3455bfb289b0eaed365a1c5d24ff104b440654bde620  ./network/traffic-meter.mjs
++af5727e1579f8a01bead3ffb3a6606d63d3d843250f7038df2e1d7a2f456a08c  ./network/upstream.mjs
++15c0e6869a3a1d5ff4dfd9eb1c11800b515f885ba40479e433f0b2255b534512  ./network/usdc-bandwidth.mjs
++cc1f88706d1e4da9fe9048ba3e4b6dbd755edca0752ef39c8a873aaaf9427df4  ./network/verified-chain.mjs
++6e301e1ac0d4249bbe5433fe369e5a7bf3a1c938fb914a29c0ef8b8704524b30  ./network/wg-circuit-runtime.mjs
++862ad9af3be20ebbf1480785facbe97bc34fc675e3a0455b1058749a0b822c86  ./network/wg-config.mjs
++b49660130a96698f044e1251e772d21028734aeff8ef4a6410145b304c0e634f  ./network/wg-control.mjs
++014b104971034599146a9235f6858c04a3d8484bf4e5acc7b2589fa6205f3469  ./network/wg-grants.mjs
++00d0815c88193b0da3e53972965716358046982a1f820f59b02bdbeb73d2ebe5  ./network/wg-manager.mjs
++1158fa7c4cd6dc5bf8e1f8c2834d9523df3c9c5c61908ee814653c585f6d5c62  ./network/wg-provider/checker.service
++6abd2ca468b83a88555c2478807f561710326c3d93ee75619204d2a04f104b1f  ./network/wg-provider/control.mjs
++5c8f8dcff59867c27cc94845065cd52279268a36a6a5b6bf0fc1109a91ce0da8  ./network/wg-provider/install.sh
++96182bb51aa8393a14573c08e5114c51f8e24bbdb55d70703ce8ab377c226a8f  ./network/wg-provider/kernel.mjs
++0bde499e9b30ab561f2b20bfe4867517e30f07ba5f6c19df41e13f591db0d864  ./network/wg-provider/main.mjs
++ebe660ff01820ac516b0802994672136b34eb57ce8e54674f7a4085e9ede1626  ./network/wg-provider/paid.mjs
++90ce11c085f6bac0e2c8fd9409058c50bff17640d2c02e844b7771b3b40cd531  ./network/wg-provider/provider.mjs
++81127efb279abc49df1f3fe7beeaf4d32f5de3f203bfe9fc56d1257a9d5e784b  ./network/wg-provider/router.mjs
++85946db2bf9d0fe9e63836af64795a540e628824f393dd582104a556e00ef9a0  ./network/wg/check.go
++82e2a5ad16e645cd287cfcbf11e78a0a7efb067aba0be9a2c8a543c1cb88e1ca  ./network/wg/cmd/enclave-wg/main.go
++68561a30668177bc8f549b6215fa32b5f7cc5e0060c043d8b68ad450326bae00  ./network/wg/connwatch.go
++455250d3b1e76af62d21f38a22a8fd8b080f8397274c3f45ec8a9d27c5267d7b  ./network/wg/connwatch_test.go
++3cfb1645d1d30f312dcc3052880c44ee5b2fa21deb077605536befc504830c0e  ./network/wg/forward.go
++23951c5fef9b635a592ee767d9485e881362e3ba81c7404d7f061edafa928b22  ./network/wg/go.mod
++751c708053c53e5451e046fa667cb0af61cad3899cc440f335732a9507a9876f  ./network/wg/go.sum
++9b6c1f67e41fd2b987d9fda6bd4b01a875930c1dd3a0348fec8873fd47058736  ./network/wg/nsbind.go
++940e50b45fb63dcc09fd4fabe0e29e642fc7ca86487569cfb1e7bdbca46bc364  ./network/wg/pace.go
++7eeefff08b846415dca18b970b092dfbbf57ca60871be3da4aa6706899fb28b2  ./network/wg/pace_test.go
++34ded7bfa497096d21e98814cb35b40d595bb4ffc330e05ed9d62eff76208559  ./network/wg/pace_windows.go
++c77fbd8edbe3af40e807e398acc8fb99013786eec335ee2fdce7e31ac3b0135c  ./network/wg/policy.go
++390b47b1349335e674ec8e5b31bb5bcadfc9b0a999bf317812f0bd3edb585982  ./network/wg/socks.go
++09c1f8a5b7b0c770adebf27af3e946a4e97aa585f6516641f39a1b9075b898fd  ./network/wg/tune.go
++6510d065e3c905382ea80b8003e6ea2088bc23482dea9b5bab37dd85f3ef60cf  ./network/wg/tune_test.go
++d8d9166fc1273bd699654ef66439b79b177de47e6a6a3137cdbbfcd12c04c6d9  ./network/wg/tunnel.go
++72d256d5845a232a1d9581f8bc1eb06afc20fd4df586d390cb2d47af3e619e52  ./network/wg/wg_test.go
++57a39332727db6978dd593e1f277c46c7b39a49b7a2837d3b3bd0360697ade77  ./network/windows-circuit-worker.mjs
++fc5a0f7a13be26e0270981b10ca47a194db245377999a27a407fca81ea12b0b0  ./network/windows-firewall/go.mod
++6d3c5917e14ab96cbb8be2131b9904d04ec6107a8f50ccae83621cfd443daa8b  ./network/windows-firewall/go.sum
++54c91c53ab19a5e19d0558848de9878168130e329ecb43701efb192a1a538ed9  ./network/windows-firewall/loopback.go
++5334e7420259cf742e6aad05d1bed7a0c03f1736993a429e0f6bc590eedc95e4  ./network/windows-firewall/loopback_test.go
++5ca6c5f8ad3ed083d9bf5a35ae169d33645b9c885463330cdf3ec8aa38333b85  ./network/windows-firewall/main_windows.go
++8716c191f4ff0d018d58c62c03c2bf33858b541f5c5244c11e3a574c9862adb4  ./network/windows-firewall/remove_windows.go
++2e9d2f2d1cd107a288accc376399b95ad58372c764471d550290ae27d9e486bf  ./network/windows-firewall/sandbox_windows.go
++d1944b1f1e6f4aaf1e914309a9f2c68d05be9f5d93141f2a8b7d400e2c1c24c6  ./network/witness-gateway.mjs
++176365e77ddfe0cef859d07a2916e702f177854f34b23abfd1b806df9200de93  ./package.json
++d5d9fea5a8e6ad863d86e4c7ba148fd0a10a72fafb489241b323974fd75c4eb4  ./site/.well-known/security.txt
++3843360c120decbd5ac2e8a97018fc16ca8fae517391276804efa2310f43c140  ./site/.well-known/sso-signer.json
++6ea2fc3f8f508a8ccb6d4feef01f7a33844857b7aa82350d4027340a5479c104  ./site/404.html
++47140c4afb46e00e0bc8da0a5bdd63d9aa42b37b9a7e28f9028916b28a9336d2  ./site/_redirects
++0abb65a7cbfe49533a3625bb00d0915a98f617625902d74e4efe8b54a88ac0b1  ./site/admin.html
++1eefd80f85c7e775cffb0d0afee3fad66be84b005bb4d8eb136692684b68ca87  ./site/apps.html
++85cc1c7df854e0f67b1822c75dd181f412fa39d21d33518eea165832c91eba4f  ./site/architecture.html
++aeba1a827cd7666e525c02007b4af06ead961e5e7c9c7be8543331f21f616e43  ./site/assets/apple-touch-icon.png
++f8bfc0383d8ec2d569b45d487e7d696f7390c02dc43cfb49cd8160246b44d06d  ./site/assets/apps-cinematic.mp4
++512ac3f07a03c1fdae4f66497383d547c420b8969cea7497f67dbd4f883c06cf  ./site/assets/apps-cinematic.webp
++506594e3506ce49ca3a5cb7fd2c3f81fce17309ba458b3c48a0dd3b334668aaf  ./site/assets/compute-cinematic.mp4
++6483eeae11b3cf39f7ea6769f02aec0b3ce0223c7a08e56eeb921ad032a673e7  ./site/assets/compute-cinematic.webp
++da2ea55db7830463ab791c3db95a0f2aa166ce4d42d104e82e203bfff6edb82a  ./site/assets/develop-cinematic.mp4
++30548f92247c8b038b6e1f4b4b38e0224e9b18cc2a8c14a0d5555585eb43de11  ./site/assets/develop-cinematic.webp
++47e05a3bf69c9c3438e95d58c01f7d3a49a50c5ee048199669bbf42716bda31a  ./site/assets/hex-grid.svg
++9101a916560cb29b8c701eab0e15a86d3810a4c16c1426d4cde0b2b3380a5c57  ./site/assets/host-cinematic.mp4
++19a71f5ce5982a232a54718f84ec1860e01ef3b01f5e371248777f2646d19555  ./site/assets/host-cinematic.webp
++5d137076ff7d0be469a3d0c8b5fff418055df013e0d83a2ceea8aae2dcf3c452  ./site/assets/icon.svg
++eb408d3a7dceec7f6fc54f9700907c958366b1031fc69232c013e896a548c43f  ./site/assets/logo-1024.png
++269e863d97f4db3672a43058d90b29722f965595d47531574d6c869500bdfe37  ./site/assets/logo-180.jpg
++c659e1d49c6db2eaf551e83a41fbde012c4e96c0278a702702a38aaf966b54dd  ./site/assets/logo-180.png
++6ef5b35b62abbfafd014bd6dee0e7f530783b1aefbf67a54b2733e11a867780a  ./site/assets/logo-512.png
++bcab31e86e500c89aee95c18153c0949810d84f872e6fca960cb6bbe4131623c  ./site/assets/logo-dark-180.png
++bad50e12cf08a2f34679ea365851cd2bf9cc637ac8f8d2b21de4db04f9c3a8e8  ./site/assets/logo-dark-512.png
++3e0f70fd975014d6c4856c5cd4f2ade5fc79001e3ebc135ca1f0244f33f5705a  ./site/assets/logo.svg
++925e4407c5856b91e0ce448a8ec51ed63a28900aa03f13dfe8048c98a9228175  ./site/assets/og.png
++de0b6065cd463a213f4a2ea5e045b5d077b0ad0610e6e480bf65992cf79c6700  ./site/assets/steven-clean-v2.png
++78b9eeccaf34e8b01ecd83fb3e23a1c744687c4ab6be3a15c33a0a671e7f5cae  ./site/assets/steven-clean.png
++8d55dd07d88e03af02eb56120a4ce75d4a684c1fcbb8f28fb0d8be6db9ea4abb  ./site/assets/steven.png
++ef7caf06321816777a39f58429b72c2b30e0d44ed5cd7fbfea7dc17622f3db88  ./site/assets/technology/amd.svg
++87b9c85a8b3ca7cb14db8e9149254634da84781ccc34b2d85bc1780c7d60c2e3  ./site/assets/technology/arm.svg
++a3ccdb3f3569d54709d6702bc06333d787f8207513354b218953ee31b8771ac7  ./site/assets/technology/aws.svg
++99bf4aa403643a6d41c028e5db29c79c17cbc815b3e10cd5c6b8f90567a03e52  ./site/assets/technology/google.svg
++6d81b3bb7b058be27062fda520b5aaf23402db709af3d62d8593a39cad715fca  ./site/assets/technology/intel.svg
++112fec798b78aa02e102a724b5cb1990c0f909bc1d8b7b1fa256eab41bbc0960  ./site/assets/technology/microsoft.png
++b98cd51cf1cb8242c00f9869d54311498311f5acc8c767d7de127419b4d5b03f  ./site/assets/technology/nvidia.svg
++a91e4359a1ecb695dd54e8e475d34b3a21294c8b5876886c632dc4a52afe91dd  ./site/authorize.html
++79f6dc5f4c718b4a52f98c4639808dfba62db11173453b2bc9e8ed0c65678cb4  ./site/checkout.html
++d2c19e4e21a30cadff9b64ffb8fa3401e561925fef7ce922fbc9eb842790387a  ./site/components/admin-console/admin-console.css
++9a579678b180b7778d36a43a871b8af8631e4c43ff076aae6a10dce7696e5fa8  ./site/components/admin-console/admin-console.html
++f9a714e9894195ad6a777af22fb29b8e09b81f93ad266e8761e4aac8ef3602a6  ./site/components/admin-console/admin-console.js
++299350f9bc7e2a15c35503672af216e2161be6b3affe4053ea89eab2eeeffc77  ./site/components/admin-console/escrow.js
++f2e3df9f45e748a6399b54150d86c7171c6ce52b40ea16661af974e4581afb84  ./site/components/admin-console/metrics.js
++214705d527bbd9573041aa053ee171a58b19419206e5409e2f3570454ec3e360  ./site/components/admin-console/migrate.js
++7227d495215edca21fd4d828ec9ff5eac0a5d3e09ccd8fefc6c9015d06f172a7  ./site/components/admin-console/migrator.js
++36e328cfb93256d20694ca36e7d5d401d1747ddcc080aadf6ecb9ae9150c4fcc  ./site/components/admin-console/provermig.js
++b700fdf9ecc380ba90057d4762aaf0883d0e13ea7d478d3ba6dd7095b109153a  ./site/components/admin-console/vaultmig.js
++8ace734e59ee142b8e334fb9059ebcd50ff36a0a6b55bc094432613409437a54  ./site/components/api-reference/api-reference.css
++5d7a9f9e9e1136070c371805be810936a289a72a0039effa2a055ea4187bd273  ./site/components/api-reference/api-reference.html
++6d389b0a8c4b2c52ffc2d3db02e29d0c25fb9a8490e83058e378b7cb31bdaf0d  ./site/components/api-reference/api-reference.js
++81bef08a5b30688d6b16de16f5d4e89476f3646412b6cbf49bd2a34d8b0b2198  ./site/components/app-card/app-card.css
++d36739b297f36f4e106a2f10fae89c1d2c1a4e29bbfc1b3f3457b7476e9ac140  ./site/components/app-card/app-card.html
++5b6c6b62b34ac02fa9efd9233732b4d98cc308d1a7771ddf66f6598858561e64  ./site/components/app-card/app-card.js
++cbed190109b9a4a3c94d00e754598765c4d0b6f7512d10788e4d5aa2e606d4d0  ./site/components/app-detail/app-detail.css
++cd5dcea196f17b817fe02541fff51f2b66e66d91d35221b50c5b81da5a57efdf  ./site/components/app-detail/app-detail.html
++096e48c88fd74f9425280682f58c12aea1d407d0967f40eb1dc995b673b31921  ./site/components/app-detail/app-detail.js
++f1f0014d16793ec6fae8f1bd1cecab9a0a75d03570e0ea8f3c04a547e4d88cef  ./site/components/app-reviews/app-reviews.css
++754384ddd188a9dfbdcf3de8f47cef0e42da9e1c64dab604f5efe7d657d97bf2  ./site/components/app-reviews/app-reviews.html
++d8acdb88b08cfd95b6e64ccfa06ae6d94df2c06c7b277706c39a0ade5e7c9bfa  ./site/components/app-reviews/app-reviews.js
++57d998d0b2421f8aaa9305c4521a94b2df38f86a19c2f208ba6df43e4c28c9cf  ./site/components/attest-chain/attest-chain.css
++5e1076c271f3b72852bb632f1410b5b5b01d7c6f2a893291b9adc5f9a79d93ba  ./site/components/attest-chain/attest-chain.html
++0f258ce3a993b404d20b9231b2a6f4e61342f44e4e96f58b60c196269f8a3485  ./site/components/attest-chain/attest-chain.js
++687cbd292b222e53db769e46697a8c07ef6a36c4511727cbcc520db927951cb5  ./site/components/cinematic-scene/cinematic-scene.css
++e7841c9d0f963a6d25f8e897878c61b2eb3ac177e9140cf75cb3845e09a972b8  ./site/components/cinematic-scene/cinematic-scene.html
++35db3bef89e693bd6eafbca6944175efaf3e5a62008983da798e7f8946b16b4e  ./site/components/cinematic-scene/cinematic-scene.js
++e1d335e21b5e9501ae985cc14c3cb05247a20eada22ba2d61654ece971ed9bdd  ./site/components/code-tabs/code-tabs.css
++4416243b2e1cc6338415d43dddeb2e2476f1a66c3c7133d236422e57f2039f8f  ./site/components/code-tabs/code-tabs.html
++6fea01e8b8eb02364bb6bb6ce342ae5c63790bcbf8cc5261f1fc16b31e841cec  ./site/components/code-tabs/code-tabs.js
++0318b9905c4b1fc8200e1a2dee509b8cddda76f270aa7061c264bd114173dbf4  ./site/components/code/code.css
++32390f3c1f7ea34a2a05ba8f02215f80ebbcd35b1e592b69bfc8860b3fc22e99  ./site/components/code/code.html
++280f0af58600ec9362052e25c55624d221186ccd7e0c86fc722b6e2923cbc26a  ./site/components/code/code.js
++275731e26f90d3fc4b1985a5de692dbf5f8e7108f72fc5f6336b44556f9ebea5  ./site/components/deployments/deployments.css
++e42395489e98f266fcb620f964823f1070879214ae7e0360afc014407490cdf1  ./site/components/deployments/deployments.html
++cad9d2cc303a8b1ec8c55e95b68e31eadf11e31daf84cee91aef0b555cf3cc5a  ./site/components/deployments/deployments.js
++98f1485fea3756d8d4a4144641bc772e1ed29cf6714760d60fb96945285cefbe  ./site/components/enclave-panel/enclave-panel.css
++5f1bed5ee3872e382a8718c827c57da90d20fc124c039767f3923a93b6b33eec  ./site/components/enclave-panel/enclave-panel.html
++99dca63e4259be246434376e5c75b9ca9bf4a575407e2ab61c40bcb5ea812f12  ./site/components/enclave-panel/enclave-panel.js
++403b02cf1d021be910c618816bb16181801927c77c5f8554a0c6d0f2fccca0fe  ./site/components/fleet-list/fleet-list.css
++e620590af12b90a040a27fada1728ac1e3dbbf4c0517a3ccfdbcf4d30de11aa9  ./site/components/fleet-list/fleet-list.html
++92a69e4c099755cb821ae7aff4fbe46ff0db831abf52f63f15615f1d9994400f  ./site/components/fleet-list/fleet-list.js
++7cf3a91dadb2d07ff5f25194e7a9bb65d7a5a5f280cbfa12714a4b9808be8986  ./site/components/flow/flow.css
++c35982fb9ea03a0cfd58233f00b8c03102db923f570e0aeaea71eca50063ba82  ./site/components/flow/flow.html
++b077e9b51b64d02ac37cf3ec4d732c4a53b0ab1b1b5e93314b6b788ae3ff5d1a  ./site/components/flow/flow.js
++b999e6bc2554fc46b7908f299a241dde1d7b22d76108208e222bf87e0bc730a7  ./site/components/footer/footer.css
++72d95953de2982f62b4efbffec3f6630090bd4839816b93ded4580e9e75905d9  ./site/components/footer/footer.html
++e316319a3ab3f38af03b341d73370380f53aa0ead1920c82fd7890115eb6b11a  ./site/components/footer/footer.js
++5490dc2ce28177d2025a2c73ac90d1a0fd9d6bd8c654dbe85bc58573ae552a81  ./site/components/header/header.css
++efac44b1b8b4a20e7a8b9f9ef9448c6b0c115630e0b8fd66316720d4024a8b42  ./site/components/header/header.html
++14d77dd2fcbba022fe6d7cad7379bd23ce0eefb0ed9c71e48b76309ef0df35f3  ./site/components/header/header.js
++2d19a1fb4752db57bf3394292b03aa9b7a559e4335e8629dd34ef8e1c482257c  ./site/components/live-verify/live-verify.css
++32b93c9fb4385bd3e2940b001103114a1fda1a7c772a9afb03b9ee2d78132b6c  ./site/components/live-verify/live-verify.html
++937be1d685d4f04ad1b89303282ee7c4ae907e9585079ff4c8cbac7f23d369e9  ./site/components/live-verify/live-verify.js
++bbfea3faa8da561784e1e7ddf9c63a0d6535de278c6019620951456632b27cd1  ./site/components/order-status/order-status.css
++b91cf41b8022b1d9436df0b8aec3266a81e6a4c60a46574bc11b10a3d63a83b6  ./site/components/order-status/order-status.html
++71191ef9909513a4ac5c8cdcb2fd0c91fb086bda3ffe353a2d37831a6a71ea0b  ./site/components/order-status/order-status.js
++3e22583a8e10d87aae0f0588b20fe80dffcf39afeb8132097a25d0ec105bee90  ./site/components/section-head/section-head.css
++8a666295021b03b6c1ffc11d48d18e5ff2eb59185849722441732602931dcea1  ./site/components/section-head/section-head.html
++21281f1c920499181310383cdcdc75e4ed621d119f24c459782217789ae192f8  ./site/components/section-head/section-head.js
++3400ed23b12aa5e3efd65c8dcdd833d8604622be0cd5a35dbe45150a25a85bfc  ./site/components/ticker/ticker.css
++bc032c72bb87e914586767fe4d2711f007fa7f8d6f03337f8aaecff3ade12190  ./site/components/ticker/ticker.html
++eadc5f41f5008c0096bc126bdd1cc604cf05038a772b459b87cbf69447a1bed3  ./site/components/ticker/ticker.js
++8b245abfa7d4e1aedfe8002bf4ed78de0fa533e57ad69577ee7395b500b25f44  ./site/components/toast/toast.css
++0e89127f552d48c12139d6eb397c0da1e05dc693b9a16c54fddbc7df31c125ac  ./site/components/toast/toast.html
++dbafe2e63558454e2b29da08e0486f7c935f10a416f167ae7995b16ddf8e8a9d  ./site/components/toast/toast.js
++134efab9d414f9f64120387db4ddf604abb004ada67dfc76e8ea3b5dda73d12c  ./site/components/volume-picker/volume-picker.css
++7128acdfc5ae97261a47ef629f94b5515f0506ed2458c3a9fddd6dcaa28be426  ./site/components/volume-picker/volume-picker.html
++2eaa38f4e1995b5ac849b295e0a67fa66d5057546e2ae936abdc0e02908865c2  ./site/components/volume-picker/volume-picker.js
++3ccde7920d191e5eae32576bf615a7441d3961551d4461fcb1e6c265afd4b31f  ./site/components/wallet-button/wallet-button.css
++cd77c04b5045cf56920216544a2a7cf8713427d860d0cc41530257383c4ea2a8  ./site/components/wallet-button/wallet-button.html
++c7fec3deb421dc3c7c20501c2f75c76aa2f1655aa34d097b396116b3f1bbe0ed  ./site/components/wallet-button/wallet-button.js
++bc1885fe071da023158157a390887fa1b670ce98f8876488782340dd36f0cc75  ./site/credit/credit-config.json
++b36338e0f7601faf5d5e39e254d86eb465c11ec2178a5b348f7af3fc9d88b9b4  ./site/credit/credit.js
++4938cde7f76bd9fb4a4bdf6df6905818066a021078b9da567a5c24276e0c55d1  ./site/credit/index.html
++623a302d5024e5f5292e400649f2aa506b38bcf6f3a43bf6808622a53e978337  ./site/css/site.css
++3b842c09623078d13c72e334a5e8aa1c218f9cf319c1d3f329512ba30ad67956  ./site/css/src/apps.css
++3ba7979eff0c1d83cb870521bfb5105b2e59f51f9e4d35d7b2f3752a3d2209e0  ./site/css/src/architecture.css
++db84eb8a706f4454d73fc266ddf9a4de77b5add69c6bdf57fe6714dcfb1d7975  ./site/css/src/base.css
++194b491ebd77a00cc5978fb75de73106104cb7cc076afe3aba7d2ea258fd5bf7  ./site/css/src/checkout.css
++95d7a4c28d16489d7b2f57b527230a8d29a9bc2c9659ed2cd952c284f7f497a6  ./site/css/src/dashboard.css
++571da057fe23ed864d3b54d1c75cfed0602b7045b4371ecd1404dfe7fe70729a  ./site/css/src/deploy.css
++462015f41053ff3ddb4c76c2c320281339919dffd551b8252f81fa2d60638fd5  ./site/css/src/develop.css
++10ba78846bace39f2abffb4217ea9ce23d539397eaae565f29d3d103ca394885  ./site/css/src/host.css
++fc5506cd6f3c27506bb4c73de9c1e9dd4e5affab63ea7c80efd08129a0383e76  ./site/css/src/link.css
++86017a2f7a4321b64e04597b43e277d56ea81c6db49df78043eeb4b44ec9dea5  ./site/css/src/main.css
++3420e36725fde36fa653f114de24a7984f9fee019b75d4b2d7f8002fc8b9d980  ./site/css/src/overview.css
++b7ceb881b3260842ba9036f7f747ed347611ef4c492a722166502a5f628abcf3  ./site/css/src/responsive.css
++1a90dc75db9d8e745356d29469402c9d63c3ca7706f89a6ba47a97cbb334fd66  ./site/css/src/sessions.css
++9f9f769da83f63c7b331e78eb88a996316ffafbd0aed905f96fd34d51c3a258c  ./site/css/src/terms.css
++7a09d2cdbbd25c440bbee327e2052773b3a24546fce343a099094e63239cde27  ./site/css/src/tokens.css
++d7f59d20eadcef1308934b3f901812751238d93886626d01f00bda61ae8c65c4  ./site/css/src/visual.css
++2f13a27bb88444b656ed142f4e710177e748eb7ac86793025e082954450c6ac6  ./site/dashboard.html
++251544d3143b0b572242864958f41fccdd9dc95b52d72266528afa6ef833c827  ./site/deploy.html
++e3d1189b4297acf86924fc2fae5aca1a93313f706fba5ba0da5b33ec5421ee5b  ./site/deploy.sh
++a349cbcb0954e5ab6fd3644faa18fdce9ab93b173d8fa6210a0de68ca676a126  ./site/develop.html
++c5b46abb8aeefae668c04256123eb8318b5a69f81362a13f3d173bf3be67eac9  ./site/favicon.ico
++6d369e8ca4199e2db697651bc6097b8fd15fb357fc498ef6fca6c0a0c84a57a8  ./site/grant.html
++dd32be9af1d144a0d33ef332fa253f15649036f00c3fc5e662e7f4251ac947d7  ./site/host.html
++825fa8cfb16520575e47f55445a77bd8bc22819cfc2e5ff5721f083a81e6cd28  ./site/index.html
++cb1d6710682a25f2a190439fd0bfade4aa4230e3ea5170ccf8fb0f5ce2ae1ac6  ./site/js/boot.js
++4e73e0a6cbb1fcc4c824d31f498ae267d05c413aa53e12d3ac28fd47caae4007  ./site/js/core/account-providers.js
++e632ace653e5e787bc871cb0eb4a1e61805fd9522d2fe183e3b49d3e3da2650f  ./site/js/core/account-transport.js
++b42a5ac457c50e58865a7bc6e6a9671987c1cbc222510bb43bc625917e64daa6  ./site/js/core/account-ui.js
++a494c36be529e308d15fa875fc0e967447eea9c6144165436d6b3680bc8fb921  ./site/js/core/account.js
++2417d76715e9f0ed9a0a9f72859611bcd14419bfde86627f235197671dc9a2fb  ./site/js/core/addressbook-reader.js
++cfda4cb05f13b4aed7088c785ec0d8a9af792d27f3bed2113d8d66e2f672be34  ./site/js/core/addressbook.js
++3f9e4447fec47fb9cde2960daceb569f6645862ec341d83e15daa0eba3c2bb96  ./site/js/core/api.js
++545534a2d4d6fb3f478d8bb78a104f6076bdaa6997b4dc89e017917984578d1e  ./site/js/core/app-access.js
++cef17691ca23dc0a073f8ff3640ed21d2d430f10eb7e20e74ccc44e8c3b4c644  ./site/js/core/app-resources.js
++ac4e75ee4eba6f55459ecae8e79885708d56776854a0fc9e7e1977af2406554d  ./site/js/core/app-tls.js
++58806185a5ed3fe70163d9ec04ba129399b2557d67270538e2efb0aea949b6f5  ./site/js/core/catalog-policy.js
++f5e518c91203c3627adb6ab123901516cfbc260bb736db9250d12050697ff3ce  ./site/js/core/catalog.js
++adc2bea3effe5e0b984e60683d74ebc1e7bdf0a110d55183daae1a4c30a24dee  ./site/js/core/chain.js
++945ffc2a612fff95b19da21f9396c8c6578fad661775e5be3d56ec3ccb66610b  ./site/js/core/config.js
++dc2e293310bade5a3ab8d588b97589360c2758a10e988ee5c77cf9a5f3f05c39  ./site/js/core/credit-vault-independent.js
++7afeff16bb6dbdd3fc4e00744050d1242cfc2a6f4f623e344cf084ae6fbd3627  ./site/js/core/credit-vault-reserve.js
++847098e1ea941e65a5f0743c1f4b6dee29928f25702a54ed64a8c23d0a977950  ./site/js/core/custody.js
++1e2c14e56fabd7262143e5a802f842d2dd4cb1c1853501a707ad699aa03b70da  ./site/js/core/deploy-status.js
++29abb3f96fe7e730ac73cf93cfcc1755fb1f24ce571630dc565ebcd5d5902bf7  ./site/js/core/deployment-move.js
++1db3a3ce66201b21f7cebc166e9608a863454805db7ce82ee0eedd2eadcc960e  ./site/js/core/eip191.js
++abc4161bc8a8097ade8e1964fabedf630e6ce0e0565d3e5a8fce6c6cd5f24609  ./site/js/core/enclave-network.js
++5a43cd7321c7fbaf995affed844264dd3d27133c33a9bd3f17a383662978f5e6  ./site/js/core/featured.js
++3b7b45a9fe364aea947d9dce98d1f0d48205eae82662852a8060bd32171e5681  ./site/js/core/fleet-read.js
++bfa9af487d6e0433c70d1fab694fdc33792f6054a8207d57aeafed9aa0985ccd  ./site/js/core/fund.js
++c76bbdb82dc8b5d9d9e2cbd189fe550138e948f5ab5f61df78bbe9b17e6bc07e  ./site/js/core/grant-check.js
++68196e50b1a87bd0f2ccfec966504571ec1382320eb4bd7fa1056f5f6e113552  ./site/js/core/history-checkpoint.js
++0c0227f1c15a5ab9028e7e122f62548ef965340167ffaf01f16fcbf44e43c3fd  ./site/js/core/host-liveness.js
++62d55df30a97efc12ceb332e4122fbd3f98723e27046834530f27b07f1d047e4  ./site/js/core/host-policy.js
++e4d680bba9937ff188c04e0d7d2d4421db6c1c09fe3e20d0770713117011ad8a  ./site/js/core/identity.js
++b8e56460458f1124ba67118af8e97ebbf8fa169103c3c42ce84dbfecd5a610e8  ./site/js/core/independent-chain.js
++1e611c8a66591aa5d42ab35b0022a64089240788e7ce1ece11aeef07d2506dfb  ./site/js/core/independent-list.js
++caacc47fab90514d6bc8894c9d1127b4121cfb9cf48d5cb1846c6b1cb955673b  ./site/js/core/independent-management.js
++7d0612d6086c72d8180f6c60b9252d0549ecf7e37e1e7e2a8374cdab8841d9b6  ./site/js/core/independent-ui.js
++3693175b3a71b15c01ba38152ac2a620abfb587665bf24c21e71ff62b6739932  ./site/js/core/independent.js
++9e5e840734538ce26fed7fdd68ceb7cdc65df8e777341e9f8f396d1104615991  ./site/js/core/isolation-options.js
++ee3929ff49bd8c5b054fea158fd7e9e0de9de7f29a540d52748410d9d9049bb8  ./site/js/core/keccak.js
++ec6b2780dcf1b6213ecddc03504e311961caf5f881f47d71b5b0da92dc016469  ./site/js/core/ledger-calls.js
++b43e1b2d5b8a9990625bb02211a2e903ba8fae58219cdcad557281333608c2df  ./site/js/core/ledger-recovery.js
++7bc781b4c83179dcf68ab28a869e070e50c1590dcbbc4a8107958950e0c48ce9  ./site/js/core/list-state.js
++135d7f086335ec86df47b76eaf32602057448439ed9f09ac44cb68ee9034e2bc  ./site/js/core/live-prices.js
++faf8d50f901b89b2e47ff0d6fd8dc59b0a091d55549880a1e7324075fec7a4b8  ./site/js/core/live-specs.js
++1e4853e1c255f711a5f5d318fb88df919a4263ec3ce621108008d7e3b7188351  ./site/js/core/native-instructions.js
++35986ee945baf76da45570d7ff269ee7340f4677e0a49f04666bb0b3c9bd3a37  ./site/js/core/owner-signature.js
++f5a4f6a8930a705ea2366fe8c342b6cefacc0902de42e986200132196c2f8d27  ./site/js/core/passkey-account.js
++54fc225ea7c26385bf0c97bf69319490f08a886852b570eac0d62995bb4b76e9  ./site/js/core/pay.js
++79fe2454b045b2945bb188230baf3c1d17a6ea451d930541bca4ea0a1c5c1ed1  ./site/js/core/placement-options.js
++959ea6d2d34ef2f1bd5fe139709f8cca884a24b99aa6e4d3b56e4b1ee82ab678  ./site/js/core/platform-addresses.js
++6ae5d31f201811ccc5c54af305e08d84232a9e62dedc59866350eb21dd588753  ./site/js/core/pool-badges.js
++43f7eceff5a392b7eb99c7dc615a6a132e8ea8c12602ffb472c6551347588af0  ./site/js/core/pricing.js
++14917fdabf2753126f2cf7b7fbd6ec3e489937e0f932270ea0300197ab9967be  ./site/js/core/profile-broadcast.js
++c3f8c37659df5cc20b4a1fe9368224ddb197084ba09d4e62624dc045c5f2c6be  ./site/js/core/protection.js
++e2936e13d2fa2f127e9752c8b4db3525971766ab6359c0d6f84a2fdc0057749b  ./site/js/core/quorum.js
++ce06b10e16e64f51576ad8a78c750cbf5967c9c39496ace205a9bc8964e247d7  ./site/js/core/resource-overview.js
++0160300e6a29a2b4b3bdb7eac565eafcbb7b2ac08d092a6cdb427e1425b9167e  ./site/js/core/resource-plan.js
++3c1c8bbd0e59a272bdc4c19fba81cb484456c27f6adf930805d2efb800311872  ./site/js/core/reviews.js
++d6868eb5d13905d04c50d84bbb1d6e976b97fb81da8cc4f78b655a514dcf697c  ./site/js/core/runlog.js
++ff651ceb8690cc9f5f555b9a48553da441f6b653232130de90f18ad3a14c8a5e  ./site/js/core/sessions.js
++74c32abefe79cfc06002f8479506c3471ff0a7c55b99dbca421d7624b5324540  ./site/js/core/share-allocation.js
++b1243e1a519472824dfa9e6ec82ccc0f243db8e31f31a8c91648f55cd71b2247  ./site/js/core/share-editor.js
++5556f0dcdb303aee4838c9fdfb28b964923ecd7c659f21479b9f8cff695e7112  ./site/js/core/share-resize.js
++164dae830ba451105f3ff4868a6fe92dd96184101d08eefe9348671624b23116  ./site/js/core/spec.js
++f52e755392c826571c0d93abbaa243f3c5a7f03424a91cc38a1545d3e80ecf06  ./site/js/core/startup-package.js
++f681e48327d85c3c667bf892d22f4d46935318ea72c329d2356dfc37ab2abc52  ./site/js/core/storage-plan.js
++895e8e4a63eb400f179d57350138e6e8afb90fbe7fd0f10010524c9a80b418f4  ./site/js/core/unixfs.js
++e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23  ./site/js/core/upload-auth.js
++71a896f187d4577c7cf615daf72dac22f705a45dc9058d994d6983f83358d830  ./site/js/core/util.js
++a6ab42793d8e36d159a815aad9724969cb00d6433c479132afe83eedd710c8b3  ./site/js/core/vault.js
++25d172f9327c0c7704c74dd443dc33b38dec005fd0a36198b70d22413491b40c  ./site/js/core/verify.js
++d0e7482ac37703d45bf7c0ac3bcf9c3db51cab1806553e90d9ed2a01ddc4e835  ./site/js/core/wallet.js
++032da2c9dce99a6f4686a53ae4af627e42f7fe15e953942088c9ff771fc5f1a3  ./site/js/gen/contract-artifacts.js
++e95c66a46c0f72947ad885517b85866eb2417c9ee69c945bc94b52af13df1ebd  ./site/js/hex-background.js
++4f78a692bb8cd19dec6c333423cc47da23c072330f95636d02df981c43b47122  ./site/js/lib/contract-linker.js
++dc01f1c8a30f92e9922031c20e77eb77b28abb76f8eace0c63c1a999e055c1c8  ./site/js/lib/enclave-element.js
++0ca06bd4c594dc105da5b364a21674eef3549b1e87eb0ae08ccd135c762238dd  ./site/js/lib/qr.js
++bbb7ba0b6e2673c873a0cee4648d3eac18b53983a2296dc4f48287c10949da50  ./site/js/pages/admin.js
++28a474926751bf099c2eea840cfada2d96356841a78873e1aaa6d0d7d2f626d7  ./site/js/pages/apps.js
++c72681210031cf5059dc487dca7235fea5e7ae9025252ce0765f777ea1791ff4  ./site/js/pages/architecture.js
++a604e0559b9832bf138e267c9d67465ff503d9e88472263cdc7bc41f23c0d238  ./site/js/pages/authorize.js
++43eabea5a1446894b320bb251b9ea16c02331cc4d14d7275588a81a5e751c216  ./site/js/pages/checkout.js
++1356b5c8b80d64cd7b808a0caff36a5ca99b79a254cae2781b1dff4c4e0ffbaf  ./site/js/pages/dashboard.js
++4b2665ee275a825fb92288f094a622619c9498c6598a1702b7add37793d93709  ./site/js/pages/deploy.js
++730fd88bf8fc802abe21a9e16f7fd18be63c1aa01af5802970a44276d8f046c9  ./site/js/pages/develop.js
++7a6a1500f65cda19d3e0ae47226f141a577691e3620c8bd2610d8d1a8619ff99  ./site/js/pages/grant.js
++f72a71dd9be71ee4987f7d7e27893f10d8c9180cbf5b718c17355eb9a9dff200  ./site/js/pages/host.js
++a2645cf71d07a51ea597be4dad752ce7bfcf8531ba8de287f4a23c5bd2f0af16  ./site/js/pages/link.js
++c9c63c6135208df5382dc9b8c361d8310c7537816132bb58fe5d701c7c28708c  ./site/js/pages/overview.js
++e070f5c70c8b89ddac55c7ab6fee3a5e08f054bc437bd39858eb6e2442460986  ./site/js/pages/privacy.js
++4044eb4efa6bd3d8b657a9ecf705333773ce4799c093a47479b22bd0958c0375  ./site/js/pages/sessions.js
++0e02788d695d46ce506cf099d80e422c4c0553646ae35acce93adb02318c11d7  ./site/js/pages/sso-authorize.js
++46f5e7caeb4e11d3c85405e9bc98907ee0f63121bd84cbf5868fa6f1c8315696  ./site/js/pages/terms.js
++043165e7214a969232c77cfa953dacd5c6e0ae2a40e8503f4a8093731573f612  ./site/link.html
++e37cc7d388b015a71b1fb03f3b8063968fd4838fb1d7a5a9dc39d9ed4b241c59  ./site/openapi.json
++645cf4b1005f5d9523c940357b52161955d75b358b9e1f7c4d45b4fa0c774385  ./site/privacy.html
++a17aeff37540ac04e4958983158f85b3e7cd92bd7e966f33f9e7005801630e02  ./site/recover/index.html
++1d500953252def18ceecbaf08c1b9d342eba98bfb2cfe5ec65249880aef2d948  ./site/recover/recover-config.json
++f799d99175a7f18fbd46200ba99d2f3cdc7907377cfc77e930d48219f26cf64c  ./site/recover/recover.js
++2681a752070ad230b1241750d8ece9d5ab44f4cb4d59409866f680dbeb9a5972  ./site/robots.txt
++b3b98a6bc96ef76b58468dfa3395d7c840f3e89e1e4c513ae3afd10834fc361c  ./site/sessions.html
++e6681bfc3fdd959b1968464f76053a0068fcf91e88e42986933dd6ab5ab28868  ./site/sso/authorize.html
++fc3b3d3db5866f4ad8ae9e6544c7296fce060d9ca39c2e23f2f280d25b73b4d6  ./site/terms.html
++395a9618b30aad7cf9882b36a74459d92ffe55239da8b72836b1bdb5d54390ff  ./site/vendor/aa.MANIFEST.json
++66ba5040d61a52a9f30187b0166b31ea95b0beef94814d6e5876a4a3c4f625da  ./site/vendor/aa.js
++12b9b136aab7187f8ca35a3540f761a6f14f3e8d21b87840ad138b76c6bba1b9  ./site/vendor/credit-vault.MANIFEST.json
++0deb0c22c75485eb76e3acddc8e9e8042cfb5625b5a315689cc74a3c530b1e99  ./site/vendor/credit-vault.js
++f123bc43173d4a9f9ced5faa1f639c7f64575e1f1e46445c7ca55a3c14009539  ./site/vendor/custody.MANIFEST.json
++68fc8b8c30bc81371f001de00c38e362cc274759c26b21fe38dfd8937e4e91d6  ./site/vendor/custody.js
++77a10569e96d31e844f66580a2e1341e3bf7f2cf731e9e65daa489146fced892  ./site/vendor/enclave-verifier.js
++185f141af6656069614ba25dee2450d1e0ec5edfc2869e32a77701ce0d5de9da  ./site/vendor/host-capacity.MANIFEST.json
++1df342ef4ae23893b5280d43a047199fcb7de4918565e2eebbd5998c1e08e29d  ./site/vendor/host-capacity.js
++bd6598fb899d10499fb5f0fe4e9ce81d2a4aecd49b4bfcf82f5e6565875c8217  ./site/vendor/host-policy.MANIFEST.json
++a22eef814e308aac74691ef706c5f6e8bee5ad5111c0dc9ba367ff70fe526370  ./site/vendor/host-policy.js
++61798129909adc0930aae33749fe623bb35b2cd8c8ff797b3cd18657822948c5  ./site/vendor/management.MANIFEST.json
++05209546a4b0b68091e13efa7afa9a33221271c9dc161dca7a3c9da1212bd6a3  ./site/vendor/management.js
++8696eed37a5ed9c7bb644a87d641be67614e31c67cb3bff98ef7e085f2b3161d  ./site/vendor/sessions.js
++53c477971f9f8059e9aba53b34a6c10309b4bba195716f4c0e3d07bfc975cc8f  ./site/vendor/walletconnect.js
++9af55f2ddce176ce69df423763b9d0fbc1705543516c199d08936f5ca3f13982  ./site/vendor/webauthn.js
+diff --git a/jobs/build-and-test.sh b/jobs/build-and-test.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..83a525e873933e47af4f848574318c6655640d41
+--- /dev/null
++++ b/jobs/build-and-test.sh
+@@ -0,0 +1,19 @@
++#!/usr/bin/env bash
++# rebuild the host-service packages from this tree; every existing role's package must equal F's 14d1e495 build (the
++# five non-RPC roles) and the public-rpc package is reported against S's 36919aaf build; then the given suites with the
++# pinned binaries (B's rpc-runtime-final-integration/bin, PINS.sha256 checked here and again by the E2Es)
++set -uo pipefail
++HERE="$(cd "$(dirname "$0")/.." && pwd)"
++BIN="$HERE/../resume-after-checkpoint-20261022/rpc-runtime-final-integration/bin"
++(cd "$BIN" && sha256sum -c --quiet PINS.sha256) || { echo "pinned binaries do not match PINS.sha256"; exit 5; }
++echo "pins ok: $(sha256sum "$BIN/PINS.sha256" | cut -c1-64) PINS.sha256"
++bash "$HERE/jobs/build-packages.sh" || exit 3
++S="$HERE/../public-rpc-host-role/repo/network/host-services/packages"   # S's 36919aaf build (untracked build output)
++F="$HERE/../resume-after-checkpoint-20261022/host-service-rpc-closure/candidate/network/host-services/packages"; M="$HERE/repo/network/host-services/packages"
++for f in $(ls "$M"); do
++  if [ -f "$F/$f" ]; then cmp -s "$F/$f" "$M/$f" && echo "same-as-F $f" || { echo "DIFFERS-FROM-F $f"; exit 4; }
++  else old=$(sha256sum < "$S/$f" | cut -c1-64); new=$(sha256sum < "$M/$f" | cut -c1-64)
++    [ "$old" = "$new" ] && echo "same-as-36919 $f $new" || echo "changed-vs-36919 $f $old -> $new"; fi
++done
++export RETH_BIN="$BIN/reth-v2.8.0" HELIOS_BASE_BIN="$BIN/helios-eeffcc9" WITNESS_CHECK_BIN="$BIN/witness-check" CONSUMERS="$HERE/consumers"
++exec bash "$HERE/jobs/job.sh" "$@"
+diff --git a/jobs/build-packages.sh b/jobs/build-packages.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..e06b42882de0a3f98b2507414e09c5b86847bc02
+--- /dev/null
++++ b/jobs/build-packages.sh
+@@ -0,0 +1,8 @@
++#!/usr/bin/env bash
++# the host-service packages from this tree (scripts/build-host-service-packages.mjs), then which package files changed
++set -euo pipefail
++HERE="$(cd "$(dirname "$0")/.." && pwd)"; cd "$HERE/repo"
++export PATH="$HERE/stubs:/usr/local/bin:/usr/bin:/bin" TMPDIR="$HERE/tmp/t"; mkdir -p "$TMPDIR"
++git log -1 --format='HEAD %H'
++timeout -k 10 600 node scripts/build-host-service-packages.mjs
++echo "== package files changed vs HEAD:"; git status --porcelain -- network/host-services/packages
+diff --git a/jobs/e2e.sh b/jobs/e2e.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..189aaf36411a4a5bdb30026fd0bb6448828b1980
+--- /dev/null
++++ b/jobs/e2e.sh
+@@ -0,0 +1,5 @@
++#!/usr/bin/env bash
++# iteration job: package rebuild + comparison, then the changed role's unit suite and the two composed consumer E2Es
++set -uo pipefail
++HERE="$(cd "$(dirname "$0")/.." && pwd)"
++STRICT=1 JOB_SEC=${JOB_SEC:-900} exec bash "$HERE/jobs/build-and-test.sh" test/public-rpc.test.mjs test/public-rpc-wallet-consumer.e2e.test.mjs test/public-rpc-witness-consumer.e2e.test.mjs
+diff --git a/jobs/final.sh b/jobs/final.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..09c70719afcf0d0b8103f214ebfe5c88f5756c7f
+--- /dev/null
++++ b/jobs/final.sh
+@@ -0,0 +1,8 @@
++#!/usr/bin/env bash
++# final evidence on the committed tree: key scan of 36919aaf..HEAD, package rebuild + comparison (F for the five existing
++# roles, S's 36919 build for public-rpc), then every suite the change affects (strict: nothing skipped)
++set -uo pipefail
++HERE="$(cd "$(dirname "$0")/.." && pwd)"
++cd "$HERE/repo"; echo "== scan 36919aafe..HEAD"; git log --oneline 36919aafe..HEAD; python3 .githooks/scan-crypto-keys.py --range 36919aafe..HEAD; echo "scan rc=$?"
++STRICT=1 JOB_SEC=${JOB_SEC:-1800} exec bash "$HERE/jobs/build-and-test.sh" test/public-rpc.test.mjs test/public-rpc-wallet-consumer.e2e.test.mjs test/public-rpc-witness-consumer.e2e.test.mjs \
++  test/public-rpc-browser.test.mjs test/host-service-verifier-roles.test.mjs test/host-service-lifecycle.test.mjs
+diff --git a/jobs/job.sh b/jobs/job.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..b1c2da0716b7b8046d0268467012297c32673763
+--- /dev/null
++++ b/jobs/job.sh
+@@ -0,0 +1,20 @@
++#!/usr/bin/env bash
++# public-rpc-host-role test runner (adapted from host-service-rpc-closure/job.sh). Offline: ssh/scp/sftp denial stubs proven
++# first; a private user+net+pid namespace (loopback only) with --kill-child; node --test-timeout per test; outer timeout -k
++# (JOB_SEC). STRICT=1: any skipped or cancelled test fails the job (ALLOW_SKIPPED=N permits exactly N).
++set -euo pipefail
++HERE="$(cd "$(dirname "$0")/.." && pwd)"
++TREE="${TREE:-$HERE/repo}"
++export PATH="$HERE/stubs:$HOME/.foundry/bin:/usr/local/bin:/usr/bin:/bin"; export TMPDIR="$HERE/tmp/t"; mkdir -p "$TMPDIR"
++for t in ssh scp sftp; do [ "$(command -v "$t")" = "$HERE/stubs/$t" ] || exit 90; set +e; "$t" x >/dev/null 2>&1; rc=$?; set -e; [ $rc -eq 97 ] || exit 92; done
++echo "[job] ssh/scp/sftp -> denial stubs (rc=97); anvil: $(command -v anvil || echo none)"
++cd "$TREE"; echo "[job] tree $TREE head $(git rev-parse HEAD) dirty=$(git status --porcelain --untracked-files=no | wc -l) untracked=$(git status --porcelain | grep -c '^??' || true)"
++sha256sum network/public-rpc.mjs network/public-rpc-config.mjs network/public-rpc-hosts.mjs network/host-services/roles.mjs network/host-services/runner.mjs network/host-service-names.mjs network/host-service-transport.mjs network/wg-provider/provider.mjs "$@" 2>/dev/null || true
++set +e
++timeout -k 10 "${JOB_SEC:-540}" unshare -rn --pid --fork --kill-child --mount-proc sh -c 'ip link set lo up && exec node --test --test-timeout="$0" --test-concurrency=1 --test-reporter=spec ${NODE_TEST_ARGS:-} "$@"' "${TEST_TIMEOUT_MS:-300000}" "$@" | tee "$TMPDIR/last-run.out"; rc=${PIPESTATUS[0]}
++set -e
++if [ "${STRICT:-0}" = 1 ]; then
++  sk=$(grep -E '^ℹ (skipped|cancelled) ' "$TMPDIR/last-run.out" | awk '{s+=$3} END {print s+0}')
++  echo "[job] strict: skipped+cancelled=$sk"; [ "$sk" = "${ALLOW_SKIPPED:-0}" ] || rc=7
++fi
++echo "[job] exit=$rc"; exit "$rc"
+diff --git a/jobs/only.sh b/jobs/only.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..6f028b9182ac23c36283de4b3dbdb837121ce350
+--- /dev/null
++++ b/jobs/only.sh
+@@ -0,0 +1,9 @@
++#!/usr/bin/env bash
++# rerun only the given suites (no package rebuild: the packages are unchanged since the last build-and-test), pinned binaries
++set -uo pipefail
++HERE="$(cd "$(dirname "$0")/.." && pwd)"
++BIN="$HERE/../resume-after-checkpoint-20261022/rpc-runtime-final-integration/bin"
++(cd "$BIN" && sha256sum -c --quiet PINS.sha256) || exit 5
++sha256sum "$HERE/repo/network/host-services/packages/public-rpc.package.json"
++export RETH_BIN="$BIN/reth-v2.8.0" HELIOS_BASE_BIN="$BIN/helios-eeffcc9" WITNESS_CHECK_BIN="$BIN/witness-check" CONSUMERS="$HERE/consumers"
++STRICT=1 JOB_SEC=${JOB_SEC:-600} exec bash "$HERE/jobs/job.sh" "$@"
+diff --git a/jobs/q.sh b/jobs/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..9042c651cfbb15f5f394c4455cc520c73df61fbf
+--- /dev/null
++++ b/jobs/q.sh
+@@ -0,0 +1,11 @@
++#!/bin/bash
++# Usage: q.sh <mib> <name> <cmd...> ; retries exit 98 (not started), writes logs/<name>.{out,guard.log,rc}
++cd "$(dirname "$0")/.."
++mib=$1; n=$2; shift 2
++for i in $(seq 1 240); do
++  python3 -u ../claude-test-queue.py --mib "$mib" --log "logs/$n.guard.log" -- "$@" > "logs/$n.out" 2>&1
++  rc=$?
++  [ $rc -ne 98 ] && break
++  sleep 30
++done
++echo $rc > "logs/$n.rc"
+diff --git a/jobs/scan-report.sh b/jobs/scan-report.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..b8001668e5df9fd89e04809191c0d12dc9f5db58
+--- /dev/null
++++ b/jobs/scan-report.sh
+@@ -0,0 +1,6 @@
++#!/bin/bash
++# crypto-key scan of the report repository's commits (the source repo's scanner) and of the source range again
++set -euo pipefail
++cd "$(dirname "$0")/.."
++git log --oneline; python3 repo/.githooks/scan-crypto-keys.py --range HEAD; echo "report scan rc=$?"
++cd repo; git log --oneline 36919aafe..HEAD; python3 .githooks/scan-crypto-keys.py --range 36919aafe..HEAD; echo "source scan rc=$?"
+diff --git a/logs/e1.guard.log b/logs/e1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..4406040fe811920a5e74bebcb27ca2d768899edb
+--- /dev/null
++++ b/logs/e1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=661 minHostAvailableMiB=24565
+diff --git a/logs/e1.out b/logs/e1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..2318444e69ab99927cf91e5725b8e384afd0be69
+--- /dev/null
++++ b/logs/e1.out
+@@ -0,0 +1,92 @@
++[queue] START available=24833MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
++pins ok: 69db0ff5dbd5a0cf7a695f9f31e27c22f08dcd865cdd79cc66bb62e62a8aa563 PINS.sha256
++HEAD 36919aafe76c743272b323c8bca27871b5219ab9
++directory-replica: bundle 716759 bytes sha256:45dc23218fd88a4e…, manifest sha256:e9cff3283064bcf2bb765a4c741af384eed2adc14a30bff959c58df8032be2d8, 1218 inputs
++bootstrap-replica: bundle 5033 bytes sha256:1e45e75f1f4a7d2b…, manifest sha256:7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc, 1 inputs
++route-dns: bundle 4861076 bytes sha256:06293c9331a2e76c…, manifest sha256:e265478277853d4c3e9fc09337b7b366f4a332cbda31e8b5b10ce674f3970d9c, 1218 inputs
++policy-mirror: bundle 647387 bytes sha256:74878623094a0d26…, manifest sha256:2b5a85468d720d4904f282bc6ff84bcf9ff33e46738172cc32d444ae6e4bacbe, 432 inputs
++credit-vault-submitter: bundle 1294743 bytes sha256:2a4de6d5b166c25a…, manifest sha256:a22cd7a8fc6f7d85fea6edbd7f8e9deb36dc1b55507e3bb396e9bc6a368eb0e6, 1322 inputs
++public-rpc: bundle 27745 bytes sha256:b1e8f62e12ef152b…, manifest sha256:78f06b5b546fa2f7d6e57fb4d073e4e12f542cf0886fa1005cc80c51966d6319, 3 inputs
++npm inputs locked by: package-lock.json sha256:9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20, relay/package-lock.json sha256:e5d896baf563d6cc1662000fb87b56f9673c87c502b4cb8ea43836b1687f0b56
++== package files changed vs HEAD:
++?? network/host-services/packages/
++same-as-F bootstrap-replica.mjs
++same-as-F bootstrap-replica.package.json
++same-as-F credit-vault-submitter.mjs
++same-as-F credit-vault-submitter.package.json
++same-as-F directory-replica.mjs
++same-as-F directory-replica.package.json
++same-as-F policy-mirror.mjs
++same-as-F policy-mirror.package.json
++fatal: path 'network/host-services/packages/public-rpc.mjs' exists on disk, but not in '36919aafe76c743272b323c8bca27871b5219ab9'
++changed-vs-36919 public-rpc.mjs e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 -> b1e8f62e12ef152b5e5adbfee43a5bffd4a3d67694c72df9ea5d98505884ea81
++fatal: path 'network/host-services/packages/public-rpc.package.json' exists on disk, but not in '36919aafe76c743272b323c8bca27871b5219ab9'
++changed-vs-36919 public-rpc.package.json e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 -> 78f06b5b546fa2f7d6e57fb4d073e4e12f542cf0886fa1005cc80c51966d6319
++same-as-F route-dns.mjs
++same-as-F route-dns.package.json
++[job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
++[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-consumer-interface-20261023/repo head 36919aafe76c743272b323c8bca27871b5219ab9 dirty=4 untracked=5
++68433c773deabf858bab60a9af9413fbc5411e17387659d186cdf2a6884455fc  network/public-rpc.mjs
++9cf0456a50bbc8bb2585d13ec75d83046e0d09f1d2a0f0f7b19c73ce8b3a8a34  network/public-rpc-config.mjs
++6c2f58692ea8980bdf0fddfd4225f109a978d05f053e25bc34431ea5bf87b870  network/public-rpc-hosts.mjs
++cc409882aa8e0dedab9675766a3e1847f40e02298182580707446e8b890a6126  network/host-services/roles.mjs
++777dddd71f3b03cb8481ed6a3a60020f88b855c49d05d1145e9a26818f109bb0  network/host-services/runner.mjs
++d61bbeb60d3099ab9aa9bcb44d2070e1a6e313e553231426920dc3deb01fb906  network/host-service-names.mjs
++0dab1bc73232e019c5e699ffe8f43467a07c9be5b111affb8a831e03061754e5  network/host-service-transport.mjs
++e7ea534604b2dd9307f4c4d8919fcc22c2061438f33dfb68c3fef61f526c72cd  network/wg-provider/provider.mjs
++b7b22f4781535d0c4b0c327db5569b27a58f2fd62641955d53de4daf432962d2  test/public-rpc.test.mjs
++ca6c89f3f834bd45edc20e1d639eec06d472024244f1d9d258153828734f7397  test/public-rpc-wallet-consumer.e2e.test.mjs
++6b3b74aaeafffc36cbde7155ce6f8575e7b327da1f13427526149c707a98359d  test/public-rpc-witness-consumer.e2e.test.mjs
++✖ E's profile route through two packaged roles: labelled tip and pending nonce, the local signer signs only, the same bytes refused by A then accepted by B, the receipt through the profile (2772.266277ms)
++✔ a node that quotes no tip: E signs its own stated fallback (0.001 gwei), never an invented quote (2747.370788ms)
++✔ a wallet that only broadcasts (as MetaMask) is refused by name; the node down refuses before anything is signed; nothing goes anywhere else (3540.531924ms)
++✔ fresh state through Helios: B's gateway verifies the role's proof material against signed roots; it equals the chain at that block (18732.636567ms)
++✔ a block older than every signed head: authenticated ancestry through the role; a tampered header is refused even though the role served it (52.001976ms)
++✔ tampered proofs, the node down, a stale node: the consumer refuses fresh state and recovers when the source is honest; nothing answers from elsewhere (22716.70387ms)
++✔ a frozen signed head: newer state has no authenticated root and is refused, although the role serves it as unverified material (4223.699642ms)
++✔ the node saw only what the role allows: block-pinned proofs, headers without transactions, no access-list hint, no pending proofs (0.366087ms)
++✔ configuration: the operator's own loopback node only, no secret, no remote verifier; the runner binds it to this host and never advertises it (8703.096641ms)
++✔ the browser's methods from the operator's node: EIP-1898 reads, reverts, estimates, history, receipts; only the node is fetched (71.364737ms)
++✔ raw transactions: refused unless the operator states a route; then the node's own answer, never a fabricated hash (534.711442ms)
++✔ refused without reaching the node: privileged and signing methods, unknown methods, batches, bad bodies, other paths and verbs (38.189712ms)
++✔ inherited names are never methods, call fields, limits or roles (root allowlist review: own properties only) (17.764862ms)
++✔ CORS: the configured origins only, POST with content-type only, never credentials (11.215237ms)
++✔ bounds and honesty: stalled, down, syncing, stale and oversized backends refuse in bounded time; in-flight and rate limits refuse at once (10475.607989ms)
++✔ the local verifier answers only its configured methods, never falls back to the node, and every answer names its source (18.194908ms)
++✔ two names of one host are one vote; two hosts are two (and say nothing about whether they share a node) (14.028454ms)
++✔ the PACKAGED role under the runner: reviewed bytes only, no inherited environment, stopped and restarted by the platform host policy gate (893.810079ms)
++✔ served methods are exactly the browser note's profile methods, the explicit raw submission, and the consumer interface (proof material, headers, tip quote) (0.258058ms)
++✔ consumer interface: proof material and headers by hash, a pending nonce and a tip quote - bounded, labelled by class, never "verified" (50.970896ms)
++ℹ tests 20
++ℹ suites 0
++ℹ pass 19
++ℹ fail 1
++ℹ cancelled 0
++ℹ skipped 0
++ℹ todo 0
++ℹ duration_ms 76658.022737
++
++✖ failing tests:
++
++test at test/public-rpc-wallet-consumer.e2e.test.mjs:112:1
++✖ E's profile route through two packaged roles: labelled tip and pending nonce, the local signer signs only, the same bytes refused by A then accepted by B, the receipt through the profile (2772.266277ms)
++  AssertionError [ERR_ASSERTION]: the node's quote, capped by E
++  
++  undefined !== 0n
++  
++      at TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-consumer-interface-20261023/repo/test/public-rpc-wallet-consumer.e2e.test.mjs:137:10)
++      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++      at async Test.run (node:internal/test_runner/test:1054:7)
++      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
++    generatedMessage: false,
++    code: 'ERR_ASSERTION',
++    actual: undefined,
++    expected: 0n,
++    operator: 'strictEqual',
++    diff: 'simple'
++  }
++[job] strict: skipped+cancelled=0
++[job] exit=1
++[memory-guard] exit=1 peakTreeRssMiB=661 minHostAvailableMiB=24565
++[memory-guard] at peak: reth-v2.8.0:334 node:118 node:81 node:52 helios-eeffcc9:51 witness-check:6 bash:6 timeout:4
++[queue] EXIT 1
+diff --git a/logs/e1.rc b/logs/e1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/e1.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/f1.guard.log b/logs/f1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..2e950bf1775492bf17e161fe4f6959e69f75d8e4
+--- /dev/null
++++ b/logs/f1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=1082 minHostAvailableMiB=24273
+diff --git a/logs/f1.out b/logs/f1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..8928deb6395aa48112402dba00084e197cd6cc3e
+--- /dev/null
++++ b/logs/f1.out
+@@ -0,0 +1,95 @@
++[queue] START available=25308MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
++== scan 36919aafe..HEAD
++4f7632d7f public-rpc consumer interface: bounded eth_getProof/eth_getBlockByHash proof material, pending nonce and tip quote, labelled by class
++scan rc=0
++pins ok: 69db0ff5dbd5a0cf7a695f9f31e27c22f08dcd865cdd79cc66bb62e62a8aa563 PINS.sha256
++HEAD 4f7632d7f283bb38396a44d775b6a80afcd62f1b
++directory-replica: bundle 716759 bytes sha256:45dc23218fd88a4e…, manifest sha256:e9cff3283064bcf2bb765a4c741af384eed2adc14a30bff959c58df8032be2d8, 1218 inputs
++bootstrap-replica: bundle 5033 bytes sha256:1e45e75f1f4a7d2b…, manifest sha256:7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc, 1 inputs
++route-dns: bundle 4861076 bytes sha256:06293c9331a2e76c…, manifest sha256:e265478277853d4c3e9fc09337b7b366f4a332cbda31e8b5b10ce674f3970d9c, 1218 inputs
++policy-mirror: bundle 647387 bytes sha256:74878623094a0d26…, manifest sha256:2b5a85468d720d4904f282bc6ff84bcf9ff33e46738172cc32d444ae6e4bacbe, 432 inputs
++credit-vault-submitter: bundle 1294743 bytes sha256:2a4de6d5b166c25a…, manifest sha256:a22cd7a8fc6f7d85fea6edbd7f8e9deb36dc1b55507e3bb396e9bc6a368eb0e6, 1322 inputs
++public-rpc: bundle 27745 bytes sha256:b1e8f62e12ef152b…, manifest sha256:78f06b5b546fa2f7d6e57fb4d073e4e12f542cf0886fa1005cc80c51966d6319, 3 inputs
++npm inputs locked by: package-lock.json sha256:9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20, relay/package-lock.json sha256:e5d896baf563d6cc1662000fb87b56f9673c87c502b4cb8ea43836b1687f0b56
++== package files changed vs HEAD:
++?? network/host-services/packages/
++same-as-F bootstrap-replica.mjs
++same-as-F bootstrap-replica.package.json
++same-as-F credit-vault-submitter.mjs
++same-as-F credit-vault-submitter.package.json
++same-as-F directory-replica.mjs
++same-as-F directory-replica.package.json
++same-as-F policy-mirror.mjs
++same-as-F policy-mirror.package.json
++changed-vs-36919 public-rpc.mjs aaca601bbb87aa1e4f39fd2062e541d8659cacd7c16ba998a5694e1b05307e6e -> b1e8f62e12ef152b5e5adbfee43a5bffd4a3d67694c72df9ea5d98505884ea81
++changed-vs-36919 public-rpc.package.json 300cdc81a4961763b2b0e8c84023f6238448e3fad02cea247af72d3354e57530 -> 78f06b5b546fa2f7d6e57fb4d073e4e12f542cf0886fa1005cc80c51966d6319
++same-as-F route-dns.mjs
++same-as-F route-dns.package.json
++[job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
++[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-consumer-interface-20261023/repo head 4f7632d7f283bb38396a44d775b6a80afcd62f1b dirty=0 untracked=1
++68433c773deabf858bab60a9af9413fbc5411e17387659d186cdf2a6884455fc  network/public-rpc.mjs
++9cf0456a50bbc8bb2585d13ec75d83046e0d09f1d2a0f0f7b19c73ce8b3a8a34  network/public-rpc-config.mjs
++6c2f58692ea8980bdf0fddfd4225f109a978d05f053e25bc34431ea5bf87b870  network/public-rpc-hosts.mjs
++cc409882aa8e0dedab9675766a3e1847f40e02298182580707446e8b890a6126  network/host-services/roles.mjs
++777dddd71f3b03cb8481ed6a3a60020f88b855c49d05d1145e9a26818f109bb0  network/host-services/runner.mjs
++d61bbeb60d3099ab9aa9bcb44d2070e1a6e313e553231426920dc3deb01fb906  network/host-service-names.mjs
++0dab1bc73232e019c5e699ffe8f43467a07c9be5b111affb8a831e03061754e5  network/host-service-transport.mjs
++e7ea534604b2dd9307f4c4d8919fcc22c2061438f33dfb68c3fef61f526c72cd  network/wg-provider/provider.mjs
++ff0b865f53b759064ec29d032da9226df78082fc88fbc2cfdb01ad88e242fcb3  test/public-rpc.test.mjs
++787a2f10e881bad2002723260d7e83242e188712c7547a65afec78b2dab4009a  test/public-rpc-wallet-consumer.e2e.test.mjs
++6b3b74aaeafffc36cbde7155ce6f8575e7b327da1f13427526149c707a98359d  test/public-rpc-witness-consumer.e2e.test.mjs
++ade803450776ebf1c40ff684beba7568d1a63aa9a79b8d5e0c15c13a3bd7e54d  test/public-rpc-browser.test.mjs
++06a314237cef914e35cea66d16e7551d4de11694da1e024aa9b8674127e4b843  test/host-service-verifier-roles.test.mjs
++d54779e75f8a13d0e87945414f88bc78428dd54a3412513fdb9ce56cf2603935  test/host-service-lifecycle.test.mjs
++✔ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (130.856024ms)
++✔ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (331.854085ms)
++✔ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (177.258336ms)
++✔ delayed failure: the exit REFUSES the grant it was holding while the host stopped: nothing to withdraw, no strike, clean stop (54.632144ms)
++✔ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (52.064118ms)
++✔ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (1153.17461ms)
++✔ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (1191.672339ms)
++✔ agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing (464.640494ms)
++✔ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (0.928531ms)
++✔ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (201.189881ms)
++✔ opt-in public RPC origin: a host serving public-rpc asks for rpc-<b32>, an opted-in exit grants it, a visitor reaches the role by that name, and a ban withdraws it (117.415072ms)
++✔ an opted-in exit gives a host WITHOUT the role exactly its three names (unchanged grant) (86.654942ms)
++✔ a host serving public-rpc is refused BY NAME at an exit whose operator did not opt in (never a mismatched grant) (47.995067ms)
++✔ config: one explicit authority, the verifier local only and never a provider vote; the legacy quorum rule unchanged (3527.813461ms)
++✔ every public provider down: the hosts start on the verifier alone; the roles serve; host B cold-starts from the index read through it (785.320466ms)
++✔ admin moderation through the verifier: ban and unban host B; then an AddressBook owner MIGRATION hands the policy to the new admin (4913.014649ms)
++✔ unknown, stale, missing and failed proofs REFUSE with the public providers up: no provider fallback in any reader (71.881893ms)
++✔ a browser profile on two packaged roles: agreed reads, EIP-1898 calls, a revert, history, estimates and a receipt, over CORS, loopback only (9370.661065ms)
++✔ a page on an origin the roles do not allow cannot read them; the node down refuses in bounded time (2250.875988ms)
++✔ E's profile route through two packaged roles: labelled tip and pending nonce, the local signer signs only, the same bytes refused by A then accepted by B, the receipt through the profile (4803.226105ms)
++✔ a node that quotes no tip: E signs its own stated fallback (0.001 gwei), never an invented quote (2747.846701ms)
++✔ a wallet that only broadcasts (as MetaMask) is refused by name; the node down refuses before anything is signed; nothing goes anywhere else (3545.966653ms)
++✔ fresh state through Helios: B's gateway verifies the role's proof material against signed roots; it equals the chain at that block (18709.328681ms)
++✔ a block older than every signed head: authenticated ancestry through the role; a tampered header is refused even though the role served it (56.641322ms)
++✔ tampered proofs, the node down, a stale node: the consumer refuses fresh state and recovers when the source is honest; nothing answers from elsewhere (22723.355189ms)
++✔ a frozen signed head: newer state has no authenticated root and is refused, although the role serves it as unverified material (4222.553815ms)
++✔ the node saw only what the role allows: block-pinned proofs, headers without transactions, no access-list hint, no pending proofs (0.378786ms)
++✔ configuration: the operator's own loopback node only, no secret, no remote verifier; the runner binds it to this host and never advertises it (8709.990555ms)
++✔ the browser's methods from the operator's node: EIP-1898 reads, reverts, estimates, history, receipts; only the node is fetched (73.739068ms)
++✔ raw transactions: refused unless the operator states a route; then the node's own answer, never a fabricated hash (534.850921ms)
++✔ refused without reaching the node: privileged and signing methods, unknown methods, batches, bad bodies, other paths and verbs (34.55676ms)
++✔ inherited names are never methods, call fields, limits or roles (root allowlist review: own properties only) (16.304859ms)
++✔ CORS: the configured origins only, POST with content-type only, never credentials (9.6501ms)
++✔ bounds and honesty: stalled, down, syncing, stale and oversized backends refuse in bounded time; in-flight and rate limits refuse at once (10474.332875ms)
++✔ the local verifier answers only its configured methods, never falls back to the node, and every answer names its source (21.220004ms)
++✔ two names of one host are one vote; two hosts are two (and say nothing about whether they share a node) (16.085012ms)
++✔ the PACKAGED role under the runner: reviewed bytes only, no inherited environment, stopped and restarted by the platform host policy gate (893.959866ms)
++✔ served methods are exactly the browser note's profile methods, the explicit raw submission, and the consumer interface (proof material, headers, tip quote) (0.274938ms)
++✔ consumer interface: proof material and headers by hash, a pending nonce and a tip quote - bounded, labelled by class, never "verified" (59.012895ms)
++ℹ tests 39
++ℹ suites 0
++ℹ pass 39
++ℹ fail 0
++ℹ cancelled 0
++ℹ skipped 0
++ℹ todo 0
++ℹ duration_ms 105522.007795
++[job] strict: skipped+cancelled=0
++[job] exit=0
++[memory-guard] exit=0 peakTreeRssMiB=1082 minHostAvailableMiB=24273
++[memory-guard] at peak: reth-v2.8.0:315 node:137 chrome-headless:92 chrome-headless:81 node:77 node:77 chrome-headless:75 chrome-headless:69
++[queue] EXIT 0
+diff --git a/logs/f1.rc b/logs/f1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/f1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/stubs/go b/stubs/go
+new file mode 100755
+index 0000000000000000000000000000000000000000..faa5ca537562646548e2e78f366ddc644ff95748
+--- /dev/null
++++ b/stubs/go
+@@ -0,0 +1,3 @@
++#!/bin/sh
++echo "denied: go (JS-only build; Go sources unchanged)" >&2
++exit 97
+diff --git a/stubs/scp b/stubs/scp
+new file mode 100755
+index 0000000000000000000000000000000000000000..b5945047294bc464a03312247c9d5f69d8c999b1
+--- /dev/null
++++ b/stubs/scp
+@@ -0,0 +1,3 @@
++#!/bin/sh
++echo "denied: scp (offline candidate)" >&2
++exit 97
+diff --git a/stubs/sftp b/stubs/sftp
+new file mode 100755
+index 0000000000000000000000000000000000000000..71f61ddcea99966d3012ee95d98d65e41103a752
+--- /dev/null
++++ b/stubs/sftp
+@@ -0,0 +1,3 @@
++#!/bin/sh
++echo "denied: sftp (offline candidate)" >&2
++exit 97
+diff --git a/stubs/ssh b/stubs/ssh
+new file mode 100755
+index 0000000000000000000000000000000000000000..f66e2e241bf3a398c6a4487d314a0f535bd361b0
+--- /dev/null
++++ b/stubs/ssh
+@@ -0,0 +1,3 @@
++#!/bin/sh
++echo "denied: ssh (offline candidate)" >&2
++exit 97

@@ -1,0 +1,37 @@
+From 9eb65336aff6bf69d3678e1f645153c33d0a9a52 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 08:08:45 -0700
+Subject: [PATCH] sia_storage fence test: check uppercase refusal on a token
+ whose hex has letters
+
+tokens_order_by_generation_counter_iid_and_parse_strictly asserted that the uppercase form of token a is refused. a's hex
+is all decimal digits (generation 16<<48, counter 5, iid 0x09..), so to_uppercase() returned the same string, which
+parses: the assertion could never hold.
+
+Root's review (ROOT-FENCE-NEGATIVE-REVIEW). Test only:
+- a's lowercase round trip is kept;
+- b (iid 0x0a..) round-trips;
+- b's uppercase form is asserted to differ, then refused.
+
+strict_hex (lowercase only) is unchanged.
+---
+ sia-s3/vendor/sia-sdk-rs/sia_storage/src/fence.rs | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/fence.rs b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/fence.rs
+index 411c21077e47c1dc2916b2c687f1804b5fff7580..8172e29de96dc9ab41c01d3890dec45992497a74 100644
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/fence.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/fence.rs
+@@ -306,7 +306,11 @@
+         let d = FenceToken::new(17 << 48, 0, [0; 16]).unwrap();
+         assert!(a < b && b < c && c < d);
+         assert_eq!(FenceToken::parse_hex(&a.to_hex()).unwrap(), a);
+-        assert!(FenceToken::parse_hex(&a.to_hex().to_uppercase()).is_err(), "uppercase is not canonical");
++        assert_eq!(FenceToken::parse_hex(&b.to_hex()).unwrap(), b);
++        // a's hex is all decimal digits (its uppercase form is the same string); b's iid is 0x0a bytes
++        let upper = b.to_hex().to_uppercase();
++        assert_ne!(upper, b.to_hex(), "the uppercase form must actually differ");
++        assert!(FenceToken::parse_hex(&upper).is_err(), "uppercase is not canonical");
+         assert!(FenceToken::parse_hex(&a.to_hex()[1..]).is_err());
+         assert!(FenceToken::new(1 << 63, 0, [0; 16]).is_err());
+         let mut top = [0u8; 32];

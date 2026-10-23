@@ -1,0 +1,7 @@
+CONTROL rc=0 guestSteps=39 failed=[]
+KILLED G1-consumer-not-bound-to-watch: rc=1 guestSteps=39 failed=['l1-disconnect-supervision-stops-consumers', 'l1-no-automatic-restart-or-resync', 'l1-operator-stops-attach', 'l1-consumer-refused-while-export-down-no-fallback', 'A6-recovered-synced-data-intact', 'A7-stopping-the-attach-stops-everything-above-it', 'base-disconnect-supervision-stops-consumers', 'base-no-automatic-restart-or-resync', 'base-operator-stops-storage', 'base-operator-stops-attach', 'base-consumer-refused-while-export-down-no-fallback', 'B5a-after-transport-loss-cache-reuse-refused', 'B5b-cache-loss-then-recovered-synced-data-intact', 'C3-foreign-mount-at-the-mount-point-refused', 'C4-stray-file-in-bare-mount-point-refused', 'C6-transport-detach-refused-while-storage-holds-the-device', 'teardown-clean', 'done']
+KILLED G2-cache-gate-bypassed: rc=1 guestSteps=39 failed=['B3a-uncached-write-detected-assemble-refused', 'B3b-cache-loss-invalidates-before-uncached-check', 'B3c-after-cache-loss-the-uncached-write-is-visible', 'B5a-after-transport-loss-cache-reuse-refused', 'B5b-cache-loss-then-recovered-synced-data-intact', 'done']
+KILLED G3-detach-ignores-holders-and-mounts: rc=1 guestSteps=39 failed=['C6-transport-detach-refused-while-storage-holds-the-device', 'done']
+SURVIVED G4-assemble-ignores-nonempty-mountpoint: rc=1 guestSteps=39 failed=['C6-transport-detach-refused-while-storage-holds-the-device', 'done']
+ASSESSED G5-watch-without-direct-probe: rc=0 guestSteps=39 failed=[]
+RESULT FAIL (1 problem(s))

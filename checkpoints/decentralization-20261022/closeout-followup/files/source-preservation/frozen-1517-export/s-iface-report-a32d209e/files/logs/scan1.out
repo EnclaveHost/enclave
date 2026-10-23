@@ -1,0 +1,8 @@
+[queue] START available=24674MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+eb7f0db Public RPC consumer interface: RESULT, HANDOFF, notes for B/E/F, patch on 36919, consumer pins, jobs and logs (e1, f1)
+report scan rc=0
+4f7632d7f public-rpc consumer interface: bounded eth_getProof/eth_getBlockByHash proof material, pending nonce and tip quote, labelled by class
+source scan rc=0
+[memory-guard] exit=0 peakTreeRssMiB=36 minHostAvailableMiB=24632
+[memory-guard] at peak: python3:22 git:8 bash:6
+[queue] EXIT 0

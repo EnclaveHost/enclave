@@ -1,0 +1,23 @@
+run=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-hdd-storage-compose-20261023/mut/run/20261023T142517Z
+t c55917de41d64052896a9f53fc485ef96ef1748c dirty=0
+s fb9ce4a726e16b0652e9bdbfa851c01c6553fb07 dirty=1
+p ed814e5832639ecf863547536e3c8a742e39b9fb dirty=2
+{"ok": true, "step": "namespace"}
+{"create": "20261023T142517Z/mnt-hdd/enclave-rpc/l1-origin.img\"}, \"placement\": \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-hdd-storage-compose-20261023/mut/run/20261023T142517Z/state-l1/placement.json\"}\n", "ok": true, "start": "Sha256\": \"b59a2820534b42035aaf45e9e4ce02b7ecd48f23878adc74ec69644bb9a8a387\", \"exe\": \"/usr/bin/qemu-nbd\", \"pid\": 3925010, \"purpose\": \"qemu-nbd export\", \"role\": \"l1\", \"starttime\": 107063118, \"uid\": 0}}\n", "step": "export-l1"}
+{"create": "1023T142517Z/mnt-hdd/enclave-rpc/base-origin.img\"}, \"placement\": \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-hdd-storage-compose-20261023/mut/run/20261023T142517Z/state-base/placement.json\"}\n", "ok": true, "start": "a256\": \"50ccb86241f646f6b81918a67a5549e68e6e6196a3e8010d9ec783f36d10f76b\", \"exe\": \"/usr/bin/qemu-nbd\", \"pid\": 3925046, \"purpose\": \"qemu-nbd export\", \"role\": \"base\", \"starttime\": 107063177, \"uid\": 0}}\n", "step": "export-base"}
+{"ok": true, "sha256": {"enclave-base-holder-storage.service": "8d0adbb1c05b094fcd49c16bc4920ad8fad43a6dea9da401c70fae4f449cd37d", "enclave-base-holder-watch.service": "9889615b537ea64fd24f18c3bb333b9277d6f8aa8dfffb1b0bacbb270121620b", "enclave-base-holder.service": "6fedc98ec63a022fae574bc03486d4b21a5da9cc8634066441aa0603392cdc5f", "enclave-l1-cl.service": "78cbf0453c1f22beee400297b7f9da83bdd81cd3e715c601a74afc098db6ba75", "enclave-l1-el.service": "eb47db62e0defdb7fdff4716383d22fdbbe70cee4c7022098afce841b5f8b3b8", "enclave-l1-pair-storage.service": "5218d82975617595ddb2b2dc826c7ecc3c3340f8655d8ddf5d536d30a64541d7", "enclave-l1-pair-watch.service": "4dc0d03308172798b80105e30cf08a69b6212c538b5d6d21074a32c8dc651f65", "enclave-rpc-hdd-attach@.service": "a2d0117b696c6a7228e46216d409827f3c8f778acd964a4a622bea97fea5119d"}, "step": "generated-units"}
+{"capBytes": 250000000000, "ledgerShareBytes": 42151936, "ok": true, "step": "fixture-configs", "targetBytes": 200000000000}
+{"ok": true, "out": "", "step": "initramfs"}
+{"ok": true, "out": "{\"stopped\": 3925010}\n", "step": "guest-request-1-stop-l1"}
+{"ok": true, "out": "Sha256\": \"b59a2820534b42035aaf45e9e4ce02b7ecd48f23878adc74ec69644bb9a8a387\", \"exe\": \"/usr/bin/qemu-nbd\", \"pid\": 3926541, \"purpose\": \"qemu-nbd export\", \"role\": \"l1\", \"starttime\": 107074073, \"uid\": 0}}\n", "step": "guest-request-2-start-l1"}
+{"ok": true, "out": "{\"stopped\": 3925046}\n", "step": "guest-request-3-stop-base"}
+{"ok": true, "out": "a256\": \"50ccb86241f646f6b81918a67a5549e68e6e6196a3e8010d9ec783f36d10f76b\", \"exe\": \"/usr/bin/qemu-nbd\", \"pid\": 3927627, \"purpose\": \"qemu-nbd export\", \"role\": \"base\", \"starttime\": 107082623, \"uid\": 0}}\n", "step": "guest-request-4-start-base"}
+{"ok": true, "rc": 0, "step": "guest-exit"}
+{"failed": ["l1-disconnect-supervision-stops-consumers", "l1-no-automatic-restart-or-resync", "l1-operator-stops-attach", "l1-consumer-refused-while-export-down-no-fallback", "A6-recovered-synced-data-intact", "A7-stopping-the-attach-stops-everything-above-it", "base-disconnect-supervision-stops-consumers", "base-no-automatic-restart-or-resync", "base-operator-stops-storage", "base-operator-stops-attach", "base-consumer-refused-while-export-down-no-fallback", "B5a-after-transport-loss-cache-reuse-refused", "B5b-cache-loss-then-recovered-synced-data-intact", "C3-foreign-mount-at-the-mount-point-refused", "C4-stray-file-in-bare-mount-point-refused", "C6-transport-detach-refused-while-storage-holds-the-device", "teardown-clean", "done"], "ok": false, "step": "guest-results", "steps": 39}
+{"ok": true, "out": "{\"stopped\": 3926541}\n", "step": "teardown-stop-l1"}
+{"ok": true, "out": "{\"stopped\": 3927627}\n", "step": "teardown-stop-base"}
+{"leftover": "", "ok": true, "step": "teardown-no-leftover-qemu-nbd"}
+{"afterCleanupBytes": 749568, "capBytes": 536870912, "note": "peak = largest du of the run directory sampled every ~2 s while the guest ran (sparse disk images count allocated blocks only)", "ok": true, "peakAt": "after-guest", "peakBytes": 119328768, "step": "allocation"}
+{"failed": ["guest-results"], "ok": false, "step": "summary", "total": 16}
+host rc=1
+leftover qemu-system: 0  leftover qemu-nbd: 0

@@ -1,0 +1,3 @@
+F resumed in new isolated windows-feature-gap-repair-20261023 to diagnose Safe-held site-independent-account-startup deployOnChain(prepareOnly) zero records and catalog-policy test harness. F preserves your production/profilewallet work and will hand off composable fixes; no need duplicate that failure diagnosis.
+
+Root inspected Fpendingdiff: old testdeploy targeted nonexistent catalog://0x11.../0. New fixture publishes actualthirdpartyapp, adminapproves, explicitmissing/pending/delisted/rejectedrefusalcases then Safe-ownedprepareOnly record/startup. Productiondeployflowunchanged. Testsqueued/notacceptedfinal. Thislookslikefixturemoderationmismatch not walletregression; await Fresult beforeintegration.

@@ -1,0 +1,249 @@
+From ac84cbb057ccc97a880902722f23e6afb29bdfa9 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:32:41 -0700
+Subject: [PATCH] sia_storage unit-test harness and two test-only call fixes
+
+- The vendored sia_storage's own unit tests did not compile: two test calls in app_client/http.rs predate the C2
+  third argument of delete_object/pin_object. Each now passes None. Test code only (cfg(test)).
+- unit/make-manifest.py + unit-step.sh run those tests offline, on the vendored sources, with feature "mock":
+  - the manifest is derived from sia_storage's, dropping only the bench and the uncached bench/example
+    dev-dependencies;
+  - the path dependencies are mirrored with their [[bench]] stanza removed.
+- wasm-step.sh / cargo-step.sh are copies of the candidate's. repro-step.sh rebuilds the local crates for the provenance
+  check.
+- qrun.sh retries a not-started queue job.
+- negctl/make.py builds the negative-control vendor tree: the baseline download.rs plus this tree's new tests.
+---
+ .gitignore                                    |  2 +-
+ cargo-step.sh                                 | 13 +++++++
+ negctl/.gitignore                             |  1 +
+ negctl/make.py                                | 19 +++++++++
+ qrun.sh                                       | 15 +++++++
+ repro-step.sh                                 |  7 ++++
+ .../sia_storage/src/app_client/http.rs        |  4 +-
+ unit-step.sh                                  | 13 +++++++
+ unit/.gitignore                               |  2 +
+ unit/make-manifest.py                         | 39 +++++++++++++++++++
+ wasm-step.sh                                  | 16 ++++++++
+ 11 files changed, 128 insertions(+), 3 deletions(-)
+ create mode 100755 cargo-step.sh
+ create mode 100644 negctl/.gitignore
+ create mode 100644 negctl/make.py
+ create mode 100755 qrun.sh
+ create mode 100755 repro-step.sh
+ create mode 100755 unit-step.sh
+ create mode 100644 unit/.gitignore
+ create mode 100755 unit/make-manifest.py
+ create mode 100755 wasm-step.sh
+
+diff --git a/.gitignore b/.gitignore
+index 2b88e2fb148c258f7178a18003f66fdbb508255b..168e12de6d2c236ee19208cdd598e596ab3e0199 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -2,4 +2,4 @@
+ logs/
+ __pycache__/
+ sia-s3/target/
+-runs/*/work/
++unit/Cargo.lock
+diff --git a/cargo-step.sh b/cargo-step.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..0173b11c39719a14338e35767b8e066626194b26
+--- /dev/null
++++ b/cargo-step.sh
+@@ -0,0 +1,13 @@
++#!/bin/bash
++# cargo-step.sh <check|test|build> [args...]: one cargo invocation in the candidate, native target, offline,
++# isolated target dir. storage-shard-recovery copy of storage-clone-privacy-review/candidate/cargo-step.sh. Prints compiler errors and the final test summary; exits with cargo's status.
++cd "$(dirname "$0")/sia-s3" || exit 2
++export CARGO_TARGET_DIR="$(dirname "$PWD")/target"
++# no debug info: keeps rustc + rust-lld under the shared queue's 1024 MiB process-tree cap (memory-guard)
++export CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_BUILD_JOBS=1
++sub=$1; shift
++cargo "$sub" --offline --target x86_64-unknown-linux-gnu "$@" > ../logs/cargo-last.out 2>&1
++rc=$?
++grep -E "^error|^ *--> |^warning: unused|^test result|FAILED|panicked|^failures:|^    [a-z_:]+$" ../logs/cargo-last.out | head -120
++echo "cargo exit=$rc"
++exit $rc
+diff --git a/negctl/.gitignore b/negctl/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..884fbdffe3d1db85aca930c6ec6a3bcaa3fcdc6b
+--- /dev/null
++++ b/negctl/.gitignore
+@@ -0,0 +1 @@
++sia-sdk-rs/
+diff --git a/negctl/make.py b/negctl/make.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..2b4add2cee72f1ea5cd82dce5b30bec0e63d5508
+--- /dev/null
++++ b/negctl/make.py
+@@ -0,0 +1,19 @@
++#!/usr/bin/env python3
++"""make.py: the NEGATIVE CONTROL vendor tree negctl/sia-sdk-rs. It is the working vendor tree, except download.rs is the
++BASELINE download.rs (commit 5c9717f, the exact source of 00e9cde0) with this tree's `mod shard_topology` tests appended
++inside its test module, unchanged. So the same tests run against the old recovery code."""
++import pathlib, shutil, subprocess
++here = pathlib.Path(__file__).resolve().parent
++root = here.parent
++vendor = root / "sia-s3/vendor/sia-sdk-rs"
++out = here / "sia-sdk-rs"
++shutil.rmtree(out, ignore_errors=True)
++shutil.copytree(vendor, out)
++rel = "sia-s3/vendor/sia-sdk-rs/sia_storage/src/download.rs"
++base = subprocess.run(["git", "-C", str(root), "show", f"5c9717f:{rel}"], capture_output=True, text=True, check=True).stdout
++cur = (vendor / "sia_storage/src/download.rs").read_text()
++start = cur.index("    /// Shard topology after `prioritize` drops sectors")
++tests = cur[start:cur.rindex("}\n")]
++assert base.endswith("    }\n}\n") and tests.rstrip().endswith("}")
++(out / "sia_storage/src/download.rs").write_text(base[:-2] + "\n" + tests + "}\n")
++print("negative-control download.rs = baseline 5c9717f +", tests.count("#[sia_core_derive::cross_target_test]"), "shard_topology tests")
+diff --git a/qrun.sh b/qrun.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..d39f11cdbf2174927c945c3563931ecd489dfdd7
+--- /dev/null
++++ b/qrun.sh
+@@ -0,0 +1,15 @@
++#!/bin/bash
++# qrun.sh <label> <mib> <command...>: ONE shared-queue job (work/claude-test-queue.py), retried only while it is NOT
++# STARTED (exit 98). Output in logs/<label>.out, the queue exit in logs/<label>.rc. Start it in the background and wait
++# for the .rc file.
++here=$(cd "$(dirname "$0")" && pwd)
++label=$1 mib=$2; shift 2
++Q=/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py
++rm -f "$here/logs/$label.rc"
++for n in $(seq 1 400); do
++  python3 -u "$Q" --mib "$mib" --log "$here/logs/$label.guard.log" -- "$@" > "$here/logs/$label.out" 2>&1
++  c=$?
++  [ $c != 98 ] && break
++  sleep 20
++done
++echo "exit $c" > "$here/logs/$label.rc"
+diff --git a/repro-step.sh b/repro-step.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..2eaee8700768b5b678804f9925da0258e6edb6c0
+--- /dev/null
++++ b/repro-step.sh
+@@ -0,0 +1,7 @@
++#!/bin/bash
++# repro-step.sh: provenance check. Removes ONLY the local crates' wasm32-wasip2 release outputs (sia-s3 and the vendored
++# sia-sdk-rs crates; the Cargo.lock-pinned registry dependencies stay cached), then rebuilds with wasm-step.sh.
++cd "$(dirname "$0")/sia-s3" || exit 2
++export CARGO_TARGET_DIR="$(dirname "$PWD")/target"
++cargo clean --offline --release --target wasm32-wasip2 -p sia-s3 -p sia_storage -p sia_core -p sia_core_derive -p sia_mux -p reqwest_wasi 2>&1 | tail -2
++exec ../wasm-step.sh
+diff --git a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/http.rs b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/http.rs
+index 557b927742e27e894a5c2379b61d347beb9cabf5..98e739ce7edd9c9f8bdad5f9b0d2b324935bf348 100644
+--- a/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/http.rs
++++ b/sia-s3/vendor/sia-sdk-rs/sia_storage/src/app_client/http.rs
+@@ -2313,7 +2313,7 @@
+ 
+         let app_key = PrivateKey::from_seed(&rand::random());
+         let client = Client::new(server.url("/").to_string()).unwrap();
+-        client.delete_object(&app_key, &object_key).await.unwrap();
++        client.delete_object(&app_key, &object_key, None).await.unwrap();
+     }
+ 
+     #[tokio::test]
+@@ -2368,7 +2368,7 @@
+ 
+         let app_key = PrivateKey::from_seed(&rand::random());
+         let client = Client::new(server.url("/").to_string()).unwrap();
+-        client.pin_object(&app_key, &object).await.unwrap();
++        client.pin_object(&app_key, &object, None).await.unwrap();
+     }
+ 
+     #[tokio::test]
+diff --git a/unit-step.sh b/unit-step.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..d35f2f1680359b07966095981f056aaf22d02c68
+--- /dev/null
++++ b/unit-step.sh
+@@ -0,0 +1,13 @@
++#!/bin/bash
++# unit-step.sh [cargo test args...]: sia_storage's own unit tests on the vendored sources, native, offline, one job,
++# the tree's private target dir, with feature "mock" (as sia-s3's tests build it). SIA_SDK_VENDOR selects another vendor
++# tree (the negative control). unit/Cargo.toml is regenerated from the vendored manifest each run (make-manifest.py).
++cd "$(dirname "$0")/unit" || exit 2
++python3 make-manifest.py || exit 3
++[ -f Cargo.lock ] || cp ../sia-s3/Cargo.lock Cargo.lock
++export CARGO_TARGET_DIR="$(dirname "$PWD")/target" CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_BUILD_JOBS=1
++cargo test --offline --target x86_64-unknown-linux-gnu --lib --features mock "$@" > ../logs/unit-last.out 2>&1
++rc=$?
++grep -E "^error|^ *--> |^test |^test result|panicked|^failures:" ../logs/unit-last.out | head -150
++echo "cargo exit=$rc"
++exit $rc
+diff --git a/unit/.gitignore b/unit/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..54cd5e73292e33f2619e7b7aabc9e9140198c1c3
+--- /dev/null
++++ b/unit/.gitignore
+@@ -0,0 +1,2 @@
++deps/
++Cargo.toml
+diff --git a/unit/make-manifest.py b/unit/make-manifest.py
+new file mode 100755
+index 0000000000000000000000000000000000000000..adc95cc7361ac893c71f0651406cfb5b8c752b27
+--- /dev/null
++++ b/unit/make-manifest.py
+@@ -0,0 +1,39 @@
++#!/usr/bin/env python3
++"""make-manifest.py: the scratch harness that runs sia_storage's OWN unit tests (src/**/mod test) offline on the vendored
++sources. Every compiled file is the vendored one; only manifests differ.
++- unit/Cargo.toml is the vendored sia_storage/Cargo.toml, except:
++  - [lib] points at the vendored sia_storage/src/lib.rs;
++  - its path dependencies point at unit/deps/;
++  - the bench and the dev-dependencies used only by benches/examples (criterion, env_logger, clap, indicatif,
++    directories, toml) are dropped: they are not in the offline cargo cache, and no src/ test uses them;
++  - autobenches/autoexamples/autotests off, and its own [workspace].
++- unit/deps/<crate>/ mirrors each vendored path dependency: every entry is a symlink to the vendored one, except
++  Cargo.toml, which is a copy without its [[bench]] stanza (the vendored copies ship without benches/, and cargo test
++  refuses a declared bench whose file is missing). Asserted: that stanza is the only difference.
++Versions come from sia-s3's Cargo.lock (copied as the seed lockfile by unit-step.sh)."""
++import os, pathlib, re, shutil
++here = pathlib.Path(__file__).resolve().parent
++vendor = pathlib.Path(os.environ.get("SIA_SDK_VENDOR", here.parent / "sia-s3/vendor/sia-sdk-rs")).resolve()   # the negative control passes its own copy
++deps = here / "deps"
++shutil.rmtree(deps, ignore_errors=True)
++for crate in ("sia_core", "sia_mux", "sia_core_derive", "reqwest_wasi"):
++    (deps / crate).mkdir(parents=True)
++    for entry in (vendor / crate).iterdir():
++        if entry.name != "Cargo.toml":
++            os.symlink(entry, deps / crate / entry.name)
++    t = (vendor / crate / "Cargo.toml").read_text()
++    out = re.sub(r'\n\[\[bench\]\]\nname = "[a-z_]+"\nharness = false\n?', "\n", t)
++    assert out == t or out.replace("\n", "") == re.sub(r'\[\[bench\]\]name = "[a-z_]+"harness = false', "", t.replace("\n", "")), crate
++    (deps / crate / "Cargo.toml").write_text(out)
++t = (vendor / "sia_storage/Cargo.toml").read_text()
++t = t.replace('path = "src/lib.rs"', f'path = "{vendor}/sia_storage/src/lib.rs"')
++t = re.sub(r'path = "\.\./(sia_core|sia_mux|reqwest_wasi|sia_core_derive)"', lambda m: f'path = "deps/{m.group(1)}"', t)
++for dep in ("criterion", "env_logger", "clap", "indicatif", "directories", "toml"):
++    t, n = re.subn(rf'^{dep} = .*\n', "", t, flags=re.M)
++    assert n == 1, dep
++t, n = re.subn(r'\n\[\[bench\]\]\nname = "upload"\nharness = false\nrequired-features = \["mock"\]\n?', "\n", t)
++assert n == 1
++t = t.replace('[package]\n', '[package]\nautobenches = false\nautoexamples = false\nautotests = false\n', 1)
++t += "\n[workspace]\n"
++(here / "Cargo.toml").write_text(t)
++print("unit/Cargo.toml and unit/deps written from", vendor)
+diff --git a/wasm-step.sh b/wasm-step.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..47e72d3729d2590e8827e61f3791bc13079a1181
+--- /dev/null
++++ b/wasm-step.sh
+@@ -0,0 +1,16 @@
++#!/bin/bash
++# wasm-step.sh: release build of the candidate for wasm32-wasip2 (the deploy artifact target), offline, one job,
++# isolated target dir. storage-shard-recovery copy of storage-clone-privacy-review/candidate/wasm-step.sh. Prints the artifact's size and sha256. Fails if cargo fails OR the artifact
++# is missing or is not a WebAssembly component (it never reports a build it cannot show).
++cd "$(dirname "$0")/sia-s3" || exit 2
++export CARGO_TARGET_DIR="$(dirname "$PWD")/target" CARGO_BUILD_JOBS=1
++cargo build --offline --release --target wasm32-wasip2 > ../logs/wasm-last.out 2>&1
++rc=$?
++grep -E "^error|^warning: unused|Finished" ../logs/wasm-last.out | head -20
++echo "cargo exit=$rc"
++[ $rc -eq 0 ] || exit $rc
++f="$CARGO_TARGET_DIR/wasm32-wasip2/release/sia-s3.wasm"
++[ -f "$f" ] || { echo "ARTIFACT MISSING: $f"; exit 4; }
++[ "$(od -A n -t x1 -N 8 "$f" | tr -d ' ')" = "0061736d0d000100" ] || { echo "NOT A WASM COMPONENT: $f"; exit 5; }
++ls -l "$f"
++sha256sum "$f"

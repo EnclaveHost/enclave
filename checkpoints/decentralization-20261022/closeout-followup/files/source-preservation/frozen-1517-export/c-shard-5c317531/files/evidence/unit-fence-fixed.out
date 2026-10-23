@@ -1,0 +1,21 @@
+    Finished `test` profile [unoptimized] target(s) in 0.47s
+     Running unittests /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/sia-s3/vendor/sia-sdk-rs/sia_storage/src/lib.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/target/x86_64-unknown-linux-gnu/debug/build/sia_storage/36e02f19a463b3bf/out/sia_storage-36e02f19a463b3bf)
+
+running 1 test
+test fence::tests::tokens_order_by_generation_counter_iid_and_parse_strictly ... FAILED
+
+failures:
+
+---- fence::tests::tokens_order_by_generation_counter_iid_and_parse_strictly stdout ----
+
+thread 'fence::tests::tokens_order_by_generation_counter_iid_and_parse_strictly' (3789925) panicked at /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/sia-s3/vendor/sia-sdk-rs/sia_storage/src/fence.rs:309:9:
+uppercase is not canonical
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    fence::tests::tokens_order_by_generation_counter_iid_and_parse_strictly
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 174 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `--lib`

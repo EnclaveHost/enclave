@@ -1,0 +1,16 @@
+t2 run-p3761232-i33077846.scope started 05:24:58
+    05:40:49 run-p3761232-i33077846.scope: The kernel OOM killer killed some processes in this unit.
+    05:40:49 run-p3761232-i33077846.scope: Failed with result 'oom-kill'.
+    05:40:49 run-p3761232-i33077846.scope: Consumed 30min 32.117s CPU time over 15min 51.244s wall clock time, 1G memory peak.
+t3 run-p3881779-i33272160.scope started 06:44:30
+    07:01:01 run-p3881779-i33272160.scope: The kernel OOM killer killed some processes in this unit.
+    07:01:01 run-p3881779-i33272160.scope: Failed with result 'oom-kill'.
+    07:01:01 run-p3881779-i33272160.scope: Consumed 31min 16.987s CPU time over 16min 31.346s wall clock time, 1G memory peak.
+t4 run-p3907775-i33312842.scope started 07:12:49
+    07:15:42 run-p3907775-i33312842.scope: The kernel OOM killer killed some processes in this unit.
+    07:15:42 run-p3907775-i33312842.scope: Failed with result 'oom-kill'.
+    07:15:42 run-p3907775-i33312842.scope: Consumed 2min 49.195s CPU time over 2min 52.291s wall clock time, 1G memory peak.
+t5 run-p3921550-i33256867.scope started 07:23:37
+    07:24:16 run-p3921550-i33256867.scope: Consumed 28.948s CPU time over 38.849s wall clock time, 857.5M memory peak.
+t6 run-p3941396-i33238679.scope started 07:43:30
+    07:43:37 run-p3941396-i33238679.scope: Consumed 10.642s CPU time over 6.888s wall clock time, 1G memory peak.

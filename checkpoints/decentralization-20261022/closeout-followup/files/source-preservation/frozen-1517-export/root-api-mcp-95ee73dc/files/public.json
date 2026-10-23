@@ -1,0 +1,45 @@
+{
+  "at": "2026-10-23T15:11:48.104475+00:00",
+  "host": "a69dcbba.app.enclave.host",
+  "note": "Explicit existing ingress IPs; TLS hostname and CA validation enabled. Default local resolver failed separately.",
+  "results": [
+    {
+      "ip": "146.190.246.39",
+      "requests": [
+        {
+          "path": "/ping",
+          "exit": 0,
+          "status": "200",
+          "body": "{\"ok\":true,\"pong\":true}",
+          "error": ""
+        },
+        {
+          "path": "/api/status",
+          "exit": 0,
+          "status": "200",
+          "body": "{\"app\":\"api-mcp-adapter\",\"auth\":true,\"authorized\":false,\"configured\":true,\"groups\":[\"images\",\"notebook\",\"virtual_machine\"],\"max_bytes\":262144,\"notes\":[],\"sso\":false,\"timeout_s\":20,\"title\":\"eyesoff tools\",\"tools\":8,\"users\":true,\"version\":\"0.1.0\"}",
+          "error": ""
+        }
+      ]
+    },
+    {
+      "ip": "165.245.191.129",
+      "requests": [
+        {
+          "path": "/ping",
+          "exit": 0,
+          "status": "200",
+          "body": "{\"ok\":true,\"pong\":true}",
+          "error": ""
+        },
+        {
+          "path": "/api/status",
+          "exit": 0,
+          "status": "200",
+          "body": "{\"app\":\"api-mcp-adapter\",\"auth\":true,\"authorized\":false,\"configured\":true,\"groups\":[\"images\",\"notebook\",\"virtual_machine\"],\"max_bytes\":262144,\"notes\":[],\"sso\":false,\"timeout_s\":20,\"title\":\"eyesoff tools\",\"tools\":8,\"users\":true,\"version\":\"0.1.0\"}",
+          "error": ""
+        }
+      ]
+    }
+  ]
+}

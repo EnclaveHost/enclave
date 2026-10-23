@@ -1,0 +1,100 @@
+[q] 2026-10-23T06:04:55-07:00 try 1 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:06:25-07:00 try 2 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:07:56-07:00 try 3 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:09:26-07:00 try 4 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:10:56-07:00 try 5 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:12:26-07:00 try 6 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:13:56-07:00 try 7 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:15:26-07:00 try 8 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:16:56-07:00 try 9 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:18:26-07:00 try 10 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:19:56-07:00 try 11 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:21:26-07:00 try 12 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:22:56-07:00 try 13 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:24:26-07:00 try 14 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:25:56-07:00 try 15 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:27:26-07:00 try 16 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:28:56-07:00 try 17 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:30:26-07:00 try 18 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:31:56-07:00 try 19 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:33:26-07:00 try 20 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:34:56-07:00 try 21 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:36:27-07:00 try 22 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:37:57-07:00 try 23 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:39:27-07:00 try 24 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:40:57-07:00 try 25 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:42:27-07:00 try 26 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:43:57-07:00 try 27 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:45:27-07:00 try 28 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:46:57-07:00 try 29 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:48:27-07:00 try 30 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:49:57-07:00 try 31 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:51:27-07:00 try 32 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:52:57-07:00 try 33 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:54:27-07:00 try 34 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:55:57-07:00 try 35 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:57:27-07:00 try 36 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T06:58:57-07:00 try 37 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:00:27-07:00 try 38 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:01:57-07:00 try 39 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:03:28-07:00 try 40 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:04:58-07:00 try 41 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:06:28-07:00 try 42 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:07:58-07:00 try 43 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:09:28-07:00 try 44 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:10:58-07:00 try 45 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:12:28-07:00 try 46 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:13:58-07:00 try 47 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] NOT STARTED: test allocation held
+[q] 2026-10-23T07:15:28-07:00 try 48 cmd: bash -c itest/run.sh > logs/itest-3.out 2>&1
+[queue] START available=24612MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[memory-guard] exit=1 peakTreeRssMiB=422 minHostAvailableMiB=24383
+[memory-guard] at peak: qemu-system-x86:343 python3:31 python3:22 qemu-nbd:11 run.sh:6 bash:6 timeout:4
+[queue] EXIT 1
+[q] 2026-10-23T07:16:47-07:00 exit=1

@@ -1,0 +1,57 @@
+e-prod base rebuilt from dfe020abf + 17 stored patch(es) in 4aaba75be: tree 068a62f43c51691d816c61a529cd1d8f6ae74cde OK
+e-prod e078490da: tree 0c7d480784bad3e4c75fac60835b8170b5a9faae OK
+e-prod ae00cd965: tree 5159185616aa0600be92cb9d3308645ad59b4cf3 OK
+m-cancel base rebuilt from f58e03ec4 + 15 stored patch(es) in 4aaba75be: tree ffbf2d1e595a938ff4bd4eaa4b9ca9b5f0bad734 OK
+m-cancel 1c386e234: tree 7666841441e6406f1872b95d18ce1df8b24980ca OK
+m-cancel 808f36c57: tree a19e71cbf0de24fc1dd489b94b97509b7183e28f OK
+m-cancel 3746e4fcb: tree 77680c022a2df2e0ee297ff9b384ea55ef1cc052 OK
+s-iface base rebuilt from f58e03ec4 + 16 stored patch(es) in 4aaba75be: tree 29794c3e3d0156e1a7ddf59a01cd56d78907a7b9 OK
+s-iface 4f7632d7f: tree b246ba51c100ed57bc1bae9481627d492feda970 OK
+t-compose base rebuilt from empty + 1 stored patch(es) in 4aaba75be: tree a5cb6fffd2a879e33e31a35b1919b18f99361af0 OK
+t-compose 29c6de874: tree bc106865e5d242b5cdad3517ad3e355585cb8b26 OK
+t-compose cfa165fbf: tree 4fe216850700f07eeb0163dc4d1f2b1a54799a5a OK
+t-compose c55917de4: tree 4ad9b97dae4f6760eab999b65652a0c391439fb8 OK
+t-compose 4bb723151: tree bf6d3c7a33dd883b85c5c670d8370b77355e9bc1 OK
+ts-compose base rebuilt from empty + 17 stored patch(es) in 4aaba75be: tree 3540c71a3dea1e13d8f7fada0ce2e0acc7c08f35 OK
+ts-compose 97758444e: tree 5e1425addafd3bc14418ff2a5614a7856d617a1c OK
+ts-compose fb9ce4a72: tree 95fb9917a593f4db359844053b1c6b14e1faf32d OK
+root-api-mcp base rebuilt from empty + 0 stored patch(es) in 4aaba75be: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-api-mcp 95ee73dcd: tree 5d4c8269bdc48adbc8f73750f194bb454a54ffed OK
+f-runtime-gap base rebuilt from f58e03ec4 + 17 stored patch(es) in 4aaba75be: tree 0687115ba54d38d278650d5dd53bfa4ea7cffa39 OK
+f-runtime-gap 896c5d49c: tree 184846200bab90616dcd91692269c2447102ea2a OK
+f-runtime-gap 2aef8ee8e: tree c7c442fdcf4bbb9628e3a4b89e1df321fb92906f OK
+f-runtime-gap 548bf5984: tree 6af61eb1178733c468d9f5a2572f215494620870 OK
+f-runtime-gap 42bb46368: tree 52cec9d331b760ad2961d4177bad39220509185a OK
+f-runtime-gap 0de094158: tree 76e2ad5397a9ad17471f1f196771ae8d5bcc8227 OK
+f-runtime-gap dda47a350: tree 3c4f38915f7d0c39d4d504566fd81a01d83da718 OK
+f-runtime-gap 0ed6b6d95: tree 21fc9a74e586208cce843287c3987a1f149cf7cd OK
+c-shard base rebuilt from empty + 0 stored patch(es) in 4aaba75be: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+c-shard 5c9717fc7: tree 4b54b581e8d444429b785f313e145dbfca0ecc34 OK
+c-shard ac84cbb05: tree 7ec24bcfe1c545eda6dd2c48d22c4deed91de676 OK
+c-shard e99498e91: tree 801359db221dac1580019c8020b735adcb5e4c58 OK
+c-shard 9eb65336a: tree 16051757682c6faa614b8a93926ef72f4d65675d OK
+c-shard 5c3175314: tree 6a562d19f7670d3734440fa2304598344c4b89c9 OK
+s-iface-report base rebuilt from empty + 0 stored patch(es) in 4aaba75be: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+s-iface-report eb7f0db64: tree 24b5d01e23aade2ce5f129a75cd997e206fb1fcd OK
+s-iface-report a32d209e6: tree fd0bbaaf6ce376ace5e8e2bdf649832c1ea6d8ef OK
+t-report base rebuilt from empty + 0 stored patch(es) in 4aaba75be: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+t-report be3392d2c: tree 6d45021948d16a28f646f51cbbba6c85c62c71a6 OK
+a-receipts base rebuilt from dfe020abf + 17 stored patch(es) in 4aaba75be: tree 7d1744d76983853f5fe3d18f91af438fca69c334 OK
+a-receipts 1d829457f: tree 723b246aabb75b34da9f4d214db766312b5d7279 OK
+a-receipts cdcbdf592: tree 352e132aff6d133948e1d2e71837bf8ba632c736 OK
+a-receipts 23fa880a7: excluded-paths-only commit, derived tree 352e132aff6d133948e1d2e71837bf8ba632c736 unchanged OK
+a-receipts eab4cfac4: tree 29a70f5dc6db39794394b6618960f3e87800f44e OK
+tp-compose base rebuilt from empty + 13 stored patch(es) in 4aaba75be: tree 75cde59e432da720c217fcca5756002f2c83da90 OK
+tp-compose 1db4d4083: tree 0f36409845423e79f47596705de4ad918b112ee4 OK
+tp-compose ed814e583: tree 963d1a979858e6b7e357219f12dec3899d7145fb OK
+e-prod-report base rebuilt from empty + 0 stored patch(es) in 4aaba75be: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+e-prod-report 3d47052b6: tree 6902316f2ed6dd1c2220d095f7d2bcf89a6a046e OK
+e-prod-report 4beedc5b6: tree 92b8be9b36e809302c8f880e261708e151f98d40 OK
+f-runtime-gap trees are the ORIGINAL trees minus ['test/service-index.test.mjs'] (head original dfb63eafa); exact originals NOT reproduced
+c-shard trees are the ORIGINAL trees minus ['sia-s3/vendor/sia-sdk-rs/sia_core/src/seed.rs', 'sia-s3/vendor/sia-sdk-rs/sia_core/src/types/spendpolicy.rs', 'sia-s3/vendor/sia-sdk-rs/sia_core/src/types/v1.rs', 'sia-s3/vendor/sia-sdk-rs/sia_core/src/types/v2.rs', 'sia-s3/vendor/sia-sdk-rs/sia_storage/src/builder.rs'] (head original 436f191f2); exact originals NOT reproduced
+s-iface-report trees are the ORIGINAL trees minus ['patch/public-rpc-consumer-interface-36919..4f7632d7.patch'] (head original d4b36e6eb); exact originals NOT reproduced
+t-report trees are the ORIGINAL trees minus ['receipts/run4/journal.txt'] (head original c42cb04b4); exact originals NOT reproduced
+a-receipts trees are the ORIGINAL trees minus ['metal/guest/mcp-server.bundle.mjs', 'metal/guest/mcp-server.bundle.mjs.manifest.json'] (head original e0e07f21e); exact originals NOT reproduced
+tp-compose trees are the ORIGINAL trees minus ['evidence/sources/lighthouse-v8.3.2/common/eth2_network_config/built_in_network_configs/mainnet/genesis.ssz.zip', 'evidence/lighthouse-binary-20261023T080144Z/release.yml', 'logs/fetch-lh-2.out', 'logs/verify-lh-2.out', 'logs/verify-lh-3.out'] (head original 84a0b214a); exact originals NOT reproduced
+e-prod-report trees are the ORIGINAL trees minus ['exports/'] (head original 5549e1036); exact originals NOT reproduced
+RESULT e-prod reproduced: True, m-cancel reproduced: True, s-iface reproduced: True, t-compose reproduced: True, ts-compose reproduced: True, root-api-mcp reproduced: True, f-runtime-gap reproduced: True, c-shard reproduced: True, s-iface-report reproduced: True, t-report reproduced: True, a-receipts reproduced: True, tp-compose reproduced: True, e-prod-report reproduced: True

@@ -1,0 +1,26 @@
+[queue] START available=25643MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+unit/Cargo.toml and unit/deps written from /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/sia-s3/vendor/sia-sdk-rs
+test download::test::shard_topology::insufficient_shards_fail_cleanly ... ok
+test download::test::shard_topology::malformed_shard_indices_are_refused ... ok
+test download::test::shard_topology::one_unknown_host_out_of_order_recovers_exact_bytes ... ok
+test download::test::shard_topology::parity_only_noncontiguous_recovers_exact_bytes ... ok
+test download::test::shard_topology::single_host_loss_at_each_position_recovers_exact_bytes ... ok
+test download::test::shard_topology::trailing_hosts_unknown_recovers_exact_bytes ... ok
+test download::test::test_download_head_chunk_reads_every_host ... ok
+test download::test::test_download_head_transition_races_every_host ... ok
+test download::test::test_download_race_gated_outside_window ... ok
+test download::test::test_download_race_triggered_by_window ... ok
+test download::test::test_download_race_within_window ... ok
+test download::test::test_download_retries_failed_shards ... ok
+test download::test::test_download_v0_object ... ok
+test download::test::test_download_v1_object ... ok
+test download::test::test_out_of_order_download ... ok
+test download::test::test_read_chunk_pops_after_the_chunk_completes ... ok
+test download::test::test_recovery_fails_immediately_when_hosts_are_unreachable ... ok
+test download::test::test_slab_recovery ... ok
+test download::test::test_slab_recovery_progress_callback ... ok
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 156 filtered out; finished in 842.95s
+cargo exit=0
+[memory-guard] exit=0 peakTreeRssMiB=834 minHostAvailableMiB=23621
+[memory-guard] at peak: sia_storage-36e:761 cargo:67 unit-step.sh:6
+[queue] EXIT 0

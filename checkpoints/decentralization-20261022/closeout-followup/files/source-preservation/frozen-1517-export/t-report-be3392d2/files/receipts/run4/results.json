@@ -1,0 +1,598 @@
+[
+ {
+  "step": "pid1-is-systemd",
+  "ok": true,
+  "t": 3.0,
+  "pid1": "/usr/lib/systemd/systemd",
+  "version": "systemd 262 (262.1-1-arch)",
+  "kernel": "7.2.11-arch1-1"
+ },
+ {
+  "step": "guest-net",
+  "ok": true,
+  "t": 3.02,
+  "nic": "eth0"
+ },
+ {
+  "step": "nvme-fixture-disk",
+  "ok": true,
+  "t": 3.04,
+  "disk": "sda",
+  "rotational": "0"
+ },
+ {
+  "step": "A0-unformatted-export-consumer-refused-no-fallback",
+  "ok": true,
+  "t": 5.33,
+  "rc": 1,
+  "storage": {
+   "ActiveState": "failed",
+   "SubState": "failed",
+   "ActiveEnterTimestampMonotonic": "0",
+   "InactiveEnterTimestampMonotonic": "5203619",
+   "Result": "exit-code",
+   "ExecMainStatus": "2"
+  },
+  "storageJournal": [
+   "[    5.092659] hddtest systemd[1]: Starting enclave-l1-pair storage (authenticated network-HDD origin, optional writethrough NVMe cache)...",
+   "[    5.198815] hddtest python3[218]: storage-nbd: failed (fsUuid is not configured; nothing is mounted by guesswork): undid only what this run created/attached/mapped/mounted",
+   "[    5.198815] hddtest python3[218]: storage-nbd: fsUuid is not configured; nothing is mounted by guesswork",
+   "[    5.203428] hddtest systemd[1]: enclave-l1-pair-storage.service: Main process exited, code=exited, status=2/INVALIDARGUMENT",
+   "[    5.203602] hddtest systemd[1]: enclave-l1-pair-storage.service: Failed with result 'exit-code'.",
+   "[    5.203770] hddtest systemd[1]: Failed to start enclave-l1-pair storage (authenticated network-HDD origin, optional writethrough NVMe cache)."
+  ],
+  "attach": {
+   "ActiveState": "active",
+   "SubState": "exited",
+   "ActiveEnterTimestampMonotonic": "5091356",
+   "InactiveEnterTimestampMonotonic": "0",
+   "Result": "success",
+   "ExecMainStatus": "0"
+  },
+  "mountPoint": "absent"
+ },
+ {
+  "step": "A1a-create-needs-explicit-first-format",
+  "ok": true,
+  "t": 5.43,
+  "out": "te needs --first-format: it formats a NEW (blank) export once): undid only what this run created/attached/mapped/mounted\nstorage-nbd: create needs --first-format: it formats a NEW (blank) export once\n"
+ },
+ {
+  "step": "A1b-first-format-of-the-blank-export",
+  "ok": true,
+  "t": 5.85,
+  "out": "{\"created\": \"enclave-l1-pair\", \"fsUuid\": \"65e68513-a5c2-43a2-a1d5-557fd87bd583\", \"next\": \"set fsUuid in the storage config AND filesystem.uuid in the attach config, re-render, then assemble\"}\n"
+ },
+ {
+  "step": "A1c-second-create-refused",
+  "ok": true,
+  "t": 6.16,
+  "out": "557fd87bd583', 'VERSION': '1.0', 'FSBLOCKSIZE': '1024', 'BLOCK_SIZE': '1024', 'FSLASTBLOCK': '98304', 'FSSIZE': '100663296', 'TYPE': 'ext4', 'USAGE': 'filesystem'}; existing data is never formatted\"}\n"
+ },
+ {
+  "step": "A2-generated-units-start-in-order",
+  "ok": true,
+  "t": 11.4,
+  "states": {
+   "enclave-rpc-hdd-attach@l1.service": "active",
+   "enclave-l1-pair-storage.service": "active",
+   "enclave-l1-pair-watch.service": "active",
+   "enclave-l1-el.service": "active",
+   "enclave-l1-cl.service": "active"
+  },
+  "mount": [
+   "55 28 43:0 / /srv/enclave-l1-pair rw,nosuid,nodev,noatime shared:57 - ext4 /dev/nbd0 rw"
+  ],
+  "consumerJournal": [
+   "[    8.823013] hddtest python3[269]: standin[l1-el] synced 3",
+   "[    9.540830] hddtest python3[269]: standin[l1-el] synced 4",
+   "[   10.311794] hddtest python3[269]: standin[l1-el] synced 5",
+   "[   11.027660] hddtest python3[269]: standin[l1-el] synced 6"
+  ]
+ },
+ {
+  "step": "l1-disconnect-supervision-stops-consumers",
+  "ok": true,
+  "t": 12.98,
+  "before": {
+   "enclave-l1-pair-watch.service": "active",
+   "enclave-l1-el.service": "active",
+   "enclave-l1-cl.service": "active"
+  },
+  "stoppedAfterSec": {
+   "enclave-l1-pair-watch.service": 1.26,
+   "enclave-l1-el.service": 1.27,
+   "enclave-l1-cl.service": 1.28
+  },
+  "watch": {
+   "ActiveState": "failed",
+   "SubState": "failed",
+   "ActiveEnterTimestampMonotonic": "6615200",
+   "InactiveEnterTimestampMonotonic": "12657123",
+   "Result": "exit-code",
+   "ExecMainStatus": "1"
+  },
+  "watchJournal": [
+   "[    5.203865] hddtest systemd[1]: Dependency failed for enclave-l1-pair network-HDD supervision (attach, mapping, mount, ext4 errors, direct origin read).",
+   "[    5.203897] hddtest systemd[1]: enclave-l1-pair-watch.service: Job enclave-l1-pair-watch.service/start failed with result 'dependency'.",
+   "[    6.488208] hddtest systemd[1]: Starting enclave-l1-pair network-HDD supervision (attach, mapping, mount, ext4 errors, direct origin read)...",
+   "[    6.615015] hddtest python3[264]: {\"device\": \"/dev/nbd0\", \"errorsAtStart\": 0, \"mapping\": null, \"ok\": true, \"watching\": \"/srv/enclave-l1-pair\"}",
+   "[    6.615224] hddtest systemd[1]: Started enclave-l1-pair network-HDD supervision (attach, mapping, mount, ext4 errors, direct origin read).",
+   "[   12.648769] hddtest python3[264]: {\"ok\": false, \"transportOrStorageFailure\": \"ext4 on /dev/nbd0 recorded 1 new error(s)\"}",
+   "[   12.656979] hddtest systemd[1]: enclave-l1-pair-watch.service: Main process exited, code=exited, status=1/FAILURE",
+   "[   12.657104] hddtest systemd[1]: enclave-l1-pair-watch.service: Failed with result 'exit-code'."
+  ],
+  "consumerIOErrorsBeforeStop": {
+   "enclave-l1-el.service": [
+    "[   11.637795] hddtest python3[269]: standin[l1-el] IOERROR at seq 7: OSError errno=5 Input/output error; continuing (stand-in does not exit on EIO)",
+    "[   12.138069] hddtest python3[269]: standin[l1-el] IOERROR at seq 8: OSError errno=30 Read-only file system; continuing (stand-in does not exit on EIO)",
+    "[   12.638273] hddtest python3[269]: standin[l1-el] IOERROR at seq 9: OSError errno=30 Read-only file system; continuing (stand-in does not exit on EIO)"
+   ],
+   "enclave-l1-cl.service": [
+    "[   11.644451] hddtest python3[271]: standin[l1-cl] IOERROR at seq 6: OSError errno=30 Read-only file system; continuing (stand-in does not exit on EIO)",
+    "[   12.144613] hddtest python3[271]: standin[l1-cl] IOERROR at seq 7: OSError errno=30 Read-only file system; continuing (stand-in does not exit on EIO)",
+    "[   12.644774] hddtest python3[271]: standin[l1-cl] IOERROR at seq 8: OSError errno=30 Read-only file system; continuing (stand-in does not exit on EIO)"
+   ]
+  },
+  "storage": {
+   "ActiveState": "active",
+   "SubState": "exited",
+   "ActiveEnterTimestampMonotonic": "6486298",
+   "InactiveEnterTimestampMonotonic": "0",
+   "Result": "success",
+   "ExecMainStatus": "0"
+  },
+  "attach": {
+   "ActiveState": "active",
+   "SubState": "exited",
+   "ActiveEnterTimestampMonotonic": "5091356",
+   "InactiveEnterTimestampMonotonic": "0",
+   "Result": "success",
+   "ExecMainStatus": "0"
+  },
+  "mountStillListed": [
+   "55 28 43:0 / /srv/enclave-l1-pair rw,nosuid,nodev,noatime shared:57 - ext4 /dev/nbd0 rw,emergency_ro"
+  ]
+ },
+ {
+  "step": "l1-no-automatic-restart-or-resync",
+  "ok": true,
+  "t": 18.01,
+  "consumers": {
+   "enclave-l1-el.service": "inactive",
+   "enclave-l1-cl.service": "inactive"
+  }
+ },
+ {
+  "step": "l1-operator-stops-storage",
+  "ok": true,
+  "t": 18.18,
+  "rc": 0,
+  "seconds": 0.16,
+  "journal": [
+   "[    5.198815] hddtest python3[218]: storage-nbd: fsUuid is not configured; nothing is mounted by guesswork",
+   "[    5.203428] hddtest systemd[1]: enclave-l1-pair-storage.service: Main process exited, code=exited, status=2/INVALIDARGUMENT",
+   "[    5.203602] hddtest systemd[1]: enclave-l1-pair-storage.service: Failed with result 'exit-code'.",
+   "[    5.203770] hddtest systemd[1]: Failed to start enclave-l1-pair storage (authenticated network-HDD origin, optional writethrough NVMe cache).",
+   "[    6.169193] hddtest systemd[1]: Starting enclave-l1-pair storage (authenticated network-HDD origin, optional writethrough NVMe cache)...",
+   "[    6.480280] hddtest python3[250]: {\"assembled\": \"/dev/nbd0\", \"mountPoint\": \"/srv/enclave-l1-pair\", \"origin\": \"/dev/nbd0\", \"cached\": false}",
+   "[    6.486316] hddtest systemd[1]: Finished enclave-l1-pair storage (authenticated network-HDD origin, optional writethrough NVMe cache).",
+   "[   18.014048] hddtest systemd[1]: Stopping enclave-l1-pair storage (authenticated network-HDD origin, optional writethrough NVMe cache)...",
+   "[   18.145560] hddtest python3[318]: storage-nbd: session was not healthy (ext4 errors 1, supervisor failure ext4 on /dev/nbd0 recorded 1 new error(s)): no cache-reuse marker",
+   "[   18.145745] hddtest python3[318]: {\"disassembled\": \"enclave-l1-pair\", \"cacheReuseMarker\": false}",
+   "[   18.151122] hddtest systemd[1]: enclave-l1-pair-storage.service: Deactivated successfully.",
+   "[   18.151271] hddtest systemd[1]: Stopped enclave-l1-pair storage (authenticated network-HDD origin, optional writethrough NVMe cache)."
+  ]
+ },
+ {
+  "step": "l1-operator-stops-attach",
+  "ok": true,
+  "t": 18.55,
+  "rc": 0,
+  "seconds": 0.36,
+  "journal": [
+   "[    3.060324] hddtest systemd[1]: Starting Enclave RPC durable-HDD attach (l1): kernel NBD over mutual TLS (raw device)...",
+   "[    5.084457] hddtest python3[195]: {\"attached\": {\"bytes\": 100663296, \"device\": \"/dev/nbd0\", \"exportName\": \"enclave-rpc-l1\", \"kernelPid\": 211, \"proc\": {\"argvSha256\": \"1783a23d412f7ea8d3750d6fd7e5eccbacb72d90c126381c06647b72ffd1efb8\", \"exe\": \"/usr/bin/qemu-nbd\", \"pid\": 208, \"purpose\": \"qemu-nbd -c /dev/nbd0\", \"role\": \"l1\", \"starttime\": 474, \"uid\": 0}, \"rotationalSeenByGuest\": \"0\", \"server\": {\"address\": \"10.0.2.100\", \"port\": 10809, \"serverName\": \"enclave-rpc-hdd-l1.test\"}}}",
+   "[    5.091380] hddtest systemd[1]: Finished Enclave RPC durable-HDD attach (l1): kernel NBD over mutual TLS (raw device).",
+   "[   18.184349] hddtest systemd[1]: Stopping Enclave RPC durable-HDD attach (l1): kernel NBD over mutual TLS (raw device)...",
+   "[   18.510947] hddtest python3[324]: {\"daemonGone\": true, \"detached\": \"/dev/nbd0\", \"qemuNbdDisconnectRc\": 0}",
+   "[   18.517145] hddtest systemd[1]: enclave-rpc-hdd-attach@l1.service: Deactivated successfully.",
+   "[   18.517338] hddtest systemd[1]: Stopped Enclave RPC durable-HDD attach (l1): kernel NBD over mutual TLS (raw device).",
+   "[   18.517509] hddtest systemd[1]: enclave-rpc-hdd-attach@l1.service: Consumed 1.406s CPU time over 15.456s wall clock time, 17.6M memory peak."
+  ]
+ },
+ {
+  "step": "l1-mount-point-bare-and-empty-after",
+  "ok": true,
+  "t": 18.55,
+  "detail": []
+ },
+ {
+  "step": "l1-consumer-refused-while-export-down-no-fallback",
+  "ok": true,
+  "t": 18.8,
+  "rc": 1,
+  "consumer": {
+   "ActiveState": "inactive",
+   "SubState": "dead",
+   "ActiveEnterTimestampMonotonic": "6674676",
+   "InactiveEnterTimestampMonotonic": "12661523",
+   "Result": "success",
+   "ExecMainStatus": "15"
+  },
+  "attach": {
+   "ActiveState": "failed",
+   "SubState": "failed",
+   "ActiveEnterTimestampMonotonic": "5091356",
+   "InactiveEnterTimestampMonotonic": "18754963",
+   "Result": "exit-code",
+   "ExecMainStatus": "2"
+  },
+  "attachJournal": [
+   "[   18.517509] hddtest systemd[1]: enclave-rpc-hdd-attach@l1.service: Consumed 1.406s CPU time over 15.456s wall clock time, 17.6M memory peak.",
+   "[   18.555530] hddtest systemd[1]: Starting Enclave RPC durable-HDD attach (l1): kernel NBD over mutual TLS (raw device)...",
+   "[   18.749011] hddtest python3[341]: {\"ok\": false, \"refused\": \"the export refused or failed TLS/authorization: qemu-img: Could not open 'driver=nbd,server.type=inet,server.host=10.0.2.100,server.port=10809,export=enclave-rpc-l1,tls-creds=tls0,tls-hostname=enclave-rpc-hdd-l1.test': Failed to read initial magic: Unexpected end-of-file before all data were read\"}",
+   "[   18.754846] hddtest systemd[1]: enclave-rpc-hdd-attach@l1.service: Main process exited, code=exited, status=2/INVALIDARGUMENT",
+   "[   18.754946] hddtest systemd[1]: enclave-rpc-hdd-attach@l1.service: Failed with result 'exit-code'.",
+   "[   18.755211] hddtest systemd[1]: Failed to start Enclave RPC durable-HDD attach (l1): kernel NBD over mutual TLS (raw device)."
+  ],
+  "mountPoint": []
+ },
+ {
+  "step": "A6-recovered-synced-data-intact",
+  "ok": true,
+  "t": 24.26,
+  "standin": {
+   "l1-el": {
+    "last": 10,
+    "bad": []
+   },
+   "l1-cl": {
+    "last": 9,
+    "bad": []
+   }
+  },
+  "states": {
+   "enclave-l1-pair-watch.service": "active",
+   "enclave-l1-el.service": "active",
+   "enclave-l1-cl.service": "active"
+  }
+ },
+ {
+  "step": "A7-stopping-the-attach-stops-everything-above-it",
+  "ok": true,
+  "t": 24.97,
+  "states": {
+   "enclave-rpc-hdd-attach@l1.service": "inactive",
+   "enclave-l1-pair-storage.service": "inactive",
+   "enclave-l1-pair-watch.service": "inactive",
+   "enclave-l1-el.service": "inactive",
+   "enclave-l1-cl.service": "inactive"
+  },
+  "storageJournal": [
+   "[   24.282925] hddtest systemd[1]: Stopping enclave-l1-pair storage (authenticated network-HDD origin, optional writethrough NVMe cache)...",
+   "[   24.425540] hddtest python3[414]: {\"disassembled\": \"enclave-l1-pair\", \"cacheReuseMarker\": false}",
+   "[   24.431541] hddtest systemd[1]: enclave-l1-pair-storage.service: Deactivated successfully.",
+   "[   24.431684] hddtest systemd[1]: Stopped enclave-l1-pair storage (authenticated network-HDD origin, optional writethrough NVMe cache)."
+  ]
+ },
+ {
+  "step": "B0-create-formats-blank-export-and-allocates-cache-through-ledger",
+  "ok": true,
+  "t": 26.51,
+  "out": "{\"created\": \"enclave-base-holder\", \"fsUuid\": \"afe85573-7edc-484c-b17e-c2a9237cf569\", \"next\": \"set fsUuid in the storage config AND filesystem.uuid in the attach config, re-render, then assemble\"}\n",
+  "cacheAllocatedBytes": {
+   "/vm/rpc-cache/base-data.img": 33554432,
+   "/vm/rpc-cache/base-meta.img": 8388608
+  },
+  "ledgerVerify": "chargedBytes\": 42151936, \"actualBytes\": 41963520, \"reservation\": \"base-holder-dm-cache\", \"reservationBytes\": 42074112, \"reservationActualBytes\": 41959424, \"requiredHeadroomBytes\": 131072, \"bookkeepingBytes\": 77824, \"ledgerHostShares\": 42151936, \"capBytes\": 250000000000, \"targetBytes\": 200000000000}\n"
+ },
+ {
+  "step": "B1-cache-under-the-one-mount-and-no-second-view",
+  "ok": true,
+  "t": 30.54,
+  "holders": [
+   "dm-0"
+  ],
+  "mount": [
+   "55 28 253:0 / /srv/enclave-base-holder rw,nosuid,nodev,noatime shared:57 - ext4 /dev/mapper/enclave-base-holder rw"
+  ],
+  "directMountOfOrigin": {
+   "rc": 32,
+   "out": "mount: /mnt/raw: fsconfig() failed: /dev/nbd1: Can't open blockdev.\n       dmesg(1) may have more information after failed mount system call.\n"
+  },
+  "dmStatus": "0 327680 cache 8 8/2048 128 25/512 126 91 96 83 0 25 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -",
+  "storageJournal": [
+   "[   26.520131] hddtest systemd[1]: Starting enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)...",
+   "[   27.224752] hddtest python3[479]: {\"assembled\": \"/dev/mapper/enclave-base-holder\", \"mountPoint\": \"/srv/enclave-base-holder\", \"origin\": \"/dev/nbd1\", \"cached\": true}",
+   "[   27.230927] hddtest systemd[1]: Finished enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)."
+  ]
+ },
+ {
+  "step": "B2a-clean-stop-writes-cache-reuse-marker",
+  "ok": true,
+  "t": 30.94,
+  "journal": [
+   "[   27.224752] hddtest python3[479]: {\"assembled\": \"/dev/mapper/enclave-base-holder\", \"mountPoint\": \"/srv/enclave-base-holder\", \"origin\": \"/dev/nbd1\", \"cached\": true}",
+   "[   27.230927] hddtest systemd[1]: Finished enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache).",
+   "[   30.560371] hddtest systemd[1]: Stopping enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)...",
+   "[   30.914693] hddtest python3[544]: {\"disassembled\": \"enclave-base-holder\", \"cacheReuseMarker\": true}",
+   "[   30.921821] hddtest systemd[1]: enclave-base-holder-storage.service: Deactivated successfully.",
+   "[   30.921956] hddtest systemd[1]: Stopped enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)."
+  ]
+ },
+ {
+  "step": "B2b-clean-restart-reuses-the-cache",
+  "ok": true,
+  "t": 33.7,
+  "dmStatus": "0 327680 cache 8 11/2048 128 38/512 297 142 158 152 0 12 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -",
+  "standin": {
+   "base": {
+    "last": 8,
+    "bad": []
+   }
+  }
+ },
+ {
+  "step": "B3a-uncached-write-detected-assemble-refused",
+  "ok": true,
+  "t": 34.71,
+  "rc": 1,
+  "storageJournal": [
+   "[   34.342324] hddtest systemd[1]: Starting enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)...",
+   "[   34.658024] hddtest python3[657]: storage-nbd: failed (the origin's superblock changed since the cache was last consistent (uncached mount/write): run cache-loss first): undid only what this run created/attached/mapped/mounted",
+   "[   34.658024] hddtest python3[657]: storage-nbd: the origin's superblock changed since the cache was last consistent (uncached mount/write): run cache-loss first",
+   "[   34.664857] hddtest systemd[1]: enclave-base-holder-storage.service: Main process exited, code=exited, status=2/INVALIDARGUMENT",
+   "[   34.664938] hddtest systemd[1]: enclave-base-holder-storage.service: Failed with result 'exit-code'.",
+   "[   34.665123] hddtest systemd[1]: Failed to start enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)."
+  ],
+  "mountPoint": []
+ },
+ {
+  "step": "B3b-cache-loss-invalidates-before-uncached-check",
+  "ok": true,
+  "t": 34.98,
+  "out": "{\"cacheInvalidated\": \"/vm/rpc-cache/base-meta.img\", \"originFsckRc\": 0, \"fsck\": \"Pass 1: Checking inodes, blocks, and sizes\\nPass 2: Checking directory structure\\nPass 3: Checking directory connectivity\\nPass 4: Checking reference counts\\nPass 5: Checking group summary information\\nenc-rpc-base: 25/40960 files (0.0% non-contiguous), 20206/163840 blocks\\n\", \"next\": \"the next assemble starts from an EMPTY cache\"}\n"
+ },
+ {
+  "step": "B3c-after-cache-loss-the-uncached-write-is-visible",
+  "ok": true,
+  "t": 37.84,
+  "visible": true
+ },
+ {
+  "step": "base-disconnect-supervision-stops-consumers",
+  "ok": true,
+  "t": 42.2,
+  "before": {
+   "enclave-base-holder-watch.service": "active",
+   "enclave-base-holder.service": "active"
+  },
+  "stoppedAfterSec": {
+   "enclave-base-holder-watch.service": 1.0,
+   "enclave-base-holder.service": 1.01
+  },
+  "watch": {
+   "ActiveState": "failed",
+   "SubState": "failed",
+   "ActiveEnterTimestampMonotonic": "35734806",
+   "InactiveEnterTimestampMonotonic": "41851015",
+   "Result": "exit-code",
+   "ExecMainStatus": "1"
+  },
+  "watchJournal": [
+   "[   34.665192] hddtest systemd[1]: Dependency failed for enclave-base-holder network-HDD supervision (attach, mapping, mount, ext4 errors, direct origin read).",
+   "[   34.665220] hddtest systemd[1]: enclave-base-holder-watch.service: Job enclave-base-holder-watch.service/start failed with result 'dependency'.",
+   "[   35.567632] hddtest systemd[1]: Starting enclave-base-holder network-HDD supervision (attach, mapping, mount, ext4 errors, direct origin read)...",
+   "[   35.734602] hddtest python3[729]: {\"device\": \"/dev/nbd1\", \"errorsAtStart\": 0, \"mapping\": \"enclave-base-holder\", \"ok\": true, \"watching\": \"/srv/enclave-base-holder\"}",
+   "[   35.734826] hddtest systemd[1]: Started enclave-base-holder network-HDD supervision (attach, mapping, mount, ext4 errors, direct origin read).",
+   "[   41.844160] hddtest python3[729]: {\"ok\": false, \"transportOrStorageFailure\": \"direct read of /dev/nbd1 failed: OSError: [Errno 5] Input/output error\"}",
+   "[   41.850902] hddtest systemd[1]: enclave-base-holder-watch.service: Main process exited, code=exited, status=1/FAILURE",
+   "[   41.850990] hddtest systemd[1]: enclave-base-holder-watch.service: Failed with result 'exit-code'."
+  ],
+  "consumerIOErrorsBeforeStop": {
+   "enclave-base-holder.service": [
+    "[   41.352523] hddtest python3[736]: standin[base] IOERROR at seq 17: OSError errno=5 Input/output error; continuing (stand-in does not exit on EIO)"
+   ]
+  },
+  "storage": {
+   "ActiveState": "active",
+   "SubState": "exited",
+   "ActiveEnterTimestampMonotonic": "35565812",
+   "InactiveEnterTimestampMonotonic": "0",
+   "Result": "success",
+   "ExecMainStatus": "0"
+  },
+  "attach": {
+   "ActiveState": "active",
+   "SubState": "exited",
+   "ActiveEnterTimestampMonotonic": "25756134",
+   "InactiveEnterTimestampMonotonic": "0",
+   "Result": "success",
+   "ExecMainStatus": "0"
+  },
+  "mountStillListed": [
+   "55 28 253:0 / /srv/enclave-base-holder rw,nosuid,nodev,noatime shared:57 - ext4 /dev/mapper/enclave-base-holder rw"
+  ]
+ },
+ {
+  "step": "base-no-automatic-restart-or-resync",
+  "ok": true,
+  "t": 47.21,
+  "consumers": {
+   "enclave-base-holder.service": "inactive"
+  }
+ },
+ {
+  "step": "base-operator-stops-storage",
+  "ok": true,
+  "t": 47.56,
+  "rc": 0,
+  "seconds": 0.34,
+  "journal": [
+   "[   34.658024] hddtest python3[657]: storage-nbd: the origin's superblock changed since the cache was last consistent (uncached mount/write): run cache-loss first",
+   "[   34.664857] hddtest systemd[1]: enclave-base-holder-storage.service: Main process exited, code=exited, status=2/INVALIDARGUMENT",
+   "[   34.664938] hddtest systemd[1]: enclave-base-holder-storage.service: Failed with result 'exit-code'.",
+   "[   34.665123] hddtest systemd[1]: Failed to start enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache).",
+   "[   34.989964] hddtest systemd[1]: Starting enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)...",
+   "[   35.559947] hddtest python3[693]: {\"assembled\": \"/dev/mapper/enclave-base-holder\", \"mountPoint\": \"/srv/enclave-base-holder\", \"origin\": \"/dev/nbd1\", \"cached\": true}",
+   "[   35.565830] hddtest systemd[1]: Finished enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache).",
+   "[   47.221262] hddtest systemd[1]: Stopping enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)...",
+   "[   47.384228] hddtest python3[780]: storage-nbd: session was not healthy (ext4 errors 0, supervisor failure direct read of /dev/nbd1 failed: OSError: [Errno 5] Input/output error): no cache-reuse marker",
+   "[   47.527327] hddtest python3[780]: {\"disassembled\": \"enclave-base-holder\", \"cacheReuseMarker\": false}",
+   "[   47.534961] hddtest systemd[1]: enclave-base-holder-storage.service: Deactivated successfully.",
+   "[   47.535155] hddtest systemd[1]: Stopped enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)."
+  ]
+ },
+ {
+  "step": "base-operator-stops-attach",
+  "ok": true,
+  "t": 47.75,
+  "rc": 0,
+  "seconds": 0.18,
+  "journal": [
+   "[   24.982498] hddtest systemd[1]: Starting Enclave RPC durable-HDD attach (base): kernel NBD over mutual TLS (raw device)...",
+   "[   25.749244] hddtest python3[438]: {\"attached\": {\"bytes\": 167772160, \"device\": \"/dev/nbd1\", \"exportName\": \"enclave-rpc-base\", \"kernelPid\": 452, \"proc\": {\"argvSha256\": \"111a16ed4bf9bdd20a75e6ccd371b93c233f878bafd8d850ce39e10da75c58a2\", \"exe\": \"/usr/bin/qemu-nbd\", \"pid\": 449, \"purpose\": \"qemu-nbd -c /dev/nbd1\", \"role\": \"base\", \"starttime\": 2541, \"uid\": 0}, \"rotationalSeenByGuest\": \"0\", \"server\": {\"address\": \"10.0.2.101\", \"port\": 10809, \"serverName\": \"enclave-rpc-hdd-base.test\"}}}",
+   "[   25.756158] hddtest systemd[1]: Finished Enclave RPC durable-HDD attach (base): kernel NBD over mutual TLS (raw device).",
+   "[   47.570228] hddtest systemd[1]: Stopping Enclave RPC durable-HDD attach (base): kernel NBD over mutual TLS (raw device)...",
+   "[   47.709328] hddtest python3[809]: {\"daemonGone\": true, \"detached\": \"/dev/nbd1\", \"qemuNbdDisconnectRc\": 0}",
+   "[   47.717540] hddtest systemd[1]: enclave-rpc-hdd-attach@base.service: Deactivated successfully.",
+   "[   47.717686] hddtest systemd[1]: Stopped Enclave RPC durable-HDD attach (base): kernel NBD over mutual TLS (raw device)."
+  ]
+ },
+ {
+  "step": "base-mount-point-bare-and-empty-after",
+  "ok": true,
+  "t": 47.75,
+  "detail": []
+ },
+ {
+  "step": "base-consumer-refused-while-export-down-no-fallback",
+  "ok": true,
+  "t": 48.0,
+  "rc": 1,
+  "consumer": {
+   "ActiveState": "inactive",
+   "SubState": "dead",
+   "ActiveEnterTimestampMonotonic": "35795799",
+   "InactiveEnterTimestampMonotonic": "41852791",
+   "Result": "success",
+   "ExecMainStatus": "15"
+  },
+  "attach": {
+   "ActiveState": "failed",
+   "SubState": "failed",
+   "ActiveEnterTimestampMonotonic": "25756134",
+   "InactiveEnterTimestampMonotonic": "47949486",
+   "Result": "exit-code",
+   "ExecMainStatus": "2"
+  },
+  "attachJournal": [
+   "[   47.717686] hddtest systemd[1]: Stopped Enclave RPC durable-HDD attach (base): kernel NBD over mutual TLS (raw device).",
+   "[   47.760274] hddtest systemd[1]: Starting Enclave RPC durable-HDD attach (base): kernel NBD over mutual TLS (raw device)...",
+   "[   47.943205] hddtest python3[826]: {\"ok\": false, \"refused\": \"the export refused or failed TLS/authorization: qemu-img: Could not open 'driver=nbd,server.type=inet,server.host=10.0.2.101,server.port=10809,export=enclave-rpc-base,tls-creds=tls0,tls-hostname=enclave-rpc-hdd-base.test': Failed to read initial magic: Unexpected end-of-file before all data were read\"}",
+   "[   47.949369] hddtest systemd[1]: enclave-rpc-hdd-attach@base.service: Main process exited, code=exited, status=2/INVALIDARGUMENT",
+   "[   47.949467] hddtest systemd[1]: enclave-rpc-hdd-attach@base.service: Failed with result 'exit-code'.",
+   "[   47.949659] hddtest systemd[1]: Failed to start Enclave RPC durable-HDD attach (base): kernel NBD over mutual TLS (raw device)."
+  ],
+  "mountPoint": []
+ },
+ {
+  "step": "B5a-after-transport-loss-cache-reuse-refused",
+  "ok": true,
+  "t": 49.83,
+  "storageJournal": [
+   "[   49.396070] hddtest systemd[1]: Starting enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)...",
+   "[   49.766024] hddtest python3[862]: storage-nbd: failed (no clean-shutdown or cache-loss marker for this cache: run cache-loss before assemble (stale-cache hazard)): undid only what this run created/attached/mapped/mounted",
+   "[   49.766024] hddtest python3[862]: storage-nbd: no clean-shutdown or cache-loss marker for this cache: run cache-loss before assemble (stale-cache hazard)",
+   "[   49.772566] hddtest systemd[1]: enclave-base-holder-storage.service: Main process exited, code=exited, status=2/INVALIDARGUMENT",
+   "[   49.772652] hddtest systemd[1]: enclave-base-holder-storage.service: Failed with result 'exit-code'.",
+   "[   49.772879] hddtest systemd[1]: Failed to start enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)."
+  ],
+  "mountPoint": []
+ },
+ {
+  "step": "B5b-cache-loss-then-recovered-synced-data-intact",
+  "ok": true,
+  "t": 52.98,
+  "cacheLoss": " 1: Checking inodes, blocks, and sizes\\nPass 2: Checking directory structure\\nPass 3: Checking directory connectivity\\nPass 4: Checking reference counts\\nPass 5: Checking group summary information\\nFeature orphan_present is set but orphan file is clean.\\nClear? no\\n\\nenc-rpc-base: 25/40960 files (0.0% non-contiguous), 20206/163840 blocks\\n\", \"next\": \"the next assemble starts from an EMPTY cache\"}\n",
+  "standin": {
+   "base": {
+    "last": 19,
+    "bad": []
+   }
+  }
+ },
+ {
+  "step": "C1-l1-storage-refuses-the-base-attach",
+  "ok": true,
+  "t": 53.07,
+  "out": "bd: failed (attach config role 'base' is not this storage's role 'l1'): undid only what this run created/attached/mapped/mounted\nstorage-nbd: attach config role 'base' is not this storage's role 'l1'\n"
+ },
+ {
+  "step": "C2-unpinned-placement-statement-refused",
+  "ok": true,
+  "t": 53.15,
+  "out": "reated/attached/mapped/mounted\nstorage-nbd: the attach config's placement statement (c7ec88dd72c4a79ff95d36d49f20a39c00986ca4e146121ada3fbc23ba444368) is not the pinned, reviewed one (736ec1f40055d4ade47f3ed9a4ee1e30f841af86a27c1340b0b4503ebe83b1ea)\n"
+ },
+ {
+  "step": "C3-foreign-mount-at-the-mount-point-refused",
+  "ok": true,
+  "t": 53.9,
+  "journal": [
+   "[   53.852389] hddtest python3[981]: storage-nbd: failed (/srv/enclave-base-holder is mounted from another device (0:41); leaving it): undid only what this run created/attached/mapped/mounted",
+   "[   53.852389] hddtest python3[981]: storage-nbd: /srv/enclave-base-holder is mounted from another device (0:41); leaving it",
+   "[   53.858222] hddtest systemd[1]: enclave-base-holder-storage.service: Main process exited, code=exited, status=2/INVALIDARGUMENT",
+   "[   53.858315] hddtest systemd[1]: enclave-base-holder-storage.service: Failed with result 'exit-code'.",
+   "[   53.858510] hddtest systemd[1]: Failed to start enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)."
+  ]
+ },
+ {
+  "step": "C4-stray-file-in-bare-mount-point-refused",
+  "ok": true,
+  "t": 54.19,
+  "journal": [
+   "[   54.140715] hddtest python3[992]: storage-nbd: failed (/srv/enclave-base-holder is not empty: something wrote into the bare mount point (on the VM disk); investigate first): undid only what this run created/attached/mapped/mounted",
+   "[   54.140715] hddtest python3[992]: storage-nbd: /srv/enclave-base-holder is not empty: something wrote into the bare mount point (on the VM disk); investigate first",
+   "[   54.146350] hddtest systemd[1]: enclave-base-holder-storage.service: Main process exited, code=exited, status=2/INVALIDARGUMENT",
+   "[   54.146443] hddtest systemd[1]: enclave-base-holder-storage.service: Failed with result 'exit-code'.",
+   "[   54.146628] hddtest systemd[1]: Failed to start enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)."
+  ]
+ },
+ {
+  "step": "C5-foreign-nbd-not-verified-and-never-detached",
+  "ok": true,
+  "t": 54.53,
+  "foreignConnect": [
+   0,
+   ""
+  ],
+  "verify": "{\"ok\": false, \"refused\": \"not attached by this tool (no state record)\"}\n",
+  "detach": "{\"ok\": false, \"refused\": \"no attachment recorded in /run/enclave-rpc-hdd/foreign/attach.json; nothing of someone else's is detached\"}\n",
+  "foreignStillConnected": true
+ },
+ {
+  "step": "C6-transport-detach-refused-while-storage-holds-the-device",
+  "ok": true,
+  "t": 56.73,
+  "base": "{\"ok\": false, \"refused\": \"/dev/nbd1 is still held by ['dm-0'] (a cache mapping over it); stop the storage layer first; not detached\"}\n",
+  "l1": "{\"ok\": false, \"refused\": \"/dev/nbd0 is mounted at ['/srv/enclave-l1-pair'] (the storage layer's mount); stop the storage layer first; not detached\"}\n"
+ },
+ {
+  "step": "teardown-clean",
+  "ok": true,
+  "t": 57.29,
+  "left": {
+   "nbdPids": [],
+   "dm": "No devices found",
+   "loops": "",
+   "srvMounts": []
+  }
+ },
+ {
+  "step": "done",
+  "ok": true,
+  "t": 57.29,
+  "failed": []
+ }
+]

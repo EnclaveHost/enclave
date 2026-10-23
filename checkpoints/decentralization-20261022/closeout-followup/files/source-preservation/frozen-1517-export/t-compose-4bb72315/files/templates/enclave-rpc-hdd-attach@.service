@@ -1,0 +1,19 @@
+# NucBox Linux VM. Template, NOT installed by this repository. Instance: l1 | base.
+# Config: /etc/enclave-rpc-hdd/attach-%i.json.
+# RAW attach only. The storage layer (S/P network-hdd-nbd: storage_nbd.py, in <name>-storage.service) adds the optional
+# writethrough cache and does the ONE mount; it BindsTo= this unit. `hddattach.py mount` remains for standalone use only.
+# Consumers do not depend on this unit directly: they bind to <name>-watch.service, the hddwatch.py supervisor.
+[Unit]
+Description=Enclave RPC durable-HDD attach (%i): kernel NBD over mutual TLS (raw device)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Root: nbd needs CAP_SYS_ADMIN, and the module is loaded explicitly here, never by the tool.
+ExecStartPre=/usr/sbin/modprobe nbd nbds_max=4
+ExecStart=/usr/bin/python3 -I /opt/enclave-rpc-hdd/transport/hddattach.py attach /etc/enclave-rpc-hdd/attach-%i.json
+ExecStop=/usr/bin/python3 -I /opt/enclave-rpc-hdd/transport/hddattach.py detach /etc/enclave-rpc-hdd/attach-%i.json
+TimeoutStartSec=180
+TimeoutStopSec=300

@@ -1,0 +1,922 @@
+From 97758444e4d63607061c92f761443281946e6ced Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 05:31:59 -0700
+Subject: [PATCH] holder: network-hdd-nbd layout (authenticated NBD origin,
+ pinned placement statement, optional writethrough cache on the raw device
+ before the one mount, cache-reuse marker by origin superblock fingerprint,
+ supervisor-gated units); local layout unchanged
+
+---
+ holder/holder.py                   | 215 ++++++++++++-
+ holder/storage_nbd.py              | 465 +++++++++++++++++++++++++++++
+ holder/test/test_network_layout.py | 132 ++++++++
+ 3 files changed, 797 insertions(+), 15 deletions(-)
+ create mode 100644 holder/storage_nbd.py
+ create mode 100644 holder/test/test_network_layout.py
+
+diff --git a/holder/holder.py b/holder/holder.py
+index 7e3417a9f29b2be19a28480eca592166b7d12ced..2f32e63a04d48d59b4f8740aa1a5c87bfed2990c 100644
+--- a/holder/holder.py
++++ b/holder/holder.py
+@@ -214,15 +214,68 @@
+     c['limits']['memoryHighBytes'] = integer('limits.memoryHighBytes', lim.get('memoryHighBytes', c['limits']['memoryMaxBytes'] * 9 // 10),
+                                              1 << 30, c['limits']['memoryMaxBytes'])
+     c['storage'] = validate_storage(raw['storage'], c)
++    if c['storage']['layout'] == NETWORK_LAYOUT and c['storage']['origin']['role'] != 'base':
++        fail("the Base holder's network origin must be the base export (role base), never the L1 pair's")
+     return c
+ 
+ 
++NETWORK_LAYOUT = 'network-hdd-nbd'
++TRANSPORT_FORMAT = 'enclave-rpc-hdd-nbd/v1'
++PLACEMENT_KEYS = ('caCertSha256', 'exportName', 'fstype', 'imageBytes', 'imagePath', 'mountTarget', 'requireRotational',
++                  'serverCertSha256')
++
++
++def canonical_json(o):
++    return json.dumps(o, sort_keys=True, separators=(',', ':')).encode()
++
++
++def validate_network_origin(o, role=None):
++    """The origin is NOT a local file: it is the enclave-rpc-hdd transport's authenticated NBD export of a NEW image file
++    on the desktop HDD, attached RAW (hddattach.py attach) and verified at every assemble (hddattach.py verify-attached).
++    `placement` is the attach config's placement block, copied from the export host's placement.json and REVIEWED: it is
++    the export host's own statement from its mount table and sysfs (not cryptographic proof of physical media), pinned
++    here by digest. A statement without requireRotational: true is refused; there is no "any network disk" mode."""
++    only('storage.origin', o, ['transport', 'role', 'attachConfig', 'device', 'placement', 'bytes', 'filesystemUuid'],
++         ['transport', 'role', 'attachConfig', 'device', 'placement', 'bytes'])
++    if o['transport'] != TRANSPORT_FORMAT:
++        fail(f'storage.origin.transport must be {TRANSPORT_FORMAT}')
++    if o['role'] not in ('base', 'l1') or (role and o['role'] != role):
++        fail(f"storage.origin.role must be {role or 'base or l1'} (the L1 and Base exports are never shared)")
++    r = o['role']
++    if not re.fullmatch(r'/dev/nbd[0-9]{1,2}', str(o['device'])):
++        fail('storage.origin.device must be /dev/nbdN (the attach config\'s device)')
++    nbytes = integer('storage.origin.bytes', o['bytes'], 1_500_000_000_000, 30_000_000_000_000)
++    pl = o['placement']
++    only('storage.origin.placement', pl, PLACEMENT_KEYS, PLACEMENT_KEYS)
++    if pl['exportName'] != f'enclave-rpc-{r}' or pl['imageBytes'] != nbytes:
++        fail(f'storage.origin.placement must be the enclave-rpc-{r} export of exactly storage.origin.bytes')
++    if pl['requireRotational'] is not True:
++        fail('storage.origin.placement.requireRotational must be true: the export host must have found its backing disk '
++             'rotational; a fixture or SSD/NVMe-backed export is refused')
++    if pl['fstype'] not in ('ntfs3', 'ext4', 'xfs'):
++        fail('storage.origin.placement.fstype must be the HDD filesystem the export host checked (ntfs3, ext4 or xfs)')
++    mt = abspath('storage.origin.placement.mountTarget', pl['mountTarget'])
++    ip = abspath('storage.origin.placement.imagePath', pl['imagePath'])
++    if mt == '/' or not ip.startswith(mt.rstrip('/') + '/') or os.path.basename(ip) != f'{r}-origin.img':
++        fail(f'storage.origin.placement.imagePath must be {r}-origin.img under the HDD mount target')
++    for k in ('serverCertSha256', 'caCertSha256'):
++        if not re.fullmatch(r'[0-9a-f]{64}', str(pl[k])):
++            fail(f'storage.origin.placement.{k} must be the 64-hex fingerprint from the export host')
++    u = o.get('filesystemUuid')
++    if u is not None and not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', str(u)):
++        fail('storage.origin.filesystemUuid must be null (before the one first format) or the filesystem UUID')
++    return {'transport': TRANSPORT_FORMAT, 'role': r, 'attachConfig': abspath('storage.origin.attachConfig', o['attachConfig']),
++            'device': o['device'], 'placement': dict(pl), 'placementSha256': hashlib.sha256(canonical_json(pl)).hexdigest(),
++            'bytes': nbytes, 'filesystemUuid': u}
++
++
+ def validate_storage(s, c):
+     """Durable state lives in an HDD-backed origin image. The NVMe cache is optional, writethrough and bounded."""
+     only('storage', s, ['layout', 'mountPoint', 'origin', 'cache', 'nvmeBudget', 'originFreeMarginBytes', 'nvmeFreeMarginBytes'],
+          ['layout', 'mountPoint', 'origin', 'cache'])
+-    if s['layout'] != 'loop-ext4-image':
+-        fail('storage.layout must be loop-ext4-image (a NEW image file; existing filesystems are never reformatted)')
++    if s['layout'] not in ('loop-ext4-image', NETWORK_LAYOUT):
++        fail(f'storage.layout must be loop-ext4-image (a NEW local image file) or {NETWORK_LAYOUT} (the authenticated '
++             'enclave-rpc-hdd NBD export of a NEW image file on the HDD); existing filesystems are never reformatted')
+     out = {'layout': s['layout'], 'mountPoint': abspath('storage.mountPoint', s['mountPoint']),
+            'originFreeMarginBytes': integer('storage.originFreeMarginBytes', s.get('originFreeMarginBytes', 500_000_000_000), 0, 10 ** 14),
+            'nvmeFreeMarginBytes': integer('storage.nvmeFreeMarginBytes', s.get('nvmeFreeMarginBytes', 200_000_000_000), 0, 10 ** 14)}
+@@ -231,9 +284,12 @@
+     if c['staticFilesDir'] and not (c['staticFilesDir'] + '/').startswith(out['mountPoint'].rstrip('/') + '/'):
+         fail('staticFilesDir must be inside storage.mountPoint (durable data stays on the HDD-backed origin)')
+     o = s['origin']
+-    only('storage.origin', o, ['imagePath', 'bytes'], ['imagePath', 'bytes'])
+-    out['origin'] = {'imagePath': abspath('storage.origin.imagePath', o['imagePath']),
+-                     'bytes': integer('storage.origin.bytes', o['bytes'], 1_500_000_000_000, 30_000_000_000_000)}
++    if s['layout'] == NETWORK_LAYOUT:
++        out['origin'] = validate_network_origin(o)
++    else:
++        only('storage.origin', o, ['imagePath', 'bytes'], ['imagePath', 'bytes'])
++        out['origin'] = {'imagePath': abspath('storage.origin.imagePath', o['imagePath']),
++                         'bytes': integer('storage.origin.bytes', o['bytes'], 1_500_000_000_000, 30_000_000_000_000)}
+     k = s['cache']
+     only('storage.cache', k, ['mechanism', 'mode', 'dataImagePath', 'dataBytes', 'metadataImagePath', 'metadataBytes', 'blockBytes', 'slackBytes'],
+          ['mechanism'])
+@@ -273,7 +329,7 @@
+         fail(f'storage.cache.metadataBytes must be a multiple of the {CACHE_FS_BLOCK}-byte filesystem block of the cache images')
+     slack = integer('storage.cache.slackBytes', k.get('slackBytes', 64 << 20), 16 << 20, 4 << 30)
+     paths = [abspath('storage.cache.dataImagePath', k['dataImagePath']), abspath('storage.cache.metadataImagePath', k['metadataImagePath'])]
+-    if paths[0] == paths[1] or any(p.startswith(out['mountPoint'].rstrip('/') + '/') or p == out['origin']['imagePath'] for p in paths):
++    if paths[0] == paths[1] or any(p.startswith(out['mountPoint'].rstrip('/') + '/') or p == out['origin'].get('imagePath') for p in paths):
+         fail('cache images must be two distinct files outside the mount point and apart from the origin image')
+     holder = data + meta + slack
+     need = BUDGET.required_headroom({'blockBytes': CACHE_FS_BLOCK, 'files': [{'path': p, 'bytes': n} for p, n in zip(paths, (data, meta))]})
+@@ -324,12 +380,15 @@
+ def unit_text(c, holder_path, config_path):
+     lim = c['limits']
+     data_mount = c['storage']['mountPoint']
++    if c['storage']['layout'] == NETWORK_LAYOUT:
++        deps, rw = network_consumer_deps('enclave-base-holder'), f"{c['datadir']} {data_mount}/tmp"
++    else:
++        deps, rw = 'After=network-online.target enclave-base-holder-storage.service\nRequires=enclave-base-holder-storage.service', data_mount
+     return f"""# rendered by holder.py ({FORMAT}); review before install. Private: loopback RPC only, not a host-service role.
+ [Unit]
+ Description=Enclave private Base state holder (stock base rpc {c['binary']['release']}; untrusted witness source)
+ Wants=network-online.target
+-After=network-online.target enclave-base-holder-storage.service
+-Requires=enclave-base-holder-storage.service
++{deps}
+ RequiresMountsFor={data_mount}
+ 
+ [Service]
+@@ -360,7 +419,7 @@
+ ProtectKernelModules=yes
+ ProtectControlGroups=yes
+ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+-ReadWritePaths={data_mount}
++ReadWritePaths={rw}
+ RuntimeDirectory=enclave-base-holder
+ RuntimeDirectoryMode=0750
+ UMask=0077
+@@ -389,6 +448,87 @@
+ """
+ 
+ 
++# ---- network-HDD layout rendering (shared with the L1 pair; the local loop layout above is unchanged) ------------------
++HDD_TOOLS = '/opt/enclave-rpc-hdd/transport'
++STORAGE_STATE_DIR = '/var/lib/enclave-rpc-storage'
++
++
++def network_storage_config(c, name, dirs, budget_tool):
++    """The storage_nbd.py config: this role's attach + pinned placement, the ONE mount, and the optional cache."""
++    s, o, k = c['storage'], c['storage']['origin'], c['storage']['cache']
++    return {'format': 'enclave-rpc-storage-nbd/v1', 'name': name, 'role': o['role'], 'attachConfig': o['attachConfig'],
++            'hddattach': HDD_TOOLS + '/hddattach.py', 'placementSha256': o['placementSha256'], 'bytes': o['bytes'],
++            'fsUuid': o['filesystemUuid'], 'mechanism': k['mechanism'], 'mountPoint': s['mountPoint'], 'dirs': list(dirs),
++            'owner': c['serviceUser'], 'py': '/usr/bin/python3', 'budgetTool': budget_tool,
++            'ledger': (s.get('nvmeBudget') or {}).get('ledgerPath', ''), 'reservation': (s.get('nvmeBudget') or {}).get('reservationId', ''),
++            'cdata': k.get('dataImagePath', ''), 'cdataBytes': k.get('dataBytes', 0), 'cmeta': k.get('metadataImagePath', ''),
++            'cmetaBytes': k.get('metadataBytes', 0), 'blockSectors': k.get('blockBytes', 0) // 512,
++            'nvmeFreeMargin': s['nvmeFreeMarginBytes'], 'stateDir': STORAGE_STATE_DIR,
++            'watchFailureFile': f'{STORAGE_STATE_DIR}/{name}.watch-failure.json'}
++
++
++def watch_config(c, name, interval=2, probe_timeout=10):
++    o = c['storage']['origin']
++    return {'format': 'enclave-rpc-hdd-watch/v1', 'role': o['role'], 'attachConfig': o['attachConfig'], 'device': o['device'],
++            'mapping': name if c['storage']['cache']['mechanism'] == 'dm-cache' else None,
++            'mountPoint': c['storage']['mountPoint'], 'intervalSec': interval, 'probeTimeoutSec': probe_timeout,
++            'failureFile': f'{STORAGE_STATE_DIR}/{name}.watch-failure.json'}
++
++
++def network_storage_unit_text(name, role, consumers, tool_path, cfg_path):
++    attach = f'enclave-rpc-hdd-attach@{role}.service'
++    return f"""# rendered (network-hdd-nbd); root-run storage: optional writethrough cache on the RAW authenticated NBD device, then ONE mount.
++# No reformatting, no fallback location: without the verified attach this unit fails and nothing is mounted.
++[Unit]
++Description={name} storage (authenticated network-HDD origin, optional writethrough NVMe cache)
++Requires={attach}
++BindsTo={attach}
++After={attach} network-online.target
++Wants=network-online.target
++Before={name}-watch.service {' '.join(consumers)}
++
++[Service]
++Type=oneshot
++RemainAfterExit=yes
++ExecStart=/usr/bin/python3 -I {tool_path} assemble {cfg_path}
++ExecStop=/usr/bin/python3 -I {tool_path} disassemble {cfg_path}
++TimeoutStartSec=600
++TimeoutStopSec=600
++"""
++
++
++def watch_unit_text(name, device, cached, watch_cfg_path):
++    caps = 'CAP_SYS_ADMIN' if cached else ''          # dm table/status ioctls; nothing else
++    dm = '\nDeviceAllow=/dev/mapper/control rw' if cached else ''
++    return f"""# rendered (network-hdd-nbd); runtime supervision. The node units bind to THIS unit: when it exits (transport or storage
++# failure), systemd stops them. It never writes, remounts, retries, reformats or resyncs; recovery is an operator step.
++[Unit]
++Description={name} network-HDD supervision (attach, mapping, mount, ext4 errors, direct origin read)
++Requires={name}-storage.service
++BindsTo={name}-storage.service
++After={name}-storage.service
++
++[Service]
++Type=notify
++NotifyAccess=main
++ExecStart=/usr/bin/python3 -I {HDD_TOOLS}/hddwatch.py run {watch_cfg_path}
++Restart=no
++TimeoutStartSec=120
++CapabilityBoundingSet={caps}
++NoNewPrivileges=yes
++ProtectSystem=strict
++ProtectHome=yes
++PrivateTmp=yes
++ReadWritePaths={STORAGE_STATE_DIR}
++DevicePolicy=closed
++DeviceAllow={device} r{dm}
++"""
++
++
++def network_consumer_deps(name):
++    return (f"After=network-online.target {name}-watch.service\nRequires={name}-watch.service\nBindsTo={name}-watch.service")
++
++
+ def storage_script(c, budget_tool='/opt/enclave-base-holder/budget.py'):
+     """The root-only storage script: holder-storage.sh.in with this config's constants (shell-quoted)."""
+     s, o, k = c['storage'], c['storage']['origin'], c['storage']['cache']
+@@ -428,12 +568,24 @@
+     files = {'holder.json': json.dumps(c, indent=2, sort_keys=True) + '\n',
+              'holder.argv.json': json.dumps(argv(c), indent=1) + '\n',
+              'holder.env.json': json.dumps(child_env(c), indent=1, sort_keys=True) + '\n',
+-             'enclave-base-holder.service': unit_text(c, holder_path, config_path),
+-             'enclave-base-holder-storage.service': storage_unit_text(script_path),
+-             'holder-storage.sh': storage_script(c),
++             'enclave-base-holder.service': unit_text(c, holder_path, config_path)}
++    if c['storage']['layout'] == NETWORK_LAYOUT:
++        name, cached = 'enclave-base-holder', c['storage']['cache']['mechanism'] == 'dm-cache'
++        files.update({
++            'enclave-base-holder-storage.service': network_storage_unit_text(name, 'base', ['enclave-base-holder.service'],
++                                                                             '/opt/enclave-base-holder/storage_nbd.py',
++                                                                             '/etc/enclave-base-holder/holder-storage-nbd.json'),
++            'enclave-base-holder-watch.service': watch_unit_text(name, c['storage']['origin']['device'], cached,
++                                                                 '/etc/enclave-base-holder/holder-watch.json'),
++            'holder-storage-nbd.json': json.dumps(network_storage_config(c, name, [c['datadir'], c['storage']['mountPoint'] + '/tmp'],
++                                                                         '/opt/enclave-base-holder/budget.py'), indent=1, sort_keys=True) + '\n',
++            'holder-watch.json': json.dumps(watch_config(c, name), indent=1, sort_keys=True) + '\n'})
++    else:
++        files.update({'enclave-base-holder-storage.service': storage_unit_text(script_path), 'holder-storage.sh': storage_script(c)})
++    files.update({
+              'nvme-cache-budget.example.json': json.dumps(budget_example(c), indent=1) + '\n',
+              'b-proof-source.json': json.dumps({'proofSources': {'untrusted': [f"http://127.0.0.1:{c['rpc']['port']}/"]},
+-                                                'note': "fragment for B's enclave-rpc-runtime/v1 config; B verifies every witness"}, indent=1) + '\n'}
++                                                'note': "fragment for B's enclave-rpc-runtime/v1 config; B verifies every witness"}, indent=1) + '\n'})
+     for name, text in files.items():
+         (out / name).write_text(text)
+         os.chmod(out / name, 0o700 if name.endswith('.sh') else 0o600)
+@@ -484,6 +636,37 @@
+     return leaves
+ 
+ 
++def network_placement(c, leaves, watch_cfg):
++    """Network-HDD placement. Inside the VM the nbd device's queue/rotational says nothing about the desktop's media
++    (measured: 0), and it is never overridden. Instead, ALL of these must hold:
++      - the datadir resolves to exactly the configured origin nbd device (plus, when cached, only non-rotational cache
++        leaves);
++      - the attach config's placement statement is the pinned, reviewed one;
++      - the supervisor's full check passes (owned attach, mapping, mount, ext4 errors, a direct origin read).
++    This is an authenticated, operator-configured statement by the export host, NOT cryptographic proof of physical
++    media. It needs root (the attach state is root-only)."""
++    import subprocess
++    o = c['storage']['origin']
++    nbd = os.path.basename(o['device'])
++    names = [l['device'] for l in leaves]
++    if c['storage']['cache']['mechanism'] == 'none':
++        if names != [nbd]:
++            fail(f'datadir must resolve to exactly the network origin {nbd}; backing: {leaves}')
++    elif nbd not in names or any(l['rotational'] for l in leaves if l['device'] != nbd):
++        fail(f'a cached network datadir must resolve to the origin {nbd} plus non-rotational cache leaves only; backing: {leaves}')
++    try:
++        pl = json.loads(Path(o['attachConfig']).read_text())['placement']
++    except (OSError, ValueError, KeyError) as e:
++        fail(f'cannot read the attach config placement: {e}')
++    if hashlib.sha256(canonical_json(pl)).hexdigest() != o['placementSha256']:
++        fail('the attach config placement statement is not the pinned, reviewed one')
++    r = subprocess.run(['/usr/bin/python3', '-I', HDD_TOOLS + '/hddwatch.py', 'check', watch_cfg], capture_output=True, text=True, timeout=180)
++    if r.returncode != 0:
++        fail(f'network-HDD supervision check failed: {r.stdout.strip()[-300:]}')
++    return (f"network placement: {o['placement']['exportName']} ({o['placementSha256'][:16]}), leaves {names}; "
++            'export-host statement, not cryptographic proof of media')
++
++
+ def port_in_use(port, kind):
+     for f in (f'/proc/net/{kind}', f'/proc/net/{kind}6'):
+         try:
+@@ -562,10 +745,12 @@
+     leaves = backing_disks(c['datadir'])
+     if not leaves:
+         fail('cannot resolve the datadir backing device')
+-    if c['storage']['cache']['mechanism'] == 'none' and not all(l['rotational'] for l in leaves):
++    if c['storage']['layout'] == NETWORK_LAYOUT:
++        out.append(network_placement(c, leaves, '/etc/enclave-base-holder/holder-watch.json'))
++    elif c['storage']['cache']['mechanism'] == 'none' and not all(l['rotational'] for l in leaves):
+         fail(f'datadir must be HDD-backed (no silent NVMe state); backing: {leaves}')
+     if c['storage']['cache']['mechanism'] == 'dm-cache':
+-        if not any(l['rotational'] for l in leaves) or not any(not l['rotational'] for l in leaves):
++        if c['storage']['layout'] != NETWORK_LAYOUT and (not any(l['rotational'] for l in leaves) or not any(not l['rotational'] for l in leaves)):
+             fail(f'a cached datadir must resolve to an HDD origin plus an NVMe cache; backing: {leaves}')
+         for p in (c['storage']['cache']['dataImagePath'], c['storage']['cache']['metadataImagePath']):
+             if os.stat(p).st_blocks * 512 < os.stat(p).st_size:
+diff --git a/holder/storage_nbd.py b/holder/storage_nbd.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..3ada96196e89a20714acc1cec16230c5b7de94c0
+--- /dev/null
++++ b/holder/storage_nbd.py
+@@ -0,0 +1,465 @@
++#!/usr/bin/env python3
++"""Network-HDD storage (layout network-hdd-nbd): the durable origin is an authenticated NBD export of a NEW image file on
++the desktop HDD array, attached RAW by the transport (enclave-rpc-hdd hddattach.py). This tool adds the optional
++writethrough dm-cache ON THE RAW DEVICE, then mounts the ONE filesystem from the top device. There is exactly one writable
++view: the nbd device is never mounted while a mapping uses it, and a mapping is never created over a mounted origin.
++
++  storage_nbd.py create      <cfg> --first-format   blank export only (transport first-format), then the cache files
++                                                    through the ledger. Prints the filesystem UUID for the config.
++  storage_nbd.py assemble    <cfg>                  verify the attach and placement pin; map (or adopt an IDENTICAL map);
++                                                    mount the configured UUID on an empty mount point
++  storage_nbd.py disassemble <cfg>                  validate the whole ownership chain first, unmount, unmap, detach only
++                                                    this layer's cache loops. Stops at the first failure. Writes the
++                                                    clean-shutdown marker ONLY for a healthy session.
++  storage_nbd.py cache-loss  <cfg>                  unmounted: unmap, ZERO the cache metadata first, then a read-only fsck
++                                                    of the origin
++  storage_nbd.py verify-cap  <cfg>                  the shared NVMe budget ledger (budget.py verify)
++
++Cache reuse rule (stale-cache safety):
++- assemble with a cache needs a marker whose O_DIRECT superblock fingerprint of the origin still matches.
++- A marker comes from a clean disassemble (no supervisor failure recorded for this session, no new ext4 errors, a clean
++  unmount) or from cache-loss (after the metadata was zeroed).
++- Any mount or write of the filesystem without the cache changes the superblock (mount count, write time, kbytes
++  written), so assemble refuses until cache-loss runs.
++- Raw block writes to the origin that bypass a mount are NOT detectable this way; after any doubt, run cache-loss.
++
++Nothing here formats a device that is not blank, deletes the export, retries, or resyncs.
++"""
++import hashlib
++import json
++import mmap
++import os
++import re
++import signal
++import stat
++import subprocess
++import sys
++import uuid as uuidlib
++
++FORMAT = "enclave-rpc-storage-nbd/v1"
++KEYS = {"format", "name", "role", "attachConfig", "hddattach", "placementSha256", "bytes", "fsUuid", "mechanism", "mountPoint",
++        "dirs", "owner", "py", "budgetTool", "ledger", "reservation", "cdata", "cdataBytes", "cmeta", "cmetaBytes",
++        "blockSectors", "nvmeFreeMargin", "stateDir", "watchFailureFile"}
++
++
++class Stop(Exception):
++    pass
++
++
++def log(m):
++    print(f"storage-nbd: {m}", file=sys.stderr, flush=True)
++
++
++def die(m):
++    raise Stop(m)
++
++
++def run(*a, check=True, timeout=600, **kw):
++    r = subprocess.run(list(a), capture_output=True, text=True, timeout=timeout, **kw)
++    if check and r.returncode != 0:
++        die(f"{a[0]} {' '.join(a[1:3])} failed ({r.returncode}): {(r.stderr or r.stdout).strip()[:300]}")
++    return r
++
++
++def load(path):
++    with open(path) as f:
++        c = json.load(f)
++    if not isinstance(c, dict) or set(c) != KEYS or c.get("format") != FORMAT:
++        die(f"{path}: must be {FORMAT} with exactly {sorted(KEYS)}")
++    if c["role"] not in ("l1", "base") or c["mechanism"] not in ("none", "dm-cache"):
++        die("role must be l1/base and mechanism none/dm-cache")
++    if not re.fullmatch(r"[a-z0-9-]{3,64}", c["name"]):
++        die("name must be a dm-safe name")
++    if c["fsUuid"] is not None and not re.fullmatch(r"[0-9a-f-]{36}", c["fsUuid"]):
++        die("fsUuid must be null (before the first format) or the filesystem UUID")
++    return c
++
++
++# ---- the attach (transport) and its placement pin ----------------------------------------------------------------------
++def canonical(o):
++    return json.dumps(o, sort_keys=True, separators=(",", ":")).encode()
++
++
++def attach_view(c):
++    with open(c["attachConfig"]) as f:
++        a = json.load(f)
++    if a.get("role") != c["role"]:
++        die(f"attach config role {a.get('role')!r} is not this storage's role {c['role']!r}")
++    if a["placement"]["exportName"] != f"enclave-rpc-{c['role']}" or a["placement"]["imageBytes"] != c["bytes"]:
++        die("attach config names another export or size than this storage")
++    got = hashlib.sha256(canonical(a["placement"])).hexdigest()
++    if got != c["placementSha256"]:
++        die(f"the attach config's placement statement ({got}) is not the pinned, reviewed one ({c['placementSha256']})")
++    r = run(c["py"], "-I", c["hddattach"], "verify-attached", c["attachConfig"], check=False, timeout=120)
++    if r.returncode != 0:
++        die(f"the transport attachment is not verified: {r.stdout.strip()[-300:]}")
++    v = json.loads(r.stdout.strip().splitlines()[-1])["attached"]
++    if v["device"] != a["device"] or v["bytes"] != c["bytes"]:
++        die("verified attachment does not match the configured device/size")
++    return a["device"], v
++
++
++def majmin(path):
++    st = os.stat(path)
++    if not stat.S_ISBLK(st.st_mode):
++        die(f"{path} is not a block device")
++    return f"{os.major(st.st_rdev)}:{os.minor(st.st_rdev)}"
++
++
++def holders(dev):
++    try:
++        return sorted(os.listdir(f"/sys/block/{os.path.basename(os.path.realpath(dev))}/holders"))
++    except OSError:
++        return []
++
++
++def mountpoints_of(dev):
++    mm = majmin(dev)
++    out = []
++    with open("/proc/self/mountinfo") as f:
++        for line in f:
++            p = line.split()
++            if p[2] == mm:
++                out.append(p[4])
++    return out
++
++
++def mounted_at(mnt):
++    hit = None
++    with open("/proc/self/mountinfo") as f:
++        for line in f:
++            p = line.split()
++            if p[4] == mnt:
++                hit = p[2]
++    return hit
++
++
++def sb_fingerprint(dev):
++    """sha256 of the ext4 superblock (bytes 1024-2047) read with O_DIRECT from the ORIGIN (no page cache, no dm-cache)."""
++    fd = os.open(dev, os.O_RDONLY | os.O_DIRECT)
++    try:
++        buf = mmap.mmap(-1, 4096)
++        if os.preadv(fd, [buf], 0) != 4096:
++            die(f"short superblock read from {dev}")
++        sb = bytes(buf[1024:2048])
++    finally:
++        os.close(fd)
++    if sb[0x38:0x3A] != b"\x53\xef":
++        die(f"{dev} has no ext4 superblock")
++    return hashlib.sha256(sb).hexdigest()
++
++
++# ---- cache files (same rules as the local template) ------------------------------------------------------------------
++def rot_of_dir(path):
++    src = run("findmnt", "-no", "SOURCE", "--target", os.path.dirname(path)).stdout.strip()
++    return run("lsblk", "-nso", "ROTA", src).stdout.split()[-1]
++
++
++def loop_of(path):
++    """The loop bound to exactly this backing file, if any."""
++    out = run("losetup", "-j", path, "-O", "NAME", "-n").stdout.split()
++    return out[0] if out else ""
++
++
++def credit(path, declared, cdata_dir_dev):
++    try:
++        if (stat.S_ISREG(os.lstat(path).st_mode) and stat.S_ISREG(os.lstat(path + ".enclave-budget-owner").st_mode)
++                and os.lstat(path).st_dev == cdata_dir_dev):
++            return min(os.lstat(path).st_blocks * 512, declared)
++    except FileNotFoundError:
++        pass
++    return 0
++
++
++def expected_table(c, origin):
++    sectors = int(run("blockdev", "--getsz", origin).stdout.strip())
++    return (f"0 {sectors} cache {majmin(c['_M'])} {majmin(c['_D'])} {majmin(origin)} {c['blockSectors']} 1 writethrough smq 0")
++
++
++# ---- markers -----------------------------------------------------------------------------------------------------------
++def marker_path(c):
++    return os.path.join(c["stateDir"], f"{c['name']}.cache-ok.json")
++
++
++def session_path(c):
++    return os.path.join(c["stateDir"], f"{c['name']}.session.json")
++
++
++def write_json(path, obj):
++    os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
++    tmp = path + ".tmp"
++    with open(tmp, "w") as f:
++        json.dump(obj, f, sort_keys=True); f.flush(); os.fsync(f.fileno())
++    os.replace(tmp, path)
++
++
++def read_json(path):
++    try:
++        with open(path) as f:
++            return json.load(f)
++    except FileNotFoundError:
++        return None
++
++
++def drop(path):
++    if os.path.lexists(path):
++        os.unlink(path)
++
++
++# ---- commands ----------------------------------------------------------------------------------------------------------
++class Unwind:
++    """Undo ONLY what this run created/attached/mapped/mounted, in reverse, stopping at the first failed step."""
++
++    def __init__(self):
++        self.created, self.attached, self.mapped, self.mounted = [], [], None, None
++
++    def __call__(self, why):
++        if self.mounted and run("umount", self.mounted, check=False).returncode != 0:
++            return log(f"cleanup stopped: cannot unmount {self.mounted}; mapping, loops and files kept ({why})")
++        if self.mapped and run("dmsetup", "remove", self.mapped, check=False).returncode != 0:
++            return log(f"cleanup stopped: cannot remove mapping {self.mapped}; loops and files kept ({why})")
++        for l in reversed(self.attached):
++            if run("losetup", "-d", l, check=False).returncode != 0:
++                return log(f"cleanup stopped: cannot detach {l}; remaining loops and files kept ({why})")
++        for f in reversed(self.created):
++            try:
++                os.unlink(f)
++            except OSError as e:
++                return log(f"cleanup stopped: cannot remove {f}: {e} ({why})")
++        log(f"failed ({why}): undid only what this run created/attached/mapped/mounted")
++
++
++def attach_file(path, uw):
++    l = loop_of(path)
++    if not l:
++        l = run("losetup", "--find", "--show", "--", path).stdout.strip()
++        uw.attached.append(l)
++    return l
++
++
++def cmd_create(c, argv, uw):
++    if "--first-format" not in argv:
++        die("create needs --first-format: it formats a NEW (blank) export once")
++    if c["fsUuid"] is not None:
++        die("fsUuid is configured: this export was formatted before and is never reformatted")
++    dev, _ = attach_view(c)
++    if holders(dev) or mountpoints_of(dev):
++        die(f"{dev} is in use (holders {holders(dev)}, mounts {mountpoints_of(dev)})")
++    cached = c["mechanism"] == "dm-cache"
++    if cached:
++        for f in (c["cdata"], c["cmeta"]):
++            if not os.path.isdir(os.path.dirname(f)):
++                die(f"{os.path.dirname(f)} does not exist")
++            if rot_of_dir(f) != "0":
++                die(f"{f} must be on NVMe (non-rotational)")
++        dd = os.stat(os.path.dirname(c["cdata"])).st_dev
++        need = c["cdataBytes"] + c["cmetaBytes"] + c["nvmeFreeMargin"] - credit(c["cdata"], c["cdataBytes"], dd) - credit(c["cmeta"], c["cmetaBytes"], dd)
++        v = os.statvfs(os.path.dirname(c["cdata"]))
++        if v.f_bavail * v.f_frsize < need:
++            die("not enough NVMe free space for the cache plus margin")
++        run(c["py"], "-I", c["budgetTool"], "admit", c["ledger"], c["reservation"], f"{c['cdata']}={c['cdataBytes']}", f"{c['cmeta']}={c['cmetaBytes']}")
++    # the transport's first-format: refuses unless the export is blank (no signature, zero first/last MiB)
++    r = run(c["py"], "-I", c["hddattach"], "first-format", c["attachConfig"], "--i-am-formatting-a-new-export", check=False, timeout=3600)
++    if r.returncode != 0:
++        die(f"first-format refused: {r.stdout.strip()[-300:]}")
++    fsuuid = json.loads(r.stdout.strip().splitlines()[-1])["uuid"]
++    if cached:
++        out = run(c["py"], "-I", c["budgetTool"], "allocate", c["ledger"], c["reservation"]).stdout
++        uw.created += [p for w, p in (l.split(None, 1) for l in out.splitlines() if l.strip()) if w == "created"]
++        with open(c["cmeta"], "r+b") as f:     # zeroed: dm-cache formats an empty cache
++            f.write(b"\0" * (8 << 20)); f.flush(); os.fsync(f.fileno())
++        # an EMPTY cache over a filesystem that has only ever been written uncached by this format: consistent
++        write_json(marker_path(c), {"fingerprint": sb_fingerprint(dev), "by": "create (empty cache)"})
++    uw.created = []
++    print(json.dumps({"created": c["name"], "fsUuid": fsuuid,
++                      "next": "set fsUuid in the storage config AND filesystem.uuid in the attach config, re-render, then assemble"}))
++
++
++def cache_gate(c, origin):
++    """True when the cache may be reused; refuses otherwise (cache-loss first)."""
++    m = read_json(marker_path(c))
++    fp = sb_fingerprint(origin)
++    if m is None:
++        die("no clean-shutdown or cache-loss marker for this cache: run cache-loss before assemble (stale-cache hazard)")
++    if m.get("fingerprint") != fp:
++        die("the origin's superblock changed since the cache was last consistent (uncached mount/write): run cache-loss first")
++    return fp
++
++
++def cmd_assemble(c, uw):
++    if c["fsUuid"] is None:
++        die("fsUuid is not configured; nothing is mounted by guesswork")
++    dev, _ = attach_view(c)
++    cached = c["mechanism"] == "dm-cache"
++    if mountpoints_of(dev):
++        die(f"{dev} (the origin) is mounted at {mountpoints_of(dev)} without this layer: refusing (stale-cache / two-view hazard)")
++    top = dev
++    if cached:
++        for f in (c["cdata"], c["cmeta"]):
++            if not os.path.isfile(f):
++                die("cache images missing")
++        run(c["py"], "-I", c["budgetTool"], "verify", c["ledger"], c["reservation"])
++        c["_D"], c["_M"] = attach_file(c["cdata"], uw), attach_file(c["cmeta"], uw)
++        want = expected_table(c, dev)
++        if run("dmsetup", "info", c["name"], check=False).returncode == 0:
++            have = run("dmsetup", "table", c["name"]).stdout.strip()
++            if have != want:
++                die(f"mapping {c['name']} exists but is not this storage's (have {have}; want {want}); leaving it")
++        else:
++            if holders(dev):
++                die(f"{dev} is held by {holders(dev)}: another mapping uses the origin; refusing")
++            cache_gate(c, dev)
++            drop(marker_path(c))                     # consumed: a crash from here on leaves no marker
++            run("dmsetup", "create", c["name"], "--table", want)
++            uw.mapped = c["name"]
++        if "writethrough" not in run("dmsetup", "status", c["name"]).stdout.split():
++            die(f"mapping {c['name']} is not writethrough")
++        top = f"/dev/mapper/{c['name']}"
++    probe = run("blkid", "-p", "-o", "export", top, check=False).stdout
++    sig = dict(l.split("=", 1) for l in probe.splitlines() if "=" in l)
++    if sig.get("TYPE") != "ext4" or sig.get("UUID") != c["fsUuid"]:
++        die(f"{top} holds {sig.get('TYPE')} {sig.get('UUID')}, not ext4 {c['fsUuid']}")
++    mnt = c["mountPoint"]
++    if not os.path.isdir(os.path.dirname(mnt)):
++        die(f"{os.path.dirname(mnt)} does not exist")
++    if not os.path.lexists(mnt):
++        os.mkdir(mnt, 0o000)                         # the bare mount point: no one but root can write into it
++    if os.path.islink(mnt) or not os.path.isdir(mnt):
++        die(f"{mnt} must be a real directory")
++    at = mounted_at(mnt)
++    if at is not None:
++        if at != majmin(top):
++            die(f"{mnt} is mounted from another device ({at}); leaving it")
++    else:
++        if os.listdir(mnt):
++            die(f"{mnt} is not empty: something wrote into the bare mount point (on the VM disk); investigate first")
++        run("mount", "-t", "ext4", "-o", "noatime,nodev,nosuid", top, mnt)
++        uw.mounted = mnt
++    o = c["owner"]
++    run("chown", f"{o}:{o}", mnt); os.chmod(mnt, 0o700)
++    for d in c["dirs"]:
++        os.makedirs(d, exist_ok=True); run("chown", f"{o}:{o}", d); os.chmod(d, 0o700)
++    write_json(session_path(c), {"session": uuidlib.uuid4().hex, "top": top, "origin": dev})
++    drop(c["watchFailureFile"])
++    uw.attached, uw.mapped, uw.mounted = [], None, None
++    print(json.dumps({"assembled": top, "mountPoint": mnt, "origin": dev, "cached": cached}))
++
++
++def ext4_errors(top):
++    try:
++        with open(f"/sys/fs/ext4/{os.path.basename(os.path.realpath(top))}/errors_count") as f:
++            return int(f.read().strip())
++    except OSError:
++        return None
++
++
++def cmd_disassemble(c):
++    cached = c["mechanism"] == "dm-cache"
++    with open(c["attachConfig"]) as f:
++        dev = json.load(f)["device"]
++    # validate the complete ownership chain BEFORE the first destructive action
++    top = None; remove_map = False
++    if cached and run("dmsetup", "info", c["name"], check=False).returncode == 0:
++        c["_D"], c["_M"] = loop_of(c["cdata"]), loop_of(c["cmeta"])
++        if not (c["_D"] and c["_M"]):
++            die(f"mapping {c['name']} exists but its cache loops are not ours: leaving it")
++        if run("dmsetup", "table", c["name"]).stdout.strip() != expected_table(c, dev):
++            die(f"mapping {c['name']} is not this storage's: leaving it")
++        top, remove_map = f"/dev/mapper/{c['name']}", True
++    elif not cached and os.path.exists(dev):
++        top = dev
++    mnt, healthy = c["mountPoint"], True
++    at = mounted_at(mnt)
++    if at is not None:
++        if top is None or at != majmin(top):
++            die(f"{mnt} is mounted but not from this storage's device: leaving it")
++        errs = ext4_errors(top)
++        failed = read_json(c["watchFailureFile"])
++        healthy = errs == 0 and failed is None
++        if run("umount", mnt, check=False, timeout=300).returncode != 0:
++            die(f"unmount of {mnt} failed: stopping (nothing unmapped or detached)")
++        if not healthy:
++            log(f"session was not healthy (ext4 errors {errs}, supervisor failure {failed and failed.get('reason')}): no cache-reuse marker")
++    else:
++        healthy = False                              # no clean unmount observed by this run
++    if remove_map:
++        if run("dmsetup", "remove", c["name"], check=False).returncode != 0:
++            die(f"dmsetup remove {c['name']} failed: stopping (loops kept)")
++    if cached:
++        drop(marker_path(c))
++        if healthy:
++            try:
++                write_json(marker_path(c), {"fingerprint": sb_fingerprint(dev), "by": "clean disassemble"})
++            except (OSError, Stop) as e:
++                log(f"no marker: origin superblock unreadable ({e})")
++        for f in (c["cmeta"], c["cdata"]):
++            l = loop_of(f)
++            if not l:
++                continue
++            busy = run("lsblk", "-nro", "MOUNTPOINTS", l).stdout.strip() or len(run("lsblk", "-nro", "NAME", l).stdout.split()) > 1
++            if busy:
++                die(f"{l} ({f}) is still mounted or held by another device: not detaching it (stopping)")
++            run("losetup", "-d", l)
++    drop(session_path(c))
++    print(json.dumps({"disassembled": c["name"], "cacheReuseMarker": bool(cached and healthy)}))
++
++
++def cmd_cache_loss(c, uw):
++    if c["mechanism"] != "dm-cache":
++        die("no cache configured")
++    if mounted_at(c["mountPoint"]) is not None:
++        die(f"{c['mountPoint']} is mounted: stop the consumers and run disassemble first")
++    dev, _ = attach_view(c)
++    if run("dmsetup", "info", c["name"], check=False).returncode == 0:
++        c["_D"], c["_M"] = loop_of(c["cdata"]), loop_of(c["cmeta"])
++        if not (c["_D"] and c["_M"]) or run("dmsetup", "table", c["name"]).stdout.strip() != expected_table(c, dev):
++            die(f"mapping {c['name']} is not this storage's: leaving it")
++        run("dmsetup", "remove", c["name"])
++    if holders(dev) or mountpoints_of(dev):
++        die(f"{dev} is in use; refusing")
++    drop(marker_path(c))
++    # INVALIDATE before the origin is touched: writethrough means the origin already holds every completed write
++    with open(c["cmeta"], "r+b") as f:
++        f.write(b"\0" * (8 << 20)); f.flush(); os.fsync(f.fileno())
++    r = run("e2fsck", "-fn", dev, check=False, timeout=3600)
++    write_json(marker_path(c), {"fingerprint": sb_fingerprint(dev), "by": "cache-loss", "fsckRc": r.returncode})
++    print(json.dumps({"cacheInvalidated": c["cmeta"], "originFsckRc": r.returncode, "fsck": r.stdout[-400:],
++                      "next": "the next assemble starts from an EMPTY cache"}))
++    if r.returncode not in (0,):
++        log("the read-only fsck reported problems: review before assemble (nothing was repaired)")
++
++
++def main(argv):
++    if len(argv) < 3:
++        print(__doc__, file=sys.stderr); return 64
++    def on_signal(sig, _frame):   # a signal (systemd stop, hangup) takes the same unwind path as an error
++        raise Stop(f"signal {signal.Signals(sig).name}")
++    signal.signal(signal.SIGTERM, on_signal)
++    signal.signal(signal.SIGHUP, on_signal)
++    uw = Unwind()
++    try:
++        c = load(argv[2])
++        cmd = argv[1]
++        if cmd == "create":
++            cmd_create(c, argv[3:], uw)
++        elif cmd == "assemble":
++            cmd_assemble(c, uw)
++        elif cmd == "disassemble":
++            cmd_disassemble(c)
++        elif cmd == "cache-loss":
++            cmd_cache_loss(c, uw)
++        elif cmd == "verify-cap":
++            if c["mechanism"] == "dm-cache":
++                os.execv(c["py"], [c["py"], "-I", c["budgetTool"], "verify", c["ledger"], c["reservation"]])
++            print(json.dumps({"cache": "none", "nvmeBytes": 0}))
++        else:
++            print(__doc__, file=sys.stderr); return 64
++    except (Stop, KeyboardInterrupt, subprocess.TimeoutExpired) as e:
++        uw(str(e))
++        log(str(e))
++        return 2
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main(sys.argv))
+diff --git a/holder/test/test_network_layout.py b/holder/test/test_network_layout.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..fc43b3a08283009f50d04913f24caa7972a68879
+--- /dev/null
++++ b/holder/test/test_network_layout.py
+@@ -0,0 +1,132 @@
++"""The network-hdd-nbd layout (validation, rendering, gating) and the guarantee that the LOCAL loop layout renders byte for
++byte as at S 92b71784. Kernel, systemd and NBD behaviour are exercised in the composition workspace's KVM guest test,
++not here."""
++import copy
++import importlib.util
++import json
++import subprocess
++import sys
++import tempfile
++import unittest
++from pathlib import Path
++
++HERE = Path(__file__).resolve().parent
++spec = importlib.util.spec_from_file_location('holder', HERE.parent / 'holder.py')
++H = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(H)
++spec2 = importlib.util.spec_from_file_location('storage_nbd', HERE.parent / 'storage_nbd.py')
++N = importlib.util.module_from_spec(spec2)
++spec2.loader.exec_module(N)
++EXAMPLE = json.loads((HERE.parent / 'holder.example.json').read_text())
++BASE_COMMIT = '92b71784c9452056eeeb6a97b8e1fcb8ef1815ca'
++WATCH_KEYS = {"format", "role", "attachConfig", "device", "mapping", "mountPoint", "intervalSec", "probeTimeoutSec", "failureFile"}
++
++
++def placement(role='base', nbytes=3_100_000_000_000):
++    return {'exportName': f'enclave-rpc-{role}', 'imageBytes': nbytes, 'imagePath': f'/mnt/usb/enclave-rpc/{role}-origin.img',
++            'mountTarget': '/mnt/usb', 'fstype': 'ntfs3', 'requireRotational': True, 'serverCertSha256': 'a' * 64, 'caCertSha256': 'b' * 64}
++
++
++def good(cached=True):
++    c = copy.deepcopy(EXAMPLE)
++    c['binary']['sha256'] = H.BINARY['binary']['sha256']
++    c['l1'] = {'executionRpc': 'https://l1.example.org/', 'beacon': 'https://beacon.example.org/', 'trustRpc': False}
++    c['storage']['layout'] = 'network-hdd-nbd'
++    c['storage']['origin'] = {'transport': 'enclave-rpc-hdd-nbd/v1', 'role': 'base', 'attachConfig': '/etc/enclave-rpc-hdd/attach-base.json',
++                              'device': '/dev/nbd1', 'placement': placement(), 'bytes': 3_100_000_000_000, 'filesystemUuid': None}
++    if not cached:
++        c['storage']['cache'] = {'mechanism': 'none'}
++        c['storage'].pop('nvmeBudget', None)
++    return c
++
++
++class Network(unittest.TestCase):
++    def refused(self, mutate, needle):
++        c = good()
++        mutate(c)
++        with self.assertRaises(H.Refused) as e:
++            H.validate(c)
++        self.assertIn(needle, str(e.exception))
++
++    def test_valid_and_pinned(self):
++        c = H.validate(good())
++        o = c['storage']['origin']
++        self.assertEqual(o['placementSha256'], __import__('hashlib').sha256(H.canonical_json(placement())).hexdigest())
++        self.assertEqual(c['storage']['nvmeAccounting']['capBytes'], 250_000_000_000)   # the cache rules are S's, unchanged
++
++    def test_false_or_foreign_placements_are_refused(self):
++        P = lambda **kw: (lambda c: c['storage']['origin']['placement'].update(**kw))
++        self.refused(P(requireRotational=False), 'requireRotational must be true')
++        self.refused(P(fstype='tmpfs'), 'fstype')
++        self.refused(P(exportName='enclave-rpc-l1'), 'enclave-rpc-base export')
++        self.refused(P(imageBytes=3_100_000_000_512), 'exactly storage.origin.bytes')
++        self.refused(P(imagePath='/mnt/usb/enclave-rpc/l1-origin.img'), 'base-origin.img')
++        self.refused(P(mountTarget='/'), 'base-origin.img')
++        self.refused(P(serverCertSha256='x'), 'fingerprint')
++        self.refused(lambda c: c['storage']['origin']['placement'].pop('caCertSha256'), 'required')
++        self.refused(lambda c: c['storage']['origin'].update(transport='nbd'), 'transport')
++        self.refused(lambda c: c['storage']['origin'].update(device='/dev/sdb'), '/dev/nbdN')
++        self.refused(lambda c: c['storage']['origin'].update(filesystemUuid='not-a-uuid'), 'filesystemUuid')
++        self.refused(lambda c: c['storage']['origin'].update(role='l1', placement=placement('l1')), 'role base')
++        self.refused(lambda c: c['storage'].update(layout='nbd-any'), 'storage.layout')
++
++    def test_render_gates_the_consumer_on_the_supervisor(self):
++        for cached in (True, False):
++            c = H.validate(good(cached))
++            with tempfile.TemporaryDirectory() as d:
++                m = H.render(c, Path(d) / 'o')
++                files = set(m['files'])
++                self.assertNotIn('holder-storage.sh', files)
++                for f in ('enclave-base-holder-storage.service', 'enclave-base-holder-watch.service', 'holder-storage-nbd.json', 'holder-watch.json'):
++                    self.assertIn(f, files)
++                u = (Path(d) / 'o/enclave-base-holder.service').read_text()
++                for line in ('Requires=enclave-base-holder-watch.service', 'BindsTo=enclave-base-holder-watch.service',
++                             'After=network-online.target enclave-base-holder-watch.service',
++                             f"ReadWritePaths={c['datadir']} {c['storage']['mountPoint']}/tmp"):
++                    self.assertIn(line + '\n', u)
++                self.assertNotIn('Requires=enclave-base-holder-storage.service', u)
++                st = (Path(d) / 'o/enclave-base-holder-storage.service').read_text()
++                for line in ('Requires=enclave-rpc-hdd-attach@base.service', 'BindsTo=enclave-rpc-hdd-attach@base.service', 'Type=oneshot'):
++                    self.assertIn(line + '\n', st)
++                w = (Path(d) / 'o/enclave-base-holder-watch.service').read_text()
++                for line in ('Type=notify', 'Restart=no', 'BindsTo=enclave-base-holder-storage.service', 'DeviceAllow=/dev/nbd1 r',
++                             'DevicePolicy=closed', 'NoNewPrivileges=yes', f"CapabilityBoundingSet={'CAP_SYS_ADMIN' if cached else ''}"):
++                    self.assertIn(line + '\n', w)
++                self.assertEqual('DeviceAllow=/dev/mapper/control rw' in w, cached)
++                sc = json.loads((Path(d) / 'o/holder-storage-nbd.json').read_text())
++                self.assertEqual(set(sc), N.KEYS)
++                with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
++                    json.dump(sc, f); f.flush()
++                    self.assertEqual(N.load(f.name)['mechanism'], 'dm-cache' if cached else 'none')
++                wc = json.loads((Path(d) / 'o/holder-watch.json').read_text())
++                self.assertEqual(set(wc), WATCH_KEYS)
++                self.assertEqual(wc['mapping'], 'enclave-base-holder' if cached else None)
++                self.assertEqual(wc['failureFile'], sc['watchFailureFile'])
++
++    def test_local_layout_renders_byte_identically_to_the_pinned_original(self):
++        """The local loop layout (holder-storage.sh.in cab32bbe and its units) must not change."""
++        repo = HERE.parent.parent
++        old = subprocess.run(['git', '-C', str(repo), 'show', f'{BASE_COMMIT}:holder/holder.py'], capture_output=True, check=True).stdout
++        with tempfile.TemporaryDirectory() as d:
++            (Path(d) / 'holder.py').write_bytes(old)
++            for f in ('FLAGS.json', 'BINARY.json', 'budget.py', 'holder-storage.sh.in'):
++                (Path(d) / f).write_bytes(subprocess.run(['git', '-C', str(repo), 'show', f'{BASE_COMMIT}:holder/{f}'],
++                                                         capture_output=True, check=True).stdout)
++            sys.path.insert(0, d)
++            try:
++                s2 = importlib.util.spec_from_file_location('holder_old', Path(d) / 'holder.py')
++                O = importlib.util.module_from_spec(s2); s2.loader.exec_module(O)
++            finally:
++                sys.path.remove(d)
++            c = copy.deepcopy(EXAMPLE); c['binary']['sha256'] = H.BINARY['binary']['sha256']
++            c['l1'] = {'executionRpc': 'https://l1.example.org/', 'beacon': 'https://beacon.example.org/', 'trustRpc': False}
++            for cached in (True, False):
++                cc = copy.deepcopy(c)
++                if not cached:
++                    cc['storage']['cache'] = {'mechanism': 'none'}; cc['storage'].pop('nvmeBudget', None)
++                a, b = H.render(H.validate(cc), Path(d) / f'new{cached}'), O.render(O.validate(cc), Path(d) / f'old{cached}')
++                self.assertEqual(a['files'], b['files'], 'local-layout render changed')
++
++
++if __name__ == '__main__':
++    unittest.main(verbosity=2)

@@ -1,0 +1,321 @@
+From 29c6de874fa60482fa5d3f56cb8522fbd915bdc3 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 05:31:59 -0700
+Subject: [PATCH] transport: compose with network-HDD storage: verify-attached
+ (raw), detach refuses while held or mounted, hddwatch supervisor
+ (Type=notify), raw-attach-only unit
+
+---
+ templates/enclave-rpc-hdd-attach@.service |  17 +-
+ transport/hddattach.py                    |  34 +++-
+ transport/hddwatch.py                     | 194 ++++++++++++++++++++++
+ 3 files changed, 232 insertions(+), 13 deletions(-)
+ create mode 100644 transport/hddwatch.py
+
+diff --git a/templates/enclave-rpc-hdd-attach@.service b/templates/enclave-rpc-hdd-attach@.service
+index b468fbcfa7b49c3a0a17446534c233cefcad8187..4f80c3ab1e8e67c24677b73bf2698323d98966b7 100644
+--- a/templates/enclave-rpc-hdd-attach@.service
++++ b/templates/enclave-rpc-hdd-attach@.service
+@@ -1,13 +1,10 @@
+ # NucBox Linux VM. Template, NOT installed by this repository. Instance: l1 | base.
+-# Config: /etc/enclave-rpc-hdd/attach-%i.json (filesystem.uuid filled in after the one explicit first-format).
+-# Consumers (P's/B's node units) add:
+-#   BindsTo=enclave-rpc-hdd-attach@<role>.service
+-#   After=enclave-rpc-hdd-attach@<role>.service
+-#   RequiresMountsFor=/srv/rpc-hdd/<role>
+-#   ExecStartPre=/usr/bin/python3 -I /opt/enclave-rpc-hdd/transport/hddattach.py verify-mounted /etc/enclave-rpc-hdd/attach-<role>.json
+-# None of the systemd behaviour in this file was exercised by the integration test; it is untested.
++# Config: /etc/enclave-rpc-hdd/attach-%i.json.
++# RAW attach only. The storage layer (S/P network-hdd-nbd: storage_nbd.py, in <name>-storage.service) adds the optional
++# writethrough cache and does the ONE mount; it BindsTo= this unit. `hddattach.py mount` remains for standalone use only.
++# Consumers do not depend on this unit directly: they bind to <name>-watch.service, the hddwatch.py supervisor.
+ [Unit]
+-Description=Enclave RPC durable-HDD attach (%i): kernel NBD over mutual TLS
++Description=Enclave RPC durable-HDD attach (%i): kernel NBD over mutual TLS (raw device)
+ After=network-online.target
+ Wants=network-online.target
+ 
+@@ -17,10 +14,6 @@
+ # Root: nbd needs CAP_SYS_ADMIN, and the module is loaded explicitly here, never by the tool.
+ ExecStartPre=/usr/sbin/modprobe nbd nbds_max=4
+ ExecStart=/usr/bin/python3 -I /opt/enclave-rpc-hdd/transport/hddattach.py attach /etc/enclave-rpc-hdd/attach-%i.json
+-ExecStart=/usr/bin/python3 -I /opt/enclave-rpc-hdd/transport/hddattach.py mount /etc/enclave-rpc-hdd/attach-%i.json
+ ExecStop=/usr/bin/python3 -I /opt/enclave-rpc-hdd/transport/hddattach.py detach /etc/enclave-rpc-hdd/attach-%i.json
+ TimeoutStartSec=180
+ TimeoutStopSec=300
+-
+-[Install]
+-WantedBy=multi-user.target
+diff --git a/transport/hddattach.py b/transport/hddattach.py
+index 8cabc6c452e0ba4e118755ca16de2a3014da5c73..31472a450dd417bc413a4d9c2f91dfc16d1870b4 100644
+--- a/transport/hddattach.py
++++ b/transport/hddattach.py
+@@ -6,6 +6,7 @@
+   hddattach.py first-format   <attach.json> --i-am-formatting-a-new-export   mkfs.ext4 ONLY on a device with no signature and zero ends
+   hddattach.py mount          <attach.json>                              mount only the configured filesystem UUID on an empty mount point
+   hddattach.py verify-mounted <attach.json>                              exit 0 only if the configured filesystem is mounted from the owned device
++  hddattach.py verify-attached <attach.json>                             exit 0 only if the owned qemu-nbd connects the device at the stated size
+   hddattach.py detach         <attach.json> [--clear-stale]              umount (never lazily), qemu-nbd -d, only for the owned device
+   hddattach.py status         <attach.json>
+ 
+@@ -21,7 +22,7 @@
+ import uuid
+ 
+ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+-from common import (Refused, refuse, load_json, want, abspath_plain, no_symlink_components, mount_at, literal_ip, port,
++from common import (Refused, refuse, load_json, want, abspath_plain, no_symlink_components, mount_at, mountinfo, literal_ip, port,
+                     private_file, public_file, cert_facts, verify_chain, opt_value, owned_record, is_owned,
+                     write_state_exclusive, read_state, emit, proc_identity)
+ 
+@@ -253,6 +254,29 @@
+             "options": m["options"], "super": m["super"], "exportName": st["exportName"], "bytes": st["bytes"]}
+ 
+ 
++def majmin_of(dev):
++    st = os.stat(dev)
++    return f"{os.major(st.st_rdev)}:{os.minor(st.st_rdev)}"
++
++
++def holders(dev):
++    try:
++        return sorted(os.listdir(f"/sys/block/{os.path.basename(dev)}/holders"))
++    except OSError:
++        return []
++
++
++def verify_attached(cfg):
++    """The RAW attachment only: this tool's live qemu-nbd connects the device, with the placement statement's exact size.
++    Says nothing about mounts: in the composed storage layer the filesystem may be mounted through a cache mapping."""
++    st = owned_state(cfg)
++    size = int(sysblk(st["device"], "size") or 0) * 512
++    if size != cfg["placement"]["imageBytes"]:
++        refuse(f"{st['device']} is {size} bytes, not the placement statement's {cfg['placement']['imageBytes']}")
++    return {"device": st["device"], "bytes": size, "exportName": st["exportName"], "proc": st["proc"],
++            "holders": holders(st["device"]), "role": cfg["role"]}
++
++
+ def cmd_detach(cfg, argv):
+     sp = state_path(cfg)
+     st = read_state(sp)
+@@ -272,6 +296,12 @@
+     kp = kernel_pid_in(dev, st["proc"]["pid"])
+     if kp is not None and kp < 0:
+         refuse(f"{dev} is connected by kernel pid {-kp}, which is not the recorded qemu-nbd; not detached")
++    held = holders(dev)
++    if held:
++        refuse(f"{dev} is still held by {held} (a cache mapping over it); stop the storage layer first; not detached")
++    foreign = [x["target"] for x in mountinfo() if x["majmin"] == majmin_of(dev) and x["target"] != cfg["mountPoint"]]
++    if foreign:
++        refuse(f"{dev} is mounted at {foreign} (the storage layer's mount); stop the storage layer first; not detached")
+     m = mount_at(cfg["mountPoint"])
+     if m is not None and os.path.realpath(m["source"]) == os.path.realpath(dev):
+         try:
+@@ -313,6 +343,8 @@
+             cmd_mount(cfg)
+         elif cmd == "verify-mounted":
+             emit({"ok": True, "verified": verify(cfg)})
++        elif cmd == "verify-attached":
++            emit({"ok": True, "attached": verify_attached(cfg)})
+         elif cmd == "detach":
+             cmd_detach(cfg, argv[3:])
+         elif cmd == "status":
+diff --git a/transport/hddwatch.py b/transport/hddwatch.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..98d4e331ea9e2b530b6bb6e834134d237f0e02dd
+--- /dev/null
++++ b/transport/hddwatch.py
+@@ -0,0 +1,194 @@
++#!/usr/bin/env python3
++"""Runtime supervision of ONE role's network-HDD storage, for systemd (Type=notify).
++
++  hddwatch.py check <watch.json>    one pass of every check; exit 0, or 2 naming the failed check
++  hddwatch.py run   <watch.json>    check, READY=1, then re-check every intervalSec; the first failure is recorded in
++                                    failureFile and the process exits 1
++
++Why it exists: a dead export does not unmount anything. The integration test measured this:
++- writes and fsync return EIO;
++- the ext4 mount stays listed rw;
++- systemd's view of a oneshot RemainAfterExit storage unit stays "active".
++
++So something must actively notice and make systemd stop the consumers. The node units bind to this unit (BindsTo= +
++After=), so this unit's exit stops them.
++
++Nothing here writes to the device, remounts, retries, reformats or resyncs. Recovery is an operator step.
++
++Checks, every pass:
++- attach: this tool's recorded qemu-nbd daemon (pid + start time + exe + argv) connects the device. The kernel's NBD pid
++  belongs to that daemon, and the size is the placement statement's.
++- mapping (cached layout only): the dm-cache table's origin IS this device; the status is writethrough, with no
++  Fail/needs_check/read-only.
++- mount: the mount point is mounted rw, as ext4, from the expected device (the mapping, or the nbd device).
++- ext4 errors: /sys/fs/ext4/<dev>/errors_count does not grow past its value at start.
++- probe: an O_DIRECT 4 KiB read of the ORIGIN nbd device. It bypasses the page cache and the dm-cache, so a lost export
++  is seen even while every read could be served from cache. It is bounded by probeTimeoutSec.
++"""
++import json
++import mmap
++import os
++import socket
++import subprocess
++import sys
++import threading
++import time
++
++sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
++from common import Refused, refuse, abspath_plain, mount_at, emit  # noqa: E402
++import hddattach  # noqa: E402
++
++FORMAT = "enclave-rpc-hdd-watch/v1"
++KEYS = {"format", "role", "attachConfig", "device", "mapping", "mountPoint", "intervalSec", "probeTimeoutSec", "failureFile"}
++
++
++def load(path):
++    with open(path) as f:
++        w = json.load(f)
++    if not isinstance(w, dict) or set(w) != KEYS or w.get("format") != FORMAT:
++        refuse(f"{path}: watch config must be {FORMAT} with exactly {sorted(KEYS)}")
++    if w["role"] not in ("l1", "base"):
++        refuse("role must be l1 or base")
++    for k in ("attachConfig", "mountPoint", "failureFile"):
++        abspath_plain(w[k], k)
++    if not isinstance(w["intervalSec"], (int, float)) or not 0.5 <= w["intervalSec"] <= 60:
++        refuse("intervalSec must be 0.5-60")
++    if not isinstance(w["probeTimeoutSec"], (int, float)) or not 1 <= w["probeTimeoutSec"] <= 120:
++        refuse("probeTimeoutSec must be 1-120")
++    if w["mapping"] is not None and not (isinstance(w["mapping"], str) and w["mapping"].replace("-", "").isalnum()):
++        refuse("mapping must be null or a dm name")
++    a = hddattach.validate(w["attachConfig"])
++    if a["role"] != w["role"] or a["device"] != w["device"]:
++        refuse(f"watch role/device {w['role']}/{w['device']} differ from the attach config's {a['role']}/{a['device']}")
++    return w, a
++
++
++def majmin(path):
++    st = os.stat(path)
++    return f"{os.major(st.st_rdev)}:{os.minor(st.st_rdev)}"
++
++
++def mapping_ok(name, device):
++    t = subprocess.run(["dmsetup", "table", name], capture_output=True, text=True, timeout=10)
++    if t.returncode != 0:
++        refuse(f"mapping {name} is absent")
++    f = t.stdout.split()
++    # "0 <sectors> cache <metadata> <cache> <origin> <block> ..." (dm-cache table, kernel docs device-mapper/cache.rst)
++    if len(f) < 6 or f[2] != "cache" or f[5] != majmin(device):
++        refuse(f"mapping {name} is not a cache over {device}: {t.stdout.strip()}")
++    s = subprocess.run(["dmsetup", "status", name], capture_output=True, text=True, timeout=10)
++    words = s.stdout.split()
++    if s.returncode != 0 or "writethrough" not in words or "Fail" in words or "needs_check" in words or "ro" in words:
++        refuse(f"mapping {name} status is not healthy writethrough: {s.stdout.strip()}")
++    return f"/dev/mapper/{name}"
++
++
++def errors_count(dev):
++    name = os.path.basename(os.path.realpath(dev))
++    try:
++        with open(f"/sys/fs/ext4/{name}/errors_count") as f:
++            return int(f.read().strip())
++    except OSError:
++        refuse(f"no ext4 error counter for {name}: the filesystem is not mounted")
++
++
++def probe(device, offset, timeout):
++    """O_DIRECT read of 4 KiB at `offset` of the raw origin; refuses on error or when it does not return in time."""
++    out = {}
++
++    def rd():
++        try:
++            fd = os.open(device, os.O_RDONLY | os.O_DIRECT)
++            try:
++                buf = mmap.mmap(-1, 4096)
++                n = os.preadv(fd, [buf], offset)
++                out["n"] = n
++            finally:
++                os.close(fd)
++        except OSError as e:
++            out["err"] = f"{type(e).__name__}: {e}"
++    t = threading.Thread(target=rd, daemon=True)
++    t.start()
++    t.join(timeout)
++    if t.is_alive():
++        refuse(f"direct read of {device} did not return within {timeout}s")
++    if "err" in out:
++        refuse(f"direct read of {device} failed: {out['err']}")
++    if out.get("n") != 4096:
++        refuse(f"direct read of {device} returned {out.get('n')} bytes")
++
++
++def one_pass(w, a, base_errors=None, n=0):
++    st = hddattach.verify_attached(a)
++    dev = w["device"]
++    expect = mapping_ok(w["mapping"], dev) if w["mapping"] else dev
++    m = mount_at(w["mountPoint"])
++    if m is None:
++        refuse(f"{w['mountPoint']} is not mounted")
++    if m["fstype"] != "ext4" or os.path.realpath(m["source"]) != os.path.realpath(expect):
++        refuse(f"{w['mountPoint']} is {m['fstype']} from {m['source']}, not ext4 from {expect}")
++    if "rw" not in m["options"].split(",") or "ro" in m["super"].split(","):
++        refuse(f"{w['mountPoint']} is no longer read-write ({m['options']} / {m['super']})")
++    errs = errors_count(expect)
++    if base_errors is not None and errs > base_errors:
++        refuse(f"ext4 on {expect} recorded {errs - base_errors} new error(s)")
++    probe(dev, (n % 256) * 4096, w["probeTimeoutSec"])
++    return errs, st
++
++
++def sd_notify(msg):
++    addr = os.environ.get("NOTIFY_SOCKET")
++    if not addr:
++        return False
++    if addr.startswith("@"):
++        addr = "\0" + addr[1:]
++    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as s:
++        s.connect(addr)
++        s.sendall(msg.encode())
++    return True
++
++
++def record_failure(w, why):
++    rec = {"role": w["role"], "reason": why, "at": time.time(), "pid": os.getpid()}
++    tmp = w["failureFile"] + ".tmp"
++    os.makedirs(os.path.dirname(w["failureFile"]), mode=0o700, exist_ok=True)
++    with open(tmp, "w") as f:
++        json.dump(rec, f); f.flush(); os.fsync(f.fileno())
++    os.replace(tmp, w["failureFile"])
++
++
++def main(argv):
++    if len(argv) != 3 or argv[1] not in ("check", "run"):
++        print(__doc__, file=sys.stderr); return 64
++    try:
++        w, a = load(argv[2])
++        errs, st = one_pass(w, a)
++    except Refused as e:
++        emit({"ok": False, "refused": str(e)})
++        if argv[1] == "run":
++            try:
++                record_failure(w, str(e))
++            except Exception:
++                pass
++            return 1
++        return 2
++    if argv[1] == "check":
++        emit({"ok": True, "device": w["device"], "mount": w["mountPoint"], "errors": errs})
++        return 0
++    emit({"ok": True, "watching": w["mountPoint"], "device": w["device"], "mapping": w["mapping"], "errorsAtStart": errs})
++    sd_notify(f"READY=1\nSTATUS=watching {w['mountPoint']} on {w['device']}")
++    n = 1
++    while True:
++        time.sleep(w["intervalSec"])
++        try:
++            one_pass(w, a, errs, n)
++        except Refused as e:
++            emit({"ok": False, "transportOrStorageFailure": str(e)})
++            record_failure(w, str(e))
++            sd_notify(f"STATUS=failed: {e}")
++            return 1
++        n += 1
++
++
++if __name__ == "__main__":
++    sys.exit(main(sys.argv))

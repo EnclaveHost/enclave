@@ -1,0 +1,5 @@
+runs/*/pg/
+runs/*/harness/
+runs/*/*.cwasm
+runs/*/*.log
+shardloss.py

@@ -1,0 +1,11 @@
+[queue] START available=24021MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+node_modules roots from the manifest: . relay/ sdk/sessions/
+./node_modules -> /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules resolves: /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules
+relay/node_modules -> /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules resolves: /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules
+sdk/sessions/node_modules -> /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/sdk/sessions/node_modules resolves: /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/sdk/sessions/node_modules
+committed bundle sha256 17cfb64f1388607ff0043f7dab8b024802efbca915e1e211b2e7d15dc93225fe
+hosted MCP guest bundle: 5064161 bytes, sha256:17cfb64f1388607ff0043f7dab8b024802efbca915e1e211b2e7d15dc93225fe, 3032 inputs, 2 runtime file(s) (verified)
+build-mcp-guest-bundle --check rc=0
+[memory-guard] exit=0 peakTreeRssMiB=298 minHostAvailableMiB=22949
+[memory-guard] at peak: esbuild:230 node:62 frozen-1517-a-b:6
+[queue] EXIT 0

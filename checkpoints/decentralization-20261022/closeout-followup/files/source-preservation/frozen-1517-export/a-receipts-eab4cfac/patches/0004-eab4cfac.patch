@@ -1,0 +1,25 @@
+From eab4cfac47a00dcbc0161918a2624eed6761bbfb Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 07:52:38 -0700
+Subject: [PATCH] Keep the independent-mode stray-flag message's established
+ wording
+
+test/caller-verifier-wiring.test.mjs matches '--chain-verifier apply to independent
+mode'; --receipt-source is named after it instead of inside that list.
+---
+ cli/enclave.mjs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cli/enclave.mjs b/cli/enclave.mjs
+index 8c1da1df2e938b243d7eac9c322d06393cb7a85e..b33f5ce05e9824ad31b7ce44ff35823ae2e6e516 100755
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -5216,7 +5216,7 @@
+   const asked = opt.independent || opt.profile || opt.profileDigest;
+   const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei", "signerMode", "chainVerifier", "receiptSource"].filter((k) => opt[k] !== null);
+   if (!asked) {
+-    if (strays.length) throw new Error("--quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei, --signer-mode, --chain-verifier and --receipt-source apply to independent mode: add --independent");
++    if (strays.length) throw new Error("--quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei, --signer-mode and --chain-verifier apply to independent mode (so does --receipt-source): add --independent");
+     return;
+   }
+   const external = !!opt.signer || opt.signerMode === "handoff";

@@ -1,0 +1,22 @@
+[queue] START available=25474MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+unit/Cargo.toml and unit/deps written from /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs
+test download::test::shard_topology::insufficient_shards_fail_cleanly ... FAILED
+test download::test::shard_topology::malformed_shard_indices_are_refused ... FAILED
+test download::test::shard_topology::one_unknown_host_out_of_order_recovers_exact_bytes ... FAILED
+test download::test::shard_topology::parity_only_noncontiguous_recovers_exact_bytes ... FAILED
+test download::test::shard_topology::single_host_loss_at_each_position_recovers_exact_bytes ... FAILED
+test download::test::shard_topology::trailing_hosts_unknown_recovers_exact_bytes ... ok
+failures:
+thread 'download::test::shard_topology::insufficient_shards_fail_cleanly' (3441153) panicked at /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs/sia_storage/src/download.rs:336:35:
+thread 'download::test::shard_topology::malformed_shard_indices_are_refused' (3441653) panicked at /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs/sia_storage/src/download.rs:336:35:
+thread 'download::test::shard_topology::one_unknown_host_out_of_order_recovers_exact_bytes' (3442147) panicked at /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs/sia_storage/src/download.rs:336:35:
+thread 'download::test::shard_topology::parity_only_noncontiguous_recovers_exact_bytes' (3442591) panicked at /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs/sia_storage/src/download.rs:336:35:
+thread 'download::test::shard_topology::single_host_loss_at_each_position_recovers_exact_bytes' (3443082) panicked at /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs/sia_storage/src/download.rs:336:35:
+thread 'download::test::shard_topology::single_host_loss_at_each_position_recovers_exact_bytes' (3443082) panicked at /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/storage-shard-recovery/negctl/sia-sdk-rs/sia_storage/src/download.rs:1916:75:
+failures:
+test result: FAILED. 1 passed; 5 failed; 0 ignored; 0 measured; 169 filtered out; finished in 192.38s
+error: test failed, to rerun pass `--lib`
+cargo exit=101
+[memory-guard] exit=101 peakTreeRssMiB=949 minHostAvailableMiB=24668
+[memory-guard] at peak: rustc:871 cargo:72 unit-step.sh:6
+[queue] EXIT 101

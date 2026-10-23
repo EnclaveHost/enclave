@@ -1,0 +1,61 @@
+From a32d209e694c13d35682d75a6f05e32e28d72624 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 08:08:56 -0700
+Subject: [PATCH] Report scan evidence (scan1: report eb7f0db and source
+ 36919aafe..4f7632d7, rc 0)
+
+---
+ RESULT.txt           | 9 +++++++++
+ logs/scan1.guard.log | 1 +
+ logs/scan1.out       | 8 ++++++++
+ logs/scan1.rc        | 1 +
+ 4 files changed, 19 insertions(+)
+ create mode 100644 logs/scan1.guard.log
+ create mode 100644 logs/scan1.out
+ create mode 100644 logs/scan1.rc
+
+diff --git a/RESULT.txt b/RESULT.txt
+index d375f2c1f7c4c7bbcb1a5939b1b87c74aa0ab040..351b961c2c7d5a7a6a39baa21dded3ae681739f6 100644
+--- a/RESULT.txt
++++ b/RESULT.txt
+@@ -105,3 +105,12 @@
+   - Real MetaMask is unsupported on the profile route.
+   - Propagation is operator-stated, not checked.
+   - E's built dist is not run here.
++
++SCANS AND ROOT NOTES
++  - scan1, cap 256, rc 0:
++      - report eb7f0db: scan rc 0;
++      - source 36919aafe..4f7632d7: scan rc 0.
++    This commit adds only that evidence and these lines.
++  - ROOT-E-BUILT-SITE-FINAL.txt was read.
++      - E's final build is ae00cd96. Its site/js and network/ are identical to the composed dc2e5d74.
++      - E's whole production build was not duplicated.
+diff --git a/logs/scan1.guard.log b/logs/scan1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..ce0a5aadcc24dcf9eb0a3957faee1673670c15c1
+--- /dev/null
++++ b/logs/scan1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=36 minHostAvailableMiB=24632
+diff --git a/logs/scan1.out b/logs/scan1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..d84bceddeb04804a2e8066cca820a9601a17e6bc
+--- /dev/null
++++ b/logs/scan1.out
+@@ -0,0 +1,8 @@
++[queue] START available=24674MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++eb7f0db Public RPC consumer interface: RESULT, HANDOFF, notes for B/E/F, patch on 36919, consumer pins, jobs and logs (e1, f1)
++report scan rc=0
++4f7632d7f public-rpc consumer interface: bounded eth_getProof/eth_getBlockByHash proof material, pending nonce and tip quote, labelled by class
++source scan rc=0
++[memory-guard] exit=0 peakTreeRssMiB=36 minHostAvailableMiB=24632
++[memory-guard] at peak: python3:22 git:8 bash:6
++[queue] EXIT 0
+diff --git a/logs/scan1.rc b/logs/scan1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan1.rc
+@@ -0,0 +1 @@
++0

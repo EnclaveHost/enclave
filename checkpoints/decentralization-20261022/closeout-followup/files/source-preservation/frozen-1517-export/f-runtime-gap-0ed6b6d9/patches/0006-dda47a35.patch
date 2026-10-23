@@ -1,0 +1,405 @@
+From dda47a35008e989cc6e62c1a79f0fefde49b29f5 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 06:48:06 -0700
+Subject: [PATCH] RESULT: Windows final runtime integration (TLS 1957ff23,
+ memory accounting 9f19b7c6, A 554a251c shared module, main docs)
+
+Evidence only; the source head is 0de09415 (tree 5cbdb670). RESULT.md, the 22 reproducible JS artifact hashes, the
+89-file node deploy closure (with origin-request.mjs) and its reproducible package hash.
+---
+ .../RESULT.md                                 | 250 ++++++++++++++++++
+ .../artifacts-js-final.sha256                 |  22 ++
+ .../node-closure.tar.sha256                   |   1 +
+ .../node-deploy-files.sha256                  |  89 +++++++
+ 4 files changed, 362 insertions(+)
+ create mode 100644 checkpoints/windows-final-runtime-integration-20261023/RESULT.md
+ create mode 100644 checkpoints/windows-final-runtime-integration-20261023/artifacts-js-final.sha256
+ create mode 100644 checkpoints/windows-final-runtime-integration-20261023/node-closure.tar.sha256
+ create mode 100644 checkpoints/windows-final-runtime-integration-20261023/node-deploy-files.sha256
+
+diff --git a/checkpoints/windows-final-runtime-integration-20261023/RESULT.md b/checkpoints/windows-final-runtime-integration-20261023/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..9ebca1d8d65c986ea8f93bcfd5c80017c1ab4496
+--- /dev/null
++++ b/checkpoints/windows-final-runtime-integration-20261023/RESULT.md
+@@ -0,0 +1,250 @@
++# Windows final runtime integration (on the immutable final baseline 1f19ad15 / source 30339303)
++
++Written 2026-10-23 ~13:50Z, by F in a new isolated tree: work/windows-final-runtime-integration-20261023.
++
++**Scope:**
++- The earlier tree, `resume-after-checkpoint-20261022/windows-final-baseline-compose` (final 30339303, evidence 1f19ad15, report), is untouched, so D can capture it.
++- **Not done:** no SSH, production, installed-host change, VM or service restart, wallet, funding, signing, contract change, cache allocation, node sync, toolchain, Wine or push.
++- No other worker's tree was edited. Inputs were fetched as git objects only.
++- **Queue:** every build, test, probe and scan went through `work/claude-test-queue.py` (unchanged 16 GiB floor, caps ≤ 1408 MiB).
++- **Identity:** SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>, author and committer, with hooks on.
++- **Hold:** the NucBox experiment release and the restart permission are still unanswered. Nothing here is activated, and root owns activation.
++
++## Final pins
++
++**Source:** `candidate`, branch `final/windows-runtime`, head **0de09415815a9ca6382fc58af81b88cff193522c**, tree **5cbdb670f5b5e60cff2f91121c2bd3e127377c96**. There are five commits on 1f19ad15:
++
++| Commit | What | Provenance |
++|---|---|---|
++| 896c5d49c | Published main 68b82926: PRODUCT.md, README.md, docs/security/nucbox-custom-vm-verifier.md, site/js/pages/sso-authorize.js | Shared rewritten anchor adf9c5bbf. Three files are unchanged here, so main's bytes are taken. README is a clean 3-way merge. |
++| 2aef8ee8e | TLS: apptls, secrets, new origin-request.mjs and its test | Exact cherry-pick of **1957ff23425f6ee2e0abe2604bdc9735987eff47**. All 4 files are byte-equal. |
++| 548bf5984 | M: manager reservation accounting; the installer keeps the owner's 96 | `git am` of the patch sha256 **eeab54d2…cb92** = 9f19b7c6. Every file is byte-equal, or (host/agent/chain) has exactly M's added and removed lines. |
++| 42bb46368 | Shared `network/verified-chain.mjs` at A's final 554a251c; admission and metal bundles rebuilt; opt-in boundary test | A **554a251cbe14aa7ba8af4c160d9a8b9793e4071a**. Ours was A's base, so the file is taken whole (77cee386). |
++| 0de094158 | Test-fixture repairs (below). No product source changes. | — |
++
++**Node deploy closure:** derived from agent.mjs's import graph by `windows/node/deploy-files.mjs`.
++- **89 files** (prior final: 88 plus `windows/node/origin-request.mjs` e5fe041d), listed in `node-deploy-files.{txt,sha256}`.
++- **Package:** `node-closure.tar` = `git archive` of tree 5cbdb670 restricted to those 89 paths, sha256 **783797c03270d58f0ec56e8f8bb70e54814f0de401f4a628fbd8da224c941d8b**. It is byte-identical from an independent `--local --no-hardlinks` clone.
++- **Verification** (`verify-closure.sh`, job v1):
++  - the extracted package's bytes match the list;
++  - the committed `closure()` walk, rooted in the extracted directory, resolves agent.mjs's whole graph with **0 problems** and exactly these 89 files, including origin-request.mjs.
++- **Installer:** `install-host.ps1` 9ed6bda0 archives all of `windows/`. No hand-maintained file list exists.
++
++Key closure pins (sha256 prefixes):
++
++| File | Hash |
++|---|---|
++| agent | 3abaf559 |
++| host | de8b48d1 |
++| chain | c448b9cb |
++| chain-reader | 907fd1c8 |
++| network-enroll | 4e2f5e91 |
++| apptls | 89db0311 |
++| secrets | 71a262fa |
++| origin-request | e5fe041d |
++| host-admission.bundle | **6bd913516bbeeb72602720c2b5c29d00ced72d1c1ebb2046bb5c5abad447ff87** (`--check` clean) |
++| lease-gas-runtime.bundle | 008cdca1 |
++| host-service-transport | 43e7c115 |
++| host-service-names | a46123cb |
++| rpc-identity | 74cb965e |
++
++**Outside that closure, shipped by the installer:**
++
++| File | sha256 |
++|---|---|
++| windows/vbslike/manager/server.mjs | 764834227b6b847e140250fb209acfdeb4e189d3fb768b8b8f0485b28e4ecf26 |
++| windows/installer/install-host.ps1 | 9ed6bda04ba5213cec03156663d5f3721794c7a12c8d1a982a39a7e62364b6a4 |
++
++- **metal/guest/host-policy.bundle.mjs** 228d4cf0824f31eae4eac8161099c9314bdd6cbb0ab95ebe48539f74031a1991 is a Linux image input. No image was rebuilt.
++
++**JS artifacts:** `artifacts-js-final.sha256`, 22 files, byte-identical on two independent paths. Go was denied by a stub (rc 97), and no Go or Linux image was built.
++
++| Artifact | sha256 |
++|---|---|
++| dist/privacy-agent.mjs | **029bdd3080c64c0c3214a34f8602742d0b63e610d1f7ce9502a0470431593454** |
++| relay/network-runtime.bundle.mjs | b2d7a17d658b8956d8b4798775670867117e7d61b37695591b7ab71b6bc5e663 |
++| policy-mirror | 440d3f90 (package 120aeb07) |
++| route-dns | edaae81a (package 1daac8a3) |
++| dist/wg-provider.mjs | f802ddbf |
++| consumers: checker / dns / privacy-agent / provider | a0ee93a2 / 7c704374 / 31dbc8a5 / 0b50370c |
++| bootstrap, directory, credit-vault (3), enclave-directory, ingress c952dce4, worker dcac53cb, reconcile-apps, wg-qualify | unchanged |
++
++**Every changed artifact traces to A's verified-chain alone:**
++- **dist bundles:** the privacy-agent dist differs by exactly the `allowCall` hunk plus one renamed local.
++- **consumers:** their esbuild manifests show identical input lists. The only changed tracked input is network/verified-chain.mjs.
++  - `dns.mjs` changes through the rebuilt `relay/network-runtime.bundle.mjs`, which inlines it.
++- **TLS and M** files ship unbundled, in the node closure.
++
++## A: Windows/host-services source closure from immutable 554a251c (included vs omitted)
++
++**Included:** `network/verified-chain.mjs` only.
++- Since c3a61fd1a it is the one shared module A changed. It is inlined in the admission, privacy-agent, network-runtime, policy-mirror and route-dns builds, so keeping df8's older copy would ship a stale shared module in one source tree.
++- **The additions are opt-in per caller:**
++  - pinnedClient/createVerifiedSnapshot `allowCall`, default off;
++  - `verifierRequest`/`verifierClient`.
++- **`test/verified-chain-optin-boundary.test.mjs` (5/5)** proves:
++  - with no opt-in, `call` is refused by name and nothing is sent;
++  - with the opt-in, eth_call is pinned to the block hash;
++  - verifierRequest refuses everything but pinned state, headers by number and the head;
++  - no windows/, network/, relay/ or metal/ source uses the opt-ins.
++
++**Omitted, A's to integrate:**
++- **CLI and MCP sources:** cli/enclave, cli/independent, mcp/independent (this lineage's copies differ from A's base) and the CLI/MCP-only files.
++  - A's tests import those, so they can't run here.
++- **`metal/guest/mcp-server.bundle.mjs`** and its manifest: not part of this lineage.
++- **A's test rig** (cli-independent-rig with reth, witness-gateway, op-head-relay, op-commitment): used only as a scratch overlay for the e2e, never committed.
++- **The credit-vault-submitter package:** it imports no CLI code here, so A's signer fix doesn't reach it. Its bytes are unchanged, a22cd7a8/2a4de6d5.
++
++## Tests (each file alone in a private loopback-only namespace, denial stubs; honest per-file aggregation)
++
++**The runner was rewritten** (`run-suite.py`):
++- each file runs as its own `node --test`, with its exit code and the reporter's own counts;
++- a suite FAILS on any non-zero exit, any fail or cancel, an empty file, or any skip beyond an explicit allowance;
++- `NOT RUN (native gate)` skips go in their own column, never counted as passed;
++- `--drop-caps` gives a file an empty capability bounding set; `--dummy-if` gives it a dummy interface inside its namespace;
++- per-file tables are in `logs/*.files.tsv`.
++
++The old wrappers exited 0 on failing files (ROOT-J3D-FAILURE-REVIEW).
++
++| Job | Scope (why) | Result |
++|---|---|---|
++| J1 (76 files) | TLS worker's 60 import-coupled files ∪ M's 41 coupled ∪ M's 2 new ∪ 3 host-importing Foundry suites | 644 tests over 76 files. **72 files pass outright.** The other 4: hosting passed with 1 skip; shield-startup failed 4 tests; heartbeat was cancelled at J1's 300 s file bound; and the 2 pre-existing failures below. The first three are rerun in J1b. |
++| J1b | windows-shield-startup after its fixture reads the manager's RAM view (M semantics; it was refusing "RAM not read") | **15/15** |
++| J1b | windows/node/hosting.test.mjs with a dummy non-loopback interface (its misconfigured-bind negative had been a skip) | **21/21** |
++| J1b | offchain-heartbeat-writers with its own 900 s bound (J1's 300 s file bound cancelled it) | 2 pass, **1 allowed skip**: its negative control needs a base supervisor.js that isn't provided |
++| J2 | verified-chain + opt-in boundary, windows-chain-authority, network-owner-verifier, admission policy/retry/runtime, platform-host-policy, the hosted roles' carriers/cold start/lifecycle/transport/stage, policy-mirror race, service index, metal launcher, challenge supervise/front/host, privacy-agent lifecycle, network-host canary | 25 files, 181 tests: 169 pass, 2 fail (host-services-carriers, service-index), 10 skips (8 need the built packages, 2 need STAGE_TAR). All handled in jfix. |
++| J2 | **shipped admission bundle** (ADMISSION_BUNDLE_TEST) | **7/7** |
++| J2 | **parity** against the reproduced installed 6bef372d | **14/14** |
++| jfix | host-service packages built (8 skips needed them); host-service-verifier-roles, hosted-policy-cold-start, **host-services-carriers 9/9** (needed the packages), **service-index 15/15** (fixture fix), the TLS-coupled manager `ops/multi-accept` | **42/42** |
++| jfix | hosted-services-stage | 1 pass, **2 allowed skips** that need the external Linux stage-1 archive (STAGE_TAR) |
++| J3 | site-independent-management, three runs | **10/10, 10/10, 10/10**, including the real Safe/passkey identity and delegation case |
++| J3 | windows-release-journal with an empty capability bounding set | **7/7** |
++| J3 | release-journal negative control, with capabilities | **fails #4 as required**: the guard detects the writable directory |
++| J3 | windows-node-lease-readiness | 8 pass, **1 NOT RUN native gate** |
++| J4 | `windows-verifier.e2e` on the COMMITTED head: real reth v2.8.0 --dev + A's patched Helios (hash-checked cc962e2b / 8cdd1f35), A's 554a251c test rig as a scratch overlay | **6/6, peak 746 MiB** |
++| final | the closure check (above); `windows-node-deploy-files` 3/3 in J1 | PASS |
++
++**Covered by these runs:**
++- **TLS behaviour:** origin-request 9/9.
++  - verification kept: a wrong-name or self-signed certificate is refused and not routed around;
++  - HTTP refusals, backoff and redirects are answers, never rotated around or followed;
++  - a request is never resent after it is sent;
++  - no cross-origin retry;
++  - DNS order kept.
++- **Memory accounting:**
++  - windows-hv-memory-accounting 9/9 and installer-app-ram 3/3;
++  - preclaim, scan-slot and hosting;
++  - the manager's own test suites;
++  - lease-renewal-keeper 16/16 (keeper cadence);
++  - host-app-funded 3/3 (app-paid lease gas).
++- **Challenge lifecycle and front:** challenge supervise, front and host.
++- **Mirrors:** parity, and no fleet address in any bundle.
++- **Admin rights:** ban and unban, AddressBook owner migration, and ERC-1271 owner verification in the e2e and the role suites.
++
++**Baseline fixture repairs** (commit 0de09415; ROOT-J3D-FAILURE-REVIEW):
++- **Safe/passkey code:** `test/helpers/safe-passkey-code.mjs` no longer reads mainnet.base.org. It etches `test/fixtures/base-code/safe-passkey-code-base.json` (sha256 b08c9a60…).
++  - **Snapshot:** taken once by the new `scripts/test-fixtures/snapshot-safe-passkey-code.mjs` in job p1, a read-only probe in the queue (eth_chainId/blockNumber/getCode/call). It read Base block 52984972 from two RPCs that had to agree.
++  - **Pins:** all 11 pinned contracts hash to the reviewed `codeHash` pins in `site/js/core/account-providers.js`, checked at snapshot time and at every use.
++  - **Signer singleton:** 0x4e27b51350e6c2083ee19011120f50dafec5ca50, keccak 0x2f10c1de…. It has **no reviewed pin of its own**. Its address is embedded in the pinned factory's code, and its bytes are two-RPC-agreed only. Root may want to pin it.
++  - Real Safe v1.4.1, passkey signer and 4337 coverage is unchanged, with no network guard disabled and no generic wallet.
++- **Management 409 cascade: a fixture race, not a product regression.**
++  - The gateway's LeaseReader authorizes at a confirmed block (`confirmations: 1`, the agreed head minus one).
++  - The rig mines every 1 s, so an operation sent right after `claim` could read the block below the claim. It was correctly refused with 409 `not_current_runner`, and that refusal was cached for the gateway's 15 s negative TTL (`management-gateway.mjs:245`).
++  - Every later operation in the window then failed too. All 8 failing tests ran within that window, and both 14d1 and the candidate showed it.
++  - **The fix:** the test mines the confirming block after each claim. Lease authorization and the admin checks are unchanged. Result: 3/3 runs pass.
++- **release-journal #4** requires EACCES from its read-only directory before relying on it, and runs with dropped capabilities. The negative control proves a capability override now fails instead of passing vacuously.
++- **lease-readiness:** the PowerShell cutover gate (`../../cutover/tools`, outside the repo) is `NOT RUN (native gate)` without PWSH. It is reported, not passed, and no toolchain was installed.
++- **service-index:** the schema-4 registry comes from the in-tree `test/fixtures/registry-schema4`.
++  - That file is byte-equal to this history's ca137530, the authorized rewrite of b17db9a3 (map in `outputs/tinfoil-lowercase-cleanup-20261021`).
++  - Pre-rewrite b17db9a3 is not in this history and was **not** fetched, because that would import old-ancestry objects.
++- **windows-shield-startup:** the host reads the real manager's `/health` before claiming, as the agent does since M (the same adaptation M made to preclaim and scan-slot).
++
++**Pre-existing failures, not from this composition** (identical on base 1f19ad15, and on 4106 per the TLS worker):
++
++| Suite | Failure | Note |
++|---|---|---|
++| `catalog-platform-enforcement` #1 | SyntaxError: the test's `evalmachine` extraction of `#walletPolicyState` | — |
++| `registry-reconcile` #8 | "the supervisor sends no heartbeat": the Linux `supervisor.js` still contains `sendOperatorTx(... "heartbeat")` | A real gap against the off-chain-heartbeat requirement, in the Linux supervisor, which this Windows composition does not touch. Owner: the Linux runtime workstream. |
++| `site-independent-account-startup` | The Safe-held `deployOnChain(prepareOnly)` creates no record | Fails identically on the control: 1f19ad15 plus only the offline Safe fixture. The site's deploy flow is unchanged here; its refusal toast is not captured by the test. Owner: the site/wallet (E/S) scope. |
++
++**Not run:**
++- anything Windows-native: PowerShell, Hyper-V, a real manager restart or an installer run (M's installer test is structural only);
++- the cutover gate (NOT RUN, above);
++- A's CLI/MCP suites (A's scope).
++
++**Scans:** `scan-crypto-keys --range 1f19ad15..HEAD` 0, gitleaks over 5 commits: no leaks.
++- Checkpoint archive files inherited from 14d1 still contain the pre-rewrite brand literal (9 files under `checkpoints/`). No commit here adds one, and product source has none.
++
++## Activation delta vs installed (R3 08:01Z) and recipe (root; NOT done)
++
++| Installed | Installed → final | Notes |
++|---|---|---|
++| network\privacy-agent.mjs | cfb69370 → **029bdd30** | |
++| windows-circuit-worker | 13ce44f1 → dcac53cb | label-only |
++| ingress | c952dce4 | = |
++| control\windows\node\agent | 76cac355 → 3abaf559 | |
++| network-enroll | a9729786 → 4e2f5e91 | |
++| host | ea0f6b8a → de8b48d1 | keeper + A wiring + M |
++| chain | 3e9fae03 → c448b9cb | keeper + A + M |
++| apptls | 2fb25b00 → 89db0311 | |
++| secrets | d034d871 → 71a262fa | |
++| origin-request.mjs | (new) e5fe041d | |
++| chain-reader.mjs | (new) | |
++| host-service-transport | de5bb98a → 43e7c115 | |
++| names, rpc-identity | = | |
++| windows\node\host-admission.bundle.mjs | 6bef372d → **6bd91351** | mirrors `[]`; parity proven |
++| lease-gas-runtime.bundle | 159108d1 → 008cdca1 | rename-only |
++| partition manager server.mjs | → 76483422 | |
++| install-host.ps1 | → 9ed6bda0 | |
++| enclave-wg.exe, enclave-circuit-firewall.exe | **KEEP** | Unknown Go provenance; not rebuilt. |
++
++**Default behaviour on the box after activation:**
++- legacy provider quorum (no ENCLAVE_CHAIN_AUTHORITY);
++- no host services or challenge replica configured;
++- TLS origin failover on the node's own relay requests.
++
++**Memory-accounting order:**
++- **Installed manager (no `memory` field):** the new node reads it as "no pool rule", so floor accounting continues, as today. Either order is safe.
++- **Once node and manager both run the new code:** the node advertises the manager's reservations.
++- **Recovered or unknown partitions:** new claims are refused while partitions are unknown, without retiring running apps.
++  - This holds after a manager restart: partitions are reported `recovered`.
++  - Existing VMs keep their spawn-time size. Resizing happens only through the existing restart-recovery path, which M's gap 2 records: the node retires a recovered VM and respawns one at the new pool × share.
++- **Root decision:** whether that relaunch at 96 is wanted.
++
++**Steps (after the experiment release and root's 96/restart decision):**
++1. Root read-only preflight:
++   - bind each running privacy-agent and node-agent process to its script sha (loaded-process gate);
++   - fresh boot and authority verification after the 0xEF bugchecks (native-kernel gate);
++   - capture hashes of the 4 files without a baseline record.
++2. Stage the 89-file node closure (tar 783797c0), the privacy-agent 029bdd30 and the partition manager/installer from this tree. Keep the Go executables.
++3. Run the installer. It validates the owner's `NODE_APP_RAM_GB=96` against physical RAM and writes 96 unchanged to node-config.cmd and shield-config.cmd.
++   - It warns, and does not clamp, when that leaves under 16 GiB outside the pool: 15 GiB on the NucBox.
++   - **This is not proven natively.** The PowerShell behaviour has not run.
++4. Restart the manager, then the node (root's restart permission).
++5. Read back `/health.memory` against `/v1/local` capacity. Expect `ramSource` "manager", app-pool free ≠ physical free. Expect 0 free until recovered partitions are reconciled.
++6. Read the TLS and keeper logs.
++
++**Rollback:**
++- reinstall the previous control files (cfb69370 / 76cac355 / a9729786 / ea0f6b8a / 3e9fae03 / 6bef372d / 159108d1 and the previous manager/installer);
++- or revert the commits: 548bf5984 for memory, 2aef8ee8e for TLS, 42bb46368 for the shared module and bundles.
++- The config files are unaffected: root already set 96 in all three.
++
++**Open:**
++- physical headroom for any RPC service VM (outside admission accounting; M's gap 1);
++- native PowerShell and Hyper-V verification;
++- the signer-singleton pin decision;
++- the Linux supervisor heartbeat (registry-reconcile);
++- A's CLI/MCP integration and E's receipt seam.
++
++No production-independence claim is made.
++
++## Files here
++
++- **Inputs:** `setup.sh` (refs/in/{tls,mem,a,main}).
++- **Compose and commit:** `compose1.sh`, `commit2.sh`, `msgs/`.
++- **Build and verify:** `build-admission.sh`, `build-js.sh`, `verify-closure.sh`, `snap.sh`, `scan.sh`.
++- **Test runner:** `run-suite.py`.
++- **Jobs:** `j1.sh`, `j1b.sh`, `j2.sh`, `j3.sh`, `j4.sh`, `jfix.sh`, `jrun.sh`, `jfinal.sh`.
++- **Logs:** `logs/`.
++- **Pins and package:** `artifacts-js-final.sha256`, `node-deploy-files.{txt,sha256}`, `node-closure.tar(.sha256)`.
++- **Worktrees** (scratch, read-only use): `base` and `base-fx` (1f19ad15 + only the Safe fixture).
+diff --git a/checkpoints/windows-final-runtime-integration-20261023/artifacts-js-final.sha256 b/checkpoints/windows-final-runtime-integration-20261023/artifacts-js-final.sha256
+new file mode 100644
+index 0000000000000000000000000000000000000000..8a631423b658f9dc18b4adcaaa2ed8911daf80b1
+--- /dev/null
++++ b/checkpoints/windows-final-runtime-integration-20261023/artifacts-js-final.sha256
+@@ -0,0 +1,22 @@
++1e45e75f1f4a7d2b74ebac22f0e292d76323c9a11bf80203a20d289c9577f467  ./bootstrap-replica.mjs
++7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc  ./bootstrap-replica.package.json
++a0ee93a2b2b9d3ebc19b7bc4e54663926cf519ae223036a6e452dce512ca9327  ./consumers/checker.mjs
++7c70437444264ac43c649ffb9de20bbbeae5f09dc8bfb501d230fdb791da6176  ./consumers/dns.mjs
++31dbc8a561c975d6b103e6c8c9c4903fcc3d86dbaad9d9320dce711714d68a3a  ./consumers/privacy-agent.mjs
++0b50370ce6e0bb8bbfdbc121ed6dfac23cb738bc6ee8d37ee29da1eaa3a0e102  ./consumers/provider.mjs
++2a4de6d5b166c25aa9f7ac9cde1f9b2e05620eebc7d65266e6588ecffca6091b  ./credit-vault-submitter.mjs
++a22cd7a8fc6f7d85fea6edbd7f8e9deb36dc1b55507e3bb396e9bc6a368eb0e6  ./credit-vault-submitter.package.json
++45dc23218fd88a4e7bfd025f192aca176bf875554b4e61270d256e121998e971  ./directory-replica.mjs
++e9cff3283064bcf2bb765a4c741af384eed2adc14a30bff959c58df8032be2d8  ./directory-replica.package.json
++b677d864e1b5ed39a80e4146bacef380851b2f67ba5ff0aca2a97c3b750765b1  ./dist/enclave-directory.mjs
++c952dce4fe007c48c81e1726a743d850dc2f5231204d01466349bfa5ffcc62d3  ./dist/host-service-ingress.mjs
++029bdd3080c64c0c3214a34f8602742d0b63e610d1f7ce9502a0470431593454  ./dist/privacy-agent.mjs
++9c445ade0c21fd39e71244bbf0415ad37a0e5f87638ecdbbbecf683a7443594b  ./dist/reconcile-apps.mjs
++f802ddbf8c617948ef5784fb12024161e5561730111141ce99cb288bbc1d2649  ./dist/wg-provider.mjs
++8811439086a682f562f591a38e35d15da2fab21edc2de86acacd6e6226f399e5  ./dist/wg-qualify.mjs
++dcac53cbe4f4fe19ee10ed5e2719ecff38817990bd1078dbb082f77d8bc2c332  ./dist/windows-circuit-worker.mjs
++b2d7a17d658b8956d8b4798775670867117e7d61b37695591b7ab71b6bc5e663  ./network-runtime.bundle.mjs
++440d3f90643fa681a9551c86a61cfb2dc5ef8ec1708b0aecc4e9e737c1a882c3  ./policy-mirror.mjs
++120aeb0782e1365195ad42bd4fb4b56a6e589af4ec3bd96f0423692302f7fae2  ./policy-mirror.package.json
++edaae81ab18b6b3f512d850e728dd7c319ee85f16ff84b730675e9e977caa901  ./route-dns.mjs
++1daac8a34e837dd804ffb55c80c2432030d67ec06bba87bc0cc2171b44e70c3d  ./route-dns.package.json
+diff --git a/checkpoints/windows-final-runtime-integration-20261023/node-closure.tar.sha256 b/checkpoints/windows-final-runtime-integration-20261023/node-closure.tar.sha256
+new file mode 100644
+index 0000000000000000000000000000000000000000..23a70054df7425665ec3919d0511dcf4fb6090bd
+--- /dev/null
++++ b/checkpoints/windows-final-runtime-integration-20261023/node-closure.tar.sha256
+@@ -0,0 +1 @@
++783797c03270d58f0ec56e8f8bb70e54814f0de401f4a628fbd8da224c941d8b  node-closure.tar
+diff --git a/checkpoints/windows-final-runtime-integration-20261023/node-deploy-files.sha256 b/checkpoints/windows-final-runtime-integration-20261023/node-deploy-files.sha256
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b9dc64466b046f6f4435a25c72c77510863536c
+--- /dev/null
++++ b/checkpoints/windows-final-runtime-integration-20261023/node-deploy-files.sha256
+@@ -0,0 +1,89 @@
++63436160d00ecae43d5eff7046b13e16e2fad04a423d32102afaa7645bbfb85d  availability/host-acceptor.mjs
++8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69  isolation/contract/runtime.mjs
++650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd  isolation/m2/judge.mjs
++136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597  isolation/m4/guestd/supervisor-guestcert.mjs
++dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b  isolation/m4/guestd/supervisor-splice.mjs
++5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3  network/canonical.mjs
++d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0  network/host-capacity-producer.mjs
++62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551  network/host-capacity-record.mjs
++acc321cb3ec282a400eb5b5af4f30b4729b357005477bfa11808fa98f32812dc  network/host-policy-gate-config.mjs
++a46123cbb70ab666f9dfb23b5b545fe76d87658c6bf82c7f7574579d0c65b32c  network/host-service-names.mjs
++43e7c11527491f47a4c8c15e4a6832e560c59f94a8c00d9de34897a99d5be01a  network/host-service-transport.mjs
++66dfc694094979bd69456992b0343dbd6a1879791a92e054bcf7e0883a8d78b3  network/owner-names.mjs
++a7c1d8bf55ba2031b93622861a12a0638e38eb97c5f1c631127835d609e0078e  network/platform-host-policy-config.mjs
++ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e  network/registry-reconcile.mjs
++74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57  network/rpc-identity.mjs
++1af59d09f6edbc42071f7ded3fb8d42c90232c57c12ae17cfec6724de66f1a4a  network/shield-expectation.mjs
++0fa7678f7586388b4725f1432683fa4ab172fd1d57c163d9a63195fbb2f445ee  network/wallet-admission.mjs
++081d826f674d8579f3636c28b4dbd6b62955bd0ff0b8f2710157980ecd9764fd  relay/avf-verify.mjs
++93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046  relay/snp-verify.mjs
++0e915d95b6771db87e00cee5ef97b82459da0b43653629a2e03264c78a3901cc  relay/vbs-policy.mjs
++936fc2ccc116154b6936d16a05fa89774a8f68a6dcb36b2733b064d4f2425912  relay/vbs-tcglog-core.mjs
++b7c6b2e43c4fde1fbc6730b2ce53d257a83003673b3b56257b60983083a7036d  relay/vbs-tcglog.mjs
++993c69a8e9931d67fb741ff93c52dc10503f11b42aedb125a42cffb71922b4f6  relay/vbs-tpm.mjs
++1b26c6b328d463b6597bc26ea4f8220403638e84655da1ddddea5152cd57b868  relay/vbs-verify.mjs
++17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a  sdk/bootstrap/package.mjs
++152ed24ce1ab6d2ca87a4d81d46fbab48d471559d59c2e35d76faf076a57501a  sdk/storage/model-volumes.mjs
++64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25  sdk/storage/replicas.mjs
++3abaf559a004ef2b61aedbbe964266be2faa91c976d161a2272c9480b5e8faa4  windows/node/agent.mjs
++fd02f5b9f221291357ca0491a81e3330013f6bcec8149b48d3a1463b4ce05681  windows/node/appframe.mjs
++09c60eb7fbe7e6a63cd0696bac6c53b9dfa826e103cc1f0f64ce359abab361ce  windows/node/apprun.mjs
++89db031142ee9bcde60a4d44badfed6eca8f48604f8da0c59ffe83ab152ab7ba  windows/node/apptls.mjs
++65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68  windows/node/appzone.mjs
++6a6fe3ae786a0a8ffdbf1cbf2dc1e2335035c6adb13058623932f209d97ec4c5  windows/node/audit-jobs.mjs
++6f34642f9d84706cc26f3f5dd69a70c88b24e73d3c3ab2c6c8b3cc9a82905c38  windows/node/blob-cache.mjs
++907fd1c8c9f62b773d95ccc16988440663fd9552725a72aca4bc4281adf8ebf2  windows/node/chain-reader.mjs
++c448b9cb1d1dc593b1079921830597746c5c0a438ec37ac31b2403d5c675e5a9  windows/node/chain.mjs
++6e98c52b45ed9a1f4cbdfa91a8bdc2f43aca8102fdfb1cb22ab4e29b0462af3b  windows/node/compute-measure.mjs
++a10085de2437ca664f8e8c2d71e2560d095296f55d3ddd53f4b11c8b9634bf41  windows/node/domains.mjs
++729e6a0c252d9f45823df1d065bcfedda22d9e9e75b36f2c580af1107c32a6f6  windows/node/fetch-cid.py
++1c89eb294039236c738384d9bcd5bf57a3b274d5bfef0ff3284dd956f5f5a537  windows/node/gas-runway.mjs
++6bd913516bbeeb72602720c2b5c29d00ced72d1c1ebb2046bb5c5abad447ff87  windows/node/host-admission.bundle.mjs
++153f9aa731014a7aabdf9c221970b085577de80bdae738bc782d35deb777888c  windows/node/host-delegation.mjs
++827b30d36bc4a4baf0963b057164f12f5e73165fb3f35cf2ceba201412e93467  windows/node/host-identity.mjs
++de8b48d1a66d008fff672296b3a0421e27a11cdce48aa6ddda45e0d4dc0080d6  windows/node/host.mjs
++f2f3f46cd2fcc5433d988379546cd8c142ec878907457ffe1a01d4a1c89f17b7  windows/node/hosting.mjs
++3a87d9b897765fc8bc42a2648f310f8ad504022798534603bce9b0fdafe0d9d5  windows/node/hvcert.mjs
++bcd715675c2e0bea32c417a820ec4620e3bad9bad07d7d4c81ef2b47daaaa21d  windows/node/hvnode-attach.mjs
++5e0f11a03b07a585a79a0ec14b23f47ddc5f5af9ce8edc10dccea2400aba06c5  windows/node/hvnode-evidence.mjs
++c91242a456a4c0944ba3bf12bb0db6aa4010db2f4b50960bf4127290fe9933b4  windows/node/hyperv-events.mjs
++28633765778ec4ccd308b0a9aa45ff5ffbb7a0b6c727e5787bf1c80dcc4c9508  windows/node/install-node.cmd
++8d07cb4ea105819c8f769e942c58063d20cf1289544c2afac0b9aeda0d963b7b  windows/node/isolation-client.mjs
++5ae5f457f35fd4debb0b77f8b16ec00325d003470551354377e51c791734b033  windows/node/isolation-lifecycle.mjs
++008cdca1240372d3dccedc2f58fecfcdca6377245ad67d4970a2efe79757f4e7  windows/node/lease-gas-runtime.bundle.mjs
++4e2f5e9169495918ead96b878265b0df4538f91f26eb4e40d972d6704a64fbf1  windows/node/network-enroll.mjs
++e5fe041de6840bd82e11616162c0d201674abfc95250f4cc57a95a754a988f2d  windows/node/origin-request.mjs
++f8964448da57ad5b3754806e7ab53d6c3fa062097b17dec65e71b811a7a5a818  windows/node/package-lock.json
++2192d65f7c08160a655aceb351812c6822737271890635fca1c845a940208dd1  windows/node/package.json
++c59f855efb487650acffb93fea6d22d44c2867a31e37eff39651008634db785d  windows/node/payout.mjs
++e9869b25b28896cef1691a8a0c26b7ee9b57c117ff668ae264dee745b89cd3ee  windows/node/price-guide.mjs
++f690c29b606879468db94b7b78f283e7de09f94a262803e13ee4dc61b447f942  windows/node/release-channel.mjs
++71a262fa6f7e8e1063e1b479df1e0944f1937525c59503a53f399b8471f5557c  windows/node/secrets.mjs
++48cf482cef24519045b398a26885a34ba1bb9a8d32cc66d731a0b2d9ed012929  windows/node/session-api-auth.mjs
++cb14d370a09655bb05884a6a1f5bcd4dd0b28ebe0180ae881c9c00c6222be438  windows/node/session.mjs
++5f70528f54cbd092b93f2b0dc7dcffcb2a91e5d1ff64c626f6297e890cf363a2  windows/node/shield-custody.mjs
++c5c4b9c2da1235fe35029ef2a1edce4db058b6b9c9289f0d3363fd59b857a30e  windows/node/shield-secrets.mjs
++dbd160f1da0ccfa0d33a20386611cddd70fc2645fe6e20f2daf7fc8792e81266  windows/node/shield-sessions.mjs
++8dea4d59f2ee296fc7908e25a013240034f0da48d67bf9524a29b191becda2ca  windows/node/shield-startup.mjs
++e8910fa0daee97e9da8aaceccbb11ea9b9aebf7e3e24738c69089cc3398de231  windows/node/shield-verdict.mjs
++a316361afb19f4bdd05f5e001b916b684669ce9ac03f9788830ed61f06c2b91e  windows/node/shield-witness.mjs
++287f86d53617455f390fb65e39d99cb4f996edc1f4050351bd7ee710bc69f047  windows/node/shieldedcard.mjs
++2446021db3b97dc06b0af964c44ccdb1890aa4004a41f5d0fb3db553668af82e  windows/node/siwe.mjs
++896fb8d99b498c2b7fa8f925fabc58835d049031bb7148b9b419158bb8cc4bb3  windows/node/sponsor.mjs
++957d6be65f411619cb557e71dc151a123ecba2c6a539018255f4cf47cd2ea5a2  windows/node/startup-egress.mjs
++b551e68336ac68c7f26ce6965f5586f75f2bd6536890f9b6ac1fdef4e037f54f  windows/node/tunnel-handover.mjs
++9104b137b884ae5d46dfa94f2ec8529d36ee2cd51c89f204eec9335cd1af46a7  windows/node/update-watch.mjs
++aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29  windows/node/verification-checkpoints.mjs
++d44da8feb6b55073e1f18264d028e3f854c85215ae3a97208ef329638c1ee94a  windows/node/waf.mjs
++1149dfb2099a8ea3963c570d61d40e7b304d060b73c62694a31e8346bd258771  windows/vbslike/datapath/datapath.mjs
++6a80bb3c09adffa5a12c780fbb3240de21a820361473ecb4ded6501e03c4a353  windows/vbslike/datapath/node-bridge.mjs
++553742bf70546465f834cdf266b5a0ae4b7cb6552ec15f692498fb1ee3ce3562  windows/vbslike/datapath/partition-offers.mjs
++259b4e879e91ab97b7776ee661a7aeda84c8a47c521a1e0d71e65df479693860  windows/vbslike/manager/bridge-auth.mjs
++4eb7f3a73ee6857c8191a006e510b6072e431f9f9a42cd4fca9fa157797bd8cc  windows/vbslike/manager/custody-key-file.mjs
++a77a922ade374993540b8c0027234a5dd184c71fe3cbe4d44b04a506ed49652c  windows/vbslike/manager/custody-transport.mjs
++504342510c09dadeac0ec925bf071ff9378a56c5c9cc6990c29bbaf85635ad4e  windows/vbslike/manager/derive.mjs
++1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05  windows/vbslike/manager/egress.mjs
++5f3443c431d36812554202303c4b5596a181727f88c74d95a52a6440cc46cafd  windows/vbslike/manager/fetchcid.mjs
++15304eabf58e201c2e60c66b380b045e8bce3706f36aeef5479bf4900cef6954  windows/vbslike/manager/model-volumes.mjs
++f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3  windows/vbslike/verify/boot-statements.mjs
++bae3916e4a9ee1c3f4d67503f76b52d93febfbf356375a3321c7fe1fb9781f7f  windows/vbslike/verify/judge-hv.mjs

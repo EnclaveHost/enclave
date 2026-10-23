@@ -1,0 +1,31 @@
+From 3746e4fcbc163a743fbd1fb35a989e8ca0763b7c Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 08:04:43 -0700
+Subject: [PATCH] test: a failed release during startup is asserted by its
+ contract, not its wording
+
+The cancelled-startup cleanup-failure cases now require the final error to name the stop during startup and the injected
+failure on one line (root j3 review: no invented exact prefix); exit 1, ROUTER CLOSED and freed listeners stay required.
+---
+ test/privacy-agent-startup-cancel.test.mjs | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/test/privacy-agent-startup-cancel.test.mjs b/test/privacy-agent-startup-cancel.test.mjs
+index 49fc9665a2f01e97a45d9e56d964e74b3c41b81f..f54c648806a9625595ab0669eb9b472080e45573 100644
+--- a/test/privacy-agent-startup-cancel.test.mjs
++++ b/test/privacy-agent-startup-cancel.test.mjs
+@@ -163,11 +163,13 @@
+ });
+ 
+ for (const [fault, said] of [['manager-close', /injected manager close failure/], ['status-write', /injected status write failure/]]) {
++  // the daemon's final error: the stop during startup AND what failed releasing it (no exact wording)
++  const reported = new RegExp('stopped during startup[^\\n]*' + said.source);
+   test(`a stop during startup whose release fails (${fault}) still closes everything else and exits 1, not as a clean stop`, { timeout: 90_000 }, async () => {
+     const { exit, out, ports } = await stopWhileHeld('final-snapshot', { fault });
+     assert.equal(exit.signal, null);
+     assert.equal(exit.code, 1, out.slice(-3000)); assert.match(out, said);
+-    assert.match(out, /privacy agent stopped during startup, and releasing what it held failed/);
++    assert.match(out, reported, 'reported as a cancelled startup whose release failed, not as a clean cancellation');
+     assert.match(out, /ROUTER CLOSED/, 'the agent\'s later close steps still ran');
+     assert.deepEqual(await released(ports), { https: true, http: true, udp: true }, 'and the network host closed its listeners');
+   });

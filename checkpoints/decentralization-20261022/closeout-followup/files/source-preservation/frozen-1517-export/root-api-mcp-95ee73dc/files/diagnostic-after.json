@@ -1,0 +1,69 @@
+{
+  "at": "2026-10-23T15:10:15.8136300Z",
+  "manager": {
+    "ok": true,
+    "pid": 7880,
+    "started": "2026-10-23T08:30:01.0781920Z",
+    "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+    "parent": "cmd.exe"
+  },
+  "vm": [
+    {
+      "id": "hvbbab6d5ca75ab0fbde41465bcc4b2089",
+      "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "running",
+      "recovered": null,
+      "reason": null
+    }
+  ],
+  "host": [
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "status": "running",
+      "reason": null
+    }
+  ],
+  "node": [
+    "15:06:54 [node] [host] unblocking 0xa69dcbba: a forced claim overrides \"isolation: 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77 did not become ready within 300000 ms (last status starting)\"",
+    "15:06:55 [node] [host] config: bafkreifxoosjvq56tua7y325cvlfav56unskmppwtsdqgx5sa3b4ybybpi applied to 0xa69dcbba (5551 bytes, CID-verified)",
+    "15:07:03 [node] [host] claimed 0xa69dcbba (tx 0x0237b9630c732390b1b781762462ff98358e693d66d3e2e0d34544f2fefc12eb)",
+    "15:07:04 [node] [host] 0xa69dcbba isolated domain retired (forced relaunch)",
+    "15:07:04 [node] [host] config: bafkreifxoosjvq56tua7y325cvlfav56unskmppwtsdqgx5sa3b4ybybpi applied to 0xa69dcbba (5551 bytes, CID-verified)",
+    "15:07:23 [node] sealed secrets delivered to 0xa69dcbba (6 names)",
+    "15:07:29 [node] [host] 0xa69dcbba isolation spawned: hvbbab6d5ca75ab0fbde41465bcc4b2089 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "15:07:45 [node] 0xa69dcbba certificate: none for a69dcbba.app.enclave.host (the order for a69dcbba.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
+    "15:08:01 [node] [host] config: bafkreifxoosjvq56tua7y325cvlfav56unskmppwtsdqgx5sa3b4ybybpi applied to 0xa69dcbba (5551 bytes, CID-verified)",
+    "15:08:03 [node] [host] 0xa69dcbba isolation adopted: hvbbab6d5ca75ab0fbde41465bcc4b2089 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "15:08:37 [node] 0xa69dcbba certificate: a69dcbba.app.enclave.host installed in partition hvbbab6d5ca75ab0fbde41465bcc4b2089 (key a30242b9e5312eaf\u00e2\u20ac\u00a6, C=US, O=Let's Encrypt, CN=YE1, until 2027-01-21T14:09:19.000Z; domain monitor-signed)",
+    "15:08:58 [node] [host] config: bafkreifxoosjvq56tua7y325cvlfav56unskmppwtsdqgx5sa3b4ybybpi applied to 0xa69dcbba (5551 bytes, CID-verified)",
+    "15:08:59 [node] [host] 0xa69dcbba isolation adopted: hvbbab6d5ca75ab0fbde41465bcc4b2089 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "15:09:59 [node] [host] config: bafkreifxoosjvq56tua7y325cvlfav56unskmppwtsdqgx5sa3b4ybybpi applied to 0xa69dcbba (5551 bytes, CID-verified)",
+    "15:10:00 [node] [host] 0xa69dcbba isolation adopted: hvbbab6d5ca75ab0fbde41465bcc4b2089 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d"
+  ],
+  "shield": [
+    "09:10:58 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "11:27:58 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 4444 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 4444 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An established connection was aborted by the software in your host machine. (os error 10053) (ConnectionAborted); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 8764 B",
+    "12:00:38 [egress] 53b2c83c the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 124 B",
+    "23:55:33 [egress] 5839fea9 the egress bridge: shielded bridge connection ended: guest->worker An established connection was aborted by the software in your host machine. (os error 10053) (ConnectionAborted); worker->guest ended after 4540908 B",
+    "23:58:08 [egress] 5839fea9 the egress bridge: shielded bridge connection ended: guest->worker An established connection was aborted by the software in your host machine. (os error 10053) (ConnectionAborted); worker->guest ended after 22897156 B",
+    "00:00:14 [egress] 5839fea9 the egress bridge: shielded bridge connection ended: guest->worker An established connection was aborted by the software in your host machine. (os error 10053) (ConnectionAborted); worker->guest ended after 8990044 B",
+    "00:00:14 [egress] 5839fea9 the egress bridge: shielded bridge connection ended: guest->worker An established connection was aborted by the software in your host machine. (os error 10053) (ConnectionAborted); worker->guest ended after 6750948 B",
+    "01:07:40 [egress] 5839fea9 the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 311164 B",
+    "01:17:36 [egress] 5839fea9 the egress bridge: shielded bridge connection ended: guest->worker An existing connection was forcibly closed by the remote host. (os error 10054) (ConnectionReset); worker->guest ended after 99484 B"
+  ],
+  "network": [
+    "15:07:27 [privacy] local guest proof 0xa69dcbba: deployment has no unique running partition",
+    "15:07:33 [privacy] local guest proof 0xa69dcbba: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
+    "15:08:34 [privacy] local guest proof 0xa69dcbba: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
+    "15:08:58 [privacy] app 0xa69dcbba egress back"
+  ]
+}

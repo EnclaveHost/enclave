@@ -1,0 +1,21 @@
+HANDOFF — privacy-agent startup cancellation (for root -> S, F, D). Root review first; nothing deployed.
+Final commit 3746e4fcbc163a743fbd1fb35a989e8ca0763b7c on base 4c059b997360483c743deca343c2e42b1b534eeb
+  (branch privacy-startup-cancellation in work/privacy-startup-cancellation-20261023/repo).
+Apply: git am privacy-startup-cancellation.patch (sha256 7facefcc…a95a1, 3 commits), or git apply
+  privacy-startup-cancellation.diff (sha256 45387e0e…6a16). Both are against 4c059b9.
+  --check passed on read-only copies of: S HEAD 36919aaf, S's working tree, and F's
+  windows-final-runtime-integration-20261023/candidate working tree (HEAD dda47a35).
+Files: network/privacy-agent.mjs, network/entries/privacy-agent.mjs (now calls runPrivacyCli),
+  test/privacy-agent-startup-cancel.test.mjs (new).
+Contract:
+  - a SIGTERM/SIGINT during startup releases everything, then exits 0 (StartupCancelled);
+  - a genuine startup error exits 1 as itself, even when a stop arrived meanwhile;
+  - any failed release exits 1, during startup or after it.
+After composing, rerun in YOUR tree through the queue at 512:
+  node --test --test-concurrency=1 --test-force-exit test/privacy-agent-startup-cancel.test.mjs test/privacy-agent-lifecycle.test.mjs
+  (peak 235 MiB). Rebuild any shipped privacy-agent bundle from the entry. Run network-consumer-bundle as its own process
+  (`node test/network-consumer-bundle.test.mjs`): under a separate node --test parent it hit 528 MiB at 512.
+S: carriers:127 and cold-start:148 may now require code 0. Cold-start "zero apps, unknown chain policy" fails on the
+  untouched base too (the live production policy ADMITTED the fixture host over this host's network). That is a fixture or
+  environment issue, not this patch; see RESULT.txt.
+The reviewed source is immutable from here; any further change goes in a new commit.

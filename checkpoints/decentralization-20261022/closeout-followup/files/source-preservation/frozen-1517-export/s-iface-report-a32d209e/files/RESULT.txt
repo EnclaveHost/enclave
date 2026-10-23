@@ -1,0 +1,116 @@
+PUBLIC-RPC CONSUMER INTERFACE: RESULT (S, 2026-10-23, work/public-rpc-consumer-interface-20261023)
+
+FOUNDATION (immutable, untouched)
+  - S 36919aafe76c743272b323c8bca27871b5219ab9 (tree 29794c3e3d0156e1a7ddf59a01cd56d78907a7b9).
+  - Report repository bea9b760b70df03012fb218942fe9098441ca47c in work/public-rpc-host-role. Neither changed; the only
+    entries there are root's own untracked ROOT-*.txt files.
+
+SOURCE (repo/, branch public-rpc-consumer-interface, author and committer SteveDeFacto)
+  - commit 4f7632d7f283bb38396a44d775b6a80afcd62f1b, tree b246ba51c100ed57bc1bae9481627d492feda970, parent 36919aafe.
+  - Additive patch: patch/public-rpc-consumer-interface-36919..4f7632d7.patch,
+    sha256 0c98a3801b1dccae910ee739b56176b09255bb3f7adb04bdbae4ccc6aad1e015. 8 files, +673/-19.
+      network/public-rpc.mjs          68433c77…  methods, validation, class labels
+      network/public-rpc-config.mjs   9cf0456a…  SERVED_METHODS +3, getProof unforbidden, LIMITS.maxProofKeys
+      test/public-rpc.test.mjs        updated lists + consumer-interface negative/prototype test
+      test/helpers/reth-dev.mjs       genesis option
+      test/helpers/packaged-rpc-role.mjs   new: packaged role under the runner; pin checks (a mismatch FAILS)
+      test/fixtures/reth-dev-8453-genesis-2935.json   B's fixture, byte-identical (99138899…)
+      test/public-rpc-witness-consumer.e2e.test.mjs   new (B composition)
+      test/public-rpc-wallet-consumer.e2e.test.mjs    new (E composition)
+
+INTERFACE CHANGES (role public-rpc)
+  - eth_getProof [address, keys, block]
+      - keys: an array of at most maxProofKeys (default 128, range 1-1024) hex words of 1-64 digits, with no repeats by
+        value.
+      - block: EIP-1898 {blockHash, requireCanonical?}, a bare 32-byte hash, a quantity or a tag. "pending" is refused.
+      - exactly 3 parameters.
+  - eth_getBlockByHash [hash, false]: full transactions are refused; exactly 2 parameters.
+  - eth_getTransactionCount [addr, "pending"]: "pending" is accepted for this method ONLY. Balance, call, code,
+    storage, proof and logs still refuse it.
+  - eth_maxPriorityFeePerGas []: no parameters.
+  - Block selectors elsewhere now also accept a bare 32-byte hash. eth_getBlockByNumber stays tags or numbers only.
+  - Every answer: X-Enclave-Rpc-Class is one of chain-state, proof-material-unverified (getProof, getBlockByHash),
+    mempool-unverified (pending nonce), fee-quote-unverified (tip) or submission. The header is exposed to CORS. Nothing
+    is labelled verified by method name.
+  - Unchanged:
+      - still forbidden by name: eth_createAccessList, eth_sign*, eth_sendTransaction, accounts, txpool, filters,
+        admin/debug/personal/wallet;
+      - the own-property allowlist;
+      - all body, response, deadline, rate and in-flight bounds;
+      - the health gate (syncing/stale -> 503);
+      - kind null; explicit profile URLs; source and host headers; no hidden fallback;
+      - the verifier's methods are unchanged (getProof/getBlockByHash are node material only).
+
+PACKAGES (scripts/build-host-service-packages.mjs, run in f1)
+  - public-rpc.package.json 300cdc81… -> 78f06b5b546fa2f7d6e57fb4d073e4e12f542cf0886fa1005cc80c51966d6319.
+  - public-rpc.mjs bundle aaca601b… -> b1e8f62e12ef152b5e5adbfee43a5bffd4a3d67694c72df9ea5d98505884ea81.
+  - directory-replica, bootstrap-replica, route-dns, policy-mirror and credit-vault-submitter: byte-identical to F's
+    14d1e495 build (bundles and manifests).
+  - Packages are untracked build output, as in 36919. The pin is recorded here.
+
+DEPENDENCY PINS (checked by the job and again inside each E2E)
+  - B 673601e54f8fdcf2ea72d239c87d92b483ff231b, git archive -> consumers/b-673601e5.
+      - list consumers/b-673601e5.SHA256SUMS = 1ec87930d684ac5dd6fb0fd6e7afe51cbfd181aa4efed79aefda7f2759770ff6
+      - witness-gateway 7209ef5b…, witness-verify 729496b0…, rpc-identity 74cb965e…, op-head-relay ed71c069…,
+        op-commitment 13263acf…
+  - E dc2e5d7402327bdd376cf3b90cfa23a551a37ba8, site/ + network/ (no packages), git archive -> consumers/e-dc2e5d74.
+      - list e-dc2e5d74.SHA256SUMS = 786507164c8b3642ff002a7feb3e77c7a8223a28f8d0e1bb68e5b480eb109831 (437 files)
+      - profile-broadcast 14917fda…, wallet d0e7482a…, chain adc2bea3…, independent-chain b8e56460…, quorum e2936e13…
+      - E's final production commit ae00cd9659e46e3dffe5407bdf34442416a9e69a has identical site/js and network/
+        (git diff empty).
+  - Package locks: root 9ada1611… and network 12c8c6eb… are equal in B, E and S. node_modules are real copies of S's.
+  - Binaries: rpc-runtime-final-integration/bin/PINS.sha256 69db0ff5… (sha256sum -c ok).
+      - reth-v2.8.0 8cdd1f35…, helios-eeffcc9 cc962e2b…, witness-check 4fe0cd3b…
+  - Genesis reth-dev-8453-genesis-2935.json 99138899… (= B 673601e54 test/fixtures; adds the EIP-2935 contract).
+
+TESTS (work/claude-test-queue.py via jobs/q.sh; job.sh: ssh/scp/sftp denial stubs, unshare -rn loopback only)
+  - e1, cap 1024, peak 661 MiB, rc 1, on the uncommitted tree: 19/20.
+      - The one failure was my wallet E2E's assertion. reth --dev quotes a 0 tip, and viem's parseTransaction leaves a
+        zero field undefined.
+      - Fixed by reading the tip with E's own decodeSigned. No product change.
+  - f1, cap 1536, peak 1082 MiB, rc 0, on the committed 4f7632d7 (dirty=0): FINAL.
+      - key scan 36919aafe..HEAD rc 0;
+      - package rebuild and comparison as above;
+      - STRICT: 39 tests, 39 pass, 0 fail, 0 skipped, 0 cancelled.
+      - Suites:
+          public-rpc.test (12, incl. the new consumer-interface test)
+          public-rpc-wallet-consumer.e2e (3), public-rpc-witness-consumer.e2e (5)
+          public-rpc-browser (2, Chromium)
+          host-service-verifier-roles (4: admin ban/unban + AddressBook migration, no provider fallback)
+          host-service-lifecycle (13: rpc opt-in grant, unchanged 3-name grant, refusal by name)
+  - The witness composition, end to end:
+      - Chain: Helios -> B gateway (sole upstream) -> packaged role -> proxy -> reth.
+      - Positive: fresh reads equal the chain; ancestry via getBlockByHash through the role.
+      - Refusals, each of which then recovered: a tampered header (the role served it as unverified), tampered proofs,
+        node down, stale node, frozen signed head.
+      - The node saw only role-served methods.
+  - The wallet composition, end to end:
+      - Route: E modules -> two packaged roles (A without propagation, B with it), one reth.
+      - Before signing, labelled: the tip, then the pending nonce.
+      - Signing: a local test signer, sign-only.
+      - Broadcast: identical raw bytes A (refused) -> B; the node got them once; the receipt came through the profile.
+      - The fallback tip is exact (1e6 wei).
+      - A broadcast-only (MetaMask-like) wallet is refused, with nothing sent. With the node down, nothing is signed.
+  - NOT rerun (no new affected scope; NOT claimed green):
+      - service-index schema-4 registry checker: A owns the fixture provenance;
+      - host-services-cold-start/carriers daemon stop exit 1: M owns it;
+      - hosted-services-stage (needs STAGE_TAR).
+
+LIMITS (see HANDOFF.txt for gates)
+  - TEST-SIGNED local OP head only.
+  - Both wallet roles front one node.
+  - Plain HTTP on loopback only. TLS is NOT integrated and NOT tested.
+  - Helios EIP-2935 full-block-by-hash is refused (no full transactions), so it is unserved by this source.
+  - eth_createAccessList, eth_getBlockReceipts, eth_feeHistory and eth_gasPrice are not served.
+  - Real MetaMask is unsupported on the profile route.
+  - Propagation is operator-stated, not checked.
+  - E's built dist is not run here.
+
+SCANS AND ROOT NOTES
+  - scan1, cap 256, rc 0:
+      - report eb7f0db: scan rc 0;
+      - source 36919aafe..4f7632d7: scan rc 0.
+    This commit adds only that evidence and these lines.
+  - ROOT-E-BUILT-SITE-FINAL.txt was read.
+      - E's final build is ae00cd96. Its site/js and network/ are identical to the composed dc2e5d74.
+      - E's whole production build was not duplicated.

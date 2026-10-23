@@ -1,0 +1,44 @@
+[queue] START available=24942MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+HEAD ae00cd9659e46e3dffe5407bdf34442416a9e69a
+14917fdabf2753126f2cf7b7fbd6ec3e489937e0f932270ea0300197ab9967be  site/js/core/profile-broadcast.js
+d0e7482ac37703d45bf7c0ac3bcf9c3db51cab1806553e90d9ed2a01ddc4e835  site/js/core/wallet.js
+adc2bea3effe5e0b984e60683d74ebc1e7bdf0a110d55183daae1a4c30a24dee  site/js/core/chain.js
+71ccf9b8101ecb43ac3a545447a5e3d87b44a6baa7f17b4c8c6b89d94e183d71  test/helpers/independent-browser-rig.mjs
+115579135fc1fa888e6371f5f0f39f88abec1ef37fd406589281484f630285f7  test/site-wallet-receipt-drop.test.mjs
+TAP version 13
+# Subtest: wallet route, normal drop behaviour preserved: after 20 absent polls the wallet's RPC is asked once; it never had the transaction -> refused as dropped
+ok 1 - wallet route, normal drop behaviour preserved: after 20 absent polls the wallet's RPC is asked once; it never had the transaction -> refused as dropped
+  ---
+  duration_ms: 213.082563
+  type: 'test'
+  ...
+# Subtest: wallet route, the wallet has it pending: seen once, the wait continues, the receipt comes through the profile
+ok 2 - wallet route, the wallet has it pending: seen once, the wait continues, the receipt comes through the profile
+  ---
+  duration_ms: 149.526487
+  type: 'test'
+  ...
+# Subtest: profile route, accepted: the wallet is never asked (it would answer null), the receipt comes through the profile after poll 20, nothing is resent
+ok 3 - profile route, accepted: the wallet is never asked (it would answer null), the receipt comes through the profile after poll 20, nothing is resent
+  ---
+  duration_ms: 106.336053
+  type: 'test'
+  ...
+# Subtest: profile route, outcome unknown and the transaction exists nowhere: the wallet is never asked; the wait ends with the ordinary timeout, not 'dropped by your wallet'
+ok 4 - profile route, outcome unknown and the transaction exists nowhere: the wallet is never asked; the wait ends with the ordinary timeout, not 'dropped by your wallet'
+  ---
+  duration_ms: 96.35293
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 741.628661
+[memory-guard] exit=0 peakTreeRssMiB=175 minHostAvailableMiB=24834
+[memory-guard] at peak: node:88 node:53 anvil:30 timeout:4
+[queue] EXIT 0

@@ -1,0 +1,68 @@
+# merge e078490da6e3483016a891415de4db5e85109aa6 (first parent dc2e5d7402327bdd376cf3b90cfa23a551a37ba8; merged 68b82926968c99503d38ae78dbcb04694cc2c56c)
+# one diff against the first parent
+diff --git a/PRODUCT.md b/PRODUCT.md
+index 57469e93c025678bc112f41a84461e156c563ce4..d0af9d422a41d0581647f827402e9c0521e8633d 100644
+--- a/PRODUCT.md
++++ b/PRODUCT.md
+@@ -24,13 +24,13 @@
+ 
+ - **Separate availability from intended design.** Use present tense for implemented behavior only within its demonstrated deployment scope. Describe unfinished work as in development, planned or research, as appropriate. A component working on one named host is not evidence of fleet-wide support.
+ - **Put material limits beside the claim.** Readers must be able to distinguish current capabilities, experimental implementations and future plans in the overview, feature description and purchase flow itself. A distant engineering note or link cannot qualify an otherwise unconditional privacy promise. Status badges are optional; the information is required.
+-- **State the threat model.** Identify which parties remain trusted and what data or metadata they can access. Distinguish per-app separation, host-OS exclusion, operator protection and GPU offload. Incomplete evidence, such as Windows host exclusion, must not become a guarantee through branding or platform documentation alone.
++- **State the threat model.** Identify which parties remain trusted and what data or metadata they can access. Distinguish per-app separation, host-OS exclusion, operator protection and GPU offload. Incomplete evidence, such as Windows operator exclusion, must not become a guarantee through branding or platform documentation alone.
+ - **Tie claims to evidence.** For security or deployment claims, record the component, backend, tested configuration, evidence date and scope, plus known gaps. Code present in the repository, successful builds, admission rules and laboratory results are not by themselves proof of production deployment or independent security validation. Say when review is internal and when no external audit exists.
+ - **Keep surfaces consistent.** Apply these rules to the homepage, README, catalog, deployment flow, product documentation and agent-generated copy. When evidence changes, update the claim and its nearby qualification together. If current deployment or evidence cannot be checked, retain the dated scope or say it is unverified; do not silently promote it to current availability.
+ 
+ ## Positioning
+ 
+-Lead outcome: **compute that cannot see your data**. This is a positioning line, not a blanket guarantee across every host, component or data path. Any use must immediately explain which party is excluded for the selected deployment and which parties remain trusted. A claim that the ordinary host OS cannot read an app's memory requires evidence for that backend; protection from the operator requires the additional confidential-hardware guarantee and its stated assumptions. The Windows Shield deployment recorded in the 2026-10-14 snapshot has per-app partitions, but our host-memory test (E3, docs/security/nucbox-custom-vm-verifier.md V8) is recorded as not run and records say `host_excluded: no`. Describe the demonstrated separation and the remaining trusted parties; do not advertise host exclusion as proven.
++Lead outcome: **compute that cannot see your data**. This is a positioning line, not a blanket guarantee across every host, component or data path. Any use must immediately explain which party is excluded for the selected deployment and which parties remain trusted. A claim that the ordinary host OS cannot read an app's memory requires evidence for that backend; protection from the operator requires the additional confidential-hardware guarantee and its stated assumptions. The Windows Shield deployment recorded in the 2026-10-14 snapshot has per-app partitions, and our host-memory test (E3, windows/vbslike/evidence/e3-host-memory-20261023/) is now recorded as demonstrated box-local (2026-10-23): a privileged host memory capture reads a non-isolated guest's memory but not a VBS-isolated guest's. The per-app signed report still records `host_excluded: no` (the demonstration is box-local, not report-attestable), protection from the physical operator is not established, and there is no external audit. Describe host-OS exclusion as demonstrated box-local with those limits; do not advertise it as a blanket or operator-level guarantee.
+ 
+ Four pillars, in this order, carry the story on the homepage (updated 2026-09-23): **portable apps** (one bundle, one domain contract, every backend), **one isolation contract** (OS-independent; confidential hardware adds to it), **verifiable execution** (client-side chain of trust), **independent infrastructure** (public contracts, content-addressed bundles, public source, independent hosts; the goal is to outlive any one company or domain, and the parts still on company servers are listed honestly). Present these pillars as the architectural direction, and label each implementation by the availability and evidence actually established for it. Public copy carries the relevant limits next to each claim. The dated "Engineering evidence" note, live fleet panel and docs/site-claims-2026-09-23.md provide supporting detail; the last is a historical claims record, not a current readiness assessment.
+ 
+diff --git a/README.md b/README.md
+index 1de539653ad93bb542e69e56767912ed3e05ad40..8b756c3a8925464d2395c0fb914de2f2222be0c6 100644
+--- a/README.md
++++ b/README.md
+@@ -1,6 +1,6 @@
+ # Enclave
+ 
+-Enclave is a commercial, source-available compute platform under active development ([license](#license)). Deploy WebAssembly apps, inspect supported attestation evidence from a browser or CLI, and pay per second by card or from a wallet. **Protections depend on the host and verification path:** per-app separation does not by itself exclude the host OS or the operator. Windows host exclusion remains unproven in the documented evidence, and neither the platform nor Enclave Shield has had an external audit.
++Enclave is a commercial, source-available compute platform under active development ([license](#license)). Deploy WebAssembly apps, inspect supported attestation evidence from a browser or CLI, and pay per second by card or from a wallet. **What is protected depends on the host and how you verify it.** Separating apps from each other does not keep the operator out, and keeping the host OS out takes an isolation mechanism, not separation alone. On the Windows reference host, VBS isolation does keep the host OS out of guest memory in the documented test: a privileged host memory capture read an ordinary guest's memory but not a VBS-isolated guest's. Limits remain: someone with physical access to the machine is not excluded; the test ran on the box itself, so the per-app signed report still says `host_excluded: no`; and neither the platform nor Enclave Shield has been externally audited.
+ 
+ This README distinguishes documented deployments from research and the target architecture. The deployment snapshot below reflects repository evidence dated **2026-10-14 through 2026-10-18**, not a new check of current fleet health. Consult the [live fleet](https://enclave.host/develop#fleet) for availability and the [threat model](#threat-model-what-you-are-trusting) for protection limits. The [public claims policy](PRODUCT.md#public-claims-policy) requires these distinctions wherever capabilities are presented.
+ 
+@@ -95,9 +95,9 @@
+ The goal is one app contract across supported machines. The status statements here refer to the dated evidence above, not to a fresh deployment check; the complete target architecture is not a present-day guarantee:
+ 
+ - **One portable app bundle and one versioned domain contract.** The same Wasm package runs on every backend. The contract has a Go reference and a Rust mirror that pass one set of conformance vectors (`isolation/contract/`). *Live.*
+-- **A target OS-independent isolation contract.** The intended contract includes a hardware domain per app, host-OS exclusion, measured identity, attestation, key and traffic binding, fail-closed verification and cleanup. The records document one VM per app on three host types, with processor-enforced host exclusion on SEV-SNP and pKVM-enforced exclusion on phones. Windows host exclusion remains unproven by us. The complete contract must not be inferred from per-app placement alone.
++- **A target OS-independent isolation contract.** The intended contract includes a hardware domain per app, host-OS exclusion, measured identity, attestation, key and traffic binding, fail-closed verification and cleanup. The records document one VM per app on three host types, with processor-enforced host exclusion on SEV-SNP and pKVM-enforced exclusion on phones. Windows host-OS memory exclusion is now demonstrated box-local by us (2026-10-23 live-capture differential; `windows/vbslike/evidence/e3-host-memory-20261023/`), while exclusion of the physical operator and the per-app report's `host_excluded` claim remain open. The complete contract must not be inferred from per-app placement alone.
+ - **Enclave Shield** is the protection for machines without confidential-computing hardware. It has two parts:
+-  - **Per-app CPU isolation.** Windows partitions are documented as deployed, but host-OS exclusion remains unproven by Enclave (`host_excluded: no`); the host operator and hypervisor remain trusted. The intended Linux backend is a design, not a deployed implementation. Deployment of partitions must not be read as completion of the full Shield isolation contract.
++  - **Per-app CPU isolation.** Windows partitions are documented as deployed; host-OS memory exclusion is now demonstrated box-local by Enclave (2026-10-23), while the per-app report still records `host_excluded: no` (box-local demonstration, not report-attestable) and the host operator and hypervisor remain trusted. The intended Linux backend is a design, not a deployed implementation. Deployment of partitions must not be read as completion of the full Shield isolation contract.
+   - **Masked, verified GPU offload** for GPUs outside a confidential boundary. *Documented as deployed* on the named hosts above; this does not establish support for every GPU. There has been no external review, and performance figures stay unpublished until they are stable.
+ - **Confidential hardware** (SEV-SNP today) adds protection from the machine's operator and memory encryption without changing the app contract. *Live.*
+ - **Fewer indispensable parties.** On the roadmap: publisher-signed bundles, a trust policy you keep locally instead of our allowlist, reproducible measurements, mirrors, interchangeable coordinators and secrets that recover without us. *Not built.*
+diff --git a/docs/security/nucbox-custom-vm-verifier.md b/docs/security/nucbox-custom-vm-verifier.md
+index 70659eb17074f2dff72de07295406da3e79b1791..d4328994b86cb6e336688b5ff731ea1c38be60a9 100644
+--- a/docs/security/nucbox-custom-vm-verifier.md
++++ b/docs/security/nucbox-custom-vm-verifier.md
+@@ -209,7 +209,7 @@
+ | V5. The report data binds, by measured code, the verifier's fresh nonce, the hash of the guest-held TLS key, the appId and the runtimeId (the ABI/2 binding), and the TLS key is the one of the verifier's own handshake | R1, R2 | the guest-to-paravisor report path over guest data (vTPM NV index candidate, parked) |
+ | V6. The binding request is authenticated to the measured instance: a report over host-chosen data is refused | R3 | the same path, and a measured VTL0 (today's medium is unmeasured: d1 O4) |
+ | V7. Replay and cross-VM refused: the nonce is this verifier's and fresh; a report of another partition (another ledger deployment) is refused | tests required | report bytes from two VMs; how the report names the partition (open) |
+-| V8. The verdict never claims host exclusion: `host_excluded` comes only from d1's separate host-memory evidence (E3, parked), never from a boot state or a report | direction | E3 |
++| V8. The verdict never claims host exclusion: `host_excluded` comes only from the separate host-memory evidence (E3 — DEMONSTRATED box-local 2026-10-23, `windows/vbslike/evidence/e3-host-memory-20261023/`; a box-local demonstration, never a boot state or a report), and because the demonstration is not report-attestable `host_excluded` stays `no` in the per-app report | direction | E3 |
+ 
+ ### V5 in detail: the report data (checked by enclave-5d against a7b0bd4; SOURCE ONLY, 2026-09-25)
+ 
+@@ -291,7 +291,7 @@
+ 
+ 1. The relay: `windows-hv-node/v1` attach (above), recorded and shown as a host-attested boot state, no capacity label.
+ 2. The relay: per-app admission on a verified paravisor report (V1-V7), a switch that stays OFF until the evidence above
+-   exists and Steven decides admission; `host_excluded` stays `no` in every record until E3.
++   exists and Steven decides admission; `host_excluded` stays `no` in every record (E3 is now demonstrated box-local, but that is not a report-attestable property).
+ 3. The CLI's `attest` and the site shadow: the same verdict, shown beside the existing ones, never replacing a primary.
+ 
+ No Windows path is added to the CLI, the self-check or the site before step 2 has real evidence.

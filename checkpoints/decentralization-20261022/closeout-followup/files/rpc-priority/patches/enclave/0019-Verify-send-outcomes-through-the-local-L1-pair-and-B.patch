@@ -1,0 +1,2168 @@
+From 1d829457f00ea63bf6543c136ce58ca285ada831 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 07:43:51 -0700
+Subject: [PATCH 19/22] Verify send outcomes through the local L1 pair and Base
+ node receipt source
+
+Composes worker E's FINAL source-binding adapters (createL1PairSource,
+createBaseNodeSource; work/rpc-transaction-independence c08331e9) into the
+independent consumers. network/tx-evidence/ holds them byte for byte
+(PROVENANCE.json: sha256 and git blob of each file); they are never edited here.
+
+network/receipt-source.mjs builds both adapters from one config file
+(enclave-receipt-source/v1, loopback only), fixes the accepted trust
+('local-validated-pair'; 'test-fixture' identities only inside a test harness,
+ENCLAVE_TEST_RECEIPT_FIXTURE=1), accepts evidence only through E's
+acceptEvidence (minted, kind, trust), and binds a minted receipt to the intended
+transaction: its hash is keccak256 of the signed bytes (held, or the transport's
+transaction object re-encoded with its own signature), the sender is recovered
+from that signature and must be the receipt's `from` and the intended sender, and
+the nonce comes from those bytes. It is not a verifier; inclusion, status and
+level come only from the minted receipt.
+
+Consumers (--receipt-source FILE, with --chain-verifier):
+- VerifiedChain.verifyOutcome / sendQuorumTx: with a source, the transport's
+  receipt is not consulted; the source is polled for THIS hash; the state
+  verifier must reach the inclusion block and show the nonce consumed (two local
+  authorities that disagree decide nothing). A revert is final only on a minted
+  receipt that says so. Not-ready, foreign-L1 or tampering sources end UNKNOWN.
+- external signer: resolve/attach/wallet-send/rebroadcast confirm, revert or
+  mismatch only on a minted receipt for a transaction bound to the intent's
+  sender and nonce; a consumed nonce or post-state alone is not inclusion. The
+  transport's nonce search only names a candidate. Journals persist facts, never
+  the minted object (shownEvidence).
+- credit-vault CLI: reconcile's executing transaction is bound and its inclusion
+  and status minted; mint/submit/relay sends verified.
+- enclave CLI: --receipt-source FILE; `receipt-source status` prints both
+  adapters' readiness checks verbatim. Trust and level are shown as minted.
+Without --receipt-source every path keeps its explicit-transport labels.
+
+Tests: test/receipt-source.test.mjs (anvil + E's labelled fixtures) and
+test/receipt-source.e2e.test.mjs (reth --dev Base execution + Helios + anvil L1 +
+E's labelled beacon/rollup fixtures: every receipt is trust 'test-fixture').
+---
+ cli/credit-vault.mjs                        |  43 +-
+ cli/enclave.mjs                             |  50 +-
+ cli/independent-signer.mjs                  |  68 ++-
+ cli/independent.mjs                         |  72 ++-
+ cli/lease-gas.mjs                           |   4 +-
+ network/receipt-source.mjs                  | 156 +++++++
+ network/tx-evidence/PROVENANCE.json         |  38 ++
+ network/tx-evidence/base-source-binding.mjs |  97 ++++
+ network/tx-evidence/evidence-brand.mjs      |  32 ++
+ network/tx-evidence/forced-inclusion.mjs    | 481 ++++++++++++++++++++
+ network/tx-evidence/l1-source-binding.mjs   | 156 +++++++
+ test/fixtures/tx-evidence/pair-stubs.mjs    |  66 +++
+ test/receipt-source.e2e.test.mjs            | 369 +++++++++++++++
+ test/receipt-source.test.mjs                | 155 +++++++
+ 14 files changed, 1761 insertions(+), 26 deletions(-)
+ create mode 100644 network/receipt-source.mjs
+ create mode 100644 network/tx-evidence/PROVENANCE.json
+ create mode 100644 network/tx-evidence/base-source-binding.mjs
+ create mode 100644 network/tx-evidence/evidence-brand.mjs
+ create mode 100644 network/tx-evidence/forced-inclusion.mjs
+ create mode 100644 network/tx-evidence/l1-source-binding.mjs
+ create mode 100644 test/fixtures/tx-evidence/pair-stubs.mjs
+ create mode 100644 test/receipt-source.e2e.test.mjs
+ create mode 100644 test/receipt-source.test.mjs
+
+diff --git a/cli/credit-vault.mjs b/cli/credit-vault.mjs
+index 1d45a7eea..8d5cde970 100644
+--- a/cli/credit-vault.mjs
++++ b/cli/credit-vault.mjs
+@@ -22,6 +22,9 @@
+ //         simulations) comes from the LOCAL proof-backed verifier; --rpc is then optional and only the explicit transaction/
+ //         history transport (sending, and the tx/receipt/log lookups reconcile uses to name the executing transaction),
+ //         which is never a state authority - outcomes say which parts are verified.
++//         [--receipt-source FILE] (with --chain-verifier): network/receipt-source.mjs - the local L1 pair + Base node
++//         (worker E's adapters) mint inclusion, status and level; reconcile and sends then report the executing
++//         transaction as verified (trust and level shown verbatim). Without it the transport labels above stay.
+ import fs from "node:fs";
+ import os from "node:os";
+ import path from "node:path";
+@@ -35,8 +38,9 @@ import { sha256 } from "@noble/hashes/sha256";
+ import * as CV from "../site/js/core/credit-vault-independent.js";
+ import * as R from "../site/js/core/credit-vault-reserve.js";
+ import { createQuorumReader, jsonRpc } from "../site/js/core/quorum.js";
+-import { QuorumChain, independentChain, validateRpcOrigins, sendQuorumTx, receiptLine } from "./independent.mjs";
++import { QuorumChain, independentChain, validateRpcOrigins, sendQuorumTx, receiptLine, shownEvidence } from "./independent.mjs";
+ import { createVerifiedSnapshot, verifierRequest, chainVerifierOf } from "../network/verified-chain.mjs";
++import { loadReceiptSourceConfig, createReceiptSource, bindTransaction, describeInclusion } from "../network/receipt-source.mjs";
+ 
+ export const lib = { ...viem, WebAuthnP256, p256, sha256 };
+ const lc = (a) => String(a || "").toLowerCase();
+@@ -63,13 +67,20 @@ function loadPins(o){
+ const intOpt = (v, d, lo, hi, what) => { if (v == null) return d; const n = Number(v); if (!Number.isInteger(n) || n < lo || n > hi) throw new Error(`--${what} must be ${lo}..${hi}`); return n; };
+ const verifierOf = (o) => (o["chain-verifier"] ? chainVerifierOf({ chainAuthority: "verifier", chainVerifier: o["chain-verifier"] }, "--chain-verifier") : null);
+ const transportOf = (o) => (o.rpc.length ? validateRpcOrigins(o.rpc, { min: 1 }) : []);
++// --receipt-source FILE (network/receipt-source.mjs, E's adapters): one source per run, only with --chain-verifier
++function receiptSourceOf(o){
++  if (!o["receipt-source"]) return null;
++  if (!o["chain-verifier"]) throw new Error("--receipt-source needs --chain-verifier");
++  if (!o._receiptSource) o._receiptSource = createReceiptSource(loadReceiptSourceConfig(o["receipt-source"]));
++  return o._receiptSource;
++}
+ /**
+  * The credit-vault reader (site/js/core/quorum.js createQuorumReader's shape: snapshot, call, code, balance, logs, tx,
+  * receipt) over the local proof-backed verifier: snapshot = one confirmed, fresh, monotonic verified block (its header's
+  * base fee from that same hash); call/code/balance at that block hash, a verifier revert reported as revert. logs/tx/receipt
+  * are NOT state: only the explicit transport answers them (all configured endpoints must agree), else they refuse.
+  */
+-export function verifiedCreditReader({ verifier, chainId, confirmations = 2, maxBlockAgeSeconds = 600, transport = [], rpc = jsonRpc() }){
++export function verifiedCreditReader({ verifier, chainId, confirmations = 2, maxBlockAgeSeconds = 600, transport = [], rpc = jsonRpc(), receiptSource = null }){
+   const snapFn = createVerifiedSnapshot({ verifier, chainId, confirmations, maxBlockAgeMs: Math.min(600_000, maxBlockAgeSeconds * 1000) });
+   const req = verifierRequest(verifier);
+   const history = async (method, params) => {
+@@ -100,6 +111,24 @@ export function verifiedCreditReader({ verifier, chainId, confirmations = 2, max
+       logIndex: Number(BigInt(l.logIndex)), topics: (l.topics || []).map(lc), data: lc(l.data || "0x"), transactionHash: lc(l.transactionHash || "") }));
+   }
+   const num = (h) => (h == null ? null : Number(BigInt(h)));
++  if (receiptSource){
++    // with a validated receipt source: the transaction's fields come from the transport but must re-encode with their own
++    // signature to the hash (so `to`/`input` are bound to it); inclusion, status and block come ONLY from the minted receipt
++    const txLookup = async (h) => { const t = await history("eth_getTransactionByHash", [h]); return t ? viem.formatTransaction(t) : null; };
++    const included = new Map();
++    const tx = async (h) => {
++      const t = await txLookup(h); if (!t || !t.blockHash) return null;
++      const b = await bindTransaction({ hash: h, txLookup: async () => t });
++      return { to: b.to, input: b.input, from: b.from, nonce: b.nonce, blockNumber: num(t.blockNumber), blockHash: lc(t.blockHash), bound: true };
++    };
++    const receipt = async (h) => {
++      const v = await receiptSource.receipt({ hash: h, txLookup });
++      if (v.state !== "included") return null;
++      included.set(lc(h), v);
++      return { status: v.status, blockNumber: v.blockNumber, blockHash: v.blockHash };
++    };
++    return { snapshot, call, code, balance, logs, tx, receipt, inclusionOf: (h) => included.get(lc(h)) || null, receiptSource, rpcs: ["local-verifier"], quorum: 1, authority: "local-verifier" };
++  }
+   const tx = async (h) => { const t = await history("eth_getTransactionByHash", [h]); return t && t.blockHash ? { to: lc(t.to), input: lc(t.input), blockNumber: num(t.blockNumber), blockHash: lc(t.blockHash) } : null; };
+   const receipt = async (h) => { const r = await history("eth_getTransactionReceipt", [h]); return r ? { status: r.status === "0x1" ? "success" : "reverted", blockNumber: num(r.blockNumber), blockHash: lc(r.blockHash) } : null; };
+   return { snapshot, call, code, balance, logs, tx, receipt, rpcs: ["local-verifier"], quorum: 1, authority: "local-verifier" };
+@@ -109,13 +138,17 @@ export function verifiedCreditReader({ verifier, chainId, confirmations = 2, max
+  *  claims until a verified receipt path exists. */
+ export function outcomeEvidence(rec, reader){
+   if (!rec || reader?.authority !== "local-verifier") return rec;
++  const v = rec.status === "executed" && reader.inclusionOf ? reader.inclusionOf(rec.txHash) : null;
++  if (v) return { ...rec, evidence: { block: rec.block, nonce: "verified state", deadline: "verified block time",
++    execution: `${describeInclusion(v)}; its signed bytes call this vault with exactly the signed request`, trust: v.trust, level: v.level } };
+   return { ...rec, evidence: { block: rec.block, nonce: "verified state", deadline: "verified block time",
+     execution: rec.status === "executed" ? "transport-reported transaction and receipt (UNVERIFIED: inclusion and status not proven)" : rec.status === "superseded" ? "the nonce moved in verified state; which transaction used it is not verified" : "n/a" } };
+ }
+ export function readerFor(o, pins){
+   const verifier = verifierOf(o);
+   if (verifier) return verifiedCreditReader({ verifier, chainId: pins.chainId, confirmations: intOpt(o.confirmations, 2, 0, 64, "confirmations"),
+-    maxBlockAgeSeconds: intOpt(o["max-block-age"], 600, 30, 600, "max-block-age"), transport: transportOf(o) });
++    maxBlockAgeSeconds: intOpt(o["max-block-age"], 600, 30, 600, "max-block-age"), transport: transportOf(o), receiptSource: receiptSourceOf(o) });
++  if (o["receipt-source"]) throw new Error("--receipt-source needs --chain-verifier");
+   const rpcs = validateRpcOrigins(o.rpc);
+   const quorum = intOpt(o.quorum, 2, 2, rpcs.length, "quorum");
+   const r = createQuorumReader({ rpcs, quorum, confirmations: intOpt(o.confirmations, 2, 0, 64, "confirmations"), maxBlockAgeSeconds: intOpt(o["max-block-age"], 600, 30, 86400, "max-block-age"), chainId: pins.chainId });
+@@ -124,7 +157,7 @@ export function readerFor(o, pins){
+ function chainFor(o, pins){
+   const verifier = verifierOf(o);
+   if (verifier) return independentChain({ chainVerifier: verifier, rpcs: transportOf(o), chainId: pins.chainId, confirmations: intOpt(o.confirmations, 2, 0, 64, "confirmations"),
+-    maxBlockAgeMs: intOpt(o["max-block-age"], 600, 30, 600, "max-block-age") * 1000 });
++    maxBlockAgeMs: intOpt(o["max-block-age"], 600, 30, 600, "max-block-age") * 1000, receiptSource: receiptSourceOf(o) });
+   const rpcs = validateRpcOrigins(o.rpc);
+   return new QuorumChain({ rpcs, quorum: intOpt(o.quorum, 2, 2, rpcs.length, "quorum"), confirmations: intOpt(o.confirmations, 2, 0, 64, "confirmations"),
+     chainId: pins.chainId, maxBlockAgeMs: intOpt(o["max-block-age"], 600, 30, 86400, "max-block-age") * 1000 });
+@@ -324,7 +357,7 @@ export async function main(argv, { out = (s) => process.stdout.write(s + "\n"),
+       // under --chain-verifier the effect (code at the derived vault address) is checked in verified state after the send
+       const confirm = async (c) => !!(await c.snapshot(async (cl, blockNumber) => cl.getCode({ address: vault, blockNumber }))).value;
+       const r = await sendQuorumTx(chainFor(o, pins), { account: payerAccount(o, env), to: f.address, data, maxFeeGwei: Number(o["max-fee-gwei"] || 5), confirm });
+-      return show({ vault, txHash: r.transactionHash, ...(r.evidence ? { evidence: r.evidence } : {}) },
++      return show({ vault, txHash: r.transactionHash, ...(r.evidence ? { evidence: shownEvidence(r.evidence) } : {}) },
+         [`minted ${vault} (${r.transactionHash}; ${receiptLine(r)}); createVault is permissionless and gives the payer no authority`]);
+     }
+     case "relay": {
+diff --git a/cli/enclave.mjs b/cli/enclave.mjs
+index 575b4bad7..8c1da1df2 100755
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -352,10 +352,10 @@ const opt = { json: false, trace: false, base: null, rpc: null, yes: false,
+               expect: null, minTcb: null, collateralDir: null,
+               // ---- independent mode (docs/network/independent-cli.md): explicit authorities and an agreeing RPC quorum,
+               // never the Enclave API, the mutable address book or a first-answer RPC ----
+-              independent: false, profile: null, profileDigest: null, quorum: null, confirmations: null, maxBlockAge: null, chainVerifier: null,
++              independent: false, profile: null, profileDigest: null, quorum: null, confirmations: null, maxBlockAge: null, chainVerifier: null, receiptSource: null,
+               usdcToken: null, directories: null, stateDir: null, nativeProfile: null, maxFeeGwei: null };
+ const IND_VALUE_FLAGS = { "--profile": "profile", "--profile-digest": "profileDigest", "--quorum": "quorum",
+-  "--confirmations": "confirmations", "--max-block-age": "maxBlockAge", "--chain-verifier": "chainVerifier", "--usdc-token": "usdcToken", "--directories": "directories",
++  "--confirmations": "confirmations", "--max-block-age": "maxBlockAge", "--chain-verifier": "chainVerifier", "--receipt-source": "receiptSource", "--usdc-token": "usdcToken", "--directories": "directories",
+   "--state-dir": "stateDir", "--native-profile": "nativeProfile", "--max-fee-gwei": "maxFeeGwei" };
+ // The value of `flag` as written AFTER the command word `cmd` in the raw argv, or null. The global parser takes its flags
+ // out wherever they appear; a command whose own flag shares a global name (custody migrate --from FILE) gets it back.
+@@ -4798,9 +4798,13 @@ first-answer RPC. Authorities come from --profile FILE --profile-digest sha256:
+ (a reviewed authority profile) or --contract-pins FILE [--usdc-token ADDR]; every
+ read needs --quorum N (default 2) of --rpc A,B[,C…] to agree at one block
+ --confirmations deep (default 2) and at most --max-block-age seconds old (120).
+---chain-verifier http://127.0.0.1:PORT/ (optional): management lease reads and the
+-platform host policy come from that LOCAL proof-backed verifier instead (unsafe
+-tier; a refusal never falls back); other reads and all transactions keep the quorum.
++--chain-verifier http://127.0.0.1:PORT/ (optional): every state read comes from that
++LOCAL proof-backed verifier instead (unsafe tier; a refusal never falls back); --rpc
++is then optional and only the transaction/history transport, never state.
++--receipt-source FILE (with --chain-verifier): the local L1 pair + Base node
++(enclave-receipt-source/v1) mint each send's inclusion, status and level, bound to
++its signed bytes; without it a transport receipt is labelled UNVERIFIED.
++  receipt-source status   both nodes' readiness checks, verbatim
+ Transactions are signed once, broadcast unchanged and confirmed by the quorum;
+ an unconfirmed outcome is reported, never resent (--max-fee-gwei, default 5).
+   ls [--owner ADDR] · status <id> · hosts [--all] · pricing · apps · whoami
+@@ -5201,7 +5205,7 @@ stop:   systemctl --user disable --now enclave-metal`);
+ const INDEPENDENT_COMMANDS = new Set(["key", "whoami", "ls", "list", "status", "hosts", "pricing", "availability", "apps",
+   "deploy", "fund", "stop", "suspend", "resume", "rate-cap", "cap", "refund", "cancel", "transfer", "upgrade", "set-version",
+   "resize", "bootstrap", "artifact", "session", "logs", "restart", "attest", "publish", "app-token", "cpu-profile",
+-  "config", "encvol", "host", "gpu", "move", "login", "logout", "account", "signer", "custody", "lease-gas", "history"]);
++  "config", "encvol", "host", "gpu", "move", "login", "logout", "account", "signer", "receipt-source", "custody", "lease-gas", "history"]);
+ // Why each remaining command has no independent path (work/cli-remaining-interface.txt has the exact missing pieces).
+ const INDEPENDENT_REFUSALS = {
+   secrets: "relay-held secrets are a hosted service. Independently, `custody status|set|migrate|pause|resume|clear|claim` "
+@@ -5210,9 +5214,9 @@ const INDEPENDENT_REFUSALS = {
+ };
+ async function configureIndependent() {
+   const asked = opt.independent || opt.profile || opt.profileDigest;
+-  const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei", "signerMode", "chainVerifier"].filter((k) => opt[k] !== null);
++  const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei", "signerMode", "chainVerifier", "receiptSource"].filter((k) => opt[k] !== null);
+   if (!asked) {
+-    if (strays.length) throw new Error("--quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei, --signer-mode and --chain-verifier apply to independent mode: add --independent");
++    if (strays.length) throw new Error("--quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei, --signer-mode, --chain-verifier and --receipt-source apply to independent mode: add --independent");
+     return;
+   }
+   const external = !!opt.signer || opt.signerMode === "handoff";
+@@ -5233,7 +5237,15 @@ async function configureIndependent() {
+   CHAIN_ONLY = true;
+   // the RPC quorum, or under --chain-verifier the local verifier for every state read (the --rpc list then only the explicit
+   // transaction/history transport): cli/independent.mjs independentChain
+-  const chain = I.independentChain({ rpcs: trust.rpcs, quorum: trust.quorum, confirmations: trust.confirmations, maxBlockAgeMs: trust.maxBlockAgeMs, chainVerifier: trust.chainVerifier });
++  // --receipt-source FILE: the local L1 pair + Base node (network/receipt-source.mjs, worker E's adapters) mint every send's
++  // inclusion, status and level; it needs --chain-verifier (the state authority read-your-writes waits on)
++  let receiptSource = null;
++  if (opt.receiptSource) {
++    if (!trust.chainVerifier) throw new Error("--receipt-source needs --chain-verifier");
++    const RS = await import("../network/receipt-source.mjs");
++    receiptSource = RS.createReceiptSource(RS.loadReceiptSourceConfig(path.resolve(opt.receiptSource)));
++  }
++  const chain = I.independentChain({ rpcs: trust.rpcs, quorum: trust.quorum, confirmations: trust.confirmations, maxBlockAgeMs: trust.maxBlockAgeMs, chainVerifier: trust.chainVerifier, receiptSource });
+   const maxFeeGwei = opt.maxFeeGwei !== null ? numFlag(opt.maxFeeGwei, "--max-fee-gwei") : 5;
+   const writer = I.quorumWriter(chain, { maxFeeGwei, log: (m) => trace(m) });
+   // under --chain-verifier every send says what was verified: never that the transport's receipt proves the outcome
+@@ -5248,6 +5260,7 @@ async function configureIndependent() {
+   }
+   stderr.write(`independent: ${trust.profile ? `reviewed profile ${trust.digest}` : "explicit contract pins"}; ${trust.chainVerifier ? `state from the local verifier ${trust.chainVerifier} (unsafe tier); transactions via ${trust.rpcs.length ? `${trust.rpcs.length} explicit RPC(s), all must agree` : "no transport (sending refuses)"}` : `${trust.quorum} of ${trust.rpcs.length} RPCs must agree`} `
+     + `at one block ${trust.confirmations} deep; no Enclave API, address book or first-answer read\n`);
++  if (receiptSource) stderr.write(`independent: receipts (inclusion, status, level) only from the receipt source: ${receiptSource.label}; trust '${receiptSource.trust}', readiness checked at every receipt\n`);
+ }
+ const signerJournalDir = () => path.resolve(opt.stateDir ? path.join(opt.stateDir, "signer") : path.join(CONF_DIR, "independent-signer"));
+ // --signer-mode handoff: the exact transaction for the user's own wallet (MetaMask, a hardware wallet app), then stop
+@@ -5265,6 +5278,23 @@ async function cmdSigner(rest) {
+   return X.signerCommand(sub, r, { chain: INDEPENDENT.chain, signer: INDEPENDENT.signer || null, journal: X.intentJournal(signerJournalDir()),
+     say, jout, json: opt.json, waitOpts: { timeoutMs: 180000, pollMs: 1000 } });
+ }
++// `enclave --independent … --chain-verifier URL --receipt-source FILE receipt-source status`: both adapters' readiness
++// checks, verbatim (worker E's rule: show them as they are; trust as it is)
++async function cmdReceiptSource(rest) {
++  requireIndependent("receipt-source");
++  const src = INDEPENDENT.chain.receiptSource;
++  if (rest[0] !== "status") throw new Error("usage: enclave --independent … --chain-verifier URL --receipt-source FILE receipt-source status");
++  if (!src) throw new Error("no receipt source is configured: add --receipt-source FILE (with --chain-verifier)");
++  const r = await src.readiness();
++  if (opt.json) return jout(r);
++  say(`receipt source: ${r.label}`);
++  say(`trust '${r.trust}': ${r.trust === "local-validated-pair" ? "local full-node validation (not a portable cryptographic proof)" : "TEST FIXTURE: not production"}`);
++  for (const [side, x] of [["L1 pair", r.l1], ["Base node", r.base]]) {
++    say(`${side}: ${x.ok ? "ready" : "NOT READY"}`);
++    for (const c of x.checks) say(`  ${c.ok ? "ok  " : "FAIL"} ${c.name}: ${typeof c.detail === "string" ? c.detail : JSON.stringify(c.detail)}`);
++  }
++  if (!r.ok) exit(1);
++}
+ const verifiedMode = () => INDEPENDENT?.chain?.authority === "local-verifier";
+ const quorumLine = (s) => verifiedMode() ? `verified block ${s.blockNumber} (${s.blockHash.slice(0, 10)}…, local verifier, unsafe tier)` : `block ${s.blockNumber} (${s.blockHash.slice(0, 10)}…): ${s.agreeing} of ${s.peers} RPCs agreed`;
+ const quorumJson = (s) => verifiedMode() ? { blockNumber: String(s.blockNumber), blockHash: s.blockHash, authority: "local-verifier", tier: "unsafe" }
+@@ -5904,7 +5934,7 @@ const COMMANDS = {
+   publish: cmdPublish, apps: cmdApps, artifact: cmdArtifact,
+   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,
+   encvol: cmdEncvol, host: cmdHost, session: cmdSession, hosts: cmdHosts,
+-  "app-token": cmdAppToken, "cpu-profile": cmdCpuProfile, signer: cmdSigner, "lease-gas": cmdLeaseGas, history: cmdHistory,
++  "app-token": cmdAppToken, "cpu-profile": cmdCpuProfile, signer: cmdSigner, "receipt-source": cmdReceiptSource, "lease-gas": cmdLeaseGas, history: cmdHistory,
+ };
+ 
+ // Resolve the platform's contract addresses from the on-chain address book
+diff --git a/cli/independent-signer.mjs b/cli/independent-signer.mjs
+index 6cd93377a..79b3019e5 100644
+--- a/cli/independent-signer.mjs
++++ b/cli/independent-signer.mjs
+@@ -19,7 +19,8 @@ import crypto from "node:crypto";
+ import { getAddress, keccak256, parseTransaction, serializeTransaction, recoverTransactionAddress, recoverMessageAddress,
+   recoverTypedDataAddress, serializeTypedData, getTypesForEIP712Domain, validateTypedData, stringToHex, toHex } from "viem";
+ import { rpcEndpoint, redactUrls } from "../network/rpc-identity.mjs";
+-import { sendQuorumTx, historySnapshot } from "./independent.mjs";
++import { sendQuorumTx, historySnapshot, shownEvidence } from "./independent.mjs";
++import { describeInclusion, isTransient as isTransientSource } from "../network/receipt-source.mjs";
+ 
+ export const INTENT_FORMAT = "enclave-signer-intent/v1";
+ const MODES = ["auto", "sign", "wallet-send", "handoff"];
+@@ -30,6 +31,7 @@ const isAddr = (a) => typeof a === "string" && /^0x[0-9a-fA-F]{40}$/.test(a);
+ const isHash = (h) => typeof h === "string" && /^0x[0-9a-fA-F]{64}$/.test(h);
+ const hex = (n) => "0x" + BigInt(n).toString(16);
+ const clip = (s) => redactUrls(String(s ?? "")).replace(/\s+/g, " ").slice(0, 200);
++const lc = (v) => String(v ?? "").toLowerCase();
+ 
+ /** code: url | account | chain | busy | rejected | unsupported | unreachable | timeout | transport | protocol | wallet |
+  *  mismatch | replaced | unknown | handoff | state. `delivered`: false when the request provably never reached the wallet. */
+@@ -320,6 +322,59 @@ function unknownError(rec, why) {
+ // receipt path (E) exists. A revert or a mismatch reported by the transport is recorded with the same caveat.
+ const verified = (chain) => chain?.authority === "local-verifier";
+ const TRANSPORT_CAVEAT = "reported by the explicit transaction transport: inclusion, fields and status are NOT verified";
++// What a journal keeps of a send's evidence: the facts as text and numbers, never the minted receipt object itself (a
++// persisted copy is not evidence and is never read back as such).
++export const journalEvidence = (ev) => shownEvidence(ev);
++/**
++ * resolveIntent with a validated receipt source (network/receipt-source.mjs, E's adapters): an intent is confirmed,
++ * reverted or mismatched ONLY on a minted receipt for a transaction bound to its sender and nonce (the signed bytes it
++ * holds, or the transaction re-encoded with its signature), never on a consumed nonce or post-state alone. The
++ * transport's nonce search only names a candidate; the source must show that candidate included before "replaced".
++ */
++async function resolveWithSource(chain, journal, id, rec, policy) {
++  const open = (note, extra = {}) => ({ state: rec.state, open: true, intent: rec, note, ...extra });
++  const unknown = (note) => { journal.update(id, { state: "unknown", note: clip(note) }); return { state: "unknown", intent: journal.get(id), note }; };
++  const settle = async (v) => {
++    const h = v.transaction.hash;
++    const { diffs, adjusted } = await verifyMinedTransaction(v.transaction, { ...rec, hash: rec.hash || h }, policy);
++    const ev = await chain.settleFromSource(v, { hash: h, from: rec.from, nonce: rec.nonce, timeoutMs: 60000 });
++    const je = journalEvidence(ev);
++    if (diffs.length) {
++      journal.update(id, { state: "mismatch", hash: h, minedBlock: v.blockNumber, diffs, evidence: je });
++      return { state: "mismatch", intent: journal.get(id), error: `THE WALLET SENT A DIFFERENT TRANSACTION than the one prepared (intent ${id}, ${h}): ${diffs.join("; ")}. It is mined (${ev.receipt}); nothing that depends on it was done.` };
++    }
++    if (v.status !== "success") {
++      journal.update(id, { state: "reverted", hash: h, minedBlock: v.blockNumber, evidence: je });
++      return { state: "reverted", intent: journal.get(id), error: `transaction reverted: ${h} (${ev.receipt})` };
++    }
++    journal.update(id, { state: "confirmed", hash: h, minedBlock: v.blockNumber, adjusted, evidence: je });
++    return { state: "confirmed", intent: journal.get(id), receipt: { status: v.status, blockNumber: BigInt(v.blockNumber), blockHash: v.blockHash, transactionHash: h,
++      agreedBlock: ev.postStateBlock, agreeing: 1, intent: id, adjusted, stateVerified: ev.stateVerified, evidence: ev } };
++  };
++  const look = async (hash, raw) => {
++    try { return await chain.sourceReceipt({ hash, from: rec.from, nonce: rec.nonce, raw }); }
++    catch (e) { if (isTransientSource(e)) return { state: "unavailable", note: e.message }; return { state: "refused", note: e.message }; }
++  };
++  if (rec.hash) {
++    const v = await look(rec.hash, rec.raw || null);
++    if (v.state === "included") return settle(v);
++    if (v.state === "unavailable") return open(`the receipt source is not ready (${v.note}); nothing is decided`);
++    if (v.state === "refused") return unknown(`${rec.hash} is not provably this intent's transaction (${v.note}); nothing is confirmed: resolve by nonce once it is used, or abandon it`);
++  }
++  // not included, or no hash: whether anything can still happen is decided by the VERIFIED nonce
++  const vn = await chain.verifiedNonce(rec.from);
++  if (vn.nonce <= BigInt(rec.nonce)) return open(`nonce ${rec.nonce} of ${rec.from} is unused in verified state at block ${vn.blockNumber}${rec.hash ? ` and the local Base node does not show ${rec.hash} included` : ""}: it may still be mined, or it was dropped; the wallet may still send it`, { pending: !!rec.hash, agreedBlock: vn.blockNumber });
++  let f = null;
++  try { f = await findByNonce(chain, rec); } catch (e) { return unknown(`nonce ${rec.nonce} is consumed in verified state; the transport cannot name the transaction that used it (${e.message})`); }
++  const h = f?.value?.tx?.hash;
++  if (!h) return unknown(`nonce ${rec.nonce} is consumed in verified state, but the explicit transport does not show which transaction used it`);
++  const v = await look(h, rec.hash && lc(h) === rec.hash ? rec.raw || null : null);
++  if (v.state !== "included") return unknown(`the transport names ${h} for nonce ${rec.nonce}, but the receipt source does not show it included and bound to ${rec.from} (${v.note || "pending"})`);
++  if (rec.hash && lc(h) === rec.hash) return settle(v);
++  if (!rec.hash) return settle(v);                            // wallet-send/handoff without a hash: the bound transaction at this nonce IS the outcome
++  journal.update(id, { state: "replaced", replacedBy: h, minedBlock: v.blockNumber, evidence: { receipt: describeInclusion(v), level: v.level, trust: v.trust } });
++  return { state: "replaced", replacedBy: h, intent: journal.get(id), note: `nonce ${rec.nonce} went to ${h} (${describeInclusion(v)}); ${rec.hash} can never be mined` };
++}
+ /** A mined transaction for an intent -> the journal's verdict, or throws for a mismatch or a revert. */
+ async function settleMined(journal, rec, { receipt, tx }, s, policy, chain = null) {
+   let evidence = null;
+@@ -336,7 +391,7 @@ async function settleMined(journal, rec, { receipt, tx }, s, policy, chain = nul
+     throw Object.assign(new SignerError("state", `transaction reverted: ${tx.hash} (block ${receipt.blockNumber})${caveat}`), { mined: true, intent: rec.id });
+   }
+   if (evidence) {
+-    journal.update(rec.id, { state: "nonce-consumed", hash: tx.hash, minedBlock: receipt.blockNumber, adjusted, evidence });
++    journal.update(rec.id, { state: "nonce-consumed", hash: tx.hash, minedBlock: receipt.blockNumber, adjusted, evidence: journalEvidence(evidence) });
+     return { ...receipt, agreedBlock: evidence.postStateBlock, agreeing: s.agreeing, intent: rec.id, adjusted, stateVerified: false, evidence };
+   }
+   journal.update(rec.id, { state: "confirmed", hash: tx.hash, minedBlock: receipt.blockNumber, adjusted });
+@@ -351,6 +406,7 @@ export async function resolveIntent(chain, journal, id) {
+   if (!isUnresolved(rec)) return { state: rec.state, intent: rec };
+   if (rec.chainId !== chain.chainId) throw new SignerError("chain", `intent ${id} is for chain ${rec.chainId}`);
+   const policy = policyOf(rec);
++  if (chain.receiptSource) return resolveWithSource(chain, journal, id, rec, policy);
+   if (rec.hash) {
+     const s = await lookHash(chain, rec);
+     if (s.value.receipt) {
+@@ -556,7 +612,8 @@ export function createExternalSigner({ url, from, chainId, protocol = "auto", mo
+     try {
+       const receipt = await sendQuorumTx(chain, { account: signing, to, data, value, maxFeeGwei, gasCap, timeoutMs, pollMs, log: l, confirm });
+       // under the verifier sendQuorumTx proved only the consumed nonce (and the effect when `confirm` was given)
+-      journal.update(rec.id, receipt.evidence ? { state: receipt.evidence.stateVerified ? "confirmed" : "nonce-consumed", minedBlock: receipt.blockNumber, evidence: receipt.evidence }
++      // with a receipt source: a minted, bound, successful receipt confirms it
++      journal.update(rec.id, receipt.evidence ? { state: receipt.evidence.stateVerified || receipt.evidence.receiptVerified ? "confirmed" : "nonce-consumed", minedBlock: receipt.blockNumber, evidence: journalEvidence(receipt.evidence) }
+         : { state: "confirmed", minedBlock: receipt.blockNumber });
+       return { ...receipt, intent: rec.id };
+     } catch (e) {
+@@ -567,7 +624,7 @@ export function createExternalSigner({ url, from, chainId, protocol = "auto", mo
+         }
+         throw e;
+       }
+-      if (e.mined) { journal.update(rec.id, { state: "reverted", ...(e.evidence ? { evidence: e.evidence, note: TRANSPORT_CAVEAT } : {}) }); throw Object.assign(e, { intent: rec.id }); }
++      if (e.mined) { journal.update(rec.id, { state: "reverted", ...(e.evidence ? { evidence: journalEvidence(e.evidence), ...(e.evidence.receiptVerified ? {} : { note: TRANSPORT_CAVEAT }) } : {}) }); throw Object.assign(e, { intent: rec.id }); }
+       if (/no RPC accepted the transaction, nothing is pending/.test(e.message)) { journal.update(rec.id, { state: "rejected", note: clip(e.message) }); throw Object.assign(e, { intent: rec.id }); }
+       journal.update(rec.id, { state: "unknown", note: clip(e.message) });
+       const u = unknownError(journal.get(rec.id), e.outcomeUnknown ? "was broadcast but not confirmed" : `stopped after signing (${clip(e.message)})`);
+@@ -613,7 +670,8 @@ export function abandonIntent(journal, id) {
+ }
+ 
+ /** what a settled intent may be called: the quorum's confirmation, or under the verifier exactly what is verified */
+-const verdictLine = (r) => (r.evidence
++const verdictLine = (r) => (r.evidence?.receiptVerified ? `confirmed: ${r.evidence.receipt}; nonce consumed in verified state at block ${r.evidence.postStateBlock}`
++  : r.evidence
+   ? `${r.stateVerified ? "effect confirmed" : "nonce consumed"} in verified state at block ${r.evidence.postStateBlock}; ${r.transactionHash} in block ${r.blockNumber} is ${TRANSPORT_CAVEAT}`
+   : `confirmed: ${r.transactionHash} in block ${r.blockNumber}, by ${r.agreeing} RPCs`);
+ /** `enclave --independent … signer <sub>`. ctx: { chain, signer, journal, flags, say, jout, json } */
+diff --git a/cli/independent.mjs b/cli/independent.mjs
+index 356832c6c..0820c0823 100644
+--- a/cli/independent.mjs
++++ b/cli/independent.mjs
+@@ -6,6 +6,7 @@
+ // Transactions are signed once, broadcast unchanged and confirmed by the same quorum; an outcome that cannot be
+ // confirmed is reported as unknown and never re-signed or resent.
+ import { chainVerifierOf, createVerifiedSnapshot, verifierRequest, verifierClient } from "../network/verified-chain.mjs";
++import { describeInclusion, isTransient as isTransientSource } from "../network/receipt-source.mjs";
+ import fs from "node:fs";
+ import { createPublicClient, http as viemHttp, keccak256, toBytes, getAddress, encodeFunctionData } from "viem";
+ import { base } from "viem/chains";
+@@ -199,8 +200,10 @@ function asRevert(e) { const reason = String(e?.message || "").replace(/^verifie
+  *     must answer alike), untrusted for state; without one they refuse by name. Nothing falls back to a public default.
+  */
+ export class VerifiedChain {
+-  constructor({ verifier, txRpcs = [], txClients = null, chainId = BASE_CHAIN_ID, confirmations = 2, maxBlockAgeMs = 120000, now = Date.now, timeoutMs = 12000, deadlineMs = 30000 }) {
++  constructor({ verifier, txRpcs = [], txClients = null, chainId = BASE_CHAIN_ID, confirmations = 2, maxBlockAgeMs = 120000, now = Date.now, timeoutMs = 12000, deadlineMs = 30000, receiptSource = null }) {
+     this.authority = "local-verifier"; this.verifier = verifier;
++    // network/receipt-source.mjs (E's adapters): inclusion/status/level of a send, bound to its signed transaction
++    this.receiptSource = receiptSource;
+     Object.assign(this, { chainId, confirmations, maxBlockAgeMs, now });
+     this.policy = { verifier, chainId, confirmations, maxBlockAgeMs, deadlineMs, now, allowCall: true };
+     this.snap = createVerifiedSnapshot(this.policy);
+@@ -273,7 +276,23 @@ export class VerifiedChain {
+    * It does NOT authenticate the receipt's contents, the transaction's inclusion or its success: those stay
+    * "transport-reported (unverified)" unless `confirm` proves the effect. -> evidence, or throws a final OutcomeUnknownError.
+    */
+-  async verifyOutcome({ hash, from, nonce, receiptBlock, confirm = null, timeoutMs = 120000, pollMs = 1000 }) {
++  async verifyOutcome({ hash, from, nonce, raw = null, receiptBlock, confirm = null, timeoutMs = 120000, pollMs = 1000 }) {
++    if (this.receiptSource) {
++      // with a validated receipt source the transport's receipt is not consulted at all: poll the source for THIS hash
++      const end = Date.now() + timeoutMs;
++      let last = "not yet included";
++      for (;;) {
++        let v = null;
++        try { v = await this.sourceReceipt({ hash, from, nonce, raw }); }
++        catch (e) {
++          if (!isTransientSource(e)) throw Object.assign(new OutcomeUnknownError(hash, `the receipt source refused it (${e.message})`), { final: true, code: e.code, sourceRefusal: true });
++          last = e.message;
++        }
++        if (v?.state === "included") return this.settleFromSource(v, { hash, from, nonce, confirm, timeoutMs: Math.max(1000, end - Date.now()), pollMs });
++        if (Date.now() >= end) throw Object.assign(new OutcomeUnknownError(hash, `the local Base node source has not shown it included (${last})`), { final: true });
++        await new Promise((r) => setTimeout(r, pollMs));
++      }
++    }
+     const reached = await this.awaitBlock(receiptBlock, { timeoutMs, pollMs });
+     if (!reached) throw Object.assign(new OutcomeUnknownError(hash, `the transport reports it mined in block ${receiptBlock}, but the local verifier has not reached that block`), { final: true });
+     const n = await this.verifiedNonce(from);
+@@ -286,15 +305,45 @@ export class VerifiedChain {
+     return { postStateBlock: n.blockNumber, nonceConsumed: "verified", effect,
+       receipt: "transport-reported (unverified: contents, inclusion and status are not proven)", stateVerified: effect === "verified" };
+   }
++  /**
++   * ONE look at the validated receipt source (network/receipt-source.mjs): minted inclusion/status/level for `hash`,
++   * bound to the intended sender and nonce through the signed bytes (`raw`) or, without them, through the transaction
++   * object the explicit transport returns re-encoded with its signature (a transport can supply bytes, never inclusion).
++   */
++  sourceReceipt({ hash, from = null, nonce = null, raw = null }) {
++    if (!this.receiptSource) return Promise.reject(Object.assign(new Error("no receipt source is configured (--receipt-source)"), { code: "chain_unsupported" }));
++    const txLookup = this.tx ? async (h) => (await this.tx.snapshot(async (c) => c.getTransaction({ hash: h }).catch((e) => (/not.?found|could not be found/i.test(String(e?.message)) ? null : Promise.reject(e))))).value : null;
++    return this.receiptSource.receipt({ hash, from, nonce, raw, txLookup });
++  }
++  /**
++   * After the source showed `v` included: the state verifier must reach that block (read-your-writes) and show the
++   * sender's nonce consumed (two local authorities that disagree decide nothing); `confirm` checks a successful effect.
++   * -> evidence for the caller: inclusion/status/level/trust from the minted receipt (referenced, never copied).
++   */
++  async settleFromSource(v, { hash, from, nonce, confirm = null, timeoutMs = 120000, pollMs = 1000 }) {
++    const reached = await this.awaitBlock(v.blockNumber, { timeoutMs, pollMs });
++    if (!reached) throw Object.assign(new OutcomeUnknownError(hash, `the local Base node shows it ${v.status} in block ${v.blockNumber} (level '${v.level}'), but the state verifier has not reached that block`), { final: true });
++    const n = await this.verifiedNonce(from);
++    if (n.nonce <= BigInt(nonce)) throw Object.assign(new OutcomeUnknownError(hash, `the local Base node shows it included in block ${v.blockNumber}, but nonce ${nonce} of ${from} is still unused in verified state at block ${n.blockNumber}: the two local authorities disagree`), { final: true });
++    let effect = "not checked";
++    if (confirm && v.status === "success") {
++      if (!(await confirm(this))) throw Object.assign(new OutcomeUnknownError(hash, `the verified receipt says success, but its effect is not visible in verified state at block ${n.blockNumber}`), { final: true });
++      effect = "verified";
++    }
++    return { receiptVerified: true, status: v.status, includedBlock: v.blockNumber, includedBlockHash: v.blockHash, level: v.level, trust: v.trust,
++      receiptEvidence: v.evidence, transaction: v.transaction, binding: v.binding, receipt: describeInclusion(v),
++      postStateBlock: n.blockNumber, nonceConsumed: "verified", effect, stateVerified: effect === "verified" };
++  }
+   /** receipts, transactions, nonce counts at a block: the explicit transport's own snapshot (untrusted for state). */
+   receiptSnapshot(fn) { if (!this.tx) return Promise.reject(Object.assign(new QuorumError(`receipt: ${NO_TX}`), { code: "chain_unsupported" })); return this.tx.snapshot(fn); }
+ }
+ for (const m of ["read", "readMany", "balance"]) VerifiedChain.prototype[m] = QuorumChain.prototype[m];
+ /** independent mode's chain: VerifiedChain under --chain-verifier (the RPC list is the explicit transaction transport), else
+  *  the RPC QuorumChain exactly as before. `clients` (tests) are the RPC/transport peers. */
+-export function independentChain({ rpcs = [], clients, quorum, confirmations, maxBlockAgeMs, chainVerifier = null, chainId, now, timeoutMs }) {
++export function independentChain({ rpcs = [], clients, quorum, confirmations, maxBlockAgeMs, chainVerifier = null, chainId, now, timeoutMs, receiptSource = null }) {
+   const opt = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+-  if (chainVerifier) return new VerifiedChain(opt({ verifier: chainVerifier, txRpcs: rpcs, txClients: clients, chainId, confirmations, maxBlockAgeMs, now, timeoutMs }));
++  if (receiptSource && !chainVerifier) throw new Error("--receipt-source needs --chain-verifier: the validated receipt source is wired for the local verifier's sends, not the provider quorum");
++  if (chainVerifier) return new VerifiedChain(opt({ verifier: chainVerifier, txRpcs: rpcs, txClients: clients, chainId, confirmations, maxBlockAgeMs, now, timeoutMs, receiptSource: receiptSource || undefined }));
+   return new QuorumChain(opt({ rpcs, clients, quorum, confirmations, maxBlockAgeMs, chainId, now, timeoutMs }));
+ }
+ /** A snapshot for TRANSACTION/HISTORY reads (receipts, transactions, nonce counts, logs): the RPC quorum itself in legacy
+@@ -575,6 +624,14 @@ export async function sendQuorumTx(chain, { account, to, data, value = 0n, maxFe
+   if (!accepted && rejected === chain.peers.length)
+     throw new Error(`no RPC accepted the transaction, nothing is pending (${reasons.slice(0, 4).join("; ")})`);
+   if (!accepted) throw new OutcomeUnknownError(hash, `no RPC confirmed accepting it (${reasons.slice(0, 4).join("; ")})`);
++  // 6. with a validated receipt source (VerifiedChain only): inclusion, status and level come ONLY from its minted receipt
++  //    for THIS hash, bound to these signed bytes (sender, nonce); a revert is final only when that receipt says so
++  if (chain.receiptSource) {
++    const ev = await chain.verifyOutcome({ hash, from, nonce, raw, confirm, timeoutMs, pollMs });
++    const out = { status: ev.status, blockNumber: BigInt(ev.includedBlock), blockHash: ev.includedBlockHash, transactionHash: hash, agreedBlock: ev.postStateBlock, agreeing: 1, stateVerified: ev.stateVerified, evidence: ev };
++    if (ev.status !== "success") throw Object.assign(new Error(`transaction reverted: ${hash} (block ${ev.includedBlock}; ${ev.receipt})`), { mined: true, evidence: ev });
++    return out;
++  }
+   // 6. the receipt, as a quorum sees it in a confirmed block
+   const deadline = Date.now() + timeoutMs;
+   let last = "no quorum yet";
+@@ -610,8 +667,15 @@ export async function sendQuorumTx(chain, { account, to, data, value = 0n, maxFe
+  *  (the nonce consumed in verified state, the effect only where checked) and that the transport's receipt is NOT proof. */
+ export function receiptLine(r) {
+   if (!r?.evidence) return `confirmed by ${r?.agreeing} RPCs`;
++  if (r.evidence.receiptVerified) return `${r.evidence.receipt}; nonce consumed in verified state at block ${r.evidence.postStateBlock}; effect ${r.evidence.effect}`;
+   return `nonce consumed in verified state at block ${r.evidence.postStateBlock}; effect ${r.evidence.effect}; the transport's receipt is UNVERIFIED (inclusion and status not proven)`;
+ }
++/** A send's evidence as printed or stored: its facts (text and numbers), never the minted receipt object itself. */
++export function shownEvidence(ev) {
++  if (!ev) return ev;
++  const { receiptEvidence, transaction, ...rest } = ev;
++  return { ...rest, ...(transaction ? { transaction: { hash: transaction.hash, from: transaction.from, nonce: transaction.nonce, to: transaction.to } } : {}) };
++}
+ /** sendTx-shaped adapter for the CLI. */
+ export function quorumWriter(chain, opts) {
+   return (account, { address, abi, functionName, args, value }) =>
+diff --git a/cli/lease-gas.mjs b/cli/lease-gas.mjs
+index f59b9dd72..a1ec04d60 100644
+--- a/cli/lease-gas.mjs
++++ b/cli/lease-gas.mjs
+@@ -203,8 +203,8 @@ async function deliver(H, req) {
+       throw new Error(`this request must come from ${req.from}; the configured signer is --from ${ctx.from}`);
+     const receipt = await ctx.I.sendQuorumTx(chain, { account: ctx.signer, to: req.to, data: req.data, value: req.value, maxFeeGwei: ctx.maxFeeGwei, log: ctx.log || (() => {}) });
+     const res = { ...H.out, done: req.what, transactionHash: receipt.transactionHash, block: receipt.blockNumber, agreeing: receipt.agreeing };
+-    return ctx.json ? ctx.jout({ ...res, ...(receipt.evidence ? { evidence: receipt.evidence } : {}) })
+-      : ctx.say(`${req.what}: ${receipt.evidence ? "sent" : "mined"} ${receipt.transactionHash} (block ${receipt.blockNumber}, ${ctx.I.receiptLine(receipt)})`);
++    return ctx.json ? ctx.jout({ ...res, ...(receipt.evidence ? { evidence: ctx.I.shownEvidence(receipt.evidence) } : {}) })
++      : ctx.say(`${req.what}: ${receipt.evidence && !receipt.evidence.receiptVerified ? "sent" : "mined"} ${receipt.transactionHash} (block ${receipt.blockNumber}, ${ctx.I.receiptLine(receipt)})`);
+   }
+   const tx = fmt === "metamask" ? O.walletParams(req, chain.chainId) : { chainId: chain.chainId, from: req.from, to: req.to, value: req.value, data: req.data };
+   const res = { ...H.out, unsigned: tx, label: req.what, via: req.via, inner: req.inner, simulated: sim, notes: req.notes };
+diff --git a/network/receipt-source.mjs b/network/receipt-source.mjs
+new file mode 100644
+index 000000000..12a67edb7
+--- /dev/null
++++ b/network/receipt-source.mjs
+@@ -0,0 +1,156 @@
++// The validated RECEIPT SOURCE for independent sends: worker E's source-binding adapters (network/tx-evidence/, vendored
++// byte-for-byte, see PROVENANCE.json) built from ONE explicit config file, plus the binding of a minted receipt to the
++// transaction a client intended. This is not a verifier: inclusion, status and level come only from evidence MINTED by
++// createBaseNodeSource (bound to createL1PairSource), accepted by E's own rule (acceptEvidence: minted, right kind,
++// accepted trust); this module adds only what a receipt does not carry - which transaction it is:
++//   * the transaction hash IS keccak256 of the signed bytes (held by this client, or a transaction object re-encoded with
++//     its own signature), so the hash binds every signed field, the nonce included;
++//   * the sender is RECOVERED from that signature, and must be the intended sender and the receipt's `from`;
++//   * the nonce is read from those signed bytes and must be the intended nonce.
++// A transport may supply the transaction object (it cannot forge a signature that hashes to the receipt's hash); it can
++// never supply inclusion or status.
++//
++// Trust is explicit and shown verbatim: 'local-validated-pair' = the LOCAL full nodes (reth + Lighthouse L1, base-reth +
++// base-consensus) validated the chain - local full-node validation, NOT a portable cryptographic proof. A config with
++// `testFixture` identities mints 'test-fixture' trust, is accepted only when ENCLAVE_TEST_RECEIPT_FIXTURE=1 is set by a
++// test harness, and is labelled TEST FIXTURE in every answer; a production config never accepts it.
++// Evidence objects are used by reference and never copied or annotated (a copy is not minted and is refused).
++import fs from "node:fs";
++import { keccak256, parseTransaction, recoverTransactionAddress, serializeTransaction } from "viem";
++import { createL1PairSource } from "./tx-evidence/l1-source-binding.mjs";
++import { createBaseNodeSource } from "./tx-evidence/base-source-binding.mjs";
++import { acceptEvidence, Refused, refuse } from "./tx-evidence/forced-inclusion.mjs";
++import { TRUST } from "./tx-evidence/evidence-brand.mjs";
++
++export const RECEIPT_SOURCE_FORMAT = "enclave-receipt-source/v1";
++export const FIXTURE_ENV = "ENCLAVE_TEST_RECEIPT_FIXTURE";
++const lc = (v) => String(v ?? "").toLowerCase();
++const HASH = /^0x[0-9a-f]{64}$/;
++// refusals that may clear on their own (the node catching up, a reorg settling, a timeout): retried by pollers
++const TRANSIENT = new Set(["l1-source-not-ready", "l2-source-not-ready", "l2-not-canonical", "l2-source-regressed"]);
++export const isTransient = (e) => !(e instanceof Refused) || TRANSIENT.has(e.code);
++
++function only(o, keys, where) {
++  if (!o || typeof o !== "object" || Array.isArray(o)) throw new Error(`receipt source config: ${where} must be an object`);
++  for (const k of Object.keys(o)) if (!keys.includes(k)) throw new Error(`receipt source config: unknown key ${where}.${k}`);
++  return o;
++}
++const url = (o, where) => { only(o, ["url"], where); if (typeof o.url !== "string") throw new Error(`receipt source config: ${where}.url`); return { url: o.url }; };
++const int = (v, where, lo) => { if (v === undefined) return undefined; if (!Number.isInteger(v) || v < lo) throw new Error(`receipt source config: ${where} must be an integer >= ${lo}`); return v; };
++
++/**
++ * Parse and check a receipt-source config (the file `--receipt-source FILE` names):
++ *   { "format": "enclave-receipt-source/v1",
++ *     "l1":   { "execution": {"url"}, "consensus": {"url"}, "minPeers"?, "maxHeadLagSec"?, "maxFinalizedLagSec"? },
++ *     "base": { "execution": {"url"}, "rollup": {"url"}, "maxUnsafeLagSec"? },
++ *     "testFixture"?: { "label": "TEST …", "l1Identity": {...}, "l2Identity": {...} } }
++ * URLs must be loopback (the adapters refuse anything else). testFixture needs env ENCLAVE_TEST_RECEIPT_FIXTURE=1.
++ */
++export function parseReceiptSourceConfig(cfg, { env = process.env } = {}) {
++  only(cfg, ["format", "l1", "base", "testFixture"], "config");
++  if (cfg.format !== RECEIPT_SOURCE_FORMAT) throw new Error(`receipt source config: format must be "${RECEIPT_SOURCE_FORMAT}"`);
++  const l1 = only(cfg.l1, ["execution", "consensus", "minPeers", "maxHeadLagSec", "maxFinalizedLagSec"], "l1");
++  const base = only(cfg.base, ["execution", "rollup", "maxUnsafeLagSec"], "base");
++  const out = {
++    l1: { execution: url(l1.execution, "l1.execution"), consensus: url(l1.consensus, "l1.consensus"), minPeers: int(l1.minPeers, "l1.minPeers", 1),
++      maxHeadLagSec: int(l1.maxHeadLagSec, "l1.maxHeadLagSec", 1), maxFinalizedLagSec: int(l1.maxFinalizedLagSec, "l1.maxFinalizedLagSec", 1) },
++    base: { execution: url(base.execution, "base.execution"), rollup: url(base.rollup, "base.rollup"), maxUnsafeLagSec: int(base.maxUnsafeLagSec, "base.maxUnsafeLagSec", 1) },
++    testFixture: null,
++  };
++  if (cfg.testFixture !== undefined) {
++    if (env[FIXTURE_ENV] !== "1") throw new Error(`receipt source config: testFixture identities mint 'test-fixture' trust and are refused outside a test harness (${FIXTURE_ENV}=1); a production config names only the local L1 pair and Base node`);
++    const f = only(cfg.testFixture, ["label", "l1Identity", "l2Identity"], "testFixture");
++    if (typeof f.label !== "string" || !/^TEST/.test(f.label)) throw new Error("receipt source config: testFixture.label must start with TEST");
++    only(f.l1Identity, ["chainIdHex", "elGenesisHash", "clGenesisValidatorsRoot", "genesisNumber"], "testFixture.l1Identity");
++    only(f.l2Identity, ["chainIdHex", "genesisHash"], "testFixture.l2Identity");
++    out.testFixture = { label: f.label, l1Identity: { ...f.l1Identity, label: `${f.label} (L1)` }, l2Identity: { ...f.l2Identity, label: `${f.label} (Base)` } };
++  }
++  return out;
++}
++export const loadReceiptSourceConfig = (file, opts) => parseReceiptSourceConfig(JSON.parse(fs.readFileSync(file, "utf8")), opts);
++
++const defined = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
++
++/**
++ * The bound transaction for `hash`: from the signed bytes this client holds (`raw`), or from a transaction object
++ * (`txLookup(hash)`, any source) re-encoded with its own signature. -> a viem-shaped transaction (hash, from recovered).
++ */
++export async function bindTransaction({ hash, raw = null, txLookup = null }) {
++  hash = lc(hash);
++  if (!HASH.test(hash)) refuse("tx-identity", "not a transaction hash");
++  let bytes, t;
++  if (raw) {
++    bytes = lc(raw);
++    if (keccak256(bytes) !== hash) refuse("tx-identity", "the signed bytes this client holds do not hash to that transaction");
++    t = parseTransaction(bytes);
++  } else {
++    if (typeof txLookup !== "function") refuse("tx-unbound", "no signed bytes are held for it and no transaction transport is configured to read it");
++    const o = await txLookup(hash);
++    if (!o) refuse("tx-unbound", "the transaction transport does not show the transaction");
++    const sig = { r: o.r, s: o.s, ...(o.type === "legacy" ? { v: BigInt(o.v) } : { yParity: Number(o.yParity) }) };
++    const fields = { chainId: o.chainId !== undefined && o.chainId !== null ? Number(o.chainId) : undefined, nonce: Number(o.nonce), to: o.to ?? undefined,
++      value: BigInt(o.value ?? 0n), data: o.input ?? "0x", gas: BigInt(o.gas) };
++    try {
++      if (o.type === "eip1559") bytes = serializeTransaction({ type: "eip1559", ...fields, maxFeePerGas: BigInt(o.maxFeePerGas), maxPriorityFeePerGas: BigInt(o.maxPriorityFeePerGas), accessList: o.accessList || [] }, sig);
++      else if (o.type === "eip2930") bytes = serializeTransaction({ type: "eip2930", ...fields, gasPrice: BigInt(o.gasPrice), accessList: o.accessList || [] }, sig);
++      else if (o.type === "legacy") bytes = serializeTransaction({ type: "legacy", ...fields, gasPrice: BigInt(o.gasPrice) }, sig);
++      else refuse("tx-type-unsupported", `transaction type ${o.type}`);
++    } catch (e) { if (e instanceof Refused) throw e; refuse("tx-identity", "the transaction's fields and signature do not re-encode"); }
++    if (keccak256(bytes) !== hash) refuse("tx-identity", "the transaction's fields and signature do not hash to that transaction (altered fields)");
++    t = parseTransaction(bytes);
++  }
++  const from = lc(await recoverTransactionAddress({ serializedTransaction: bytes }).catch(() => ""));
++  if (!from) refuse("tx-identity", "no sender is recoverable from the signature");
++  return Object.freeze({ hash, from, to: t.to ? lc(t.to) : null, input: lc(t.data ?? "0x"), value: BigInt(t.value ?? 0n), nonce: Number(t.nonce ?? 0), gas: BigInt(t.gas ?? 0n),
++    type: t.type, chainId: t.chainId !== undefined ? Number(t.chainId) : null, maxFeePerGas: t.maxFeePerGas !== undefined ? BigInt(t.maxFeePerGas) : null,
++    maxPriorityFeePerGas: t.maxPriorityFeePerGas !== undefined ? BigInt(t.maxPriorityFeePerGas) : t.maxFeePerGas !== undefined ? 0n : null,
++    gasPrice: t.gasPrice !== undefined ? BigInt(t.gasPrice) : null, accessList: t.accessList || [], r: t.r, s: t.s, yParity: t.yParity, v: t.v });
++}
++
++/** createReceiptSource(parsed config) -> { trust, acceptTrust, fixture, label, readiness(), receipt({hash, from, nonce, raw, txLookup}) } */
++export function createReceiptSource(cfg, { fetch, now } = {}) {
++  const fx = cfg.testFixture;
++  const io = defined({ fetch, now });
++  const l1 = createL1PairSource(defined({ execution: cfg.l1.execution, consensus: cfg.l1.consensus, maxHeadLagSec: cfg.l1.maxHeadLagSec, maxFinalizedLagSec: cfg.l1.maxFinalizedLagSec,
++    ...(fx ? { identity: fx.l1Identity, minPeers: 0 } : { minPeers: cfg.l1.minPeers ?? 1 }), ...io }));
++  const base = createBaseNodeSource(defined({ execution: cfg.base.execution, rollup: cfg.base.rollup, l1, maxUnsafeLagSec: cfg.base.maxUnsafeLagSec,
++    ...(fx ? { identity: fx.l2Identity } : {}), ...io }));
++  const trust = fx ? TRUST.TEST_FIXTURE : TRUST.LOCAL_VALIDATED_PAIR;
++  if (l1.trust !== trust || base.trust !== trust) throw new Error(`receipt source: the adapters mint '${base.trust}' trust, the config expects '${trust}'`);
++  const acceptTrust = Object.freeze([trust]);
++  const label = fx ? `${fx.label} (TEST FIXTURE trust 'test-fixture': scripted beacon/rollup, not local full-node validation)` : `local L1 pair ${cfg.l1.execution.url} + ${cfg.l1.consensus.url}, Base node ${cfg.base.execution.url} + ${cfg.base.rollup.url}`;
++
++  /** The two adapters' readiness, verbatim (E: show readiness().checks as they are). */
++  async function readiness() {
++    const [a, b] = [await l1.readiness(), await base.readiness()];
++    return { ok: a.ok && b.ok, trust, label, l1: a, base: b };
++  }
++  /**
++   * ONE look (no retry, no cache): -> {state: 'pending'} | {state: 'included', evidence (the minted object itself), status,
++   * level, trust, blockNumber, blockHash, transaction (bound), binding}. Throws E's Refused for a not-ready or
++   * misbehaving source, a trust it does not accept, or a receipt that is not this sender's transaction at this nonce.
++   */
++  async function receipt({ hash, from = null, nonce = null, raw = null, txLookup = null }) {
++    hash = lc(hash);
++    const r = await base.receipt(hash);
++    if (r.state !== "included") return { state: "pending" };
++    const ev = r.evidence;
++    acceptEvidence(ev, "l2-receipt", { acceptTrust }, "receipt-unverified");
++    if (lc(ev.txHash) !== hash || lc(ev.receipt?.transactionHash) !== hash) refuse("receipt-identity", "the minted receipt is for another transaction");
++    const tx = await bindTransaction({ hash, raw, txLookup });
++    if (lc(ev.receipt.from) !== tx.from) refuse("receipt-sender", `the receipt names sender ${lc(ev.receipt.from)}, the signed transaction ${tx.from}`);
++    if (from !== null && tx.from !== lc(from)) refuse("receipt-sender", `transaction ${hash} is signed by ${tx.from}, not the intended ${lc(from)}`);
++    if (nonce !== null && tx.nonce !== Number(nonce)) refuse("receipt-nonce", `transaction ${hash} carries nonce ${tx.nonce}, not the intended ${nonce}`);
++    return { state: "included", evidence: ev, status: ev.receipt.status, level: ev.level, trust: ev.trust, blockNumber: ev.blockNumber, blockHash: lc(ev.blockHash), transaction: tx,
++      binding: raw ? "hash = keccak256 of the signed bytes this client holds; sender recovered from their signature; nonce from those bytes"
++        : "the transaction's fields re-encoded with its own signature hash to the receipt's hash; sender recovered from that signature; nonce from those fields" };
++  }
++  return Object.freeze({ trust, acceptTrust, fixture: !!fx, label, l1, base, readiness, receipt });
++}
++
++/** How a verified inclusion may be described: E's facts verbatim (verifiedBy, trust, level), never "final" beyond them. */
++export function describeInclusion(v) {
++  const t = v.trust === TRUST.TEST_FIXTURE ? "TEST FIXTURE - " : "";
++  return `${t}${v.status} in block ${v.blockNumber}: receipt minted by the local Base node source (verifiedBy '${v.evidence.verifiedBy}', trust '${v.trust}', level '${v.level}'); `
++    + "hash, sender and nonce bound to the signed transaction";
++}
+diff --git a/network/tx-evidence/PROVENANCE.json b/network/tx-evidence/PROVENANCE.json
+new file mode 100644
+index 000000000..45ca2a849
+--- /dev/null
++++ b/network/tx-evidence/PROVENANCE.json
+@@ -0,0 +1,38 @@
++{
++  "kind": "enclave.vendored-source",
++  "from": "work/rpc-transaction-independence (worker E, immutable final)",
++  "commit": "c08331e9397c33db0330e6c4a53c74c5d8f0d98b",
++  "report": "e917c5265cb6f80c5215674e0567ce113899b7fb",
++  "handoffs": [
++    "HANDOFF-SOURCE-BINDING.md",
++    "HANDOFF-EVIDENCE-IMMUTABILITY.md"
++  ],
++  "rule": "byte-identical copies; never edited here. Changes go to E and are re-vendored.",
++  "files": {
++    "network/tx-evidence/evidence-brand.mjs": {
++      "source": "src/evidence-brand.mjs",
++      "gitBlob": "0a2c74be52dd486178ca354b7478cc58652d0162",
++      "sha256": "90162e5b797d3ca5a6d53689c5233bfc86536230d3fc3672b4105aec89212171"
++    },
++    "network/tx-evidence/l1-source-binding.mjs": {
++      "source": "src/l1-source-binding.mjs",
++      "gitBlob": "718865bc396e5290a48e40fa5d39008c86936626",
++      "sha256": "a46b94c2e5cb54acba7f2f7cb290e3bbe8849a818dc384c4728f62b7713c407f"
++    },
++    "network/tx-evidence/base-source-binding.mjs": {
++      "source": "src/base-source-binding.mjs",
++      "gitBlob": "7a9bf9920e9b30ebf2f933325e52629afc9050d5",
++      "sha256": "0fe489489c6fed4dd74dc8a52e1e21296f4152806fc673ff22e2f323ee19f0c0"
++    },
++    "network/tx-evidence/forced-inclusion.mjs": {
++      "source": "src/forced-inclusion.mjs",
++      "gitBlob": "60b897853de5a05fa633d0a5f0c140ceb50f316c",
++      "sha256": "438e9c77382eeb9e60bd57cfaf4c98ee2f831d93aec7b0c75e7fbc151b87942c"
++    },
++    "test/fixtures/tx-evidence/pair-stubs.mjs": {
++      "source": "test/support/pair-stubs.mjs",
++      "gitBlob": "bf390fac0fa55c1da61fa9d8c9fc62cdc0d6bd99",
++      "sha256": "d13dff49f1d95b7d69753a7f302c725067a73158fdf4a148ee3ad34693f21aaa"
++    }
++  }
++}
+diff --git a/network/tx-evidence/base-source-binding.mjs b/network/tx-evidence/base-source-binding.mjs
+new file mode 100644
+index 000000000..7a9bf9920
+--- /dev/null
++++ b/network/tx-evidence/base-source-binding.mjs
+@@ -0,0 +1,97 @@
++// READ ADAPTER binding L2 receipt/finality verification to the LOCAL Base node (S's holder: the official `base`
++// v1.5.1, base-reth execution + in-process base-consensus deriving from the LOCAL L1 pair, `trustRpc: false`) and to
++// the L1 pair adapter (src/l1-source-binding.mjs).
++//
++// Every call, from these configured endpoints only (loopback, no fallback):
++//   1. readiness: chain 8453, Base mainnet genesis hash, eth_syncing false, optimism_syncStatus present with a fresh
++//      unsafe head; the consensus heads (unsafe/safe/finalized) ARE the execution node's canonical blocks at those
++//      numbers (EL/CL pairing);
++//   2. L1 binding: the node's own L1 view (current_l1, and finalized_l1 for finality) is canonical in OUR validated L1
++//      pair, and finalized_l1 is final there. A Base node deriving from some other L1 source is refused;
++//   3. the receipt, by hash, its block canonical at its number after the read; level from the node's heads:
++//      <= finalized_l2 -> 'finalized', <= safe_l2 -> 'safe', else 'unsafe' (sequencer-signed / not yet derived).
++// Output: MINTED L2 evidence `verifiedBy: 'base-derivation'` with the same trust as the L1 pair (local full-node
++// validation, not a portable proof). An unsafe head, a Sia/archive history entry or a submission reply is never
++// upgraded to safe/finalized here.
++import { formatTransactionReceipt } from 'viem';
++import { refuse } from './forced-inclusion.mjs';
++import { TRUST, mint } from './evidence-brand.mjs';
++
++/** Base mainnet identity (base/base v1.5.1 crates/common/chains/src/config.rs MAINNET). */
++export const BASE_MAINNET_L2 = Object.freeze({ chainIdHex: '0x2105', genesisHash: '0xf712aa9241cc24369b143cf6dce85f0902a9731e70d66818a3a5845b296c73dd', label: 'base-mainnet' });
++const LOOPBACK = new Set(['127.0.0.1', '::1', '[::1]', 'localhost']);
++const num = (v) => (typeof v === 'string' ? Number(BigInt(v)) : Number(v));
++function endpoint(u, name) {
++  let url;
++  try { url = new URL(u); } catch { refuse('bad-config', `${name} url`); }
++  if (!['http:', 'https:'].includes(url.protocol) || !LOOPBACK.has(url.hostname)) refuse('not-local', `${name} must be the local node on loopback`);
++  return url.href.replace(/\/$/, '');
++}
++
++/** config: {execution: {url}, rollup: {url}, l1 (createL1PairSource), identity?, maxUnsafeLagSec?} */
++export function createBaseNodeSource({ execution, rollup, l1, identity = BASE_MAINNET_L2, maxUnsafeLagSec = 120, timeoutMs = 8000, fetch = globalThis.fetch, now = () => Math.floor(Date.now() / 1000) } = {}) {
++  const el = endpoint(execution?.url, 'execution'), cl = endpoint(rollup?.url, 'rollup');
++  if (!l1?.blockStanding) refuse('bad-config', 'the Base source must be bound to the L1 pair source it derives from');
++  const trust = identity === BASE_MAINNET_L2 && l1.trust === TRUST.LOCAL_VALIDATED_PAIR ? TRUST.LOCAL_VALIDATED_PAIR : TRUST.TEST_FIXTURE;
++  let id = 0;
++  const call = async (url, method, params = []) => {
++    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params }), signal: AbortSignal.timeout(timeoutMs) });
++    if (!r.ok) throw new Error(`${method}: HTTP ${r.status}`);
++    const j = await r.json(); if (j.error) throw new Error(`${method}: ${j.error.message ?? JSON.stringify(j.error)}`); return j.result;
++  };
++  const rpc = (m, p) => call(el, m, p), roll = (m, p) => call(cl, m, p);
++  const ref = (b) => ({ number: num(b.number), hash: b.hash, timestamp: num(b.timestamp), l1origin: b.l1origin ? { number: num(b.l1origin.number), hash: b.l1origin.hash } : null });
++
++  async function readiness() {
++    const checks = [];
++    const chk = async (name, fn) => { try { checks.push({ name, ok: true, detail: await fn() }); } catch (e) { checks.push({ name, ok: false, detail: String(e.message || e) }); } };
++    const need = (c, m) => { if (!c) throw new Error(m); };
++    let st;
++    await chk('l2.chain', async () => { const c = await rpc('eth_chainId'); need(c === identity.chainIdHex, `chain ${c}`); return c; });
++    await chk('l2.genesis', async () => { const g = await rpc('eth_getBlockByNumber', ['0x0', false]); need(g?.hash === identity.genesisHash, `genesis ${g?.hash}`); return g.hash; });
++    await chk('l2.syncing', async () => { need(await rpc('eth_syncing') === false, 'eth_syncing is not false'); return false; });
++    await chk('l2.syncStatus', async () => {
++      st = await roll('optimism_syncStatus');
++      need(st?.unsafe_l2 && st.safe_l2 && st.finalized_l2 && st.current_l1 && st.finalized_l1, 'incomplete optimism_syncStatus');
++      const lag = now() - num(st.unsafe_l2.timestamp); need(lag <= maxUnsafeLagSec, `unsafe head lag ${lag} s`);
++      return { unsafe: num(st.unsafe_l2.number), safe: num(st.safe_l2.number), finalized: num(st.finalized_l2.number) };
++    });
++    await chk('l2.pair', async () => {
++      for (const k of ['unsafe_l2', 'safe_l2', 'finalized_l2']) {
++        const b = await rpc('eth_getBlockByNumber', ['0x' + num(st[k].number).toString(16), false]);
++        need(b?.hash === st[k].hash, `${k} is not the execution node's block at that height`);
++      }
++      return true;
++    });
++    await chk('l2.l1view', async () => {
++      const cur = await l1.blockStanding(num(st.current_l1.number), st.current_l1.hash);
++      need(cur.canonical, 'the Base node\'s current L1 block is not canonical in the local L1 pair (another L1 source?)');
++      const fin = await l1.blockStanding(num(st.finalized_l1.number), st.finalized_l1.hash);
++      need(fin.canonical && fin.finalized, 'the Base node\'s finalized L1 block is not final in the local L1 pair');
++      return { currentL1: num(st.current_l1.number), finalizedL1: num(st.finalized_l1.number) };
++    });
++    const ok = checks.every((c) => c.ok);
++    return { ok, checks, status: ok ? { unsafe: ref(st.unsafe_l2), safe: ref(st.safe_l2), finalized: ref(st.finalized_l2), finalizedL1: { number: num(st.finalized_l1.number), hash: st.finalized_l1.hash } } : null };
++  }
++  async function readyOrRefuse() { const r = await readiness(); if (!r.ok) refuse('l2-source-not-ready', r.checks.filter((c) => !c.ok).map((c) => `${c.name}: ${c.detail}`).join('; ')); return r; }
++
++  /** -> {state: 'pending'} | {state: 'included', receipt, evidence: {verifiedBy: 'base-derivation', level, safe, finalized, ...}} */
++  async function receipt(txHash) {
++    const r0 = await readyOrRefuse();
++    const raw = await rpc('eth_getTransactionReceipt', [txHash]);
++    if (!raw) return { state: 'pending' };
++    if (raw.transactionHash?.toLowerCase() !== String(txHash).toLowerCase()) refuse('l2-receipt-mismatch', 'another transaction');
++    const r1 = await readyOrRefuse();
++    const canon = await rpc('eth_getBlockByNumber', [raw.blockNumber, false]);
++    if (canon?.hash !== raw.blockHash) refuse('l2-not-canonical', 'the receipt\'s block is no longer canonical (reorg)');
++    if (r1.status.finalized.number < r0.status.finalized.number || r1.status.safe.number < r0.status.safe.number) refuse('l2-source-regressed');
++    const n = num(raw.blockNumber), s = r1.status;
++    const finalized = n <= s.finalized.number, safe = n <= s.safe.number;
++    const receiptOut = formatTransactionReceipt(raw);
++    const evidence = mint({ kind: 'l2-receipt', verifiedBy: 'base-derivation', trust, source: { execution: el, rollup: cl, l1: l1.source, identity: identity.label ?? 'custom' },
++      txHash: raw.transactionHash, blockHash: raw.blockHash, blockNumber: n, level: finalized ? 'finalized' : safe ? 'safe' : 'unsafe', safe, finalized,
++      heads: { safe: s.safe, finalized: s.finalized, finalizedL1: s.finalizedL1 }, readAt: now(), receipt: receiptOut });
++    return { state: 'included', receipt: evidence.receipt, evidence };   // the frozen, owned receipt: identity checks hold
++  }
++  return { readiness, receipt, trust };
++}
+diff --git a/network/tx-evidence/evidence-brand.mjs b/network/tx-evidence/evidence-brand.mjs
+new file mode 100644
+index 000000000..0a2c74be5
+--- /dev/null
++++ b/network/tx-evidence/evidence-brand.mjs
+@@ -0,0 +1,32 @@
++// Evidence that only the SOURCE-BINDING adapters can mint (src/l1-source-binding.mjs, src/base-source-binding.mjs).
++// A string label ('l1-execution-proof') or caller-supplied JSON is not evidence: the transaction checks in
++// src/forced-inclusion.mjs accept an L1/L2 inclusion or finality claim by default ONLY when the object was produced by
++// an adapter that read it from an explicitly configured, readiness-checked local client pair.
++//
++// IMMUTABILITY: mint() takes an OWNED deep copy of what the adapter read (structuredClone: BigInt, nested receipts,
++// logs, topics, transaction, heads, finality checkpoint, source) and deep-freezes it, so the validated facts a brand
++// vouches for cannot change afterwards: not the receipt's status or logs, not the transaction nonce, not `finalized`.
++// The adapter's own working objects and anything a caller passed in are copied, never frozen in place. The adapters
++// hand callers the frozen receipt itself (`result.receipt === result.evidence.receipt`), so identity checks still work.
++//
++// Scope of this guarantee: an in-process capability (a module-private WeakSet), not cryptography. `mint` is an
++// ordinary export: any code in the same process can call it, so it stops callers, config files and remote endpoints
++// from ASSERTING or ALTERING evidence by accident or by data, not code that deliberately mints its own. The TRUST
++// behind a minted object is recorded on it (`trust`): 'local-validated-pair' = "the local full nodes executed/validated
++// this chain and their consensus client finalized it" (local full-node validation trust), NOT a portable proof.
++// 'test-fixture' marks objects from labelled fixtures, which the default checks refuse.
++const MINTED = new WeakSet();
++export const TRUST = Object.freeze({ LOCAL_VALIDATED_PAIR: 'local-validated-pair', TEST_FIXTURE: 'test-fixture' });
++
++function deepFreeze(v) {
++  if (v === null || typeof v !== 'object') return v;
++  if (ArrayBuffer.isView(v) || v instanceof ArrayBuffer) throw new TypeError('evidence must not carry binary buffers (hex strings only)');
++  for (const k of Reflect.ownKeys(v)) deepFreeze(v[k]);
++  return Object.freeze(v);
++}
++export function mint(obj) {
++  const owned = deepFreeze(structuredClone(obj));   // throws on functions/symbols: evidence is plain data only
++  MINTED.add(owned);
++  return owned;
++}
++export const isMinted = (obj) => obj !== null && typeof obj === 'object' && MINTED.has(obj);
+diff --git a/network/tx-evidence/forced-inclusion.mjs b/network/tx-evidence/forced-inclusion.mjs
+new file mode 100644
+index 000000000..60b897853
+--- /dev/null
++++ b/network/tx-evidence/forced-inclusion.mjs
+@@ -0,0 +1,481 @@
++// L1 FORCED-INCLUSION PLANS for Enclave operations on Base (OP Stack): STRICT, UNSIGNED, OPERATION-SPECIFIC.
++//
++// What this is. When every public Base RPC (and the hosted sequencer endpoint) refuses a transaction, an L1 deposit
++// through Base's OptimismPortal is the protocol's own way in: the portal emits TransactionDeposited, every Base node
++// derives a deposit transaction (type 0x7E) from it, and the sequencer must include it within the sequencing window
++// (Base mainnet: 3600 L1 blocks, base/base v1.5.1 crates/common/chains/src/config.rs). This module builds the UNSIGNED
++// L1 transaction for that, for the reviewed Enclave operations only, and checks inclusion afterwards. It never signs,
++// never sends, never holds a key, never reuses a wallet session; a caller with root's approval does that.
++//
++// What a deposit changes (all from primary source, see RESULT.md):
++//   * it is a NEW transaction: a new L1 signature on chain 1, L1 ETH for L1 gas and the portal's resource-metering
++//     burn; the Base EOA signature of an L2 transaction CANNOT be carried. The deposit's L2 `from` is the L1 sender if
++//     the portal sees an EOA (msg.sender == tx.origin, or a 7702-delegated EOA in OptimismPortal2 7.0.0), otherwise
++//     the sender's ALIAS (+0x1111000000000000000000000000000000001111): a contract (a Safe) on L1 never becomes the
++//     same msg.sender on L2;
++//   * it ignores the sender's L2 nonce (only bumps it), executes at gas price 0 (base_common_consensus
++//     FromRecoveredTx<TxDeposit> for TxEnv), pays no L2 fee, and if it fails every effect is undone except the nonce
++//     bump and the mint (crates/common/evm/src/handler.rs catch_error);
++//   * it cannot carry an EIP-7702 authorization list.
++// So only two shapes keep the operation's authorization exactly:
++//   A. SIGNATURE-AUTHORIZED, SENDER-AGNOSTIC calls whose own signed payload carries a single-use nonce and deadline:
++//      the host's signed Lease through EnclaveLeaseExecutor (the code runs AS the operator; the outer sender is never
++//      read). Any funded L1 account may submit; a copy that lands twice reverts BadNonce the second time.
++//   B. msg.sender-AUTHORIZED calls whose authorized address is a plain (or 7702-delegated) EOA that signs a direct L1
++//      transaction itself. Deposits have NO nonce protection, so a plan is refused while an L2-signed transaction for
++//      the same intent could still land, unless the operation is a reviewed state-setter.
++// Everything else (contract owners, generic calls, value transfers, host operator keys that hold no ETH, first
++// delegations) is REFUSED with the reason.
++import {
++  concat, decodeEventLog, decodeFunctionData, encodeFunctionData, getAddress, hexToBigInt, isAddress, isHex, keccak256,
++  parseAbi, recoverTypedDataAddress, size, slice, zeroAddress,
++} from 'viem';
++import { base } from 'viem/chains';
++import { extractTransactionDepositedLogs, getL2TransactionHash, opaqueDataToDepositData } from 'viem/op-stack';
++import { TRUST, isMinted } from './evidence-brand.mjs';
++
++/**
++ * EVIDENCE ACCEPTANCE (one rule for every check below). By default only an object MINTED by a source-binding adapter
++ * (src/l1-source-binding.mjs, src/base-source-binding.mjs) of the expected kind, with an accepted trust, counts. A
++ * label string or caller-supplied JSON is provenance, never evidence. `verifiers` may be passed explicitly ONLY with
++ * `test-*` labels (labelled fixtures); production labels cannot be whitelisted that way.
++ */
++export function acceptEvidence(ev, kind, { verifiers, acceptTrust = [TRUST.LOCAL_VALIDATED_PAIR] } = {}, code) {
++  if (verifiers !== undefined) {
++    if (!Array.isArray(verifiers) || !verifiers.every((v) => /^test-/.test(String(v)))) refuse('labels-are-not-evidence', 'only test-* labels may be passed; production evidence must be minted by a source-binding adapter');
++    if (!ev || !verifiers.includes(ev.verifiedBy ?? ev.head?.verifiedBy)) refuse(code);
++    return 'test-label';
++  }
++  if (!isMinted(ev) || ev.kind !== kind) refuse(code, 'not minted by a source-binding adapter (a label or caller JSON is not evidence)');
++  if (!acceptTrust.includes(ev.trust)) refuse(code, `trust '${ev.trust}' is not accepted here`);
++  return 'minted';
++}
++
++// ---- pinned protocol facts ------------------------------------------------------------------------------------------
++export const BASE_MAINNET = Object.freeze({
++  l2ChainId: 8453,
++  l1ChainId: 1,
++  portal: getAddress(base.contracts.portal[1].address),   // = base/base deposit_contract_address 0x4904…e97e
++  seqWindowL1Blocks: 3600,
++});
++/** OptimismPortal2 (ethereum-optimism/optimism develop, 7.0.0) signatures; the same as viem's internal portal ABI and
++ *  Base's derivation (crates/consensus/protocol/src/deposits.rs EVENT_ABI). */
++export const PORTAL_ABI = parseAbi([
++  'function depositTransaction(address _to, uint256 _value, uint64 _gasLimit, bool _isCreation, bytes _data) payable',
++  'event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData)',
++]);
++/** OptimismPortal2.minimumGasLimit(byteCount) = byteCount * 40 + 21000. */
++export const portalMinimumGasLimit = (byteCount) => BigInt(byteCount) * 40n + 21000n;
++export const PORTAL_MAX_DATA_BYTES = 120_000;
++/** AddressAliasHelper.applyL1ToL2Alias: uint160(l1Address) + 0x1111000000000000000000000000000000001111 (mod 2^160). */
++export const L1_TO_L2_ALIAS_OFFSET = 0x1111000000000000000000000000000000001111n;
++export function applyL1ToL2Alias(address) {
++  const v = (hexToBigInt(getAddress(address)) + L1_TO_L2_ALIAS_OFFSET) % (1n << 160n);
++  return getAddress('0x' + v.toString(16).padStart(40, '0'));
++}
++
++// ---- Enclave contracts (contracts/EnclaveLeaseExecutor.sol, EnclaveLeaseGasReserve.sol at checkpoint 8ac1aa51c) -------
++export const EXECUTOR_ABI = parseAbi([
++  'struct Lease { bytes32 id; uint8 kind; bytes32 enclaveId; uint64 nonce; uint64 deadline; address payee; uint256 maxChargeWei; }',
++  'function lease(Lease l, bytes signature)',
++  'function nonceOf(bytes32 id) view returns (uint64)',
++  'function reserve() view returns (address)',
++  'function ledger() view returns (address)',
++]);
++export const RESERVE_ABI = parseAbi([
++  'function statusOf(bytes32 id, uint8 kind, bytes32 enclaveId, address operator) view returns (uint8 status, uint256 availableWei, uint256 epochLeftWei, uint256 maxPerOpWei)',
++  'function delegationCodeHash() view returns (bytes32)',
++  'function executor() view returns (address)',
++  'function ledger() view returns (address)',
++  'event LeaseGasPaid(bytes32 indexed id, address indexed owner, address indexed operator, address payee, uint8 kind, uint256 gas, uint256 gasPrice, uint256 l1FeeWei, uint256 chargedWei)',
++]);
++export const RESERVE_STATUS = ['Ready', 'Paused', 'Blocked', 'Unknown', 'Retired', 'Disabled', 'Inactive', 'LeaseLive', 'LeaseExpired', 'NotRunner',
++  'NotOperator', 'ClaimantNotAllowed', 'ClaimCooldown', 'ClaimLimitReached', 'NotInRenewWindow', 'OverRateCap', 'ExtensionTooShort',
++  'ReleaseNotSponsored', 'EmptyReserve', 'EpochCapReached', 'BadKind', 'ProofKeyMissing', 'BondRequired'];
++export const LEASE_KIND = Object.freeze({ claim: 1, renew: 2, release: 3 });
++/** EnclaveLeaseExecutor.CANONICAL_LENGTH: selector + 7 static words + signature offset + length + 65 bytes padded to 96. */
++export const EXECUTOR_CANONICAL_LENGTH = 4 + 7 * 32 + 32 + 32 + 96;
++const LEASE_TYPES = { Lease: [
++  { name: 'reserve', type: 'address' }, { name: 'id', type: 'bytes32' }, { name: 'kind', type: 'uint8' }, { name: 'enclaveId', type: 'bytes32' },
++  { name: 'nonce', type: 'uint64' }, { name: 'deadline', type: 'uint64' }, { name: 'payee', type: 'address' }, { name: 'maxChargeWei', type: 'uint256' }] };
++const HALF_N = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0n;
++const ZERO32 = '0x' + '00'.repeat(32);
++const HASH = /^0x[0-9a-f]{64}$/i;
++
++export class Refused extends Error {
++  constructor(code, detail) { super(`${code}${detail ? ': ' + detail : ''}`); this.code = code; }
++}
++export const refuse = (code, detail) => { throw new Refused(code, detail); };
++const lower = (a) => getAddress(a).toLowerCase();
++const u = (v, name) => { try { const b = BigInt(v); if (b < 0n) throw 0; return b; } catch { return refuse('bad-input', name); } };
++
++/** Every plan rests on ONE verified head (a Base block whose hash the caller's verifier bound: P's root store/Helios). */
++export function checkHead(head, now, maxHeadAgeSec) {
++  if (!head || !HASH.test(head.hash || '') || !Number.isSafeInteger(head.number) || !Number.isSafeInteger(head.timestamp)) refuse('no-verified-head');
++  if (head.verifiedBy !== 'signed-head' && head.verifiedBy !== 'ancestor') refuse('unverified-head', String(head.verifiedBy));
++  const age = now - head.timestamp;
++  if (age > maxHeadAgeSec) refuse('stale-head', `head ${head.number} is ${age} s old (max ${maxHeadAgeSec})`);
++  if (age < -30) refuse('head-from-the-future', `${-age} s ahead of local time`);
++  return age;
++}
++export function checkGas(gasLimit, data, { minL2Gas, maxL2Gas }) {
++  const g = u(gasLimit, 'l2GasLimit');
++  const floor = portalMinimumGasLimit(size(data));
++  if (g < floor) refuse('gas-below-portal-floor', `${g} < ${floor}`);
++  if (g < BigInt(minL2Gas)) refuse('gas-below-reviewed-minimum', `${g} < ${minL2Gas}`);
++  if (g > BigInt(maxL2Gas)) refuse('gas-above-reviewed-maximum', `${g} > ${maxL2Gas}`);
++  if (size(data) > PORTAL_MAX_DATA_BYTES) refuse('calldata-too-large');
++  return g;
++}
++export const portalCall = (to, gasLimit, data) => encodeFunctionData({ abi: PORTAL_ABI, functionName: 'depositTransaction', args: [to, 0n, gasLimit, false, data] });
++
++// =====================================================================================================================
++// Duplicate-execution guard. A deposit on L1 WILL execute on L2 eventually (protocol rule); a plan is therefore a
++// commitment, never something to "retry". The tracker is the caller's durable record (serialize with toJSON).
++// =====================================================================================================================
++export class ForcedInclusionTracker {
++  constructor(entries = []) { this.entries = new Map(entries.map((e) => [e.key, { ...e }])); }
++  toJSON() { return [...this.entries.values()]; }
++  get(key) { return this.entries.get(key) || null; }
++  /** Unresolved = could still execute on L2 (planned, sent, on L1, or L2-unsafe and not yet past every doubt). */
++  static open(e) { return e && !['l2-included', 'l2-failed', 'dead'].includes(e.state); }
++  /** Record a new plan, or return the existing record for the SAME commitment (no new L1 transaction implied). */
++  admit(key, commitment, info) {
++    const e = this.entries.get(key);
++    if (e && e.commitment === commitment) return { replay: true, entry: e };
++    if (ForcedInclusionTracker.open(e)) refuse('ambiguous-duplicate', `${key} has an unresolved commitment ${e.commitment.slice(0, 18)}… (${e.state})`);
++    const entry = { key, commitment, state: 'planned', ...info };
++    this.entries.set(key, entry);
++    return { replay: false, entry };
++  }
++  /** A lease commitment is DEAD only when a verified head is past its deadline and the executor nonce was never
++   *  consumed: then (and only then) a new Lease at the same nonce may be signed. */
++  resolveExpiredLease(key, snapshot) {
++    const e = this.entries.get(key);
++    if (!e || !ForcedInclusionTracker.open(e)) refuse('unknown-commitment', key);
++    if (!snapshot?.head || !['signed-head', 'ancestor'].includes(snapshot.head.verifiedBy)) refuse('unverified-head');
++    if (BigInt(snapshot.head.timestamp) <= BigInt(e.deadline)) refuse('not-expired', `head ${snapshot.head.timestamp} <= deadline ${e.deadline}`);
++    if (BigInt(snapshot.executorNonce) !== BigInt(e.nonce)) refuse('nonce-consumed', 'the lease (or another at that nonce) executed: resolve it from its receipt');
++    return this.mark(key, 'dead', { deadAt: snapshot.head.hash });
++  }
++  /** Before (re)broadcasting the L1 transaction: a resend must reuse the SAME L1 nonce (a replacement can then land
++   *  at most once); a new L1 nonce for an open commitment could put TWO deposits on L1. */
++  checkL1Send(key, l1Nonce) {
++    const e = this.entries.get(key);
++    if (!e || !ForcedInclusionTracker.open(e)) refuse('unknown-commitment', key);
++    if (e.l1Nonce !== undefined && String(e.l1Nonce) !== String(l1Nonce)) refuse('l1-nonce-change', `committed at L1 nonce ${e.l1Nonce}`);
++    if (e.state === 'l1-included') refuse('already-on-l1', 'the deposit exists; wait for its L2 outcome');
++    return this.mark(key, 'l1-sent', { l1Nonce: String(l1Nonce) });
++  }
++  /** A VERIFIED failed L1 receipt of the recorded transaction: no TransactionDeposited, no L2 effect, the slot frees. */
++  resolveFailedL1(key, l1Receipt, l1Proof, opts = {}) {
++    const e = this.entries.get(key);
++    if (!e || !ForcedInclusionTracker.open(e)) refuse('unknown-commitment', key);
++    if (acceptEvidence(l1Proof, 'l1-receipt', opts, 'l1-receipt-unverified') === 'minted') {
++      if (l1Receipt !== l1Proof.receipt) refuse('l1-receipt-mismatch', 'not the receipt the evidence covers');
++      l1Receipt = { ...l1Proof.receipt, nonce: l1Proof.transaction.nonce };   // the node's nonce, not the caller's
++    }
++    if (l1Receipt?.status !== 'reverted' || l1Receipt.blockHash?.toLowerCase() !== l1Proof.headerHash?.toLowerCase()) refuse('not-failed');
++    if (e.l1Nonce === undefined || String(l1Receipt.nonce) !== String(e.l1Nonce)) refuse('l1-receipt-mismatch', 'not the recorded L1 nonce');
++    return this.mark(key, 'dead', { l1Failed: l1Receipt.transactionHash });
++  }
++  mark(key, state, evidence) {
++    const e = this.entries.get(key);
++    if (!e) refuse('unknown-commitment', key);
++    const order = ['planned', 'l1-sent', 'l1-included', 'l2-included', 'l2-failed', 'dead'];
++    if (order.indexOf(state) < order.indexOf(e.state)) refuse('state-regression', `${e.state} -> ${state}`);
++    Object.assign(e, { state, ...evidence });
++    return e;
++  }
++}
++
++// =====================================================================================================================
++// A. The host's signed Lease (claim / renew / release) through EnclaveLeaseExecutor, as an L1 deposit
++// =====================================================================================================================
++/**
++ * pins: the reviewed deployment record {executor, reserve, ledger} (the reserve's executor binding is checked again
++ *   at the verified head). operator: the host's operator key (an EOA delegated to the executor).
++ * lease: {id, kind, enclaveId, nonce, deadline, payee, maxChargeWei}; signature: the operator's 65-byte EIP-712
++ *   signature over it (domain EnclaveLeaseExecutor/1/8453/operator), exactly what the relay path sends.
++ * snapshot: readLeaseSnapshot() at ONE verified head. l1Sender: the L1 account that will sign and fund the L1 tx.
++ * -> {plan, replay} or throws Refused.
++ */
++export async function planLeaseDeposit({ network = BASE_MAINNET, pins, operator, lease, signature, snapshot, l1Sender, l2GasLimit,
++  tracker, now = Math.floor(Date.now() / 1000), policy = {} }) {
++  const p = { maxHeadAgeSec: 120, minDeadlineMarginSec: 3600, minL2Gas: 300_000, maxL2Gas: 1_500_000, minRenewHeadroomSec: 600, ...policy };
++  if (!pins || !isAddress(pins.executor || '') || !isAddress(pins.reserve || '') || !isAddress(pins.ledger || '')) refuse('no-pins');
++  if (!isAddress(operator || '') || !isAddress(l1Sender || '')) refuse('bad-input', 'operator/l1Sender');
++  const s = snapshot;
++  const headAge = checkHead(s?.head, now, p.maxHeadAgeSec);
++  // the reviewed executor/reserve/ledger, bound to each other at the verified head
++  if (lower(s.reserveExecutor) !== lower(pins.executor) || lower(s.executorReserve) !== lower(pins.reserve)
++      || lower(s.executorLedger) !== lower(pins.ledger) || lower(s.reserveLedger) !== lower(pins.ledger)) refuse('pin-mismatch', 'executor/reserve/ledger binding at the verified head');
++  const designator = concat(['0xef0100', getAddress(pins.executor)]).toLowerCase();
++  if (s.delegationCodeHash?.toLowerCase() !== keccak256(designator)) refuse('pin-mismatch', 'reserve delegationCodeHash');
++  // the first lease carries the operator's EIP-7702 authorization; a deposit has no authorization list
++  if ((s.operatorCode || '0x').toLowerCase() !== designator) refuse('operator-not-delegated', 'the key must already run the executor (its first lease needs a type-4 transaction, not a deposit)');
++  // the lease itself
++  if (!HASH.test(lease?.id || '') || String(s.id).toLowerCase() !== lease.id.toLowerCase()) refuse('bad-input', 'lease.id differs from the snapshot\'s deployment');
++  const l = {
++    id: lease.id, kind: Number(lease.kind), enclaveId: lease.enclaveId ?? ZERO32, nonce: u(lease.nonce, 'nonce'), deadline: u(lease.deadline, 'deadline'),
++    payee: lease.payee, maxChargeWei: u(lease.maxChargeWei, 'maxChargeWei'),
++  };
++  if (![1, 2, 3].includes(l.kind)) refuse('unsupported-kind', String(lease.kind));
++  if (!HASH.test(l.enclaveId) || (l.kind !== 1 && l.enclaveId !== ZERO32)) refuse('bad-input', 'enclaveId (claim only)');
++  if (!isAddress(l.payee || '') || lower(l.payee) === zeroAddress) refuse('bad-input', 'payee');
++  if (!isHex(signature) || size(signature) !== 65) refuse('bad-signature', 'not 65 bytes');
++  const sv = Number(hexToBigInt(slice(signature, 64, 65))), ss = hexToBigInt(slice(signature, 32, 64));
++  if (![0, 1, 27, 28].includes(sv) || ss > HALF_N) refuse('bad-signature', 'v/s not accepted by the executor');
++  const domain = { name: 'EnclaveLeaseExecutor', version: '1', chainId: network.l2ChainId, verifyingContract: getAddress(operator) };
++  const message = { reserve: getAddress(pins.reserve), ...l };
++  const signer = await recoverTypedDataAddress({ domain, types: LEASE_TYPES, primaryType: 'Lease', message, signature });
++  if (lower(signer) !== lower(operator)) refuse('bad-signature', `recovers ${signer}, not the operator`);
++  // single use, in time, admitted by the app's reserve: all at the verified head
++  if (u(s.executorNonce, 'executorNonce') !== l.nonce) refuse('stale-nonce', `executor nonce is ${s.executorNonce}, lease has ${l.nonce}`);
++  if (l.deadline < BigInt(s.head.timestamp + p.minDeadlineMarginSec))
++    refuse('deadline-too-close', `a deposit may take up to the sequencing window to land; deadline ${l.deadline} < head + ${p.minDeadlineMarginSec}`);
++  const status = RESERVE_STATUS[Number(s.status)] ?? 'unknown';
++  if (status !== 'Ready') refuse('reserve-refuses', status);
++  if (l.kind === 2) {
++    // a renew must land inside [leaseUntil - renewWindow, leaseUntil]; a deposit's latency is not under the host's control
++    const headroom = Number(s.leaseUntil) - s.head.timestamp;
++    if (headroom < p.minRenewHeadroomSec) refuse('renew-window-too-short', `${headroom} s left on the lease, need ${p.minRenewHeadroomSec}`);
++  }
++  const data = encodeFunctionData({ abi: EXECUTOR_ABI, functionName: 'lease', args: [l, signature] });
++  if (size(data) !== EXECUTOR_CANONICAL_LENGTH) refuse('not-canonical', `${size(data)} bytes`);
++  const gasLimit = checkGas(l2GasLimit, data, p);
++  // idempotency: the commitment is the lease digest; one executor nonce per (operator, deployment)
++  const key = `lease:${network.l2ChainId}:${lower(operator)}:${l.id.toLowerCase()}`;
++  const commitment = keccak256(data);
++  const { replay, entry } = (tracker ?? new ForcedInclusionTracker()).admit(key, commitment, { nonce: l.nonce.toString(), deadline: l.deadline.toString() });
++  const plan = {
++    format: 'enclave-forced-inclusion/v1', operation: 'lease.' + ['', 'claim', 'renew', 'release'][l.kind], key, commitment,
++    l1Transaction: { chainId: network.l1ChainId, from: getAddress(l1Sender), to: network.portal, value: 0n, data: portalCall(getAddress(operator), gasLimit, data) },
++    deposit: { to: getAddress(operator), value: 0n, mint: 0n, gasLimit, isCreation: false, data,
++      // the executor never reads the outer sender: either derivation of `from` is acceptable for THIS operation
++      acceptableFrom: [getAddress(l1Sender), applyL1ToL2Alias(l1Sender)] },
++    binding: { l2ChainId: network.l2ChainId, portal: network.portal, executor: getAddress(pins.executor), reserve: getAddress(pins.reserve), ledger: getAddress(pins.ledger),
++      operator: getAddress(operator), lease: { ...l, nonce: l.nonce.toString(), deadline: l.deadline.toString(), maxChargeWei: l.maxChargeWei.toString() },
++      head: { number: s.head.number, hash: s.head.hash, timestamp: s.head.timestamp, verifiedBy: s.head.verifiedBy, ageSec: headAge } },
++    authorization: [
++      'L2: the operator\'s existing EIP-712 Lease signature, unchanged (the executor recovers it against the operator itself)',
++      `L1: ONE new transaction on chain ${network.l1ChainId} from ${getAddress(l1Sender)} to the portal (any funded L1 account; it gains no authority over the lease)`,
++    ],
++    funding: [
++      'L1 ETH, paid by the L1 sender and NOT reimbursed on L1: the depositTransaction execution gas plus the portal\'s resource-metering burn for the L2 gas limit',
++      'L2: a deposit runs at gas price 0, so the reserve charges no L2 gas; it pays `payee` only its L1-fee-upper-bound share (limits.l1Bps), bounded by maxChargeWei and the owner\'s caps',
++      'the deposit\'s L2 sender pays nothing on L2 and needs no L2 balance (mint 0, value 0)',
++    ],
++    duplicates: 'one signed Lease = one executor nonce: whichever copy (sequencer, relay, deposit) executes first consumes it; every other copy reverts BadNonce (a failed deposit leaves only its sender\'s nonce bump). Never sign a second Lease for this deployment before this one is resolved (included, failed, or dead past its deadline at a verified head).',
++    inclusion: `L2 inclusion when the sequencer adopts the L1 origin holding the deposit; if the sequencer withholds it, derivation forces it within the sequencing window (${network.seqWindowL1Blocks} L1 blocks, about ${Math.round(network.seqWindowL1Blocks * 12 / 3600)} h). Deadline margin required: ${p.minDeadlineMarginSec} s.`,
++  };
++  return { plan, replay, entry };
++}
++
++/**
++ * The state a lease plan needs, read with eth_call/eth_getCode PINNED to one verified head through a VERIFYING client
++ * (Helios's RPC, or the witness gateway behind it: every answer checked against that head's state root).
++ * client: a viem public client on that verifier; head: {number, hash, timestamp, verifiedBy}.
++ */
++export async function readLeaseSnapshot({ client, head, pins, operator, id, kind, enclaveId = ZERO32 }) {
++  const at = { blockHash: head.hash };
++  const read = (address, abi, functionName, args = []) => client.readContract({ address, abi, functionName, args, ...at });
++  const ledgerAbi = parseAbi(['struct D { bytes32 id; address owner; string appRef; string ports; string configCid; uint16 gpuMilli; uint16 cpuMilli; uint32 appPort; bool isPublic; bool active; uint64 createdAt; uint256 rate; uint256 balance6; uint256 spent6; bytes32 runner; address runnerOperator; uint64 leaseUntil; }',
++    'function get(bytes32 id) view returns (D)']);
++  const [st, dch, rex, rled, eres, eled, code, nonce, row] = await Promise.all([
++    read(pins.reserve, RESERVE_ABI, 'statusOf', [id, kind, enclaveId, operator]), read(pins.reserve, RESERVE_ABI, 'delegationCodeHash'),
++    read(pins.reserve, RESERVE_ABI, 'executor'), read(pins.reserve, RESERVE_ABI, 'ledger'),
++    read(pins.executor, EXECUTOR_ABI, 'reserve'), read(pins.executor, EXECUTOR_ABI, 'ledger'),
++    client.getCode({ address: operator, ...at }), read(operator, EXECUTOR_ABI, 'nonceOf', [id]).catch(() => null),
++    read(pins.ledger, ledgerAbi, 'get', [id]),
++  ]);
++  return { head, id, status: st[0], availableWei: st[1], delegationCodeHash: dch, reserveExecutor: rex, reserveLedger: rled, executorReserve: eres,
++    executorLedger: eled, operatorCode: code ?? '0x', executorNonce: nonce ?? 0n, leaseUntil: row.leaseUntil, runnerOperator: row.runnerOperator, active: row.active };
++}
++
++// =====================================================================================================================
++// B. Reviewed msg.sender-authorized operations, as a deposit from the SAME EOA
++// =====================================================================================================================
++/** Each entry was read in the contract source (checkpoint 8ac1aa51c); `authorized` names the one address the contract
++ *  compares msg.sender with, `stateSetter` = executing it twice leaves the same state (the second is redundant). */
++export const REVIEWED_DIRECT = Object.freeze({
++  'ledger.setActive': { abi: parseAbi(['function setActive(bytes32 id, bool active)']), fn: 'setActive', authorized: 'deployment owner (EnclaveDeployments._requireOwned: d.owner == msg.sender)', stateSetter: true },
++  'catalog.setApproval': { abi: parseAbi(['function setApproval(bytes32 appId, uint256 index, uint8 status)']), fn: 'setApproval', authorized: 'catalog owner (msg.sender == owner)', stateSetter: true },
++  'catalog.setVerified': { abi: parseAbi(['function setVerified(bytes32 appId, uint256 index, bool v)']), fn: 'setVerified', authorized: 'catalog owner (msg.sender == owner)', stateSetter: true },
++  'sessionVault.ownerCall': { abi: parseAbi(['function ownerCall(address target, bytes data) returns (bytes)']), fn: 'ownerCall', authorized: 'vault owner (SessionVault.ownerCall: msg.sender == owner, direct only)', stateSetter: false },
++});
++/**
++ * op: a REVIEWED_DIRECT name; target: the contract; data: its calldata (decoded and re-checked against the entry);
++ * snapshot: { head, authorizedAddress (read at the head: the owner the contract compares with), authorizedCode
++ *   (eth_getCode of it at the head), accountNonce (its L2 nonce at the head), included: [hashes of prior attempts
++ *   proven included] }; priorL2Attempts: [{hash, nonce}] L2-signed transactions for this same intent that were ever
++ *   handed to any endpoint. from: the EOA that will sign the L1 transaction itself.
++ */
++export function planDirectDeposit({ network = BASE_MAINNET, op, target, data, from, snapshot, priorL2Attempts = [], l2GasLimit, tracker,
++  now = Math.floor(Date.now() / 1000), policy = {} }) {
++  const p = { maxHeadAgeSec: 120, minL2Gas: 100_000, maxL2Gas: 1_000_000, ...policy };
++  const entry = REVIEWED_DIRECT[op];
++  if (!entry) refuse('unsupported-operation', `${op} is not a reviewed operation (no generic fallback)`);
++  if (!isAddress(target || '') || !isAddress(from || '')) refuse('bad-input', 'target/from');
++  let decoded;
++  try { decoded = decodeFunctionData({ abi: entry.abi, data }); } catch { refuse('calldata-mismatch', `not ${entry.fn}(…)`); }
++  if (decoded.functionName !== entry.fn) refuse('calldata-mismatch', decoded.functionName);
++  const s = snapshot;
++  checkHead(s?.head, now, p.maxHeadAgeSec);
++  if (lower(s.authorizedAddress) !== lower(from)) refuse('sender-mismatch', `the contract authorizes ${s.authorizedAddress}, the L1 signer would be ${from}`);
++  // a contract (Safe, smart wallet) on L1 is aliased: the deposit could never come from this address on L2
++  const code = (s.authorizedCode || '0x').toLowerCase();
++  if (code !== '0x' && !(size(code) === 23 && code.startsWith('0xef0100'))) refuse('sender-is-contract', 'its L1 deposit would arrive from its alias, not from it');
++  // deposits do not check the L2 nonce: an L2-signed transaction for the same intent must be provably resolved first
++  for (const a of priorL2Attempts) {
++    if (s.included?.map((h) => h.toLowerCase()).includes(String(a.hash).toLowerCase())) refuse('already-included', a.hash);
++    if (BigInt(s.accountNonce) <= BigInt(a.nonce) && !entry.stateSetter)
++      refuse('ambiguous-duplicate', `L2 transaction ${String(a.hash).slice(0, 18)}… (nonce ${a.nonce}) could still land: account nonce ${s.accountNonce} at the verified head`);
++  }
++  if (op === 'sessionVault.ownerCall') {
++    const [inner, innerData] = decoded.args;
++    if (size(innerData) >= 4 && slice(innerData, 0, 4) === '0xac9650d8') refuse('calldata-mismatch', 'ownerCall refuses multicall');
++    if (!isAddress(inner)) refuse('calldata-mismatch', 'ownerCall target');
++  }
++  const gasLimit = checkGas(l2GasLimit, data, p);
++  const key = `direct:${network.l2ChainId}:${lower(from)}:${keccak256(concat([getAddress(target), data]))}`;
++  const commitment = keccak256(concat([getAddress(target), data]));
++  const ambiguousOk = entry.stateSetter && priorL2Attempts.some((a) => BigInt(s.accountNonce) <= BigInt(a.nonce));
++  const { replay, entry: rec } = (tracker ?? new ForcedInclusionTracker()).admit(key, commitment, { op });
++  return {
++    replay, entry: rec,
++    plan: {
++      format: 'enclave-forced-inclusion/v1', operation: op, key, commitment,
++      l1Transaction: { chainId: network.l1ChainId, from: getAddress(from), to: network.portal, value: 0n, data: portalCall(getAddress(target), gasLimit, data) },
++      deposit: { to: getAddress(target), value: 0n, mint: 0n, gasLimit, isCreation: false, data, acceptableFrom: [getAddress(from)] },
++      binding: { l2ChainId: network.l2ChainId, portal: network.portal, authorized: entry.authorized, head: s.head },
++      authorization: [`L1: ONE new transaction on chain ${network.l1ChainId} signed by ${getAddress(from)} itself, sent DIRECTLY to the portal (no relayer, no contract wallet: either would alias the sender). The original Base signature is not used.`],
++      funding: ['L1 ETH on that same key: depositTransaction gas plus the portal\'s resource-metering burn for the L2 gas limit', 'no L2 fee (gas price 0); value 0'],
++      duplicates: ambiguousOk
++        ? 'a reviewed state-setter: an earlier L2-signed attempt may ALSO land; both leave the same state, the second is redundant (events emitted twice)'
++        : 'no earlier L2-signed attempt can still land (proven at the verified head); the deposit bumps the account nonce, which also invalidates any copy signed later at that nonce',
++      inclusion: `as for every deposit: sequencer adoption of its L1 origin, or forced within ${network.seqWindowL1Blocks} L1 blocks`,
++    },
++  };
++}
++
++/** The portal the plan targets, as an L1 verifier read it at a verified L1 head, against the reviewed pin: the
++ *  EIP-1967 implementation of the proxy and its version() (the aliasing and gas rules depend on the version).
++ *  l1Snapshot: {head: {verifiedBy}, portal, implementation, version}; pin: {portal, implementation, versions[]}. */
++export const EIP1967_IMPLEMENTATION_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
++export function checkPortalPin(l1Snapshot, pin, opts = {}) {
++  if (!l1Snapshot?.head) refuse('l1-state-unverified');
++  acceptEvidence(l1Snapshot, 'l1-portal', opts, 'l1-state-unverified');
++  if (!pin || !isAddress(pin.portal || '') || !isAddress(pin.implementation || '') || !Array.isArray(pin.versions)) refuse('no-portal-pin');
++  if (lower(l1Snapshot.portal) !== lower(pin.portal)) refuse('portal-pin-mismatch', `portal ${l1Snapshot.portal}`);
++  if (lower(l1Snapshot.implementation) !== lower(pin.implementation)) refuse('portal-pin-mismatch', `implementation ${l1Snapshot.implementation} is not the reviewed ${pin.implementation}`);
++  if (!pin.versions.includes(l1Snapshot.version)) refuse('portal-version-unreviewed', `version ${l1Snapshot.version}`);
++  return true;
++}
++
++/** Operations this module refuses on purpose, with the reason (also what RESULT.md's matrix lists). */
++export const UNSUPPORTED = Object.freeze({
++  'first-lease (EIP-7702 authorization)': 'a deposit carries no authorization list; the key\'s first lease needs a type-4 transaction on L2',
++  'host operator direct calls (registry heartbeat/setPrices/...)': 'the operator key would need L1 ETH (hosts hold none by design)',
++  'contract-owned admin (Safe / smart wallet)': 'the portal aliases a contract sender: msg.sender on L2 would not be the owner',
++  'value-bearing calls (fundEth, ...)': 'value needs a mint and an L2 balance model; not reviewed',
++  'arbitrary user transactions': 'no generic fallback: semantics (nonce, sender, fees) change per contract',
++  'host registration (ERC-4337 handleOps)': 'EntryPoint semantics under a deposit not reviewed',
++});
++
++// =====================================================================================================================
++// Inclusion: the L1 deposit event, then the derived L2 transaction, each from a VERIFIER, never the submitting endpoint
++// =====================================================================================================================
++/**
++ * l1Receipt: the L1 receipt of the plan's L1 transaction, verified by an L1 verifier against an L1 header it bound
++ * (l1Proof = {verifiedBy, headerHash}). Exactly one TransactionDeposited log of the portal must match the plan.
++ * -> {l2TransactionHash, from, sourceLog}
++ */
++export function matchDepositEvent(plan, l1Receipt, l1Proof, opts = {}) {
++  if (acceptEvidence(l1Proof, 'l1-receipt', opts, 'l1-receipt-unverified') === 'minted') {
++    // the adapter's receipt, exactly: a caller cannot pair real evidence with another receipt
++    if (l1Receipt !== undefined && l1Receipt !== l1Proof.receipt) refuse('l1-receipt-mismatch', 'not the receipt the evidence covers');
++    l1Receipt = l1Proof.receipt;
++  }
++  if (!l1Receipt || l1Receipt.status !== 'success') refuse('l1-transaction-failed');
++  // the L1 transaction may be addressed to a contract wallet that calls the portal: only the portal's own log counts
++  if (l1Receipt.blockHash?.toLowerCase() !== l1Proof.headerHash?.toLowerCase()) refuse('l1-receipt-mismatch', 'block hash vs verified header');
++  const logs = extractTransactionDepositedLogs({ logs: l1Receipt.logs.filter((g) => lower(g.address) === lower(plan.l1Transaction.to)) });
++  const hits = logs.filter((g) => {
++    const d = opaqueDataToDepositData(g.args.opaqueData);
++    return lower(g.args.to) === lower(plan.deposit.to) && g.args.version === 0n && d.mint === plan.deposit.mint && d.value === plan.deposit.value
++      && d.gas === plan.deposit.gasLimit && d.isCreation === false && d.data.toLowerCase() === plan.deposit.data.toLowerCase()
++      && plan.deposit.acceptableFrom.some((f) => lower(f) === lower(g.args.from));
++  });
++  if (hits.length !== 1) refuse('l1-receipt-mismatch', `${hits.length} matching deposits`);
++  return { l2TransactionHash: getL2TransactionHash({ log: hits[0] }), from: getAddress(hits[0].args.from), sourceLog: { blockHash: hits[0].blockHash, logIndex: hits[0].logIndex } };
++}
++
++/**
++ * The L2 outcome, from a receipt that a VERIFYING client returned (Helios: receipts root of an authenticated block,
++ * core/src/execution/providers/rpc.rs get_receipt -> verify_authenticated_block_receipts). The submission endpoint is
++ * never asked. -> {state: 'l2-included'|'l2-failed'|'pending', level, receipt}
++ *   level 'unsafe': the block is under a sequencer-signed head (the same operator that sequences: not yet L1-derived).
++ */
++export function classifyL2Outcome({ plan, l2TransactionHash, receipt, head, source, now = Math.floor(Date.now() / 1000), maxHeadAgeSec = 120, reserve,
++  verifiers, acceptTrust }) {
++  if (!source) refuse('receipt-unverified');
++  if (verifiers !== undefined) {
++    // labelled fixtures only (test-*): the label names the fixture, it validates nothing
++    acceptEvidence({ verifiedBy: source.verifier }, 'l2-receipt', { verifiers }, 'receipt-unverified');
++    if (!source.endpoint) refuse('receipt-unverified');
++    if (source.submittedVia && source.submittedVia === source.endpoint) refuse('receipt-not-independent', 'the verifier\'s data endpoint is the submission endpoint');
++  } else {
++    acceptEvidence(source.evidence, 'l2-receipt', { acceptTrust }, 'receipt-unverified');
++    if (receipt && receipt !== source.evidence.receipt) refuse('receipt-mismatch', 'not the receipt the evidence covers');
++  }
++  checkHead(head, now, maxHeadAgeSec);
++  if (!receipt) return { state: 'pending', level: null };
++  if (receipt.transactionHash?.toLowerCase() !== l2TransactionHash.toLowerCase()) refuse('receipt-mismatch', 'transaction hash');
++  if (receipt.type !== 'deposit' && receipt.type !== '0x7e' && receipt.type !== '0x7E') refuse('receipt-mismatch', `type ${receipt.type}`);
++  if (BigInt(receipt.blockNumber) > BigInt(head.number)) refuse('receipt-above-verified-head');
++  if (receipt.status !== 'success') return { state: 'l2-failed', level: 'unsafe', receipt };
++  if (plan.operation.startsWith('lease.')) {
++    const b = plan.binding, kind = Number(b.lease.kind);
++    const paid = receipt.logs.filter((g) => lower(g.address) === lower(reserve ?? b.reserve)).map((g) => {
++      try { return decodeEventLog({ abi: RESERVE_ABI, data: g.data, topics: g.topics }); } catch { return null; }
++    }).filter((e) => e?.eventName === 'LeaseGasPaid');
++    if (paid.length !== 1 || paid[0].args.id.toLowerCase() !== b.lease.id.toLowerCase() || lower(paid[0].args.operator) !== lower(b.operator)
++        || lower(paid[0].args.payee) !== lower(b.lease.payee) || Number(paid[0].args.kind) !== kind) refuse('receipt-mismatch', 'LeaseGasPaid event');
++    return { state: 'l2-included', level: 'unsafe', receipt, charged: paid[0].args };
++  }
++  return { state: 'l2-included', level: 'unsafe', receipt };
++}
++
++/**
++ * FINALITY ADAPTER (integration gate, fail closed). Starts from a classifyL2Outcome() result and upgrades it ONLY with
++ * evidence MINTED by the source-binding adapters (acceptEvidence):
++ *   l1Evidence: kind 'l1-receipt' from createL1PairSource().receipt(depositL1Tx): its `finalized` comes from the
++ *     validated pair's beacon-finalized checkpoint, bound to the execution chain -> the deposit is irrevocable;
++ *   l2Evidence: kind 'l2-receipt' from createBaseNodeSource().receipt(l2Tx): `safe` / `finalized` from the local Base
++ *     node's derivation, its L1 view checked against the same L1 pair.
++ * Missing evidence leaves the level where it is and names the gate. A submission-only endpoint cannot mint evidence;
++ * a label or caller JSON is refused. Trust is local full-node validation, not a portable proof.
++ */
++export function classifyFinality({ outcome, depositL1BlockHash, l1Evidence, l2Evidence, acceptTrust }) {
++  if (!outcome || outcome.state !== 'l2-included' || outcome.level !== 'unsafe') refuse('no-included-outcome');
++  const rc = outcome.receipt;
++  const gates = [];
++  let l1Final = false, level = 'unsafe';
++  if (l1Evidence) {
++    acceptEvidence(l1Evidence, 'l1-receipt', { acceptTrust }, 'l1-evidence-unverified');
++    if (String(l1Evidence.blockHash).toLowerCase() !== String(depositL1BlockHash).toLowerCase()) refuse('l1-evidence-mismatch', 'not the deposit\'s L1 block');
++    l1Final = l1Evidence.finalized === true;
++    if (!l1Final) gates.push('the deposit\'s L1 block is not finalized yet');
++  } else gates.push('no verified L1 finality evidence (P\'s L1 pair or a light client)');
++  if (l2Evidence) {
++    acceptEvidence(l2Evidence, 'l2-receipt', { acceptTrust }, 'l2-evidence-unverified');
++    if (l2Evidence.verifiedBy !== 'base-derivation') refuse('l2-evidence-unverified', String(l2Evidence.verifiedBy));
++    if (BigInt(l2Evidence.blockNumber) !== BigInt(rc.blockNumber) || String(l2Evidence.blockHash).toLowerCase() !== String(rc.blockHash).toLowerCase())
++      refuse('l2-evidence-mismatch', 'the derived block is not the receipt\'s block (reorged or wrong)');
++    if (l2Evidence.finalized === true && l1Final) level = 'finalized';
++    else if (l2Evidence.safe === true || l2Evidence.finalized === true) level = 'safe';
++    if (level !== 'finalized') gates.push('L2 block not yet finalized by derivation from finalized L1 data');
++  } else gates.push('no derivation evidence (S\'s holder / B\'s Base verifier)');
++  return { state: outcome.state, level, depositL1Final: l1Final, gates };
++}
+diff --git a/network/tx-evidence/l1-source-binding.mjs b/network/tx-evidence/l1-source-binding.mjs
+new file mode 100644
+index 000000000..718865bc3
+--- /dev/null
++++ b/network/tx-evidence/l1-source-binding.mjs
+@@ -0,0 +1,156 @@
++// READ ADAPTER binding transaction verification to the LOCAL, VALIDATED Ethereum L1 pair (P's package: reth v2.8.0
++// execution on 127.0.0.1:18645, Lighthouse v8.3.2 beacon on 127.0.0.1:15052; work/rpc-l1-source-package 1260cdc).
++//
++// What it does, on every call (never cached across calls, no fallback endpoint of any kind):
++//   1. readiness, the same facts P's `l1pair.py ready` gate checks, read from THESE two configured endpoints only:
++//      EL chain id 1, mainnet genesis hash, eth_syncing false, at least minPeers peers, head fresh, finalized present
++//      and fresh; CL mainnet genesis_validators_root, not syncing, not optimistic, EL online, at least minPeers peers;
++//   2. PAIRING: the beacon node's finalized block's execution payload (block_number, block_hash) IS the execution
++//      node's block at that number AND its `finalized` block; the beacon head payload is the EL block at that height.
++//      Two URLs that are not a real EL/CL pair (or one untrusted backend behind both) cannot produce this unless that
++//      backend fakes BOTH a consensus finalized chain and a matching execution chain;
++//   3. the requested receipt / block / storage, pinned by hash, re-checked canonical at its number AFTER the read
++//      (reorg -> refused), and classified final ONLY by number <= the paired finalized block with the canonical hash.
++// What it returns is MINTED evidence (src/evidence-brand.mjs) carrying `trust: 'local-validated-pair'`: local full-node
++// validation trust (reth executed every block from genesis; Lighthouse follows consensus from its weak-subjectivity
++// anchor), NOT a portable cryptographic proof. A submission-only endpoint can never mint this; the same validated pair
++// may serve sends (P's opt-in broadcast) and reads, because the evidence comes from its validated state, not from the
++// reply to a send.
++import { formatTransactionReceipt, getAddress, slice } from 'viem';
++import { refuse } from './forced-inclusion.mjs';
++import { TRUST, mint } from './evidence-brand.mjs';
++
++/** Ethereum mainnet identity, as pinned by P (l1pair/PINS.json at 1260cdc). */
++export const MAINNET_L1 = Object.freeze({
++  chainIdHex: '0x1',
++  elGenesisHash: '0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3',
++  clGenesisValidatorsRoot: '0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95',
++  label: 'ethereum-mainnet',
++});
++const LOOPBACK = new Set(['127.0.0.1', '::1', '[::1]', 'localhost']);
++const num = (v) => (typeof v === 'string' ? Number(BigInt(v)) : Number(v));
++
++function endpoint(u, name) {
++  let url;
++  try { url = new URL(u); } catch { refuse('bad-config', `${name} url`); }
++  if (!['http:', 'https:'].includes(url.protocol) || !LOOPBACK.has(url.hostname)) refuse('not-local', `${name} must be the local node on loopback (no remote or public endpoint)`);
++  if (url.username || url.password) refuse('bad-config', `${name}: no credentials in the url`);
++  return url.href.replace(/\/$/, '');
++}
++
++/**
++ * config: {execution: {url}, consensus: {url}, identity?, trust?, minPeers?, maxHeadLagSec?, maxFinalizedLagSec?, timeoutMs?}
++ * identity/trust overrides exist ONLY for labelled test fixtures: anything but the mainnet identity mints
++ * `trust: 'test-fixture'`, which the default transaction checks refuse.
++ */
++export function createL1PairSource({ execution, consensus, identity = MAINNET_L1, minPeers = 1, maxHeadLagSec = 120, maxFinalizedLagSec = 3600, timeoutMs = 8000,
++  fetch = globalThis.fetch, now = () => Math.floor(Date.now() / 1000) } = {}) {
++  const el = endpoint(execution?.url, 'execution'), cl = endpoint(consensus?.url, 'consensus');
++  if (el === cl) refuse('bad-config', 'execution and consensus must be the two clients of the pair, not one endpoint');
++  const trust = identity === MAINNET_L1 ? TRUST.LOCAL_VALIDATED_PAIR : TRUST.TEST_FIXTURE;
++  if (!(Number.isInteger(minPeers) && minPeers >= 0)) refuse('bad-config', 'minPeers');
++  if (minPeers === 0 && trust !== TRUST.TEST_FIXTURE) refuse('bad-config', 'a production pair must have peers: minPeers 0 is for labelled fixtures only');
++  let id = 0;
++  async function rpc(method, params = []) {
++    const r = await fetch(el, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params }), signal: AbortSignal.timeout(timeoutMs) });
++    if (!r.ok) throw new Error(`execution ${method}: HTTP ${r.status}`);
++    const j = await r.json();
++    if (j.error) throw new Error(`execution ${method}: ${j.error.message ?? JSON.stringify(j.error)}`);
++    return j.result;
++  }
++  async function beacon(path) {
++    const r = await fetch(cl + path, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(timeoutMs) });
++    if (!r.ok) throw new Error(`consensus ${path}: HTTP ${r.status}`);
++    return (await r.json()).data;
++  }
++
++  /** -> {ok, checks: [{name, ok, detail}], head, finalized, safe} (finalized = the PAIRED finalized execution block) */
++  async function readiness() {
++    const checks = [];
++    const chk = async (name, fn) => { try { const d = await fn(); checks.push({ name, ok: true, detail: d }); return true; } catch (e) { checks.push({ name, ok: false, detail: String(e.message || e) }); return false; } };
++    const need = (c, msg) => { if (!c) throw new Error(msg); };
++    let head, fin, safe, clFin;
++    await chk('el.chain', async () => { const c = await rpc('eth_chainId'); need(c === identity.chainIdHex, `chain ${c}`); return c; });
++    await chk('el.genesis', async () => { const g = await rpc('eth_getBlockByNumber', ['0x' + (identity.genesisNumber ?? 0).toString(16), false]); need(g?.hash === identity.elGenesisHash, `genesis ${g?.hash}`); return g.hash; });
++    await chk('el.syncing', async () => { const s = await rpc('eth_syncing'); need(s === false, 'eth_syncing is not false'); return false; });
++    await chk('el.peers', async () => { if (minPeers === 0) return 'skipped (labelled fixture, minPeers 0)'; const p = num(await rpc('net_peerCount')); need(p >= minPeers, `${p} peers`); return p; });
++    await chk('el.head', async () => { head = await rpc('eth_getBlockByNumber', ['latest', false]); const lag = now() - num(head.timestamp); need(lag <= maxHeadLagSec, `head lag ${lag} s`); return num(head.number); });
++    await chk('el.finalized', async () => { fin = await rpc('eth_getBlockByNumber', ['finalized', false]); need(fin, 'no finalized block'); const lag = now() - num(fin.timestamp); need(lag <= maxFinalizedLagSec, `finalized lag ${lag} s`); return num(fin.number); });
++    await chk('el.safe', async () => { safe = await rpc('eth_getBlockByNumber', ['safe', false]); need(safe, 'no safe block'); return num(safe.number); });
++    await chk('cl.genesis', async () => { const g = await beacon('/eth/v1/beacon/genesis'); need(g.genesis_validators_root === identity.clGenesisValidatorsRoot, 'genesis_validators_root differs'); return true; });
++    await chk('cl.syncing', async () => { const d = await beacon('/eth/v1/node/syncing'); need(d.is_syncing === false && d.is_optimistic === false && d.el_offline === false, `syncing=${d.is_syncing} optimistic=${d.is_optimistic} el_offline=${d.el_offline}`); return num(d.head_slot); });
++    await chk('cl.peers', async () => { const d = await beacon('/eth/v1/node/peer_count'); need(num(d.connected) >= minPeers, `${d.connected} peers`); return num(d.connected); });
++    await chk('pair.finalized', async () => {
++      const b = await beacon('/eth/v2/beacon/blocks/finalized');
++      const pl = b.message.body.execution_payload;
++      clFin = { number: num(pl.block_number), hash: pl.block_hash, slot: num(b.message.slot) };
++      const at = await rpc('eth_getBlockByNumber', ['0x' + clFin.number.toString(16), false]);
++      need(at?.hash === clFin.hash, 'the beacon finalized payload is not the execution block at that height');
++      need(fin && fin.hash === clFin.hash, 'the execution node\'s finalized block is not the beacon node\'s finalized payload');
++      return clFin;
++    });
++    await chk('pair.head', async () => {
++      const b = await beacon('/eth/v2/beacon/blocks/head');
++      const pl = b.message.body.execution_payload;
++      const at = await rpc('eth_getBlockByNumber', ['0x' + num(pl.block_number).toString(16), false]);
++      need(at?.hash === pl.block_hash, 'the beacon head payload is not the execution block at that height');
++      return num(pl.block_number);
++    });
++    const ok = checks.every((c) => c.ok);
++    return { ok, checks, head: head && { number: num(head.number), hash: head.hash, timestamp: num(head.timestamp) },
++      finalized: ok ? { number: clFin.number, hash: clFin.hash, slot: clFin.slot } : null, safe: safe && { number: num(safe.number), hash: safe.hash } };
++  }
++  async function readyOrRefuse() {
++    const r = await readiness();
++    if (!r.ok) refuse('l1-source-not-ready', r.checks.filter((c) => !c.ok).map((c) => `${c.name}: ${c.detail}`).join('; '));
++    return r;
++  }
++  const sourceId = { execution: el, consensus: cl, identity: identity.label ?? 'custom' };
++
++  /**
++   * The L1 receipt of `txHash`, its block bound by hash and canonical at its number, with finality from the paired
++   * finalized checkpoint. -> {state: 'pending'} | {state: 'included', receipt, evidence}
++   */
++  async function receipt(txHash) {
++    const r0 = await readyOrRefuse();
++    const raw = await rpc('eth_getTransactionReceipt', [txHash]);
++    if (!raw) return { state: 'pending', readiness: r0 };
++    if (raw.transactionHash?.toLowerCase() !== String(txHash).toLowerCase()) refuse('l1-receipt-mismatch', 'the node answered another transaction');
++    const tx = await rpc('eth_getTransactionByHash', [txHash]);
++    if (!tx || tx.blockHash !== raw.blockHash || tx.hash?.toLowerCase() !== raw.transactionHash.toLowerCase()) refuse('l1-receipt-mismatch', 'transaction not bound to the receipt\'s block');
++    const block = await rpc('eth_getBlockByHash', [raw.blockHash, false]);
++    if (!block || block.hash !== raw.blockHash || block.number !== raw.blockNumber) refuse('l1-receipt-mismatch', 'receipt block not served by hash');
++    if (!(block.transactions ?? []).map((t) => (typeof t === 'string' ? t : t.hash).toLowerCase()).includes(raw.transactionHash.toLowerCase())) refuse('l1-receipt-mismatch', 'the block does not list the transaction');
++    // re-read readiness and the canonical hash AFTER the receipt: a reorg in between is refused, not reported
++    const r1 = await readyOrRefuse();
++    const canon = await rpc('eth_getBlockByNumber', [raw.blockNumber, false]);
++    if (canon?.hash !== raw.blockHash) refuse('l1-not-canonical', 'the receipt\'s block is no longer canonical (reorg)');
++    if (r1.finalized.number < r0.finalized.number) refuse('l1-source-regressed', 'finalized checkpoint went backwards');
++    const n = num(raw.blockNumber);
++    const receiptOut = formatTransactionReceipt(raw);
++    const evidence = mint({ kind: 'l1-receipt', verifiedBy: 'l1-local-validated-pair', trust, source: sourceId, txHash: raw.transactionHash, blockHash: raw.blockHash, blockNumber: n,
++      finalized: n <= r1.finalized.number, safe: !!r1.safe && n <= r1.safe.number, finalizedCheckpoint: r1.finalized, readAt: now(), receipt: receiptOut,
++      transaction: { from: getAddress(tx.from), to: tx.to ? getAddress(tx.to) : null, nonce: Number(BigInt(tx.nonce)) },
++      headerHash: raw.blockHash });
++    return { state: 'included', receipt: evidence.receipt, evidence };   // the frozen, owned receipt: identity checks hold
++  }
++
++  /** The portal pin facts at the paired FINALIZED block (EIP-1967 implementation slot + version()), minted. */
++  async function portalSnapshot(portal) {
++    const r = await readyOrRefuse();
++    const at = { blockHash: r.finalized.hash };
++    const implWord = await rpc('eth_getStorageAt', [portal, '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc', at]);
++    const verRaw = await rpc('eth_call', [{ to: portal, data: '0x54fd4d50' }, at]);
++    const len = Number(BigInt(slice(verRaw, 32, 64))), version = Buffer.from(slice(verRaw, 64, 64 + len).slice(2), 'hex').toString('utf8');
++    return mint({ kind: 'l1-portal', verifiedBy: 'l1-local-validated-pair', trust, source: sourceId, head: { number: r.finalized.number, hash: r.finalized.hash, verifiedBy: 'l1-local-validated-pair' },
++      portal: getAddress(portal), implementation: getAddress(slice(implWord, 12)), version });
++  }
++
++  /** An L1 block's standing (for the Base adapter's L1-view check): canonical hash at `number`, and whether final. */
++  async function blockStanding(number, hash) {
++    const r = await readyOrRefuse();
++    const b = await rpc('eth_getBlockByNumber', ['0x' + Number(number).toString(16), false]);
++    return { canonical: b?.hash === hash, finalized: b?.hash === hash && Number(number) <= r.finalized.number, finalizedCheckpoint: r.finalized };
++  }
++  return { readiness, receipt, portalSnapshot, blockStanding, trust, source: sourceId };
++}
+diff --git a/test/fixtures/tx-evidence/pair-stubs.mjs b/test/fixtures/tx-evidence/pair-stubs.mjs
+new file mode 100644
+index 000000000..bf390fac0
+--- /dev/null
++++ b/test/fixtures/tx-evidence/pair-stubs.mjs
+@@ -0,0 +1,66 @@
++// LABELLED FIXTURES for the source-binding adapters. None of these validates anything:
++//   startBeaconFixture: a Beacon-API stand-in that answers from an EXECUTION endpoint's own tags (head/finalized payload
++//     = that endpoint's latest/finalized block). A real Lighthouse derives these from consensus; this mirrors them, and
++//     can be told to lie (override) so the adapter's pairing check is exercised.
++//   startRollupFixture: an `optimism_syncStatus` stand-in over a local L2 (heads at chosen numbers) and L1.
++//   startExecutionStub: a scripted execution JSON-RPC for pure control-flow tests (reorg between reads, etc.).
++import http from 'node:http';
++
++const listen = (handler) => new Promise((ok) => { const s = http.createServer(handler); s.listen(0, '127.0.0.1', () => ok({ server: s, url: `http://127.0.0.1:${s.address().port}` })); });
++const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => ok(b)); });
++export async function jrpc(url, method, params = []) {
++  const j = await (await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })).json();
++  if (j.error) throw new Error(`${method}: ${JSON.stringify(j.error)}`); return j.result;
++}
++
++export async function startBeaconFixture({ el, gvr = '0x' + '7e'.repeat(32), state = {} }) {
++  const st = { syncing: false, optimistic: false, elOffline: false, peers: 3, finalizedOverride: null, ...state };
++  const payload = async (tag) => {
++    if (tag === 'finalized' && st.finalizedOverride) return st.finalizedOverride;
++    const b = await jrpc(el, 'eth_getBlockByNumber', [tag === 'head' ? 'latest' : 'finalized', false]);
++    return { block_number: String(Number(BigInt(b.number))), block_hash: b.hash, slot: String(Number(BigInt(b.number)) + 1000) };
++  };
++  const { server, url } = await listen(async (req, res) => {
++    const send = (d, code = 200) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify({ data: d })); };
++    try {
++      if (req.url === '/eth/v1/beacon/genesis') return send({ genesis_validators_root: gvr, genesis_time: '1606824023' });
++      if (req.url === '/eth/v1/node/syncing') return send({ is_syncing: st.syncing, is_optimistic: st.optimistic, el_offline: st.elOffline, head_slot: '1000' });
++      if (req.url === '/eth/v1/node/peer_count') return send({ connected: String(st.peers) });
++      const m = /^\/eth\/v2\/beacon\/blocks\/(head|finalized)$/.exec(req.url);
++      if (m) { const p = await payload(m[1]); return send({ message: { slot: p.slot, body: { execution_payload: { block_number: p.block_number, block_hash: p.block_hash } } } }); }
++      send({ message: 'not found' }, 404);
++    } catch (e) { send({ message: String(e) }, 500); }
++  });
++  return { url, state: st, close: () => server.close() };
++}
++
++export async function startRollupFixture({ l2, l1, state = {} }) {
++  const st = { safeNumber: null, finalizedNumber: null, l1Override: null, ...state };
++  const ref = async (url, n) => { const b = await jrpc(url, 'eth_getBlockByNumber', [n === null ? 'latest' : '0x' + Number(n).toString(16), false]);
++    return { hash: b.hash, number: Number(BigInt(b.number)), parentHash: b.parentHash, timestamp: Number(BigInt(b.timestamp)) }; };
++  const { server, url } = await listen(async (req, res) => {
++    const j = JSON.parse(await body(req));
++    const out = (result) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, result })); };
++    if (j.method !== 'optimism_syncStatus') return out(null);
++    const unsafe = await ref(l2, null);
++    const l1fin = await jrpc(l1, 'eth_getBlockByNumber', ['finalized', false]);
++    const l1ref = { hash: l1fin.hash, number: Number(BigInt(l1fin.number)), parentHash: l1fin.parentHash, timestamp: Number(BigInt(l1fin.timestamp)) };
++    const cur = st.l1Override ?? (await ref(l1, null));
++    const withOrigin = (r) => ({ ...r, l1origin: { hash: l1ref.hash, number: l1ref.number }, sequenceNumber: 0 });
++    out({ current_l1: cur, current_l1_finalized: l1ref, head_l1: cur, safe_l1: l1ref, finalized_l1: st.l1FinalizedOverride ?? l1ref,
++      unsafe_l2: withOrigin(unsafe), safe_l2: withOrigin(await ref(l2, st.safeNumber ?? 0)), finalized_l2: withOrigin(await ref(l2, st.finalizedNumber ?? 0)) });
++  });
++  return { url, state: st, close: () => server.close() };
++}
++
++/** A scripted execution node: `answer(method, params, call#)` returns the result (or throws). */
++export async function startExecutionStub(answer) {
++  let n = 0;
++  const { server, url } = await listen(async (req, res) => {
++    const j = JSON.parse(await body(req));
++    let result, error;
++    try { result = await answer(j.method, j.params, ++n); } catch (e) { error = { code: -32000, message: String(e.message || e) }; }
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, ...(error ? { error } : { result }) }));
++  });
++  return { url, close: () => server.close() };
++}
+diff --git a/test/receipt-source.e2e.test.mjs b/test/receipt-source.e2e.test.mjs
+new file mode 100644
+index 000000000..14e17e065
+--- /dev/null
++++ b/test/receipt-source.e2e.test.mjs
+@@ -0,0 +1,369 @@
++// END-TO-END: the validated receipt source (network/receipt-source.mjs over worker E's vendored adapters) in the REAL
++// consumers, against REAL transactions on the cli-independent rig (pinned reth --dev, chain 8453) read through the
++// patched Helios as the state verifier.
++//
++// WHAT VALIDATES WHAT (labelled): the Base EXECUTION node is the rig's reth (it executes every block itself); the L1 is an
++// anvil (chain 1); the beacon node and the Base rollup node are E's LABELLED fixtures (test/fixtures/tx-evidence/
++// pair-stubs.mjs) that mirror tags and validate nothing. The identities are not Ethereum/Base mainnet, so every minted
++// receipt carries trust 'test-fixture' and is accepted only under ENCLAVE_TEST_RECEIPT_FIXTURE=1; a production config
++// (mainnet identities) is shown refusing this rig. Nothing here is local full-node validation of mainnet, mainnet sync,
++// or a portable proof. TEST-SIGNED HEAD for the state verifier (local sequencer key in helios.toml).
++//
++// Covered: the CLI's real config path (--receipt-source FILE; `receipt-source status`); external-signer sends
++// (success, a REAL on-chain revert, wallet-send with changed fields, handoff/attach with another sender's or another
++// nonce's hash); unknown outcomes recovered by rebroadcasting the same bytes; a source deriving from another L1, a Base
++// node that tampers with receipts, and a source that is not ready - none of which ever yields "confirmed"; the
++// credit-vault CLI's submit/reconcile with the executing transaction verified; the journal never persists evidence.
++//   env: RIG_CHAIN_NODE=reth (+ RIG_RETH_*), HELIOS_BASE_BIN, TEST_TMP. Run inside `unshare -r -n`.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { spawn, execFileSync } from 'node:child_process';
++import fs from 'node:fs';
++import path from 'node:path';
++import http from 'node:http';
++import { pathToFileURL, fileURLToPath } from 'node:url';
++import { toHex, keccak256, encodeFunctionData, decodeEventLog, parseAbi, createWalletClient, http as viemHttp, maxUint256 } from 'viem';
++import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
++import { startRig, haveTools, KEYS, freePort, chain as rigChain } from './helpers/cli-independent-rig.mjs';
++import { createWitnessGateway } from '../network/witness-gateway.mjs';
++import { makeCommitment, blockFields } from './fixtures/op-commitment.mjs';
++import { startBeaconFixture, startRollupFixture, jrpc } from './fixtures/tx-evidence/pair-stubs.mjs';
++import { independentChain } from '../cli/independent.mjs';
++import { createExternalSigner, resolveIntent, rebroadcast, attachHash } from '../cli/independent-signer.mjs';
++import { loadReceiptSourceConfig, createReceiptSource, FIXTURE_ENV } from '../network/receipt-source.mjs';
++import { acceptEvidence } from '../network/tx-evidence/forced-inclusion.mjs';
++import { TRUST } from '../network/tx-evidence/evidence-brand.mjs';
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const CLI = path.join(REPO, 'cli', 'enclave.mjs');
++const GUARD = pathToFileURL(path.join(REPO, 'test/helpers/cli-network-guard.mjs')).href;
++const { HELIOS_BASE_BIN } = process.env;
++const haveAnvil = (() => { try { execFileSync('anvil', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
++const skip = haveTools() || (!HELIOS_BASE_BIN && 'HELIOS_BASE_BIN not set') || (process.env.RIG_CHAIN_NODE !== 'reth' && 'needs the canonical-trie rig (RIG_CHAIN_NODE=reth)') || (!haveAnvil && 'needs anvil for the L1 fixture');
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'receipt-source-e2e-'));
++const SEQ_KEY = '0x' + '5e'.repeat(32), seqSigner = privateKeyToAccount(SEQ_KEY).address;
++const GVR = '0x' + '7e'.repeat(32);
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const lc = (a) => String(a).toLowerCase();
++const T = { skip, timeout: 900000 };
++let rig, helios, heliosUrl, feed, proxy, gateway, pinsFile, netLog, l1, l1proc, beacon, rollup, cfg, cfgFile, prodFile, source;
++const servers = [];
++
++// ---- the verifier rig (test/cli-mcp-verifier.e2e.test.mjs) -------------------------------------------------------------
++async function rpc(url, method, params = []) {
++  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(30000) });
++  const j = await r.json(); if (j.error) throw new Error(j.error.message); return j.result;
++}
++async function untilHelios(n, ms = 120000) {
++  const end = Date.now() + ms;
++  while (Date.now() < end) { try { if (BigInt(await rpc(heliosUrl, 'eth_blockNumber')) >= BigInt(n)) return; } catch {} await sleep(300); }
++  throw new Error(`helios did not reach block ${n}`);
++}
++const settled = (rc) => untilHelios(BigInt(rc.blockNumber) + 2n);
++function startFeed() {
++  let served = 0n, current = null;
++  const srv = http.createServer(async (q, res) => {
++    if (q.url === '/chain_id') return res.end('8453');
++    try {
++      const latest = BigInt(await rig.rpcCall('eth_blockNumber'));
++      if (served === 0n && latest > 3n) served = latest - 3n;
++      if (served < latest) {
++        const n = served + 1n, b = await rig.rpcCall('eth_getBlockByNumber', [toHex(n), false]);
++        const txs = await Promise.all(b.transactions.map((h) => rig.rpcCall('eth_getRawTransactionByHash', [h])));
++        current = await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs }); served = n;
++      }
++    } catch {}
++    res.end(JSON.stringify(current));
++  });
++  return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, url: `http://127.0.0.1:${srv.address().port}/` })));
++}
++function startProxy() {
++  const srv = http.createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', async () => {
++    res.end(JSON.stringify(await (await fetch(rig.rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: b })).json()));
++  }); });
++  return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, url: `http://127.0.0.1:${srv.address().port}/` })));
++}
++/** a JSON-RPC proxy in front of `target` whose answers `edit(method, params, result)` may rewrite */
++async function editingProxy(target, edit) {
++  const srv = http.createServer(async (req, res) => {
++    let b = ''; for await (const c of req) b += c;
++    const q = JSON.parse(b);
++    const one = async (m) => { const j = await (await fetch(target, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(m) })).json();
++      return 'result' in j ? { ...j, result: await edit(m.method, m.params, j.result) } : j; };
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(Array.isArray(q) ? await Promise.all(q.map(one)) : await one(q)));
++  });
++  servers.push(srv); await new Promise((r) => srv.listen(0, '127.0.0.1', r));
++  return `http://127.0.0.1:${srv.address().port}`;
++}
++
++test.before(async () => {
++  if (skip) return;
++  process.env[FIXTURE_ENV] = '1';                                   // this harness only: test-fixture trust is accepted
++  rig = await startRig();
++  pinsFile = path.join(TMP, 'pins.json'); fs.writeFileSync(pinsFile, JSON.stringify(rig.pins));
++  netLog = path.join(TMP, 'net.log'); fs.writeFileSync(netLog, '');
++  await rig.create(KEYS.owner); const last = await rig.create(KEYS.owner);
++  feed = await startFeed(); proxy = await startProxy();
++  gateway = createWitnessGateway({ upstreams: [proxy.url] }); const gUrl = await gateway.listen(0);
++  const home = path.join(TMP, 'home'); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
++  fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${seqSigner}"\n`);
++  const port = await freePort();
++  helios = spawn(HELIOS_BASE_BIN, ['opstack', '--network', 'base', '--consensus-rpc', feed.url, '--execution-rpc', gUrl, '--rpc-port', String(port)], { env: { HOME: home, PATH: process.env.PATH }, stdio: 'ignore' });
++  heliosUrl = `http://127.0.0.1:${port}/`;
++  // the L1 fixture: anvil chain 1 (its finalized tag is 64 blocks back) + E's beacon fixture
++  const l1port = await freePort();
++  // a STATIC L1 (no interval mining, so its finalized tag cannot move between the adapter's paired reads), its head placed
++  // hours ahead so the adapter's head/finalized lag checks hold for the whole run
++  l1proc = spawn('anvil', ['--port', String(l1port), '--chain-id', '1', '--silent'], { stdio: 'ignore' });
++  l1 = `http://127.0.0.1:${l1port}`;
++  for (let i = 0; i < 150; i++) { try { await jrpc(l1, 'eth_chainId'); break; } catch { await sleep(100); } }
++  await jrpc(l1, 'evm_setNextBlockTimestamp', ['0x' + (Math.floor(Date.now() / 1000) + 3 * 3600).toString(16)]);
++  await jrpc(l1, 'anvil_mine', ['0x50']);
++  beacon = await startBeaconFixture({ el: l1, gvr: GVR });
++  rollup = await startRollupFixture({ l2: rig.rpc, l1 });           // the Base "rollup node": E's labelled syncStatus fixture
++  cfg = { format: 'enclave-receipt-source/v1', l1: { execution: { url: l1 }, consensus: { url: beacon.url } }, base: { execution: { url: rig.rpc }, rollup: { url: rollup.url } },
++    testFixture: { label: 'TEST FIXTURE reth --dev Base execution + anvil L1 + scripted beacon/rollup',
++      l1Identity: { chainIdHex: '0x1', elGenesisHash: (await jrpc(l1, 'eth_getBlockByNumber', ['0x0', false])).hash, clGenesisValidatorsRoot: GVR },
++      l2Identity: { chainIdHex: '0x2105', genesisHash: (await jrpc(rig.rpc, 'eth_getBlockByNumber', ['0x0', false])).hash } } };
++  cfgFile = path.join(TMP, 'receipt-source.json'); fs.writeFileSync(cfgFile, JSON.stringify(cfg));
++  const { testFixture, ...prod } = cfg;
++  prodFile = path.join(TMP, 'receipt-source-production.json'); fs.writeFileSync(prodFile, JSON.stringify(prod));
++  source = createReceiptSource(loadReceiptSourceConfig(cfgFile));
++  await settled(last);
++});
++test.after(async () => {
++  for (const s of servers) try { s.closeAllConnections?.(); s.close(); } catch {}
++  helios?.kill('SIGKILL'); l1proc?.kill('SIGKILL'); beacon?.close(); rollup?.close();
++  await gateway?.close(); feed?.srv.close(); proxy?.srv.close();
++  await rig?.stop();
++  fs.rmSync(TMP, { recursive: true, force: true });
++});
++const walletOf = (account) => createWalletClient({ account, chain: rigChain, transport: viemHttp(rig.rpc) });
++let funding = Promise.resolve();
++const fund = (address, wei = 10n ** 19n) => (funding = funding.then(async () => {
++  const rc = await rig.pc.waitForTransactionReceipt({ hash: await rig.wc(KEYS.deployer).sendTransaction({ to: address, value: wei }) });
++  if (rc.status !== 'success') throw new Error('funding failed'); return rc;
++}));
++const newAcct = async () => { const a = privateKeyToAccount(generatePrivateKey()); await settled(await fund(a.address)); return a; };
++/** a receipt source from a config FILE (the real load path) */
++const sourceFrom = (name, c) => { const f = path.join(TMP, name); fs.writeFileSync(f, JSON.stringify(c)); return createReceiptSource(loadReceiptSourceConfig(f)); };
++/** a transaction transport that answers eth_sendRawTransaction with the right hash but never forwards the bytes */
++async function swallowingTransport() {
++  const srv = http.createServer(async (req, res) => {
++    let b = ''; for await (const c of req) b += c;
++    const q = JSON.parse(b);
++    const one = async (m) => (m.method === 'eth_sendRawTransaction' ? { jsonrpc: '2.0', id: m.id, result: keccak256(m.params[0]) }
++      : (await fetch(rig.rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(m) })).json());
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(Array.isArray(q) ? await Promise.all(q.map(one)) : await one(q)));
++  });
++  servers.push(srv); await new Promise((r) => srv.listen(0, '127.0.0.1', r));
++  return `http://127.0.0.1:${srv.address().port}`;
++}
++const chainWith = (src, tx = rig.rpcs[2]) => independentChain({ chainVerifier: heliosUrl, rpcs: [tx], confirmations: 1, maxBlockAgeMs: 600000, receiptSource: src });
++
++// ---- the CLI process (cli/enclave.mjs behind the network guard) --------------------------------------------------------
++function cli(args, { tx = rig.rpcs[0], rs = cfgFile, fixtureEnv = true, key = KEYS.owner } = {}) {
++  const base = ['--independent', '--contract-pins', pinsFile, '--usdc-token', rig.addresses.usdc, '--confirmations', '1', '--yes', '--chain-verifier', heliosUrl,
++    ...(tx ? ['--rpc', tx] : []), ...(rs ? ['--receipt-source', rs] : [])];
++  return new Promise((resolve) => {
++    const p = spawn(process.execPath, [CLI, ...args, ...base], { cwd: TMP, env: { PATH: process.env.PATH, HOME: TMP, XDG_CONFIG_HOME: path.join(TMP, 'conf'),
++      ENCLAVE_SESSION_DIR: path.join(TMP, 'sessions'), ENCLAVE_KEY: key, ENCLAVE_API_BASE: rig.apiOrigin, NODE_OPTIONS: `--import=${GUARD}`,
++      ENCLAVE_TEST_NET_LOG: netLog, ENCLAVE_TEST_DENY_PORT: String(rig.apiPort), ...(fixtureEnv ? { [FIXTURE_ENV]: '1' } : {}) } });
++    let out = '', err = '';
++    const killer = setTimeout(() => { err += '\n[test: CLI killed after 150 s]'; p.kill('SIGKILL'); }, 150000);
++    p.stdout.on('data', (d) => (out += d)); p.stderr.on('data', (d) => (err += d));
++    p.on('close', (code) => { clearTimeout(killer); resolve({ code, out, err, json: (() => { try { return JSON.parse(out); } catch { return null; } })() }); });
++  });
++}
++const ledgerGet = (id) => rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.A.ledger.abi, functionName: 'get', args: [id] });
++const VERIFIED_LINE = /TEST FIXTURE - success in block \d+: receipt minted by the local Base node source \(verifiedBy 'base-derivation', trust 'test-fixture', level 'unsafe'\); hash, sender and nonce bound to the signed transaction/;
++
++test('CLI, real config path: --receipt-source FILE; readiness verbatim; a send reported from the MINTED receipt; fixture trust refused outside a harness; a production config refuses this rig', T, async () => {
++  const id = rig.createdId(await rig.create(KEYS.owner)); await settled({ blockNumber: await rig.pc.getBlockNumber() });
++  const st = await cli(['receipt-source', 'status']);
++  assert.equal(st.code, 0, st.err + st.out);
++  assert.match(st.out, /trust 'test-fixture': TEST FIXTURE: not production/);
++  assert.match(st.out, /L1 pair: ready/); assert.match(st.out, /Base node: ready/); assert.match(st.out, /ok {3}l2\.l1view/); assert.match(st.out, /ok {3}pair\.finalized/);
++  const stop = await cli(['stop', id]);
++  assert.equal(stop.code, 0, stop.err + stop.out);
++  assert.match(stop.err, /receipts \(inclusion, status, level\) only from the receipt source: TEST FIXTURE/);
++  assert.match(stop.err, VERIFIED_LINE);
++  assert.equal((await ledgerGet(id)).active, false);
++  // the same config without the harness switch: refused before anything is read or sent
++  const noEnv = await cli(['resume', id], { fixtureEnv: false });
++  assert.notEqual(noEnv.code, 0); assert.match(noEnv.err + noEnv.out, /refused outside a test harness/);
++  assert.equal((await ledgerGet(id)).active, false, 'nothing was sent');
++  // a PRODUCTION config (mainnet identities, peers required) against this rig: not ready, and it says exactly why
++  const prod = await cli(['receipt-source', 'status'], { rs: prodFile });
++  assert.equal(prod.code, 1, prod.err + prod.out);
++  assert.match(prod.out, /trust 'local-validated-pair': local full-node validation \(not a portable cryptographic proof\)/);
++  for (const c of ['el.genesis', 'el.peers', 'cl.genesis', 'l2.genesis']) assert.match(prod.out, new RegExp(`FAIL ${c.replace('.', '\\.')}:`), c);
++  // --receipt-source without --chain-verifier is refused
++  const nov = await new Promise((resolve) => { const p = spawn(process.execPath, [CLI, 'ls', '--independent', '--contract-pins', pinsFile, '--rpc', `${rig.rpcs[0]},${rig.rpcs[1]}`, '--receipt-source', cfgFile],
++    { cwd: TMP, env: { PATH: process.env.PATH, HOME: TMP, NODE_OPTIONS: `--import=${GUARD}`, ENCLAVE_TEST_NET_LOG: netLog, [FIXTURE_ENV]: '1' } });
++    let e = ''; p.stderr.on('data', (d) => (e += d)); p.on('close', (code) => resolve({ code, e })); });
++  assert.notEqual(nov.code, 0); assert.match(nov.e, /--receipt-source needs --chain-verifier/);
++});
++
++// ---- the external signer ----------------------------------------------------------------------------------------------
++/** a JSON-RPC wallet: signs (eth_signTransaction) with `account`; `beforeSign` runs first; `send` (eth_sendTransaction) optional */
++async function wallet(account, { beforeSign = null, send = null } = {}) {
++  const calls = [];
++  const srv = http.createServer(async (req, res) => {
++    let b = ''; for await (const c of req) b += c;
++    const m = JSON.parse(b); calls.push(m.method);
++    const answer = async () => {
++      if (m.method === 'eth_accounts') return { result: [account.address] };
++      if (m.method === 'eth_chainId') return { result: '0x2105' };
++      if (m.method === 'eth_signTransaction') { const p = m.params[0]; if (beforeSign) await beforeSign(p);
++        return { result: await account.signTransaction({ type: 'eip1559', chainId: Number(p.chainId), nonce: Number(p.nonce), to: p.to, value: BigInt(p.value), data: p.data,
++          gas: BigInt(p.gas), maxFeePerGas: BigInt(p.maxFeePerGas), maxPriorityFeePerGas: BigInt(p.maxPriorityFeePerGas) }) }; }
++      if (m.method === 'eth_sendTransaction' && send) return { result: await send(m.params[0]) };
++      return { error: { code: -32601, message: `the method ${m.method} does not exist/is not available` } };
++    };
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: m.id, ...(await answer()) }));
++  });
++  servers.push(srv); await new Promise((r) => srv.listen(0, '127.0.0.1', r));
++  return { url: `http://127.0.0.1:${srv.address().port}/rpc`, calls };
++}
++const signerFor = (account, url, o = {}) => createExternalSigner({ url, from: account.address, chainId: 8453, journalDir: fs.mkdtempSync(path.join(TMP, 'journal-')), approvalTimeoutMs: 8000, probeTimeoutMs: 4000, ...o });
++const WAIT = { timeoutMs: 120000, pollMs: 1000 };
++const journalFile = (s, id) => fs.readFileSync(path.join(s.journal.dir, `${id}.json`), 'utf8');
++
++test('external signer with the receipt source: confirmed only on a minted, bound receipt; a REAL revert is "reverted" from that receipt; the journal never persists evidence', T, async () => {
++  const account = await newAcct(), SINK = '0x' + '5b'.repeat(20), chain = chainWith(source);
++  const w = await wallet(account);
++  // success
++  const s1 = signerFor(account, w.url);
++  const r1 = await s1.sendQuorumTx(chain, { to: SINK, value: 3n, ...WAIT });
++  assert.equal(r1.evidence.receiptVerified, true); assert.equal(r1.evidence.status, 'success'); assert.equal(r1.evidence.trust, TRUST.TEST_FIXTURE); assert.equal(r1.evidence.level, 'unsafe');
++  assert.equal(acceptEvidence(r1.evidence.receiptEvidence, 'l2-receipt', { acceptTrust: [TRUST.TEST_FIXTURE] }, 'x'), 'minted', 'the minted receipt itself, by reference');
++  assert.equal(r1.evidence.transaction.from, lc(account.address)); assert.equal(r1.evidence.transaction.hash, lc(r1.transactionHash));
++  const j1 = s1.journal.get(r1.intent);
++  assert.equal(j1.state, 'confirmed'); assert.equal(j1.evidence.receiptVerified, true); assert.equal(j1.evidence.trust, 'test-fixture');
++  const persisted = journalFile(s1, r1.intent);
++  assert.doesNotMatch(persisted, /"receiptEvidence"|"kind":\s*"l2-receipt"|"heads"/, 'the journal keeps the facts (text and numbers), never the minted evidence object');
++  assert.match(JSON.parse(persisted).evidence.receipt, VERIFIED_LINE);
++  assert.equal(await rig.pc.getBalance({ address: SINK }), 3n);
++  // a REAL on-chain revert: the verified simulation passes, then (before the wallet answers) an allowance holder drains the
++  // balance, so the signed transfer is mined and reverts
++  const usdc = rig.addresses.usdc, U = rig.A.usdc.abi, drainer = rig.wc(KEYS.deployer);
++  await settled(await rig.write(drainer, usdc, U, 'mint', [account.address, 5_000000n]));
++  await settled(await rig.pc.waitForTransactionReceipt({ hash: await walletOf(account).writeContract({ address: usdc, abi: U, functionName: 'approve', args: [privateKeyToAccount(KEYS.deployer).address, maxUint256] }) }));
++  const drain = async () => { await rig.write(drainer, usdc, U, 'transferFrom', [account.address, '0x' + '5c'.repeat(20), await rig.pc.readContract({ address: usdc, abi: U, functionName: 'balanceOf', args: [account.address] })]); };
++  const w2 = await wallet(account, { beforeSign: drain });
++  const s2 = signerFor(account, w2.url), n0 = await rig.pc.getTransactionCount({ address: account.address });
++  const e2 = await s2.sendQuorumTx(chain, { to: usdc, data: encodeFunctionData({ abi: U, functionName: 'transfer', args: [SINK, 1_000000n] }), ...WAIT }).catch((x) => x);
++  assert.equal(e2.mined, true, String(e2?.message)); assert.match(e2.message, /transaction reverted: .*TEST FIXTURE - reverted in block \d+: receipt minted by the local Base node source/);
++  assert.equal(e2.evidence.receiptVerified, true); assert.equal(e2.evidence.status, 'reverted');
++  const j2 = s2.journal.get(e2.intent);
++  assert.equal(j2.state, 'reverted'); assert.equal(j2.note, undefined, 'a revert from a minted receipt carries no transport caveat');
++  assert.equal(await rig.pc.getTransactionCount({ address: account.address }), n0 + 1);
++  assert.equal((await rig.pc.getTransactionReceipt({ hash: j2.hash })).status, 'reverted', 'the chain agrees: it reverted');
++});
++
++test('unknown outcomes and untrusted sources: a swallowed send, a source deriving from ANOTHER L1, a Base node that alters receipts and a not-ready source never yield "confirmed"; the same bytes or the good source then decide it', T, async () => {
++  const account = await newAcct(), SINK = '0x' + '5d'.repeat(20), good = chainWith(source);
++  const w = await wallet(account);
++  // 1. a transport that accepts the send but never forwards it: the source never shows it -> unknown; rebroadcast -> confirmed
++  const swallow = await swallowingTransport();
++  const s1 = signerFor(account, w.url);
++  const e1 = await s1.sendQuorumTx(chainWith(source, swallow), { to: SINK, value: 1n, timeoutMs: 15000, pollMs: 1000 }).catch((x) => x);
++  assert.equal(e1.outcomeUnknown, true, String(e1?.message)); assert.match(String(e1.cause?.message), /has not shown it included/);
++  assert.equal(s1.journal.get(e1.intent).state, 'unknown');
++  const open = await resolveIntent(good, s1.journal, e1.intent);
++  assert.equal(open.open, true); assert.match(open.note, /unused in verified state .* does not show .* included/);
++  const r1 = await rebroadcast(good, s1.journal, e1.intent, WAIT);
++  assert.equal(r1.evidence.receiptVerified, true); assert.equal(s1.journal.get(e1.intent).state, 'confirmed');
++  assert.equal(s1.journal.get(e1.intent).hash, lc(r1.transactionHash), 'the same signed bytes, never re-signed');
++  // 2. a Base rollup node deriving from ANOTHER L1 (its L1 view is not in our L1 pair): not ready -> unknown, never confirmed
++  const foreignRollup = await startRollupFixture({ l2: rig.rpc, l1 });
++  foreignRollup.state.l1Override = { hash: '0x' + 'ab'.repeat(32), number: 1, parentHash: '0x' + '00'.repeat(32), timestamp: Math.floor(Date.now() / 1000) };
++  const foreign = sourceFrom('foreign.json', { ...cfg, base: { ...cfg.base, rollup: { url: foreignRollup.url } } });
++  const s2 = signerFor(account, w.url);
++  const e2 = await s2.sendQuorumTx(chainWith(foreign), { to: SINK, value: 2n, timeoutMs: 12000, pollMs: 1000 }).catch((x) => x);
++  assert.equal(e2.outcomeUnknown, true, String(e2?.message)); assert.match(String(e2.cause?.message), /another L1 source/);
++  assert.equal(s2.journal.get(e2.intent).state, 'unknown');
++  assert.equal((await resolveIntent(good, s2.journal, e2.intent)).state, 'confirmed', 'the good source decides the transaction that did land');
++  foreignRollup.close();
++  // 3. a Base execution node that ALTERS receipts (another sender): minted from its answer, but not bound -> unknown at once
++  const altering = await editingProxy(rig.rpc, async (m, p, r) => (m === 'eth_getTransactionReceipt' && r ? { ...r, from: '0x' + '99'.repeat(20) } : r));
++  const alteringSrc = sourceFrom('altering.json', { ...cfg, base: { ...cfg.base, execution: { url: altering } } });
++  const s3 = signerFor(account, w.url);
++  const e3 = await s3.sendQuorumTx(chainWith(alteringSrc), { to: SINK, value: 3n, timeoutMs: 60000, pollMs: 1000 }).catch((x) => x);
++  assert.equal(e3.outcomeUnknown, true, String(e3?.message)); assert.match(String(e3.cause?.message), /receipt source refused it \(receipt-sender/);
++  assert.equal(s3.journal.get(e3.intent).state, 'unknown');
++  assert.equal((await resolveIntent(good, s3.journal, e3.intent)).state, 'confirmed');
++  // 4. a source that is not ready (its rollup node is down): unknown with the readiness checks, never confirmed
++  const down = sourceFrom('down.json', { ...cfg, base: { ...cfg.base, rollup: { url: `http://127.0.0.1:${await freePort()}` } } });
++  const s4 = signerFor(account, w.url);
++  const e4 = await s4.sendQuorumTx(chainWith(down), { to: SINK, value: 4n, timeoutMs: 8000, pollMs: 1000 }).catch((x) => x);
++  assert.equal(e4.outcomeUnknown, true, String(e4?.message)); assert.match(String(e4.cause?.message), /l2-source-not-ready: .*l2\.syncStatus/);
++  assert.equal(s4.journal.get(e4.intent).state, 'unknown');
++  assert.equal((await resolveIntent(good, s4.journal, e4.intent)).state, 'confirmed');
++});
++
++test('identity: a wallet that sends CHANGED fields is "mismatch" from the minted receipt; a hash of another sender or another nonce is never confirmed', T, async () => {
++  const account = await newAcct(), other = await newAcct(), SINK = '0x' + '5e'.repeat(20), chain = chainWith(source);
++  // wallet-send: the wallet broadcasts the prepared transaction itself, but with value + 1 (same sender and nonce)
++  const changed = await wallet(account, { send: async (p) => walletOf(account).sendTransaction({ to: p.to, data: p.data, value: BigInt(p.value) + 1n, nonce: Number(p.nonce), gas: BigInt(p.gas),
++    maxFeePerGas: BigInt(p.maxFeePerGas), maxPriorityFeePerGas: BigInt(p.maxPriorityFeePerGas) }) });
++  const s1 = signerFor(account, changed.url, { mode: 'wallet-send' });
++  const e1 = await s1.sendQuorumTx(chain, { to: SINK, value: 5n, ...WAIT }).catch((x) => x);
++  assert.equal(e1.code, 'mismatch', String(e1?.message)); assert.match(e1.message, /THE WALLET SENT A DIFFERENT TRANSACTION .*value 6 != intended 5.*TEST FIXTURE - success in block/);
++  const j1 = s1.journal.list()[0];
++  assert.equal(j1.state, 'mismatch'); assert.equal(j1.evidence.receiptVerified, true);
++  // handoff: attach the hash of ANOTHER sender's transaction -> refused as not this intent's; nothing confirmed
++  const s2 = signerFor(account, null, { mode: 'handoff', url: undefined });
++  const h = await s2.sendQuorumTx(chain, { to: SINK, value: 7n, ...WAIT }).catch((x) => x);
++  assert.equal(h.code, 'handoff', String(h?.message));
++  const theirs = await walletOf(other).sendTransaction({ to: SINK, value: 7n });
++  await settled(await rig.pc.waitForTransactionReceipt({ hash: theirs }));
++  const a = await attachHash(chain, s2.journal, h.intent, theirs, { timeoutMs: 8000, pollMs: 1000 }).catch((x) => x);
++  assert.ok(a instanceof Error, 'attach does not confirm another sender\'s transaction');
++  const j2 = s2.journal.get(h.intent);
++  assert.equal(j2.state, 'unknown'); assert.match(j2.note, /not provably this intent's transaction \(receipt-sender/);
++  // the hash of this sender's EARLIER transaction (another nonce) -> refused the same way
++  const s3 = signerFor(account, null, { mode: 'handoff', url: undefined });
++  const h3 = await s3.sendQuorumTx(chain, { to: SINK, value: 8n, ...WAIT }).catch((x) => x);
++  const a3 = await attachHash(chain, s3.journal, h3.intent, j1.hash, { timeoutMs: 8000, pollMs: 1000 }).catch((x) => x);
++  assert.ok(a3 instanceof Error);
++  assert.match(s3.journal.get(h3.intent).note, /not provably this intent's transaction \(receipt-nonce/);
++});
++
++// ---- credit vault ------------------------------------------------------------------------------------------------------
++const F = await import('./credit-vault-fixture.mjs');
++const CV = await import('../site/js/core/credit-vault-independent.js');
++const CVCLI = await import('../cli/credit-vault.mjs');
++
++test('credit-vault CLI with --receipt-source: mint and submit report inclusion from the minted receipt; reconcile names the executing transaction as verified; exact funds', T, async () => {
++  const c = { pub: rig.pc, wallet: (k) => walletOf(F.ACCT[k]) };
++  const S = await F.deployStack(c);
++  const PINS = CV.validatePins({ chainId: 8453, origin: F.ORIGIN, rpId: F.RPID, usdc: S.usdc, factories: [S.older, S.current] });
++  const K1 = F.passkey(), dir = fs.mkdtempSync(path.join(TMP, 'cv-'));
++  const pins = path.join(dir, 'pins.json'); fs.writeFileSync(pins, JSON.stringify(PINS));
++  const keyFile = path.join(dir, 'payer.key'); fs.writeFileSync(keyFile, F.KEYS.payer, { mode: 0o600 });
++  const vCur = CV.deriveVault(CVCLI.lib, K1.x, K1.y, S.current);
++  await settled(await F.send(c, 'admin', S.usdc, F.CHAIN_FX.MockUSDC.abi, 'mint', [vCur, 100_000000n]));
++  const cv = async (args) => { let o = ''; await CVCLI.main([...args, '--pins', pins, '--chain-verifier', heliosUrl, '--confirmations', '1', '--max-block-age', '600', '--journal-dir', path.join(dir, 'j'),
++    '--json', '--rpc', rig.rpcs[1], '--receipt-source', cfgFile], { out: (s) => { o += s; }, env: {} }); return JSON.parse(o); };
++  const m = await cv(['mint', '--x', K1.x, '--y', K1.y, '--key-file', keyFile]);
++  assert.equal(m.vault, vCur); assert.equal(m.evidence.receiptVerified, true); assert.equal(m.evidence.status, 'success'); assert.equal(m.evidence.effect, 'verified');
++  assert.match(m.evidence.receipt, VERIFIED_LINE);
++  const d = await cv(['discover', '--x', K1.x, '--y', K1.y]);
++  const profile = CV.makeProfile({ ...d.vaults[1], key: { x: K1.x, y: K1.y } }, { credentialId: K1.credentialId, label: 'laptop' }, PINS);
++  const profFile = path.join(dir, 'profile.json'); fs.writeFileSync(profFile, JSON.stringify(profile));
++  const reader = CVCLI.verifiedCreditReader({ verifier: heliosUrl, chainId: 8453, confirmations: 1 });
++  const spec = { appRef: 'catalog://app/0', gpuMilli: 0, cpuMilli: 500, appPort: 8080, ports: '', isPublic: true, configCid: '', maxRate6: '1000' };
++  const intent = { op: 'deploy', params: { spec, fundUsd: '30' } };
++  const req = await CV.signPrepared(CVCLI.lib, await CV.prepareVaultOp(CVCLI.lib, profile, 'deploy', intent.params, { reader, pins: PINS, journal: F.memJournal() }), profile, { pins: PINS, origin: F.ORIGIN, getFn: K1.getFn(), intent });
++  const reqFile = path.join(dir, 'request.json'); fs.writeFileSync(reqFile, JSON.stringify(req));
++  const sub = await cv(['submit', reqFile, '--key-file', keyFile]);
++  assert.equal(sub.submit, 'broadcast'); assert.equal(sub.outcome.status, 'executed');
++  assert.match(sub.outcome.evidence.execution, /^TEST FIXTURE - success in block \d+: receipt minted by the local Base node source .*; its signed bytes call this vault with exactly the signed request$/);
++  assert.equal(sub.outcome.evidence.trust, 'test-fixture'); assert.equal(sub.outcome.evidence.level, 'unsafe');
++  const rc = await rig.pc.getTransactionReceipt({ hash: sub.txHash });
++  const ev = rc.logs.filter((l) => lc(l.address) === profile.vault).map((l) => { try { return decodeEventLog({ abi: parseAbi(['event Deployed(bytes32 indexed id, uint256 funded6)']), ...l }); } catch { return null; } }).find(Boolean);
++  assert.equal((await F.recordOf(c, S.ledger, ev.args.id)).balance6, 30_000000n); assert.equal(await F.usdcOf(c, S, profile.vault), 70_000000n);
++  assert.equal((await cv(['reconcile', '--profile', profFile])).status, 'none');
++});
+diff --git a/test/receipt-source.test.mjs b/test/receipt-source.test.mjs
+new file mode 100644
+index 000000000..d7f4129fb
+--- /dev/null
++++ b/test/receipt-source.test.mjs
+@@ -0,0 +1,155 @@
++// The validated receipt source (network/receipt-source.mjs) over worker E's vendored adapters (network/tx-evidence/),
++// offline. LABELLED FIXTURES ONLY: L1 = anvil (chain 1) + E's beacon fixture mirroring its tags; L2 = anvil (chain 8453)
++// + E's optimism_syncStatus fixture (test/fixtures/tx-evidence/pair-stubs.mjs, vendored). Nothing here validates a real
++// chain: every minted object carries trust 'test-fixture', and a production config (mainnet identities) is shown to
++// refuse this fixture. Covered: byte-identical vendoring; config gating; binding a minted receipt to the intended
++// transaction (signed bytes, or a transaction object re-encoded with its signature); sender / nonce / hash mismatches;
++// copied, caller-made and foreign-source evidence; immutability of what was minted.
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import { spawn, execFileSync } from "node:child_process";
++import { createHash } from "node:crypto";
++import { fileURLToPath } from "node:url";
++import net from "node:net";
++import { createPublicClient, createWalletClient, http, keccak256 } from "viem";
++import { privateKeyToAccount } from "viem/accounts";
++import { parseReceiptSourceConfig, createReceiptSource, bindTransaction, describeInclusion, FIXTURE_ENV } from "../network/receipt-source.mjs";
++import { acceptEvidence } from "../network/tx-evidence/forced-inclusion.mjs";
++import { TRUST, mint } from "../network/tx-evidence/evidence-brand.mjs";
++import { startBeaconFixture, startRollupFixture, jrpc } from "./fixtures/tx-evidence/pair-stubs.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const haveAnvil = (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); return true; } catch { return false; } })();
++const T = { skip: !haveAnvil && "needs Foundry's anvil", timeout: 180000 };
++const KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d", OTHER = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6";
++const A = privateKeyToAccount(KEY), B = privateKeyToAccount(OTHER);
++const GVR = "0x" + "7e".repeat(32), SINK = "0x" + "5a".repeat(20);
++const ENV = { [FIXTURE_ENV]: "1" };
++const procs = [], closers = [];
++const freePort = () => new Promise((ok) => { const s = net.createServer().listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
++async function anvil(chainId, blockTime = null) {
++  const port = await freePort();
++  procs.push(spawn("anvil", ["--port", String(port), "--chain-id", String(chainId), ...(blockTime ? ["--block-time", String(blockTime)] : []), "--silent"], { stdio: "ignore" }));
++  const url = `http://127.0.0.1:${port}`;
++  for (let i = 0; i < 150; i++) { try { await jrpc(url, "eth_chainId"); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
++  return url;
++}
++let L1, L2, beacon, rollup, cfg, src, pc, wc;
++const chain = { id: 8453, name: "fixture", nativeCurrency: { name: "E", symbol: "E", decimals: 18 }, rpcUrls: { default: { http: [] } } };
++test.before(async () => {
++  if (!haveAnvil) return;
++  // L1: STATIC (no interval mining, so its finalized tag cannot move between the adapter's paired reads), head placed hours
++  // ahead so the lag checks hold; anvil's finalized tag is 64 blocks back. L2: a block every second (fresh unsafe head).
++  [L1, L2] = [await anvil(1), await anvil(8453, 1)];
++  await jrpc(L1, "evm_setNextBlockTimestamp", ["0x" + (Math.floor(Date.now() / 1000) + 3 * 3600).toString(16)]);
++  await jrpc(L1, "anvil_mine", ["0x50"]);
++  beacon = await startBeaconFixture({ el: L1, gvr: GVR }); rollup = await startRollupFixture({ l2: L2, l1: L1 });
++  closers.push(beacon, rollup);
++  cfg = { format: "enclave-receipt-source/v1", l1: { execution: { url: L1 }, consensus: { url: beacon.url } }, base: { execution: { url: L2 }, rollup: { url: rollup.url } },
++    testFixture: { label: "TEST FIXTURE anvil L1/L2 + scripted beacon/rollup",
++      l1Identity: { chainIdHex: "0x1", elGenesisHash: (await jrpc(L1, "eth_getBlockByNumber", ["0x0", false])).hash, clGenesisValidatorsRoot: GVR },
++      l2Identity: { chainIdHex: "0x2105", genesisHash: (await jrpc(L2, "eth_getBlockByNumber", ["0x0", false])).hash } } };
++  src = createReceiptSource(parseReceiptSourceConfig(cfg, { env: ENV }));
++  pc = createPublicClient({ chain, transport: http(L2) }); wc = (acct) => createWalletClient({ account: acct, chain, transport: http(L2) });
++});
++test.after(() => { for (const c of closers) try { c.close(); } catch {} for (const p of procs) try { p.kill("SIGKILL"); } catch {} });
++
++/** a real transaction on the L2 anvil: -> {hash, raw, nonce} (raw = the exact signed bytes) */
++async function sendReal(acct, value = 1n) {
++  const req = await wc(acct).prepareTransactionRequest({ to: SINK, value, type: "eip1559" });
++  const raw = await acct.signTransaction(req);
++  const hash = await pc.sendRawTransaction({ serializedTransaction: raw });
++  await pc.waitForTransactionReceipt({ hash });
++  return { hash, raw, nonce: req.nonce };
++}
++const included = async (q) => { for (let i = 0; i < 40; i++) { const v = await src.receipt(q); if (v.state === "included") return v; await new Promise((r) => setTimeout(r, 250)); } throw new Error("not included"); };
++
++test("worker E's adapters are vendored byte for byte (PROVENANCE.json: sha256 and git blob of c08331e9)", () => {
++  const p = JSON.parse(fs.readFileSync(path.join(REPO, "network/tx-evidence/PROVENANCE.json"), "utf8"));
++  assert.equal(p.commit, "c08331e9397c33db0330e6c4a53c74c5d8f0d98b");
++  assert.equal(Object.keys(p.files).length, 5);
++  for (const [rel, f] of Object.entries(p.files)) {
++    const b = fs.readFileSync(path.join(REPO, rel));
++    assert.equal(createHash("sha256").update(b).digest("hex"), f.sha256, rel);
++    assert.equal(createHash("sha1").update(`blob ${b.length}\0`).update(b).digest("hex"), f.gitBlob, `${rel}: the git blob of E's commit`);
++  }
++});
++
++test("config: exact keys and format; testFixture identities only inside a test harness; loopback only", T, () => {
++  assert.throws(() => parseReceiptSourceConfig({ ...cfg, format: "x" }, { env: ENV }), /format must be/);
++  assert.throws(() => parseReceiptSourceConfig({ ...cfg, extra: 1 }, { env: ENV }), /unknown key config.extra/);
++  assert.throws(() => parseReceiptSourceConfig(cfg, { env: {} }), /refused outside a test harness/);
++  assert.throws(() => parseReceiptSourceConfig({ ...cfg, testFixture: { ...cfg.testFixture, label: "prod" } }, { env: ENV }), /must start with TEST/);
++  const { testFixture, ...prod } = cfg;
++  assert.throws(() => createReceiptSource(parseReceiptSourceConfig({ ...prod, base: { ...prod.base, execution: { url: "https://mainnet.base.org" } } })), (e) => e.code === "not-local");
++  assert.equal(src.trust, TRUST.TEST_FIXTURE); assert.deepEqual([...src.acceptTrust], [TRUST.TEST_FIXTURE]);
++  const production = createReceiptSource(parseReceiptSourceConfig(prod));
++  assert.equal(production.trust, TRUST.LOCAL_VALIDATED_PAIR, "a config without testFixture expects local full-node validation");
++});
++
++test("a production config refuses the labelled fixture: the readiness checks name exactly why (identity, peers), nothing is minted", T, async () => {
++  const { testFixture, ...prod } = cfg;
++  const production = createReceiptSource(parseReceiptSourceConfig(prod));
++  const r = await production.readiness();
++  assert.equal(r.ok, false);
++  const failed = [...r.l1.checks, ...r.base.checks].filter((c) => !c.ok).map((c) => c.name);
++  for (const n of ["el.genesis", "el.peers", "cl.genesis", "l2.genesis"]) assert.ok(failed.includes(n), `${n} refuses the fixture under mainnet identities (${failed})`);
++  const { hash, raw } = await sendReal(A);
++  await assert.rejects(production.receipt({ hash, raw }), (e) => e.code === "l2-source-not-ready" && /l2\.genesis/.test(e.message));
++});
++
++test("a real transaction: the minted receipt is bound to its signed bytes (hash, recovered sender, nonce); status and level verbatim", T, async () => {
++  const ready = await src.readiness();
++  assert.equal(ready.ok, true, JSON.stringify([...ready.l1.checks, ...ready.base.checks].filter((c) => !c.ok)));
++  const { hash, raw, nonce } = await sendReal(A);
++  const v = await included({ hash, from: A.address, nonce, raw });
++  assert.equal(v.status, "success"); assert.equal(v.trust, TRUST.TEST_FIXTURE); assert.equal(v.level, "unsafe");
++  assert.equal(v.transaction.hash, hash.toLowerCase()); assert.equal(v.transaction.from, A.address.toLowerCase()); assert.equal(v.transaction.nonce, nonce);
++  assert.match(describeInclusion(v), /^TEST FIXTURE - success in block \d+: receipt minted by the local Base node source \(verifiedBy 'base-derivation', trust 'test-fixture', level 'unsafe'\)/);
++  // the evidence is E's minted object itself: accepted by E's rule, frozen, never a copy
++  assert.equal(acceptEvidence(v.evidence, "l2-receipt", { acceptTrust: [TRUST.TEST_FIXTURE] }, "x"), "minted");
++  assert.throws(() => { v.evidence.receipt.status = "reverted"; }, TypeError);
++  assert.throws(() => acceptEvidence(structuredClone(v.evidence), "l2-receipt", { acceptTrust: [TRUST.TEST_FIXTURE] }, "copied"), (e) => e.code === "copied");
++  assert.throws(() => acceptEvidence(JSON.parse(JSON.stringify(v.evidence, (_k, x) => (typeof x === "bigint" ? String(x) : x))), "l2-receipt", { acceptTrust: [TRUST.TEST_FIXTURE] }, "json"), (e) => e.code === "json");
++  // a production consumer does not accept test-fixture evidence, minted or not
++  assert.throws(() => acceptEvidence(v.evidence, "l2-receipt", {}, "prod"), (e) => e.code === "prod" && /trust 'test-fixture' is not accepted/.test(e.message));
++  // the safe/finalized levels come only from the node's heads (here the rollup fixture moves them)
++  rollup.state.safeNumber = v.blockNumber; rollup.state.finalizedNumber = v.blockNumber;
++  try { assert.equal((await src.receipt({ hash, raw })).level, "finalized"); } finally { rollup.state.safeNumber = null; rollup.state.finalizedNumber = null; }
++});
++
++test("sender, nonce and hash mismatches: a receipt is never accepted for another sender, another nonce or other bytes", T, async () => {
++  const a = await sendReal(A), b = await sendReal(B);
++  await included({ hash: a.hash, raw: a.raw });
++  await assert.rejects(src.receipt({ hash: a.hash, from: B.address, raw: a.raw }), (e) => e.code === "receipt-sender");
++  await assert.rejects(src.receipt({ hash: a.hash, from: A.address, nonce: a.nonce + 1, raw: a.raw }), (e) => e.code === "receipt-nonce");
++  await assert.rejects(src.receipt({ hash: a.hash, raw: b.raw }), (e) => e.code === "tx-identity", "bytes that hash to another transaction");
++  await assert.rejects(src.receipt({ hash: a.hash }), (e) => e.code === "tx-unbound", "no bytes and no transport: inclusion alone is not identity");
++  // a transaction object from an untrusted transport: bound only when its fields re-encode with its signature to the hash
++  const honest = await pc.getTransaction({ hash: a.hash });
++  const v = await src.receipt({ hash: a.hash, from: A.address, nonce: a.nonce, txLookup: async () => honest });
++  assert.equal(v.state, "included"); assert.match(v.binding, /re-encoded with its own signature/);
++  for (const [field, val] of [["value", honest.value + 1n], ["to", B.address], ["nonce", honest.nonce + 1], ["input", "0x01"]])
++    await assert.rejects(src.receipt({ hash: a.hash, txLookup: async () => ({ ...honest, [field]: val }) }), (e) => e.code === "tx-identity", `altered ${field}`);
++  await assert.rejects(bindTransaction({ hash: a.hash, txLookup: async () => ({ ...honest, type: "eip4844" }) }), (e) => e.code === "tx-type-unsupported");
++  assert.equal(keccak256(a.raw), a.hash.toLowerCase());
++});
++
++test("foreign source: a Base node deriving from ANOTHER L1 is not ready; a node answering for another transaction is refused", T, async () => {
++  const { hash, raw } = await sendReal(A);
++  rollup.state.l1Override = { hash: "0x" + "ab".repeat(32), number: Number(BigInt(await jrpc(L1, "eth_blockNumber"))), parentHash: "0x" + "00".repeat(32), timestamp: Math.floor(Date.now() / 1000) };
++  try { await assert.rejects(src.receipt({ hash, raw }), (e) => e.code === "l2-source-not-ready" && /another L1 source/.test(e.message)); }
++  finally { rollup.state.l1Override = null; }
++  // an L2 execution endpoint that answers with another transaction's receipt (E's adapter refuses it)
++  const other = await sendReal(B);
++  const lying = await (await import("./fixtures/tx-evidence/pair-stubs.mjs")).startExecutionStub(async (method, params) =>
++    jrpc(L2, method, method === "eth_getTransactionReceipt" ? [other.hash] : params));
++  closers.push(lying);
++  const foreign = createReceiptSource(parseReceiptSourceConfig({ ...cfg, base: { ...cfg.base, execution: { url: lying.url } } }, { env: ENV }));
++  await assert.rejects(foreign.receipt({ hash, raw }), (e) => e.code === "l2-receipt-mismatch");
++  // caller-made "evidence" (minted by code in this process, the documented in-process limit) still must name THIS
++  // transaction and its bound sender to count: a mint is not identity
++  assert.throws(() => acceptEvidence(mint({ kind: "l1-receipt", trust: TRUST.TEST_FIXTURE }), "l2-receipt", { acceptTrust: [TRUST.TEST_FIXTURE] }, "kind"), (e) => e.code === "kind");
++});
+-- 
+2.56.0
+

@@ -1,0 +1,4 @@
+test: a failed release during startup is asserted by its contract, not its wording
+
+The cancelled-startup cleanup-failure cases now require the final error to name the stop during startup and the injected
+failure on one line (root j3 review: no invented exact prefix); exit 1, ROUTER CLOSED and freed listeners stay required.

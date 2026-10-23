@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-23T13:01:40.098939+00:00",
+  "scope": "completed Windows source integration J1 run, Linux namespace; not native deployment",
+  "treeHeadRecorded": "548bf59846621065878c4de6ca12462be5980b42",
+  "dirtyFilesRecorded": 8,
+  "total": 644,
+  "passed": 636,
+  "failed": 6,
+  "cancelled": 1,
+  "skipped": 1,
+  "exit": 1,
+  "findings": [
+    "Four Shield tests rejected new claims before startup because manager RAM had not been read; F is adapting real health fixture.",
+    "Catalog policy fixture private-field SyntaxError before tested behavior.",
+    "Registry no-heartbeat regex also matches explicit nomination selftest transaction.",
+    "Heartbeat outer300s timeout shorter than total scheduled waits plus operations; no pass."
+  ],
+  "files": {
+    "work/windows-final-runtime-integration-20261023/logs/j1-win.out": "3f8b01a58860c3f13760acdc56d43b27f3da95a1fb989ad06e663e5d3b067fb7",
+    "work/windows-final-runtime-integration-20261023/logs/j1-win.rc": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "work/windows-final-runtime-integration-20261023/logs/j1-0.00.out": "a07275330dbe8a6d8b3e1bd2609e1eac975e7708b54f2814eedbbac00ffcf058",
+    "work/windows-final-runtime-integration-20261023/logs/j1-0.02.out": "fb5736e4f22dce2924f2e1af8a3687da9c8d6a7bcf54292538e086a28dc8cc9a",
+    "work/windows-final-runtime-integration-20261023/logs/j1-0.03.out": "79a94f3819b58a464a0926b2bff319cc0c9606a6d36064e583b4bf8a17f0870f",
+    "work/windows-final-runtime-integration-20261023/logs/j1-3.08.out": "be9aa5251f9b584fe0875665fb4540d52cdba5c6b8b627f120325861c2c11736"
+  }
+}

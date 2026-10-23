@@ -1,0 +1,41 @@
+HOST FAIL guest-results {"failed": ["C4-stray-file-in-bare-mount-point-refused", "done"], "steps": 38}
+HOST OK  allocation {"afterCleanupBytes": 602112, "capBytes": 536870912, "note": "peak = largest du of the run directory sampled every ~2 s while the guest ran (sparse disk images count allocated blocks only)", "peakAt": "after-guest", "peakBytes": 120266752}
+HOST FAIL summary {"failed": ["guest-results"], "total": 16}
+OK   pid1-is-systemd 
+OK   guest-net 
+OK   nvme-fixture-disk 
+OK   A0-unformatted-export-consumer-refused-no-fallback 
+OK   A1a-create-needs-explicit-first-format 
+OK   A1b-first-format-of-the-blank-export 
+OK   A1c-second-create-refused 
+OK   A2-generated-units-start-in-order 
+OK   l1-disconnect-supervision-stops-consumers 
+OK   l1-no-automatic-restart-or-resync 
+OK   l1-operator-stops-storage 
+OK   l1-operator-stops-attach 
+OK   l1-mount-point-bare-and-empty-after 
+OK   l1-consumer-refused-while-export-down-no-fallback 
+OK   A6-recovered-synced-data-intact 
+OK   A7-stopping-the-attach-stops-everything-above-it 
+OK   B0-create-formats-blank-export-and-allocates-cache-through-ledger 
+OK   B1-cache-under-the-one-mount-and-no-second-view 
+OK   B2a-clean-stop-writes-cache-reuse-marker 
+OK   B2b-clean-restart-reuses-the-cache 
+OK   B3a-uncached-write-detected-assemble-refused 
+OK   B3b-cache-loss-invalidates-before-uncached-check 
+OK   B3c-after-cache-loss-the-uncached-write-is-visible 
+OK   base-disconnect-supervision-stops-consumers 
+OK   base-no-automatic-restart-or-resync 
+OK   base-operator-stops-storage 
+OK   base-operator-stops-attach 
+OK   base-mount-point-bare-and-empty-after 
+OK   base-consumer-refused-while-export-down-no-fallback 
+OK   B5a-after-transport-loss-cache-reuse-refused 
+OK   B5b-cache-loss-then-recovered-synced-data-intact 
+OK   C1-l1-storage-refuses-the-base-attach 
+OK   C2-unpinned-placement-statement-refused 
+OK   C3-foreign-mount-at-the-mount-point-refused 
+FAIL C4-stray-file-in-bare-mount-point-refused {"journal": ["[   53.186559] hddtest python3[1046]: storage-nbd: failed (no clean-shutdown or cache-loss marker for this cache: run cache-loss before assemble (stale-cache hazard)): undid only what this run created/attached/mapped/mounted", "[   53.186559] hddtest python3[1046]: storage-nbd: no clean-shutdown or cache-loss marker for this cache: run cache-loss before assemble (stale-cache hazard)", "[   53.194267] hddtest systemd[1]: enclave-base-holder-storage.service: Main process exited, code=exited, status=2/INVALIDARGUMENT", "[   53.194349] hddtest systemd[1]: enclave-base-holder-storage.service: Failed with result 'exit-code'.", "[   53.194502] hddtest systemd[1]: Failed to start enclave-base-holder storage (authenticated network-HDD origin, optional writethrough NVMe cache)."]}
+OK   C5-foreign-nbd-not-verified-and-never-detached 
+OK   teardown-clean 
+FAIL done {"failed": ["C4-stray-file-in-bare-mount-point-refused"]}
