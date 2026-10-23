@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+import sys, time, os
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from _fake import *
+a = sys.argv[1:]; log("systemctl", *a); b = beh()
+if a[0] == "show":
+    u = unit(); props = [a[i + 1] for i, x in enumerate(a) if x == "-p"]
+    print("\n".join(f"{p}={u.get(p, '')}" for p in props)); sys.exit(0)
+if a[0] == "stop":
+    m = b.get("stop", "ok")
+    if m == "fail": print("Job for enclave-indexd.service failed.", file=sys.stderr); sys.exit(1)
+    if m == "hang": time.sleep(1000)
+    if m == "noop": sys.exit(0)
+    set_running(False); sys.exit(0)
+if a[0] == "start":
+    m = b.get("start", "ok")
+    if m == "fail": save("unit.json", {**unit(), "ActiveState": "failed", "SubState": "failed", "MainPID": "0"}); print("Job for enclave-indexd.service failed because the control process exited with error code.", file=sys.stderr); sys.exit(1)
+    if m == "condition": sys.exit(0)            # ConditionPathExists unmet: systemd reports success, unit stays inactive
+    set_running(True); sys.exit(0)
+sys.exit(2)

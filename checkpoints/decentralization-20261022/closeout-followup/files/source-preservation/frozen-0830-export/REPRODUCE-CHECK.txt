@@ -1,0 +1,18 @@
+a-windows base rebuilt from dfe020abf + 9 stored patch(es) in 842ca0441: tree 593c7c49e90bc82d809ceefc9dd6eb05f73806e5 OK
+a-windows b56a46996: tree fec868c3cf56561555af599a824847c1103fc15f OK
+a-windows f3443e537: tree d31eae845b7841a623c1dbbc14ed3881f929a944 OK
+a-windows 25c051a95: tree 108b0762f39e75ba597412b9c883a2d80d8577cd OK
+a-windows e820e2405: tree 31e01514ac6e791dd2515bb61588bdc1c579f5f4 OK
+a-windows df8fbafae: tree 3acae5433be9ba92a439c025dd36434fb3d21846 OK
+s-root-doc base rebuilt from empty + 14 stored patch(es) in 842ca0441: tree 00e10586e210c2a2c176658efbdbf7865d1ebee9 OK
+s-root-doc bcd3d9ca3: tree 4c50bc8c49fdbf975df405efc94137762d5cf6aa OK
+c-storage-write base rebuilt from empty + 0 stored patch(es) in 842ca0441: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+c-storage-write 6fd7a9299: tree 7c618e350b4853579279cd400af87def3299e193 OK
+c-storage-write bbf0a009b: tree 7f3027539b177eb7380fdeae935ef6d5254ee3a3 OK
+f-final base rebuilt from f58e03ec4 + 9 stored patch(es) in 842ca0441: tree 9b163342db398927e1ad1ad90b37a4f2b49bb2ef OK
+f-final 4106c3114: tree 1a679ef307a70acf440584a7e991ebf6834d9030 OK
+e-derivative base rebuilt from empty + 0 stored patch(es) in 842ca0441: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+e-derivative a460c36c8: tree 672a07bd57fd9b71526f8d24bfb54b4086f41ca6 OK
+e-derivative 159fd1480: tree 827da8c7e4f16f187084ca46e7c5ed8ebb30e8e4 OK
+e-derivative trees are the ORIGINAL trees minus fixtures/artifacts/ (originals: a460c36c8 834322bd6, 159fd1480 a7f970a88); exact originals NOT reproduced
+RESULT a-windows reproduced: True, s-root-doc reproduced: True, c-storage-write reproduced: True, f-final reproduced: True, e-derivative reproduced: True

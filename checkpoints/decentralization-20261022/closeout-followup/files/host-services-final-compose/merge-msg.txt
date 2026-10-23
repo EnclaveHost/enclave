@@ -1,0 +1,15 @@
+Compose host-service lifecycle (F 6c38c048) onto host-services carriers (C 0757085e)
+
+Merges F's complete three-commit series fix/host-service-lifecycle on 427780bbc:
+- 24fb993c: runtime AbortSignal and exit-grant withdrawal, idempotent transport close, hostServiceLifecycle;
+- 862f6549: settleMs option;
+- 6c38c048: test only.
+
+It goes onto C's compose/host-services 0757085e (policy carriers for the privacy agent's host-service gate).
+
+Both sides branch from 427780bbc. The only file both touch is network/privacy-agent.mjs:
+- C: imports +2, gate construction (hostPolicyCarrierGate);
+- F: the transport import, the host-service judge replaced by hostServiceLifecycle.
+
+The hunks are disjoint and git merges them without conflict. The lifecycle reads only hostGate.serviceRefusal(), which
+both gate builders provide. Nothing else was edited.

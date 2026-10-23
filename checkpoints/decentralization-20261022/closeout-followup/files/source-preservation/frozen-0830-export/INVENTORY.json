@@ -1,0 +1,1495 @@
+{
+ "format": "enclave-frozen-0830-export/v1",
+ "checkpointHeadAtExport": "842ca044199b5562136c80b2842cffe8374b65aa",
+ "label": "SOURCE + OFFLINE TESTS ONLY. Nothing here is merged into the normal tree, imaged, deployed or activated. Terminal immutable heads since 842ca044: A df8fbafa, ROOT bcd3d9ca (canonical doc correction), C bbf0a009 (on 6fd7a929), F merge 4106c311, and E 159fd148 as a source-only derivative.",
+ "sides": {
+  "a-windows": {
+   "repo": "work/resume-after-checkpoint-20261022/rpc-priority/repo",
+   "branch": "rpc-priority",
+   "headReachableFromBranch": true,
+   "base": "71448f63ba189b1f61153e7df766f9421b350205",
+   "baseProvenance": "71448f63 preserved in 871e2197 as frozen-0630-export/a-native-relay-71448f63",
+   "head": "df8fbafae081321f3c9a9c774e41007200913f32",
+   "headTree": "3acae5433be9ba92a439c025dd36434fb3d21846",
+   "commits": [
+    {
+     "commit": "b56a469969c301c37f1553df2d5902c64bcd1af4",
+     "parent": "71448f63ba189b1f61153e7df766f9421b350205",
+     "tree": "fec868c3cf56561555af599a824847c1103fc15f",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T22:46:47-07:00",
+     "subject": "Bound the whole verified read, its callback included, and close its client"
+    },
+    {
+     "commit": "f3443e537fc51c9428980db91c983ae00f4296eb",
+     "parent": "b56a469969c301c37f1553df2d5902c64bcd1af4",
+     "tree": "d31eae845b7841a623c1dbbc14ed3881f929a944",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T22:46:47-07:00",
+     "subject": "Keep the verified-operation deadline timer referenced so it fires when nothing else holds the event loop"
+    },
+    {
+     "commit": "25c051a9532c4ac85275f566b99affb3852a14a9",
+     "parent": "f3443e537fc51c9428980db91c983ae00f4296eb",
+     "tree": "108b0762f39e75ba597412b9c883a2d80d8577cd",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T22:46:47-07:00",
+     "subject": "Close verified policy snapshots before late responses can mutate authority state"
+    },
+    {
+     "commit": "e820e2405af91010c18913acf4740f651618c644",
+     "parent": "25c051a9532c4ac85275f566b99affb3852a14a9",
+     "tree": "31e01514ac6e791dd2515bb61588bdc1c579f5f4",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T22:48:33-07:00",
+     "subject": "Close the verified LeaseReader client's metadata methods with its operation"
+    },
+    {
+     "commit": "df8fbafae081321f3c9a9c774e41007200913f32",
+     "parent": "e820e2405af91010c18913acf4740f651618c644",
+     "tree": "3acae5433be9ba92a439c025dd36434fb3d21846",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:29:18-07:00",
+     "subject": "Wire the Windows node's chain consumers to the explicit local verifier"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "ROOT-REVIEW.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6ea0dd6b4b64026f8f4a6d86a47a2a501b962f6b",
+     "sha256": "fd16755a920dddedaf5902095b2c549ff838d20596dec2a2d19bb832543f621d",
+     "bytes": 2614,
+     "baseBlob": null
+    },
+    {
+     "path": "network/host-admission-node.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "ccbf1fb1f17536442390ed5f5b2125291fffbca9",
+     "sha256": "1ca122d4e148a9c0add5b6ad35759ec5df3a3c9c573ae9a2eebf19c00c8b80af",
+     "bytes": 1106,
+     "baseBlob": "d5e053cecfc5b100234b0f9c60453271d40e1902"
+    },
+    {
+     "path": "network/lease-reader.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d77dbf772ca34798b439313df4affe91acc89411",
+     "sha256": "a7c23474df4ef8a307c9c7b63f27c7bda2af02fc7c9786cc424545ebfa133d9c",
+     "bytes": 48671,
+     "baseBlob": "0a05b9a760b02d4c3db8492cbc9fd02a012e5143"
+    },
+    {
+     "path": "network/verified-chain.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "e55f0359eb26d65d7fa0c809ccfc3de320c55797",
+     "sha256": "cc1f88706d1e4da9fe9048ba3e4b6dbd755edca0752ef39c8a873aaaf9427df4",
+     "bytes": 13544,
+     "baseBlob": "3ab58a8c0f60b7d9bb062e84d9e1bed5ce309a84"
+    },
+    {
+     "path": "network/verified-read-client.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ff6632f8942681ca820167796382831535bf8fe6",
+     "sha256": "20848a55a245e2a849775243ffee1ad8f64e7917bd73cee555b25d394b7152a3",
+     "bytes": 4744,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helpers/windows-chain-driver.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9046ed081dce84b6ba3493eb598c1ecfb5ed21aa",
+     "sha256": "617334ec1de6fb638bbb5886bb24885348ec0d32b006fb0a27ac416f6875da21",
+     "bytes": 3322,
+     "baseBlob": null
+    },
+    {
+     "path": "test/lease-reader-terminal-snapshot.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9c971b67b952434b2c2b1e8c0542c9764f8d7987",
+     "sha256": "a1ac97ee1511dc43c38c2ffd9ef24ac505d98eaccfe88aa2d4fcfadc2f9bb445",
+     "bytes": 3861,
+     "baseBlob": null
+    },
+    {
+     "path": "test/lease-reader-verifier-deadline.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4c92a00b80b60e7a3f542d52f9c6a741b6edca2c",
+     "sha256": "f3e99df4438467529c41eeb0f784ef5b7d24002892bcafdd7a5179d7df72668d",
+     "bytes": 11811,
+     "baseBlob": null
+    },
+    {
+     "path": "test/verified-chain-lifecycle.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f1d0b20d7876dbcd3a646d8a671aa0b938e78900",
+     "sha256": "9b399f2595d2d226862ad21637a2e5f3acb2e16c505d25eac156e9e4d6df26d0",
+     "bytes": 3467,
+     "baseBlob": null
+    },
+    {
+     "path": "test/windows-chain-authority.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f3060231f8d0a2cca000516b0f5eab3ce0f50f9a",
+     "sha256": "12312925e728d7b4e3e53a0719e58b975710b996e97f36831a8c98b754a33f08",
+     "bytes": 16634,
+     "baseBlob": null
+    },
+    {
+     "path": "test/windows-verifier.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0dc6a1800dbcd0353fbb167113def097549c3fcc",
+     "sha256": "7ec40286507224dcde41f4159509396ffa0d794e5f5042578bdbc86783623b2e",
+     "bytes": 14429,
+     "baseBlob": null
+    },
+    {
+     "path": "windows/node/agent.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f744fb00f5c20d53f486e4e703f4eb68466d9c28",
+     "sha256": "bd5600a6d9e66ed5903d600bab5c410bfff6654661c19bad64d6bb4adbfeef0f",
+     "bytes": 92841,
+     "baseBlob": "61207a3a7b6d8fffc51468607149fe937442d894"
+    },
+    {
+     "path": "windows/node/chain-reader.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "94da6e629db04e8e2c36d6ac1d0c31735dfefcc6",
+     "sha256": "907fd1c8c9f62b773d95ccc16988440663fd9552725a72aca4bc4281adf8ebf2",
+     "bytes": 1668,
+     "baseBlob": null
+    },
+    {
+     "path": "windows/node/chain.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "c6e635f2a33e4564b0497136611aba58d31ab378",
+     "sha256": "f57dc87d99d6e08048131971db66479806b08a1679b6df1bc5a2aadf7790bda3",
+     "bytes": 64129,
+     "baseBlob": "45f789df014639133109a29f47a4518a1680908a"
+    },
+    {
+     "path": "windows/node/host-admission.bundle.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "3946b372076213ef85984515f1a555f9f89bdaf0",
+     "sha256": "28778491ccd6f56bd7a5a823408692e9229b73ae6a91835bbbe26549e234611a",
+     "bytes": 404195,
+     "baseBlob": "eba9ec3baa4d1bbaa23bb515e36296342c6967be"
+    },
+    {
+     "path": "windows/node/host-identity.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "279538acc27ef7e74040aacf51fe802be17df928",
+     "sha256": "827b30d36bc4a4baf0963b057164f12f5e73165fb3f35cf2ceba201412e93467",
+     "bytes": 24092,
+     "baseBlob": "30545b7f3e30772e177d2ec971630ed8c3c18707"
+    },
+    {
+     "path": "windows/node/host-onchain.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "46892046b33d061ea8777eb6ca31e0c74f120dbe",
+     "sha256": "522a7a200f292618e47504afd56e0b988fdd5c2a84e7201940d5769ad7bc3874",
+     "bytes": 11951,
+     "baseBlob": "e05ea8fa39382682e764bec11711442d9ab079ab"
+    },
+    {
+     "path": "windows/node/host.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "21bd2be18496bc38ce13bed0655dfe9182078bfe",
+     "sha256": "f5009866f4a2779c8cbaa061146f4d15d29e8c744b184992ae808a13a00e8cef",
+     "bytes": 270019,
+     "baseBlob": "df5e6dce9d384a542a10a4bca975fde3531381bd"
+    },
+    {
+     "path": "windows/node/network-enroll.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "edd89de3754550658e0ff34dc714cf8d3866c5f2",
+     "sha256": "e000b6646b0fbecbe31ffd0cc2c58c987521ddb791bcf6c7c66cbd6c6c6dd35d",
+     "bytes": 15121,
+     "baseBlob": "ce10ba92a6eb5f78dc0c54b4d0c97e5a651542af"
+    },
+    {
+     "path": "windows/node/node-config.example.cmd",
+     "status": "M",
+     "mode": "100644",
+     "blob": "b34b946ecb0010660bcdd204c541206308e982aa",
+     "sha256": "1b65e6fbd92e2330b01b468e2582742d3cadb9924e66950e92caaa6e8965bd61",
+     "bytes": 1656,
+     "baseBlob": "62fc8003cf538cf3d8fbbf2721ad50c85357bce2"
+    },
+    {
+     "path": "windows/node/session-api-auth.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "703222fc5c50995fb7e4a72fcc358b1f16fed73e",
+     "sha256": "48cf482cef24519045b398a26885a34ba1bb9a8d32cc66d731a0b2d9ed012929",
+     "bytes": 25270,
+     "baseBlob": "479d3858afe89b2950835629cebe8c36869e5c4d"
+    }
+   ],
+   "patches": [
+    {
+     "file": "a-windows-df8fbafa/patches/0001-Bound-the-whole-verified-read-its-callback-included-.patch",
+     "sha256": "5b07a1d6760102bca97dd00ebacfbc941ed52ab3c6ea0d9991fac016fbeecbc1"
+    },
+    {
+     "file": "a-windows-df8fbafa/patches/0002-Keep-the-verified-operation-deadline-timer-reference.patch",
+     "sha256": "794c266adde92a8a4d6bde8dbd5a7786fc928f959b12689b05c5830685393bde"
+    },
+    {
+     "file": "a-windows-df8fbafa/patches/0003-Close-verified-policy-snapshots-before-late-response.patch",
+     "sha256": "73d5587d82e5d40d4ec3b2ece8985b656ea754f463aebd79eb766284695a8dec"
+    },
+    {
+     "file": "a-windows-df8fbafa/patches/0004-Close-the-verified-LeaseReader-client-s-metadata-met.patch",
+     "sha256": "754879d3faaec056aa4fb4fafa7b7d17b196cd7541bb4adaf70025dff5caeb35"
+    },
+    {
+     "file": "a-windows-df8fbafa/patches/0005-Wire-the-Windows-node-s-chain-consumers-to-the-expli.patch",
+     "sha256": "625af78cd28116937f4d849825ba6e48ca830ac27d46bd2337bae67d9d7c76e8"
+    }
+   ]
+  },
+  "s-root-doc": {
+   "repo": "work/fresh-witness-supply",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "47c2f71f472c973593702b310017f9fd4744e6d1",
+   "baseProvenance": "47c2f71f preserved in 842ca044 as frozen-0745-export/s-holder-final-47c2f71f",
+   "head": "bcd3d9ca3b4345f42134342dec28ab5f6d4115f2",
+   "headTree": "4c50bc8c49fdbf975df405efc94137762d5cf6aa",
+   "commits": [
+    {
+     "commit": "bcd3d9ca3b4345f42134342dec28ab5f6d4115f2",
+     "parent": "47c2f71f472c973593702b310017f9fd4744e6d1",
+     "tree": "4c50bc8c49fdbf975df405efc94137762d5cf6aa",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:50:02-07:00",
+     "subject": "Correct cache-budget report timestamp from actual commit metadata"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "RESULT-CACHE-BUDGET.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "dff3c45d17683d69f2f2148723db81b06064a711",
+     "sha256": "341026b963fa3e5fc4342efc1bb485e1948db3d5ee242ff0e55b39061b130910",
+     "bytes": 19518,
+     "baseBlob": "77147503e580de17936fca4a766e3644a3b9e17e"
+    }
+   ],
+   "patches": [
+    {
+     "file": "s-root-doc-bcd3d9ca/patches/0001-Correct-cache-budget-report-timestamp-from-actual-co.patch",
+     "sha256": "779b0d4862fd8e32fc85b49017841c82ea14aeeb4cfd19e1ec5d26ae2aeaa4af"
+    }
+   ]
+  },
+  "c-storage-write": {
+   "repo": "work/resume-after-checkpoint-20261022/storage-write-release",
+   "branch": "storage/write-release",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (C standalone repo)",
+   "head": "bbf0a009b4f823f17a7d7679007b0ad74c49e76f",
+   "headTree": "7f3027539b177eb7380fdeae935ef6d5254ee3a3",
+   "commits": [
+    {
+     "commit": "6fd7a9299c53121142ab59d8ff9a7406c1f2b845",
+     "parent": "",
+     "tree": "7c618e350b4853579279cd400af87def3299e193",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:41:46-07:00",
+     "subject": "Storage distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance, step verifiers"
+    },
+    {
+     "commit": "bbf0a009b4f823f17a7d7679007b0ad74c49e76f",
+     "parent": "6fd7a9299c53121142ab59d8ff9a7406c1f2b845",
+     "tree": "7f3027539b177eb7380fdeae935ef6d5254ee3a3",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:42:57-07:00",
+     "subject": "storage-write-release: RESULT.md, patch and progress"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "eb6c8a7fda143116575a65c6f5fd63aaeba9b8f8",
+     "sha256": "b39f6ba01c3cac6a1cc953afeb4bcc4ba263a01f3f175bccbbf3c7e4e486195a",
+     "bytes": 166,
+     "baseBlob": null
+    },
+    {
+     "path": "NOTES-research.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "569a487bbac103736636bc89de7f05512d56066e",
+     "sha256": "b897cc1719326da6e558fef58ee6e3776b101d415f294b1730aa3871f4ee7a7f",
+     "bytes": 4810,
+     "baseBlob": null
+    },
+    {
+     "path": "PROGRESS.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3f9b86aefddbfff4bf42e85bfc03b2e4043c7030",
+     "sha256": "3bc08b708d29bd77b218a51a40136304475a593c88cbfcb355d60d8a3a42fb66",
+     "bytes": 588,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1926e8a1a5423f1a70a1f58654183bfb7a96b021",
+     "sha256": "7e28761408b5d098cfd0f932f9611324909f78e174175de427c1b891111fdece",
+     "bytes": 12862,
+     "baseBlob": null
+    },
+    {
+     "path": "client/catalog-config.c2.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "90323e6e43ca6d9928f88d582c1eb0c9ae029b27",
+     "sha256": "f6b48940cf7179b5a7bc61fabfee4667bd14aacd0380d953cae8f878972ff278",
+     "bytes": 532,
+     "baseBlob": null
+    },
+    {
+     "path": "package/CUTOVER.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d109f4de775516bc2052aa25e1651f928c790103",
+     "sha256": "4b7f065e8f0a9a03c75150327a6633b0ab2612c49e3fe75c5eb558a56a04386b",
+     "bytes": 18994,
+     "baseBlob": null
+    },
+    {
+     "path": "package/PINS.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "662b24722baf02d854b21f85e556c773c54b904f",
+     "sha256": "c892b0d6c449fb0602e0d590c180a362e68aed50d58f637910eeeca9813bb431",
+     "bytes": 5702,
+     "baseBlob": null
+    },
+    {
+     "path": "package/backup/local/verify_archive.v2.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "23a15b6f63ac91bdf67ba118ac6372ee5e4fd056",
+     "sha256": "7d2c572299efbf4553b62882b029816af065d154e3c97e7a5157060e35691e6d",
+     "bytes": 7258,
+     "baseBlob": null
+    },
+    {
+     "path": "package/backup/runner/vm_fresh_backup.v3.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d7fdfc5cdaee74ef57ca9ecc6c201226d742611b",
+     "sha256": "8fe10e088cd0ff6ea45b7b49ab1a8ae1ec6d3d0e1435de169576303f1005fe0d",
+     "bytes": 26593,
+     "baseBlob": null
+    },
+    {
+     "path": "package/backup/test/fakes/_fake.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ae8d0a6cbc613cae017f65bdea9328473a2a5a53",
+     "sha256": "483deae222403c318f8173ed6adbdbf242ab21bff5a3d6a6f78f4f66e96623b0",
+     "bytes": 954,
+     "baseBlob": null
+    },
+    {
+     "path": "package/backup/test/fakes/docker",
+     "status": "A",
+     "mode": "100755",
+     "blob": "66e4d7fb8548a84108d8ac4b34772614644c17ec",
+     "sha256": "142aa90cc6e7e91dcdb7bc01a5d7cd39b57b679f78d952dccb5eb4383395b25e",
+     "bytes": 1444,
+     "baseBlob": null
+    },
+    {
+     "path": "package/backup/test/fakes/pgrep",
+     "status": "A",
+     "mode": "100755",
+     "blob": "dba7735fb91051a97c6eb3d0ce0c22084a80c0ba",
+     "sha256": "0a40efd477bafbb594e8974696a9154cbc702f97a6e5f3767f79ef8c690b2707",
+     "bytes": 212,
+     "baseBlob": null
+    },
+    {
+     "path": "package/backup/test/fakes/ssh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "14f3a724a86617917f6e313790cf3d7bbe0b4a2c",
+     "sha256": "74de71a65f9e0536386f7d40b1438e8aba703d94b0c3e2d3f81967059f2ece4c",
+     "bytes": 869,
+     "baseBlob": null
+    },
+    {
+     "path": "package/backup/test/fakes/systemctl",
+     "status": "A",
+     "mode": "100755",
+     "blob": "99f9d82653694a7a5287430479a220b4f23d33f9",
+     "sha256": "ee3fe381ce69ffa480dd17008804b516e6c91780834bd4607ecfaf16a24431f3",
+     "bytes": 1053,
+     "baseBlob": null
+    },
+    {
+     "path": "package/backup/test/test_backup_provenance.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7fbabca45d0f8019f8a5bc2ae7bb327dcc9331a9",
+     "sha256": "30d60a3db652707bd28cbd7d0890eeaa254af69d1be7359f9d49251b3f43d16c",
+     "bytes": 12611,
+     "baseBlob": null
+    },
+    {
+     "path": "package/client/catalog-config.c2.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "90323e6e43ca6d9928f88d582c1eb0c9ae029b27",
+     "sha256": "f6b48940cf7179b5a7bc61fabfee4667bd14aacd0380d953cae8f878972ff278",
+     "bytes": 532,
+     "baseBlob": null
+    },
+    {
+     "path": "package/interfaces/F-host-services.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fc268735d3a65011a439979e92b4a0f42362b580",
+     "sha256": "523ee65e656cad1fc3bc54da2b9daa3338be64273719e24c43deb829d4ce2334",
+     "bytes": 2946,
+     "baseBlob": null
+    },
+    {
+     "path": "package/proposals/role-comment.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "09ab93c6a9241d622da5e82cf2c10bc334c942f8",
+     "sha256": "5427e3804dc1c7f75b9621a0e798649c853a41d7561878b6674b7e3998c63cdb",
+     "bytes": 1126,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tests/fixtures/README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c2f09bf58f0c43f685ea5c82f5744257c5fe4bd5",
+     "sha256": "d8b8dda378857600d841b425a6e7f356049ed275150eab00b5ac29304833797a",
+     "bytes": 1143,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tests/fixtures/backup-receipt-v26-real.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "eade9c16775d41304a76be64ae672a7a793f79d1",
+     "sha256": "b6322448797d2d5151aa4a2937b904d48a11111ef32ca25edcdad179d9cbcc5d",
+     "bytes": 620,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tests/fixtures/l1-account-row.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e77993ea720b7a2ef240c3bcba29f0ca1771dc52",
+     "sha256": "464f18b2dc9f193e33696dba8bc5af12154eaf006f75f033af5ee3c4c74d3309",
+     "bytes": 71,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tests/fixtures/l1-fact-claim1.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "aee31f155379f218df5755673cda93ee6697f6dc",
+     "sha256": "ad1c113796912016241fefa256f190a8e2c39bd289c2df94cf95d251f7844246",
+     "bytes": 230,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tests/fixtures/l1-healthz-claim1.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "272c02e5246f77b734e6ef2d326463fc77e520fc",
+     "sha256": "ba8c4f8f6b2ada2b1e0fe2336dbeb026bb6cab6c0498883b45beea5d328fa019",
+     "bytes": 2038,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tests/fixtures/m3-account-row.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1c031583aad9cc451cfd94a48a947a02c08b4619",
+     "sha256": "053c831472b58bb4f11e721aa8b7bc6af165eb4c9c1982d3e4b988017c76aca5",
+     "bytes": 71,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tests/fixtures/m3-fact.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "aee31f155379f218df5755673cda93ee6697f6dc",
+     "sha256": "ad1c113796912016241fefa256f190a8e2c39bd289c2df94cf95d251f7844246",
+     "bytes": 230,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tests/fixtures/m3-healthz.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ea809342bbf680b4aa5a69e629224ac6e4d8d1bc",
+     "sha256": "b516d7d7e1813f106e520a72d0c32235cd2618bdec6407733bc05b5ccfe5411f",
+     "bytes": 12303,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tests/fixtures/m3-indexers.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f422b5eba6a47d701c85abca5194e898f3330218",
+     "sha256": "fbe4196d52e863dfec6e7f513f8d722fdd17eb7d6c38d068b36f7c5dd5a16fc3",
+     "bytes": 83,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tests/fixtures/vm-state-v26-real.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1fe3cb3b5de49b32352d95e0e1a6fb3b6d8375b8",
+     "sha256": "59a286b3eed6162ba257ea09af4ccd289c814c036e69d6345b6ed0f1f461eea8",
+     "bytes": 597,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tests/fixtures/vm-state-v28-from-postcheck2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f982612b8ee89c5ae3fc103cc96480ea1cb399d6",
+     "sha256": "1224f8c0173338e4480f55f9d3ca9db0b041b848c7580b6e51a207982e0b96a4",
+     "bytes": 542,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tests/test_cutover.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f60861d458b79d14d82ed2a1d2a2fe41dbea8065",
+     "sha256": "39463458c17c1e304246c630ad2f2b230f26fdc6e1196e768c1fe0929055f8b5",
+     "bytes": 11850,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tools/cutover.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4b03991fd529f4469ac5127b895cbb389b6d2122",
+     "sha256": "1b05047cce27a9a56fde7e4d20c690d202f4114abe59a98c75b187c3eec56f80",
+     "bytes": 20267,
+     "baseBlob": null
+    },
+    {
+     "path": "package/tools/verify_pins.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3764bdc9e65aedd8b5c4ad8cf47befefeefda0da",
+     "sha256": "84760baf162a2f662716d8948db4c02bc96fa3a75a643790562dfc11cc6f3112",
+     "bytes": 1603,
+     "baseBlob": null
+    },
+    {
+     "path": "rehearsal/_base.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d7ce362cf45fc121e1956687095e2c0174e75adb",
+     "sha256": "bd92f094f88ee7bf0e005171ac5d26d6fdd3879ef3bf9c707271cd15fa361b6b",
+     "bytes": 26394,
+     "baseBlob": null
+    },
+    {
+     "path": "rehearsal/enrollfail.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "0fafc1feda9c66a2bc6753c55cdb618008c2c49e",
+     "sha256": "71bc58176461e0b2d40978607666f4299f6376f803e47748e8b381a275951dc5",
+     "bytes": 1052,
+     "baseBlob": null
+    },
+    {
+     "path": "rehearsal/main_enrollfail.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e68c787ec0f2ec6c671551c43af6893f9151f6d4",
+     "sha256": "71628f3bc12a6e9eb5af0622120218a0911725f787634f3b265565c2e01e04d3",
+     "bytes": 7355,
+     "baseBlob": null
+    },
+    {
+     "path": "rehearsal/main_migrate16.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "476be37e20ea62d7c56fb9dfa6e4a0c00249093b",
+     "sha256": "5a92d837d52a17020f1e12076bdcd5a1eb7fb7f0cf86a1df875e80e6349573b8",
+     "bytes": 14853,
+     "baseBlob": null
+    },
+    {
+     "path": "rehearsal/migrate16.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "0e0d0867f9e5f3d356ab9547f5b6caa52eb53be6",
+     "sha256": "55a164d4687b1977420f336868926a1ab5961e802705873644255e685d9f1ac8",
+     "bytes": 1044,
+     "baseBlob": null
+    },
+    {
+     "path": "rehearsal/runs/e1/results.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "82aea3a0556f9d6ec4b7565452e7f33319dcd7ec",
+     "sha256": "046d0482a8edac43e16a451bb92b065f3839bfcaa705d33459f9f76ea39d8ec3",
+     "bytes": 11660,
+     "baseBlob": null
+    },
+    {
+     "path": "rehearsal/runs/m1/RETIRED.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0afa156042ecf80f9ace30f4d1e1910706375be0",
+     "sha256": "47d557bb57e383a7d6dc9a70b21f6f688feca1287f5d21c6dc5a80833bd381eb",
+     "bytes": 104,
+     "baseBlob": null
+    },
+    {
+     "path": "rehearsal/runs/m1/results.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c3e85d1b42c693cef1825b8861e7ddb2e6e7827b",
+     "sha256": "ce22786e051578fb2ca8f04c48747eb4a0a7647578dbddf2ad1be639ee7d850d",
+     "bytes": 16027,
+     "baseBlob": null
+    },
+    {
+     "path": "rehearsal/runs/m2/STOPPED.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c0b2c0c29a2101b2c59085a99b71f2f5968ba3a1",
+     "sha256": "e86d5b9770aec82e8a341d9a7e9bedcf20ba774612c440e578548f5d6fd4c38d",
+     "bytes": 172,
+     "baseBlob": null
+    },
+    {
+     "path": "rehearsal/runs/m2/results.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9b1bb7b0c84a895ef535126de1704cf77334e2d6",
+     "sha256": "7e1c72fee6ec491dcd4e81253f1820eef701c0d95993883c78da962f70d96e10",
+     "bytes": 25885,
+     "baseBlob": null
+    },
+    {
+     "path": "rehearsal/runs/m3/results.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2419c91914f3da8fc709627244fade633344c6b6",
+     "sha256": "69f5f8af556d1bfb8f801635b18f77f01084cb9b015daa3a0ab04a308354233a",
+     "bytes": 48390,
+     "baseBlob": null
+    },
+    {
+     "path": "storage-write-release.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e1b0777bce014218d4eee97e4d6ab0065aa2ce01",
+     "sha256": "95bbbcb0951448254a6f7eaa36a7edcefc098a87d24cdf1fff4e3ec0df65c9a7",
+     "bytes": 311867,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "c-storage-write-bbf0a009/patches/0001-Storage-distributed-write-cutover-package-corrected-.patch",
+     "sha256": "d85c63fda1841054c8e3beb30f7357312dff0864e13afc717ab125f002462547"
+    },
+    {
+     "file": "c-storage-write-bbf0a009/patches/0002-storage-write-release-RESULT.md-patch-and-progress.patch",
+     "sha256": "8dd752ec786639bf5e337fdcb539ce5f1d937182574f5a7f6728756735400fae"
+    }
+   ]
+  }
+ },
+ "merge": {
+  "repo": "work/resume-after-checkpoint-20261022/host-services-final-compose/candidate",
+  "branch": "final/host-services-compose",
+  "headReachableFromBranch": true,
+  "commit": {
+   "commit": "4106c3114dd13f39692195c182d3152efa5e212c",
+   "parents": "0757085e5b78ed38efc11920fb3cf4a25d7dfc4d 6c38c0489d769db12e5037e7c20f7372e56d5620",
+   "tree": "1a679ef307a70acf440584a7e991ebf6834d9030",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "committedAt": "2026-10-22T22:38:14-07:00",
+   "subject": "Compose host-service lifecycle (F 6c38c048) onto host-services carriers (C 0757085e)"
+  },
+  "firstParent": "0757085e5b78ed38efc11920fb3cf4a25d7dfc4d",
+  "secondParent": "6c38c0489d769db12e5037e7c20f7372e56d5620",
+  "baseProvenance": "first parent 0757085e (C carriers) and second parent 6c38c048 (F lifecycle) preserved in 871e2197 (frozen-0630-export)",
+  "headTree": "1a679ef307a70acf440584a7e991ebf6834d9030",
+  "changedFilesVsFirstParent": [
+   {
+    "path": "network/host-service-transport.mjs",
+    "status": "M",
+    "blob": "35fd331cdf0f28e626b9348807c8fdea4a98207e",
+    "sha256": "43e7c11527491f47a4c8c15e4a6832e560c59f94a8c00d9de34897a99d5be01a",
+    "bytes": 16908
+   },
+   {
+    "path": "network/privacy-agent.mjs",
+    "status": "M",
+    "blob": "d0c88522af681eec84dc8561e7b294e7c54f05e7",
+    "sha256": "5e56973dfd27bc76781ea2f70646803019044d56d7bd97988bcfe8cffca6f705",
+    "bytes": 36457
+   },
+   {
+    "path": "network/wg-circuit-runtime.mjs",
+    "status": "M",
+    "blob": "a3064b188df52ff163dc96cb9d98ea745b208dc8",
+    "sha256": "77b842e8a891f7aff5923b6a886334feec1814c1f002a6cac517ab4b10045efd",
+    "bytes": 21884
+   },
+   {
+    "path": "test/host-service-lifecycle.test.mjs",
+    "status": "A",
+    "blob": "fb26f34840f951a1961ecc4bb6f0fa9477057874",
+    "sha256": "0c7c438b17fdacd3ad501f7a488db670ca9709402e9d479aeb41dfd40d80b434",
+    "bytes": 26255
+   }
+  ],
+  "secondParentDiffStat": " 12 files changed, 465 insertions(+), 56 deletions(-)",
+  "patches": [
+   {
+    "file": "f-final-4106c311/patches/merge-vs-first-parent.diff",
+    "sha256": "f3f0829a40eb623b05387e21aa87f247b9fff759f9237d40f76fdaa795bef694"
+   }
+  ]
+ },
+ "derivative": {
+  "repo": "work/rpc-transaction-independence",
+  "branch": "master",
+  "headReachableFromBranch": true,
+  "base": null,
+  "baseProvenance": "root commit (E standalone repo); SOURCE-ONLY DERIVATIVE (fixtures/artifacts/ excluded)",
+  "head": "159fd1480ddab9652043cce5163348ff4fa6996b",
+  "headTree": "827da8c7e4f16f187084ca46e7c5ed8ebb30e8e4",
+  "commits": [
+   {
+    "commit": "a460c36c88f41b95e6c2c8f27f7083a4415917c7",
+    "parent": "",
+    "tree": "672a07bd57fd9b71526f8d24bfb54b4086f41ca6",
+    "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "committedAt": "2026-10-22T23:35:57-07:00",
+    "subject": "Strict unsigned L1 forced-inclusion plans for reviewed Enclave operations on Base",
+    "originalTree": "834322bd6db4bd0cbee449f297d50af7f45e10b0"
+   },
+   {
+    "commit": "159fd1480ddab9652043cce5163348ff4fa6996b",
+    "parent": "a460c36c88f41b95e6c2c8f27f7083a4415917c7",
+    "tree": "827da8c7e4f16f187084ca46e7c5ed8ebb30e8e4",
+    "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+    "committedAt": "2026-10-23T00:00:50-07:00",
+    "subject": "RESULT: final run evidence (7/7, 10/10 mutants killed on a460c36c)",
+    "originalTree": "a7f970a8804352fef964adc08f722b6083d29042"
+   }
+  ],
+  "changedFiles": [
+   {
+    "path": ".gitignore",
+    "status": "A",
+    "mode": "100644",
+    "blob": "6d1f944715e607254771d7c53a44c9242b63d47f",
+    "sha256": "59b122983cf3e668dd5b78eec8c532b442b6c89d86a834a49b7d097a382381b5",
+    "bytes": 18,
+    "baseBlob": null
+   },
+   {
+    "path": "RESULT.md",
+    "status": "A",
+    "mode": "100644",
+    "blob": "ad645adc00889c6c5cccc3b823c1022ce5f31dc3",
+    "sha256": "83a36ef38ed1b11a5be1cd9c516f02ac27369ec293241dd3a79ff564667ce298",
+    "bytes": 24495,
+    "baseBlob": null
+   },
+   {
+    "path": "evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol",
+    "status": "A",
+    "mode": "100644",
+    "blob": "dcfe76406df6bf71e090aafe5e52130421769749",
+    "sha256": "47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481",
+    "bytes": 45859,
+    "baseBlob": null
+   },
+   {
+    "path": "evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol",
+    "status": "A",
+    "mode": "100644",
+    "blob": "196a1573d7e43bb3a2a0e6899b4a8a6c2ebe75b3",
+    "sha256": "97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003",
+    "bytes": 8944,
+    "baseBlob": null
+   },
+   {
+    "path": "evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol",
+    "status": "A",
+    "mode": "100644",
+    "blob": "254cf6eabe822a91673f3ebd898a5455ecbccf5e",
+    "sha256": "65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d",
+    "bytes": 913,
+    "baseBlob": null
+   },
+   {
+    "path": "evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol",
+    "status": "A",
+    "mode": "100644",
+    "blob": "7bcdbb96154c4539c2586f9ff1711f78f22eab20",
+    "sha256": "5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e",
+    "bytes": 1733,
+    "baseBlob": null
+   },
+   {
+    "path": "fixtures/sources/EnclaveDeployments.live-rev16d.sol",
+    "status": "A",
+    "mode": "100644",
+    "blob": "3f3d2c3ac155be4c108531b247b3f95a5c9ccdd4",
+    "sha256": "2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1",
+    "bytes": 121794,
+    "baseBlob": null
+   },
+   {
+    "path": "fixtures/sources/EnclaveLeaseExecutor.sol",
+    "status": "A",
+    "mode": "100644",
+    "blob": "090e667591d9c2ae2b97decb247c883d67841314",
+    "sha256": "dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033",
+    "bytes": 8232,
+    "baseBlob": null
+   },
+   {
+    "path": "fixtures/sources/EnclaveLeaseGasReserve.sol",
+    "status": "A",
+    "mode": "100644",
+    "blob": "bd8e9f8ac00e3dc4f2100736a5e70c73b50a66a3",
+    "sha256": "1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2",
+    "bytes": 27988,
+    "baseBlob": null
+   },
+   {
+    "path": "fixtures/sources/EnclaveRegistry.live-schema4.sol",
+    "status": "A",
+    "mode": "100644",
+    "blob": "d7fb9740a29cc3d6dc7c197ddf62937112b22a6c",
+    "sha256": "e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360",
+    "bytes": 17386,
+    "baseBlob": null
+   },
+   {
+    "path": "jobs/fetch-op-source.sh",
+    "status": "A",
+    "mode": "100755",
+    "blob": "b2c7dae48e530eb4d98450aa69bd7bf3a5618ba2",
+    "sha256": "820814422bd332003b5804b2dd90473b73ee7107c675809acd8c6122ae14a242",
+    "bytes": 960,
+    "baseBlob": null
+   },
+   {
+    "path": "jobs/mutants.sh",
+    "status": "A",
+    "mode": "100755",
+    "blob": "8951717bd8517e46f587247695dfa0f24e4b1257",
+    "sha256": "75d4d060d0d88f7999b2da1f2f5c3b004070efba1483983ac060757716bcfdef",
+    "bytes": 2253,
+    "baseBlob": null
+   },
+   {
+    "path": "jobs/run.sh",
+    "status": "A",
+    "mode": "100755",
+    "blob": "3011d935bacf6a12f1b6a87318ebff398887e23c",
+    "sha256": "c3825d635296e0a76333068f42824a0e93db2725713ab679d656d08e1a3d53b8",
+    "bytes": 809,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/anvil-1.guard.log",
+    "status": "A",
+    "mode": "100644",
+    "blob": "5a77d38eb8e8e801b2af6b42acb710883ec8db18",
+    "sha256": "9637c4002b6f8195e5fe4d8ffd830fe497bc8a3405a9f887eb7c62805291bc41",
+    "bytes": 67,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/anvil-1.out",
+    "status": "A",
+    "mode": "100644",
+    "blob": "28338f1cf355be5885b87f74a0d2e1cd708c327d",
+    "sha256": "fc60285ec0506948af2bbd66da73d7fd7fec74e6969e562f63c6178bec610701",
+    "bytes": 7252,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/anvil-2.guard.log",
+    "status": "A",
+    "mode": "100644",
+    "blob": "2e190f5f41089f5e23361de4b0d83c73147888ec",
+    "sha256": "bf46021168cfdafc4de12f4dcec3bbdf0d5b2fe5af58ecefa0e49ae3d877a6d2",
+    "bytes": 67,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/anvil-2.out",
+    "status": "A",
+    "mode": "100644",
+    "blob": "644a192ceec13db7d7bfc56e8a06659461912a35",
+    "sha256": "f0865deecea6c29979a882da3d1346dc9f6496d933ab32453f459a3b25a64f91",
+    "bytes": 6459,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/anvil-3.guard.log",
+    "status": "A",
+    "mode": "100644",
+    "blob": "70045e344fe395533f611ead4db20d7aa379095b",
+    "sha256": "28fadb5db38b353d338bd8425395f41c5f58f8c6d31900f17951b1afc40dabda",
+    "bytes": 67,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/anvil-3.out",
+    "status": "A",
+    "mode": "100644",
+    "blob": "15a3813348ff9aca073a47d227dbb245319e8bf8",
+    "sha256": "a74213f5ee86015caab1e98a6af8554f7b32918e592b89a9fb891576327ff21f",
+    "bytes": 4771,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/anvil-4.out",
+    "status": "A",
+    "mode": "100644",
+    "blob": "b6835612184458e6e93762931cef8b8c57a8f9d7",
+    "sha256": "f332f0fa85ad06faec8359660bf0ae60eb11fd45cad039e2f24298727f18b693",
+    "bytes": 4529,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/fetch-op-1.guard.log",
+    "status": "A",
+    "mode": "100644",
+    "blob": "f9619e7818809142a3a0986dcf81144f55b40234",
+    "sha256": "ec8ece023b038083d5362692e6117d53d80b46d8191ef2b9bb399c35263da869",
+    "bytes": 66,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/fetch-op-1.out",
+    "status": "A",
+    "mode": "100644",
+    "blob": "52948491e80dac151b1faae79d145d5e177be610",
+    "sha256": "7d84648a4d995e00b8766d1e8b4dc05029155a4fb0587673b4f10da45f4416d9",
+    "bytes": 803,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/final-1.guard.log",
+    "status": "A",
+    "mode": "100644",
+    "blob": "b62e439cd7e0d2046378b4d1474072a707b470ae",
+    "sha256": "71081308ac2ba82f7ba5d0fc26961ea864105f2f2f0b4fa81bd6139e257855df",
+    "bytes": 67,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/final-1.out",
+    "status": "A",
+    "mode": "100644",
+    "blob": "0ee803f9e62259c568f9cdfb9a98ef601f410142",
+    "sha256": "1fb9e1d4be1aa87afadcd32a6efb15ae05dc37184b00b7b841a641c1fb81bd36",
+    "bytes": 1104,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/final-1.rc",
+    "status": "A",
+    "mode": "100644",
+    "blob": "ca916d098dabfe85979d791e4534bf1def02ef84",
+    "sha256": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320",
+    "bytes": 7,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/final-2.rc",
+    "status": "A",
+    "mode": "100644",
+    "blob": "cc4d087a8d8fff8adb630359ef45dfc123b542c8",
+    "sha256": "a4c24c6a0879b8bb9a19466af292a15160d11432b9d39f5b565b3f8942cb6599",
+    "bytes": 8,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/final-3.guard.log",
+    "status": "A",
+    "mode": "100644",
+    "blob": "1da78ce0bf24f7469a4a8918de1b4a6739e91214",
+    "sha256": "c15374888de0ab5dacaf7d720fe5bad08632cc1f6ffc997b5f88153d7ae1e921",
+    "bytes": 67,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/final-3.out",
+    "status": "A",
+    "mode": "100644",
+    "blob": "b724231b6058866d8d7b379d41ed4cfb16a1e787",
+    "sha256": "cf589f99409b28f37aa57015456884310982c3bc83ab07a1acabc0076d3f2b87",
+    "bytes": 1104,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/final-3.rc",
+    "status": "A",
+    "mode": "100644",
+    "blob": "ca916d098dabfe85979d791e4534bf1def02ef84",
+    "sha256": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320",
+    "bytes": 7,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mut-1.tap",
+    "status": "A",
+    "mode": "100644",
+    "blob": "90eb51d580e54c8312426f5cae5e5e67d019de11",
+    "sha256": "5118138d08ab31112818bcacb93db8aecf6d550e26b845efbb49c7090ab36d8b",
+    "bytes": 3315,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mut-10.tap",
+    "status": "A",
+    "mode": "100644",
+    "blob": "842dba182105870edb92e57c33b9fb45a21d8dbd",
+    "sha256": "aaa5a33c518704c5012afa103674bb3232ba57182441fa7f088c91fae7ec4913",
+    "bytes": 2757,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mut-2.tap",
+    "status": "A",
+    "mode": "100644",
+    "blob": "33da33e472335be706f1d6ad9f4b42578d1a103b",
+    "sha256": "95ac456ca5fd478f89b08aa715c259658b974e63c74312efff381fbde3fdc1d2",
+    "bytes": 3313,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mut-3.tap",
+    "status": "A",
+    "mode": "100644",
+    "blob": "efe63c0bbdf6ac29749d69f19e050e964be55d50",
+    "sha256": "651e4864e479c8983591b0cb8475eabc5a117a1b3b208d085d33b424c794ee82",
+    "bytes": 3311,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mut-4.tap",
+    "status": "A",
+    "mode": "100644",
+    "blob": "c0d848b511a4a6d8c5cb327e4281a4d423434c77",
+    "sha256": "29d64a05c77ba3fa3b4793d156235be1bc456d406ff2fa48e4888a413018d343",
+    "bytes": 3309,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mut-5.tap",
+    "status": "A",
+    "mode": "100644",
+    "blob": "cb293c4650ef5b6b23b6ed764643962344dc4e39",
+    "sha256": "dce75218174026ca45a53aa5ed9a131d9a4490a38e6a32edfa5908cf10b48dae",
+    "bytes": 3673,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mut-6.tap",
+    "status": "A",
+    "mode": "100644",
+    "blob": "38b23412eeb886185a112336a6f7f181b0e40a26",
+    "sha256": "46ae8ca52f8ccfe25ab7f5cf13b554853ba062283c044b5a7aa874cbb16fd067",
+    "bytes": 2915,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mut-7.tap",
+    "status": "A",
+    "mode": "100644",
+    "blob": "23a0c70c1746843a969e0229ef14c181056ac7a9",
+    "sha256": "42c97b33d109e70b2d508f3415059932ca9273d58661d9a8517cbca2d2e6cb15",
+    "bytes": 2759,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mut-8.tap",
+    "status": "A",
+    "mode": "100644",
+    "blob": "e8ce65eb28e4a96e99fab6bdb734651cafece915",
+    "sha256": "d85e5407f8698bcccac3103db5d1b2137eeaec5419dfce37bcf45ad245be9ac6",
+    "bytes": 4915,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mut-9.tap",
+    "status": "A",
+    "mode": "100644",
+    "blob": "b85faa7113bcaa1d06efd8091e50f6c57f5fbf9e",
+    "sha256": "d9ff10ea4c76eb01b988b24d37f8fa95691392203fea387d91a096c48cfc95dd",
+    "bytes": 3296,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mutants-1.guard.log",
+    "status": "A",
+    "mode": "100644",
+    "blob": "fd1cfec486c098437685d78e17a32eb58342f7b7",
+    "sha256": "9d1679bda9fd3a2e985e3dcc839179f5e35ef086e69244f0f78f192a49ca62c1",
+    "bytes": 67,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mutants-1.out",
+    "status": "A",
+    "mode": "100644",
+    "blob": "4c949a0da1ad7831df776478326cf4c23f45ae73",
+    "sha256": "9b4dfb55c612b0d410dda7f41b174952e05b90c16ffc8e7849f6face08dc8acd",
+    "bytes": 908,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mutants-2.guard.log",
+    "status": "A",
+    "mode": "100644",
+    "blob": "7783a64ff99e0cdd7359ecaa61fcc1739f950614",
+    "sha256": "8c4813fceb2c8f575aec83869618e677d02c552ee56c970e903f485ebe07ba06",
+    "bytes": 67,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/mutants-2.out",
+    "status": "A",
+    "mode": "100644",
+    "blob": "877845c0ec5a0f373eedb4535f3fc3d707942275",
+    "sha256": "024070616d21e370c1a734318d5b228f9e611c2fd2d953f265647beb55b68b5f",
+    "bytes": 927,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/probe-1.guard.log",
+    "status": "A",
+    "mode": "100644",
+    "blob": "4d9585d88390f06705b8a25f4739737a1cb7aafc",
+    "sha256": "6ebe1f292b3406d4dbfedccb07ae09496e14f45a79a848ef1a0873a29c420de7",
+    "bytes": 67,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/probe-1.out",
+    "status": "A",
+    "mode": "100644",
+    "blob": "051cf228ac7dbb9504493b14c9525bc175f6871d",
+    "sha256": "e1290de68495c460e2109c54e7fb5bdccd9133fd01edcd5d1cd7246b2f00705a",
+    "bytes": 5867,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/suite-final-1.out",
+    "status": "A",
+    "mode": "100644",
+    "blob": "149158882a377a620a18fd488cb51d30e741a425",
+    "sha256": "c14c122928b43283a98c371c67822ca4577361c507e3ed79b9e141bfcbe5531a",
+    "bytes": 4923,
+    "baseBlob": null
+   },
+   {
+    "path": "logs/suite-final-3.out",
+    "status": "A",
+    "mode": "100644",
+    "blob": "ba8d92375c2afc26d3927dcaaf294e4e2ee07db9",
+    "sha256": "9eab7960bb4125439d92f3e7ebf0efb7dc27de1e7942a40e03792d6a1850f6fc",
+    "bytes": 4924,
+    "baseBlob": null
+   },
+   {
+    "path": "package.json",
+    "status": "A",
+    "mode": "100644",
+    "blob": "b3612ea424f9997ea4a0a978b940fcdcf19a0c44",
+    "sha256": "7994ddf388263300f5cb03332216feb6f03d204ca4511872f3a8499cd8ac060c",
+    "bytes": 71,
+    "baseBlob": null
+   },
+   {
+    "path": "src/forced-inclusion.mjs",
+    "status": "A",
+    "mode": "100644",
+    "blob": "b68bba47e853a29e7a9c73a22bc6e74c95799832",
+    "sha256": "b2552fd593297b9f28ad8153913ce201c036ca2f7875249be1bf85cea832fa27",
+    "bytes": 33758,
+    "baseBlob": null
+   },
+   {
+    "path": "test/forced-inclusion.anvil.test.mjs",
+    "status": "A",
+    "mode": "100644",
+    "blob": "32ea7746ee002bb6b450c32ec66ad16edb4ef0ee",
+    "sha256": "cbd5de839736a8948d5951dce3260660c940f929031425b2b17558ab5e4f7f74",
+    "bytes": 30587,
+    "baseBlob": null
+   },
+   {
+    "path": "test/tracker.test.mjs",
+    "status": "A",
+    "mode": "100644",
+    "blob": "bb2350de65a94449f65af03f17fb38df0a7a9013",
+    "sha256": "784ba86de7d3f08cb6cf0df1164c7bc9c5d1ef5bcccc125e3d05e2c966355c2d",
+    "bytes": 2749,
+    "baseBlob": null
+   },
+   {
+    "path": "tools/anvil-deposit-probe.mjs",
+    "status": "A",
+    "mode": "100644",
+    "blob": "cfed3c49be194538245c4652ee8de9f598e33999",
+    "sha256": "b7c1e8dd0d647524508dd4215d53117a780d076111575cafc419f723c300f854",
+    "bytes": 3031,
+    "baseBlob": null
+   }
+  ],
+  "patches": [
+   {
+    "file": "e-derivative-159fd148/patches/0001-Strict-unsigned-L1-forced-inclusion-plans-for-review.patch",
+    "sha256": "cf5a9ecbe9a68c42bbde74818dd51b4f28eedacd738f4607a71f0b8b12b18599"
+   },
+   {
+    "file": "e-derivative-159fd148/patches/0002-RESULT-final-run-evidence-7-7-10-10-mutants-killed-o.patch",
+    "sha256": "b46b636fde022243dbe2c48403b154260d18f61be1d94cfe08460b9a109f1e65"
+   }
+  ],
+  "originalHeadTree": "a7f970a8804352fef964adc08f722b6083d29042",
+  "omittedArtifacts": {
+   "a460c36c88f41b95e6c2c8f27f7083a4415917c7": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "8011bcba74980cf58cc7def54c8cf3aa1d432977",
+     "bytes": "324106",
+     "path": "fixtures/artifacts/EnclaveDeployments.json"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "0c1914229de2e4fac56cf72201f40d6650a075f9",
+     "bytes": "32471",
+     "path": "fixtures/artifacts/EnclaveLeaseExecutor.json"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "a5334d585cca2c906f3babe91e59b11bc80881bc",
+     "bytes": "151135",
+     "path": "fixtures/artifacts/EnclaveLeaseGasReserve.json"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "cdd4196147e1e982dfb6955f3c0e68913ee133eb",
+     "bytes": "32240",
+     "path": "fixtures/artifacts/EnclaveLedgerBandwidth.json"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "a53a74c9a0059b09e5b28bdf67ab39d1a9ec56e8",
+     "bytes": "66096",
+     "path": "fixtures/artifacts/EnclaveRegistry.json"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "9e6fd30186cfc481fcec43c574af7b5da6b1d536",
+     "bytes": "22365",
+     "path": "fixtures/artifacts/MockFeed.json"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "6dbf36a2f2232962edfe0a6b5872fd285aaa1766",
+     "bytes": "29274",
+     "path": "fixtures/artifacts/MockUSDC.json"
+    }
+   ],
+   "159fd1480ddab9652043cce5163348ff4fa6996b": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "8011bcba74980cf58cc7def54c8cf3aa1d432977",
+     "bytes": "324106",
+     "path": "fixtures/artifacts/EnclaveDeployments.json"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "0c1914229de2e4fac56cf72201f40d6650a075f9",
+     "bytes": "32471",
+     "path": "fixtures/artifacts/EnclaveLeaseExecutor.json"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "a5334d585cca2c906f3babe91e59b11bc80881bc",
+     "bytes": "151135",
+     "path": "fixtures/artifacts/EnclaveLeaseGasReserve.json"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "cdd4196147e1e982dfb6955f3c0e68913ee133eb",
+     "bytes": "32240",
+     "path": "fixtures/artifacts/EnclaveLedgerBandwidth.json"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "a53a74c9a0059b09e5b28bdf67ab39d1a9ec56e8",
+     "bytes": "66096",
+     "path": "fixtures/artifacts/EnclaveRegistry.json"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "9e6fd30186cfc481fcec43c574af7b5da6b1d536",
+     "bytes": "22365",
+     "path": "fixtures/artifacts/MockFeed.json"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "6dbf36a2f2232962edfe0a6b5872fd285aaa1766",
+     "bytes": "29274",
+     "path": "fixtures/artifacts/MockUSDC.json"
+    }
+   ]
+  },
+  "artifactRecipe": {
+   "file": "source-preservation/frozen-0830-e-artifact-recipe.json",
+   "compilerPin": [
+    "0.8.35+commit.47b9dedd"
+   ],
+   "recipeSourcesMatched": 22,
+   "recipeSourcesMissing": []
+  },
+  "label": "SOURCE-ONLY DERIVATIVE: the exact original commit trees CANNOT be rebuilt from this export until the 7 compiled fixtures are regenerated (solc 0.8.35+commit.47b9dedd, viaIR, runs 1, the pinned sources) and reproduce the recorded bytecode keccak256s; these patches reproduce the derivative trees (original minus fixtures/artifacts/)"
+ },
+ "frozenSources": {
+  "rpc-priority/RESULT-WINDOWS-CONSUMERS.md": "efc6c21532363cfb0626c4a4c94b09b8fa78551635853b4b9cd95fa9dd635cfd",
+  "rpc-priority/patches/enclave/0010-Bound-the-whole-verified-read-its-callback-included-.patch": "ae0ce7291980c60d56b3c3e69a55d12e5ba98ed107a9b4faf7fdc5cdac69c39c",
+  "rpc-priority/patches/enclave/0011-Keep-the-verified-operation-deadline-timer-reference.patch": "66a5f8389a551f8ff79856395f4bf855a9d34d5baf31d768010389b6eb676241",
+  "rpc-priority/patches/enclave/0012-Close-verified-policy-snapshots-before-late-response.patch": "868b8fd2a3ad4adda536bf5979337ab639089faac2391d4b657d30b18da7dcc1",
+  "rpc-priority/patches/enclave/0013-Close-the-verified-LeaseReader-client-s-metadata-met.patch": "cfec95d2ff6e07b4da58cae53cba677fdf40f3ab6715391d0a0c1c64304066ff",
+  "rpc-priority/patches/enclave/0014-Wire-the-Windows-node-s-chain-consumers-to-the-expli.patch": "9400cca08760deb1d5fa4d989867f71d7f8fda01789fcd37c67d1c7dd2ae9a01",
+  "host-services-final-compose/RESULT.md": "216bf57f1fb023ba5184bfc0fafd13492d9d5258a7f4cbce5e1d55128b661cd6",
+  "host-services-final-compose/PROGRESS.txt": "1ca5bcf9584cdd13f5371e0369861d8cd52501c25ba7a41f3d738e681a2f4c13",
+  "host-services-final-compose/artifacts-final.sha256": "cb5da1f81d5c94a14bbc1bdd0cb810163aeb28b5fe1e79c0b0a4ae78a99cd1f8",
+  "host-services-final-compose/artifacts-final-run1-modified.sha256": "e1eb07c12a2ff94e31c5555e970b05e3b6a243add13d85f7f7c73987be6a12a4",
+  "host-services-final-compose/node-deploy-files.sha256": "5580acb7f50341d93c557f96e5f80e3bb184b2cd2fdaed4262777308d11373b4",
+  "host-services-final-compose/node-deploy-files.txt": "3199bd17c5bf0febdbdf9d9cfd56dee22c1aea3792fbd521f84d1138ac636d1a",
+  "host-services-final-compose/release.sha256": "1a93c0655b30eb268097dd336ea6a5467d90755b8f0cf61dcb896d694dc6be22",
+  "host-services-final-compose/build-final.sh": "390bd4f916b244aacc6d3d17478c785b74350a9d5fac863cc7fd194e51e52d35",
+  "host-services-final-compose/job.sh": "88fa789ed2725ed090a1905566228e91337eb5f9eb61716f5ff403c857dcee43",
+  "host-services-final-compose/q.sh": "3e8ad483ee2826930c1152d83f840153980f561288d6c041a38495031f3d8d57",
+  "host-services-final-compose/setup.sh": "13cdc0be3d8b37c5013daf481962e424321ee1c4210682625b4f123f7e563ea0",
+  "host-services-final-compose/r1-check.sh": "a6deb81df0388611144d734261acd4f5666f7c48d179ab3f056a746e96d85a4b",
+  "host-services-final-compose/scan.sh": "78762f831f52432109659b37ccd62ab353fc491fcce12f9790a3337504dfe268",
+  "host-services-final-compose/merge-msg.txt": "cf4dcb04902b9975a8c6805c051c85f1ccbbf6d479bf6418e6f6d23ec6e219b9",
+  "host-services-final-compose/gitleaks-range.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+  "source-preservation/frozen-0830-f-final-test-evidence.txt": "e4dab9a2050ae50b5e9b86fb076c7a0bad3622971b3a83f646598c6a05d01994",
+  "source-preservation/frozen-0830-c-storage-test-evidence.txt": "e2020784dc9fc0c8d17f0bb68138fdf7fbe3691b6807a12bfab087d303c0ef2d",
+  "source-preservation/frozen-0830-e-artifact-recipe.json": "760a6ac6d4bbf47ffa1cc264cdd6621b65b1d246a7ea74dc7622a4579428e3ba",
+  "source-preservation/snapshots-0830/ROOT-PENDING-LATEST.snapshot-0830.txt": "9f43cdc5329ba7720857f87faad50a21659dffc6ce0c75405603879a2b9262b4",
+  "source-preservation/snapshots-0830/effective-goal-requirements.snapshot-0830.txt": "f9112c423fec2d99ff74ee3d910997599f54e69a03ff64338753c7965306572e",
+  "source-preservation/frozen-0830-e-recipe-sources/foundry.toml": "0d004ad027e5ab66a7a9e33c7de5d276d050572600a7258d081d5620b2f4f4eb",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/Base.sol": "fc32a987e0555c69c646d995981acbcc57d5cd0173a364d37b9f79e3aa00ff0e",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdAssertions.sol": "dcb4e4fe9fdd74f3f04e6f3b46d4d42375ea1f63ca9488902b4b0c289ada0295",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdChains.sol": "a2cb4497c4ee5a2ba0ada8b816ea3bb1c9ba62303b70955dc0a2d99b3f98d326",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdCheats.sol": "29af42f9d670fd22e9fc3ebe3c2da194471e93e210361c41d3d26ef04e9dca28",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdConstants.sol": "6c785abd2fb9d42560f867d8e43e729c55f5bda2c06e5ddae27b17e301de4f04",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdError.sol": "82ca17e33a03775e95b4612bd604a8732c73b2982a0278d214e06c68a886dc11",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdInvariant.sol": "f572e991cfe874844b3b75a540e38e2161c29b5d9ab1635a3c4f1a16c548f987",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdJson.sol": "0211b47e93dbeb6a7de6112470a77137038ed73b79b015847f013e49fcd7511f",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdMath.sol": "f04fc0616741563eb32d66c11af7fdca55a7202221e14282268c7be851fc63ab",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdStorage.sol": "829b263a1fe1a6637fee1a2129ef3cbc716f6020ed56637c8a5be7277ef812ce",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdStyle.sol": "324c2b0e100e88edbdb75f60f8a4c42f056f8d618ae5f56b1c404df64e8280a7",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdToml.sol": "de3fb35af79a1fd2a2de9bc4ca7866e4102f9d3fbf11f66f3fe82696412d47e2",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdUtils.sol": "812afd6b5b43b1db9a3da817425b7a789149d7b8baf0670520a2224812799706",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/Test.sol": "b1b48a4dfbd65fed186163326dc8870316679f64a195aa18050f83657d2df39c",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/Vm.sol": "c44d7bc0c4c4e47df60ee863291632df7947cb58d5395b3a02a4e93d029c6f06",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/console.sol": "896c5a5a5c235cb11a39876d430e1fc2c621e7950c4637ca58251b84b053f178",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/console2.sol": "3bbe2e07ec53d8cf9c091667fe10234fcb3e2b45eab2c711002188806f46e779",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/interfaces/IMulticall3.sol": "6620d9c5ea2e2291440e1dcce5072f948b7ec4d65075876a0d0ac9267d3342e3",
+  "source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/safeconsole.sol": "ed11aa2efc83fa8e575215a11dd7a9be385cf49dacbc379630168d7334899e46",
+  "source-preservation/frozen-0830-e-recipe-sources/src/EnclaveLeaseGasPaymaster.sol": "ed66080ade6bfbc896a24b459b5c7faf8bc270873709aad0fe873105b7eb7b18",
+  "source-preservation/frozen-0830-e-recipe-sources/test/LeaseGas.t.sol": "95cc6a0ec3469affb77772bb83057d66e888c12bebb103fa54829258750e673b",
+  "source-preservation/frozen-0830-e-recipe-sources/test/mocks/MockUSDC.sol": "a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703"
+ },
+ "rootEvidence": {
+  "host-services-final-compose/ROOT-RPC-CONSUMER-GATE.txt": "bff354ebc8cb1526cdd213ed1769295707bfac8734bba034dcafa852f13da3de",
+  "host-services-final-compose/ROOT-LIVE-LEGACY-ADMISSION.txt": "1efd8fac0dd12583301f26b71d1ae8fdc25874878f7e0aac3046b8b2d9601f5b",
+  "host-services-final-compose/ROOT-LIVE-POLICY-PREFLIGHT.txt": "b96e189435599af6ef7d6127842b5b4fdad63913d55c5c58ba43daac06ee8c76",
+  "../../outputs/decentralization-audit/checkpoint-verified-0745-20261023.json": "4b89aa0f594c35227ddd9a53703c650750ba5681950265773d807354c69e5b42"
+ },
+ "notPreserved": [
+  "E fixtures/artifacts/*.json (7 compiled outputs; blobs, sha256 and the regeneration recipe recorded instead)",
+  "F host-services-final-compose/release/ (built artifacts; their hashes are in release.sha256 / artifacts-final.sha256)",
+  "raw logs (F/C digests instead), run handles, keys, binaries, node_modules, build caches",
+  "later mutable work: A after df8fbafa, F host-service-rpc-closure, C after bbf0a009, S browser-rpc-closure, E closure",
+  "C storage-write-release/ROOT-LIVE-*.txt (byte-identical to the F copies captured here)",
+  "rpc-priority/patches/SHA256SUMS update (path already in the manifest; the Git-object patches are authoritative)"
+ ]
+}

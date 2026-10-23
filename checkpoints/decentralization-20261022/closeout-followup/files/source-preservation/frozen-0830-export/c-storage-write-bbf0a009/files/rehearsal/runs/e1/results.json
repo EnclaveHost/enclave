@@ -1,0 +1,291 @@
+{
+ "run": "e1",
+ "started": 1792741237.8844142,
+ "inputs": {
+  "adapter-retained/bafybeib7at4cxxzmlp3wb7v45zrhbuggwzegspcacfylztslbcnoe6qrqu.bin": "d1ddecfe7c3e1d06d1921eb779e135f3a64f185a4dbcdd989f56e22f603e07d3",
+  "storage-wasm-validation/artifacts/candidate-00e9cde0.wasm": "00e9cde0929dc7b8726ca4b7b9c9afb51ec4bf6d952039c907c032256ec79afc",
+  "claude-resumed-20261022/storage-sdk-regressions/out/c2e-a/harness-block": "cac6651329468aaeb2dd4d90ac9b924a891b121edbe17d2515b34b0dae97eafa",
+  "resume-after-checkpoint-20261022/storage-client-interop/egress_socks5.py": "77fad264406da15a85830ce1559fbd04feb2f9464b01576512a525112da09086",
+  "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+  "resume-after-checkpoint-20261022/storage-public-read/candidate-catalog-config.json": "7b9e7e750521b4bb0fa5925e771a42766673ad728e02e3d8508da4ca6ea554d2",
+  "resume-after-checkpoint-20261022/storage-write-release/client/catalog-config.c2.json": "f6b48940cf7179b5a7bc61fabfee4667bd14aacd0380d953cae8f878972ff278"
+ },
+ "checks": [
+  {
+   "name": "P: the exact 0.1.8 is ready on the v28 indexer (unenrolled account)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "P: 0.1.8 PUT ipfs/legacy/one",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "P: rollback-decision before any C2 boot: LEGACY_REDEPLOY_SAFE",
+   "ok": true,
+   "detail": "dbVersion=28\nfencedAccounts=0\ncasEnrolledAccounts=0\n"
+  },
+  {
+   "name": "E: C2 was killed right after logging its installed fence, and NEVER reported ready",
+   "ok": true,
+   "detail": "r0 uses plain HTTP; only for an indexer on a trusted path\n[sia-s3] config: resolved $S3_ACCESS_KEY_ID from the environment\n[sia-s3] config: resolved $S3_SECRET_ACCESS_KEY from the environment\n[sia-s3] config: resolved $ENCLAVE_WRITER_AUTHORITY from the environment\n[sia-s3] config: resolved $ENCLAVE_INSTANCE_ISOLATION from the environment\n[sia-s3] listening on 127.0.0.1:51615; indexers [\"http://127.0.0.1:37003\"] (write quorum 1); buckets [\"ipfs\", \"git\", \"jot\", \"machines\"]\n[sia-s3] writer fencing: ballot gen 0x10032153d80003 counter 1 installed on 1 of 1 replicas\n[sia-s3] index: 1 objects, 1 keys, 0 open uploads, 0 orphans, 0 tombstoned keys, 0 floors in 0 ledgers (0 unread), 0 manifests (0 unread), 0 superseded entries\n[sia-s3] membership: Legacy (ready), epoch 0 -> 1, 1 voting of 1 needed\n"
+  },
+  {
+   "name": "E: yet the account IS enrolled: CAS mode and the claim's lease16 fence installed",
+   "ok": true,
+   "detail": "{'fenceGeneration': '0x0010032153d80003', 'casMode': True, 'seqEnabled': True, 'eventSeq': 1}"
+  },
+  {
+   "name": "D: rollback-decision on that state: FORWARD_ONLY (never a legacy redeploy)",
+   "ok": true,
+   "detail": "{'decision': 'FORWARD_ONLY', 'do': \"keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and there is no online downgrade. Restoring the pre-enrolment backup is NOT a routine rollback: it discards every write acknowledged after that backup's capture time - root's explicit decision only, with the writers stopped.\", 'state': {'casEnrolledAccounts': 1, 'fencedAccounts': 1}}"
+  },
+  {
+   "name": "O: a redeployed 0.1.8 cannot write to the enrolled account, and indexd is unchanged",
+   "ok": true,
+   "detail": "{'PUT': 500, 'before': {'fenceGeneration': '0x0010032153d80003', 'casMode': True, 'seqEnabled': True, 'eventSeq': 1}, 'after': {'fenceGeneration': '0x0010032153d80003', 'casMode': True, 'seqEnabled': True, 'eventSeq': 1}}"
+  },
+  {
+   "name": "F: C2 restarted under the same claim becomes ready",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "F: the legacy bytes: every key reads back byte-exact (1 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "F: the legacy bytes: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "F: and writes",
+   "ok": true,
+   "detail": "200"
+  }
+ ],
+ "measure": [
+  {
+   "op": "wasmtime compile v018",
+   "wallS": 1.3
+  },
+  {
+   "op": "wasmtime compile final",
+   "wallS": 1.8
+  },
+  {
+   "op": "v018-writer PUT ipfs/legacy/one 3145728",
+   "wallS": 2.26,
+   "status": 200
+  },
+  {
+   "op": "v018-writer instance",
+   "maxRssMiB": 152,
+   "cpuS": 1.78,
+   "wallS": 4.5,
+   "sampledPeakRssMiB": 153,
+   "status": 15
+  },
+  {
+   "op": "c2-killed-before-ready instance",
+   "maxRssMiB": 87,
+   "cpuS": 0.01,
+   "wallS": 0.2,
+   "sampledPeakRssMiB": 1,
+   "status": 9
+  },
+  {
+   "op": "v018-after-kill instance",
+   "maxRssMiB": 148,
+   "cpuS": 1.85,
+   "wallS": 5.1,
+   "sampledPeakRssMiB": 149,
+   "status": 15
+  },
+  {
+   "op": "c2-forward-repair PUT jot/after-repair 1048576",
+   "wallS": 4.01,
+   "status": 200
+  },
+  {
+   "op": "c2-forward-repair instance",
+   "maxRssMiB": 153,
+   "cpuS": 3.6,
+   "wallS": 7.9,
+   "sampledPeakRssMiB": 153,
+   "status": 15
+  }
+ ],
+ "events": [
+  "00:40:39 postgres ready postgres (PostgreSQL) 18.6",
+  "00:40:41 harness ready http://127.0.0.1:37285",
+  "00:40:47 v018-writer ready after 2.0 s",
+  "00:40:47 CHECK PASS P: the exact 0.1.8 is ready on the v28 indexer (unenrolled account) ",
+  "00:40:50 CHECK PASS P: 0.1.8 PUT ipfs/legacy/one 200",
+  "00:40:50 CHECK PASS P: rollback-decision before any C2 boot: LEGACY_REDEPLOY_SAFE dbVersion=28\nfencedAccounts=0\ncasEnrolledAccounts=0\n",
+  "00:40:50 CHECK PASS E: C2 was killed right after logging its installed fence, and NEVER reported ready r0 uses plain HTTP; only for an indexer on a trusted path\n[sia-s3] config: resolved $S3_ACCESS_KEY_ID from the environment\n[sia-s3] config: resolved $S3_SECRET_ACCESS_KEY from the environment\n[sia-s3] config: resolved $ENCLAVE_WRITER_AUTHORITY from the environment\n[sia-s3] config: resolved $ENCLAVE_",
+  "00:40:50 CHECK PASS E: yet the account IS enrolled: CAS mode and the claim's lease16 fence installed {'fenceGeneration': '0x0010032153d80003', 'casMode': True, 'seqEnabled': True, 'eventSeq': 1}",
+  "00:40:50 CHECK PASS D: rollback-decision on that state: FORWARD_ONLY (never a legacy redeploy) {'decision': 'FORWARD_ONLY', 'do': \"keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and there is no online downgrade. Restoring the pre-enrolment backup is NOT a routine rollback: it discards every write acknowledged after that backup's capture t",
+  "00:40:52 v018-after-kill ready after 2.0 s",
+  "00:40:55 CHECK PASS O: a redeployed 0.1.8 cannot write to the enrolled account, and indexd is unchanged {'PUT': 500, 'before': {'fenceGeneration': '0x0010032153d80003', 'casMode': True, 'seqEnabled': True, 'eventSeq': 1}, 'after': {'fenceGeneration': '0x0010032153d80003', 'casMode': True, 'seqEnabled': True, 'eventSeq': 1}}",
+  "00:40:57 c2-forward-repair ready after 2.0 s",
+  "00:40:57 CHECK PASS F: C2 restarted under the same claim becomes ready ",
+  "00:40:59 CHECK PASS F: the legacy bytes: every key reads back byte-exact (1 keys) []",
+  "00:40:59 CHECK PASS F: the legacy bytes: listings are exact per bucket (deleted keys absent) []",
+  "00:41:03 CHECK PASS F: and writes 200"
+ ],
+ "db": {},
+ "isolation": {
+  "netInterfaces": [
+   "lo"
+  ],
+  "uid": 1000,
+  "pid": 1
+ },
+ "wasmtime": "wasmtime 49.0.3 (f96eabaa1 2026-10-14)",
+ "pgSocketDir": "/tmp/mgpg-e1-g2qcsp7q",
+ "postgres": "postgres (PostgreSQL) 18.6",
+ "instances": {
+  "v018-writer": {
+   "artifact": "v018",
+   "config": {
+    "indexer": "http://127.0.0.1:37003",
+    "appKey": "<fixture app key>",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "INTEROPAK",
+      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+     }
+    ]
+   },
+   "env": []
+  },
+  "c2-killed-before-ready": {
+   "artifact": "final",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:37003\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "v018-after-kill": {
+   "artifact": "v018",
+   "config": {
+    "indexer": "http://127.0.0.1:37003",
+    "appKey": "<fixture app key>",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "INTEROPAK",
+      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+     }
+    ]
+   },
+   "env": []
+  },
+  "c2-forward-repair": {
+   "artifact": "final",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:37003\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  }
+ },
+ "stateBefore": "dbVersion=28\nfencedAccounts=0\ncasEnrolledAccounts=0\n",
+ "killedAfterSeconds": 0.071,
+ "stateAfterKill": "dbVersion=28\nfencedAccounts=1\ncasEnrolledAccounts=1\n",
+ "decision": {
+  "decision": "FORWARD_ONLY",
+  "do": "keep C2 (restart it, or stay at N = 1) and repair forward. 0.1.8 cannot write to an enrolled account, and there is no online downgrade. Restoring the pre-enrolment backup is NOT a routine rollback: it discards every write acknowledged after that backup's capture time - root's explicit decision only, with the writers stopped.",
+  "state": {
+   "casEnrolledAccounts": 1,
+   "fencedAccounts": 1
+  }
+ },
+ "cleanup": {
+  "hostSectorsRemoved": true,
+  "pgDataRemoved": true,
+  "pgSocketDirRemoved": true,
+  "pidsLeftInNamespace": []
+ },
+ "finished": 1792741265.0571349,
+ "passed": 11,
+ "failed": 0
+}

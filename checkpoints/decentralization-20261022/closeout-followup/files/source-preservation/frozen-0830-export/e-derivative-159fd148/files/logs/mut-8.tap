@@ -1,0 +1,77 @@
+TAP version 13
+# Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+  ---
+  duration_ms: 295.058586
+  type: 'test'
+  ...
+# Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+  ---
+  duration_ms: 50.306653
+  type: 'test'
+  ...
+# claim deposit gasUsed 334205 of limit 800000
+# Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+  ---
+  duration_ms: 49.017422
+  type: 'test'
+  ...
+# Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+not ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+  ---
+  duration_ms: 45.547237
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/test/forced-inclusion.anvil.test.mjs:225:1'
+  failureType: 'testCodeFailure'
+  error: 'ambiguous-duplicate: lease:8453:0x4c3968c1216149cccf31ccf6c3decdd54485af12:0x7742a1fa8356b161bfa46b661206938524d0daa9e2d32c9d9054d39b97ddc750 has an unresolved commitment 0x9f5aac43a4cef877… (planned)'
+  code: 'ambiguous-duplicate'
+  stack: |-
+    refuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:90:42)
+    ForcedInclusionTracker.admit (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:128:41)
+    Module.planLeaseDeposit (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:229:71)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/test/forced-inclusion.anvil.test.mjs:269:17)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+  ---
+  duration_ms: 13.904539
+  type: 'test'
+  ...
+# Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+  ---
+  duration_ms: 13.968048
+  type: 'test'
+  ...
+# Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+not ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+  ---
+  duration_ms: 0.754674
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/test/tracker.test.mjs:7:1'
+  failureType: 'testCodeFailure'
+  error: 'ambiguous-duplicate: lease:8453:op:id has an unresolved commitment 0x01… (planned)'
+  code: 'ambiguous-duplicate'
+  stack: |-
+    refuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:90:42)
+    ForcedInclusionTracker.admit (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:128:41)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/test/tracker.test.mjs:11:18)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 5
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 972.792869

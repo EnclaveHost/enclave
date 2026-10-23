@@ -1,0 +1,103 @@
+{
+ "format": "storage-write-release-pins/v1",
+ "livePrimary": {
+  "note": "LIVE (measured by root 2026-10-22); not a file here",
+  "indexdRelease": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7",
+  "schema": 28,
+  "controller": "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83",
+  "casEnrolledAccounts": 0,
+  "fencedAccounts": 0
+ },
+ "files": {
+  "client.artifact.sia-s3-c2": {
+   "path": "work/storage-wasm-validation/artifacts/candidate-00e9cde0.wasm",
+   "sha256": "00e9cde0929dc7b8726ca4b7b9c9afb51ec4bf6d952039c907c032256ec79afc"
+  },
+  "client.artifact.live-0.1.8": {
+   "path": "work/adapter-retained/bafybeib7at4cxxzmlp3wb7v45zrhbuggwzegspcacfylztslbcnoe6qrqu.bin",
+   "sha256": "d1ddecfe7c3e1d06d1921eb779e135f3a64f185a4dbcdd989f56e22f603e07d3"
+  },
+  "client.catalogConfig.prepared-REFUSED": {
+   "path": "work/resume-after-checkpoint-20261022/storage-public-read/candidate-catalog-config.json",
+   "sha256": "7b9e7e750521b4bb0fa5925e771a42766673ad728e02e3d8508da4ca6ea554d2"
+  },
+  "client.catalogConfig.template": {
+   "path": "work/claude-resumed-20261022/storage-rollout-inventory/sia-s3-app/config.template.json",
+   "sha256": "6e31a0bc2517148e7b5f337b9fd0aa8222906eca9dcfc244dd039b06cf5c25b0"
+  },
+  "client.catalogConfig.c2": {
+   "path": "work/resume-after-checkpoint-20261022/storage-write-release/package/client/catalog-config.c2.json",
+   "sha256": "f6b48940cf7179b5a7bc61fabfee4667bd14aacd0380d953cae8f878972ff278"
+  },
+  "client.replication-doc": {
+   "path": "work/storage-c2-implementation/sia-s3/REPLICATION.md",
+   "sha256": "57b4fb5d7fd3f473bdaa484badf1b29627a270e4509ace3718f16e0185b9d66d"
+  },
+  "role.package.rc3": {
+   "path": "work/claude-resumed-20261022/storage-rollout-inventory/out/b1/a/enclave-storage-indexer-1.0.0-rc3.tar.zst",
+   "sha256": "dc2d018f7415cb2fc32a0f0bd937472a825ab1bfe191bee94f41533c4515de4a",
+   "manifestPin": "sha256:e903e94c876af0f0ea6fd243b72d5c2c35d5e6af79ad033a2e6afbfe097f33fc",
+   "indexd": "2c0e5b0607740aae8441112c5e341702ef880d772b00c3335cd14ef2ddba23d7"
+  },
+  "role.hostSoftware.tar": {
+   "path": "work/claude-resumed-20261022/control-package/storage-closeout/host-software/enclave-storage-indexer-host-software.tar",
+   "sha256": "83c95b4b1886cee1e8664f4fc7201c5713726e4084c4961e30cf708c2f81b3b7"
+  },
+  "role.hostSoftware.manifest": {
+   "path": "work/claude-resumed-20261022/control-package/storage-closeout/host-software/MANIFEST.sha256",
+   "sha256": "658e5a443480c65db79dbb2dc9ba74f76f53b299d759eed28e44470e52c5bf98"
+  },
+  "role.source": {
+   "path": "work/storage-host-role/tree/network/host-services/storage-indexer-host.mjs",
+   "sha256": "20abb68136eb00b02ec76a9fbe7fbd1db2b0b41518239e204c3995e19ae8d271"
+  },
+  "role.activation.host-preflight": {
+   "path": "work/claude-resumed-20261022/control-package/storage-closeout/activation/host-preflight.sh",
+   "sha256": "16e9e707f826c93813cf237a9a3309951bc983ab9a84cb4ed7e0ad867e64ffe7"
+  },
+  "role.activation.gate-preflight": {
+   "path": "work/claude-resumed-20261022/control-package/storage-closeout/activation/gate-preflight.mjs",
+   "sha256": "6792c5a59f15a56288fbf6aed53366567365fcb3469bea9aeb092e195b1d8b94"
+  },
+  "role.activation.descriptor": {
+   "path": "work/claude-resumed-20261022/control-package/storage-closeout/activation/descriptor.mjs",
+   "sha256": "cb3611a50951544ddeed2fa1ef176b0dbd8192f68c7a478ac95eff27c388a905"
+  },
+  "role.activation.render-config": {
+   "path": "work/claude-resumed-20261022/control-package/storage-closeout/activation/render-config.mjs",
+   "sha256": "a6b62d50c0cb69c390cb4954cd1aff50011e796780b5102445969336cab8a40b"
+  },
+  "primary.vm-state": {
+   "path": "work/resume-after-checkpoint-20261022/production-migration-closeout/vm-state.sh",
+   "sha256": "5ac71122e2c13bffd53443f040bbc19e6b3dd622162882d19567e5a90efbb616"
+  },
+  "primary.controller": {
+   "path": "work/resume-after-checkpoint-20261022/controller-bounds-validation/frozen/replicactl.r5-production.restorefix.bounds.py",
+   "sha256": "1543577f4bdbc1bc94dca950e55ac0ece5eb6a65272622aa90244ef2ba7c0e83"
+  },
+  "primary.backup.pull_encrypt.py": {
+   "path": "work/claude-resumed-20261022/storage-fresh-backup/local/pull_encrypt.py",
+   "sha256": "ad297d480cdd282875b55b7cacc55ac27713b9c0c495a364d3375d2d87c4a073"
+  },
+  "primary.backup.runner-v3": {
+   "path": "work/resume-after-checkpoint-20261022/storage-write-release/package/backup/runner/vm_fresh_backup.v3.py",
+   "sha256": "8fe10e088cd0ff6ea45b7b49ab1a8ae1ec6d3d0e1435de169576303f1005fe0d",
+   "derivedFrom": "62f4369029f6f66d1811ce25f9358a326b030913f67e1592df0f367600c67eb4"
+  },
+  "primary.backup.verify-v2": {
+   "path": "work/resume-after-checkpoint-20261022/storage-write-release/package/backup/local/verify_archive.v2.py",
+   "sha256": "7d2c572299efbf4553b62882b029816af065d154e3c97e7a5157060e35691e6d",
+   "derivedFrom": "b4f71bbb83ac7db0d0f0d5a06a57729cb63dd81c6129cefc3f987f4cc3fb7e78"
+  },
+  "primary.backup.common": {
+   "path": "work/claude-resumed-20261022/storage-fresh-backup/local/common.py",
+   "sha256": "be0a9b0cd45ebcc5df1691c7169ceb7eb83c1e0ff1973d3cb56a60124fff9ba3"
+  }
+ },
+ "never": {
+  "client.artifact.aa15a054": "the build WITHOUT the clone-privacy fix",
+  "role.package.rc2": "3b78d4f10a31e23871130d8e87044be31470de62c5b08350a752d4b14a0c497d (stock indexd e6e812fd: not the live primary's release)",
+  "primary.backup.b2-runner": "62f4369029f6f66d1811ce25f9358a326b030913f67e1592df0f367600c67eb4 for the v28 pre-enrolment backup (bundles /opt/enclave-indexd/indexd, the v26 binary)",
+  "primary.backup.verify_archive.v1": "b4f71bbb83ac7db0d0f0d5a06a57729cb63dd81c6129cefc3f987f4cc3fb7e78 as the T1 receipt (no authenticated capture time)"
+ }
+}

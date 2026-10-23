@@ -1,0 +1,813 @@
+From 159fd1480ddab9652043cce5163348ff4fa6996b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 00:00:50 -0700
+Subject: [PATCH 2/2] RESULT: final run evidence (7/7, 10/10 mutants killed on
+ a460c36c)
+
+---
+ RESULT.md              | 15 +++++---
+ logs/final-2.rc        |  1 +
+ logs/final-3.guard.log |  1 +
+ logs/final-3.out       | 16 +++++++++
+ logs/final-3.rc        |  1 +
+ logs/mut-1.tap         | 20 +++++------
+ logs/mut-10.tap        |  6 ++--
+ logs/mut-2.tap         | 22 ++++++------
+ logs/mut-3.tap         | 22 ++++++------
+ logs/mut-4.tap         | 20 +++++------
+ logs/mut-5.tap         | 30 ++++++++--------
+ logs/mut-6.tap         |  6 ++--
+ logs/mut-7.tap         |  6 ++--
+ logs/mut-8.tap         | 24 ++++++-------
+ logs/mut-9.tap         | 16 ++++-----
+ logs/suite-final-3.out | 79 ++++++++++++++++++++++++++++++++++++++++++
+ 16 files changed, 195 insertions(+), 90 deletions(-)
+ create mode 100644 logs/final-2.rc
+ create mode 100644 logs/final-3.guard.log
+ create mode 100644 logs/final-3.out
+ create mode 100644 logs/final-3.rc
+ create mode 100644 logs/suite-final-3.out
+
+diff --git a/RESULT.md b/RESULT.md
+index 203de6e946edb31b439450c3787288d73f7a0a78..ad645adc00889c6c5cccc3b823c1022ce5f31dc3 100644
+--- a/RESULT.md
++++ b/RESULT.md
+@@ -174,8 +174,8 @@ Fixture or label:
+ - USDC and the feed are the repo's mocks;
+ - `l1Bps` is 0, and there is no GasPriceOracle on anvil.
+ 
+-**Suite** (`jobs/run.sh test/forced-inclusion.anvil.test.mjs test/tracker.test.mjs`): **7/7** (`logs/suite-final-2.out`,
+-peak in `logs/final-2.guard.log`).
++**Suite** (`jobs/run.sh test/forced-inclusion.anvil.test.mjs test/tracker.test.mjs`): **7/7** on commit `a460c36c` (`logs/suite-final-3.out`;
++one 512-MiB job with the mutants, peak 202 MiB, `logs/final-3.guard.log`).
+ 1. **Provenance**:
+    - artifacts compiled from the pinned sources;
+    - the portal `depositTransaction` signature, gas floor, aliasing branch and alias constant all match the fetched
+@@ -207,7 +207,7 @@ peak in `logs/final-2.guard.log`).
+    pending, unverified L1 proof, header mismatch, two matching logs, and a different gas limit.
+ 7. **Tracker unit tests**: L1-nonce discipline, failed-L1 resolution, expiry, no regression, JSON round-trip.
+ 
+-**Mutation controls** (`jobs/mutants.sh`): **10/10 killed**, 0 survivors (`logs/final-2.out`). Each mutant removes one
++**Mutation controls** (`jobs/mutants.sh`): **10/10 killed**, 0 survivors (`logs/final-3.out`). Each mutant removes one
+ guard:
+ 1. the signer check;
+ 2. the nonce check;
+@@ -294,7 +294,14 @@ uncertainty, is not grounds for a deposit, except:
+ 
+ ## Evidence
+ 
+-- Commit: see `git log` in this directory (filled in below after the final run).
++- **Code commit `a460c36c88f41b95e6c2c8f27f7083a4415917c7`** (SteveDeFacto). The final test run is on exactly this
++  tree: `src/forced-inclusion.mjs` `b2552fd5…`, `test/forced-inclusion.anvil.test.mjs` `cbd5de83…`,
++  `test/tracker.test.mjs` `784ba86d…`. The follow-up commit adds only this file's evidence lines and logs.
++- Earlier runs, kept as evidence:
++  - `anvil-1`, `anvil-2`: failed on test-setup bugs. `renewWindow` 1800 made "too early" impossible; then an address-case
++    comparison, and an older head passed to the outcome check.
++  - `mutants-1`: the nonce mutant survived.
++  - `final-2`: never admitted by the queue (exit 98).
+ - Sources (read as Git objects):
+   - checkpoint `8ac1aa51c36ec4e8a1fa3d5a60c0438a721190ab` (main-repo `checkpoint/decentralization-20261022`);
+   - published main `7752a4239b3bec2cf452491cd1b95164a8c2bdb8` (its ledger source is newer than the live rev 16d);
+diff --git a/logs/final-2.rc b/logs/final-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..cc4d087a8d8fff8adb630359ef45dfc123b542c8
+--- /dev/null
++++ b/logs/final-2.rc
+@@ -0,0 +1 @@
++exit 98
+diff --git a/logs/final-3.guard.log b/logs/final-3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..1da78ce0bf24f7469a4a8918de1b4a6739e91214
+--- /dev/null
++++ b/logs/final-3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=202 minHostAvailableMiB=23798
+diff --git a/logs/final-3.out b/logs/final-3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..b724231b6058866d8d7b379d41ed4cfb16a1e787
+--- /dev/null
++++ b/logs/final-3.out
+@@ -0,0 +1,16 @@
++[queue] START available=24017MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++suite rc=0
++mutant 1 killed (1 failing): if (lower(signer) !== lower(operator)) refuse('bad-signature'
++mutant 2 killed (1 failing): if (u(s.executorNonce, 'executorNonce') !== l.nonce) refuse
++mutant 3 killed (1 failing): if (code !== '0x' \&\& !(size(code) === 23
++mutant 4 killed (1 failing): if (source.submittedVia \&\& source.submittedVia === source.endpoint) refuse
++mutant 5 killed (1 failing): acceptableFrom: \[getAddress(from)\] }
++mutant 6 killed (2 failing): if ((s.operatorCode 
++mutant 7 killed (2 failing): if (paid.length !== 1 
++mutant 8 killed (2 failing): if (e \&\& e.commitment === commitment) return { replay: true, entry: e };
++mutant 9 killed (1 failing): if (e.l1Nonce !== undefined \&\& String(e.l1Nonce) !== String(l1Nonce)) refuse
++mutant 10 killed (2 failing): if (l1Receipt?.status !== 'reverted' 
++survivors: 0 of 10
++[memory-guard] exit=0 peakTreeRssMiB=202 minHostAvailableMiB=23798
++[memory-guard] at peak: node:101 node:55 anvil:34 mutants.sh:6 timeout:4 mutants.sh:2
++[queue] EXIT 0
+diff --git a/logs/final-3.rc b/logs/final-3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca916d098dabfe85979d791e4534bf1def02ef84
+--- /dev/null
++++ b/logs/final-3.rc
+@@ -0,0 +1 @@
++exit 0
+diff --git a/logs/mut-1.tap b/logs/mut-1.tap
+index 1f17af8ea56c320328fac0297aed2605efe5ef97..90eb51d580e54c8312426f5cae5e5e67d019de11 100644
+--- a/logs/mut-1.tap
++++ b/logs/mut-1.tap
+@@ -2,54 +2,54 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 294.521305
++  duration_ms: 295.124935
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 48.728947
++  duration_ms: 46.790298
+   type: 'test'
+   ...
+ # claim deposit gasUsed 334205 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 42.609686
++  duration_ms: 45.703606
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ not ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 14.087626
++  duration_ms: 13.925798
+   type: 'test'
+-  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-1/test/forced-inclusion.anvil.test.mjs:224:1'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-1/test/forced-inclusion.anvil.test.mjs:225:1'
+   failureType: 'testCodeFailure'
+   error: 'Missing expected rejection.'
+   code: 'ERR_ASSERTION'
+   name: 'AssertionError'
+   stack: |-
+     process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+-    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-1/test/forced-inclusion.anvil.test.mjs:231:3)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-1/test/forced-inclusion.anvil.test.mjs:232:3)
+     async Test.run (node:internal/test_runner/test:1054:7)
+     async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+   ...
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 14.061616
++  duration_ms: 14.820032
+   type: 'test'
+   ...
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 13.255518
++  duration_ms: 13.164064
+   type: 'test'
+   ...
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+ ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 1.409616
++  duration_ms: 1.31757
+   type: 'test'
+   ...
+ 1..7
+@@ -60,4 +60,4 @@ ok 7 - one open commitment per key; replays are not new sends; L1 resends keep t
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 4714.170981
++# duration_ms 906.413891
+diff --git a/logs/mut-10.tap b/logs/mut-10.tap
+index a84f5e7e83b231dffe8ac8302236bdc34890ba25..842dba182105870edb92e57c33b9fb45a21d8dbd 100644
+--- a/logs/mut-10.tap
++++ b/logs/mut-10.tap
+@@ -15,7 +15,7 @@ TAP version 13
+ # Subtest: test/forced-inclusion.anvil.test.mjs
+ not ok 1 - test/forced-inclusion.anvil.test.mjs
+   ---
+-  duration_ms: 132.337702
++  duration_ms: 123.852066
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-10/test/forced-inclusion.anvil.test.mjs:1:1'
+   failureType: 'testCodeFailure'
+@@ -40,7 +40,7 @@ not ok 1 - test/forced-inclusion.anvil.test.mjs
+ # Subtest: test/tracker.test.mjs
+ not ok 2 - test/tracker.test.mjs
+   ---
+-  duration_ms: 27.010245
++  duration_ms: 27.977646
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-10/test/tracker.test.mjs:1:1'
+   failureType: 'testCodeFailure'
+@@ -57,4 +57,4 @@ not ok 2 - test/tracker.test.mjs
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 165.672347
++# duration_ms 158.287635
+diff --git a/logs/mut-2.tap b/logs/mut-2.tap
+index 44d74541ee912cbc061a9ed41863dec3833ed51c..33da33e472335be706f1d6ad9f4b42578d1a103b 100644
+--- a/logs/mut-2.tap
++++ b/logs/mut-2.tap
+@@ -2,54 +2,54 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 292.860609
++  duration_ms: 290.935766
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 47.328871
++  duration_ms: 46.53792
+   type: 'test'
+   ...
+-# claim deposit gasUsed 334157 of limit 800000
++# claim deposit gasUsed 334205 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 41.1445
++  duration_ms: 44.651224
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ not ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 25.58412
++  duration_ms: 26.290288
+   type: 'test'
+-  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-2/test/forced-inclusion.anvil.test.mjs:224:1'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-2/test/forced-inclusion.anvil.test.mjs:225:1'
+   failureType: 'testCodeFailure'
+   error: 'Missing expected rejection.'
+   code: 'ERR_ASSERTION'
+   name: 'AssertionError'
+   stack: |-
+     process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+-    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-2/test/forced-inclusion.anvil.test.mjs:248:3)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-2/test/forced-inclusion.anvil.test.mjs:249:3)
+     async Test.run (node:internal/test_runner/test:1054:7)
+     async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+   ...
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 13.719887
++  duration_ms: 16.201252
+   type: 'test'
+   ...
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 12.59075
++  duration_ms: 15.09985
+   type: 'test'
+   ...
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+ ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 1.391576
++  duration_ms: 1.39434
+   type: 'test'
+   ...
+ 1..7
+@@ -60,4 +60,4 @@ ok 7 - one open commitment per key; replays are not new sends; L1 resends keep t
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 912.47031
++# duration_ms 909.535839
+diff --git a/logs/mut-3.tap b/logs/mut-3.tap
+index 3844f742d2ff0e0994ca52f74d2edb3a1eca0ba9..efe63c0bbdf6ac29749d69f19e050e964be55d50 100644
+--- a/logs/mut-3.tap
++++ b/logs/mut-3.tap
+@@ -2,40 +2,40 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 289.507819
++  duration_ms: 293.265809
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 47.57272
++  duration_ms: 47.355294
+   type: 'test'
+   ...
+-# claim deposit gasUsed 334193 of limit 800000
++# claim deposit gasUsed 334205 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 43.147704
++  duration_ms: 43.119825
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 62.419954
++  duration_ms: 64.650448
+   type: 'test'
+   ...
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ not ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 11.894652
++  duration_ms: 11.891533
+   type: 'test'
+-  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-3/test/forced-inclusion.anvil.test.mjs:283:1'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-3/test/forced-inclusion.anvil.test.mjs:284:1'
+   failureType: 'testCodeFailure'
+   error: 'Missing expected exception.'
+   code: 'ERR_ASSERTION'
+   name: 'AssertionError'
+   stack: |-
+-    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-3/test/forced-inclusion.anvil.test.mjs:304:10)
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-3/test/forced-inclusion.anvil.test.mjs:305:10)
+     process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+     async Test.run (node:internal/test_runner/test:1054:7)
+     async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+@@ -43,13 +43,13 @@ not ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; f
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 14.613654
++  duration_ms: 14.024767
+   type: 'test'
+   ...
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+ ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 1.333046
++  duration_ms: 1.484639
+   type: 'test'
+   ...
+ 1..7
+@@ -60,4 +60,4 @@ ok 7 - one open commitment per key; replays are not new sends; L1 resends keep t
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 942.971822
++# duration_ms 970.462445
+diff --git a/logs/mut-4.tap b/logs/mut-4.tap
+index 08d21826ce059395abc2c039ec4f6b0a9889329e..c0d848b511a4a6d8c5cb327e4281a4d423434c77 100644
+--- a/logs/mut-4.tap
++++ b/logs/mut-4.tap
+@@ -2,46 +2,46 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 289.770898
++  duration_ms: 282.037211
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 47.158392
++  duration_ms: 43.613181
+   type: 'test'
+   ...
+ # claim deposit gasUsed 334181 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 41.38567
++  duration_ms: 41.866814
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 61.732095
++  duration_ms: 59.733464
+   type: 'test'
+   ...
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 11.798083
++  duration_ms: 12.22108
+   type: 'test'
+   ...
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ not ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 1.752544
++  duration_ms: 1.810367
+   type: 'test'
+-  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-4/test/forced-inclusion.anvil.test.mjs:316:1'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-4/test/forced-inclusion.anvil.test.mjs:317:1'
+   failureType: 'testCodeFailure'
+   error: 'Missing expected exception.'
+   code: 'ERR_ASSERTION'
+   name: 'AssertionError'
+   stack: |-
+-    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-4/test/forced-inclusion.anvil.test.mjs:322:10)
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-4/test/forced-inclusion.anvil.test.mjs:323:10)
+     process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+     async Test.run (node:internal/test_runner/test:1054:7)
+     async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+@@ -49,7 +49,7 @@ not ok 6 - outcome checks fail closed: unverified receipt, same endpoint as subm
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+ ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 1.344566
++  duration_ms: 1.323141
+   type: 'test'
+   ...
+ 1..7
+@@ -60,4 +60,4 @@ ok 7 - one open commitment per key; replays are not new sends; L1 resends keep t
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 935.712934
++# duration_ms 890.943546
+diff --git a/logs/mut-5.tap b/logs/mut-5.tap
+index be9a626fc48660fa65a554acc67d0a97723d8994..cb293c4650ef5b6b23b6ed764643962344dc4e39 100644
+--- a/logs/mut-5.tap
++++ b/logs/mut-5.tap
+@@ -2,54 +2,54 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 289.166529
++  duration_ms: 305.304522
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 48.804916
++  duration_ms: 51.897991
+   type: 'test'
+   ...
+ # claim deposit gasUsed 334205 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 39.084537
++  duration_ms: 48.284427
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 61.188707
++  duration_ms: 68.875277
+   type: 'test'
+   ...
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ not ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 5.353773
++  duration_ms: 6.050196
+   type: 'test'
+-  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-5/test/forced-inclusion.anvil.test.mjs:283:1'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-5/test/forced-inclusion.anvil.test.mjs:284:1'
+   failureType: 'testCodeFailure'
+   error: |-
+     only the owner itself
+     + actual - expected
+     
+       [
+-        '0xAEDfC29e30080d4fF84ECBdcDf1bdAa0eAd46179',
+-    +   '0xbFF0c29e30080d4ff84EcBdCDf1bDAA0eaD4728a'
++        '0x9E78af49bD9D22C73E549b547b8355fdD1228aB6',
++    +   '0xaF89AF49bD9d22C73e549B547b8355fDd1229bc7'
+       ]
+     
+   code: 'ERR_ASSERTION'
+   name: 'AssertionError'
+   expected:
+-    0: '0xAEDfC29e30080d4fF84ECBdcDf1bdAa0eAd46179'
++    0: '0x9E78af49bD9D22C73E549b547b8355fdD1228aB6'
+   actual:
+-    0: '0xAEDfC29e30080d4fF84ECBdcDf1bdAa0eAd46179'
+-    1: '0xbFF0c29e30080d4ff84EcBdCDf1bDAA0eaD4728a'
++    0: '0x9E78af49bD9D22C73E549b547b8355fdD1228aB6'
++    1: '0xaF89AF49bD9d22C73e549B547b8355fDd1229bc7'
+   operator: 'deepStrictEqual'
+   stack: |-
+-    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-5/test/forced-inclusion.anvil.test.mjs:290:10)
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-5/test/forced-inclusion.anvil.test.mjs:291:10)
+     process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+     async Test.run (node:internal/test_runner/test:1054:7)
+     async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+@@ -57,13 +57,13 @@ not ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; f
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 14.711484
++  duration_ms: 14.929381
+   type: 'test'
+   ...
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+ ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 1.342416
++  duration_ms: 1.39626
+   type: 'test'
+   ...
+ 1..7
+@@ -74,4 +74,4 @@ ok 7 - one open commitment per key; replays are not new sends; L1 resends keep t
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 937.267977
++# duration_ms 989.155779
+diff --git a/logs/mut-6.tap b/logs/mut-6.tap
+index 3c8e29a42664b95567e43c3a62c2c630d1c7e0f2..38b23412eeb886185a112336a6f7f181b0e40a26 100644
+--- a/logs/mut-6.tap
++++ b/logs/mut-6.tap
+@@ -15,7 +15,7 @@ TAP version 13
+ # Subtest: test/forced-inclusion.anvil.test.mjs
+ not ok 1 - test/forced-inclusion.anvil.test.mjs
+   ---
+-  duration_ms: 122.602233
++  duration_ms: 126.343788
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-6/test/forced-inclusion.anvil.test.mjs:1:1'
+   failureType: 'testCodeFailure'
+@@ -40,7 +40,7 @@ not ok 1 - test/forced-inclusion.anvil.test.mjs
+ # Subtest: test/tracker.test.mjs
+ not ok 2 - test/tracker.test.mjs
+   ---
+-  duration_ms: 27.090225
++  duration_ms: 27.855127
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-6/test/tracker.test.mjs:1:1'
+   failureType: 'testCodeFailure'
+@@ -57,4 +57,4 @@ not ok 2 - test/tracker.test.mjs
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 156.241937
++# duration_ms 160.697387
+diff --git a/logs/mut-7.tap b/logs/mut-7.tap
+index 72ab2c6e5c30d3003df3df84925fb4dccd574a88..23a0c70c1746843a969e0229ef14c181056ac7a9 100644
+--- a/logs/mut-7.tap
++++ b/logs/mut-7.tap
+@@ -15,7 +15,7 @@ TAP version 13
+ # Subtest: test/forced-inclusion.anvil.test.mjs
+ not ok 1 - test/forced-inclusion.anvil.test.mjs
+   ---
+-  duration_ms: 127.942816
++  duration_ms: 123.477308
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-7/test/forced-inclusion.anvil.test.mjs:1:1'
+   failureType: 'testCodeFailure'
+@@ -40,7 +40,7 @@ not ok 1 - test/forced-inclusion.anvil.test.mjs
+ # Subtest: test/tracker.test.mjs
+ not ok 2 - test/tracker.test.mjs
+   ---
+-  duration_ms: 27.919922
++  duration_ms: 25.727793
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-7/test/tracker.test.mjs:1:1'
+   failureType: 'testCodeFailure'
+@@ -57,4 +57,4 @@ not ok 2 - test/tracker.test.mjs
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 162.253149
++# duration_ms 155.697533
+diff --git a/logs/mut-8.tap b/logs/mut-8.tap
+index 25551636583a92264a6eb5cd3c6207840c6026af..e8ce65eb28e4a96e99fab6bdb734651cafece915 100644
+--- a/logs/mut-8.tap
++++ b/logs/mut-8.tap
+@@ -2,56 +2,56 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 291.498441
++  duration_ms: 295.058586
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 48.133588
++  duration_ms: 50.306653
+   type: 'test'
+   ...
+-# claim deposit gasUsed 334193 of limit 800000
++# claim deposit gasUsed 334205 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 43.041904
++  duration_ms: 49.017422
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ not ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 48.964306
++  duration_ms: 45.547237
+   type: 'test'
+-  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/test/forced-inclusion.anvil.test.mjs:224:1'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/test/forced-inclusion.anvil.test.mjs:225:1'
+   failureType: 'testCodeFailure'
+-  error: 'ambiguous-duplicate: lease:8453:0xc3f1163e7144a2c097a6182eeff9fb948eb2b2c3:0x2602db9dc3601724a27ce7597c413a67854b26547c38d7ada79bbf6406b4d05a has an unresolved commitment 0xe8304229ae9f7925… (planned)'
++  error: 'ambiguous-duplicate: lease:8453:0x4c3968c1216149cccf31ccf6c3decdd54485af12:0x7742a1fa8356b161bfa46b661206938524d0daa9e2d32c9d9054d39b97ddc750 has an unresolved commitment 0x9f5aac43a4cef877… (planned)'
+   code: 'ambiguous-duplicate'
+   stack: |-
+     refuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:90:42)
+     ForcedInclusionTracker.admit (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:128:41)
+     Module.planLeaseDeposit (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/src/forced-inclusion.mjs:229:71)
+     process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+-    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/test/forced-inclusion.anvil.test.mjs:268:17)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/test/forced-inclusion.anvil.test.mjs:269:17)
+     async Test.run (node:internal/test_runner/test:1054:7)
+     async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+   ...
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 13.860326
++  duration_ms: 13.904539
+   type: 'test'
+   ...
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 13.065379
++  duration_ms: 13.968048
+   type: 'test'
+   ...
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+ not ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 0.735578
++  duration_ms: 0.754674
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-8/test/tracker.test.mjs:7:1'
+   failureType: 'testCodeFailure'
+@@ -74,4 +74,4 @@ not ok 7 - one open commitment per key; replays are not new sends; L1 resends ke
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 940.128156
++# duration_ms 972.792869
+diff --git a/logs/mut-9.tap b/logs/mut-9.tap
+index ad2ff1f8731eb5e4e88424d19373663872512cca..b85faa7113bcaa1d06efd8091e50f6c57f5fbf9e 100644
+--- a/logs/mut-9.tap
++++ b/logs/mut-9.tap
+@@ -2,44 +2,44 @@ TAP version 13
+ # Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+   ---
+-  duration_ms: 307.028412
++  duration_ms: 290.098792
+   type: 'test'
+   ...
+ # Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+   ---
+-  duration_ms: 50.309151
++  duration_ms: 45.567598
+   type: 'test'
+   ...
+ # claim deposit gasUsed 334205 of limit 800000
+ # Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+ ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+   ---
+-  duration_ms: 43.196184
++  duration_ms: 45.549108
+   type: 'test'
+   ...
+ # Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+ ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+   ---
+-  duration_ms: 63.50372
++  duration_ms: 62.081107
+   type: 'test'
+   ...
+ # Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+   ---
+-  duration_ms: 11.928553
++  duration_ms: 11.709995
+   type: 'test'
+   ...
+ # Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+ ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+   ---
+-  duration_ms: 13.149389
++  duration_ms: 12.790197
+   type: 'test'
+   ...
+ # Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+ not ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
+   ---
+-  duration_ms: 1.255446
++  duration_ms: 1.239171
+   type: 'test'
+   location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/tmp/mut-9/test/tracker.test.mjs:7:1'
+   failureType: 'testCodeFailure'
+@@ -61,4 +61,4 @@ not ok 7 - one open commitment per key; replays are not new sends; L1 resends ke
+ # cancelled 0
+ # skipped 0
+ # todo 0
+-# duration_ms 995.42829
++# duration_ms 929.848593
+diff --git a/logs/suite-final-3.out b/logs/suite-final-3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..ba8d92375c2afc26d3927dcaaf294e4e2ee07db9
+--- /dev/null
++++ b/logs/suite-final-3.out
+@@ -0,0 +1,79 @@
++a460c36c88f41b95e6c2c8f27f7083a4415917c7
++?? logs/final-2.rc
++?? logs/final-3.out
++?? logs/suite-final-3.out
++anvil Version: 1.7.1
++v22.23.3
++  "version": "2.53.1",
++b2552fd593297b9f28ad8153913ce201c036ca2f7875249be1bf85cea832fa27  src/forced-inclusion.mjs
++cbd5de839736a8948d5951dce3260660c940f929031425b2b17558ab5e4f7f74  test/forced-inclusion.anvil.test.mjs
++784ba86de7d3f08cb6cf0df1164c7bc9c5d1ef5bcccc125e3d05e2c966355c2d  test/tracker.test.mjs
++0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
++dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
++aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
++aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
++66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
++10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
++524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
++2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
++dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
++1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
++e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
++47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
++97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
++65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
++5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
++external network: unreachable (as intended)
++TAP version 13
++# Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
++ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
++  ---
++  duration_ms: 309.902987
++  type: 'test'
++  ...
++# Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
++ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
++  ---
++  duration_ms: 50.144054
++  type: 'test'
++  ...
++# claim deposit gasUsed 334193 of limit 800000
++# Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
++ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
++  ---
++  duration_ms: 47.366454
++  type: 'test'
++  ...
++# Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
++ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
++  ---
++  duration_ms: 66.623724
++  type: 'test'
++  ...
++# Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
++ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
++  ---
++  duration_ms: 12.576868
++  type: 'test'
++  ...
++# Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
++ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
++  ---
++  duration_ms: 14.676313
++  type: 'test'
++  ...
++# Subtest: one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
++ok 7 - one open commitment per key; replays are not new sends; L1 resends keep the nonce; only verified evidence frees a slot
++  ---
++  duration_ms: 1.35381
++  type: 'test'
++  ...
++1..7
++# tests 7
++# suites 0
++# pass 7
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 1061.495008

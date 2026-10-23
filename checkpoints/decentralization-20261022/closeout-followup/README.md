@@ -25,6 +25,8 @@ Frozen 06:30Z append (2026-10-23): ROOT kernel lock 794d2ff3/336ea56a, ROOT veri
 
 Frozen 07:45Z append (2026-10-23): D Linux carrier closure + A/B/ROOT composition fad657bc (ready for final composition; needs B's final runtime), S final cache budget v2 47c2f71f (source accepted, not device proof), ROOT WalletConnect fix 320d7e9f, ROOT cache-budget review 08fffd5a and root receipts (06:50 checkpoint verification, 07:13 updater, storage cutover freshness review). Source + offline tests only; nothing deployed. ROOT dc767fc3 is content-only. See `MANIFEST.json` `appends`.
 
+Frozen 08:30Z append (2026-10-23): A Windows chain consumers df8fbafa (+ B deadline, ROOT fd6, client closure; patches 0010-0014), ROOT canonical doc correction bcd3d9ca (tree = that of dc767fc3), C storage distributed-write cutover package 6fd7a929 + RESULT bbf0a009, F final host-services compose merge 4106c311, and E 159fd148 as a SOURCE-ONLY DERIVATIVE (7 compiled fixtures omitted; blobs/hashes and a regeneration recipe recorded; exact original trees not reproducible from it). Source + offline tests only; nothing deployed. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

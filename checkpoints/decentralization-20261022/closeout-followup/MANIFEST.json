@@ -13661,6 +13661,1392 @@
       "stored": "files/source-preservation/frozen-0745-labels.json",
       "sha256": "06ee24b5aee556a042f3d134ede65815e749c5f78f613e6afbc8b8fba9c21df0",
       "bytes": 5950
+    },
+    {
+      "label": "FROZEN 08:30Z material exported from Git objects (never worktrees); bases rebuilt from pushed 842ca044 material (or root commits) and every recorded tree reproduced (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/INVENTORY.json",
+      "stored": "files/source-preservation/frozen-0830-export/INVENTORY.json",
+      "sha256": "9bd6346d19bc1b53b56be1b1b68ba7240d5ae0dda1ae7e035e073768a66c03d9",
+      "bytes": 56613
+    },
+    {
+      "label": "FROZEN 08:30Z material exported from Git objects (never worktrees); bases rebuilt from pushed 842ca044 material (or root commits) and every recorded tree reproduced (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/REBUILD.md",
+      "stored": "files/source-preservation/frozen-0830-export/REBUILD.md",
+      "sha256": "53097771a173966386f205d5a622d8a5573e7835249e73c3fa11c2c19b1625db",
+      "bytes": 2224
+    },
+    {
+      "label": "FROZEN 08:30Z material exported from Git objects (never worktrees); bases rebuilt from pushed 842ca044 material (or root commits) and every recorded tree reproduced (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/REPRODUCE-CHECK.txt",
+      "stored": "files/source-preservation/frozen-0830-export/REPRODUCE-CHECK.txt",
+      "sha256": "4f36dd9782d764cd8011bc77ed6334d137e14612122e61967ba2f352aa715ffa",
+      "bytes": 1702
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/patches/0001-Bound-the-whole-verified-read-its-callback-included-.patch",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/patches/0001-Bound-the-whole-verified-read-its-callback-included-.patch",
+      "sha256": "5b07a1d6760102bca97dd00ebacfbc941ed52ab3c6ea0d9991fac016fbeecbc1",
+      "bytes": 24272
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/patches/0002-Keep-the-verified-operation-deadline-timer-reference.patch",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/patches/0002-Keep-the-verified-operation-deadline-timer-reference.patch",
+      "sha256": "794c266adde92a8a4d6bde8dbd5a7786fc928f959b12689b05c5830685393bde",
+      "bytes": 3591
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/patches/0003-Close-verified-policy-snapshots-before-late-response.patch",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/patches/0003-Close-verified-policy-snapshots-before-late-response.patch",
+      "sha256": "73d5587d82e5d40d4ec3b2ece8985b656ea754f463aebd79eb766284695a8dec",
+      "bytes": 14288
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/patches/0004-Close-the-verified-LeaseReader-client-s-metadata-met.patch",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/patches/0004-Close-the-verified-LeaseReader-client-s-metadata-met.patch",
+      "sha256": "754879d3faaec056aa4fb4fafa7b7d17b196cd7541bb4adaf70025dff5caeb35",
+      "bytes": 8374
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/patches/0005-Wire-the-Windows-node-s-chain-consumers-to-the-expli.patch",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/patches/0005-Wire-the-Windows-node-s-chain-consumers-to-the-expli.patch",
+      "sha256": "625af78cd28116937f4d849825ba6e48ca830ac27d46bd2337bae67d9d7c76e8",
+      "bytes": 884232
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/ROOT-REVIEW.md",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/ROOT-REVIEW.md",
+      "sha256": "fd16755a920dddedaf5902095b2c549ff838d20596dec2a2d19bb832543f621d",
+      "bytes": 2614
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/network/host-admission-node.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/network/host-admission-node.mjs",
+      "sha256": "1ca122d4e148a9c0add5b6ad35759ec5df3a3c9c573ae9a2eebf19c00c8b80af",
+      "bytes": 1106
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/network/lease-reader.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/network/lease-reader.mjs",
+      "sha256": "a7c23474df4ef8a307c9c7b63f27c7bda2af02fc7c9786cc424545ebfa133d9c",
+      "bytes": 48671
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/network/verified-chain.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/network/verified-chain.mjs",
+      "sha256": "cc1f88706d1e4da9fe9048ba3e4b6dbd755edca0752ef39c8a873aaaf9427df4",
+      "bytes": 13544
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/network/verified-read-client.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/network/verified-read-client.mjs",
+      "sha256": "20848a55a245e2a849775243ffee1ad8f64e7917bd73cee555b25d394b7152a3",
+      "bytes": 4744
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/test/helpers/windows-chain-driver.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/test/helpers/windows-chain-driver.mjs",
+      "sha256": "617334ec1de6fb638bbb5886bb24885348ec0d32b006fb0a27ac416f6875da21",
+      "bytes": 3322
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/test/lease-reader-terminal-snapshot.test.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/test/lease-reader-terminal-snapshot.test.mjs",
+      "sha256": "a1ac97ee1511dc43c38c2ffd9ef24ac505d98eaccfe88aa2d4fcfadc2f9bb445",
+      "bytes": 3861
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/test/lease-reader-verifier-deadline.test.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/test/lease-reader-verifier-deadline.test.mjs",
+      "sha256": "f3e99df4438467529c41eeb0f784ef5b7d24002892bcafdd7a5179d7df72668d",
+      "bytes": 11811
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/test/verified-chain-lifecycle.test.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/test/verified-chain-lifecycle.test.mjs",
+      "sha256": "9b399f2595d2d226862ad21637a2e5f3acb2e16c505d25eac156e9e4d6df26d0",
+      "bytes": 3467
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/test/windows-chain-authority.test.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/test/windows-chain-authority.test.mjs",
+      "sha256": "12312925e728d7b4e3e53a0719e58b975710b996e97f36831a8c98b754a33f08",
+      "bytes": 16634
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/test/windows-verifier.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/test/windows-verifier.e2e.test.mjs",
+      "sha256": "7ec40286507224dcde41f4159509396ffa0d794e5f5042578bdbc86783623b2e",
+      "bytes": 14429
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/agent.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/agent.mjs",
+      "sha256": "bd5600a6d9e66ed5903d600bab5c410bfff6654661c19bad64d6bb4adbfeef0f",
+      "bytes": 92841
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/chain-reader.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/chain-reader.mjs",
+      "sha256": "907fd1c8c9f62b773d95ccc16988440663fd9552725a72aca4bc4281adf8ebf2",
+      "bytes": 1668
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/chain.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/chain.mjs",
+      "sha256": "f57dc87d99d6e08048131971db66479806b08a1679b6df1bc5a2aadf7790bda3",
+      "bytes": 64129
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/host-admission.bundle.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/host-admission.bundle.mjs",
+      "sha256": "28778491ccd6f56bd7a5a823408692e9229b73ae6a91835bbbe26549e234611a",
+      "bytes": 404195
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/host-identity.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/host-identity.mjs",
+      "sha256": "827b30d36bc4a4baf0963b057164f12f5e73165fb3f35cf2ceba201412e93467",
+      "bytes": 24092
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/host-onchain.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/host-onchain.mjs",
+      "sha256": "522a7a200f292618e47504afd56e0b988fdd5c2a84e7201940d5769ad7bc3874",
+      "bytes": 11951
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/host.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/host.mjs",
+      "sha256": "f5009866f4a2779c8cbaa061146f4d15d29e8c744b184992ae808a13a00e8cef",
+      "bytes": 270019
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/network-enroll.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/network-enroll.mjs",
+      "sha256": "e000b6646b0fbecbe31ffd0cc2c58c987521ddb791bcf6c7c66cbd6c6c6dd35d",
+      "bytes": 15121
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/node-config.example.cmd",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/node-config.example.cmd",
+      "sha256": "1b65e6fbd92e2330b01b468e2582742d3cadb9924e66950e92caaa6e8965bd61",
+      "bytes": 1656
+    },
+    {
+      "label": "A 71448f63 -> b56a4699/f3443e53 (B deadline composed) -> 25c051a9 (ROOT fd6 composed) -> e820e240 (verified LeaseReader client metadata closure) -> df8fbafa (Windows node chain consumers wired to the explicit local verifier). TERMINAL, root reviewed; patches 0010-0014. The default authority is unchanged; optional reader code is not verified RPC activation; bundles not rebuilt; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/session-api-auth.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/a-windows-df8fbafa/files/windows/node/session-api-auth.mjs",
+      "sha256": "48cf482cef24519045b398a26885a34ba1bb9a8d32cc66d731a0b2d9ed012929",
+      "bytes": 25270
+    },
+    {
+      "label": "ROOT canonical doc correction bcd3d9ca on S 47c2f71f (SteveDeFacto/noreply): RESULT-CACHE-BUDGET.md title time = the actual report commit time; exact tree 4c50bc8c, identical to the unpublished wrong-identity dc767fc3 it replaces",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/s-root-doc-bcd3d9ca/patches/0001-Correct-cache-budget-report-timestamp-from-actual-co.patch",
+      "stored": "files/source-preservation/frozen-0830-export/s-root-doc-bcd3d9ca/patches/0001-Correct-cache-budget-report-timestamp-from-actual-co.patch",
+      "sha256": "779b0d4862fd8e32fc85b49017841c82ea14aeeb4cfd19e1ec5d26ae2aeaa4af",
+      "bytes": 1024
+    },
+    {
+      "label": "ROOT canonical doc correction bcd3d9ca on S 47c2f71f (SteveDeFacto/noreply): RESULT-CACHE-BUDGET.md title time = the actual report commit time; exact tree 4c50bc8c, identical to the unpublished wrong-identity dc767fc3 it replaces",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/s-root-doc-bcd3d9ca/files/RESULT-CACHE-BUDGET.md",
+      "stored": "files/source-preservation/frozen-0830-export/s-root-doc-bcd3d9ca/files/RESULT-CACHE-BUDGET.md",
+      "sha256": "341026b963fa3e5fc4342efc1bb485e1948db3d5ee242ff0e55b39061b130910",
+      "bytes": 19518
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/patches/0001-Storage-distributed-write-cutover-package-corrected-.patch",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/patches/0001-Storage-distributed-write-cutover-package-corrected-.patch",
+      "sha256": "d85c63fda1841054c8e3beb30f7357312dff0864e13afc717ab125f002462547",
+      "bytes": 314631
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/patches/0002-storage-write-release-RESULT.md-patch-and-progress.patch",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/patches/0002-storage-write-release-RESULT.md-patch-and-progress.patch",
+      "sha256": "8dd752ec786639bf5e337fdcb539ce5f1d937182574f5a7f6728756735400fae",
+      "bytes": 333476
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/.gitignore",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/.gitignore",
+      "sha256": "b39f6ba01c3cac6a1cc953afeb4bcc4ba263a01f3f175bccbbf3c7e4e486195a",
+      "bytes": 166
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/NOTES-research.md",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/NOTES-research.md",
+      "sha256": "b897cc1719326da6e558fef58ee6e3776b101d415f294b1730aa3871f4ee7a7f",
+      "bytes": 4810
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/PROGRESS.txt",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/PROGRESS.txt",
+      "sha256": "3bc08b708d29bd77b218a51a40136304475a593c88cbfcb355d60d8a3a42fb66",
+      "bytes": 588
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/RESULT.md",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/RESULT.md",
+      "sha256": "7e28761408b5d098cfd0f932f9611324909f78e174175de427c1b891111fdece",
+      "bytes": 12862
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/client/catalog-config.c2.json",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/client/catalog-config.c2.json",
+      "sha256": "f6b48940cf7179b5a7bc61fabfee4667bd14aacd0380d953cae8f878972ff278",
+      "bytes": 532
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/CUTOVER.md",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/CUTOVER.md",
+      "sha256": "4b7f065e8f0a9a03c75150327a6633b0ab2612c49e3fe75c5eb558a56a04386b",
+      "bytes": 18994
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/PINS.json",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/PINS.json",
+      "sha256": "c892b0d6c449fb0602e0d590c180a362e68aed50d58f637910eeeca9813bb431",
+      "bytes": 5702
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/local/verify_archive.v2.py",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/local/verify_archive.v2.py",
+      "sha256": "7d2c572299efbf4553b62882b029816af065d154e3c97e7a5157060e35691e6d",
+      "bytes": 7258
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/runner/vm_fresh_backup.v3.py",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/runner/vm_fresh_backup.v3.py",
+      "sha256": "8fe10e088cd0ff6ea45b7b49ab1a8ae1ec6d3d0e1435de169576303f1005fe0d",
+      "bytes": 26593
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/test/fakes/_fake.py",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/test/fakes/_fake.py",
+      "sha256": "483deae222403c318f8173ed6adbdbf242ab21bff5a3d6a6f78f4f66e96623b0",
+      "bytes": 954
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/test/fakes/docker",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/test/fakes/docker",
+      "sha256": "142aa90cc6e7e91dcdb7bc01a5d7cd39b57b679f78d952dccb5eb4383395b25e",
+      "bytes": 1444
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/test/fakes/pgrep",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/test/fakes/pgrep",
+      "sha256": "0a40efd477bafbb594e8974696a9154cbc702f97a6e5f3767f79ef8c690b2707",
+      "bytes": 212
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/test/fakes/ssh",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/test/fakes/ssh",
+      "sha256": "74de71a65f9e0536386f7d40b1438e8aba703d94b0c3e2d3f81967059f2ece4c",
+      "bytes": 869
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/test/fakes/systemctl",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/test/fakes/systemctl",
+      "sha256": "ee3fe381ce69ffa480dd17008804b516e6c91780834bd4607ecfaf16a24431f3",
+      "bytes": 1053
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/test/test_backup_provenance.py",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/backup/test/test_backup_provenance.py",
+      "sha256": "30d60a3db652707bd28cbd7d0890eeaa254af69d1be7359f9d49251b3f43d16c",
+      "bytes": 12611
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/client/catalog-config.c2.json",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/client/catalog-config.c2.json",
+      "sha256": "f6b48940cf7179b5a7bc61fabfee4667bd14aacd0380d953cae8f878972ff278",
+      "bytes": 532
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/interfaces/F-host-services.md",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/interfaces/F-host-services.md",
+      "sha256": "523ee65e656cad1fc3bc54da2b9daa3338be64273719e24c43deb829d4ce2334",
+      "bytes": 2946
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/proposals/role-comment.patch",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/proposals/role-comment.patch",
+      "sha256": "5427e3804dc1c7f75b9621a0e798649c853a41d7561878b6674b7e3998c63cdb",
+      "bytes": 1126
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/README.md",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/README.md",
+      "sha256": "d8b8dda378857600d841b425a6e7f356049ed275150eab00b5ac29304833797a",
+      "bytes": 1143
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/backup-receipt-v26-real.json",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/backup-receipt-v26-real.json",
+      "sha256": "b6322448797d2d5151aa4a2937b904d48a11111ef32ca25edcdad179d9cbcc5d",
+      "bytes": 620
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/l1-account-row.txt",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/l1-account-row.txt",
+      "sha256": "464f18b2dc9f193e33696dba8bc5af12154eaf006f75f033af5ee3c4c74d3309",
+      "bytes": 71
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/l1-fact-claim1.json",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/l1-fact-claim1.json",
+      "sha256": "ad1c113796912016241fefa256f190a8e2c39bd289c2df94cf95d251f7844246",
+      "bytes": 230
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/l1-healthz-claim1.json",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/l1-healthz-claim1.json",
+      "sha256": "ba8c4f8f6b2ada2b1e0fe2336dbeb026bb6cab6c0498883b45beea5d328fa019",
+      "bytes": 2038
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/m3-account-row.txt",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/m3-account-row.txt",
+      "sha256": "053c831472b58bb4f11e721aa8b7bc6af165eb4c9c1982d3e4b988017c76aca5",
+      "bytes": 71
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/m3-fact.json",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/m3-fact.json",
+      "sha256": "ad1c113796912016241fefa256f190a8e2c39bd289c2df94cf95d251f7844246",
+      "bytes": 230
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/m3-healthz.json",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/m3-healthz.json",
+      "sha256": "b516d7d7e1813f106e520a72d0c32235cd2618bdec6407733bc05b5ccfe5411f",
+      "bytes": 12303
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/m3-indexers.json",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/m3-indexers.json",
+      "sha256": "fbe4196d52e863dfec6e7f513f8d722fdd17eb7d6c38d068b36f7c5dd5a16fc3",
+      "bytes": 83
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/vm-state-v26-real.out",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/vm-state-v26-real.out",
+      "sha256": "59a286b3eed6162ba257ea09af4ccd289c814c036e69d6345b6ed0f1f461eea8",
+      "bytes": 597
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/vm-state-v28-from-postcheck2.out",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/fixtures/vm-state-v28-from-postcheck2.out",
+      "sha256": "1224f8c0173338e4480f55f9d3ca9db0b041b848c7580b6e51a207982e0b96a4",
+      "bytes": 542
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/test_cutover.py",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tests/test_cutover.py",
+      "sha256": "39463458c17c1e304246c630ad2f2b230f26fdc6e1196e768c1fe0929055f8b5",
+      "bytes": 11850
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tools/cutover.py",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tools/cutover.py",
+      "sha256": "1b05047cce27a9a56fde7e4d20c690d202f4114abe59a98c75b187c3eec56f80",
+      "bytes": 20267
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tools/verify_pins.py",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/package/tools/verify_pins.py",
+      "sha256": "84760baf162a2f662716d8948db4c02bc96fa3a75a643790562dfc11cc6f3112",
+      "bytes": 1603
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/_base.py",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/_base.py",
+      "sha256": "bd92f094f88ee7bf0e005171ac5d26d6fdd3879ef3bf9c707271cd15fa361b6b",
+      "bytes": 26394
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/enrollfail.sh",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/enrollfail.sh",
+      "sha256": "71bc58176461e0b2d40978607666f4299f6376f803e47748e8b381a275951dc5",
+      "bytes": 1052
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/main_enrollfail.py",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/main_enrollfail.py",
+      "sha256": "71628f3bc12a6e9eb5af0622120218a0911725f787634f3b265565c2e01e04d3",
+      "bytes": 7355
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/main_migrate16.py",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/main_migrate16.py",
+      "sha256": "5a92d837d52a17020f1e12076bdcd5a1eb7fb7f0cf86a1df875e80e6349573b8",
+      "bytes": 14853
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/migrate16.sh",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/migrate16.sh",
+      "sha256": "55a164d4687b1977420f336868926a1ab5961e802705873644255e685d9f1ac8",
+      "bytes": 1044
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/runs/e1/results.json",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/runs/e1/results.json",
+      "sha256": "046d0482a8edac43e16a451bb92b065f3839bfcaa705d33459f9f76ea39d8ec3",
+      "bytes": 11660
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/runs/m1/RETIRED.txt",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/runs/m1/RETIRED.txt",
+      "sha256": "47d557bb57e383a7d6dc9a70b21f6f688feca1287f5d21c6dc5a80833bd381eb",
+      "bytes": 104
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/runs/m1/results.json",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/runs/m1/results.json",
+      "sha256": "ce22786e051578fb2ca8f04c48747eb4a0a7647578dbddf2ad1be639ee7d850d",
+      "bytes": 16027
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/runs/m2/STOPPED.txt",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/runs/m2/STOPPED.txt",
+      "sha256": "e86d5b9770aec82e8a341d9a7e9bedcf20ba774612c440e578548f5d6fd4c38d",
+      "bytes": 172
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/runs/m2/results.json",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/runs/m2/results.json",
+      "sha256": "7e1c72fee6ec491dcd4e81253f1820eef701c0d95993883c78da962f70d96e10",
+      "bytes": 25885
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/runs/m3/results.json",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/rehearsal/runs/m3/results.json",
+      "sha256": "69f5f8af556d1bfb8f801635b18f77f01084cb9b015daa3a0ab04a308354233a",
+      "bytes": 48390
+    },
+    {
+      "label": "C storage-write-release 6fd7a929 (distributed-write cutover package: corrected C2 catalog config, staged rehearsal, v28 backup provenance with backup runner v3 + verifier v2, step verifiers, runbook) + bbf0a009 (RESULT, patch, progress). TERMINAL, root reviewed: rehearsal 42/42, enroll-kill-before-ready 11/11, backup 14 tests. Package/runbook only: no cutover, enrollment or production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/storage-write-release.patch",
+      "stored": "files/source-preservation/frozen-0830-export/c-storage-write-bbf0a009/files/storage-write-release.patch",
+      "sha256": "95bbbcb0951448254a6f7eaa36a7edcefc098a87d24cdf1fff4e3ec0df65c9a7",
+      "bytes": 311867
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/patches/0001-Strict-unsigned-L1-forced-inclusion-plans-for-review.patch",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/patches/0001-Strict-unsigned-L1-forced-inclusion-plans-for-review.patch",
+      "sha256": "cf5a9ecbe9a68c42bbde74818dd51b4f28eedacd738f4607a71f0b8b12b18599",
+      "bytes": 426279
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/patches/0002-RESULT-final-run-evidence-7-7-10-10-mutants-killed-o.patch",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/patches/0002-RESULT-final-run-evidence-7-7-10-10-mutants-killed-o.patch",
+      "sha256": "b46b636fde022243dbe2c48403b154260d18f61be1d94cfe08460b9a109f1e65",
+      "bytes": 44499
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/.gitignore",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/.gitignore",
+      "sha256": "59b122983cf3e668dd5b78eec8c532b442b6c89d86a834a49b7d097a382381b5",
+      "bytes": 18
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/RESULT.md",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/RESULT.md",
+      "sha256": "83a36ef38ed1b11a5be1cd9c516f02ac27369ec293241dd3a79ff564667ce298",
+      "bytes": 24495
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol",
+      "sha256": "47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481",
+      "bytes": 45859
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol",
+      "sha256": "97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003",
+      "bytes": 8944
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol",
+      "sha256": "65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d",
+      "bytes": 913
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol",
+      "sha256": "5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e",
+      "bytes": 1733
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/fixtures/sources/EnclaveDeployments.live-rev16d.sol",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/fixtures/sources/EnclaveDeployments.live-rev16d.sol",
+      "sha256": "2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1",
+      "bytes": 121794
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/fixtures/sources/EnclaveLeaseExecutor.sol",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/fixtures/sources/EnclaveLeaseExecutor.sol",
+      "sha256": "dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033",
+      "bytes": 8232
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/fixtures/sources/EnclaveLeaseGasReserve.sol",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/fixtures/sources/EnclaveLeaseGasReserve.sol",
+      "sha256": "1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2",
+      "bytes": 27988
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/fixtures/sources/EnclaveRegistry.live-schema4.sol",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/fixtures/sources/EnclaveRegistry.live-schema4.sol",
+      "sha256": "e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360",
+      "bytes": 17386
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/jobs/fetch-op-source.sh",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/jobs/fetch-op-source.sh",
+      "sha256": "820814422bd332003b5804b2dd90473b73ee7107c675809acd8c6122ae14a242",
+      "bytes": 960
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/jobs/mutants.sh",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/jobs/mutants.sh",
+      "sha256": "75d4d060d0d88f7999b2da1f2f5c3b004070efba1483983ac060757716bcfdef",
+      "bytes": 2253
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/jobs/run.sh",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/jobs/run.sh",
+      "sha256": "c3825d635296e0a76333068f42824a0e93db2725713ab679d656d08e1a3d53b8",
+      "bytes": 809
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-1.guard.log",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-1.guard.log",
+      "sha256": "9637c4002b6f8195e5fe4d8ffd830fe497bc8a3405a9f887eb7c62805291bc41",
+      "bytes": 67
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-1.out",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-1.out",
+      "sha256": "fc60285ec0506948af2bbd66da73d7fd7fec74e6969e562f63c6178bec610701",
+      "bytes": 7252
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-2.guard.log",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-2.guard.log",
+      "sha256": "bf46021168cfdafc4de12f4dcec3bbdf0d5b2fe5af58ecefa0e49ae3d877a6d2",
+      "bytes": 67
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-2.out",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-2.out",
+      "sha256": "f0865deecea6c29979a882da3d1346dc9f6496d933ab32453f459a3b25a64f91",
+      "bytes": 6459
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-3.guard.log",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-3.guard.log",
+      "sha256": "28fadb5db38b353d338bd8425395f41c5f58f8c6d31900f17951b1afc40dabda",
+      "bytes": 67
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-3.out",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-3.out",
+      "sha256": "a74213f5ee86015caab1e98a6af8554f7b32918e592b89a9fb891576327ff21f",
+      "bytes": 4771
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-4.out",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/anvil-4.out",
+      "sha256": "f332f0fa85ad06faec8359660bf0ae60eb11fd45cad039e2f24298727f18b693",
+      "bytes": 4529
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/fetch-op-1.guard.log",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/fetch-op-1.guard.log",
+      "sha256": "ec8ece023b038083d5362692e6117d53d80b46d8191ef2b9bb399c35263da869",
+      "bytes": 66
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/fetch-op-1.out",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/fetch-op-1.out",
+      "sha256": "7d84648a4d995e00b8766d1e8b4dc05029155a4fb0587673b4f10da45f4416d9",
+      "bytes": 803
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-1.guard.log",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-1.guard.log",
+      "sha256": "71081308ac2ba82f7ba5d0fc26961ea864105f2f2f0b4fa81bd6139e257855df",
+      "bytes": 67
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-1.out",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-1.out",
+      "sha256": "1fb9e1d4be1aa87afadcd32a6efb15ae05dc37184b00b7b841a641c1fb81bd36",
+      "bytes": 1104
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-1.rc",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-1.rc",
+      "sha256": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320",
+      "bytes": 7
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-2.rc",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-2.rc",
+      "sha256": "a4c24c6a0879b8bb9a19466af292a15160d11432b9d39f5b565b3f8942cb6599",
+      "bytes": 8
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-3.guard.log",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-3.guard.log",
+      "sha256": "c15374888de0ab5dacaf7d720fe5bad08632cc1f6ffc997b5f88153d7ae1e921",
+      "bytes": 67
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-3.out",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-3.out",
+      "sha256": "cf589f99409b28f37aa57015456884310982c3bc83ab07a1acabc0076d3f2b87",
+      "bytes": 1104
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-3.rc",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/final-3.rc",
+      "sha256": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320",
+      "bytes": 7
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-1.tap",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-1.tap",
+      "sha256": "5118138d08ab31112818bcacb93db8aecf6d550e26b845efbb49c7090ab36d8b",
+      "bytes": 3315
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-10.tap",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-10.tap",
+      "sha256": "aaa5a33c518704c5012afa103674bb3232ba57182441fa7f088c91fae7ec4913",
+      "bytes": 2757
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-2.tap",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-2.tap",
+      "sha256": "95ac456ca5fd478f89b08aa715c259658b974e63c74312efff381fbde3fdc1d2",
+      "bytes": 3313
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-3.tap",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-3.tap",
+      "sha256": "651e4864e479c8983591b0cb8475eabc5a117a1b3b208d085d33b424c794ee82",
+      "bytes": 3311
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-4.tap",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-4.tap",
+      "sha256": "29d64a05c77ba3fa3b4793d156235be1bc456d406ff2fa48e4888a413018d343",
+      "bytes": 3309
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-5.tap",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-5.tap",
+      "sha256": "dce75218174026ca45a53aa5ed9a131d9a4490a38e6a32edfa5908cf10b48dae",
+      "bytes": 3673
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-6.tap",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-6.tap",
+      "sha256": "46ae8ca52f8ccfe25ab7f5cf13b554853ba062283c044b5a7aa874cbb16fd067",
+      "bytes": 2915
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-7.tap",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-7.tap",
+      "sha256": "42c97b33d109e70b2d508f3415059932ca9273d58661d9a8517cbca2d2e6cb15",
+      "bytes": 2759
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-8.tap",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-8.tap",
+      "sha256": "d85e5407f8698bcccac3103db5d1b2137eeaec5419dfce37bcf45ad245be9ac6",
+      "bytes": 4915
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-9.tap",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mut-9.tap",
+      "sha256": "d9ff10ea4c76eb01b988b24d37f8fa95691392203fea387d91a096c48cfc95dd",
+      "bytes": 3296
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mutants-1.guard.log",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mutants-1.guard.log",
+      "sha256": "9d1679bda9fd3a2e985e3dcc839179f5e35ef086e69244f0f78f192a49ca62c1",
+      "bytes": 67
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mutants-1.out",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mutants-1.out",
+      "sha256": "9b4dfb55c612b0d410dda7f41b174952e05b90c16ffc8e7849f6face08dc8acd",
+      "bytes": 908
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mutants-2.guard.log",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mutants-2.guard.log",
+      "sha256": "8c4813fceb2c8f575aec83869618e677d02c552ee56c970e903f485ebe07ba06",
+      "bytes": 67
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mutants-2.out",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/mutants-2.out",
+      "sha256": "024070616d21e370c1a734318d5b228f9e611c2fd2d953f265647beb55b68b5f",
+      "bytes": 927
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/probe-1.guard.log",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/probe-1.guard.log",
+      "sha256": "6ebe1f292b3406d4dbfedccb07ae09496e14f45a79a848ef1a0873a29c420de7",
+      "bytes": 67
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/probe-1.out",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/probe-1.out",
+      "sha256": "e1290de68495c460e2109c54e7fb5bdccd9133fd01edcd5d1cd7246b2f00705a",
+      "bytes": 5867
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/suite-final-1.out",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/suite-final-1.out",
+      "sha256": "c14c122928b43283a98c371c67822ca4577361c507e3ed79b9e141bfcbe5531a",
+      "bytes": 4923
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/suite-final-3.out",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/logs/suite-final-3.out",
+      "sha256": "9eab7960bb4125439d92f3e7ebf0efb7dc27de1e7942a40e03792d6a1850f6fc",
+      "bytes": 4924
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/package.json",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/package.json",
+      "sha256": "7994ddf388263300f5cb03332216feb6f03d204ca4511872f3a8499cd8ac060c",
+      "bytes": 71
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/src/forced-inclusion.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/src/forced-inclusion.mjs",
+      "sha256": "b2552fd593297b9f28ad8153913ce201c036ca2f7875249be1bf85cea832fa27",
+      "bytes": 33758
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/test/forced-inclusion.anvil.test.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/test/forced-inclusion.anvil.test.mjs",
+      "sha256": "cbd5de839736a8948d5951dce3260660c940f929031425b2b17558ab5e4f7f74",
+      "bytes": 30587
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/test/tracker.test.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/test/tracker.test.mjs",
+      "sha256": "784ba86de7d3f08cb6cf0df1164c7bc9c5d1ef5bcccc125e3d05e2c966355c2d",
+      "bytes": 2749
+    },
+    {
+      "label": "E rpc-transaction-independence a460c36c -> 159fd148 as a SOURCE-ONLY DERIVATIVE: every source, test, job, evidence and log file EXCEPT fixtures/artifacts/*.json (7 compiled contract artifacts, recorded by blob/sha256/size). The patches reproduce the DERIVATIVE trees (original minus those 7 entries); the EXACT original trees 834322bd / a7f970a8 CANNOT be rebuilt from this export until the artifacts are regenerated per frozen-0830-e-artifact-recipe.json. Initial head only: E's transaction closure is active; no activation, no app-funded L1 claim",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/e-derivative-159fd148/files/tools/anvil-deposit-probe.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/e-derivative-159fd148/files/tools/anvil-deposit-probe.mjs",
+      "sha256": "b7c1e8dd0d647524508dd4215d53117a780d076111575cafc419f723c300f854",
+      "bytes": 3031
+    },
+    {
+      "label": "F final host-services compose 4106c311 = MERGE of C carriers 0757085e (first parent) and F lifecycle 6c38c048 (second parent); stored as one diff against the first parent (4 files). TERMINAL, root reviewed: 25-artifact clean-stamp reproducibility, policy-mirror sync race recorded. Built artifacts NOT archived (release.sha256 / artifacts-final.sha256 hold their hashes); not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/f-final-4106c311/patches/merge-vs-first-parent.diff",
+      "stored": "files/source-preservation/frozen-0830-export/f-final-4106c311/patches/merge-vs-first-parent.diff",
+      "sha256": "f3f0829a40eb623b05387e21aa87f247b9fff759f9237d40f76fdaa795bef694",
+      "bytes": 57737
+    },
+    {
+      "label": "F final host-services compose 4106c311 = MERGE of C carriers 0757085e (first parent) and F lifecycle 6c38c048 (second parent); stored as one diff against the first parent (4 files). TERMINAL, root reviewed: 25-artifact clean-stamp reproducibility, policy-mirror sync race recorded. Built artifacts NOT archived (release.sha256 / artifacts-final.sha256 hold their hashes); not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/f-final-4106c311/files/network/host-service-transport.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/f-final-4106c311/files/network/host-service-transport.mjs",
+      "sha256": "43e7c11527491f47a4c8c15e4a6832e560c59f94a8c00d9de34897a99d5be01a",
+      "bytes": 16908
+    },
+    {
+      "label": "F final host-services compose 4106c311 = MERGE of C carriers 0757085e (first parent) and F lifecycle 6c38c048 (second parent); stored as one diff against the first parent (4 files). TERMINAL, root reviewed: 25-artifact clean-stamp reproducibility, policy-mirror sync race recorded. Built artifacts NOT archived (release.sha256 / artifacts-final.sha256 hold their hashes); not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/f-final-4106c311/files/network/privacy-agent.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/f-final-4106c311/files/network/privacy-agent.mjs",
+      "sha256": "5e56973dfd27bc76781ea2f70646803019044d56d7bd97988bcfe8cffca6f705",
+      "bytes": 36457
+    },
+    {
+      "label": "F final host-services compose 4106c311 = MERGE of C carriers 0757085e (first parent) and F lifecycle 6c38c048 (second parent); stored as one diff against the first parent (4 files). TERMINAL, root reviewed: 25-artifact clean-stamp reproducibility, policy-mirror sync race recorded. Built artifacts NOT archived (release.sha256 / artifacts-final.sha256 hold their hashes); not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/f-final-4106c311/files/network/wg-circuit-runtime.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/f-final-4106c311/files/network/wg-circuit-runtime.mjs",
+      "sha256": "77b842e8a891f7aff5923b6a886334feec1814c1f002a6cac517ab4b10045efd",
+      "bytes": 21884
+    },
+    {
+      "label": "F final host-services compose 4106c311 = MERGE of C carriers 0757085e (first parent) and F lifecycle 6c38c048 (second parent); stored as one diff against the first parent (4 files). TERMINAL, root reviewed: 25-artifact clean-stamp reproducibility, policy-mirror sync race recorded. Built artifacts NOT archived (release.sha256 / artifacts-final.sha256 hold their hashes); not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export/f-final-4106c311/files/test/host-service-lifecycle.test.mjs",
+      "stored": "files/source-preservation/frozen-0830-export/f-final-4106c311/files/test/host-service-lifecycle.test.mjs",
+      "sha256": "0c7c438b17fdacd3ad501f7a488db670ca9709402e9d479aeb41dfd40d80b434",
+      "bytes": 26255
+    },
+    {
+      "label": "A's Windows consumer closure report and patches 0010-0014 at df8fbafa (terminal, root reviewed); not deployed",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/RESULT-WINDOWS-CONSUMERS.md",
+      "stored": "files/rpc-priority/RESULT-WINDOWS-CONSUMERS.md",
+      "sha256": "efc6c21532363cfb0626c4a4c94b09b8fa78551635853b4b9cd95fa9dd635cfd",
+      "bytes": 18374
+    },
+    {
+      "label": "A's Windows consumer closure report and patches 0010-0014 at df8fbafa (terminal, root reviewed); not deployed",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/patches/enclave/0010-Bound-the-whole-verified-read-its-callback-included-.patch",
+      "stored": "files/rpc-priority/patches/enclave/0010-Bound-the-whole-verified-read-its-callback-included-.patch",
+      "sha256": "ae0ce7291980c60d56b3c3e69a55d12e5ba98ed107a9b4faf7fdc5cdac69c39c",
+      "bytes": 24162
+    },
+    {
+      "label": "A's Windows consumer closure report and patches 0010-0014 at df8fbafa (terminal, root reviewed); not deployed",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/patches/enclave/0011-Keep-the-verified-operation-deadline-timer-reference.patch",
+      "stored": "files/rpc-priority/patches/enclave/0011-Keep-the-verified-operation-deadline-timer-reference.patch",
+      "sha256": "66a5f8389a551f8ff79856395f4bf855a9d34d5baf31d768010389b6eb676241",
+      "bytes": 3481
+    },
+    {
+      "label": "A's Windows consumer closure report and patches 0010-0014 at df8fbafa (terminal, root reviewed); not deployed",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/patches/enclave/0012-Close-verified-policy-snapshots-before-late-response.patch",
+      "stored": "files/rpc-priority/patches/enclave/0012-Close-verified-policy-snapshots-before-late-response.patch",
+      "sha256": "868b8fd2a3ad4adda536bf5979337ab639089faac2391d4b657d30b18da7dcc1",
+      "bytes": 14116
+    },
+    {
+      "label": "A's Windows consumer closure report and patches 0010-0014 at df8fbafa (terminal, root reviewed); not deployed",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/patches/enclave/0013-Close-the-verified-LeaseReader-client-s-metadata-met.patch",
+      "stored": "files/rpc-priority/patches/enclave/0013-Close-the-verified-LeaseReader-client-s-metadata-met.patch",
+      "sha256": "cfec95d2ff6e07b4da58cae53cba677fdf40f3ab6715391d0a0c1c64304066ff",
+      "bytes": 8264
+    },
+    {
+      "label": "A's Windows consumer closure report and patches 0010-0014 at df8fbafa (terminal, root reviewed); not deployed",
+      "source": "work/resume-after-checkpoint-20261022/rpc-priority/patches/enclave/0014-Wire-the-Windows-node-s-chain-consumers-to-the-expli.patch",
+      "stored": "files/rpc-priority/patches/enclave/0014-Wire-the-Windows-node-s-chain-consumers-to-the-expli.patch",
+      "sha256": "9400cca08760deb1d5fa4d989867f71d7f8fda01789fcd37c67d1c7dd2ae9a01",
+      "bytes": 883316
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/RESULT.md",
+      "stored": "files/host-services-final-compose/RESULT.md",
+      "sha256": "216bf57f1fb023ba5184bfc0fafd13492d9d5258a7f4cbce5e1d55128b661cd6",
+      "bytes": 24055
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/PROGRESS.txt",
+      "stored": "files/host-services-final-compose/PROGRESS.txt",
+      "sha256": "1ca5bcf9584cdd13f5371e0369861d8cd52501c25ba7a41f3d738e681a2f4c13",
+      "bytes": 338
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/artifacts-final.sha256",
+      "stored": "files/host-services-final-compose/artifacts-final.sha256",
+      "sha256": "cb5da1f81d5c94a14bbc1bdd0cb810163aeb28b5fe1e79c0b0a4ae78a99cd1f8",
+      "bytes": 2316
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/artifacts-final-run1-modified.sha256",
+      "stored": "files/host-services-final-compose/artifacts-final-run1-modified.sha256",
+      "sha256": "e1eb07c12a2ff94e31c5555e970b05e3b6a243add13d85f7f7c73987be6a12a4",
+      "bytes": 2316
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/node-deploy-files.sha256",
+      "stored": "files/host-services-final-compose/node-deploy-files.sha256",
+      "sha256": "5580acb7f50341d93c557f96e5f80e3bb184b2cd2fdaed4262777308d11373b4",
+      "bytes": 8412
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/node-deploy-files.txt",
+      "stored": "files/host-services-final-compose/node-deploy-files.txt",
+      "sha256": "3199bd17c5bf0febdbdf9d9cfd56dee22c1aea3792fbd521f84d1138ac636d1a",
+      "bytes": 2670
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/release.sha256",
+      "stored": "files/host-services-final-compose/release.sha256",
+      "sha256": "1a93c0655b30eb268097dd336ea6a5467d90755b8f0cf61dcb896d694dc6be22",
+      "bytes": 2414
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/build-final.sh",
+      "stored": "files/host-services-final-compose/build-final.sh",
+      "sha256": "390bd4f916b244aacc6d3d17478c785b74350a9d5fac863cc7fd194e51e52d35",
+      "bytes": 3287
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/job.sh",
+      "stored": "files/host-services-final-compose/job.sh",
+      "sha256": "88fa789ed2725ed090a1905566228e91337eb5f9eb61716f5ff403c857dcee43",
+      "bytes": 1733
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/q.sh",
+      "stored": "files/host-services-final-compose/q.sh",
+      "sha256": "3e8ad483ee2826930c1152d83f840153980f561288d6c041a38495031f3d8d57",
+      "bytes": 412
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/setup.sh",
+      "stored": "files/host-services-final-compose/setup.sh",
+      "sha256": "13cdc0be3d8b37c5013daf481962e424321ee1c4210682625b4f123f7e563ea0",
+      "bytes": 1898
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/r1-check.sh",
+      "stored": "files/host-services-final-compose/r1-check.sh",
+      "sha256": "a6deb81df0388611144d734261acd4f5666f7c48d179ab3f056a746e96d85a4b",
+      "bytes": 377
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/scan.sh",
+      "stored": "files/host-services-final-compose/scan.sh",
+      "sha256": "78762f831f52432109659b37ccd62ab353fc491fcce12f9790a3337504dfe268",
+      "bytes": 670
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/merge-msg.txt",
+      "stored": "files/host-services-final-compose/merge-msg.txt",
+      "sha256": "cf4dcb04902b9975a8c6805c051c85f1ccbbf6d479bf6418e6f6d23ec6e219b9",
+      "bytes": 845
+    },
+    {
+      "label": "F final compose report, progress, build/job/scan scripts, merge message, range gitleaks result and the hash lists of the reproducible artifacts and node deploy files at 4106c311 (built artifacts themselves not archived)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/gitleaks-range.json",
+      "stored": "files/host-services-final-compose/gitleaks-range.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3
+    },
+    {
+      "label": "Digest of F's final compose job logs (sha256/bytes/rc + queue/summary/failure/scan lines; raw logs stay local); results are judged in host-services-final-compose/RESULT.md",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-f-final-test-evidence.txt",
+      "stored": "files/source-preservation/frozen-0830-f-final-test-evidence.txt",
+      "sha256": "e4dab9a2050ae50b5e9b86fb076c7a0bad3622971b3a83f646598c6a05d01994",
+      "bytes": 5792
+    },
+    {
+      "label": "Digest of C's storage-write-release job logs (rehearsal m*/e*, unit u*; sha256/bytes/rc + summary lines; raw logs stay local); results are judged in C's RESULT.md (bbf0a009)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-c-storage-test-evidence.txt",
+      "stored": "files/source-preservation/frozen-0830-c-storage-test-evidence.txt",
+      "sha256": "e2020784dc9fc0c8d17f0bb68138fdf7fbe3691b6807a12bfab087d303c0ef2d",
+      "bytes": 20261
+    },
+    {
+      "label": "Regeneration recipe for E's 7 omitted compiled fixtures, from their own solc metadata: compiler 0.8.35+commit.47b9dedd, viaIR, optimizer runs 1, evmVersion/remappings, compilation targets, every source keccak256 (5 artifacts covered by E's committed fixtures/sources; the 2 test mocks' 22 extra sources matched by keccak256 and copied below), and the creation/runtime bytecode keccak256 a regenerated artifact must reproduce. No compiler was run",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-artifact-recipe.json",
+      "stored": "files/source-preservation/frozen-0830-e-artifact-recipe.json",
+      "sha256": "760a6ac6d4bbf47ffa1cc264cdd6621b65b1d246a7ea74dc7622a4579428e3ba",
+      "bytes": 31636
+    },
+    {
+      "label": "Dated SNAPSHOTS (08:3xZ) of root's two living documents whose earlier bytes are already in the manifest under their own paths (append-only by source path): ROOT-PENDING-LATEST.txt (handoff notes, not evidence that workers acted) and effective-goal-requirements.txt (incl. the 250 GB aggregate cache cap and the nucbox reservation release)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-0830/ROOT-PENDING-LATEST.snapshot-0830.txt",
+      "stored": "files/source-preservation/snapshots-0830/ROOT-PENDING-LATEST.snapshot-0830.txt",
+      "sha256": "9f43cdc5329ba7720857f87faad50a21659dffc6ce0c75405603879a2b9262b4",
+      "bytes": 14246
+    },
+    {
+      "label": "Dated SNAPSHOTS (08:3xZ) of root's two living documents whose earlier bytes are already in the manifest under their own paths (append-only by source path): ROOT-PENDING-LATEST.txt (handoff notes, not evidence that workers acted) and effective-goal-requirements.txt (incl. the 250 GB aggregate cache cap and the nucbox reservation release)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-0830/effective-goal-requirements.snapshot-0830.txt",
+      "stored": "files/source-preservation/snapshots-0830/effective-goal-requirements.snapshot-0830.txt",
+      "sha256": "f9112c423fec2d99ff74ee3d910997599f54e69a03ff64338753c7965306572e",
+      "bytes": 15910
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/foundry.toml",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/foundry.toml",
+      "sha256": "0d004ad027e5ab66a7a9e33c7de5d276d050572600a7258d081d5620b2f4f4eb",
+      "bytes": 615
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/Base.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/Base.sol",
+      "sha256": "fc32a987e0555c69c646d995981acbcc57d5cd0173a364d37b9f79e3aa00ff0e",
+      "bytes": 2233
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdAssertions.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdAssertions.sol",
+      "sha256": "dcb4e4fe9fdd74f3f04e6f3b46d4d42375ea1f63ca9488902b4b0c289ada0295",
+      "bytes": 25392
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdChains.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdChains.sol",
+      "sha256": "a2cb4497c4ee5a2ba0ada8b816ea3bb1c9ba62303b70955dc0a2d99b3f98d326",
+      "bytes": 14266
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdCheats.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdCheats.sol",
+      "sha256": "29af42f9d670fd22e9fc3ebe3c2da194471e93e210361c41d3d26ef04e9dca28",
+      "bytes": 31809
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdConstants.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdConstants.sol",
+      "sha256": "6c785abd2fb9d42560f867d8e43e729c55f5bda2c06e5ddae27b17e301de4f04",
+      "bytes": 1867
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdError.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdError.sol",
+      "sha256": "82ca17e33a03775e95b4612bd604a8732c73b2982a0278d214e06c68a886dc11",
+      "bytes": 1013
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdInvariant.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdInvariant.sol",
+      "sha256": "f572e991cfe874844b3b75a540e38e2161c29b5d9ab1635a3c4f1a16c548f987",
+      "bytes": 3977
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdJson.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdJson.sol",
+      "sha256": "0211b47e93dbeb6a7de6112470a77137038ed73b79b015847f013e49fcd7511f",
+      "bytes": 9703
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdMath.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdMath.sol",
+      "sha256": "f04fc0616741563eb32d66c11af7fdca55a7202221e14282268c7be851fc63ab",
+      "bytes": 1360
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdStorage.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdStorage.sol",
+      "sha256": "829b263a1fe1a6637fee1a2129ef3cbc716f6020ed56637c8a5be7277ef812ce",
+      "bytes": 17837
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdStyle.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdStyle.sol",
+      "sha256": "324c2b0e100e88edbdb75f60f8a4c42f056f8d618ae5f56b1c404df64e8280a7",
+      "bytes": 10462
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdToml.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdToml.sol",
+      "sha256": "de3fb35af79a1fd2a2de9bc4ca7866e4102f9d3fbf11f66f3fe82696412d47e2",
+      "bytes": 9703
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdUtils.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/StdUtils.sol",
+      "sha256": "812afd6b5b43b1db9a3da817425b7a789149d7b8baf0670520a2224812799706",
+      "bytes": 9899
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/Test.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/Test.sol",
+      "sha256": "b1b48a4dfbd65fed186163326dc8870316679f64a195aa18050f83657d2df39c",
+      "bytes": 1095
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/Vm.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/Vm.sol",
+      "sha256": "c44d7bc0c4c4e47df60ee863291632df7947cb58d5395b3a02a4e93d029c6f06",
+      "bytes": 130769
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/console.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/console.sol",
+      "sha256": "896c5a5a5c235cb11a39876d430e1fc2c621e7950c4637ca58251b84b053f178",
+      "bytes": 69270
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/console2.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/console2.sol",
+      "sha256": "3bbe2e07ec53d8cf9c091667fe10234fcb3e2b45eab2c711002188806f46e779",
+      "bytes": 117
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/interfaces/IMulticall3.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/interfaces/IMulticall3.sol",
+      "sha256": "6620d9c5ea2e2291440e1dcce5072f948b7ec4d65075876a0d0ac9267d3342e3",
+      "bytes": 2185
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/safeconsole.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/lib/forge-std/src/safeconsole.sol",
+      "sha256": "ed11aa2efc83fa8e575215a11dd7a9be385cf49dacbc379630168d7334899e46",
+      "bytes": 427535
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/src/EnclaveLeaseGasPaymaster.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/src/EnclaveLeaseGasPaymaster.sol",
+      "sha256": "ed66080ade6bfbc896a24b459b5c7faf8bc270873709aad0fe873105b7eb7b18",
+      "bytes": 42265
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/test/LeaseGas.t.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/test/LeaseGas.t.sol",
+      "sha256": "95cc6a0ec3469affb77772bb83057d66e888c12bebb103fa54829258750e673b",
+      "bytes": 52719
+    },
+    {
+      "label": "Recipe SOURCES for E's two test-mock artifacts (MockFeed via test/LeaseGas.t.sol, MockUSDC via test/mocks/MockUSDC.sol, plus src/EnclaveLeaseGasPaymaster.sol and forge-std), copied from work/app-lease-gas/forge ONLY where the file's keccak256 equals the artifact metadata's; plus that project's foundry.toml. Sources, not build outputs",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-e-recipe-sources/test/mocks/MockUSDC.sol",
+      "stored": "files/source-preservation/frozen-0830-e-recipe-sources/test/mocks/MockUSDC.sol",
+      "sha256": "a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703",
+      "bytes": 3536
+    },
+    {
+      "label": "ROOT notes to F (RPC consumer gate; live legacy admission and live policy preflight, byte-identical to the copies in storage-write-release)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/ROOT-RPC-CONSUMER-GATE.txt",
+      "stored": "files/host-services-final-compose/ROOT-RPC-CONSUMER-GATE.txt",
+      "sha256": "bff354ebc8cb1526cdd213ed1769295707bfac8734bba034dcafa852f13da3de",
+      "bytes": 1202
+    },
+    {
+      "label": "ROOT notes to F (RPC consumer gate; live legacy admission and live policy preflight, byte-identical to the copies in storage-write-release)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/ROOT-LIVE-LEGACY-ADMISSION.txt",
+      "stored": "files/host-services-final-compose/ROOT-LIVE-LEGACY-ADMISSION.txt",
+      "sha256": "1efd8fac0dd12583301f26b71d1ae8fdc25874878f7e0aac3046b8b2d9601f5b",
+      "bytes": 1974
+    },
+    {
+      "label": "ROOT notes to F (RPC consumer gate; live legacy admission and live policy preflight, byte-identical to the copies in storage-write-release)",
+      "source": "work/resume-after-checkpoint-20261022/host-services-final-compose/ROOT-LIVE-POLICY-PREFLIGHT.txt",
+      "stored": "files/host-services-final-compose/ROOT-LIVE-POLICY-PREFLIGHT.txt",
+      "sha256": "b96e189435599af6ef7d6127842b5b4fdad63913d55c5c58ba43daac06ee8c76",
+      "bytes": 1574
+    },
+    {
+      "label": "ROOT read-only remote-ref verification after the 07:45Z publication: checkpoint 842ca044, main 7752a423 unchanged",
+      "source": "outputs/decentralization-audit/checkpoint-verified-0745-20261023.json",
+      "stored": "files/outputs/decentralization-audit/checkpoint-verified-0745-20261023.json",
+      "sha256": "4b89aa0f594c35227ddd9a53703c650750ba5681950265773d807354c69e5b42",
+      "bytes": 694
+    },
+    {
+      "label": "frozen-0830 checkpoint tooling (Git-object export incl. merge + source-only derivative, offline tree verifier, log digests, E artifact recipe generator, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-frozen-0830.py",
+      "stored": "files/source-preservation/export-frozen-0830.py",
+      "sha256": "7ddb0e9f2f2929ef3e913212791f27ab465bd7c02674106b230e91bcb607aad3",
+      "bytes": 16580
+    },
+    {
+      "label": "frozen-0830 checkpoint tooling (Git-object export incl. merge + source-only derivative, offline tree verifier, log digests, E artifact recipe generator, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-frozen-0830-export.py",
+      "stored": "files/source-preservation/verify-frozen-0830-export.py",
+      "sha256": "0b43b4a410360b74462f8e97413fdff5fbc98347a44d4e57fb4fa4df234a224c",
+      "bytes": 5765
+    },
+    {
+      "label": "frozen-0830 checkpoint tooling (Git-object export incl. merge + source-only derivative, offline tree verifier, log digests, E artifact recipe generator, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-frozen-0830.py",
+      "stored": "files/source-preservation/capture-frozen-0830.py",
+      "sha256": "e1d603cdf2ff8c6ad1a75658e786e47d27ffe23e0ca9b3bf49daf71f5b9e7140",
+      "bytes": 7240
+    },
+    {
+      "label": "frozen-0830 checkpoint tooling (Git-object export incl. merge + source-only derivative, offline tree verifier, log digests, E artifact recipe generator, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-pins.json",
+      "stored": "files/source-preservation/frozen-0830-pins.json",
+      "sha256": "5a62ca1de0a60db5069c6317490a41b7ca237a960d2d1ff9f3db5763d12e4852",
+      "bytes": 265
+    },
+    {
+      "label": "frozen-0830 checkpoint tooling (Git-object export incl. merge + source-only derivative, offline tree verifier, log digests, E artifact recipe generator, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-export.sh",
+      "stored": "files/source-preservation/frozen-0830-export.sh",
+      "sha256": "b243268c6d7170a1b6fc21ee2a085504db7eca77b2f1b7ee83f1f7b220e9be17",
+      "bytes": 1092
+    },
+    {
+      "label": "frozen-0830 checkpoint tooling (Git-object export incl. merge + source-only derivative, offline tree verifier, log digests, E artifact recipe generator, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-capture.sh",
+      "stored": "files/source-preservation/frozen-0830-capture.sh",
+      "sha256": "07191a6da88bfa5c9df3738329afa5958ade93f67360b485073fe345433d71cd",
+      "bytes": 2125
+    },
+    {
+      "label": "frozen-0830 checkpoint tooling (Git-object export incl. merge + source-only derivative, offline tree verifier, log digests, E artifact recipe generator, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0830-labels.json",
+      "stored": "files/source-preservation/frozen-0830-labels.json",
+      "sha256": "f9bc01c05fc156b3e1c39a80e7997b5f4be6da1e8ca09c2d3c9e8ddb5b5ab523",
+      "bytes": 5332
+    },
+    {
+      "label": "frozen-0830 checkpoint tooling (Git-object export incl. merge + source-only derivative, offline tree verifier, log digests, E artifact recipe generator, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/make-frozen-0830-digests.py",
+      "stored": "files/source-preservation/make-frozen-0830-digests.py",
+      "sha256": "875daa6b2b0c55330907a6d2480483fa66ac93cb14107dccb195600e5baea5a9",
+      "bytes": 2387
+    },
+    {
+      "label": "frozen-0830 checkpoint tooling (Git-object export incl. merge + source-only derivative, offline tree verifier, log digests, E artifact recipe generator, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/make-frozen-0830-e-recipe.mjs",
+      "stored": "files/source-preservation/make-frozen-0830-e-recipe.mjs",
+      "sha256": "dedc7a2b9c3070a1485c299ebeb83bece1a423e00d36f21146b44ad8e287e35f",
+      "bytes": 5713
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -13751,6 +15137,15 @@
       "entriesBefore": 1752,
       "added": 285,
       "bytes": 5522161,
+      "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run"
+    },
+    {
+      "at": "2026-10-23T07:57:39.789824+00:00",
+      "by": "source-preservation/capture-frozen-0830.py",
+      "onCheckpoint": "842ca044199b5562136c80b2842cffe8374b65aa",
+      "entriesBefore": 2037,
+      "added": 198,
+      "bytes": 6367024,
       "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run"
     }
   ]

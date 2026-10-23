@@ -1,0 +1,409 @@
+{
+ "run": "m1",
+ "started": 1792734935.9991207,
+ "inputs": {
+  "adapter-retained/bafybeib7at4cxxzmlp3wb7v45zrhbuggwzegspcacfylztslbcnoe6qrqu.bin": "d1ddecfe7c3e1d06d1921eb779e135f3a64f185a4dbcdd989f56e22f603e07d3",
+  "storage-wasm-validation/artifacts/candidate-00e9cde0.wasm": "00e9cde0929dc7b8726ca4b7b9c9afb51ec4bf6d952039c907c032256ec79afc",
+  "claude-resumed-20261022/storage-sdk-regressions/out/c2e-a/harness-block": "cac6651329468aaeb2dd4d90ac9b924a891b121edbe17d2515b34b0dae97eafa",
+  "resume-after-checkpoint-20261022/storage-client-interop/egress_socks5.py": "77fad264406da15a85830ce1559fbd04feb2f9464b01576512a525112da09086",
+  "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+  "resume-after-checkpoint-20261022/storage-public-read/candidate-catalog-config.json": "7b9e7e750521b4bb0fa5925e771a42766673ad728e02e3d8508da4ca6ea554d2",
+  "resume-after-checkpoint-20261022/storage-write-release/client/catalog-config.c2.json": "f6b48940cf7179b5a7bc61fabfee4667bd14aacd0380d953cae8f878972ff278"
+ },
+ "checks": [
+  {
+   "name": "backend: three independent indexers (own databases), each at schema exactly v28 (c2-enclave)",
+   "ok": true,
+   "detail": "['28', '28', '28']"
+  },
+  {
+   "name": "config: the corrected catalog version config equals the prepared one minus writeQuorum (no other byte changed)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "P: the exact live 0.1.8 becomes ready on the existing v28 indexer r0 (unenrolled account)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "P: 0.1.8 PUT ipfs/legacy/small (100000 B)",
+   "ok": false,
+   "detail": "500 b'<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<Error><Code>InternalError</Code><Message>queue error: not enough initial hosts</Message><Resource>/ipfs/legacy/small</Resource></Error>'"
+  },
+  {
+   "name": "P: 0.1.8 PUT git/legacy/big (12582912 B)",
+   "ok": false,
+   "detail": "500 b'<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<Error><Code>InternalError</Code><Message>queue error: not enough initial hosts</Message><Resource>/git/legacy/big</Resource></Error>'"
+  },
+  {
+   "name": "P: 0.1.8 PUT machines/legacy/mid (3145728 B)",
+   "ok": false,
+   "detail": "500 b'<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<Error><Code>InternalError</Code><Message>queue error: not enough initial hosts</Message><Resource>/machines/legacy/mid</Resource></Error>'"
+  },
+  {
+   "name": "P: 0.1.8 reads its own writes: every key reads back byte-exact (0 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "P: 0.1.8 reads its own writes: ranged reads (incl. across the slab boundary) are byte-exact",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "P: 0.1.8 reads its own writes: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "P: before T1: r0 holds the account unenrolled (no fence, no CAS); r1/r2 do not know it",
+   "ok": true,
+   "detail": "{'r0': {'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}, 'r1': None, 'r2': None}"
+  },
+  {
+   "name": "B: the PREPARED catalog config (writeQuorum 2) with $SIAS3_REPLICAS = [r0] refuses to start (writeQuorum must be 1-1)",
+   "ok": true,
+   "detail": "[sia-s3] config: resolved $SIAS3_REPLICAS from the environment\n[sia-s3] config: resolved $SIA_APP_KEY from the environment\n[sia-s3] config: replica r0 uses plain HTTP; only for an indexer on a trusted path\n[sia-s3] config: writeQuorum must be 1-1 (the number of replicas that are not retiring)\n"
+  },
+  {
+   "name": "B: and enrolled nothing (r0 account still unfenced, not CAS)",
+   "ok": true,
+   "detail": "{'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}"
+  },
+  {
+   "name": "T1: the corrected config with [r0] and the lease16 fact makes the FIRST fenced C2 boot (ready)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "T1: membership stable at epoch 1 with r0's record admitted; lease16 authority, Vbs, C2 verified, ballot = the claim's generation",
+   "ok": false,
+   "detail": "{'writerFence': {'authority': 'lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b deployment 0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81 claim 52515800/3', 'ballot': {'counter': 1, 'gen': '0x10032153d80003', 'iid': 'affd85f0'}, 'c2': {'noCloneAssumed': False, 'verified': True}, 'isolation': 'Vbs', 'mode': 'required', 'policy': {'ok': True, 'warnings': ['isolation Vbs: no recorded no-clone evidence, and none assumed: C2 (verified at boot on every indexer) keeps storage semantics for copies of this instance']}, 'reballots': 0, 'superseded': None}, 'replicas': [{'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': 'membership record upload: queue error: not enough initial hosts', 'floors': 0, 'indexer': 'http://127.0.0.1:39185', 'keys': 0, 'ledgers': 0, 'loaded': True, 'manifests': 0, 'membership': {'epoch': None, 'phase': 'legacy', 'ready': True, 'reason': None, 'target': 1}, 'name': 'r0', 'objects': 0, 'openUploads': 0, 'record': None, 'retiring': False, 'tombstonedKeys': 0, 'unreadLedgers': 0, 'unreadManifests': 0, 'versionCeiling': 0, 'voting': True}]}"
+  }
+ ],
+ "measure": [
+  {
+   "op": "wasmtime compile v018",
+   "wallS": 1.3
+  },
+  {
+   "op": "wasmtime compile final",
+   "wallS": 1.8
+  },
+  {
+   "op": "v018-writer PUT ipfs/legacy/small 100000",
+   "wallS": 0.03,
+   "status": 500
+  },
+  {
+   "op": "v018-writer PUT git/legacy/big 12582912",
+   "wallS": 0.07,
+   "status": 500
+  },
+  {
+   "op": "v018-writer PUT machines/legacy/mid 3145728",
+   "wallS": 0.02,
+   "status": 500
+  },
+  {
+   "op": "v018-writer instance",
+   "maxRssMiB": 170,
+   "cpuS": 0.12,
+   "wallS": 2.3,
+   "sampledPeakRssMiB": 22,
+   "status": 15
+  },
+  {
+   "op": "prepared-config-n1 instance",
+   "maxRssMiB": 85,
+   "cpuS": 0.0,
+   "wallS": 2.0,
+   "sampledPeakRssMiB": 1,
+   "status": 256
+  }
+ ],
+ "events": [
+  "22:55:37 postgres ready postgres (PostgreSQL) 18.6",
+  "22:55:42 harness ready http://127.0.0.1:37327",
+  "22:55:43 CHECK PASS backend: three independent indexers (own databases), each at schema exactly v28 (c2-enclave) ['28', '28', '28']",
+  "22:55:44 app key registered on r0 (the existing primary) attachedHosts 14",
+  "22:55:47 CHECK PASS config: the corrected catalog version config equals the prepared one minus writeQuorum (no other byte changed) ",
+  "22:55:49 v018-writer ready after 2.0 s",
+  "22:55:49 CHECK PASS P: the exact live 0.1.8 becomes ready on the existing v28 indexer r0 (unenrolled account) ",
+  "22:55:49 CHECK FAIL P: 0.1.8 PUT ipfs/legacy/small (100000 B) 500 b'<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<Error><Code>InternalError</Code><Message>queue error: not enough initial hosts</Message><Resource>/ipfs/legacy/small</Resource></Error>'",
+  "22:55:49 CHECK FAIL P: 0.1.8 PUT git/legacy/big (12582912 B) 500 b'<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<Error><Code>InternalError</Code><Message>queue error: not enough initial hosts</Message><Resource>/git/legacy/big</Resource></Error>'",
+  "22:55:49 CHECK FAIL P: 0.1.8 PUT machines/legacy/mid (3145728 B) 500 b'<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<Error><Code>InternalError</Code><Message>queue error: not enough initial hosts</Message><Resource>/machines/legacy/mid</Resource></Error>'",
+  "22:55:49 CHECK PASS P: 0.1.8 reads its own writes: every key reads back byte-exact (0 keys) []",
+  "22:55:49 CHECK PASS P: 0.1.8 reads its own writes: ranged reads (incl. across the slab boundary) are byte-exact []",
+  "22:55:49 CHECK PASS P: 0.1.8 reads its own writes: listings are exact per bucket (deleted keys absent) []",
+  "22:55:49 CHECK PASS P: before T1: r0 holds the account unenrolled (no fence, no CAS); r1/r2 do not know it {'r0': {'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}, 'r1': None, 'r2': None}",
+  "22:55:51 CHECK PASS B: the PREPARED catalog config (writeQuorum 2) with $SIAS3_REPLICAS = [r0] refuses to start (writeQuorum must be 1-1) [sia-s3] config: resolved $SIAS3_REPLICAS from the environment\n[sia-s3] config: resolved $SIA_APP_KEY from the environment\n[sia-s3] config: replica r0 uses plain HTTP; only for an indexer on a trusted path\n[sia-s3] config: writeQuorum must be 1-1 (the number of replicas that are not retiring)\n",
+  "22:55:51 CHECK PASS B: and enrolled nothing (r0 account still unfenced, not CAS) {'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}",
+  "22:55:53 T1-r0 ready after 2.0 s",
+  "22:55:53 CHECK PASS T1: the corrected config with [r0] and the lease16 fact makes the FIRST fenced C2 boot (ready) ",
+  "23:01:53 CHECK FAIL T1: membership stable at epoch 1 with r0's record admitted; lease16 authority, Vbs, C2 verified, ballot = the claim's generation {'writerFence': {'authority': 'lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b deployment 0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81 claim 52515800/3', 'ballot': {'counter': 1, 'gen': '0x10032153d80003', 'iid': 'affd85f0'}, 'c2': {'noCloneAssumed': False,",
+  "23:01:53 harness exit: [Errno 111] Connection refused"
+ ],
+ "db": {
+  "P": {
+   "r0": {
+    "fenceGeneration": null,
+    "fenceCounter": null,
+    "casMode": false,
+    "seqEnabled": false,
+    "eventSeq": 0
+   },
+   "r1": null,
+   "r2": null
+  },
+  "B": {
+   "fenceGeneration": null,
+   "fenceCounter": null,
+   "casMode": false,
+   "seqEnabled": false,
+   "eventSeq": 0
+  }
+ },
+ "isolation": {
+  "netInterfaces": [
+   "lo"
+  ],
+  "uid": 1000,
+  "pid": 1
+ },
+ "wasmtime": "wasmtime 49.0.3 (f96eabaa1 2026-10-14)",
+ "pgSocketDir": "/tmp/mgpg-m1-awm1yxz6",
+ "postgres": "postgres (PostgreSQL) 18.6",
+ "indexers": [
+  {
+   "database": "sias3_real_m1_r0",
+   "name": "r0",
+   "up": true,
+   "url": "http://127.0.0.1:39185"
+  },
+  {
+   "database": "sias3_real_m1_r1",
+   "name": "r1",
+   "up": true,
+   "url": "http://127.0.0.1:37377"
+  },
+  {
+   "database": "sias3_real_m1_r2",
+   "name": "r2",
+   "up": true,
+   "url": "http://127.0.0.1:39035"
+  }
+ ],
+ "appKeyPublic": "d408da46f535243fb7632105687619af9977bae800bb66e11e8c5376091390bf",
+ "instances": {
+  "v018-writer": {
+   "artifact": "v018",
+   "config": {
+    "indexer": "http://127.0.0.1:39185",
+    "appKey": "<fixture app key>",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "INTEROPAK",
+      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+     }
+    ]
+   },
+   "env": []
+  },
+  "prepared-config-n1": {
+   "artifact": "final",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "writeQuorum": 2,
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:39185\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "T1-r0": {
+   "artifact": "final",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:39185\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  }
+ },
+ "membership": {
+  "T1": {
+   "timeout": true,
+   "last": {
+    "app": "sia-s3/0.2.0",
+    "bytes": 0,
+    "compactor": {
+     "compacted_objects": 0,
+     "compactions": 0,
+     "last_compaction": null,
+     "last_error": null
+    },
+    "keys": 0,
+    "objects": 0,
+    "openUploads": 0,
+    "readQuorum": 1,
+    "ready": true,
+    "replicas": [
+     {
+      "behind": 0,
+      "compactor": {
+       "compacted_objects": 0,
+       "compactions": 0,
+       "last_compaction": null,
+       "last_error": null
+      },
+      "dirty": false,
+      "error": "membership record upload: queue error: not enough initial hosts",
+      "floors": 0,
+      "indexer": "http://127.0.0.1:39185",
+      "keys": 0,
+      "ledgers": 0,
+      "loaded": true,
+      "manifests": 0,
+      "membership": {
+       "epoch": null,
+       "phase": "legacy",
+       "ready": true,
+       "reason": null,
+       "target": 1
+      },
+      "name": "r0",
+      "objects": 0,
+      "openUploads": 0,
+      "record": null,
+      "retiring": false,
+      "tombstonedKeys": 0,
+      "unreadLedgers": 0,
+      "unreadManifests": 0,
+      "versionCeiling": 0,
+      "voting": true
+     }
+    ],
+    "replication": {
+     "abandonedCalls": 0,
+     "floorsWritten": 0,
+     "lastRepair": "2026-10-23T06:00:52.523217713+00:00",
+     "lastRepairError": null,
+     "observedCeiling": 0,
+     "purgedVersions": 0,
+     "reclaimedTombstones": 0,
+     "reconciled": 0,
+     "refusedWrites": 0,
+     "repairPasses": 1,
+     "repairedCopies": 0,
+     "repairedDeletes": 0,
+     "versionCeiling": 0,
+     "versionFence": "legacy"
+    },
+    "smallUnpacked": 0,
+    "withheldVersions": 0,
+    "writeQuorum": 1,
+    "writerFence": {
+     "authority": "lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b deployment 0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81 claim 52515800/3",
+     "ballot": {
+      "counter": 1,
+      "gen": "0x10032153d80003",
+      "iid": "affd85f0"
+     },
+     "c2": {
+      "noCloneAssumed": false,
+      "verified": true
+     },
+     "isolation": "Vbs",
+     "mode": "required",
+     "policy": {
+      "ok": true,
+      "warnings": [
+       "isolation Vbs: no recorded no-clone evidence, and none assumed: C2 (verified at boot on every indexer) keeps storage semantics for copies of this instance"
+      ]
+     },
+     "reballots": 0,
+     "superseded": null
+    }
+   }
+  }
+ },
+ "egressConnects": 12,
+ "diskBeforeCleanupMiB": 20,
+ "cleanup": {
+  "hostSectorsRemoved": true,
+  "pgDataRemoved": true,
+  "pgSocketDirRemoved": true,
+  "pidsLeftInNamespace": [
+   89
+  ]
+ },
+ "finished": 1792735313.5646863,
+ "passed": 10,
+ "failed": 4
+}

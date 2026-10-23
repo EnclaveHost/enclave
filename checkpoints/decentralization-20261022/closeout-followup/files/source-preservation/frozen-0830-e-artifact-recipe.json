@@ -1,0 +1,927 @@
+{
+ "format": "enclave-e-artifact-recipe/v1",
+ "repo": "work/rpc-transaction-independence",
+ "commits": {
+  "initial": {
+   "commit": "a460c36c88f41b95e6c2c8f27f7083a4415917c7",
+   "tree": "834322bd6db4bd0cbee449f297d50af7f45e10b0",
+   "artifacts": [
+    {
+     "path": "fixtures/artifacts/EnclaveDeployments.json",
+     "mode": "100644",
+     "blob": "8011bcba74980cf58cc7def54c8cf3aa1d432977",
+     "bytes": 324106,
+     "sha256": "0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "src/live/EnclaveDeployments.sol": "EnclaveDeployments"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0x36f3e4f2b741dd5d10460171e1d35e62c3c2be642dc9bd1e43d0c7acc8f042a4",
+     "deployedBytecodeKeccak256": "0x10af94b064f8d6d26abe03249b1653cfb086bb6c8e443ac4087a52855d81897f",
+     "sources": [
+      {
+       "path": "src/live/EnclaveDeployments.sol",
+       "keccak256": "0xbae44a4c43ac66ff7b5583dbee6f1e9419080a569077364839a214d45308b1ac",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveDeployments.live-rev16d.sol"
+      }
+     ],
+     "sourcesInFixtures": 1,
+     "sourcesTotal": 1
+    },
+    {
+     "path": "fixtures/artifacts/EnclaveLeaseExecutor.json",
+     "mode": "100644",
+     "blob": "0c1914229de2e4fac56cf72201f40d6650a075f9",
+     "bytes": 32471,
+     "sha256": "dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "src/EnclaveLeaseExecutor.sol": "EnclaveLeaseExecutor"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0x69376ce3bb271460fc93a9693bf4ccfec625a05bc13d2a42f9fe079c7de0f449",
+     "deployedBytecodeKeccak256": "0x069b49daebe325a062629de92b0e41b0316e6db4d252a1a6035ec3953ac2a349",
+     "sources": [
+      {
+       "path": "src/EnclaveLeaseExecutor.sol",
+       "keccak256": "0x4720f6d0f9d4f5095597cdbf85a7c18f75c84b5766a4355c758073e67494d54a",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveLeaseExecutor.sol"
+      }
+     ],
+     "sourcesInFixtures": 1,
+     "sourcesTotal": 1
+    },
+    {
+     "path": "fixtures/artifacts/EnclaveLeaseGasReserve.json",
+     "mode": "100644",
+     "blob": "a5334d585cca2c906f3babe91e59b11bc80881bc",
+     "bytes": 151135,
+     "sha256": "aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "src/EnclaveLeaseGasReserve.sol": "EnclaveLeaseGasReserve"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0x819c50dc391e6a4d98d22c038c23c27d5dc13f169adc9d7c4d1aedfc034d3ea9",
+     "deployedBytecodeKeccak256": "0x80d6953712f336dd5483d851b852bcdda138fa2f4369fb212d9cbcf2fac5ef76",
+     "sources": [
+      {
+       "path": "src/EnclaveLeaseGasReserve.sol",
+       "keccak256": "0x8687cf30f0f5e990877dbaf745bd758c1c07a01507916267be71858b296bb598",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveLeaseGasReserve.sol"
+      }
+     ],
+     "sourcesInFixtures": 1,
+     "sourcesTotal": 1
+    },
+    {
+     "path": "fixtures/artifacts/EnclaveLedgerBandwidth.json",
+     "mode": "100644",
+     "blob": "cdd4196147e1e982dfb6955f3c0e68913ee133eb",
+     "bytes": 32240,
+     "sha256": "aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "src/live/EnclaveDeployments.sol": "EnclaveLedgerBandwidth"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0xc5bff78e0be627d86519c0a2d180cf56a50c33b3e33eef333b531ee5e618bcec",
+     "deployedBytecodeKeccak256": "0x983307ecad081ec8d25ee19536d465bfa6f8a14b6e2a30c4aa796bd9d75247bf",
+     "sources": [
+      {
+       "path": "src/live/EnclaveDeployments.sol",
+       "keccak256": "0xbae44a4c43ac66ff7b5583dbee6f1e9419080a569077364839a214d45308b1ac",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveDeployments.live-rev16d.sol"
+      }
+     ],
+     "sourcesInFixtures": 1,
+     "sourcesTotal": 1
+    },
+    {
+     "path": "fixtures/artifacts/EnclaveRegistry.json",
+     "mode": "100644",
+     "blob": "a53a74c9a0059b09e5b28bdf67ab39d1a9ec56e8",
+     "bytes": 66096,
+     "sha256": "66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "src/live/EnclaveRegistry.sol": "EnclaveRegistry"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0xcd593c6a4adb670b8656677c067edf4089d331eca50e6976e52290e781777c4f",
+     "deployedBytecodeKeccak256": "0xdd7fda9f076ac1271a2bb48458e8be060bbe13c7a2de0ed4bd4991f287e0b766",
+     "sources": [
+      {
+       "path": "src/live/EnclaveRegistry.sol",
+       "keccak256": "0x0eda6f8a0d134961bb1ad1d692c83dfeb9cab46b7d18cf586e7ce27d58e6969f",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveRegistry.live-schema4.sol"
+      }
+     ],
+     "sourcesInFixtures": 1,
+     "sourcesTotal": 1
+    },
+    {
+     "path": "fixtures/artifacts/MockFeed.json",
+     "mode": "100644",
+     "blob": "9e6fd30186cfc481fcec43c574af7b5da6b1d536",
+     "bytes": 22365,
+     "sha256": "10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "test/LeaseGas.t.sol": "MockFeed"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0xdec21383bca38b34baf57d33c5efce34d9628da7e0cbf31c66670ba722ebc3cc",
+     "deployedBytecodeKeccak256": "0x266ee900c18db1acccdd5aba9e70e54bc06960d90ced01e546047fc40e140e6d",
+     "sources": [
+      {
+       "path": "lib/forge-std/src/Base.sol",
+       "keccak256": "0x4b2a5a85e045dcf6a082700c7252e43854c2eed88f860aaa18ec1e85218ae2bf",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdAssertions.sol",
+       "keccak256": "0xd8eec16034b53b52c90a3d720e121ce7d30d64cc57d854db7d817d5b382dda43",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdChains.sol",
+       "keccak256": "0xae394f477769a38276d98d4854bc865fc8d281edbd4e72167507adb8236812aa",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdCheats.sol",
+       "keccak256": "0x0fa6ec03602648b62cce41aab2096e6b7e052f2846075d967b6958dd586db746",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdConstants.sol",
+       "keccak256": "0x319ccdabfa2c0b2428301445873270ffea20f0e039d4fd5e6eeba65158e4e534",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdError.sol",
+       "keccak256": "0xbf477b11a42d7611696956546bcfaa29317d1166bf65e402344599c05943fc77",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdInvariant.sol",
+       "keccak256": "0x4dab3021edfa9511bbdd80c48f060ef62eaf457f99eaf841f561fc2557d9a08d",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdJson.sol",
+       "keccak256": "0xbc0132abe1c2accc2867c0f03667afffdf92f3e95a581bb03c9557eaa38ea500",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdMath.sol",
+       "keccak256": "0xd90ad4fd8aeaeb8929964e686e769fdedd5eded3fc3815df194a0ab9f91a3fb2",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdStorage.sol",
+       "keccak256": "0x04102de0a79398e4bdea57b7a4818655b4cc66d6f81d1cff08bf428cd0b384cd",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdStyle.sol",
+       "keccak256": "0x43e2a8a9b9c2574dabe74f11adf6f782df218f463540e3b5b563609fe108597d",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdToml.sol",
+       "keccak256": "0x58a72c765ed3f7ff6b105509689658795b8a3739b8931772a497155878381861",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdUtils.sol",
+       "keccak256": "0xb2469a902a326074034c4f7081d868113db0edbb7cf48b86528af2d6b07295f8",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/Test.sol",
+       "keccak256": "0x3dda6083a83dfa3e8526e97bcc28e862ee2442dd58fe94d5c426d65b8e38f73c",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/Vm.sol",
+       "keccak256": "0x6f235e293b4406784ff3bd89b2e4d51d0922918cf6825e7a7a09413606932e39",
+       "license": "MIT OR Apache-2.0",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/console.sol",
+       "keccak256": "0x4bbf47eb762cef93729d6ef15e78789957147039b113e5d4df48e3d3fd16d0f5",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/console2.sol",
+       "keccak256": "0x3b8fe79f48f065a4e4d35362171304a33784c3a90febae5f2787805a438de12f",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/interfaces/IMulticall3.sol",
+       "keccak256": "0x7aac1389150499a922d1f9ef5749c908cef127cb2075b92fa17e9cb611263d0a",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/safeconsole.sol",
+       "keccak256": "0xbef9786cb49d3eade757bad87568c49c8c8f35721f0193c95ffb055d9e466e11",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "src/EnclaveLeaseGasPaymaster.sol",
+       "keccak256": "0x6eb2cd2676600b733b7489b14676cc15f299d937ecb038c668ac50ab9cd47f11",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "src/live/EnclaveDeployments.sol",
+       "keccak256": "0xbae44a4c43ac66ff7b5583dbee6f1e9419080a569077364839a214d45308b1ac",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveDeployments.live-rev16d.sol"
+      },
+      {
+       "path": "src/live/EnclaveRegistry.sol",
+       "keccak256": "0x0eda6f8a0d134961bb1ad1d692c83dfeb9cab46b7d18cf586e7ce27d58e6969f",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveRegistry.live-schema4.sol"
+      },
+      {
+       "path": "test/LeaseGas.t.sol",
+       "keccak256": "0x9905c501786f46d1e64f4c746cb1f65814b98cd8394243aa127fea2d5d680388",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "test/mocks/MockUSDC.sol",
+       "keccak256": "0x35697c7ec71f58526a35295f32967175f66068797bcc85670d944c4fd380e0d4",
+       "license": "MIT",
+       "committedFixtureSource": null
+      }
+     ],
+     "sourcesInFixtures": 2,
+     "sourcesTotal": 24
+    },
+    {
+     "path": "fixtures/artifacts/MockUSDC.json",
+     "mode": "100644",
+     "blob": "6dbf36a2f2232962edfe0a6b5872fd285aaa1766",
+     "bytes": 29274,
+     "sha256": "524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "test/mocks/MockUSDC.sol": "MockUSDC"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0xd24ecbb5d31bebf4fd11efbf15937f7146b1f3c0f71d9aec3227fcce4bba41c9",
+     "deployedBytecodeKeccak256": "0xfac6e4d899abb2f517e53ea609df2884907b4bcb02abf366f346abcbcdd61be2",
+     "sources": [
+      {
+       "path": "test/mocks/MockUSDC.sol",
+       "keccak256": "0x35697c7ec71f58526a35295f32967175f66068797bcc85670d944c4fd380e0d4",
+       "license": "MIT",
+       "committedFixtureSource": null
+      }
+     ],
+     "sourcesInFixtures": 0,
+     "sourcesTotal": 1
+    }
+   ]
+  },
+  "report": {
+   "commit": "159fd1480ddab9652043cce5163348ff4fa6996b",
+   "tree": "a7f970a8804352fef964adc08f722b6083d29042",
+   "artifacts": [
+    {
+     "path": "fixtures/artifacts/EnclaveDeployments.json",
+     "mode": "100644",
+     "blob": "8011bcba74980cf58cc7def54c8cf3aa1d432977",
+     "bytes": 324106,
+     "sha256": "0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "src/live/EnclaveDeployments.sol": "EnclaveDeployments"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0x36f3e4f2b741dd5d10460171e1d35e62c3c2be642dc9bd1e43d0c7acc8f042a4",
+     "deployedBytecodeKeccak256": "0x10af94b064f8d6d26abe03249b1653cfb086bb6c8e443ac4087a52855d81897f",
+     "sources": [
+      {
+       "path": "src/live/EnclaveDeployments.sol",
+       "keccak256": "0xbae44a4c43ac66ff7b5583dbee6f1e9419080a569077364839a214d45308b1ac",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveDeployments.live-rev16d.sol"
+      }
+     ],
+     "sourcesInFixtures": 1,
+     "sourcesTotal": 1
+    },
+    {
+     "path": "fixtures/artifacts/EnclaveLeaseExecutor.json",
+     "mode": "100644",
+     "blob": "0c1914229de2e4fac56cf72201f40d6650a075f9",
+     "bytes": 32471,
+     "sha256": "dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "src/EnclaveLeaseExecutor.sol": "EnclaveLeaseExecutor"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0x69376ce3bb271460fc93a9693bf4ccfec625a05bc13d2a42f9fe079c7de0f449",
+     "deployedBytecodeKeccak256": "0x069b49daebe325a062629de92b0e41b0316e6db4d252a1a6035ec3953ac2a349",
+     "sources": [
+      {
+       "path": "src/EnclaveLeaseExecutor.sol",
+       "keccak256": "0x4720f6d0f9d4f5095597cdbf85a7c18f75c84b5766a4355c758073e67494d54a",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveLeaseExecutor.sol"
+      }
+     ],
+     "sourcesInFixtures": 1,
+     "sourcesTotal": 1
+    },
+    {
+     "path": "fixtures/artifacts/EnclaveLeaseGasReserve.json",
+     "mode": "100644",
+     "blob": "a5334d585cca2c906f3babe91e59b11bc80881bc",
+     "bytes": 151135,
+     "sha256": "aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "src/EnclaveLeaseGasReserve.sol": "EnclaveLeaseGasReserve"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0x819c50dc391e6a4d98d22c038c23c27d5dc13f169adc9d7c4d1aedfc034d3ea9",
+     "deployedBytecodeKeccak256": "0x80d6953712f336dd5483d851b852bcdda138fa2f4369fb212d9cbcf2fac5ef76",
+     "sources": [
+      {
+       "path": "src/EnclaveLeaseGasReserve.sol",
+       "keccak256": "0x8687cf30f0f5e990877dbaf745bd758c1c07a01507916267be71858b296bb598",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveLeaseGasReserve.sol"
+      }
+     ],
+     "sourcesInFixtures": 1,
+     "sourcesTotal": 1
+    },
+    {
+     "path": "fixtures/artifacts/EnclaveLedgerBandwidth.json",
+     "mode": "100644",
+     "blob": "cdd4196147e1e982dfb6955f3c0e68913ee133eb",
+     "bytes": 32240,
+     "sha256": "aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "src/live/EnclaveDeployments.sol": "EnclaveLedgerBandwidth"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0xc5bff78e0be627d86519c0a2d180cf56a50c33b3e33eef333b531ee5e618bcec",
+     "deployedBytecodeKeccak256": "0x983307ecad081ec8d25ee19536d465bfa6f8a14b6e2a30c4aa796bd9d75247bf",
+     "sources": [
+      {
+       "path": "src/live/EnclaveDeployments.sol",
+       "keccak256": "0xbae44a4c43ac66ff7b5583dbee6f1e9419080a569077364839a214d45308b1ac",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveDeployments.live-rev16d.sol"
+      }
+     ],
+     "sourcesInFixtures": 1,
+     "sourcesTotal": 1
+    },
+    {
+     "path": "fixtures/artifacts/EnclaveRegistry.json",
+     "mode": "100644",
+     "blob": "a53a74c9a0059b09e5b28bdf67ab39d1a9ec56e8",
+     "bytes": 66096,
+     "sha256": "66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "src/live/EnclaveRegistry.sol": "EnclaveRegistry"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0xcd593c6a4adb670b8656677c067edf4089d331eca50e6976e52290e781777c4f",
+     "deployedBytecodeKeccak256": "0xdd7fda9f076ac1271a2bb48458e8be060bbe13c7a2de0ed4bd4991f287e0b766",
+     "sources": [
+      {
+       "path": "src/live/EnclaveRegistry.sol",
+       "keccak256": "0x0eda6f8a0d134961bb1ad1d692c83dfeb9cab46b7d18cf586e7ce27d58e6969f",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveRegistry.live-schema4.sol"
+      }
+     ],
+     "sourcesInFixtures": 1,
+     "sourcesTotal": 1
+    },
+    {
+     "path": "fixtures/artifacts/MockFeed.json",
+     "mode": "100644",
+     "blob": "9e6fd30186cfc481fcec43c574af7b5da6b1d536",
+     "bytes": 22365,
+     "sha256": "10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "test/LeaseGas.t.sol": "MockFeed"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0xdec21383bca38b34baf57d33c5efce34d9628da7e0cbf31c66670ba722ebc3cc",
+     "deployedBytecodeKeccak256": "0x266ee900c18db1acccdd5aba9e70e54bc06960d90ced01e546047fc40e140e6d",
+     "sources": [
+      {
+       "path": "lib/forge-std/src/Base.sol",
+       "keccak256": "0x4b2a5a85e045dcf6a082700c7252e43854c2eed88f860aaa18ec1e85218ae2bf",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdAssertions.sol",
+       "keccak256": "0xd8eec16034b53b52c90a3d720e121ce7d30d64cc57d854db7d817d5b382dda43",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdChains.sol",
+       "keccak256": "0xae394f477769a38276d98d4854bc865fc8d281edbd4e72167507adb8236812aa",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdCheats.sol",
+       "keccak256": "0x0fa6ec03602648b62cce41aab2096e6b7e052f2846075d967b6958dd586db746",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdConstants.sol",
+       "keccak256": "0x319ccdabfa2c0b2428301445873270ffea20f0e039d4fd5e6eeba65158e4e534",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdError.sol",
+       "keccak256": "0xbf477b11a42d7611696956546bcfaa29317d1166bf65e402344599c05943fc77",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdInvariant.sol",
+       "keccak256": "0x4dab3021edfa9511bbdd80c48f060ef62eaf457f99eaf841f561fc2557d9a08d",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdJson.sol",
+       "keccak256": "0xbc0132abe1c2accc2867c0f03667afffdf92f3e95a581bb03c9557eaa38ea500",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdMath.sol",
+       "keccak256": "0xd90ad4fd8aeaeb8929964e686e769fdedd5eded3fc3815df194a0ab9f91a3fb2",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdStorage.sol",
+       "keccak256": "0x04102de0a79398e4bdea57b7a4818655b4cc66d6f81d1cff08bf428cd0b384cd",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdStyle.sol",
+       "keccak256": "0x43e2a8a9b9c2574dabe74f11adf6f782df218f463540e3b5b563609fe108597d",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdToml.sol",
+       "keccak256": "0x58a72c765ed3f7ff6b105509689658795b8a3739b8931772a497155878381861",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/StdUtils.sol",
+       "keccak256": "0xb2469a902a326074034c4f7081d868113db0edbb7cf48b86528af2d6b07295f8",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/Test.sol",
+       "keccak256": "0x3dda6083a83dfa3e8526e97bcc28e862ee2442dd58fe94d5c426d65b8e38f73c",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/Vm.sol",
+       "keccak256": "0x6f235e293b4406784ff3bd89b2e4d51d0922918cf6825e7a7a09413606932e39",
+       "license": "MIT OR Apache-2.0",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/console.sol",
+       "keccak256": "0x4bbf47eb762cef93729d6ef15e78789957147039b113e5d4df48e3d3fd16d0f5",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/console2.sol",
+       "keccak256": "0x3b8fe79f48f065a4e4d35362171304a33784c3a90febae5f2787805a438de12f",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/interfaces/IMulticall3.sol",
+       "keccak256": "0x7aac1389150499a922d1f9ef5749c908cef127cb2075b92fa17e9cb611263d0a",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "lib/forge-std/src/safeconsole.sol",
+       "keccak256": "0xbef9786cb49d3eade757bad87568c49c8c8f35721f0193c95ffb055d9e466e11",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "src/EnclaveLeaseGasPaymaster.sol",
+       "keccak256": "0x6eb2cd2676600b733b7489b14676cc15f299d937ecb038c668ac50ab9cd47f11",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "src/live/EnclaveDeployments.sol",
+       "keccak256": "0xbae44a4c43ac66ff7b5583dbee6f1e9419080a569077364839a214d45308b1ac",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveDeployments.live-rev16d.sol"
+      },
+      {
+       "path": "src/live/EnclaveRegistry.sol",
+       "keccak256": "0x0eda6f8a0d134961bb1ad1d692c83dfeb9cab46b7d18cf586e7ce27d58e6969f",
+       "license": "MIT",
+       "committedFixtureSource": "fixtures/sources/EnclaveRegistry.live-schema4.sol"
+      },
+      {
+       "path": "test/LeaseGas.t.sol",
+       "keccak256": "0x9905c501786f46d1e64f4c746cb1f65814b98cd8394243aa127fea2d5d680388",
+       "license": "MIT",
+       "committedFixtureSource": null
+      },
+      {
+       "path": "test/mocks/MockUSDC.sol",
+       "keccak256": "0x35697c7ec71f58526a35295f32967175f66068797bcc85670d944c4fd380e0d4",
+       "license": "MIT",
+       "committedFixtureSource": null
+      }
+     ],
+     "sourcesInFixtures": 2,
+     "sourcesTotal": 24
+    },
+    {
+     "path": "fixtures/artifacts/MockUSDC.json",
+     "mode": "100644",
+     "blob": "6dbf36a2f2232962edfe0a6b5872fd285aaa1766",
+     "bytes": 29274,
+     "sha256": "524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7",
+     "compiler": "0.8.35+commit.47b9dedd",
+     "compilationTarget": {
+      "test/mocks/MockUSDC.sol": "MockUSDC"
+     },
+     "settings": {
+      "optimizer": {
+       "enabled": true,
+       "runs": 1
+      },
+      "viaIR": true,
+      "evmVersion": "prague",
+      "remappings": [
+       ":forge-std/=lib/forge-std/src/"
+      ],
+      "libraries": {},
+      "metadata": {
+       "bytecodeHash": "ipfs"
+      }
+     },
+     "bytecodeKeccak256": "0xd24ecbb5d31bebf4fd11efbf15937f7146b1f3c0f71d9aec3227fcce4bba41c9",
+     "deployedBytecodeKeccak256": "0xfac6e4d899abb2f517e53ea609df2884907b4bcb02abf366f346abcbcdd61be2",
+     "sources": [
+      {
+       "path": "test/mocks/MockUSDC.sol",
+       "keccak256": "0x35697c7ec71f58526a35295f32967175f66068797bcc85670d944c4fd380e0d4",
+       "license": "MIT",
+       "committedFixtureSource": null
+      }
+     ],
+     "sourcesInFixtures": 0,
+     "sourcesTotal": 1
+    }
+   ]
+  }
+ },
+ "compilerPin": [
+  "0.8.35+commit.47b9dedd"
+ ],
+ "note": "The artifacts are forge outputs E copied from work/app-lease-gas/forge/out (159fd148 RESULT.md: 'artifacts from work/app-lease-gas/forge/out, not rebuilt'). They are build outputs, so they are NOT archived; the exact original commit trees cannot be rebuilt from this export until they are regenerated with the pinned compiler and settings below and reproduce the bytecode hashes.",
+ "recipeSources": {
+  "project": "work/app-lease-gas/forge",
+  "copiedTo": "source-preservation/frozen-0830-e-recipe-sources",
+  "matched": [
+   {
+    "path": "lib/forge-std/src/Base.sol",
+    "keccak256": "0x4b2a5a85e045dcf6a082700c7252e43854c2eed88f860aaa18ec1e85218ae2bf"
+   },
+   {
+    "path": "lib/forge-std/src/StdAssertions.sol",
+    "keccak256": "0xd8eec16034b53b52c90a3d720e121ce7d30d64cc57d854db7d817d5b382dda43"
+   },
+   {
+    "path": "lib/forge-std/src/StdChains.sol",
+    "keccak256": "0xae394f477769a38276d98d4854bc865fc8d281edbd4e72167507adb8236812aa"
+   },
+   {
+    "path": "lib/forge-std/src/StdCheats.sol",
+    "keccak256": "0x0fa6ec03602648b62cce41aab2096e6b7e052f2846075d967b6958dd586db746"
+   },
+   {
+    "path": "lib/forge-std/src/StdConstants.sol",
+    "keccak256": "0x319ccdabfa2c0b2428301445873270ffea20f0e039d4fd5e6eeba65158e4e534"
+   },
+   {
+    "path": "lib/forge-std/src/StdError.sol",
+    "keccak256": "0xbf477b11a42d7611696956546bcfaa29317d1166bf65e402344599c05943fc77"
+   },
+   {
+    "path": "lib/forge-std/src/StdInvariant.sol",
+    "keccak256": "0x4dab3021edfa9511bbdd80c48f060ef62eaf457f99eaf841f561fc2557d9a08d"
+   },
+   {
+    "path": "lib/forge-std/src/StdJson.sol",
+    "keccak256": "0xbc0132abe1c2accc2867c0f03667afffdf92f3e95a581bb03c9557eaa38ea500"
+   },
+   {
+    "path": "lib/forge-std/src/StdMath.sol",
+    "keccak256": "0xd90ad4fd8aeaeb8929964e686e769fdedd5eded3fc3815df194a0ab9f91a3fb2"
+   },
+   {
+    "path": "lib/forge-std/src/StdStorage.sol",
+    "keccak256": "0x04102de0a79398e4bdea57b7a4818655b4cc66d6f81d1cff08bf428cd0b384cd"
+   },
+   {
+    "path": "lib/forge-std/src/StdStyle.sol",
+    "keccak256": "0x43e2a8a9b9c2574dabe74f11adf6f782df218f463540e3b5b563609fe108597d"
+   },
+   {
+    "path": "lib/forge-std/src/StdToml.sol",
+    "keccak256": "0x58a72c765ed3f7ff6b105509689658795b8a3739b8931772a497155878381861"
+   },
+   {
+    "path": "lib/forge-std/src/StdUtils.sol",
+    "keccak256": "0xb2469a902a326074034c4f7081d868113db0edbb7cf48b86528af2d6b07295f8"
+   },
+   {
+    "path": "lib/forge-std/src/Test.sol",
+    "keccak256": "0x3dda6083a83dfa3e8526e97bcc28e862ee2442dd58fe94d5c426d65b8e38f73c"
+   },
+   {
+    "path": "lib/forge-std/src/Vm.sol",
+    "keccak256": "0x6f235e293b4406784ff3bd89b2e4d51d0922918cf6825e7a7a09413606932e39"
+   },
+   {
+    "path": "lib/forge-std/src/console.sol",
+    "keccak256": "0x4bbf47eb762cef93729d6ef15e78789957147039b113e5d4df48e3d3fd16d0f5"
+   },
+   {
+    "path": "lib/forge-std/src/console2.sol",
+    "keccak256": "0x3b8fe79f48f065a4e4d35362171304a33784c3a90febae5f2787805a438de12f"
+   },
+   {
+    "path": "lib/forge-std/src/interfaces/IMulticall3.sol",
+    "keccak256": "0x7aac1389150499a922d1f9ef5749c908cef127cb2075b92fa17e9cb611263d0a"
+   },
+   {
+    "path": "lib/forge-std/src/safeconsole.sol",
+    "keccak256": "0xbef9786cb49d3eade757bad87568c49c8c8f35721f0193c95ffb055d9e466e11"
+   },
+   {
+    "path": "src/EnclaveLeaseGasPaymaster.sol",
+    "keccak256": "0x6eb2cd2676600b733b7489b14676cc15f299d937ecb038c668ac50ab9cd47f11"
+   },
+   {
+    "path": "test/LeaseGas.t.sol",
+    "keccak256": "0x9905c501786f46d1e64f4c746cb1f65814b98cd8394243aa127fea2d5d680388"
+   },
+   {
+    "path": "test/mocks/MockUSDC.sol",
+    "keccak256": "0x35697c7ec71f58526a35295f32967175f66068797bcc85670d944c4fd380e0d4"
+   }
+  ],
+  "missing": [],
+  "foundryToml": "0d004ad027e5ab66a7a9e33c7de5d276d050572600a7258d081d5620b2f4f4eb"
+ },
+ "artifactsIdenticalInBothCommits": true
+}

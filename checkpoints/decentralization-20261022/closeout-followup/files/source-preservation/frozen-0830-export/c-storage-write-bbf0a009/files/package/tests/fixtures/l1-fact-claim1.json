@@ -1,0 +1,8 @@
+{
+ "source": "lease16",
+ "chainId": 8453,
+ "ledger": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+ "deployment": "0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81",
+ "claimBlock": 52515800,
+ "claimLogIndex": 3
+}

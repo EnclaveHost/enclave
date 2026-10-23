@@ -1,0 +1,9 @@
+[queue] START available=24137MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+OK develop packages/contracts-bedrock/src/L1/OptimismPortal2.sol 47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481 45859
+OK develop packages/contracts-bedrock/src/libraries/EOA.sol 65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d 913
+OK develop packages/contracts-bedrock/src/vendor/AddressAliasHelper.sol 5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e 1733
+OK develop packages/contracts-bedrock/src/L1/ResourceMetering.sol 97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003 8944
+2026-10-23T05:03:13Z
+[memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=24128
+[memory-guard] at peak: curl:16 fetch-op-source:6
+[queue] EXIT 0

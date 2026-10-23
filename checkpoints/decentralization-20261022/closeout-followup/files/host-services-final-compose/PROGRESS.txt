@@ -1,0 +1,2 @@
+2026-10-23T05:38:12Z start host-services-final-compose: setup (clone C 0757085e5 + merge F 6c38c048)
+2026-10-23T07:44:33Z DONE: final 4106c311 (tree 1a679ef3) = C 0757085e + F 6c38c048 (no conflict); t1 48/48 strict; t2 14/16 + t2b 5/5 (policy-mirror sync race, C's package); 25/25 reproducible vcs.modified=false; scans clean; RESULT.md

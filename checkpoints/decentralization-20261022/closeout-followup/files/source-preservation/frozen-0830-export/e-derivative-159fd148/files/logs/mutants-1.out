@@ -1,0 +1,13 @@
+[queue] START available=24640MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+mutant 1 killed (1 failing): if (lower(signer) !== lower(operator)) refuse('bad-signature'
+MUTANT 2 SURVIVED: if (u(s.executorNonce, 'executorNonce') !== l.nonce) refuse
+mutant 3 killed (1 failing): if (code !== '0x' \&\& !(size(code) === 23
+mutant 4 killed (1 failing): if (source.submittedVia \&\& source.submittedVia === source.endpoint) refuse
+mutant 5 killed (1 failing): acceptableFrom: \[getAddress(from)\] }
+mutant 6 killed (1 failing): if ((s.operatorCode 
+mutant 7 killed (1 failing): if (paid.length !== 1 
+mutant 8 killed (1 failing): if (e \&\& e.commitment === commitment) return { replay: true, entry: e };
+survivors: 1 of 8
+[memory-guard] exit=1 peakTreeRssMiB=202 minHostAvailableMiB=24387
+[memory-guard] at peak: node:101 node:55 anvil:33 mutants.sh:6 timeout:4 mutants.sh:2
+[queue] EXIT 1

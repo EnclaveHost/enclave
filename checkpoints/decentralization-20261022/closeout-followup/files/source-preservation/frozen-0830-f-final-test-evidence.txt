@@ -1,0 +1,94 @@
+# F host-services-final-compose (4106c311) job log digest; generated from resume-after-checkpoint-20261022/host-services-final-compose/logs; full logs stay local.
+
+## b1-build-final  out-sha256 22e0255bdcba9778867a26e0ad768406dff86d6c6525579e2eb42133ad637e09  bytes 2070  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=604 minHostAvailableMiB=24339
+    [queue] START available=24942MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] exit=0 peakTreeRssMiB=604 minHostAvailableMiB=24339
+    [memory-guard] at peak: esbuild:243 link:234 node:72 go:36 bash:6 sh:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## b2-build-final  out-sha256 56d2abefa9ca232c6a7429934d387350176092f1278296f36bf73502d2e80817  bytes 6044  rc 1
+    [memory-guard] exit=1 peakTreeRssMiB=594 minHostAvailableMiB=24010
+    [queue] START available=24740MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] exit=1 peakTreeRssMiB=594 minHostAvailableMiB=24010
+    [memory-guard] at peak: esbuild:247 link:221 node:72 go:34 bash:6 sh:6 timeout:4 unshare:4
+    [queue] EXIT 1
+
+## c1-scan  out-sha256 3063c1c2a35c9f671318c65a1de250b59c54cc11ad403df4b738d8139d270c46  bytes 1644  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=48 minHostAvailableMiB=23561
+    [queue] START available=23625MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    12:23AM INF no leaks found
+    [scan] scan-crypto-keys=0 gitleaks=0
+    [memory-guard] exit=0 peakTreeRssMiB=48 minHostAvailableMiB=23561
+    [memory-guard] at peak: gitleaks:38 bash:6 timeout:4
+    [queue] EXIT 0
+
+## r1-check  out-sha256 b517b5e1885023c7f68bd2d28f50d24995a88a3d0f7847f9c85360c9f1c7c80f  bytes 387  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] START available=23764MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [memory-guard] at peak:
+    [queue] EXIT 0
+
+## s1-setup  out-sha256 54c29e2ec6455f98568acd73bae892eebb779bb48e2e67183050e6f4235b2e58  bytes 1481  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=119 minHostAvailableMiB=24810
+    [queue] START available=25042MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] exit=0 peakTreeRssMiB=119 minHostAvailableMiB=24810
+    [memory-guard] at peak: git:113 bash:6
+    [queue] EXIT 0
+
+## t1-composed  out-sha256 f8847f2b1631a6472241e5de488b9e9a9f53025e10ba36bbba8728599efa3056  bytes 8073  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=528 minHostAvailableMiB=23103
+    [queue] START available=23845MiB required=17664MiB cap=768MiB floor=16384MiB concurrentSmall=256MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97); anvil: none
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-services-final-compose/candidate head 4106c3114dd13f39692195c182d3152efa5e212c dirty=0
+    ℹ tests 48
+    ℹ pass 48
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    [job] strict: skipped+cancelled=0
+    [job] exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=528 minHostAvailableMiB=23103
+    [memory-guard] at peak: esbuild:265 node:99 node:86 node:60 bash:6 timeout:4 tee:4 unshare:4
+    [queue] EXIT 0
+
+## t2-packaged  out-sha256 75e1726f41c9debbe7974ffdda540196a79253e3e071ad0126e4fd8a6f32c22d  bytes 11839  rc 1
+    [memory-guard] exit=1 peakTreeRssMiB=603 minHostAvailableMiB=23686
+    [queue] START available=24225MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-services-final-compose/candidate head 4106c3114dd13f39692195c182d3152efa5e212c dirty=0
+    ✖ the admin bans host B (new anchored document, published only to an Enclave host carrier): B stops every role; the next authenticated policy unbans it (40151.314283ms)
+    ✖ stale, substituted and wrongly signed documents are refused by the carrier and, independently, by the gate; an anchored rollback is refused (1.242351ms)
+    ℹ tests 16
+    ℹ pass 14
+    ℹ fail 2
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ the admin bans host B (new anchored document, published only to an Enclave host carrier): B stops every role; the next authenticated policy unbans it (40151.314283ms)
+    ✖ stale, substituted and wrongly signed documents are refused by the carrier and, independently, by the gate; an anchored rollback is refused (1.242351ms)
+    [job] strict: skipped+cancelled=0
+    [job] exit=1
+    [memory-guard] exit=1 peakTreeRssMiB=603 minHostAvailableMiB=23686
+    [memory-guard] at peak: node:99 node:97 node:93 node:79 node:61 node:61 node:60 anvil:34
+    [queue] EXIT 1
+
+## t2b-policycold  out-sha256 1d38977c11f358be93bb2ff5fe00bf76b3569e63ec5a1c47178f8db95f4d35ae  bytes 2029  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=556 minHostAvailableMiB=23286
+    [queue] START available=23624MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-services-final-compose/candidate head 4106c3114dd13f39692195c182d3152efa5e212c dirty=0
+    ℹ tests 5
+    ℹ pass 5
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    [job] strict: skipped+cancelled=0
+    [job] exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=556 minHostAvailableMiB=23286
+    [memory-guard] at peak: node:121 node:96 node:94 node:67 node:65 node:54 anvil:41 bash:6
+    [queue] EXIT 0

@@ -1,0 +1,95 @@
+{
+ "app": "sia-s3/0.2.0",
+ "bytes": 100000,
+ "compactor": {
+  "compacted_objects": 0,
+  "compactions": 0,
+  "last_compaction": null,
+  "last_error": null
+ },
+ "keys": 1,
+ "objects": 2,
+ "openUploads": 0,
+ "readQuorum": 1,
+ "ready": true,
+ "replicas": [
+  {
+   "behind": 0,
+   "compactor": {
+    "compacted_objects": 0,
+    "compactions": 0,
+    "last_compaction": null,
+    "last_error": null
+   },
+   "dirty": false,
+   "error": null,
+   "floors": 0,
+   "indexer": "http://127.0.0.1:39953",
+   "keys": 1,
+   "ledgers": 0,
+   "loaded": true,
+   "manifests": 0,
+   "membership": {
+    "epoch": 1,
+    "phase": "stable",
+    "ready": true,
+    "reason": null,
+    "target": 1
+   },
+   "name": "r0",
+   "objects": 2,
+   "openUploads": 0,
+   "record": {
+    "admitted": true,
+    "epoch": 1
+   },
+   "retiring": false,
+   "tombstonedKeys": 0,
+   "unreadLedgers": 0,
+   "unreadManifests": 0,
+   "versionCeiling": 0,
+   "voting": true
+  }
+ ],
+ "replication": {
+  "abandonedCalls": 0,
+  "floorsWritten": 0,
+  "lastRepair": "2026-10-22T21:00:18.846098320+00:00",
+  "lastRepairError": null,
+  "observedCeiling": 0,
+  "purgedVersions": 0,
+  "reclaimedTombstones": 0,
+  "reconciled": 0,
+  "refusedWrites": 0,
+  "repairPasses": 1,
+  "repairedCopies": 0,
+  "repairedDeletes": 0,
+  "versionCeiling": 0,
+  "versionFence": "legacy"
+ },
+ "smallUnpacked": 1,
+ "withheldVersions": 0,
+ "writeQuorum": 1,
+ "writerFence": {
+  "authority": "lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b deployment 0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81 claim 52515800/3",
+  "ballot": {
+   "counter": 1,
+   "gen": "0x10032153d80003",
+   "iid": "870502aa"
+  },
+  "c2": {
+   "noCloneAssumed": false,
+   "verified": true
+  },
+  "isolation": "Vbs",
+  "mode": "required",
+  "policy": {
+   "ok": true,
+   "warnings": [
+    "isolation Vbs: no recorded no-clone evidence, and none assumed: C2 (verified at boot on every indexer) keeps storage semantics for copies of this instance"
+   ]
+  },
+  "reballots": 0,
+  "superseded": null
+ }
+}

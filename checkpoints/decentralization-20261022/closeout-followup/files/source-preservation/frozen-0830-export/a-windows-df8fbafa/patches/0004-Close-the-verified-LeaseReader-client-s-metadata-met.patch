@@ -1,0 +1,127 @@
+From e820e2405af91010c18913acf4740f651618c644 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 22:48:33 -0700
+Subject: [PATCH 4/5] Close the verified LeaseReader client's metadata methods
+ with its operation
+
+Composes B's whole-operation deadline (62feb3aaf, 8d110101f) with the terminal-snapshot rule
+root applied to network/verified-chain.mjs (fd6a1762e): the pinned client's getChainId and
+getBlockNumber send nothing, so they answered for a snapshot whose operation had already
+settled. They now refuse once the operation is closed, like every RPC method, for both the
+fresh read and readAt. Adds the late-final-header floor case and the retained-client case for
+LeaseReader.
+---
+ network/lease-reader.mjs                     | 14 ++---
+ test/lease-reader-terminal-snapshot.test.mjs | 57 ++++++++++++++++++++
+ 2 files changed, 65 insertions(+), 6 deletions(-)
+ create mode 100644 test/lease-reader-terminal-snapshot.test.mjs
+
+diff --git a/network/lease-reader.mjs b/network/lease-reader.mjs
+index 92d7126ad7780bcc18a8b932adecdcc747b8f630..d77dbf772ca34798b439313df4affe91acc89411 100644
+--- a/network/lease-reader.mjs
++++ b/network/lease-reader.mjs
+@@ -384,7 +384,7 @@ export class LeaseReader {
+       if(b<this.lastBlock)b=this.lastBlock;
+       const first=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
+       if(!fresh(first.timestamp))throw new Error('stale chain block');
+-      const value=await read(this.pinnedClient(b,first.hash,call),b);
++      const value=await read(this.pinnedClient(b,first.hash,call,op.assertOpen),b);
+       if(!value||typeof value!=='object'||Array.isArray(value))throw Object.assign(new Error('the chain read function must return an object'),{readerBug:true});
+       const reserved=reservedFields.find(k=>Object.hasOwn(value,k));
+       if(reserved)throw Object.assign(new Error('the chain read function returned the reserved field '+reserved),{readerBug:true});
+@@ -437,8 +437,10 @@ export class LeaseReader {
+     return {call,run,assertOpen};
+   }
+   // The only client a read callback sees under the verifier: every answer is AT the verified block (by hash) and
+-  // proof-backed; a read at any other block, or any method outside PINNED_METHODS, refuses by name.
+-  pinnedClient(b,hash,call) {
++  // proof-backed; a read at any other block, or any method outside PINNED_METHODS, refuses by name. `assertOpen` (the
++  // operation's): once the operation has settled even the methods that send nothing (chain id, block number) refuse, so a
++  // retained client never answers for a closed snapshot.
++  pinnedClient(b,hash,call,assertOpen=()=>{}) {
+     const at=(blockNumber,blockTag)=>{
+       if(blockTag!==undefined)throw new Error('verified reads are pinned to block '+b+' (no block tags)');
+       if(blockNumber!==undefined&&BigInt(blockNumber)!==b)throw new Error('verified reads are pinned to block '+b);
+@@ -446,8 +448,8 @@ export class LeaseReader {
+     };
+     const code=async({address,blockNumber,blockTag})=>{const c=await call('eth_getCode',[address,at(blockNumber,blockTag)]);return c&&c!=='0x'?c:undefined;};
+     const methods={
+-      getChainId:async()=>this.chainId,
+-      getBlockNumber:async()=>b,
++      getChainId:async()=>{assertOpen();return this.chainId;},
++      getBlockNumber:async()=>{assertOpen();return b;},
+       getBlock:async({blockNumber,blockTag,blockHash}={})=>{
+         if(blockHash!==undefined&&String(blockHash).toLowerCase()!==hash)throw new Error('verified reads are pinned to block '+b);
+         at(blockNumber,blockTag);
+@@ -495,7 +497,7 @@ export class LeaseReader {
+       return op.run(async()=>{
+         const h=verifiedHeader(await op.call('eth_getBlockByNumber',[hexBlock(b),false]),b);
+         if(blockHash!==undefined&&h.hash!==String(blockHash).toLowerCase())throw new Error('the pinned block is no longer canonical at '+b);
+-        return read(this.pinnedClient(b,h.hash,op.call),b);
++        return read(this.pinnedClient(b,h.hash,op.call,op.assertOpen),b);
+       });
+     }
+     const key=v=>JSON.stringify(v,(_k,x)=>typeof x==='bigint'?x.toString():x);
+diff --git a/test/lease-reader-terminal-snapshot.test.mjs b/test/lease-reader-terminal-snapshot.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..9c971b67b952434b2c2b1e8c0542c9764f8d7987
+--- /dev/null
++++ b/test/lease-reader-terminal-snapshot.test.mjs
+@@ -0,0 +1,57 @@
++// LeaseReader authority 'verifier' with BOTH lifecycle fixes composed: B's whole-operation deadline (62feb3aaf, 8d110101f)
++// and the terminal-snapshot rules root applied to network/verified-chain.mjs (fd6a1762e): a transport answer that arrives
++// after the deadline cannot move the accepted floor, and a retained client refuses EVERY method once its operation has
++// settled - including the ones that send nothing (chain id, block number). Scripted in-process transports, no network.
++import test, { after } from 'node:test';
++import assert from 'node:assert/strict';
++import { pad, toHex } from 'viem';
++import { LeaseReader } from '../network/lease-reader.mjs';
++
++const BOOK = '0x' + '33'.repeat(20), ADDR = '0x' + '44'.repeat(20);
++const HASH = (n) => pad(toHex(BigInt(n) * 1000n + 1n), { size: 32 });
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const keepAlive = setInterval(() => {}, 1000); after(() => clearInterval(keepAlive));
++function scripted() {
++  const st = { head: 102n, headers: 0, holdSecondHeader: null, signals: [] };
++  const verifier = { request: async (method, params, _ms, signal) => {
++    st.signals.push(signal);
++    if (method === 'eth_chainId') return '0x2105';
++    if (method === 'eth_blockNumber') return toHex(st.head);
++    if (method === 'eth_getBlockByNumber') {
++      const n = BigInt(params[0]);
++      if (++st.headers === 2 && st.holdSecondHeader) await st.holdSecondHeader;   // the re-check header answers late
++      return { number: toHex(n), hash: HASH(n), stateRoot: pad('0x22', { size: 32 }), timestamp: toHex(Math.floor(Date.now() / 1000)) };
++    }
++    if (method === 'eth_getCode') return '0x60';
++    throw new Error('method not supported');
++  } };
++  return { st, verifier };
++}
++const reader = (verifier) => new LeaseReader({ authority: 'verifier', verifier, addressBook: BOOK, confirmations: 2, deadlineMs: 100 });
++
++test('a final header that answers after the deadline cannot advance the accepted floor', { timeout: 5000 }, async () => {
++  const { st, verifier } = scripted(); const r = reader(verifier);
++  let release; st.holdSecondHeader = new Promise((ok) => { release = ok; });
++  await assert.rejects(r.agreed(async () => ({ ok: true })), /deadline/);
++  release(); await sleep(20);
++  assert.equal(r.lastBlock, 0n, 'the timed-out read accepted nothing');
++  st.head = 101n; st.holdSecondHeader = null; st.headers = 0;
++  assert.equal((await r.agreed(async () => ({ ok: true }))).blockNumber, '99', 'an otherwise valid older block still reads');
++  st.head = 98n; st.headers = 0;   // a verifier head below the accepted block 99
++  await assert.rejects(r.agreed(async () => ({ ok: true })), /behind block 99/, 'a really accepted floor is still enforced');
++});
++
++test('a retained client refuses metadata AND RPC methods after success, failure or timeout', { timeout: 5000 }, async () => {
++  for (const outcome of ['success', 'failure', 'timeout']) {
++    const { st, verifier } = scripted(); const r = reader(verifier); let kept;
++    const p = r.agreed(async (c) => { kept = c; if (outcome === 'failure') throw new Error('callback failed'); if (outcome === 'timeout') return new Promise(() => {}); return { ok: true }; });
++    if (outcome === 'success') await p; else await assert.rejects(p);
++    for (const call of [() => kept.getChainId(), () => kept.getBlockNumber(), () => kept.getBlock(), () => kept.getCode({ address: ADDR })])
++      await assert.rejects(call(), /closed|deadline/, outcome);
++    assert.ok(st.signals.length && st.signals.every((s) => s?.aborted), `${outcome}: cancellation reached every request`);
++  }
++  // readAt (pinned history) hands out the same terminal client
++  const { verifier } = scripted(); const r = reader(verifier); let kept;
++  await r.readAt({ blockNumber: 90n }, async (c) => { kept = c; return { ok: true }; });
++  await assert.rejects(kept.getBlockNumber(), /closed/);
++});

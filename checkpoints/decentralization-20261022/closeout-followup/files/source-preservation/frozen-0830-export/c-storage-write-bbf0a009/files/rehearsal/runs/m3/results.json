@@ -1,0 +1,1450 @@
+{
+ "run": "m3",
+ "started": 1792739042.8480039,
+ "inputs": {
+  "adapter-retained/bafybeib7at4cxxzmlp3wb7v45zrhbuggwzegspcacfylztslbcnoe6qrqu.bin": "d1ddecfe7c3e1d06d1921eb779e135f3a64f185a4dbcdd989f56e22f603e07d3",
+  "storage-wasm-validation/artifacts/candidate-00e9cde0.wasm": "00e9cde0929dc7b8726ca4b7b9c9afb51ec4bf6d952039c907c032256ec79afc",
+  "claude-resumed-20261022/storage-sdk-regressions/out/c2e-a/harness-block": "cac6651329468aaeb2dd4d90ac9b924a891b121edbe17d2515b34b0dae97eafa",
+  "resume-after-checkpoint-20261022/storage-client-interop/egress_socks5.py": "77fad264406da15a85830ce1559fbd04feb2f9464b01576512a525112da09086",
+  "claude-resumed-20261022/storage-funding-test-fix/snapshots/c2-enclave/GeoLite2-City.mmdb": "18bf1695e85007dc1525e88bddd26d4f45b85550899bda8f8d1ebc1e804fc933",
+  "resume-after-checkpoint-20261022/storage-public-read/candidate-catalog-config.json": "7b9e7e750521b4bb0fa5925e771a42766673ad728e02e3d8508da4ca6ea554d2",
+  "resume-after-checkpoint-20261022/storage-write-release/client/catalog-config.c2.json": "f6b48940cf7179b5a7bc61fabfee4667bd14aacd0380d953cae8f878972ff278"
+ },
+ "checks": [
+  {
+   "name": "backend: three independent indexers (own databases), each at schema exactly v28 (c2-enclave)",
+   "ok": true,
+   "detail": "['28', '28', '28']"
+  },
+  {
+   "name": "config: the corrected catalog version config equals the prepared one minus writeQuorum (no other byte changed)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "P: the exact live 0.1.8 becomes ready on the existing v28 indexer r0 (unenrolled account)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "P: 0.1.8 PUT ipfs/legacy/small (100000 B)",
+   "ok": true,
+   "detail": "200 b''"
+  },
+  {
+   "name": "P: 0.1.8 PUT git/legacy/big (12582912 B)",
+   "ok": true,
+   "detail": "200 b''"
+  },
+  {
+   "name": "P: 0.1.8 PUT machines/legacy/mid (3145728 B)",
+   "ok": true,
+   "detail": "200 b''"
+  },
+  {
+   "name": "P: 0.1.8 reads its own writes: every key reads back byte-exact (3 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "P: 0.1.8 reads its own writes: ranged reads (incl. across the slab boundary) are byte-exact",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "P: 0.1.8 reads its own writes: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "P: before T1: r0 holds the account unenrolled (no fence, no CAS); r1/r2 do not know it",
+   "ok": true,
+   "detail": "{'r0': {'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}, 'r1': None, 'r2': None}"
+  },
+  {
+   "name": "B: the PREPARED catalog config (writeQuorum 2) with $SIAS3_REPLICAS = [r0] refuses to start (writeQuorum must be 1-1)",
+   "ok": true,
+   "detail": "[sia-s3] config: resolved $SIAS3_REPLICAS from the environment\n[sia-s3] config: resolved $SIA_APP_KEY from the environment\n[sia-s3] config: replica r0 uses plain HTTP; only for an indexer on a trusted path\n[sia-s3] config: writeQuorum must be 1-1 (the number of replicas that are not retiring)\n"
+  },
+  {
+   "name": "B: and enrolled nothing (r0 account still unfenced, not CAS)",
+   "ok": true,
+   "detail": "{'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}"
+  },
+  {
+   "name": "T1: the corrected config with [r0] and the lease16 fact makes the FIRST fenced C2 boot (ready)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "T1: membership stable at epoch 1 with r0's record admitted; lease16 authority, Vbs, C2 verified, ballot = the claim's generation",
+   "ok": true,
+   "detail": "{'writerFence': {'authority': 'lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b deployment 0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81 claim 52515800/3', 'ballot': {'counter': 1, 'gen': '0x10032153d80003', 'iid': 'da544826'}, 'c2': {'noCloneAssumed': False, 'verified': True}, 'isolation': 'Vbs', 'mode': 'required', 'policy': {'ok': True, 'warnings': ['isolation Vbs: no recorded no-clone evidence, and none assumed: C2 (verified at boot on every indexer) keeps storage semantics for copies of this instance']}, 'reballots': 0, 'superseded': None}, 'replicas': [{'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': None, 'floors': 0, 'indexer': 'http://127.0.0.1:39477', 'keys': 3, 'ledgers': 0, 'loaded': True, 'manifests': 0, 'membership': {'epoch': 1, 'phase': 'stable', 'ready': True, 'reason': None, 'target': 1}, 'name': 'r0', 'objects': 4, 'openUploads': 0, 'record': {'admitted': True, 'epoch': 1}, 'retiring': False, 'tombstonedKeys': 0, 'unreadLedgers': 0, 'unreadManifests': 0, 'versionCeiling': 0, 'voting': True}]}"
+  },
+  {
+   "name": "T1: r0 is ENROLLED (CAS mode, sequence on) under the claim-1 lease16 generation",
+   "ok": true,
+   "detail": "{'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 4}"
+  },
+  {
+   "name": "T1: every 0.1.8 object reads back byte-exact: every key reads back byte-exact (3 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T1: every 0.1.8 object reads back byte-exact: ranged reads (incl. across the slab boundary) are byte-exact",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T1: every 0.1.8 object reads back byte-exact: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T1: writes after enrollment",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "T2: [r0, r1, r2] (same claim) becomes ready while migrating: the old indexer keeps serving",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "T2: during the migration every key reads back: every key reads back byte-exact (4 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T2: during the migration every key reads back: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T2: writes DURING the migration",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "T2: the change commits: stable at epoch 2 on all three, every record admitted",
+   "ok": true,
+   "detail": "[{'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': None, 'floors': 0, 'indexer': 'http://127.0.0.1:39477', 'keys': 5, 'ledgers': 0, 'loaded': True, 'manifests': 0, 'membership': {'epoch': 3, 'phase': 'stable', 'ready': True, 'reason': None, 'target': 3}, 'name': 'r0', 'objects': 9, 'openUploads': 0, 'record': {'admitted': True, 'epoch': 3}, 'retiring': False, 'tombstonedKeys': 0, 'unreadLedgers': 0, 'unreadManifests': 0, 'versionCeiling': 1792782595376, 'voting': True}, {'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': None, 'floors': 0, 'indexer': 'http://127.0.0.1:40223', 'keys': 5, 'ledgers': 0, 'loaded': True, 'manifests': 0, 'membership': {'epoch': 3, 'phase': 'stable', 'ready': True, 'reason': None, 'target': 3}, 'name': 'r1', 'objects': 7, 'openUploads': 0, 'record': {'admitted': True, 'epoch': 3}, 'retiring': False, 'tombstonedKeys': 0, 'unreadLedgers': 0, 'unreadManifests': 0, 'versionCeiling': 1792782595376, 'voting': True}, {'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': None, 'floors': 0, 'indexer': 'http://127.0.0.1:33513', 'keys': 5, 'ledgers': 0, 'loaded': True, 'manifests': 0, 'membership': {'epoch': 3, 'phase': 'stable', 'ready': True, 'reason': None, 'target': 3}, 'name': 'r2', 'objects':"
+  },
+  {
+   "name": "T2: r1 and r2 are enrolled (CAS) under the same lease16 generation as r0",
+   "ok": true,
+   "detail": "{'r0': {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 2, 'casMode': True, 'seqEnabled': True, 'eventSeq': 14}, 'r1': {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 2, 'casMode': True, 'seqEnabled': True, 'eventSeq': 8}, 'r2': {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 2, 'casMode': True, 'seqEnabled': True, 'eventSeq': 8}}"
+  },
+  {
+   "name": "T2: stable N=3 W=2: every key reads back byte-exact (5 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T2: stable N=3 W=2: ranged reads (incl. across the slab boundary) are byte-exact",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T2: stable N=3 W=2: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T2: one replica (r2) down: writes still commit (W = 2 of 3)",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "T2: one replica down: reads: every key reads back byte-exact (6 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T2: one replica down: reads: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T4: [r0 retiring, r1, r2] becomes ready",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "T4: the retirement commits: stable at epoch 3 (members r1, r2)",
+   "ok": true,
+   "detail": "[{'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': None, 'floors': 0, 'indexer': 'http://127.0.0.1:39477', 'keys': 6, 'ledgers': 0, 'loaded': True, 'manifests': 0, 'membership': {'epoch': 4, 'phase': 'stable', 'ready': True, 'reason': None, 'target': 4}, 'name': 'r0', 'objects': 11, 'openUploads': 0, 'record': {'admitted': False, 'epoch': 4}, 'retiring': True, 'tombstonedKeys': 0, 'unreadLedgers': 0, 'unreadManifests': 0, 'versionCeiling': 1792782595376, 'voting': False}, {'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': None, 'floors': 0, 'indexer': 'http://127.0.0.1:40223', 'keys': 6, 'ledgers': 0, 'loaded': True, 'manifests': 0, 'membership': {'epoch': 4, 'phase': 'stable', 'ready': True, 'reason': None, 'target': 4}, 'name': 'r1', 'objects': 10, 'openUploads': 0, 'record': {'admitted': True, 'epoch': 4}, 'retiring': False, 'tombstonedKeys': 0, 'unreadLedgers': 0, 'unreadManifests': 0, 'versionCeiling': 1792782595376, 'voting': True}, {'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': None, 'floors': 0, 'indexer': 'http://127.0.0.1:33513', 'keys': 6, 'ledgers': 0, 'loaded': True, 'manifests': 0, 'membership': {'epoch': 4, 'phase': 'stable', 'ready': True, 'reason': None, 'target': 4}, 'name': 'r2', 'object"
+  },
+  {
+   "name": "T4: [r1, r2] (r0 dropped from the list) becomes ready",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "T4: [r1, r2] is the committed stable set (epoch 3), both members loaded and caught up",
+   "ok": true,
+   "detail": "[{'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': None, 'floors': 0, 'indexer': 'http://127.0.0.1:40223', 'keys': 6, 'ledgers': 0, 'loaded': True, 'manifests': 0, 'membership': {'epoch': 4, 'phase': 'stable', 'ready': True, 'reason': None, 'target': 4}, 'name': 'r1', 'objects': 10, 'openUploads': 0, 'record': {'admitted': True, 'epoch': 4}, 'retiring': False, 'tombstonedKeys': 0, 'unreadLedgers': 0, 'unreadManifests': 0, 'versionCeiling': 1792782595376, 'voting': True}, {'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': None, 'floors': 0, 'indexer': 'http://127.0.0.1:33513', 'keys': 6, 'ledgers': 0, 'loaded': True, 'manifests': 0, 'membership': {'epoch': 4, 'phase': 'stable', 'ready': True, 'reason': None, 'target': 4}, 'name': 'r2', 'objects': 10, 'openUploads': 0, 'record': {'admitted': True, 'epoch': 4}, 'retiring': False, 'tombstonedKeys': 0, 'unreadLedgers': 0, 'unreadManifests': 0, 'versionCeiling': 1792782595376, 'voting': True}]"
+  },
+  {
+   "name": "T4: with r0 STOPPED, every key (legacy 0.1.8, T1, T2) reads back byte-exact from r1 + r2 alone: every key reads back byte-exact (6 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T4: with r0 STOPPED, every key (legacy 0.1.8, T1, T2) reads back byte-exact from r1 + r2 alone: ranged reads (incl. across the slab boundary) are byte-exact",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T4: with r0 STOPPED, every key (legacy 0.1.8, T1, T2) reads back byte-exact from r1 + r2 alone: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T4: the new set writes (W = 2 of 2)",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "T4: final state: every key reads back byte-exact (7 keys)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "T4: final state: listings are exact per bucket (deleted keys absent)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "O: 0.1.8 cannot write to an enrolled new replica, which is unchanged",
+   "ok": true,
+   "detail": "{'PUT': 500, 'before': {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 4, 'casMode': True, 'seqEnabled': True, 'eventSeq': 17}, 'after': {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 4, 'casMode': True, 'seqEnabled': True, 'eventSeq': 17}}"
+  }
+ ],
+ "measure": [
+  {
+   "op": "wasmtime compile v018",
+   "wallS": 1.3
+  },
+  {
+   "op": "wasmtime compile final",
+   "wallS": 1.8
+  },
+  {
+   "op": "v018-writer PUT ipfs/legacy/small 100000",
+   "wallS": 2.06,
+   "status": 200
+  },
+  {
+   "op": "v018-writer PUT git/legacy/big 12582912",
+   "wallS": 2.11,
+   "status": 200
+  },
+  {
+   "op": "v018-writer PUT machines/legacy/mid 3145728",
+   "wallS": 2.14,
+   "status": 200
+  },
+  {
+   "op": "v018-writer instance",
+   "maxRssMiB": 178,
+   "cpuS": 5.47,
+   "wallS": 15.9,
+   "sampledPeakRssMiB": 179,
+   "status": 15
+  },
+  {
+   "op": "prepared-config-n1 instance",
+   "maxRssMiB": 85,
+   "cpuS": 0.01,
+   "wallS": 2.0,
+   "sampledPeakRssMiB": 1,
+   "status": 256
+  },
+  {
+   "op": "T1-r0 PUT jot/t1/after-enrollment 2097152",
+   "wallS": 4.09,
+   "status": 200
+  },
+  {
+   "op": "T1-r0 instance",
+   "maxRssMiB": 167,
+   "cpuS": 5.58,
+   "wallS": 325.0,
+   "sampledPeakRssMiB": 168,
+   "status": 15
+  },
+  {
+   "op": "T2-r0r1r2 PUT ipfs/t2/during-migration 1048576",
+   "wallS": 11.3,
+   "status": 200
+  },
+  {
+   "op": "T2-r0r1r2 PUT machines/t2/one-replica-down 1048576",
+   "wallS": 6.22,
+   "status": 200
+  },
+  {
+   "op": "T2-r0r1r2 instance",
+   "maxRssMiB": 514,
+   "cpuS": 38.6,
+   "wallS": 378.3,
+   "sampledPeakRssMiB": 514,
+   "status": 15
+  },
+  {
+   "op": "T4-r0-retiring instance",
+   "maxRssMiB": 624,
+   "cpuS": 10.41,
+   "wallS": 322.4,
+   "sampledPeakRssMiB": 625,
+   "status": 15
+  },
+  {
+   "op": "T4-r1r2 PUT git/t4/new-set 2097152",
+   "wallS": 8.28,
+   "status": 200
+  },
+  {
+   "op": "T4-r1r2 instance",
+   "maxRssMiB": 275,
+   "cpuS": 8.17,
+   "wallS": 40.9,
+   "sampledPeakRssMiB": 275,
+   "status": 15
+  },
+  {
+   "op": "v018-on-r1 instance",
+   "maxRssMiB": 146,
+   "cpuS": 1.76,
+   "wallS": 5.1,
+   "sampledPeakRssMiB": 146,
+   "status": 15
+  }
+ ],
+ "events": [
+  "00:04:04 postgres ready postgres (PostgreSQL) 18.6",
+  "00:04:10 harness ready http://127.0.0.1:43519",
+  "00:04:11 CHECK PASS backend: three independent indexers (own databases), each at schema exactly v28 (c2-enclave) ['28', '28', '28']",
+  "00:04:11 app key registered on r0 (the existing primary) attachedHosts 30",
+  "00:04:14 CHECK PASS config: the corrected catalog version config equals the prepared one minus writeQuorum (no other byte changed) ",
+  "00:04:16 v018-writer ready after 2.0 s",
+  "00:04:16 CHECK PASS P: the exact live 0.1.8 becomes ready on the existing v28 indexer r0 (unenrolled account) ",
+  "00:04:18 CHECK PASS P: 0.1.8 PUT ipfs/legacy/small (100000 B) 200 b''",
+  "00:04:21 CHECK PASS P: 0.1.8 PUT git/legacy/big (12582912 B) 200 b''",
+  "00:04:23 CHECK PASS P: 0.1.8 PUT machines/legacy/mid (3145728 B) 200 b''",
+  "00:04:29 CHECK PASS P: 0.1.8 reads its own writes: every key reads back byte-exact (3 keys) []",
+  "00:04:30 CHECK PASS P: 0.1.8 reads its own writes: ranged reads (incl. across the slab boundary) are byte-exact []",
+  "00:04:30 CHECK PASS P: 0.1.8 reads its own writes: listings are exact per bucket (deleted keys absent) []",
+  "00:04:30 CHECK PASS P: before T1: r0 holds the account unenrolled (no fence, no CAS); r1/r2 do not know it {'r0': {'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}, 'r1': None, 'r2': None}",
+  "00:04:32 CHECK PASS B: the PREPARED catalog config (writeQuorum 2) with $SIAS3_REPLICAS = [r0] refuses to start (writeQuorum must be 1-1) [sia-s3] config: resolved $SIAS3_REPLICAS from the environment\n[sia-s3] config: resolved $SIA_APP_KEY from the environment\n[sia-s3] config: replica r0 uses plain HTTP; only for an indexer on a trusted path\n[sia-s3] config: writeQuorum must be 1-1 (the number of replicas that are not retiring)\n",
+  "00:04:32 CHECK PASS B: and enrolled nothing (r0 account still unfenced, not CAS) {'fenceGeneration': None, 'fenceCounter': None, 'casMode': False, 'seqEnabled': False, 'eventSeq': 0}",
+  "00:04:34 T1-r0 ready after 2.0 s",
+  "00:04:34 CHECK PASS T1: the corrected config with [r0] and the lease16 fact makes the FIRST fenced C2 boot (ready) ",
+  "00:09:44 T1 stable at epoch [1] after 310 s",
+  "00:09:44 CHECK PASS T1: membership stable at epoch 1 with r0's record admitted; lease16 authority, Vbs, C2 verified, ballot = the claim's generation {'writerFence': {'authority': 'lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b deployment 0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81 claim 52515800/3', 'ballot': {'counter': 1, 'gen': '0x10032153d80003', 'iid': 'da544826'}, 'c2': {'noCloneAssumed': False,",
+  "00:09:44 CHECK PASS T1: r0 is ENROLLED (CAS mode, sequence on) under the claim-1 lease16 generation {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 1, 'casMode': True, 'seqEnabled': True, 'eventSeq': 4}",
+  "00:09:51 CHECK PASS T1: every 0.1.8 object reads back byte-exact: every key reads back byte-exact (3 keys) []",
+  "00:09:53 CHECK PASS T1: every 0.1.8 object reads back byte-exact: ranged reads (incl. across the slab boundary) are byte-exact []",
+  "00:09:53 CHECK PASS T1: every 0.1.8 object reads back byte-exact: listings are exact per bucket (deleted keys absent) []",
+  "00:09:57 CHECK PASS T1: writes after enrollment 200",
+  "00:09:57 app key registered on r1 attachedHosts 30",
+  "00:09:58 app key registered on r2 attachedHosts 30",
+  "00:10:00 T2-r0r1r2 ready after 2.0 s",
+  "00:10:00 CHECK PASS T2: [r0, r1, r2] (same claim) becomes ready while migrating: the old indexer keeps serving ",
+  "00:10:08 CHECK PASS T2: during the migration every key reads back: every key reads back byte-exact (4 keys) []",
+  "00:10:09 CHECK PASS T2: during the migration every key reads back: listings are exact per bucket (deleted keys absent) []",
+  "00:10:20 CHECK PASS T2: writes DURING the migration 200",
+  "00:15:43 T2 stable at epoch [3, 3, 3] after 322 s",
+  "00:15:43 CHECK PASS T2: the change commits: stable at epoch 2 on all three, every record admitted [{'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': None, 'floors': 0, 'indexer': 'http://127.0.0.1:39477', 'keys': 5, 'ledgers': 0, 'loaded': True, 'manifests': 0, 'membership': {'epoch': 3, 'phase': 'stable',",
+  "00:15:43 CHECK PASS T2: r1 and r2 are enrolled (CAS) under the same lease16 generation as r0 {'r0': {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 2, 'casMode': True, 'seqEnabled': True, 'eventSeq': 14}, 'r1': {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 2, 'casMode': True, 'seqEnabled': True, 'eventSeq': 8}, 'r2': {'fenceGeneration': '0x0010032153d80003', 'fenceCoun",
+  "00:15:54 CHECK PASS T2: stable N=3 W=2: every key reads back byte-exact (5 keys) []",
+  "00:15:55 CHECK PASS T2: stable N=3 W=2: ranged reads (incl. across the slab boundary) are byte-exact []",
+  "00:15:55 CHECK PASS T2: stable N=3 W=2: listings are exact per bucket (deleted keys absent) []",
+  "00:16:02 CHECK PASS T2: one replica (r2) down: writes still commit (W = 2 of 3) 200",
+  "00:16:15 CHECK PASS T2: one replica down: reads: every key reads back byte-exact (6 keys) []",
+  "00:16:16 CHECK PASS T2: one replica down: reads: listings are exact per bucket (deleted keys absent) []",
+  "00:16:18 T4-r0-retiring ready after 2.0 s",
+  "00:16:18 CHECK PASS T4: [r0 retiring, r1, r2] becomes ready ",
+  "00:21:38 T4-retiring stable at epoch [4, 4, 4] after 320 s",
+  "00:21:38 CHECK PASS T4: the retirement commits: stable at epoch 3 (members r1, r2) [{'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': None, 'floors': 0, 'indexer': 'http://127.0.0.1:39477', 'keys': 6, 'ledgers': 0, 'loaded': True, 'manifests': 0, 'membership': {'epoch': 4, 'phase': 'stable',",
+  "00:21:40 T4-r1r2 ready after 2.0 s",
+  "00:21:40 CHECK PASS T4: [r1, r2] (r0 dropped from the list) becomes ready ",
+  "00:21:40 T4-final stable at epoch [4, 4] after 0 s",
+  "00:21:40 CHECK PASS T4: [r1, r2] is the committed stable set (epoch 3), both members loaded and caught up [{'behind': 0, 'compactor': {'compacted_objects': 0, 'compactions': 0, 'last_compaction': None, 'last_error': None}, 'dirty': False, 'error': None, 'floors': 0, 'indexer': 'http://127.0.0.1:40223', 'keys': 6, 'ledgers': 0, 'loaded': True, 'manifests': 0, 'membership': {'epoch': 4, 'phase': 'stable',",
+  "00:21:54 CHECK PASS T4: with r0 STOPPED, every key (legacy 0.1.8, T1, T2) reads back byte-exact from r1 + r2 alone: every key reads back byte-exact (6 keys) []",
+  "00:21:55 CHECK PASS T4: with r0 STOPPED, every key (legacy 0.1.8, T1, T2) reads back byte-exact from r1 + r2 alone: ranged reads (incl. across the slab boundary) are byte-exact []",
+  "00:21:55 CHECK PASS T4: with r0 STOPPED, every key (legacy 0.1.8, T1, T2) reads back byte-exact from r1 + r2 alone: listings are exact per bucket (deleted keys absent) []",
+  "00:22:04 CHECK PASS T4: the new set writes (W = 2 of 2) 200",
+  "00:22:19 CHECK PASS T4: final state: every key reads back byte-exact (7 keys) []",
+  "00:22:19 CHECK PASS T4: final state: listings are exact per bucket (deleted keys absent) []",
+  "00:22:21 v018-on-r1 ready after 2.0 s",
+  "00:22:24 CHECK PASS O: 0.1.8 cannot write to an enrolled new replica, which is unchanged {'PUT': 500, 'before': {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 4, 'casMode': True, 'seqEnabled': True, 'eventSeq': 17}, 'after': {'fenceGeneration': '0x0010032153d80003', 'fenceCounter': 4, 'casMode': True, 'seqEnabled': True, 'eventSeq': 17}}"
+ ],
+ "db": {
+  "P": {
+   "r0": {
+    "fenceGeneration": null,
+    "fenceCounter": null,
+    "casMode": false,
+    "seqEnabled": false,
+    "eventSeq": 0
+   },
+   "r1": null,
+   "r2": null
+  },
+  "B": {
+   "fenceGeneration": null,
+   "fenceCounter": null,
+   "casMode": false,
+   "seqEnabled": false,
+   "eventSeq": 0
+  },
+  "T1": {
+   "fenceGeneration": "0x0010032153d80003",
+   "fenceCounter": 1,
+   "casMode": true,
+   "seqEnabled": true,
+   "eventSeq": 4
+  },
+  "T1row": "0010032153d800030000000000000001da544826127ab1ffd78b3831bb567556|t|t|4",
+  "T2": {
+   "r0": {
+    "fenceGeneration": "0x0010032153d80003",
+    "fenceCounter": 2,
+    "casMode": true,
+    "seqEnabled": true,
+    "eventSeq": 14
+   },
+   "r1": {
+    "fenceGeneration": "0x0010032153d80003",
+    "fenceCounter": 2,
+    "casMode": true,
+    "seqEnabled": true,
+    "eventSeq": 8
+   },
+   "r2": {
+    "fenceGeneration": "0x0010032153d80003",
+    "fenceCounter": 2,
+    "casMode": true,
+    "seqEnabled": true,
+    "eventSeq": 8
+   }
+  },
+  "beforeOld": {
+   "fenceGeneration": "0x0010032153d80003",
+   "fenceCounter": 4,
+   "casMode": true,
+   "seqEnabled": true,
+   "eventSeq": 17
+  },
+  "afterOld": {
+   "fenceGeneration": "0x0010032153d80003",
+   "fenceCounter": 4,
+   "casMode": true,
+   "seqEnabled": true,
+   "eventSeq": 17
+  }
+ },
+ "isolation": {
+  "netInterfaces": [
+   "lo"
+  ],
+  "uid": 1000,
+  "pid": 1
+ },
+ "wasmtime": "wasmtime 49.0.3 (f96eabaa1 2026-10-14)",
+ "pgSocketDir": "/tmp/mgpg-m3-4m5r0fhf",
+ "postgres": "postgres (PostgreSQL) 18.6",
+ "indexers": [
+  {
+   "database": "sias3_real_m3_r0",
+   "name": "r0",
+   "up": true,
+   "url": "http://127.0.0.1:39477"
+  },
+  {
+   "database": "sias3_real_m3_r1",
+   "name": "r1",
+   "up": true,
+   "url": "http://127.0.0.1:40223"
+  },
+  {
+   "database": "sias3_real_m3_r2",
+   "name": "r2",
+   "up": true,
+   "url": "http://127.0.0.1:33513"
+  }
+ ],
+ "appKeyPublic": "c21a0b516602a45567b3226207e83334aea3f2f8f1c910fb60abff82a88a0041",
+ "instances": {
+  "v018-writer": {
+   "artifact": "v018",
+   "config": {
+    "indexer": "http://127.0.0.1:39477",
+    "appKey": "<fixture app key>",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "INTEROPAK",
+      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+     }
+    ]
+   },
+   "env": []
+  },
+  "prepared-config-n1": {
+   "artifact": "final",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "writeQuorum": 2,
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:39477\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "T1-r0": {
+   "artifact": "final",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:39477\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "T2-r0r1r2": {
+   "artifact": "final",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:39477\",\"appKey\":\"$SIA_APP_KEY\"},{\"name\":\"r1\",\"indexer\":\"http://127.0.0.1:40223\",\"appKey\":\"$SIA_APP_KEY\"},{\"name\":\"r2\",\"indexer\":\"http://127.0.0.1:33513\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "T4-r0-retiring": {
+   "artifact": "final",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r0\",\"indexer\":\"http://127.0.0.1:39477\",\"appKey\":\"$SIA_APP_KEY\",\"retiring\":true},{\"name\":\"r1\",\"indexer\":\"http://127.0.0.1:40223\",\"appKey\":\"$SIA_APP_KEY\"},{\"name\":\"r2\",\"indexer\":\"http://127.0.0.1:33513\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "T4-r1r2": {
+   "artifact": "final",
+   "config": {
+    "replicas": "$SIAS3_REPLICAS",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "$S3_ACCESS_KEY_ID",
+      "secretAccessKey": "$S3_SECRET_ACCESS_KEY"
+     }
+    ],
+    "writerFence": "required",
+    "writerAuthority": "$ENCLAVE_WRITER_AUTHORITY",
+    "instanceIsolation": "$ENCLAVE_INSTANCE_ISOLATION",
+    "egress": "public-web",
+    "wasi": "0.2",
+    "_media": {
+     "thumbnail": "bafkreifvp4punusiuwe4h6r4bolo2jmyt45kxmudgrtwschjac7nz77syi",
+     "thumbnailSvg": true,
+     "banner": "bafkreiesztvbibatweja4ojs3qjc43vjtbz6xo274j3ty574nlac6jvh3i",
+     "bannerSvg": true
+    }
+   },
+   "env": [
+    "SIA_APP_KEY=<fixture secret>",
+    "S3_ACCESS_KEY_ID=INTEROPAK",
+    "S3_SECRET_ACCESS_KEY=<fixture secret>",
+    "SIAS3_REPLICAS=[{\"name\":\"r1\",\"indexer\":\"http://127.0.0.1:40223\",\"appKey\":\"$SIA_APP_KEY\"},{\"name\":\"r2\",\"indexer\":\"http://127.0.0.1:33513\",\"appKey\":\"$SIA_APP_KEY\"}]",
+    "ENCLAVE_WRITER_AUTHORITY={\"source\":\"lease16\",\"chainId\":8453,\"ledger\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"deployment\":\"0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81\",\"claimBlock\":52515800,\"claimLogIndex\":3}",
+    "ENCLAVE_INSTANCE_ISOLATION=vbs"
+   ]
+  },
+  "v018-on-r1": {
+   "artifact": "v018",
+   "config": {
+    "indexer": "http://127.0.0.1:40223",
+    "appKey": "<fixture app key>",
+    "region": "auto",
+    "buckets": [
+     "ipfs",
+     "git",
+     "jot",
+     "machines"
+    ],
+    "credentials": [
+     {
+      "accessKeyId": "INTEROPAK",
+      "secretAccessKey": "interop-fixture-secret-not-a-real-credential"
+     }
+    ]
+   },
+   "env": []
+  }
+ },
+ "membership": {
+  "T1": {
+   "seconds": 310,
+   "replicas": [
+    {
+     "name": "r0",
+     "membership": {
+      "epoch": 1,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 1
+     },
+     "record": {
+      "admitted": true,
+      "epoch": 1
+     }
+    }
+   ]
+  },
+  "T2": {
+   "seconds": 322,
+   "replicas": [
+    {
+     "name": "r0",
+     "membership": {
+      "epoch": 3,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 3
+     },
+     "record": {
+      "admitted": true,
+      "epoch": 3
+     }
+    },
+    {
+     "name": "r1",
+     "membership": {
+      "epoch": 3,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 3
+     },
+     "record": {
+      "admitted": true,
+      "epoch": 3
+     }
+    },
+    {
+     "name": "r2",
+     "membership": {
+      "epoch": 3,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 3
+     },
+     "record": {
+      "admitted": true,
+      "epoch": 3
+     }
+    }
+   ]
+  },
+  "T4-retiring": {
+   "seconds": 320,
+   "replicas": [
+    {
+     "name": "r0",
+     "membership": {
+      "epoch": 4,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 4
+     },
+     "record": {
+      "admitted": false,
+      "epoch": 4
+     }
+    },
+    {
+     "name": "r1",
+     "membership": {
+      "epoch": 4,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 4
+     },
+     "record": {
+      "admitted": true,
+      "epoch": 4
+     }
+    },
+    {
+     "name": "r2",
+     "membership": {
+      "epoch": 4,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 4
+     },
+     "record": {
+      "admitted": true,
+      "epoch": 4
+     }
+    }
+   ]
+  },
+  "T4-final": {
+   "seconds": 0,
+   "replicas": [
+    {
+     "name": "r1",
+     "membership": {
+      "epoch": 4,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 4
+     },
+     "record": {
+      "admitted": true,
+      "epoch": 4
+     }
+    },
+    {
+     "name": "r2",
+     "membership": {
+      "epoch": 4,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 4
+     },
+     "record": {
+      "admitted": true,
+      "epoch": 4
+     }
+    }
+   ]
+  }
+ },
+ "healthz": {
+  "T1": {
+   "app": "sia-s3/0.2.0",
+   "bytes": 15828640,
+   "compactor": {
+    "compacted_objects": 0,
+    "compactions": 0,
+    "last_compaction": null,
+    "last_error": null
+   },
+   "keys": 3,
+   "objects": 4,
+   "openUploads": 0,
+   "readQuorum": 1,
+   "ready": true,
+   "replicas": [
+    {
+     "behind": 0,
+     "compactor": {
+      "compacted_objects": 0,
+      "compactions": 0,
+      "last_compaction": null,
+      "last_error": null
+     },
+     "dirty": false,
+     "error": null,
+     "floors": 0,
+     "indexer": "http://127.0.0.1:39477",
+     "keys": 3,
+     "ledgers": 0,
+     "loaded": true,
+     "manifests": 0,
+     "membership": {
+      "epoch": 1,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 1
+     },
+     "name": "r0",
+     "objects": 4,
+     "openUploads": 0,
+     "record": {
+      "admitted": true,
+      "epoch": 1
+     },
+     "retiring": false,
+     "tombstonedKeys": 0,
+     "unreadLedgers": 0,
+     "unreadManifests": 0,
+     "versionCeiling": 0,
+     "voting": true
+    }
+   ],
+   "replication": {
+    "abandonedCalls": 0,
+    "floorsWritten": 0,
+    "lastRepair": "2026-10-23T07:09:36.054995868+00:00",
+    "lastRepairError": null,
+    "observedCeiling": 0,
+    "purgedVersions": 0,
+    "reclaimedTombstones": 0,
+    "reconciled": 0,
+    "refusedWrites": 0,
+    "repairPasses": 1,
+    "repairedCopies": 0,
+    "repairedDeletes": 0,
+    "versionCeiling": 0,
+    "versionFence": "legacy"
+   },
+   "smallUnpacked": 2,
+   "withheldVersions": 0,
+   "writeQuorum": 1,
+   "writerFence": {
+    "authority": "lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b deployment 0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81 claim 52515800/3",
+    "ballot": {
+     "counter": 1,
+     "gen": "0x10032153d80003",
+     "iid": "da544826"
+    },
+    "c2": {
+     "noCloneAssumed": false,
+     "verified": true
+    },
+    "isolation": "Vbs",
+    "mode": "required",
+    "policy": {
+     "ok": true,
+     "warnings": [
+      "isolation Vbs: no recorded no-clone evidence, and none assumed: C2 (verified at boot on every indexer) keeps storage semantics for copies of this instance"
+     ]
+    },
+    "reballots": 0,
+    "superseded": null
+   }
+  },
+  "T2": {
+   "app": "sia-s3/0.2.0",
+   "bytes": 18974368,
+   "compactor": {
+    "compacted_objects": 0,
+    "compactions": 0,
+    "last_compaction": null,
+    "last_error": null
+   },
+   "keys": 5,
+   "objects": 23,
+   "openUploads": 0,
+   "readQuorum": 2,
+   "ready": true,
+   "replicas": [
+    {
+     "behind": 0,
+     "compactor": {
+      "compacted_objects": 0,
+      "compactions": 0,
+      "last_compaction": null,
+      "last_error": null
+     },
+     "dirty": false,
+     "error": null,
+     "floors": 0,
+     "indexer": "http://127.0.0.1:39477",
+     "keys": 5,
+     "ledgers": 0,
+     "loaded": true,
+     "manifests": 0,
+     "membership": {
+      "epoch": 3,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 3
+     },
+     "name": "r0",
+     "objects": 9,
+     "openUploads": 0,
+     "record": {
+      "admitted": true,
+      "epoch": 3
+     },
+     "retiring": false,
+     "tombstonedKeys": 0,
+     "unreadLedgers": 0,
+     "unreadManifests": 0,
+     "versionCeiling": 1792782595376,
+     "voting": true
+    },
+    {
+     "behind": 0,
+     "compactor": {
+      "compacted_objects": 0,
+      "compactions": 0,
+      "last_compaction": null,
+      "last_error": null
+     },
+     "dirty": false,
+     "error": null,
+     "floors": 0,
+     "indexer": "http://127.0.0.1:40223",
+     "keys": 5,
+     "ledgers": 0,
+     "loaded": true,
+     "manifests": 0,
+     "membership": {
+      "epoch": 3,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 3
+     },
+     "name": "r1",
+     "objects": 7,
+     "openUploads": 0,
+     "record": {
+      "admitted": true,
+      "epoch": 3
+     },
+     "retiring": false,
+     "tombstonedKeys": 0,
+     "unreadLedgers": 0,
+     "unreadManifests": 0,
+     "versionCeiling": 1792782595376,
+     "voting": true
+    },
+    {
+     "behind": 0,
+     "compactor": {
+      "compacted_objects": 0,
+      "compactions": 0,
+      "last_compaction": null,
+      "last_error": null
+     },
+     "dirty": false,
+     "error": null,
+     "floors": 0,
+     "indexer": "http://127.0.0.1:33513",
+     "keys": 5,
+     "ledgers": 0,
+     "loaded": true,
+     "manifests": 0,
+     "membership": {
+      "epoch": 3,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 3
+     },
+     "name": "r2",
+     "objects": 7,
+     "openUploads": 0,
+     "record": {
+      "admitted": true,
+      "epoch": 3
+     },
+     "retiring": false,
+     "tombstonedKeys": 0,
+     "unreadLedgers": 0,
+     "unreadManifests": 0,
+     "versionCeiling": 1792782595376,
+     "voting": true
+    }
+   ],
+   "replication": {
+    "abandonedCalls": 0,
+    "floorsWritten": 0,
+    "lastRepair": "2026-10-23T07:15:37.952788999+00:00",
+    "lastRepairError": null,
+    "observedCeiling": 1792782595376,
+    "purgedVersions": 0,
+    "reclaimedTombstones": 0,
+    "reconciled": 0,
+    "refusedWrites": 0,
+    "repairPasses": 1,
+    "repairedCopies": 8,
+    "repairedDeletes": 0,
+    "versionCeiling": 1792782595376,
+    "versionFence": "ceiling"
+   },
+   "smallUnpacked": 12,
+   "withheldVersions": 0,
+   "writeQuorum": 2,
+   "writerFence": {
+    "authority": "lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b deployment 0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81 claim 52515800/3",
+    "ballot": {
+     "counter": 2,
+     "gen": "0x10032153d80003",
+     "iid": "4ce03be4"
+    },
+    "c2": {
+     "noCloneAssumed": false,
+     "verified": true
+    },
+    "isolation": "Vbs",
+    "mode": "required",
+    "policy": {
+     "ok": true,
+     "warnings": [
+      "isolation Vbs: no recorded no-clone evidence, and none assumed: C2 (verified at boot on every indexer) keeps storage semantics for copies of this instance"
+     ]
+    },
+    "reballots": 0,
+    "superseded": null
+   }
+  },
+  "T4-retiring": {
+   "app": "sia-s3/0.2.0",
+   "bytes": 20022944,
+   "compactor": {
+    "compacted_objects": 0,
+    "compactions": 0,
+    "last_compaction": null,
+    "last_error": null
+   },
+   "keys": 6,
+   "objects": 31,
+   "openUploads": 0,
+   "readQuorum": 1,
+   "ready": true,
+   "replicas": [
+    {
+     "behind": 0,
+     "compactor": {
+      "compacted_objects": 0,
+      "compactions": 0,
+      "last_compaction": null,
+      "last_error": null
+     },
+     "dirty": false,
+     "error": null,
+     "floors": 0,
+     "indexer": "http://127.0.0.1:39477",
+     "keys": 6,
+     "ledgers": 0,
+     "loaded": true,
+     "manifests": 0,
+     "membership": {
+      "epoch": 4,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 4
+     },
+     "name": "r0",
+     "objects": 11,
+     "openUploads": 0,
+     "record": {
+      "admitted": false,
+      "epoch": 4
+     },
+     "retiring": true,
+     "tombstonedKeys": 0,
+     "unreadLedgers": 0,
+     "unreadManifests": 0,
+     "versionCeiling": 1792782595376,
+     "voting": false
+    },
+    {
+     "behind": 0,
+     "compactor": {
+      "compacted_objects": 0,
+      "compactions": 0,
+      "last_compaction": null,
+      "last_error": null
+     },
+     "dirty": false,
+     "error": null,
+     "floors": 0,
+     "indexer": "http://127.0.0.1:40223",
+     "keys": 6,
+     "ledgers": 0,
+     "loaded": true,
+     "manifests": 0,
+     "membership": {
+      "epoch": 4,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 4
+     },
+     "name": "r1",
+     "objects": 10,
+     "openUploads": 0,
+     "record": {
+      "admitted": true,
+      "epoch": 4
+     },
+     "retiring": false,
+     "tombstonedKeys": 0,
+     "unreadLedgers": 0,
+     "unreadManifests": 0,
+     "versionCeiling": 1792782595376,
+     "voting": true
+    },
+    {
+     "behind": 0,
+     "compactor": {
+      "compacted_objects": 0,
+      "compactions": 0,
+      "last_compaction": null,
+      "last_error": null
+     },
+     "dirty": false,
+     "error": null,
+     "floors": 0,
+     "indexer": "http://127.0.0.1:33513",
+     "keys": 6,
+     "ledgers": 0,
+     "loaded": true,
+     "manifests": 0,
+     "membership": {
+      "epoch": 4,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 4
+     },
+     "name": "r2",
+     "objects": 10,
+     "openUploads": 0,
+     "record": {
+      "admitted": true,
+      "epoch": 4
+     },
+     "retiring": false,
+     "tombstonedKeys": 0,
+     "unreadLedgers": 0,
+     "unreadManifests": 0,
+     "versionCeiling": 1792782595376,
+     "voting": true
+    }
+   ],
+   "replication": {
+    "abandonedCalls": 0,
+    "floorsWritten": 0,
+    "lastRepair": "2026-10-23T07:21:30.395091078+00:00",
+    "lastRepairError": null,
+    "observedCeiling": 1792782595376,
+    "purgedVersions": 0,
+    "reclaimedTombstones": 0,
+    "reconciled": 0,
+    "refusedWrites": 0,
+    "repairPasses": 1,
+    "repairedCopies": 1,
+    "repairedDeletes": 0,
+    "versionCeiling": 0,
+    "versionFence": "legacy"
+   },
+   "smallUnpacked": 15,
+   "withheldVersions": 0,
+   "writeQuorum": 2,
+   "writerFence": {
+    "authority": "lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b deployment 0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81 claim 52515800/3",
+    "ballot": {
+     "counter": 3,
+     "gen": "0x10032153d80003",
+     "iid": "10f8c5a0"
+    },
+    "c2": {
+     "noCloneAssumed": false,
+     "verified": true
+    },
+    "isolation": "Vbs",
+    "mode": "required",
+    "policy": {
+     "ok": true,
+     "warnings": [
+      "isolation Vbs: no recorded no-clone evidence, and none assumed: C2 (verified at boot on every indexer) keeps storage semantics for copies of this instance"
+     ]
+    },
+    "reballots": 0,
+    "superseded": null
+   }
+  },
+  "T4-final": {
+   "app": "sia-s3/0.2.0",
+   "bytes": 20022944,
+   "compactor": {
+    "compacted_objects": 0,
+    "compactions": 0,
+    "last_compaction": null,
+    "last_error": null
+   },
+   "keys": 6,
+   "objects": 20,
+   "openUploads": 0,
+   "readQuorum": 1,
+   "ready": true,
+   "replicas": [
+    {
+     "behind": 0,
+     "compactor": {
+      "compacted_objects": 0,
+      "compactions": 0,
+      "last_compaction": null,
+      "last_error": null
+     },
+     "dirty": false,
+     "error": null,
+     "floors": 0,
+     "indexer": "http://127.0.0.1:40223",
+     "keys": 6,
+     "ledgers": 0,
+     "loaded": true,
+     "manifests": 0,
+     "membership": {
+      "epoch": 4,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 4
+     },
+     "name": "r1",
+     "objects": 10,
+     "openUploads": 0,
+     "record": {
+      "admitted": true,
+      "epoch": 4
+     },
+     "retiring": false,
+     "tombstonedKeys": 0,
+     "unreadLedgers": 0,
+     "unreadManifests": 0,
+     "versionCeiling": 1792782595376,
+     "voting": true
+    },
+    {
+     "behind": 0,
+     "compactor": {
+      "compacted_objects": 0,
+      "compactions": 0,
+      "last_compaction": null,
+      "last_error": null
+     },
+     "dirty": false,
+     "error": null,
+     "floors": 0,
+     "indexer": "http://127.0.0.1:33513",
+     "keys": 6,
+     "ledgers": 0,
+     "loaded": true,
+     "manifests": 0,
+     "membership": {
+      "epoch": 4,
+      "phase": "stable",
+      "ready": true,
+      "reason": null,
+      "target": 4
+     },
+     "name": "r2",
+     "objects": 10,
+     "openUploads": 0,
+     "record": {
+      "admitted": true,
+      "epoch": 4
+     },
+     "retiring": false,
+     "tombstonedKeys": 0,
+     "unreadLedgers": 0,
+     "unreadManifests": 0,
+     "versionCeiling": 1792782595376,
+     "voting": true
+    }
+   ],
+   "replication": {
+    "abandonedCalls": 0,
+    "floorsWritten": 0,
+    "lastRepair": null,
+    "lastRepairError": null,
+    "observedCeiling": 1792782595376,
+    "purgedVersions": 0,
+    "reclaimedTombstones": 0,
+    "reconciled": 0,
+    "refusedWrites": 0,
+    "repairPasses": 0,
+    "repairedCopies": 0,
+    "repairedDeletes": 0,
+    "versionCeiling": 0,
+    "versionFence": "legacy"
+   },
+   "smallUnpacked": 10,
+   "withheldVersions": 0,
+   "writeQuorum": 2,
+   "writerFence": {
+    "authority": "lease16 chain 8453 ledger 0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b deployment 0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81 claim 52515800/3",
+    "ballot": {
+     "counter": 4,
+     "gen": "0x10032153d80003",
+     "iid": "4574bddc"
+    },
+    "c2": {
+     "noCloneAssumed": false,
+     "verified": true
+    },
+    "isolation": "Vbs",
+    "mode": "required",
+    "policy": {
+     "ok": true,
+     "warnings": [
+      "isolation Vbs: no recorded no-clone evidence, and none assumed: C2 (verified at boot on every indexer) keeps storage semantics for copies of this instance"
+     ]
+    },
+    "reballots": 0,
+    "superseded": null
+   }
+  }
+ },
+ "lease16Fact": {
+  "source": "lease16",
+  "chainId": 8453,
+  "ledger": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+  "deployment": "0xbd57d225e91952597b1eecd2ed2dce1b75889e38ae34018de488c50841bdee81",
+  "claimBlock": 52515800,
+  "claimLogIndex": 3
+ },
+ "egressConnects": 575,
+ "diskBeforeCleanupMiB": 4580,
+ "cleanup": {
+  "hostSectorsRemoved": true,
+  "pgDataRemoved": true,
+  "pgSocketDirRemoved": true,
+  "pidsLeftInNamespace": []
+ },
+ "finished": 1792740147.3686647,
+ "passed": 42,
+ "failed": 0
+}

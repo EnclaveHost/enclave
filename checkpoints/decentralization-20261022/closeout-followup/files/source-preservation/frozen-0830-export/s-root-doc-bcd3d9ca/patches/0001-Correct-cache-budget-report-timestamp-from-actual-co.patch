@@ -1,0 +1,20 @@
+From bcd3d9ca3b4345f42134342dec28ab5f6d4115f2 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 00:29:34 -0700
+Subject: [PATCH] Correct cache-budget report timestamp from actual commit
+ metadata
+
+---
+ RESULT-CACHE-BUDGET.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/RESULT-CACHE-BUDGET.md b/RESULT-CACHE-BUDGET.md
+index 77147503e580de17936fca4a766e3644a3b9e17e..dff3c45d17683d69f2f2148723db81b06064a711 100644
+--- a/RESULT-CACHE-BUDGET.md
++++ b/RESULT-CACHE-BUDGET.md
+@@ -1,4 +1,4 @@
+-# Shared NVMe cache budget: a hard aggregate bound in source (RESULT-CACHE-BUDGET, 2026-10-23, rounding fix ~08:40Z)
++# Shared NVMe cache budget: a hard aggregate bound in source (RESULT-CACHE-BUDGET, 2026-10-23; rounding-fix report committed at 07:20:58Z)
+ 
+ **Status: SOURCE + SEAM-TESTED. NOT kernel-proven, NOT allocated, NOT activated.**
+ - **Not done:** no SSH, no sudo, no mount, no allocation, no sync, no production or VM change, no push.

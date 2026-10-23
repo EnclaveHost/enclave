@@ -1,0 +1,57 @@
+From f3443e537fc51c9428980db91c983ae00f4296eb Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 20:27:22 -0700
+Subject: [PATCH 11/14] Keep the verified-operation deadline timer referenced
+ so it fires when nothing else holds the event loop
+
+The timer is cleared the moment the operation settles, so it only keeps a process alive while an operation is in
+progress. Unref'd (as in 62feb3aa), a silent callback with an in-process transport let the process exit with the
+read still pending; a child-process test now proves rejection at the deadline with no keep-alive (it fails on
+62feb3aa).
+---
+ network/lease-reader.mjs                     |  3 ++-
+ test/lease-reader-verifier-deadline.test.mjs | 13 +++++++++++++
+ 2 files changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/network/lease-reader.mjs b/network/lease-reader.mjs
+index 7a315f472..92d7126ad 100644
+--- a/network/lease-reader.mjs
++++ b/network/lease-reader.mjs
+@@ -416,8 +416,9 @@ export class LeaseReader {
+     let closed=null,timer;
+     const close=reason=>{if(closed)return;closed=reason;clearTimeout(timer);controller.abort(reason);};
+     const expired=new Promise((_r,reject)=>{
++      // NOT unref'd: it is cleared the moment the operation settles, so it only keeps a process alive while an operation is
++      // really in progress, and it must fire even when nothing else (e.g. a silent callback) holds the event loop
+       timer=setTimeout(()=>{const e=new Error(`the verified ${kind} deadline of ${this.deadlineMs} ms has passed`);close(e);reject(e);},this.deadlineMs);
+-      timer.unref?.();
+     });
+     expired.catch(()=>{});
+     const refusal=()=>closed?new Error(`the verified ${kind} is closed (${closed.message}): no new request`)
+diff --git a/test/lease-reader-verifier-deadline.test.mjs b/test/lease-reader-verifier-deadline.test.mjs
+index e853a5d4b..4c92a00b8 100644
+--- a/test/lease-reader-verifier-deadline.test.mjs
++++ b/test/lease-reader-verifier-deadline.test.mjs
+@@ -194,6 +194,19 @@ test('the loopback HTTP verifier: a hung request is cancelled on the wire at the
+   }
+ });
+ 
++test('the deadline fires even when nothing else keeps the process alive (child process, no keep-alive)', T, async () => {
++  const { spawnSync } = await import('node:child_process');
++  const src = `import { LeaseReader } from ${JSON.stringify(new URL('../network/lease-reader.mjs', import.meta.url).href)};
++    const ts = '0x' + Math.floor(Date.now() / 1000).toString(16), h = '0x' + '11'.repeat(32);
++    const verifier = { request: async (m, p) => m === 'eth_chainId' ? '0x2105' : m === 'eth_blockNumber' ? '0x64'
++      : { number: p[0], hash: h, stateRoot: h, timestamp: ts } };
++    const r = new LeaseReader({ authority: 'verifier', verifier, addressBook: '0x' + '33'.repeat(20), deadlineMs: 100 });
++    try { await r.agreed(() => new Promise(() => {})); console.log('resolved'); } catch (e) { console.log('rejected: ' + e.message); }`;
++  const out = spawnSync(process.execPath, ['--input-type=module', '-e', src], { encoding: 'utf8', timeout: 4000 });
++  assert.equal(out.status, 0, out.stderr);
++  assert.match(out.stdout, /^rejected: no fresh verified chain state: .*deadline of 100 ms has passed/);
++});
++
+ test('policy is unchanged: the deadline bound and legacy quorum construction', () => {
+   const { verifier } = scripted();
+   assert.throws(() => reader(verifier, { deadlineMs: 99 }), /invalid chain policy/);
+-- 
+2.56.0
+

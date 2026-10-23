@@ -1,0 +1,17 @@
+current=NONE
+currentSha=
+unit.MainPID=41277
+unit.NRestarts=0
+unit.ExecStart={ path=/opt/enclave-indexd/indexd ; argv[]=/opt/enclave-indexd/indexd -instant ; ignore_errors=no ; start_time=[Thu 2026-10-22 07:50:14 UTC] ; stop_time=[n/a] ; pid=41277 ; code=(null) ; status=0/0 }
+unit.ActiveState=active
+unit.SubState=running
+unit.NeedDaemonReload=no
+runningExeSha=2d7a637e843500f7bd1864d76e1fa310e3163e57adc5d8c19e43598e827de5dc
+writerPids=41277 
+containerTimeout=timeout (GNU coreutils) 9.7
+dbVersion=26
+fsync=on synchronous_commit=on
+scratchDatabases=
+controllerSessions=
+toolSessions=
+lockHeld=no

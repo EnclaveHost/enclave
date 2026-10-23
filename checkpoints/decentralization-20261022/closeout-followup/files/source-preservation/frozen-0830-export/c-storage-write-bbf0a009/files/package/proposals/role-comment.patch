@@ -1,0 +1,15 @@
+--- a/network/host-services/storage-indexer-host.mjs
++++ b/network/host-services/storage-indexer-host.mjs
+@@ -285,8 +285,10 @@
+ /**
+  * Supervise while admitted. Refusal (ban, allowlist miss, inactive/deregistered, wrong operator/descriptor, package
+  * change): stop indexd, then PostgreSQL (data kept), and stay stopped until admitted again. Crashes restart with backoff.
+- * stop() is TERMINAL and idempotent: it aborts an in-flight PostgreSQL start, waits for the in-flight decision, then
+- * stops both processes; after `await stop()` no child of this supervisor runs and no pending callback can start one.
++ * stop() is TERMINAL and idempotent: it aborts an in-flight PostgreSQL start, waits for an in-flight tick that is STARTING or
++ * STOPPING processes (NOT one still DECIDING admission: that tick re-checks `stopping` before acting, so it cannot start
++ * anything), then stops both processes; after `await stop()` no child of this supervisor runs and no pending callback can
++ * start one.
+  * deps (tests): { admission, startPostgres, startIndexd } replace the real ones.
+  * -> { status(), stop(), tick() }
+  */

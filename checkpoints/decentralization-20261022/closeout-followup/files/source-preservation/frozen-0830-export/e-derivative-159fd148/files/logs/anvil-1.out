@@ -1,0 +1,114 @@
+[queue] START available=24512MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+HEAD
+?? .gitignore
+?? evidence/
+?? fixtures/
+?? jobs/
+?? logs/
+?? package.json
+?? src/
+?? test/
+?? tools/
+anvil Version: 1.7.1
+v22.23.3
+  "version": "2.53.1",
+80b6914585366e75e254a59f3968f0dd094144eda8e9c758e440ef1fd408141c  src/forced-inclusion.mjs
+c56a20c14831dafb3c23c2fd384f24e127a69cafe64cdf4dfc5808c6ec072e4c  test/forced-inclusion.anvil.test.mjs
+0ad44580f0150fda46ac27cf3b228fff30f322825557ac87f973e0835358c7b3  fixtures/artifacts/EnclaveDeployments.json
+dc5a4978e04fc8e56df19566cc024f05ebc77054308f9612b7e535696f75563d  fixtures/artifacts/EnclaveLeaseExecutor.json
+aaee8eaf03dff6202334f1375b906b707c5e544186f96dbe591fe4279b098815  fixtures/artifacts/EnclaveLeaseGasReserve.json
+aa39308af5b885dadd542eba6fab609cf93b4c50f344d6a9865fef9d8254ccda  fixtures/artifacts/EnclaveLedgerBandwidth.json
+66df625b5dd84d8beaa922d1b9d3d921e1ed50a5927538294fe4ce870a004864  fixtures/artifacts/EnclaveRegistry.json
+10327e272162c9dc33b05435ab7d71098f9aa1e7d2cf24ed4fa25ebcd0104291  fixtures/artifacts/MockFeed.json
+524376a5043a80909a1c4aeb98f421f07b250c6a26ef972f272b5032d2fa3cd7  fixtures/artifacts/MockUSDC.json
+2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1  fixtures/sources/EnclaveDeployments.live-rev16d.sol
+dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033  fixtures/sources/EnclaveLeaseExecutor.sol
+1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2  fixtures/sources/EnclaveLeaseGasReserve.sol
+e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360  fixtures/sources/EnclaveRegistry.live-schema4.sol
+47b8ded7ed2427e8400414c66d1de3edeac40f2b275e84f5301c91c26590e481  evidence/op-source/develop@packages_contracts-bedrock_src_L1_OptimismPortal2.sol
+97411c4d1076a1ec5060357288dee2f79392ceaecbea6fd8fe2775af8de9e003  evidence/op-source/develop@packages_contracts-bedrock_src_L1_ResourceMetering.sol
+65c83beb99d30fa3898941cfb559bc557fff1f943c050f9c31cfb9b757828e8d  evidence/op-source/develop@packages_contracts-bedrock_src_libraries_EOA.sol
+5e50ac377582ca57313e14676ddb32665726e7f331f6e908158c728655798e2e  evidence/op-source/develop@packages_contracts-bedrock_src_vendor_AddressAliasHelper.sol
+external network: unreachable (as intended)
+TAP version 13
+# Subtest: provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+ok 1 - provenance: artifacts compiled from the pinned sources; portal ABI, alias offset and gas floor match the fetched OP source and viem
+  ---
+  duration_ms: 299.02644
+  type: 'test'
+  ...
+# Subtest: CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+ok 2 - CLAIM by L1 deposit: the host's signed Lease runs as the operator via the real executor, any L1 sender, no L2 fee; the same plan cannot execute twice
+  ---
+  duration_ms: 45.986634
+  type: 'test'
+  ...
+# claim deposit gasUsed 334193 of limit 800000
+# Subtest: RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+not ok 3 - RENEW by deposit from an ALIASED (contract) L1 sender: still the operator on L2; outside the window or with too little headroom it is refused
+  ---
+  duration_ms: 17.740932
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/forced-inclusion.anvil.test.mjs:201:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/forced-inclusion.anvil.test.mjs:207:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+not ok 4 - negative controls: wrong signer, expired deadline, undelegated key, stale head, pin mismatch, high-s, conflicting lease in flight
+  ---
+  duration_ms: 16.881542
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/forced-inclusion.anvil.test.mjs:224:1'
+  failureType: 'testCodeFailure'
+  error: 'stale-nonce: executor nonce is 1, lease has 2'
+  code: 'stale-nonce'
+  stack: |-
+    refuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/forced-inclusion.mjs:90:42)
+    Module.planLeaseDeposit (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/forced-inclusion.mjs:195:56)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/forced-inclusion.anvil.test.mjs:232:39)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+ok 5 - DIRECT owner operation (ledger.setActive) from the SAME EOA: works; from an aliased sender the real ledger refuses; unreviewed, contract-owned or ambiguous intents are refused
+  ---
+  duration_ms: 12.838935
+  type: 'test'
+  ...
+# Subtest: outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+not ok 6 - outcome checks fail closed: unverified receipt, same endpoint as submission, stale head, receipt above the head, unverified or mismatching L1 log
+  ---
+  duration_ms: 11.507378
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/forced-inclusion.anvil.test.mjs:312:1'
+  failureType: 'testCodeFailure'
+  error: 'stale-nonce: executor nonce is 1, lease has 2'
+  code: 'stale-nonce'
+  stack: |-
+    refuse (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/forced-inclusion.mjs:90:42)
+    Module.planLeaseDeposit (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/src/forced-inclusion.mjs:195:56)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-transaction-independence/test/forced-inclusion.anvil.test.mjs:324:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 3
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4567.404366
+[memory-guard] exit=1 peakTreeRssMiB=182 minHostAvailableMiB=24426
+[memory-guard] at peak: node:93 node:55 anvil:30 timeout:4
+[queue] EXIT 1

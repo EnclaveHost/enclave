@@ -1,0 +1,22 @@
+{
+ "allMemberHashesMatch": true,
+ "archive": "indexd-minipc-fresh-20261022T191749Z-603f3b39.tar.gpg",
+ "archiveSha256": "97ecb817bf410b4dcb448bd8e3c9b75551e25725a723e43731456f5375ed096e",
+ "archiveSha256MatchesReceipt": true,
+ "authenticatedDecryptionPassed": true,
+ "counts": {
+  "accounts": 1,
+  "contracts": 78,
+  "objects": 1491,
+  "slabs": 562
+ },
+ "coupledAndResumed": true,
+ "dbVersion": 26,
+ "manifestEqualsPullTimeManifest": true,
+ "membersExactlyExpected": true,
+ "pass": true,
+ "plaintextPersistedLocally": false,
+ "problems": [],
+ "runId": "20261022T191749Z-603f3b39",
+ "verifiedAt": "2026-10-22T19:19:16Z"
+}
