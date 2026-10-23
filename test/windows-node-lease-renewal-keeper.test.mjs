@@ -468,3 +468,43 @@ test("SERVING FIRST: a wallet refusal or unknown, a transfer and a suspension st
     assert.equal(renews().length, 0, name); assert.equal(operatorTx(), 0, name);
   }
 });
+
+// SERVING-FIRST FIXES (serving-first-fixes): F1 - phase 2 takes what (re)entered tracking after phase 1 by MEMBERSHIP EPOCH,
+// so a lease phase 1 retired and the sweep re-claimed in the SAME pass is reconciled in that pass; F3 - one tracked
+// deployment's throw fails only that deployment (not ready, not keeper-eligible), never the others or the claim sweep.
+test("F1: an own lease retired in phase 1 and re-claimed by the sweep in the same pass is reconciled in phase 2 (ready, keeper-eligible)", { timeout: 30_000 }, async () => {
+  const b = await box({ left: -30 });                   // A's own lease ended 30 s ago: phase 1 retires it (untracked)
+  let untrackedAtSweep = null;
+  const VM2 = "hv" + "9".repeat(32);
+  b.h.scanLedger = async () => {                        // the sweep re-claims it, leaving what a landed consider() leaves
+    untrackedAtSweep = !b.h.tracked.has(A);
+    const until = Math.floor(Date.now() / 1000) + 1800;
+    S.until[A.toLowerCase()] = until; setRow(A, { leaseUntil: BigInt(until) });
+    mgr.vms.push({ id: VM2, name: A, status: "running", appId: "a".repeat(64) });
+    b.h.records.set(A, { id: A, status: "running", appRef: ref, envelope: "", claimedAt: Date.now(), isolation: { instance: VM2, appId: "a".repeat(64) } });
+    b.h.tracked.add(A);
+  };
+  await b.pass();
+  assert.equal(untrackedAtSweep, true, "phase 1 retired the expired lease before the sweep");
+  assert.equal(b.ready(), "ready", "the same-pass re-claim was reconciled in phase 2 (its readiness row published)");
+  const r = await keep(b, 1800 - 250);                  // 250 s left of the new lease: inside its window
+  assert.deepEqual(r.renewed, [A], `keeper-eligible after phase 2: ${JSON.stringify(r)}`);
+  assert.equal(renews().length, 1); assert.equal(operatorTx(), 0);
+});
+
+test("F3: ensureApp throwing for one app fails only that app's pass: the other reads ready, the sweep runs, it is neither ready nor renewed", { timeout: 30_000 }, async () => {
+  const b = await box({ ids: [A, B], left: 400 });
+  let swept = false; b.h.scanLedger = async () => { swept = true; };
+  const ensure = b.h.ensureApp;
+  b.h.ensureApp = async (id, d) => { if (id === A) throw new Error("manager unreachable (test)"); return ensure(id, d); };
+  await b.pass();                                       // must not reject: the throw is contained to A
+  assert.equal(swept, true, "the claim sweep ran after A's failed reconcile");
+  assert.equal(b.ready(B), "ready", "B was reconciled after A's failure");
+  const rowA = b.h.leaseReadiness().deployments.find((x) => x.id === A);
+  assert.equal(rowA.status, "not-ready"); assert.match(rowA.error, /manager unreachable/);
+  assert.ok(b.logs.some((l) => /reconcile failed \(manager unreachable/.test(l)), b.logs.join("\n"));
+  for (let i = 0; i < 6; i++) await keep(b);            // to 220 s left: inside both windows
+  assert.equal(renews(A).length, 0, "the keeper renewed an app whose reconcile failed");
+  assert.equal(renews(B).length, 1, "B renewed by the keeper as usual");
+  assert.equal(operatorTx(), 0);
+});

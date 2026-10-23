@@ -87,6 +87,18 @@ const RENEW_LEAD_MS = 15 * 60_000;
 // The window's lead is cached per lease for RENEW_LEAD_CACHE_MS (one verified-authority read, not one per pass); the send
 // re-reads the owner's policy itself, so a stale lead can only make a renew wait or be refused unsigned.
 const RENEW_KEEPER_MS = 30_000, RENEW_RETRY_MS = 60_000, RENEW_LEAD_CACHE_MS = 5 * 60_000;
+// SERVING FIRST (#tickOnce): a tracked re-claim waits for the pass's second phase (#reconcileTracked answers DEFERRED).
+const DEFERRED = Symbol("deferred");
+/** The tracked set, with a per-id MEMBERSHIP EPOCH: adding an absent id or deleting a present one moves it. A pass compares
+ *  epochs to know which ids entered (or re-entered) tracking while it ran, whatever code path added them. Filled after
+ *  construction (a Set constructor's iterable would call add() before the private fields exist). */
+class TrackedSet extends Set {
+  #epochs = new Map(); #next = 0;
+  add(id) { if (!this.has(id)) this.#epochs.set(id, ++this.#next); return super.add(id); }
+  delete(id) { const had = super.delete(id); if (had) this.#epochs.set(id, ++this.#next); return had; }
+  clear() { for (const id of this) this.#epochs.set(id, ++this.#next); super.clear(); }
+  epochOf(id) { return this.#epochs.get(id) ?? 0; }
+}
 // NON-DESTRUCTIVE WALLET HOLD (network/wallet-admission.mjs). An UNKNOWN host-wallet answer keeps a running domain (its
 // key and certificate) ONLY once the network agent confirms it withdrew that deployment's ingress and egress
 // (walletHoldAcknowledged); otherwise the domain is retired exactly as before. The wait is bounded: WALLET_HOLD_ACK_MS
@@ -193,7 +205,8 @@ export class Host {
     this.chainReady = false; this.lastError = "";
     this.statePath = path.join(cfg.dir, "host-state.json");
     const st = this.#loadState();
-    this.tracked = new Set(st.tracked || []);
+    this.tracked = new TrackedSet();
+    for (const id of st.tracked || []) this.tracked.add(id);
     /// The last card-price transaction this box SENT ({ want, at, tx }), kept across restarts: a registry read can lag a
     /// sent transaction, and a node restarted inside that lag used to send the same one again (d1's live node, 00:55:04
     /// and 00:55:33 at 013deb51). ensurePriced does not resend the same price while it is fresh.
@@ -2269,6 +2282,25 @@ export class Host {
   #renewForget(id) {
     for (const m of [this.#renewRetryAt, this.#renewFailed, this.#renewedFrom, this.#renewLead, this.#leaseSeen]) m.delete(id);
   }
+  /**
+   * One tracked deployment's reconciliation, contained: a throw (an adoption's manager call, a retire, a record write)
+   * fails THIS deployment for this pass only - never the others or the claim sweep after it. Conservative for that one:
+   * not keeper-eligible, every renewal permit taken for it void, and its readiness row this pass not-ready. Its wallet
+   * allow is left as it is: every path that throws before this pass's fresh decision revokes or holds first, and an allow
+   * that exists was published from a fresh decision on a fresh row, lives <= 90 s and is only ever refreshed by the
+   * refresher's own fresh-row and fresh-decision checks. Retried next pass.
+   */
+  async #reconcileGuarded(id, opts) {
+    try { return await this.#reconcileTracked(id, opts); }
+    catch (e) {
+      this.#leaseSeen.delete(id);
+      this.#renewVoid(id);
+      const why = String((e && e.message) || e).split("\n")[0].slice(0, 200);
+      this.#leaseChecks.set(id, { id, sequence: this.#leaseSequence, status: "not-ready", checkedAt: Date.now(), error: why });
+      this.log(`${String(id).slice(0, 10)} reconcile failed (${why}): not ready this pass; the other deployments and the claim sweep continue`);
+      return undefined;
+    }
+  }
   /** One tracked deployment's reconciliation in a pass (the body of #tickOnce's loop, unchanged except that a re-claim of a
    * deployment this box no longer holds can be deferred: -> "deferred"). */
   async #reconcileTracked(id, { deferClaim = false } = {}) {
@@ -2295,7 +2327,7 @@ export class Host {
       // SERVING FIRST: a re-claim (consider(): a claim gate, a send, a launch) is claim work, not serving. In the
       // pass's first phase it waits until after the ledger sweep, so it cannot delay the apps after it; the grant
       // above is still withdrawn now. The second phase re-reads its row and claims it (or not) as before.
-      if (deferClaim) return "deferred";
+      if (deferClaim) return DEFERRED;
       await this.consider(id).catch((e) => this.log(`re-claim ${id.slice(0, 10)}: ${e.message}`));
       return;
     }
@@ -2461,12 +2493,16 @@ export class Host {
     // edit and resize, adoption, keeper eligibility and its readiness row. A slow sweep (a claim's gate, send and launch)
     // can delay only new work, never the authorization or readiness of what already runs here. Same checks, same order
     // per deployment; only re-claims of tracked deployments this box no longer holds wait for the second phase.
-    const first = [...this.tracked], deferred = new Set();
-    for (const id of first) if (await this.#reconcileTracked(id, { deferClaim: true }) === "deferred") deferred.add(id);
+    const deferred = new Set();
+    for (const id of [...this.tracked]) if (await this.#reconcileGuarded(id, { deferClaim: true }) === DEFERRED) deferred.add(id);
+    // what phase 1 left tracked, by MEMBERSHIP EPOCH: phase 2 takes every id whose membership moved after this point
+    const settled = new Map([...this.tracked].map((id) => [id, this.tracked.epochOf(id)]));
     await this.scanLedger().catch(() => {});
     await this.retireForeignRecovered().catch((e) => this.log(`isolation: recovered-VM sweep: ${e.message}`));
-    // ...then what the sweep added (a lease it resumed, a claim it made) and the deferred re-claims, each re-read fresh
-    for (const id of [...this.tracked]) if (!first.includes(id) || deferred.has(id)) await this.#reconcileTracked(id, { deferClaim: false });
+    // ...then what (re)entered tracking since phase 1 - a lease the sweep resumed, a claim it made, a lease phase 1 retired
+    // and the sweep re-claimed in this same pass - and the deferred re-claims, each re-read fresh
+    for (const id of [...this.tracked])
+      if (deferred.has(id) || settled.get(id) !== this.tracked.epochOf(id)) await this.#reconcileGuarded(id, { deferClaim: false });
 
     // The app's own origin: a certificate order at the relay answers 202 while ACME runs, so keep
     // asking on the tick rather than only when a visitor arrives. Until it is issued the console's
