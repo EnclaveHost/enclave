@@ -598,14 +598,67 @@ HOST_POLICY_GATE.start();            // our EnclaveRegistry id (keccak256 of the
 let _activeSeen = null;           // the row's active flag as the last reconcile pass read it (null: not read since register)
 const HOST_WALLET_POLICY = hostAdmissionConfigured();
 let _hostWalletAdmission = null;
-async function hostWalletRefusal(deploymentId,appRef,forPrivate=false) {
-  if(!HOST_WALLET_POLICY)return null;
+// The host owner's wallet policy for one deployment, judged as the Windows node judges it (windows/node/host.mjs
+// #walletPolicyState), through the shared admission's decision(): {refusal} a DEFINITE refusal (this owner's policy or the
+// platform's moderation, read fresh from agreeing chain reads, said no); {unknown} it could not be established (no RPC
+// quorum, an expired snapshot, an unloadable policy, no registered identity); or neither: allowed, until validUntil (the
+// decision's own chain deadline, never extended here). Unknown is never an allow and never a refusal: nothing is claimed,
+// served or renewed on it, and nothing is released for it.
+async function hostWalletDecision(deploymentId,appRef,forPrivate=false) {
+  if(!HOST_WALLET_POLICY)return {refusal:null,unknown:null,validUntil:Infinity};
   try {
     if(!_enclaveId)throw new Error('registered host identity unavailable');
     if(!_hostWalletAdmission || _hostWalletAdmission.hostId!==_enclaveId)
       _hostWalletAdmission=hostAdmissionFromEnv({hostId:_enclaveId,rpc:RPC_POOL,addressBook:process.env.ADDRESS_BOOK_ADDRESS});
-    return await _hostWalletAdmission.refusal({deploymentId,appRef,forPrivate});
-  }catch(e){return 'host wallet policy unavailable: '+String(e.message).slice(0,240);}
+    // an image pairing this supervisor with an older bundle cannot tell unknown from allowed: everything is held, loudly
+    if(typeof _hostWalletAdmission.decision!=='function')throw new Error('the host-admission bundle has no decision() (an older bundle than this supervisor needs)');
+    const r=await _hostWalletAdmission.decision({deploymentId,appRef,forPrivate});
+    return {refusal:r?.refusal||null,unknown:null,validUntil:Number(r?.validUntil)||0};
+  }catch(e){
+    const m=String(e.message).slice(0,240);
+    // a deployment the policy cannot judge by its form is refused by the policy itself, not unknown (as on Windows)
+    if(/^catalog app reference required/.test(m))return {refusal:'host wallet policy: '+m,unknown:null};
+    return {refusal:null,unknown:m};
+  }
+}
+// A lease transaction's local permission, asked again when the operator's queue reaches the send (sendLeaseTx opts.gate):
+// the record was held meanwhile, or the decision it rides on passed its chain deadline -> not sent (superseded).
+function walletSendGate(rec,validUntil){
+  return ()=>rec?.walletHeld ? 'the host wallet policy became unavailable (held here)'
+    : Date.now()>=validUntil ? 'the host wallet decision expired before the send' : null;
+}
+// UNKNOWN host wallet policy on a deployment this host leases: stop SERVING it here and give nothing back. Linux has no
+// network-agent hold acknowledgement (the Windows channel), so the tenant is stopped locally as a retire stops it, but the
+// lease stays: no release, no renewal, no re-claim. The record goes terminal (it holds no slice), so the claim sweep's
+// resume path - every gate of a claim, the wallet decision included, and no transaction - serves it again once the policy
+// allows it on a still-live lease; a definite refusal meanwhile retires it (walletHeldReview); a lapse simply ends it. A
+// held id is never vouched for as an unresumed lease (unresumedOwnLeases), so the instance reconciler finishes an
+// unconfirmed stop instead of keeping that guest alive.
+async function walletHoldLocal(rec,unknown){
+  const why=`host wallet policy unavailable (${unknown}): stopped here; the lease is kept (not renewed or released) until the policy is established`;
+  const first=!rec.walletHeld;
+  rec.walletHeld={since:rec.walletHeld?.since||new Date().toISOString(),why:unknown,stopConfirmed:false};   // FIRST: an in-flight send's gate sees it
+  if(first)console.warn(`[claim] ${rec.id} ${why}`);
+  let stopped=false;try{stopped=await stopContainer(rec);}catch{}
+  if(rec._gpu){releaseGpu(rec._gpu);rec._gpu=null;}
+  rec.status="terminated";rec.error=why;rec.walletHeld.stopConfirmed=stopped===true;
+  saveStateSoon();
+}
+// A held record on the audit pass, against the page's ledger row d. Not this host's live lease any more: nothing left to
+// hold. Owner stop or a placement pin elsewhere: released as for a serving record. Otherwise the wallet is asked again: a
+// definite refusal releases it as a retire does (no final proof: nothing was served while held, so that tail is forfeit),
+// unknown keeps it held (re-trying an unconfirmed stop), an allow clears the hold and the claim sweep resumes it.
+async function walletHeldReview(rec,d){
+  const end=async(why)=>{delete rec.walletHeld;rec.status="terminated";rec.error=why;saveStateSoon();await releaseLease(rec.id,why);};
+  if(lc(d.runner)!==lc(_enclaveId)||Number(d.leaseUntil)*1000<=Date.now()){delete rec.walletHeld;saveStateSoon();return;}
+  if(!d.active)return end("owner setActive(false)");
+  const pinRefusal=placementRefusal(d.configCid,_enclaveId);
+  if(pinRefusal)return end(pinRefusal);
+  const w=await hostWalletDecision(rec.id,d.appRef,d.isPublic===false);
+  if(w.refusal)return end(w.refusal);
+  if(w.unknown){if(!rec.walletHeld.stopConfirmed)await walletHoldLocal(rec,w.unknown);else rec.walletHeld.why=w.unknown;return;}
+  console.log(`[claim] ${rec.id} host wallet policy established again (allowed): the claim sweep resumes its live lease`);
+  delete rec.walletHeld;saveStateSoon();
 }
 const hostCatalogAddress=()=>process.env.ENCLAVE_HOST_CATALOG_PIN || APP_CATALOG_ADDRESS;
 let _advertisedEndpoint = null;   // the endpoint we registered under; adopted deployments build their URL from it
@@ -4298,7 +4351,8 @@ function hostPolicyRefusedExplicitly() {
 }
 function unresumedOwnLeases(nowMs = Date.now()) {
   if (!_ownLeases || hostPolicyRefusedExplicitly()) return [];
-  return [..._ownLeases].filter(([id, until]) => until * 1000 > nowMs && !releaseHold(id)).map(([id]) => id);
+  // a lease held on an unknown wallet policy (walletHoldLocal) was withdrawn here on purpose: its guest is not vouched for
+  return [..._ownLeases].filter(([id, until]) => until * 1000 > nowMs && !releaseHold(id) && !deployments.get(id)?.walletHeld).map(([id]) => id);
 }
 async function reconcileInstances() {
   if (/^(1|true|on)$/i.test(process.env.MOCK_SPAWN || "")) return [];
@@ -6873,9 +6927,14 @@ async function gateAppReference(reference, opts = {}) {
     return deny(503, "catalog_unreachable", "Could not verify this app's approval against the on-chain catalog; try again shortly.");
   }
   const v = vr.value;
-  const verdict = HOST_WALLET_POLICY ? await hostWalletRefusal(opts.deploymentId,ref,opts.forPrivate===true)
-    : approvalVerdict({ active: a.active, yanked: v.yanked, approval: v.approval,
-                                    slug: a.slug, version: v.version }, opts.forPrivate);
+  let verdict;
+  if (HOST_WALLET_POLICY) {
+    // an UNKNOWN wallet policy is the catalog-unreachable case (503: try again), never a refusal (403)
+    const w = await hostWalletDecision(opts.deploymentId, ref, opts.forPrivate === true);
+    if (w.unknown) return deny(503, "wallet_policy_unavailable", `host wallet policy unavailable: ${w.unknown}; try again shortly`);
+    verdict = w.refusal;
+  } else verdict = approvalVerdict({ active: a.active, yanked: v.yanked, approval: v.approval,
+                                     slug: a.slug, version: v.version }, opts.forPrivate);
   if (verdict) return deny(403, "not_approved", verdict);
   // The version's publisher fee is part of what approval covered (like config
   // and ports). Resolved here so every consumer of the gate carries it; the
@@ -9811,15 +9870,18 @@ async function awaitReceipt(hash, timeoutMs = 90_000) {
     await sleepMs(2000);
   }
 }
-function sendOperatorTx(address, abi, functionName, args) {
-  const p = _txChain.then(() => claimSigner().wallet.writeContract({
-    address: getAddress(address), abi, functionName, args }));
+function sendOperatorTx(address, abi, functionName, args, { gate = null } = {}) {
+  const p = _txChain.then(() => {
+    const stale = gate?.();   // the caller's local permission, re-checked when the queue reaches this send (sendLeaseTx)
+    if (stale) throw Object.assign(new Error(`${functionName} not sent: ${stale}`), { superseded: true });
+    return claimSigner().wallet.writeContract({ address: getAddress(address), abi, functionName, args });
+  });
   const rcptP = p.then((hash) => awaitReceipt(hash));
   _txChain = rcptP.then(() => {}, () => {});   // keep the queue alive across failures
   p.receipt = rcptP;   // callers that need the outcome share the queue's own
   return p;            // receipt wait instead of polling for it a second time
 }
-const sendClaimTx = (functionName, args) => sendOperatorTx(DEPLOYMENTS_ADDRESS, CLAIM_TX_ABI, functionName, args);
+const sendClaimTx = (functionName, args, opts) => sendOperatorTx(DEPLOYMENTS_ADDRESS, CLAIM_TX_ABI, functionName, args, opts);
 
 // ---- the operator's owner nomination on the ORIGINAL EnclaveHostOwnership (metal/guest/owner-nomination.mjs) ----------
 // ONLY with the host operator's explicit config (ENCLAVE_OWNER_NOMINATION: fw_cfg from the host controller's own config,
@@ -9950,9 +10012,13 @@ function leaseGasError(fn, id, e) {
 /** sendClaimTx's shape (a hash promise with .receipt) for claim/renew. The receipt is the one the host's own quorum
  *  verified (target, exact lease, reserve payment, ledger effect); the 7702 authorization consumes an account nonce,
  *  so it waits its turn in the one operator queue. */
-function sendLeaseTx(functionName, args) {
-  if (!leaseGasActive()) return sendClaimTx(functionName, args);
+// opts.gate: () => null, or why the caller no longer permits this send (walletSendGate); asked when the operator queue
+// reaches it, before anything is signed or relayed -> rejects {superseded: true}
+function sendLeaseTx(functionName, args, { gate = null } = {}) {
+  if (!leaseGasActive()) return sendClaimTx(functionName, args, { gate });
   const job = async () => {
+    const stale = gate?.();
+    if (stale) throw Object.assign(new Error(`app-funded ${functionName} not sent: ${stale}`), { superseded: true });
     if (_stateCorrupt) throw leaseGasError(functionName, args[0], new Error(`the release journal failed to load (${_stateCorrupt})`));
     try { const r = await leaseGasSender()[functionName](...args); return { hash: r.hash, receipt: r.receipt }; }
     catch (e) { throw leaseGasError(functionName, args[0], e); }
@@ -10505,9 +10571,11 @@ async function renewLeases() {
       const fresh = await readLedgerContract("get", [rec.id]);
       const pinRefusal = placementRefusal(fresh.configCid, _enclaveId);
       if (pinRefusal) { await retireForPlacement(rec, pinRefusal); continue; }
-      const walletRefusal = await hostWalletRefusal(rec.id,fresh.appRef,fresh.isPublic===false);
-      if(walletRefusal) { await retireForPlacement(rec,walletRefusal); continue; }
-      const sent = lapsed ? sendLeaseTx("claim", [rec.id, _enclaveId]) : sendLeaseTx("renew", [rec.id]);
+      const w = await hostWalletDecision(rec.id,fresh.appRef,fresh.isPublic===false);
+      if (w.refusal) { await retireForPlacement(rec,w.refusal); continue; }
+      if (w.unknown) { await walletHoldLocal(rec,w.unknown); continue; }   // not renewed, not released: held
+      const gate = walletSendGate(rec, w.validUntil);
+      const sent = lapsed ? sendLeaseTx("claim", [rec.id, _enclaveId], { gate }) : sendLeaseTx("renew", [rec.id], { gate });
       await sent;
       const rcpt = await sent.receipt;
       if (rcpt.status !== "success") throw new Error(`${lapsed ? "re-claim" : "renew"} tx reverted`);
@@ -10530,6 +10598,9 @@ async function renewLeases() {
       saveStateSoon();
     } catch (e) {
       const msg = e.shortMessage || e.message || "";
+      // the local permission lapsed while the send waited in the operator queue (walletSendGate): nothing was sent and
+      // this is no ledger failure; the next renewal round decides afresh
+      if (e.superseded) { console.warn(`[claim] ${rec.id} ${msg}`); continue; }
       // The owner dropped the rate cap under what this deployment costs here:
       // the chain refuses to sell more time, and no retry will change that.
       // Serve out the lease they already paid for, tell them why on the
@@ -10858,6 +10929,13 @@ async function yankSweep() {
 async function auditClaims(ledgerById) {
   const me = claimSigner().account.address.toLowerCase();
   for (const rec of [...deployments.values()]) {
+    // held on an unknown wallet policy (stopped, lease kept): asked again every pass (walletHeldReview)
+    if (rec._onchain && rec.walletHeld && TERMINAL_STATUSES.has(rec.status)) {
+      if (_releaseIntents.has(rec.id)) continue;
+      const hd = ledgerById.get(rec.id.toLowerCase());
+      if (hd) await walletHeldReview(rec, hd);
+      continue;
+    }
     if (!rec._onchain || !["running", "claimed"].includes(rec.status)) continue;
     // an owner restart is mid-flight (stop -> claimed -> provision): the
     // claimed-branch below would double-provision it, and the death check
@@ -10869,8 +10947,9 @@ async function auditClaims(ledgerById) {
     // AND the sweep (per-record re-reads were what blew the RPC rate budget)
     const d = ledgerById.get(rec.id.toLowerCase());
     if (!d) continue;                         // not in the page (RPC anomaly): keep serving, the lease is prepaid
-    const walletRefusal = await hostWalletRefusal(rec.id,d.appRef,d.isPublic===false);
-    if(walletRefusal) { await retireForPlacement(rec,walletRefusal); continue; }
+    const w = await hostWalletDecision(rec.id,d.appRef,d.isPublic===false);
+    if (w.refusal) { await retireForPlacement(rec,w.refusal); continue; }
+    if (w.unknown) { await walletHoldLocal(rec,w.unknown); continue; }   // stopped here, lease kept: never released for it
     const pinRefusal = placementRefusal(d.configCid, _enclaveId);
     if (pinRefusal) {
       await retireForPlacement(rec, pinRefusal);
@@ -10920,7 +10999,7 @@ async function auditClaims(ledgerById) {
       // helps nobody and burns the user's lease.
       if (opMine && !leaseLive && rec.status === "running") {
         try {
-          const sent = sendLeaseTx("claim", [rec.id, _enclaveId]);
+          const sent = sendLeaseTx("claim", [rec.id, _enclaveId], { gate: walletSendGate(rec, w.validUntil) });
           await sent;
           const rcpt = await sent.receipt;
           const until = rcpt.status === "success" ? leaseFromReceipt(rcpt, "Claimed", rec.id) : null;
@@ -11857,6 +11936,11 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
     return "startup commitment changed during prefetch";
   const latestPinRefusal = placementRefusal(latest.configCid, _enclaveId);
   if (latestPinRefusal) return latestPinRefusal;
+  // ...and the host wallet policy, FRESH (the sweep's decision is a prefetch old): a refusal or an unknown claims and
+  // resumes nothing, and the claim below is sent only while this decision's own chain deadline holds
+  const wallet = await hostWalletDecision(d.id, d.appRef, d.isPublic === false);
+  if (wallet.refusal) return wallet.refusal;
+  if (wallet.unknown) return "host wallet policy unavailable: " + wallet.unknown;
   if (resume) {
     // we already HOLD this lease (a previous life of this enclave claimed
     // it; the reboot wiped local state, not the chain) - no claim tx, just
@@ -11877,7 +11961,7 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
   if (releaseHold(d.id)) return releaseHold(d.id);
   let rcpt;
   try {
-    const sent = sendLeaseTx("claim", [d.id, _enclaveId]);
+    const sent = sendLeaseTx("claim", [d.id, _enclaveId], { gate: walletSendGate(null, wallet.validUntil) });
     await sent;
     rcpt = await sent.receipt;
   } catch (e) { console.log(`[claim] ${d.id} claim tx failed (${e.shortMessage || e.message})`); return; }

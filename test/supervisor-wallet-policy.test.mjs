@@ -11,7 +11,7 @@ function fixture(){
  const state={reason:null,reads:[],requests:[],events:[],fail:false};
  const ctx=vm.createContext({console,Date,Number,BigInt,Set,Map,Error,String,
    HOST_WALLET_POLICY:true,_enclaveId:host,
-   _hostWalletAdmission:{hostId:host,refusal:async q=>{state.requests.push(q);if(state.fail)throw Error('quorum unavailable');if(q.deploymentId!==dep)throw Error('exact deployment id required');return state.reason;}},
+   __adm:{hostId:host,decision:async q=>{state.requests.push(q);if(state.fail)throw Error('quorum unavailable');if(q.deploymentId!==dep)throw Error('exact deployment id required');return {refusal:state.reason,validUntil:Date.now()+60_000};}},
    hostCatalogAddress:()=>catalog,CATALOG_REF_RE:/^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/,ZERO32:'0x'+'00'.repeat(32),CATALOG_ABI:[],
    getAddress:a=>a,catSchemaRev:async()=>7,gpuOptionalOfConfig:()=>false,cpuFallbackOfConfig:()=>null,
    approvalVerdict:()=>{throw Error('global approval must not be consulted');},
@@ -22,9 +22,11 @@ function fixture(){
    _reach:{tripped:false},RENEW_MARGIN_SEC:900,claimSigner:()=>({account:{address:catalog}}),tenantProvisions:new Set(),_releaseIntents:new Map(),
    placementRefusal:()=>null,readLedgerContract:async()=>({appRef:ref}),
    stopContainer:async()=>{state.events.push('stop');},proveAndRelease:async()=>{state.events.push('release');},saveStateSoon:()=>{},
-   sendClaimTx:()=>{throw Error('denied work must not renew');},_yankBusy:false,
+   sendLeaseTx:()=>{throw Error('denied work must not renew');},_yankBusy:false,
+   HOST_POLICY_GATE:{serviceRefusal:()=>null},_stateCorrupt:null,leaseGasActive:()=>false,TERMINAL_STATUSES:new Set(['expired','failed','terminated','stopping']),
+   lc:v=>String(v||'').toLowerCase(),releaseGpu:()=>{},releaseLease:async()=>{state.events.push('release');},
  });
- vm.runInContext(between('async function hostWalletRefusal(', '\nconst hostCatalogAddress='),ctx);
+ vm.runInContext(between('let _hostWalletAdmission = null;', '\nconst hostCatalogAddress='),ctx);vm.runInContext('_hostWalletAdmission=__adm',ctx);
  vm.runInContext(between('async function gateAppReference(', '// A paid app is servable'),ctx);
  vm.runInContext(between('async function retireForPlacement(', '\nfunction parseDepOptions('),ctx);
  vm.runInContext(between('async function renewLeases()', '\nasync function switchTenantVersion('),ctx);
