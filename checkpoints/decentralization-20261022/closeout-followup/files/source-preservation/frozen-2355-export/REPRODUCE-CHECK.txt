@@ -1,0 +1,19 @@
+custody-live9 base rebuilt from empty + 14 stored patch(es) in 48c524ae5: tree c8abbfae9fc2943a19bc87a15c510653a7c9a25d OK
+custody-live9 2b0c975b5: tree 76bc73aad3e97aa60641bffca5f1d2d4ff334cc7 OK
+current-docs4 base rebuilt from empty + 12 stored patch(es) in 48c524ae5: tree 60f2fe7e0829466a5567d594d42a85d17b7855c1 OK
+current-docs4 155a23f45: tree fd4a750e6b4e9f1840255f58dba19bd33c8541aa OK
+boot-source3 base file metal/guest/gsup.mjs: blob 198dca467 OK
+boot-source3 base file test/registry-advertise-retry.test.mjs: blob 0fa12218e OK
+boot-source3 metal/guest/gsup.mjs: base blob 198dca467 == pushed record OK
+boot-source3 metal/guest/gsup.mjs (M): base + patch -> head blob 5dbf05eb3 OK
+boot-source3 supervisor.js: base blob 66ad07d37 == pushed record OK
+boot-source3 supervisor.js: held back (rewritten literal); patch index names 66ad07d37..475079bfc OK
+boot-source3 test/boot-gpu-price.test.mjs (A): base + patch -> head blob 0c963a002 OK
+boot-source3 test/operator-fee-path.test.mjs (A): base + patch -> head blob 22bed3ab5 OK
+boot-source3 test/registry-advertise-retry.test.mjs: base blob 0fa12218e == pushed record OK
+boot-source3 test/registry-advertise-retry.test.mjs (M): base + patch -> head blob 78150d58b OK
+boot-source3: full tree 2517e4942 NOT reproduced (patch-only; supervisor.js and the parent lineage carry the rewritten literal)
+d-fee-kit base rebuilt from empty + 0 stored patch(es) in 48c524ae5: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+d-fee-kit 9d75f953b: tree a783511d6c99a85997145c0de47f77b93205827b OK
+d-fee-kit trees are the ORIGINAL trees minus ['evidence/'] held at the base (head original a3181adab); exact originals NOT reproduced
+RESULT custody-live9 reproduced: True, current-docs4 reproduced: True, boot-source3 reproduced: True (patch-only), d-fee-kit reproduced: True

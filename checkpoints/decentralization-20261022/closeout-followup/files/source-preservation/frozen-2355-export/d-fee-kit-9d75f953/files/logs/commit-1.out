@@ -1,0 +1,29 @@
+[queue] START available=23792MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+4:35PM INF scanned ~297831 bytes (297.83 KB) in 27.8ms
+4:35PM INF no leaks found
+literal files []
+[scan] files 60 gitleaks=0 scan-crypto-keys=0 literal=0
+The following paths are ignored by one of your .gitignore files:
+logs/root-admit.guard.log
+logs/root-admit.out
+logs/root-admit.rc
+logs/root-build-record2.guard.log
+logs/root-build-record2.out
+logs/root-build-record2.rc
+logs/root-build-record2.try2.out
+logs/root-build-record2.try3.out
+logs/root-build-record2.try4.out
+logs/root-cutover-reads.guard.log
+logs/root-cutover-reads.out
+logs/root-cutover-reads.rc
+logs/root-prepare-admission.guard.log
+logs/root-prepare-admission.out
+logs/root-prepare-admission.rc
+logs/root-stage.guard.log
+logs/root-stage.out
+logs/root-stage.rc
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
+[memory-guard] exit=1 peakTreeRssMiB=53 minHostAvailableMiB=23742
+[memory-guard] at peak: gitleaks:37 bash:6 bash:6 timeout:4
+[queue] EXIT 1

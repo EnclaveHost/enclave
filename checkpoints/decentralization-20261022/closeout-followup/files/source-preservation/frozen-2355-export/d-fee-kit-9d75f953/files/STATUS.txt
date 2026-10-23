@@ -1,0 +1,3 @@
+[2026-10-23T23:35:54Z] D: fee activation kit source-ready (pending H commit + root approval). t5 full run PASS: python 49/49, node 16/16, mutants 89/89,
+scans 0/0/0. Tested digest 3b738a0556e6a273. No live action. No critical blocker found in the source; H's commit not yet available.
+[2026-10-23T23:46:05Z] D: evidence wording corrected (13.2 mwei = SDK scenario / suspected, not confirmed live); t6 PASS 49/16/89/scans; root's evidence/root-guestd-cutover.json removed from the (unpushed) commit by amend + prune. Tested digest 926afd135a5211fd.

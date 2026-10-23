@@ -1,0 +1,12 @@
+{
+ "source-preservation/": "frozen-2355 checkpoint tooling (\"2355\" = batch start 2026-10-23T23:55:07Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+ "source-preservation/RESULT-frozen-2329-checkpoint.md": "receipt of the 2329 batch (48c524ae, committed 23:32:34Z, pushed by 23:33:03Z; main 68b82926 unchanged)",
+ "source-preservation/snapshots-2355/": "Dated SNAPSHOT (2355 batch) of ROOT's living public output custody-v2-live-verification-20261023.md after the root-authorized 23:54Z top-status correction (6d1e3d31...; health stated only as last observed 23:47); its pre-correction bytes equal the stored 2329 snapshot and are not stored again",
+ "source-preservation/frozen-2355-export/": "FROZEN 2355 batch exported from Git objects; bases rebuilt from pushed 48c524ae material and every recorded tree reproduced (boot-source3 patch-only; d-fee-kit derived) - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: control recovery NOT done",
+ "source-preservation/frozen-2355-export/custody-live9-2b0c975b/": "ROOT live records on 851f7579: 23:31 renewals, approved sender price probe, verified normal registration receipt (23:41) before the failed gate; read-only metadata",
+ "source-preservation/frozen-2355-export/current-docs4-155a23f4/": "R reconciled custody docs on 967eeb96: status matrix, 23:36 attempt (registered/adopted, gate FAILED, rollback 23:43), payout is not accepted host ownership; not published",
+ "source-preservation/frozen-2355-export/boot-source3-5db2be3f/": "H explicit-fee boot source 5db2be3f on 9f6d37bd. PATCH-ONLY, parent-anchored to pushed 2217/2146 blob records; supervisor.js held back (rewritten literal); real parent + patch == 5db2be3f tree asserted. Run by root 23:36 (bc731956): gate FAILED, rolled back",
+ "source-preservation/frozen-2355-export/d-fee-kit-9d75f953/": "D fourth activation kit for the boot FEE build (source/provenance/tests, 49/16/89 PASS); run by root 23:36:51, gate FAILED, rollback 23:43:19. DERIVATIVE: committed old baseline omitted (blob recorded)",
+ "work/custody-boot-fee-activation-20261023/": "ROOT runtime receipts of the 23:36 control attempt, explicitly allowed by root (public ids/hashes/status only): result.json, gate.json, evidence/postrollback-public-health.json; exact bytes",
+ "work/custody-boot-registration-20261023/": "H outer docs (root-allowed, read and scanned): NORMAL-FEE-FIX.md and FEE-AMEND-STATUS.txt for the explicit-fee source; exact bytes"
+}

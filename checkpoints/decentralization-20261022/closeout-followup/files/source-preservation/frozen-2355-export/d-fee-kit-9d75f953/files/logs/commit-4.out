@@ -1,0 +1,5 @@
+[queue] START available=23289MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+4:46PM INF scanned ~330211 bytes (330.21 KB) in 28.7ms
+4:46PM INF no leaks found
+literal files []
+[scan] files 87 gitleaks=0 scan-crypto-keys=0 literal=0

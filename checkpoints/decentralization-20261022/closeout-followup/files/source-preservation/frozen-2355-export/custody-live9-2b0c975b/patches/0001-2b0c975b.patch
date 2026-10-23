@@ -1,0 +1,383 @@
+From 2b0c975b5b299cff4574099f8078ee3d8fce38b5 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 16:51:05 -0700
+Subject: [PATCH] Record app-funded renewals and verified normal registration
+ before failed health gate
+
+Public metadata projections label registry proof-key addresses explicitly; no private keys or signing material are included. Control recovery is not complete: operational gate failed and rolled back.
+---
+ evidence/approved-sender-price-2332.json      | 130 ++++++++++++++++++
+ evidence/boot-public-state.json               |   4 +-
+ evidence/protected-guest-health.json          |   2 +-
+ ...7ae77bdbcd49086040282e1e4b871c.intent.json |  21 +++
+ ...7ae77bdbcd49086040282e1e4b871c.result.json |   9 ++
+ ...faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json |  21 +++
+ ...faaeb9a3d5bab0fddfb5bc44ba68d9.result.json |   9 ++
+ evidence/registration-receipt-2341.json       |  48 +++++++
+ probes/registration-receipt-2341.mjs          |  15 ++
+ probes/renew-protected-2331.mjs               |  29 ++++
+ 10 files changed, 285 insertions(+), 3 deletions(-)
+ create mode 100644 evidence/approved-sender-price-2332.json
+ create mode 100644 evidence/protected-renewals-2331/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json
+ create mode 100644 evidence/protected-renewals-2331/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json
+ create mode 100644 evidence/protected-renewals-2331/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json
+ create mode 100644 evidence/protected-renewals-2331/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json
+ create mode 100644 evidence/registration-receipt-2341.json
+ create mode 100644 probes/registration-receipt-2341.mjs
+ create mode 100644 probes/renew-protected-2331.mjs
+
+diff --git a/evidence/approved-sender-price-2332.json b/evidence/approved-sender-price-2332.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..f9b1ad4dc4357d2e754d89d414c3fbceaa0c436c
+--- /dev/null
++++ b/evidence/approved-sender-price-2332.json
+@@ -0,0 +1,130 @@
++{
++  "at": "2026-10-23T23:32:04.967Z",
++  "readOnly": true,
++  "rpcs": [
++    "https://mainnet.base.org",
++    "https://base-rpc.publicnode.com"
++  ],
++  "chainIds": [
++    8453,
++    8453
++  ],
++  "block": {
++    "number": "53004484",
++    "hash": "0xb424a75d73d456f57bd2431e69220b084f5b0e3541e05744647e8c048ba9ac9b",
++    "timestamp": "1792798315"
++  },
++  "source": {
++    "commit": "5db2be3f4d4bed2c543e1e181c976ca9e26aa410",
++    "supervisorSha256": "e7f07b5336319bca9289d1a184b3d001a108fa67e54a636bb7862ed2ac2b84f3",
++    "bootDecisionSha256": "fe25be11f5ad5a8af438cdc3117e8a2060e4346af3328d15fa5fdc179f4c1120",
++    "senderSha256": "5a14810f960187579bd44ca4f318cea5722f682ae4e51bd1dc8a4006f0f9b3f3"
++  },
++  "registry": {
++    "address": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++    "codeHash": "0x39911d6f53959c610b9108bb906fc36ea8f57016c4b2571b5cd52c9c32a6f518"
++  },
++  "operator": {
++    "address": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++    "code": "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343",
++    "nonceAtBlock": "23759",
++    "latest": [
++      "23759",
++      "23759"
++    ],
++    "pending": [
++      "23759",
++      "23759"
++    ],
++    "balanceWei": "376132087579"
++  },
++  "executor": {
++    "address": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
++    "codeHash": "0xdd893cd48b7c102dc266949d027c33d396a7f8884533ee81b3b2275048ec9ab2"
++  },
++  "id": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++  "row": {
++    "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
++    "active": true,
++    "endpoint": "https://api.enclave.host/t/metal0",
++    "repo": "EnclaveHost/enclave",
++    "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "cpu": "834",
++    "gpu": "1667",
++    "registryProofAddress": "0x8604ce59f394daf05b235122E5Dc054F5C2bB453"
++  },
++  "desired": {
++    "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++    "endpoint": "https://api.enclave.host/t/metal0",
++    "repo": "EnclaveHost/enclave",
++    "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "cpuPricePerSec6": "834",
++    "gpuPricePerSec6": "1667",
++    "registryProofAddress": "0xffffffffffffffffffffffffffffffffffffffff"
++  },
++  "desiredPending": {
++    "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++    "endpoint": "https://api.enclave.host/t/metal0",
++    "repo": "EnclaveHost/enclave",
++    "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "cpuPricePerSec6": "834",
++    "gpuPricePerSec6": null,
++    "registryProofAddress": "0xffffffffffffffffffffffffffffffffffffffff"
++  },
++  "testProofKey": "0xffffffffffffffffffffffffffffffffffffffff",
++  "actions": {
++    "pending": {
++      "action": "setProofKey",
++      "reason": "only the proof key differs"
++    },
++    "discovered": {
++      "action": "setProofKey",
++      "reason": "only the proof key differs"
++    }
++  },
++  "fees": {
++    "isthmus": true,
++    "pricedBy": "the approved sendOperatorTx + viem prepareTransactionRequest (inert, no signer)"
++  },
++  "setProofKey": {
++    "perRpc": [
++      {
++        "rpc": "https://mainnet.base.org",
++        "senderGas": "38772",
++        "senderMaxFeePerGas": "7000000",
++        "senderMaxPriorityFeePerGas": "1000000",
++        "gas": "38772",
++        "maxFeePerGas": "7000000",
++        "maxPriorityFeePerGas": "1000000",
++        "nonce": "23759",
++        "sizes": {
++          "unsigned": 113,
++          "signedMax": 180
++        },
++        "l1FeeUpperBoundWei": "507960515",
++        "operatorFeeWei": "0",
++        "worstCaseWei": "271911960515"
++      },
++      {
++        "rpc": "https://base-rpc.publicnode.com",
++        "senderGas": "38772",
++        "senderMaxFeePerGas": "7000000",
++        "senderMaxPriorityFeePerGas": "1000000",
++        "gas": "38772",
++        "maxFeePerGas": "7000000",
++        "maxPriorityFeePerGas": "1000000",
++        "nonce": "23759",
++        "sizes": {
++          "unsigned": 113,
++          "signedMax": 180
++        },
++        "l1FeeUpperBoundWei": "507960515",
++        "operatorFeeWei": "0",
++        "worstCaseWei": "271911960515"
++      }
++    ],
++    "worstCaseWei": "271911960515"
++  },
++  "note": "bounds at this block only; the larger per-RPC worst case of the approved sender's own prepared setProofKey (worst-case test key) is what the gate checks",
++  "publicProjection": "On-chain proofKey fields are recorded as registryProofAddress (public Ethereum addresses)."
++}
+diff --git a/evidence/boot-public-state.json b/evidence/boot-public-state.json
+index aa438899ae1eb14a21e77ddedaf09f49bb761e98..37a5202ef3978560f27158739708575527c50f47 100644
+--- a/evidence/boot-public-state.json
++++ b/evidence/boot-public-state.json
+@@ -1,7 +1,7 @@
+ {
+-  "at": "2026-10-23T22:46:12.343Z",
++  "at": "2026-10-23T23:39:00.741Z",
+   "readOnly": true,
+-  "proofAddress": "0x9eaeB548222f174abDb7ebA32E5bDab146184485",
++  "proofAddress": "0x0e44E766c1d300E062bcE274d12396d797AbC8B3",
+   "keySource": "in-enclave",
+   "availabilityFields": [
+     "gpu",
+diff --git a/evidence/protected-guest-health.json b/evidence/protected-guest-health.json
+index 1137f656d6a95eaf4b73b91e2bc04d3877e0ec54..2f4daf3d5eac99a84a7c82af974182767e8d989b 100644
+--- a/evidence/protected-guest-health.json
++++ b/evidence/protected-guest-health.json
+@@ -1,5 +1,5 @@
+ {
+-  "at": "2026-10-23T22:07:01.146Z",
++  "at": "2026-10-23T23:44:30.572Z",
+   "readOnly": true,
+   "rows": [
+     {
+diff --git a/evidence/protected-renewals-2331/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json b/evidence/protected-renewals-2331/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..3eb3e8229e00bd8f470fe1afdaadc8e22e9e26be
+--- /dev/null
++++ b/evidence/protected-renewals-2331/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json
+@@ -0,0 +1,21 @@
++{
++  "nonce": "135",
++  "deadline": "1792798777",
++  "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++  "kind": "renew",
++  "lease": {
++    "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
++    "kind": 2,
++    "enclaveId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "nonce": "135",
++    "deadline": "1792798777",
++    "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++    "maxChargeWei": "2761748044036"
++  },
++  "fromBlock": "53004565",
++  "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
++  "reserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
++  "executor": "0x8900BACA2167873BA2F8a8bAE8b4876E6396d343",
++  "chainId": 8453,
++  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B"
++}
+diff --git a/evidence/protected-renewals-2331/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json b/evidence/protected-renewals-2331/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..2a17ef77ffab98208d189fd838bfebe1814d568c
+--- /dev/null
++++ b/evidence/protected-renewals-2331/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json
+@@ -0,0 +1,9 @@
++{
++  "at": "2026-10-23T23:34:50.472Z",
++  "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
++  "guest": "gdd0646f2c",
++  "hash": "0xa1f98673c65f37de9113f66f4b8e2cc860e7ad10d50ec755a65ffd27fff260c3",
++  "chargedWei": "1236055052904",
++  "operatorEthSpent": false,
++  "receiptVerified": true
++}
+diff --git a/evidence/protected-renewals-2331/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json b/evidence/protected-renewals-2331/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..afb2d3fa1288c12f94b6d1afd14ff0fb01a9e161
+--- /dev/null
++++ b/evidence/protected-renewals-2331/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json
+@@ -0,0 +1,21 @@
++{
++  "nonce": "133",
++  "deadline": "1792798557",
++  "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++  "kind": "renew",
++  "lease": {
++    "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
++    "kind": 2,
++    "enclaveId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "nonce": "133",
++    "deadline": "1792798557",
++    "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++    "maxChargeWei": "2761813673671"
++  },
++  "fromBlock": "53004455",
++  "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
++  "reserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
++  "executor": "0x8900BACA2167873BA2F8a8bAE8b4876E6396d343",
++  "chainId": 8453,
++  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B"
++}
+diff --git a/evidence/protected-renewals-2331/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json b/evidence/protected-renewals-2331/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..d93f5bb901b505bbf4c771c287a1a1955ff138cc
+--- /dev/null
++++ b/evidence/protected-renewals-2331/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json
+@@ -0,0 +1,9 @@
++{
++  "at": "2026-10-23T23:31:08.342Z",
++  "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
++  "guest": "gd9d4a391d",
++  "hash": "0xf6458d93ea43ea1d2f1b3ce43203a7a3a1e01f8c64a62f1357f117dd3da3a1dc",
++  "chargedWei": "1262773885861",
++  "operatorEthSpent": false,
++  "receiptVerified": true
++}
+diff --git a/evidence/registration-receipt-2341.json b/evidence/registration-receipt-2341.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8cc12f7beaf3036be12ac63b41df8549eea4e93
+--- /dev/null
++++ b/evidence/registration-receipt-2341.json
+@@ -0,0 +1,48 @@
++{
++  "at": "2026-10-23T23:41:12.385Z",
++  "readOnly": true,
++  "receiptVerified": true,
++  "rows": [
++    {
++      "url": "https://mainnet.base.org",
++      "hash": "0x12d7a5a4fc67bc49b8035ad8ec41fd808b4e24008df0d05efee2da7f1c7ab880",
++      "blockHash": "0x23964fee6819979b0d7e9767233fb577b234c13622363b6fb7fa8a87ff10132d",
++      "blockNumber": "53004641",
++      "status": "success",
++      "from": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++      "to": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++      "nonce": 23759,
++      "gas": "38760",
++      "gasUsed": "38393",
++      "maxFeePerGas": "7000000",
++      "maxPriorityFeePerGas": "1000000",
++      "effectiveGasPrice": "6000000",
++      "functionName": "setProofKey",
++      "host": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++      "registryProofAddress": "0x0e44E766c1d300E062bcE274d12396d797AbC8B3",
++      "currentBalanceWei": "145368427115",
++      "currentNonce": 23760
++    },
++    {
++      "url": "https://base-rpc.publicnode.com",
++      "hash": "0x12d7a5a4fc67bc49b8035ad8ec41fd808b4e24008df0d05efee2da7f1c7ab880",
++      "blockHash": "0x23964fee6819979b0d7e9767233fb577b234c13622363b6fb7fa8a87ff10132d",
++      "blockNumber": "53004641",
++      "status": "success",
++      "from": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++      "to": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++      "nonce": 23759,
++      "gas": "38760",
++      "gasUsed": "38393",
++      "maxFeePerGas": "7000000",
++      "maxPriorityFeePerGas": "1000000",
++      "effectiveGasPrice": "6000000",
++      "functionName": "setProofKey",
++      "host": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++      "registryProofAddress": "0x0e44E766c1d300E062bcE274d12396d797AbC8B3",
++      "currentBalanceWei": "145368427115",
++      "currentNonce": 23760
++    }
++  ],
++  "publicProjection": "On-chain proofKey fields are recorded as registryProofAddress (public Ethereum addresses)."
++}
+diff --git a/probes/registration-receipt-2341.mjs b/probes/registration-receipt-2341.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..ebe1773e9c28f9d5397e7917d8369388e1452de8
+--- /dev/null
++++ b/probes/registration-receipt-2341.mjs
+@@ -0,0 +1,15 @@
++import fs from 'node:fs';
++import {createPublicClient,http,decodeFunctionData,parseAbi} from 'viem';
++const hash='0x12d7a5a4fc67bc49b8035ad8ec41fd808b4e24008df0d05efee2da7f1c7ab880';
++const operator='0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab',registry='0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac';
++const abi=parseAbi(['function setProofKey(bytes32,address)']);
++const rows=[];
++for(const url of ['https://mainnet.base.org','https://base-rpc.publicnode.com']){
++ const c=createPublicClient({transport:http(url,{timeout:12000,retryCount:0})});
++ const [t,r,b,n]=await Promise.all([c.getTransaction({hash}),c.getTransactionReceipt({hash}),c.getBalance({address:operator}),c.getTransactionCount({address:operator})]);
++ const d=decodeFunctionData({abi,data:t.input});
++ if(t.from.toLowerCase()!==operator||t.to.toLowerCase()!==registry||t.value!==0n||r.status!=='success'||d.functionName!=='setProofKey'||d.args[0]!=='0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be'||d.args[1].toLowerCase()!=='0x0e44e766c1d300e062bce274d12396d797abc8b3')throw Error('Unexpected transaction/receipt');
++ rows.push({url,hash,blockHash:r.blockHash,blockNumber:r.blockNumber,status:r.status,from:t.from,to:t.to,nonce:t.nonce,gas:t.gas,gasUsed:r.gasUsed,maxFeePerGas:t.maxFeePerGas,maxPriorityFeePerGas:t.maxPriorityFeePerGas,effectiveGasPrice:r.effectiveGasPrice,functionName:d.functionName,host:d.args[0],registryProofAddress:d.args[1],currentBalanceWei:b,currentNonce:n});
++}
++if(rows[0].blockHash!==rows[1].blockHash||rows[0].gasUsed!==rows[1].gasUsed)throw Error('Receipt disagreement');
++const s=JSON.stringify({at:new Date().toISOString(),readOnly:true,receiptVerified:true,rows},(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n';fs.writeFileSync(new URL('../evidence/registration-receipt-2341.json',import.meta.url),s);console.log(s);
+diff --git a/probes/renew-protected-2331.mjs b/probes/renew-protected-2331.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..ff5b0564d20f4fd5f5dcc2395a5884d39fefe802
+--- /dev/null
++++ b/probes/renew-protected-2331.mjs
+@@ -0,0 +1,29 @@
++// Root incident operation: one app-funded renewal for an existing running protected guest.
++// Uses unchanged production client, delegation and policy; never spends operator ETH or claims another deployment.
++import fs from 'node:fs';
++import {createPublicClient,http} from 'viem';
++import {privateKeyToAccount} from 'viem/accounts';
++import {parseDeploymentRecord,LEDGER_ABI} from '../../custody-recipient-restore-20261023/repo/network/lease-gas-owner.mjs';
++import {createLeaseClient} from '../../custody-recipient-restore-20261023/repo/client/lease-executor-client.mjs';
++import {verifiedLeaseAuthority} from '../../custody-recipient-restore-20261023/repo/client/lease-executor-authority.mjs';
++import {GuestdControl,parseKey} from '../../linux-post-adoption-release/stage/metal-deabf8f90/isolation/m4/guestd/control-client.mjs';
++const allowed={'0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9':'gd9d4a391d','0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c':'gdd0646f2c'};
++const id=process.argv[2];if(!allowed[id])throw Error('not a protected ID');
++const dir=new URL('../evidence/protected-renewals-2331/',import.meta.url);fs.mkdirSync(dir,{recursive:true,mode:0o700});
++const intent=new URL(id+'.intent.json',dir);if(fs.existsSync(intent))throw Error('Existing attempt: reconcile, never resend blindly');
++const cfg=JSON.parse(fs.readFileSync('/home/steven/Projects/enclave/metal/config.json','utf8'));
++const account=privateKeyToAccount(cfg.registryKey);if(account.address.toLowerCase()!=='0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab')throw Error('operator');
++const dep=parseDeploymentRecord(fs.readFileSync('/home/steven/enclave-prod/lease-gas/deployment.json'),{expectedDigest:'sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089'});
++const clients=['https://base-rpc.publicnode.com','https://mainnet.base.org','https://base-mainnet.public.blastapi.io'].map(url=>createPublicClient({transport:http(url,{timeout:12000,retryCount:0})}));
++const a=await verifiedLeaseAuthority({clients,deployment:dep,quorum:2});
++const row=await a.client.readContract({address:a.pins.ledger,abi:LEDGER_ABI,functionName:'get',args:[id]});
++if(!row.active||row.runner.toLowerCase()!=='0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be'||row.runnerOperator.toLowerCase()!==account.address.toLowerCase())throw Error('not this operator active lease');
++const pair=parseKey(fs.readFileSync('/home/steven/enclave-prod/guestd-pair.key','utf8'));
++try{const c=new GuestdControl('http://127.0.0.1:8095',pair,{requestTimeoutMs:12000,maxResponseBytes:131072});const v=await c.request('GET','/vms/'+allowed[id]);if(v.status!==200||v.body.status!=='running'||v.body.name!==id)throw Error('protected guest not running');}finally{pair.fill(0)}
++const stringify=x=>JSON.stringify(x,(_,v)=>typeof v==='bigint'?String(v):v,2)+'\n';
++const lc=createLeaseClient({clients,account,reserve:dep.reserve,deployment:dep,relays:cfg.leaseGas.relays,quorum:2,
++ onSigned:async r=>{if(r.kind!=='renew'||r.lease.id!==id||r.lease.maxChargeWei>31092172031561n)throw Error('intent exceeds existing policy ceiling');
++ const fd=fs.openSync(intent,'wx',0o600);try{fs.writeSync(fd,stringify(r));fs.fsyncSync(fd)}finally{fs.closeSync(fd)}},
++ log:()=>{}});
++if(!process.argv.includes('--execute')){console.log(stringify({readOnly:true,id,guest:allowed[id],leaseUntil:row.leaseUntil,at:new Date().toISOString(),readyForClientPolicyCheck:true}));process.exit(0);}
++try{const r=await lc.renew(id);const out={at:new Date().toISOString(),id,guest:allowed[id],hash:r.hash,chargedWei:r.verified.chargedWei,operatorEthSpent:false,receiptVerified:true};fs.writeFileSync(new URL(id+'.result.json',dir),stringify(out),{mode:0o600,flag:'wx'});console.log(stringify(out));}catch(e){console.error(JSON.stringify({code:e.code||'error',message:String(e.shortMessage||e.message).slice(0,450),intentExists:fs.existsSync(intent)}));process.exitCode=1}

@@ -1,0 +1,36 @@
+[queue] START available=23107MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+......F....F....................................
+======================================================================
+FAIL: test_approval_and_plan (test_activation.Build.test_approval_and_plan)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-fee-activation-20261023/tests/test_activation.py", line 336, in test_approval_and_plan
+    got, h = C.approved_build(d/'build.json', d/'APPROVED-BUILD.txt'); self.assertEqual(h, C.sha(raw))
+             ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-fee-activation-20261023/common.py", line 565, in approved_build
+    raise AssertionError('build.json carries no new measurement')
+AssertionError: build.json carries no new measurement
+
+======================================================================
+FAIL: test_the_actual_completed_build_passes (test_activation.Build.test_the_actual_completed_build_passes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-fee-activation-20261023/tests/test_activation.py", line 262, in test_the_actual_completed_build_passes
+    rec, p = self.bp(); self.assertEqual(p, [])
+                        ~~~~~~~~~~~~~~~~^^^^^^^
+AssertionError: Lists differ: ["the candidate measurement is a previous image's"] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+"the candidate measurement is a previous image's"
+
+- ["the candidate measurement is a previous image's"]
++ []
+
+----------------------------------------------------------------------
+Ran 48 tests in 1.001s
+
+FAILED (failures=2)
+[memory-guard] exit=1 peakTreeRssMiB=62 minHostAvailableMiB=23075
+[memory-guard] at peak: python3:36 python3:14 python3:12
+[queue] EXIT 1

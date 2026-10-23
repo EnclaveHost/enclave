@@ -1,0 +1,119 @@
+{
+  "startedAt": "2026-10-23T23:36:51.803460+00:00",
+  "measurement": "bc731956cb425b886386375ac1dcea9dc91a04d7fc50715666c76aba193412c8455548dfbb36d979d8a53922668b896b",
+  "commit": "5db2be3f4d4bed2c543e1e181c976ca9e26aa410",
+  "image": "/home/steven/enclave-prod/dist-leasegas-5db2be3f4",
+  "previousImage": "/home/steven/enclave-prod/dist-leasegas-deabf8f90",
+  "configBeforeSha256": "58aa9653586b6e4d67f2198dde111fad0329d2b33770c4f4a4ba14d5ddc220b3",
+  "configAfterSha256": "735684280a57eb1dd55c30cde366d5533a86c035096633d957e1f1943b254162",
+  "protected": {
+    "unit": {
+      "ActiveState": "active",
+      "SubState": "running",
+      "MainPID": "634668",
+      "WorkingDirectory": "/home/steven/enclave-prod/metal-deabf8f90",
+      "KillMode": "control-group"
+    },
+    "dropins": {
+      "80-shield-inference.conf": "9f3acb480ce85b85cb02acd3fa0a9d5eb50e5b0a823a3a09b150cbe88eddd40b",
+      "95-app-funded-leases.conf": "71b3feb343f3f02ac4fc555df33d8571ffeb2e92d7dd0b4f33474ad549037daa"
+    }
+  },
+  "state": "rolled back to the previous control image (deabf8f90, ed918e4b)",
+  "preCutoverGuests": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "gd9d4a391d",
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "gdd0646f2c"
+  },
+  "preCutoverHistory": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": [],
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": []
+  },
+  "appsHealth": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": {
+      "url": "https://da09d0f2.app.enclave.host/",
+      "kind": "html",
+      "minBytes": 1024,
+      "title": "image generator"
+    },
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": {
+      "url": "https://9eb4e600.app.enclave.host/ping",
+      "kind": "json-ping"
+    }
+  },
+  "preCutoverRecords": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "507be9a521c8e856c4a456ec79babaa32363fde930d5faa763dcc43f4033b7e9",
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "4c6a3075a5b41248c23b3f14a1c3c39fec5f9841952faf3ab2a9d37ce3fb29c8"
+  },
+  "baselineSource": "guestd (root authenticated listing e5b430a099a733c5)",
+  "oldControlAdopted": false,
+  "availabilityAtBaseline": "absent: the old control is not registered and adopted nothing",
+  "buildSha256": "340dc3aeed0c18f3f4a2b258a5b6a94617bd9ab9799a18914eb2651a69db0938",
+  "shieldedGpuExpected": 2,
+  "cutoverLeaseSeconds": {
+    "0xda09d0f2": 1455,
+    "0x9eb4e600": 1677
+  },
+  "bootFunding": {
+    "block": "53004627",
+    "actions": {
+      "pending": "setProofKey",
+      "discovered": "setProofKey"
+    },
+    "balanceWei": "376132087579",
+    "setProofKeyWorstCaseWei": "271929253610",
+    "nonce": "23759"
+  },
+  "adoption": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "[claim] 0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9 adopted: app=image-generator:1.1.16 (catalog://0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6/42) gpuShare=0.1 cpuShare=0.14 lease until 2026-10-24T00:01:07.000Z",
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "[claim] 0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c adopted: app=eyesoff-ai:1.0.85 (catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/85) gpuShare=0.8 cpuShare=0.65 lease until 2026-10-24T00:04:49.000Z"
+  },
+  "guests": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "gd9d4a391d",
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "gdd0646f2c"
+  },
+  "renewalsObserved": {},
+  "productionActivated": false,
+  "journalSince": "2026-10-23 16:36:51",
+  "lastObservationError": "attestation -> 404",
+  "attachedAt": "2026-10-23T23:37:15.857103+00:00",
+  "leaseBeforeGate": {
+    "blockTs": 1792798751,
+    "block": "53004702",
+    "expiry": {
+      "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": 1792800067,
+      "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": 1792800289
+    },
+    "holder": {
+      "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": [
+        "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+        "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+        true
+      ],
+      "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": [
+        "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+        "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+        true
+      ]
+    },
+    "readAt": 1792798757.7706022
+  },
+  "gateWatchdog": {
+    "outcome": "exited",
+    "returncode": 1,
+    "reads": 3,
+    "readErrors": []
+  },
+  "error": "RuntimeError",
+  "detail": "the operational gate FAILED: [\"after the window started: \", \"0x9eb4e600: app not healthy (HTTP None URLError)\"]",
+  "stoppedAt": "2026-10-23T23:43:19.707209+00:00",
+  "pendingSponsoredDeadlines": [],
+  "rolledBackAt": "2026-10-23T23:43:19.723688+00:00",
+  "registry": {
+    "path": "setProofKey + adopt",
+    "setProofKeyTx": "0x12d7a5a4fc67bc49b8035ad8ec41fd808b4e24008df0d05efee2da7f1c7ab880",
+    "lines": [
+      "[registry] adopted the existing registration of https://api.enclave.host/t/metal0 id=0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be (only the proof key differs; GPU price pending shielded discovery): proofKey=0x0e44E766c1d300E062bcE274d12396d797AbC8B3 tx=0x12d7a5a4fc67bc49b8035ad",
+      "[registry] payout wallet declared on-chain: 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61 \u2014 its own deployments run free here"
+    ]
+  }
+}

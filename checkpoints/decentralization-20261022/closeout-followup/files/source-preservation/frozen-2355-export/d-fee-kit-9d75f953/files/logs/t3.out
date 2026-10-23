@@ -1,0 +1,23 @@
+[queue] START available=23394MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+......F..........................................
+======================================================================
+FAIL: test_approval_and_plan (test_activation.Build.test_approval_and_plan)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-fee-activation-20261023/tests/test_activation.py", line 355, in test_approval_and_plan
+    (d/'plan.json').write_text(json.dumps(plan)); n = C.load_new(d)
+                                                      ~~~~~~~~~~^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-fee-activation-20261023/common.py", line 573, in load_new
+    rec, h = approved_build(a/'build.json', a/'APPROVED-BUILD.txt')
+             ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-fee-activation-20261023/common.py", line 565, in approved_build
+    raise AssertionError('build.json carries no new measurement')
+AssertionError: build.json carries no new measurement
+
+----------------------------------------------------------------------
+Ran 49 tests in 1.187s
+
+FAILED (failures=1)
+[memory-guard] exit=1 peakTreeRssMiB=57 minHostAvailableMiB=23295
+[memory-guard] at peak: python3:40 python3:18
+[queue] EXIT 1

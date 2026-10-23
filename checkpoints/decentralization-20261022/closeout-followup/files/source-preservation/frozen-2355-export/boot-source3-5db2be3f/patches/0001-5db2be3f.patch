@@ -1,0 +1,745 @@
+From 5db2be3f4d4bed2c543e1e181c976ca9e26aa410 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 16:25:11 -0700
+Subject: [PATCH] metal boot: pending shielded GPU price (7dd3acd's reviewed
+ delta) + explicit operator fees on the normal sender
+
+This commit carries 7dd3acd's reviewed change byte for byte (supervisor.js, metal/guest/gsup.mjs,
+test/boot-gpu-price.test.mjs, test/registry-advertise-retry.test.mjs) plus one bounded correction, so the
+existing approval-gated build template (single-parent child of 9f6d37bd) can build it.
+
+The correction (2026-10-23, metal0 23:10Z: the boot write was refused "insufficient funds" despite a
+passing prefund check; the fee actually sent was not observed): sendOperatorTx left gas and fees to viem's
+writeContract. In viem 2.53.1 that first asks the node to fill the transaction (eth_fillTransaction), and
+WHERE a node fills, viem multiplies the node's maxFeePerGas by 1.2 again - against a node filling
+2 x base + tip, ~13.2 mwei at a 5 mwei base fee instead of 7. That is a reproducible SDK failure scenario
+and the suspected production cause, not a confirmed production fee (a direct mainnet.base.org probe did not
+fill and fell back to 7 mwei; root will verify the next normal send by its receipt). Where no node fills,
+nothing changes. Now, inside the same operator queue: estimateFeesPerGas (block + eth_maxPriorityFeePerGas,
+no fill), then estimateContractGas from the operator account at exactly those fees (the node's own estimate,
+by fill or eth_estimateGas), then writeContract with that gas and those fees explicit; viem keeps
+caller-supplied fees and does not multiply them. A failed read or estimate rejects before anything is
+signed. Addresses, functions, arguments, the nonce source, the receipt queue and the delegation are
+unchanged.
+
+test/operator-fee-path.test.mjs runs the supervisor's own claimSigner/sendOperatorTx/awaitReceipt on real
+viem 2.53.1 clients for Base over a recording stub node that fills a HIGHER fee: against it the 7dd3acd
+baseline signs 13.2 mwei; the fix signs 7 mwei with the node's fee-capped gas, from the operator, every node
+question at the signed fees; failures send nothing; the queue still serializes through receipts.
+---
+ metal/guest/gsup.mjs                   |  10 +-
+ supervisor.js                          |  71 +++++--
+ test/boot-gpu-price.test.mjs           | 283 +++++++++++++++++++++++++
+ test/operator-fee-path.test.mjs        | 175 +++++++++++++++
+ test/registry-advertise-retry.test.mjs |  25 ++-
+ 5 files changed, 545 insertions(+), 19 deletions(-)
+ create mode 100644 test/boot-gpu-price.test.mjs
+ create mode 100644 test/operator-fee-path.test.mjs
+
+diff --git a/metal/guest/gsup.mjs b/metal/guest/gsup.mjs
+index 198dca46787a11b188ba5d974f9f69af6ccffaf6..5dbf05eb3a7e94f77492dae7d054ddc25b88d79b 100644
+--- a/metal/guest/gsup.mjs
++++ b/metal/guest/gsup.mjs
+@@ -462,6 +462,13 @@
+ } else if (LEASE_GAS?.configured)
+   log(`app-funded lease gas REFUSED (${LEASE_GAS.reason}): every claim, renewal and release refuses; the operator's ETH is never used for them`);
+ 
++// The shielded workers this box is configured to probe (the probe loop below). Declared here because the supervisor's env
++// states how many cards are EXPECTED (SHIELDED_GPU_EXPECTED): it starts with GPU_COUNT=0 and learns a card only when that card's
++// probe passes, so until then a 0 GPU price means "not discovered yet", not "no card" (supervisor.js gpuPricePending).
++const configuredShieldedWorkers = fw.isolation && fw.isolationShieldedWorkers ? fw.isolationShieldedWorkers : fw.shieldedWorkers ?? (fw.shieldedWorker ? [fw.shieldedWorker] : []);
++const shieldedWorkers = Array.isArray(configuredShieldedWorkers) ? configuredShieldedWorkers.slice(0, 16) : [];
++const SHIELDED_GPU_EXPECTED = shieldedWorkers.filter((sw) => sw && sw.port).length;
++
+ // --- supervisor (base root) --------------------------------------------------
+ if (!CONTROL) {
+ const supEnv = {
+@@ -474,6 +481,7 @@
+   PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+   PORT: '8080',
+   GPU_COUNT: '0',
++  ...(SHIELDED_GPU_EXPECTED > 0 ? { SHIELDED_GPU_EXPECTED: String(SHIELDED_GPU_EXPECTED) } : {}),
+   PROVISION_BACKEND: 'vm',
+   VMMGR_URL: ISO_BACKEND ? String(ISO_CFG.managerUrl || '') : 'http://127.0.0.1:8091',
+   ...(ISO_BACKEND ? { ISOLATION_BACKEND: ISO_BACKEND, GUESTD_KEY_FILE: ISO_KEY_FILE,
+@@ -587,8 +595,6 @@
+ // It is deliberately at boot rather than on demand. The failure this catches --
+ // a worker that is absent, wrong-version, or quietly returning garbage -- is one
+ // you want to find before a tenant's request depends on it.
+-const configuredShieldedWorkers = fw.isolation && fw.isolationShieldedWorkers ? fw.isolationShieldedWorkers : fw.shieldedWorkers ?? (fw.shieldedWorker ? [fw.shieldedWorker] : []);
+-const shieldedWorkers = Array.isArray(configuredShieldedWorkers) ? configuredShieldedWorkers.slice(0, 16) : [];
+ const shieldedVerdicts = new Map();
+ const VERDICT = '/run/shielded-gpu.json';
+ const publishShieldedVerdicts = () => {
+diff --git a/supervisor.js b/supervisor.js
+index 66ad07d37546dd00fd0349a8908e392d7ad02d45..475079bfc5f59bfe7a8901acccf21067d2f60c5e 100644
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -657,7 +657,7 @@
+         // Fail closed: adopt ONLY when a fresh read shows the whole row current (this key included). A failed or lagging
+         // read, a superseded key, a deactivation or any other changed field throws; the next normal attempt reads again
+         // and adopts without a transaction if the row is current by then.
+-        const after = await bootRegistration(id, endpoint, proofKey);
++        const after = await bootRegistration(id, endpoint, proofKey).catch((e) => ({ action: "unread", reason: e.message }));
+         if (after.action !== "adopt")
+           throw new Error(`after setProofKey ${tx} the row is not adoptable yet (${after.reason}); the next attempt reads it again`);
+       }
+@@ -666,18 +666,19 @@
+       console.log(`[registry] adopted the existing registration of ${endpoint} id=${id} (${boot.reason})`
+         + (tx ? `: proofKey=${proofKey} tx=${tx}` : `: no transaction, proofKey=${proofKey}`));
+     } else {
++    const gpuPrice = boot.gpuPrice ?? BigInt(SELL_GPU_PRICE6);   // pending: the row's own exact price, never a not-yet-discovered 0
+     const hash = rev >= 3
+       ? await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "register",
+-          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6), proofKey])
++          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(gpuPrice), proofKey])
+       : rev >= 2
+       ? await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI_V2, "register",
+-          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6)])
++          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(gpuPrice)])
+       : await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI_V1, "register",
+           [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT]);
+     _enclaveId = id; _advertisedEndpoint = endpoint;        // unlocks the claim loop (portable deployments)
+     _activeSeen = null;                                     // register() just set the row active; the next pass re-reads it
+     console.log(`[registry] registered ${endpoint} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`
+-      + (rev >= 2 ? ` price=${SELL_CPU_PRICE6}/sec node${IS_GPU ? ` + ${SELL_GPU_PRICE6}/sec card` : ""}` : " (schema 1: unpriced)")
++      + (rev >= 2 ? ` price=${SELL_CPU_PRICE6}/sec node${IS_GPU || gpuPrice ? ` + ${gpuPrice}/sec card` : ""}` : " (schema 1: unpriced)")
+       + (rev >= 3 ? ` proofKey=${proofKey}` : " (pre-schema-3 registry: no proof key published)")
+       + (rev >= 3 ? ` (${boot.reason})` : ""));
+     }
+@@ -707,16 +708,26 @@
+ }
+ 
+ // Boot registration choice (registerOnChain): read THIS row once and compare it with exactly what register() would write.
+-//   register     no row / another operator (register() reverts "not operator", as before) / inactive (boot re-activates,
+-//                as before) / any of endpoint, repo, measurement, cpu or gpu price differs / the read failed
++//   register     a SUCCESSFULLY read row that is missing / another operator's (register() reverts "not operator", as before) /
++//                inactive (boot re-activates, as before) / differs in endpoint, repo, measurement, cpu or gpu price (gpu: unless pending)
+ //   setProofKey  this operator's active row, every field equal except the proof key
+ //   adopt        this operator's active row, every field equal including the proof key
++// A FAILED read decides nothing: it throws, so the attempt sends nothing and advertise() retries with its normal backoff. A
++// failed RPC is no evidence that the row is missing or different, and a blind register() would spend the operator's one boot
++// transaction (in every state: GPU price pending, card discovered, CPU-only).
++// While the GPU price is pending (gpuPricePending): the GPU price is not compared, and a register() restates this operator's
++// row's own GPU price, exactly (the uint64 as read), instead of the 0 that only means "not discovered yet" (gpuPrice).
+ async function bootRegistration(id, endpoint, proofKey) {
++  const pending = gpuPricePending();
+   let row;
+   try { row = await registryEntry(id); }
+-  catch (e) { return { action: "register", reason: `registry read failed (${String(e.shortMessage || e.message).slice(0, 120)}): full register` }; }
+-  return bootRegistrationAction(row, { operator: claimSigner().account.address, endpoint, repo: ENCLAVE_REPO,
+-    measurement: ENCLAVE_MEASUREMENT, cpuPricePerSec6: SELL_CPU_PRICE6, gpuPricePerSec6: SELL_GPU_PRICE6, proofKey });
++  catch (e) { throw new Error(`registry read failed (${String(e.shortMessage || e.message).slice(0, 120)}): no decision; the next attempt reads again`); }
++  const operator = claimSigner().account.address;
++  const b = bootRegistrationAction(row, { operator, endpoint, repo: ENCLAVE_REPO,
++    measurement: ENCLAVE_MEASUREMENT, cpuPricePerSec6: SELL_CPU_PRICE6, gpuPricePerSec6: pending ? null : SELL_GPU_PRICE6, proofKey });
++  if (!pending) return b;
++  const own = !!row && String(row.operator || "").toLowerCase() === String(operator).toLowerCase();
++  return { ...b, reason: `${b.reason}; GPU price pending shielded discovery`, gpuPrice: own ? BigInt(row.gpuPricePerSec6) : BigInt(SELL_GPU_PRICE6) };
+ }
+ function bootRegistrationAction(row, want) {
+   const lc = (x) => String(x == null ? "" : x).toLowerCase();
+@@ -724,7 +735,8 @@
+   if (lc(row.operator) !== lc(want.operator)) return { action: "register", reason: "registered to another operator" };
+   if (row.active !== true) return { action: "register", reason: "inactive on chain: boot re-registers" };
+   const same = row.endpoint === want.endpoint && row.repo === want.repo && lc(row.measurement) === lc(want.measurement)
+-    && String(row.cpuPricePerSec6) === String(want.cpuPricePerSec6) && String(row.gpuPricePerSec6) === String(want.gpuPricePerSec6);
++    && String(row.cpuPricePerSec6) === String(want.cpuPricePerSec6)
++    && (want.gpuPricePerSec6 == null || String(row.gpuPricePerSec6) === String(want.gpuPricePerSec6));   // null: pending, not compared
+   if (!same) return { action: "register", reason: "the registered fields differ" };
+   if (lc(row.proofKey) === lc(want.proofKey)) return { action: "adopt", reason: "already registered exactly" };
+   return { action: "setProofKey", reason: "only the proof key differs" };
+@@ -770,11 +782,14 @@
+   let e;
+   try { e = await registryEntry(id); }
+   catch { return; }                                         // transient read: try again next pass
+-  if (Number(e.cpuPricePerSec6) === SELL_CPU_PRICE6 && Number(e.gpuPricePerSec6) === SELL_GPU_PRICE6) return;
++  // pending (gpuPricePending): the row keeps its exact GPU price (uint64, as read) until the card is adopted (adoptShieldedCards
++  // syncs then) or the wait ends
++  const gpu = gpuPricePending() ? BigInt(e.gpuPricePerSec6) : BigInt(SELL_GPU_PRICE6);
++  if (Number(e.cpuPricePerSec6) === SELL_CPU_PRICE6 && BigInt(e.gpuPricePerSec6) === gpu) return;
+   if (!mayReconcile(e, claimSigner().account.address)) return;  // a deregistered (or another's) row is not re-priced
+   const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "setPrices",
+-    [id, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6)]);
+-  console.log(`[registry] price published: ${SELL_CPU_PRICE6}/sec node, ${SELL_GPU_PRICE6}/sec card `
++    [id, BigInt(SELL_CPU_PRICE6), gpu]);
++  console.log(`[registry] price published: ${SELL_CPU_PRICE6}/sec node, ${gpu}/sec card `
+     + `(was ${e.cpuPricePerSec6}/${e.gpuPricePerSec6}) tx=${h}`);
+ }
+ 
+@@ -3053,6 +3068,19 @@
+ // CPU-only enclave has no card to sell (0).
+ const SELL_CPU_PRICE6 = Math.max(1, Math.round(parseFloat(process.env.SELL_CPU_PRICE6 || "") || 834));
+ let SELL_GPU_PRICE6   = IS_GPU ? Math.max(0, Math.round(parseFloat(process.env.SELL_GPU_PRICE6 || "") || 1667)) : 0;
++// A SHIELDED card's price is not known at boot: gsup starts this process with GPU_COUNT=0, so IS_GPU is false and the price
++// above is 0 until the card's probe passes (adoptShieldedCards). gsup states how many shielded cards this box is configured to
++// probe (SHIELDED_GPU_EXPECTED, from host config). While such a card is expected and not yet adopted, the GPU price is PENDING:
++// the boot registry decision does not compare it, and no registry write replaces the row's GPU price with that 0 (registering
++// or re-pricing to 0 only because the probe has not finished yet). Bounded: GPU_DISCOVERY_WAIT_MS after start without an
++// adopted card, 0 is a fact again (no card to sell) and everything behaves as before. A CPU-only box (nothing expected) and a
++// card inside the CVM (GPU_COUNT > 0) never pend.
++const SHIELDED_GPU_EXPECTED = Math.max(0, parseInt(process.env.SHIELDED_GPU_EXPECTED || "0", 10) || 0);
++const GPU_DISCOVERY_WAIT_MS = 15 * 60_000;
++const GPU_DISCOVERY_FROM    = Date.now();
++function gpuPricePending(now = Date.now()) {
++  return SHIELDED_GPU_EXPECTED > 0 && !IS_GPU && now - GPU_DISCOVERY_FROM < GPU_DISCOVERY_WAIT_MS;
++}
+ // Whether the operator STATED that price or inherited the default. Only the
+ // pre-rev-8 floor cares: on those ledgers the price is global and a record may
+ // have been created at an older, lower one, so applying our default as a floor
+@@ -9666,9 +9694,22 @@
+     await sleepMs(2000);
+   }
+ }
++// Gas and fees are this queue's own fresh reads, stated EXPLICITLY on the write (2026-10-23, metal0). Left unset, viem's
++// writeContract first asks the node to fill the transaction (eth_fillTransaction); WHERE a node fills, viem multiplies the
++// node's maxFeePerGas by its 1.2 base-fee multiplier again (viem 2.53 actions/public/fillTransaction.js) - with a node that
++// fills 2 x base + tip, ~13.2 mwei at a 5 mwei base fee where estimateFeesPerGas says 7. That is a reproducible SDK failure
++// scenario and the SUSPECTED cause of metal0's "insufficient funds" boot write; the fee actually sent there was not
++// observed (a direct mainnet.base.org probe did not fill and fell back to 7 mwei). Where no node fills, nothing changes.
++// estimateFeesPerGas never fills; estimateContractGas runs from this account at exactly those fees; writeContract keeps
++// caller-supplied gas and fees as given. A failed read or estimate rejects before anything is signed or sent.
+ function sendOperatorTx(address, abi, functionName, args) {
+-  const p = _txChain.then(() => claimSigner().wallet.writeContract({
+-    address: getAddress(address), abi, functionName, args }));
++  const p = _txChain.then(async () => {
++    const { account, wallet } = claimSigner();
++    const to = getAddress(address);
++    const { maxFeePerGas, maxPriorityFeePerGas } = await chainClient.estimateFeesPerGas();
++    const gas = await chainClient.estimateContractGas({ address: to, abi, functionName, args, account, maxFeePerGas, maxPriorityFeePerGas });
++    return wallet.writeContract({ address: to, abi, functionName, args, gas, maxFeePerGas, maxPriorityFeePerGas });
++  });
+   const rcptP = p.then((hash) => awaitReceipt(hash));
+   _txChain = rcptP.then(() => {}, () => {});   // keep the queue alive across failures
+   p.receipt = rcptP;   // callers that need the outcome share the queue's own
+diff --git a/test/boot-gpu-price.test.mjs b/test/boot-gpu-price.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..0c963a002db3fc13ef5c3a894e07bb86abb11010
+--- /dev/null
++++ b/test/boot-gpu-price.test.mjs
+@@ -0,0 +1,283 @@
++// The boot GPU-price race (2026-10-23, metal0; D's review of 9f6d37bd): gsup starts the supervisor with GPU_COUNT=0, so its
++// GPU price is 0 until the shielded card's probe passes, and advertise() runs before that. Tested on the REAL code paths:
++//   - gsup.mjs is actually RUN (test/helpers/gsup-env-harness.mjs) on a metal0-shaped host config to capture the supervisor env;
++//   - the supervisor's own price declarations (GPU_COUNT, IS_GPU, SELL_*_PRICE6, the pending state) are evaluated with exactly
++//     that env, and its registerOnChain / bootRegistration(Action) / advertise / syncRegisteredPrice / adoptShieldedCards run
++//     against a stub registry that applies register / setProofKey / setPrices on their receipts;
++//   - BASELINE COUNTEREXAMPLE: the same scenario on 9f6d37bd's gsup + supervisor (the staged 08d1f838 image).
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { execFile, execFileSync } from 'node:child_process';
++import { promisify } from 'node:util';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++import { mayReconcile } from '../network/registry-reconcile.mjs';
++
++const pexec = promisify(execFile);
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const HARNESS = path.join(REPO, 'test/helpers/gsup-env-harness.mjs');
++const BASE = '9f6d37bd858ad44be1171b6415353910214c2fa5';
++const CMDLINE = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app';
++const FWCFG = '/sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.metal/raw';
++const OP = '0x00000000000000000000000000000000000000aa';
++const URL0 = 'https://api.enclave.host/t/metal0';
++// metal0-shaped host config: per-app isolation, one shielded card on the untrusted host priced at $6/card-hr (= 1667/sec)
++const ISO = { managerUrl: 'http://10.0.2.2:8095', pairingKey: 'ab'.repeat(32), dataAddr: '10.0.2.2:8096', release: true };
++const FW_GPU = { name: 'metal0', publicUrl: URL0, relayUrl: 'wss://api.enclave.host/v1/fleet-tunnel', registryKey: '0x' + '11'.repeat(32),
++  nodeRamGb: 96, isolation: ISO, isolationShieldedWorkers: [{ port: 9555, priceUsdHr: 6 }] };
++const FW_CPU = { ...FW_GPU, isolationShieldedWorkers: undefined };
++
++async function runGsup(gsupFile, fw) {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gsup-env-'));
++  try {
++    const out = path.join(dir, 'supervisor-spawn.json');
++    const H = { out, files: { '/proc/cmdline': CMDLINE + '\n', [FWCFG]: JSON.stringify(fw), '/opt/metal/flavor-env.json': '{}' } };
++    await pexec(process.execPath, ['--import', HARNESS, gsupFile], { env: { PATH: process.env.PATH, GSUP_HARNESS: JSON.stringify(H) }, cwd: dir, timeout: 30000 });
++    return JSON.parse(fs.readFileSync(out, 'utf8')).env;
++  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
++}
++// 9f6d37bd's gsup, run as a byte copy beside the real bundles it imports (same relative paths), as the custody env test does
++async function runBaseGsup(fw) {
++  const dir = fs.mkdtempSync(path.join(REPO, 'metal/guest/.base-'));
++  try {
++    for (const f of fs.readdirSync(path.join(REPO, 'metal/guest'))) if (/\.mjs$/.test(f) && f !== 'gsup.mjs') fs.copyFileSync(path.join(REPO, 'metal/guest', f), path.join(dir, f));
++    fs.writeFileSync(path.join(dir, 'gsup.mjs'), execFileSync('git', ['-C', REPO, 'show', `${BASE}:metal/guest/gsup.mjs`]));
++    return await runGsup(path.join(dir, 'gsup.mjs'), fw);
++  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
++}
++// mutation runs (../mutants-price.sh) point these at a mutated copy; normally the repo's own files
++const GSUP = process.env.BOOT_PRICE_GSUP || path.join(REPO, 'metal/guest/gsup.mjs');
++const CURRENT_SRC = fs.readFileSync(process.env.BOOT_PRICE_SUPERVISOR || path.join(REPO, 'supervisor.js'), 'utf8');
++const BASE_SRC = execFileSync('git', ['-C', REPO, 'show', `${BASE}:supervisor.js`], { maxBuffer: 64 << 20 }).toString();
++
++function pieces(src) {
++  const one = (re, what, optional = false) => { const m = re.exec(src); if (!m && !optional) throw new Error(`${what} not in supervisor.js`); return m ? m[0] : ''; };
++  return [
++    one(/^let GPU_COUNT .*$/m, 'GPU_COUNT'), one(/^let IS_GPU .*$/m, 'IS_GPU'),
++    one(/^const SELL_CPU_PRICE6 = .*$/m, 'SELL_CPU_PRICE6'), one(/^let SELL_GPU_PRICE6 .*$/m, 'SELL_GPU_PRICE6'),
++    one(/^const SHIELDED_GPU_EXPECTED[\s\S]*?\nfunction gpuPricePending\(now = Date\.now\(\)\) \{[\s\S]*?\n\}/m, 'the pending state', true),
++    one(/function registryRepointed\(\) \{[\s\S]*?\n\}/, 'registryRepointed'),
++    one(/async function registerOnChain\(endpoint\) \{[\s\S]*?\n\}/, 'registerOnChain'),
++    one(/async function bootRegistration\(id, endpoint, proofKey\) \{[\s\S]*?\n\}/, 'bootRegistration'),
++    one(/function bootRegistrationAction\(row, want\) \{[\s\S]*?\n\}/, 'bootRegistrationAction'),
++    one(/async function syncRegisteredPrice\(id\) \{[\s\S]*?\n\}/, 'syncRegisteredPrice'),
++    one(/function adoptShieldedCards\(values\) \{[\s\S]*?\n\}/, 'adoptShieldedCards'),
++    one(/async function registerSelf\(\) \{[\s\S]*?\n\}/, 'registerSelf'),
++    one(/function advertised\(\) \{[\s\S]*?\n\}/, 'advertised'),
++    one(/let _advertising = false;\nasync function advertise\(\) \{[\s\S]*?\n\}/, 'advertise'),
++  ].join('\n');
++}
++
++// One supervisor process: its env (as gsup handed it), a clock, and the registry row it will find.
++function box(src, env, { row = null, failReads = 0, sendFails = 0 } = {}) {
++  const chain = { row: row && { ...row }, txs: [], reads: 0 };
++  const clock = { t: 1_000_000 };
++  const logs = [], sleeps = [], passes = [];
++  const make = new Function('process', 'Date', 'chain', 'clock', 'logs', 'sleeps', 'passes', 'mayReconcile', 'failReads', 'sendFails', `
++    let REGISTRY_ADDRESS = "0xAAAA";
++    const REGISTRY_READY = true, PUBLIC_URL = process.env.PUBLIC_URL || "", RECONCILE_SEC = 900;
++    let _registered = false, _registeredOn = null, _enclaveId = null, _advertisedEndpoint = null, _activeSeen = null;
++    const keccak256 = (b) => "id(" + b + ")", stringToBytes = (s) => s;
++    const registryRev = async () => 4;
++    const PROOF_ACCOUNT = { address: "0x000000000000000000000000000000000000bEEF" }, REGISTRY_ABI = [], REGISTRY_ABI_V2 = [], REGISTRY_ABI_V1 = [];
++    const ENCLAVE_REPO = "EnclaveHost/enclave", ENCLAVE_MEASUREMENT = "0x" + "00".repeat(32);
++    const claimSigner = () => ({ account: { address: "${OP}" } });
++    let reads = 0, sends = 0;
++    const registryEntry = async (id) => {
++      chain.reads++;
++      if (++reads <= failReads) throw new Error("HTTP request failed.");
++      return chain.row ? { ...chain.row } : null;
++    };
++    const sendOperatorTx = (address, _abi, fn, args) => {
++      const p = Promise.resolve().then(() => {
++        if (++sends <= sendFails) throw new Error("insufficient funds for gas * price + value");
++        chain.txs.push({ fn, args: [...args] });   // exactly as sent: uint64 prices stay BigInt
++        return "0xtx" + chain.txs.length;
++      });
++      p.receipt = p.then(() => {
++        const a = chain.txs[chain.txs.length - 1].args;
++        if (fn === "register") chain.row = { endpoint: a[0], repo: a[1], measurement: a[2], operator: "${OP}", active: true,
++          cpuPricePerSec6: BigInt(a[3]), gpuPricePerSec6: BigInt(a[4]), proofKey: a[5] };
++        if (fn === "setProofKey") chain.row = { ...chain.row, proofKey: a[1] };
++        if (fn === "setPrices") chain.row = { ...chain.row, cpuPricePerSec6: BigInt(a[1]), gpuPricePerSec6: BigInt(a[2]) };
++        return { status: "success" };
++      });
++      p.receipt.catch(() => {});
++      return p;
++    };
++    const setInterval = (fn) => { passes.push(fn); return { unref() {} }; };
++    const setTimeout = (fn, ms) => { if (sleeps.length >= 50) throw new Error("still not registered after 50 retries"); sleeps.push(ms / 1000); setImmediate(fn); return { unref() {} }; };
++    const syncRegisteredProofKey = async () => {}, syncDeclaredPayoutWallet = async () => {}, syncRegisteredActive = async () => {};
++    // what adoptShieldedCards touches besides the price
++    let gpuCards = [], _shieldedAdopted = false, _shieldedPool = null, CARD_VRAM_SRC = "default", CARD_VRAM_GB = 141, CARD_TFLOPS = 989, SM_TOTAL = 0;
++    const round1 = (x) => Math.round(x * 10) / 10, reconcilePools = () => {};
++    const console = { log: (m) => logs.push(m), warn: (m) => logs.push(m) };
++    ${pieces(src)}
++    return { advertise, sell: () => ({ IS_GPU, SELL_CPU_PRICE6, SELL_GPU_PRICE6, pending: typeof gpuPricePending === "function" ? gpuPricePending() : null }),
++      // the shielded probe passes: the card's verdict reaches adoptShieldedCards (pricePerSec6 as gsup writes it)
++      discover: (pricePerSec6) => adoptShieldedCards([{ id: 0, vramGb: 24, vramBudgetGb: 20, cardTflops: 82, pricePerSec6 }]),
++      enclaveId: () => _enclaveId };`);
++  const b = make({ env }, { now: () => clock.t }, chain, clock, logs, sleeps, passes, mayReconcile, failReads, sendFails);
++  const settle = async () => { for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r)); };
++  return Object.assign(b, { chain, clock, logs, sleeps, settle,
++    pass: async () => { for (const fn of passes) await fn(); await settle(); } });
++}
++// metal0's actual row (root's 2-RPC read, block 53001451): this operator's, active, every field exact but the old boot's proof key
++const METAL0_ROW = { endpoint: URL0, repo: 'EnclaveHost/enclave', measurement: '0x' + '00'.repeat(32), operator: OP, active: true,
++  cpuPricePerSec6: 834n, gpuPricePerSec6: 1667n, proofKey: '0x8604ce59f394daf05b235122E5Dc054F5C2bB453' };
++const fns = (b) => b.chain.txs.map((t) => t.fn);
++
++test('the captured gsup env: GPU_COUNT=0, no GPU price, and (fix) the expected shielded card', async () => {
++  const now = await runGsup(GSUP, FW_GPU);
++  assert.equal(now.GPU_COUNT, '0'); assert.equal(now.SELL_GPU_PRICE6, undefined); assert.equal(now.SHIELDED_GPU_EXPECTED, '1');
++  assert.equal((await runGsup(GSUP, FW_CPU)).SHIELDED_GPU_EXPECTED, undefined, 'a CPU-only host expects nothing');
++  assert.equal((await runGsup(GSUP, { ...FW_GPU, isolationShieldedWorkers: [{ priceUsdHr: 6 }] })).SHIELDED_GPU_EXPECTED, undefined,
++    'a worker without a port is never probed, so it is not expected either');
++  const base = await runBaseGsup(FW_GPU);
++  assert.equal(base.GPU_COUNT, '0'); assert.equal(base.SHIELDED_GPU_EXPECTED, undefined);
++});
++
++test('BASELINE COUNTEREXAMPLE (9f6d37bd = staged 08d1f838): advertise before discovery sends a full register(gpu=0), then re-prices to 1667', async () => {
++  const b = box(BASE_SRC, await runBaseGsup(FW_GPU), { row: METAL0_ROW });
++  assert.deepEqual(b.sell(), { IS_GPU: false, SELL_CPU_PRICE6: 834, SELL_GPU_PRICE6: 0, pending: null });
++  await b.advertise(); await b.settle();
++  assert.deepEqual(fns(b), ['register'], 'not the setProofKey the funding preflight priced');
++  assert.equal(b.chain.txs[0].args[4], 0n, 'register() writes GPU price 0: the row loses its 1667');
++  assert.ok(b.logs.some((l) => /the registered fields differ/.test(l)));
++  b.discover(1667); await b.settle();
++  assert.deepEqual(fns(b), ['register', 'setPrices'], 'and discovery pays a second transaction to put 1667 back');
++  assert.deepEqual(b.chain.txs[1].args.slice(1), [834n, 1667n]);
++});
++
++test('FIX: before discovery the boot takes ONE setProofKey, keeps the row\'s 1667, and discovery sends nothing', async () => {
++  const b = box(CURRENT_SRC, await runGsup(GSUP, FW_GPU), { row: METAL0_ROW });
++  assert.deepEqual(b.sell(), { IS_GPU: false, SELL_CPU_PRICE6: 834, SELL_GPU_PRICE6: 0, pending: true });
++  await b.advertise(); await b.settle();
++  assert.deepEqual(fns(b), ['setProofKey']);
++  assert.ok(b.enclaveId(), 'adopted after the receipt and an exact re-read');
++  assert.ok(b.logs.some((l) => /only the proof key differs; GPU price pending shielded discovery/.test(l)));
++  await b.pass();                                   // the reconcile pass (and the immediate sync after adoption) before discovery
++  assert.deepEqual(fns(b), ['setProofKey'], 'no setPrices(834, 0) while the card is still being discovered');
++  assert.equal(b.chain.row.gpuPricePerSec6, 1667n);
++  b.discover(1667); await b.settle(); await b.pass();
++  assert.deepEqual(b.sell(), { IS_GPU: true, SELL_CPU_PRICE6: 834, SELL_GPU_PRICE6: 1667, pending: false });
++  assert.deepEqual(fns(b), ['setProofKey'], 'the discovered price is the row\'s: nothing to publish');
++});
++
++test('the fix needs gsup\'s expectation: the new supervisor under the old gsup env behaves exactly as before (no silent pending)', async () => {
++  const b = box(CURRENT_SRC, await runBaseGsup(FW_GPU), { row: METAL0_ROW });
++  assert.equal(b.sell().pending, false);
++  await b.advertise(); await b.settle();
++  assert.deepEqual(fns(b), ['register']); assert.equal(b.chain.txs[0].args[4], 0n);
++});
++
++test('CPU-only host: never pending; an exact row takes setProofKey, a row still carrying a GPU price is corrected as before', async () => {
++  const env = await runGsup(GSUP, FW_CPU);
++  const a = box(CURRENT_SRC, env, { row: { ...METAL0_ROW, gpuPricePerSec6: 0n } });
++  assert.equal(a.sell().pending, false);
++  await a.advertise(); await a.settle(); await a.pass();
++  assert.deepEqual(fns(a), ['setProofKey']);
++  const b = box(CURRENT_SRC, env, { row: METAL0_ROW });
++  await b.advertise(); await b.settle();
++  assert.deepEqual(fns(b), ['register']); assert.equal(b.chain.txs[0].args[4], 0n, 'no card: no GPU price claimed');
++});
++
++test('failed or absent discovery is bounded: no re-price during the 15 min wait, then 0 is published as before (no permanent stall)', async () => {
++  const b = box(CURRENT_SRC, await runGsup(GSUP, FW_GPU), { row: METAL0_ROW });
++  await b.advertise(); await b.settle();
++  b.clock.t += 14 * 60_000; await b.pass();
++  assert.deepEqual(fns(b), ['setProofKey']);
++  b.clock.t += 61_000; await b.pass();
++  assert.equal(b.sell().pending, false);
++  assert.deepEqual(fns(b), ['setProofKey', 'setPrices']);
++  assert.deepEqual(b.chain.txs[1].args.slice(1), [834n, 0n], 'no card after the wait: the row stops claiming one');
++  // a late card still takes the box back to its price
++  b.discover(1667); await b.settle();
++  assert.deepEqual(b.chain.txs[2].args.slice(1), [834n, 1667n]);
++});
++
++test('while pending: a failed read defers (no register at an unknown price), another differing field registers with the row\'s own GPU price', async () => {
++  const env = await runGsup(GSUP, FW_GPU);
++  const a = box(CURRENT_SRC, env, { row: METAL0_ROW, failReads: 2 });
++  await a.advertise(); await a.settle();
++  assert.deepEqual(fns(a), ['setProofKey'], 'two failed reads: retried, never a full register');
++  assert.deepEqual(a.sleeps, [5, 10]);
++  assert.ok(a.logs.some((l) => /registry read failed \(HTTP request failed\.\): no decision; the next attempt reads again/.test(l)));
++  const b = box(CURRENT_SRC, env, { row: { ...METAL0_ROW, cpuPricePerSec6: 900n } });
++  await b.advertise(); await b.settle();
++  assert.deepEqual(fns(b), ['register']);
++  assert.deepEqual(b.chain.txs[0].args.slice(3, 5), [834n, 1667n], 'the CPU price is restated, the GPU price stays the row\'s own');
++  const f = box(CURRENT_SRC, env, { row: { ...METAL0_ROW, operator: '0x' + 'bb'.repeat(20) } });
++  await f.advertise(); await f.settle();
++  assert.equal(f.chain.txs[0].fn, 'register'); assert.equal(f.chain.txs[0].args[4], 0n, 'another operator\'s GPU price is not ours to restate');
++  // no row of ours to keep a price from: 0 (nothing discovered), and discovery publishes the card's price afterwards
++  const c = box(CURRENT_SRC, env, { row: null });
++  await c.advertise(); await c.settle();
++  assert.equal(c.chain.txs[0].args[4], 0n);
++  c.discover(1667); await c.settle();
++  assert.deepEqual(fns(c), ['register', 'setPrices']);
++});
++
++test('owner re-pricing is published only once the card is adopted; a CPU re-price while pending keeps the GPU price', async () => {
++  const env = await runGsup(GSUP, FW_GPU);
++  const b = box(CURRENT_SRC, env, { row: METAL0_ROW });
++  await b.advertise(); await b.settle(); await b.pass();
++  assert.deepEqual(fns(b), ['setProofKey']);
++  b.discover(556); await b.settle();                   // the operator changed the card to $2/hr
++  assert.deepEqual(fns(b), ['setProofKey', 'setPrices']);
++  assert.deepEqual(b.chain.txs[1].args.slice(1), [834n, 556n]);
++  const c = box(CURRENT_SRC, { ...env, SELL_CPU_PRICE6: '900' }, { row: METAL0_ROW });
++  await c.advertise(); await c.settle();
++  assert.deepEqual(fns(c), ['register'], 'a CPU difference still re-registers (the boot restates prices)');
++  assert.deepEqual(c.chain.txs[0].args.slice(3, 5), [900n, 1667n]);
++});
++
++test('a FAILED registry read sends nothing in every state (pending, discovered, CPU-only); only a later successful read decides', async () => {
++  const gpuEnv = await runGsup(GSUP, FW_GPU), cpuEnv = await runGsup(GSUP, FW_CPU);
++  const states = [
++    ['pending', gpuEnv, false, METAL0_ROW],
++    ['card discovered before the first read', gpuEnv, true, METAL0_ROW],
++    ['CPU-only', cpuEnv, false, { ...METAL0_ROW, gpuPricePerSec6: 0n }],
++  ];
++  for (const [state, env, discoverFirst, exact] of states) {
++    for (const [what, row, want, gpu] of [
++      ['exact row (old proof key)', exact, ['setProofKey'], null],
++      ['missing row', null, ['register'], discoverFirst ? 1667n : 0n],
++      ['inactive row', { ...exact, active: false }, ['register'], exact.gpuPricePerSec6],
++      ['differing row', { ...exact, repo: 'Other/repo' }, ['register'], exact.gpuPricePerSec6]]) {
++      const label = `${state} / ${what}`;
++      const b = box(CURRENT_SRC, env, { row, failReads: 2 });
++      if (discoverFirst) b.discover(1667);
++      assert.equal(b.sell().pending, state === 'pending', label);
++      // the first attempt: one failed read, nothing sent; the loop retries (5 s, then 10 s)
++      await b.advertise(); await b.settle();
++      assert.deepEqual(b.sleeps, [5, 10], label);
++      assert.ok(b.logs.filter((l) => /registry read failed \(HTTP request failed\.\): no decision/.test(l)).length === 2, label);
++      assert.deepEqual(fns(b), want, `${label}: the later successful read decides`);
++      if (gpu !== null) assert.equal(b.chain.txs[0].args[4], gpu, `${label}: GPU price written`);
++      assert.ok(b.enclaveId(), label);
++    }
++  }
++});
++
++test('the pending GPU price is restated EXACTLY: a uint64 beyond Number precision survives a register and a CPU re-price', async () => {
++  const HUGE = 2n ** 63n + 12345n;                     // > Number.MAX_SAFE_INTEGER: Number() would round it
++  assert.notEqual(BigInt(Number(HUGE)), HUGE);
++  const env = await runGsup(GSUP, FW_GPU);
++  // a CPU difference at boot while pending: register() restates the row's exact GPU price
++  const a = box(CURRENT_SRC, env, { row: { ...METAL0_ROW, cpuPricePerSec6: 900n, gpuPricePerSec6: HUGE } });
++  await a.advertise(); await a.settle();
++  assert.deepEqual(fns(a), ['register']);
++  assert.equal(a.chain.txs[0].args[3], 834n); assert.equal(a.chain.txs[0].args[4], HUGE);
++  assert.equal(a.chain.row.gpuPricePerSec6, HUGE);
++  // an adopted row whose CPU price then differs: the reconcile pass re-prices the CPU and restates the exact GPU price
++  const b = box(CURRENT_SRC, env, { row: { ...METAL0_ROW, gpuPricePerSec6: HUGE } });
++  await b.advertise(); await b.settle(); await b.pass();
++  assert.deepEqual(fns(b), ['setProofKey'], 'the huge price compares equal: nothing to re-price');
++  b.chain.row = { ...b.chain.row, cpuPricePerSec6: 900n };
++  await b.pass();
++  assert.deepEqual(fns(b), ['setProofKey', 'setPrices']);
++  assert.deepEqual(b.chain.txs[1].args.slice(1), [834n, HUGE]);
++});
+diff --git a/test/operator-fee-path.test.mjs b/test/operator-fee-path.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..22bed3ab5acf09d565a31ba5ebacea0035cdd75d
+--- /dev/null
++++ b/test/operator-fee-path.test.mjs
+@@ -0,0 +1,175 @@
++// The operator queue's fees, through the REAL SDK (2026-10-23, metal0): the supervisor's own claimSigner / sendOperatorTx /
++// awaitReceipt, sliced from supervisor.js, run on real viem wallet + public clients for Base whose transport is a recording
++// stub node. Nothing reaches a network; the key is a throwaway generated per run. The stub node answers eth_fillTransaction
++// with a HIGHER fee (2 x base + tip, as a geth-family node fills) and a higher gas, so a path that lets the library fill
++// and re-multiply is caught, and the fixed path is shown not to overbid quietly.
++//   BASELINE (7dd3acd, the staged b007d471 image): writeContract with nothing set -> signed maxFeePerGas = 1.2 x the STUB
++//   node's filled fee = 13.2 mwei at base 5 / tip 1. This demonstrates the SDK failure scenario (the suspected cause of
++//   metal0's "insufficient funds"); it is not metal0's observed fee: whether a production RPC fills was not confirmed (a
++//   direct mainnet.base.org probe did not fill and fell back to 7 mwei). A node that does not fill sees no difference.
++//   FIX: estimateFeesPerGas (no fill) + estimateContractGas at those fees from the operator, explicit on the write.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { execFileSync } from "node:child_process";
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { createPublicClient, createWalletClient, custom, getAddress, encodeFunctionData, keccak256, parseTransaction,
++         recoverTransactionAddress, decodeFunctionData } from "viem";
++import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
++import { base } from "viem/chains";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++// ../mutants-fee.sh points this at a mutated copy; normally the repo's own file
++const CURRENT = fs.readFileSync(process.env.OPERATOR_FEE_SUPERVISOR || path.join(REPO, "supervisor.js"), "utf8");
++const BASELINE = execFileSync("git", ["-C", REPO, "show", "7dd3acd061af765cdcd9ba21b9744f2f2c6bdf5b:supervisor.js"], { maxBuffer: 64 << 20 }).toString();
++const slice = (src, re, what) => { const m = re.exec(src); assert.ok(m, `${what} in supervisor.js`); return m[0]; };
++const PIECES = (src) => [
++  slice(src, /let _claimAccount = null, _claimWallet = null, _txChain = Promise\.resolve\(\);\nfunction claimSigner\(\) \{[\s\S]*?\n\}/, "claimSigner"),
++  slice(src, /async function awaitReceipt\(hash, timeoutMs = 90_000\) \{[\s\S]*?\n\}/, "awaitReceipt"),
++  slice(src, /function sendOperatorTx\(address, abi, functionName, args\) \{[\s\S]*?\n\}/, "sendOperatorTx"),
++].join("\n");
++
++const REGISTRY = "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac";
++const ABI = [{ type: "function", name: "setProofKey", stateMutability: "nonpayable", inputs: [{ type: "bytes32" }, { type: "address" }], outputs: [] }];
++const ID = "0x" + "4d".repeat(32), KEY = "0x" + "ff".repeat(20);
++const BASE_FEE = 5_000_000n, TIP = 1_000_000n, NONCE = 23759, EST_GAS = 38772n, FILL_GAS = 60000n, FILL_FEE = 2n * BASE_FEE + TIP;
++const hex = (n) => "0x" + BigInt(n).toString(16);
++
++// A stub Base node: records every request; `fail` makes a method answer an RPC error; `fill` = "unsupported" -> method not found
++function node({ fail = {}, fill = "higher", receiptStatus = "0x1" } = {}) {
++  const calls = [], sent = [];
++  const block = { number: "0x328bf00", hash: "0x" + "ab".repeat(32), parentHash: "0x" + "cd".repeat(32), timestamp: "0x6a1b2c3d",
++    baseFeePerGas: hex(BASE_FEE), gasLimit: "0x2faf080", gasUsed: "0x0", miner: "0x" + "00".repeat(20), extraData: "0x", nonce: "0x0000000000000000",
++    difficulty: "0x0", totalDifficulty: "0x0", size: "0x100", logsBloom: "0x" + "00".repeat(256), transactions: [], uncles: [],
++    sha3Uncles: "0x" + "00".repeat(32), stateRoot: "0x" + "00".repeat(32), receiptsRoot: "0x" + "00".repeat(32), transactionsRoot: "0x" + "00".repeat(32), mixHash: "0x" + "00".repeat(32) };
++  const err = (code, message) => Object.assign(new Error(message), { code });
++  async function request({ method, params }) {
++    calls.push({ method, params });
++    if (fail[method]) throw err(fail[method].code ?? -32000, fail[method].message ?? `${method} failed`);
++    switch (method) {
++      case "eth_chainId": return hex(8453);
++      case "eth_blockNumber": return block.number;
++      case "eth_getBlockByNumber": return block;
++      case "eth_maxPriorityFeePerGas": return hex(TIP);
++      case "eth_getTransactionCount": return hex(NONCE);
++      case "eth_estimateGas": return hex(EST_GAS);
++      case "eth_fillTransaction": {
++        if (fill === "unsupported") throw err(-32601, "the method eth_fillTransaction does not exist/is not available");
++        const t = params[0];
++        return { raw: "0x", tx: { type: "0x2", chainId: hex(8453), nonce: hex(NONCE), from: t.from, to: t.to, input: t.data, value: "0x0",
++          gas: hex(FILL_GAS), maxFeePerGas: hex(FILL_FEE), maxPriorityFeePerGas: hex(TIP), accessList: [],
++          hash: "0x" + "00".repeat(32), r: "0x0", s: "0x0", v: "0x0", yParity: "0x0" } };
++      }
++      case "eth_sendRawTransaction": {
++        const raw = params[0];
++        sent.push({ raw, tx: parseTransaction(raw), from: await recoverTransactionAddress({ serializedTransaction: raw }) });
++        return keccak256(raw);
++      }
++      case "eth_getTransactionReceipt": return { transactionHash: params[0], blockHash: block.hash, blockNumber: block.number, transactionIndex: "0x0",
++        from: "0x" + "00".repeat(20), to: REGISTRY, cumulativeGasUsed: hex(EST_GAS), gasUsed: hex(EST_GAS), effectiveGasPrice: hex(BASE_FEE + TIP),
++        contractAddress: null, logs: [], logsBloom: block.logsBloom, status: receiptStatus, type: "0x2" };
++    }
++    throw err(-32601, `stub node: ${method} not stubbed`);
++  }
++  return { request, calls, sent, methods: () => calls.map((c) => c.method) };
++}
++
++// one supervisor operator queue over that node, with the supervisor's own functions
++function queue(src, n) {
++  const PK = generatePrivateKey();
++  const transport = custom({ request: n.request });
++  const make = new Function("REGISTRY_PK", "privateKeyToAccount", "createWalletClient", "base", "rpcTransport", "chainClient", "getAddress", "sleepMs", `
++    ${PIECES(src)}
++    return { sendOperatorTx, claimSigner };`);
++  const q = make(PK, privateKeyToAccount, createWalletClient, base, () => transport,
++    createPublicClient({ chain: base, transport }), getAddress, () => new Promise((r) => setImmediate(r)));
++  return { ...q, operator: privateKeyToAccount(PK).address };
++}
++const send = (q) => q.sendOperatorTx(REGISTRY, ABI, "setProofKey", [ID, KEY]);
++
++test("BASELINE (7dd3acd), SDK scenario: where the node fills, writeContract with nothing set re-multiplies the filled fee: 13.2 mwei signed against this stub", async () => {
++  const n = node(), q = queue(BASELINE, n);
++  await send(q);
++  assert.ok(n.methods().includes("eth_fillTransaction"));
++  assert.equal(n.sent.length, 1);
++  assert.equal(n.sent[0].tx.maxFeePerGas, (FILL_FEE * 12n) / 10n, "1.2 x the node's 11 mwei");
++  assert.equal(n.sent[0].tx.maxFeePerGas, 13_200_000n);
++  assert.equal(n.sent[0].tx.gas, FILL_GAS, "and the node's gas");
++});
++
++// What viem 2.53.1 actually does for a LOCAL account (read from its source, pinned by the cases below): estimateFeesPerGas reads
++// the block and eth_maxPriorityFeePerGas (no fill); estimateContractGas -> estimateGas -> prepareTransactionRequest TRIES
++// eth_fillTransaction with the request (here: the explicit fees) and returns the node's filled gas, or, where the node
++// does not fill, calls eth_estimateGas; writeContract with gas and fees given still asks the node to fill (for the nonce)
++// but keeps the caller's gas and fees and does not multiply them (fillTransaction.js: "Preference supplied fees").
++test("FIX: the signed fees are estimateFeesPerGas (1.2 x base + tip), never the node's filled fee re-multiplied; gas is the node's estimate at those fees", async () => {
++  for (const fill of ["higher", "unsupported"]) {
++    const n = node({ fill }), q = queue(CURRENT, n);
++    const hash = await send(q);
++    assert.equal(n.sent.length, 1, fill);
++    const { tx, from, raw } = n.sent[0];
++    assert.equal(hash, keccak256(raw), fill);
++    assert.equal(tx.maxFeePerGas, 7_000_000n, `${fill}: ceil(1.2 x 5) + 1 mwei, not the fill path's ${FILL_FEE * 12n / 10n}`);
++    assert.equal(tx.maxPriorityFeePerGas, TIP, fill);
++    // gas: the node's own estimate for THIS request at THOSE fees - its fill answer where it fills, else eth_estimateGas
++    assert.equal(tx.gas, fill === "higher" ? FILL_GAS : EST_GAS, fill);
++    assert.equal(tx.type, "eip1559", fill);
++    assert.equal(tx.chainId, 8453, fill);
++    assert.equal(tx.nonce, NONCE, `${fill}: the account nonce, as before`);
++    assert.equal(tx.value ?? 0n, 0n, fill);
++    assert.equal(from, q.operator, `${fill}: signed by the operator key`);
++    assert.equal(getAddress(tx.to), getAddress(REGISTRY), fill);
++    assert.deepEqual(decodeFunctionData({ abi: ABI, data: tx.data }), { functionName: "setProofKey", args: [ID, getAddress(KEY)] }, fill);
++    // every question put to the node about this transaction was asked FROM the operator AT the fees then signed
++    const asked = n.calls.filter((c) => c.method === "eth_fillTransaction" || c.method === "eth_estimateGas");
++    assert.ok(asked.length >= 1, fill);
++    for (const c of asked) {
++      assert.equal(getAddress(c.params[0].from), q.operator, `${fill}: ${c.method} from the operator`);
++      assert.equal(BigInt(c.params[0].maxFeePerGas), 7_000_000n, `${fill}: ${c.method} at the signed fee`);
++      assert.equal(BigInt(c.params[0].maxPriorityFeePerGas), TIP, fill);
++      assert.equal(c.params[0].data, encodeFunctionData({ abi: ABI, functionName: "setProofKey", args: [ID, KEY] }), fill);
++    }
++    // the fees came from the block + eth_maxPriorityFeePerGas, read BEFORE anything was filled
++    const m = n.methods();
++    assert.ok(m.indexOf("eth_maxPriorityFeePerGas") >= 0 && m.indexOf("eth_maxPriorityFeePerGas") < m.indexOf(fill === "higher" ? "eth_fillTransaction" : "eth_estimateGas"), `${fill}: ${m.join(",")}`);
++  }
++});
++
++test("a failed fee read or gas estimate signs and sends NOTHING", async () => {
++  const revert = { code: 3, message: "execution reverted" };
++  for (const [label, opts] of [
++    ["fill reverts", { fail: { eth_fillTransaction: revert } }],
++    ["no fill, estimate reverts", { fill: "unsupported", fail: { eth_estimateGas: revert } }],
++    ["no fill, estimate: insufficient funds", { fill: "unsupported", fail: { eth_estimateGas: { message: "insufficient funds for gas * price + value" } } }],
++    ["priority fee unreadable", { fail: { eth_maxPriorityFeePerGas: {} } }],
++    ["block unreadable", { fail: { eth_getBlockByNumber: {} } }]]) {
++    const n = node(opts), q = queue(CURRENT, n);
++    const p = send(q);
++    await assert.rejects(p, undefined, label);
++    await assert.rejects(p.receipt, undefined, label);
++    assert.equal(n.sent.length, 0, `${label}: nothing broadcast`);
++    assert.ok(!n.methods().includes("eth_sendRawTransaction"), label);
++  }
++});
++
++test("the queue still serializes through confirmation, and a reverted receipt is reported as before", async () => {
++  const n = node({ receiptStatus: "0x0" }), q = queue(CURRENT, n);
++  const a = send(q), b = send(q);
++  const [ra, rb] = [await a.receipt, await b.receipt];
++  assert.equal(ra.status, "reverted"); assert.equal(rb.status, "reverted");
++  const m = n.methods();
++  // b's fee read starts only after a's receipt was read
++  const aReceipt = m.indexOf("eth_getTransactionReceipt"), bFees = m.indexOf("eth_maxPriorityFeePerGas", m.indexOf("eth_sendRawTransaction") + 1);
++  assert.ok(aReceipt > 0 && bFees > aReceipt, `order: ${m.join(",")}`);
++  assert.equal(n.sent.length, 2);
++  // and after a failed one, the next transaction is still sent
++  let estimates = 0;
++  const m2 = node({ fill: "unsupported" }); const req = m2.request;
++  m2.request = async (r) => { if (r.method === "eth_estimateGas" && ++estimates === 1) { m2.calls.push(r); throw Object.assign(new Error("boom"), { code: -32000 }); } return req(r); };
++  const q2 = queue(CURRENT, m2);
++  const f = send(q2); f.catch(() => {}); f.receipt.catch(() => {});
++  const g = send(q2);
++  await assert.rejects(f);
++  await g; assert.equal(m2.sent.length, 1, "the one after the failure is sent");
++});
+diff --git a/test/registry-advertise-retry.test.mjs b/test/registry-advertise-retry.test.mjs
+index 0fa12218e81b0b85a50329566b5a720c57577ed3..78150d58b727693e447b4d10d2c724cd79203366 100644
+--- a/test/registry-advertise-retry.test.mjs
++++ b/test/registry-advertise-retry.test.mjs
+@@ -15,6 +15,7 @@
+   slice(/async function registerOnChain\(endpoint\) \{[\s\S]*?\n\}/, "registerOnChain"),
+   slice(/async function bootRegistration\(id, endpoint, proofKey\) \{[\s\S]*?\n\}/, "bootRegistration"),
+   slice(/function bootRegistrationAction\(row, want\) \{[\s\S]*?\n\}/, "bootRegistrationAction"),
++  slice(/function gpuPricePending\(now = Date\.now\(\)\) \{[\s\S]*?\n\}/, "gpuPricePending"),
+   slice(/async function registerSelf\(\) \{[\s\S]*?\n\}/, "registerSelf"),
+   slice(/function advertised\(\) \{[\s\S]*?\n\}/, "advertised"),
+   slice(/let _advertising = false;\nasync function advertise\(\) \{[\s\S]*?\n\}/, "advertise"),
+@@ -36,6 +37,8 @@
+     const claimSigner = () => ({ account: { address: env.operator || "0x00000000000000000000000000000000000000aa" } });
+     const ENCLAVE_REPO = "EnclaveHost/enclave", ENCLAVE_MEASUREMENT = "0x00", SELL_CPU_PRICE6 = 1, SELL_GPU_PRICE6 = 2;
+     const IS_GPU = false, RECONCILE_SEC = 60;
++    // nothing shielded expected here (test/boot-gpu-price.test.mjs covers the pending GPU price)
++    const SHIELDED_GPU_EXPECTED = 0, GPU_DISCOVERY_WAIT_MS = 15 * 60_000, GPU_DISCOVERY_FROM = 0;
+     // like the real queue: the promise is the HASH (at send), .receipt the confirmed outcome
+     const sendOperatorTx = (address, _abi, fn, args) => {
+       txs.push({ address, fn, endpoint: args[0], args });
+@@ -176,12 +179,11 @@
+   }
+ });
+ 
+-test("unchanged paths: not registered, another operator's row, an inactive row, a failed read, a pre-schema-3 registry", async () => {
++test("unchanged paths: not registered, another operator's row, an inactive row, a pre-schema-3 registry", async () => {
+   const cases = [
+     [() => null, /not registered yet/], [() => row({ operator: "0x0000000000000000000000000000000000000000" }), /not registered yet/],
+     [() => row({ operator: "0x00000000000000000000000000000000000000bb" }), /another operator/],
+     [() => row({ active: false }), /inactive on chain/],
+-    [() => { throw new Error("HTTP request failed."); }, /registry read failed/],
+   ];
+   for (const [r, re] of cases) {
+     const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: r, send: ok });
+@@ -197,6 +199,25 @@
+   assert.deepEqual(fns(f), ["register", "register", "register"]);
+ });
+ 
++test("a FAILED registry read sends nothing and retries; only a later SUCCESSFUL read decides (never a blind register)", async () => {
++  // a failed RPC is no evidence that the row is missing or different: every outcome after two failed reads
++  for (const [label, ok, want] of [["exact row", () => row({ proofKey: KEY_NEW }), []], ["old proof key", () => row(), ["setProofKey"]],
++    ["missing row", () => null, ["register"]], ["inactive row", () => row({ active: false }), ["register"]],
++    ["differing row", () => row({ repo: "Other/repo" }), ["register"]]]) {
++    let reads = 0, sentDuringFailures = -1;
++    const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, send: () => "0xtx",
++      receipt: (fn) => ({ status: "success" }),
++      row: () => { if (++reads <= 2) { sentDuringFailures = b.txs.length; throw new Error("HTTP request failed."); }
++                   return label === "old proof key" && reads > 3 ? row({ proofKey: KEY_NEW }) : ok(); } });
++    await b.advertise();
++    assert.equal(sentDuringFailures, 0, `${label}: zero writes while the reads fail`);
++    assert.deepEqual(b.sleeps, [5, 10], `${label}: the normal backoff`);
++    assert.ok(b.logs.some((l) => /registry read failed \(HTTP request failed\.\): no decision; the next attempt reads again/.test(l)), label);
++    assert.deepEqual(fns(b), want, label);
++    assert.ok(b.state().enclaveId, label);
++  }
++});
++
+ test("setProofKey failure: a reverted receipt or a failed send is not adopted and is retried; never escalated to register()", async () => {
+   let n = 0, key = KEY_OLD;
+   const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => row({ proofKey: key }), send: () => "0xpk" + (++n),

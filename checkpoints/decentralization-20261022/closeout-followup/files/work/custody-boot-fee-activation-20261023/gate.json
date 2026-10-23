@@ -1,0 +1,164 @@
+{
+  "startedAt": "2026-10-23T23:39:17.830859+00:00",
+  "gate": 4,
+  "apps": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": {
+      "url": "https://da09d0f2.app.enclave.host/",
+      "kind": "html",
+      "minBytes": 1024,
+      "title": "image generator"
+    },
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": {
+      "url": "https://9eb4e600.app.enclave.host/ping",
+      "kind": "json-ping"
+    }
+  },
+  "expectGuests": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "gd9d4a391d",
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "gdd0646f2c"
+  },
+  "knownFailed": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": [],
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": []
+  },
+  "window": 420,
+  "warmup": 300,
+  "deadline": 900,
+  "minVouches": 3,
+  "polls": [
+    {
+      "at": "2026-10-23T23:39:17.830877+00:00",
+      "0xda09d0f2": "html 42685B title 'image generator'",
+      "0x9eb4e600": "ok/pong",
+      "history": {
+        "0xda09d0f2": [],
+        "0x9eb4e600": []
+      },
+      "hard": [],
+      "soft": []
+    },
+    {
+      "at": "2026-10-23T23:39:39.691058+00:00",
+      "0xda09d0f2": "html 42685B title 'image generator'",
+      "0x9eb4e600": "ok/pong",
+      "history": {
+        "0xda09d0f2": [],
+        "0x9eb4e600": []
+      },
+      "hard": [],
+      "soft": []
+    },
+    {
+      "at": "2026-10-23T23:40:01.724277+00:00",
+      "0xda09d0f2": "html 42685B title 'image generator'",
+      "0x9eb4e600": "ok/pong",
+      "history": {
+        "0xda09d0f2": [],
+        "0x9eb4e600": []
+      },
+      "hard": [],
+      "soft": []
+    },
+    {
+      "at": "2026-10-23T23:40:25.303838+00:00",
+      "0xda09d0f2": "html 42685B title 'image generator'",
+      "0x9eb4e600": "ok/pong",
+      "history": {
+        "0xda09d0f2": [],
+        "0x9eb4e600": []
+      },
+      "hard": [],
+      "soft": []
+    },
+    {
+      "at": "2026-10-23T23:40:47.653067+00:00",
+      "0xda09d0f2": "html 42685B title 'image generator'",
+      "0x9eb4e600": "ok/pong",
+      "history": {
+        "0xda09d0f2": [],
+        "0x9eb4e600": []
+      },
+      "hard": [],
+      "soft": []
+    },
+    {
+      "at": "2026-10-23T23:41:09.467582+00:00",
+      "0xda09d0f2": "html 42685B title 'image generator'",
+      "0x9eb4e600": "ok/pong",
+      "history": {
+        "0xda09d0f2": [],
+        "0x9eb4e600": []
+      },
+      "hard": [],
+      "soft": []
+    },
+    {
+      "at": "2026-10-23T23:41:31.577564+00:00",
+      "0xda09d0f2": "html 42685B title 'image generator'",
+      "0x9eb4e600": "ok/pong",
+      "history": {
+        "0xda09d0f2": [],
+        "0x9eb4e600": []
+      },
+      "hard": [],
+      "soft": []
+    },
+    {
+      "at": "2026-10-23T23:41:53.343888+00:00",
+      "0xda09d0f2": "html 42685B title 'image generator'",
+      "0x9eb4e600": "ok/pong",
+      "history": {
+        "0xda09d0f2": [],
+        "0x9eb4e600": []
+      },
+      "hard": [],
+      "soft": []
+    },
+    {
+      "at": "2026-10-23T23:42:14.676756+00:00",
+      "0xda09d0f2": "html 42685B title 'image generator'",
+      "0x9eb4e600": "ok/pong",
+      "history": {
+        "0xda09d0f2": [],
+        "0x9eb4e600": []
+      },
+      "hard": [],
+      "soft": []
+    },
+    {
+      "at": "2026-10-23T23:42:36.156277+00:00",
+      "0xda09d0f2": "html 42685B title 'image generator'",
+      "0x9eb4e600": "ok/pong",
+      "history": {
+        "0xda09d0f2": [],
+        "0x9eb4e600": []
+      },
+      "hard": [],
+      "soft": []
+    },
+    {
+      "at": "2026-10-23T23:42:59.214008+00:00",
+      "0xda09d0f2": "html 42685B title 'image generator'",
+      "0x9eb4e600": "HTTP None URLError",
+      "history": {
+        "0xda09d0f2": [],
+        "0x9eb4e600": []
+      },
+      "hard": [],
+      "soft": [
+        "0x9eb4e600: app not healthy (HTTP None URLError)"
+      ]
+    }
+  ],
+  "state": "FAIL",
+  "vouchCycles": 5,
+  "guests": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "gd9d4a391d",
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "gdd0646f2c"
+  },
+  "at": "2026-10-23T23:43:16.336809+00:00",
+  "why": [
+    "after the window started: ",
+    "0x9eb4e600: app not healthy (HTTP None URLError)"
+  ]
+}

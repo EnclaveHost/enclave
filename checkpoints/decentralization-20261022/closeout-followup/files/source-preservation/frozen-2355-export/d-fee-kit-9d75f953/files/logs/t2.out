@@ -1,0 +1,18 @@
+[queue] START available=23295MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+......F..........................................
+======================================================================
+FAIL: test_approval_and_plan (test_activation.Build.test_approval_and_plan)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-fee-activation-20261023/tests/test_activation.py", line 349, in test_approval_and_plan
+    with self.assertRaisesRegex(AssertionError, why): C.approved_build(d/'build.json', d/'APPROVED-BUILD.txt')
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: AssertionError not raised
+
+----------------------------------------------------------------------
+Ran 49 tests in 1.175s
+
+FAILED (failures=1)
+[memory-guard] exit=1 peakTreeRssMiB=54 minHostAvailableMiB=23228
+[memory-guard] at peak: python3:36 python3:14 sleep:4
+[queue] EXIT 1

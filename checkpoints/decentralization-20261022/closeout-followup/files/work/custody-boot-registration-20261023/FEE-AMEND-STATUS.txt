@@ -1,0 +1,21 @@
+[2026-10-23T23:28:31Z] Root 23:25Z ROOT-FEE-EVIDENCE-CORRECTION: amended 9b82acc8 -> 5db2be3f4d4bed2c543e1e181c976ca9e26aa410.
+- Parent: single 9f6d37bd. Branch: boot-normal-fee. Author/committer: SteveDeFacto. boot-gpu-price is still 7dd3acd.
+- Changed: comments + one test title + the message ONLY. Non-comment diff vs 9b82 = the BASELINE test title.
+- 13.2 mwei is now stated as an SDK failure scenario against a filling stub / suspected cause, NOT a confirmed metal0 fee.
+- "1.9x" is now stated as "where the answering node fills".
+- Checks (256 queue, logs/s6.out): node --check; operator-fee-path test 4/4; gitleaks on diff vs 9f6d37bd clean; staged key scan
+  clean; no old provider literal on any changed line.
+- Template a340762 precheck dry-run: PRECHECK-PASS for 5db2be3f
+  (tests test/boot-gpu-price.test.mjs test/operator-fee-path.test.mjs test/registry-advertise-retry.test.mjs; gsup REVIEWED).
+- Pins for 5db2be3f (logs/pins.out): supervisor.js e7f07b5336319bca9289d1a184b3d001a108fa67e54a636bb7862ed2ac2b84f3 (9b82: b49085e6...);
+  sendOperatorTx 5a14810f960187579bd44ca4f318cea5722f682ae4e51bd1dc8a4006f0f9b3f3 (unchanged);
+  bootRegistrationAction fe25be11f5ad5a8af438cdc3117e8a2060e4346af3328d15fa5fdc179f4c1120 (unchanged).
+D boot-funding.mjs (custody-boot-fee-activation-20261023, a57daaa2...) quick source review:
+- It slices + hash-pins the approved sendOperatorTx, runs it with a toAccount that throws on every signature, feeds writeContract's
+  request to viem prepareTransactionRequest per RPC, and gates on the larger worst case. No signing, no send. No critical defect.
+- (1) Its --supervisor-sha256 / --commit pins must be 5db2be3f / e7f07b53 for the amended commit; the sender and decision pins
+  are unchanged.
+- (2) It prices per RPC over the two given --rpc. The image's pool is [mainnet.base.org, publicnode, drpc, 1rpc] in that order,
+  so pass at least mainnet.base.org + publicnode. With 5db2be3f the fees no longer depend on node fill, so this is minor.
+- (3) Non-critical: it re-calls prepareTransactionRequest instead of running viem writeContract up to the throwing
+  signTransaction (which would capture the exact request writeContract signs). Same path in practice for local accounts.

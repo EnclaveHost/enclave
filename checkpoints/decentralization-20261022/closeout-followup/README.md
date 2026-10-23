@@ -57,6 +57,8 @@ Frozen 2246 append (2026-10-23; "2246" = the batch start 22:46:00Z, an identifie
 
 Frozen 2329 append (2026-10-23; "2329" = the batch start 23:29:30Z, an identifier): ROOT live records 851f7579, R current docs 967eeb96 (recipient binding; 23:10 FAILED control recovery and 23:15 rollback; fee cause not confirmed), the old FAILED D activation kit 8bbd0a74 (committed baseline omitted) with its two root-allowed runtime receipts, and the public live-verification output before and after its 23:29Z top-status correction; the 2246 receipt. Source preservation only: control recovery NOT done; active H/D builds not included. See `MANIFEST.json` `appends`.
 
+Frozen 2355 append (2026-10-23; "2355" = the batch start 23:55:07Z, an identifier): ROOT live records 2b0c975b, R current docs 155a23f4 (status matrix; 23:36 attempt registered and adopted, gate FAILED, rollback 23:43), H explicit-fee source 5db2be3f (PATCH-ONLY, parent-anchored) with its outer docs, D boot-fee kit 9d75f953 (old baseline omitted) with three root-allowed runtime receipts, and the public live-verification output after its 23:54Z correction; the 2329 receipt. Control recovery NOT done. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

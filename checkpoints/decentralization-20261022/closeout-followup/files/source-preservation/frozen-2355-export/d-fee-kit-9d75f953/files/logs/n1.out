@@ -1,0 +1,110 @@
+[queue] START available=23626MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: viem default max fee = ceil(base x 1.2) + tip
+ok 1 - viem default max fee = ceil(base x 1.2) + tip
+  ---
+  duration_ms: 0.678275
+  type: 'test'
+  ...
+# Subtest: root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
+ok 2 - root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
+  ---
+  duration_ms: 0.173909
+  type: 'test'
+  ...
+# Subtest: L1 and operator fees count; the size argument must cover the signed maximum
+ok 3 - L1 and operator fees count; the size argument must cover the signed maximum
+  ---
+  duration_ms: 0.204379
+  type: 'test'
+  ...
+# Subtest: frozen helpers are the pinned bytes
+ok 4 - frozen helpers are the pinned bytes
+  ---
+  duration_ms: 0.776674
+  type: 'test'
+  ...
+# Subtest: the target is only a root-approved build.json, never a prior or malformed measurement
+ok 5 - the target is only a root-approved build.json, never a prior or malformed measurement
+  ---
+  duration_ms: 5.564377
+  type: 'test'
+  ...
+# Subtest: image pins: every present location must match build.json; a differing production copy refuses
+ok 6 - image pins: every present location must match build.json; a differing production copy refuses
+  ---
+  duration_ms: 2.54895
+  type: 'test'
+  ...
+# Subtest: attest pins the frozen probe to the approved measurement; acceptance is strict; proofkey runs the frozen checks
+ok 7 - attest pins the frozen probe to the approved measurement; acceptance is strict; proofkey runs the frozen checks
+  ---
+  duration_ms: 13.107479
+  type: 'test'
+  ...
+# Subtest: the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
+ok 8 - the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
+  ---
+  duration_ms: 1.250461
+  type: 'test'
+  ...
+# Subtest: the decision is the approved commit's bootRegistrationAction, file AND function hash-checked; anything else is refused
+ok 9 - the decision is the approved commit's bootRegistrationAction, file AND function hash-checked; anything else is refused
+  ---
+  duration_ms: 13.889323
+  type: 'test'
+  ...
+# Subtest: 9f6d37bd's decision (the 22:13Z counterexample) registers while the GPU price is pending: the gate refuses it
+ok 10 - 9f6d37bd's decision (the 22:13Z counterexample) registers while the GPU price is pending: the gate refuses it
+  ---
+  duration_ms: 80.594809
+  type: 'test'
+  ...
+# Subtest: root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
+ok 11 - root's actual state (exact fields, old key, nonce = pending, 376e9 wei): setProofKey for 0xff..ff fits with headroom; the gate passes
+  ---
+  duration_ms: 53.559558
+  type: 'test'
+  ...
+# Subtest: refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
+ok 12 - refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
+  ---
+  duration_ms: 419.034299
+  type: 'test'
+  ...
+# Subtest: RPC disagreement or a non-Base RPC refuses before any decision
+ok 13 - RPC disagreement or a non-Base RPC refuses before any decision
+  ---
+  duration_ms: 1.054761
+  type: 'test'
+  ...
+# Subtest: COUNTEREXAMPLE (root 23:15): the 7dd image's plain writeContract is re-priced to 13.2 mwei by eth_fillTransaction; the gate refuses it
+ok 14 - COUNTEREXAMPLE (root 23:15): the 7dd image's plain writeContract is re-priced to 13.2 mwei by eth_fillTransaction; the gate refuses it
+  ---
+  duration_ms: 101.462688
+  type: 'test'
+  ...
+# Subtest: inert: no signer and no broadcast - a sender that tries to sign or send fails closed
+ok 15 - inert: no signer and no broadcast - a sender that tries to sign or send fails closed
+  ---
+  duration_ms: 12.442844
+  type: 'test'
+  ...
+# Subtest: block agreement is canonical (number/hash/parentHash/timestamp): provider field ORDER and metadata are ignored (root 22:07/22:08)
+ok 16 - block agreement is canonical (number/hash/parentHash/timestamp): provider field ORDER and metadata are ignored (root 22:07/22:08)
+  ---
+  duration_ms: 51.778501
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1098.717809
+[memory-guard] exit=0 peakTreeRssMiB=170 minHostAvailableMiB=23532
+[memory-guard] at peak: node:91 node:54 python3:25
+[queue] EXIT 0
