@@ -387,3 +387,64 @@ test("builder and overlay carry the helper and the measured token", () => {
   const o = fs.readFileSync(path.join(REPO, "metal/overlay-control-image.py"), "utf8");
   assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs', 'owner-nomination\.mjs', 'chain-verifier\.mjs'\]/);
 });
+
+// ---- the bound local chain verifier (metal/guest/chain-verifier.mjs, network/chain-authority.mjs) -----------------------------
+const CV = () => ({ format: "enclave-chain-verifier/v1", unsafeSigner: "0x" + "9a".repeat(20), proofSources: ["https://holder.example.net/"], port: 50546,
+  txBackend: "http://10.0.2.2:8545" });
+test("chainVerifier in the bound direct config: optional (absent keeps every earlier digest), checked, bound by HOST_DATA, distinct ports", () => {
+  assert.equal(MC.configDigest(MC.canonicalDirectConfig(RAW())), DIGEST, "absent: the exact earlier canonical bytes and digest");
+  const cfg = MC.canonicalDirectConfig({ ...RAW(), chainVerifier: CV() });
+  assert.notEqual(MC.configDigest(cfg), DIGEST, "present: part of the bound config (HOST_DATA names it)");
+  assert.deepEqual(cfg.chainVerifier, { format: "enclave-chain-verifier/v1", unsafeSigner: "0x" + "9a".repeat(20), proofSources: ["https://holder.example.net/"], port: 50546,
+    txBackend: "http://10.0.2.2:8545/" });
+  const refuse = (cv, re) => assert.throws(() => MC.canonicalDirectConfig({ ...RAW(), chainVerifier: cv }), re);
+  refuse({ ...CV(), port: 8444 }, /guest's own ports/);
+  refuse({ ...CV(), port: 49999 }, /50000\.\.57999/);
+  refuse({ ...CV(), port: 58000 }, /50000\.\.57999/);
+  refuse({ ...CV(), txBackend: "https://mainnet.base.org" }, /txBackend must be a loopback or private/);
+  refuse({ ...CV(), witnessArchive: {} }, /witnessArchive is not offered/);
+  refuse({ ...CV(), proofSources: [] }, /explicit proof source/);
+  assert.throws(() => MC.canonicalDirectConfig({ ...RAW(), controlPort: 50546, chainVerifier: CV() }), /differ from every other port/);
+});
+
+test("planDirectBoot with a bound chainVerifier: the image's pinned runtime is started before the supervisor, whose ONLY chain authority names come from it; no runtime in the image refuses the boot", async () => {
+  const raw = { ...RAW(), chainVerifier: CV() }, cfg = MC.canonicalDirectConfig(raw), hd = MC.hostDataHex(MC.configDigest(cfg));
+  const P = guestPaths(), imageFile = path.join(P.runDir, "IMAGE.json");
+  fs.copyFileSync(path.join(REPO, "metal/chain-verifier-image.json"), imageFile);
+  const plan = await MC.planDirectBoot({ cmdline: CMDLINE, fw: fwFor({ direct: raw }), reportHostData: hd, viem, paths: { ...P, chainVerifierImage: imageFile } });
+  assert.equal(plan.ok, true, plan.reasons?.join("; "));
+  assert.equal(plan.chainVerifier.ok, true);
+  assert.deepEqual(plan.chainVerifier.argv("/c/rpc-runtime.json"), ["/usr/local/bin/node", "/app/network/rpc-runtime-main.mjs", "run", "/c/rpc-runtime.json"]);
+  assert.equal(plan.chainVerifier.runtimeConfig.verifier.port, 50546);
+  assert.equal(plan.chainVerifier.runtimeConfig.binaryStaging, "copy");
+  assert.equal(plan.env.ENCLAVE_CHAIN_AUTHORITY, "verifier");
+  assert.equal(plan.env.ENCLAVE_CHAIN_VERIFIER, "http://127.0.0.1:50546/");
+  assert.equal(plan.env.ENCLAVE_CHAIN_TX_BACKEND, "http://10.0.2.2:8545/");
+  assert.deepEqual(MC.directEnvProblems(plan.env), []);
+  const { directOnlyEnvProblems } = await import("../cli/host-independent-lifecycle.mjs");
+  assert.deepEqual(directOnlyEnvProblems(plan.env), [], "the real supervisor's direct-only rules accept it");
+  // the derived env is the bound member's alone: a flavor or host-policy value for these names never survives
+  const sneaky = MC.directSupervisorEnv(cfg, { flavorEnv: { ENCLAVE_CHAIN_TX_BACKEND: "https://mainnet.base.org/" }, hostPolicyEnv: { ENCLAVE_CHAIN_VERIFIER: "http://127.0.0.1:1/" } });
+  assert.equal(sneaky.ENCLAVE_CHAIN_VERIFIER, "http://127.0.0.1:50546/"); assert.equal(sneaky.ENCLAVE_CHAIN_TX_BACKEND, "http://10.0.2.2:8545/");
+  const none = MC.directSupervisorEnv(CONFIG, { hostPolicyEnv: { ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: "http://127.0.0.1:1/" } });
+  for (const k of ["ENCLAVE_CHAIN_AUTHORITY", "ENCLAVE_CHAIN_VERIFIER", "ENCLAVE_CHAIN_TX_BACKEND"]) assert.equal(k in none, false, `${k}: no bound member, no such name`);
+  // the hosted MCP adapter's profile is decided by the same verifier (mcp/independent.mjs chainVerifier)
+  const mcp = { port: 8710, managementDirectories: [], capacityDirectories: [], capacityCold: [], maxHosts: 8, sessionScan: { fromBlock: 1 } };
+  const launch = MC.directMcpLaunch({ ...cfg, mcp });
+  assert.equal(JSON.parse(launch.files[MC.GUEST_PATHS.mcpConfig]).profiles.host.chainVerifier, "http://127.0.0.1:50546/");
+  assert.equal("chainVerifier" in JSON.parse(MC.directMcpLaunch({ ...CONFIG, mcp }).files[MC.GUEST_PATHS.mcpConfig]).profiles.host, false);
+  // an image that carries no verifier runtime cannot start the bound verifier: the boot refuses (never the rpcs)
+  const refused = await MC.planDirectBoot({ cmdline: CMDLINE, fw: fwFor({ direct: raw }), reportHostData: hd, viem, paths: { ...guestPaths(), chainVerifierImage: path.join(P.runDir, "absent.json") } });
+  assert.equal(refused.ok, false); assert.match(refused.reasons.join("\n"), /chainVerifier: chain verifier REFUSED \(this image carries no chain verifier runtime\)/);
+  // the statement names the image's runtime record it runs (the existing runtime-hash convention); parsers accept it
+  const keys = MC.mintControlKeys({ paths: guestPaths() });
+  const st = MC.controlStatement({ config: cfg, digest: plan.digest, hostData: hd, mode: "snp", keys, runtime: { chainVerifierImageSha256: "cd".repeat(32) } });
+  assert.equal(MC.parseStatement(st.text).runtime.chainVerifierImageSha256, "cd".repeat(32));
+  // gsup's direct branch starts it as a supervised child BEFORE the supervisor, from the plan
+  const g = fs.readFileSync(path.join(REPO, "metal/guest/gsup.mjs"), "utf8");
+  const d = g.slice(g.indexOf("async function startDirectControl"), g.indexOf("if (CONTROL === 'direct') await startDirectControl()"));
+  const cvAt = d.indexOf("start('chain-verifier', plan.chainVerifier.argv(writeChainVerifierConfig(plan.chainVerifier)), plan.chainVerifier.env, { cwd: '/app' });");
+  const supAt = d.indexOf("start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], plan.env, { cwd: '/app' });");
+  assert.ok(cvAt > 0 && supAt > cvAt, "the verifier starts before the direct supervisor");
+  assert.match(d, /\.\.\.\(plan\.chainVerifier \? \{ chainVerifierImageSha256: fileSha\(P\.chainVerifierImage\) \} : \{\}\)/);
+});

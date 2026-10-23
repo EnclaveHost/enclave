@@ -427,7 +427,9 @@ async function startDirectControl() {
   const st = MC.controlStatement({ config: plan.config, digest: plan.digest, hostData: plan.hostData, mode: MODE, keys,
     runtime: { gsupSha256: fileSha('/opt/metal/gsup.mjs'), helperSha256: fileSha('/opt/metal/measured-control.mjs'), supervisorSha256: fileSha('/app/supervisor.js'),
       ...(plan.mcp ? { mcpSha256: fileSha(MC.MCP_BUNDLE) } : {}),
-      ...(plan.platformApi ? { platformApiSha256: fileSha(MC.PLATFORM_API_BUNDLE) } : {}) } });
+      ...(plan.platformApi ? { platformApiSha256: fileSha(MC.PLATFORM_API_BUNDLE) } : {}),
+      // the bound local chain verifier: the image's pinned runtime record it runs (binaries, glibc runtime, staging)
+      ...(plan.chainVerifier ? { chainVerifierImageSha256: fileSha(P.chainVerifierImage) } : {}) } });
   fs.writeFileSync(P.statement, st.text, { mode: 0o644 });
   fs.writeFileSync(P.serveConfig, JSON.stringify({ statement: P.statement, tlsKey: P.tlsKey, tlsCert: P.tlsCert, port: plan.config.controlPort,
     upstream: { host: '127.0.0.1', port: 8080 }, mode: MODE, vcekB64: typeof fw.vcek === 'string' ? fw.vcek : '',
@@ -440,6 +442,14 @@ async function startDirectControl() {
     + `(TLS sha256:${keys.controlTls.spkiSha256.slice(0, 16)}…); front on :${plan.config.controlPort}`
     + (plan.native ? `; native names ${plan.native.names.join(', ')} wait for a native CA leaf over that key` : ''));
   status({ ok: true, configDigest: plan.digest, hostData: plan.hostData, bound: plan.bound, controlPort: plan.config.controlPort, controlTlsSpkiSha256: keys.controlTls.spkiSha256 });
+  // the bound local chain verifier, BEFORE the supervisor, as its own supervised child (the same start() and runtime as the
+  // relay-mode block below); the supervisor's names came from the same bound member (plan.env). If it cannot be started the
+  // supervisor's chain reads refuse (no provider fallback); serving of what runs is unaffected.
+  if (plan.chainVerifier) {
+    log(plan.chainVerifier.message);
+    try { start('chain-verifier', plan.chainVerifier.argv(writeChainVerifierConfig(plan.chainVerifier)), plan.chainVerifier.env, { cwd: '/app' }); }
+    catch (e) { log(`chain verifier could not be started (${e.code || e.message}): every verified chain read refuses; no provider fallback`); }
+  }
   start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], plan.env, { cwd: '/app' });
   // the agent serves the loopback RAD the supervisor's claim gate reads (teeOk); no relay, no tunnel, no token
   start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {

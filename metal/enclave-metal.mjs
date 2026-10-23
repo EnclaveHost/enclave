@@ -258,9 +258,10 @@ if (POLICY_CARRIERS) console.log(`[enclave-metal] platform policy carriers: ${(a
 // administrator's sequencer pin, 1..16 explicit proof sources and its loopback port. Public, the host controller's own
 // config; checked here (written to fw_cfg in its checked form) and again in the guest against the image's pinned runtime.
 // Absent: nothing changes (the guest's readers keep the provider quorum). Invalid: REFUSES the launch. A direct control
-// guest does not launch the verifier (not in its bound config yet): a host-level setting refuses rather than being ignored.
+// guest takes its verifier ONLY inside the bound direct config (measured-control.mjs canonicalDirectConfig chainVerifier,
+// bound by HOST_DATA): a host-level setting for it refuses rather than being ignored or passed unbound.
 if (DIRECT && cfg.chainVerifier !== undefined && cfg.chainVerifier !== null)
-  throw new Error('control: "direct" does not launch the local chain verifier (relay mode only for now); remove chainVerifier');
+  throw new Error('control: "direct" takes chainVerifier only inside the bound direct config; remove the host-level chainVerifier');
 const CHAIN_VERIFIER = DIRECT || cfg.chainVerifier === undefined || cfg.chainVerifier === null ? null : checkChainVerifier(cfg.chainVerifier);
 if (CHAIN_VERIFIER) console.log(`[enclave-metal] local chain verifier: ${CHAIN_VERIFIER.proofSources.length} proof source(s), guest loopback port ${CHAIN_VERIFIER.port}`);
 const cmdline = [

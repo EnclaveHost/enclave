@@ -71,6 +71,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { checkTransit, leaseGasGuest, withLeaseGasEnv } from './lease-gas-conduit.bundle.mjs';
 import { boundOwnerNomination, ownerNominationEnv } from './owner-nomination.mjs';
+import { checkChainVerifier, guestChainVerifier, withChainVerifierEnv, CHAIN_VERIFIER_IMAGE_FILE } from './chain-verifier.mjs';
 
 export const CONFIG_FORMAT = 'enclave-direct-control-config/v1';
 export const STATEMENT_FORMAT = 'enclave-measured-control-statement/v1';
@@ -119,7 +120,7 @@ const intIn = (v, lo, hi, what) => { if (!Number.isSafeInteger(v) || v < lo || v
 /** The owner's config, strictly validated and canonical. Nothing is defaulted except controlPort. -> frozen object */
 export function canonicalDirectConfig(raw) {
   // every field is required except the optional leaseGas (checked below when present)
-  const OPTIONAL_MEMBERS = ['leaseGas', 'mcp', 'platformApi', 'ownerNomination', 'platformPolicyCarriers', 'nativeControl'];
+  const OPTIONAL_MEMBERS = ['leaseGas', 'mcp', 'platformApi', 'ownerNomination', 'platformPolicyCarriers', 'nativeControl', 'chainVerifier'];
   const fields = raw && typeof raw === 'object' && !Array.isArray(raw) && OPTIONAL_MEMBERS.some((k) => Object.hasOwn(raw, k))
     ? Object.fromEntries(Object.entries(raw).filter(([k]) => !OPTIONAL_MEMBERS.includes(k))) : raw;
   only(fields, ['format', 'chainId', 'contracts', 'profileDigest', 'rpcs', 'quorum', 'releaseId', 'replicas', 'identity', 'selling', 'isolation',
@@ -184,6 +185,14 @@ export function canonicalDirectConfig(raw) {
   if (mcp && platformApi && [platformApi.apiPort, platformApi.peerPort].includes(mcp.port)) bad('mcp.port must differ from both platformApi ports');
   const platformPolicyCarriers = raw.platformPolicyCarriers !== undefined ? checkPolicyCarriers(raw.platformPolicyCarriers, { publicUrl: raw.identity.publicUrl }) : null;
   const nativeControl = raw.nativeControl !== undefined ? directNativeControl(raw.nativeControl, { platformApi }) : null;
+  // the owner's LOCAL chain verifier for this guest (metal/guest/chain-verifier.mjs: the same checker as a relay-mode host's
+  // fw_cfg setting, bound here by HOST_DATA): its loopback port is in the reserved 50000..57999 range, distinct from every
+  // other port this config names
+  let chainVerifier = null;
+  if (raw.chainVerifier !== undefined) {
+    try { chainVerifier = checkChainVerifier(raw.chainVerifier); } catch (e) { bad(e.message); }
+    if ([controlPort, mcp?.port, platformApi?.apiPort, platformApi?.peerPort].includes(chainVerifier.port)) bad('chainVerifier.port must differ from every other port of this config');
+  }
   return deepFreeze({
     format: CONFIG_FORMAT, chainId: CHAIN_ID, contracts, profileDigest: raw.profileDigest, rpcs, quorum, releaseId: raw.releaseId,
     replicas: { gateways, storagePlan: storagePlan === null ? null : JSON.parse(canonicalJson(storagePlan)) },
@@ -198,6 +207,7 @@ export function canonicalDirectConfig(raw) {
     ...(ownerNomination ? { ownerNomination } : {}),
     ...(platformPolicyCarriers ? { platformPolicyCarriers } : {}),
     ...(nativeControl ? { nativeControl } : {}),
+    ...(chainVerifier ? { chainVerifier: JSON.parse(JSON.stringify(chainVerifier)) } : {}),
   });
 }
 // The bound native control member (see the header): which native control names this guest serves, and the native CA whose
@@ -323,7 +333,9 @@ export function directMcpLaunch(cfg, { paths = GUEST_PATHS, bundle = MCP_BUNDLE,
   const profile = { contractPins: paths.mcpPins, rpcs: cfg.rpcs, quorum: cfg.quorum, managementDirectories: m.managementDirectories,
     capacityDirectories: m.capacityDirectories, capacityCold: m.capacityCold, maxHosts: m.maxHosts,
     ...(m.storagePlan ? { storagePlan: paths.mcpStoragePlan } : {}), ...(m.grantFrontend ? { grantFrontend: m.grantFrontend } : {}),
-    ...(m.usdc ? { usdc: m.usdc } : {}), sessionScan: m.sessionScan, stateDir: paths.mcpState };
+    ...(m.usdc ? { usdc: m.usdc } : {}), sessionScan: m.sessionScan, stateDir: paths.mcpState,
+    // a bound local chain verifier decides the adapter's chain reads too (mcp/independent.mjs profile chainVerifier: no fallback)
+    ...(cfg.chainVerifier ? { chainVerifier: `http://127.0.0.1:${cfg.chainVerifier.port}/` } : {}) };
   const files = { [paths.mcpPins]: JSON.stringify(contractPinsDoc(cfg)),
     [paths.mcpConfig]: JSON.stringify({ format: 'enclave-mcp-independent/v1', profiles: { [MCP_PROFILE]: profile } }),
     ...(m.storagePlan ? { [paths.mcpStoragePlan]: JSON.stringify(m.storagePlan) } : {}) };
@@ -457,6 +469,8 @@ export const GUEST_PATHS = Object.freeze({
   nativeCertificate: '/run/measured-control/native-certificate.pem',
   // the supervisor image's shared host-admission bundle (supervisor.js imports it): checked only when the config names carriers
   hostAdmissionBundle: '/app/windows/node/host-admission.bundle.mjs',
+  // the image's pinned chain verifier runtime record (metal/chain-verifier-image.json), used only with a bound chainVerifier
+  chainVerifierImage: CHAIN_VERIFIER_IMAGE_FILE,
 });
 // The baked flavor env (enclaves/cpu/config.yml) is the HOSTED fleet's: it names the Enclave address book, Enclave's own
 // payout wallet, SIWE/CORS origins at enclave.host. A direct guest inherits only these authority-free tunables from it.
@@ -499,9 +513,13 @@ export function directSupervisorEnv(cfg, { paths = GUEST_PATHS, capacity = {}, s
   delete env[CARRIERS_ENV];
   if (cfg.platformPolicyCarriers) env[CARRIERS_ENV] = canonicalJson(cfg.platformPolicyCarriers);
   // app-funded lease gas: only from the bound config (never flavor or host policy), absent = none of these names at all
-  return { ...withLeaseGasEnv(env, cfg.leaseGas ? leaseGasGuest(cfg.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null),
+  const out = { ...withLeaseGasEnv(env, cfg.leaseGas ? leaseGasGuest(cfg.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null),
     // the owner nomination: only from the bound config, absent = no such name
     ...ownerNominationEnv(cfg.ownerNomination || null) };
+  // the chain authority: ONLY from the bound chainVerifier (the local verifier this guest starts before the supervisor, and
+  // the owner's own transaction backend); absent = none of these names. The supervisor then reads only through the verifier
+  // (the configured rpcs stay for the members that name them, and are never used by the supervisor for its chain).
+  return withChainVerifierEnv(out, cfg.chainVerifier ? { configured: true, ok: true, url: `http://127.0.0.1:${cfg.chainVerifier.port}/`, verifier: cfg.chainVerifier } : null);
 }
 /** The rules supervisor.js directOnlyProblems applies at startup, plus this guest's own (no Enclave origin, keys present). */
 export function directEnvProblems(env) {
@@ -655,7 +673,14 @@ export async function planDirectBoot({ cmdline, fw = {}, reportHostData = '', ca
   if (platformApi && platformApi.refused) return { ok: false, reasons: [platformApi.refused], mode, digest, hostData };
   if (platformApi) Object.assign(files, platformApi.files);
   const native = directNativeLaunch(config, { paths });
-  return { ok: true, config, digest, hostData, bound, mode, env, files, operator, selling: !!fw.registryKey, mcp, platformApi, native };
+  // the bound local chain verifier: this image must carry its pinned runtime, or the guest refuses to boot (the config the
+  // hardware attests to names a verifier this image cannot start; the supervisor never falls back to the rpcs)
+  let chainVerifier = null;
+  if (config.chainVerifier) {
+    chainVerifier = guestChainVerifier(config.chainVerifier, { imageFile: paths.chainVerifierImage || CHAIN_VERIFIER_IMAGE_FILE });
+    if (!chainVerifier.ok) return { ok: false, reasons: [`chainVerifier: ${chainVerifier.message}`], mode, digest, hostData };
+  }
+  return { ok: true, config, digest, hostData, bound, mode, env, files, operator, selling: !!fw.registryKey, mcp, platformApi, native, chainVerifier };
 }
 
 // ---- keys minted in the guest ---------------------------------------------------------------------------------------------
@@ -725,7 +750,8 @@ export function controlStatement({ config, digest, hostData, mode, keys, runtime
     ...(config.nativeControl ? { native: { names: [...config.nativeControl.names], caSha256: config.nativeControl.caSha256 } } : {}),
     runtime: { gsupSha256: runtime.gsupSha256 ?? null, helperSha256: runtime.helperSha256 ?? null, supervisorSha256: runtime.supervisorSha256 ?? null,
       ...(runtime.mcpSha256 !== undefined ? { mcpSha256: runtime.mcpSha256 } : {}),
-      ...(runtime.platformApiSha256 !== undefined ? { platformApiSha256: runtime.platformApiSha256 } : {}) },
+      ...(runtime.platformApiSha256 !== undefined ? { platformApiSha256: runtime.platformApiSha256 } : {}),
+      ...(runtime.chainVerifierImageSha256 !== undefined ? { chainVerifierImageSha256: runtime.chainVerifierImageSha256 } : {}) },
     bootId };
   const text = canonicalJson(obj);
   if (Buffer.byteLength(text) > MAX_STATEMENT_BYTES) bad('control statement too large');

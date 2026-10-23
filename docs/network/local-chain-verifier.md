@@ -155,34 +155,42 @@ To roll back, unset `chainAuthority` (or `ENCLAVE_CHAIN_AUTHORITY`) on the consu
 the legacy provider quorum, unchanged. Then stop the runtime. The runtime never falls back to provider agreement by
 itself.
 
-## Inside the Linux metal guest (relay mode)
+## Inside the Linux metal guest (relay mode and direct control)
 
 A host operator opts in with a `chainVerifier` member in the host controller's `config.json`.
 `metal/guest/chain-verifier.mjs` is the one checker: the launcher checks the member, then the guest checks it again.
 
 ```json
 "chainVerifier": { "format": "enclave-chain-verifier/v1", "unsafeSigner": "0x<the administrator's sequencer pin>",
-                   "proofSources": ["https://<explicit state holder>/"], "port": 50546 }
+                   "proofSources": ["https://<explicit state holder>/"], "port": 50546,
+                   "txBackend": "http://10.0.2.2:8545/" }
 ```
 
 - **Fields:**
   - 1..16 https proof sources;
   - optional `gossip` / `limits`;
   - `port` in **50000..57999**. That is above every tenant-declarable port and below the ephemeral range init pins, so
-    no tenant can hold it.
+    no tenant can hold it;
+  - optional `txBackend`: the operator's OWN Base node, at a loopback or private address literal (never a name). It is
+    used only for submission and pool/fee hints, after being bound to the verifier's chain (`ENCLAVE_CHAIN_TX_BACKEND`).
+    Without it, nothing is submitted.
 - **Refused fields:**
   - `witnessArchive` (the base has no curl with `--aws-sigv4`);
   - `witnessCache`;
   - anything unknown.
-- **Direct control guests** refuse the member for now.
+- **Direct control guests** take the member only inside their HOST_DATA-bound direct config (a host-level setting is
+  refused). gsup's direct branch starts it before the direct supervisor, and a boot whose image lacks the runtime is
+  refused.
 - **The launcher** passes the checked member through fw_cfg.
 - **gsup** builds the runtime config from the image's pin record (`/opt/rpc-runtime/IMAGE.json` =
   `metal/chain-verifier-image.json`). It starts the runtime as its supervised child `chain-verifier` before the
   supervisor, restarting it with backoff, and gives the supervisor exactly `ENCLAVE_CHAIN_AUTHORITY=verifier` and
   `ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:<port>/`. No other channel may supply those names.
-- **Consumers:** the supervisor's verified readers (host wallet admission and the platform host policy gate) refuse
-  until the runtime is ready, and whenever no proof source can supply a fresh witness. Its other chain reads (claims and
-  lease records over `BASE_RPCS`) are unchanged.
+- **Consumers:** EVERY chain read of the supervisor, and of the lease-gas and owner-nomination readers, goes through
+  the verifier (`network/chain-authority.mjs`). That covers claims, leases, receipts, nonces, admission and policy, the
+  admin AddressBook, settlement and prices. They refuse until the runtime is ready, and whenever no proof source can
+  supply a fresh witness. Logs prove inclusion only. Path by path, with the remaining gate (payment-event completeness):
+  `docs/network/supervisor-chain-authority.md`.
 - **Failure states:**
   - Present but invalid, or an image without the runtime (`metal/overlay-control-image.py` without
     `--chain-verifier-dir`): the supervisor gets the verifier authority at a URL nothing serves, so verified reads
