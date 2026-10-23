@@ -20,8 +20,11 @@
 //     quarantined (skipped, never deleted or overwritten), and verified entries are served before any upstream is
 //     asked. A cache hit is availability for THAT block only, never freshness: the verifier still needs a fresh signed
 //     head, and Helios rejects a witness that does not match it.
-//   * Other methods (blocks, receipts, logs, fee data) keep ordered first-answer failover: Helios verifies those
-//     against its signed head itself. A method allowlist keeps the gateway from being a general RPC proxy
+//   * eth_getBlockByHash (Helios's historical path asks for a full block by hash) is verified too: the header must hash
+//     to the requested hash, and a full-transaction body must pass Helios's OpStack::validate_block; a bad answer costs
+//     its source the try. A hash-only answer is HEADER-verified only. Blocks are never cached or used as roots.
+//   * Other methods (blocks by number, receipts, logs, fee data) keep ordered first-answer failover: Helios verifies
+//     those against its signed head itself. A method allowlist keeps the gateway from being a general RPC proxy
 //     (a16z/helios 2af9b418 core/src/execution/providers/rpc.rs, opstack evm, plus broadcast).
 //   * eth_sendRawTransaction goes to every upstream. A broadcast proves nothing about inclusion (a receipt in a verified
 //     block does), and with every upstream down nothing can be sent: the gateway says so.
@@ -140,8 +143,8 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
   if (!Number.isSafeInteger(maxHeaderBytes) || maxHeaderBytes < 1024 || maxHeaderBytes > maxResponseBytes) throw new Error('invalid maxHeaderBytes');
   if ((methods.some((m) => PINNED.has(m)) || cache) && !(proofs?.checker?.check && proofs?.roots?.rootFor))
     throw new Error('eth_getProof/eth_getCode and the witness cache need proofs: {checker, roots} (no unverified witness serving)');
-  const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0, invalid: 0, headerOk: 0, headerInvalid: 0 }])), cacheHits: 0, cachePuts: 0,
-    cacheInvalid: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0 };
+  const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0, invalid: 0, headerOk: 0, headerInvalid: 0, blockOk: 0, blockInvalid: 0, blockNull: 0 }])), cacheHits: 0, cachePuts: 0,
+    cacheInvalid: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0, blocksFull: 0, blocksHeaderOnly: 0 };
   const slot = limiter(maxInFlight);
   const quarantine = new Set(), accounts = new Map();   // bounded: known-bad cache contents; recent verified account proofs
   const remember = (set, k, v) => { if (set instanceof Map) set.set(k, v); else set.add(k); if (set.size > (set instanceof Map ? 1024 : 4096)) set.delete(set.keys().next().value); };
@@ -225,11 +228,48 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
     return { error: `no verifiable witness${reasons.length ? ': ' + reasons.join('; ').slice(0, 400) : ' (no cached entry, no upstream)'}` };
   }
 
+  /** eth_getBlockByHash [hash, fullTx] with proofs configured: each upstream answer is checked by the helper (`block`):
+   *  the header must hash to the requested hash (the upstream's hash field is never trusted); with fullTx the body must
+   *  pass Helios's OpStack::validate_block. An invalid answer costs its source the try. A hash-only (fullTx=false)
+   *  answer is HEADER-verified only. Verified blocks are served as received and never cached or used as roots.
+   *  null is returned only when every answering source said null and none answered with an invalid block. */
+  async function blockByHash(params, deadline) {
+    if (!Array.isArray(params) || params.length !== 2 || !HASH.test(params[0]) || typeof params[1] !== 'boolean')
+      return { error: 'eth_getBlockByHash needs [blockHash, fullTransactions]', code: -32602 };
+    const [hash, fullTx] = params, body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBlockByHash', params });
+    const reasons = [];
+    let nulls = 0, invalid = 0;
+    for (const u of upstreams) {
+      const s = stats.upstream[rpcLabel(u)];
+      let j;
+      try { j = await ask(u, body, deadline); } catch (e) { s.failed++; reasons.push(`${rpcLabel(u)}: ${String(e?.message || e).slice(0, 80)}`); continue; }
+      if (j.error || !('result' in j)) { s.failed++; reasons.push(`${rpcLabel(u)}: ${String(j.error?.message ?? 'no result').slice(0, 80)}`); continue; }
+      if (j.result === null) { s.blockNull++; nulls++; continue; }
+      let v;
+      try { v = await proofs.checker.check({ op: 'block', block: j.result, expectHash: hash, fullTx }); } catch (e) {
+        stats.verifierUnavailable++;
+        return { error: `witness verifier unavailable (${String(e?.message || e).slice(0, 80)}): refused` };
+      }
+      if (!v.ok) { s.blockInvalid++; invalid++; reasons.push(`${rpcLabel(u)}: invalid block (${String(v.error).slice(0, 80)})`); continue; }
+      s.blockOk++;
+      if (v.body === 'full') stats.blocksFull++; else stats.blocksHeaderOnly++;
+      return { result: j.result };
+    }
+    if (nulls && !invalid) return { result: null };
+    return { error: `no verifiable block${reasons.length ? ': ' + reasons.join('; ').slice(0, 400) : ''}` };
+  }
+
   async function handle(req) {
     if (!req || typeof req !== 'object' || req.jsonrpc !== '2.0' || typeof req.method !== 'string') return err(req?.id, -32600, 'invalid request');
     const params = req.params === undefined ? [] : req.params;
     if (!methods.includes(req.method)) { stats.refused[req.method.slice(0, 64)] = (stats.refused[req.method.slice(0, 64)] || 0) + 1; return err(req.id, -32601, 'method not offered by the witness gateway'); }
     const deadline = Date.now() + deadlineMs;
+    if (req.method === 'eth_getBlockByHash' && proofs) {
+      const r = await blockByHash(params, deadline);
+      if ('result' in r) return ok(req.id, r.result);
+      stats.unavailable++;
+      return err(req.id, r.code ?? -32000, r.error);
+    }
     if (PINNED.has(req.method)) {
       const r = await witness(req.method, params, deadline);
       if ('result' in r) return ok(req.id, r.result);

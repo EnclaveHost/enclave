@@ -49,11 +49,15 @@ async function rpc(url, method, params = []) {
   return j.result;
 }
 let checker, heads = {}, consensus, current;
+const FULL = new Map();                                  // hash -> real full-transaction block (witness-check exportBlock)
 test.before(async () => {
   checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: BASE_MAINNET.unsafeSigner });
   for (const f of fs.readdirSync(path.join(BASE_HEADS_DIR, 'objects'))) {
     const r = await checker.check({ op: 'exportHeader', object: '0x' + fs.readFileSync(path.join(BASE_HEADS_DIR, 'objects', f)).toString('hex') });
     if (r.ok && (r.head.number === TARGET || r.head.number === HEAD)) heads[r.head.number] = r;
+    // the gateway verifies eth_getBlockByHash bodies (witness-blocks): the honest source answers Helios's full-body
+    // request with the real block derived from the signed gossip object, not a bare header
+    if (r.ok && r.head.number === TARGET) FULL.set(r.header.hash, (await checker.check({ op: 'exportBlock', object: '0x' + fs.readFileSync(path.join(BASE_HEADS_DIR, 'objects', f)).toString('hex') })).block);
   }
   current = heads[TARGET].commitment;
   consensus = await serve((_, q) => (q.url === '/chain_id' ? 8453 : current));
@@ -79,7 +83,7 @@ async function sources() {
     : VERIFIED_METHODS.includes(j.method) ? { result: { accountProof: 'not-an-array' } } : { error: { code: -32000, message: 'x' } }) }));
   const honest = await serve(async (j) => {
     seen.push({ who: 'honest', method: j.method, params: j.params });
-    if (j.method === 'eth_getBlockByHash') return { jsonrpc: '2.0', id: j.id, result: BY_HASH.get(j.params[0])?.header ?? null };
+    if (j.method === 'eth_getBlockByHash') return { jsonrpc: '2.0', id: j.id, result: (j.params[1] === true ? FULL.get(j.params[0]) : null) ?? BY_HASH.get(j.params[0])?.header ?? null };
     const w = witnessKey(j.method, j.params), got = w && RECORDED ? await RECORDED.candidates(w) : [];
     return got.length ? { jsonrpc: '2.0', id: j.id, result: got[0] } : { jsonrpc: '2.0', id: j.id, error: { code: -32000, message: 'not recorded' } };
   });
