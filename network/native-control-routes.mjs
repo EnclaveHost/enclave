@@ -27,7 +27,7 @@ import https from 'node:https';
 import tls from 'node:tls';
 import { randomBytes, X509Certificate } from 'node:crypto';
 import { keccak256, encodeFunctionData } from 'viem';
-import { agreedRead, peerList, validateIndexPin, publishTypedData, SERVICE_INDEX_ABI, AD_VERSION, LIMITS, publicIPv4, QuorumError } from './service-index.mjs';
+import { agreedRead, peerList, indexAuthority, indexRead, validateIndexPin, publishTypedData, SERVICE_INDEX_ABI, AD_VERSION, LIMITS, publicIPv4, QuorumError } from './service-index.mjs';
 import { verifyMeasuredControl } from '../metal/measured-control-verify.mjs';
 import { parseStatement, sha256Hex, EVIDENCE_PATH, EVIDENCE_FORMAT, NATIVE_NAMES } from '../metal/guest/measured-control.mjs';
 import { judgeHost } from './platform-host-policy.mjs';
@@ -64,13 +64,14 @@ export function prepareControlAd({ pin, operator, slot, sequence, ttlSec = 30 * 
  * first (get(operator, slot) for every slot, so listing spam cannot hide them), then up to `window` listed kind-9 ads.
  * -> { candidates: [{ address, operator, slot, expiresAt (ms) }], rejected: [{ operator, slot, endpoint?, reason }], blockNumber, complete }
  */
-export async function readControlCandidates({ peers, clients, indexPin, operators = [], window = 256, now = Date.now, ...policy }) {
+export async function readControlCandidates({ peers, clients, indexPin, operators = [], window = 256, now = Date.now, chainAuthority, chainVerifier, ...policy }) {
   const pin = validateIndexPin(indexPin);
-  const list = peerList({ peers, clients, methods: ['getCode', 'readContract'] });
+  // the legacy provider quorum, or with chainAuthority 'verifier' one proof-backed snapshot (service-index indexRead)
+  const auth = indexAuthority({ peers, clients, chainAuthority, chainVerifier });
   if (!Array.isArray(operators) || operators.length > 32 || operators.some((o) => !ADDR.test(String(o)))) throw new Error('at most 32 operator addresses');
   if (!Number.isSafeInteger(window) || window < 1 || window > LIMITS.perKind) throw new Error(`window must be 1..${LIMITS.perKind}`);
   const wanted = operators.flatMap((o) => [...Array(LIMITS.slots).keys()].map((slot) => ({ operator: lc(o), slot })));
-  const r = await agreedRead({ peers: list, chainId: pin.chainId, now, ...policy, read: async (c, blockNumber, call) => {
+  const r = await indexRead(auth, { chainId: pin.chainId, now, ...policy, read: async (c, blockNumber, call) => {
     const code = await call('code', () => c.getCode({ address: pin.address, blockNumber }));
     const value = { codeHash: code ? keccak256(code) : null, ads: [], total: 0n, lookups: [] };
     if (value.codeHash !== pin.codeHash) return value;
@@ -285,6 +286,6 @@ export async function controlRoutesFromEnv(env, { caPem, log = () => {}, fetch =
   const collateral = testCollateral || httpCollateral({ fetchImpl: fetch });
   const expect = { measurements, minTcb: TCB_FLOORS, crl: 'required', ...(roots ? { roots } : {}) };
   return cachedControlRoutes(() => discoverControlRoutes({ now, excludeAddresses: exclude,
-    readCandidates: () => readControlCandidates({ peers, indexPin, operators, now }),
+    readCandidates: () => readControlCandidates({ peers, indexPin, operators, now, chainAuthority: env.ENCLAVE_CHAIN_AUTHORITY || undefined, chainVerifier: env.ENCLAVE_CHAIN_VERIFIER || undefined }),
     verifyEndpoint: (address) => verifyNativeControlEndpoint({ address, caPem, expect, collateral, registry, now, decideHost, ...(dial ? { dial } : {}) }) }), { log, now });
 }

@@ -19,7 +19,7 @@
 // the Windows node does not start) - never a silently ignored transport.
 import path from "node:path";
 import { createHostServiceGate as baseGate, hostIdOfEndpoint } from "./host-service-gate.mjs";
-import { createHostPolicyRuntime, resolveHostPolicyConfig, fileStore, quorumSnapshot } from "./host-policy-runtime.mjs";
+import { createHostPolicyRuntime, resolveHostPolicyConfig, fileStore, hostPolicySnapshot } from "./host-policy-runtime.mjs";
 import { CARRIER_MIRROR, validateCarrierBases, fileCarrier, httpCarriers, indexCarriers, freshVerifier, carrierFetch } from "./policy-carriers.mjs";
 import { validateIndexPin } from "./service-index.mjs";
 export { hostIdOfEndpoint };
@@ -54,15 +54,15 @@ export function createHostServiceGate(opts = {}) {
   const resolved = resolveHostPolicyConfig({ env: gateEnv, chainId: opts.chainId ?? null, book: opts.book ?? null });
   if (!resolved.on) throw Error("ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS is set but the platform host policy is off: nothing would use them");
   const c = resolved.config;
-  if (!Array.isArray(c.rpcs) || !c.rpcs.length) throw Error("platform host policy carriers need the policy's own RPC quorum");
-  // ONE agreed-block reader for the gate AND the carriers' fresh verification
-  const snapshot = quorumSnapshot({ rpcs: c.rpcs, minAgree: c.minAgree ?? null });
+  if (c.chainAuthority !== "verifier" && (!Array.isArray(c.rpcs) || !c.rpcs.length)) throw Error("platform host policy carriers need the policy's own RPC quorum");
+  // ONE snapshot reader for the gate AND the carriers' fresh verification: the RPC quorum, or the local verifier when chosen
+  const snapshot = hostPolicySnapshot({ rpcs: c.rpcs, minAgree: c.minAgree ?? null, chainAuthority: c.chainAuthority, chainVerifier: c.chainVerifier });
   const net = globalThis.fetch;
   const sources = [
     ...(carriers.importDir ? [fileCarrier(carriers.importDir)] : []),
     ...(carriers.policyMirrorStateDir ? [fileCarrier(path.join(carriers.policyMirrorStateDir, "documents"))] : []),
     ...httpCarriers(carriers.peers, { fetch: net }),
-    ...(carriers.serviceIndex ? [indexCarriers({ pin: carriers.serviceIndex, peers: c.rpcs, fetch: net, log })] : []),
+    ...(carriers.serviceIndex ? [indexCarriers({ pin: carriers.serviceIndex, peers: c.rpcs, fetch: net, log, chainAuthority: c.chainAuthority, chainVerifier: c.chainVerifier })] : []),
   ];
   const verify = freshVerifier({ snapshot, book: c.book, hostOwnership: c.hostOwnership });
   const runtime = createHostPolicyRuntime(resolved, { snapshot, store: opts.stateDir ? fileStore(`${opts.stateDir}/platform-host-policy.json`) : null,

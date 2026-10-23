@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createPublicClient, http, encodeFunctionData, decodeFunctionResult } from "viem";
 import { createQuorumReader, checkRpcUrls } from "../custody/v2/quorum.mjs";
+import { createVerifiedSnapshot, chainVerifierOf } from "./verified-chain.mjs";
 import { createPlatformHostGate, readPolicyFacts, decodeAnchor } from "./platform-host-policy.mjs";
 import { httpPolicyMirrors, validateMirrors } from "./host-policy-mirrors.mjs";
 import { hostAdmissions, measuredHostGate } from "./host-policy-adapters.mjs";
@@ -41,6 +42,27 @@ export function quorumSnapshot({ rpcs, minAgree = null, clients = null, maxAgeSe
       data: await c.request({ method: "eth_call", params: [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }, { blockHash: b.blockHash, requireCanonical: true }] }) }),
     code: (a) => c.request({ method: "eth_getCode", params: [a, { blockHash: b.blockHash, requireCanonical: true }] }) }));
 }
+/**
+ * The local proof-backed verifier -> the gate's snapshot(fn), same interface and freshness as quorumSnapshot (head block,
+ * <= maxAgeSec old, <= 10 s ahead, monotonic, re-checked header) but ONE verified block (unsafe tier) instead of a
+ * provider majority. Any failure refuses (codes as custody/v2/quorum.mjs); there is no provider fallback.
+ */
+export function verifiedHostSnapshot({ verifier, chainId = 8453, maxAgeSec = 120, now = Date.now }) {
+  const snap = createVerifiedSnapshot({ verifier, chainId, confirmations: 0, maxBlockAgeMs: maxAgeSec * 1000, futureSkewMs: 10_000, deadlineMs: 30_000, now });
+  return async (fn) => {
+    const s = await snap((c, b) => fn({ block: b,
+      call: (address, abi, functionName, args = []) => c.readContract({ address, abi, functionName, args, blockNumber: b }),
+      code: (a) => c.getCode({ address: a, blockNumber: b }).then((x) => x || "0x") }));
+    // quorumSnapshot hands back the read's value merged with the block it was read at; so does this
+    return s.value && typeof s.value === "object" && !Array.isArray(s.value)
+      ? { ...s.value, blockNumber: s.blockNumber, blockHash: s.blockHash, blockTimestamp: Math.floor(s.timestamp / 1000) } : s.value;
+  };
+}
+/** The policy snapshot a configuration asks for: the local verifier when chainAuthority is 'verifier', else the RPC quorum. */
+export function hostPolicySnapshot({ rpcs = null, minAgree = null, clients = null, chainAuthority, chainVerifier, chainId = 8453 } = {}) {
+  const verifier = chainVerifierOf({ chainAuthority, chainVerifier }, "platform host policy");
+  return verifier ? verifiedHostSnapshot({ verifier, chainId }) : quorumSnapshot({ rpcs, minAgree, clients });
+}
 /** A viem client snapshot (e.g. the CLI's INDEPENDENT.chain.snapshot((client, blockNumber) => ...)) -> the gate's snapshot */
 export const clientSnapshot = (snap) => (fn) => snap((client, blockNumber) => fn({ block: blockNumber,
   call: (address, abi, functionName, args = []) => client.readContract({ address, abi, functionName, args, blockNumber }),
@@ -60,7 +82,9 @@ export function createHostPolicyRuntime(resolved, { rpcs = null, minAgree = null
   else cfg = resolved.on === true ? resolved.config : resolved;
   if (!cfg) return null;
   const activation = cfg.activation || "anchor";
-  const snap = snapshot || quorumSnapshot({ rpcs: rpcs || cfg.rpcs, minAgree: minAgree ?? cfg.minAgree ?? null, clients });
+  // the configured authority decides: with chainAuthority 'verifier' the RPC list/clients are never used
+  const snap = snapshot || hostPolicySnapshot({ rpcs: rpcs || cfg.rpcs, minAgree: minAgree ?? cfg.minAgree ?? null, clients,
+    chainAuthority: cfg.chainAuthority, chainVerifier: cfg.chainVerifier });
   const mirrors = cfg.mirrors && cfg.mirrors.length ? httpPolicyMirrors(cfg.mirrors, { fetch }) : [];
   if (!mirrors.length) log("[host-policy] WARNING: no policy mirror configured - an anchored policy cannot be loaded and will refuse every host");
   const core = createPlatformHostGate({ book: cfg.book, hostOwnership: cfg.hostOwnership, snapshot: snap, mirrors, store, log });
@@ -92,6 +116,7 @@ export function createHostPolicyRuntime(resolved, { rpcs = null, minAgree = null
   const gate = { refresh, decide, decideOperators, decideHost: core.decideHost, currentAuthorityChecks: core.currentAuthorityChecks, accepted: core.accepted, problems: core.problems };
   return { config: cfg, activation, gate, admissions: hostAdmissions(gate, { ttlMs }), decideOperators,
            measured: (hostId, o = {}) => measuredHostGate({ gate, hostId, log, ...o }),
-           status: () => ({ activation, anchor: last.state, block: last.block ? String(last.block) : null,
+           status: () => ({ activation, chainAuthority: snapshot ? "injected" : cfg.chainAuthority === "verifier" ? "local-verifier (unsafe tier)" : "provider-quorum",
+             anchor: last.state, block: last.block ? String(last.block) : null,
                             accepted: core.accepted() ? { sequence: core.accepted().policy.sequence, digest: core.accepted().digest } : null, problems: core.problems() }) };
 }

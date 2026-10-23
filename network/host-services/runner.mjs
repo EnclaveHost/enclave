@@ -35,6 +35,7 @@
 //   - the platform host policy gates it exactly as it gates app service on this host (network/host-service-gate.mjs): a ban,
 //     an allowlist miss or a deregistration STOPS every role (sticky until the admin's admit); a transient outage keeps
 //     serving for the gate's grace; "off" must be written explicitly and is reported as such.
+import { chainVerifierOf } from '../verified-chain.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn as spawnChild } from 'node:child_process';
@@ -76,7 +77,7 @@ function baseEnv() {
 /** -> the normalized configuration (throws on anything else). */
 export function validateHostServicesConfig(cfg) {
   if (!plain(cfg)) fail('configuration must be an object');
-  const allowed = ['format', 'host', 'platformHostPolicy', 'platformHostPolicyMirrors', 'platformHostPolicyRpcs', 'platformHostPolicyCarriers', 'serviceIndex', 'packagesDir', 'stateRoot', 'services'];
+  const allowed = ['format', 'host', 'platformHostPolicy', 'platformHostPolicyMirrors', 'platformHostPolicyRpcs', 'platformHostPolicyCarriers', 'serviceIndex', 'packagesDir', 'stateRoot', 'services', 'chainAuthority', 'chainVerifier'];
   for (const k of Object.keys(cfg)) if (!allowed.includes(k)) fail(`unknown field ${JSON.stringify(k)}${SECRETISH.test(k) ? ' (host services hold no secret)' : ''}`);
   if (cfg.format !== CONFIG_FORMAT) fail(`format must be ${CONFIG_FORMAT}`);
   for (const k of ['packagesDir', 'stateRoot']) if (typeof cfg[k] !== 'string' || !path.isAbsolute(cfg[k])) fail(`${k} must be an absolute path`);
@@ -84,6 +85,9 @@ export function validateHostServicesConfig(cfg) {
   if (!(cfg.platformHostPolicy === 'production' || cfg.platformHostPolicy === 'off' || plain(cfg.platformHostPolicy))) fail('platformHostPolicy: "production" | "off" | { book, hostOwnership, mirrors[] }');
   if (cfg.platformHostPolicyMirrors !== undefined && (!Array.isArray(cfg.platformHostPolicyMirrors) || cfg.platformHostPolicyMirrors.some((u) => typeof u !== 'string' || !/^https:\/\/[^\s/?#@]+(\/[^\s?#]*)?$/.test(u)))) fail('platformHostPolicyMirrors: https URLs');
   // the policy's own RPC quorum: https (http only on loopback), one vote per provider (network/rpc-identity.mjs)
+  // chainAuthority 'verifier' + chainVerifier (loopback): the platform policy, its carriers and the index carriers read
+  // the local proof-backed verifier instead of the RPC quorum (no fallback)
+  try { chainVerifierOf({ chainAuthority: cfg.chainAuthority, chainVerifier: cfg.chainVerifier }, 'host services'); } catch (e) { fail(e.message); }
   if (cfg.platformHostPolicyRpcs !== undefined) {
     if (!Array.isArray(cfg.platformHostPolicyRpcs) || cfg.platformHostPolicyRpcs.length < 1 || cfg.platformHostPolicyRpcs.length > 8) fail('platformHostPolicyRpcs: 1 to 8 RPC URLs');
     const ids = cfg.platformHostPolicyRpcs.map((u, i) => { try { return rpcEndpoint(u).identity; } catch (e) { return fail(`platformHostPolicyRpcs[${i}]: https (http only on loopback), without credentials`); } });
@@ -140,7 +144,8 @@ export function policyEnv(cfg) {
   const mirrors = [...(cfg.platformHostPolicyMirrors || []), ...(usesCarriers(cfg) ? [CARRIER_MIRROR] : [])];
   return { ENCLAVE_PLATFORM_HOST_POLICY: typeof p === 'string' ? p : JSON.stringify(p),
     ...(mirrors.length ? { ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS: mirrors.join(',') } : {}),
-    ...(cfg.platformHostPolicyRpcs ? { ENCLAVE_PLATFORM_HOST_POLICY_RPCS: cfg.platformHostPolicyRpcs.join(',') } : {}) };
+    ...(cfg.platformHostPolicyRpcs ? { ENCLAVE_PLATFORM_HOST_POLICY_RPCS: cfg.platformHostPolicyRpcs.join(',') } : {}),
+    ...(cfg.chainAuthority === 'verifier' ? { ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: cfg.chainVerifier } : {}) };
 }
 /**
  * The fetch the gate uses: CARRIER_MIRROR answered from this host's carriers (importDir, its policy-mirror store, peers,
@@ -150,20 +155,20 @@ export function policyEnv(cfg) {
 export async function policyCarrierFetch(cfg, { fetch = globalThis.fetch, log = () => {} } = {}) {
   if (!usesCarriers(cfg)) return fetch;
   const { resolveHostPolicyConfig } = await import('../platform-host-policy-config.mjs');
-  const { quorumSnapshot } = await import('../host-policy-runtime.mjs');
+  const { hostPolicySnapshot } = await import('../host-policy-runtime.mjs');
   const pcm = await import('../policy-carriers.mjs');
   const resolved = resolveHostPolicyConfig({ env: policyEnv(cfg), chainId: 8453 });
-  const { book, hostOwnership, rpcs, minAgree } = resolved.config;
-  if (!rpcs || !rpcs.length) fail('platform host policy carriers need the policy\'s RPC quorum (platformHostPolicyRpcs or the platform\'s rpcs)');
+  const { book, hostOwnership, rpcs, minAgree, chainAuthority, chainVerifier } = resolved.config;
+  if (chainAuthority !== 'verifier' && (!rpcs || !rpcs.length)) fail('platform host policy carriers need the policy\'s RPC quorum (platformHostPolicyRpcs or the platform\'s rpcs)');
   const pc = cfg.platformHostPolicyCarriers || {};
   const mirror = cfg.services.find((s) => s.role === 'policy-mirror');
   const carriers = [
     ...(pc.importDir ? [pcm.fileCarrier(pc.importDir)] : []),
     ...(mirror ? [pcm.fileCarrier(path.join(mirror.config.stateDir, 'documents'))] : []),
     ...pcm.httpCarriers(pc.peers || [], { fetch }),
-    ...(pc.serviceIndex ? [pcm.indexCarriers({ pin: cfg.serviceIndex, peers: rpcs, fetch, log })] : []),
+    ...(pc.serviceIndex ? [pcm.indexCarriers({ pin: cfg.serviceIndex, peers: rpcs, fetch, log, chainAuthority, chainVerifier })] : []),
   ];
-  const verify = pcm.freshVerifier({ snapshot: quorumSnapshot({ rpcs, minAgree }), book, hostOwnership });
+  const verify = pcm.freshVerifier({ snapshot: hostPolicySnapshot({ rpcs, minAgree, chainAuthority, chainVerifier }), book, hostOwnership });
   return pcm.carrierFetch({ carriers, verify, fetch, log });
 }
 

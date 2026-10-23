@@ -7,6 +7,7 @@ import { createLeaseClient, validateRelayUrl, validateLocalRelayUrl, parsePinned
 import { leaseRpcSet } from "./lease-executor-authority.mjs";
 import { discoverLeaseRelays, cachedRelayDiscovery, relayPolicyDecider, relayAdmission } from "./lease-relay-discovery.mjs";
 import { validateIndexPin } from "./service-index.mjs";
+import { chainVerifierOf } from "./verified-chain.mjs";
 
 // Where a host's lease operations are submitted (at least one): LOCAL_RELAY, an OPTIONAL relay of the host's own on this
 // machine (loopback only); RELAYS, configured relays; SERVICE_INDEX (<index address>@<runtime code hash>), DESIGNATED relays
@@ -74,7 +75,10 @@ export function loadLeaseGasConfig({ env = process.env, chain, ledger, registry,
       else if (/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,62}$/i.test(x)) names.push(x.toLowerCase());
       else throw new Error(`RELAY_EXCLUDE: ${x.slice(0, 80)} is neither an IPv4 address nor a DNS name`);
     }
-    relayDiscovery = Object.freeze({ indexPin, failureDomains: Object.freeze(excludeRaw.length ? [Object.freeze({ name: "excluded", addresses, names })] : []) });
+    // the index is read under the host's explicit chain authority (ENCLAVE_CHAIN_AUTHORITY=verifier: the local verifier, no RPC)
+    const verifier = chainVerifierOf({ chainAuthority: env.ENCLAVE_CHAIN_AUTHORITY || undefined, chainVerifier: env.ENCLAVE_CHAIN_VERIFIER || undefined }, "lease relay discovery");
+    relayDiscovery = Object.freeze({ indexPin, failureDomains: Object.freeze(excludeRaw.length ? [Object.freeze({ name: "excluded", addresses, names })] : []),
+      readOptions: Object.freeze(verifier ? { chainAuthority: "verifier", chainVerifier: verifier } : {}) });
   }
   const config = { deployment };
   assertLeaseGasBindings(config, { chain, ledger, registry });
@@ -107,7 +111,7 @@ export function configuredLeaseSender({ config, account, getBindings, relayPolic
   const { relayDiscovery, ...clientConfig } = config;
   const decide = relayPolicyDecider(relayPolicy);
   const discoverRelays = relayDiscovery ? cachedRelayDiscovery(() => discoverLeaseRelays({ clients: config.clients, indexPin: relayDiscovery.indexPin,
-    pins: config.deployment, failureDomains: relayDiscovery.failureDomains, fetch: options.fetchImpl ?? globalThis.fetch, ...discoveryOptions }),
+    pins: config.deployment, failureDomains: relayDiscovery.failureDomains, readOptions: relayDiscovery.readOptions ?? {}, fetch: options.fetchImpl ?? globalThis.fetch, ...discoveryOptions }),
     { log: options.log }) : null;
   const admitPinnedRelay = !config.pinnedRelays?.length ? null : decide ? relayAdmission(decide)
     : async () => ({ admit: false, status: "policy-off", reason: "this host's platform host policy is off: a pinned relay is paid only on the policy's admission of its operator" });

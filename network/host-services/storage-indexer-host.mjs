@@ -137,8 +137,8 @@ async function registryRow(gate, hostId) {
   const rc = gate.runtime.config;
   let snap = registrySnapshots.get(gate);
   if (!snap) {
-    const { quorumSnapshot } = await import('../host-policy-runtime.mjs');
-    snap = quorumSnapshot({ rpcs: rc.rpcs, minAgree: rc.minAgree ?? null }); registrySnapshots.set(gate, snap);
+    const { hostPolicySnapshot } = await import('../host-policy-runtime.mjs');
+    snap = hostPolicySnapshot({ rpcs: rc.rpcs, minAgree: rc.minAgree ?? null, chainAuthority: rc.chainAuthority, chainVerifier: rc.chainVerifier }); registrySnapshots.set(gate, snap);
   }
   const { readPolicyFacts } = await import('../platform-host-policy.mjs');
   const facts = await snap((at) => readPolicyFacts(at, { book: rc.book, hostOwnership: rc.hostOwnership, registryIds: [hostId] }));

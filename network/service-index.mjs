@@ -18,6 +18,7 @@ import { keccak256 } from 'viem';
 import { directoryOrigins } from './directory-client.mjs';
 import { validateNetworkAuthorities } from './network-authorities.mjs';
 import { rpcEndpoint, rpcLabel as safeRpcLabel, redactUrls } from './rpc-identity.mjs';
+import { createVerifiedSnapshot, chainVerifierOf } from './verified-chain.mjs';
 
 // relay (7): an app-funded LEASE relay a designated host operator runs (network/host-services/lease-relay-host.mjs); its
 // descriptor names the relay's payee key, which signs the relay's /v1/info statement (lease-relay-discovery.mjs).
@@ -388,11 +389,15 @@ function lookupList(lookups) {
  * any amount of spam in the listing cannot hide an operator the caller already knows of. Distinct operator keys are not
  * distinct organizations. Without an agreeing quorum this throws QuorumError (with evidence); it never returns an empty
  * list for a disagreement.
+ * Authority: the legacy provider quorum (peers/clients, the default), or - with chainAuthority 'verifier' and a local
+ * chainVerifier - ONE proof-backed snapshot from the local verifier (network/verified-chain.mjs; unsafe tier). In
+ * verifier mode no provider client is built, so a refusal there can never fall back to a provider answer.
  */
 export async function readServiceIndex({ peers, clients, pin, kinds = DEFAULT_KINDS, window = 256, cursor = null, lookups = [],
-                                        maxBlockAgeMs = 90_000, requestTimeoutMs = 8_000, deadlineMs = 30_000, now = Date.now, ...policy }) {
+                                        maxBlockAgeMs = 90_000, requestTimeoutMs = 8_000, deadlineMs = 30_000, now = Date.now,
+                                        chainAuthority, chainVerifier, ...policy }) {
   pin = validateIndexPin(pin);
-  const list = peerList({ peers, clients, methods: ['getCode', 'readContract'] });
+  const auth = indexAuthority({ peers, clients, chainAuthority, chainVerifier });
   if (!Number.isSafeInteger(window) || window < 1 || window > LIMITS.perKind) throw new Error(`window must be 1..${LIMITS.perKind}`);
   const kindIds = kinds.map((k) => { const id = SERVICE_KINDS[k]; if (!id) throw new Error(`unknown kind ${k}`); return id; });
   const wanted = lookupList(lookups);
@@ -401,8 +406,7 @@ export async function readServiceIndex({ peers, clients, pin, kinds = DEFAULT_KI
     if (cursor.index !== pin.address || cursor.chainId !== pin.chainId) throw new Error('the cursor is for another index');
     atBlock = { number: BigInt(cursor.blockNumber), hash: cursor.blockHash }; positions = cursor.positions || {};
   }
-  const r = await agreedRead({ peers: list, chainId: pin.chainId, maxBlockAgeMs, requestTimeoutMs, deadlineMs, now, atBlock, ...policy,
-    read: async (c, blockNumber, call) => {
+  const readIndex = async (c, blockNumber, call) => {
       const code = await call('code', () => c.getCode({ address: pin.address, blockNumber }));
       const value = { codeHash: code ? keccak256(code) : null, windows: {}, lookups: [] };
       if (value.codeHash !== pin.codeHash) return value;   // agreed below, then refused: the pin is never weakened
@@ -419,7 +423,8 @@ export async function readServiceIndex({ peers, clients, pin, kinds = DEFAULT_KI
       for (const w of wanted)
         value.lookups.push(await call(`get ${w.operator}/${w.slot}`, () => c.readContract({ address: pin.address, abi: SERVICE_INDEX_ABI, functionName: 'get', args: [w.operator, w.slot], blockNumber })));
       return value;
-    } });
+    };
+  const r = await indexRead(auth, { chainId: pin.chainId, maxBlockAgeMs, requestTimeoutMs, deadlineMs, now, atBlock, policy, read: readIndex });
   const v = r.value;
   if (v.codeHash !== pin.codeHash) throw new QuorumError(`the agreed code at ${pin.address} is ${v.codeHash || 'absent'}, not the pinned ${pin.codeHash}`, r.evidence);
   const ts = BigInt(r.timestamp), candidates = [], rejected = [], windows = {}, next = {};
@@ -443,6 +448,30 @@ export async function readServiceIndex({ peers, clients, pin, kinds = DEFAULT_KI
   return { status: incomplete ? 'incomplete' : 'complete', chainId: pin.chainId, index: pin.address, blockNumber: r.blockNumber, blockHash: r.blockHash,
            blockTimestamp: r.timestamp, windows, next: incomplete ? { chainId: pin.chainId, index: pin.address, blockNumber: r.blockNumber, blockHash: r.blockHash, positions: next } : null,
            candidates, rejected, expired, lookups: found, evidence: r.evidence, notice: CANDIDATE_NOTICE };
+}
+
+/**
+ * The authority an index reader uses, chosen explicitly: the legacy provider quorum (peers/clients, validated as distinct
+ * votes) or, with chainAuthority 'verifier', the local proof-backed verifier and NO provider client. -> {verifier, list}
+ */
+export function indexAuthority({ peers, clients, chainAuthority, chainVerifier, methods = ['getCode', 'readContract'] }) {
+  const verifier = chainVerifierOf({ chainAuthority, chainVerifier }, 'service index');
+  return Object.freeze({ verifier, list: verifier ? null : peerList({ peers, clients, methods }) });
+}
+/**
+ * One read of index state under that authority, in agreedRead's result shape {blockNumber, blockHash, timestamp (s),
+ * value, evidence}: agreedRead over the quorum, or ONE proof-backed snapshot from the verifier. A verifier refusal is a
+ * QuorumError (no listing is ever produced from a refusal), carrying the verifier's reason; never a provider fallback.
+ */
+export async function indexRead(auth, { chainId, read, atBlock = null, maxBlockAgeMs = 90_000, requestTimeoutMs = 8_000, deadlineMs = 30_000, now = Date.now, policy = {}, ...rest }) {
+  policy = { ...policy, ...rest };
+  if (!auth.verifier) return agreedRead({ peers: auth.list, chainId, maxBlockAgeMs, requestTimeoutMs, deadlineMs, now, atBlock, ...policy, read });
+  const snap = createVerifiedSnapshot({ verifier: auth.verifier, chainId, confirmations: policy.confirmations ?? 2, maxBlockAgeMs,
+    futureSkewMs: policy.futureSkewMs ?? 5_000, deadlineMs, now });
+  let s;
+  try { s = await snap((c, blockNumber) => read(c, blockNumber, (_what, f) => f()), { atBlock }); }
+  catch (e) { throw new QuorumError(`no verified service index snapshot: ${errText(e)}`, { authority: 'local-verifier', reason: errText(e), code: e?.code || null }); }
+  return { blockNumber: String(s.blockNumber), blockHash: s.blockHash, timestamp: Math.floor(s.timestamp / 1000), value: s.value, evidence: s.evidence };
 }
 
 // ---- the provider's bootstrap ------------------------------------------------------------------------------------------

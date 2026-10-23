@@ -16,14 +16,14 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { quorumSnapshot } from '../host-policy-runtime.mjs';
+import { hostPolicySnapshot } from '../host-policy-runtime.mjs';
 import { MAX_POLICY_RESPONSE } from '../host-policy-mirrors.mjs';
 import { fileCarrier, httpCarriers, freshVerifier, candidateDigest } from '../policy-carriers.mjs';
 
 export function startPolicyMirror(cfg, { snapshot = null, fetch = globalThis.fetch, log = (m) => console.log(new Date().toISOString(), m) } = {}) {
   const docsDir = path.join(cfg.stateDir, 'documents');
   fs.mkdirSync(docsDir, { recursive: true, mode: 0o755 });
-  const verify = freshVerifier({ snapshot: snapshot || quorumSnapshot({ rpcs: cfg.rpc, minAgree: cfg.minAgree ?? null }), book: cfg.book, hostOwnership: cfg.hostOwnership });
+  const verify = freshVerifier({ snapshot: snapshot || hostPolicySnapshot({ rpcs: cfg.rpc, minAgree: cfg.minAgree ?? null, chainAuthority: cfg.chainAuthority, chainVerifier: cfg.chainVerifier }), book: cfg.book, hostOwnership: cfg.hostOwnership });
   const max = cfg.maxDocuments || 32, syncMs = (cfg.syncSec || 30) * 1000;
   const store = new Map();             // digest -> { document, signature, sequence }
   const carriers = [...(cfg.importDir ? [fileCarrier(cfg.importDir)] : []), ...httpCarriers(cfg.peers || [], { fetch })];

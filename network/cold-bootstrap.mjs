@@ -18,7 +18,7 @@
 import { createHash } from 'node:crypto';
 import * as si from './service-index.mjs';
 import { DirectoryClient } from './directory-client.mjs';
-import { createHostPolicyRuntime, quorumSnapshot } from './host-policy-runtime.mjs';
+import { createHostPolicyRuntime, hostPolicySnapshot } from './host-policy-runtime.mjs';
 import { operatorDecider } from './host-policy-adapters.mjs';
 import { CARRIER_MIRROR, httpCarriers, freshVerifier, carrierFetch, validateCarrierBases, rpcPeers } from './policy-carriers.mjs';
 
@@ -50,10 +50,13 @@ export async function classifyEndpoint(endpoint, failureDomains, resolve) {
  * Throws when no usable directory answers, or an artifact asked for cannot be fetched and verified from a usable replica.
  */
 export async function coldDiscover({ peers, clients, indexPin, lookups = [], decide = null, policy = null, failureDomains = [], resolve = async () => { throw new Error('no resolver'); },
-  fetch = globalThis.fetch, directoryPath = '/v1/network/records', manifest = null, artifacts = [], timeoutMs = 8000 }) {
+  fetch = globalThis.fetch, directoryPath = '/v1/network/records', manifest = null, artifacts = [], timeoutMs = 8000, chainAuthority, chainVerifier }) {
   if (decide && policy) throw new Error('coldDiscover: pass decide OR policy, not both');
-  if (peers) peers = rpcPeers(peers);          // RPC URLs or {label, client} entries
-  const read = await si.readServiceIndex({ peers, clients, pin: indexPin, kinds: ['directory', 'replica', 'dns', ...(policy ? ['policy'] : [])], lookups });
+  // chainAuthority 'verifier': the index AND the policy are read from the local proof-backed verifier; no RPC is used
+  const authority = { chainAuthority, chainVerifier };
+  const verifierChosen = chainAuthority === 'verifier';
+  if (peers && !verifierChosen) peers = rpcPeers(peers);          // RPC URLs or {label, client} entries
+  const read = await si.readServiceIndex({ peers, clients, pin: indexPin, kinds: ['directory', 'replica', 'dns', ...(policy ? ['policy'] : [])], lookups, ...authority });
   if (read.status !== 'complete') throw new Error('service index read incomplete: a partial list proves nothing about the rest');
   const excluded = [], usable = { directory: [], replica: [], dns: [], policy: [] };
   let policyRuntime = null;
@@ -67,7 +70,8 @@ export async function coldDiscover({ peers, clients, indexPin, lookups = [], dec
     }
     const bases = [...new Set([...usable.policy, ...validateCarrierBases(policy.carriers || [], 'policy.carriers')])].slice(0, 16);
     // the policy is read over the SAME quorum as the index
-    const snapshot = quorumSnapshot({ clients: clients || peers.map((p) => p.client), minAgree: policy.minAgree ?? null });
+    const snapshot = hostPolicySnapshot({ clients: verifierChosen ? null : clients || peers.map((p) => p.client), minAgree: policy.minAgree ?? null,
+      ...authority, chainId: indexPin.chainId });
     const pf = carrierFetch({ carriers: httpCarriers(bases, { fetch, timeoutMs }), verify: freshVerifier({ snapshot, book: policy.book, hostOwnership: policy.hostOwnership }), fetch });
     policyRuntime = createHostPolicyRuntime({ book: String(policy.book).toLowerCase(), hostOwnership: String(policy.hostOwnership).toLowerCase(), mirrors: [CARRIER_MIRROR],
       activation: policy.activation || 'anchor' }, { snapshot, fetch: pf });

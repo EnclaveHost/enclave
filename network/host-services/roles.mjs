@@ -21,6 +21,7 @@ import { validateNetworkAuthorities } from '../network-authorities.mjs';
 import { rpcEndpoint } from '../rpc-identity.mjs';
 import { publicIPv4 } from '../service-index.mjs';
 import { validateCarrierBases } from '../policy-carriers.mjs';
+import { chainVerifierOf } from '../verified-chain.mjs';
 import { CREDIT_VAULT_SUBMITTER_ROLE } from './credit-vault-submitter.mjs';
 
 export const PACKAGE_FORMAT = 'enclave-host-service-package/v1';
@@ -155,16 +156,21 @@ export const ROLES = Object.freeze({
     cold: ['two or more Base RPC providers (the operator\'s quorum)', 'the admin-controlled EnclaveAddressBook and the hostOwnership extension it binds', 'the anchored document from ANY carrier: importDir (an operator-imported copy), a peer, or a publication'],
     notCold: ['the fleet\'s /platform-policy routes', 'discovery', 'storage adapters', 'lease relays', 'any app', 'this host\'s own admission (its gate reads importDir and this role\'s store from disk)'],
     validate(c) {
-      only('policy-mirror', c, ['port', 'bind', 'stateDir', 'rpc', 'minAgree', 'book', 'hostOwnership', 'peers', 'importDir', 'syncSec', 'maxDocuments'],
-        ['port', 'bind', 'stateDir', 'rpc', 'book', 'hostOwnership']);
-      port('policy-mirror', c.port, 'port'); bind('policy-mirror', c.bind); absDir('policy-mirror', c.stateDir, 'stateDir'); rpcs('policy-mirror', c.rpc);
-      if (c.minAgree !== undefined && (!Number.isInteger(c.minAgree) || c.minAgree <= c.rpc.length / 2 || c.minAgree > c.rpc.length)) fail('policy-mirror', 'minAgree must be a majority of rpc');
+      // chainAuthority 'verifier' + chainVerifier (loopback): candidates are verified against the local proof-backed
+      // verifier; rpc is then not needed (and never used)
+      let verifier; try { verifier = chainVerifierOf({ chainAuthority: c.chainAuthority, chainVerifier: c.chainVerifier }, 'policy-mirror'); } catch (e) { fail('policy-mirror', e.message); }
+      only('policy-mirror', c, ['port', 'bind', 'stateDir', 'rpc', 'minAgree', 'book', 'hostOwnership', 'peers', 'importDir', 'syncSec', 'maxDocuments', 'chainAuthority', 'chainVerifier'],
+        ['port', 'bind', 'stateDir', ...(verifier ? [] : ['rpc']), 'book', 'hostOwnership']);
+      port('policy-mirror', c.port, 'port'); bind('policy-mirror', c.bind); absDir('policy-mirror', c.stateDir, 'stateDir');
+      if (c.rpc !== undefined || !verifier) rpcs('policy-mirror', c.rpc);
+      if (c.minAgree !== undefined && (!Number.isInteger(c.minAgree) || c.minAgree <= (c.rpc || []).length / 2 || c.minAgree > (c.rpc || []).length)) fail('policy-mirror', 'minAgree must be a majority of rpc');
       for (const k of ['book', 'hostOwnership']) if (!NONZERO(c[k])) fail('policy-mirror', `${k} must be the platform host policy's ${k === 'book' ? 'admin-controlled EnclaveAddressBook' : 'EnclaveHostOwnership extension'}`);
       let peers; try { peers = validateCarrierBases(c.peers ?? [], 'peers'); } catch (e) { fail('policy-mirror', e.message); }
       if (c.importDir !== undefined) absDir('policy-mirror', c.importDir, 'importDir');
       if (c.syncSec !== undefined && (!Number.isInteger(c.syncSec) || c.syncSec < 5 || c.syncSec > 3600)) fail('policy-mirror', 'syncSec: 5 to 3600');
       if (c.maxDocuments !== undefined && (!Number.isInteger(c.maxDocuments) || c.maxDocuments < 2 || c.maxDocuments > 32)) fail('policy-mirror', 'maxDocuments: 2 to 32');
-      return { port: c.port, bind: c.bind, stateDir: c.stateDir, rpc: [...c.rpc], ...(c.minAgree ? { minAgree: c.minAgree } : {}), book: c.book.toLowerCase(),
+      return { port: c.port, bind: c.bind, stateDir: c.stateDir, ...(c.rpc ? { rpc: [...c.rpc] } : {}), ...(c.minAgree ? { minAgree: c.minAgree } : {}),
+        ...(verifier ? { chainAuthority: 'verifier', chainVerifier: verifier } : {}), book: c.book.toLowerCase(),
         hostOwnership: c.hostOwnership.toLowerCase(), peers, ...(c.importDir ? { importDir: c.importDir } : {}), ...(c.syncSec ? { syncSec: c.syncSec } : {}),
         ...(c.maxDocuments ? { maxDocuments: c.maxDocuments } : {}) };
     },

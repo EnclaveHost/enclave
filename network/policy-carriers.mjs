@@ -110,15 +110,16 @@ export function httpCarriers(bases, { fetch = globalThis.fetch, timeoutMs = 8000
  * cached for refreshMs (a failed read keeps the previous listing). Advertisements are untrusted candidates like any carrier;
  * a banned operator's carrier can only withhold, never admit. accept(endpoint) -> bool filters (e.g. failure domains).
  */
-export function indexCarriers({ pin, peers, clients, fetch = globalThis.fetch, timeoutMs = 8000, refreshMs = 5 * 60_000, accept = async () => true, log = () => {} }) {
+export function indexCarriers({ pin, peers, clients, fetch = globalThis.fetch, timeoutMs = 8000, refreshMs = 5 * 60_000, accept = async () => true, log = () => {},
+  chainAuthority, chainVerifier }) {
   let listing = [], at = 0, reading = null;
-  if (peers) peers = rpcPeers(peers);
+  if (peers && chainAuthority !== 'verifier') peers = rpcPeers(peers);
   const list = async () => {
     if (Date.now() - at < refreshMs && at) return listing;
     reading ||= (async () => {
       try {
         const si = await import('./service-index.mjs');
-        const r = await si.readServiceIndex({ peers, clients, pin, kinds: ['policy'] });
+        const r = await si.readServiceIndex({ peers, clients, pin, kinds: ['policy'], chainAuthority, chainVerifier });
         const bases = [];
         for (const c of r.candidates) for (const e of c.endpoints) {
           const b = String(e).replace(/\/+$/, '');
