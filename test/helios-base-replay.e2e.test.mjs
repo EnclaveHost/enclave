@@ -5,7 +5,7 @@
 // verified against the block's state root, and must match the providers byte for byte.
 // The head signature is a TEST key over the real block (Helios unsafe_signer override): this proves Base EXECUTION
 // compatibility on real state, not head authenticity.
-//   env: HELIOS_BASE_BIN (enclave-base-evm), HELIOS_COMPAT_BIN (enclave-base-compat 0a02256), BASE_FIXTURE_DIR, TEST_TMP
+//   env: HELIOS_BASE_BIN (enclave-base-evm), HELIOS_COMPAT_BIN (enclave-base-compat 0a02256), BASE_FIXTURE_DIR, WITNESS_CHECK_BIN, TEST_TMP
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -14,6 +14,7 @@ import path from 'node:path';
 import http from 'node:http';
 import net from 'node:net';
 import { createWitnessGateway, dirWitnessCache, WITNESS_METHODS } from '../network/witness-gateway.mjs';
+import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
 
 const { HELIOS_BASE_BIN, HELIOS_COMPAT_BIN, BASE_FIXTURE_DIR } = process.env;
 const fixture = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'fixture.json'), 'utf8'));
@@ -27,18 +28,20 @@ async function rpc(url, method, params = []) {
   if (j.error) throw Object.assign(new Error(j.error.message || JSON.stringify(j.error)), { rpc: j.error });
   return j.result;
 }
-let consensus, gateway, gatewayUrl;
+let consensus, gateway, gatewayUrl, checker;
 test.before(async () => {
   consensus = http.createServer((q, res) => res.end(JSON.stringify(q.url === '/chain_id' ? 8453 : fixture.commitment)));
   await new Promise((r) => consensus.listen(0, '127.0.0.1', r));
   // NO upstream at all: witnesses come only from the recorded block-hash-pinned cache (copied, so the fixture is untouched)
   fs.cpSync(path.join(BASE_FIXTURE_DIR, 'cache'), path.join(TMP, 'cache'), { recursive: true });
-  gateway = createWitnessGateway({ upstreams: [], cache: dirWitnessCache(path.join(TMP, 'cache')), methods: WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList') });
+  checker = createWitnessChecker({ bin: process.env.WITNESS_CHECK_BIN, chainId: 8453, signer: fixture.testSequencerSigner });
+  const roots = createRootStore({ checker, consensusUrl: `http://127.0.0.1:${consensus.address().port}/` });
+  gateway = createWitnessGateway({ upstreams: [], cache: dirWitnessCache(path.join(TMP, 'cache')), proofs: { checker, roots }, methods: WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList') });
   gatewayUrl = await gateway.listen(0);
 });
 test.after(async () => {
   for (const p of [...children]) { p.kill('SIGKILL'); }
-  await gateway?.close(); consensus?.close();
+  checker?.close(); await gateway?.close(); consensus?.close();
   fs.rmSync(TMP, { recursive: true, force: true });
 });
 async function helios(bin, tag, { executionOverride }) {

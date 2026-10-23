@@ -5,7 +5,8 @@
 //
 // SYNTHETIC: the sequencer key is a TEST key (Helios [base.chain] unsafe_signer override in a private HOME) signing
 // Anvil blocks. This proves the verifier and bridge mechanics and the refusal rules, NOT live Base compatibility.
-//   env: HELIOS_BIN (patched), HELIOS_STOCK_BIN (stock 0.12.0, optional), ANVIL_BIN, TEST_TMP (disk scratch dir)
+// The gateway verifies every pinned witness itself (witness-check helper, roots from the same signed head source).
+//   env: HELIOS_BIN (patched), HELIOS_STOCK_BIN (stock 0.12.0, optional), ANVIL_BIN, WITNESS_CHECK_BIN, TEST_TMP (disk scratch dir)
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -17,9 +18,10 @@ import { createPublicClient, createWalletClient, http as viemHttp, encodeAbiPara
 import { privateKeyToAccount } from 'viem/accounts';
 import { createHeadRelay } from '../network/op-head-relay.mjs';
 import { createWitnessGateway, dirWitnessCache } from '../network/witness-gateway.mjs';
+import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
 import { makeCommitment, blockFields } from './fixtures/op-commitment.mjs';
 
-const { HELIOS_BIN, HELIOS_STOCK_BIN, ANVIL_BIN = 'anvil' } = process.env;
+const { HELIOS_BIN, HELIOS_STOCK_BIN, ANVIL_BIN = 'anvil', WITNESS_CHECK_BIN } = process.env;
 const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'helios-e2e-'));
 const SEQ_KEY = '0x' + '5e'.repeat(32), seqSigner = privateKeyToAccount(SEQ_KEY).address;
 const DEPLOYER = privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80');
@@ -61,7 +63,8 @@ const stop = async (p) => { if (p && p.exitCode === null && p.signalCode === nul
 const slotOf = (name, n) => keccak256(encodeAbiParameters([{ type: 'bytes32' }, { type: 'uint256' }], [stringToHex(name, { size: 32 }), n]));
 const word = (a) => pad(a.toLowerCase(), { size: 32 });
 
-let anvil, anvilUrl, book, relay, relayUrl, gateway, gatewayUrl, head;
+let anvil, anvilUrl, book, relay, relayUrl, gateway, gatewayUrl, head, checker;
+const proofs = (consensusUrl) => ({ checker, roots: createRootStore({ checker, consensusUrl }) });
 test.before(async () => {
   const port = await freePort();
   anvil = start(ANVIL_BIN, ['--port', String(port), '--chain-id', '8453', '--silent']);
@@ -81,9 +84,10 @@ test.before(async () => {
   const offered = await relay.offer(await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs }));
   assert.equal(offered.accepted, true, String(offered.reason));
   relayUrl = await relay.listen(0);
-  gateway = createWitnessGateway({ upstreams: [anvilUrl], cache: dirWitnessCache(path.join(TMP, 'witness-cache')) });
+  checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: seqSigner });
+  gateway = createWitnessGateway({ upstreams: [anvilUrl], cache: dirWitnessCache(path.join(TMP, 'witness-cache')), proofs: proofs(relayUrl) });
   gatewayUrl = await gateway.listen(0);
-  closers.push(() => relay.close(), () => gateway.close());
+  closers.push(async () => checker.close(), () => relay.close(), () => gateway.close());
 });
 test.after(async () => {
   for (const c of closers.reverse()) await c().catch(() => {});
@@ -127,13 +131,16 @@ test('a tampered witness is rejected by the verifier, never returned', T, async 
     res.end(JSON.stringify(j));
   }); });
   await new Promise((r) => tamper.listen(0, '127.0.0.1', r));
-  const g = createWitnessGateway({ upstreams: [`http://127.0.0.1:${tamper.address().port}/`] });
+  const g = createWitnessGateway({ upstreams: [`http://127.0.0.1:${tamper.address().port}/`], proofs: proofs(relayUrl) });
   const gUrl = await g.listen(0);
   const h = await startHelios(HELIOS_BIN, { consensus: relayUrl, execution: gUrl, tag: 'tamper' });
   t.after(async () => { await stop(h); await g.close(); tamper.close(); });
   await until(async () => BigInt(await rpc(h.url, 'eth_blockNumber')) === head.number, 60000, 'head');
   await assert.rejects(rpc(h.url, 'eth_getStorageAt', [book, slotOf('registry', 3n), 'latest']));
   await assert.rejects(rpc(h.url, 'eth_getProof', [book, [slotOf('registry', 3n)], 'latest']));
+  // the gateway already judged the tampered answers invalid: nothing unverified reached the verifier
+  const st = Object.values(g.stats().upstream)[0];
+  assert.ok(st.invalid >= 1, JSON.stringify(g.stats()));
 });
 
 // A raw consensus stub (no relay rules) to show what the VERIFIER does with heads the relay would never serve.
@@ -182,7 +189,7 @@ test('a Denim-era block (beyond the validated Base horizon) refuses execution wh
   assert.ok(Number(b.timestamp) >= denim, 'block is in the Denim era');
   const stub = await rawConsensus();
   stub.set(await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY }));
-  const g = createWitnessGateway({ upstreams: [a2Url] });
+  const g = createWitnessGateway({ upstreams: [a2Url], proofs: proofs(stub.url) });
   const gUrl = await g.listen(0);
   const h = await startHelios(HELIOS_BIN, { consensus: stub.url, execution: gUrl, tag: 'denim' });
   t.after(async () => { await stop(h); await g.close(); stub.close(); });
