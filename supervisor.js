@@ -804,6 +804,31 @@ async function registerOnChain(endpoint) {
     // next boot; setPrices (below) covers a change without one.
     const rev = await registryRev();
     const proofKey = (PROOF_ACCOUNT && PROOF_ACCOUNT.address) || "0x0000000000000000000000000000000000000000";
+    // An existing row this operator key already holds, ACTIVE, with every field register() writes already equal, needs no
+    // register(): on such a row the schema-4 register() only restates them (and bumps lastSeen) at full-register gas.
+    // Only the proof key, minted per CVM boot, may differ: publish it with setProofKey (the same write register() makes to
+    // it, and the same lastSeen bump), and adopt the row only once that transaction's receipt and a re-read confirm it.
+    // A failed read, and a missing, inactive, foreign or differing row, keep the old path: a full register().
+    const boot = rev >= 3 ? await bootRegistration(id, endpoint, proofKey) : { action: "register", reason: `schema ${rev}` };
+    if (boot.action !== "register") {
+      let tx = null;
+      if (boot.action === "setProofKey") {
+        const sent = sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "setProofKey", [id, proofKey]);
+        tx = await sent;
+        const rcpt = await sent.receipt;
+        if (!rcpt || rcpt.status !== "success") throw new Error(`setProofKey ${tx} did not succeed (${rcpt ? rcpt.status : "no receipt"})`);
+        // Fail closed: adopt ONLY when a fresh read shows the whole row current (this key included). A failed or lagging
+        // read, a superseded key, a deactivation or any other changed field throws; the next normal attempt reads again
+        // and adopts without a transaction if the row is current by then.
+        const after = await bootRegistration(id, endpoint, proofKey);
+        if (after.action !== "adopt")
+          throw new Error(`after setProofKey ${tx} the row is not adoptable yet (${after.reason}); the next attempt reads it again`);
+      }
+      _enclaveId = id; _advertisedEndpoint = endpoint;      // unlocks the claim loop, as a confirmed register() does
+      _activeSeen = null;
+      console.log(`[registry] adopted the existing registration of ${endpoint} id=${id} (${boot.reason})`
+        + (tx ? `: proofKey=${proofKey} tx=${tx}` : `: no transaction, proofKey=${proofKey}`));
+    } else {
     const hash = rev >= 3
       ? await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "register",
           [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6), proofKey])
@@ -816,7 +841,9 @@ async function registerOnChain(endpoint) {
     _activeSeen = null;                                     // register() just set the row active; the next pass re-reads it
     console.log(`[registry] registered ${endpoint} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`
       + (rev >= 2 ? ` price=${SELL_CPU_PRICE6}/sec node${IS_GPU ? ` + ${SELL_GPU_PRICE6}/sec card` : ""}` : " (schema 1: unpriced)")
-      + (rev >= 3 ? ` proofKey=${proofKey}` : " (pre-schema-3 registry: no proof key published)"));
+      + (rev >= 3 ? ` proofKey=${proofKey}` : " (pre-schema-3 registry: no proof key published)")
+      + (rev >= 3 ? ` (${boot.reason})` : ""));
+    }
     // reconcile loop: NO liveness transaction (readers take liveness from the
     // signed capacity record, network/host-liveness.mjs). It keeps the published
     // price, proof key and payout view in step with our configuration (an
@@ -840,6 +867,30 @@ async function registerOnChain(endpoint) {
     _registered = false; _registeredOn = null;              // let a later request retry
     console.warn(`[registry] self-registration failed: ${e.shortMessage || e.message}`);
   }
+}
+
+// Boot registration choice (registerOnChain): read THIS row once and compare it with exactly what register() would write.
+//   register     no row / another operator (register() reverts "not operator", as before) / inactive (boot re-activates,
+//                as before) / any of endpoint, repo, measurement, cpu or gpu price differs / the read failed
+//   setProofKey  this operator's active row, every field equal except the proof key
+//   adopt        this operator's active row, every field equal including the proof key
+async function bootRegistration(id, endpoint, proofKey) {
+  let row;
+  try { row = await registryEntry(id); }
+  catch (e) { return { action: "register", reason: `registry read failed (${String(e.shortMessage || e.message).slice(0, 120)}): full register` }; }
+  return bootRegistrationAction(row, { operator: claimSigner().account.address, endpoint, repo: ENCLAVE_REPO,
+    measurement: ENCLAVE_MEASUREMENT, cpuPricePerSec6: SELL_CPU_PRICE6, gpuPricePerSec6: SELL_GPU_PRICE6, proofKey });
+}
+function bootRegistrationAction(row, want) {
+  const lc = (x) => String(x == null ? "" : x).toLowerCase();
+  if (!row || !row.operator || /^0x0{40}$/i.test(String(row.operator))) return { action: "register", reason: "not registered yet" };
+  if (lc(row.operator) !== lc(want.operator)) return { action: "register", reason: "registered to another operator" };
+  if (row.active !== true) return { action: "register", reason: "inactive on chain: boot re-registers" };
+  const same = row.endpoint === want.endpoint && row.repo === want.repo && lc(row.measurement) === lc(want.measurement)
+    && String(row.cpuPricePerSec6) === String(want.cpuPricePerSec6) && String(row.gpuPricePerSec6) === String(want.gpuPricePerSec6);
+  if (!same) return { action: "register", reason: "the registered fields differ" };
+  if (lc(row.proofKey) === lc(want.proofKey)) return { action: "adopt", reason: "already registered exactly" };
+  return { action: "setProofKey", reason: "only the proof key differs" };
 }
 
 // Publish this box's configured price if the chain doesn't already carry it.
