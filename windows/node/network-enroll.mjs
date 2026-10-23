@@ -103,7 +103,11 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
     // Directory choice belongs to the host operator; enrollment must not silently
     // restore the default relay each time a new app appears.
     const directories = cfg?.enclaveNetwork?.directories || config.enclaveNetwork.directories;
-    const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork, directories }), ...(hostEgress ? { hostEgress } : {}), ...(paceMbps ? { paceMbps } : {}) };
+    const walletAdmission = config.walletAdmission?.file && path.isAbsolute(config.walletAdmission.file) ? { file: config.walletAdmission.file } : null;
+    const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork, directories }), ...(hostEgress ? { hostEgress } : {}), ...(paceMbps ? { paceMbps } : {}),
+      // the node's wallet hold channel (host.mjs walletChannelStart), only while the node runs one: the agent then admits an
+      // app only on a fresh allow there; dropped (one restart) when the node stops writing it, so nothing waits on a dead file
+      ...(walletAdmission ? { walletAdmission } : {}) };
     // a box whose config predates the current enclaveNetwork section (or still runs TUNA): switched once, then restarted
     let switched = false;
     if (JSON.stringify(cfg.enclaveNetwork) !== JSON.stringify(want)) {

@@ -810,7 +810,7 @@ function localHttp(port) {
       await app.stop(); host.apps.delete(String(b.id).toLowerCase());
       return json(200, { id: b.id, stopped: true });
     }
-    if (APPS && p === '/v1/host/state') return json(200, { deployments: host.deployments(), availability: host.availability() });
+    if (APPS && p === '/v1/host/state') return json(200, { deployments: host.deployments(), availability: host.availability(), leaseReadiness: host.leaseReadiness() });
     const r = await handle({ path: req.url, method: req.method, headers: req.headers, body: body.toString('base64') });
     res.writeHead(r.status, r.headers); res.end(r.body);
   });
@@ -1059,6 +1059,9 @@ async function startHostingControls() {
           enroll ||= createNetworkEnroll({ agentDir: NET.agentDir, binDir: NET.binDir,
             runner: host.enclaveId, relayBase,
             config: { agentDir: NET.agentDir, binDir: NET.binDir, nodeBinary: process.execPath,
+                      // the wallet hold channel the node writes (host.mjs walletChannelStart): the network agent enforces it
+                      // only while this node actually runs one; otherwise the block is dropped (and the agent restarted once)
+                      walletAdmission: host.walletChannel ? { file: host.walletAdmission.file } : null,
                       operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
                       policyFile: NET.policy, tpmBinary: process.env.TPMATTEST_EXE,
                       tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
@@ -1150,6 +1153,8 @@ async function startHostingControls() {
     zone = appZone({
       isolationSplicer,
       resolve: (id) => host.appZoneTarget(id),
+      // re-asked after the resolve, at the moment of splicing: a wallet hold between the two is not served
+      admitted: (id) => host.appZoneAdmitted(id),
       // A gate-served app (wasi:http, enclave:app) has no socket: its own hostname is served by
       // terminating TLS here and carrying the request through the gate, the same frame the /x/
       // path uses.
@@ -1160,6 +1165,8 @@ async function startHostingControls() {
       maxBodyBytes: Math.round((Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64) * 1048576),
       log: (m) => log(`[app-zone] ${m}`),
     });
+    // a wallet hold cuts what the app zone already splices or serves for that deployment (host.mjs #walletHold)
+    host.servingWithdrawn = (id) => zone.closeDeployment(id);
     try {
       const { loadOperator } = await import('./chain.mjs');
       const acct = loadOperator(path.join(DIR, 'operator.key'));
