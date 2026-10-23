@@ -1,0 +1,30 @@
+{
+  "what": "Safe inventory of the read-only evidence behind dns-routing-investigation/RESULT.md (2026-10-23). Hashes, public addresses, component paths and log-source descriptions only: no raw logs, no configuration, environment, credential or private file was copied or is referenced by content.",
+  "liveComponents": [
+    {"where": "us-west 134.199.235.187, ca-east 146.190.246.39, ap-southeast 165.245.191.129, eu-central 134.209.248.172", "path": "/opt/enclave-route-dns/caa-e8fe12132621/dns.mjs", "sha256": "e8fe12132621ba4e0ec82b23ba4b49748cbea832e32106e2e4f74350dac2b412", "localCopy": "work/dns-caa-bundle/dns.mjs"},
+    {"where": "all 4 fronts", "path": "/opt/enclave-directory/runtime-37366ab/enclave-directory.mjs", "sha256": "37366abb5a33725c2ccc34413c1cd84e9c9f899af5d96ecea171c9b788fc6e46", "localCopy": "work/cron-ingress-20261021/churn/same-route/deploy/kit/enclave-directory.mjs"},
+    {"where": "us-west, ap-southeast, eu-central", "path": "/opt/enclave-network/native-recovery-464cad3/provider.mjs", "sha256": "464cad341e4a816aa17a48d6cd727988aa527842e1925acf2b79d9aab3bc6d24", "localCopy": "work/native-recovery-bundle/provider.mjs"},
+    {"where": "ca-east (A1 canary)", "path": "/opt/enclave-network/hs-transport-39d1513b/wg-provider.mjs", "sha256": "39d1513b8a884317fcc9b82f4057aeee34414b1902fe06e53af0b74d3a1b6563"},
+    {"where": "minipc", "path": "C:\\Program Files\\Enclave\\network\\privacy-agent.mjs (installed 2026-10-22T02:21Z)", "sha256": "cfb69370a00dea147340c64bbd712f118eb8cb825237ac79b3b053b586350801", "localCopy": "work/root-control-rpc-final-20261022/control-package/files/network/privacy-agent.mjs"}
+  ],
+  "sourceLines": {
+    "authorizationUntil = min(lease, guest proof, wallet allow)": "network/wg-manager.mjs:62-66 (installed lineage, adapter-admission-review/candidate baseline 32fecf5)",
+    "withdraw closes circuits first, then publishes routes []": "network/wg-manager.mjs:87-95",
+    "egress OFF reason text omits the wallet": "network/egress-map.mjs:16",
+    "empty-on-start wallet writer, CHANNEL_MS 30000, POLICY_MS 90000": "network/wallet-admission.mjs",
+    "route-dns collapse-hold (ROUTE_SHRINK_CONFIRM_MS, 12 s, bounded by each route's signed expiresAt)": "route-dns bundle e8fe1213 (minified)"
+  },
+  "logSources": [
+    "minipc C:\\ProgramData\\Enclave\\logs\\network.log: [privacy] egress OFF/back, wallet admission withheld, chain quorum unavailable; 01:04-01:27Z, read via ssh -n powershell -EncodedCommand with [string]::Concat lines, filtered (quoted in RESULT.md section 2)",
+    "fronts: journalctl -u enclave-route-dns and -u enclave-network-provider, 01:00-01:27Z, lines matching 59f1273d or route map (quoted in RESULT.md section 2)",
+    "minipc network.log: egress OFF counts per 5 min (aggregate only)"
+  ],
+  "publicProbes": [
+    {"at": "2026-10-23T01:28:29Z", "dig": "@134.199.235.187 and @165.245.191.129 59f1273d.app.enclave.host A -> 165.245.191.129 TTL 15", "https": "normal URL /api/status 200, tlsverify 0, remote 165.245.191.129; direct 165.245.191.129 200"}
+  ],
+  "rootReceipts": [
+    "outputs/decentralization-audit/enclavedns-tls-20261023.json (followup20261023T0109Z)",
+    "outputs/decentralization-audit/windows-node-update-20261023.json"
+  ],
+  "changesMade": "none (read-only)"
+}

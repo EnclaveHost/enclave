@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-23T01:22:43.012931+00:00",
+  "capturedAt": "2026-10-23T01:38:15.862581+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
@@ -30,11 +30,39 @@
       "bytes": 570
     },
     {
-      "label": "ROOT public receipt: APPLIED and independently verified serving after the bounded startup check timed out (helper NOT_READY, not passed); new-keeper renewal PENDING; not full decentralization",
+      "label": "ROOT receipt: RUNNING, NOT COMPLETE (unit sia-whole-restore-efe2c21b-001; the file holds the INITIAL progress, 19 files). Root reported 425 files / 950 MB committed + 327 MB in flight at 01:35. Isolation verified 31/31 endpoints blocked, 6/6 names unresolved, 2 Sia hosts reached. SAME physical host as indexd: not host-loss proof",
+      "source": "outputs/decentralization-audit/storage-whole-recovery-live-20261023.json",
+      "stored": "files/outputs/decentralization-audit/storage-whole-recovery-live-20261023.json",
+      "sha256": "c6bfa9e5a835d4d7fa1e0d89bc4b766d0cd9bed5389f8884c40c6ed3ef1ad57a",
+      "bytes": 1428
+    },
+    {
+      "label": "ROOT receipts (01:31-01:34Z): same agent 28460 before/after, all 9 fresh ready; six renewals 01:30-01:32 with matching ledger Renewed + reserve LeaseGasPaid events from TWO RPC providers = two-provider corroboration, NOT independent witness verification. Logs cannot tell the keeper timer from the regular pass. 3 leases not yet due; no full goal completion",
+      "source": "outputs/decentralization-audit/windows-node-renewal-chain-20261023.json",
+      "stored": "files/outputs/decentralization-audit/windows-node-renewal-chain-20261023.json",
+      "sha256": "261477b6d464965875659a774a6fd62331c90362c514152bbb7e30f66bfdda00",
+      "bytes": 2652
+    },
+    {
+      "label": "ROOT receipts (01:31-01:34Z): same agent 28460 before/after, all 9 fresh ready; six renewals 01:30-01:32 with matching ledger Renewed + reserve LeaseGasPaid events from TWO RPC providers = two-provider corroboration, NOT independent witness verification. Logs cannot tell the keeper timer from the regular pass. 3 leases not yet due; no full goal completion",
+      "source": "outputs/decentralization-audit/windows-node-renewal-log-20261023.json",
+      "stored": "files/outputs/decentralization-audit/windows-node-renewal-log-20261023.json",
+      "sha256": "28bca996beba7451b04d30864c25ce5a1f1b34011fdc9a8d8a8c242685f637c0",
+      "bytes": 962
+    },
+    {
+      "label": "ROOT receipts (01:31-01:34Z): same agent 28460 before/after, all 9 fresh ready; six renewals 01:30-01:32 with matching ledger Renewed + reserve LeaseGasPaid events from TWO RPC providers = two-provider corroboration, NOT independent witness verification. Logs cannot tell the keeper timer from the regular pass. 3 leases not yet due; no full goal completion",
+      "source": "outputs/decentralization-audit/windows-node-renewal-observation-20261023.json",
+      "stored": "files/outputs/decentralization-audit/windows-node-renewal-observation-20261023.json",
+      "sha256": "de7be8e14fb1f13e191b4365808fca568d2cce78bc8f8b788423327c52a33893",
+      "bytes": 2688
+    },
+    {
+      "label": "ROOT public receipt: APPLIED and independently verified serving after the bounded startup check timed out (helper NOT_READY, not passed). 01:34Z followup: six apps renewed 01:30-01:32 under the new runtime (two-provider corroboration, NOT independent witness verification; logs cannot tell the keeper timer from the regular pass); 3 leases not yet due; not full decentralization",
       "source": "outputs/decentralization-audit/windows-node-update-20261023.json",
       "stored": "files/outputs/decentralization-audit/windows-node-update-20261023.json",
-      "sha256": "6a4be35adce81032049e6fe5016c030f909216b68913093c38f96f9c53ae71dc",
-      "bytes": 1309
+      "sha256": "32cad8a3f5a9904614ae811c8f5609b7d84527faaa6c8879fa1a3969107a1e74",
+      "bytes": 2243
     },
     {
       "source": "work/resume-after-checkpoint-20261022/adapter-activation-review/RESULT.md",
@@ -642,6 +670,20 @@
       "stored": "files/dns-live-recovery/state-0005.json",
       "sha256": "bccbf95dfe1323e135f96ba4962589ef6cf106b8f9cf8449ac4bc27028fef3ea",
       "bytes": 3716
+    },
+    {
+      "label": "READ-ONLY investigation report + safe evidence inventory (hashes, paths, quoted log lines only): fail-closed authorization withdrawal + DNS lag; no source bug, no patch, nothing changed",
+      "source": "work/resume-after-checkpoint-20261022/dns-routing-investigation/EVIDENCE-INVENTORY.json",
+      "stored": "files/dns-routing-investigation/EVIDENCE-INVENTORY.json",
+      "sha256": "36760da10b74b3c914f01f31cf3033da6306124aa4296f8fe2501d41086c3f46",
+      "bytes": 3276
+    },
+    {
+      "label": "READ-ONLY investigation report + safe evidence inventory (hashes, paths, quoted log lines only): fail-closed authorization withdrawal + DNS lag; no source bug, no patch, nothing changed",
+      "source": "work/resume-after-checkpoint-20261022/dns-routing-investigation/RESULT.md",
+      "stored": "files/dns-routing-investigation/RESULT.md",
+      "sha256": "2a04ed51c6ca551fcf5b2a96ac01c34aafb6a11a34f7ecd9e58bd6a38419058c",
+      "bytes": 10354
     },
     {
       "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
@@ -2768,11 +2810,11 @@
       "bytes": 240
     },
     {
-      "label": "ROOT native activation evidence (frozen): runtime CHANGED 01:17 to host ea0f6b8a + chain 3e9fae03 (e7e5057a, helper f7a77598). The bounded helper ended NOT_READY (M1 not proven within 60 s): NOT a passed activation. Root's independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion",
+      "label": "ROOT note, updated 01:35Z: runtime CHANGED (e7e5057a); helper NOT_READY (not a passed activation); post-identify unchanged; six renewals two-provider corroborated, 3 not yet due; restore RUNNING. Do not rerun apply",
       "source": "work/resume-after-checkpoint-20261022/node-pair-runner/runs/ROOT-NEXT-WINDOW.txt",
       "stored": "files/node-pair-runner/runs/ROOT-NEXT-WINDOW.txt",
-      "sha256": "8a79f3c8d528e81091cff7d354b4a326a84c3eceb20a31b871e9fdbf9c555204",
-      "bytes": 3214
+      "sha256": "c7a0ca361c78e1f3599927116e500bf71396b7ef8a0ad1be51fcfe1cc7058f7e",
+      "bytes": 3983
     },
     {
       "label": "ROOT native activation evidence (frozen): runtime CHANGED 01:17 to host ea0f6b8a + chain 3e9fae03 (e7e5057a, helper f7a77598). The bounded helper ended NOT_READY (M1 not proven within 60 s): NOT a passed activation. Root's independent 01:19/01:20 checks: new agent 28460 owns 9600, 9 running, all 9 post-start lease-ready, readiness sequence 3 completed, manager/privacy/VMs/Hyper-V and config hashes unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion",
@@ -3321,6 +3363,13 @@
       "bytes": 745
     },
     {
+      "label": "ROOT source: read-only post-activation observation (one bracketed status query); no config, keys or raw logs",
+      "source": "work/resume-after-checkpoint-20261022/production-run/observe-node-renewal.py",
+      "stored": "files/production-run/observe-node-renewal.py",
+      "sha256": "94b32780433491867c291379d0128f7763d8c1540e9d637770001ae8ec56730a",
+      "bytes": 2595
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/production-run/pg-init-before.sh",
       "stored": "files/production-run/pg-init-before.sh",
       "sha256": "7213fa6a60119bcc8c96733ba571068595667bd5603ad4e7198ffd429897fff4",
@@ -3427,6 +3476,13 @@
       "stored": "files/production-run/reviewed-steps/upgrade-common.sh",
       "sha256": "97eeaa1e99df6cb24717c38d18d307427e1850fd463ca07351bd8b913b4732b1",
       "bytes": 2957
+    },
+    {
+      "label": "ROOT source: read-only two-provider log corroboration (public RPCs); no keys, signing or sends; NOT independent proof verification",
+      "source": "work/resume-after-checkpoint-20261022/production-run/verify-node-renewal-chain.mjs",
+      "stored": "files/production-run/verify-node-renewal-chain.mjs",
+      "sha256": "2c6b976222c5052ff06d65dbd40652e95cf637f5cbc3e9489be9237c4f6df90a",
+      "bytes": 3178
     },
     {
       "label": "ROOT-RUN source: offline (unshare -rn) zero-budget size refusal; no restore, no network",
@@ -4419,8 +4475,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "dbe8f46c48fe4e169557b8185b7ce909cf906f4beb7cc1151d6a3dd0a2fab194",
-      "bytes": 34004
+      "sha256": "c519af8cdb64b6200f34bcdf9b119a01854f2c3fb34bfce931c296c81a6955c4",
+      "bytes": 38965
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",

@@ -1,0 +1,39 @@
+{
+  "at": "2026-10-23T01:26:39.137683+00:00",
+  "status": "RUNNING_NOT_COMPLETE",
+  "snapshotSha256": "0e5b28c9dc53a5ac65e1bace6cf7409c8f6369599c114fb1878503acec210da1",
+  "derivativeSha256": "5fa3d30201435ba8de1e8a773ba48a42c413f328dad3a02e31d992074850502f",
+  "binarySha256": "3ef760ede4e46b5a944f429a78706b0822900434246bd8a24aeb22ceaba388aa",
+  "archiveMembersVerified": true,
+  "allowedSiaHosts": 50,
+  "unresolvedSiaHosts": 0,
+  "blockedEndpointCount": 31,
+  "blockedNameCount": 6,
+  "expectedObjectBytes": 21445494044,
+  "byteBudget": 23000000000,
+  "deadlineSeconds": 14400,
+  "memoryLimitMiB": 768,
+  "cpuQuotaPercent": 100,
+  "target": "existing storage VM, isolated network namespace and exact Sia IP allowlist",
+  "freeBytesBefore": 57697665024,
+  "glibcCompatible": true,
+  "limitation": "Tests indexer/gateway process and network independence. Same physical minipc as indexd; does not prove host-loss recovery. No complete restore claim until all objects and isolation checks pass.",
+  "unit": "sia-whole-restore-efe2c21b-001",
+  "attempt": "001-f5c643",
+  "isolationProbes": {
+    "at": "2026-10-23T01:28:34.585982+00:00",
+    "isolated": true,
+    "blocked": 31,
+    "blockedTried": 31,
+    "namesResolved": 0,
+    "namesTried": 6,
+    "allowedReached": 2,
+    "allowedTried": 3
+  },
+  "initialProgress": {
+    "files": 19,
+    "bytes": 1271194,
+    "inFlightBytes": 229376,
+    "memoryPeakBytes": 82935808
+  }
+}

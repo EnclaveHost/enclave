@@ -324,7 +324,7 @@ paths.add(base / 'node-updater-readonly/current-window.py')
 # Root's FROZEN native Windows activation evidence (e7e5057a pair via helper f7a77598): exactly these run files, reviewed to hold
 # hashes, PIDs, counts, timestamps, public deployment ids and Windows paths only. Each must still match its reviewed hash.
 FROZEN_RUNS = {
-    'ROOT-NEXT-WINDOW.txt': '8a79f3c8d528e81091cff7d354b4a326a84c3eceb20a31b871e9fdbf9c555204',
+    'ROOT-NEXT-WINDOW.txt': 'c7a0ca361c78e1f3599927116e500bf71396b7ef8a0ad1be51fcfe1cc7058f7e',   # root's 01:35Z followup (was 8a79f3c8)
     'params-identify-20261023t011354z.json': '36d245fc7993f6f1afa26505fb20a0334760bef3ddf8cec779a15a8ba986d99b',
     'attempt-identify-identify-20261023t011354z.json': 'a69dd481fbad55374ede149c2ac801fe3a0be1796f5bafe9ed39def6d06a9a35',
     'identify-result-identify-20261023t011354z.json': 'abc199de6f3f01b4d0461382d6137dc50bc4888b601ef1a3efe0ac0f7eb7fd34',
@@ -340,6 +340,24 @@ for name, want in FROZEN_RUNS.items():
     assert hashlib.sha256(p.read_bytes()).hexdigest() == want, f'NOT CAPTURED: {name} changed after review'
     paths.add(p)
 outputs.append(root / 'outputs/decentralization-audit/windows-node-update-20261023.json')
+# Root's FINISHED renewal evidence (01:30-01:35Z) and the RUNNING whole-restore receipt, plus worker C's routing report: each at its
+# reviewed bytes (hashes, public ids, tx hashes, public RPC hosts, counts, timestamps only; no keys, snapshot, seed or private
+# handle). The read-only observation/verification sources sit under production-run/.
+FROZEN_RENEWAL = {
+    'work/resume-after-checkpoint-20261022/production-run/observe-node-renewal.py': '94b32780433491867c291379d0128f7763d8c1540e9d637770001ae8ec56730a',
+    'work/resume-after-checkpoint-20261022/production-run/verify-node-renewal-chain.mjs': '2c6b976222c5052ff06d65dbd40652e95cf637f5cbc3e9489be9237c4f6df90a',
+    'work/resume-after-checkpoint-20261022/dns-routing-investigation/RESULT.md': '2a04ed51c6ca551fcf5b2a96ac01c34aafb6a11a34f7ecd9e58bd6a38419058c',
+    'work/resume-after-checkpoint-20261022/dns-routing-investigation/EVIDENCE-INVENTORY.json': '36760da10b74b3c914f01f31cf3033da6306124aa4296f8fe2501d41086c3f46',
+    'outputs/decentralization-audit/windows-node-update-20261023.json': '32cad8a3f5a9904614ae811c8f5609b7d84527faaa6c8879fa1a3969107a1e74',
+    'outputs/decentralization-audit/windows-node-renewal-observation-20261023.json': 'de7be8e14fb1f13e191b4365808fca568d2cce78bc8f8b788423327c52a33893',
+    'outputs/decentralization-audit/windows-node-renewal-log-20261023.json': '28bca996beba7451b04d30864c25ce5a1f1b34011fdc9a8d8a8c242685f637c0',
+    'outputs/decentralization-audit/windows-node-renewal-chain-20261023.json': '261477b6d464965875659a774a6fd62331c90362c514152bbb7e30f66bfdda00',
+    'outputs/decentralization-audit/storage-whole-recovery-live-20261023.json': 'c6bfa9e5a835d4d7fa1e0d89bc4b766d0cd9bed5389f8884c40c6ed3ef1ad57a',
+}
+for name, want in FROZEN_RENEWAL.items():
+    p = root / name
+    assert hashlib.sha256(p.read_bytes()).hexdigest() == want, f'NOT CAPTURED: {name} changed after review'
+    (outputs.append(p) if name.startswith('outputs/') else paths.add(p))
 # Root's public receipts: the EnclaveDNS TLS recovery observation and the 00:40Z progress snapshot.
 outputs += [root / 'outputs/decentralization-audit/enclavedns-tls-20261023.json',
             root / 'outputs/decentralization-audit/progress-20261023T0040.json']
@@ -378,7 +396,29 @@ LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; n
                                     'unchanged. A renewal by the NEW keeper is still PENDING (first due ~01:29Z); not full completion',
           'outputs/decentralization-audit/windows-node-update-20261023': 'ROOT public receipt: APPLIED and independently verified serving '
                                                                          'after the bounded startup check timed out (helper NOT_READY, not '
-                                                                         'passed); new-keeper renewal PENDING; not full decentralization',
+                                                                         'passed). 01:34Z followup: six apps renewed 01:30-01:32 under the '
+                                                                         'new runtime (two-provider corroboration, NOT independent witness '
+                                                                         'verification; logs cannot tell the keeper timer from the regular '
+                                                                         'pass); 3 leases not yet due; not full decentralization',
+          'outputs/decentralization-audit/windows-node-renewal': 'ROOT receipts (01:31-01:34Z): same agent 28460 before/after, all 9 fresh '
+                                                                 'ready; six renewals 01:30-01:32 with matching ledger Renewed + reserve '
+                                                                 'LeaseGasPaid events from TWO RPC providers = two-provider corroboration, '
+                                                                 'NOT independent witness verification. Logs cannot tell the keeper timer '
+                                                                 'from the regular pass. 3 leases not yet due; no full goal completion',
+          'outputs/decentralization-audit/storage-whole-recovery-live': 'ROOT receipt: RUNNING, NOT COMPLETE (unit sia-whole-restore-efe2c21b-001; '
+                                                                        'the file holds the INITIAL progress, 19 files). Root reported 425 files '
+                                                                        '/ 950 MB committed + 327 MB in flight at 01:35. Isolation verified 31/31 '
+                                                                        'endpoints blocked, 6/6 names unresolved, 2 Sia hosts reached. SAME '
+                                                                        'physical host as indexd: not host-loss proof',
+          'production-run/observe-node-renewal.py': 'ROOT source: read-only post-activation observation (one bracketed status query); '
+                                                    'no config, keys or raw logs',
+          'production-run/verify-node-renewal-chain.mjs': 'ROOT source: read-only two-provider log corroboration (public RPCs); no keys, '
+                                                          'signing or sends; NOT independent proof verification',
+          'node-pair-runner/runs/ROOT-NEXT-WINDOW.txt': 'ROOT note, updated 01:35Z: runtime CHANGED (e7e5057a); helper NOT_READY (not a '
+                                                        'passed activation); post-identify unchanged; six renewals two-provider '
+                                                        'corroborated, 3 not yet due; restore RUNNING. Do not rerun apply',
+          'dns-routing-investigation/': 'READ-ONLY investigation report + safe evidence inventory (hashes, paths, quoted log lines only): '
+                                        'fail-closed authorization withdrawal + DNS lag; no source bug, no patch, nothing changed',
           'node-pair-runner/prepare-next-params.py':'ROOT source: prepares immutable params from an IDENTIFIED receipt; no remote calls',
           'node-updater-readonly/current-window.py': 'ROOT source: one read-only status query of the Windows node; nothing changed',
           'production-run/build-whole-recovery.sh':'ROOT-RUN source: builds the e8f0997f recovery binary (dev profile, '

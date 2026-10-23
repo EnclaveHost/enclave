@@ -1,0 +1,74 @@
+{
+  "at": "2026-10-23T01:34:39.859Z",
+  "readOnly": true,
+  "authority": "Two-provider corroboration, not independent proof verification",
+  "rpc": [
+    "https://base-rpc.polkachu.com",
+    "https://base.gateway.tenderly.co"
+  ],
+  "verified": true,
+  "fromBlock": "52964364",
+  "toBlock": "52964964",
+  "renewals": [
+    {
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "tx": "0x19e19c6868bbc69bd0fbd077e6befb1c7973411cac8352f16040b0f2a6fab997",
+      "block": "52964843",
+      "timestamp": "1792719033",
+      "leaseUntil": "1792720833",
+      "kind": 2,
+      "operator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+      "chargedWei": "1263103647639"
+    },
+    {
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "tx": "0x64a7374928da3bf74469d6e9142d58e7d563f085916d2a1e1ca83fb6fda03352",
+      "block": "52964847",
+      "timestamp": "1792719041",
+      "leaseUntil": "1792720841",
+      "kind": 2,
+      "operator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+      "chargedWei": "1169875647639"
+    },
+    {
+      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "tx": "0x824871fbd326672419e72b6666bf92f479a91527a63a5bb0224d258cc81b4fae",
+      "block": "52964850",
+      "timestamp": "1792719047",
+      "leaseUntil": "1792720847",
+      "kind": 2,
+      "operator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+      "chargedWei": "1143116930781"
+    },
+    {
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "tx": "0xb2e4378ec1516e4fe423c19b065195eb8d395aafe046b6a2fe4a66176997865a",
+      "block": "52964887",
+      "timestamp": "1792719121",
+      "leaseUntil": "1792720921",
+      "kind": 2,
+      "operator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+      "chargedWei": "1369666390543"
+    },
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "tx": "0xcb59127de839adf9e26742a8abc16c36aad01fe1822c2adf0c60f89fb2a6abb0",
+      "block": "52964890",
+      "timestamp": "1792719127",
+      "leaseUntil": "1792720927",
+      "kind": 2,
+      "operator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+      "chargedWei": "1236550390543"
+    },
+    {
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "tx": "0x988af06b5e53c3e73a59fe7c3126c6d1d1c95ee05fc5bcba7e486c72708017a2",
+      "block": "52964899",
+      "timestamp": "1792719145",
+      "leaseUntil": "1792720945",
+      "kind": 2,
+      "operator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+      "chargedWei": "1396202668479"
+    }
+  ]
+}
