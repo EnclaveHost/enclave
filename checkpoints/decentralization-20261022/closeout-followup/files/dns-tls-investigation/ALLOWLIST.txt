@@ -1,0 +1,23 @@
+# dns-tls-investigation: files for the shared checkpoint (publication is worker E's scope; this is the explicit list only).
+# Paths relative to work/resume-after-checkpoint-20261022/dns-tls-investigation. EXCLUDED: candidate/node_modules,
+# base/, rejected/ (scratch clones), stubs/, tmp/, logs/, rollout/tmp/, rollout/results/, __pycache__/.
+# The source itself is commit a2b8fabd2c0b5685aeff6ef159a745a1f3b889c5 on branch work/cert-verdict-reuse of candidate/
+# (parent ad074e2); its five files are listed with their committed bytes.
+candidate/relay/certs.js
+candidate/relay/measurement-predict.mjs
+candidate/test/certs.test.mjs
+candidate/test/measurement-predict.test.mjs
+candidate/test/shield-market-cert-authority.test.mjs
+INITIAL.md
+RESULT.md
+ALLOWLIST.txt
+dns-tls-fix.patch
+rejected-verdict-reuse.patch
+rejected-verdict-reuse.test.mjs
+job-tests.sh
+jobs-run.sh
+rollout/deploy-two-file.py
+rollout/remote_two_file.py
+rollout/test_two_file.py
+rollout/run-tests.sh
+scan-allowlist.sh

@@ -1,0 +1,59 @@
+{
+  "format": "dns-tls-lineage/v1",
+  "commit": "a2b8fabd2c0b5685aeff6ef159a745a1f3b889c5",
+  "tree": "1f3a25a4b4052866f01105333fa5de646826cc55",
+  "parent": "ad074e249532c0efe40b71f7ecb391039b33a3c6",
+  "branch": "work/cert-verdict-reuse (dns-tls-investigation/candidate)",
+  "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+  "files": [
+    {
+      "file": "relay/certs.js",
+      "parentSha256": "237834d8eed6e0f38caca1007170233690167e42c4f606adfaa11693bb6da8a4",
+      "commitSha256": "77a0d398c191bbe91ff5b514308b88b5c645b2a56636eb081262427731a50229",
+      "normalCheckpointTreeSha256": "237834d8eed6e0f38caca1007170233690167e42c4f606adfaa11693bb6da8a4",
+      "deployed": true
+    },
+    {
+      "file": "relay/measurement-predict.mjs",
+      "parentSha256": "a6372f419adcb7241cf50e6391e5af95a944688de67725b1e9c6880d1a8ef335",
+      "commitSha256": "b2a39242d93cb9bd8fd87927a52d5c2249e9a8bfc265295dee7b19d43e0f5297",
+      "normalCheckpointTreeSha256": "a6372f419adcb7241cf50e6391e5af95a944688de67725b1e9c6880d1a8ef335",
+      "deployed": true
+    },
+    {
+      "file": "test/certs.test.mjs",
+      "parentSha256": "983754d90781f712e1ec7e40bbe5e3b65a7ca367b43f968033413de9f7b5f6d6",
+      "commitSha256": "effc810a85756cfc91947e3f8249ff7199b0296ed8eeb1e3b57d58aba1e38102",
+      "normalCheckpointTreeSha256": "983754d90781f712e1ec7e40bbe5e3b65a7ca367b43f968033413de9f7b5f6d6",
+      "deployed": false
+    },
+    {
+      "file": "test/measurement-predict.test.mjs",
+      "parentSha256": "653b4e09608a62eededee3d82387e415be78caa1cf7ae8f93dfcfc58c7c60a54",
+      "commitSha256": "ed148964922a2138df4e3172daba9650d6514afbee7440350f548ea7edf09590",
+      "normalCheckpointTreeSha256": "653b4e09608a62eededee3d82387e415be78caa1cf7ae8f93dfcfc58c7c60a54",
+      "deployed": false
+    },
+    {
+      "file": "test/shield-market-cert-authority.test.mjs",
+      "parentSha256": null,
+      "commitSha256": "da3c00196c4be1ab17dc2e6df86c0ccf074c6a1c5e7cda2d346a2ed0a6621454",
+      "normalCheckpointTreeSha256": null,
+      "deployed": false
+    }
+  ],
+  "fiveFilePatch": {
+    "path": "a2b8fabd-five-files.patch",
+    "sha256": "1b6efb04d28892f1c2a1a500057f1c4d895935335611344f3fdb7af2ade77935",
+    "is": "git diff ad074e2 a2b8fabd"
+  },
+  "runtimePatch": {
+    "path": "dns-tls-investigation/dns-tls-fix.patch",
+    "sha256": "40499a454a94cea9fdf8adb2ed7a38a7ed4dfb0fbcc29349a00b29d979aa6611",
+    "is": "git diff ad074e2 a2b8fabd -- relay/"
+  },
+  "deployment": "root DEPLOYED the two relay/ files on the control VM (enclave-api-relay): apply 2.2 s, PID 222659 -> 240723, both installed hashes verified, public HTTPS 200 / TLS verify 0 at 01:12:25Z; no guest restart (root receipt outputs/decentralization-audit/enclavedns-tls-20261023.json; rollout/results/*.json)",
+  "normalTreeComposition": "NO CONFLICT: the checkpoint normal tree holds exactly the parent bytes of all four existing files (certs.js 237834d8 = the pre-deploy installed file) and lacks the new test. Applying the five files there would be a clean replacement, but it was NOT applied: the candidate is preserved beside the normal tree, as for serving-first, for a reviewed composition.",
+  "tests": "rollout 19/19 (rollout-r3). Source suite 108/110: the 2 failures are pre-existing predictor rule-pin tests that fail identically on the installed sources (documented in RESULT.md section 6). NOT 110/110.",
+  "pendingCorrection": "The rollout receipts say \"answered (200 or 202) within 40 s\". 40 s (CERTS_EVIDENCE_WAIT_MS) bounds the app-evidence phase, not the whole HTTP request. Post-deployment certificate issuance is still UNOBSERVED; no renewal is to be forced to observe it."
+}

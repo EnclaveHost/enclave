@@ -1,13 +1,13 @@
 {
-  "capturedAt": "2026-10-23T01:09:51.469983+00:00",
+  "capturedAt": "2026-10-23T01:15:48.027627+00:00",
   "status": "Recovery checkpoint; drafts and ongoing validation, not a release or activation",
   "entries": [
     {
       "label": "ROOT public receipt: TLS recovered through the existing retry; no production mutation; one recovery is not durable availability",
       "source": "outputs/decentralization-audit/enclavedns-tls-20261023.json",
       "stored": "files/outputs/decentralization-audit/enclavedns-tls-20261023.json",
-      "sha256": "e133d501cebc661485e8f0dcf410676dd4a112d1a1bc10fbe0451cee70ac1159",
-      "bytes": 1705
+      "sha256": "a5f52ad4b942c3c908d7aa497cb70f57503b97eb58e14a3a1ceb033e6d9e585b",
+      "bytes": 4779
     },
     {
       "source": "outputs/decentralization-audit/native-control-hardware-canary-20261022.json",
@@ -635,6 +635,174 @@
       "stored": "files/dns-live-recovery/state-0005.json",
       "sha256": "bccbf95dfe1323e135f96ba4962589ef6cf106b8f9cf8449ac4bc27028fef3ea",
       "bytes": 3716
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/ALLOWLIST.sha256",
+      "stored": "files/dns-tls-investigation/ALLOWLIST.sha256",
+      "sha256": "73864d5b0c3e7e40aa85ed44a2785391d80103805ce913023d070e72b9b2d308",
+      "bytes": 1637
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/ALLOWLIST.txt",
+      "stored": "files/dns-tls-investigation/ALLOWLIST.txt",
+      "sha256": "ccf28c43412f0277e1312a7ee2518f917c7bbaafb5ccf79f85de8bfe05e89a68",
+      "bytes": 985
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/INITIAL.md",
+      "stored": "files/dns-tls-investigation/INITIAL.md",
+      "sha256": "5896b142fe92ad7dc74473999feddc242a23c22c5e9dba3a3345d6f4f3e1cd57",
+      "bytes": 4082
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/RESULT.md",
+      "stored": "files/dns-tls-investigation/RESULT.md",
+      "sha256": "223e2e5b99ea67dc48bd4462c708cc204cfe0addecf0e4f63a3d89f5f0e6263a",
+      "bytes": 19821
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/candidate/relay/certs.js",
+      "stored": "files/dns-tls-investigation/candidate/relay/certs.js",
+      "sha256": "77a0d398c191bbe91ff5b514308b88b5c645b2a56636eb081262427731a50229",
+      "bytes": 67018
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/candidate/relay/measurement-predict.mjs",
+      "stored": "files/dns-tls-investigation/candidate/relay/measurement-predict.mjs",
+      "sha256": "b2a39242d93cb9bd8fd87927a52d5c2249e9a8bfc265295dee7b19d43e0f5297",
+      "bytes": 58148
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/candidate/test/certs.test.mjs",
+      "stored": "files/dns-tls-investigation/candidate/test/certs.test.mjs",
+      "sha256": "effc810a85756cfc91947e3f8249ff7199b0296ed8eeb1e3b57d58aba1e38102",
+      "bytes": 82045
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/candidate/test/measurement-predict.test.mjs",
+      "stored": "files/dns-tls-investigation/candidate/test/measurement-predict.test.mjs",
+      "sha256": "ed148964922a2138df4e3172daba9650d6514afbee7440350f548ea7edf09590",
+      "bytes": 56754
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/candidate/test/shield-market-cert-authority.test.mjs",
+      "stored": "files/dns-tls-investigation/candidate/test/shield-market-cert-authority.test.mjs",
+      "sha256": "da3c00196c4be1ab17dc2e6df86c0ccf074c6a1c5e7cda2d346a2ed0a6621454",
+      "bytes": 5927
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/dns-tls-fix.patch",
+      "stored": "files/dns-tls-investigation/dns-tls-fix.patch",
+      "sha256": "40499a454a94cea9fdf8adb2ed7a38a7ed4dfb0fbcc29349a00b29d979aa6611",
+      "bytes": 6858
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/job-tests.sh",
+      "stored": "files/dns-tls-investigation/job-tests.sh",
+      "sha256": "fd15c357682fbd7e8a1ec40aca0d2d8c2c316347a2d0ec674a44b7323e5c057b",
+      "bytes": 1244
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/jobs-run.sh",
+      "stored": "files/dns-tls-investigation/jobs-run.sh",
+      "sha256": "ee6b99730516371b8a6f77a8a7fbb20ee8225c65a511fc243033eba9e0d72dbf",
+      "bytes": 1531
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/rejected-verdict-reuse.patch",
+      "stored": "files/dns-tls-investigation/rejected-verdict-reuse.patch",
+      "sha256": "25b29207c9ceec7cc1c1fb781f70e243402072216103982222ec5788252e7d29",
+      "bytes": 3593
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/rejected-verdict-reuse.test.mjs",
+      "stored": "files/dns-tls-investigation/rejected-verdict-reuse.test.mjs",
+      "sha256": "ce44209ed0c38ee621ee865e428466a9366bd31fd604244def173ceba16a6ffe",
+      "bytes": 5494
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/rollout/deploy-two-file.py",
+      "stored": "files/dns-tls-investigation/rollout/deploy-two-file.py",
+      "sha256": "0d6e269c5df81914c5adf4a5280d210ca739f15bbe7f20675c020f9f916017b0",
+      "bytes": 6318
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/rollout/remote_two_file.py",
+      "stored": "files/dns-tls-investigation/rollout/remote_two_file.py",
+      "sha256": "460ee850e9d53fb5b246c28c29c8210bbc1dcddd311cfdb7b56c35d9e90ea672",
+      "bytes": 15576
+    },
+    {
+      "label": "ROOT rollout receipts: DEPLOYED_READY (2 files, 2.2 s, PID 222659->240723, hashes verified). Their \"within 40 s\" pending text is corrected: 40 s bounds the app-evidence phase, not the whole HTTP request; post-deployment certificate issuance is still UNOBSERVED",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/rollout/results/apply-20261023T011203Z.json",
+      "stored": "files/dns-tls-investigation/rollout/results/apply-20261023T011203Z.json",
+      "sha256": "11f20aff2e0d15f4d39c28c79552ba6026931c6d2e821b61280ad4da732ad858",
+      "bytes": 1066
+    },
+    {
+      "label": "ROOT rollout receipts: DEPLOYED_READY (2 files, 2.2 s, PID 222659->240723, hashes verified). Their \"within 40 s\" pending text is corrected: 40 s bounds the app-evidence phase, not the whole HTTP request; post-deployment certificate issuance is still UNOBSERVED",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/rollout/results/preflight-20261023T011151Z.json",
+      "stored": "files/dns-tls-investigation/rollout/results/preflight-20261023T011151Z.json",
+      "sha256": "8ace912e55ef34dc5bb093d95842e692a68b58822334279faab5d5116f032a6f",
+      "bytes": 662
+    },
+    {
+      "label": "ROOT rollout receipts: DEPLOYED_READY (2 files, 2.2 s, PID 222659->240723, hashes verified). Their \"within 40 s\" pending text is corrected: 40 s bounds the app-evidence phase, not the whole HTTP request; post-deployment certificate issuance is still UNOBSERVED",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/rollout/results/status-20261023T011218Z.json",
+      "stored": "files/dns-tls-investigation/rollout/results/status-20261023T011218Z.json",
+      "sha256": "5cb0853e4dcd9a088d89b3e0b7a388d17a451fc5ef4b94a702fe8385b87871d8",
+      "bytes": 1924
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/rollout/run-tests.sh",
+      "stored": "files/dns-tls-investigation/rollout/run-tests.sh",
+      "sha256": "fbee57802158c3184a1e0fd98a78031c5205f379460704402a028e32c39c6510",
+      "bytes": 576
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/rollout/test_two_file.py",
+      "stored": "files/dns-tls-investigation/rollout/test_two_file.py",
+      "sha256": "658bb92ade11d582cb438707be87e23165abb90c63cfecea3ad517d5151d3955",
+      "bytes": 17126
+    },
+    {
+      "label": "DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing rule pins (NOT 110/110). Not merged into the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-investigation/scan-allowlist.sh",
+      "stored": "files/dns-tls-investigation/scan-allowlist.sh",
+      "sha256": "9d5a0ba36a56cb17a920bccb478ce53186c8fce6db69012a3e405390aabb0230",
+      "bytes": 898
+    },
+    {
+      "label": "lineage of a2b8fabd (parent ad074e2): no normal-tree conflict (the normal tree holds the parent bytes); not applied there",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-publication/LINEAGE.json",
+      "stored": "files/dns-tls-publication/LINEAGE.json",
+      "sha256": "30c00eb1a3dc4437a0048f5eec954f024f0ec54e0881869c0b6ba32972775aa1",
+      "bytes": 3680
+    },
+    {
+      "label": "lineage of a2b8fabd (parent ad074e2): no normal-tree conflict (the normal tree holds the parent bytes); not applied there",
+      "source": "work/resume-after-checkpoint-20261022/dns-tls-publication/a2b8fabd-five-files.patch",
+      "stored": "files/dns-tls-publication/a2b8fabd-five-files.patch",
+      "sha256": "1b6efb04d28892f1c2a1a500057f1c4d895935335611344f3fdb7af2ade77935",
+      "bytes": 19130
     },
     {
       "source": "work/resume-after-checkpoint-20261022/measured-composition/RESULT-closeout.json",
@@ -2568,6 +2736,13 @@
       "bytes": 1631
     },
     {
+      "label": "ROOT source: prepares immutable params from an IDENTIFIED receipt; no remote calls",
+      "source": "work/resume-after-checkpoint-20261022/node-pair-runner/prepare-next-params.py",
+      "stored": "files/node-pair-runner/prepare-next-params.py",
+      "sha256": "68c956d97206b04bd2987850bfd487e8b021d5f9d941dd0fbcbfe2bda9490011",
+      "bytes": 1878
+    },
+    {
       "source": "work/resume-after-checkpoint-20261022/node-pair-runner/root-node-pair.py",
       "stored": "files/node-pair-runner/root-node-pair.py",
       "sha256": "a1c950f246826bd9204e0b6a60115a2631196ae81f60c58810ca64bd3cfbf2fa",
@@ -2814,6 +2989,13 @@
       "stored": "files/node-updater-readonly/current-0021.json",
       "sha256": "a0fdc641995a92218ffd724225990ebd28649197716848ceae1cfc75ef4d0606",
       "bytes": 6832
+    },
+    {
+      "label": "ROOT source: one read-only status query of the Windows node; nothing changed",
+      "source": "work/resume-after-checkpoint-20261022/node-updater-readonly/current-window.py",
+      "stored": "files/node-updater-readonly/current-window.py",
+      "sha256": "f7a000ea65027f2905ca2819caae4cad57ed61308524848dc95283d1097e2d5e",
+      "bytes": 980
     },
     {
       "label": "READ-ONLY receipts (root): installed updater 36f9e0d6 for published 2026.10.12.47, a same-version no-op; no signed release policy present; no policy changed",
@@ -4160,8 +4342,8 @@
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-latest.py",
       "stored": "files/source-preservation/capture-latest.py",
-      "sha256": "d3d030ee2eb5daf29d4d7cad98d38675802cf546045ca934a784258854c9817f",
-      "bytes": 28289
+      "sha256": "bc2d68960e094efd26b049ee14580dcc8d73e86d921bccf160353b4f36712dad",
+      "bytes": 31165
     },
     {
       "source": "work/resume-after-checkpoint-20261022/source-preservation/review-candidate-findings.py",

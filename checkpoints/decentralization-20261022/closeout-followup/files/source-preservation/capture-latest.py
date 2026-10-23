@@ -303,6 +303,24 @@ for directory in ('helper', 'tools', 'jobs', 'source', 'stub'):
     for p in (nbo / directory).rglob('*'):
         if p.is_file() and not p.is_symlink() and '__pycache__' not in p.parts:
             paths.add(p)
+# The DEPLOYED DNS/TLS fix a2b8fabd: exactly the 18 files of worker C's frozen ALLOWLIST.txt (the five tracked source/test
+# files at their committed bytes, reports, patches, rollout source and tests) plus its hash list and root's three rollout
+# receipts (hashes, PIDs, statuses only); and the lineage record + full five-file diff. Never node_modules, the base/ and
+# rejected/ clones, stubs/, tmp/ or logs/.
+tls = base / 'dns-tls-investigation'
+frozen = {line.split()[1]: line.split()[0] for line in (tls / 'ALLOWLIST.sha256').read_text().splitlines() if line.strip()}
+listed = [l.strip() for l in (tls / 'ALLOWLIST.txt').read_text().splitlines() if l.strip() and not l.startswith('#')]
+assert sorted(frozen) == sorted(listed) and len(listed) == 18, 'the DNS/TLS allowlist and its hash list disagree'
+for name, want in frozen.items():
+    assert hashlib.sha256((tls / name).read_bytes()).hexdigest() == want, f'NOT CAPTURED: {name} changed after its final hash'
+    paths.add(tls / name)
+paths.add(tls / 'ALLOWLIST.sha256')
+paths.update(p for p in (tls / 'rollout' / 'results').glob('*.json') if p.is_file() and not p.is_symlink())
+for name in ('LINEAGE.json', 'a2b8fabd-five-files.patch'):
+    paths.add(base / 'dns-tls-publication' / name)
+# Root's safe Windows helpers (no remote calls / one read-only status query); NOT its mutable identify/apply receipts (runs/).
+paths.add(base / 'node-pair-runner/prepare-next-params.py')
+paths.add(base / 'node-updater-readonly/current-window.py')
 # Root's public receipts: the EnclaveDNS TLS recovery observation and the 00:40Z progress snapshot.
 outputs += [root / 'outputs/decentralization-audit/enclavedns-tls-20261023.json',
             root / 'outputs/decentralization-audit/progress-20261023T0040.json']
@@ -325,7 +343,18 @@ LABELS = {'queued-funding-small/': 'UNSIGNED PROPOSAL + wallet-handoff source; n
                                     'no signed release policy present; no policy changed',
           'production-run/copy-encrypted-recovery.py': 'ROOT-RUN: copies only the pinned encrypted archive (no keys or passphrase) to the '
                                                        'attached array, with read-back verification',
-          'production-run/build-whole-recovery.sh': 'ROOT-RUN source: builds the e8f0997f recovery binary (dev profile, '
+          'dns-tls-investigation/rollout/results/': 'ROOT rollout receipts: DEPLOYED_READY (2 files, 2.2 s, PID 222659->240723, hashes '
+                                                    'verified). Their "within 40 s" pending text is corrected: 40 s bounds the '
+                                                    'app-evidence phase, not the whole HTTP request; post-deployment certificate '
+                                                    'issuance is still UNOBSERVED',
+          'dns-tls-investigation/': 'DEPLOYED a2b8fabd (relay/certs.js 77a0d398 + relay/measurement-predict.mjs b2a39242 on the control VM, '
+                                    'by root). Tests: rollout 19/19 (rollout-r3); source 108/110, the 2 failures are pre-existing '
+                                    'rule pins (NOT 110/110). Not merged into the normal tree',
+          'dns-tls-publication/': 'lineage of a2b8fabd (parent ad074e2): no normal-tree conflict (the normal tree holds the parent bytes); '
+                                  'not applied there',
+          'node-pair-runner/prepare-next-params.py': 'ROOT source: prepares immutable params from an IDENTIFIED receipt; no remote calls',
+          'node-updater-readonly/current-window.py': 'ROOT source: one read-only status query of the Windows node; nothing changed',
+          'production-run/build-whole-recovery.sh':'ROOT-RUN source: builds the e8f0997f recovery binary (dev profile, '
                                                     'sha256 3ef760ed); not a release',
           'production-run/whole-recovery-size.py': 'ROOT-RUN source: offline (unshare -rn) zero-budget size refusal; no restore, '
                                                    'no network',
@@ -381,7 +410,7 @@ for p in sorted(paths):
         out.chmod(0o644)
     out.write_bytes(data)
     out.chmod(0o644 | (p.stat().st_mode & 0o111))
-    label = next((v for k, v in LABELS.items() if str(rel).startswith(k)), None)
+    label = max(((k, v) for k, v in LABELS.items() if str(rel).startswith(k)), key=lambda kv: len(kv[0]), default=(None, None))[1]  # most specific
     entries.append({**({'label': label} if label else {}), 'source': str(p.relative_to(root)), 'stored': str(out.relative_to(dest)),
                     'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data),
                     **({'capturedFromUnmutatedBackup': str(actual.relative_to(root))} if actual != p else {})})

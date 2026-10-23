@@ -1,0 +1,47 @@
+diff --git a/relay/shield-marketplace.mjs b/relay/shield-marketplace.mjs
+index 303b52f..28a1661 100644
+--- a/relay/shield-marketplace.mjs
++++ b/relay/shield-marketplace.mjs
+@@ -7,6 +7,13 @@ import { shieldHostAdmitted } from './shield-app-policy.mjs';
+ import { pinnedWitness, readinessInput } from './shield-market-evidence.mjs';
+ 
+ const TTL = 300000, REFRESH = 60000;
++// A certificate request for the key a CURRENT verdict already attested reuses that verdict instead of re-running the whole
++// verification (chain reads, catalog, a component fetch that is not kept on disk, up to three TPM reports) inside the
++// request: the node aborts its POST at 60 s (windows/node/apptls.mjs requestCert), so a slow round made even a CACHED
++// certificate unreachable and escalated the node's back-off (2026-10-23 00:05/00:13Z, 0x59f1273d: 480 s, then 960 s).
++// Current = this session's verdict, within its TTL AND checked at most two refresh rounds ago - stricter than the TTL the
++// route and DNS admission already rely on (servesUntil).
++const CERT_REUSE_MS = 2 * REFRESH;
+ // Failures that say nothing about the app: the chain read, this verifier being
+ // busy, or the node not answering this round. They leave the last verification
+ // to expire on its own TTL (never extended); anything else revokes it now. One
+@@ -44,6 +51,19 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
+         String(d.runner).toLowerCase() !== String(host.id).toLowerCase()) return 0;
+     return Math.floor(Math.min(app.until, Number(d.leaseUntil) * 1000) / 1000);
+   }
++  // The verdict admit() recorded for exactly this deployment state and this TLS key, or null (then admit() runs, unchanged).
++  // Every condition admit() checks on the row is re-checked here on the row the caller holds; the key equality is the
++  // one expectedCsrSpkiSha256 adds (shield-app-policy.mjs: CSR key == the attested handshake key).
++  function currentVerdict(host, d, csrSpkiSha256) {
++    const state = stateFor(host), app = state?.apps.get(d?.id), t = now();
++    if (!app || !(app.until > t) || !(t - app.checked < CERT_REUSE_MS)) return null;
++    if (!/^[0-9a-f]{64}$/.test(String(csrSpkiSha256 || '')) || app.spkiSha256 !== csrSpkiSha256) return null;
++    if (fingerprint(d) !== app.fingerprint || d.active !== true || d.isPublic !== true || Number(d.leaseUntil) * 1000 <= t ||
++        String(d.runner).toLowerCase() !== String(host.id).toLowerCase() || (hasSecrets(d.id) && !policy?.cpu?.secretsV1) ||
++        (app.ownerException && !isOwnerDeployment(host, d))) return null;
++    log(`[shield-market] certificate ${host.name}/${d.id.slice(0,10)}: reusing the verdict of ${Math.round((t - app.checked) / 1000)}s ago for this TLS key`);
++    return { ok: true, spkiSha256: app.spkiSha256, reused: true, checkedAt: app.checked };
++  }
+   async function admit(host, candidate, csrSpkiSha256) {
+     const sid = session(host);
+     if (!sid) return {ok:false, reason:'no configured live Shield session'};
+@@ -101,7 +121,7 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
+     configured, eligible, servesUntil,
+     // true until this host's current attachment has a verdict on d (relay/route-grace.mjs keeps a route meanwhile)
+     pending: (host, d) => !stateFor(host)?.verdicts?.has(d?.id),
+-    certificate: (host, d, spki) => admit(host, d, spki),
++    certificate: (host, d, spki) => currentVerdict(host, d, spki) || admit(host, d, spki),
+     async refresh(hosts, rows) {
+       if (!policy || refreshing) return;
+       refreshing = true;
