@@ -1,0 +1,54 @@
+[queue] START available=24677MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+HEAD 349318a0600917bad8f391ad628fa0c7f134b3f6
+ M site/js/core/account-providers.js
+ M site/js/core/account-transport.js
+ M site/js/core/chain.js
+ M site/js/core/passkey-account.js
+ M site/js/core/wallet.js
+?? site/js/core/profile-broadcast.js
+?? test/site-account-bundler-route.test.mjs
+?? test/site-wallet-profile-broadcast.test.mjs
+268c8a39180aa2171b09d6739dd8f3ccbafe0e8aa81acf44cb995be78fc98e7e  site/js/core/profile-broadcast.js
+d0e7482ac37703d45bf7c0ac3bcf9c3db51cab1806553e90d9ed2a01ddc4e835  site/js/core/wallet.js
+adc2bea3effe5e0b984e60683d74ebc1e7bdf0a110d55183daae1a4c30a24dee  site/js/core/chain.js
+f5a4f6a8930a705ea2366fe8c342b6cefacc0902de42e986200132196c2f8d27  site/js/core/passkey-account.js
+4e73e0a6cbb1fcc4c824d31f498ae267d05c413aa53e12d3ac28fd47caae4007  site/js/core/account-providers.js
+e632ace653e5e787bc871cb0eb4a1e61805fd9522d2fe183e3b49d3e3da2650f  site/js/core/account-transport.js
+c6407f71c3a5e26d05a93bd385e5f9b62a08f17d038dc74e83c152baccb5c899  test/site-account-bundler-route.test.mjs
+TAP version 13
+# Subtest: the owner's bundlers, in order: a refusal moves to the next; the outcome is the (fixture) EntryPoint event; nothing else is contacted
+ok 1 - the owner's bundlers, in order: a refusal moves to the next; the outcome is the (fixture) EntryPoint event; nothing else is contacted
+  ---
+  duration_ms: 41.201181
+  type: 'test'
+  ...
+# Subtest: every bundler refusing: refused, nothing pending, each asked once; an unreachable bundler first: outcome unknown, kept pending, not resent
+ok 2 - every bundler refusing: refused, nothing pending, each asked once; an unreachable bundler first: outcome unknown, kept pending, not resent
+  ---
+  duration_ms: 22.685024
+  type: 'test'
+  ...
+# Subtest: no transport, no account route: no default bundler exists, and the wallet route is the only choice
+ok 3 - no transport, no account route: no default bundler exists, and the wallet route is the only choice
+  ---
+  duration_ms: 0.389157
+  type: 'test'
+  ...
+# Subtest: capabilities name what Enclave runs when the owner chose it, instead of claiming independence
+ok 4 - capabilities name what Enclave runs when the owner chose it, instead of claiming independence
+  ---
+  duration_ms: 0.495756
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 285.610859
+[memory-guard] exit=0 peakTreeRssMiB=142 minHostAvailableMiB=24624
+[memory-guard] at peak: node:83 node:55 timeout:4
+[queue] EXIT 0

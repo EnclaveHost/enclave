@@ -1,0 +1,11 @@
+# Desktop nftables fragment. Template, NOT applied by this repository.
+# Only the NucBox LAN address may open a TCP connection to the two exports. This is defence in depth: qemu-nbd also
+# requires the per-role client certificate, the authz DN and TLS before any NBD option.
+# Replace @NUCBOX_LAN_IP@ with the address root reads from NucBox (ROOT-PROBES R4). Load it with: nft -f <file>.
+table inet enclave_rpc_hdd {
+  chain input {
+    type filter hook input priority -10; policy accept;
+    tcp dport { 10809, 10810 } ip saddr @NUCBOX_LAN_IP@ accept
+    tcp dport { 10809, 10810 } drop
+  }
+}

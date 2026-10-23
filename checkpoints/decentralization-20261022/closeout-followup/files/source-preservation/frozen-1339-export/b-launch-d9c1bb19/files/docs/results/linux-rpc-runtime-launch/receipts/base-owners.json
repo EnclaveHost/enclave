@@ -1,0 +1,512 @@
+{
+ "base": "/home/steven/enclave-prod/dist-sdshield-2857356cd/initramfs.cpio.gz",
+ "entries": 29040,
+ "uids": {
+  "1000": 29027,
+  "0": 13
+ },
+ "gids": {
+  "1000": 29027,
+  "0": 13
+ },
+ "key": {
+  ".": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "app": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "bin": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o777",
+   "type": "link"
+  },
+  "etc": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "init": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "file"
+  },
+  "lib": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o777",
+   "type": "link"
+  },
+  "mnt": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "opt": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "opt/metal": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "opt/roots": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "opt/roots/wasm": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "sbin": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o777",
+   "type": "link"
+  },
+  "tmp": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "usr": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "usr/bin": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "usr/bin/flock": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "file"
+  },
+  "usr/lib": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "usr/local": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "usr/local/bin": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  },
+  "usr/local/bin/node": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "file"
+  },
+  "usr/sbin": {
+   "uid": 1000,
+   "gid": 1000,
+   "mode": "0o755",
+   "type": "dir"
+  }
+ },
+ "nonRootDirs": {
+  "count": 3274,
+  "first": [
+   {
+    "path": ".",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/isolation",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/isolation/contract",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/isolation/m2",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/isolation/m4",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/isolation/m4/guestd",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/.bin",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@adraffy",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@adraffy/ens-normalize",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@adraffy/ens-normalize/dist",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@esbuild",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/crypto-browser",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/crypto-browser/dist",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/crypto-browser/dist/asn1",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/.github",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/.github/workflows",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/dist",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/dist/rfc3161",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/dist/timestamp",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/dist/tlog",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/dist/trust",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/dist/x509",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/node_modules",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/node_modules/@noble",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/node_modules/@noble/curves",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/node_modules/@noble/curves/abstract",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/node_modules/@noble/curves/src",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/node_modules/@noble/curves/src/abstract",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/node_modules/@noble/hashes",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/node_modules/@noble/hashes/src",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/src",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/src/rfc3161",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/src/timestamp",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/src/tlog",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/src/trust",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/sigstore-browser/src/x509",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/tuf-browser",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/tuf-browser/.github",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/tuf-browser/.github/workflows",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/tuf-browser/dist",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/tuf-browser/dist/storage",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/tuf-browser/src",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@freedomofpress/tuf-browser/src/storage",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@jridgewell",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@noble",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@noble/ciphers",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@noble/ciphers/esm",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@noble/ciphers/src",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@noble/curves",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@noble/curves/abstract",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@noble/curves/esm",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@noble/curves/esm/abstract",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@noble/curves/src",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@noble/curves/src/abstract",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@noble/hashes",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   },
+   {
+    "path": "app/node_modules/@noble/hashes/esm",
+    "uid": 1000,
+    "gid": 1000,
+    "mode": "0o755"
+   }
+  ]
+ },
+ "passwdNonRoot": [
+  "node:x:1000:1000::/home/node:/bin/bash"
+ ],
+ "groupNonRoot": [
+  "node:x:1000:"
+ ],
+ "initHead": "#!/bin/bash\n# metal guest PID 1. Everything here runs inside the measured SEV-SNP CVM.\n# It mounts the pseudo-filesystems, loads the virtio + confidential-computing\n# guest modules, brings up outbound networking, then hands off to the node\n# process supervisor (gsup.mjs), which runs the wasm-manager, the supervisor,\n# and the metal-agent and keeps them alive.\nset +e\nexport PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nKVER=\"7.2.3-arch1-2\"          # substituted at build time\nMODDIR=\"/lib/modules/$KVER/kernel\"\n\nlog(){ echo \"[metal-init] $*\" > /dev/console; }\n\nlog \"PID1 up; mounting pseudo-filesystems\"\nmount -t proc     proc     /proc            2>/dev/null\nmount -t sysfs    sysfs    /sys             2>/dev/null\nmount -t devtmpfs devtmpfs /dev             2>/dev/null\nmkdir -p /dev/pts /dev/shm /run /tmp /mnt/ramdisk\nmount -t devpts   devpts   /dev/pts         2>/dev/null\nmount -t tmpfs    tmpfs    /dev/shm         2>/dev/null\nmount -t tmpfs    tmpfs    /run             2>/dev/null\nmount -t tmpfs    -o mode=1777 tmpfs /tmp   2>/dev/null\n# /mnt/ramdisk is where the supervisor mints its session + TLS keys; MUST be\n# memory-backed so no private key ever touches a host-visible disk.\nmount -t tmpfs    -o mode=0755 tmpfs /mnt/ramdisk 2>/dev/null\nmount -t configfs configfs /sys/kernel/config 2>/dev/null\n\n# --- ephemeral ports OUT of the policed range -------------------------------\n# The per-app firewall (wasm_manager._audit_rec) kills any tenant that binds a\n# port it was not assigned, and it polices everything <= PORT_MAX_DECL (49999)\n# because that is the range a deployment may declare. The kernel's default\n# ephemeral range is 32768-60999, which straddles that line: an app resolving a\n# hostname binds an unconnected UDP socket on a random ephemeral port, and when\n# the kernel happens to pick one below 50000 the audit sees an \"unassigned\"\n# bind and kills a perfectly well-behaved app. It is a coin flip per lookup -\n# roughly three in five - so the same deployment provisions or dies at random.\n# (Seen on metal0, 2026-09-13: both claimed deployments killed on ports 34752\n# and 40087.) Pin the range above the policed space, exactly as the relay host\n# does for the same reason (relay/deploy.sh). Set before networking comes up\n# and before any tenant exists, so no socket is ever drawn from the old range.\necho \"58000 65535\" > /proc/sys/net/ipv4/ip_local_port_range 2>/dev/null \\\n  && log \"ephemeral ports 58000-65535 (clear of the policed range)\" \\\n  || log \"WARNING: could not pin ip_local_port_range; tenants may be killed for ephemeral binds\"\n\n# --- kernel modules (insmod by explicit path, dependency order from the build)\n# modules.list holds relative paths (kernel/...) in load order: failover +\n# net_failover + virtio_net for networking, then tsm_report + sev-guest/\n# tdx-guest for confidential-computing attestation over configfs-tsm.\nins(){ if [ -f \"$1\" ]; then if /opt/metal/minsmod \"$1\" 2>/tmp/ins.err; then log \"loaded $(basename $1)\"; e"
+}

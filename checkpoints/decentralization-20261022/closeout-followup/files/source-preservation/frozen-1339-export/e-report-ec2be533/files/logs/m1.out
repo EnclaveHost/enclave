@@ -1,0 +1,27 @@
+[queue] START available=25161MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+HEAD 6ab298f196d93b60499178275acf025f5b8658af
+M1-no-field-check
+  rc
+  1
+  KILLED
+  not ok 4 - a signed transaction that is not exactly the request, or not from the connected address, is never broadcast
+M2-fallback-to-wallet-broadcast
+  rc
+  1
+  KILLED
+  not ok 3 - a wallet that cannot sign without broadcasting is refused by name: nothing is signed, broadcast, or handed to its own RPC
+M3-no-signer-check
+  rc
+  1
+  KILLED
+  not ok 4 - a signed transaction that is not exactly the request, or not from the connected address, is never broadcast
+M4-unknown-reported-as-refused
+  rc
+  1
+  KILLED
+  not ok 5 - every origin refusing: refused, sent nowhere else, the wallet never asked to broadcast; an origin that drops the reply: outcome unknown, and it did land
+killed 4 of 4
+restored: clean
+[memory-guard] exit=0 peakTreeRssMiB=195 minHostAvailableMiB=25102
+[memory-guard] at peak: node:90 node:55 anvil:32 python3:14 timeout:4
+[queue] EXIT 0

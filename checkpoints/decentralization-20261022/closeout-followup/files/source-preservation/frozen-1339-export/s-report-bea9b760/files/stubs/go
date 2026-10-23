@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "denied: go (JS-only build; Go sources unchanged)" >&2
+exit 97

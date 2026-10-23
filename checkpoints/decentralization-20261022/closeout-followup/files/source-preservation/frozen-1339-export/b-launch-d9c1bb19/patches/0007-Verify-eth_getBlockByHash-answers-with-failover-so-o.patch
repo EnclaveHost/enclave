@@ -1,0 +1,413 @@
+From 93c43ef273e48fc91ee39463e1acb09742f314ad Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 21:43:40 -0700
+Subject: [PATCH 07/28] Verify eth_getBlockByHash answers with failover so one
+ faulty RPC cannot wedge historical calls
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Helios's historical path calls eth_getBlockByHash(hash, true) before its EIP-2935 history proof. The gateway passed
+the first answer through, so a liar's block was all Helios ever got. That is the failed control, now a test.
+
+* network/witness-gateway.mjs, when proofs are configured: eth_getBlockByHash [hash, fullTx] tries the upstreams in
+  order, and each answer is checked by the witness-check `block` op.
+  - The header must hash to the requested hash; the upstream's hash field is never trusted. The Base header rules
+    apply.
+  - With fullTx, the body must pass Helios's OpStack::validate_block.
+  - An invalid answer costs its source the try. null is served only if every answering source said null and none
+    answered with an invalid block. The verifier unavailable means a refusal.
+  - A hash-only answer is HEADER-verified only (stats.blocksHeaderOnly).
+  - Blocks are served as received, and never cached or used as roots.
+  - New stats: per-upstream blockOk/blockInvalid/blockNull; blocksFull/blocksHeaderOnly.
+  - Without proofs, the old plain behavior is unchanged.
+* test/witness-blocks.test.mjs (real helper; real full blocks derived from the 52 signed gossip objects):
+  - all 52 verify full;
+  - 10 forged or wrong-body first answers are refused and the real block is served; with the liar alone, refused;
+  - nothing is cached or bound;
+  - a FAILED CONTROL (plain path) serves the forgery;
+  - null, oversize, hung, deadline and dead-verifier cases;
+  - the header-only BOUNDARY, asserted explicitly.
+* test/helios-block-failover.e2e.test.mjs: real Helios on real heads 80→106. The forged first block is refused and
+  the real full block served, and Helios goes on to its history proof. The control run shows the liar's block served.
+* test/helios-real-history.e2e.test.mjs (from 7b4dd692): its honest source now answers the full-body request with the
+  real full block (exportBlock). Before, it sent a bare header, which this gateway now correctly refuses.
+---
+ network/witness-gateway.mjs             |  48 +++++++-
+ test/helios-block-failover.e2e.test.mjs | 104 +++++++++++++++++
+ test/helios-real-history.e2e.test.mjs   |   6 +-
+ test/witness-blocks.test.mjs            | 147 ++++++++++++++++++++++++
+ 4 files changed, 300 insertions(+), 5 deletions(-)
+ create mode 100644 test/helios-block-failover.e2e.test.mjs
+ create mode 100644 test/witness-blocks.test.mjs
+
+diff --git a/network/witness-gateway.mjs b/network/witness-gateway.mjs
+index c10261d80266b9b7912b0824d790c616fd7aa06f..568989f8d5e318f20f7e0186cffe478903bb7c12 100644
+--- a/network/witness-gateway.mjs
++++ b/network/witness-gateway.mjs
+@@ -20,8 +20,11 @@
+ //     quarantined (skipped, never deleted or overwritten), and verified entries are served before any upstream is
+ //     asked. A cache hit is availability for THAT block only, never freshness: the verifier still needs a fresh signed
+ //     head, and Helios rejects a witness that does not match it.
+-//   * Other methods (blocks, receipts, logs, fee data) keep ordered first-answer failover: Helios verifies those
+-//     against its signed head itself. A method allowlist keeps the gateway from being a general RPC proxy
++//   * eth_getBlockByHash (Helios's historical path asks for a full block by hash) is verified too: the header must hash
++//     to the requested hash, and a full-transaction body must pass Helios's OpStack::validate_block; a bad answer costs
++//     its source the try. A hash-only answer is HEADER-verified only. Blocks are never cached or used as roots.
++//   * Other methods (blocks by number, receipts, logs, fee data) keep ordered first-answer failover: Helios verifies
++//     those against its signed head itself. A method allowlist keeps the gateway from being a general RPC proxy
+ //     (a16z/helios 2af9b418 core/src/execution/providers/rpc.rs, opstack evm, plus broadcast).
+ //   * eth_sendRawTransaction goes to every upstream. A broadcast proves nothing about inclusion (a receipt in a verified
+ //     block does), and with every upstream down nothing can be sent: the gateway says so.
+@@ -140,8 +143,8 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
+   if (!Number.isSafeInteger(maxHeaderBytes) || maxHeaderBytes < 1024 || maxHeaderBytes > maxResponseBytes) throw new Error('invalid maxHeaderBytes');
+   if ((methods.some((m) => PINNED.has(m)) || cache) && !(proofs?.checker?.check && proofs?.roots?.rootFor))
+     throw new Error('eth_getProof/eth_getCode and the witness cache need proofs: {checker, roots} (no unverified witness serving)');
+-  const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0, invalid: 0, headerOk: 0, headerInvalid: 0 }])), cacheHits: 0, cachePuts: 0,
+-    cacheInvalid: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0 };
++  const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0, invalid: 0, headerOk: 0, headerInvalid: 0, blockOk: 0, blockInvalid: 0, blockNull: 0 }])), cacheHits: 0, cachePuts: 0,
++    cacheInvalid: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0, blocksFull: 0, blocksHeaderOnly: 0 };
+   const slot = limiter(maxInFlight);
+   const quarantine = new Set(), accounts = new Map();   // bounded: known-bad cache contents; recent verified account proofs
+   const remember = (set, k, v) => { if (set instanceof Map) set.set(k, v); else set.add(k); if (set.size > (set instanceof Map ? 1024 : 4096)) set.delete(set.keys().next().value); };
+@@ -225,11 +228,48 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
+     return { error: `no verifiable witness${reasons.length ? ': ' + reasons.join('; ').slice(0, 400) : ' (no cached entry, no upstream)'}` };
+   }
+ 
++  /** eth_getBlockByHash [hash, fullTx] with proofs configured: each upstream answer is checked by the helper (`block`):
++   *  the header must hash to the requested hash (the upstream's hash field is never trusted); with fullTx the body must
++   *  pass Helios's OpStack::validate_block. An invalid answer costs its source the try. A hash-only (fullTx=false)
++   *  answer is HEADER-verified only. Verified blocks are served as received and never cached or used as roots.
++   *  null is returned only when every answering source said null and none answered with an invalid block. */
++  async function blockByHash(params, deadline) {
++    if (!Array.isArray(params) || params.length !== 2 || !HASH.test(params[0]) || typeof params[1] !== 'boolean')
++      return { error: 'eth_getBlockByHash needs [blockHash, fullTransactions]', code: -32602 };
++    const [hash, fullTx] = params, body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBlockByHash', params });
++    const reasons = [];
++    let nulls = 0, invalid = 0;
++    for (const u of upstreams) {
++      const s = stats.upstream[rpcLabel(u)];
++      let j;
++      try { j = await ask(u, body, deadline); } catch (e) { s.failed++; reasons.push(`${rpcLabel(u)}: ${String(e?.message || e).slice(0, 80)}`); continue; }
++      if (j.error || !('result' in j)) { s.failed++; reasons.push(`${rpcLabel(u)}: ${String(j.error?.message ?? 'no result').slice(0, 80)}`); continue; }
++      if (j.result === null) { s.blockNull++; nulls++; continue; }
++      let v;
++      try { v = await proofs.checker.check({ op: 'block', block: j.result, expectHash: hash, fullTx }); } catch (e) {
++        stats.verifierUnavailable++;
++        return { error: `witness verifier unavailable (${String(e?.message || e).slice(0, 80)}): refused` };
++      }
++      if (!v.ok) { s.blockInvalid++; invalid++; reasons.push(`${rpcLabel(u)}: invalid block (${String(v.error).slice(0, 80)})`); continue; }
++      s.blockOk++;
++      if (v.body === 'full') stats.blocksFull++; else stats.blocksHeaderOnly++;
++      return { result: j.result };
++    }
++    if (nulls && !invalid) return { result: null };
++    return { error: `no verifiable block${reasons.length ? ': ' + reasons.join('; ').slice(0, 400) : ''}` };
++  }
++
+   async function handle(req) {
+     if (!req || typeof req !== 'object' || req.jsonrpc !== '2.0' || typeof req.method !== 'string') return err(req?.id, -32600, 'invalid request');
+     const params = req.params === undefined ? [] : req.params;
+     if (!methods.includes(req.method)) { stats.refused[req.method.slice(0, 64)] = (stats.refused[req.method.slice(0, 64)] || 0) + 1; return err(req.id, -32601, 'method not offered by the witness gateway'); }
+     const deadline = Date.now() + deadlineMs;
++    if (req.method === 'eth_getBlockByHash' && proofs) {
++      const r = await blockByHash(params, deadline);
++      if ('result' in r) return ok(req.id, r.result);
++      stats.unavailable++;
++      return err(req.id, r.code ?? -32000, r.error);
++    }
+     if (PINNED.has(req.method)) {
+       const r = await witness(req.method, params, deadline);
+       if ('result' in r) return ok(req.id, r.result);
+diff --git a/test/helios-block-failover.e2e.test.mjs b/test/helios-block-failover.e2e.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..33745cdb01f3fbf7fb4e37949da370cb4fc3525b
+--- /dev/null
++++ b/test/helios-block-failover.e2e.test.mjs
+@@ -0,0 +1,104 @@
++// Helios's ACTUAL historical path through the verifying gateway (offline, `unshare -r -n`), real data only: the real
++// patched Helios (real Base signer) adopts the REAL signed head 52965080, then 52965106, then is asked for a call pinned
++// to 80. Helios fetches block 80 WITH transactions (eth_getBlockByHash(h, true)) and then proves its hash with an
++// EIP-2935 history proof at 106. The FIRST source answers block 80 with a forged block (self-claimed hash over a mutated
++// header); the second answers the real full block derived from the signed gossip object (witness-check exportBlock).
++// The gateway must refuse the forgery and serve the real block. No state/history proofs exist for these blocks (see
++// RESULT-REAL-HISTORY.md), so the call still ends refused at the unproven history slot: this proves block failover only.
++//   env: HELIOS_BASE_BIN, WITNESS_CHECK_BIN, BASE_HEADS_DIR, TEST_TMP
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { spawn } from 'node:child_process';
++import fs from 'node:fs';
++import path from 'node:path';
++import http from 'node:http';
++import net from 'node:net';
++import { pad } from 'viem';
++import { createWitnessGateway, dirWitnessCache, WITNESS_METHODS, VERIFIED_METHODS } from '../network/witness-gateway.mjs';
++import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
++import { BASE_MAINNET } from '../network/op-head-relay.mjs';
++
++const { HELIOS_BASE_BIN, WITNESS_CHECK_BIN, BASE_HEADS_DIR } = process.env;
++const TARGET = 52965080, HEAD = 52965106;
++const FIX = JSON.parse(fs.readFileSync(new URL('./fixtures/base-headers-52965055-52965106.json', import.meta.url)));
++const N = Object.fromEntries(FIX.headers.map((h) => [h.number, h]));
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'block-failover-'));
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const freePort = () => new Promise((r) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
++const servers = [], children = new Set();
++async function serve(handler) {
++  const s = http.createServer((q, res) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', async () => res.end(JSON.stringify(await handler(b ? JSON.parse(b) : null, q)))); });
++  servers.push(s);
++  await new Promise((r) => s.listen(0, '127.0.0.1', r));
++  return `http://127.0.0.1:${s.address().port}/`;
++}
++async function rpc(url, method, params = []) {
++  const j = await (await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(90000) })).json();
++  if (j.error) throw Object.assign(new Error(j.error.message), { rpc: j.error });
++  return j.result;
++}
++async function until(f, ms, what) { const end = Date.now() + ms; for (;;) { try { if (await f()) return; } catch {} if (Date.now() > end) throw new Error('timed out: ' + what); await sleep(250); } }
++let checker, heads = {}, real80, consensus, current;
++test.before(async () => {
++  checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: BASE_MAINNET.unsafeSigner });
++  for (const f of fs.readdirSync(path.join(BASE_HEADS_DIR, 'objects'))) {
++    const object = '0x' + fs.readFileSync(path.join(BASE_HEADS_DIR, 'objects', f)).toString('hex');
++    const r = await checker.check({ op: 'exportHeader', object });
++    if (!r.ok || (r.head.number !== TARGET && r.head.number !== HEAD)) continue;
++    heads[r.head.number] = r;
++    if (r.head.number === TARGET) real80 = (await checker.check({ op: 'exportBlock', object })).block;
++  }
++  current = heads[TARGET].commitment;
++  consensus = await serve((_, q) => (q.url === '/chain_id' ? 8453 : current));
++});
++test.after(() => { for (const p of children) p.kill('SIGKILL'); checker?.close(); for (const s of servers) { s.closeAllConnections?.(); s.close(); } fs.rmSync(TMP, { recursive: true, force: true }); });
++
++const forged = () => ({ ...real80, stateRoot: pad('0x66', { size: 32 }) });   // keeps the real `hash` field
++async function run(t, { verifying }) {
++  const seen = [];
++  const liar = await serve((j) => (seen.push(['liar', j.method, j.params]), { jsonrpc: '2.0', id: j.id,
++    ...(j.method === 'eth_getBlockByHash' && j.params[0] === N[TARGET].hash ? { result: forged() } : { error: { code: -32000, message: 'x' } }) }));
++  const honest = await serve((j) => (seen.push(['honest', j.method, j.params]), { jsonrpc: '2.0', id: j.id,
++    ...(j.method === 'eth_getBlockByHash' && j.params[0] === N[TARGET].hash ? { result: real80 } : { error: { code: -32000, message: 'not recorded' } }) }));
++  const roots = createRootStore({ checker, consensusUrl: consensus });
++  const g = verifying
++    ? createWitnessGateway({ upstreams: [liar, honest], cache: dirWitnessCache(path.join(TMP, 'cache')), proofs: { checker, roots }, methods: WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList') })
++    : createWitnessGateway({ upstreams: [liar, honest], methods: WITNESS_METHODS.filter((m) => !VERIFIED_METHODS.includes(m)) });   // control: plain first answer
++  const url = await g.listen(0);
++  const home = path.join(TMP, 'home-' + verifying); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
++  fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${BASE_MAINNET.unsafeSigner}"\n`);
++  const port = await freePort();
++  const p = spawn(HELIOS_BASE_BIN, ['opstack', '--network', 'base', '--consensus-rpc', consensus, '--execution-rpc', url, '--rpc-port', String(port)], { env: { HOME: home, PATH: process.env.PATH }, stdio: 'ignore' });
++  children.add(p);
++  t.after(async () => { p.kill('SIGKILL'); await g.close(); });
++  const h = `http://127.0.0.1:${port}/`, at = (n) => rpc(h, 'eth_getBlockByNumber', ['0x' + n.toString(16), false]).then((b) => b?.hash);
++  current = heads[TARGET].commitment;
++  await until(async () => (await at(TARGET)) === N[TARGET].hash, 60000, 'real head 80');
++  current = heads[HEAD].commitment;
++  await until(async () => (await at(HEAD)) === N[HEAD].hash, 60000, 'real head 106');
++  const call = { to: '0xab214342d5a490150a4a977063a2f88e21f80907', data: '0x3b3b57de' + Buffer.from('registry').toString('hex').padEnd(64, '0') };
++  await assert.rejects(rpc(h, 'eth_call', [call, { blockHash: N[TARGET].hash }]), 'no history/state proofs exist: refused');
++  t.diagnostic(`${verifying ? 'verifying' : 'CONTROL'} gateway: ${JSON.stringify(g.stats())}; requests: ${JSON.stringify(seen.map(([w, m, ps]) => [w, m, JSON.stringify(ps).slice(0, 100)]))}`);
++  return { g, roots, seen };
++}
++
++const T = { timeout: 300000 };
++test('Helios historical path: a forged first block (self-claimed hash) is refused and the real full block is served', T, async (t) => {
++  const { g, roots, seen } = await run(t, { verifying: true });
++  assert.ok(seen.some(([w, m, ps]) => w === 'liar' && m === 'eth_getBlockByHash' && ps[1] === true), 'Helios asked for block 80 with transactions');
++  const [l, o] = Object.values(g.stats().upstream);
++  assert.ok(l.blockInvalid >= 1 && l.blockOk === 0, 'the forged block was refused every time');
++  assert.ok(o.blockOk >= 1 && g.stats().blocksFull >= 1, 'the real full block was verified and served');
++  assert.equal(g.stats().blocksHeaderOnly, 0);
++  // Helios then went on to its EIP-2935 history proof at the signed head 106 (no proof exists: refused)
++  assert.ok(seen.some(([, m, ps]) => m === 'eth_getProof' && ps[0].toLowerCase() === '0x0000f90827f1c53a10cb7a02335b175320002935'), 'the history proof followed');
++  assert.deepEqual([roots.stats().ancestors], [0], 'blocks never create roots');
++  assert.equal(fs.existsSync(path.join(TMP, 'cache')) ? fs.readdirSync(path.join(TMP, 'cache'), { recursive: true }).filter((n) => n.endsWith('.json')).length : 0, 0, 'nothing cached');
++});
++
++test('FAILED CONTROL: with plain first-answer failover the forged block is what Helios receives', T, async (t) => {
++  const { g, seen } = await run(t, { verifying: false });
++  const asked = seen.filter(([, m, ps]) => m === 'eth_getBlockByHash' && ps[0] === N[TARGET].hash);
++  assert.ok(asked.length >= 1 && asked.every(([w]) => w === 'liar'), 'only the liar was asked for block 80: its forged block was served');
++  assert.ok(Object.values(g.stats().upstream)[0].ok >= 1);
++});
+diff --git a/test/helios-real-history.e2e.test.mjs b/test/helios-real-history.e2e.test.mjs
+index 3ecb16cac7fa87b0f6ddeab2e8fcc09857288d16..db3349a8161120da3b0fce9672c8331d81045a71 100644
+--- a/test/helios-real-history.e2e.test.mjs
++++ b/test/helios-real-history.e2e.test.mjs
+@@ -49,11 +49,15 @@ async function rpc(url, method, params = []) {
+   return j.result;
+ }
+ let checker, heads = {}, consensus, current;
++const FULL = new Map();                                  // hash -> real full-transaction block (witness-check exportBlock)
+ test.before(async () => {
+   checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: BASE_MAINNET.unsafeSigner });
+   for (const f of fs.readdirSync(path.join(BASE_HEADS_DIR, 'objects'))) {
+     const r = await checker.check({ op: 'exportHeader', object: '0x' + fs.readFileSync(path.join(BASE_HEADS_DIR, 'objects', f)).toString('hex') });
+     if (r.ok && (r.head.number === TARGET || r.head.number === HEAD)) heads[r.head.number] = r;
++    // the gateway verifies eth_getBlockByHash bodies (witness-blocks): the honest source answers Helios's full-body
++    // request with the real block derived from the signed gossip object, not a bare header
++    if (r.ok && r.head.number === TARGET) FULL.set(r.header.hash, (await checker.check({ op: 'exportBlock', object: '0x' + fs.readFileSync(path.join(BASE_HEADS_DIR, 'objects', f)).toString('hex') })).block);
+   }
+   current = heads[TARGET].commitment;
+   consensus = await serve((_, q) => (q.url === '/chain_id' ? 8453 : current));
+@@ -79,7 +83,7 @@ async function sources() {
+     : VERIFIED_METHODS.includes(j.method) ? { result: { accountProof: 'not-an-array' } } : { error: { code: -32000, message: 'x' } }) }));
+   const honest = await serve(async (j) => {
+     seen.push({ who: 'honest', method: j.method, params: j.params });
+-    if (j.method === 'eth_getBlockByHash') return { jsonrpc: '2.0', id: j.id, result: BY_HASH.get(j.params[0])?.header ?? null };
++    if (j.method === 'eth_getBlockByHash') return { jsonrpc: '2.0', id: j.id, result: (j.params[1] === true ? FULL.get(j.params[0]) : null) ?? BY_HASH.get(j.params[0])?.header ?? null };
+     const w = witnessKey(j.method, j.params), got = w && RECORDED ? await RECORDED.candidates(w) : [];
+     return got.length ? { jsonrpc: '2.0', id: j.id, result: got[0] } : { jsonrpc: '2.0', id: j.id, error: { code: -32000, message: 'not recorded' } };
+   });
+diff --git a/test/witness-blocks.test.mjs b/test/witness-blocks.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..cd29bb3f46f5eb3be30509d993957dfb23435d74
+--- /dev/null
++++ b/test/witness-blocks.test.mjs
+@@ -0,0 +1,147 @@
++// Verified eth_getBlockByHash failover (network/witness-gateway.mjs blockByHash) with the REAL helper and REAL data:
++// full-transaction RPC blocks derived offline from the 52 real signed Base gossip objects (witness-check exportBlock:
++// Helios payload_to_block + canonical header, self-validated by Helios's OpStack::validate_block) are what an honest
++// source answers. A wrong first source must cost only its try; nothing it says may be served, cached or used as a root.
++// Boundary (asserted below, not hidden): a hash-only answer (fullTx=false) is HEADER-verified only.
++//   env: WITNESS_CHECK_BIN, BASE_HEADS_DIR, TEST_TMP
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { pad } from 'viem';
++import { createWitnessGateway, dirWitnessCache, WITNESS_METHODS, VERIFIED_METHODS } from '../network/witness-gateway.mjs';
++import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
++import { BASE_MAINNET } from '../network/op-head-relay.mjs';
++
++const { WITNESS_CHECK_BIN, BASE_HEADS_DIR } = process.env;
++const FIX = JSON.parse(fs.readFileSync(new URL('./fixtures/base-headers-52965055-52965106.json', import.meta.url)));
++const N = Object.fromEntries(FIX.headers.map((h) => [h.number, h]));
++const BLOCKS = new Map();                                   // hash -> derived full-transaction RPC block
++const NO_HINT = WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList');
++const servers = [];
++let checker;
++test.before(async () => {
++  checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: BASE_MAINNET.unsafeSigner });
++  for (const f of fs.readdirSync(path.join(BASE_HEADS_DIR, 'objects'))) {
++    const r = await checker.check({ op: 'exportBlock', object: '0x' + fs.readFileSync(path.join(BASE_HEADS_DIR, 'objects', f)).toString('hex') });
++    assert.ok(r.ok, r.error);
++    BLOCKS.set(r.block.hash, r.block);
++  }
++});
++test.after(() => { checker?.close(); for (const s of servers) { s.closeAllConnections?.(); s.close(); } });
++function source(answer) {
++  const seen = [];
++  const s = http.createServer((q, res) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', async () => {
++    const j = JSON.parse(b); seen.push(j.method);
++    const out = await answer(j, res);
++    if (out !== 'handled') res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, ...out }));
++  }); });
++  servers.push(s);
++  return new Promise((r) => s.listen(0, '127.0.0.1', () => r({ url: `http://127.0.0.1:${s.address().port}/`, seen })));
++}
++const hashesOnly = (b) => ({ ...b, transactions: b.transactions.map((t) => t.hash) });
++const honest = () => source((j) => { const b = BLOCKS.get(j.params[0]); return { result: b ? (j.params[1] ? b : hashesOnly(b)) : null }; });
++const liar = (mutate) => source((j) => { const b = BLOCKS.get(j.params[0]); return { result: b ? mutate(structuredClone(j.params[1] ? b : hashesOnly(b)), j) : null }; });
++function gateway(sources, opts = {}) {
++  const roots = createRootStore({ checker });              // no head source: blocks must never create or need roots
++  const dir = fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 'wb-'));
++  const g = createWitnessGateway({ upstreams: sources.map((s) => s.url), methods: NO_HINT, cache: dirWitnessCache(dir), proofs: { checker, roots }, ...opts });
++  return { g, roots, dir, st: () => Object.values(g.stats().upstream) };
++}
++const req = (hash, full = true, id = 1) => ({ jsonrpc: '2.0', id, method: 'eth_getBlockByHash', params: [hash, full] });
++const H80 = N[52965080].hash;
++
++test('real full blocks derived from the 52 signed gossip objects verify under Helios validate_block and hash to their canonical hashes', async () => {
++  assert.equal(BLOCKS.size, 52);
++  for (const h of FIX.headers) {
++    const b = BLOCKS.get(h.hash);
++    assert.ok(b, `block ${h.number}`);
++    assert.deepEqual([b.stateRoot, b.parentHash, b.transactionsRoot], [h.stateRoot, h.parentHash, h.header.transactionsRoot]);
++    const v = await checker.check({ op: 'block', block: b, expectHash: h.hash, fullTx: true });
++    assert.ok(v.ok && v.body === 'full' && v.transactions === b.transactions.length, `${h.number}: ${v.error}`);
++  }
++  const txs = [...BLOCKS.values()].reduce((a, b) => a + b.transactions.length, 0);
++  assert.ok(txs > 52, `${txs} real transactions across the 52 blocks`);
++});
++
++test('a wrong first source costs only its try: forged, mutated and wrong-body blocks are refused, the real block is served', async () => {
++  const cases = [
++    ['self-claimed hash over a mutated header', (b) => ({ ...b, gasUsed: '0x1' })],
++    ['tampered state root', (b) => ({ ...b, stateRoot: pad('0x66', { size: 32 }) })],
++    ['another real block (self-consistent) for the requested hash', () => BLOCKS.get(N[52965081].hash)],
++    ['a dropped transaction', (b) => ({ ...b, transactions: b.transactions.slice(0, -1) })],
++    ['swapped transactions', (b) => ({ ...b, transactions: [b.transactions[1], b.transactions[0], ...b.transactions.slice(2)] })],
++    ['a tampered transaction input', (b) => { b.transactions.at(-1).input = '0x00'; return b; }],
++    ['a transaction bound to another block', (b) => { b.transactions[0].blockHash = pad('0x77', { size: 32 }); return b; }],
++    ['an uncle', (b) => ({ ...b, uncles: [pad('0x88', { size: 32 })] })],
++    ['hashes instead of the full body', (b) => hashesOnly(b)],
++    ['malformed', () => ({ hash: H80 })],
++  ];
++  for (const [name, mutate] of cases) {
++    const l = await liar(mutate), o = await honest();
++    const { g, roots, dir, st } = gateway([l, o]);
++    const out = await g.handle(req(H80));
++    assert.deepEqual(out.result, BLOCKS.get(H80), name);
++    const [sl, so] = st();
++    assert.deepEqual([sl.blockInvalid, sl.blockOk, so.blockOk], [1, 0, 1], name);
++    // with ONLY the wrong source: refused, never served
++    const alone = gateway([l]);
++    const r = await alone.g.handle(req(H80));
++    assert.equal(r.result, undefined, name);
++    assert.match(r.error.message, /no verifiable block/, name);
++    // nothing cached, nothing bound as a root
++    assert.deepEqual([fs.readdirSync(dir).length, roots.stats().roots, roots.stats().ancestors], [0, 0, 0], name);
++  }
++});
++
++test('FAILED CONTROL: without verification (no proofs: plain first-answer failover) the forged block IS served', async () => {
++  const l = await liar((b) => ({ ...b, stateRoot: pad('0x66', { size: 32 }) })), o = await honest();
++  const plain = createWitnessGateway({ upstreams: [l.url, o.url], methods: WITNESS_METHODS.filter((m) => !VERIFIED_METHODS.includes(m)) });
++  const out = await plain.handle(req(H80));
++  assert.equal(out.result.stateRoot, pad('0x66', { size: 32 }), 'the plain path returns the liar\'s forged block');
++  assert.deepEqual(o.seen, [], 'and never asks the honest source');
++  const verified = gateway([l, o]);
++  assert.equal((await verified.g.handle(req(H80))).result.stateRoot, N[52965080].stateRoot);
++});
++
++test('null, oversize, hung and unavailable-verifier answers are bounded and fail closed', async (t) => {
++  const nul = await source(() => ({ result: null })), o = await honest();
++  const a = gateway([nul, o]);
++  assert.deepEqual((await a.g.handle(req(H80))).result, BLOCKS.get(H80), 'null first, real second');
++  assert.equal(a.st()[0].blockNull, 1);
++  assert.equal((await gateway([nul]).g.handle(req(H80))).result, null, 'every source says null: null');
++  const forged = await liar((b) => ({ ...b, gasUsed: '0x1' }));
++  assert.match((await gateway([nul, forged]).g.handle(req(H80))).error.message, /no verifiable block/, 'null + forged: refused, not null');
++  const huge = await source((j, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, result: { ...BLOCKS.get(H80), pad: 'x'.repeat(3 << 20) } })); return 'handled'; });
++  const hung = await source(() => new Promise(() => {}));
++  const b = gateway([huge, hung, o], { maxResponseBytes: 2 << 20, timeoutMs: 300, deadlineMs: 10000 });
++  assert.deepEqual((await b.g.handle(req(H80))).result, BLOCKS.get(H80));
++  assert.deepEqual(b.st().map((x) => x.failed), [1, 1, 0]);
++  const c = gateway([hung], { timeoutMs: 400, deadlineMs: 900 });
++  const t0 = Date.now();
++  assert.match((await c.g.handle(req(H80))).error.message, /no verifiable block/);
++  assert.ok(Date.now() - t0 < 2000);
++  const dead = createWitnessChecker({ bin: '/bin/false', chainId: 8453, signer: BASE_MAINNET.unsafeSigner });
++  try {
++    const d = createWitnessGateway({ upstreams: [o.url], methods: NO_HINT, proofs: { checker: dead, roots: createRootStore({ checker }) } });
++    const r = await d.handle(req(H80));
++    assert.equal(r.result, undefined);
++    assert.match(r.error.message, /verifier unavailable/);
++  } finally { dead.close(); }
++  assert.equal((await a.g.handle({ jsonrpc: '2.0', id: 1, method: 'eth_getBlockByHash', params: [H80] })).error.code, -32602);
++});
++
++test('BOUNDARY: a hash-only answer (fullTx=false) is header-verified only; a wrong transaction-hash list is NOT detected', async () => {
++  const mutated = await liar((b) => ({ ...b, gasUsed: '0x1' })), o = await honest();
++  const { g, st } = gateway([mutated, o]);
++  const out = await g.handle(req(H80, false));
++  assert.deepEqual(out.result, hashesOnly(BLOCKS.get(H80)), 'a mutated header is still refused');
++  assert.deepEqual(st().map((x) => x.blockInvalid), [1, 0]);
++  assert.deepEqual([g.stats().blocksHeaderOnly, g.stats().blocksFull], [1, 0]);
++  const wrongList = await liar((b) => ({ ...b, transactions: [pad('0x99', { size: 32 })] }));
++  const w = gateway([wrongList, o]);
++  assert.deepEqual((await w.g.handle(req(H80, false))).result.transactions, [pad('0x99', { size: 32 })],
++    'header-only verification cannot check a hash list: this answer is accepted (Helios itself asks for full bodies)');
++});

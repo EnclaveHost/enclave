@@ -1,0 +1,91 @@
+[queue] START available=25094MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+HEAD 14d1e4954cf7c9900d5d3e841a23f02de945c1b2
+directory-replica: bundle 716759 bytes sha256:45dc23218fd88a4e…, manifest sha256:e9cff3283064bcf2bb765a4c741af384eed2adc14a30bff959c58df8032be2d8, 1218 inputs
+bootstrap-replica: bundle 5033 bytes sha256:1e45e75f1f4a7d2b…, manifest sha256:7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc, 1 inputs
+route-dns: bundle 4861076 bytes sha256:06293c9331a2e76c…, manifest sha256:e265478277853d4c3e9fc09337b7b366f4a332cbda31e8b5b10ce674f3970d9c, 1218 inputs
+policy-mirror: bundle 647387 bytes sha256:74878623094a0d26…, manifest sha256:2b5a85468d720d4904f282bc6ff84bcf9ff33e46738172cc32d444ae6e4bacbe, 432 inputs
+credit-vault-submitter: bundle 1294743 bytes sha256:2a4de6d5b166c25a…, manifest sha256:a22cd7a8fc6f7d85fea6edbd7f8e9deb36dc1b55507e3bb396e9bc6a368eb0e6, 1322 inputs
+public-rpc: bundle 25610 bytes sha256:eb98beb09f12643b…, manifest sha256:0d45960a8297512ea8e20566340d21b4c6ba20112a84dfe2c54405c17738605e, 3 inputs
+npm inputs locked by: package-lock.json sha256:9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20, relay/package-lock.json sha256:e5d896baf563d6cc1662000fb87b56f9673c87c502b4cb8ea43836b1687f0b56
+== package files changed vs HEAD:
+?? network/host-services/packages/
+same-as-F bootstrap-replica.mjs
+same-as-F bootstrap-replica.package.json
+same-as-F credit-vault-submitter.mjs
+same-as-F credit-vault-submitter.package.json
+same-as-F directory-replica.mjs
+same-as-F directory-replica.package.json
+same-as-F policy-mirror.mjs
+same-as-F policy-mirror.package.json
+new public-rpc.mjs eb98beb09f12643b8dcddfa17191392d59ca46c2e6790268d0579cffbbd67b03
+new public-rpc.package.json 0d45960a8297512ea8e20566340d21b4c6ba20112a84dfe2c54405c17738605e
+same-as-F route-dns.mjs
+same-as-F route-dns.package.json
+[job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo head 14d1e4954cf7c9900d5d3e841a23f02de945c1b2 dirty=12 untracked=10
+fe31bcdc2f49c6ef2c2c7bcec64e4d1f7b23d87984b6e8450ed4374cd5e82fbe  network/public-rpc.mjs
+6c2f58692ea8980bdf0fddfd4225f109a978d05f053e25bc34431ea5bf87b870  network/public-rpc-hosts.mjs
+cc409882aa8e0dedab9675766a3e1847f40e02298182580707446e8b890a6126  network/host-services/roles.mjs
+da675a2cea07d91281a0e8a04d719142c7542322c7e0d8d70d19201bd7e4363f  network/host-services/runner.mjs
+d61bbeb60d3099ab9aa9bcb44d2070e1a6e313e553231426920dc3deb01fb906  network/host-service-names.mjs
+0dab1bc73232e019c5e699ffe8f43467a07c9be5b111affb8a831e03061754e5  network/host-service-transport.mjs
+e7ea534604b2dd9307f4c4d8919fcc22c2061438f33dfb68c3fef61f526c72cd  network/wg-provider/provider.mjs
+b260ab0aadc5beb4ec06be9495e70f945ac98b7d8566f736a04081b10901f561  test/public-rpc.test.mjs
+ade803450776ebf1c40ff684beba7568d1a63aa9a79b8d5e0c15c13a3bd7e54d  test/public-rpc-browser.test.mjs
+d54779e75f8a13d0e87945414f88bc78428dd54a3412513fdb9ce56cf2603935  test/host-service-lifecycle.test.mjs
+07efb742285c12bf3cfd0967a1a853f11f814425abaadd912ecfba74c9e84f24  test/host-services-cold-start.test.mjs
+06a314237cef914e35cea66d16e7551d4de11694da1e024aa9b8674127e4b843  test/host-service-verifier-roles.test.mjs
+✔ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (129.191462ms)
+✔ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (331.812901ms)
+✔ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (179.550899ms)
+✔ delayed failure: the exit REFUSES the grant it was holding while the host stopped: nothing to withdraw, no strike, clean stop (54.999681ms)
+✔ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (57.180864ms)
+✔ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (1175.923505ms)
+✔ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (1219.492565ms)
+✔ agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing (463.745861ms)
+✔ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (0.929673ms)
+✔ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (201.330999ms)
+✔ opt-in public RPC origin: a host serving public-rpc asks for rpc-<b32>, an opted-in exit grants it, a visitor reaches the role by that name, and a ban withdraws it (116.61659ms)
+✔ an opted-in exit gives a host WITHOUT the role exactly its three names (unchanged grant) (86.212828ms)
+✔ a host serving public-rpc is refused BY NAME at an exit whose operator did not opt in (never a mismatched grant) (45.086968ms)
+✔ config: one explicit authority, the verifier local only and never a provider vote; the legacy quorum rule unchanged (3518.325014ms)
+✔ every public provider down: the hosts start on the verifier alone; the roles serve; host B cold-starts from the index read through it (792.838373ms)
+✔ admin moderation through the verifier: ban and unban host B; then an AddressBook owner MIGRATION hands the policy to the new admin (4924.680684ms)
+✔ unknown, stale, missing and failed proofs REFUSE with the public providers up: no provider fallback in any reader (71.335414ms)
+✔ zero apps: host services only after the platform admits; an admin ban stops them (grants withdrawn), the unban restarts them (10506.231322ms)
+✔ zero apps, unknown chain policy: the production policy with no network holds them (the agent runs); a fresh host never serves on an unread policy (6421.624256ms)
+✔ zero apps, the local policy down from the start: held; once it answers and admits, started (6454.158342ms)
+✔ first app added and last app removed (live reload) never touch host services; a restart with no app starts them again (3764.107788ms)
+✔ zero apps: refused before anything binds without a usable host-services block or with the policy off (2346.562729ms)
+✔ with an app, an "off" policy keeps the earlier behavior (host services start at once); on, they wait for the admit (2459.832193ms)
+✔ bundled library command lines: without the guard, the runner.mjs a carrier-configured challenge replica loads EXITS the bundle; with it, nothing runs (793.217383ms)
+✔ the shipped bundle runs the app-less daemon: admitted -> host services (471.950043ms)
+✔ enrollment, fresh box: no opt-in -> nothing written (as before); a valid opt-in -> an app-less config for host services; the first app joins it without a restart (9.309987ms)
+✔ enrollment, fresh box: a refused host, an invalid block or an unusable opt-in file writes no app-less config (10.740846ms)
+✔ enrollment, existing box: the opt-in file is the source while configured (a change restarts once); an unusable file keeps the config's blocks (3.512462ms)
+✔ locked inputs: the governing lockfile per node_modules tree; a version drift, an extraneous package or an outside input is refused (3.100216ms)
+✔ a browser profile on two packaged roles: agreed reads, EIP-1898 calls, a revert, history, estimates and a receipt, over CORS, loopback only (9384.023261ms)
+✔ a page on an origin the roles do not allow cannot read them; the node down refuses in bounded time (2251.256875ms)
+✔ configuration: the operator's own loopback node only, no secret, no remote verifier; the runner binds it to this host and never advertises it (8706.657864ms)
+✔ the browser's methods from the operator's node: EIP-1898 reads, reverts, estimates, history, receipts; only the node is fetched (76.68532ms)
+✔ raw transactions: refused unless the operator states a route; then the node's own answer, never a fabricated hash (535.087044ms)
+✔ refused without reaching the node: privileged and signing methods, unknown methods, batches, bad bodies, other paths and verbs (36.731162ms)
+✔ CORS: the configured origins only, POST with content-type only, never credentials (10.457108ms)
+✔ bounds and honesty: stalled, down, syncing, stale and oversized backends refuse in bounded time; in-flight and rate limits refuse at once (10461.331028ms)
+✔ the local verifier answers only its configured methods, never falls back to the node, and every answer names its source (20.989906ms)
+✔ two names of one host are one vote; two hosts are two (and say nothing about whether they share a node) (17.063586ms)
+✔ the PACKAGED role under the runner: reviewed bytes only, no inherited environment, stopped and restarted by the platform host policy gate (918.059336ms)
+✔ served methods are exactly the browser note's profile methods (plus the explicit raw submission) (0.320148ms)
+ℹ tests 41
+ℹ suites 0
+ℹ pass 41
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 101203.951249
+[job] strict: skipped+cancelled=0
+[job] exit=7
+[memory-guard] exit=7 peakTreeRssMiB=1081 minHostAvailableMiB=24678
+[memory-guard] at peak: reth:313 node:136 chrome-headless:91 chrome-headless:82 node:78 node:78 chrome-headless:75 chrome-headless:68
+[queue] EXIT 7

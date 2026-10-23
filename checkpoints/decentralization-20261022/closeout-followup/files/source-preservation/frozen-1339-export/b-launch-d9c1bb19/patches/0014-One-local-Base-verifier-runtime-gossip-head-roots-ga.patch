@@ -1,0 +1,1505 @@
+From 832513764df3a59f152fcf06c91022aa66ed7fb8 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 22:42:54 -0700
+Subject: [PATCH 14/28] One local Base verifier runtime: gossip head -> roots
+ -> gateway -> Helios
+
+network/rpc-runtime.mjs composes the reviewed pieces into one supervised process (entry:
+network/rpc-runtime-main.mjs check|run <config>):
+  witness-check helper -> root store (pushed heads only) -> head relay and proof-aware witness
+  gateway on 127.0.0.1 -> native gossip head source, whose every verified head goes to
+  roots.offer first and then to the relay -> Helios, started only after the first fresh verified
+  head, ready once its port provably belongs to it, it answers chain 8453 and it reached that head.
+
+No stage needs a proof from an RPC service before its own verifier runs; the upstream proof
+sources are explicit, untrusted config, and a failed proof is never replaced by provider
+agreement (no fallback inside; consumer rollback is unsetting chainAuthority). Pinned chain,
+signer and tested binary builds; binaries copied into a 0700 run directory, hashed and run from
+there. One runtime per stateDir. Owned children (recorded identity + staged-exe rule) reaped on the
+next start; all-or-nothing startup; ordered shutdown; status.json from head-source start with
+honest labels (unsafe head, no finality, not provider-independent, cache = history only).
+
+Tests: config/startup refusals and fan-out order (unit); real Base gossip objects with gaps through
+the real native commitment mode and real ancestry headers (no synthetic authority); the composed
+processes on A's canonical reth --dev rig with real contracts and a TEST sequencer key (startup
+order with every proof source down, lease snapshot, host admission/moderation, admin AddressBook
+migration, lying and down sources, missed heads, stale head, whole-operation deadline, crash
+reaping, shutdown, failed startups). The reth genesis gains the EIP-2935 history contract Base
+has, so Helios's path for blocks it skipped can work (derived fixture, script included).
+---
+ network/rpc-runtime-main.mjs                  |  33 ++
+ network/rpc-runtime.mjs                       | 499 ++++++++++++++++++
+ test/fixtures/derive-reth-genesis-2935.py     |  32 ++
+ test/fixtures/replay-listener.mjs             |  29 +
+ test/fixtures/reth-dev-8453-genesis-2935.json | 116 ++++
+ test/fixtures/reth-gossip-listener.mjs        |  72 +++
+ test/fixtures/rpc-runtime-launcher.mjs        |  13 +
+ test/rpc-runtime-base-heads.test.mjs          |  98 ++++
+ test/rpc-runtime.e2e.test.mjs                 | 375 +++++++++++++
+ test/rpc-runtime.test.mjs                     | 127 +++++
+ 10 files changed, 1394 insertions(+)
+ create mode 100644 network/rpc-runtime-main.mjs
+ create mode 100644 network/rpc-runtime.mjs
+ create mode 100644 test/fixtures/derive-reth-genesis-2935.py
+ create mode 100755 test/fixtures/replay-listener.mjs
+ create mode 100644 test/fixtures/reth-dev-8453-genesis-2935.json
+ create mode 100755 test/fixtures/reth-gossip-listener.mjs
+ create mode 100644 test/fixtures/rpc-runtime-launcher.mjs
+ create mode 100644 test/rpc-runtime-base-heads.test.mjs
+ create mode 100644 test/rpc-runtime.e2e.test.mjs
+ create mode 100644 test/rpc-runtime.test.mjs
+
+diff --git a/network/rpc-runtime-main.mjs b/network/rpc-runtime-main.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..acb21ea7a4e34a4ea050de00536de64c4cbe999d
+--- /dev/null
++++ b/network/rpc-runtime-main.mjs
+@@ -0,0 +1,33 @@
++// The local Base chain verifier runtime (network/rpc-runtime.mjs) as a process:
++//
++//   node network/rpc-runtime-main.mjs check <rpc-runtime.json>   validate the config, hash every pinned binary, print the plan
++//   node network/rpc-runtime-main.mjs run <rpc-runtime.json>     ...then start it; JSON-line events on stdout; SIGTERM stops it
++//
++// Exit codes: 0 stopped by SIGTERM/SIGINT (or check passed), 1 startup or an essential child failed (after cleanup; the
++// host service manager restarts it), 2 usage or config refused. Consumers then use chainAuthority 'verifier' with
++// chainVerifier http://127.0.0.1:<verifier.port>/ (network/lease-reader.mjs chainAuthorityOptions); rollback is to
++// unset chainAuthority there (the legacy provider quorum), never a fallback inside this runtime.
++import fs from 'node:fs';
++import { createHash } from 'node:crypto';
++import { validateRuntimeConfig, runRpcRuntimeProcess, LABELS, CHAIN_ID } from './rpc-runtime.mjs';
++
++const [cmd, file] = process.argv.slice(2);
++if (!['check', 'run'].includes(cmd) || !file) { console.error('usage: rpc-runtime-main.mjs check|run <rpc-runtime.json>'); process.exit(2); }
++let raw, config;
++try { raw = JSON.parse(fs.readFileSync(file, 'utf8')); config = validateRuntimeConfig(raw); }
++catch (e) { console.error(String(e.message || e)); process.exit(2); }
++if (cmd === 'check') {
++  const binaries = {};
++  let ok = true;
++  for (const [role, b] of Object.entries(config.binaries)) {
++    let digest = null; try { digest = createHash('sha256').update(fs.readFileSync(b.path)).digest('hex'); } catch (e) { digest = `unreadable (${e.code || e.message})`; }
++    binaries[role] = { path: b.path, pinned: b.sha256, actual: digest, build: b.build, ok: digest === b.sha256 };
++    ok &&= digest === b.sha256;
++  }
++  console.log(JSON.stringify({ ok, chainId: CHAIN_ID, unsafeSigner: config.chain.unsafeSigner, verifierUrl: `http://127.0.0.1:${config.verifier.port}/`,
++    order: ['witness-check helper (offline)', 'root store (pushed signed heads only)', 'head relay 127.0.0.1:ephemeral', 'witness gateway 127.0.0.1:ephemeral',
++      'gossip listener (native commitment) -> roots.offer -> relay.offer', 'first fresh verified head', 'Helios 127.0.0.1:' + config.verifier.port, 'ready'],
++    untrustedProofSources: config.proofSources.untrusted.length, witnessCache: config.witnessCache?.kind ?? 'none', binaries, labels: LABELS }, null, 2));
++  process.exit(ok ? 0 : 2);
++}
++await runRpcRuntimeProcess(raw);   // validated again inside, from the same raw document
+diff --git a/network/rpc-runtime.mjs b/network/rpc-runtime.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6215c9651478a58b79b83642fae951a74554522a
+--- /dev/null
++++ b/network/rpc-runtime.mjs
+@@ -0,0 +1,499 @@
++// The local Base chain verifier of an Enclave host: ONE supervised runtime that composes the pieces already built and
++// reviewed separately, in this order (each stage needs only the stages before it, and nothing remote, to start):
++//
++//   1. witness-check helper (owned child; Helios's own commitment/proof code, offline)   network/witness-verify.mjs
++//   2. root store: block hash -> state root bindings, ONLY from verified signed heads    network/witness-verify.mjs
++//      (pushed below) or authenticated ancestry from them
++//   3. head relay on 127.0.0.1 (Helios's --consensus-rpc)                               network/op-head-relay.mjs
++//   4. proof-aware witness gateway on 127.0.0.1 (Helios's --execution-rpc) in front of   network/witness-gateway.mjs
++//      the EXPLICIT, UNTRUSTED upstream proof sources of the config
++//   5. native gossip head source: the pinned enclave-base-head-listener (owned child)    network/gossip-head-source.mjs
++//      -> its native `commitment` mode -> op-head-relay verifyCommitment; every verified head is offered to the root
++//      store FIRST (roots.offer) and then to the relay, so a head Helios can adopt always has its root bound already
++//   6. after the first FRESH verified head only: Helios (enclave-base-evm, owned child) on 127.0.0.1:<verifier.port>,
++//      ready once that port's listening socket provably belongs to it, it answers chain id 8453, and its head reached
++//      the first verified head
++//   7. consumers: LeaseReader authority 'verifier' (chainAuthority: 'verifier', chainVerifier: <verifierUrl>)
++//
++// No stage asks an RPC service for a proof before its own verifier is running: the helper and the root store start
++// with no network at all, the gateway refuses every pinned witness it cannot verify against a bound root, and Helios
++// starts only on a head the native listener received over Base gossip and two independent verifiers checked.
++//
++// What this is NOT (labels the status carries, and the reasons):
++//   * not finality: heads are the sequencer-signed UNSAFE head (no L1 derivation, no safe/finalized tier);
++//   * not provider independence: fresh state still needs at least one available UPSTREAM PROOF SOURCE (explicit config,
++//     untrusted, verified before use; Base has no P2P witness transport today). With every upstream down, reads of new
++//     blocks fail closed; a witness cache (optional) is history for its block only, never live availability;
++//   * not a public service: every endpoint binds 127.0.0.1, nothing is advertised, no grant or serving decision is made
++//     here (platform admission stays where it is). It is not a host-service role (network/host-services/roles.mjs): those
++//     are public, advertised and gated by the platform host policy, whose own chain reads may come to depend on this
++//     verifier, so gating the verifier by that gate would be a bootstrap cycle.
++//   * a failed proof is never replaced by provider agreement: there is no quorum fallback inside; the consumer's
++//     rollback to its legacy provider quorum is an explicit config change (chainAuthority unset), not automatic.
++//
++// Lifecycle: startup is all-or-nothing (every resource registers its cleanup the moment it exists; a failure runs them
++// in reverse and rethrows). One runtime per stateDir (lock bound to pid + /proc start time). Children are owned by
++// process identity (pid, process group, start time) recorded at spawn, and anything still executing a binary staged
++// in an EARLIER run directory of this stateDir is ours by construction; both are reaped before a new start. Binaries
++// are copied into a fresh 0700 run directory, hashed there and executed from there (no check-then-swap window).
++import fs from 'node:fs';
++import fsp from 'node:fs/promises';
++import path from 'node:path';
++import { spawn } from 'node:child_process';
++import { createHash, randomBytes } from 'node:crypto';
++import { createHeadRelay, BASE_MAINNET } from './op-head-relay.mjs';
++import { createWitnessChecker, createRootStore } from './witness-verify.mjs';
++import { createWitnessGateway, dirWitnessCache, WITNESS_METHODS } from './witness-gateway.mjs';
++import { createGossipHeadSource, procIdentity, signalOwned } from './gossip-head-source.mjs';
++import { rpcEndpoint, rpcLabel } from './rpc-identity.mjs';
++
++export const CONFIG_FORMAT = 'enclave-rpc-runtime/v1';
++export const STATUS_FORMAT = 'enclave-rpc-runtime-status/v1';
++export const CHAIN_ID = 8453;                 // Base mainnet: the listener, the relay and Helios's network 'base'
++/**
++ * The builds this runtime was tested with (sha256 -> provenance). A config pins one of these per binary; any other
++ * digest is refused. Adding a build (e.g. a release) is a reviewed source change with its own test evidence.
++ */
++export const PINNED_BUILDS = Object.freeze({
++  listener: Object.freeze({
++    ebd045b428227530fac1c1b079f47c67ecb874637a1c7dcb4f021dd5929e8d3a: 'enclave-base-head-listener commitment-mode 5e178676 (code a0c7c4e), base/base 5476069f, Rust 1.96.0, debug profile',
++  }),
++  helios: Object.freeze({
++    cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0: 'helios enclave-base-evm eeffcc9 (CLI source identical in function to aca81764), base/base v1.5.1 EVM, Rust 1.96.0, debug profile',
++  }),
++  witnessCheck: Object.freeze({
++    fab2f1cea2f69a8b2e676f8ffb51d0014408f99b5f92397566772e96e1c1ae93: 'witness-check enclave-witness-check aca81764, Rust 1.96.0, debug profile',
++  }),
++});
++const ROLES = Object.freeze(['listener', 'helios', 'witnessCheck']);
++const STAGED = Object.freeze({ listener: 'enclave-base-head-listener', helios: 'helios', witnessCheck: 'witness-check' });
++const NO_HINT = Object.freeze(WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList'));
++const ADDR = /^0x[0-9a-fA-F]{40}$/, SHA = /^[0-9a-f]{64}$/;
++// a field that names a credential is refused (the same rule as network/host-services/roles.mjs): this config holds none
++const SECRETISH = /(secret|token|password|passwd|private|mnemonic|seed|apikey|api_key|auth|hmac|credential|key$|keyfile)/i;
++const LIMITS = Object.freeze({ killGraceMs: 5000, stopStepMs: 10000, readyPollMs: 250, statusEveryMs: 2000, stderrTailBytes: 16 * 1024 });
++
++const fail = (m) => { throw new Error(`rpc runtime: ${m}`); };
++const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const lower = (s) => String(s).toLowerCase();
++function only(where, o, allowed, required = []) {
++  if (!plain(o)) fail(`${where} must be an object`);
++  for (const k of Object.keys(o)) if (!allowed.includes(k)) fail(`${where}: unknown field ${JSON.stringify(k)}${SECRETISH.test(k) ? ' (this config holds no secret)' : ''}`);
++  for (const k of required) if (o[k] === undefined || o[k] === null || o[k] === '') fail(`${where}.${k} is required`);
++}
++const int = (where, v, lo, hi, dflt) => {
++  if (v === undefined) return dflt;
++  if (!Number.isSafeInteger(v) || v < lo || v > hi) fail(`${where} must be an integer ${lo}..${hi}`);
++  return v;
++};
++const absPath = (where, v) => { if (typeof v !== 'string' || !path.isAbsolute(v) || v.includes('\0')) fail(`${where} must be an absolute path`); return path.normalize(v); };
++
++/**
++ * Strict config validation -> the normalized config (no defaults hidden elsewhere). acceptedBuilds: PINNED_BUILDS
++ * unless a caller (a test launcher, never the config file) passes its own table.
++ *
++ * {
++ *   "format": "enclave-rpc-runtime/v1",
++ *   "chain": { "chainId": 8453, "unsafeSigner": "0x..." },            the administrator's pin of the sequencer key
++ *   "binaries": { "listener": {"path", "sha256"}, "helios": {...}, "witnessCheck": {...} },
++ *   "proofSources": { "untrusted": ["https://...", ...], "accessListHint": false },
++ *   "verifier": { "port": 8545 },                                       Helios JSON-RPC, always 127.0.0.1
++ *   "stateDir": "/abs/dir",
++ *   "gossip"?: { "maxPeers": 20, "discovery": "bounded"|"off", "sessionSecs": 3600, "restartIfNoHeadMs": 120000 },
++ *   "witnessCache"?: null | { "kind": "dir", "path": "/abs/dir" },     optional; history only
++ *   "limits"?: { "firstHeadTimeoutMs": 180000, "heliosReadyTimeoutMs": 120000 }
++ * }
++ */
++export function validateRuntimeConfig(raw, { acceptedBuilds = PINNED_BUILDS } = {}) {
++  only('config', raw, ['format', 'chain', 'binaries', 'proofSources', 'verifier', 'stateDir', 'gossip', 'witnessCache', 'limits'],
++    ['format', 'chain', 'binaries', 'proofSources', 'verifier', 'stateDir']);
++  if (raw.format !== CONFIG_FORMAT) fail(`format must be ${CONFIG_FORMAT}`);
++  only('chain', raw.chain, ['chainId', 'unsafeSigner'], ['chainId', 'unsafeSigner']);
++  if (raw.chain.chainId !== CHAIN_ID) fail(`chain.chainId must be ${CHAIN_ID} (Base mainnet: the listener, relay and Helios network are Base-only)`);
++  if (!ADDR.test(raw.chain.unsafeSigner) || /^0x0{40}$/i.test(raw.chain.unsafeSigner)) fail('chain.unsafeSigner must be the pinned sequencer address');
++  only('binaries', raw.binaries, ROLES, ROLES);
++  const binaries = {};
++  for (const role of ROLES) {
++    const b = raw.binaries[role];
++    only(`binaries.${role}`, b, ['path', 'sha256'], ['path', 'sha256']);
++    if (!SHA.test(b.sha256)) fail(`binaries.${role}.sha256 must be 64 lowercase hex`);
++    if (!Object.hasOwn(acceptedBuilds[role] || {}, b.sha256)) fail(`binaries.${role}.sha256 ${b.sha256} is not a tested build of this runtime`);
++    binaries[role] = { path: absPath(`binaries.${role}.path`, b.path), sha256: b.sha256, build: acceptedBuilds[role][b.sha256] };
++  }
++  only('proofSources', raw.proofSources, ['untrusted', 'accessListHint'], ['untrusted']);
++  const ups = raw.proofSources.untrusted;
++  if (!Array.isArray(ups) || ups.length < 1 || ups.length > 16) fail('proofSources.untrusted: 1 to 16 execution JSON-RPC URLs (untrusted witness sources)');
++  only('verifier', raw.verifier, ['port'], ['port']);
++  const port = int('verifier.port', raw.verifier.port, 1, 65535);
++  const seen = new Set();
++  for (const [i, u] of ups.entries()) {
++    let e; try { e = rpcEndpoint(u); } catch (x) { fail(`proofSources.untrusted[${i}]: ${x.message}`); }
++    if (e.url.search) fail(`proofSources.untrusted[${i}] carries a query string (no credentials in this config)`);
++    if (seen.has(e.url.href)) fail(`proofSources.untrusted[${i}] repeats a source`); seen.add(e.url.href);
++    if (e.loopback && Number(e.port) === port) fail(`proofSources.untrusted[${i}] is the verifier's own port (a verifier cannot be its own witness source)`);
++  }
++  if (raw.proofSources.accessListHint !== undefined && typeof raw.proofSources.accessListHint !== 'boolean') fail('proofSources.accessListHint must be a boolean');
++  const g = raw.gossip ?? {};
++  only('gossip', g, ['maxPeers', 'discovery', 'sessionSecs', 'restartIfNoHeadMs']);
++  if (g.discovery !== undefined && !['off', 'bounded'].includes(g.discovery)) fail('gossip.discovery must be off or bounded');
++  let witnessCache = null;
++  if (raw.witnessCache !== undefined && raw.witnessCache !== null) {
++    only('witnessCache', raw.witnessCache, ['kind', 'path'], ['kind', 'path']);
++    // the Sia/S3 archive is a later, optional plug-in behind the same {put, candidates} interface (not composed here)
++    if (raw.witnessCache.kind !== 'dir') fail('witnessCache.kind must be "dir" (other caches are not part of this composition)');
++    witnessCache = { kind: 'dir', path: absPath('witnessCache.path', raw.witnessCache.path) };
++  }
++  const l = raw.limits ?? {};
++  only('limits', l, ['firstHeadTimeoutMs', 'heliosReadyTimeoutMs']);
++  const stateDir = absPath('stateDir', raw.stateDir);
++  if (witnessCache && (witnessCache.path === stateDir || witnessCache.path.startsWith(stateDir + path.sep))) fail('witnessCache.path must be outside stateDir (stateDir runs are removed)');
++  return Object.freeze({
++    format: CONFIG_FORMAT,
++    chain: Object.freeze({ chainId: CHAIN_ID, unsafeSigner: lower(raw.chain.unsafeSigner) }),
++    binaries: Object.freeze(binaries),
++    proofSources: Object.freeze({ untrusted: Object.freeze([...ups]), accessListHint: raw.proofSources.accessListHint === true }),
++    verifier: Object.freeze({ bind: '127.0.0.1', port }),
++    stateDir,
++    gossip: Object.freeze({ maxPeers: int('gossip.maxPeers', g.maxPeers, 1, 50, 20), discovery: g.discovery ?? 'bounded',
++      sessionSecs: int('gossip.sessionSecs', g.sessionSecs, 60, 3600, 3600), restartIfNoHeadMs: int('gossip.restartIfNoHeadMs', g.restartIfNoHeadMs, 5000, 3_600_000, 120_000) }),
++    witnessCache,
++    limits: Object.freeze({ firstHeadTimeoutMs: int('limits.firstHeadTimeoutMs', l.firstHeadTimeoutMs, 5000, 900_000, 180_000),
++      heliosReadyTimeoutMs: int('limits.heliosReadyTimeoutMs', l.heliosReadyTimeoutMs, 5000, 600_000, 120_000) }),
++  });
++}
++
++/** The honest scope labels every status carries. */
++export const LABELS = Object.freeze({
++  head: 'sequencer-signed Base UNSAFE head received over native gossip (no L1 safety, no finality)',
++  execution: 'Helios enclave-base-evm over proof-backed state (maintained Base EVM; refuses execution from Denim)',
++  witnesses: 'UNTRUSTED upstream proof sources from config, every pinned witness verified against a bound root before use; no P2P witness transport exists for Base',
++  roots: 'signed-head roots (pushed per verified head) and ancestor roots (authenticated ancestry) are history for their block, never freshness',
++  cache: 'a witness cache answers history for its block only; it is not live availability',
++  independence: 'NOT provider-independent: fresh reads need at least one available upstream proof source; no provider agreement replaces a failed proof',
++  exposure: 'loopback only; no public serving, advertisement or grant',
++});
++
++// ---- owned processes ------------------------------------------------------------------------------------------------
++
++/** The process's executable path (as the kernel names it, " (deleted)" suffix removed), or null. */
++function exeOf(pid) {
++  try { return fs.readlinkSync(`/proc/${pid}/exe`).replace(/ \(deleted\)$/, ''); } catch { return null; }
++}
++/** PIDs of live processes executing a binary staged under `runsDir` in a run other than `currentRun`. */
++function leftoverStaged(runsDir, currentRun) {
++  const out = [];
++  for (const name of fs.readdirSync('/proc')) {
++    if (!/^\d+$/.test(name) || Number(name) === process.pid) continue;
++    const exe = exeOf(name);
++    if (exe && exe.startsWith(runsDir + path.sep) && !(currentRun && exe.startsWith(currentRun + path.sep)) && procIdentity(Number(name))) out.push(Number(name));
++  }
++  return out;
++}
++/** inodes of sockets LISTENing on 127.0.0.1:<port> (tcp4), from /proc/net/tcp. */
++function listeningInodes(port) {
++  const want = `0100007F:${port.toString(16).toUpperCase().padStart(4, '0')}`, out = [];
++  let text = ''; try { text = fs.readFileSync('/proc/net/tcp', 'utf8'); } catch { return out; }
++  for (const line of text.split('\n').slice(1)) {
++    const f = line.trim().split(/\s+/);
++    if (f.length > 9 && f[1] === want && f[3] === '0A') out.push(f[9]);
++  }
++  return out;
++}
++function anyListener(port) {           // any LISTEN socket on this port, any local address (tcp4 + tcp6)
++  for (const file of ['/proc/net/tcp', '/proc/net/tcp6']) {
++    let text = ''; try { text = fs.readFileSync(file, 'utf8'); } catch { continue; }
++    for (const line of text.split('\n').slice(1)) {
++      const f = line.trim().split(/\s+/);
++      if (f.length > 9 && f[3] === '0A' && parseInt(f[1].split(':')[1], 16) === port) return true;
++    }
++  }
++  return false;
++}
++function socketInodesOf(pid) {
++  const out = new Set();
++  let fds = []; try { fds = fs.readdirSync(`/proc/${pid}/fd`); } catch { return out; }
++  for (const fd of fds) { try { const m = /^socket:\[(\d+)\]$/.exec(fs.readlinkSync(`/proc/${pid}/fd/${fd}`)); if (m) out.add(m[1]); } catch {} }
++  return out;
++}
++const writeJsonAtomic = (file, value) => {
++  const tmp = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
++  fs.writeFileSync(tmp, JSON.stringify(value, null, 1) + '\n', { mode: 0o600, flag: 'wx' });
++  fs.renameSync(tmp, file);
++};
++async function rpc(url, method, params = [], ms = 3000) {
++  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
++    signal: AbortSignal.timeout(ms), redirect: 'error' });
++  const j = await r.json();
++  if (j.error) throw new Error(String(j.error.message || 'rpc error').slice(0, 200));
++  return j.result;
++}
++
++/** One lock per stateDir, bound to this process's pid + start time; a lock whose owner is gone is taken over. */
++function takeLock(file) {
++  const me = procIdentity(process.pid);
++  const body = JSON.stringify({ pid: process.pid, startTime: me?.startTime ?? null }) + '\n';
++  for (let i = 0; i < 2; i++) {
++    try { fs.writeFileSync(file, body, { flag: 'wx', mode: 0o600 }); return () => { try { if (fs.readFileSync(file, 'utf8') === body) fs.rmSync(file); } catch {} }; }
++    catch (e) { if (e.code !== 'EEXIST') throw e; }
++    let held = null; try { held = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
++    const live = held && Number.isSafeInteger(held.pid) ? procIdentity(held.pid) : null;
++    if (live && live.startTime === held.startTime) fail(`stateDir is in use by a running runtime (pid ${held.pid})`);
++    fs.rmSync(file, { force: true });     // stale: its owner is gone (or the pid was recycled by another process)
++  }
++  fail('could not take the stateDir lock');
++}
++
++// ---- the head path (shared by the runtime and its tests) ------------------------------------------------------------
++
++/**
++ * The verified-head fan-out: every head the gossip source verified goes to the root store FIRST (which verifies it
++ * again with the helper and binds its state root), then to the relay Helios polls. -> {onCommitment, counters}.
++ */
++export function createHeadFanout({ roots, relay, onFirstHead }) {
++  const counters = { offered: 0, rootsBound: 0, rootsRefused: 0, relayAccepted: 0, relayRefused: {} };
++  let first = true;
++  async function onCommitment(commitment, meta) {
++    counters.offered++;
++    const bound = await roots.offer(commitment);
++    if (!bound) { counters.rootsRefused++; throw new Error('the root store refused a head the gossip source verified'); }
++    counters.rootsBound++;
++    const r = await relay.offer(commitment, 'native-gossip');
++    if (!r.accepted) { counters.relayRefused[r.reason] = (counters.relayRefused[r.reason] || 0) + 1; return; }
++    counters.relayAccepted++;
++    if (first) { first = false; onFirstHead?.(meta); }
++  }
++  return { onCommitment, counters };
++}
++
++// ---- the runtime ----------------------------------------------------------------------------------------------------
++
++/**
++ * startRpcRuntime(config, opts) -> Promise<{ verifierUrl, status(), failed: Promise<reason>, close() }>
++ * config: the raw config document (validated here with validateRuntimeConfig). opts (callers only, never the config file):
++ *   acceptedBuilds  the tested-build table (PINNED_BUILDS)
++ *   listenerEnv     extra environment for the listener child (test stand-ins)
++ *   log(event)      structured event sink (default: none)
++ *   signal          AbortSignal: aborting during startup stops it (everything started is cleaned up, the promise rejects)
++ * Resolves only when ready; rejects (after cleaning up everything it started) otherwise.
++ */
++export async function startRpcRuntime(rawConfig, { acceptedBuilds = PINNED_BUILDS, listenerEnv = {}, log = () => {}, signal } = {}) {
++  if (process.platform !== 'linux') fail('this runtime supervises children through /proc (Linux); see docs for the Windows status');
++  const config = validateRuntimeConfig(rawConfig, { acceptedBuilds });
++  const { stateDir } = config, signer = config.chain.unsafeSigner;
++  const stops = [];                                 // reverse-order cleanup, registered as each resource comes up
++  const state = { phase: 'starting', startedAt: Date.now(), readyAt: null, failure: null, stopping: false, reaped: { recorded: 0, staged: 0, runDirs: 0 }, firstHead: null };
++  let resolveFailed; const failed = new Promise((r) => { resolveFailed = r; });
++  let closing = null, helios = null, statusTimer = null, statusFile = null, readyFile = null, childrenFile = null;
++  const children = new Map();                       // role/session -> owned identity (also written to children.json)
++  const recordChildren = () => { try { writeJsonAtomic(childrenFile, [...children.values()]); } catch {} };
++  const stopAll = async () => {
++    while (stops.length) {
++      const f = stops.pop();
++      try { await Promise.race([Promise.resolve().then(f), sleep(LIMITS.stopStepMs)]); } catch {}
++    }
++  };
++  const failNow = (reason) => {
++    if (state.failure) return;
++    state.failure = String(reason); state.phase = 'failed';
++    log({ event: 'failed', reason: state.failure });
++    resolveFailed(state.failure);
++  };
++
++  const onAbort = () => { state.stopping = true; failNow('stopped during startup'); };
++  if (signal?.aborted) fail('stopped before start');
++  signal?.addEventListener('abort', onAbort, { once: true });
++  try {
++    await fsp.mkdir(stateDir, { recursive: true, mode: 0o700 });
++    const releaseLock = takeLock(path.join(stateDir, 'runtime.lock'));
++    stops.push(releaseLock);
++    childrenFile = path.join(stateDir, 'children.json');
++    stops.push(() => fs.rmSync(childrenFile, { force: true }));      // after every child is stopped (stops run in reverse)
++    readyFile = path.join(stateDir, 'ready.json'); statusFile = path.join(stateDir, 'status.json');
++    fs.rmSync(readyFile, { force: true });
++    const runsDir = path.join(stateDir, 'runs');
++    fs.mkdirSync(runsDir, { recursive: true, mode: 0o700 });
++
++    // reap what an earlier run of this stateDir left behind: recorded identities, then anything executing a staged binary
++    let recorded = []; try { recorded = JSON.parse(fs.readFileSync(childrenFile, 'utf8')); } catch {}
++    for (const id of Array.isArray(recorded) ? recorded : []) {
++      if (Number.isSafeInteger(id?.pid) && Number.isSafeInteger(id?.pgid) && typeof id?.startTime === 'string' && id.pid !== process.pid) {
++        if ((await signalOwned(id, 'SIGKILL')).length) state.reaped.recorded++;
++      }
++    }
++    for (const pid of leftoverStaged(runsDir, null)) { try { process.kill(pid, 'SIGKILL'); state.reaped.staged++; } catch {} }
++    for (const name of fs.readdirSync(runsDir)) {
++      const dir = path.join(runsDir, name);
++      if (/^r\d+-[0-9a-f]{12}$/.test(name) && fs.existsSync(path.join(dir, 'OWNER'))) { fs.rmSync(dir, { recursive: true, force: true }); state.reaped.runDirs++; }
++    }
++    fs.rmSync(childrenFile, { force: true });
++    if (state.reaped.recorded || state.reaped.staged) await sleep(200);   // let the kernel tear the reaped ones down
++
++    // a fresh 0700 run directory; binaries are copied in, hashed THERE and executed from there
++    const runDir = path.join(runsDir, `r${Date.now()}-${randomBytes(6).toString('hex')}`);
++    fs.mkdirSync(runDir, { mode: 0o700 });
++    stops.push(() => fs.rmSync(runDir, { recursive: true, force: true }));
++    fs.writeFileSync(path.join(runDir, 'OWNER'), `rpc-runtime pid=${process.pid}\n`, { flag: 'wx' });
++    fs.mkdirSync(path.join(runDir, 'bin'), { mode: 0o700 });
++    const bin = {};
++    for (const role of ROLES) {
++      const b = config.binaries[role], dst = path.join(runDir, 'bin', STAGED[role]);
++      try { fs.copyFileSync(b.path, dst, fs.constants.COPYFILE_EXCL); } catch (e) { fail(`binaries.${role}: ${b.path} cannot be read (${e.code || e.message})`); }
++      fs.chmodSync(dst, 0o500);
++      const digest = createHash('sha256').update(fs.readFileSync(dst)).digest('hex');
++      if (digest !== b.sha256) fail(`binaries.${role}: ${b.path} has sha256 ${digest}, not the pinned ${b.sha256}`);
++      bin[role] = dst;
++    }
++    log({ event: 'staged', runDir, binaries: Object.fromEntries(ROLES.map((r) => [r, config.binaries[r].sha256])) });
++
++    // 1. the helper: alive, and holding exactly our pins
++    const checker = createWitnessChecker({ bin: bin.witnessCheck, chainId: CHAIN_ID, signer });
++    stops.push(() => checker.close());
++    const v = await checker.check({ op: 'version' }).catch((e) => fail(`witness-check did not answer: ${e.message}`));
++    if (!v.ok || v.chainId !== CHAIN_ID || lower(v.signer) !== signer) fail('witness-check does not hold the pinned chain and signer');
++
++    // 2. roots (pushed only), 3. relay, 4. gateway
++    const roots = createRootStore({ checker });
++    const relay = createHeadRelay({ sources: [], chainId: CHAIN_ID, signer, maxAgeMs: 60000 });
++    const relayUrl = await relay.listen(0);
++    stops.push(() => relay.close());
++    const gateway = createWitnessGateway({ upstreams: [...config.proofSources.untrusted], proofs: { checker, roots },
++      cache: config.witnessCache ? dirWitnessCache(config.witnessCache.path) : null, methods: config.proofSources.accessListHint ? WITNESS_METHODS : NO_HINT });
++    const gatewayUrl = await gateway.listen(0);
++    stops.push(() => gateway.close());
++
++    // 5. the native head source, fanning out to roots then relay
++    let firstHead; const gotFirstHead = new Promise((r) => { firstHead = r; });
++    const fanout = createHeadFanout({ roots, relay, onFirstHead: (meta) => { state.firstHead = { number: meta.number, hash: meta.hash, at: Date.now() }; firstHead(meta); } });
++    const gossipDir = path.join(stateDir, 'gossip');
++    const source = createGossipHeadSource({ listenerPath: bin.listener, listenerSha256: config.binaries.listener.sha256, chainId: CHAIN_ID, signer,
++      workDir: gossipDir, onCommitment: fanout.onCommitment, sessionSecs: config.gossip.sessionSecs, maxPeers: config.gossip.maxPeers,
++      discovery: config.gossip.discovery, restartIfNoHeadMs: config.gossip.restartIfNoHeadMs, extraEnv: listenerEnv });
++    stops.push(() => source.stop());
++    const trackSession = () => {
++      const s = source.status().session;
++      const key = 'listener';
++      if (s?.pid) {
++        const id = procIdentity(s.pid);
++        if (id && id.pgid === s.pid && children.get(key)?.pid !== s.pid) { children.set(key, { role: 'listener', pid: s.pid, pgid: id.pgid, startTime: id.startTime }); recordChildren(); }
++      } else if (children.delete(key)) recordChildren();
++    };
++    const port = config.verifier.port, verifierUrl = `http://127.0.0.1:${port}/`;
++    // status: written from here on (starting, ready, degraded), so an operator sees WHY a runtime is not ready
++    const status = () => {
++      const g = source.status(), r = roots.stats(), rel = relay.status();
++      const fresh = !!rel.head && g.fresh;
++      return {
++        format: STATUS_FORMAT, phase: state.failure ? 'failed' : state.stopping ? 'stopping' : state.readyAt ? (fresh ? 'ready' : 'degraded') : 'starting',
++        failure: state.failure, verifierUrl, startedAt: state.startedAt, readyAt: state.readyAt, labels: LABELS,
++        internal: { relayUrl, gatewayUrl, note: 'loopback, ephemeral; Helios consumes these, consumers use verifierUrl' },
++        pins: { chainId: CHAIN_ID, unsafeSigner: signer, signerIsBaseMainnetDefault: signer === lower(BASE_MAINNET.unsafeSigner),
++          binaries: Object.fromEntries(ROLES.map((x) => [x, { sha256: config.binaries[x].sha256, build: config.binaries[x].build }])) },
++        head: { fresh, relay: rel.head ?? null, gossip: g.head, firstVerified: state.firstHead },
++        roots: { signedHead: r.verified, ancestor: r.ancestors, refused: r.refused, conflicts: r.conflicts, bound: r.roots, ancestryRefused: r.ancestryRefused },
++        fanout: { ...fanout.counters, relayRefused: { ...fanout.counters.relayRefused } },
++        witnesses: { untrustedSources: config.proofSources.untrusted.map(rpcLabel), gateway: gateway.stats(), cache: config.witnessCache ? 'dir (history only)' : 'none' },
++        gossip: { running: g.running, session: g.session, counters: g.counters, lastExit: g.lastExit },
++        helios: helios ? { pid: helios.owned?.pid ?? null, exit: helios.exit } : null,
++        reaped: state.reaped,
++      };
++    };
++    const writeStatus = () => { try { writeJsonAtomic(statusFile, status()); } catch {} };
++    await source.start();
++    trackSession();
++    const tracker = setInterval(() => { trackSession(); }, 500); tracker.unref?.();
++    stops.push(() => clearInterval(tracker));
++    writeStatus();
++    statusTimer = setInterval(writeStatus, LIMITS.statusEveryMs); statusTimer.unref?.();
++    stops.push(() => { clearInterval(statusTimer); fs.rmSync(statusFile, { force: true }); });
++    log({ event: 'head-source-started' });
++    const headTimer = sleep(config.limits.firstHeadTimeoutMs).then(() => null);
++    const head = await Promise.race([gotFirstHead, headTimer, failed.then(() => null)]);
++    if (!head) {
++      const g = source.status();
++      fail(state.failure || `no fresh verified head within ${config.limits.firstHeadTimeoutMs} ms (Helios not started; gossip ${JSON.stringify({ heads: g.counters.heads, delivered: g.counters.delivered, rejected: g.counters.rejected, lastExit: g.lastExit && { reason: g.lastExit.reason, exit: g.lastExit.exit, error: g.lastExit.error } })}, fanout ${JSON.stringify(fanout.counters)})`);
++    }
++    log({ event: 'first-head', number: head.number, hash: head.hash });
++
++    // 6. Helios, only now; its port must be free (any address), then provably its own
++    if (anyListener(port)) fail(`verifier port ${port} is already in use`);
++    const home = path.join(runDir, 'helios-home');
++    fs.mkdirSync(path.join(home, '.helios'), { recursive: true, mode: 0o700 });
++    fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${signer}"\n`, { flag: 'wx', mode: 0o600 });
++    const child = spawn(bin.helios, ['opstack', '--network', 'base', '--consensus-rpc', relayUrl, '--execution-rpc', gatewayUrl,
++      '--rpc-bind-ip', '127.0.0.1', '--rpc-port', String(port)],
++    { detached: true, stdio: ['ignore', 'ignore', 'pipe'], env: { HOME: home, PATH: '/usr/bin:/bin', RUST_LOG: 'warn' } });
++    const id = child.pid ? procIdentity(child.pid) : null;
++    helios = { child, owned: id && id.pgid === child.pid ? { pid: child.pid, pgid: id.pgid, startTime: id.startTime } : null, exit: null, stderrTail: '' };
++    if (helios.owned) { children.set('helios', { role: 'helios', ...helios.owned }); recordChildren(); }
++    helios.exited = new Promise((r) => { child.once('exit', (code, sig) => { helios.exit = { code, signal: sig }; r(); }); child.once('error', (e) => { helios.exit ||= { error: e.code || e.message }; r(); }); });
++    child.stderr.on('data', (d) => { helios.stderrTail = (helios.stderrTail + d).slice(-LIMITS.stderrTailBytes); });
++    stops.push(async () => {
++      if (!helios.exit && helios.owned) {
++        await signalOwned(helios.owned, 'SIGTERM');
++        if (!(await Promise.race([helios.exited.then(() => true), sleep(LIMITS.killGraceMs).then(() => false)]))) await signalOwned(helios.owned, 'SIGKILL');
++      }
++      await Promise.race([helios.exited, sleep(LIMITS.killGraceMs)]);
++      if (helios.owned) await signalOwned(helios.owned, 'SIGKILL');    // any member of its group left behind
++      children.delete('helios'); recordChildren();
++    });
++    if (!helios.owned) fail('Helios started without an owned process identity');
++    helios.exited.then(() => { if (!state.stopping) failNow(`helios exited (${JSON.stringify(helios.exit)}): ${helios.stderrTail.slice(-400)}`); });
++    const readyBy = Date.now() + config.limits.heliosReadyTimeoutMs;
++    let owns = false;
++    for (;;) {
++      if (state.failure) fail(state.failure);
++      if (Date.now() > readyBy) fail(`Helios was not ready within ${config.limits.heliosReadyTimeoutMs} ms`);
++      const inodes = listeningInodes(port);
++      if (inodes.length) {
++        const mine = socketInodesOf(helios.owned.pid);
++        if (!inodes.every((i) => mine.has(i))) fail(`verifier port ${port} is held by another process`);
++        owns = true;
++      }
++      if (owns) {
++        try {
++          const [cid, n] = await Promise.all([rpc(verifierUrl, 'eth_chainId'), rpc(verifierUrl, 'eth_blockNumber')]);
++          if (Number(cid) !== CHAIN_ID) fail(`Helios follows chain ${cid}`);
++          if (BigInt(n) >= BigInt(head.number)) break;
++        } catch (e) { if (/rpc runtime:/.test(e.message)) throw e; }
++      }
++      await sleep(LIMITS.readyPollMs);
++    }
++
++    // ready: files, supervision
++    state.readyAt = Date.now(); state.phase = 'ready';
++    writeJsonAtomic(readyFile, { format: STATUS_FORMAT, verifierUrl, pid: process.pid, readyAt: state.readyAt, firstHead: state.firstHead });
++    stops.push(() => fs.rmSync(readyFile, { force: true }));
++    writeStatus();
++    log({ event: 'ready', verifierUrl, firstHead: state.firstHead });
++    signal?.removeEventListener('abort', onAbort);
++    const close = () => (closing ??= (async () => {
++      state.stopping = true; log({ event: 'stopping' }); fs.rmSync(readyFile, { force: true }); await stopAll(); log({ event: 'stopped' });
++    })());
++    return { verifierUrl, status, failed, close, chainAuthority: { chainAuthority: 'verifier', chainVerifier: verifierUrl } };
++  } catch (e) {
++    signal?.removeEventListener('abort', onAbort);
++    failNow(e.message); state.stopping = true;
++    await stopAll();
++    throw e;
++  }
++}
++
++/**
++ * The process entry used by rpc-runtime-main.mjs (and by test launchers with their own opts): start, report events
++ * as JSON lines on stdout, stop cleanly on SIGTERM/SIGINT (exit 0), exit 1 when startup or an essential child fails
++ * (after cleanup), so the host service manager restarts it.
++ */
++export async function runRpcRuntimeProcess(config, opts = {}) {
++  const log = (e) => process.stdout.write(JSON.stringify({ at: new Date().toISOString(), ...e }) + '\n');
++  const startup = new AbortController();
++  let rt = null, stopping = false;
++  const stop = async (code) => { if (stopping) return; stopping = true; try { await rt?.close(); } finally { process.exit(code); } };
++  const onSignal = () => { if (rt) stop(0); else startup.abort(); };       // during startup: abort it (it cleans up)
++  process.on('SIGTERM', onSignal); process.on('SIGINT', onSignal);
++  try { rt = await startRpcRuntime(config, { ...opts, log, signal: startup.signal }); }
++  catch (e) { log({ event: 'startup-failed', reason: String(e.message || e) }); process.exit(startup.signal.aborted ? 0 : 1); }
++  const reason = await rt.failed;
++  log({ event: 'exiting', reason });
++  await stop(1);
++}
+diff --git a/test/fixtures/derive-reth-genesis-2935.py b/test/fixtures/derive-reth-genesis-2935.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..41920b555ffbffad68ced2c860d9ab235cb8ccf6
+--- /dev/null
++++ b/test/fixtures/derive-reth-genesis-2935.py
+@@ -0,0 +1,32 @@
++"""TEST FIXTURE derivation: the canonical-trie reth --dev genesis (chain id 8453) WITH the EIP-2935 block-hash history
++contract, as Base mainnet has had since Isthmus.
++
++Usage: python3 -I derive-reth-genesis-2935.py <reth-dev-8453-genesis.json (sha256 cc045d9d...)> <out.json>
++
++Helios answers a block it never adopted as a head (its head source skipped it) through its EIP-2935 history provider:
++the untrusted block's hash must equal the slot the history contract holds, proven at the latest verified head. Without
++the contract on the test chain that path can only fail, which Base does not do. Adds exactly one alloc entry: the
++contract's code (alloy-eips 2.5.0 eip2935::HISTORY_STORAGE_CODE, at HISTORY_STORAGE_ADDRESS) with nonce 1, as the
++EIP's deployment leaves it. Nothing else changes.
++"""
++
++import hashlib
++import json
++import sys
++
++SOURCE_SHA256 = 'cc045d9d317d08dc6971e923b3939365acdfd58d5484c65afc1f5e450ee5b5af'
++ADDRESS = '0x0000F90827F1C53a10cb7A02335B175320002935'
++CODE = ('0x3373fffffffffffffffffffffffffffffffffffffffe14604657602036036042575f35600143038111604257611fff81430311604257'
++        '611fff9006545f5260205ff35b5f5ffd5b5f35611fff60014303065500')
++
++raw = open(sys.argv[1], 'rb').read()
++if hashlib.sha256(raw).hexdigest() != SOURCE_SHA256:
++    sys.exit('not the pinned reth dev genesis')
++g = json.loads(raw)
++if any(k.lower().removeprefix('0x') == ADDRESS.lower()[2:] for k in g['alloc']):
++    sys.exit('the history contract is already present')
++g['alloc'][ADDRESS] = {'balance': '0x0', 'nonce': '0x1', 'code': CODE}
++with open(sys.argv[2], 'w') as f:
++    json.dump(g, f, indent=1, sort_keys=True)
++    f.write('\n')
++print(hashlib.sha256(open(sys.argv[2], 'rb').read()).hexdigest())
+diff --git a/test/fixtures/replay-listener.mjs b/test/fixtures/replay-listener.mjs
+new file mode 100755
+index 0000000000000000000000000000000000000000..df1fbe0b02be0d2bd807dabaf2cd8f7260481c29
+--- /dev/null
++++ b/test/fixtures/replay-listener.mjs
+@@ -0,0 +1,29 @@
++#!/usr/bin/node
++// TEST-ONLY stand-in for enclave-base-head-listener `listen`: replays a REAL recorded listener run (heads.jsonl + the
++// content-addressed objects it wrote; Base mainnet, real unsafe signer) on the listener's stdout contract, announcing
++// only records numbered >= REPLAY_FROM whose number % REPLAY_EVERY == 0 (the rest are heads the source never saw).
++// Every other subcommand (`commitment`) runs the REAL pinned listener (REAL_LISTENER) unchanged.
++//   env: REAL_LISTENER, REPLAY_DIR (heads.jsonl, objects/), REPLAY_FROM, REPLAY_EVERY
++import { spawnSync } from 'node:child_process';
++import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
++import path from 'node:path';
++
++const argv = process.argv.slice(2);
++if (argv[0] !== 'listen') {
++  const r = spawnSync(process.env.REAL_LISTENER, argv, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
++  process.exitCode = r.status ?? 1;
++  process.stdout.write(r.stdout);
++} else {
++  const out = argv[argv.indexOf('--out-dir') + 1], dir = process.env.REPLAY_DIR;
++  const from = Number(process.env.REPLAY_FROM || 0), every = Number(process.env.REPLAY_EVERY || 1);
++  mkdirSync(path.join(out, 'objects'), { recursive: true });
++  const print = (v) => process.stdout.write(JSON.stringify(v) + '\n');
++  for (const line of readFileSync(path.join(dir, 'heads.jsonl'), 'utf8').trim().split('\n')) {
++    const r = JSON.parse(line);
++    if (r.type === 'start') print({ ...r, startedUnixMs: Date.now() });
++    if (r.type !== 'head' || r.number < from || r.number % every !== 0) continue;
++    copyFileSync(path.join(dir, 'objects', `${r.objectSha256}.v4.snappy`), path.join(out, 'objects', `${r.objectSha256}.v4.snappy`));
++    print({ ...r, receivedUnixMs: Date.now() });
++  }
++  setInterval(() => {}, 1000);
++}
+diff --git a/test/fixtures/reth-dev-8453-genesis-2935.json b/test/fixtures/reth-dev-8453-genesis-2935.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..6925ffce41f624b4d22c1a0824a88df9f6c06b3a
+--- /dev/null
++++ b/test/fixtures/reth-dev-8453-genesis-2935.json
+@@ -0,0 +1,116 @@
++{
++ "alloc": {
++  "0x0000F90827F1C53a10cb7A02335B175320002935": {
++   "balance": "0x0",
++   "code": "0x3373fffffffffffffffffffffffffffffffffffffffe14604657602036036042575f35600143038111604257611fff81430311604257611fff9006545f5260205ff35b5f5ffd5b5f35611fff60014303065500",
++   "nonce": "0x1"
++  },
++  "0x14dc79964da2c08b23698b3d3cc7ca32193d9955": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x1cbd3b2770909d4e10f157cabc84c7264073c9ec": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x2546bcd3c84621e976d8185a91a922ae77ecec30": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x70997970c51812dc3a010c7d01b50e0d17dc79c8": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x71be63f3384f5fb98995898a86b02fb2426c5788": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x8626f6940e2eb28930efb4cef49b2d1f2c9c1199": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x90f79bf6eb2c4f870365e785982e1f101e93b906": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x976ea74026e726554db657fa54763abd0c3a0aa9": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xa0ee7a142d267c1f36714e4a8f75612f20a79720": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xbcd4042de499d14e55001ccbb24a551f3b954096": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xbda5747bfd65f08deb54cb465eb87d40e51b197e": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xcd3b766ccdd6ae721141f452c550ca635964ce71": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xdd2fd4581271e230360230f9337d5c0430bf44c0": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xdf3e18d64bc6a983f673ab319ccae4f1a57c7097": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xfabb0ac9d68b0b445fb7357272ff202c5651694a": {
++   "balance": "0xd3c21bcecceda1000000"
++  }
++ },
++ "coinbase": "0x0000000000000000000000000000000000000000",
++ "config": {
++  "berlinBlock": 0,
++  "blobSchedule": {
++   "cancun": {
++    "baseFeeUpdateFraction": 3338477,
++    "max": 6,
++    "target": 3
++   },
++   "osaka": {
++    "baseFeeUpdateFraction": 5007716,
++    "max": 9,
++    "target": 6
++   },
++   "prague": {
++    "baseFeeUpdateFraction": 5007716,
++    "max": 9,
++    "target": 6
++   }
++  },
++  "byzantiumBlock": 0,
++  "cancunTime": 0,
++  "chainId": 8453,
++  "constantinopleBlock": 0,
++  "depositContractAddress": "0x0000000000000000000000000000000000000000",
++  "eip150Block": 0,
++  "eip155Block": 0,
++  "eip158Block": 0,
++  "homesteadBlock": 0,
++  "istanbulBlock": 0,
++  "londonBlock": 0,
++  "mergeNetsplitBlock": 0,
++  "osakaTime": 0,
++  "petersburgBlock": 0,
++  "pragueTime": 0,
++  "shanghaiTime": 0,
++  "terminalTotalDifficulty": 0,
++  "terminalTotalDifficultyPassed": true
++ },
++ "difficulty": "0x0",
++ "extraData": "0x",
++ "gasLimit": "0x1c9c380",
++ "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
++ "nonce": "0x0",
++ "number": "0x0",
++ "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
++ "timestamp": "0x6490fdd2"
++}
+diff --git a/test/fixtures/reth-gossip-listener.mjs b/test/fixtures/reth-gossip-listener.mjs
+new file mode 100755
+index 0000000000000000000000000000000000000000..5bf98ce0bb701327eff9921f17b8eede02693813
+--- /dev/null
++++ b/test/fixtures/reth-gossip-listener.mjs
+@@ -0,0 +1,72 @@
++#!/usr/bin/node
++// TEST-ONLY stand-in for enclave-base-head-listener `listen` over a LOCAL reth --dev chain (chain id 8453): every new
++// block becomes a v4 gossip envelope signed by the public TEST sequencer key (65-byte signature || parentBeaconRoot ||
++// SSZ payload, test/fixtures/op-commitment.mjs), framed as a literal-only Snappy block, written to <out-dir>/objects and
++// announced on the listener's stdout record contract. SYNTHETIC HEAD AUTHORITY: this proves composition, never Base.
++// The literal-only framing is test input only: the REAL pinned listener's `commitment` mode (maintained base/base
++// decode + `snap` decompression + signer + block-hash verification) judges every object; no subcommand but `listen`
++// is emulated, everything else is delegated to REAL_LISTENER unchanged.
++//   env: REAL_LISTENER, FIXTURES_DIR (this directory: the runtime executes a staged COPY of this file elsewhere),
++//        RIG_RPC (the chain), FEED_CONTROL (a JSON file the test rewrites):
++//        { "frozen": bool, "deliverEvery": n (announce only blocks whose number % n == 0), "exit": "exit3" }
++import { spawnSync } from 'node:child_process';
++import { createHash } from 'node:crypto';
++import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
++import path from 'node:path';
++
++const argv = process.argv.slice(2);
++if (argv[0] !== 'listen') {
++  const r = spawnSync(process.env.REAL_LISTENER, argv, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
++  process.exitCode = r.status ?? 1;     // not process.exit(): a large pipe write completes asynchronously
++  process.stdout.write(r.stdout);
++} else {
++  const { makeCommitment, blockFields } = await import(path.join(process.env.FIXTURES_DIR, 'op-commitment.mjs'));
++  const TEST_SEQUENCER = '0x' + '5e'.repeat(32);       // the public test key of the verifier E2E (synthetic authority)
++  const arg = (name) => argv[argv.indexOf(name) + 1];
++  const out = arg('--out-dir'), signer = arg('--signer');
++  mkdirSync(path.join(out, 'objects'), { recursive: true });
++  const print = (v) => process.stdout.write(JSON.stringify(v) + '\n');
++  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++  const control = () => { try { return JSON.parse(readFileSync(process.env.FEED_CONTROL, 'utf8')); } catch { return {}; } };
++  const rpc = async (method, params = []) => {
++    const r = await fetch(process.env.RIG_RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
++    const j = await r.json(); if (j.error) throw new Error(j.error.message); return j.result;
++  };
++  const snappyLiteral = (buf) => {
++    const head = []; let n = buf.length; while (n >= 0x80) { head.push((n & 0x7f) | 0x80); n >>>= 7; } head.push(n);
++    const parts = [Buffer.from(head)];
++    for (let i = 0; i < buf.length; i += 65536) {
++      const c = buf.subarray(i, i + 65536), l = c.length - 1;
++      parts.push(l < 60 ? Buffer.from([l << 2]) : l < 256 ? Buffer.from([60 << 2, l]) : Buffer.from([61 << 2, l & 0xff, l >> 8]), c);
++    }
++    return Buffer.concat(parts);
++  };
++  const start = JSON.parse(readFileSync(path.join(process.env.FIXTURES_DIR, 'listener-start-record.json'), 'utf8'));
++  print({ ...start, signer, signerMatchesChainDefault: false, startedUnixMs: Date.now() });
++  let served = null;
++  for (;;) {
++    const c = control();
++    if (c.exit === 'exit3') process.exit(3);
++    try {
++      const latest = BigInt(await rpc('eth_blockNumber'));
++      if (served === null) served = latest > 1n ? latest - 1n : 0n;
++      while (!c.frozen && served < latest) {
++        const n = served + 1n;
++        const b = await rpc('eth_getBlockByNumber', ['0x' + n.toString(16), false]);
++        served = n;
++        if (c.deliverEvery && n % BigInt(c.deliverEvery) !== 0n) continue;   // a head the source never saw (gap)
++        const txs = await Promise.all(b.transactions.map((h) => rpc('eth_getRawTransactionByHash', [h])));
++        const cm = await makeCommitment(blockFields(b), { chainId: 8453, privateKey: TEST_SEQUENCER, txs, parentBeaconRoot: b.parentBeaconBlockRoot });
++        const sig = Buffer.concat([Buffer.from(cm.signature.r.slice(2).padStart(64, '0'), 'hex'), Buffer.from(cm.signature.s.slice(2).padStart(64, '0'), 'hex'),
++          Buffer.from([Number(cm.signature.yParity)])]);
++        const bytes = snappyLiteral(Buffer.concat([sig, Buffer.from(cm.data.slice(2), 'hex')]));
++        const sha = createHash('sha256').update(bytes).digest('hex');
++        writeFileSync(path.join(out, 'objects', `${sha}.v4.snappy`), bytes);
++        print({ schema: start.schema, type: 'head', tier: 'unsafe', finality: 'none', chainId: 8453, signer, payloadVersion: 'v4', objectEncoding: start.objectEncoding,
++          objectSha256: sha, objectBytes: bytes.length, number: Number(n), hash: b.hash, stateRoot: b.stateRoot, parentHash: b.parentHash,
++          receiptsRoot: b.receiptsRoot, timestamp: Number(BigInt(b.timestamp)), txCount: b.transactions.length, receivedUnixMs: Date.now() });
++      }
++    } catch {}
++    await sleep(300);
++  }
++}
+diff --git a/test/fixtures/rpc-runtime-launcher.mjs b/test/fixtures/rpc-runtime-launcher.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..536a7b1b3b03e4b25deb76f0df26debd8ee0b88f
+--- /dev/null
++++ b/test/fixtures/rpc-runtime-launcher.mjs
+@@ -0,0 +1,13 @@
++// TEST-ONLY launcher: the SAME process entry as network/rpc-runtime-main.mjs run (runRpcRuntimeProcess), plus the two
++// caller-only options a config file can never set: one extra accepted listener digest (the test stand-in that
++// delegates `commitment` to the real pinned binary) and the stand-in's environment.
++//   node rpc-runtime-launcher.mjs <rpc-runtime.json>   env: LAUNCH_LISTENER_SHA256, LAUNCH_LISTENER_ENV (JSON)
++import fs from 'node:fs';
++import { runRpcRuntimeProcess, PINNED_BUILDS } from '../../network/rpc-runtime.mjs';
++
++const raw = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
++const extra = process.env.LAUNCH_LISTENER_SHA256;
++const acceptedBuilds = extra
++  ? { ...PINNED_BUILDS, listener: { ...PINNED_BUILDS.listener, [extra]: 'TEST stand-in (listen emulated, commitment delegated to the real pinned listener)' } }
++  : PINNED_BUILDS;
++await runRpcRuntimeProcess(raw, { acceptedBuilds, listenerEnv: JSON.parse(process.env.LAUNCH_LISTENER_ENV || '{}') });
+diff --git a/test/rpc-runtime-base-heads.test.mjs b/test/rpc-runtime-base-heads.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..f04ba5461e2a3a4c86ace03490933e24a7911cf9
+--- /dev/null
++++ b/test/rpc-runtime-base-heads.test.mjs
+@@ -0,0 +1,98 @@
++// The runtime's head path on REAL Base mainnet data (no synthetic authority anywhere in this file): a recorded native
++// listener run (52 signed v4 gossip objects, blocks 52965055..52965106, the real unsafe signer; rpc-peer-audit run
++// live-20261023T013719Z) replayed with GAPS through the REAL pinned listener's `commitment` mode and op-head-relay
++// verifyCommitment (network/gossip-head-source.mjs), then the runtime's own fan-out (createHeadFanout: roots.offer
++// with the REAL witness-check helper, then the relay). Blocks the source never delivered are bound by authenticated
++// ancestry from real canonical headers (test/fixtures/base-headers-52965055-52965106.json) via the gateway, past a
++// source that forges state roots.
++// Scope: HEADER/ROOT binding and head serving only; these blocks have no recorded state proofs (Helios execution on
++// recorded Base state is helios-base-replay.e2e / helios-witness-failover.e2e). The clock is pinned to the recording
++// (the heads are old), so this proves verification, not live availability.
++//   env: WITNESS_CHECK_BIN, REAL_LISTENER, BASE_HEADS_DIR, TEST_TMP. Offline (`unshare -r -n`).
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import http from 'node:http';
++import path from 'node:path';
++import { createHash } from 'node:crypto';
++import { pad } from 'viem';
++import { createGossipHeadSource } from '../network/gossip-head-source.mjs';
++import { createHeadRelay, BASE_MAINNET } from '../network/op-head-relay.mjs';
++import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
++import { createWitnessGateway } from '../network/witness-gateway.mjs';
++import { createHeadFanout } from '../network/rpc-runtime.mjs';
++
++const { WITNESS_CHECK_BIN, REAL_LISTENER, BASE_HEADS_DIR } = process.env;
++const skip = (!WITNESS_CHECK_BIN || !REAL_LISTENER || !BASE_HEADS_DIR) && 'needs WITNESS_CHECK_BIN, REAL_LISTENER, BASE_HEADS_DIR';
++const HERE = path.dirname(new URL(import.meta.url).pathname);
++const REPLAY = path.join(HERE, 'fixtures', 'replay-listener.mjs');
++const FIX = JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', 'base-headers-52965055-52965106.json'), 'utf8'));
++const BY_NUM = new Map(FIX.headers.map((h) => [h.number, h])), BY_HASH = new Map(FIX.headers.map((h) => [h.hash, h]));
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'rpc-runtime-base-'));
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const servers = [];
++function headerSource(lookup) {
++  const st = { asked: 0 };
++  const s = http.createServer((q, res) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', () => {
++    const j = JSON.parse(b); st.asked++;
++    if (j.method !== 'eth_getBlockByHash') return res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, error: { code: -32601, message: 'x' } }));
++    res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, result: lookup(j.params[0]) ?? null }));
++  }); });
++  servers.push(s);
++  return new Promise((r) => s.listen(0, '127.0.0.1', () => r({ st, url: `http://127.0.0.1:${s.address().port}/` })));
++}
++test.after(() => { for (const s of servers) s.close(); fs.rmSync(TMP, { recursive: true, force: true }); });
++
++test('real Base heads with gaps: native commitment -> roots first -> relay; missed blocks bound by authenticated ancestry from real headers', { skip, timeout: 120000 }, async () => {
++  assert.equal(FIX.signer, BASE_MAINNET.unsafeSigner.toLowerCase());
++  const last = BY_NUM.get(52965106);
++  const clock = { t: last.timestamp * 1000 + 1000 };       // pinned to the recording: these heads are history today
++  const now = () => clock.t;
++  const checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: BASE_MAINNET.unsafeSigner });
++  const roots = createRootStore({ checker });
++  const relay = createHeadRelay({ sources: [], chainId: 8453, signer: BASE_MAINNET.unsafeSigner, maxAgeMs: 60000, now });
++  const fanout = createHeadFanout({ roots, relay });
++  const delivered = [];
++  const source = createGossipHeadSource({ listenerPath: REPLAY, listenerSha256: createHash('sha256').update(fs.readFileSync(REPLAY)).digest('hex'),
++    chainId: 8453, signer: BASE_MAINNET.unsafeSigner, workDir: path.join(TMP, 'gossip'), now, sessionSecs: 60, discovery: 'off',
++    onCommitment: async (c, meta) => { await fanout.onCommitment(c, meta); delivered.push(meta.number); },
++    extraEnv: { REAL_LISTENER, REPLAY_DIR: BASE_HEADS_DIR, REPLAY_FROM: '52965082', REPLAY_EVERY: '4' } });
++  try {
++    await source.start();
++    const want = [];
++    for (let n = 52965082; n <= 52965106; n++) if (n % 4 === 0) want.push(n);
++    const end = Date.now() + 60000;
++    while (delivered.length < want.length && Date.now() < end) await sleep(100);
++    assert.deepEqual(delivered, want, `every announced real head passed the native and the JavaScript verifier, in order (${JSON.stringify({ c: source.status().counters, x: source.status().lastExit })})`);
++    assert.equal(fanout.counters.rootsBound, want.length, 'each was bound in the root store');
++    assert.equal(fanout.counters.relayAccepted, want.length, 'and only then offered to the relay');
++    const top = BY_NUM.get(want.at(-1));
++    assert.equal(relay.status().head.hash, top.hash, 'the relay serves the newest verified head');
++    const pushed = await roots.rootFor(top.hash);
++    assert.equal(pushed.via, 'signed-head');
++    assert.equal(pushed.stateRoot, top.stateRoot);
++
++    // blocks never delivered (a gap inside the run and one older than the first delivered head)
++    const forger = await headerSource((h) => { const r = BY_HASH.get(h); return r && { ...r.header, stateRoot: pad('0x66', { size: 32 }) }; });
++    const honest = await headerSource((h) => BY_HASH.get(h)?.header);
++    const gateway = createWitnessGateway({ upstreams: [forger.url, honest.url], proofs: { checker, roots } });
++    for (const n of [52965101, 52965070]) {
++      const target = BY_NUM.get(n);
++      const got = await gateway.root(target.hash);
++      assert.ok(got, `block ${n} recovered`);
++      assert.equal(got.via, 'ancestor', 'by authenticated ancestry, not as a signed head');
++      assert.equal(got.stateRoot, target.stateRoot, 'the REAL state root, not the forger\'s');
++      assert.equal(got.number, n);
++    }
++    assert.ok(gateway.stats().upstream[Object.keys(gateway.stats().upstream)[0]].headerInvalid > 0, 'the forger was caught by hash recomputation');
++    assert.equal(await gateway.root(pad('0x1234', { size: 32 })), null, 'an unknown hash is refused');
++    const st = roots.stats();
++    assert.equal(st.verified, want.length, 'signed-head roots: exactly the delivered heads');
++    assert.ok(st.ancestors >= 2, 'ancestor roots are counted separately');
++    // freshness belongs to the head, never to a root: once the clock passes the newest head, the relay serves nothing,
++    // while the (historical) root bindings remain
++    clock.t = top.timestamp * 1000 + 61000;
++    assert.equal(relay.latest(), null, 'a stale head is not served');
++    assert.equal((await roots.rootFor(top.hash)).stateRoot, top.stateRoot, 'its root stays history for that block');
++  } finally { await source.stop(); checker.close(); }
++});
+diff --git a/test/rpc-runtime.e2e.test.mjs b/test/rpc-runtime.e2e.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..2167b88609fc515598d073474862e9ed80fe72be
+--- /dev/null
++++ b/test/rpc-runtime.e2e.test.mjs
+@@ -0,0 +1,375 @@
++// END-TO-END: the COMPOSED verifier runtime (network/rpc-runtime.mjs through its process entry) on A's canonical local
++// chain (pinned reth v2.8.0 --dev, chain id 8453, the cli-independent rig's REAL platform contracts), consumed by the
++// real LeaseReader (authority 'verifier') and host admission:
++//   listener stand-in (listen emulated over the reth chain; `commitment` = the REAL pinned listener binary)
++//   -> native commitment + op-head-relay verifyCommitment -> roots.offer (REAL witness-check helper) -> relay
++//   -> proof-aware witness gateway (two scriptable UNTRUSTED proxies in front of reth) -> REAL Helios (enclave-base-evm)
++// SYNTHETIC HEAD AUTHORITY: the blocks are signed by a TEST sequencer key (pinned in the runtime config the same way the
++// Base key is). Real Base gossip and recorded Base execution are separate evidence (rpc-runtime-base-heads.test.mjs,
++// helios-base-replay.e2e, helios-witness-failover.e2e). Nothing here proves Base availability, finality or independence.
++// The chain's genesis is A's pinned reth dev genesis plus the EIP-2935 history contract Base has (derived:
++// test/fixtures/derive-reth-genesis-2935.py -> reth-dev-8453-genesis-2935.json); asserted at setup.
++//   env: RIG_CHAIN_NODE=reth, RIG_RETH_BIN, RIG_RETH_GENESIS (the -2935 genesis), RUNTIME_BIN_DIR (helios-eeffcc9, witness-check,
++//        enclave-base-head-listener), TEST_TMP. Needs contracts/foundry/out. Run inside `unshare -r -n` (lo up).
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { spawn } from 'node:child_process';
++import { createHash } from 'node:crypto';
++import fs from 'node:fs';
++import net from 'node:net';
++import path from 'node:path';
++import http from 'node:http';
++import { stringToHex, pad, toHex } from 'viem';
++import { privateKeyToAccount } from 'viem/accounts';
++import { startRig, haveTools, KEYS, freePort } from './helpers/cli-independent-rig.mjs';
++import { LeaseReader } from '../network/lease-reader.mjs';
++import { createHostAdmission } from '../network/host-admission-runtime.mjs';
++import { hostAdmissionPolicyHash } from '../network/host-admission-policy.mjs';
++import { CONFIG_FORMAT } from '../network/rpc-runtime.mjs';
++
++const { RUNTIME_BIN_DIR } = process.env;
++const canonical = process.env.RIG_CHAIN_NODE === 'reth';
++const skip = haveTools() || (!RUNTIME_BIN_DIR && 'RUNTIME_BIN_DIR not set') || (!canonical && 'needs a canonical-trie chain (RIG_CHAIN_NODE=reth)');
++const HERE = path.dirname(new URL(import.meta.url).pathname);
++const STANDIN = path.join(HERE, 'fixtures', 'reth-gossip-listener.mjs'), LAUNCHER = path.join(HERE, 'fixtures', 'rpc-runtime-launcher.mjs');
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'rpc-runtime-e2e-'));
++const SEQ_KEY = '0x' + '5e'.repeat(32), seqSigner = privateKeyToAccount(SEQ_KEY).address;
++const OUT = path.join(HERE, '..', 'contracts/foundry/out');
++const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, `${name}.json`), 'utf8')); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
++const sha = (f) => createHash('sha256').update(fs.readFileSync(f)).digest('hex');
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const bin = (n) => path.join(RUNTIME_BIN_DIR || '/nonexistent', n);
++let rig, book, bookAbi, leaseId, proxies, rt, reader;
++
++async function rpc(url, method, params = [], ms = 30000) {
++  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(ms) });
++  const j = await r.json(); if (j.error) throw new Error(j.error.message); return j.result;
++}
++async function until(pred, ms, what) {
++  const end = Date.now() + ms;
++  while (Date.now() < end) { try { if (await pred()) return; } catch {} await sleep(250); }
++  throw new Error(`timed out: ${what}`);
++}
++/** a scriptable UNTRUSTED witness source in front of the chain: ok | down | tamper (every proof answer altered: the
++ *  account balance and every proven storage value) */
++function startProxy() {
++  const st = { mode: 'ok', hits: 0, methods: {} };
++  const srv = http.createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', async () => {
++    st.hits++;
++    try { for (const r of [JSON.parse(b)].flat()) { const k = `${st.mode}:${r.method}`; st.methods[k] = (st.methods[k] || 0) + 1; } } catch {}
++    if (st.mode === 'down') { res.writeHead(503); return res.end(); }
++    try {
++      const up = await fetch(rig.rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: b });
++      const j = await up.json();
++      if (st.mode === 'tamper') for (const x of [j].flat()) if (x?.result?.accountProof) {
++        x.result.balance = '0x' + (BigInt(x.result.balance) + 1n).toString(16); st.tampered = (st.tampered || 0) + 1;
++        for (const s of x.result.storageProof || []) s.value = '0x' + 'beef'.padStart(40, '1');
++      }
++      res.end(JSON.stringify(j));
++    } catch { res.writeHead(502); res.end(); }
++  }); });
++  return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, st, url: `http://127.0.0.1:${srv.address().port}/` })));
++}
++/** processes executing a binary staged under <stateDir>/runs (the runtime's own children by construction) */
++function stagedPids(stateDir) {
++  const runs = path.join(stateDir, 'runs') + path.sep, out = [];
++  for (const p of fs.readdirSync('/proc')) {
++    if (!/^\d+$/.test(p)) continue;
++    try { const exe = fs.readlinkSync(`/proc/${p}/exe`); if (exe.startsWith(runs)) { const st = fs.readFileSync(`/proc/${p}/stat`, 'utf8'); if (!/\) [ZX] /.test(st)) out.push(Number(p)); } } catch {}
++  }
++  return out;
++}
++const alive = (pid) => { try { const st = fs.readFileSync(`/proc/${pid}/stat`, 'utf8'); return !/\) [ZX] /.test(st); } catch { return false; } };
++function listening(port) {
++  const want = ':' + port.toString(16).toUpperCase().padStart(4, '0');
++  return ['/proc/net/tcp', '/proc/net/tcp6'].some((f) => { try { return fs.readFileSync(f, 'utf8').split('\n').slice(1).some((l) => { const x = l.trim().split(/\s+/); return x[3] === '0A' && x[1]?.endsWith(want); }); } catch { return false; } });
++}
++const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
++
++/** one runtime process through the test launcher (= the main entry + the stand-in's accepted digest/env) */
++function launch(name, { port, untrusted, control = {}, limits, verifierPort } = {}) {
++  const dir = path.join(TMP, name), stateDir = path.join(dir, 'state'), controlFile = path.join(dir, 'control.json');
++  fs.mkdirSync(dir, { recursive: true });
++  fs.writeFileSync(controlFile, JSON.stringify(control));
++  const config = { format: CONFIG_FORMAT, chain: { chainId: 8453, unsafeSigner: seqSigner },
++    binaries: { listener: { path: STANDIN, sha256: sha(STANDIN) }, helios: { path: bin('helios-eeffcc9'), sha256: sha(bin('helios-eeffcc9')) },
++      witnessCheck: { path: bin('witness-check'), sha256: sha(bin('witness-check')) } },
++    proofSources: { untrusted: untrusted ?? proxies.map((p) => p.url) }, verifier: { port: verifierPort ?? port }, stateDir,
++    gossip: { discovery: 'off', sessionSecs: 3600 }, ...(limits ? { limits } : {}) };
++  const cfgFile = path.join(dir, 'rpc-runtime.json');
++  fs.writeFileSync(cfgFile, JSON.stringify(config, null, 1));
++  const child = spawn(process.execPath, [LAUNCHER, cfgFile], { detached: true, stdio: ['ignore', 'pipe', 'pipe'],
++    env: { PATH: process.env.PATH, LAUNCH_LISTENER_SHA256: sha(STANDIN),
++      LAUNCH_LISTENER_ENV: JSON.stringify({ REAL_LISTENER: bin('enclave-base-head-listener'), FIXTURES_DIR: path.join(HERE, 'fixtures'), RIG_RPC: rig.rpc, FEED_CONTROL: controlFile }) } });
++  const events = []; let buf = '', err = '';
++  child.stdout.setEncoding('utf8');
++  child.stdout.on('data', (d) => { buf += d; for (let i; (i = buf.indexOf('\n')) >= 0;) { const l = buf.slice(0, i); buf = buf.slice(i + 1); try { events.push(JSON.parse(l)); } catch {} } });
++  child.stderr.on('data', (d) => { err = (err + d).slice(-4000); });
++  const exited = new Promise((r) => child.once('exit', (code, sig) => r({ code, sig })));
++  const why = () => { const st = readJson(path.join(stateDir, 'status.json')); return JSON.stringify({ events: events.map((x) => x.event), gossip: st?.gossip?.counters, lastExit: st?.gossip?.lastExit, fanout: st?.fanout, stderr: err.slice(-500) }); };
++  const event = (e, ms) => until(() => events.some((x) => x.event === e), ms, `${name}: event ${e} ${why()}`);
++  const setControl = (c) => fs.writeFileSync(controlFile, JSON.stringify(c));
++  return { child, events, event, exited, stateDir, port: verifierPort ?? port, url: `http://127.0.0.1:${verifierPort ?? port}/`, setControl, stderr: () => err,
++    status: () => readJson(path.join(stateDir, 'status.json')), children: () => readJson(path.join(stateDir, 'children.json')) || [] };
++}
++/** an admin write to the AddressBook (a key no consumer reads): the book's storage, so the state the reads below
++ *  prove, changes; a verifier that already holds proofs for an unchanged root would otherwise need no new witness */
++let bump = 0;
++async function changeState() {
++  const rc = await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'set', [stringToHex(`test-bump-${++bump}`, { size: 32 }), rig.addresses.registry5]);
++  await untilHelios(rt, rc.blockNumber + 2n);
++}
++const heliosHead = async (h) => BigInt(await rpc(h.url, 'eth_blockNumber', [], 5000));
++const untilHelios = (h, n, ms = 90000) => until(async () => (await heliosHead(h)) >= BigInt(n), ms, `verifier at block ${n}`);
++const waitTx = async (rc) => untilHelios(rt, rc.blockNumber + 2n);
++
++test.before(async () => {
++  if (skip) return;
++  rig = await startRig();
++  assert.notEqual(await rig.rpcCall('eth_getCode', ['0x0000F90827F1C53a10cb7A02335B175320002935', 'latest']), '0x',
++    'RIG_RETH_GENESIS must carry the EIP-2935 history contract (test/fixtures/reth-dev-8453-genesis-2935.json)');
++  const B = art('EnclaveAddressBook.sol', 'EnclaveAddressBook'); bookAbi = B.abi;
++  book = await rig.deploy(B);
++  const dep = rig.wc(KEYS.deployer);
++  await rig.write(dep, book, bookAbi, 'set', [stringToHex('deployments', { size: 32 }), rig.addresses.ledger]);
++  await rig.write(dep, book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry]);
++  leaseId = rig.createdId(await rig.create(KEYS.owner));
++  proxies = [await startProxy(), await startProxy()];
++});
++test.after(async () => {
++  for (const p of proxies || []) p.srv.close();
++  if (rt && rt.child.exitCode === null) { try { process.kill(-rt.child.pid, 'SIGKILL'); } catch {} }
++  await rig?.stop();
++  fs.rmSync(TMP, { recursive: true, force: true });
++});
++const T = { skip, timeout: 300000 };
++
++test('startup order: no verifier before the first verified head, and none of it needs a witness source', T, async () => {
++  for (const p of proxies) p.st.mode = 'down';        // every proof source is down for the whole startup
++  rt = launch('main', { port: await freePort(), control: { frozen: true } });
++  await rt.event('head-source-started', 60000);
++  await sleep(6000);
++  assert.ok(!rt.events.some((e) => ['first-head', 'ready'].includes(e.event)), 'no head yet: not ready');
++  assert.ok(!rt.children().some((c) => c.role === 'helios'), 'Helios is not started before a verified head');
++  assert.equal(listening(rt.port), false, 'nothing listens on the verifier port yet');
++  assert.equal(fs.existsSync(path.join(rt.stateDir, 'ready.json')), false);
++  rt.setControl({});                                   // heads flow
++  await rt.event('ready', 180000);
++  const order = rt.events.map((e) => e.event).filter((e) => ['staged', 'head-source-started', 'first-head', 'ready'].includes(e));
++  assert.deepEqual(order, ['staged', 'head-source-started', 'first-head', 'ready']);
++  const h = rt.children().find((c) => c.role === 'helios');
++  assert.ok(h && alive(h.pid), 'Helios is an owned, recorded child');
++  assert.ok(fs.readlinkSync(`/proc/${h.pid}/exe`).startsWith(path.join(rt.stateDir, 'runs') + path.sep), 'Helios runs the staged, hashed copy');
++  assert.equal(listening(rt.port), true);
++  assert.equal(Number(await rpc(rt.url, 'eth_chainId')), 8453);
++  const s = rt.status();
++  assert.equal(s.phase, 'ready');
++  assert.match(s.labels.independence, /NOT provider-independent/);
++  assert.equal(s.head.fresh, true);
++  assert.ok(s.roots.signedHead >= 1, 'every delivered head is bound in the root store');
++  for (const p of proxies) p.st.mode = 'ok';
++  reader = new LeaseReader({ authority: 'verifier', verifier: rt.url, addressBook: book, confirmations: 1, maxBlockAgeMs: 60000, deadlineMs: 30000 });
++});
++
++test('block-pinned lease snapshot, host admission, catalog moderation and admin AddressBook migration through the composed runtime', T, async () => {
++  const [lease] = await reader.refresh([leaseId]);
++  assert.ok(lease, 'the deployment was read');
++  assert.equal(lease.deployments, rig.addresses.ledger.toLowerCase(), 'resolved through the AddressBook');
++  const direct = await rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.A.ledger.abi, functionName: 'get', args: [leaseId], blockNumber: BigInt(lease.blockNumber) });
++  assert.equal(lease.owner.toLowerCase(), direct.owner.toLowerCase());
++  assert.equal(lease.appRef, direct.appRef);
++  const block = await rig.rpcCall('eth_getBlockByNumber', [toHex(BigInt(lease.blockNumber)), false]);
++  assert.equal(lease.blockHash, block.hash, 'pinned to the exact block hash');
++  assert.equal(reader.lastEvidence.stateRoot, block.stateRoot.toLowerCase());
++  assert.equal(reader.authorityInfo().providerQuorum, false);
++
++  const own = await rig.deploy(art('EnclaveHostOwnership.sol', 'EnclaveHostOwnership'), [rig.addresses.registry]);
++  const ownAbi = art('EnclaveHostOwnership.sol', 'EnclaveHostOwnership').abi;
++  await rig.write(rig.wc(KEYS.operator), own, ownAbi, 'proposeOwner', [rig.runner, rig.owner]);
++  await waitTx(await rig.write(rig.wc(KEYS.owner), own, ownAbi, 'acceptOwner', [rig.runner]));
++  const doc = { version: 1, chainId: 8453, ownershipContract: own.toLowerCase(), hostId: rig.runner, requireCatalogApproval: false, denyDeployments: [leaseId.toLowerCase()], denyAppRefs: [] };
++  const admission = createHostAdmission({ hostId: rig.runner, ownershipContract: own.toLowerCase(), registry: rig.addresses.registry.toLowerCase(), catalog: rig.addresses.catalog.toLowerCase(),
++    reader, loadPolicy: async () => doc, cacheMs: 0 });
++  const request = { deploymentId: leaseId, appRef: `catalog://${rig.appId}/1` };
++  assert.equal(await admission.refusal(request), null, 'approved app, default owner policy');
++  await waitTx(await rig.write(rig.wc(KEYS.owner), own, ownAbi, 'setPolicy', [rig.runner, hostAdmissionPolicyHash(doc)]));
++  assert.equal(await admission.refusal(request), 'this host owner declines this deployment');
++  await waitTx(await rig.write(rig.wc(KEYS.owner), own, ownAbi, 'setPolicy', [rig.runner, pad('0x', { size: 32 })]));
++  assert.equal(await admission.refusal(request), null);
++  await waitTx(await rig.write(rig.wc(KEYS.deployer), rig.addresses.catalog, rig.A.catalog.abi, 'yankVersion', ['hello', 1n]));
++  assert.match(await admission.refusal(request), /yanked/);
++  await waitTx(await rig.write(rig.wc(KEYS.deployer), rig.addresses.catalog, rig.A.catalog.abi, 'setActive', ['hello', false]));
++  assert.match(await admission.refusal(request), /delisted/);
++
++  assert.equal(await reader.bookAddress('registry'), rig.addresses.registry.toLowerCase());
++  await assert.rejects(rig.write(rig.wc(KEYS.other), book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry5]));
++  assert.equal(await reader.bookAddress('registry'), rig.addresses.registry.toLowerCase(), 'an outsider cannot repoint the book');
++  await waitTx(await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry5]));
++  assert.equal(await reader.bookAddress('registry'), rig.addresses.registry5.toLowerCase(), 'the admin migration is followed');
++  await waitTx(await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry]));
++});
++
++test('a failing or lying first proof source: the second, correct source serves; the first is charged, never trusted', T, async () => {
++  assert.equal(await reader.bookAddress('deployments'), rig.addresses.ledger.toLowerCase());
++  await sleep(2500);                                                         // status.json refresh
++  const before = rt.status().witnesses.gateway.upstream;
++  const label = (p) => Object.keys(before).find((k) => p.url.startsWith(k));
++  for (const mode of ['down', 'tamper']) {
++    await changeState();                                                     // new state: its witnesses come from the sources
++    proxies[0].st.mode = mode;
++    try {
++      assert.equal(await reader.bookAddress('deployments'), rig.addresses.ledger.toLowerCase(), `first source ${mode}`);
++    } finally { proxies[0].st.mode = 'ok'; }
++  }
++  await sleep(2500);                                                         // status.json refresh
++  const after = rt.status().witnesses.gateway.upstream;
++  const a = after[label(proxies[0])], b = before[label(proxies[0])];
++  const diag = JSON.stringify({ before, after, p0: proxies[0].st.methods, p1: proxies[1].st.methods });
++  assert.ok(a.failed > b.failed, 'the down source was charged ' + diag);
++  assert.ok(a.invalid > b.invalid, 'the lying source was caught by proof verification ' + diag);
++  assert.ok(after[label(proxies[1])].ok > before[label(proxies[1])].ok, 'the correct source answered');
++});
++
++test('bad or missing proofs from every source refuse fresh reads; the last verified lease stands; no provider agreement replaces a proof', T, async () => {
++  const [lease] = await reader.refresh([leaseId]);
++  const before = reader.cache.get(leaseId);
++  for (const mode of ['tamper', 'down']) {
++    await changeState();
++    for (const p of proxies) p.st.mode = mode;
++    try {
++      let got = null;
++      try { got = await reader.refresh([leaseId]); } catch (e) { got = e; }
++      assert.ok(got instanceof Error && /no fresh verified chain state/.test(got.message),
++        `${mode}: ${JSON.stringify({ got: got instanceof Error ? got.message : 'answered', evidence: reader.lastEvidence, methods: proxies.map((p) => p.st.methods), tampered: proxies.map((p) => p.st.tampered) })}`);
++      assert.equal(reader.cache.get(leaseId)?.blockHash, before.blockHash, 'the last verified record stands, unchanged');
++      assert.equal(reader.get('0x' + '77'.repeat(32)), null, 'never verified, never admitted');
++    } finally { for (const p of proxies) p.st.mode = 'ok'; }
++  }
++  assert.ok((await reader.refresh([leaseId]))[0], 'recovers once a source is honest again');
++});
++
++test('missed heads: a block the gossip source never delivered is bound by authenticated ancestry, never trusted from a source', T, async () => {
++  const s0 = rt.status();
++  rt.setControl({ deliverEvery: 3 });                    // two of every three heads never reach the runtime
++  try {
++    const start = await heliosHead(rt);
++    await untilHelios(rt, start + 7n, 120000);
++    await until(async () => (await heliosHead(rt)) % 3n === 0n, 30000, 'a delivered head');
++    const n = (await heliosHead(rt)) - 1n;               // never delivered (n % 3 == 2)
++    const blk = await rig.rpcCall('eth_getBlockByNumber', [toHex(n), false]);
++    // the runtime's own gateway (what Helios reads): a pinned witness at a never-delivered block
++    proxies[0].st.mode = 'tamper';                       // the first source lies about the proof; the second is honest
++    const proof = await rpc(s0.internal.gatewayUrl, 'eth_getProof', [book, [], { blockHash: blk.hash }]);
++    const real = await rig.rpcCall('eth_getProof', [book, [], toHex(n)]);
++    assert.equal(proof.codeHash, real.codeHash);
++    assert.deepEqual(proof.accountProof, real.accountProof, 'the verified witness, exactly');
++    proxies[0].st.mode = 'ok';
++    await sleep(2500);
++    const s1 = rt.status();
++    assert.ok(s1.roots.ancestor > s0.roots.ancestor, 'its state root came from authenticated ancestry (recomputed header hash = a bound child\'s parent)');
++    assert.ok(s1.fanout.offered > s0.fanout.offered && s1.fanout.rootsBound === s1.fanout.offered, 'every delivered head was bound before the relay saw it');
++    // the verifier itself, asked for a never-delivered block: Helios proves that block's hash through the EIP-2935
++    // history contract at its latest verified head (on Base since Isthmus; on this test chain via the derived genesis
++    // test/fixtures/reth-dev-8453-genesis-2935.json - without it this path can only refuse)
++    const r = new LeaseReader({ authority: 'verifier', verifier: rt.url, addressBook: book, confirmations: 1, maxBlockAgeMs: 60000, deadlineMs: 30000 });
++    assert.equal(await r.bookAddress('deployments'), rig.addresses.ledger.toLowerCase());
++    console.log('GAP-READ', JSON.stringify({ block: r.lastEvidence.blockNumber, delivered: BigInt(r.lastEvidence.blockNumber) % 3n === 0n }));
++  } finally { proxies[0].st.mode = 'ok'; rt.setControl({}); }
++});
++
++test('a stale head refuses fresh authority, the runtime reports degraded, and it recovers when heads return', T, async () => {
++  const strict = new LeaseReader({ authority: 'verifier', verifier: rt.url, addressBook: book, confirmations: 1, maxBlockAgeMs: 15000, deadlineMs: 20000 });
++  assert.equal(await strict.bookAddress('deployments'), rig.addresses.ledger.toLowerCase());
++  rt.setControl({ frozen: true });
++  try {
++    await sleep(20000);                                   // reth keeps mining; the runtime sees no head
++    await assert.rejects(strict.bookAddress('deployments'), /stale chain block/);
++    await until(() => rt.status()?.phase === 'degraded' || rt.status()?.head.fresh === false, 70000, 'degraded status');
++  } finally { rt.setControl({}); }
++  await until(() => rt.status()?.phase === 'ready', 60000, 'ready again');
++  const again = new LeaseReader({ authority: 'verifier', verifier: rt.url, addressBook: book, confirmations: 1, maxBlockAgeMs: 15000, deadlineMs: 20000 });
++  assert.equal(await again.bookAddress('deployments'), rig.addresses.ledger.toLowerCase());
++});
++
++test('whole-operation deadline through the composed runtime: a never-settling callback and a stopped verifier are both bounded', T, async () => {
++  const quick = new LeaseReader({ authority: 'verifier', verifier: rt.url, addressBook: book, confirmations: 1, maxBlockAgeMs: 60000, deadlineMs: 1500 });
++  let t0 = Date.now();
++  await assert.rejects(quick.agreed(() => new Promise(() => {})), /deadline/);
++  assert.ok(Date.now() - t0 < 4000, `bounded (${Date.now() - t0} ms)`);
++  const h = rt.children().find((c) => c.role === 'helios');
++  process.kill(h.pid, 'SIGSTOP');
++  try {
++    t0 = Date.now();
++    await assert.rejects(quick.bookAddress('deployments'), /no fresh verified chain state/);
++    assert.ok(Date.now() - t0 < 4000, `a hung verifier is bounded (${Date.now() - t0} ms)`);
++  } finally { process.kill(h.pid, 'SIGCONT'); }
++  assert.equal(await reader.bookAddress('deployments'), rig.addresses.ledger.toLowerCase(), 'serves again once the verifier answers');
++});
++
++test('crash: a SIGKILLed runtime leaves Helios orphaned; the next start reaps it and is ready on the same port', T, async () => {
++  const old = rt.children();
++  const h = old.find((c) => c.role === 'helios'), l = old.find((c) => c.role === 'listener');
++  process.kill(rt.child.pid, 'SIGKILL');
++  await rt.exited;
++  assert.ok(alive(h.pid), 'Helios survived its parent (own process group): an orphan the next start must reap');
++  assert.ok(fs.existsSync(path.join(rt.stateDir, 'runtime.lock')), 'the crashed run left its lock (taken over: its owner is gone)');
++  rt = relaunchSame(rt);                                 // the same config and stateDir, a new process
++  await rt.event('ready', 180000);
++  assert.equal(alive(h.pid), false, 'the orphaned Helios was reaped');
++  if (l) assert.equal(alive(l.pid), false, 'the orphaned listener is gone');
++  assert.ok(rt.status().reaped.recorded + rt.status().reaped.staged >= 1);
++  assert.equal(stagedPids(rt.stateDir).filter((p) => p === h.pid).length, 0);
++  assert.equal(Number(await rpc(rt.url, 'eth_chainId')), 8453);
++});
++
++function relaunchSame(prev) {
++  const dir = path.dirname(prev.stateDir), cfgFile = path.join(dir, 'rpc-runtime.json'), controlFile = path.join(dir, 'control.json');
++  fs.writeFileSync(controlFile, '{}');
++  const child = spawn(process.execPath, [LAUNCHER, cfgFile], { detached: true, stdio: ['ignore', 'pipe', 'pipe'],
++    env: { PATH: process.env.PATH, LAUNCH_LISTENER_SHA256: sha(STANDIN),
++      LAUNCH_LISTENER_ENV: JSON.stringify({ REAL_LISTENER: bin('enclave-base-head-listener'), FIXTURES_DIR: path.join(HERE, 'fixtures'), RIG_RPC: rig.rpc, FEED_CONTROL: controlFile }) } });
++  const events = []; let buf = '', err = '';
++  child.stdout.setEncoding('utf8');
++  child.stdout.on('data', (d) => { buf += d; for (let i; (i = buf.indexOf('\n')) >= 0;) { const x = buf.slice(0, i); buf = buf.slice(i + 1); try { events.push(JSON.parse(x)); } catch {} } });
++  child.stderr.on('data', (d) => { err = (err + d).slice(-4000); });
++  const exited = new Promise((r) => child.once('exit', (code, sig) => r({ code, sig })));
++  return { ...prev, child, events, exited, stderr: () => err,
++    event: (e, ms) => until(() => events.some((x) => x.event === e), ms, `relaunch: event ${e} (events ${JSON.stringify(events.map((x) => x.event))}, stderr ${err.slice(-500)})`) };
++}
++
++test('shutdown: SIGTERM stops everything in order; no child, port, lock or state file is left', T, async () => {
++  const kids = rt.children();
++  assert.ok(kids.length >= 2);
++  process.kill(rt.child.pid, 'SIGTERM');
++  const { code } = await rt.exited;
++  assert.equal(code, 0);
++  assert.ok(rt.events.some((e) => e.event === 'stopped'));
++  for (const k of kids) assert.equal(alive(k.pid), false, `${k.role} reaped`);
++  assert.deepEqual(stagedPids(rt.stateDir), []);
++  assert.equal(listening(rt.port), false, 'the verifier port is released');
++  for (const f of ['runtime.lock', 'ready.json', 'status.json', 'children.json']) assert.equal(fs.existsSync(path.join(rt.stateDir, f)), false, f);
++  assert.deepEqual(fs.readdirSync(path.join(rt.stateDir, 'runs')), [], 'the run directory is removed');
++  assert.deepEqual(fs.readdirSync(path.join(rt.stateDir, 'gossip', 'sessions')), [], 'listener sessions are removed');
++});
++
++test('a failed startup cleans up: no fresh head in time, and a verifier port taken by another process', T, async () => {
++  const a = launch('no-head', { port: await freePort(), control: { frozen: true }, limits: { firstHeadTimeoutMs: 5000, heliosReadyTimeoutMs: 60000 } });
++  assert.equal((await a.exited).code, 1);
++  assert.ok(a.events.some((e) => e.event === 'startup-failed' && /no fresh verified head/.test(e.reason)), JSON.stringify(a.events));
++  await sleep(500);
++  assert.deepEqual(stagedPids(a.stateDir), []);
++  assert.equal(fs.existsSync(path.join(a.stateDir, 'runtime.lock')), false);
++  assert.deepEqual(fs.readdirSync(path.join(a.stateDir, 'runs')), []);
++  assert.equal(listening(a.port), false);
++
++  const squat = net.createServer(); const port = await freePort();
++  await new Promise((r) => squat.listen(port, '127.0.0.1', r));
++  try {
++    const b = launch('port-taken', { port });
++    assert.equal((await b.exited).code, 1);
++    assert.ok(b.events.some((e) => e.event === 'startup-failed' && /already in use|held by another process/.test(e.reason)), JSON.stringify(b.events));
++    await sleep(500);
++    assert.deepEqual(stagedPids(b.stateDir), [], 'no Helios or listener left behind');
++    assert.equal(fs.existsSync(path.join(b.stateDir, 'runtime.lock')), false);
++  } finally { squat.close(); }
++});
+diff --git a/test/rpc-runtime.test.mjs b/test/rpc-runtime.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..cd1254eaf5e881e84307fad03389536b982ba99c
+--- /dev/null
++++ b/test/rpc-runtime.test.mjs
+@@ -0,0 +1,127 @@
++// network/rpc-runtime.mjs without any chain: strict config validation (pins, loopback, untrusted sources, no secrets,
++// optional history-only cache), refusals at startup that must leave nothing behind (missing or wrong binary, a held
++// stateDir), and the head fan-out order (root store first, relay second). Offline.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { createHash } from 'node:crypto';
++import { validateRuntimeConfig, startRpcRuntime, createHeadFanout, PINNED_BUILDS, CONFIG_FORMAT, LABELS } from '../network/rpc-runtime.mjs';
++import { procIdentity } from '../network/gossip-head-source.mjs';
++
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 'rpc-runtime-unit-'));
++test.after(() => fs.rmSync(TMP, { recursive: true, force: true }));
++const first = (role) => Object.keys(PINNED_BUILDS[role])[0];
++const SIGNER = '0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a';
++const base = (over = {}) => ({
++  format: CONFIG_FORMAT, chain: { chainId: 8453, unsafeSigner: SIGNER },
++  binaries: { listener: { path: '/opt/enclave/bin/enclave-base-head-listener', sha256: first('listener') },
++    helios: { path: '/opt/enclave/bin/helios', sha256: first('helios') }, witnessCheck: { path: '/opt/enclave/bin/witness-check', sha256: first('witnessCheck') } },
++  proofSources: { untrusted: ['https://base-a.example/', 'https://base-b.example/'] }, verifier: { port: 8545 }, stateDir: '/var/lib/enclave/rpc-runtime', ...over });
++const bad = (over, re) => assert.throws(() => validateRuntimeConfig(base(over)), re);
++
++test('a valid config normalizes with explicit defaults: loopback bind, no access-list hint, bounded gossip, no cache', () => {
++  const c = validateRuntimeConfig(base());
++  assert.equal(c.verifier.bind, '127.0.0.1');
++  assert.equal(c.proofSources.accessListHint, false);
++  assert.deepEqual({ ...c.gossip }, { maxPeers: 20, discovery: 'bounded', sessionSecs: 3600, restartIfNoHeadMs: 120000 });
++  assert.equal(c.witnessCache, null);
++  assert.equal(c.chain.unsafeSigner, SIGNER);
++  assert.match(c.binaries.helios.build, /enclave-base-evm/);
++  assert.match(LABELS.independence, /NOT provider-independent/);
++  assert.match(LABELS.head, /UNSAFE/);
++});
++
++test('pins: chain, signer, format and only tested binary builds', () => {
++  bad({ format: 'enclave-rpc-runtime/v0' }, /format/);
++  bad({ chain: { chainId: 84532, unsafeSigner: SIGNER } }, /chainId must be 8453/);
++  bad({ chain: { chainId: 8453, unsafeSigner: '0x' + '0'.repeat(40) } }, /unsafeSigner/);
++  bad({ chain: { chainId: 8453 } }, /unsafeSigner is required/);
++  const b = base().binaries;
++  bad({ binaries: { ...b, helios: { ...b.helios, sha256: 'ab'.repeat(32) } } }, /not a tested build/);
++  bad({ binaries: { ...b, helios: { ...b.helios, sha256: b.listener.sha256 } } }, /not a tested build/);   // a listener digest is not a Helios build
++  bad({ binaries: { listener: b.listener, helios: b.helios } }, /witnessCheck is required/);
++  bad({ binaries: { ...b, witnessCheck: { ...b.witnessCheck, path: 'bin/witness-check' } } }, /absolute path/);
++  // a caller (never the file) may widen the table, e.g. for a test stand-in
++  const extra = { ...PINNED_BUILDS, helios: { ...PINNED_BUILDS.helios, ['ab'.repeat(32)]: 'test' } };
++  assert.equal(validateRuntimeConfig(base({ binaries: { ...b, helios: { ...b.helios, sha256: 'ab'.repeat(32) } } }), { acceptedBuilds: extra }).binaries.helios.build, 'test');
++});
++
++test('untrusted proof sources: explicit, bounded, distinct, no credentials, never plain http off-host, never the verifier itself', () => {
++  bad({ proofSources: { untrusted: [] } }, /1 to 16/);
++  bad({ proofSources: {} }, /untrusted is required/);
++  bad({ proofSources: { untrusted: Array.from({ length: 17 }, (_, i) => `https://s${i}.example/`) } }, /1 to 16/);
++  bad({ proofSources: { untrusted: ['http://base.example/'] } }, /untrusted\[0\]/);
++  bad({ proofSources: { untrusted: ['https://user:pw@base.example/'] } }, /untrusted\[0\]/);
++  bad({ proofSources: { untrusted: ['https://base.example/?apikey=1'] } }, /query string/);
++  bad({ proofSources: { untrusted: ['https://a.example/', 'https://a.example/'] } }, /repeats/);
++  bad({ proofSources: { untrusted: ['http://127.0.0.1:8545/'] } }, /verifier's own port/);
++  bad({ proofSources: { untrusted: ['https://a.example/'], accessListHint: 'yes' } }, /boolean/);
++  assert.equal(validateRuntimeConfig(base({ proofSources: { untrusted: ['http://127.0.0.1:9545/'] } })).proofSources.untrusted[0], 'http://127.0.0.1:9545/', 'a local proof source is allowed (still untrusted)');
++});
++
++test('no secrets, no unknown fields, no public bind, bounded limits', () => {
++  bad({ apiKey: 'x' }, /unknown field "apiKey" \(this config holds no secret\)/);
++  bad({ proofSources: { untrusted: ['https://a.example/'], authToken: 'x' } }, /holds no secret/);
++  bad({ verifier: { port: 8545, bind: '0.0.0.0' } }, /unknown field "bind"/);
++  bad({ verifier: { port: 0 } }, /verifier.port/);
++  bad({ gossip: { maxPeers: 51 } }, /maxPeers/);
++  bad({ gossip: { discovery: 'crawl' } }, /discovery/);
++  bad({ limits: { firstHeadTimeoutMs: 1 } }, /firstHeadTimeoutMs/);
++  bad({ stateDir: 'state' }, /stateDir must be an absolute path/);
++});
++
++test('the witness cache is optional, local, outside stateDir; other caches are not part of this composition', () => {
++  assert.deepEqual({ ...validateRuntimeConfig(base({ witnessCache: { kind: 'dir', path: '/var/cache/enclave/witness' } })).witnessCache }, { kind: 'dir', path: '/var/cache/enclave/witness' });
++  assert.equal(validateRuntimeConfig(base({ witnessCache: null })).witnessCache, null, 'explicit rollback: null = no cache');
++  bad({ witnessCache: { kind: 's3', path: '/x' } }, /must be "dir"/);
++  bad({ witnessCache: { kind: 'dir', path: '/var/lib/enclave/rpc-runtime/cache' } }, /outside stateDir/);
++});
++
++function stateFiles(dir) { return fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f !== 'runs' && f !== 'gossip') : []; }
++test('startup refusals leave nothing behind: a missing binary, a binary that is not the pinned build, a held stateDir', async () => {
++  const stateDir = path.join(TMP, 's1');
++  await assert.rejects(startRpcRuntime(base({ stateDir })), /binaries\.listener: .* cannot be read/);
++  assert.deepEqual(stateFiles(stateDir), [], 'no lock or state file');
++  assert.deepEqual(fs.readdirSync(path.join(stateDir, 'runs')), [], 'no run directory');
++
++  const fake = path.join(TMP, 'not-the-listener'); fs.writeFileSync(fake, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
++  const pin = 'cd'.repeat(32);
++  const accepted = { ...PINNED_BUILDS, listener: { [pin]: 'pretend pin' } };
++  const b = base().binaries;
++  await assert.rejects(startRpcRuntime(base({ stateDir, binaries: { ...b, listener: { path: fake, sha256: pin } } }), { acceptedBuilds: accepted }),
++    new RegExp(`has sha256 ${createHash('sha256').update(fs.readFileSync(fake)).digest('hex')}, not the pinned ${pin}`));
++  assert.deepEqual(stateFiles(stateDir), []);
++  assert.deepEqual(fs.readdirSync(path.join(stateDir, 'runs')), []);
++
++  const me = procIdentity(process.pid);
++  fs.writeFileSync(path.join(stateDir, 'runtime.lock'), JSON.stringify({ pid: process.pid, startTime: me.startTime }) + '\n');
++  await assert.rejects(startRpcRuntime(base({ stateDir })), /in use by a running runtime/);
++  assert.ok(fs.existsSync(path.join(stateDir, 'runtime.lock')), 'a live owner\'s lock is never removed');
++  fs.writeFileSync(path.join(stateDir, 'runtime.lock'), JSON.stringify({ pid: process.pid, startTime: '1' }) + '\n');   // recycled pid
++  await assert.rejects(startRpcRuntime(base({ stateDir })), /cannot be read/, 'a stale lock is taken over (then the missing binary refuses)');
++  assert.deepEqual(stateFiles(stateDir), []);
++  await assert.rejects(startRpcRuntime(base({ stateDir }), { signal: AbortSignal.abort() }), /stopped before start/);
++});
++
++test('head fan-out: the root store binds first, then the relay; a refused root drops the head; relay refusals are counted', async () => {
++  const order = [];
++  let bind = true, accept = { accepted: true };
++  const roots = { offer: async () => { order.push('roots'); return bind ? { blockHash: '0x' } : null; } };
++  const relay = { offer: async () => { order.push('relay'); return accept; } };
++  let firstHead = 0;
++  const f = createHeadFanout({ roots, relay, onFirstHead: () => { firstHead++; } });
++  await f.onCommitment({}, { number: 1 });
++  assert.deepEqual(order, ['roots', 'relay']);
++  assert.equal(firstHead, 1);
++  bind = false;
++  await assert.rejects(f.onCommitment({}, { number: 2 }), /root store refused/);
++  assert.deepEqual(order, ['roots', 'relay', 'roots'], 'the relay never sees a head whose root was not bound');
++  bind = true; accept = { accepted: false, reason: 'stale or future block' };
++  await f.onCommitment({}, { number: 3 });
++  assert.equal(f.counters.relayRefused['stale or future block'], 1);
++  await f.onCommitment({}, { number: 4 });
++  assert.equal(firstHead, 1, 'the first-head signal fires once');
++  assert.deepEqual({ offered: f.counters.offered, rootsBound: f.counters.rootsBound, rootsRefused: f.counters.rootsRefused, relayAccepted: f.counters.relayAccepted }, { offered: 4, rootsBound: 3, rootsRefused: 1, relayAccepted: 1 });
++});

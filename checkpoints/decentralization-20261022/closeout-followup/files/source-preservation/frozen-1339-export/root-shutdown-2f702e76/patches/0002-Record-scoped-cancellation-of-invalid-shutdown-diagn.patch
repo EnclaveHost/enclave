@@ -1,0 +1,40 @@
+From 904ad2676ca774bfabf9530c4e8cf92316a6ed5e Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 06:03:53 -0700
+Subject: [PATCH 2/3] Record scoped cancellation of invalid shutdown diagnostic
+ batch
+
+---
+ c2-cancellation.json      | 14 ++++++++++++++
+ stop-invalid-c2.guard.log |  1 +
+ 2 files changed, 15 insertions(+)
+ create mode 100644 c2-cancellation.json
+ create mode 100644 stop-invalid-c2.guard.log
+
+diff --git a/c2-cancellation.json b/c2-cancellation.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..f57b77d32976773281e256d7a5a209a5f9c44a01
+--- /dev/null
++++ b/c2-cancellation.json
+@@ -0,0 +1,14 @@
++{
++  "at": "2026-10-23T13:03:53.443685+00:00",
++  "finding": "Diagnostic helper inserted into PRELOAD string after regex /i. and before test(...) causes child SyntaxError before daemon startup. Both candidate and baseline diagnostic copies affected.",
++  "proofFile": "work/public-rpc-host-role/tmp/c2-repo-1.log",
++  "proofSha256": "691f3c2b9ce8194cdf1838cf8bda059a48b24e7d504f0c0be9e20afc32c75d7b",
++  "action": {
++    "stopped": "only queue c2 batch PID3803820 using pidfd identity validation and SIGTERM cleanup",
++    "queueExit": 143,
++    "claudeSession": 65951,
++    "claudeStatus": "verified live after cancellation"
++  },
++  "handoff": "work/public-rpc-host-role/ROOT-C2-HARNESS-FAILURE.txt",
++  "productionChanged": false
++}
+diff --git a/stop-invalid-c2.guard.log b/stop-invalid-c2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/stop-invalid-c2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a

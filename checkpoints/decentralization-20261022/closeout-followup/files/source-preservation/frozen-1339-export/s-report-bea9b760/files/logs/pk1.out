@@ -1,0 +1,14 @@
+[queue] START available=25490MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+HEAD 14d1e4954cf7c9900d5d3e841a23f02de945c1b2
+directory-replica: bundle 716759 bytes sha256:45dc23218fd88a4e…, manifest sha256:e9cff3283064bcf2bb765a4c741af384eed2adc14a30bff959c58df8032be2d8, 1218 inputs
+bootstrap-replica: bundle 5033 bytes sha256:1e45e75f1f4a7d2b…, manifest sha256:7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc, 1 inputs
+route-dns: bundle 4861076 bytes sha256:06293c9331a2e76c…, manifest sha256:e265478277853d4c3e9fc09337b7b366f4a332cbda31e8b5b10ce674f3970d9c, 1218 inputs
+policy-mirror: bundle 647387 bytes sha256:74878623094a0d26…, manifest sha256:2b5a85468d720d4904f282bc6ff84bcf9ff33e46738172cc32d444ae6e4bacbe, 432 inputs
+credit-vault-submitter: bundle 1294743 bytes sha256:2a4de6d5b166c25a…, manifest sha256:a22cd7a8fc6f7d85fea6edbd7f8e9deb36dc1b55507e3bb396e9bc6a368eb0e6, 1322 inputs
+public-rpc: bundle 25049 bytes sha256:37d17dfb4f0d25b4…, manifest sha256:d99e70677fc52bfaad853995e0a40d2b7d454ed6006c27f8bc39e000767310b7, 2 inputs
+npm inputs locked by: package-lock.json sha256:9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20, relay/package-lock.json sha256:e5d896baf563d6cc1662000fb87b56f9673c87c502b4cb8ea43836b1687f0b56
+== package files changed vs HEAD:
+?? network/host-services/packages/
+[memory-guard] exit=0 peakTreeRssMiB=390 minHostAvailableMiB=25231
+[memory-guard] at peak: esbuild:216 node:105 node:59 bash:6 timeout:4
+[queue] EXIT 0

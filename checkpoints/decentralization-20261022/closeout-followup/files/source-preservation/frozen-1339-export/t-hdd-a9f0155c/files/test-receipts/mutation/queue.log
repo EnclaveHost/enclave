@@ -1,0 +1,14 @@
+[queue] NOT STARTED: test allocation held
+[queue] NOT STARTED: test allocation held
+[queue] NOT STARTED: test allocation held
+[queue] NOT STARTED: test allocation held
+[queue] NOT STARTED: test allocation held
+[queue] NOT STARTED: test allocation held
+[queue] NOT STARTED: test allocation held
+[queue] NOT STARTED: test allocation held
+[queue] NOT STARTED: test allocation held
+[queue] NOT STARTED: test allocation held
+[queue] START available=25043MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[memory-guard] exit=0 peakTreeRssMiB=393 minHostAvailableMiB=24286
+[memory-guard] at peak: qemu-system-x86:300 python3:22 python3:19 python3:16 qemu-nbd:11 bash:6 mutate-1.sh:6 bash:6
+[queue] EXIT 0

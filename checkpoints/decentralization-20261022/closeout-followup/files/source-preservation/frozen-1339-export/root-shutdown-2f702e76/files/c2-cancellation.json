@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-23T13:03:53.443685+00:00",
+  "finding": "Diagnostic helper inserted into PRELOAD string after regex /i. and before test(...) causes child SyntaxError before daemon startup. Both candidate and baseline diagnostic copies affected.",
+  "proofFile": "work/public-rpc-host-role/tmp/c2-repo-1.log",
+  "proofSha256": "691f3c2b9ce8194cdf1838cf8bda059a48b24e7d504f0c0be9e20afc32c75d7b",
+  "action": {
+    "stopped": "only queue c2 batch PID3803820 using pidfd identity validation and SIGTERM cleanup",
+    "queueExit": 143,
+    "claudeSession": 65951,
+    "claudeStatus": "verified live after cancellation"
+  },
+  "handoff": "work/public-rpc-host-role/ROOT-C2-HARNESS-FAILURE.txt",
+  "productionChanged": false
+}

@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-23T12:02:47.937438+00:00",
+  "source_commit": "6ab298f196d93b60499178275acf025f5b8658af",
+  "source_sha256": "268c8a39180aa2171b09d6739dd8f3ccbafe0e8aa81acf44cb995be78fc98e7e",
+  "finding": "Documentation says no retry after unknown outcome; actual code retries identical signed bytes at next profile endpoint. Idempotent propagation is valid; semantics and unknown-outcome messaging need alignment.",
+  "evidence": "Source inspection, existing real transaction test definition; no new runtime test or production action.",
+  "owner_handoff": "work/rpc-wallet-dependency-20261023/ROOT-BROADCAST-RETRY-REVIEW.txt",
+  "status": "Pending active E worker acknowledgement; no source mutation by root."
+}

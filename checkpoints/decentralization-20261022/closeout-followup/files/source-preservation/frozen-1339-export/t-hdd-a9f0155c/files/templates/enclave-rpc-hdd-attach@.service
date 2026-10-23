@@ -1,0 +1,26 @@
+# NucBox Linux VM. Template, NOT installed by this repository. Instance: l1 | base.
+# Config: /etc/enclave-rpc-hdd/attach-%i.json (filesystem.uuid filled in after the one explicit first-format).
+# Consumers (P's/B's node units) add:
+#   BindsTo=enclave-rpc-hdd-attach@<role>.service
+#   After=enclave-rpc-hdd-attach@<role>.service
+#   RequiresMountsFor=/srv/rpc-hdd/<role>
+#   ExecStartPre=/usr/bin/python3 -I /opt/enclave-rpc-hdd/transport/hddattach.py verify-mounted /etc/enclave-rpc-hdd/attach-<role>.json
+# None of the systemd behaviour in this file was exercised by the integration test; it is untested.
+[Unit]
+Description=Enclave RPC durable-HDD attach (%i): kernel NBD over mutual TLS
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Root: nbd needs CAP_SYS_ADMIN, and the module is loaded explicitly here, never by the tool.
+ExecStartPre=/usr/sbin/modprobe nbd nbds_max=4
+ExecStart=/usr/bin/python3 -I /opt/enclave-rpc-hdd/transport/hddattach.py attach /etc/enclave-rpc-hdd/attach-%i.json
+ExecStart=/usr/bin/python3 -I /opt/enclave-rpc-hdd/transport/hddattach.py mount /etc/enclave-rpc-hdd/attach-%i.json
+ExecStop=/usr/bin/python3 -I /opt/enclave-rpc-hdd/transport/hddattach.py detach /etc/enclave-rpc-hdd/attach-%i.json
+TimeoutStartSec=180
+TimeoutStopSec=300
+
+[Install]
+WantedBy=multi-user.target

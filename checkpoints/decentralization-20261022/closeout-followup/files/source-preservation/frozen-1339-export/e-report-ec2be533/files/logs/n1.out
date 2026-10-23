@@ -1,0 +1,250 @@
+[queue] START available=25222MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+HEAD 349318a0600917bad8f391ad628fa0c7f134b3f6
+ M site/js/core/account-providers.js
+ M site/js/core/account-transport.js
+ M site/js/core/chain.js
+ M site/js/core/passkey-account.js
+ M site/js/core/wallet.js
+?? site/js/core/profile-broadcast.js
+?? test/site-account-bundler-route.test.mjs
+?? test/site-wallet-profile-broadcast.test.mjs
+268c8a39180aa2171b09d6739dd8f3ccbafe0e8aa81acf44cb995be78fc98e7e  site/js/core/profile-broadcast.js
+d0e7482ac37703d45bf7c0ac3bcf9c3db51cab1806553e90d9ed2a01ddc4e835  site/js/core/wallet.js
+adc2bea3effe5e0b984e60683d74ebc1e7bdf0a110d55183daae1a4c30a24dee  site/js/core/chain.js
+f5a4f6a8930a705ea2366fe8c342b6cefacc0902de42e986200132196c2f8d27  site/js/core/passkey-account.js
+4e73e0a6cbb1fcc4c824d31f498ae267d05c413aa53e12d3ac28fd47caae4007  site/js/core/account-providers.js
+e632ace653e5e787bc871cb0eb4a1e61805fd9522d2fe183e3b49d3e3da2650f  site/js/core/account-transport.js
+2370eef0b6ce2963df480db699c5e8ca7fd9d78c44852be5b5dcb47e59c342c8  test/site-wallet-profile-broadcast.test.mjs
+ef193b9ecbc19bf406fb2368f4ee4aa7c0927c3f98122e29947678da47c107c2  test/site-account-bundler-route.test.mjs
+26af82aae6b7afa66e83b4d451c1cdf44c2a152de7a52484eb46fe3483ba074f  test/walletconnect-independent-rpc.test.mjs
+e2ea013387812fa299a3187d6b034849d7ca02ad438698d0588dec9cd7d108c4  test/site-independent-passkey-account.test.mjs
+99e11e9556c8e2f73a18e6104629aaf4afa1f709c53e451ad08cd8c89db88d0c  test/site-independent-account-transport.test.mjs
+TAP version 13
+# Subtest: the owner's bundlers, in order: a refusal moves to the next; the outcome is the (fixture) EntryPoint event; nothing else is contacted
+not ok 1 - the owner's bundlers, in order: a refusal moves to the next; the outcome is the (fixture) EntryPoint event; nothing else is contacted
+  ---
+  duration_ms: 8.982146
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/test/site-account-bundler-route.test.mjs:94:1'
+  failureType: 'testCodeFailure'
+  error: 'bundler endpoints must be on distinct hosts'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    validateAccountTransport (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/site/js/core/account-providers.js:241:51)
+    Object.validateAccountProfile (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/site/js/core/passkey-account.js:182:29)
+    Module.sendAsAccount (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/site/js/core/account-transport.js:211:6)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/test/site-account-bundler-route.test.mjs:97:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: every bundler refusing: refused, nothing pending, each asked once; an unreachable bundler first: outcome unknown, kept pending, not resent
+not ok 2 - every bundler refusing: refused, nothing pending, each asked once; an unreachable bundler first: outcome unknown, kept pending, not resent
+  ---
+  duration_ms: 2.816337
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/test/site-account-bundler-route.test.mjs:107:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: bundler endpoints must be on distinct hosts
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/test/site-account-bundler-route.test.mjs:110:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: no transport, no account route: no default bundler exists, and the wallet route is the only choice
+not ok 3 - no transport, no account route: no default bundler exists, and the wallet route is the only choice
+  ---
+  duration_ms: 0.497996
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/test/site-account-bundler-route.test.mjs:123:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    null !== 'wallet'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'wallet'
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/test/site-account-bundler-route.test.mjs:125:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: capabilities name what Enclave runs when the owner chose it, instead of claiming independence
+ok 4 - capabilities name what Enclave runs when the owner chose it, instead of claiming independence
+  ---
+  duration_ms: 0.560765
+  type: 'test'
+  ...
+# Subtest: the owner chooses who pays: no silent default with a transport
+ok 5 - the owner chooses who pays: no silent default with a transport
+  ---
+  duration_ms: 3.103434
+  type: 'test'
+  ...
+# Subtest: an owner-chosen paymaster (ERC-7677): only that paymaster, its deposit must cover the gas, and its data is part of what the passkeys sign
+ok 6 - an owner-chosen paymaster (ERC-7677): only that paymaster, its deposit must cover the gas, and its data is part of what the passkeys sign
+  ---
+  duration_ms: 8.404031
+  type: 'test'
+  ...
+# Subtest: gas is not free: an account without enough ETH is refused before anything is signed, with the amount
+ok 7 - gas is not free: an account without enough ETH is refused before anything is signed, with the amount
+  ---
+  duration_ms: 1.811786
+  type: 'test'
+  ...
+# Subtest: the call and the signed operation are simulated first; either refusal stops everything
+ok 8 - the call and the signed operation are simulated first; either refusal stops everything
+  ---
+  duration_ms: 1.362249
+  type: 'test'
+  ...
+# Subtest: the outcome is the EntryPoint's own event: success, and a failed call reported as included-and-failed
+ok 9 - the outcome is the EntryPoint's own event: success, and a failed call reported as included-and-failed
+  ---
+  duration_ms: 2.33398
+  type: 'test'
+  ...
+# Subtest: an unknown outcome stays pending, blocks new operations without signing, and is never resent
+ok 10 - an unknown outcome stays pending, blocks new operations without signing, and is never resent
+  ---
+  duration_ms: 2.352421
+  type: 'test'
+  ...
+# Subtest: delivery: every bundler refusing means nothing is pending; an unreachable bundler is an unknown outcome
+ok 11 - delivery: every bundler refusing means nothing is pending; an unreachable bundler is an unknown outcome
+  ---
+  duration_ms: 1.690686
+  type: 'test'
+  ...
+# Subtest: creation: only with deploy, and only when the description creates exactly this address
+ok 12 - creation: only with deploy, and only when the description creates exactly this address
+  ---
+  duration_ms: 1.25584
+  type: 'test'
+  ...
+# Subtest: a bundler's call-gas estimate is never trusted alone: the account's own call, measured from the account, sets the floor
+ok 13 - a bundler's call-gas estimate is never trusted alone: the account's own call, measured from the account, sets the floor
+  ---
+  duration_ms: 1.665527
+  type: 'test'
+  ...
+# Subtest: the vendored aa.js is exactly a fresh build of the repository's viem/ox exports
+ok 14 - the vendored aa.js is exactly a fresh build of the repository's viem/ox exports
+  ---
+  duration_ms: 75.841915
+  type: 'test'
+  ...
+# Subtest: profile: exact fields, pinned verifiers only, distinct owners, threshold in range, a validated owner transport
+ok 15 - profile: exact fields, pinned verifiers only, distinct owners, threshold in range, a validated owner transport
+  ---
+  duration_ms: 2.061053
+  type: 'test'
+  ...
+# Subtest: capabilities say exactly what the owners can and cannot rely on - and never call one RP independence
+ok 16 - capabilities say exactly what the owners can and cannot rely on - and never call one RP independence
+  ---
+  duration_ms: 0.509936
+  type: 'test'
+  ...
+# Subtest: Safe signature bytes: ascending owners; contract signatures as {r: signer, s: offset, v: 0} + length || data; ECDSA verbatim
+ok 17 - Safe signature bytes: ascending owners; contract signatures as {r: signer, s: offset, v: 0} + length || data; ECDSA verbatim
+  ---
+  duration_ms: 0.449787
+  type: 'test'
+  ...
+# Subtest: the SafeMessage hash equals Safe v1.4.1's own construction from its literal constants (CompatibilityFallbackHandler)
+ok 18 - the SafeMessage hash equals Safe v1.4.1's own construction from its literal constants (CompatibilityFallbackHandler)
+  ---
+  duration_ms: 8.785828
+  type: 'test'
+  ...
+# Subtest: a passkey assertion becomes the signer's signature only if it is over exactly this challenge, with UP and UV
+ok 19 - a passkey assertion becomes the signer's signature only if it is over exactly this challenge, with UP and UV
+  ---
+  duration_ms: 1.524208
+  type: 'test'
+  ...
+# Subtest: user operations: only with the owner's transport; sent to the owner's bundlers in order, nothing else; paymaster fields split for v0.7
+ok 20 - user operations: only with the owner's transport; sent to the owner's bundlers in order, nothing else; paymaster fields split for v0.7
+  ---
+  duration_ms: 14.602309
+  type: 'test'
+  ...
+# Subtest: the account panel never submits silently: every prepared call is offered with a gas payer the owner picks, and a profile is saved only on an explicit click
+ok 21 - the account panel never submits silently: every prepared call is offered with a gas payer the owner picks, and a profile is saved only on an explicit click
+  ---
+  duration_ms: 0.463706
+  type: 'test'
+  ...
+# Subtest: the default route is unchanged: the wallet broadcasts through its own RPC (eth_sendTransaction)
+ok 22 - the default route is unchanged: the wallet broadcasts through its own RPC (eth_sendTransaction)
+  ---
+  duration_ms: 149.344719
+  type: 'test'
+  ...
+# Subtest: chosen profile route: the wallet only signs; a refusing origin, then the next origin broadcasts; the receipt comes through the profile
+ok 23 - chosen profile route: the wallet only signs; a refusing origin, then the next origin broadcasts; the receipt comes through the profile
+  ---
+  duration_ms: 63.828834
+  type: 'test'
+  ...
+# Subtest: a wallet that cannot sign without broadcasting is refused by name: nothing is signed, broadcast, or handed to its own RPC
+ok 24 - a wallet that cannot sign without broadcasting is refused by name: nothing is signed, broadcast, or handed to its own RPC
+  ---
+  duration_ms: 14.003264
+  type: 'test'
+  ...
+# Subtest: a signed transaction that is not exactly the request, or not from the connected address, is never broadcast
+ok 25 - a signed transaction that is not exactly the request, or not from the connected address, is never broadcast
+  ---
+  duration_ms: 35.792085
+  type: 'test'
+  ...
+# Subtest: every origin refusing: refused, sent nowhere else, the wallet never asked to broadcast; an origin that drops the reply: outcome unknown, and it did land
+ok 26 - every origin refusing: refused, sent nowhere else, the wallet never asked to broadcast; an origin that drops the reply: outcome unknown, and it did land
+  ---
+  duration_ms: 39.837412
+  type: 'test'
+  ...
+# Subtest: the strict decoder agrees with viem on real signed transactions and refuses malformed input
+ok 27 - the strict decoder agrees with viem on real signed transactions and refuses malformed input
+  ---
+  duration_ms: 7.814196
+  type: 'test'
+  ...
+# Subtest: WalletConnect RPC routing in the actual browser module
+ok 28 - WalletConnect RPC routing in the actual browser module
+  ---
+  duration_ms: 31.755898
+  type: 'test'
+  ...
+1..28
+# tests 28
+# suites 0
+# pass 25
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1294.462029
+[memory-guard] exit=1 peakTreeRssMiB=218 minHostAvailableMiB=25147
+[memory-guard] at peak: node:85 esbuild:68 node:61 timeout:4
+[queue] EXIT 1

@@ -1,0 +1,34 @@
+# Desktop (the host of the HDD array). Template, NOT installed by this repository.
+# Instance: l1 | base. Config: /etc/enclave-rpc-hdd/export-%i.json.
+# User: the uid the ntfs3 mount maps every file to (/mnt/usb is uid=1000), because the image must be owned by the service
+# user. A dedicated user needs a remount with its uid, which is an operator decision outside this tool.
+[Unit]
+Description=Enclave RPC durable-HDD export (%i) over mutual-TLS NBD
+RequiresMountsFor=/mnt/usb
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=@EXPORT_USER@
+# Every check runs before qemu-nbd is exec'd, so the main PID is qemu-nbd itself. A missing mount refuses with exit 2.
+ExecStart=/usr/bin/python3 -I /opt/enclave-rpc-hdd/transport/hddexport.py serve /etc/enclave-rpc-hdd/export-%i.json
+Restart=on-failure
+RestartSec=10
+KillMode=control-group
+TimeoutStopSec=30
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/mnt/usb/enclave-rpc /var/lib/enclave-rpc-hdd/%i
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=512M
+TasksMax=64
+LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target

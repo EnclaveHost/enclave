@@ -1,0 +1,98 @@
+[queue] START available=25286MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+HEAD 6ab298f196d93b60499178275acf025f5b8658af
+268c8a39180aa2171b09d6739dd8f3ccbafe0e8aa81acf44cb995be78fc98e7e  site/js/core/profile-broadcast.js
+d0e7482ac37703d45bf7c0ac3bcf9c3db51cab1806553e90d9ed2a01ddc4e835  site/js/core/wallet.js
+adc2bea3effe5e0b984e60683d74ebc1e7bdf0a110d55183daae1a4c30a24dee  site/js/core/chain.js
+f5a4f6a8930a705ea2366fe8c342b6cefacc0902de42e986200132196c2f8d27  site/js/core/passkey-account.js
+4e73e0a6cbb1fcc4c824d31f498ae267d05c413aa53e12d3ac28fd47caae4007  site/js/core/account-providers.js
+e632ace653e5e787bc871cb0eb4a1e61805fd9522d2fe183e3b49d3e3da2650f  site/js/core/account-transport.js
+394dc742b78a373995a61f59bb7d6ed7ff3b130752a6da315a8d064dda58f605  test/site-browser-rpc-closure.test.mjs
+8ee00cba5ba1617a2b2a3b7582905fdb779c1aa0afd7fc4ded3cfd12b8893409  test/site-browser-rpc-routes.test.mjs
+TAP version 13
+# Subtest: confirmed profile: every read, estimate and receipt uses only its RPCs; the wallet only broadcasts
+ok 1 - confirmed profile: every read, estimate and receipt uses only its RPCs; the wallet only broadcasts
+  ---
+  duration_ms: 204.898449
+  type: 'test'
+  ...
+# Subtest: one configured endpoint down: the reads fail over to the profile's other routes
+ok 2 - one configured endpoint down: the reads fail over to the profile's other routes
+  ---
+  duration_ms: 145.50747
+  type: 'test'
+  ...
+# Subtest: every configured endpoint down: refused by name, nothing sent, no hidden route
+ok 3 - every configured endpoint down: refused by name, nothing sent, no hidden route
+  ---
+  duration_ms: 7029.432037
+  type: 'test'
+  ...
+# Subtest: invalid profile: no origin and no wallet read, never a public default
+ok 4 - invalid profile: no origin and no wallet read, never a public default
+  ---
+  duration_ms: 127.518672
+  type: 'test'
+  ...
+# Subtest: unconfirmed profile: no origin and no wallet read, never a public default
+ok 5 - unconfirmed profile: no origin and no wallet read, never a public default
+  ---
+  duration_ms: 121.383889
+  type: 'test'
+  ...
+# Subtest: profile changed in another tab after load: reads and transactions refuse until reload; sign-out keeps its key
+ok 6 - profile changed in another tab after load: reads and transactions refuse until reload; sign-out keeps its key
+  ---
+  duration_ms: 132.307163
+  type: 'test'
+  ...
+# Subtest: hosted mode unchanged: wallet-first reads, the public default pool, and no independent session served
+ok 7 - hosted mode unchanged: wallet-first reads, the public default pool, and no independent session served
+  ---
+  duration_ms: 3532.573221
+  type: 'test'
+  ...
+# Subtest: a profile saved in another tab stops a hosted tab from sending
+ok 8 - a profile saved in another tab stops a hosted tab from sending
+  ---
+  duration_ms: 128.624913
+  type: 'test'
+  ...
+# Subtest: custody reads use every profile RPC with the profile's quorum (book-resolved vault)
+ok 9 - custody reads use every profile RPC with the profile's quorum (book-resolved vault)
+  ---
+  duration_ms: 1145.080223
+  type: 'test'
+  ...
+# old source failures:
+#   confirmed profile: balance read through the wallet's RPC
+#   confirmed profile: gas estimated through the wallet's RPC
+#   invalid profile: the wallet was still asked for a balance
+#   profile changed elsewhere: kept reading the old routes
+#   profile changed elsewhere: still sent a transaction
+#   hosted mode: served an independent session through its stored RPC
+#   custody: only the first three routes
+#   custody: agreement of 2 regardless of the profile's quorum
+# Subtest: CONTROL: e820e2405's site fails the same checks
+ok 10 - CONTROL: e820e2405's site fails the same checks
+  ---
+  duration_ms: 6971.893639
+  type: 'test'
+  ...
+# Subtest: browser chain consumers stay on the profile's routes; the wallet only signs and broadcasts
+ok 11 - browser chain consumers stay on the profile's routes; the wallet only signs and broadcasts
+  ---
+  duration_ms: 3360.326142
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 23650.343492
+[memory-guard] exit=0 peakTreeRssMiB=839 minHostAvailableMiB=24816
+[memory-guard] at peak: node:321 chrome-headless:146 chrome-headless:102 chrome-headless:91 node:59 chrome-headless:40 chrome-headless:40 anvil:35
+[queue] EXIT 0

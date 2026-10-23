@@ -1,0 +1,131 @@
+From 2ed6ba6115c4db7d49e2ce0fce78dbdd0d786c46 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 05:55:19 -0700
+Subject: [PATCH 3/3] Record current RAM allocation and healthy services before
+ activation
+
+---
+ status-ram-request-latest.guard.log |   1 +
+ status-ram-request-latest.json      | 104 ++++++++++++++++++++++++++++
+ 2 files changed, 105 insertions(+)
+ create mode 100644 status-ram-request-latest.guard.log
+ create mode 100644 status-ram-request-latest.json
+
+diff --git a/status-ram-request-latest.guard.log b/status-ram-request-latest.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..7036c8d041f8547d84d89347ff9c2dcfb9337657
+--- /dev/null
++++ b/status-ram-request-latest.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=24944
+diff --git a/status-ram-request-latest.json b/status-ram-request-latest.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..6fa7aa6530e8993111888666f16780c77fb55b13
+--- /dev/null
++++ b/status-ram-request-latest.json
+@@ -0,0 +1,104 @@
++{
++  "at": "2026-10-23T12:54:59.5171903Z",
++  "node": {
++    "availability": {
++      "status": 200,
++      "nodeRamGb": 64,
++      "machineRamGb": 112,
++      "apps": {
++        "isolation": "hyperv-partition-per-app",
++        "tier": "enclave-shield",
++        "hostExcluded": false,
++        "hostOsExcluded": true,
++        "operatorExcluded": false,
++        "inTee": false,
++        "running": 8,
++        "capacity": 16,
++        "scope": "market",
++        "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
++      },
++      "ramGbFree": 47.9
++    },
++    "manager": {
++      "status": 200,
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 65536
++      },
++      "inventory": {
++        "state": "ready",
++        "recovered": 9,
++        "unattributed": 0,
++        "at": "2026-10-23T08:30:07.329Z"
++      }
++    }
++  },
++  "vms": [
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv3146bdf712f171-3f770400",
++      "uptimeSeconds": 14047.853,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv637cbe35075047-10c44a8a",
++      "uptimeSeconds": 15422.184,
++      "state": "Running"
++    },
++    {
++      "memory": 15101591552,
++      "name": "enclave-app-hv8babaf3c0991fa-ea9d4773",
++      "uptimeSeconds": 13110.233999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 3420454912,
++      "name": "enclave-app-hv94a003c5b947f6-9e2053bc",
++      "uptimeSeconds": 12832.395999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvbf6c56812c25e8-46de1836",
++      "uptimeSeconds": 13855.01,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvc68a5c73043598-3dfcbff8",
++      "uptimeSeconds": 13922.51,
++      "state": "Running"
++    },
++    {
++      "memory": 17850957824,
++      "name": "enclave-app-hvce6a027904d978-322c5206",
++      "uptimeSeconds": 13982.224,
++      "state": "Running"
++    },
++    {
++      "memory": 536870912,
++      "name": "enclave-app-hvd28ea469111245-a79db30f",
++      "uptimeSeconds": 15806.046999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvefa9ce2a7bc0ea-f4322953",
++      "uptimeSeconds": 13889.482,
++      "state": "Running"
++    },
++    {
++      "memory": 8589934592,
++      "name": "enclave-control",
++      "uptimeSeconds": 15828.117999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 4294967296,
++      "name": "enclave-storage",
++      "uptimeSeconds": 15858.21,
++      "state": "Running"
++    }
++  ]
++}
+\ No newline at end of file

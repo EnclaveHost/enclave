@@ -1,0 +1,28 @@
+[queue] START available=25485MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+=== repo run 1
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo head 4c059b997360483c743deca343c2e42b1b534eeb dirty=1 untracked=1
+✖ zero apps: host services only after the platform admits; an admin ban stops them (grants withdrawn), the unban restarts them (177.415164ms)
+✖ zero apps, unknown chain policy: the production policy with no network holds them (the agent runs); a fresh host never serves on an unread policy (104.892506ms)
+✖ zero apps, the local policy down from the start: held; once it answers and admits, started (129.358767ms)
+✖ first app added and last app removed (live reload) never touch host services; a restart with no app starts them again (126.192001ms)
+✖ zero apps: refused before anything binds without a usable host-services block or with the policy off (23.732316ms)
+✖ with an app, an "off" policy keeps the earlier behavior (host services start at once); on, they wait for the admit (103.897835ms)
+✖ the shipped bundle runs the app-less daemon: admitted -> host services (258.129409ms)
+ℹ pass 14
+ℹ fail 7
+✖ failing tests:
+✖ zero apps: host services only after the platform admits; an admin ban stops them (grants withdrawn), the unban restarts them (177.415164ms)
+=== baseline-14d1 run 1
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/baseline-14d1 head 14d1e4954cf7c9900d5d3e841a23f02de945c1b2 dirty=2 untracked=1
+✖ zero apps: host services only after the platform admits; an admin ban stops them (grants withdrawn), the unban restarts them (167.821607ms)
+✖ zero apps, unknown chain policy: the production policy with no network holds them (the agent runs); a fresh host never serves on an unread policy (104.722667ms)
+✖ zero apps, the local policy down from the start: held; once it answers and admits, started (132.379102ms)
+✖ first app added and last app removed (live reload) never touch host services; a restart with no app starts them again (128.159455ms)
+✖ zero apps: refused before anything binds without a usable host-services block or with the policy off (25.76306ms)
+✖ with an app, an "off" policy keeps the earlier behavior (host services start at once); on, they wait for the admit (104.764647ms)
+✖ the shipped bundle runs the app-less daemon: admitted -> host services (266.817778ms)
+ℹ pass 14
+ℹ fail 7
+✖ failing tests:
+✖ zero apps: host services only after the platform admits; an admin ban stops them (grants withdrawn), the unban restarts them (167.821607ms)
+=== repo run 2

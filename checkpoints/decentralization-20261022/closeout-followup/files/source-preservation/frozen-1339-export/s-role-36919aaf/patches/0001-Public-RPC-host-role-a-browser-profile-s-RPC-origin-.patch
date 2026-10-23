@@ -1,0 +1,1747 @@
+From 028623069a5bcacd51b2df3b3aa483c0f93b2957 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 04:55:52 -0700
+Subject: [PATCH 1/3] Public RPC host role: a browser profile's RPC origin
+ answered by the operator's own Base node
+
+network/public-rpc.mjs (+ public-rpc-config.mjs, kept free of a main check so the
+runner and privacy-agent bundles carry the validator only): role 'public-rpc'
+- exact method allowlist from the browser note, EIP-1898 block objects, reverts
+  passed through (code/reason/data); admin/debug/personal/signing/txpool/filters,
+  batches, oversized bodies, other paths/verbs refused without reaching the node
+- node = loopback only (the operator's own client/holder); optional loopback
+  chainVerifier answers only its proven methods, never falls back; every answer
+  names its source (X-Enclave-Rpc-Source) and host (X-Enclave-Rpc-Host)
+- syncing/stale/unreachable node -> 503; stall -> 504 at the deadline; body,
+  response, in-flight, rate and log-range bounds; CORS for configured origins
+- eth_sendRawTransaction refused unless the operator states a propagation route
+- not indexed (kind null): runner refuses publicEndpoints, never advertised;
+  hostId must be keccak(host.endpoint)
+
+Opt-in naming/ingress: rpc-<b32>.<zone> (host-service-names), requested by a host
+serving the role (service request rpc:true) and granted only by exits that opted
+in (hostServices.rpc); refused by name otherwise; all other grants unchanged.
+stage-tool publishes the label; browser-profile --verify-chain refuses two RPCs
+of one host (public-rpc-hosts.mjs).
+
+Tests: public-rpc (reth v2.8.0 --dev), public-rpc-browser (Chromium, packaged
+roles), lifecycle opt-in cases, verifier-roles ban/unban/owner migration with the
+packaged role.
+---
+ docs/network/public-rpc-role.md              | 152 ++++++++++
+ network/host-service-names.mjs               |  17 +-
+ network/host-service-transport.mjs           |  16 +-
+ network/host-services/roles.mjs              |  15 +
+ network/host-services/runner.mjs             |   7 +
+ network/host-services/stage-tool.mjs         |   7 +-
+ network/public-rpc-config.mjs                |  78 +++++
+ network/public-rpc-hosts.mjs                 |  31 ++
+ network/public-rpc.mjs                       | 220 ++++++++++++++
+ network/wg-circuit-runtime.mjs               |   7 +-
+ network/wg-grants.mjs                        |   5 +-
+ network/wg-provider/host-services-config.mjs |   9 +-
+ network/wg-provider/provider.mjs             |  17 +-
+ scripts/network/browser-profile.mjs          |   6 +
+ test/fixtures/reth-dev-8453-genesis.json     | 111 ++++++++
+ test/helpers/reth-dev.mjs                    |  34 +++
+ test/helpers/rpc-probe-contract.mjs          |  19 ++
+ test/host-service-lifecycle.test.mjs         |  57 +++-
+ test/host-service-verifier-roles.test.mjs    |  16 +-
+ test/public-rpc-browser.test.mjs             | 155 ++++++++++
+ test/public-rpc.test.mjs                     | 285 +++++++++++++++++++
+ 21 files changed, 1231 insertions(+), 33 deletions(-)
+ create mode 100644 docs/network/public-rpc-role.md
+ create mode 100644 network/public-rpc-config.mjs
+ create mode 100644 network/public-rpc-hosts.mjs
+ create mode 100644 network/public-rpc.mjs
+ create mode 100644 test/fixtures/reth-dev-8453-genesis.json
+ create mode 100644 test/helpers/reth-dev.mjs
+ create mode 100644 test/helpers/rpc-probe-contract.mjs
+ create mode 100644 test/public-rpc-browser.test.mjs
+ create mode 100644 test/public-rpc.test.mjs
+
+diff --git a/docs/network/public-rpc-role.md b/docs/network/public-rpc-role.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..872eaa88ce86877abb8337fce885115c2349ed1c
+--- /dev/null
++++ b/docs/network/public-rpc-role.md
+@@ -0,0 +1,152 @@
++# The host's public RPC role (`public-rpc`)
++
++**Status:** source and package prepared, not activated. This is a public-service candidate. No host runs it and no
++profile names it yet.
++
++A browser network profile (`docs/network/independent-dashboard.md`) needs RPC origins that are not third-party
++providers. This role gives an Enclave host one: a JSON-RPC origin answered by **the operator's own Base node on that
++machine**. It uses the existing host-service model:
++- packaged by `scripts/build-host-service-packages.mjs` and run by `network/host-services/runner.mjs`;
++- gated by the platform host policy (`network/host-service-gate.mjs`);
++- reached through the host-service ingress (`network/host-service-ingress.mjs`) over the host's WireGuard exits
++  (`network/host-service-transport.mjs`).
++
++Source: `network/public-rpc.mjs` (role), `network/public-rpc-hosts.mjs` (profile-side host identity).
++
++## What it serves
++
++`POST /` takes one JSON-RPC 2.0 call per request; batches are refused. `GET /health` reports node sync, the verified
++methods, raw-transaction status and limits.
++
++| method | parameters accepted |
++|---|---|
++| `eth_chainId`, `eth_blockNumber` | none |
++| `eth_getBlockByNumber` | hex number or `latest` / `earliest` / `safe` / `finalized`, then `false` (no full transactions) |
++| `eth_call` | a call object (`from to gas gasPrice maxFeePerGas maxPriorityFeePerGas value nonce data input`) and a block: tag, hex number, or EIP-1898 `{blockHash, requireCanonical?}` / `{blockNumber}`. No state override |
++| `eth_estimateGas` | a call object and an optional block |
++| `eth_getCode`, `eth_getBalance`, `eth_getTransactionCount` | an address and a block (EIP-1898 included) |
++| `eth_getStorageAt` | an address, a slot and a block |
++| `eth_getLogs` | exactly one `address`, ≤ 4 topic positions, and `fromBlock`/`toBlock` (≤ `maxLogRange` blocks, default 2000) or `blockHash` |
++| `eth_getTransactionReceipt`, `eth_getTransactionByHash` | a hash |
++| `eth_sendRawTransaction` | **refused** unless the operator sets `rawTransactions.propagation` (§4) |
++
++**Refused by name, never forwarded:**
++- `admin_* debug_* personal_* miner_* txpool_* engine_* trace_* clique_* parity_* ots_* anvil_* hardhat_* evm_* wallet_* rpc_*`;
++- `eth_sign*`, `eth_sendTransaction`, `eth_accounts`, `eth_coinbase`, mining methods;
++- filters and subscriptions;
++- `eth_getProof`, `eth_createAccessList`, `eth_simulateV1`, `eth_callMany`;
++- any method not in the table.
++
++`pending` is not served.
++
++**Errors are honest:**
++- **Reverts** come back as the node reports them (code, reason, data), with HTTP 200.
++- **A node that is unreachable, syncing, or whose head is older than `maxHeadAgeSec`** (default 120 s) gets 503; no
++  stale answer is given.
++- **A stalled node** gets 504 at `backendTimeoutMs`.
++- **An oversized answer** gets 502.
++
++Every answer carries `X-Enclave-Rpc-Source: node | verifier` and `X-Enclave-Rpc-Host: <registry id>`.
++
++## Authority and trust
++
++- **The node.** It must be a loopback URL, the operator's own client or holder. A remote URL is refused at configuration
++  time, so this role is never a proxy to a third-party provider. Nothing in a request can name another upstream, and no
++  redirect is followed or sent.
++- **The verifier (optional).** `chainVerifier` (loopback) with `verifiedMethods` answers only the methods it proves at a
++  pinned block: `eth_chainId eth_blockNumber eth_getBlockByNumber eth_call eth_getCode eth_getStorageAt eth_getBalance`.
++  Those methods **never fall back to the node**: a proof failure or a down verifier refuses. Node answers are never
++  labelled verified.
++- **To the browser, neither is a proof.** The browser trusts this origin as one RPC of its quorum. Agreement of several
++  origins is RPC agreement, not a light client.
++- **Host identity.** `X-Enclave-Rpc-Host` and `/health` name the host. `scripts/network/browser-profile.mjs
++  --verify-chain` refuses two profile RPCs that name the same host: one host under several names is one vote.
++- **What identity cannot show.** It cannot see two hosts fronting one node, or one operator running several hosts.
++  Distinct origins remain distinct *configured* endpoints, never proof of independent operators.
++
++## Bounds
++
++All limits are configurable inside fixed ranges (`limits.*`):
++
++| limit | default | what it bounds |
++|---|---|---|
++| `maxBodyBytes` | 128 KiB | request body (413 above) |
++| `maxResponseBytes` | 4 MiB | node or verifier answer (502 above) |
++| `backendTimeoutMs` | 6000 | one deadline per backend call (504) |
++| `maxInFlight` | 16 | concurrent requests (503 busy) |
++| `perSecond` / `burst` | 50 / 100 | aggregate token bucket (429) |
++| `maxLogRange` | 2000 | `eth_getLogs` span |
++
++The ingress hands every connection over loopback, so the bucket is aggregate. Per-client limits belong to the exits and
++the ingress (`maxConnections`).
++
++## CORS
++
++`allowedOrigins` lists 1 to 16 bare dashboard origins, or `["*"]` written explicitly. The rules:
++- **Preflight:** only `POST` with `content-type` passes.
++- **Other origins:** a request from any other origin gets 403 without `Access-Control-Allow-Origin`.
++- **Credentials:** never allowed.
++- **Exposed headers:** the source and host headers.
++
++## Raw transactions
++
++There is no fabricated success.
++- **Default:** refused (`-32601`, "has not stated a transaction propagation route").
++- **With `rawTransactions.propagation`** (the operator's own statement of how its node propagates a raw transaction):
++  the node's answer is returned unchanged, with `X-Enclave-Rpc-Propagation: operator-stated`. `/health` shows
++  `checkedByThisRole: false`; the role cannot verify propagation.
++
++**Known capability gaps, not silently dropped:**
++- A Base non-sequencer node with gossip off does not propagate transactions by itself. The S holder launcher also
++  excludes the hidden sequencer route.
++- Inclusion without a hosted sequencer is an L1 deposit (E's scope).
++- Native broadcast, and receipts for transactions submitted elsewhere, depend on the operator's node. They are not
++  provided by this role.
++
++## Naming, ingress and publication (opt-in)
++
++- **The name:** `rpc-<base32(registry id)>.<zone>` (`hostRpcName`). It has the host-service shape, so no app or customer
++  name can hold it. It is **not** part of `hostServiceNames()`.
++- **Exits:** a WireGuard exit grants it only when its operator sets `hostServices.rpc: true`. Every other provider's
++  grant stays exactly three names.
++- **Hosts:** a host requests it only when its `hostServices.ports` include `public-rpc`. The circuit requires the exit's
++  grant to equal the host's names exactly, so such a host must name exits that opted in, as for the challenge origin.
++- **Publication:** `hostServicePublication` (stage-tool) adds the label to the hosted route-dns `appStatic` with the same
++  exit addresses.
++
++## Not indexed
++
++The EnclaveServiceIndex contract accepts any nonzero kind, but readers define kinds:
++- 1 to 8 are directory, checker, storage, dns, replica, policy, relay and credit-vault-submitter;
++- none is an RPC endpoint;
++- this role does not claim one.
++
++Its package manifest has `kind: null`. The runner refuses `host.publicEndpoints` for it, and `advertise` never publishes
++it. Browsers reach it only through a profile that lists `https://rpc-<b32>.<zone>`. A future RPC kind is a reader
++convention for root to decide; it needs no contract change.
++
++## Administration
++
++The runner's platform host policy gate governs this role as it governs every host role:
++- an administrator's ban, an allowlist miss or a deregistration **stops** it (sticky until an authenticated admit);
++- the unban restarts it;
++- after an AddressBook owner migration, the new administrator's anchored policy governs it.
++
++The privacy agent's `hostServiceLifecycle` withdraws the host's exit grants (all its names, the RPC name included) on a
++refusal.
++
++## Production requirements (gates, not done here)
++
++1. **The node.** The operator's own synced Base node on the host (loopback), such as the S holder (`base rpc` v1.5.1),
++   meeting the RAM, disk and L1 requirements of RESULT-HOLDER.
++2. **HTTPS.** The 443 side needs the host's TLS terminator (G3 `service-tls`, work/host-service-tls-20261021). It is
++   not composed in this tree, and it must hold a certificate for `rpc-<b32>.<zone>`. Browsers on an HTTPS dashboard
++   cannot use the plain-HTTP port 80 side, and profiles require HTTPS.
++3. **Exits.** WireGuard exits whose operators opted in with `hostServices.rpc: true`; route-dns publication of the label.
++4. **Policy.** An activated platform host policy (production gate). `platformHostPolicy: "off"` is not a production
++   configuration.
++5. **Profiles.** A browser profile listing two or more such origins of *different* hosts with *different* nodes.
++   `--verify-chain` refuses one host under two names.
++6. **Windows** (F's composition) and **Linux runtime integration** (B) carry the role's package and the `hostServices`
++   port the same way as the other roles. B's loopback verifier can be this role's `chainVerifier`; it is not itself a
++   public endpoint.
+diff --git a/network/host-service-names.mjs b/network/host-service-names.mjs
+index 9368596eaae4fffb2fbb757d81939c027a31f29f..e523e4222363efa53e6dd75086cde69e0e3db334 100644
+--- a/network/host-service-names.mjs
++++ b/network/host-service-names.mjs
+@@ -44,9 +44,22 @@ export function hostChallengeName(hostId, zone) {
+ }
+ /** -> 'https://chal-<b32>.<zone>' (the only origin a managed challenge front may declare) */
+ export const hostChallengeOrigin = (hostId, zone) => `https://${hostChallengeName(hostId, zone)}`;
+-/** a name of the host-service SHAPE (any host; the three roles and the challenge origin) in `zone`, or anywhere when zone is null */
++// The host's PUBLIC JSON-RPC origin for browser network profiles (network/public-rpc.mjs, role 'public-rpc'):
++// rpc-<base32(registry id)>.<zone>. Like the challenge origin, NOT one of hostServiceNames(): a provider grants it only
++// when its operator opts in (hostServices.rpc), and a host serves it only when it runs the role, so the exact three-name
++// grant of every other provider and host is unchanged. One name per host: an RPC origin is one vote of ONE host.
++export const HOST_RPC_LABEL = 'rpc';
++export const HOST_RPC_ROLE = 'public-rpc';
++/** -> 'rpc-<b32>.<zone>' for one host */
++export function hostRpcName(hostId, zone) {
++  const h = hostLabel(hostId); validServiceZone(zone);
++  return `${HOST_RPC_LABEL}-${h}.${zone}`;
++}
++/** -> 'https://rpc-<b32>.<zone>' (what a browser network profile lists) */
++export const hostRpcOrigin = (hostId, zone) => `https://${hostRpcName(hostId, zone)}`;
++/** a name of the host-service SHAPE (any host; the three roles, the challenge and RPC origins) in `zone`, or anywhere when zone is null */
+ export function isHostServiceName(name, zone = null) {
+   const n = String(name || '').toLowerCase();
+-  const m = /^(dir|boot|policy|chal)-([a-z2-7]{52})\.(.+)$/.exec(n);
++  const m = /^(dir|boot|policy|chal|rpc)-([a-z2-7]{52})\.(.+)$/.exec(n);
+   return !!m && (zone === null || m[3] === zone);
+ }
+diff --git a/network/host-service-transport.mjs b/network/host-service-transport.mjs
+index 35fd331cdf0f28e626b9348807c8fdea4a98207e..ccc7f04c7946acaa189e47f198c42f6d1dc72224 100644
+--- a/network/host-service-transport.mjs
++++ b/network/host-service-transport.mjs
+@@ -6,7 +6,9 @@
+ // WgControlTransport (start(), reconcile(), close()).
+ //
+ // config (cfg.enclaveNetwork.hostServices): { zone, exits: [providerId, ...] (1-8),
+-//   ports: { "directory-replica": 18188, "bootstrap-replica": 18189, "policy-mirror": 18190 } (any subset, loopback),
++//   ports: { "directory-replica": 18188, "bootstrap-replica": 18189, "policy-mirror": 18190,
++//            "public-rpc"?: 18191 } (any subset, loopback; public-rpc adds rpc-<b32>.<zone>, which the exits grant only
++//                                    when their operator opted in with hostServices.rpc, network/public-rpc.mjs),
+ //   tls?: { httpPort, tlsPorts: { <role>: port },      (G3, the host's service-tls role, work/host-service-tls-20261021:
+ //           challengePort? }                           (challengePort: the host's attested challenge origin
+ //                                                        chal-<b32>.<zone> - its 443 goes there and its 80 to httpPort for
+@@ -17,7 +19,9 @@
+ //                                                        a role without a TLS port is closed on 443),
+ //   dns?: { tcp: 18153, udp: 18153 } }                 (route-dns; the exit forwards 53 only if its operator pins this host)
+ import tls from 'node:tls';
+-import { hostServiceNames, hostChallengeName, HOST_SERVICE_ROLES, validServiceZone } from './host-service-names.mjs';
++import { hostServiceNames, hostChallengeName, hostRpcName, HOST_SERVICE_ROLES, HOST_RPC_ROLE, validServiceZone } from './host-service-names.mjs';
++// this host's names by role: the three derived ones, plus its RPC origin when it serves the public-rpc role
++const namesFor = (hostId, zone, ports) => ({ ...hostServiceNames(hostId, zone), ...(ports[HOST_RPC_ROLE] ? { [HOST_RPC_ROLE]: hostRpcName(hostId, zone) } : {}) });
+ const ZERO = '0x' + '0'.repeat(64), COOLDOWN_MAX_MS = 30 * 60000;
+ // close() waits this long for a circuit startup it cancelled (a grant request already sent finishes or times out, 15 s, and
+ // its withdrawal is sent, 15 s); a startup that answers even later is still withdrawn and closed when it does, never used
+@@ -29,7 +33,7 @@ export function validateHostServicesTransport(c) {
+   for (const k of Object.keys(c)) if (!['zone', 'exits', 'ports', 'tls', 'dns'].includes(k)) throw new Error(`hostServices: unknown field ${JSON.stringify(k)}`);
+   validServiceZone(c.zone);
+   if (!Array.isArray(c.exits) || c.exits.length < 1 || c.exits.length > 8 || c.exits.some((x) => typeof x !== 'string' || !/^[0-9a-f]{16,64}$/.test(x))) throw new Error('hostServices.exits: 1 to 8 provider ids');
+-  const roles = Object.keys(HOST_SERVICE_ROLES);
++  const roles = [...Object.keys(HOST_SERVICE_ROLES), HOST_RPC_ROLE];
+   if (!c.ports || typeof c.ports !== 'object' || !Object.keys(c.ports).length || Object.entries(c.ports).some(([r, p]) => !roles.includes(r) || !port(p))) throw new Error(`hostServices.ports: loopback ports of ${roles.join(', ')}`);
+   if (c.tls !== undefined) {
+     const t = c.tls, ok = t && typeof t === 'object' && !Object.keys(t).some((k) => !['httpPort', 'tlsPorts', 'challengePort'].includes(k)) && port(t.httpPort) &&
+@@ -65,8 +69,8 @@ export class HostServiceTransport {
+   constructor({ runtime, providers, grants, hostId, config, now = Date.now, log = () => {}, settleMs = SETTLE_MS }) {
+     const c = validateHostServicesTransport(config);
+     Object.assign(this, { runtime, providers, grants, hostId: String(hostId).toLowerCase(), config: c, now, log, settleMs });
+-    const all = hostServiceNames(this.hostId, c.zone);
+-    // the exit grants every derived name (plus the challenge origin when its operator opted in); only the configured roles answer
++    const all = namesFor(this.hostId, c.zone, c.ports);
++    // the exit grants every derived name (plus the challenge and RPC origins when its operator opted in); only the configured roles answer
+     const chal = c.tls?.challengePort !== undefined ? hostChallengeName(this.hostId, c.zone) : null;
+     this.granted = [...Object.values(all), ...(chal ? [chal] : [])];
+     this.names = Object.fromEntries(Object.entries(c.ports).map(([role, p]) => [all[role], { http: c.tls ? c.tls.httpPort : p, tls: c.tls?.tlsPorts[role] || null }]));
+@@ -83,7 +87,7 @@ export class HostServiceTransport {
+    * roots: tests inject a fixture CA; production uses Node's bundled roots.
+    */
+   async endpoints({ roots = undefined, timeoutMs = 3000 } = {}) {
+-    const all = hostServiceNames(this.hostId, this.config.zone), out = {};
++    const all = namesFor(this.hostId, this.config.zone, this.config.ports), out = {};
+     for (const r of Object.keys(this.config.ports)) {
+       const port = this.config.tls?.tlsPorts[r];
+       out[r] = `${port && await tlsReady({ port, servername: all[r], roots, timeoutMs }) ? 'https' : 'http'}://${all[r]}/`;
+diff --git a/network/host-services/roles.mjs b/network/host-services/roles.mjs
+index c4ca6b6a0654fe1c1281bf87c8a97f7745e3cbf9..246ee541bb7fa1dc6ee7bcc687d16c3d63952e92 100644
+--- a/network/host-services/roles.mjs
++++ b/network/host-services/roles.mjs
+@@ -23,6 +23,7 @@ import { publicIPv4 } from '../service-index.mjs';
+ import { validateCarrierBases } from '../policy-carriers.mjs';
+ import { chainVerifierOf } from '../verified-chain.mjs';
+ import { CREDIT_VAULT_SUBMITTER_ROLE } from './credit-vault-submitter.mjs';
++import { validatePublicRpcConfig, SERVED_METHODS, VERIFIABLE_METHODS } from '../public-rpc-config.mjs';
+ 
+ export const PACKAGE_FORMAT = 'enclave-host-service-package/v1';
+ export const CONFIG_FORMAT = 'enclave-host-services/v1';
+@@ -196,5 +197,19 @@ export const ROLES = Object.freeze({
+   // passkey-signed credit-vault requests (and, only with a reviewed record, the proposed parallel lease-gas reserve's): no key in
+   // the role, gas signed by the operator's loopback external signer (network/host-services/credit-vault-submitter.mjs)
+   'credit-vault-submitter': CREDIT_VAULT_SUBMITTER_ROLE,
++  // the browser dashboard's JSON-RPC origin (network/public-rpc.mjs), answered by the operator's OWN Base node on this
++  // machine. kind null: NOT indexed - no EnclaveServiceIndex kind names an RPC endpoint (kinds 1-8 are directory, checker,
++  // storage, dns, replica, policy, relay, credit-vault-submitter), and none is invented here; a browser reaches it only
++  // through a network profile that lists its URL (rpc-<base32(registry id)>.<zone>, host-service-names.mjs)
++  'public-rpc': Object.freeze({
++    entry: 'network/public-rpc.mjs', kind: null, runtime: 'node>=22 (host role; not a wasm component)',
++    serves: `POST / JSON-RPC 2.0 for browser network profiles (${SERVED_METHODS.join(', ')}; eth_sendRawTransaction only with an operator-stated propagation route), GET /health; reads from the operator's own node, the verifier's methods (${VERIFIABLE_METHODS.join(', ')}) from the local verifier when configured, never a third-party RPC`,
++    state: { durable: false, what: 'none', rebuild: 'n/a' },
++    secrets: 'none (no key, wallet or signing method; the node and verifier are loopback endpoints)',
++    cold: ['the operator\'s own synced Base node on this machine (loopback)', 'optionally this host\'s local verifier (loopback) for the methods it proves'],
++    notCold: ['any public RPC provider', 'api.enclave.host', 'discovery', 'directories', 'storage adapters', 'lease relays', 'any app'],
++    validate(c) { try { return validatePublicRpcConfig(c); } catch (e) { return fail('public-rpc', e.message.replace(/^public-rpc: /, '')); } },
++    launch(c) { return { configFile: c, env: {} }; },
++  }),
+ });
+ export const ROLE_NAMES = Object.freeze(Object.keys(ROLES));
+diff --git a/network/host-services/runner.mjs b/network/host-services/runner.mjs
+index 2c34a4b30bbd746026547b45a2e7626536d83fa2..f21a1bc3f516bd80272c23d3893e012f079aa8ab 100644
+--- a/network/host-services/runner.mjs
++++ b/network/host-services/runner.mjs
+@@ -45,6 +45,7 @@ import { PRODUCTION_BOOK, PRODUCTION_HOST_OWNERSHIP } from '../platform-host-pol
+ import { ROLES, CONFIG_FORMAT, PACKAGE_FORMAT, SECRETISH } from './roles.mjs';
+ import { CARRIER_MIRROR, validateCarrierBases } from '../policy-carriers.mjs';
+ import { rpcEndpoint } from '../rpc-identity.mjs';
++import { keccak256, toBytes } from 'viem';
+ 
+ const sha = (b) => createHash('sha256').update(b).digest('hex');
+ const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
+@@ -134,10 +135,16 @@ export function validateHostServicesConfig(cfg) {
+     const p = cfg.platformHostPolicy === 'production' ? { book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP } : cfg.platformHostPolicy;
+     if (String(p.book).toLowerCase() !== pm.config.book || String(p.hostOwnership).toLowerCase() !== pm.config.hostOwnership) fail('policy-mirror: book and hostOwnership must be the platformHostPolicy\'s');
+   }
++  // the public RPC answers in THIS host's name (X-Enclave-Rpc-Host, /health): its hostId is the registry id the gate checks
++  const rpc = services.find((s) => s.role === 'public-rpc');
++  if (rpc && cfg.host.endpoint && keccak256(toBytes(String(cfg.host.endpoint).replace(/\/+$/, ''))).toLowerCase() !== rpc.config.hostId)
++    fail('public-rpc: hostId must be this host\'s registry id (keccak256 of host.endpoint)');
++  if (rpc && !cfg.host.endpoint) fail('public-rpc: host.endpoint is required (the role answers in this host\'s registry name)');
+   const pe = cfg.host.publicEndpoints ?? {};
+   if (!plain(pe)) fail('host.publicEndpoints must map roles to endpoints');
+   for (const [r, list] of Object.entries(pe)) {
+     if (!seen.has(r)) fail(`host.publicEndpoints names ${r}, which this host does not run`);
++    if (ROLES[r].kind === null) fail(`host.publicEndpoints.${r}: ${r} has no service-index kind and is not advertised (a browser network profile names its URL)`);
+     if (!Array.isArray(list) || list.length < 1 || list.length > 4) fail(`host.publicEndpoints.${r}: 1 to 4 endpoints`);
+   }
+   return { ...cfg, services, host: { endpoint: cfg.host.endpoint ? String(cfg.host.endpoint).replace(/\/+$/, '') : null, publicEndpoints: pe } };
+diff --git a/network/host-services/stage-tool.mjs b/network/host-services/stage-tool.mjs
+index 4eb40fdd1fd223852add011b84cfa6eb71981661..2258777e1996d6e541faafa795f9d0a383520b5b 100644
+--- a/network/host-services/stage-tool.mjs
++++ b/network/host-services/stage-tool.mjs
+@@ -39,7 +39,7 @@ import { readPolicyFacts, decodeAnchor } from '../platform-host-policy.mjs';
+ import { httpCarriers, freshVerifier, candidateDigest } from '../policy-carriers.mjs';
+ import { hostIdOfEndpoint, createHostServiceGate } from '../host-service-gate.mjs';
+ import { planHostServices, policyEnv, policyCarrierFetch } from './runner.mjs';
+-import { hostServiceNames, validServiceZone } from '../host-service-names.mjs';
++import { hostServiceNames, hostRpcName, HOST_RPC_ROLE, validServiceZone } from '../host-service-names.mjs';
+ import { validateHostServicesTransport, tlsReady } from '../host-service-transport.mjs';
+ import { keccak256 as keccakBytes, toBytes } from 'viem';
+ import { ROLES } from './roles.mjs';
+@@ -158,7 +158,8 @@ const conflicts = (rows, proto, bind, port) => rows.filter((r) => r.proto === pr
+   ['0.0.0.0', '*', '::', bind].includes(r.address));
+ /**
+  * A host's public service names and how they resolve, all from ONE exit list (work/host-service-transport-20261021):
+- *   - names: hostServiceNames(registry id of `endpoint`, zone) - only this host's, nobody chooses them;
++ *   - names: hostServiceNames(registry id of `endpoint`, zone) - only this host's, nobody chooses them - plus its public
++ *     RPC origin rpc-<b32>.<zone> when `ports` names the public-rpc role (its exits must have opted in: hostServices.rpc);
+  *   - appStatic: { '<label>': [every exit's IPv4] } for the hosted route-dns (the zone must be the app zone it serves): a
+  *     client gets every provider that carries this host's grant, and tries the next when one is down;
+  *   - agent: enclaveNetwork.hostServices for the privacy agent - a service circuit to EXACTLY those exits;
+@@ -178,7 +179,7 @@ export function hostServicePublication({ endpoint, zone, exits, hostId: givenId
+   if (new Set(addresses).size !== addresses.length || new Set(ids).size !== ids.length) throw fail(1, 'host services: each exit once (distinct ids and addresses)');
+   const hostId = keccakBytes(toBytes(String(endpoint))).toLowerCase();
+   if (givenId !== null && String(givenId).toLowerCase() !== hostId) throw fail(1, 'host services: hostId is not keccak256 of this endpoint (the registry id)');
+-  const names = hostServiceNames(hostId, zone);
++  const names = { ...hostServiceNames(hostId, zone), ...(ports[HOST_RPC_ROLE] ? { [HOST_RPC_ROLE]: hostRpcName(hostId, zone) } : {}) };
+   const agent = validateHostServicesTransport({ zone, exits: ids, ports, ...(tls ? { tls } : {}), ...(dns ? { dns } : {}) });
+   const appStatic = Object.fromEntries(Object.keys(ports).map((role) => [names[role].slice(0, -(zone.length + 1)), [...addresses]]));
+   // the route-dns role's own validation (public IPv4s, non-deployment labels): the same check its config will get
+diff --git a/network/public-rpc-config.mjs b/network/public-rpc-config.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..aba6c7526ec78a2c91467e2dd9d9ee7cedf33e7a
+--- /dev/null
++++ b/network/public-rpc-config.mjs
+@@ -0,0 +1,78 @@
++// The public-rpc role's configuration rules and method lists (network/public-rpc.mjs is the server). Kept apart from the
++// server module so that network/host-services/roles.mjs - bundled into the runner and the privacy agent - carries the
++// validator only: no HTTP server and no "am I the main module?" check of its own (network/host-services/argv-guard.mjs).
++import { rpcEndpoint } from './rpc-identity.mjs';
++
++export const ROLE = 'public-rpc';
++// the browser note's methods (NOTE-BROWSER-RPC-ENDPOINT-REQUIREMENTS.md) plus the explicit raw submission; the server's
++// parameter checks must cover exactly these (network/public-rpc.mjs asserts it at load)
++export const SERVED_METHODS = Object.freeze(['eth_chainId', 'eth_blockNumber', 'eth_getBlockByNumber', 'eth_call', 'eth_estimateGas', 'eth_getCode', 'eth_getBalance',
++  'eth_getTransactionCount', 'eth_getStorageAt', 'eth_getLogs', 'eth_getTransactionReceipt', 'eth_getTransactionByHash', 'eth_sendRawTransaction']);
++const HASH = /^0x[0-9a-fA-F]{64}$/;
++// what the local verifier can answer from proofs at a pinned block (network/verified-chain.mjs pinnedClient)
++export const VERIFIABLE_METHODS = Object.freeze(['eth_chainId', 'eth_blockNumber', 'eth_getBlockByNumber', 'eth_call', 'eth_getCode', 'eth_getStorageAt', 'eth_getBalance']);
++// refused by NAME (never forwarded): node administration, debugging, wallets, signing, mempool and server-side filters
++export const FORBIDDEN = /^(admin|debug|personal|miner|txpool|clique|engine|parity|trace|ots|anvil|hardhat|evm|wallet|rpc)_|^eth_(sign|signTransaction|signTypedData.*|sendTransaction|accounts|coinbase|mining|hashrate|submitWork|submitHashrate|getWork|newFilter|newBlockFilter|newPendingTransactionFilter|getFilterChanges|getFilterLogs|uninstallFilter|subscribe|unsubscribe|getProof|createAccessList|simulateV1|callMany)$/;
++const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
++const fail = (m) => { throw new Error(`public-rpc: ${m}`); };
++const SECRETISH = /(secret|token|password|passwd|private|mnemonic|seed|apikey|api_key|auth|hmac|credential|key$|keyfile)/i;
++const FIELDS = ['port', 'bind', 'hostId', 'chainId', 'node', 'chainVerifier', 'verifiedMethods', 'allowedOrigins', 'maxHeadAgeSec', 'rawTransactions', 'limits'];
++const LIMITS = Object.freeze({ maxBodyBytes: [1024, 1 << 20, 128 << 10], maxResponseBytes: [64 << 10, 16 << 20, 4 << 20], backendTimeoutMs: [500, 30000, 6000],
++  maxInFlight: [1, 256, 16], perSecond: [1, 10000, 50], burst: [1, 20000, 100], maxLogRange: [1, 10000, 2000] });
++
++function loopbackUrl(v, what) {
++  let e; try { e = rpcEndpoint(v); } catch (x) { fail(`${what}: ${x.message}`); }
++  if (!e.loopback) fail(`${what} must be this machine's own endpoint (loopback): a remote server would make this role a proxy`);
++  return String(v);
++}
++
++/** -> the normalized configuration; throws on anything else. No field may hold a secret. */
++export function validatePublicRpcConfig(c) {
++  if (!plain(c)) fail('config must be an object');
++  for (const k of Object.keys(c)) if (!FIELDS.includes(k)) fail(`unknown config field ${JSON.stringify(k)}${SECRETISH.test(k) ? ' (the role holds no secret)' : ''}`);
++  for (const k of ['port', 'bind', 'hostId', 'chainId', 'node', 'allowedOrigins']) if (c[k] === undefined || c[k] === null || c[k] === '') fail(`${k} is required`);
++  if (!Number.isInteger(c.port) || c.port < 1 || c.port > 65535) fail('port must be a port');
++  // the ingress reaches roles on loopback only (host-service-ingress.mjs serviceTable)
++  if (!['127.0.0.1', '::1'].includes(c.bind)) fail('bind must be loopback (127.0.0.1 or ::1): the public reaches it only through the host-service ingress');
++  if (!HASH.test(String(c.hostId)) || /^0x0{64}$/.test(c.hostId)) fail('hostId must be this host\'s registry id');
++  if (!Number.isSafeInteger(c.chainId) || c.chainId <= 0) fail('chainId is required');
++  const node = loopbackUrl(c.node, 'node');
++  let verifier = null, verifiedMethods = [];
++  if (c.chainVerifier !== undefined || c.verifiedMethods !== undefined) {
++    verifier = loopbackUrl(c.chainVerifier, 'chainVerifier');
++    if (rpcEndpoint(verifier).url.href === rpcEndpoint(node).url.href) fail('chainVerifier is the node itself: an unverified node is not a verifier');
++    if (!Array.isArray(c.verifiedMethods) || !c.verifiedMethods.length || c.verifiedMethods.some((m) => !VERIFIABLE_METHODS.includes(m)) || new Set(c.verifiedMethods).size !== c.verifiedMethods.length)
++      fail(`verifiedMethods: the methods the verifier answers from proofs, a subset of ${VERIFIABLE_METHODS.join(', ')}`);
++    verifiedMethods = [...c.verifiedMethods];
++  }
++  const origins = c.allowedOrigins;
++  if (!Array.isArray(origins) || !origins.length || origins.length > 16) fail('allowedOrigins: 1 to 16 dashboard origins, or ["*"]');
++  const allowed = origins[0] === '*' && origins.length === 1 ? '*' : origins.map((o, i) => {
++    let u; try { u = new URL(o); } catch { fail(`allowedOrigins[${i}] is not a URL`); }
++    const local = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
++    if (!(u.protocol === 'https:' || (u.protocol === 'http:' && local)) || u.username || u.password || u.search || u.hash || u.pathname !== '/')
++      fail(`allowedOrigins[${i}] must be a bare https origin (http only on localhost)`);
++    return u.origin;
++  });
++  const maxHeadAgeSec = c.maxHeadAgeSec ?? 120;
++  if (!Number.isInteger(maxHeadAgeSec) || maxHeadAgeSec < 10 || maxHeadAgeSec > 3600) fail('maxHeadAgeSec: 10 to 3600');
++  let rawTransactions = null;
++  if (c.rawTransactions !== undefined) {
++    if (!plain(c.rawTransactions) || Object.keys(c.rawTransactions).some((k) => k !== 'propagation') || typeof c.rawTransactions.propagation !== 'string'
++      || c.rawTransactions.propagation.length < 8 || c.rawTransactions.propagation.length > 200 || /[\u0000-\u001f]/.test(c.rawTransactions.propagation))
++      fail('rawTransactions: { propagation: "<how the operator\'s node propagates a raw transaction (8-200 characters)>" } - omit it to refuse submissions');
++    rawTransactions = { propagation: c.rawTransactions.propagation };
++  }
++  const limits = {};
++  if (c.limits !== undefined && !plain(c.limits)) fail('limits must be an object');
++  for (const k of Object.keys(c.limits || {})) if (!LIMITS[k]) fail(`limits: unknown field ${JSON.stringify(k)}`);
++  for (const [k, [lo, hi, def]] of Object.entries(LIMITS)) {
++    const v = (c.limits || {})[k] ?? def;
++    if (!Number.isInteger(v) || v < lo || v > hi) fail(`limits.${k}: ${lo} to ${hi}`);
++    limits[k] = v;
++  }
++  if (limits.burst < limits.perSecond) fail('limits.burst must be at least limits.perSecond');
++  return { port: c.port, bind: c.bind, hostId: c.hostId.toLowerCase(), chainId: c.chainId, node, ...(verifier ? { chainVerifier: verifier, verifiedMethods } : {}),
++    allowedOrigins: allowed === '*' ? ['*'] : allowed, maxHeadAgeSec, ...(rawTransactions ? { rawTransactions } : {}), limits };
++}
++
+diff --git a/network/public-rpc-hosts.mjs b/network/public-rpc-hosts.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..8f6ace150fc7c49d132023487fe9faa4b0bc2e9c
+--- /dev/null
++++ b/network/public-rpc-hosts.mjs
+@@ -0,0 +1,31 @@
++// Which HOST answers each RPC origin of a browser network profile, for the profile generator (scripts/network/
++// browser-profile.mjs --verify-chain). An Enclave host's public RPC (network/public-rpc.mjs) states its registry id in
++// GET /health and in every answer (X-Enclave-Rpc-Host). Two origins that name the same host - two DNS names, an address and
++// a name, two exits - are ONE vote of one host's node, never two independent nodes, and are refused here.
++// A non-Enclave RPC states nothing: its identity stays unknown (and distinct origins remain NOT proof of distinct
++// operators: network/rpc-identity.mjs). A host could also front another host's node; nothing here can see that.
++const HASH = /^0x[0-9a-f]{64}$/;
++
++/** -> [{ url, hostId: '0x..'|null, role: 'public-rpc'|null, error?: string }] (GET <origin>/health, bounded) */
++export async function rpcHostIdentities(urls, { fetch = globalThis.fetch, timeoutMs = 8000 } = {}) {
++  return Promise.all(urls.map(async (url) => {
++    try {
++      const r = await fetch(new URL('/health', url), { redirect: 'error', signal: AbortSignal.timeout(timeoutMs) });
++      const j = await r.json().catch(() => null);
++      const id = String(j?.hostId || '').toLowerCase();
++      return j?.role === 'public-rpc' && HASH.test(id) && String(r.headers.get('x-enclave-rpc-host') || '').toLowerCase() === id
++        ? { url, hostId: id, role: 'public-rpc' } : { url, hostId: null, role: null };
++    } catch (e) { return { url, hostId: null, role: null, error: String(e.message || e).slice(0, 120) }; }
++  }));
++}
++
++/** Throws when two origins are the same Enclave host; -> the list unchanged otherwise. */
++export function assertDistinctRpcHosts(ids) {
++  const seen = new Map();
++  for (const x of ids) {
++    if (!x.hostId) continue;
++    if (seen.has(x.hostId)) throw new Error(`${seen.get(x.hostId)} and ${x.url} are the same host (${x.hostId}): one host under several names is one vote, not two RPCs`);
++    seen.set(x.hostId, x.url);
++  }
++  return ids;
++}
+diff --git a/network/public-rpc.mjs b/network/public-rpc.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6fe7049544aaac25d8b11f209cc49d9cc26aee2d
+--- /dev/null
++++ b/network/public-rpc.mjs
+@@ -0,0 +1,220 @@
++// A host's PUBLIC Base JSON-RPC endpoint for browser dashboards (host-service role 'public-rpc'; network/host-services/
++// roles.mjs; reached as rpc-<base32(registry id)>.<zone> through the host-service ingress, host-service-names.mjs). It
++// answers the read and estimate methods the dashboard's network profile sends (work/browser-rpc-closure
++// NOTE-BROWSER-RPC-ENDPOINT-REQUIREMENTS.md) from the OPERATOR'S OWN Base node on this machine, and nothing else:
++//   - the node is a loopback URL (the operator's local client or holder); a remote "node" is refused at configuration, so
++//     this is never a proxy to a third-party provider, and nobody can name another upstream in a request;
++//   - methods: an exact allowlist with strictly checked parameters (EIP-1898 block objects included). Admin, debug,
++//     personal, txpool, signing, account and filter methods are refused by name, never forwarded; batches are refused;
++//   - an optional proof-backed LOCAL verifier (chainVerifier, loopback) answers ONLY the methods it supports
++//     (verifiedMethods); those never fall back to the node, and the node's methods are never labelled verified. Every
++//     answer says which one answered (X-Enclave-Rpc-Source: node | verifier). Neither is a cryptographic proof to the
++//     browser: the browser trusts this endpoint, as it trusts any RPC origin in its profile;
++//   - honesty: a node that is syncing or whose head is older than maxHeadAgeSec refuses (503) instead of answering stale
++//     state; eth_sendRawTransaction is refused unless the operator states how its node propagates transactions
++//     (rawTransactions.propagation), and then the node's own answer is returned unchanged (never a fabricated hash);
++//   - bounds: request body, response size, one backend deadline, in-flight requests and an aggregate token bucket (the
++//     ingress hands every connection over loopback, so per-client limits are the exits' and the ingress's);
++//   - CORS: only the configured dashboard origins (or "*" written explicitly), POST with content-type only, never
++//     credentials; no redirect is followed or sent.
++// The role holds no key, no secret and no wallet. It is not indexed: no EnclaveServiceIndex kind names an RPC endpoint, so
++// browsers reach it only through a profile that lists its URL.
++//   node network/public-rpc.mjs <config.json>     prints {"type":"ready","port":N}
++import http from 'node:http';
++import fs from 'node:fs';
++import { pathToFileURL } from 'node:url';
++
++export { ROLE, VERIFIABLE_METHODS, SERVED_METHODS, validatePublicRpcConfig } from './public-rpc-config.mjs';
++import { ROLE, VERIFIABLE_METHODS, SERVED_METHODS, FORBIDDEN, validatePublicRpcConfig } from './public-rpc-config.mjs';
++const ADDR = /^0x[0-9a-fA-F]{40}$/, HASH = /^0x[0-9a-fA-F]{64}$/, QTY = /^0x(0|[1-9a-fA-F][0-9a-fA-F]{0,15})$/, HEX = /^0x([0-9a-fA-F]{2})*$/;
++const TAGS = new Set(['latest', 'earliest', 'safe', 'finalized']);
++const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
++
++/* ---- parameters: exact shapes only ---- */
++class ParamError extends Error {}
++const bad = (m) => { throw new ParamError(m); };
++const block = (v, { tagsOnly = false } = {}) => {
++  if (typeof v === 'string') { if (TAGS.has(v) || QTY.test(v)) return; bad('block must be a hex number, latest, earliest, safe or finalized (pending is not served)'); }
++  if (!tagsOnly && plain(v)) {                                   // EIP-1898
++    const keys = Object.keys(v);
++    if (keys.includes('blockHash')) { if (!HASH.test(String(v.blockHash)) || keys.some((k) => !['blockHash', 'requireCanonical'].includes(k)) || (v.requireCanonical !== undefined && typeof v.requireCanonical !== 'boolean')) bad('{blockHash, requireCanonical?}'); return; }
++    if (keys.length === 1 && keys[0] === 'blockNumber' && QTY.test(String(v.blockNumber))) return;
++  }
++  bad('invalid block parameter');
++};
++const addr = (v, what = 'address') => { if (typeof v !== 'string' || !ADDR.test(v)) bad(`${what} must be an address`); };
++const hash = (v) => { if (typeof v !== 'string' || !HASH.test(v)) bad('a 32-byte hash is required'); };
++const TX_KEYS = { from: addr, to: addr, gas: 'qty', gasPrice: 'qty', maxFeePerGas: 'qty', maxPriorityFeePerGas: 'qty', value: 'qty', nonce: 'qty', data: 'hex', input: 'hex' };
++function tx(v) {
++  if (!plain(v)) bad('the call must be a transaction object');
++  for (const [k, x] of Object.entries(v)) {
++    const t = TX_KEYS[k];
++    if (!t) bad(`unsupported call field ${JSON.stringify(k).slice(0, 40)}`);
++    if (t === 'qty' ? !(typeof x === 'string' && QTY.test(x)) : t === 'hex' ? !(typeof x === 'string' && HEX.test(x)) : (t(x, k), false)) bad(`invalid ${k}`);
++  }
++}
++const arity = (p, lo, hi) => { if (!Array.isArray(p) || p.length < lo || p.length > hi) bad(`expects ${lo === hi ? lo : `${lo} to ${hi}`} parameters`); };
++function logFilter(f, limits, head) {
++  if (!plain(f)) bad('the filter must be an object');
++  for (const k of Object.keys(f)) if (!['address', 'topics', 'fromBlock', 'toBlock', 'blockHash'].includes(k)) bad(`unsupported filter field ${JSON.stringify(k).slice(0, 40)}`);
++  addr(f.address, 'filter.address (exactly one contract)');
++  if (f.topics !== undefined) {
++    if (!Array.isArray(f.topics) || f.topics.length > 4) bad('topics: at most 4 positions');
++    for (const t of f.topics) if (!(t === null || (typeof t === 'string' && HASH.test(t)) || (Array.isArray(t) && t.length >= 1 && t.length <= 4 && t.every((x) => typeof x === 'string' && HASH.test(x))))) bad('topics: null, a hash or 1-4 hashes per position');
++  }
++  if (f.blockHash !== undefined) { hash(f.blockHash); if (f.fromBlock !== undefined || f.toBlock !== undefined) bad('blockHash excludes fromBlock/toBlock'); return; }
++  const num = (v, what) => { if (v === 'latest') return head; if (typeof v === 'string' && QTY.test(v)) return BigInt(v); return bad(`${what}: a hex block number or latest`); };
++  const from = num(f.fromBlock, 'fromBlock'), to = num(f.toBlock ?? 'latest', 'toBlock');
++  if (from === null || to === null) bad('the node head is unknown');
++  if (to < from) bad('toBlock is before fromBlock');
++  if (to - from + 1n > BigInt(limits.maxLogRange)) bad(`log ranges are at most ${limits.maxLogRange} blocks`);
++}
++/** method -> check(params, ctx) */
++const METHODS = {
++  eth_chainId: (p) => arity(p, 0, 0),
++  eth_blockNumber: (p) => arity(p, 0, 0),
++  eth_getBlockByNumber: (p) => { arity(p, 2, 2); block(p[0], { tagsOnly: true }); if (p[1] !== false) bad('full transaction objects are not served (pass false)'); },
++  eth_call: (p) => { arity(p, 2, 2); tx(p[0]); block(p[1]); },
++  eth_estimateGas: (p) => { arity(p, 1, 2); tx(p[0]); if (p.length === 2) block(p[1]); },
++  eth_getCode: (p) => { arity(p, 2, 2); addr(p[0]); block(p[1]); },
++  eth_getBalance: (p) => { arity(p, 2, 2); addr(p[0]); block(p[1]); },
++  eth_getTransactionCount: (p) => { arity(p, 2, 2); addr(p[0]); block(p[1]); },
++  eth_getStorageAt: (p) => { arity(p, 3, 3); addr(p[0]); if (typeof p[1] !== 'string' || !/^0x[0-9a-fA-F]{1,64}$/.test(p[1])) bad('slot must be a hex word'); block(p[2]); },
++  eth_getLogs: (p, ctx) => { arity(p, 1, 1); logFilter(p[0], ctx.limits, ctx.head); },
++  eth_getTransactionReceipt: (p) => { arity(p, 1, 1); hash(p[0]); },
++  eth_getTransactionByHash: (p) => { arity(p, 1, 1); hash(p[0]); },
++  eth_sendRawTransaction: (p) => { arity(p, 1, 1); if (typeof p[0] !== 'string' || !HEX.test(p[0]) || p[0].length < 4) bad('a signed raw transaction (hex)'); },
++};
++if (Object.keys(METHODS).join() !== SERVED_METHODS.join()) throw new Error('public-rpc: the parameter checks and SERVED_METHODS differ');
++
++/**
++ * createPublicRpc(config, { fetch, now, log }) -> { port, close(), status() }. fetch: the backend transport (tests count
++ * it); it is called ONLY with the configured node or verifier URL.
++ */
++export async function createPublicRpc(rawConfig, { fetch: backendFetch = globalThis.fetch, now = Date.now, log = () => {} } = {}) {
++  const cfg = validatePublicRpcConfig(rawConfig), L = cfg.limits;
++  const verified = new Set(cfg.verifiedMethods || []);
++  let tokens = L.burst, refill = now(), inFlight = 0, id = 0, health = null, healthAt = 0, healthPending = null;
++
++  // one JSON-RPC call to the node or the verifier, bounded in time and size; -> {result} | {error} | throws (unreachable)
++  async function backend(url, method, params) {
++    const r = await backendFetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, redirect: 'error',
++      body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params }), signal: AbortSignal.timeout(L.backendTimeoutMs) });
++    if (!r.ok) throw Object.assign(new Error(`HTTP ${r.status}`), { unreachable: true });
++    const reader = r.body?.getReader?.(); let size = 0; const parts = [];
++    if (reader) for (;;) {
++      const { done, value } = await reader.read(); if (done) break;
++      size += value.length; if (size > L.maxResponseBytes) { await reader.cancel().catch(() => {}); throw Object.assign(new Error(`the answer is larger than ${L.maxResponseBytes} bytes`), { tooLarge: true }); }
++      parts.push(value);
++    }
++    const j = JSON.parse(reader ? Buffer.concat(parts).toString('utf8') : await r.text());
++    if (j && j.error) return { error: { code: Number.isInteger(j.error.code) ? j.error.code : -32000, message: String(j.error.message || 'error').slice(0, 500),
++      ...(j.error.data !== undefined ? { data: typeof j.error.data === 'string' ? j.error.data.slice(0, 65536) : j.error.data } : {}) } };
++    return { result: j ? j.result : null };
++  }
++  // the node's sync state, at most once per 2 s: syncing, or a head older than maxHeadAgeSec, refuses node methods
++  async function nodeHealth() {
++    if (health && now() - healthAt < 2000) return health;
++    return (healthPending ||= (async () => {
++      try {
++        const [chain, syncing, head] = await Promise.all([backend(cfg.node, 'eth_chainId', []), backend(cfg.node, 'eth_syncing', []), backend(cfg.node, 'eth_getBlockByNumber', ['latest', false])]);
++        const b = head.result, age = b && QTY.test(String(b.timestamp)) ? Math.floor(now() / 1000) - Number(BigInt(b.timestamp)) : null;
++        if (chain.error || Number(BigInt(chain.result || '0x0')) !== cfg.chainId) health = { ok: false, reason: `the node does not serve chain ${cfg.chainId}` };
++        else if (syncing.error || (syncing.result !== false)) health = { ok: false, reason: 'the operator\'s node is syncing (answers would be stale)' };
++        else if (!b || age === null) health = { ok: false, reason: 'the operator\'s node reports no head' };
++        else if (age > cfg.maxHeadAgeSec) health = { ok: false, reason: `the operator's node head is ${age} s old (limit ${cfg.maxHeadAgeSec} s)` };
++        else health = { ok: true, head: BigInt(b.number), headAgeSec: age };
++      } catch (e) { health = { ok: false, reason: 'the operator\'s node is unreachable' + (e.name === 'TimeoutError' ? ' (timed out)' : '') }; }
++      healthAt = now(); healthPending = null; return health;
++    })());
++  }
++  const corsOrigin = (origin) => cfg.allowedOrigins[0] === '*' ? '*' : (origin && cfg.allowedOrigins.includes(origin) ? origin : null);
++  const send = (res, status, body, { origin = null, source = null, extra = {} } = {}) => {
++    const h = { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-enclave-rpc-host': cfg.hostId, ...extra };
++    if (source) h['x-enclave-rpc-source'] = source;
++    if (origin) Object.assign(h, { 'access-control-allow-origin': origin, vary: 'Origin', 'access-control-expose-headers': 'x-enclave-rpc-source, x-enclave-rpc-host' });
++    res.writeHead(status, h); res.end(typeof body === 'string' ? body : JSON.stringify(body));
++  };
++  const rpcError = (reqId, code, message, data) => ({ jsonrpc: '2.0', id: reqId ?? null, error: { code, message, ...(data !== undefined ? { data } : {}) } });
++  const take = () => {
++    const t = now(); tokens = Math.min(L.burst, tokens + ((t - refill) / 1000) * L.perSecond); refill = t;
++    if (tokens < 1) return false; tokens -= 1; return true;
++  };
++
++  async function handle(req, res) {
++    const origin = req.headers.origin;
++    const allowed = origin === undefined ? null : corsOrigin(origin);
++    const url = req.url || '/';
++    if (origin !== undefined && !allowed) return send(res, 403, rpcError(null, -32003, 'this origin is not allowed to use this endpoint'));
++    if (req.method === 'OPTIONS') {
++      const m = req.headers['access-control-request-method'], hdrs = String(req.headers['access-control-request-headers'] || '').toLowerCase().split(',').map((s) => s.trim()).filter(Boolean);
++      if (url !== '/' || m !== 'POST' || hdrs.some((x) => x !== 'content-type')) { res.writeHead(403, { 'content-length': '0' }); return res.end(); }
++      res.writeHead(204, { ...(allowed ? { 'access-control-allow-origin': allowed, vary: 'Origin' } : {}), 'access-control-allow-methods': 'POST', 'access-control-allow-headers': 'content-type',
++        'access-control-max-age': '600', 'content-length': '0' });
++      return res.end();
++    }
++    if (req.method === 'GET' && url === '/health') {
++      const h = await nodeHealth();
++      return send(res, h.ok ? 200 : 503, { role: ROLE, hostId: cfg.hostId, chainId: cfg.chainId,
++        node: h.ok ? { synced: true, head: String(h.head), headAgeSec: h.headAgeSec } : { synced: false, reason: h.reason },
++        verifiedMethods: [...verified], rawTransactions: cfg.rawTransactions ? { offered: true, propagation: cfg.rawTransactions.propagation, checkedByThisRole: false } : { offered: false },
++        methods: SERVED_METHODS.filter((m) => m !== 'eth_sendRawTransaction' || cfg.rawTransactions), limits: L }, { origin: allowed });
++    }
++    if (url !== '/') return send(res, 404, rpcError(null, -32004, 'not found'), { origin: allowed });
++    if (req.method !== 'POST') return send(res, 405, rpcError(null, -32004, 'POST JSON-RPC to /'), { origin: allowed, extra: { allow: 'POST, OPTIONS' } });
++    if (!/^application\/json(\s*;.*)?$/i.test(String(req.headers['content-type'] || ''))) return send(res, 415, rpcError(null, -32700, 'content-type must be application/json'), { origin: allowed });
++    if (!take()) return send(res, 429, rpcError(null, -32005, 'rate limited: retry shortly'), { origin: allowed, extra: { 'retry-after': '1' } });
++    if (inFlight >= L.maxInFlight) return send(res, 503, rpcError(null, -32005, 'busy: too many requests in flight'), { origin: allowed, extra: { 'retry-after': '1' } });
++    inFlight++;
++    try {
++      const declared = Number(req.headers['content-length'] || 0);
++      if (declared > L.maxBodyBytes) return send(res, 413, rpcError(null, -32600, `the request is larger than ${L.maxBodyBytes} bytes`), { origin: allowed });
++      let size = 0; const parts = [];
++      for await (const chunk of req) { size += chunk.length; if (size > L.maxBodyBytes) return send(res, 413, rpcError(null, -32600, `the request is larger than ${L.maxBodyBytes} bytes`), { origin: allowed }); parts.push(chunk); }
++      let body; try { body = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { return send(res, 200, rpcError(null, -32700, 'parse error'), { origin: allowed }); }
++      if (Array.isArray(body)) return send(res, 200, rpcError(null, -32600, 'batch requests are not served: send one call per request'), { origin: allowed });
++      const reqId = body?.id;
++      if (!plain(body) || body.jsonrpc !== '2.0' || typeof body.method !== 'string' || !(reqId === undefined || reqId === null || (typeof reqId === 'number' && Number.isSafeInteger(reqId)) || (typeof reqId === 'string' && reqId.length <= 64)))
++        return send(res, 200, rpcError(null, -32600, 'invalid JSON-RPC 2.0 request'), { origin: allowed });
++      const method = body.method, params = body.params === undefined ? [] : body.params;
++      if (FORBIDDEN.test(method)) return send(res, 200, rpcError(reqId, -32601, `${method.slice(0, 64)} is not offered by a public endpoint (no administration, debugging, signing, accounts, mempool or filters)`), { origin: allowed });
++      const check = METHODS[method];
++      if (!check) return send(res, 200, rpcError(reqId, -32601, `${method.slice(0, 64)} is not offered by this endpoint`), { origin: allowed });
++      if (method === 'eth_sendRawTransaction' && !cfg.rawTransactions)
++        return send(res, 200, rpcError(reqId, -32601, 'eth_sendRawTransaction is not offered: this operator has not stated a transaction propagation route for its node (nothing was submitted)'), { origin: allowed });
++      const viaVerifier = verified.has(method);
++      let head = null;
++      if (!viaVerifier) {
++        const h = await nodeHealth();
++        if (!h.ok) return send(res, 503, rpcError(reqId, -32002, h.reason + '; nothing was answered from it'), { origin: allowed, source: 'node', extra: { 'retry-after': '5' } });
++        head = h.head;
++      }
++      try { check(params, { limits: L, head }); } catch (e) { if (e instanceof ParamError) return send(res, 200, rpcError(reqId, -32602, `invalid params: ${e.message}`), { origin: allowed }); throw e; }
++      let out;
++      try { out = await backend(viaVerifier ? cfg.chainVerifier : cfg.node, method, params); }
++      catch (e) {
++        const what = viaVerifier ? 'the operator\'s local verifier' : 'the operator\'s node';
++        if (viaVerifier) log(`[public-rpc] ${method}: verifier unavailable (${e.message}); no node fallback`);
++        return send(res, e.tooLarge ? 502 : e.name === 'TimeoutError' ? 504 : 503, rpcError(reqId, -32002, `${what} ${e.tooLarge ? 'answered more than this endpoint returns' : e.name === 'TimeoutError' ? `did not answer within ${L.backendTimeoutMs} ms` : 'is unavailable'}; nothing was answered${viaVerifier ? ' (verified methods never fall back to the node)' : ''}`),
++          { origin: allowed, source: viaVerifier ? 'verifier' : 'node' });
++      }
++      const extra = method === 'eth_sendRawTransaction' ? { 'x-enclave-rpc-propagation': 'operator-stated' } : {};
++      return send(res, 200, out.error ? { jsonrpc: '2.0', id: reqId ?? null, error: out.error } : { jsonrpc: '2.0', id: reqId ?? null, result: out.result },
++        { origin: allowed, source: viaVerifier ? 'verifier' : 'node', extra });
++    } finally { inFlight--; }
++  }
++
++  const server = http.createServer((req, res) => { handle(req, res).catch((e) => { log(`[public-rpc] ${e.message}`); if (!res.headersSent) send(res, 500, rpcError(null, -32603, 'internal error')); else res.destroy(); }); });
++  // bounded connections: a slow client cannot hold a request open past these
++  server.headersTimeout = 10_000; server.requestTimeout = L.backendTimeoutMs + 5_000; server.keepAliveTimeout = 5_000; server.maxHeadersCount = 64;
++  await new Promise((ok, no) => { server.once('error', no); server.listen(cfg.port, cfg.bind, ok); });
++  log(`[public-rpc] serving ${SERVED_METHODS.length - (cfg.rawTransactions ? 0 : 1)} methods on ${cfg.bind}:${server.address().port} from the operator's node${verified.size ? `; verified by the local verifier: ${[...verified].join(', ')}` : ''}; raw transactions ${cfg.rawTransactions ? 'forwarded (operator-stated propagation)' : 'refused'}`);
++  return { port: server.address().port, config: cfg, close: () => new Promise((ok) => { server.closeAllConnections?.(); server.close(() => ok()); }), nodeHealth };
++}
++
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
++  const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
++  const running = await createPublicRpc(config, { log: (m) => console.log(m) });
++  console.log(JSON.stringify({ type: 'ready', port: running.port }));
++  for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { running.close().then(() => process.exit(0)); setTimeout(() => process.exit(0), 2000).unref(); });
++}
+diff --git a/network/wg-circuit-runtime.mjs b/network/wg-circuit-runtime.mjs
+index a3064b188df52ff163dc96cb9d98ea745b208dc8..4fcffc1fdec335097060066bac31c8125f92e6fa 100644
+--- a/network/wg-circuit-runtime.mjs
++++ b/network/wg-circuit-runtime.mjs
+@@ -9,6 +9,9 @@ import {EventEmitter} from 'node:events';import {randomBytes,createHash} from 'n
+ import {spawn,execFile} from 'node:child_process';import {promisify} from 'node:util';import {createInterface} from 'node:readline';
+ import {createAppBroker} from './app-broker.mjs';
+ import {wireGuardKeypair} from './wg-grants.mjs';
++import {HOST_RPC_LABEL} from './host-service-names.mjs';
++// a host-service circuit asks the exit for its public RPC name exactly when the host's granted set carries one (public-rpc)
++const wantsRpc=(service)=>!!service&&service.granted.some((n)=>n.startsWith(HOST_RPC_LABEL+'-'));
+ const execute=promisify(execFile),digest=s=>createHash('sha256').update(s).digest('hex');
+ export const RENEW_MS=4*60000;
+ const sameNames=(a,b)=>Array.isArray(a)&&a.length===b.length&&[...a].sort().join('\n')===[...b].sort().join('\n');
+@@ -165,7 +168,7 @@ export class WgCircuitRuntime {
+      guardSocks:{listen:`127.0.0.1:${ports.guardSocks}`,only:[`${exit.address}:443`,`${exit.address}:80`]}});
+     outer=await next('outer-ready');live();
+     exitAsked=true;
+-    exitGrant=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress})
++    exitGrant=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress,rpc:wantsRpc(service)})
+      .catch(e=>{exitRefused=e.refused===true;throw e;});   // an explicit refusal (403) leaves no peer at the exit
+     if(service&&!sameNames(exitGrant.names,service.granted))throw Object.assign(new Error('the exit granted other names than this host\'s service names'),{providerRole:'public'});
+     live();
+@@ -197,7 +200,7 @@ export class WgCircuitRuntime {
+    if(kind==='network')renewal=renewGrants({every:this.renewMs,until:Math.min(guardGrant.expiresAt,exitGrant.expiresAt),closed:()=>circuit.closed,
+     renew:async()=>{
+      const g2=await this.grants.request({provider:guard,url:`http://${guard.address}:${guard.ports.control}`,role:'guard',deploymentId,wgPublicKey:keys.guard.publicKey});
+-     const x2=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress});
++     const x2=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress,rpc:wantsRpc(service)});
+      // a provider that lost this peer (restarted without its table) hands out a new address: the tunnel cannot use it,
+      // so rebuild now rather than wait for the route probes to fail
+      if(g2.clientAddress!==guardGrant.clientAddress)throw Object.assign(new Error('the guard changed this circuit\'s address'),{providerRole:'guard'});
+diff --git a/network/wg-grants.mjs b/network/wg-grants.mjs
+index 724def4d185b559a402dbe531ed88a82e6c35abf..80b672bd772c8defbd318dad4a03954678ecce3a 100644
+--- a/network/wg-grants.mjs
++++ b/network/wg-grants.mjs
+@@ -14,10 +14,11 @@ export class WgGrants {
+  constructor({account,runner,policy=async()=>null,fetch=globalThis.fetch,now=Date.now,timeoutMs=15000}){Object.assign(this,{account,runner,policy,fetch,now,timeoutMs});}
+  // provider: a verified directory record; url: where its control API is reachable (direct, or a loopback forward
+  // through the guard); role: 'guard'|'exit'
+- async request({provider,url,role,deploymentId,wgPublicKey,ingress=false,egress=false}){
++ // rpc: a service request of a host that serves its public RPC origin (the exit then grants rpc-<b32> too; absent otherwise)
++ async request({provider,url,role,deploymentId,wgPublicKey,ingress=false,egress=false,rpc=false}){
+   const now=this.now();
+   const request={version:1,providerId:provider.providerId,role,deploymentId,runner:this.runner,wgPublicKey,policy:await this.policy(deploymentId),
+-   ingress:role!=='guard'&&ingress,egress:role!=='guard'&&egress,issuedAt:now,nonce:randomBytes(16).toString('hex'),expiresAt:now+10*60000};
++   ingress:role!=='guard'&&ingress,egress:role!=='guard'&&egress,issuedAt:now,nonce:randomBytes(16).toString('hex'),expiresAt:now+10*60000,...(role==='service'&&rpc===true?{rpc:true}:{})};
+   const signature=await this.account.signMessage({message:peerRequestMessage(request)});
+   // no answer at all (refused, reset, timed out) is marked: a renewal tries again while its grant lasts, where a
+   // provider's answer stands
+diff --git a/network/wg-provider/host-services-config.mjs b/network/wg-provider/host-services-config.mjs
+index cbeb6c5adc0440f5dcba92947f727f78d830a2b9..f8d4c7e2c6c7a3db1d639810e7c1bdd02349e3a1 100644
+--- a/network/wg-provider/host-services-config.mjs
++++ b/network/wg-provider/host-services-config.mjs
+@@ -2,7 +2,9 @@
+ // roles this transport carries, as raw packets (provider.mjs service, dnsTarget; kernel.mjs dns).
+ //   hostServices: { zone, platformHostPolicy: "production" | {book, hostOwnership, mirrors[], ...} | "off",
+ //                   platformHostPolicyMirrors?: [https], platformHostPolicyRpcs?: [url], maxHosts?,
+-//                   dns?: { hosts: [registry ids], staleMs?, perSourcePps?, perSourceBurst?, globalPps?, globalBurst?, tcpPerSource? } }
++//                   dns?: { hosts: [registry ids], staleMs?, perSourcePps?, perSourceBurst?, globalPps?, globalBurst?, tcpPerSource? },
++//                   rpc?: true }   (opt-in: also grant each carried host its public RPC name rpc-<b32>.<zone>,
++//                                   network/public-rpc.mjs; absent, the exact three-name grant is unchanged)
+ // "off" is a development option, written explicitly: the transport profile (scripts/check-transport-profile.mjs) refuses it.
+ // zone: the APP zone itself (the hosted route-dns answers the derived labels from its appStatic, network/host-services/
+ // stage-tool.mjs hostServicePublication) or a zone apart from both the app and the probe zone - never nested in either.
+@@ -18,7 +20,7 @@ const inside = (a, b) => a === b || a.endsWith('.' + b) || b.endsWith('.' + a);
+ export function providerHostServices(hs, { zone = 'app.enclave.host', probeZone = 'probe.enclave.host', roles = [] } = {}) {
+   if (hs === undefined || hs === null) return null;
+   if (!plain(hs)) fail('must be an object');
+-  const allowed = ['zone', 'platformHostPolicy', 'platformHostPolicyMirrors', 'platformHostPolicyRpcs', 'maxHosts', 'dns'];
++  const allowed = ['zone', 'platformHostPolicy', 'platformHostPolicyMirrors', 'platformHostPolicyRpcs', 'maxHosts', 'dns', 'rpc'];
+   for (const k of Object.keys(hs)) if (!allowed.includes(k)) fail(`unknown field ${JSON.stringify(k)}`);
+   try { validServiceZone(hs.zone); } catch (e) { fail(e.message.replace(/^hostServices\.?/, '')); }
+   // the app zone itself is allowed (only the service SHAPE is reserved there); a zone nested in or above it, or touching the
+@@ -37,6 +39,7 @@ export function providerHostServices(hs, { zone = 'app.enclave.host', probeZone
+   const mirrors = https(hs.platformHostPolicyMirrors, 'platformHostPolicyMirrors'), rpcs = https(hs.platformHostPolicyRpcs, 'platformHostPolicyRpcs');
+   if (p === 'off' && (mirrors.length || rpcs.length)) fail('platformHostPolicy "off" with mirrors or RPCs: nothing would use them');
+   if (hs.maxHosts !== undefined && (!Number.isInteger(hs.maxHosts) || hs.maxHosts < 1 || hs.maxHosts > 256)) fail('maxHosts: 1 to 256');
++  if (hs.rpc !== undefined && hs.rpc !== true) fail('rpc: true (opt in to carrying hosts\' public RPC names) or absent');
+   let dns = null;
+   if (hs.dns !== undefined) {
+     const d = hs.dns;
+@@ -49,7 +52,7 @@ export function providerHostServices(hs, { zone = 'app.enclave.host', probeZone
+     let l; try { l = dnsLimits(limits); } catch (e) { fail(e.message); }
+     dns = { hosts: [...new Set(hosts.map((h) => h.toLowerCase()))], staleMs: staleMs ?? 180000, limits: l };
+   }
+-  return { zone: hs.zone, platformHostPolicy: p, mirrors, rpcs, maxHosts: hs.maxHosts ?? 64, dns };
++  return { zone: hs.zone, platformHostPolicy: p, mirrors, rpcs, maxHosts: hs.maxHosts ?? 64, dns, ...(hs.rpc ? { rpc: true } : {}) };
+ }
+ 
+ /** DNS 53 forwarding FAILS CLOSED without conntrack-tools (final review N2): -> { on, limits|null, pins|null, reason|null }.
+diff --git a/network/wg-provider/provider.mjs b/network/wg-provider/provider.mjs
+index 73634e704ecae72c20b82bbdd5d90f707f8cd759..769cd68c1ca1d1227cec5c67395fa2698549d0c8 100644
+--- a/network/wg-provider/provider.mjs
++++ b/network/wg-provider/provider.mjs
+@@ -6,7 +6,10 @@ import {recoverMessageAddress} from 'viem';
+ import {canonical} from '../route-record.mjs';
+ import {defaultNetworkPolicy,admitNetworkPolicy,networkUse} from '../network-policy.mjs';
+ import {paidGate} from './paid.mjs';
+-import {hostServiceNames,isHostServiceName} from '../host-service-names.mjs';
++import {hostServiceNames,hostRpcName,isHostServiceName} from '../host-service-names.mjs';
++// a carried host's names: its three derived ones, and its public RPC name only when the HOST asked for it (request rpc:true:
++// it serves the public-rpc role) AND this operator opted in (hostServices.rpc). Any other host's grant is the three names.
++const serviceNames=(runner,hs,rpc=false)=>[...Object.values(hostServiceNames(runner,hs.zone)),...(rpc&&hs.rpc?[hostRpcName(runner,hs.zone)]:[])];
+ 
+ export const REQUEST_MAX_AGE_MS=60000,PEER_TTL_MS=10*60000,MAX_PEERS=2048,MAX_SERVICE_HOSTS=64,DNS_STALE_MS=180000;
+ const app=/^0x[0-9a-f]{64}$/,hex32=/^[0-9a-f]{32}$/,wgKey=/^[A-Za-z0-9+/]{43}=$/,address=/^0x[0-9a-fA-F]{40}$/;
+@@ -17,7 +20,8 @@ export const revokeMessage=r=>`enclave-network:peer-revoke:v1\n${canonical(r)}`;
+ export const appLabel=id=>id.slice(2,10);
+ 
+ export function validatePeerRequest(r,now=Date.now()){
+- const k=r&&typeof r==='object'?Object.keys(r).sort().join(','):'';
++ const k=r&&typeof r==='object'?Object.keys(r).filter(x=>!(x==='rpc'&&r.role==='service'&&r.rpc===true)).sort().join(','):'';
++ // rpc:true - only on a service request: the host serves its public RPC origin and asks for its name (public-rpc.mjs)
+  if(k!=='deploymentId,egress,expiresAt,ingress,issuedAt,nonce,policy,providerId,role,runner,version,wgPublicKey'||r.version!==1||
+     !app.test(r.deploymentId)||!app.test(r.runner)||!['guard','exit','probe','control','service'].includes(r.role)||typeof r.providerId!=='string'||!/^[0-9a-f]{16,64}$/.test(r.providerId)||
+     !wgKey.test(r.wgPublicKey)||typeof r.egress!=='boolean'||typeof r.ingress!=='boolean'||!hex32.test(r.nonce)||
+@@ -56,7 +60,7 @@ export function validateRevokeRequest(r,now=Date.now()){
+ 
+ export class WgProvider {
+  // config: {providerId, roles:[...], pricePerGiB6, publicAddress, exitKey, guardKey, ports:{exit,guard,control}, zone,
+- //          hostServices:{zone, maxHosts?, dns?:{hosts:[registry ids], staleMs?}}}   (hostServices absent: no service peers)
++ //          hostServices:{zone, maxHosts?, dns?:{hosts:[registry ids], staleMs?}, rpc?:true}}   (hostServices absent: no service peers)
+  // hostAdmission(ids) -> {[id]: {admit, reason}}: the platform host policy's hot-path decision (host-policy-runtime
+  // admissions); null only when the operator wrote platformHostPolicy "off"
+  // dnsProbe(address) -> true|false: the pinned host's DNS role answers through its tunnel (dns-probe.mjs); without it no
+@@ -85,7 +89,7 @@ export class WgProvider {
+   for(const p of saved?.peers||[]){
+    if(!p||p.expiresAt<=now||!/^10\.7[78]\./.test(p.address||''))continue;
+    // a service peer's names follow THIS run's configuration, never the saved ones (a changed zone; host services withdrawn)
+-   if(p.role==='service'){if(!this.config.hostServices)continue;try{p.names=Object.values(hostServiceNames(p.runner,this.config.hostServices.zone));}catch{continue;}p.dnsOk=false;}
++   if(p.role==='service'){if(!this.config.hostServices||(p.rpc&&!this.config.hostServices.rpc))continue;try{p.names=serviceNames(p.runner,this.config.hostServices,p.rpc===true);}catch{continue;}p.dnsOk=false;}
+    this.peers.set(p.key,p);this.used.add(p.address);
+    try{await this.kernel.setPeer({...p,role:p.role==='guard'||p.onGuard?'guard':'exit'});}catch(e){this.log('restore peer: '+e.message);}
+   }
+@@ -208,6 +212,7 @@ export class WgProvider {
+   const hs=this.config.hostServices;
+   if(!hs)throw new Error('this provider does not carry host services');
+   if(!this.config.roles.includes('ingress'))throw new Error('this provider does not offer ingress');
++  if(r.rpc===true&&!hs.rpc)throw new Error('this provider does not carry host public RPC names (its operator has not opted in: hostServices.rpc)');
+   const host=await this.hosts(r.runner);
+   if(!host||!host.active||String(host.operator).toLowerCase()!==signer)throw new Error('the request is not from an active registered host');
+   await this.admitHost(r.runner);
+@@ -227,8 +232,8 @@ export class WgProvider {
+    while(same.length>=2)await this.remove(same.shift(),'replaced');
+    peer={key:r.wgPublicKey,role:'service',deploymentId:r.deploymentId,runner:r.runner,address:this.allocate('exit'),createdAt:now,service:true};
+   }
+-  const names=Object.values(hostServiceNames(r.runner,hs.zone));
+-  Object.assign(peer,{egress:false,ingress:true,names,grantedAt:now,expiresAt:Math.min(r.expiresAt,now+PEER_TTL_MS)});
++  const names=serviceNames(r.runner,hs,r.rpc===true);
++  Object.assign(peer,{egress:false,ingress:true,names,rpc:r.rpc===true,grantedAt:now,expiresAt:Math.min(r.expiresAt,now+PEER_TTL_MS)});
+   this.peers.set(peer.key,peer);await this.kernel.setPeer(peer);await this.sync();await this.persist();
+   if(this.config.hostServices?.dns?.hosts?.includes(peer.runner)&&peer.dnsOk!==true)void this.probeDnsPeers([peer]).then(()=>this.sync()).catch(e=>this.log('dns probe: '+e.message));
+   const grant={version:1,providerId:this.config.providerId,role:'service',deploymentId:r.deploymentId,clientPublicKey:r.wgPublicKey,
+diff --git a/scripts/network/browser-profile.mjs b/scripts/network/browser-profile.mjs
+index 4c571ffc9a57a88098031803f58a17f943b37822..ea6e021a7ddf61078b9ac4b4b8588de517d5d7c2 100644
+--- a/scripts/network/browser-profile.mjs
++++ b/scripts/network/browser-profile.mjs
+@@ -21,6 +21,8 @@
+ // reads each host's own record and verifies every record itself, so no mirror is required or trusted.
+ // --address-book selects administrator-directed following and with it the ORIGINAL session factory (legacySessionVaultFactory);
+ // with --verify-chain the binding (factory -> implementation -> book, USDC, core entries) is checked at the verified block.
++// With --verify-chain each --rpc that is an Enclave host's public RPC (network/public-rpc.mjs) is asked which host it is: two
++// origins of ONE host are refused (one vote, not two RPCs); an RPC that states no identity is reported as unknown.
+ // --ledger-history-from <block> (with both; the book's deployment block) records every ledger the book named for
+ // "deployments" up to the verified block, from its AddressSet events with all RPCs agreeing, as the profile's ledgerHistory.
+ import fs from 'node:fs/promises';
+@@ -32,6 +34,7 @@ import {parseProfile,contractPinsFromProfile,MAX_PROFILE_BYTES,rpcClients,verify
+ import {validateContractPins} from '../../network/contract-pins.mjs';
+ import {validateProfile as validateBrowserProfile,parseUniqueJSON,PROFILE_FORMAT,PROFILE_MAX_BYTES} from '../../site/js/core/independent.js';
+ import {ANCHOR_KEYS,decodeAnchor} from '../../network/platform-host-policy.mjs';
++import {rpcHostIdentities,assertDistinctRpcHosts} from '../../network/public-rpc-hosts.mjs';
+ // the Enclave platform's book and production host-ownership extension (network/platform-host-policy-config.mjs; pinned by
+ // test/site-host-policy.test.mjs, like site/js/core/host-policy.js)
+ export const PLATFORM_BOOK='0xab214342d5a490150a4a977063a2f88e21f80907',PLATFORM_HOST_OWNERSHIP='0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7';
+@@ -190,6 +193,9 @@ async function main(){
+     storage,directories:values.directory||[],capacityDirectories:values['capacity-directory']||[],hostPolicyMirrors:values['host-policy-mirror']||null,hostOwnership:values['host-ownership']??null,name:values.name||'',addressBook:values['address-book']??null};
+   let r=convert(args);
+   if(values['verify-chain']){
++    // an Enclave host's public RPC names its host: two origins of one host are one vote (network/public-rpc-hosts.mjs)
++    for(const x of assertDistinctRpcHosts(await rpcHostIdentities(values.rpc||[])))
++      console.error('rpc '+x.url+': '+(x.hostId?'Enclave host '+x.hostId+' (its own node)':'identity not stated (not an Enclave host RPC)'));
+     const clients=rpcClients(values.rpc);
+     const v=await verifyProfileOnChain({profile:r.profile,clients});
+     console.error('authority profile matches the chain at block '+v.blockNumber+' ('+v.blockHash+')');
+diff --git a/test/fixtures/reth-dev-8453-genesis.json b/test/fixtures/reth-dev-8453-genesis.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..0475dc0b2447c5d5a3a3453b8bbb4e410895f72a
+--- /dev/null
++++ b/test/fixtures/reth-dev-8453-genesis.json
+@@ -0,0 +1,111 @@
++{
++ "config": {
++  "chainId": 8453,
++  "homesteadBlock": 0,
++  "eip150Block": 0,
++  "eip155Block": 0,
++  "eip158Block": 0,
++  "byzantiumBlock": 0,
++  "constantinopleBlock": 0,
++  "petersburgBlock": 0,
++  "istanbulBlock": 0,
++  "berlinBlock": 0,
++  "londonBlock": 0,
++  "mergeNetsplitBlock": 0,
++  "terminalTotalDifficulty": 0,
++  "terminalTotalDifficultyPassed": true,
++  "shanghaiTime": 0,
++  "cancunTime": 0,
++  "pragueTime": 0,
++  "osakaTime": 0,
++  "depositContractAddress": "0x0000000000000000000000000000000000000000",
++  "blobSchedule": {
++   "cancun": {
++    "target": 3,
++    "max": 6,
++    "baseFeeUpdateFraction": 3338477
++   },
++   "prague": {
++    "target": 6,
++    "max": 9,
++    "baseFeeUpdateFraction": 5007716
++   },
++   "osaka": {
++    "target": 6,
++    "max": 9,
++    "baseFeeUpdateFraction": 5007716
++   }
++  }
++ },
++ "nonce": "0x0",
++ "timestamp": "0x6490fdd2",
++ "extraData": "0x",
++ "gasLimit": "0x1c9c380",
++ "difficulty": "0x0",
++ "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
++ "coinbase": "0x0000000000000000000000000000000000000000",
++ "alloc": {
++  "0x14dc79964da2c08b23698b3d3cc7ca32193d9955": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x1cbd3b2770909d4e10f157cabc84c7264073c9ec": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x2546bcd3c84621e976d8185a91a922ae77ecec30": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x70997970c51812dc3a010c7d01b50e0d17dc79c8": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x71be63f3384f5fb98995898a86b02fb2426c5788": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x8626f6940e2eb28930efb4cef49b2d1f2c9c1199": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x90f79bf6eb2c4f870365e785982e1f101e93b906": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x976ea74026e726554db657fa54763abd0c3a0aa9": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xa0ee7a142d267c1f36714e4a8f75612f20a79720": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xbcd4042de499d14e55001ccbb24a551f3b954096": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xbda5747bfd65f08deb54cb465eb87d40e51b197e": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xcd3b766ccdd6ae721141f452c550ca635964ce71": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xdd2fd4581271e230360230f9337d5c0430bf44c0": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xdf3e18d64bc6a983f673ab319ccae4f1a57c7097": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": {
++   "balance": "0xd3c21bcecceda1000000"
++  },
++  "0xfabb0ac9d68b0b445fb7357272ff202c5651694a": {
++   "balance": "0xd3c21bcecceda1000000"
++  }
++ },
++ "number": "0x0",
++ "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
++}
+\ No newline at end of file
+diff --git a/test/helpers/reth-dev.mjs b/test/helpers/reth-dev.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..727947b4797254bb3f9b6787216e278a2135411e
+--- /dev/null
++++ b/test/helpers/reth-dev.mjs
+@@ -0,0 +1,34 @@
++// A REAL Base-chain-id dev node for tests: reth v2.8.0 `node --dev` (the pinned binary of work/rpc-priority, RETH_BIN) with
++// test/fixtures/reth-dev-8453-genesis.json (chain id 8453, forks through Osaka at genesis, the anvil dev accounts funded;
++// copied unchanged from work/rpc-priority/fixture-tools, sha256 cc045d9d...). The same flags as the opt-in reth rig of
++// test/helpers/cli-independent-rig.mjs at rpc-priority e32dd607b: loopback HTTP only, no discovery, one block per
++// blockTime, proofs served 1024 blocks back. The datadir is under TMPDIR. -> { url, stop() } or null when RETH_BIN is absent.
++import { spawn } from 'node:child_process';
++import fs from 'node:fs';
++import net from 'node:net';
++import os from 'node:os';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++
++export const RETH_BIN = process.env.RETH_BIN || '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/vendor-inspect/reth-v2.8.0/bin/reth';
++export const GENESIS = path.join(path.dirname(fileURLToPath(import.meta.url)), '../fixtures/reth-dev-8453-genesis.json');
++// anvil's public dev key #0, funded by the genesis (never a production wallet)
++export const DEV_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
++export const haveReth = () => fs.existsSync(RETH_BIN) ? null : 'needs the pinned reth binary (RETH_BIN)';
++export const freePort = () => new Promise((ok, no) => { const s = net.createServer(); s.once('error', no); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); });
++
++export async function startRethDev({ blockTime = '1s' } = {}) {
++  const port = await freePort(), auth = await freePort();
++  const data = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'reth-dev-'));
++  const child = spawn(RETH_BIN, ['node', '--dev', '--dev.block-time', blockTime, '--chain', GENESIS, '--datadir', data,
++    '--http', '--http.addr', '127.0.0.1', '--http.port', String(port), '--http.api', 'eth,net,web3', '--disable-discovery', '--ipcdisable',
++    '--port', '0', '--authrpc.port', String(auth), '--rpc.eth-proof-window', '1024'], { stdio: 'ignore' });
++  const kill = () => { try { child.kill('SIGKILL'); } catch {} };
++  process.once('exit', kill);
++  const url = `http://127.0.0.1:${port}`;
++  for (let i = 0; i < 600; i++) {
++    try { const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}' }); if (r.ok) break; } catch {}
++    await new Promise((r) => setTimeout(r, 100));
++  }
++  return { url, stop() { process.removeListener('exit', kill); kill(); fs.rmSync(data, { recursive: true, force: true }); } };
++}
+diff --git a/test/helpers/rpc-probe-contract.mjs b/test/helpers/rpc-probe-contract.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..e7da511b024d9285d97892fd5140175528aea8d1
+--- /dev/null
++++ b/test/helpers/rpc-probe-contract.mjs
+@@ -0,0 +1,19 @@
++// The probe contract the public-rpc tests deploy on the reth dev chain: a stored value, an event (history) and a function
++// that always reverts with a reason (revert semantics). Compiled by the locked solc-js (0.8.35) in a short-lived child, so
++// the compiler's WebAssembly memory never counts against the test process.
++import { execFileSync } from 'node:child_process';
++export const PROBE_SOURCE = `// SPDX-License-Identifier: MIT
++pragma solidity 0.8.35;
++contract RpcProbe {
++  uint256 public value = 42;
++  event Poked(address indexed who, uint256 n);
++  function poke(uint256 n) external { value = n; emit Poked(msg.sender, n); }
++  function fail() external pure { revert("probe: refused"); }
++}`;
++export function compileProbe() {
++  const js = `const solc=require('solc');const out=JSON.parse(solc.compile(JSON.stringify({language:'Solidity',sources:{'RpcProbe.sol':{content:${JSON.stringify(PROBE_SOURCE)}}},
++    settings:{optimizer:{enabled:true,runs:200},outputSelection:{'*':{'*':['abi','evm.bytecode.object']}}}})));
++    if((out.errors||[]).some(e=>e.severity==='error'))throw new Error(JSON.stringify(out.errors));const c=out.contracts['RpcProbe.sol'].RpcProbe;
++    process.stdout.write(JSON.stringify({abi:c.abi,bytecode:'0x'+c.evm.bytecode.object}));`;
++  return JSON.parse(execFileSync(process.execPath, ['-e', js], { cwd: new URL('../..', import.meta.url), maxBuffer: 16 << 20, timeout: 120000 }).toString());
++}
+diff --git a/test/host-service-lifecycle.test.mjs b/test/host-service-lifecycle.test.mjs
+index fb26f34840f951a1961ecc4bb6f0fa9477057874..c2463c15ad381fc505825060a19f43e17714837f 100644
+--- a/test/host-service-lifecycle.test.mjs
++++ b/test/host-service-lifecycle.test.mjs
+@@ -19,7 +19,7 @@ import { WgCircuitRuntime } from '../network/wg-circuit-runtime.mjs';
+ import { WgGrants } from '../network/wg-grants.mjs';
+ import { WgProvider } from '../network/wg-provider/provider.mjs';
+ import { createControl } from '../network/wg-provider/control.mjs';
+-import { hostServiceNames } from '../network/host-service-names.mjs';
++import { hostServiceNames, hostRpcName } from '../network/host-service-names.mjs';
+ 
+ const { HostServiceTransport } = hst;
+ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+@@ -61,7 +61,9 @@ function procsUnder(dir) {
+   return found;
+ }
+ 
+-async function world(t, { exitZone = ZONE, exits = 1, serviceWorker = path.join(ROOT, 'network/host-service-ingress.mjs') } = {}) {
++// exitRpc: the exits' operators opted in to carrying hosts' public RPC names (hostServices.rpc); hostRpc: this host serves the
++// public-rpc role (its ports name it, so it asks for rpc-<b32>)
++async function world(t, { exitZone = ZONE, exits = 1, serviceWorker = path.join(ROOT, 'network/host-service-ingress.mjs'), exitRpc = false, hostRpc = false } = {}) {
+   const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'hsl-'));
+   fs.mkdirSync(path.join(dir, 'pids'));
+   const wgBinary = path.join(dir, 'fake-wg.mjs'); fs.writeFileSync(wgBinary, FAKE_WG, { mode: 0o755 });
+@@ -91,7 +93,7 @@ async function world(t, { exitZone = ZONE, exits = 1, serviceWorker = path.join(
+   const exitHostAdmission = async (ids) => { w.asked.push(Date.now()); if (w.hold) await w.hold; return { [ids[0]]: { ...w.exitAdmit } }; };
+   w.exitList = [];
+   for (let i = 0; i < exits; i++) {
+-    const e = await provider(`e${i + 1}`.repeat(16), `127.0.0.${2 + i}`, ['ingress', 'egress'], { hostServices: { zone: exitZone } });
++    const e = await provider(`e${i + 1}`.repeat(16), `127.0.0.${2 + i}`, ['ingress', 'egress'], { hostServices: { zone: exitZone, ...(exitRpc ? { rpc: true } : {}) } });
+     e.p.hostAdmission = exitHostAdmission;
+     const revoke = e.p.revoke.bind(e.p); e.p.revoke = async (env) => { const r = await revoke(env); w.revokes.push({ exit: e.record.providerId, key: env.request.wgPublicKey }); return r; };
+     w.exitList.push(e);
+@@ -103,7 +105,10 @@ async function world(t, { exitZone = ZONE, exits = 1, serviceWorker = path.join(
+   const role = http.createServer((req, res) => res.end('directory-replica ' + req.headers.host)); servers.push({ close: () => { role.closeAllConnections?.(); role.close(); } });
+   await new Promise((r) => role.listen(0, '127.0.0.1', r));
+   w.rolePort = role.address().port;
+-  w.config = { zone: ZONE, exits: w.exitList.map((e) => e.record.providerId), ports: { 'directory-replica': w.rolePort } };
++  // the host's public RPC role stand-in (the transport routes bytes; network/public-rpc.mjs itself is test/public-rpc.test.mjs)
++  const rpcRole = http.createServer((req, res) => res.end('public-rpc ' + req.headers.host)); servers.push({ close: () => { rpcRole.closeAllConnections?.(); rpcRole.close(); } });
++  await new Promise((r) => rpcRole.listen(0, '127.0.0.1', r));
++  w.config = { zone: ZONE, exits: w.exitList.map((e) => e.record.providerId), ports: { 'directory-replica': w.rolePort, ...(hostRpc ? { 'public-rpc': rpcRole.address().port } : {}) } };
+   w.runtime = new WgCircuitRuntime({ directory: path.join(dir, 'rt'), wgBinary, nodeBinary: process.execPath, workerModule: path.join(ROOT, 'network/windows-circuit-worker.mjs'),
+     serviceWorkerModule: serviceWorker, platform: 'plain', grants: new WgGrants({ account, runner: HOST }), authorize: () => true, forward: (s) => s.destroy(), log });
+   w.grants = w.runtime.grants;
+@@ -112,10 +117,10 @@ async function world(t, { exitZone = ZONE, exits = 1, serviceWorker = path.join(
+   w.release = () => { const h = w.hold; w.hold = null; h?.resolve(); };
+   w.procs = () => procsUnder(dir);
+   // a public visitor: HTTP through the circuit's ingress worker (its port-80 side), Host = the derived name
+-  w.visit = (c) => new Promise((resolve) => {
++  w.visit = (c, name = hostServiceNames(HOST, ZONE)['directory-replica']) => new Promise((resolve) => {
+     const cfg = JSON.parse(fs.readFileSync(path.join(c.isolation.directory, 'worker.json'), 'utf8'));
+-    const name = hostServiceNames(HOST, ZONE)['directory-replica'];
+-    http.get({ host: '127.0.0.1', port: cfg.httpPort, path: '/', headers: { host: name }, timeout: 3000 }, (res) => { let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => resolve(b)); })
++    // a fresh connection per visit (agent false): the ingress routes a raw connection by its FIRST request's Host
++    http.get({ host: '127.0.0.1', port: cfg.httpPort, path: '/', headers: { host: name }, timeout: 3000, agent: false }, (res) => { let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => resolve(b)); })
+       .on('error', (e) => resolve('error ' + e.code)).on('timeout', function () { this.destroy(); resolve('timeout'); });
+   });
+   t.after(async () => { w.release(); try { fs.rmSync(process.env.HSL_HOLD_OUTER, { force: true }); } catch {} await w.runtime.close(); for (const s of servers) s.close();
+@@ -361,3 +366,41 @@ test('a startup that outlives the stop\'s settle bound: close() resolves at the
+   assert.equal(transport.circuits.size, 0); assert.equal(transport.timer, null);
+   assert.ok(!lines.some((l) => /circuit up/.test(l)));
+ });
++
++test('opt-in public RPC origin: a host serving public-rpc asks for rpc-<b32>, an opted-in exit grants it, a visitor reaches the role by that name, and a ban withdraws it', { timeout: 90_000 }, async (t) => {
++  const w = await world(t, { exitRpc: true, hostRpc: true });
++  const rpc = hostRpcName(HOST, ZONE);
++  let refusal = null;
++  const { judge, env } = agentJudge(w, { refusal: () => refusal });
++  await judge();
++  const h = env.current();
++  await until(() => h.circuits.size === 1, 30_000, 'the service circuit with the RPC name');
++  const [peer] = w.servicePeers();
++  assert.deepEqual(peer.names, [...Object.values(hostServiceNames(HOST, ZONE)), rpc], 'the exit granted the three derived names and the RPC origin');
++  assert.equal(peer.rpc, true);
++  const c = [...h.circuits.values()][0];
++  assert.equal(await w.visit(c, rpc), 'public-rpc ' + rpc, 'the RPC name reaches the public-rpc role');
++  assert.equal(await w.visit(c), 'directory-replica ' + hostServiceNames(HOST, ZONE)['directory-replica'], 'the other roles are unchanged');
++  refusal = BAN; await judge();
++  await until(() => w.servicePeers().length === 0, 20_000, 'the ban withdraws the grant (the RPC name with it)');
++  assert.equal(env.current(), null);
++  await env.stop();
++});
++
++test('an opted-in exit gives a host WITHOUT the role exactly its three names (unchanged grant)', { timeout: 60_000 }, async (t) => {
++  const plain = await world(t, { exitRpc: true, hostRpc: false });
++  const a = plain.transport(); await a.start();
++  await until(() => a.circuits.size === 1, 30_000, 'a plain host on an opted-in exit');
++  assert.deepEqual(plain.servicePeers()[0].names, Object.values(hostServiceNames(HOST, ZONE)), 'the exact three-name grant');
++  assert.equal(plain.servicePeers()[0].rpc, false);
++  assert.doesNotMatch(await plain.visit([...a.circuits.values()][0], hostRpcName(HOST, ZONE)), /^public-rpc/, 'no RPC name is routed for a host that did not ask');
++  await a.close();
++});
++
++test('a host serving public-rpc is refused BY NAME at an exit whose operator did not opt in (never a mismatched grant)', { timeout: 60_000 }, async (t) => {
++  const wants = await world(t, { exitRpc: false, hostRpc: true });
++  const b = wants.transport(); await b.start();
++  await until(() => wants.logs.some((l) => /does not carry host public RPC names \(its operator has not opted in: hostServices\.rpc\)/.test(l)), 30_000, 'the exit refuses by name');
++  assert.equal(b.circuits.size, 0); assert.deepEqual(wants.servicePeers(), []);
++  await b.close();
++});
+diff --git a/test/host-service-verifier-roles.test.mjs b/test/host-service-verifier-roles.test.mjs
+index 066490e3ce2d9b1b52f1080889ad1190bfe2eed0..f6a7bf759ca45159cba0879b26f7cf1dc204aaa8 100644
+--- a/test/host-service-verifier-roles.test.mjs
++++ b/test/host-service-verifier-roles.test.mjs
+@@ -12,6 +12,8 @@
+ //   - the admin's ban and unban through the carrier; then an AddressBook OWNER MIGRATION (setOwner + acceptOwnership): the
+ //     old admin's documents stop counting, the new admin's anchored policy governs;
+ //   - unknown, stale, missing and failed proofs REFUSE, with the public providers up: no provider fallback anywhere.
++//   - host B also runs the PACKAGED public-rpc role (network/public-rpc.mjs, its node the test chain): the same ban stops it,
++//     the unban restarts it, and after the owner migration it serves under the new admin's policy.
+ import { test, before, after } from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+@@ -20,7 +22,7 @@ import path from 'node:path';
+ import { createHash } from 'node:crypto';
+ import { execFileSync } from 'node:child_process';
+ import { fileURLToPath, pathToFileURL } from 'node:url';
+-import { stringToHex } from 'viem';
++import { stringToHex, keccak256, toBytes } from 'viem';
+ import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+ import { startRig, haveTools, KEYS, freePort } from './helpers/cli-independent-rig.mjs';
+ import { startLoopbackVerifier } from './helpers/loopback-verifier.mjs';
+@@ -61,6 +63,9 @@ const netFetch = (url, opts) => {
+ const diag = () => Object.values(hosts).map((h) => `--- host ${h.name}: ${JSON.stringify(h.running?.status?.() ?? null).slice(0, 1500)}\n${h.logs.slice(-20).join('\n').slice(-3000)}`).join('\n');
+ const wait = async (f, ms = 40000, what = 'condition') => { const end = Date.now() + ms; for (;;) { try { const v = await f(); if (v) return v; } catch {} if (Date.now() > end) throw new Error(`timed out: ${what}\n${diag()}`); await new Promise((r) => setTimeout(r, 250)); } };
+ const up = (port) => fetch(`http://127.0.0.1:${port}/health`).then((r) => r.ok, () => false);
++// the public RPC role answers a browser profile's first call (eth_chainId) only while it runs
++const rpcUp = (port) => fetch(`http://127.0.0.1:${port}/`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' })
++  .then((r) => r.json()).then((j) => j.result === '0x2105', () => false);
+ 
+ let rig, verifier, miner, index, indexPin, book, ownership, bookAbi, registryAddr, hosts = {}, docs = [];
+ const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...PRODUCTION_MIRRORS], activation: 'required' });
+@@ -80,7 +85,7 @@ const V = () => ({ chainAuthority: 'verifier', chainVerifier: verifier.url });
+ 
+ async function startHost(name, { importDoc = null, carriers, mirrorPeers = [] } = {}) {
+   const dir = path.join(tmp, 'host-' + name);
+-  const ports = { dir: await freePort(), pm: await freePort() };
++  const ports = { dir: await freePort(), pm: await freePort(), rpc: await freePort() };
+   if (importDoc) { fs.mkdirSync(path.join(dir, 'import'), { recursive: true }); fs.writeFileSync(path.join(dir, 'import', `${importDoc.digest}.json`), JSON.stringify({ document: importDoc.document, signature: importDoc.signature })); }
+   const services = [
+     { role: 'directory-replica', package: pin('directory-replica'), heapMiB: 192, config: { port: ports.dir, bind: '127.0.0.1', stateDir: path.join(dir, 'directory-state'),
+@@ -88,6 +93,9 @@ async function startHost(name, { importDoc = null, carriers, mirrorPeers = [] }
+       checkers: ['0x' + '3c'.repeat(20)], ...V() } },
+     { role: 'policy-mirror', package: pin('policy-mirror'), heapMiB: 128, config: { port: ports.pm, bind: '127.0.0.1', stateDir: path.join(dir, 'policy-mirror-state'),
+       book, hostOwnership: ownership, peers: mirrorPeers, syncSec: 5, ...(importDoc ? { importDir: path.join(dir, 'import') } : {}), ...V() } },
++    // host B's public RPC: the operator's own node is the test chain (loopback); not advertised (no index kind)
++    ...(name === 'b' ? [{ role: 'public-rpc', package: pin('public-rpc'), heapMiB: 96, config: { port: ports.rpc, bind: '127.0.0.1',
++      hostId: keccak256(toBytes(`https://host-${name}.policy-placement.net`)).toLowerCase(), chainId: 8453, node: rig.rpc, allowedOrigins: ['https://dashboard.policy-placement.net'] } }] : []),
+   ];
+   const publicEndpoints = { 'directory-replica': [`http://${HOST_ADDR[name]}:${ports.dir}/`], 'policy-mirror': [`http://${HOST_ADDR[name]}:${ports.pm}/platform-policy`] };
+   const cfg = { format: 'enclave-host-services/v1', host: { endpoint: `https://host-${name}.policy-placement.net`, publicEndpoints },
+@@ -175,6 +183,7 @@ test('every public provider down: the hosts start on the verifier alone; the rol
+   const idx = verifier.state.calls.length;
+   hosts.b = await startHost('b', { carriers: { serviceIndex: true }, mirrorPeers: [`http://127.0.0.1:${hosts.a.ports.pm}/platform-policy`] });
+   await wait(() => up(hosts.b.ports.dir), 60000, 'host B (EMPTY state) admitted via the index carrier read through the verifier');
++  await wait(() => rpcUp(hosts.b.ports.rpc), 30000, 'host B public RPC serves once admitted');
+   assert.equal(hosts.b.running.status().platformHostPolicy.runtime.accepted.digest, docs[0].digest);
+   assert.ok(verifier.state.calls.slice(idx).some((c) => c.method === 'eth_call' && c.to === index.toLowerCase()), 'the service index was read through the verifier');
+   for (const i of [0, 1, 2]) rig.rpcModes[i] = 'ok';
+@@ -186,12 +195,14 @@ test('admin moderation through the verifier: ban and unban host B; then an Addre
+   assert.equal((await pubA(ban)).status, 201);
+   await anchor(ban.digest);
+   await wait(async () => !(await up(hosts.b.ports.dir)), 60000, 'host B stops every role (banned)');
++  await wait(async () => !(await rpcUp(hosts.b.ports.rpc)), 30000, 'host B public RPC stopped by the ban');
+   assert.match(String(hosts.b.running.status().refusal), /banned by platform policy #2 \(operator\): abuse report 9/);
+   assert.equal(await up(hosts.a.ports.dir), true, 'host A is not banned');
+   const unban = adopt(await sign(docs[0].policy.deny));
+   assert.equal((await pubA(unban)).status, 201);
+   await anchor(unban.digest);
+   await wait(() => up(hosts.b.ports.dir), 60000, 'host B serves again after the unban');
++  await wait(() => rpcUp(hosts.b.ports.rpc), 30000, 'host B public RPC serves again after the unban');
+ 
+   // the admin migrates the book to a new owner (two steps, as on Base)
+   await rig.rpcCall('anvil_setBalance', [newAdmin.address, '0x8ac7230489e80000']);   // the new admin's account on the test chain
+@@ -212,6 +223,7 @@ test('admin moderation through the verifier: ban and unban host B; then an Addre
+   await wait(() => hosts.b.running.status().platformHostPolicy.runtime.accepted?.digest === fresh.digest, 60000, 'host B too, through host A\'s carrier');
+   await wait(() => up(hosts.a.ports.pm), 30000, 'host A mirror serving');
+   assert.equal((await pubA(stale)).status, 422, 'the old admin\'s document is refused by the mirror after the migration');
++  assert.equal(await rpcUp(hosts.b.ports.rpc), true, 'host B public RPC serves under the NEW admin\'s policy');
+ });
+ 
+ test('unknown, stale, missing and failed proofs REFUSE with the public providers up: no provider fallback in any reader', { skip, timeout: 240_000 }, async () => {
+diff --git a/test/public-rpc-browser.test.mjs b/test/public-rpc-browser.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..f0d977101e43224c2a3a7b3966a217876a6bb515
+--- /dev/null
++++ b/test/public-rpc-browser.test.mjs
+@@ -0,0 +1,155 @@
++// The PACKAGED public-rpc role (network/host-services/packages/public-rpc.*, run by network/host-services/runner.mjs) as the
++// RPC origins of a browser network profile, in a REAL Chromium: the unbundled dashboard's own chain modules
++// (site/js/core/quorum.js, chain.js with a saved and confirmed profile) talk to two hosts' roles over CORS, and every
++// non-loopback origin is refused at the browser. The backend is reth v2.8.0 --dev (test/helpers/reth-dev.mjs) behind a
++// fault proxy. BOTH roles front that ONE node here: the two-origin quorum proves the browser path, CORS, EIP-1898 pinning,
++// reverts, history, estimates and receipts through the role - it is NOT two independent nodes, and nothing here claims it.
++//   - agreed snapshot, eth_call at the agreed block hash, an agreed revert, logs, estimate, balance and code; a receipt
++//     through the profile's rotating reads (chain.js baseRpc);
++//   - a page on an origin the roles do not allow cannot read them (CORS refuses in the browser);
++//   - the node down: the quorum refuses within bounded time, nothing answers from elsewhere;
++//   - no request leaves loopback (the browser refuses any other origin; the job runs in a loopback-only namespace).
++//   run: node --test test/public-rpc-browser.test.mjs   (reth, Playwright's Chromium, the built packages)
++import { test, before, after } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import http from 'node:http';
++import path from 'node:path';
++import { createHash } from 'node:crypto';
++import { createRequire } from 'node:module';
++import { fileURLToPath } from 'node:url';
++import { createPublicClient, createWalletClient, http as viemHttp, encodeFunctionData, keccak256, toBytes, defineChain } from 'viem';
++import { privateKeyToAccount } from 'viem/accounts';
++import { startRethDev, haveReth, DEV_KEY, freePort } from './helpers/reth-dev.mjs';
++import { compileProbe } from './helpers/rpc-probe-contract.mjs';
++import { runHostServices } from '../network/host-services/runner.mjs';
++import { rpcHostIdentities, assertDistinctRpcHosts } from '../network/public-rpc-hosts.mjs';
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const PKG = path.join(REPO, 'network/host-services/packages');
++const require = createRequire(new URL('../e2e/package.json', import.meta.url));
++let chromium; try { ({ chromium } = require('playwright')); } catch {}
++const skip = haveReth() || (!chromium && 'needs Playwright\'s Chromium (e2e)') || (!fs.existsSync(path.join(PKG, 'public-rpc.package.json')) && 'needs the built packages') || false;
++const chain = defineChain({ id: 8453, name: 'base-dev', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: ['http://127.0.0.1'] } } });
++const pin = 'sha256:' + (fs.existsSync(path.join(PKG, 'public-rpc.package.json')) ? createHash('sha256').update(fs.readFileSync(path.join(PKG, 'public-rpc.package.json'))).digest('hex') : '0'.repeat(64));
++let reth, probe, proxy, mode = 'ok', site, other, hosts = [], browser, deployBlock, pokeTx;
++const servers = [];
++
++async function serve(handler) {
++  const s = http.createServer(handler); await new Promise((ok) => s.listen(0, '127.0.0.1', ok)); servers.push(s); return s.address().port;
++}
++// the unbundled site; /network/* for the module independent.js imports from the repository root
++const statics = (req, res) => {
++  const u = new URL(req.url, 'http://x'); let p = decodeURIComponent(u.pathname);
++  if (p === '/') p = '/blank.html';
++  const file = p.startsWith('/network/') ? path.join(REPO, p) : path.join(REPO, 'site', p);
++  if (p === '/blank.html') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end('<!doctype html><title>profile page</title>'); }
++  if (!file.startsWith(REPO) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end(); }
++  res.writeHead(200, { 'content-type': file.endsWith('.js') || file.endsWith('.mjs') ? 'text/javascript' : 'text/plain' }); fs.createReadStream(file).pipe(res);
++};
++async function startHost(name, port, allowedOrigins) {
++  const endpoint = `https://host-${name}.public-rpc-browser.net`, dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', `prb-${name}-`));
++  const cfg = { format: 'enclave-host-services/v1', host: { endpoint }, platformHostPolicy: 'production', packagesDir: PKG, stateRoot: dir,
++    services: [{ role: 'public-rpc', package: pin, heapMiB: 96, config: { port, bind: '127.0.0.1', hostId: keccak256(toBytes(endpoint)).toLowerCase(), chainId: 8453, node: proxy.url, allowedOrigins } }] };
++  const logs = [];
++  const running = await runHostServices(cfg, { gate: { check: async () => {}, start() {}, stop() {}, serviceRefusal: () => null, status: () => ({}) }, log: (x) => logs.push(x), intervalMs: 300 });
++  const url = `http://127.0.0.1:${port}`;
++  for (let i = 0; i < 100; i++) { try { if ((await fetch(url + '/health')).ok) break; } catch {} await new Promise((x) => setTimeout(x, 200)); }
++  return { name, url, running, logs, dir };
++}
++
++before(async () => {
++  if (skip) return;
++  reth = await startRethDev({ blockTime: '1s' });
++  probe = compileProbe();
++  const pc = createPublicClient({ chain, transport: viemHttp(reth.url) });
++  const wc = createWalletClient({ chain, account: privateKeyToAccount(DEV_KEY), transport: viemHttp(reth.url) });
++  const rc = await pc.waitForTransactionReceipt({ hash: await wc.deployContract({ abi: probe.abi, bytecode: probe.bytecode }) });
++  probe.address = rc.contractAddress; deployBlock = Number(rc.blockNumber);
++  pokeTx = await wc.writeContract({ address: probe.address, abi: probe.abi, functionName: 'poke', args: [7n] });
++  await pc.waitForTransactionReceipt({ hash: pokeTx });
++  const pport = await serve(async (req, res) => {
++    let body = ''; for await (const c of req) body += c;
++    if (mode === 'down') return req.socket.destroy();
++    const r = await fetch(reth.url, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end(await r.text());
++  });
++  proxy = { url: `http://127.0.0.1:${pport}` };
++  site = await serve(statics); other = await serve(statics);
++  const allowed = [`http://localhost:${site}`];
++  hosts = [await startHost('a', await freePort(), allowed), await startHost('b', await freePort(), allowed)];
++  browser = await chromium.launch({ args: ['--disable-gpu', '--disable-dev-shm-usage', '--renderer-process-limit=1', '--disable-extensions', '--js-flags=--max-old-space-size=192'] });
++});
++after(async () => {
++  await browser?.close();
++  for (const h of hosts) { await h.running.stop().catch(() => {}); fs.rmSync(h.dir, { recursive: true, force: true }); }
++  for (const s of servers) { s.closeAllConnections?.(); s.close(); }
++  reth?.stop();
++});
++
++test('a browser profile on two packaged roles: agreed reads, EIP-1898 calls, a revert, history, estimates and a receipt, over CORS, loopback only', { skip, timeout: 240_000 }, async () => {
++  const forbidden = [], seen = [];
++  const context = await browser.newContext();
++  await context.route('**/*', (route) => { const u = new URL(route.request().url()); if (!['localhost', '127.0.0.1'].includes(u.hostname)) { forbidden.push(u.href); return route.abort(); } return route.continue(); });
++  context.on('request', (r) => seen.push(r.url()));
++  const zero = (n) => '0x' + n.repeat(40);
++  const profile = { format: 'enclave-browser-profile', version: 1, name: 'public-rpc role test (ONE reth node behind both roles)', chainId: 8453, rpcs: hosts.map((h) => h.url), quorum: 2,
++    confirmations: 0, maxBlockAgeSeconds: 600, usdc: zero('6'),
++    contractPins: { version: 1, chainId: 8453, contracts: { registry: zero('1'), deployments: zero('2'), appCatalog: zero('3'), proofOfTime: zero('4'), enclavePay: zero('0'), verificationFees: zero('0'), sessionVaultFactory: zero('0'), secretVaultV2: zero('0') } } };
++  await context.addInitScript((text) => { localStorage.setItem('enclave_independent_profile', text); sessionStorage.setItem('enclave_independent_ack', text); }, JSON.stringify(profile));
++  const page = await context.newPage();
++  await page.goto(`http://localhost:${site}/`);
++  const from = privateKeyToAccount(DEV_KEY).address;
++  const out = await page.evaluate(async ({ rpcs, probe: p, data, from, deployBlock, pokeTx }) => {
++    const { createQuorumReader } = await import('/js/core/quorum.js');
++    const r = createQuorumReader({ rpcs, quorum: 2, confirmations: 0, maxBlockAgeSeconds: 600, chainId: 8453 });
++    const snap = await r.snapshot();
++    const value = await r.call(snap, p, data.value);
++    const revert = await r.call(snap, p, data.fail).then(() => null, (e) => ({ revert: !!e.revert, message: e.message }));
++    const logs = await r.logs(snap, { address: p, topics: [], fromBlock: deployBlock, toBlock: snap.number });
++    const gas = String(await r.estimateGas(snap, { from, to: p, data: data.poke }));
++    const balance = String(await r.balance(snap, from));
++    const code = await r.code(snap, p);
++    const C = await import('/js/core/config.js');
++    const { baseRpc } = await import('/js/core/chain.js');
++    const receipt = await baseRpc('eth_getTransactionReceipt', [pokeTx]);
++    return { state: C.INDEPENDENT.state, agreed: snap.rpcs.length, value, revert, logs: logs.map((l) => l.transactionHash), gas, balance, codeLen: code.length, receipt: receipt && receipt.status };
++  }, { rpcs: hosts.map((h) => h.url), probe: probe.address, from, deployBlock, pokeTx, data: {
++    value: encodeFunctionData({ abi: probe.abi, functionName: 'value' }), fail: encodeFunctionData({ abi: probe.abi, functionName: 'fail' }),
++    poke: encodeFunctionData({ abi: probe.abi, functionName: 'poke', args: [8n] }) } });
++  assert.equal(out.state, 'on', 'the profile is saved and confirmed in this tab');
++  assert.equal(out.agreed, 2);
++  assert.equal(BigInt(out.value), 7n);
++  assert.deepEqual(out.revert, { revert: true, message: 'the contract call reverted' }, 'both roles return the revert; the quorum reports an agreed revert');
++  assert.deepEqual(out.logs, [pokeTx]);
++  assert.ok(BigInt(out.gas) > 21000n); assert.ok(BigInt(out.balance) > 0n); assert.ok(out.codeLen > 10);
++  assert.equal(out.receipt, '0x1');
++  assert.deepEqual(forbidden, [], 'no non-loopback origin was attempted');
++  for (const u of seen) assert.ok(['localhost', '127.0.0.1'].includes(new URL(u).hostname), u);
++  assert.ok(seen.some((u) => u.startsWith(hosts[0].url)) && seen.some((u) => u.startsWith(hosts[1].url)), 'both roles were read');
++  // the two origins are two configured hosts (distinct registry ids) - and here ONE node: identities say who answers, not independence
++  const ids = assertDistinctRpcHosts(await rpcHostIdentities(hosts.map((h) => h.url)));
++  assert.equal(new Set(ids.map((x) => x.hostId)).size, 2);
++  await context.close();
++});
++
++test('a page on an origin the roles do not allow cannot read them; the node down refuses in bounded time', { skip, timeout: 120_000 }, async () => {
++  const context = await browser.newContext();
++  const page = await context.newPage();
++  await page.goto(`http://127.0.0.1:${other}/`);
++  const blocked = await page.evaluate((url) => fetch(url + '/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' })
++    .then((r) => 'answered ' + r.status, (e) => e.name), hosts[0].url);
++  assert.equal(blocked, 'TypeError', 'CORS refuses a page of another origin');
++  await page.goto(`http://localhost:${site}/`);
++  mode = 'down';
++  try {
++    await new Promise((x) => setTimeout(x, 2200));                            // the roles' cached node health expires
++    const t = Date.now();
++    const r = await page.evaluate(async (rpcs) => {
++      const { createQuorumReader } = await import('/js/core/quorum.js');
++      return createQuorumReader({ rpcs, quorum: 2, confirmations: 0, maxBlockAgeSeconds: 600, chainId: 8453 }).snapshot().then(() => 'answered', (e) => e.message);
++    }, hosts.map((h) => h.url));
++    assert.match(r, /only 0 of 2 chain endpoints answered \(need 2\)/);
++    assert.ok(Date.now() - t < 10_000, 'bounded');
++  } finally { mode = 'ok'; await context.close(); }
++});
+diff --git a/test/public-rpc.test.mjs b/test/public-rpc.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca48d51c755d1248f7f53948eb453620491b3f38
+--- /dev/null
++++ b/test/public-rpc.test.mjs
+@@ -0,0 +1,285 @@
++// The host's public JSON-RPC role (network/public-rpc.mjs, host-service role 'public-rpc') on a REAL chain node: reth v2.8.0
++// --dev with the 8453 genesis (test/helpers/reth-dev.mjs) as the operator's own local Base node, behind a fault proxy (down,
++// stall, syncing, stale head, oversized answers). A probe contract (test/helpers/rpc-probe-contract.mjs) gives calls,
++// history and reverts.
++//   - the browser note's methods answer from the node: EIP-1898 block-hash reads, reverts with code/reason/data, estimates,
++//     logs within the range bound, receipts; the only backend URL ever fetched is the configured node (or verifier);
++//   - eth_sendRawTransaction is refused unless the operator states a propagation route; then the node's own answer returns;
++//   - admin/debug/personal/signing/txpool/filter methods, unknown methods, batches, oversized bodies, bad JSON, wrong content
++//     type, other paths and verbs are refused without reaching the node;
++//   - CORS: allowed origins only, POST + content-type only, never credentials;
++//   - bounds: a stalled node answers 504 within the deadline, in-flight and rate limits refuse at once, an all-down node and
++//     a syncing or stale node refuse (503) instead of answering;
++//   - the local verifier answers only its configured methods, never falls back to the node, and every answer says its source;
++//   - two names of one host are one vote (network/public-rpc-hosts.mjs);
++//   - configuration and runner: loopback node only, no secret, hostId = this host's registry id, not advertised (no index kind);
++//   - the PACKAGED role (scripts/build-host-service-packages.mjs) under network/host-services/runner.mjs: reviewed bytes only,
++//     and the platform host policy gate stops and restarts it.
++//   run: node --test test/public-rpc.test.mjs     (reth binary RETH_BIN; the packaged-role test needs the built packages)
++import { test, before, after } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import http from 'node:http';
++import path from 'node:path';
++import { createHash } from 'node:crypto';
++import { fileURLToPath } from 'node:url';
++import { createPublicClient, createWalletClient, http as viemHttp, encodeFunctionData, decodeFunctionResult, keccak256, toBytes, defineChain } from 'viem';
++import { privateKeyToAccount } from 'viem/accounts';
++import { startRethDev, haveReth, DEV_KEY, freePort } from './helpers/reth-dev.mjs';
++import { compileProbe } from './helpers/rpc-probe-contract.mjs';
++import { startLoopbackVerifier } from './helpers/loopback-verifier.mjs';
++import { createPublicRpc, validatePublicRpcConfig, SERVED_METHODS } from '../network/public-rpc.mjs';
++import { rpcHostIdentities, assertDistinctRpcHosts } from '../network/public-rpc-hosts.mjs';
++import { ROLES } from '../network/host-services/roles.mjs';
++import { validateHostServicesConfig, planHostServices, runHostServices, advertisements } from '../network/host-services/runner.mjs';
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const PKG = path.join(REPO, 'network/host-services/packages');
++const skip = haveReth() || false;
++const chain = defineChain({ id: 8453, name: 'base-dev', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: ['http://127.0.0.1'] } } });
++const ENDPOINT = 'https://host-rpc.public-rpc-test.net', HOST_ID = keccak256(toBytes(ENDPOINT)).toLowerCase();
++const PAGE = 'http://localhost:18999';
++let reth, probe, proxy, mode = 'ok', deployBlock, pokeTx, roles = [];
++
++/* the operator's node behind a fault proxy */
++async function startProxy(upstream) {
++  const srv = http.createServer(async (req, res) => {
++    let body = ''; for await (const c of req) body += c;
++    if (mode === 'down') return req.socket.destroy();
++    if (mode === 'stall') return;                                        // never answers
++    const q = JSON.parse(body);
++    if (mode === 'syncing' && q.method === 'eth_syncing') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ jsonrpc: '2.0', id: q.id, result: { startingBlock: '0x0', currentBlock: '0x1', highestBlock: '0xffff' } })); }
++    if (mode === 'big') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ jsonrpc: '2.0', id: q.id, result: '0x' + 'ab'.repeat(70000) })); }
++    const r = await fetch(upstream, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
++    let text = await r.text();
++    if (mode === 'stale' && q.method === 'eth_getBlockByNumber') { const j = JSON.parse(text); if (j.result) j.result.timestamp = '0x' + (BigInt(j.result.timestamp) - 10000n).toString(16); text = JSON.stringify(j); }
++    res.writeHead(200, { 'content-type': 'application/json' }); res.end(text);
++  });
++  await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
++  return { url: `http://127.0.0.1:${srv.address().port}`, close: () => new Promise((ok) => { srv.closeAllConnections?.(); srv.close(ok); }) };
++}
++async function role(over = {}, { fetchLog = [] } = {}) {
++  const r = await createPublicRpc({ port: await freePort(), bind: '127.0.0.1', hostId: HOST_ID, chainId: 8453, node: proxy.url, allowedOrigins: [PAGE], ...over },
++    { fetch: (u, o) => { fetchLog.push(String(u)); return fetch(u, o); } });
++  roles.push(r); r.url = `http://127.0.0.1:${r.port}`; r.fetchLog = fetchLog; return r;
++}
++const post = (r, body, headers = {}) => fetch(r.url + '/', { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: typeof body === 'string' ? body : JSON.stringify(body) });
++const call = async (r, method, params = [], headers) => { const res = await post(r, { jsonrpc: '2.0', id: 7, method, params }, headers); return { status: res.status, headers: res.headers, body: await res.json() }; };
++
++before(async () => {
++  if (skip) return;
++  reth = await startRethDev({ blockTime: '1s' });
++  probe = compileProbe();
++  const pc = createPublicClient({ chain, transport: viemHttp(reth.url) });
++  const wc = createWalletClient({ chain, account: privateKeyToAccount(DEV_KEY), transport: viemHttp(reth.url) });
++  const rc = await pc.waitForTransactionReceipt({ hash: await wc.deployContract({ abi: probe.abi, bytecode: probe.bytecode }) });
++  probe.address = rc.contractAddress; deployBlock = rc.blockNumber; probe.deployTx = rc.transactionHash;
++  pokeTx = await wc.writeContract({ address: probe.address, abi: probe.abi, functionName: 'poke', args: [7n] });
++  await pc.waitForTransactionReceipt({ hash: pokeTx });
++  proxy = await startProxy(reth.url);
++});
++after(async () => { for (const r of roles) await r.close().catch(() => {}); await proxy?.close(); reth?.stop(); });
++
++test('configuration: the operator\'s own loopback node only, no secret, no remote verifier; the runner binds it to this host and never advertises it', () => {
++  const ok = { port: 18191, bind: '127.0.0.1', hostId: HOST_ID, chainId: 8453, node: 'http://127.0.0.1:8545', allowedOrigins: ['https://dashboard.example'] };
++  assert.equal(validatePublicRpcConfig(ok).limits.maxLogRange, 2000);
++  for (const [over, re] of [[{ node: 'https://mainnet.base.org' }, /loopback/], [{ node: 'http://10.0.0.5:8545' }, /RPC URLs must be HTTPS|loopback/], [{ bind: '0.0.0.0' }, /bind must be loopback/],
++    [{ apiKey: 'x' }, /holds no secret/], [{ chainVerifier: 'http://127.0.0.1:8545', verifiedMethods: ['eth_call'] }, /node itself/],
++    [{ chainVerifier: 'https://verifier.example', verifiedMethods: ['eth_call'] }, /loopback/], [{ chainVerifier: 'http://127.0.0.1:8546', verifiedMethods: ['eth_getLogs'] }, /subset/],
++    [{ rawTransactions: { propagation: 'x' } }, /propagation/], [{ allowedOrigins: ['https://a.example/path'] }, /bare https origin/], [{ allowedOrigins: ['*', 'https://a.example'] }, /allowedOrigins\[0\] is not a URL/],
++    [{ limits: { maxBodyBytes: 1 << 30 } }, /maxBodyBytes/], [{ hostId: '0x' + '00'.repeat(32) }, /registry id/]])
++    assert.throws(() => validatePublicRpcConfig({ ...ok, ...over }), re, JSON.stringify(over));
++  assert.equal(ROLES['public-rpc'].kind, null, 'no service-index kind is claimed');
++  const cfg = (svc, extra = {}) => ({ format: 'enclave-host-services/v1', host: { endpoint: ENDPOINT, ...extra }, platformHostPolicy: 'production', packagesDir: '/tmp/p', stateRoot: '/tmp/s',
++    services: [{ role: 'public-rpc', package: 'sha256:' + '0'.repeat(64), config: svc }] });
++  assert.equal(validateHostServicesConfig(cfg(ok)).services[0].config.hostId, HOST_ID);
++  assert.throws(() => validateHostServicesConfig(cfg({ ...ok, hostId: keccak256(toBytes('https://other.example')) })), /hostId must be this host's registry id/);
++  assert.throws(() => validateHostServicesConfig(cfg(ok, { publicEndpoints: { 'public-rpc': ['https://rpc.example/'] } })), /no service-index kind and is not advertised/);
++});
++
++test('the browser\'s methods from the operator\'s node: EIP-1898 reads, reverts, estimates, history, receipts; only the node is fetched', { skip }, async () => {
++  const r = await role();
++  const id = await call(r, 'eth_chainId');
++  assert.equal(id.body.result, '0x2105'); assert.equal(id.headers.get('x-enclave-rpc-source'), 'node'); assert.equal(id.headers.get('x-enclave-rpc-host'), HOST_ID);
++  const head = await call(r, 'eth_getBlockByNumber', ['latest', false]);
++  assert.match(head.body.result.hash, /^0x[0-9a-f]{64}$/);
++  const value = encodeFunctionData({ abi: probe.abi, functionName: 'value' });
++  for (const at of ['latest', head.body.result.number, { blockHash: head.body.result.hash }, { blockHash: head.body.result.hash, requireCanonical: true }, { blockNumber: head.body.result.number }]) {
++    const c = await call(r, 'eth_call', [{ to: probe.address, data: value }, at]);
++    assert.equal(decodeFunctionResult({ abi: probe.abi, functionName: 'value', data: c.body.result }), 7n, JSON.stringify(at));
++  }
++  const before = await call(r, 'eth_call', [{ to: probe.address, data: value }, '0x' + deployBlock.toString(16)]);
++  assert.equal(decodeFunctionResult({ abi: probe.abi, functionName: 'value', data: before.body.result }), 42n, 'a historical block answers its own state');
++  const rev = await call(r, 'eth_call', [{ to: probe.address, data: encodeFunctionData({ abi: probe.abi, functionName: 'fail' }) }, 'latest']);
++  assert.equal(rev.status, 200); assert.match(rev.body.error.message, /revert/i); assert.equal(rev.body.error.code, 3);
++  assert.match(String(rev.body.error.data), /^0x08c379a0/, 'the revert reason data is returned unchanged');
++  const pin = { blockHash: head.body.result.hash };
++  assert.match((await call(r, 'eth_getCode', [probe.address, pin])).body.result, /^0x6080/);
++  assert.match((await call(r, 'eth_getBalance', [privateKeyToAccount(DEV_KEY).address, pin])).body.result, /^0x[0-9a-f]+$/);
++  assert.equal(BigInt((await call(r, 'eth_getStorageAt', [probe.address, '0x0', pin])).body.result), 7n);
++  assert.ok(Number((await call(r, 'eth_getTransactionCount', [privateKeyToAccount(DEV_KEY).address, 'latest'])).body.result) >= 2);
++  const est = await call(r, 'eth_estimateGas', [{ from: privateKeyToAccount(DEV_KEY).address, to: probe.address, data: encodeFunctionData({ abi: probe.abi, functionName: 'poke', args: [8n] }) }, 'latest']);
++  assert.ok(BigInt(est.body.result) > 21000n);
++  const logs = await call(r, 'eth_getLogs', [{ address: probe.address, fromBlock: '0x' + deployBlock.toString(16), toBlock: 'latest' }]);
++  assert.equal(logs.body.result.length, 1); assert.equal(logs.body.result[0].transactionHash, pokeTx);
++  const rcpt = await call(r, 'eth_getTransactionReceipt', [pokeTx]);
++  assert.equal(rcpt.body.result.status, '0x1');
++  assert.equal((await call(r, 'eth_getTransactionByHash', [pokeTx])).body.result.hash, pokeTx);
++  const wide = await call(r, 'eth_getLogs', [{ address: probe.address, fromBlock: '0x0', toBlock: '0x' + (2000n + 5n).toString(16) }]);
++  assert.match(wide.body.error.message, /at most 2000 blocks/);
++  assert.match((await call(r, 'eth_getLogs', [{ fromBlock: '0x0', toBlock: '0x1' }])).body.error.message, /exactly one contract/);
++  assert.deepEqual([...new Set(r.fetchLog)], [proxy.url], 'the role fetched nothing but the configured node');
++});
++
++test('raw transactions: refused unless the operator states a route; then the node\'s own answer, never a fabricated hash', { skip }, async () => {
++  const wc = createWalletClient({ chain, account: privateKeyToAccount(DEV_KEY), transport: viemHttp(reth.url) });
++  const raw = await wc.signTransaction(await wc.prepareTransactionRequest({ to: probe.address, data: encodeFunctionData({ abi: probe.abi, functionName: 'poke', args: [9n] }) }));
++  const off = await role();
++  const refused = await call(off, 'eth_sendRawTransaction', [raw]);
++  assert.match(refused.body.error.message, /not offered: this operator has not stated a transaction propagation route/);
++  assert.ok(!off.fetchLog.length, 'nothing reached the node');
++  assert.equal((await (await fetch(off.url + '/health')).json()).rawTransactions.offered, false);
++  const on = await role({ rawTransactions: { propagation: 'test: the dev node mines locally (no network)' } });
++  const health = await (await fetch(on.url + '/health')).json();
++  assert.deepEqual(health.rawTransactions, { offered: true, propagation: 'test: the dev node mines locally (no network)', checkedByThisRole: false });
++  const sent = await call(on, 'eth_sendRawTransaction', [raw]);
++  assert.equal(sent.body.result, keccak256(raw)); assert.equal(sent.headers.get('x-enclave-rpc-propagation'), 'operator-stated');
++  let rc = null; for (let i = 0; i < 60 && !rc; i++) { rc = (await call(on, 'eth_getTransactionReceipt', [sent.body.result])).body.result; if (!rc) await new Promise((x) => setTimeout(x, 250)); }
++  assert.equal(rc.status, '0x1');
++  const dup = await call(on, 'eth_sendRawTransaction', [raw]);
++  assert.ok(dup.body.error, 'the node refuses a replay and the role says so: ' + JSON.stringify(dup.body));
++});
++
++test('refused without reaching the node: privileged and signing methods, unknown methods, batches, bad bodies, other paths and verbs', { skip }, async () => {
++  const r = await role({ limits: { maxBodyBytes: 4096 } });
++  for (const m of ['admin_nodeInfo', 'admin_addPeer', 'debug_traceTransaction', 'personal_unlockAccount', 'personal_sign', 'eth_sign', 'eth_signTypedData_v4', 'eth_sendTransaction',
++    'eth_accounts', 'txpool_content', 'eth_newFilter', 'eth_getFilterChanges', 'eth_subscribe', 'eth_getProof', 'miner_start', 'engine_newPayloadV3', 'trace_block'])
++    assert.match((await call(r, m, [])).body.error.message, /not offered by a public endpoint/, m);
++  assert.equal((await call(r, 'eth_mysteryMethod', [])).body.error.code, -32601);
++  assert.match((await (await post(r, [{ jsonrpc: '2.0', id: 1, method: 'eth_chainId' }])).json()).error.message, /batch requests are not served/);
++  assert.equal((await post(r, { jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: probe.address, data: '0x' + '00'.repeat(5000) }, 'latest'] })).status, 413);
++  assert.equal((await (await post(r, '{not json')).json()).error.code, -32700);
++  assert.equal((await post(r, '{}', { 'content-type': 'text/plain' })).status, 415);
++  assert.equal((await fetch(r.url + '/')).status, 405);
++  assert.equal((await fetch(r.url + '/v1/anything', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 404);
++  for (const [m, p, re] of [['eth_getBlockByNumber', ['latest', true], /full transaction objects/], ['eth_call', [{ to: probe.address }, 'latest', { [probe.address]: { code: '0x00' } }], /expects 2 parameters/],
++    ['eth_call', [{ to: probe.address }, 'pending'], /pending is not served/], ['eth_call', [{ to: probe.address, stateOverride: {} }, 'latest'], /unsupported call field/],
++    ['eth_getBalance', ['0x1234', 'latest'], /address/], ['eth_getTransactionReceipt', ['0x12'], /32-byte hash/]])
++    assert.match((await call(r, m, p)).body.error.message, re, m);
++  const count = r.fetchLog.length;
++  for (const m of ['admin_nodeInfo', 'debug_traceTransaction', 'eth_sendTransaction']) await call(r, m, []);
++  assert.equal(r.fetchLog.length, count, 'refused methods never reach the node');
++});
++
++test('CORS: the configured origins only, POST with content-type only, never credentials', { skip }, async () => {
++  const r = await role();
++  const pre = await fetch(r.url + '/', { method: 'OPTIONS', headers: { origin: PAGE, 'access-control-request-method': 'POST', 'access-control-request-headers': 'content-type' } });
++  assert.equal(pre.status, 204); assert.equal(pre.headers.get('access-control-allow-origin'), PAGE); assert.equal(pre.headers.get('access-control-allow-methods'), 'POST');
++  assert.equal(pre.headers.get('access-control-allow-credentials'), null);
++  assert.equal((await fetch(r.url + '/', { method: 'OPTIONS', headers: { origin: PAGE, 'access-control-request-method': 'POST', 'access-control-request-headers': 'content-type, authorization' } })).status, 403);
++  assert.equal((await fetch(r.url + '/', { method: 'OPTIONS', headers: { origin: PAGE, 'access-control-request-method': 'PUT' } })).status, 403);
++  const other = await call(r, 'eth_chainId', [], { origin: 'https://evil.example' });
++  assert.equal(other.status, 403); assert.equal(other.headers.get('access-control-allow-origin'), null);
++  const ok = await call(r, 'eth_chainId', [], { origin: PAGE });
++  assert.equal(ok.headers.get('access-control-allow-origin'), PAGE); assert.equal(ok.headers.get('vary'), 'Origin');
++  assert.match(ok.headers.get('access-control-expose-headers'), /x-enclave-rpc-source/);
++});
++
++test('bounds and honesty: stalled, down, syncing, stale and oversized backends refuse in bounded time; in-flight and rate limits refuse at once', { skip }, async () => {
++  const r = await role({ limits: { backendTimeoutMs: 1000, maxInFlight: 2, maxResponseBytes: 65536 } });
++  assert.equal((await call(r, 'eth_chainId')).body.result, '0x2105');          // node health cached as synced
++  try {
++    mode = 'stall';
++    let t = Date.now(); const st = await call(r, 'eth_blockNumber');
++    assert.equal(st.status, 504); assert.match(st.body.error.message, /did not answer within 1000 ms/); assert.ok(Date.now() - t < 3500, 'bounded');
++    const slow = [call(r, 'eth_blockNumber'), call(r, 'eth_blockNumber')];
++    await new Promise((x) => setTimeout(x, 100));
++    const busy = await call(r, 'eth_blockNumber');
++    assert.equal(busy.status, 503); assert.match(busy.body.error.message, /too many requests in flight/);
++    await Promise.all(slow);
++    mode = 'down'; await new Promise((x) => setTimeout(x, 2100));             // the cached health expires
++    t = Date.now(); const dn = await call(r, 'eth_blockNumber');
++    assert.equal(dn.status, 503); assert.match(dn.body.error.message, /node is unreachable; nothing was answered/); assert.ok(Date.now() - t < 3500);
++    assert.equal((await fetch(r.url + '/health')).status, 503);
++    mode = 'syncing'; await new Promise((x) => setTimeout(x, 2100));
++    assert.match((await call(r, 'eth_blockNumber')).body.error.message, /syncing/);
++    mode = 'stale'; await new Promise((x) => setTimeout(x, 2100));
++    assert.match((await call(r, 'eth_blockNumber')).body.error.message, /head is \d+ s old \(limit 120 s\)/);
++    mode = 'ok'; await new Promise((x) => setTimeout(x, 2100));
++    assert.equal((await call(r, 'eth_chainId')).body.result, '0x2105');
++    mode = 'big';
++    const big = await call(r, 'eth_getCode', [probe.address, 'latest']);
++    assert.equal(big.status, 502); assert.match(big.body.error.message, /answered more than this endpoint returns/);
++  } finally { mode = 'ok'; }
++  const rl = await role({ limits: { perSecond: 1, burst: 2 } });
++  const s = []; for (let i = 0; i < 3; i++) s.push((await call(rl, 'eth_chainId')).status);
++  assert.deepEqual(s, [200, 200, 429]);
++});
++
++test('the local verifier answers only its configured methods, never falls back to the node, and every answer names its source', { skip }, async () => {
++  const verifier = await startLoopbackVerifier({ upstream: reth.url });
++  try {
++    const r = await role({ chainVerifier: verifier.url, verifiedMethods: ['eth_call', 'eth_getBalance', 'eth_getBlockByNumber'] });
++    const head = await call(r, 'eth_getBlockByNumber', ['latest', false]);
++    assert.equal(head.headers.get('x-enclave-rpc-source'), 'verifier');
++    const at = { blockHash: head.body.result.hash };
++    const v = await call(r, 'eth_call', [{ to: probe.address, data: encodeFunctionData({ abi: probe.abi, functionName: 'value' }) }, at]);
++    assert.equal(v.headers.get('x-enclave-rpc-source'), 'verifier'); assert.ok(BigInt(v.body.result) >= 7n);
++    const before = r.fetchLog.filter((u) => u === proxy.url).length;
++    verifier.state.fault = 'proof';
++    const bad = await call(r, 'eth_call', [{ to: probe.address, data: '0x3fa4f245' }, at]);
++    assert.match(bad.body.error.message, /invalid storage proof/); assert.equal(bad.headers.get('x-enclave-rpc-source'), 'verifier');
++    verifier.state.fault = 'down';
++    const down = await call(r, 'eth_getBalance', [probe.address, at]);
++    assert.equal(down.status, 503); assert.match(down.body.error.message, /never fall back to the node/);
++    assert.equal(r.fetchLog.filter((u) => u === proxy.url).length, before, 'no verified method reached the node');
++    verifier.state.fault = null;
++    const logs = await call(r, 'eth_getLogs', [{ address: probe.address, fromBlock: '0x' + deployBlock.toString(16), toBlock: 'latest' }]);
++    assert.equal(logs.headers.get('x-enclave-rpc-source'), 'node', 'a method the verifier does not prove is answered (and labelled) by the node');
++    assert.deepEqual((await (await fetch(r.url + '/health')).json()).verifiedMethods, ['eth_call', 'eth_getBalance', 'eth_getBlockByNumber']);
++  } finally { await verifier.close(); }
++});
++
++test('two names of one host are one vote; two hosts are two (and say nothing about whether they share a node)', { skip }, async () => {
++  const a = await role();
++  const ids = await rpcHostIdentities([`http://127.0.0.1:${a.port}`, `http://localhost:${a.port}`]);
++  assert.deepEqual(ids.map((x) => x.hostId), [HOST_ID, HOST_ID]);
++  assert.throws(() => assertDistinctRpcHosts(ids), /same host .*one vote, not two RPCs/);
++  const otherId = keccak256(toBytes('https://host-rpc-b.public-rpc-test.net')).toLowerCase();
++  const b = await role({ hostId: otherId });
++  const two = assertDistinctRpcHosts(await rpcHostIdentities([a.url, b.url, 'http://127.0.0.1:1']));
++  assert.deepEqual(two.map((x) => x.hostId), [HOST_ID, otherId, null], 'a non-role origin states no identity');
++  // a and b here front the SAME reth node: distinct host ids are distinct configured hosts, not proof of independent nodes
++});
++
++test('the PACKAGED role under the runner: reviewed bytes only, no inherited environment, stopped and restarted by the platform host policy gate', { skip: skip || (!fs.existsSync(path.join(PKG, 'public-rpc.package.json')) && 'needs the built packages') }, async () => {
++  const raw = fs.readFileSync(path.join(PKG, 'public-rpc.package.json'));
++  const m = JSON.parse(raw);
++  assert.equal(m.kind, null); assert.equal(m.entry, 'network/public-rpc.mjs');
++  assert.deepEqual(Object.keys(m.inputs).sort(), ['network/public-rpc-config.mjs', 'network/public-rpc.mjs', 'network/rpc-identity.mjs'], 'the bundle reaches only the role, its rules and the URL rule');
++  const port = await freePort(), dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'public-rpc-runner-'));
++  const cfg = { format: 'enclave-host-services/v1', host: { endpoint: ENDPOINT }, platformHostPolicy: 'production', packagesDir: PKG, stateRoot: dir,
++    services: [{ role: 'public-rpc', package: 'sha256:' + createHash('sha256').update(raw).digest('hex'), heapMiB: 96,
++      config: { port, bind: '127.0.0.1', hostId: HOST_ID, chainId: 8453, node: proxy.url, allowedOrigins: [PAGE] } }] };
++  const plan = planHostServices(cfg);
++  assert.deepEqual(plan.services[0].launch.env, {}); assert.ok(plan.services[0].launch.configFile);
++  await assert.rejects(advertisements(cfg, { operator: '0x' + '11'.repeat(20), slot: 0, sequence: 1 }), /serviceIndex/);
++  const gate = { refusal: null };
++  const logs = [];
++  const running = await runHostServices(cfg, { gate: { check: async () => {}, start() {}, stop() {}, serviceRefusal: () => gate.refusal, status: () => ({ refusal: gate.refusal }) }, log: (x) => logs.push(x), intervalMs: 200 });
++  const ask = () => fetch(`http://127.0.0.1:${port}/`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' }).then((x) => x.json()).then((j) => j.result, () => null);
++  const until = async (f, what) => { for (let i = 0; i < 150; i++) { if (await f()) return; await new Promise((x) => setTimeout(x, 200)); } throw new Error(what + '\n' + logs.join('\n')); };
++  try {
++    await until(async () => (await ask()) === '0x2105', 'the packaged role serves');
++    assert.ok(logs.some((l) => /\[public-rpc\] \[public-rpc\] serving 12 methods/.test(l)), logs.join('\n'));
++    gate.refusal = 'platform host policy: banned by platform policy #3 (host): test';
++    await until(async () => (await ask()) === null, 'a refused host stops the role');
++    gate.refusal = null;
++    await until(async () => (await ask()) === '0x2105', 'the admitted host serves again');
++  } finally { await running.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
++});
++
++test('served methods are exactly the browser note\'s profile methods (plus the explicit raw submission)', () => {
++  assert.deepEqual([...SERVED_METHODS].sort(), ['eth_blockNumber', 'eth_call', 'eth_chainId', 'eth_estimateGas', 'eth_getBalance', 'eth_getBlockByNumber', 'eth_getCode',
++    'eth_getLogs', 'eth_getStorageAt', 'eth_getTransactionByHash', 'eth_getTransactionCount', 'eth_getTransactionReceipt', 'eth_sendRawTransaction']);
++});

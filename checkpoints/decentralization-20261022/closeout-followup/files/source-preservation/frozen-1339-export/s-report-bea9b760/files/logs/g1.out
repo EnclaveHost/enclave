@@ -1,0 +1,158 @@
+[queue] START available=25154MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+[job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo head 14d1e4954cf7c9900d5d3e841a23f02de945c1b2 dirty=12 untracked=9
+cc071ecd5aa25cb68421df478268887fe63959acbb39aac388c4db1d9854cc23  network/public-rpc.mjs
+6c2f58692ea8980bdf0fddfd4225f109a978d05f053e25bc34431ea5bf87b870  network/public-rpc-hosts.mjs
+9511d74732c89c5a28fd6dd96015743de71a86193c2b5eb542355065da123633  network/host-services/roles.mjs
+da675a2cea07d91281a0e8a04d719142c7542322c7e0d8d70d19201bd7e4363f  network/host-services/runner.mjs
+d61bbeb60d3099ab9aa9bcb44d2070e1a6e313e553231426920dc3deb01fb906  network/host-service-names.mjs
+0dab1bc73232e019c5e699ffe8f43467a07c9be5b111affb8a831e03061754e5  network/host-service-transport.mjs
+e7ea534604b2dd9307f4c4d8919fcc22c2061438f33dfb68c3fef61f526c72cd  network/wg-provider/provider.mjs
+ade803450776ebf1c40ff684beba7568d1a63aa9a79b8d5e0c15c13a3bd7e54d  test/public-rpc-browser.test.mjs
+7ebbff2419087094c9c2d5fe09e0cac0027c7c0f6bf5fbd3a2f962eba0cba0ac  test/host-service-lifecycle.test.mjs
+ea167d1b8e11e6a8d4b73ff0b1da21aedebdce49b166ab007739aacc6e15740b  test/host-service-transport.test.mjs
+4a1c36eacaedc4e39e8d19ac8f47d43f53d1d50dda31d8d7e806c17d76dacfdb  test/wg-provider.test.mjs
+b6da775b5db3f2fe009e587deb94812d99f8df0086d2655836830a079506b55a  test/hosted-services-stage.test.mjs
+06a314237cef914e35cea66d16e7551d4de11694da1e024aa9b8674127e4b843  test/host-service-verifier-roles.test.mjs
+f10de44988188cc44451977b7c5ae8f55ee774fc0a97af7c05576a7f0727268b  test/hosted-service-placement.test.mjs
+ff64eb5bd6aa5f70287e7f4b65f8a9b020fcb914b120587e0029f88573ec6c1f  test/hosted-policy-cold-start.test.mjs
+d5e2e50a346ba430f842a3296e0ca227d688b8159b3057963fab74590e724a59  test/host-services-carriers.test.mjs
+07efb742285c12bf3cfd0967a1a853f11f814425abaadd912ecfba74c9e84f24  test/host-services-cold-start.test.mjs
+e018acdb666225a0f15e8fecbbcd6608c68a0eb5e9869535a3a0cc441ac847da  test/credit-vault-submitter-runner.test.mjs
+▶ the shared host-service runner launches the packaged credit-vault submitter: no secret, no env, receipts, admission, kind 8
+  ✔ registered in ROLES, packaged behind the argv guard, configured only through the runner's validators (9.581526ms)
+  ✔ cold start: the runner launches the packaged role with no inherited environment and a 0600 secret-free config (213.587894ms)
+  ✔ receipt path: a passkey-signed request through the runner-launched role executes once, gas paid by the operator's signer (209.405227ms)
+  ✔ admission: a refused host stops the role and a request sent meanwhile is held; admitted again, the same bytes execute once (797.200408ms)
+  ✔ advertisement: kind 8 credit-vault-submitter, prepared unsigned by the runner; outside the default listing (4.240887ms)
+✔ the shared host-service runner launches the packaged credit-vault submitter: no secret, no env, receipts, admission, kind 8 (2029.306826ms)
+✔ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (129.540382ms)
+✔ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (330.875351ms)
+✔ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (180.926426ms)
+✔ delayed failure: the exit REFUSES the grant it was holding while the host stopped: nothing to withdraw, no strike, clean stop (57.356398ms)
+✔ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (56.423516ms)
+✔ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (1177.618516ms)
+✔ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (1217.823766ms)
+✔ agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing (463.799285ms)
+✔ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (0.967823ms)
+✔ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (202.229071ms)
+✖ opt-in public RPC origin: a host serving public-rpc asks for rpc-<b32>, an opted-in exit grants it, a visitor reaches the role by that name, and a ban withdraws it (111.823619ms)
+✔ an opted-in exit gives a host WITHOUT the role exactly its three names (unchanged grant) (88.891965ms)
+✔ a host serving public-rpc is refused BY NAME at an exit whose operator did not opt in (never a mismatched grant) (49.31872ms)
+✔ one service circuit per pinned exit, through a different guard, asking for exactly this host's names and routes (11.043525ms)
+✔ a failed revoke still closes (the grant expires on its own); a down circuit is rebuilt next round (0.626635ms)
+✔ B1: https is advertised only from VERIFIED G3 readiness; a configured port, a wrong name, an untrusted CA or a closed port is http (71.043933ms)
+✔ G3 front mapping (605's interface): port 80 of every name to httpPort, 443 only to listed tlsPorts (0.505396ms)
+✔ validation is idempotent: the agent's normalized block constructs the transport (absent tls/dns stay absent) (0.660675ms)
+✔ the host config is validated before anything starts (0.648935ms)
+✔ transport profile: host services with the platform host policy are transport; "off" or a malformed block refuses (0.963683ms)
+✔ enrollment keeps the operator's hostServices opt-in and only then names the service worker; N passes restart nothing (10.127512ms)
+✔ B2 counterexample: an INVALID or newer-release hostServices block is never deleted - kept byte-for-byte and reported every pass (7.040775ms)
+✔ the privacy agent preflight refuses host services only (apps unaffected): invalid block, missing worker, runner != keccak(endpoint) (2.042504ms)
+✔ B3: the Windows bundle stages every network binary enrollment names, and build.mjs produces each (0.810833ms)
+✔ Windows sandbox: a host-service circuit WITH DNS yields policies enclave-circuit-firewall accepts (no loopback UDP) (1.127991ms)
+✔ N3: start() of host services AND of control circuits does not reject when every directory is unreachable (1.067912ms)
+✔ G4 composition: enrollment preserves the reviewed challenge replica and serves its challenge TLS port (4.643174ms)
+✔ config: one explicit authority, the verifier local only and never a provider vote; the legacy quorum rule unchanged (3569.955414ms)
+✔ every public provider down: the hosts start on the verifier alone; the roles serve; host B cold-starts from the index read through it (782.044531ms)
+✔ admin moderation through the verifier: ban and unban host B; then an AddressBook owner MIGRATION hands the policy to the new admin (4910.299672ms)
+✔ unknown, stale, missing and failed proofs REFUSE with the public providers up: no provider fallback in any reader (74.172318ms)
+✔ shared helper: one carrier origin and base rule (policy-carriers re-exports them); the block is explicit and validated (3.066636ms)
+✔ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (583.975467ms)
+✔ missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart (20455.752683ms)
+✔ admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed (21476.812633ms)
+✔ first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit (9671.600427ms)
+✔ this host's policy-mirror store (read from disk, the role need not run) and an independent peer's mirror carry the document (1162.016445ms)
+✔ a malformed policy block refuses an app-less agent before anything binds; with apps, it refuses host services only (3370.123448ms)
+✔ verifier seam: with one injected chain authority, neither the gate nor a carrier opens a raw RPC quorum of its own (207.203377ms)
+✔ enrollment: the opt-in file carries hostServicesPolicy (a non-production book becomes eligible only through it); an invalid one writes nothing (12.757511ms)
+✔ zero apps: host services only after the platform admits; an admin ban stops them (grants withdrawn), the unban restarts them (10508.632071ms)
+✔ zero apps, unknown chain policy: the production policy with no network holds them (the agent runs); a fresh host never serves on an unread policy (6424.758673ms)
+✔ zero apps, the local policy down from the start: held; once it answers and admits, started (6453.408437ms)
+✔ first app added and last app removed (live reload) never touch host services; a restart with no app starts them again (3766.666288ms)
+✔ zero apps: refused before anything binds without a usable host-services block or with the policy off (2494.828572ms)
+✔ with an app, an "off" policy keeps the earlier behavior (host services start at once); on, they wait for the admit (2462.347312ms)
+✖ bundled library command lines: without the guard, the runner.mjs a carrier-configured challenge replica loads EXITS the bundle; with it, nothing runs (138.809524ms)
+✔ the shipped bundle runs the app-less daemon: admitted -> host services (592.485747ms)
+✔ enrollment, fresh box: no opt-in -> nothing written (as before); a valid opt-in -> an app-less config for host services; the first app joins it without a restart (11.092254ms)
+✔ enrollment, fresh box: a refused host, an invalid block or an unusable opt-in file writes no app-less config (11.198193ms)
+✔ enrollment, existing box: the opt-in file is the source while configured (a change restarts once); an unusable file keeps the config's blocks (3.451073ms)
+✔ locked inputs: the governing lockfile per node_modules tree; a version drift, an extraneous package or an outside input is refused (3.353574ms)
+✔ fresh hosts with empty caches start under an ACTIVATED anchor with every fleet policy mirror refused; a fleet-only host never does (8763.13878ms)
+✔ the admin bans host B (new anchored document, published only to an Enclave host carrier): B stops every role; the next authenticated policy unbans it (3271.436254ms)
+✔ stale, substituted and wrongly signed documents are refused by the carrier and, independently, by the gate; an anchored rollback is refused (962.036311ms)
+✔ runner: a failed spawn is an exit with backoff, never an unhandled error event; heapMiB is a V8 heap cap and the old name is refused (254.456555ms)
+✔ the policy-mirror package: reviewed bytes, no secret, and its only custody/ input is the RPC quorum reader (3.502013ms)
+✔ packages: only the reviewed bytes run, only public configuration reaches a role, and no role reaches custody, storage or lease relays (4124.596972ms)
+✔ cold start from the pinned index alone, with every DigitalOcean endpoint down: signed records and a verified artifact from Enclave hosts (10018.059826ms)
+✔ administration holds: a banned operator's advertisements are dropped, and a refused host stops its roles (804.349511ms)
+✔ cold dependencies: artifacts serve with the chain down; route DNS answers from its own host's directory; endpoints are classified, not trusted (5.651016ms)
+✔ advertisements are prepared for the operator to sign; nothing is signed or sent here (8.416224ms)
+﹣ the production stage: verified compare-and-swap install, exact production `runner check`, and an exact rollback (0.468136ms) # needs STAGE_TAR (the built archive)
+﹣ the same archive live on a local chain: unanchored -> anchored import -> ban, with stage-1 health, stop and rollback (0.155858ms) # needs STAGE_TAR (the built archive)
+✔ the runner accepts warden's registry endpoint (with a path) and its host id is the registered one (1.943795ms)
+✔ a browser profile on two packaged roles: agreed reads, EIP-1898 calls, a revert, history, estimates and a receipt, over CORS, loopback only (9361.048047ms)
+✔ a page on an origin the roles do not allow cannot read them; the node down refuses in bounded time (2252.244634ms)
+✔ the current runner gets a signed exit grant; ingress names are the app label and its verified domains (17.443904ms)
+✔ anyone but the current runner, a replay, a stale request or an inactive lease is refused (21.947829ms)
+✔ the owner's policy decides: BYO without network ingress gets no exit; prices above the limit are refused (36.429277ms)
+✔ roles: a guard carries nothing itself; a provider only grants roles it offers (4.442176ms)
+✔ at most two peers per app and role (handover); expiry and a lost lease remove peers (11.55169ms)
+✔ a trusted checker gets a short probe peer; the provider operator and strangers do not (7.182724ms)
+✔ over the transfer budget nothing new is accepted (0.758794ms)
+✔ a registered host gets egress-only control peers for its own traffic; nobody else does (20.078854ms)
+✔ a restarted provider restores its peers at the same addresses (a renewal keeps working) (8.374445ms)
+✔ a lease read that fails keeps the peer (only a definite answer removes it); a renewal says so to the lease source (7.613211ms)
+ℹ tests 83
+ℹ suites 0
+ℹ pass 79
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 2
+ℹ todo 0
+ℹ duration_ms 190661.641332
+
+✖ failing tests:
+
+test at test/host-service-lifecycle.test.mjs:369:1
+✖ opt-in public RPC origin: a host serving public-rpc asks for rpc-<b32>, an opted-in exit grants it, a visitor reaches the role by that name, and a ban withdraws it (111.823619ms)
+  AssertionError [ERR_ASSERTION]: the other roles are unchanged
+  + actual - expected
+  
+  + 'public-rpc dir-ugq2dinbugq2dinbugq2dinbugq2dinbugq2dinbugq2dinbugqq.svc.example'
+  - 'directory-replica dir-ugq2dinbugq2dinbugq2dinbugq2dinbugq2dinbugq2dinbugqq.svc.example'
+  
+      at TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo/test/host-service-lifecycle.test.mjs:382:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'public-rpc dir-ugq2dinbugq2dinbugq2dinbugq2dinbugq2dinbugq2dinbugqq.svc.example',
+    expected: 'directory-replica dir-ugq2dinbugq2dinbugq2dinbugq2dinbugq2dinbugq2dinbugqq.svc.example',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/host-services-cold-start.test.mjs:187:1
+✖ bundled library command lines: without the guard, the runner.mjs a carrier-configured challenge replica loads EXITS the bundle; with it, nothing runs (138.809524ms)
+  AssertionError [ERR_ASSERTION]: the counterexample: the bundled runner ran its own command line
+  
+  1 !== 2
+  
+      at TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo/test/host-services-cold-start.test.mjs:194:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+[job] strict: skipped+cancelled=2
+[job] exit=7
+[memory-guard] exit=7 peakTreeRssMiB=1074 minHostAvailableMiB=24366
+[memory-guard] at peak: reth:312 node:136 chrome-headless:92 chrome-headless:82 node:78 chrome-headless:75 node:74 chrome-headless:69
+[queue] EXIT 7

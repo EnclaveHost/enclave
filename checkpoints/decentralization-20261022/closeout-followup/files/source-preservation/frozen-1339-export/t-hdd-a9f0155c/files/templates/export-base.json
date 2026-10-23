@@ -1,0 +1,29 @@
+{
+ "format": "enclave-rpc-hdd-export/v1",
+ "role": "base",
+ "hdd": {
+  "mountPoint": "/mnt/usb",
+  "fsType": "ntfs3",
+  "devices": [
+   "/dev/disk/by-uuid/489ED12D9ED11472",
+   "/dev/disk/by-id/usb-QNAP_TR-004_DISK00_51555939333133303432-0:0-part2"
+  ],
+  "requireRotational": true
+ },
+ "image": {
+  "path": "/mnt/usb/enclave-rpc/base-origin.img",
+  "bytes": 3100000000000,
+  "allocation": "sparse"
+ },
+ "listen": {
+  "address": "192.168.8.249",
+  "port": 10810
+ },
+ "tls": {
+  "dir": "/etc/enclave-rpc-hdd/base/server",
+  "serverName": "enclave-rpc-hdd-base.warden.lan",
+  "clientIdentity": "O=Enclave RPC HDD,CN=enclave-rpc-base-client"
+ },
+ "stateDir": "/var/lib/enclave-rpc-hdd/base",
+ "qemuNbd": "/usr/bin/qemu-nbd"
+}

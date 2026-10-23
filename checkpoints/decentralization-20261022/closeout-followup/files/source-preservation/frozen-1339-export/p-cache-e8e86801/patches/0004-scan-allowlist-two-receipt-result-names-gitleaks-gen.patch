@@ -1,0 +1,92 @@
+From fe95bd508c9b3aec84e4c958e954e7dc52ad1ee3 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 04:24:37 -0700
+Subject: [PATCH 4/6] scan: allowlist two receipt result names (gitleaks
+ generic-api-key false positives); scan-2 clean
+
+---
+ .gitleaks.toml        |  3 ++-
+ logs/gl-1.guard.log   |  1 +
+ logs/gl-1.out         |  6 ++++++
+ logs/gl-1.rc          |  1 +
+ logs/scan-2.guard.log |  1 +
+ logs/scan-2.out       | 13 +++++++++++++
+ logs/scan-2.rc        |  1 +
+ 7 files changed, 25 insertions(+), 1 deletion(-)
+ create mode 100644 logs/gl-1.guard.log
+ create mode 100644 logs/gl-1.out
+ create mode 100644 logs/gl-1.rc
+ create mode 100644 logs/scan-2.guard.log
+ create mode 100644 logs/scan-2.out
+ create mode 100644 logs/scan-2.rc
+
+diff --git a/.gitleaks.toml b/.gitleaks.toml
+index f0e32a4dd6a7e17013ca5b7a185019d056a278cf..28165781357b167846c4369325183ac59211b518 100644
+--- a/.gitleaks.toml
++++ b/.gitleaks.toml
+@@ -5,4 +5,5 @@ useDefault = true
+ 
+ [allowlist]
+ description = "Sigma Prime public release-signing PGP fingerprint"
+-regexes = ['''^15E66D941F697E28F49381F426416DC3F30674B0$''']
++# plus two receipt RESULT NAMES ({"key": "<result name>"} in receipts.jsonl), not credentials
++regexes = ['''^15E66D941F697E28F49381F426416DC3F30674B0$''', '''^D2\.unmarkedForeign$''', '''^E2\.verifyCap$''']
+diff --git a/logs/gl-1.guard.log b/logs/gl-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..409e57d38d3aa28345c9b6aa1a62e5bbd7ccf3eb
+--- /dev/null
++++ b/logs/gl-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=25185
+diff --git a/logs/gl-1.out b/logs/gl-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..74eebaa8e58dc7a93057951b085dad891dd4e8e2
+--- /dev/null
++++ b/logs/gl-1.out
+@@ -0,0 +1,6 @@
++[queue] START available=25254MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++4:24AM INF scanned ~120850 bytes (120.85 KB) in 19.3ms
++4:24AM WRN leaks found: 2
++[memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=25185
++[memory-guard] at peak: gitleaks:58
++[queue] EXIT 0
+diff --git a/logs/gl-1.rc b/logs/gl-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/gl-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-2.guard.log b/logs/scan-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..340c5e49425b95394198468ae57829bdb3b0bb3a
+--- /dev/null
++++ b/logs/scan-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=67 minHostAvailableMiB=25160
+diff --git a/logs/scan-2.out b/logs/scan-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..2ad1473593f403b72279de85b642720feea0f103
+--- /dev/null
++++ b/logs/scan-2.out
+@@ -0,0 +1,13 @@
++[queue] START available=25207MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++ddd2593 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> logs: scan-1
++8a0b0fb SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> RESULT: composed 32-line delta closed on the real 7.2.11 guest kernel (vm-1); old-template controls; symlink-mutant assessment; cleanup receipts
++515a1ec SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> cache-composed-kernel-delta: guest harness for the 32-line composed delta (S 92b7178 / P f8c999e, template cab32bbe) with old-template and symlink-mutant controls
++4:24AM INF 3 commits scanned.
++4:24AM INF scanned ~415088 bytes (415.09 KB) in 129ms
++4:24AM INF no leaks found
++4:24AM INF scanned ~120850 bytes (120.85 KB) in 18.9ms
++4:24AM INF no leaks found
++[scan] crypto=0 gitleaks-git=0 gitleaks-run=0
++[memory-guard] exit=0 peakTreeRssMiB=67 minHostAvailableMiB=25160
++[memory-guard] at peak: gitleaks:57 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-2.rc b/logs/scan-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-2.rc
+@@ -0,0 +1 @@
++0

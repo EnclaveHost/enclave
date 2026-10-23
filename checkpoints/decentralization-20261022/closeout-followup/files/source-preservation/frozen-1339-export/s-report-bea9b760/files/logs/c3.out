@@ -1,0 +1,41 @@
+[queue] START available=25404MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+=== repo run 1
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo head 4c059b997360483c743deca343c2e42b1b534eeb dirty=1 untracked=1
+ℹ pass 21
+ℹ fail 0
+[job] exit=0
+=== baseline-14d1 run 1
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/baseline-14d1 head 14d1e4954cf7c9900d5d3e841a23f02de945c1b2 dirty=2 untracked=1
+ℹ pass 21
+ℹ fail 0
+[job] exit=0
+=== repo run 2
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo head 4c059b997360483c743deca343c2e42b1b534eeb dirty=1 untracked=1
+ℹ pass 21
+ℹ fail 0
+[job] exit=0
+=== baseline-14d1 run 2
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/baseline-14d1 head 14d1e4954cf7c9900d5d3e841a23f02de945c1b2 dirty=2 untracked=1
+ℹ pass 21
+ℹ fail 0
+[job] exit=0
+=== repo run 3
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo head 4c059b997360483c743deca343c2e42b1b534eeb dirty=1 untracked=1
+✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (588.786514ms)
+ℹ pass 20
+ℹ fail 1
+✖ failing tests:
+✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (588.786514ms)
+[job] exit=1
+  AssertionError [ERR_ASSERTION]: stop: {"exit":{"code":1,"signal":null},"out":"13:28:00 [privacy] no apps: running this host's services only (they start once the platform host policy admits this host)\n13:28:00 [privacy] control circuits: all public directories unavailable: fetch failed\n13:28:00 [privacy] [host-policy] this host is ADMITTED: serving and taking work\n13:28:00 [privacy] host services: {\"dir-onak4wucyrdwb6uib255buhkwaofrmhms5yjjhrqg27lhhqeikpq.app.alice-net.org\":{\"http\":18188,\"tls\":null}}\n13:28:00 [privacy] host service circuits: all public directories unavailable: fetch failed\nprivacy agent stopped during startup\n"}
+  
+  1 !== 0
+  
+=== baseline-14d1 run 3
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/baseline-14d1 head 14d1e4954cf7c9900d5d3e841a23f02de945c1b2 dirty=2 untracked=1
+ℹ pass 21
+ℹ fail 0
+[job] exit=0
+[memory-guard] exit=1 peakTreeRssMiB=663 minHostAvailableMiB=24287
+[memory-guard] at peak: esbuild:394 node:102 node:89 node:53 bash:6 bash:6 timeout:4 tee:4
+[queue] EXIT 1

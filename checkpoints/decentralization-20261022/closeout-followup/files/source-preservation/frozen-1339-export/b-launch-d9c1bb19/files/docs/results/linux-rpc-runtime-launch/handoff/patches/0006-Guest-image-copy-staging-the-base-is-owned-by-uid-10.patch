@@ -1,0 +1,92 @@
+From 927e2acfb75486ce94f6e5942fe29df4a2f05dc4 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:55:47 -0700
+Subject: [PATCH 6/7] Guest image: copy staging; the base is owned by uid 1000,
+ so verify-in-place cannot hold there
+
+The production base dist-sdshield-2857356cd stores 29027 of its 29040 initramfs entries as uid/gid 1000 (node), / /opt
+/app /usr included (receipts/base-owners.json), and the kernel applies those owners when it unpacks it. The runtime's
+verify-in-place rule (the file and every directory above it owned by root or the runtime user) therefore refuses in a
+real guest; the chroot fixture had hidden it (in its user namespace every file appears as root), the install-set probe
+found it. Rather than weaken the rule or rewrite base entries, the image record now uses the runtime's reviewed default,
+copy: each start copies the pinned files and the glibc runtime into its own 0700 run directory on the guest tmpfs
+(/mnt/ramdisk, mounted by init as root), hashes them there and runs them from there. Cost: ~234 MB of tmpfs while the
+verifier runs, on opted-in hosts only. verify-in-place stays in the runtime for a root-owned base.
+
+The guest E2E now asserts copy staging (Helios from <runDir>/bin through <runDir>/glibc, runDir 0700 on the tmpfs) and says
+what it does not model; the image record's unit test pins copy.
+---
+ metal/chain-verifier-image.json        |  5 +++--
+ test/chain-verifier-guest.e2e.test.mjs | 14 ++++++++++----
+ test/chain-verifier-guest.test.mjs     |  2 +-
+ 3 files changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/metal/chain-verifier-image.json b/metal/chain-verifier-image.json
+index b39e953bbe23912d5acb531eea62c4d9e44ece8d..ba48eac7e70fb7cb68777a8501360cb6d7103e26 100644
+--- a/metal/chain-verifier-image.json
++++ b/metal/chain-verifier-image.json
+@@ -17,7 +17,7 @@
+   },
+   "binaries": ["helios", "witnessCheck"]
+  },
+- "binaryStaging": "verify-in-place",
++ "binaryStaging": "copy",
+  "hostTools": { "flock": "/usr/bin/flock" },
+  "stateDir": "/mnt/ramdisk/enclave-chain-verifier/state",
+  "configDir": "/mnt/ramdisk/enclave-chain-verifier",
+@@ -26,6 +26,7 @@
+   "helios": "Helios enclave-base-evm eeffcc9 (CLI identical in function through ef320298), DEBUG profile (the release build exceeded the 1536 MiB build allocation); needs GLIBC_2.39, so it runs through glibcRuntime",
+   "witnessCheck": "witness-check ef320298, DEBUG profile; needs GLIBC_2.38, so it runs through glibcRuntime",
+   "glibcRuntime": "the build host's own runtime files, copied exactly: Arch glibc 2.44+r50+g1848099f063e-1 (ld-linux-x86-64.so.2, libc.so.6, libm.so.6) and gcc-libs 16.2.1+r23+gd564253eb6c8-1 (libgcc_s.so.1); used ONLY by the two binaries above, through their own loader with --library-path",
+-  "guestBase": "dist-sdshield-2857356cd: Debian 12 (bookworm), glibc 2.36, node v20.20.2, util-linux flock 2.38.1, no curl"
++  "guestBase": "dist-sdshield-2857356cd: Debian 12 (bookworm), glibc 2.36, node v20.20.2, util-linux flock 2.38.1, no curl",
++  "binaryStaging": "copy: each start copies the pinned files into its 0700 run directory on the guest tmpfs, hashes them there and runs them from there (~234 MB of tmpfs while the verifier runs). verify-in-place cannot hold on this base: 29027 of its 29040 entries, / /opt /app /usr included, are owned by uid 1000 (node), not root (receipts/base-owners.json)"
+  }
+ }
+diff --git a/test/chain-verifier-guest.e2e.test.mjs b/test/chain-verifier-guest.e2e.test.mjs
+index 191456fd804a34318b4d7e149e496cadd454a2dc..df4c2db87788c2950e7ff8c2f2a762dfea5b06e6 100644
+--- a/test/chain-verifier-guest.e2e.test.mjs
++++ b/test/chain-verifier-guest.e2e.test.mjs
+@@ -2,7 +2,9 @@
+ //   * the production base image's rootfs (Debian 12, glibc 2.36, node v20; extracted read-only as GUEST_ROOTFS), hard-link
+ //     copied, with this commit's image files installed at their image paths: /opt/metal/{gsup,chain-verifier}.mjs, the
+ //     runtime's import closure under /app/network, and /opt/rpc-runtime (the PINNED Helios cc962e2b and helper 4fe0cd3b, run
+-//     through the pinned glibc runtime, verified in place; IMAGE.json);
++//     through the pinned glibc runtime, copied and hashed into a 0700 run directory on the guest tmpfs; IMAGE.json);
++//     NOT modelled: the real base's uid-1000 ownership (in this user namespace every file appears as root), which is why
++//     the image uses copy staging (tools/image-inputs.py gates verify-in-place on the base's real owners);
+ //   * gsup's REAL child supervision and chain-verifier block (test/fixtures/gsup-chain-verifier-harness.mjs, sliced from the
+ //     installed gsup.mjs) under the guest's node, chroot'ed, /proc and /dev bind-mounted, sharing the test's loopback;
+ //   * the supervisor's REAL consumer: host wallet admission from the shipped bundle (windows/node/host-admission.bundle.mjs,
+@@ -214,11 +216,15 @@ test('cold start in the guest userland: the verifier starts before the superviso
+   await until(() => fs.existsSync(path.join(STATE, 'ready.json')), 300000, 'verifier ready');
+   assert.equal(Number(await rpc(env.ENCLAVE_CHAIN_VERIFIER, 'eth_chainId')), 8453);
+   const st = readJson(path.join(STATE, 'status.json'));
+-  assert.equal(st.binaries.staging, 'verify-in-place');
++  assert.equal(st.binaries.staging, 'copy');
+   assert.deepEqual(st.binaries.glibcRuntime.for, ['helios', 'witnessCheck']);
+   const helios = readJson(path.join(STATE, 'children.json')).find((c) => c.role === 'helios');
+-  assert.deepEqual(cmdline(helios.pid).slice(0, 4), ['/opt/rpc-runtime/glibc/ld-linux-x86-64.so.2', '--library-path', '/opt/rpc-runtime/glibc', '/opt/rpc-runtime/helios'],
+-    'Helios runs in place through the pinned glibc runtime (the guest glibc 2.36 cannot run it)');
++  const [loader, flag, libDir, heliosBin] = cmdline(helios.pid);
++  const runDir = path.dirname(libDir);
++  assert.match(runDir, /^\/mnt\/ramdisk\/enclave-chain-verifier\/state\/runs\/r\d+-[0-9a-f]{12}$/, 'a fresh run directory on the guest tmpfs');
++  assert.deepEqual([loader, flag, libDir, heliosBin], [`${runDir}/glibc/ld-linux-x86-64.so.2`, '--library-path', `${runDir}/glibc`, `${runDir}/bin/helios`],
++    'Helios runs from its hashed copy through the copied pinned glibc runtime (the guest glibc 2.36 cannot run it)');
++  assert.equal((fs.statSync(path.join(R, runDir)).mode & 0o777), 0o700);
+   d = await decide(env);
+   unknownForChain(d, 'ready but no proof source answers: refused as unknown, not admitted');
+   proxy.st.mode = 'ok';
+diff --git a/test/chain-verifier-guest.test.mjs b/test/chain-verifier-guest.test.mjs
+index 19fdb51310825ad1d888d93fd67b2f36fc8f116c..2b742e82d30a99b1cb2ed86c4e7b3fb10304e6f8 100644
+--- a/test/chain-verifier-guest.test.mjs
++++ b/test/chain-verifier-guest.test.mjs
+@@ -50,7 +50,7 @@ test('the committed image pin record builds a runtime config the runtime itself
+   const c = validateRuntimeConfig(cfg);
+   assert.equal(c.format, 'enclave-rpc-runtime/v2');
+   assert.equal(c.verifier.bind, '127.0.0.1'); assert.equal(c.verifier.port, 8546);
+-  assert.equal(c.binaryStaging, 'verify-in-place');
++  assert.equal(c.binaryStaging, 'copy');
+   assert.deepEqual([...c.glibcRuntime.binaries], ['helios', 'witnessCheck']);
+   assert.match(c.binaries.listener.build, /release profile/);
+   assert.match(c.binaries.witnessCheck.build, /ef320298/);

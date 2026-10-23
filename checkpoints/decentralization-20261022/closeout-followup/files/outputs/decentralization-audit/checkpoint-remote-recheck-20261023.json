@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-23T13:40:22.331703+00:00",
+  "remote": "https://github.com/EnclaveHost/enclave",
+  "checkpointBranch": "checkpoint/decentralization-20261022",
+  "checkpointCommit": "476c589bb35abd10efd830863b042e8801c18ef0",
+  "mainCommit": "68b82926968c99503d38ae78dbcb04694cc2c56c",
+  "verification": "independent git ls-remote through queue256, exit0 peak30MiB",
+  "scope": "source/evidence preservation checkpoint; no production deployment or completion claim"
+}

@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-23T12:11:38.743197+00:00",
+  "result": "Control passed; 8/8 targeted mutations detected; RESULT PASS (0 problems)",
+  "source_log": "work/rpc-hdd-transport-20261023/logs/mutate-2.out",
+  "sha256": "46fbd9e02d9217dd273531d17ccaaf3dd3f7875ee3218c1010eff6d2d8e1de54",
+  "scope": "Local isolated transport and guest fixtures. No physical RAID, NucBox, production throughput or hardware power-loss validation.",
+  "status": "Worker still active; final source/package pending.",
+  "detected": [
+    "Missing client authorization",
+    "Disabled client certificate verification",
+    "Unchecked filesystem type",
+    "Unchecked backing device",
+    "Process ownership checked by PID alone",
+    "Image creation overwrites existing data",
+    "Formatting without blank-device check",
+    "Mounting over a nonempty mountpoint"
+  ]
+}

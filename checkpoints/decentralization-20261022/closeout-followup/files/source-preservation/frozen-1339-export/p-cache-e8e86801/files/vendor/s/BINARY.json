@@ -1,0 +1,55 @@
+{
+ "binary": {
+  "member": "base",
+  "sha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+  "size": 153601320
+ },
+ "executedOffline": true,
+ "flagsInRpcHelp": [
+  "--addr",
+  "--datadir",
+  "--datadir.static-files",
+  "--discovery.addr",
+  "--discovery.port",
+  "--discovery.v5.addr",
+  "--discovery.v5.port",
+  "--full",
+  "--http",
+  "--http.addr",
+  "--http.api",
+  "--http.port",
+  "--ipcdisable",
+  "--l1-beacon",
+  "--l1-eth-rpc",
+  "--l1.rpc-timeout-ms",
+  "--minimal",
+  "--p2p.listen.ip",
+  "--p2p.listen.tcp",
+  "--p2p.listen.udp",
+  "--port",
+  "--rpc.addr",
+  "--rpc.eth-proof-window",
+  "--rpc.forwarding-endpoint",
+  "--rpc.max-connections",
+  "--rpc.port",
+  "--upgrade-signal.mode"
+ ],
+ "format": "enclave-base-holder-binary/v1",
+ "help": {
+  "help": "c3af92d829ac36cbb6608b20052cf49b0f26221ed9873f58ca6290380466fbfb",
+  "rpc-help": "93d563ae682b0a73ae38f97ed0f98762d70c5bc50a5ad7306b2e666680da017a"
+ },
+ "note": "every rendered flag must appear in the pinned binary help; preflight re-checks on the installed bytes",
+ "release": {
+  "id": 421013843,
+  "metadataSha256": "9def16211ac83436630ddc17b536245f8a169614d091e8be277b049d85cb6ae3",
+  "tag": "v1.5.1",
+  "url": "https://github.com/base/base/releases/tag/v1.5.1"
+ },
+ "tarball": {
+  "sha256": "6779c45dbc6041205cc4e52bc2cd9d40746a5a4366a309899bf6533fccebe2b7",
+  "size": 53031200,
+  "url": "https://github.com/base/base/releases/download/v1.5.1/base-v1.5.1-x86_64-unknown-linux-gnu.tar.gz"
+ },
+ "version": "base 1.5.1"
+}

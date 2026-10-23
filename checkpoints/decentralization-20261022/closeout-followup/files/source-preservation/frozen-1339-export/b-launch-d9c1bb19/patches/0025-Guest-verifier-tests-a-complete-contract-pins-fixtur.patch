@@ -1,0 +1,99 @@
+From 722cf1b04ac4708bf66aeec4cf4c95f570610c11 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:50:39 -0700
+Subject: [PATCH 25/28] Guest verifier tests: a complete contract pins fixture;
+ refusals must be for a chain reason; pin the legacy start
+
+The E2E's contract pins file lacked the four optional pins network/contract-pins.mjs requires present (zero when not
+deployed), so every decision was "unknown" for the consumer's own configuration: the cold-start and owner/admin cases
+timed out and the "refused as unknown" checks passed for the wrong reason. The fixture now has them, those checks also
+refuse an unknown that names the consumer's configuration, and a timeout names the last decision.
+
+The unit wiring test found gsup's first supervisor start, the direct control guest's (startDirectControl, its bound
+plan). It now pins both: the direct one keeps plan.env, and the top-level legacy one follows the verifier block.
+---
+ test/chain-verifier-guest.e2e.test.mjs | 18 ++++++++++++------
+ test/chain-verifier-guest.test.mjs     |  6 +++++-
+ 2 files changed, 17 insertions(+), 7 deletions(-)
+
+diff --git a/test/chain-verifier-guest.e2e.test.mjs b/test/chain-verifier-guest.e2e.test.mjs
+index 57c33a16d70bfa07999cea383924bf8edfba3708..191456fd804a34318b4d7e149e496cadd454a2dc 100644
+--- a/test/chain-verifier-guest.e2e.test.mjs
++++ b/test/chain-verifier-guest.e2e.test.mjs
+@@ -42,7 +42,7 @@ const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); }
+ async function until(pred, ms, what) {
+   const end = Date.now() + ms;
+   while (Date.now() < end) { try { if (await pred()) return; } catch {} await sleep(250); }
+-  throw new Error(`timed out: ${what} | guest log: ${guest?.log().slice(-1500)}`);
++  throw new Error(`timed out: ${what} | last decision: ${JSON.stringify(lastDecision)} | guest log: ${guest?.log().slice(-1500)}`);
+ }
+ async function rpc(url, method, params = []) {
+   const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(10000) });
+@@ -125,7 +125,11 @@ function admission(env) {
+     ENCLAVE_HOST_POLICY_DIR: policyDir, ENCLAVE_HOST_ID: rig.runner, ENCLAVE_CONTRACT_PINS_FILE: pinsFile } });
+ }
+ const request = () => ({ deploymentId: leaseId, appRef: `catalog://${rig.appId}/1` });
+-async function decide(env) { try { return await admission(env).decision(request()); } catch (e) { return { unknown: String(e.message) }; } }
++let lastDecision;   // named in until()'s timeout message
++// refused as UNKNOWN for a chain reason: never admitted, never a policy refusal, and never the consumer's own configuration
++// (a missing pin also yields unknown, which would make these checks pass for the wrong reason)
++const unknownForChain = (d, why) => { assert.ok(d.unknown && !d.refusal, `${why}: ${JSON.stringify(d)}`); assert.doesNotMatch(d.unknown, /contract pin|policy dir|ENCLAVE_HOST_/, why); };
++async function decide(env) { try { return (lastDecision = await admission(env).decision(request())); } catch (e) { return (lastDecision = { unknown: String(e.message) }); } }
+ function startProxy() {
+   const st = { mode: 'ok' };
+   const srv = http.createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', async () => {
+@@ -156,7 +160,9 @@ test.before(async () => {
+   await rig.write(rig.wc(KEYS.owner), own, ownAbi, 'acceptOwner', [rig.runner]);
+   policyDir = path.join(TMP, 'host-policy'); fs.mkdirSync(policyDir);
+   pinsFile = path.join(TMP, 'contract-pins.json');
+-  fs.writeFileSync(pinsFile, JSON.stringify({ version: 1, chainId: 8453, contracts: { registry: rig.addresses.registry, deployments: rig.addresses.ledger, appCatalog: rig.addresses.catalog, proofOfTime: book } }));
++  const none = '0x' + '00'.repeat(20);   // network/contract-pins.mjs: the optional pins are present, zero when not deployed
++  fs.writeFileSync(pinsFile, JSON.stringify({ version: 1, chainId: 8453, contracts: { registry: rig.addresses.registry, deployments: rig.addresses.ledger, appCatalog: rig.addresses.catalog, proofOfTime: book,
++    enclavePay: none, verificationFees: none, sessionVaultFactory: none, secretVaultV2: none } }));
+   proxy = await startProxy(); providers = await startProviders();
+   HA = await import(path.join(REPO, 'windows/node/host-admission.bundle.mjs'));
+   port = await freePort();
+@@ -184,7 +190,7 @@ test('absent opt-in: legacy unchanged (no names, no verifier); invalid opt-in: t
+   assert.match(invalid.log(), /chain verifier REFUSED .*guest's own ports.*no provider fallback/);
+   assert.deepEqual(invalid.pids(), [], 'nothing started');
+   const d = await decide(e2);
+-  assert.ok(d.unknown && !d.refusal, `refused as unknown, never admitted: ${JSON.stringify(d)}`);
++  unknownForChain(d, 'refused as unknown, never admitted');
+   assert.equal(providers.st.hits, 0, 'the provider quorum was never asked');
+   powerOff(invalid); await invalid.exited;
+ });
+@@ -203,7 +209,7 @@ test('cold start in the guest userland: the verifier starts before the superviso
+   await sleep(4000);
+   assert.equal(fs.existsSync(path.join(STATE, 'ready.json')), false);
+   let d = await decide(env);
+-  assert.ok(d.unknown && !d.refusal, JSON.stringify(d));
++  unknownForChain(d, 'booting: no verified decision yet');
+   setControl({});                                                         // heads flow; proof sources still down
+   await until(() => fs.existsSync(path.join(STATE, 'ready.json')), 300000, 'verifier ready');
+   assert.equal(Number(await rpc(env.ENCLAVE_CHAIN_VERIFIER, 'eth_chainId')), 8453);
+@@ -214,7 +220,7 @@ test('cold start in the guest userland: the verifier starts before the superviso
+   assert.deepEqual(cmdline(helios.pid).slice(0, 4), ['/opt/rpc-runtime/glibc/ld-linux-x86-64.so.2', '--library-path', '/opt/rpc-runtime/glibc', '/opt/rpc-runtime/helios'],
+     'Helios runs in place through the pinned glibc runtime (the guest glibc 2.36 cannot run it)');
+   d = await decide(env);
+-  assert.ok(d.unknown && !d.refusal, `ready but no proof source answers: refused as unknown, not admitted (${JSON.stringify(d)})`);
++  unknownForChain(d, 'ready but no proof source answers: refused as unknown, not admitted');
+   proxy.st.mode = 'ok';
+   await until(async () => (await decide(env)).refusal === null, 60000, 'admitted once a proof source answers');
+   assert.equal(providers.st.hits, 0, 'no provider fallback at any point');
+diff --git a/test/chain-verifier-guest.test.mjs b/test/chain-verifier-guest.test.mjs
+index 01e170c8d5d6b5167544ce77b16caff5d1c374a9..19fdb51310825ad1d888d93fd67b2f36fc8f116c 100644
+--- a/test/chain-verifier-guest.test.mjs
++++ b/test/chain-verifier-guest.test.mjs
+@@ -92,7 +92,11 @@ test('the guest view and the supervisor names: absent unchanged; valid sets exac
+ test('gsup: the verifier starts before the supervisor, as a supervised child, and its names wrap the supervisor env last', () => {
+   const g = fs.readFileSync(path.join(REPO, 'metal/guest/gsup.mjs'), 'utf8');
+   assert.match(g, /import \{ guestChainVerifier, withChainVerifierEnv, writeChainVerifierConfig \} from '\.\/chain-verifier\.mjs';/);
+-  const a = g.indexOf('// --- chain verifier (opt-in'), b = g.indexOf('// --- end chain verifier'), s = g.indexOf("start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], ");
++  // two supervisor starts: the direct control guest's (indented, in startDirectControl: its bound plan, no verifier) and the
++  // legacy one (top level, after the verifier block)
++  assert.equal(g.match(/start\('supervisor', /g).length, 2);
++  assert.match(g, /^ {2}start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], plan\.env, \{ cwd: '\/app' \}\);$/m);
++  const a = g.indexOf('// --- chain verifier (opt-in'), b = g.indexOf('// --- end chain verifier'), s = g.indexOf("\nstart('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], ");
+   assert.ok(a > 0 && b > a && s > b, 'the verifier block precedes the legacy supervisor start');
+   assert.match(g.slice(a, b), /const CHAIN_VERIFIER = CONTROL \? null : guestChainVerifier\(fw\.chainVerifier\);/);
+   assert.match(g.slice(a, b), /start\('chain-verifier', CHAIN_VERIFIER\.argv\(writeChainVerifierConfig\(CHAIN_VERIFIER\)\), CHAIN_VERIFIER\.env, \{ cwd: '\/app' \}\);/);

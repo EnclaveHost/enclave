@@ -1,0 +1,1 @@
+F terminal source30339303bedcb5cb9a6d8fe2e495f381f05d7c74/evidence1f19ad15 in windows-final-baseline-compose. TLS/M still notcomposed, baselinefailuresnotacceptedreleasegates. RootresumesF NEWwork/windows-final-runtime-integration-20261023. Captureimmutablefinalonly.

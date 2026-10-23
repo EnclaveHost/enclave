@@ -1,0 +1,285 @@
+[queue] START available=25212MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+== scan 14d1e4954..HEAD
+scan rc=0
+HEAD 028623069a5bcacd51b2df3b3aa483c0f93b2957
+directory-replica: bundle 716759 bytes sha256:45dc23218fd88a4e…, manifest sha256:e9cff3283064bcf2bb765a4c741af384eed2adc14a30bff959c58df8032be2d8, 1218 inputs
+bootstrap-replica: bundle 5033 bytes sha256:1e45e75f1f4a7d2b…, manifest sha256:7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc, 1 inputs
+route-dns: bundle 4861076 bytes sha256:06293c9331a2e76c…, manifest sha256:e265478277853d4c3e9fc09337b7b366f4a332cbda31e8b5b10ce674f3970d9c, 1218 inputs
+policy-mirror: bundle 647387 bytes sha256:74878623094a0d26…, manifest sha256:2b5a85468d720d4904f282bc6ff84bcf9ff33e46738172cc32d444ae6e4bacbe, 432 inputs
+credit-vault-submitter: bundle 1294743 bytes sha256:2a4de6d5b166c25a…, manifest sha256:a22cd7a8fc6f7d85fea6edbd7f8e9deb36dc1b55507e3bb396e9bc6a368eb0e6, 1322 inputs
+public-rpc: bundle 25610 bytes sha256:eb98beb09f12643b…, manifest sha256:0d45960a8297512ea8e20566340d21b4c6ba20112a84dfe2c54405c17738605e, 3 inputs
+npm inputs locked by: package-lock.json sha256:9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20, relay/package-lock.json sha256:e5d896baf563d6cc1662000fb87b56f9673c87c502b4cb8ea43836b1687f0b56
+== package files changed vs HEAD:
+?? network/host-services/packages/
+same-as-F bootstrap-replica.mjs
+same-as-F bootstrap-replica.package.json
+same-as-F credit-vault-submitter.mjs
+same-as-F credit-vault-submitter.package.json
+same-as-F directory-replica.mjs
+same-as-F directory-replica.package.json
+same-as-F policy-mirror.mjs
+same-as-F policy-mirror.package.json
+new public-rpc.mjs eb98beb09f12643b8dcddfa17191392d59ca46c2e6790268d0579cffbbd67b03
+new public-rpc.package.json 0d45960a8297512ea8e20566340d21b4c6ba20112a84dfe2c54405c17738605e
+same-as-F route-dns.mjs
+same-as-F route-dns.package.json
+[job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo head 028623069a5bcacd51b2df3b3aa483c0f93b2957 dirty=0 untracked=1
+fe31bcdc2f49c6ef2c2c7bcec64e4d1f7b23d87984b6e8450ed4374cd5e82fbe  network/public-rpc.mjs
+6c2f58692ea8980bdf0fddfd4225f109a978d05f053e25bc34431ea5bf87b870  network/public-rpc-hosts.mjs
+cc409882aa8e0dedab9675766a3e1847f40e02298182580707446e8b890a6126  network/host-services/roles.mjs
+da675a2cea07d91281a0e8a04d719142c7542322c7e0d8d70d19201bd7e4363f  network/host-services/runner.mjs
+d61bbeb60d3099ab9aa9bcb44d2070e1a6e313e553231426920dc3deb01fb906  network/host-service-names.mjs
+0dab1bc73232e019c5e699ffe8f43467a07c9be5b111affb8a831e03061754e5  network/host-service-transport.mjs
+e7ea534604b2dd9307f4c4d8919fcc22c2061438f33dfb68c3fef61f526c72cd  network/wg-provider/provider.mjs
+b260ab0aadc5beb4ec06be9495e70f945ac98b7d8566f736a04081b10901f561  test/public-rpc.test.mjs
+ade803450776ebf1c40ff684beba7568d1a63aa9a79b8d5e0c15c13a3bd7e54d  test/public-rpc-browser.test.mjs
+d54779e75f8a13d0e87945414f88bc78428dd54a3412513fdb9ce56cf2603935  test/host-service-lifecycle.test.mjs
+ea167d1b8e11e6a8d4b73ff0b1da21aedebdce49b166ab007739aacc6e15740b  test/host-service-transport.test.mjs
+4a1c36eacaedc4e39e8d19ac8f47d43f53d1d50dda31d8d7e806c17d76dacfdb  test/wg-provider.test.mjs
+b6da775b5db3f2fe009e587deb94812d99f8df0086d2655836830a079506b55a  test/hosted-services-stage.test.mjs
+06a314237cef914e35cea66d16e7551d4de11694da1e024aa9b8674127e4b843  test/host-service-verifier-roles.test.mjs
+f10de44988188cc44451977b7c5ae8f55ee774fc0a97af7c05576a7f0727268b  test/hosted-service-placement.test.mjs
+ff64eb5bd6aa5f70287e7f4b65f8a9b020fcb914b120587e0029f88573ec6c1f  test/hosted-policy-cold-start.test.mjs
+d5e2e50a346ba430f842a3296e0ca227d688b8159b3057963fab74590e724a59  test/host-services-carriers.test.mjs
+07efb742285c12bf3cfd0967a1a853f11f814425abaadd912ecfba74c9e84f24  test/host-services-cold-start.test.mjs
+e018acdb666225a0f15e8fecbbcd6608c68a0eb5e9869535a3a0cc441ac847da  test/credit-vault-submitter-runner.test.mjs
+4069363b59307effe97c54006f62a1a7ba77391412d0987925d4b7bc1d876027  test/browser-profile.test.mjs
+ece0510985123b57f0fc1f14d7d8334b39fd7a5297e910d1869e5bb52336496a  test/hosted-services-appstatic.test.mjs
+ffdd9e1496fb8b87556de512b13d8a37d3b84b43f5ddfec57c1946122933754e  test/network-consumer-bundle.test.mjs
+22bb65153079cdcd1b3e8ee9ed8262ca3869c3683063f09c280ebb1e9536c2f4  test/paid-network.test.mjs
+63df6e39049ac53203f187e54635d760356e6095678f3ee47dc3f37b6377805c  test/privacy-agent-config.test.mjs
+c5cad0289a352e72f509d5d3e5d10bb45e8b0bcff94c85967184f2fd4bc6456c  test/privacy-agent-lifecycle.test.mjs
+62461469ea71441f4a8a148b55d26aeb4f4cfafe266e3c9cedd2d48c889dc9e7  test/privacy-agent-proofs.test.mjs
+3c518da9efe3d8971e2078840426be15e192ce1a47112d52941683419ea520c5  test/wg-renewal.test.mjs
+9bc7d8167874335e23a0467ee8e12bfaab6a7282d78464109c31e51cc391dfd5  test/verified-chain.test.mjs
+9d1c401e9973f4b8741af7d5ef1c38a27fd4ee68a8f90860d961c86d836c8923  test/service-index.test.mjs
+903de4163ea715ed3ecf3b7179fcd52235e50b24f35f5f88598da262bec2851b  test/windows-node-wallet-grant-refresh.test.mjs
+d12d1aa8f44bc8944a4c994e86904ed4fc4820f9fe0b320cc14de49c4ef5ddc2  test/windows-node-wallet-network-hold.test.mjs
+✔ conversion: reviewed pins, token, ledger feed and provenance; the dashboard accepts the exact output (8.627892ms)
+✔ conversion refuses anything not anchored out of band, and unsafe operator inputs (2.786328ms)
+✔ conversion follows an address book only when explicitly selected (3.474312ms)
+✔ address-book mode selects the ORIGINAL session factory from the reviewed profile; fixed mode keeps the pinned one (1.833255ms)
+✔ --ledger-history-from: every ledger the book named, from its own AddressSet events with all RPCs agreeing, in the profile (3.519862ms)
+✔ --capacity-directory: optional HTTPS mirrors of signed capacity records, carried into the profile (1.575138ms)
+✔ an address-book profile always enables the platform host policy: this book, the explicit host-ownership extension, the given mirrors (3.327064ms)
+✔ --verify-chain reads the policy anchor at the verified block on every RPC: anchored, unanchored, torn, disagreeing (0.892763ms)
+✔ --verify-chain in address-book mode: every RPC must bind the original factory to this book, USDC and the pinned entries (2.483471ms)
+✔ the command refuses to overwrite and prints the fingerprint (465.551557ms)
+✔ ETH quote: the ledger's reviewed 8-decimal feed with a fresh finalized round (4.618483ms)
+✔ ETH quote refuses: disabled, swapped feed, wrong decimals, stale, unfinished, non-positive, missing methods (10.199969ms)
+✔ selector presence check handles PUSHn for selectors with leading zero bytes (0.752984ms)
+▶ the shared host-service runner launches the packaged credit-vault submitter: no secret, no env, receipts, admission, kind 8
+  ✔ registered in ROLES, packaged behind the argv guard, configured only through the runner's validators (8.735201ms)
+  ✔ cold start: the runner launches the packaged role with no inherited environment and a 0600 secret-free config (214.169136ms)
+  ✔ receipt path: a passkey-signed request through the runner-launched role executes once, gas paid by the operator's signer (193.670378ms)
+  ✔ admission: a refused host stops the role and a request sent meanwhile is held; admitted again, the same bytes execute once (1003.557832ms)
+  ✔ advertisement: kind 8 credit-vault-submitter, prepared unsigned by the runner; outside the default listing (4.086298ms)
+✔ the shared host-service runner launches the packaged credit-vault submitter: no secret, no env, receipts, admission, kind 8 (2165.574431ms)
+✔ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (135.197301ms)
+✔ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (332.342551ms)
+✔ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (179.59062ms)
+✔ delayed failure: the exit REFUSES the grant it was holding while the host stopped: nothing to withdraw, no strike, clean stop (55.906588ms)
+✔ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (57.256317ms)
+✔ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (1178.499699ms)
+✔ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (1215.638975ms)
+✔ agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing (464.973362ms)
+✔ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (0.901193ms)
+✔ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (201.336347ms)
+✔ opt-in public RPC origin: a host serving public-rpc asks for rpc-<b32>, an opted-in exit grants it, a visitor reaches the role by that name, and a ban withdraws it (117.159923ms)
+✔ an opted-in exit gives a host WITHOUT the role exactly its three names (unchanged grant) (91.770494ms)
+✔ a host serving public-rpc is refused BY NAME at an exit whose operator did not opt in (never a mismatched grant) (47.193927ms)
+✔ one service circuit per pinned exit, through a different guard, asking for exactly this host's names and routes (10.935664ms)
+✔ a failed revoke still closes (the grant expires on its own); a down circuit is rebuilt next round (0.680055ms)
+✔ B1: https is advertised only from VERIFIED G3 readiness; a configured port, a wrong name, an untrusted CA or a closed port is http (75.92717ms)
+✔ G3 front mapping (605's interface): port 80 of every name to httpPort, 443 only to listed tlsPorts (0.486896ms)
+✔ validation is idempotent: the agent's normalized block constructs the transport (absent tls/dns stay absent) (0.609385ms)
+✔ the host config is validated before anything starts (0.643755ms)
+✔ transport profile: host services with the platform host policy are transport; "off" or a malformed block refuses (0.946053ms)
+✔ enrollment keeps the operator's hostServices opt-in and only then names the service worker; N passes restart nothing (10.02639ms)
+✔ B2 counterexample: an INVALID or newer-release hostServices block is never deleted - kept byte-for-byte and reported every pass (8.639341ms)
+✔ the privacy agent preflight refuses host services only (apps unaffected): invalid block, missing worker, runner != keccak(endpoint) (2.440961ms)
+✔ B3: the Windows bundle stages every network binary enrollment names, and build.mjs produces each (0.613955ms)
+✔ Windows sandbox: a host-service circuit WITH DNS yields policies enclave-circuit-firewall accepts (no loopback UDP) (1.30156ms)
+✔ N3: start() of host services AND of control circuits does not reject when every directory is unreachable (1.137971ms)
+✔ G4 composition: enrollment preserves the reviewed challenge replica and serves its challenge TLS port (6.33217ms)
+✔ config: one explicit authority, the verifier local only and never a provider vote; the legacy quorum rule unchanged (3530.430234ms)
+✔ every public provider down: the hosts start on the verifier alone; the roles serve; host B cold-starts from the index read through it (791.587189ms)
+✔ admin moderation through the verifier: ban and unban host B; then an AddressBook owner MIGRATION hands the policy to the new admin (4922.695261ms)
+✔ unknown, stale, missing and failed proofs REFUSE with the public providers up: no provider fallback in any reader (82.794505ms)
+✔ shared helper: one carrier origin and base rule (policy-carriers re-exports them); the block is explicit and validated (3.117135ms)
+✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (598.994272ms)
+✔ missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart (20468.694956ms)
+✔ admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed (21480.169164ms)
+✔ first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit (9671.459246ms)
+✔ this host's policy-mirror store (read from disk, the role need not run) and an independent peer's mirror carry the document (1169.018786ms)
+✔ a malformed policy block refuses an app-less agent before anything binds; with apps, it refuses host services only (3395.68268ms)
+✔ verifier seam: with one injected chain authority, neither the gate nor a carrier opens a raw RPC quorum of its own (208.314764ms)
+✔ enrollment: the opt-in file carries hostServicesPolicy (a non-production book becomes eligible only through it); an invalid one writes nothing (12.634727ms)
+✔ zero apps: host services only after the platform admits; an admin ban stops them (grants withdrawn), the unban restarts them (10504.458304ms)
+✔ zero apps, unknown chain policy: the production policy with no network holds them (the agent runs); a fresh host never serves on an unread policy (6459.819716ms)
+✔ zero apps, the local policy down from the start: held; once it answers and admits, started (6451.118799ms)
+✔ first app added and last app removed (live reload) never touch host services; a restart with no app starts them again (3772.510543ms)
+✔ zero apps: refused before anything binds without a usable host-services block or with the policy off (2399.523787ms)
+✔ with an app, an "off" policy keeps the earlier behavior (host services start at once); on, they wait for the admit (2464.624627ms)
+✔ bundled library command lines: without the guard, the runner.mjs a carrier-configured challenge replica loads EXITS the bundle; with it, nothing runs (811.392064ms)
+✔ the shipped bundle runs the app-less daemon: admitted -> host services (495.037695ms)
+✔ enrollment, fresh box: no opt-in -> nothing written (as before); a valid opt-in -> an app-less config for host services; the first app joins it without a restart (9.740347ms)
+✔ enrollment, fresh box: a refused host, an invalid block or an unusable opt-in file writes no app-less config (11.051578ms)
+✔ enrollment, existing box: the opt-in file is the source while configured (a change restarts once); an unusable file keeps the config's blocks (3.697673ms)
+✔ locked inputs: the governing lockfile per node_modules tree; a version drift, an extraneous package or an outside input is refused (3.055597ms)
+✔ fresh hosts with empty caches start under an ACTIVATED anchor with every fleet policy mirror refused; a fleet-only host never does (8870.936745ms)
+✔ the admin bans host B (new anchored document, published only to an Enclave host carrier): B stops every role; the next authenticated policy unbans it (3232.197242ms)
+✔ stale, substituted and wrongly signed documents are refused by the carrier and, independently, by the gate; an anchored rollback is refused (802.208413ms)
+✔ runner: a failed spawn is an exit with backoff, never an unhandled error event; heapMiB is a V8 heap cap and the old name is refused (254.143717ms)
+✔ the policy-mirror package: reviewed bytes, no secret, and its only custody/ input is the RPC quorum reader (2.74605ms)
+✔ packages: only the reviewed bytes run, only public configuration reaches a role, and no role reaches custody, storage or lease relays (4201.227743ms)
+✔ cold start from the pinned index alone, with every DigitalOcean endpoint down: signed records and a verified artifact from Enclave hosts (10034.141455ms)
+✔ administration holds: a banned operator's advertisements are dropped, and a refused host stops its roles (574.222854ms)
+✔ cold dependencies: artifacts serve with the chain down; route DNS answers from its own host's directory; endpoints are classified, not trusted (5.610298ms)
+✔ advertisements are prepared for the operator to sign; nothing is signed or sent here (8.685485ms)
+✔ malformed, deployment-shaped, non-public and oversized static mappings are refused before anything starts (7.083567ms)
+✔ real DNS from the pinned route-dns package: static labels answer, deployment names keep their authority (1746.553392ms)
+✔ capture-app-static refuses disagreement, non-authoritative answers and multiple records; never chooses (1.106502ms)
+✔ gen-config carries captured mappings, and uses the TARGET platform's paths (1.24397ms)
+﹣ the production stage: verified compare-and-swap install, exact production `runner check`, and an exact rollback (0.463186ms) # needs STAGE_TAR (the built archive)
+﹣ the same archive live on a local chain: unanchored -> anchored import -> ban, with stage-1 health, stop and rollback (0.154169ms) # needs STAGE_TAR (the built archive)
+✔ the runner accepts warden's registry endpoint (with a path) and its host id is the registered one (1.963225ms)
+✔ standalone network bundles load outside the repository without npm dependencies (1427.82756ms)
+✔ a paid provider admits an app only under the owner's current on-chain authorization of it, with budget left (1.473839ms)
+✔ the provider meters each paid peer durably: counter growth only, a restarted counter counts in full, totals survive a restart (8.411997ms)
+✔ a paid provider grants only authorized apps, meters them, and drops their peers when the authorization ends (14.446352ms)
+✔ host and provider sign one receipt for the provider-observed traffic; the provider refuses more than it saw (20.912513ms)
+✔ the host meters paid hops, debits cumulatively, and the manager closes a circuit whose debit is refused (20.04959ms)
+✔ a configuration without enclaveNetwork is refused: TUNA is retired (7.811031ms)
+✔ the daemon serves its canary from startup, and on SIGTERM exits by itself and releases every listener (1932.397152ms)
+✔ a failed agent start exits with an error and releases every listener (371.342693ms)
+✔ a malformed probe stops the daemon before anything is bound (331.185715ms)
+✔ one app whose probe hangs does not hold up another app's proof renewals (60.502604ms)
+✔ a chain read that hangs past the deadline goes on with the held leases, and is not doubled (103.53327ms)
+✔ a proof survives a re-read of the same lease while the guest is asked; a changed config voids it (52.442915ms)
+✔ a guest that keeps failing is asked at most every 4 s and its repeated failure is logged once a minute (52.123228ms)
+✔ a browser profile on two packaged roles: agreed reads, EIP-1898 calls, a revert, history, estimates and a receipt, over CORS, loopback only (9363.563907ms)
+✔ a page on an origin the roles do not allow cannot read them; the node down refuses in bounded time (2254.544214ms)
+✔ configuration: the operator's own loopback node only, no secret, no remote verifier; the runner binds it to this host and never advertises it (8712.952944ms)
+✔ the browser's methods from the operator's node: EIP-1898 reads, reverts, estimates, history, receipts; only the node is fetched (76.679081ms)
+✔ raw transactions: refused unless the operator states a route; then the node's own answer, never a fabricated hash (536.165214ms)
+✔ refused without reaching the node: privileged and signing methods, unknown methods, batches, bad bodies, other paths and verbs (35.056105ms)
+✔ CORS: the configured origins only, POST with content-type only, never credentials (11.668562ms)
+✔ bounds and honesty: stalled, down, syncing, stale and oversized backends refuse in bounded time; in-flight and rate limits refuse at once (10461.636003ms)
+✔ the local verifier answers only its configured methods, never falls back to the node, and every answer names its source (19.324194ms)
+✔ two names of one host are one vote; two hosts are two (and say nothing about whether they share a node) (15.90497ms)
+✔ the PACKAGED role under the runner: reviewed bytes only, no inherited environment, stopped and restarted by the platform host policy gate (909.534422ms)
+✔ served methods are exactly the browser note's profile methods (plus the explicit raw submission) (0.304268ms)
+✔ the pin is reproducible from the reviewed source and the chain; other code is refused (5343.449952ms)
+✔ two operators register independently: directly, and signed with a separate gas payer; both are untrusted candidates (174.272254ms)
+✔ replacement needs a higher sequence; withdrawal removes the ad and revokes older signatures (94.133279ms)
+✔ the former governor (the deployer) cannot take anything down; a wrong signer cannot publish (48.003078ms)
+✔ expired ads are not candidates, and only then may anyone prune them (82.918314ms)
+✔ RPCs that disagree, a single RPC, or the wrong chain yield no candidates at all (28.366415ms)
+✔ enumeration is bounded, and unsafe advertised targets are dropped with a reason (453.468714ms)
+✔ provider bootstrap: legacy is unchanged; explicit names every authority and defaults nothing to Enclave (1.3676ms)
+✔ main.mjs --check-config and install.sh --config-only: explicit authorities, legacy only by opt-in, operator fields kept (1275.026495ms)
+✔ 2 honest + 1 liar, + 1 wrong chain, + 1 hanging, + 1 future head, + 1 reorganizing: the honest pair decides (529.051801ms)
+✔ 1 honest + 1 liar, or + 1 hanging, fails closed with evidence; it is never an empty directory (1735.496503ms)
+✔ pagination resumes at the same block; a known operator is found past any window; a forged cursor is refused (93.873581ms)
+✔ a smart-contract wallet publishes by direct call, and by an ERC-1271 signature a gas payer submits (352.441446ms)
+✖ the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked (170.430951ms)
+✔ probe targets: explicit zone and canary in independent mode; the compatibility defaults otherwise (6.089534ms)
+✔ a verified snapshot: one confirmed block, fresh, pinned by hash, re-checked, monotonic (3.348424ms)
+✔ stale, future, wrong chain, reorganization, proof failure and an unreachable verifier refuse with quorum-class codes (0.978582ms)
+✔ ONE deadline bounds the whole operation including a hung callback; a retained client refuses afterwards (302.045557ms)
+✔ inside a snapshot only proof-backed methods at the pinned block exist; resumed history must still be fresh and canonical (1.413279ms)
+✔ the explicit authority choice: quorum by default, verifier only when said, local only (0.836253ms)
+✔ service index under the verifier: same listing logic, no provider client, pin never weakened, refusals are QuorumErrors (10.812938ms)
+✔ platform host policy config: explicit verifier authority from env or JSON; ambiguous or remote refused (0.751384ms)
+✔ the policy snapshot follows the configured authority, with quorumSnapshot's interface and result shape (1.27741ms)
+✔ host services and the policy-mirror role accept the explicit verifier authority and refuse ambiguous ones (1.610377ms)
+✔ the current runner gets a signed exit grant; ingress names are the app label and its verified domains (14.341972ms)
+✔ anyone but the current runner, a replay, a stale request or an inactive lease is refused (20.138828ms)
+✔ the owner's policy decides: BYO without network ingress gets no exit; prices above the limit are refused (33.030141ms)
+✔ roles: a guard carries nothing itself; a provider only grants roles it offers (4.04366ms)
+✔ at most two peers per app and role (handover); expiry and a lost lease remove peers (10.54334ms)
+✔ a trusted checker gets a short probe peer; the provider operator and strangers do not (7.137056ms)
+✔ over the transfer budget nothing new is accepted (0.766034ms)
+✔ a registered host gets egress-only control peers for its own traffic; nobody else does (18.199403ms)
+✔ a restarted provider restores its peers at the same addresses (a renewal keeps working) (8.194018ms)
+✔ a lease read that fails keeps the peer (only a definite answer removes it); a renewal says so to the lease source (7.333444ms)
+✔ an unanswered renewal is retried, and the circuit lives on when the next one is answered (70.718465ms)
+✔ a provider refusal closes at once, and unanswered renewals close once the grants are nearly gone (120.120022ms)
+✔ a closed circuit stops renewing (61.356706ms)
+✔ a request no provider answered is marked unanswered with its cause; an answer is not (3.514304ms)
+✔ the mechanism (installed and candidate): an allow lives only to its decision deadline, so a pass slower than that drops a legitimate app (124.235121ms)
+✔ a legitimate app stays admitted through a 7-minute pass gap, each allow from a FRESH decision on the fresh row (453.69782ms)
+✔ a slow decision for one app does not starve another: per-app refresh, bounded by its deadline (1540.001087ms)
+✔ the FRESH row binds the decision: a visibility, owner, version, config, runner or lease change is never refreshed; the allow lapses (577.623443ms)
+✔ refusal at a refresh: withdrawn at once and never re-granted by the refresh (131.749694ms)
+✔ unknown at a refresh: nothing published or extended; the allow lapses at its own deadline; a later fresh decision restores it (137.60374ms)
+✔ no resurrection: a deployment the pass stopped, or HELD on an unknown policy, is never re-granted by the refresh (501.525588ms)
+✔ a refresh in flight while the pass withdraws the deployment cannot re-grant it (180.503125ms)
+✔ process generation: a new node process starts EMPTY and refreshes nothing it did not grant; the old generation is refused (48.758731ms)
+✔ a PRIVATE deployment is re-decided as private: forPrivate comes from the fresh row, as the pass asks it (74.412877ms)
+✔ a refresh in flight while the pass HOLDS the deployment (unknown policy) cannot resurrect its grant (417.94098ms)
+✔ UNKNOWN with a confirmed network hold: domain KEPT (no removal, no tx), ingress/egress and an established stream withdrawn, app zone refuses; a fresh allow restores (615.000029ms)
+✔ a COLD node (first answer UNKNOWN) keeps the running domain only on the acknowledgement of its NEW generation (284.432149ms)
+✔ no false preserve: no network agent, an older one, a stale status, another runner, or an intervening allow -> retired as before (3094.184826ms)
+✔ an acknowledgement that never comes (a circuit close that does not finish) retires after exactly WALLET_HOLD_ACK_MS (15 s) (15030.49737ms)
+✔ a DEFINITE refusal (owner deny, catalog approval, yank) with the channel on: withdrawn on the network, retired and released at once, never KEPT (161.759685ms)
+✔ a lease that lapses while held is stopped locally: retired, not released, not renewed (274.455872ms)
+✔ node restart: the new process retires every earlier grant at once (EMPTY generation); its own UNKNOWN is kept only on its ACK (310.3338ms)
+✔ node crash or hang: the channel lapses in 30 s and the network withholds; a heartbeat never extends a decision (44.134576ms)
+✔ an allow that cannot be published is an UNKNOWN (held, nothing launched), and a forced ensureApp cannot bypass the hold (525.270032ms)
+✔ channel OFF (an older host-admission bundle without decision(), or not configured): UNKNOWN retires exactly as before, no file written (13.133621ms)
+✔ a Windows sharing violation of the hold write: retried ONCE, in the writer (<= 375 ms); transient -> kept; persistent -> the old retire, fast (724.308594ms)
+ℹ tests 174
+ℹ suites 0
+ℹ pass 170
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 2
+ℹ todo 0
+ℹ duration_ms 301955.739493
+
+✖ failing tests:
+
+test at test/host-services-carriers.test.mjs:58:1
+✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (598.994272ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok((await d.stop())?.code === 0)
+  
+      at TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo/test/host-services-carriers.test.mjs:65:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/service-index.test.mjs:438:1
+✖ the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked (170.430951ms)
+  AssertionError [ERR_ASSERTION]: cannot read the historical registry fixture: fatal: invalid object name 'b17db9a3'.
+  
+  
+  128 !== 0
+  
+      at TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo/test/service-index.test.mjs:447:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 128,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+[job] strict: skipped+cancelled=2
+[job] exit=1
+[memory-guard] exit=1 peakTreeRssMiB=1087 minHostAvailableMiB=24157
+[memory-guard] at peak: reth:311 node:146 chrome-headless:91 chrome-headless:82 node:78 node:75 chrome-headless:74 chrome-headless:68
+[queue] EXIT 1

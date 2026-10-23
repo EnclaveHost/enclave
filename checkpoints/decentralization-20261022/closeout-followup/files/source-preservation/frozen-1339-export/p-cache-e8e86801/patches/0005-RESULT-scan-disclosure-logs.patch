@@ -1,0 +1,24 @@
+From 18ccb27277e0f1e0c7d0e10d5cd333bcd31b6ceb Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 04:24:48 -0700
+Subject: [PATCH 5/6] RESULT: scan disclosure; logs
+
+---
+ RESULT.md | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/RESULT.md b/RESULT.md
+index 088534b8b445ee01dfa7bee3d1576cf7843a1629..2685601349f2b43113a15061e467636be2e9ae42 100644
+--- a/RESULT.md
++++ b/RESULT.md
+@@ -139,3 +139,10 @@ is not a claim that every negative control is killed.
+   - host and disk identity files;
+   - `render/` (incl. `seam.json`), `source-pins.txt`.
+ - `logs/`: render-1, vm-1, scan.
++
++## 6. Scans
++
++- **scan-1:** gitleaks `generic-api-key` hit 2 receipt lines. Both were the receipts' own `"key"` field holding the
++  result names `D2.unmarkedForeign` and `E2.verifyCap`: not credentials.
++- **Fix:** `.gitleaks.toml` allowlists exactly those two values, plus the existing public PGP fingerprint.
++- **scan-2:** crypto-key scanner 0; gitleaks **no leaks** over all commits and `run/`.

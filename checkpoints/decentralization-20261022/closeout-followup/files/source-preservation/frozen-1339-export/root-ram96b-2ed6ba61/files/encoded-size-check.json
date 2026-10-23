@@ -1,0 +1,16 @@
+{
+  "at": "2026-10-23T11:23:14.863976+00:00",
+  "scope": "Offline generated-command length only; no SSH or PowerShell execution",
+  "activateSha256": "bbc4e7e7ce570c6a38b87b7730af784008da6b20c213eb9ea5df862fe3d05bf7",
+  "helperSha256": "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f",
+  "helperMaximumEncodedCharacters": 7900,
+  "actualEncodedCharactersIncludingHelperHeader": {
+    "preflight": 7116,
+    "stop": 5672,
+    "start-shield": 6104,
+    "start-node": 6944
+  },
+  "exit": 0,
+  "nativeSyntaxAndBehavior": "not yet validated",
+  "restartApproval": "still pending"
+}

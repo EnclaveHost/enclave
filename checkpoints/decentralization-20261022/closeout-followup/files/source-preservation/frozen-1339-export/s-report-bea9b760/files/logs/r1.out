@@ -1,0 +1,62 @@
+[queue] START available=25761MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo head 14d1e4954cf7c9900d5d3e841a23f02de945c1b2 dirty=8 untracked=7
+cc071ecd5aa25cb68421df478268887fe63959acbb39aac388c4db1d9854cc23  network/public-rpc.mjs
+6c2f58692ea8980bdf0fddfd4225f109a978d05f053e25bc34431ea5bf87b870  network/public-rpc-hosts.mjs
+9511d74732c89c5a28fd6dd96015743de71a86193c2b5eb542355065da123633  network/host-services/roles.mjs
+da675a2cea07d91281a0e8a04d719142c7542322c7e0d8d70d19201bd7e4363f  network/host-services/runner.mjs
+d61bbeb60d3099ab9aa9bcb44d2070e1a6e313e553231426920dc3deb01fb906  network/host-service-names.mjs
+0dab1bc73232e019c5e699ffe8f43467a07c9be5b111affb8a831e03061754e5  network/host-service-transport.mjs
+a76fe1653b9c209a8dbf3e0b71cb1301910ccc7eda05cdf60afcc847872d7104  network/wg-provider/provider.mjs
+dd10aa5c677b4af3c2b00dec2fc363adc701c7ca43e6ad3ec9dd0dfd4458efe5  test/public-rpc.test.mjs
+✖ configuration: the operator's own loopback node only, no secret, no remote verifier; the runner binds it to this host and never advertises it (8700.339183ms)
+﹣ the browser's methods from the operator's node: EIP-1898 reads, reverts, estimates, history, receipts; only the node is fetched (77.004838ms) # SKIP
+﹣ raw transactions: refused unless the operator states a route; then the node's own answer, never a fabricated hash (534.930332ms) # SKIP
+﹣ refused without reaching the node: privileged and signing methods, unknown methods, batches, bad bodies, other paths and verbs (34.833825ms) # SKIP
+﹣ CORS: the configured origins only, POST with content-type only, never credentials (12.038721ms) # SKIP
+﹣ bounds and honesty: stalled, down, syncing, stale and oversized backends refuse in bounded time; in-flight and rate limits refuse at once (10475.891124ms) # SKIP
+﹣ the local verifier answers only its configured methods, never falls back to the node, and every answer names its source (19.307662ms) # SKIP
+﹣ two names of one host are one vote; two hosts are two (and say nothing about whether they share a node) (15.116376ms) # SKIP
+✔ the PACKAGED role under the runner: reviewed bytes only, no inherited environment, stopped and restarted by the platform host policy gate (894.466273ms)
+✔ served methods are exactly the browser note's profile methods (plus the explicit raw submission) (0.312957ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 2
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 7
+ℹ todo 0
+ℹ duration_ms 20942.31377
+
+✖ failing tests:
+
+test at test/public-rpc.test.mjs:83:1
+✖ configuration: the operator's own loopback node only, no secret, no remote verifier; the runner binds it to this host and never advertises it (8700.339183ms)
+  AssertionError [ERR_ASSERTION]: {"allowedOrigins":["*","https://a.example"]}
+      at TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo/test/public-rpc.test.mjs:91:12)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: Error: public-rpc: allowedOrigins[0] is not a URL
+        at fail (file:///home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo/network/public-rpc.mjs:36:29)
+        at file:///home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo/network/public-rpc.mjs:70:44
+        at Array.map (<anonymous>)
+        at validatePublicRpcConfig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo/network/public-rpc.mjs:69:78)
+        at file:///home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo/test/public-rpc.test.mjs:91:25
+        at getActual (node:assert:609:5)
+        at Function.throws (node:assert:757:24)
+        at TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo/test/public-rpc.test.mjs:91:12)
+        at Test.runInAsyncScope (node:async_hooks:214:14)
+        at Test.run (node:internal/test_runner/test:1047:25),
+    expected: /bare https origin/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+[job] strict: skipped+cancelled=7
+[job] exit=7
+[memory-guard] exit=7 peakTreeRssMiB=588 minHostAvailableMiB=25301
+[memory-guard] at peak: reth:358 node:96 node:62 node:54 bash:6 timeout:4 unshare:4 tee:4
+[queue] EXIT 7

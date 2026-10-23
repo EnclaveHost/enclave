@@ -1,0 +1,7 @@
+f8a612ed72f4270218e3d8c85ed0e89b5097d1ff8beb6e450d0f0475837c4b68  0001-Verifier-runtime-a-pinned-glibc-runtime-for-older-us.patch
+2eb5bf9e6c19cadb8def6cc8a9f0a186a1f3eefa786cf3acc9bb1a883b185d25  0002-Launch-the-local-chain-verifier-in-the-Linux-guest-p.patch
+62f185a57894d19234ab6642aae39d580dae02cb101bcb8d7ce54d382d64aedc  0003-Rebuild-the-host-admission-bundle-for-the-composed-l.patch
+36077004cb1f084789b110b7bab46552988cf17b628cb6b083018296523c57fe  0004-Image-builder-carry-gsup-s-chain-verifier.mjs-the-wi.patch
+bf36bea3c79a3a7f9800427f0f408193a42c33d74f5e4635e159f632e5369ebe  0005-Guest-verifier-tests-a-complete-contract-pins-fixtur.patch
+bc1ba7af1d7a0e4b1ed889536eb59b4f894489764436b315e2061bd13e001f28  0006-Guest-image-copy-staging-the-base-is-owned-by-uid-10.patch
+be48c10b7325910ef68c6182ac95a4e9bded81172375698fc20dbf8c360c11f7  0007-Guest-verifier-port-between-the-tenants-ports-and-th.patch

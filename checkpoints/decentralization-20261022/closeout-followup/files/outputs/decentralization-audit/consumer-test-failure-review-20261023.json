@@ -1,0 +1,19 @@
+{
+  "at": "2026-10-23T11:34:29.977881+00:00",
+  "scope": "Read actual gaps-r2 test logs and relevant test/compiler sources; no rerun or live chain access",
+  "creditVault": {
+    "leafFailures": 1,
+    "parentFailures": 2,
+    "leaf": "external signer unknown outcome: receipt missing after manual rebroadcast at test line222",
+    "cause": "not yet established; preserve exactly-once and durable-journal checks"
+  },
+  "cli": {
+    "failure": "rewritten registry fixture SHA256 differs from original source-verification pin before runtime assertion executes",
+    "actualSourceSha256": "771a22d361dde5e19cfc8a1db66b7739e6b447e6185153be9fc8c248be0fd2a9",
+    "expectedSourceSha256": "e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360",
+    "observation": "fixture comments include user-requested branding rewrite; compiler uses default metadata",
+    "inference": "metadata may also differ, so updating only source hash is not established as correct",
+    "preserveRegistryCodeHash": "0x39911d6f53959c610b9108bb906fc36ea8f57016c4b2571b5cd52c9c32a6f518"
+  },
+  "owner": "A active; ROOT-R2-RESULT-REVIEW.txt updated; no active source edits"
+}

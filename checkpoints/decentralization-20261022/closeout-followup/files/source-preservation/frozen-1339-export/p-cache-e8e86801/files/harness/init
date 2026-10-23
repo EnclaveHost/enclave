@@ -1,0 +1,27 @@
+#!/bin/bash
+# Guest /init (throwaway QEMU guest; the host kernel package's own vmlinuz). Root = tmpfs + the HOST /usr read-only over
+# 9p; /src (harness + vendored sources) read-only; /out (this run's owned output dir) read-write. No network device.
+export PATH=/usr/bin:/bin
+mount -t proc proc /proc; mount -t sysfs sys /sys; mount -t devtmpfs dev /dev
+for m in netfs 9pnet 9pnet_virtio 9p; do insmod /mod/$m.ko || echo "init: insmod $m failed"; done
+R=/newroot; mkdir -p $R; mount -t tmpfs -o size=96m root $R
+mkdir -p $R/usr $R/src $R/out $R/proc $R/sys $R/dev $R/run $R/tmp $R/etc $R/root $R/srv $R/usbtest $R/vmtest $R/var/tmp
+for d in bin sbin; do ln -s usr/bin $R/$d; done; ln -s usr/lib $R/lib; ln -s usr/lib $R/lib64
+mount -t 9p -o trans=virtio,version=9p2000.L,ro,msize=262144 usr $R/usr
+mount -t 9p -o trans=virtio,version=9p2000.L,ro,msize=262144 src $R/src
+mount -t 9p -o trans=virtio,version=9p2000.L,rw,msize=262144 out $R/out
+mount --move /proc $R/proc; mount --move /sys $R/sys; mount --move /dev $R/dev
+mount -t tmpfs -o size=8m run $R/run; mount -t tmpfs -o size=32m tmp $R/tmp
+# guest-private /etc: fixture identity and the CANONICAL ledger directory (never the host's /etc)
+printf 'root:x:0:0:root:/root:/bin/bash\nenclave-holder:x:990:990::/:/usr/bin/nologin\nenclave-l1:x:991:991::/:/usr/bin/nologin\nnobody:x:65534:65534::/:/usr/bin/nologin\n' > $R/etc/passwd
+printf 'root:x:0:\nenclave-holder:x:990:\nenclave-l1:x:991:\nnobody:x:65534:\n' > $R/etc/group
+echo 0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f > $R/etc/machine-id
+ln -s /proc/self/mounts $R/etc/mtab
+mkdir -p $R/etc/enclave-rpc-cache; chmod 755 $R/etc/enclave-rpc-cache
+PHASE=$(sed -n 's/.*phase=\([a-z0-9-]*\).*/\1/p' /proc/cmdline 2>/dev/null || true)
+[ -n "$PHASE" ] || PHASE=$(sed -n 's/.*phase=\([a-z0-9-]*\).*/\1/p' $R/proc/cmdline)
+chroot $R /usr/bin/python3 -u -I /src/harness/guest.py "$PHASE" > $R/out/guest-$PHASE.log 2>&1
+echo "guest-exit phase=$PHASE rc=$?" | tee -a $R/out/guest-$PHASE.log
+sync
+echo o > $R/proc/sysrq-trigger
+sleep 30

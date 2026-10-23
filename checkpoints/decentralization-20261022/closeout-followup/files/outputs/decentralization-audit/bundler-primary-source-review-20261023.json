@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-23T11:44:36.072143+00:00",
+  "purpose": "Close actual self-hosted passkey bundler dependency, beyond configurable URLs",
+  "sources": [
+    {
+      "url": "https://docs.pimlico.io/references/bundler/self-host",
+      "verified": "Alto documents local RPC configuration, EntryPoint v0.7, OP-stack chain mode, funded utility/executor wallets, and debug_traceCall for safe-mode validation."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/pimlicolabs/alto/main/src/cli/config/options.ts",
+      "verified": "Source defaults safe-mode to true and exposes explicit RPC methods and mempool limits. Mutable main is not a release pin."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/pimlicolabs/alto/main/package.json",
+      "verified": "Build uses pnpm, TypeScript and Foundry contract artifacts; supported versions must be pinned and bounded before local execution."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/alchemyplatform/rundler/main/README.md",
+      "verified": "Rundler documents EntryPoint v0.7 and Base support, but a second implementation is not required for this task."
+    }
+  ],
+  "decision": "Prepare one real pinned Alto service with safe-mode validation, local-chain proof of existing Safe/account compatibility, and no provider or hosted-bundler fallback. Do not follow documentation advice to disable safe-mode for public service. No deployment or funds authorized by this research."
+}

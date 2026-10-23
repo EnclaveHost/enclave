@@ -1,0 +1,22 @@
+[queue] START available=25262MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+{"tag": "before", "loops": "", "dm": "control cryptroot cryptvm ", "block": "dm-0 dm-1 nvme0n1 nvme1n1 sda ", "mountinfoSha256": "df9e600de35769fa9381f254b80f2914cd892f9983f770b52ef0e88aab145d30", "qemu": "0", "testAllocBytes": 1155072}
+alloc[start]=1159168 cap=536870912
+cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222  vendor/s/holder-storage.sh.in
+cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222  vendor/p/vendor/holder/holder-storage.sh.in
+eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00  vendor/s-old/holder-storage.sh.in
+b1ceb531e0c335f74cf8182b18df94081998ccfa624466621d396ce5c3b91302  harness/guest.py
+937ab5bdc249e43f3b32409cef95421b4f82d9fc3c7af9377d95e42a3d6b1699  harness/render.py
+-rw-r--r-- 1 steven steven 8431778 Oct 23 04:23 /home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/initramfs.cpio.gz
+{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/hdd.img", "inode": 238201243, "apparent": 268435456, "allocated512": 0}
+{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/nvme.img", "inode": 238201244, "apparent": 218103808, "allocated512": 0}
+alloc[after-setup]=9687040 cap=536870912
+qemu rc=0
+alloc[after-boot]=134721536 cap=536870912
+{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/hdd.img", "inode": 238201243, "apparent": 268435456, "allocated512": 102880}
+{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/nvme.img", "inode": 238201244, "apparent": 218103808, "allocated512": 141192}
+guest-exit phase=delta rc=0
+{"tag": "after", "loops": "", "dm": "control cryptroot cryptvm ", "block": "dm-0 dm-1 nvme0n1 nvme1n1 sda ", "mountinfoSha256": "df9e600de35769fa9381f254b80f2914cd892f9983f770b52ef0e88aab145d30", "qemu": "0", "testAllocBytes": 1323008}
+leftover qemu: 0
+[memory-guard] exit=0 peakTreeRssMiB=384 minHostAvailableMiB=24949
+[memory-guard] at peak: qemu-system-x86:374 bash:6 timeout:4
+[queue] EXIT 0

@@ -1,0 +1,121 @@
+From 60a4f969f6a3f02b1f9aa1a70457e2cb8ed2657d Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:26:31 -0700
+Subject: [PATCH 4/7] Image builder: carry gsup's chain-verifier.mjs; the
+ wiring pins name the verifier wrapper
+
+gsup.mjs imports ./chain-verifier.mjs, so metal/build-image.mjs, the from-scratch builder, must install it beside gsup as
+overlay-control-image.py does; otherwise an image it builds would boot a gsup that cannot load. It installs no verifier
+runtime (no /opt/rpc-runtime/IMAGE.json), so an operator's opt-in on such an image refuses in the guest.
+
+The text pins that state gsup's supervisor start and the guest helper lists now name the chain verifier exactly:
+withChainVerifierEnv(...) is the outermost wrapper of the reviewed chain, applied once (metal-lease-gas-conduit,
+relay-policy-carriers, metal-measured-control), and OPTIONAL_GUEST_FILES / the builder's list end with
+'chain-verifier.mjs' (metal-lease-gas-conduit, metal-measured-control, owner-nomination-config).
+---
+ metal/build-image.mjs                 |  4 +++-
+ test/metal-lease-gas-conduit.test.mjs |  4 ++--
+ test/metal-measured-control.test.mjs  | 11 +++++++----
+ test/owner-nomination-config.test.mjs |  4 ++--
+ test/relay-policy-carriers.test.mjs   |  2 +-
+ 5 files changed, 15 insertions(+), 10 deletions(-)
+
+diff --git a/metal/build-image.mjs b/metal/build-image.mjs
+index 51a334366cefdfb290719ef1678c1e4017cd8df7..eeab71ec28467a0a78ecd96e9193f61dfec3df43 100644
+--- a/metal/build-image.mjs
++++ b/metal/build-image.mjs
+@@ -282,7 +282,9 @@ const md = path.join(ROOT, 'opt/metal'); fs.mkdirSync(md, { recursive: true });
+ // the guest half of the shielded tier is trusted code and must be attested. The
+ // worker it talks to is not, and is not shipped here: it runs on the host, is
+ // assumed hostile, and its address arrives unmeasured over fw_cfg.
+-for (const f of ['gsup.mjs', 'host-policy.bundle.mjs', 'lease-gas-conduit.bundle.mjs', 'agent.mjs', 'shielded.mjs', 'shielded-probe.mjs', 'shielded-shm.mjs', 'measured-control.mjs', 'owner-nomination.mjs'])
++// chain-verifier.mjs is gsup's opt-in checker for the local chain verifier. This builder installs no verifier runtime (no
++// /opt/rpc-runtime/IMAGE.json; metal/overlay-control-image.py --chain-verifier-dir does), so an opt-in on its image refuses.
++for (const f of ['gsup.mjs', 'host-policy.bundle.mjs', 'lease-gas-conduit.bundle.mjs', 'agent.mjs', 'shielded.mjs', 'shielded-probe.mjs', 'shielded-shm.mjs', 'measured-control.mjs', 'owner-nomination.mjs', 'chain-verifier.mjs'])
+   fs.copyFileSync(path.join(HERE, 'guest', f), path.join(md, f));
+ // the hosted independent MCP adapter (docs/network/hosted-mcp.md): a reproducible bundle of mcp/server.mjs and its closure
+ // (scripts/build-mcp-guest-bundle.mjs --check), started by gsup only for a bound config with an mcp member
+diff --git a/test/metal-lease-gas-conduit.test.mjs b/test/metal-lease-gas-conduit.test.mjs
+index d616f4ffc3552d6014cb3e62d34036f99db17229..ebe81f408afcec4840aeec3e852dcbef5dda79d2 100644
+--- a/test/metal-lease-gas-conduit.test.mjs
++++ b/test/metal-lease-gas-conduit.test.mjs
+@@ -232,7 +232,7 @@ test("gsup and the launcher wire the conduit, and only the conduit", () => {
+   assert.match(gsup, /const LEASE_GAS = CONTROL \? null : leaseGasGuest\(fw\.leaseGas\);/);
+   // the lease-gas names come from the conduit only; the owner nomination's wrapper adds/drops only its own name (owner-nomination.mjs)
+   // (and the platform policy carriers' wrapper, applied last, adds/drops only its own name: measured-control.mjs withPolicyCarriersEnv)
+-  assert.match(gsup, /start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], MC_LEGACY\.withPolicyCarriersEnv\(withOwnerNominationEnv\(withLeaseGasEnv\(supEnv, LEASE_GAS\), OWNER_NOMINATION\.nomination\), POLICY_CARRIERS\), \{ cwd: '\/app' \}\);/);
++  assert.match(gsup, /start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], withChainVerifierEnv\(MC_LEGACY\.withPolicyCarriersEnv\(withOwnerNominationEnv\(withLeaseGasEnv\(supEnv, LEASE_GAS\), OWNER_NOMINATION\.nomination\), POLICY_CARRIERS\), CHAIN_VERIFIER\), \{ cwd: '\/app' \}\);/);
+   assert.equal((gsup.match(/LEASE_GAS_/g) || []).length, 0, "gsup names no lease-gas variable itself");
+   assert.match(launcher, /^import \{ leaseGasTransit \} from '\.\/guest\/lease-gas-conduit\.bundle\.mjs';$/m);
+   assert.match(launcher, /\.\.\.\(LEASE_GAS \? \{ leaseGas: LEASE_GAS \} : \{\}\),/);
+@@ -274,6 +274,6 @@ f,p=m.supervisor_closure(read,m.SUPERVISOR_ROOTS);print(json.dumps({'files':f,'p
+   assert.match(b, /const packages = checkPackages\(closure\.packages,/);
+   assert.match(b, /'host-policy\.bundle\.mjs', 'lease-gas-conduit\.bundle\.mjs'/);
+   assert.match(o, /installed_app, packages = app_files\(commit, repo\)/);
+-  assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs', 'owner-nomination\.mjs'\]/);
++  assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs', 'owner-nomination\.mjs', 'chain-verifier\.mjs'\]/);
+   assert.deepEqual(SUPERVISOR_ROOTS, ["supervisor.js", "addressbook.js"]);
+ });
+diff --git a/test/metal-measured-control.test.mjs b/test/metal-measured-control.test.mjs
+index e9a1d56a3ee3c6c1f0d05ac32089e86824bc6415..001b48ce1df15a0217fa5ebbeb581181a140234a 100644
+--- a/test/metal-measured-control.test.mjs
++++ b/test/metal-measured-control.test.mjs
+@@ -128,11 +128,14 @@ test("gsup: the legacy path is untouched; the direct branch runs only for metal.
+   assert.equal(legacy(now).split(NOMINATED).length, 2, "...wrapped once by the owner nomination's env");
+   // and the third: the platform policy carriers' name, from fw_cfg only, applied last (measured-control.mjs withPolicyCarriersEnv)
+   const CARRIED = "MC_LEGACY.withPolicyCarriersEnv(" + NOMINATED + ", POLICY_CARRIERS)";
+-  assert.equal(legacy(now).split(CARRIED).length, 2, "...wrapped once, last, by the policy carriers' env");
++  assert.equal(legacy(now).split(CARRIED).length, 2, "...wrapped once by the policy carriers' env");
++  // and the fourth: the local chain verifier's two names, from fw_cfg only, applied last (metal/guest/chain-verifier.mjs)
++  const VERIFIED = "withChainVerifierEnv(" + CARRIED + ", CHAIN_VERIFIER)";
++  assert.equal(legacy(now).split(VERIFIED).length, 2, "...wrapped once, last, by the chain verifier's env");
+   // and the reviewed metal host policy (6f2c7da4, network/metal-host-policy.mjs): the fw_cfg wallet-policy names, after the flavor
+   const HOSTED = "  ...HOST_POLICY_ENV,\n";
+   assert.equal(legacy(now).split(HOSTED).length, 2, "...the metal host policy's names, once, right after the flavor");
+-  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(CARRIED, "supEnv").replace(HOSTED, ""), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical, only wrapped in if (!CONTROL)");
++  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(VERIFIED, "supEnv").replace(HOSTED, ""), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical, only wrapped in if (!CONTROL)");
+   assert.match(now, /if \(CONTROL === 'direct'\) await startDirectControl\(\)/);
+   assert.match(now, /if \(!CONTROL\) \{\nconst supEnv = \{/);
+   assert.match(now, /const MODE {9}= CONTROL \? \(cmdMode \|\| 'snp'\) : \(fw\.mode \|\| cmdMode \|\| 'snp'\);/);
+@@ -370,11 +373,11 @@ test("the real launcher refuses legacy inputs, a bypassing port forward, another
+ 
+ test("builder and overlay carry the helper and the measured token", () => {
+   const b = fs.readFileSync(path.join(REPO, "metal/build-image.mjs"), "utf8");
+-  assert.match(b, /'shielded-shm\.mjs', 'measured-control\.mjs', 'owner-nomination\.mjs'\]\)/);
++  assert.match(b, /'shielded-shm\.mjs', 'measured-control\.mjs', 'owner-nomination\.mjs', 'chain-verifier\.mjs'\]\)/);
+   assert.match(b, /\+ \(CONTROL \? ` metal\.control=\$\{CONTROL\}` : ''\);/);
+   assert.match(b, /--control direct needs --isolation snp-guest-per-app/);
+   const tpl = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE}' + ' metal.isolation=snp-guest-per-app' + ' metal.control=direct';
+   assert.equal(tpl.replace('${MODE}', 'snp'), CMDLINE, "builder template == launcher cmdline");
+   const o = fs.readFileSync(path.join(REPO, "metal/overlay-control-image.py"), "utf8");
+-  assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs', 'owner-nomination\.mjs'\]/);
++  assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs', 'owner-nomination\.mjs', 'chain-verifier\.mjs'\]/);
+ });
+diff --git a/test/owner-nomination-config.test.mjs b/test/owner-nomination-config.test.mjs
+index 8078dd3994d3312f788336f6d241af32f8f6c431..0897c4cb596275aebb7bfccf579d9346ad113e17 100644
+--- a/test/owner-nomination-config.test.mjs
++++ b/test/owner-nomination-config.test.mjs
+@@ -167,8 +167,8 @@ test("the real launcher, direct control: only the HOST_DATA-bound copy; a host-l
+ test("the image carries it: supervisor closure, the overlay's guest helpers and the image builder's list", () => {
+   const { files } = supervisorClosure(REPO);
+   for (const f of ["metal/guest/owner-nomination.mjs", "network/host-owner-nomination.mjs", "client/lease-executor-authority.mjs"]) assert.ok(files.includes(f), f);
+-  assert.match(fs.readFileSync(path.join(REPO, "metal/overlay-control-image.py"), "utf8"), /OPTIONAL_GUEST_FILES = \[.*'owner-nomination\.mjs'\]/);
+-  assert.match(fs.readFileSync(path.join(REPO, "metal/build-image.mjs"), "utf8"), /'measured-control\.mjs', 'owner-nomination\.mjs'\]\)/);
++  assert.match(fs.readFileSync(path.join(REPO, "metal/overlay-control-image.py"), "utf8"), /OPTIONAL_GUEST_FILES = \[.*'owner-nomination\.mjs', 'chain-verifier\.mjs'\]/);
++  assert.match(fs.readFileSync(path.join(REPO, "metal/build-image.mjs"), "utf8"), /'measured-control\.mjs', 'owner-nomination\.mjs', 'chain-verifier\.mjs'\]\)/);
+   // dependency-free: the guest copy imports nothing
+   assert.doesNotMatch(fs.readFileSync(path.join(REPO, "metal/guest/owner-nomination.mjs"), "utf8"), /^import /m);
+ });
+diff --git a/test/relay-policy-carriers.test.mjs b/test/relay-policy-carriers.test.mjs
+index a9946cbb83175d1246e3c71cc7539e949a49e69c..0bf141397d17783e2e7032babf0d7c8bb3d3dc01 100644
+--- a/test/relay-policy-carriers.test.mjs
++++ b/test/relay-policy-carriers.test.mjs
+@@ -132,7 +132,7 @@ test('boot env boundary: ONLY fw_cfg platformPolicyCarriers supplies the name; l
+ test('gsup and the launcher wire it exactly once; the supervisor gate call and its refuse-on-error branch are unchanged', () => {
+   const gsup = fs.readFileSync(path.join(REPO, 'metal/guest/gsup.mjs'), 'utf8'), launcher = fs.readFileSync(path.join(REPO, 'metal/enclave-metal.mjs'), 'utf8');
+   assert.match(gsup, /const POLICY_CARRIERS = CONTROL \? null : await MC_LEGACY\.guestPolicyCarriers\(fw\.platformPolicyCarriers, \{ publicUrl: PUBLIC_URL \}\);/);
+-  assert.match(gsup, /start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], MC_LEGACY\.withPolicyCarriersEnv\(withOwnerNominationEnv\(withLeaseGasEnv\(supEnv, LEASE_GAS\), OWNER_NOMINATION\.nomination\), POLICY_CARRIERS\), \{ cwd: '\/app' \}\);/);
++  assert.match(gsup, /start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], withChainVerifierEnv\(MC_LEGACY\.withPolicyCarriersEnv\(withOwnerNominationEnv\(withLeaseGasEnv\(supEnv, LEASE_GAS\), OWNER_NOMINATION\.nomination\), POLICY_CARRIERS\), CHAIN_VERIFIER\), \{ cwd: '\/app' \}\);/);
+   assert.equal((gsup.match(/ENCLAVE_PLATFORM_HOST_POLICY/g) || []).length, 0, 'gsup names no policy variable itself');
+   assert.match(launcher, /takes platformPolicyCarriers only inside the bound direct config/);
+   assert.match(launcher, /\.\.\.\(POLICY_CARRIERS \? \{ platformPolicyCarriers: POLICY_CARRIERS \} : \{\}\),/);

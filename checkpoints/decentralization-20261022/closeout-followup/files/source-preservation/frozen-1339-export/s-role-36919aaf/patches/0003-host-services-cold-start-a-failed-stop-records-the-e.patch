@@ -1,0 +1,37 @@
+From 36919aafe76c743272b323c8bca27871b5219ab9 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 06:33:34 -0700
+Subject: [PATCH 3/3] host-services-cold-start: a failed stop records the exit
+ (code, signal) and the daemon output tail
+
+Same diagnostic as host-services-carriers (root f1 review). It identified the intermittent
+stop failure: exit 1 'privacy agent stopped during startup' - the test stops the agent once
+'host services: {' is logged, while agent.start() (authorization, proofs, snapshot) may still
+run. Assertion unchanged.
+---
+ test/host-services-cold-start.test.mjs | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/test/host-services-cold-start.test.mjs b/test/host-services-cold-start.test.mjs
+index 2e7d1851daaefc44cd234221807a0c9dfab4477e..6c2238c4becfd99b5c25d6f940d97ba11a79bb0f 100644
+--- a/test/host-services-cold-start.test.mjs
++++ b/test/host-services-cold-start.test.mjs
+@@ -84,6 +84,9 @@ const STARTED = /host services: \{/, HELD = /host services held: platform host p
+ const policyWorld = (t) => platformPolicyWorld(t, { hosts: { [RUNNER]: { endpoint: ENDPOINT, operator: OPERATOR, owner: '0x' + '55'.repeat(20), active: true } } });
+ const fast = (w) => w.env({ ENCLAVE_PLATFORM_HOST_POLICY_INTERVAL_SEC: '1', ENCLAVE_PLATFORM_HOST_POLICY_GRACE_SEC: '6' });
+ 
++// a stop must exit 0; on a failure the exit (code, signal) and the daemon's output tail are the evidence (root f1 review)
++const stoppedClean = async (d) => { const exit = await d.stop(); assert.equal(exit?.code, 0, 'stop: ' + JSON.stringify({ exit, out: String(d.out || '').slice(-3000) })); };
++
+ test('zero apps: host services only after the platform admits; an admin ban stops them (grants withdrawn), the unban restarts them', { timeout: 120_000 }, async (t) => {
+   const w = await policyWorld(t); await w.publish({ deny: [{ kind: 'operator', value: OPERATOR, reason: 'abuse' }] });   // banned before the host starts
+   const rig = await hostRig(t), d = daemon(t, rig, { env: fast(w) });
+@@ -213,7 +216,7 @@ test('the shipped bundle runs the app-less daemon: admitted -> host services', {
+   const w = await policyWorld(t); await w.publish({ deny: [] });
+   const rig = await hostRig(t), d = daemon(t, rig, { env: fast(w), script: file });
+   await d.until(/no apps: running this host's services only/); await d.until(STARTED);
+-  assert.ok((await d.stop())?.code === 0);
++  await stoppedClean(d);
+ });
+ 
+ // ---- enrollment: the fresh box's only opt-in (ENCLAVE_HOST_SERVICES_FILE) and the zero-app write ----

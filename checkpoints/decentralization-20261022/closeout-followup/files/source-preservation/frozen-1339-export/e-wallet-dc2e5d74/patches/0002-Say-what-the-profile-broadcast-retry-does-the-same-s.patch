@@ -1,0 +1,80 @@
+From dc2e5d7402327bdd376cf3b90cfa23a551a37ba8 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 05:17:27 -0700
+Subject: [PATCH 2/2] Say what the profile broadcast retry does: the same
+ signed bytes to the next endpoint, then nothing more
+
+Root review: the loop offers identical signed bytes to the next profile endpoint
+after a refusal, no answer or another hash (idempotent: no new signature, nonce or
+replacement), but the comments and the unknown-outcome message said it was not
+resent. The policy stays; the wording now matches, and the test asserts both
+origins got the identical bytes once and nothing more was sent while waiting.
+---
+ site/js/core/profile-broadcast.js           | 19 ++++++++++++-------
+ test/site-wallet-profile-broadcast.test.mjs |  8 +++++++-
+ 2 files changed, 19 insertions(+), 8 deletions(-)
+
+diff --git a/site/js/core/profile-broadcast.js b/site/js/core/profile-broadcast.js
+index f7dd16832d6c3badead1506be893541e54ca8a79..bf4c641947b17547d0188e9d619fb4b27716ff55 100644
+--- a/site/js/core/profile-broadcast.js
++++ b/site/js/core/profile-broadcast.js
+@@ -23,10 +23,14 @@
+       chain, nonce, to, value, data, gas, fees, no access list), and
+       its signer - recovered by the ecrecover precompile at an agreed
+       block - must be the connected address.
+-   Endpoints are tried in the profile's order, the next only after a
+-   refusal or no answer. The same signed bytes have one nonce and one
+-   hash: they execute at most once. Acceptance is only that: the
+-   receipt is read through the profile (chain.js waitReceipt).
++   Endpoints are tried in the profile's order: after a refusal, no
++   answer, or an answer naming another hash, the SAME signed bytes go
++   to the next endpoint - no new signature, nonce or replacement. Those
++   bytes have one nonce and one hash: they execute at most once. Once
++   every endpoint was tried without an acceptance, nothing more is sent;
++   an unknown outcome must be checked before another transaction is
++   created. Acceptance is only that: the receipt is read through the
++   profile (chain.js waitReceipt).
+    ============================================================ */
+ import { INDEPENDENT, APP_CATALOG_RPCS, BASE_CHAIN, assertProfileCurrent } from "./config.js";
+ import { keccak256Bytes, bytesToHex, hexToBytes } from "./keccak.js";
+@@ -146,7 +150,8 @@ const KNOWN = /already known|known transaction|already imported|already exists/i
+  * Sign with the connected wallet, broadcast through the profile. `tx` is sendTx's request ({from, to?, data, value, gas}).
+  * -> the transaction hash, once one of the profile's endpoints accepted it. Throws BroadcastError: "unsupported" (the wallet
+  * cannot sign only), "changed" (the wallet signed something else), "signer", "gas", "refused" (every endpoint refused:
+- * sent nowhere), "unknown" (an endpoint may have it: outcomeUnknown, never resent here). A wallet rejection is rethrown.
++ * sent nowhere), "unknown" (an endpoint may have it: outcomeUnknown; the same bytes were offered to every endpoint, and
++ * nothing more is sent for them). A wallet rejection is rethrown.
+  */
+ export async function sendViaProfile(tx, { provider, from }){
+   if (broadcastRoute() !== "profile") throw new BroadcastError("broadcasting through the network profile is not chosen");
+@@ -199,8 +204,8 @@ export async function sendViaProfile(tx, { provider, from }){
+   }
+   if (unanswered){
+     D.noteSent(got.hash);
+-    throw new BroadcastError("the network profile's endpoints may have received it (" + errors.join("; ") + "). Its outcome is unknown: check " + got.hash
+-      + " before sending anything else (nonce " + nonce + " executes at most once); it is not resent.", { code: "unknown", outcomeUnknown: true, hash: got.hash });
++    throw new BroadcastError("the network profile's endpoints may have received it (" + errors.join("; ") + "). Its outcome is unknown: the same signed bytes were offered to each of them"
++      + " and nothing more is sent. Check " + got.hash + " before creating another transaction (nonce " + nonce + " executes at most once).", { code: "unknown", outcomeUnknown: true, hash: got.hash });
+   }
+   throw new BroadcastError("every endpoint of the network profile refused this transaction (" + errors.join("; ") + "). It was sent nowhere else, and your wallet was not asked to broadcast it.", { code: "refused", hash: got.hash });
+ }
+diff --git a/test/site-wallet-profile-broadcast.test.mjs b/test/site-wallet-profile-broadcast.test.mjs
+index 71e2f950773750ac7b09049e6ff9a3178987c565..a92980d175c31fcb5d9c69be3b94f8258862980a 100644
+--- a/test/site-wallet-profile-broadcast.test.mjs
++++ b/test/site-wallet-profile-broadcast.test.mjs
+@@ -173,8 +173,14 @@ test("every origin refusing: refused, sent nowhere else, the wallet never asked
+   reset("drop-raw", "refuse-raw");
+   let unknown;
+   await assert.rejects(W.sendTx(TO, "0x", "0x1"), (e) => (unknown = e).code === "unknown" && e.outcomeUnknown && /outcome is unknown/.test(e.message));
+-  assert.deepEqual(walletCalls, ["eth_signTransaction"]);
++  assert.deepEqual(walletCalls, ["eth_signTransaction"], "one signature: the retry is not a new transaction");
++  // no answer from the first origin: the SAME signed bytes went to the next one (idempotent propagation), then nothing more
++  assert.deepEqual([seen[0].filter((m) => m === "eth_sendRawTransaction").length, seen[1].filter((m) => m === "eth_sendRawTransaction").length], [1, 1]);
++  assert.equal(rawBodies.length, 2); assert.equal(rawBodies[0], rawBodies[1], "identical bytes to both origins");
++  assert.equal(keccak256(rawBodies[0]), unknown.hash);
++  assert.match(unknown.message, /same signed bytes were offered to each of them and nothing more is sent/);
+   assert.equal((await C.waitReceipt(unknown.hash)).status, "0x1", "the dropped reply hid an accepted transaction: 'unknown' was the truthful answer");
++  assert.equal(raws(), 2, "waiting for the receipt sent nothing more");
+   assert.equal(await nonce(), before + 1);
+   assert.deepEqual(forbidden, []);
+ });

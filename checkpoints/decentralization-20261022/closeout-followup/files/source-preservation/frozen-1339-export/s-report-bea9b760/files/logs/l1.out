@@ -1,0 +1,21 @@
+[queue] START available=24859MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+[job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo head 14d1e4954cf7c9900d5d3e841a23f02de945c1b2 dirty=12 untracked=9
+cc071ecd5aa25cb68421df478268887fe63959acbb39aac388c4db1d9854cc23  network/public-rpc.mjs
+6c2f58692ea8980bdf0fddfd4225f109a978d05f053e25bc34431ea5bf87b870  network/public-rpc-hosts.mjs
+9511d74732c89c5a28fd6dd96015743de71a86193c2b5eb542355065da123633  network/host-services/roles.mjs
+da675a2cea07d91281a0e8a04d719142c7542322c7e0d8d70d19201bd7e4363f  network/host-services/runner.mjs
+d61bbeb60d3099ab9aa9bcb44d2070e1a6e313e553231426920dc3deb01fb906  network/host-service-names.mjs
+0dab1bc73232e019c5e699ffe8f43467a07c9be5b111affb8a831e03061754e5  network/host-service-transport.mjs
+e7ea534604b2dd9307f4c4d8919fcc22c2061438f33dfb68c3fef61f526c72cd  network/wg-provider/provider.mjs
+7ebbff2419087094c9c2d5fe09e0cac0027c7c0f6bf5fbd3a2f962eba0cba0ac  test/host-service-lifecycle.test.mjs
+ea167d1b8e11e6a8d4b73ff0b1da21aedebdce49b166ab007739aacc6e15740b  test/host-service-transport.test.mjs
+4a1c36eacaedc4e39e8d19ac8f47d43f53d1d50dda31d8d7e806c17d76dacfdb  test/wg-provider.test.mjs
+b6da775b5db3f2fe009e587deb94812d99f8df0086d2655836830a079506b55a  test/hosted-services-stage.test.mjs
+✔ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (127.99139ms)
+✔ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (332.504622ms)
+
+[memory-guard] STOPPING own job: process tree RSS 275 MiB > 256 MiB
+[memory-guard] exit=SIGTERM peakTreeRssMiB=275 minHostAvailableMiB=24786 STOPPED: process tree RSS 275 MiB > 256 MiB
+[memory-guard] at peak: node:90 node:60 fake-wg.mjs:54 node:53 bash:6 timeout:4 tee:4 unshare:4
+[queue] EXIT 99

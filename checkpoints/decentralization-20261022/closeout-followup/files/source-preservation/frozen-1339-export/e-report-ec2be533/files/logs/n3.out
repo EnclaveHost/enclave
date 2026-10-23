@@ -1,0 +1,60 @@
+[queue] START available=25108MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+HEAD 6ab298f196d93b60499178275acf025f5b8658af
+ M site/js/core/profile-broadcast.js
+ M test/site-wallet-profile-broadcast.test.mjs
+14917fdabf2753126f2cf7b7fbd6ec3e489937e0f932270ea0300197ab9967be  site/js/core/profile-broadcast.js
+d0e7482ac37703d45bf7c0ac3bcf9c3db51cab1806553e90d9ed2a01ddc4e835  site/js/core/wallet.js
+adc2bea3effe5e0b984e60683d74ebc1e7bdf0a110d55183daae1a4c30a24dee  site/js/core/chain.js
+f5a4f6a8930a705ea2366fe8c342b6cefacc0902de42e986200132196c2f8d27  site/js/core/passkey-account.js
+4e73e0a6cbb1fcc4c824d31f498ae267d05c413aa53e12d3ac28fd47caae4007  site/js/core/account-providers.js
+e632ace653e5e787bc871cb0eb4a1e61805fd9522d2fe183e3b49d3e3da2650f  site/js/core/account-transport.js
+51b3d7d33bb4aab3260760a487519ef40d59d36294b7077831cab0a740ee3af9  test/site-wallet-profile-broadcast.test.mjs
+TAP version 13
+# Subtest: the default route is unchanged: the wallet broadcasts through its own RPC (eth_sendTransaction)
+ok 1 - the default route is unchanged: the wallet broadcasts through its own RPC (eth_sendTransaction)
+  ---
+  duration_ms: 173.955734
+  type: 'test'
+  ...
+# Subtest: chosen profile route: the wallet only signs; a refusing origin, then the next origin broadcasts; the receipt comes through the profile
+ok 2 - chosen profile route: the wallet only signs; a refusing origin, then the next origin broadcasts; the receipt comes through the profile
+  ---
+  duration_ms: 96.874122
+  type: 'test'
+  ...
+# Subtest: a wallet that cannot sign without broadcasting is refused by name: nothing is signed, broadcast, or handed to its own RPC
+ok 3 - a wallet that cannot sign without broadcasting is refused by name: nothing is signed, broadcast, or handed to its own RPC
+  ---
+  duration_ms: 20.826342
+  type: 'test'
+  ...
+# Subtest: a signed transaction that is not exactly the request, or not from the connected address, is never broadcast
+ok 4 - a signed transaction that is not exactly the request, or not from the connected address, is never broadcast
+  ---
+  duration_ms: 40.225953
+  type: 'test'
+  ...
+# Subtest: every origin refusing: refused, sent nowhere else, the wallet never asked to broadcast; an origin that drops the reply: outcome unknown, and it did land
+ok 5 - every origin refusing: refused, sent nowhere else, the wallet never asked to broadcast; an origin that drops the reply: outcome unknown, and it did land
+  ---
+  duration_ms: 52.385421
+  type: 'test'
+  ...
+# Subtest: the strict decoder agrees with viem on real signed transactions and refuses malformed input
+ok 6 - the strict decoder agrees with viem on real signed transactions and refuses malformed input
+  ---
+  duration_ms: 8.571295
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 681.791764
+[memory-guard] exit=0 peakTreeRssMiB=164 minHostAvailableMiB=24943
+[memory-guard] at peak: node:78 node:54 anvil:28 timeout:4
+[queue] EXIT 0

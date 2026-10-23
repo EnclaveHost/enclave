@@ -1,0 +1,122 @@
+From 237c78f28525c180061a25eb47670702dd14f9c4 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 05:01:19 -0700
+Subject: [PATCH 2/3] Record RAM activation still pending with healthy NucBox
+ services
+
+---
+ status-user-request-check.json | 104 +++++++++++++++++++++++++++++++++
+ 1 file changed, 104 insertions(+)
+ create mode 100644 status-user-request-check.json
+
+diff --git a/status-user-request-check.json b/status-user-request-check.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..7214fe8beb378221551b2038b1c75bd72c1e01f6
+--- /dev/null
++++ b/status-user-request-check.json
+@@ -0,0 +1,104 @@
++{
++  "at": "2026-10-23T12:01:03.4707893Z",
++  "node": {
++    "availability": {
++      "status": 200,
++      "nodeRamGb": 64,
++      "machineRamGb": 112,
++      "apps": {
++        "isolation": "hyperv-partition-per-app",
++        "tier": "enclave-shield",
++        "hostExcluded": false,
++        "hostOsExcluded": true,
++        "operatorExcluded": false,
++        "inTee": false,
++        "running": 8,
++        "capacity": 16,
++        "scope": "market",
++        "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
++      },
++      "ramGbFree": 47.9
++    },
++    "manager": {
++      "status": 200,
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 65536
++      },
++      "inventory": {
++        "state": "ready",
++        "recovered": 9,
++        "unattributed": 0,
++        "at": "2026-10-23T08:30:07.329Z"
++      }
++    }
++  },
++  "vms": [
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv3146bdf712f171-3f770400",
++      "uptimeSeconds": 10811.783,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hv637cbe35075047-10c44a8a",
++      "uptimeSeconds": 12186.112,
++      "state": "Running"
++    },
++    {
++      "memory": 15101591552,
++      "name": "enclave-app-hv8babaf3c0991fa-ea9d4773",
++      "uptimeSeconds": 9874.15,
++      "state": "Running"
++    },
++    {
++      "memory": 3420454912,
++      "name": "enclave-app-hv94a003c5b947f6-9e2053bc",
++      "uptimeSeconds": 9596.298999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvbf6c56812c25e8-46de1836",
++      "uptimeSeconds": 10618.899,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvc68a5c73043598-3dfcbff8",
++      "uptimeSeconds": 10686.386999999999,
++      "state": "Running"
++    },
++    {
++      "memory": 17850957824,
++      "name": "enclave-app-hvce6a027904d978-322c5206",
++      "uptimeSeconds": 10746.094,
++      "state": "Running"
++    },
++    {
++      "memory": 536870912,
++      "name": "enclave-app-hvd28ea469111245-a79db30f",
++      "uptimeSeconds": 12569.91,
++      "state": "Running"
++    },
++    {
++      "memory": 2147483648,
++      "name": "enclave-app-hvefa9ce2a7bc0ea-f4322953",
++      "uptimeSeconds": 10653.344,
++      "state": "Running"
++    },
++    {
++      "memory": 8589934592,
++      "name": "enclave-control",
++      "uptimeSeconds": 12591.979,
++      "state": "Running"
++    },
++    {
++      "memory": 4294967296,
++      "name": "enclave-storage",
++      "uptimeSeconds": 12622.064,
++      "state": "Running"
++    }
++  ]
++}
+\ No newline at end of file

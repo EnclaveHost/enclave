@@ -1,0 +1,5 @@
+cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222  vendor/s/holder-storage.sh.in
+cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222  vendor/p/vendor/holder/holder-storage.sh.in
+eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00  vendor/s-old/holder-storage.sh.in
+b1ceb531e0c335f74cf8182b18df94081998ccfa624466621d396ce5c3b91302  harness/guest.py
+937ab5bdc249e43f3b32409cef95421b4f82d9fc3c7af9377d95e42a3d6b1699  harness/render.py

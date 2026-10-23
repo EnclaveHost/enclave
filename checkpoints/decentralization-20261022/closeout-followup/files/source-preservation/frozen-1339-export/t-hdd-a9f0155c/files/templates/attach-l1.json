@@ -1,0 +1,31 @@
+{
+ "format": "enclave-rpc-hdd-attach/v1",
+ "role": "l1",
+ "server": {
+  "address": "192.168.8.249",
+  "port": 10809,
+  "serverName": "enclave-rpc-hdd-l1.warden.lan"
+ },
+ "tls": {
+  "dir": "/etc/enclave-rpc-hdd/l1/client"
+ },
+ "placement": {
+  "exportName": "enclave-rpc-l1",
+  "imageBytes": 4000000000000,
+  "imagePath": "/mnt/usb/enclave-rpc/l1-origin.img",
+  "mountTarget": "/mnt/usb",
+  "fstype": "ntfs3",
+  "requireRotational": true,
+  "serverCertSha256": "REPLACE-with-placement.json-serverCertSha256",
+  "caCertSha256": "REPLACE-with-placement.json-caCertSha256"
+ },
+ "device": "/dev/nbd0",
+ "filesystem": {
+  "label": "enc-rpc-l1",
+  "uuid": null
+ },
+ "mountPoint": "/srv/rpc-hdd/l1",
+ "stateDir": "/run/enclave-rpc-hdd/l1",
+ "qemuNbd": "/usr/bin/qemu-nbd",
+ "qemuImg": "/usr/bin/qemu-img"
+}

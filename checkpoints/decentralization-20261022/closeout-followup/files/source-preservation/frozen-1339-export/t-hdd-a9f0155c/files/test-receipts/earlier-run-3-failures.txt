@@ -1,0 +1,3 @@
+{"client": "qemu-io: can't open: Failed to read option reply: Cannot read from TLS channel: The TLS connection was non-properly terminated.\n", "expectedReason": "Verify failed", "ok": false, "rc": 1, "serverLog": "qemu-nbd: option negotiation failed: The certificate hasn't got a known issuer\n", "step": "proto-refused-rogue-ca-client"}
+{"failed": ["s06c-mount-exact-uuid", "s06d-verify-mounted", "s09-reattach-data-persisted", "s12c-data-before-disconnect-intact", "done"], "ok": false, "step": "guest-results", "steps": 27}
+{"failed": ["proto-refused-rogue-ca-client", "guest-results"], "ok": false, "step": "summary", "total": 54}

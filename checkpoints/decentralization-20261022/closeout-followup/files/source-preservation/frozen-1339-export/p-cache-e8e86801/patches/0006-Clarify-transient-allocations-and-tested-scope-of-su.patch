@@ -1,0 +1,36 @@
+From e8e8680121cd4262104dc8b3af8ed846d196f82b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 04:25:46 -0700
+Subject: [PATCH 6/6] Clarify transient allocations and tested scope of
+ surviving cache mutation
+
+---
+ RESULT.md | 15 +++++++++------
+ 1 file changed, 9 insertions(+), 6 deletions(-)
+
+diff --git a/RESULT.md b/RESULT.md
+index 2685601349f2b43113a15061e467636be2e9ae42..768f791e4fd6d0a8c328900721809cced167219c 100644
+--- a/RESULT.md
++++ b/RESULT.md
+@@ -109,12 +109,15 @@ The ≤ 4 KiB assumption holds for the supported fixture.
+ | Long symlink, margin inside that 4 KiB window | the mutant passes the free-space preflight where composed refuses. `budget.py allocate` then refuses ("is not this reservation's regular file"), and the unwind removes the transient origin and loop |
+ | Final state, every case | identical and preserved: target unchanged, symlink intact, no origin, no loop, no data file |
+ 
+-**Conclusion:** the guard is redundant defence in depth. Without it, at most a 4 KiB preflight difference changes
+-*which* refusal is reported; nothing is ever allocated, and no state is lost. No focused test was added, because it
+-would distinguish no meaningful behavioural risk.
+-
+-**Mutant score, stated plainly:** S's shell mutants remain **13/14 killed**, with this one equivalent survivor. That
+-is not a claim that every negative control is killed.
++**Conclusion for these fixtures:** the guard adds an earlier refusal. Removing it permits a 4 KiB preflight credit
++in the measured long-symlink case; budget allocation still refuses the symlink. An owned origin and loop can be
++created transiently before that refusal, then unwound. The tested final states contain no retained allocation or
++foreign-data modification. This is final-state preservation in the exercised cases, not identical intermediate
++behavior or a proof that removing the guard is harmless in every environment. The production guard is retained.
++
++**Mutant score, stated plainly:** S's shell mutants remain **13/14 killed**. The surviving mutation changes the
++refusal stage and transient work but preserves the tested final states. That is not a claim that every negative
++control is killed.
+ 
+ ## 4. Remaining gates (unchanged by this run)
+ 

@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-23T11:38:07.219666+00:00",
+  "scope": "Read completed subjob logs; parent Claude tasks remain active",
+  "cliMcpActualVerifier": {
+    "tests": 4,
+    "passed": 4,
+    "backend": "real local Reth/Helios fixture",
+    "covered": [
+      "CLI verified reads",
+      "explicit transaction transport and simulation refusal",
+      "MCP bindings/reads",
+      "tampered/missing witnesses and stale-head refusal without provider fallback"
+    ],
+    "notProven": "production RPC availability or resolution of other regression failures"
+  },
+  "windowsManagement": {
+    "candidateRun1": "9 pass / 1 fail: Safe bytecode helper tries mainnet.base.org and fails DNS in offline namespace",
+    "candidateRun2": "2 pass / 8 fail: several current-lease HTTP409 refusals plus Safe fixture fetch failure; causes not yet fully established",
+    "wrapper": "queue exit0 does not aggregate per-run rc1",
+    "required": "retain lease authorization/passkey coverage; use reviewed pinned local fixture instead of public RPC fixture fetch"
+  },
+  "handoff": "windows-final-baseline-compose/ROOT-J3D-FAILURE-REVIEW.txt"
+}

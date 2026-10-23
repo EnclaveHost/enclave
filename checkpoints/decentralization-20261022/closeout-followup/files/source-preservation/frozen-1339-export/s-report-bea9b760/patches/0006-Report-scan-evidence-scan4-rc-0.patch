@@ -1,0 +1,43 @@
+From bea9b760b70df03012fb218942fe9098441ca47c Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 06:35:22 -0700
+Subject: [PATCH 6/6] Report scan evidence (scan4: rc 0)
+
+---
+ logs/scan4.guard.log | 1 +
+ logs/scan4.out       | 9 +++++++++
+ logs/scan4.rc        | 1 +
+ 3 files changed, 11 insertions(+)
+ create mode 100644 logs/scan4.guard.log
+ create mode 100644 logs/scan4.out
+ create mode 100644 logs/scan4.rc
+
+diff --git a/logs/scan4.guard.log b/logs/scan4.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/logs/scan4.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/logs/scan4.out b/logs/scan4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..47769d426853bea6fe2717523262ab1635819dd3
+--- /dev/null
++++ b/logs/scan4.out
+@@ -0,0 +1,9 @@
++[queue] START available=24893MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++36919aafe host-services-cold-start: a failed stop records the exit (code, signal) and the daemon output tail
++4c059b997 public-rpc: own-property lookups only (root allowlist review); runner roles too
++028623069 Public RPC host role: a browser profile's RPC origin answered by the operator's own Base node
++source scan rc=0
++report scan rc=0
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/scan4.rc b/logs/scan4.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan4.rc
+@@ -0,0 +1 @@
++0

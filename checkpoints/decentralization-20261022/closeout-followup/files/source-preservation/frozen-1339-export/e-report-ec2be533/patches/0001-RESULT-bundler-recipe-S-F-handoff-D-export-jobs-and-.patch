@@ -1,0 +1,1048 @@
+From f92006a01d65eff23c2e021bae6f9af5b8464eb1 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 05:15:55 -0700
+Subject: [PATCH 1/4] RESULT, bundler recipe, S/F handoff, D export, jobs and
+ logs for rpc-wallet-dependency 6ab298f19
+
+---
+ .gitignore                            |   2 +
+ HANDOFF-S-F-WALLET-ROUTES.md          |  58 ++++++
+ RECIPE-SELFHOSTED-BUNDLER.md          | 103 +++++++++++
+ RESULT-WALLET-DEPENDENCY.md           | 120 +++++++++++++
+ ROOT-BROADCAST-RETRY-REVIEW.txt       |   5 +
+ ROOT-BUNDLER-IMPLEMENTATION-OWNER.txt |   1 +
+ jobs/esbuild-check.mjs                |  17 ++
+ jobs/esbuild-check.sh                 |   5 +
+ jobs/mutants.py                       |  26 +++
+ jobs/mutants.sh                       |   6 +
+ jobs/node-tests.sh                    |   9 +
+ jobs/q.sh                             |   9 +
+ logs/b1.guard.log                     |   1 +
+ logs/b1.out                           |  98 ++++++++++
+ logs/b1.rc                            |   1 +
+ logs/e1.guard.log                     |   1 +
+ logs/e1.out                           |  23 +++
+ logs/e1.rc                            |   1 +
+ logs/m1.guard.log                     |   1 +
+ logs/m1.out                           |  27 +++
+ logs/m1.rc                            |   1 +
+ logs/n1.guard.log                     |   1 +
+ logs/n1.out                           | 250 ++++++++++++++++++++++++++
+ logs/n1.rc                            |   1 +
+ logs/n2.guard.log                     |   1 +
+ logs/n2.out                           |  54 ++++++
+ logs/n2.rc                            |   1 +
+ 27 files changed, 823 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 HANDOFF-S-F-WALLET-ROUTES.md
+ create mode 100644 RECIPE-SELFHOSTED-BUNDLER.md
+ create mode 100644 RESULT-WALLET-DEPENDENCY.md
+ create mode 100644 ROOT-BROADCAST-RETRY-REVIEW.txt
+ create mode 100644 ROOT-BUNDLER-IMPLEMENTATION-OWNER.txt
+ create mode 100644 jobs/esbuild-check.mjs
+ create mode 100755 jobs/esbuild-check.sh
+ create mode 100644 jobs/mutants.py
+ create mode 100755 jobs/mutants.sh
+ create mode 100755 jobs/node-tests.sh
+ create mode 100755 jobs/q.sh
+ create mode 100644 logs/b1.guard.log
+ create mode 100644 logs/b1.out
+ create mode 100644 logs/b1.rc
+ create mode 100644 logs/e1.guard.log
+ create mode 100644 logs/e1.out
+ create mode 100644 logs/e1.rc
+ create mode 100644 logs/m1.guard.log
+ create mode 100644 logs/m1.out
+ create mode 100644 logs/m1.rc
+ create mode 100644 logs/n1.guard.log
+ create mode 100644 logs/n1.out
+ create mode 100644 logs/n1.rc
+ create mode 100644 logs/n2.guard.log
+ create mode 100644 logs/n2.out
+ create mode 100644 logs/n2.rc
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..ce3719c9ed72c931a8c0d86b265bf25bfe24b93f
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,2 @@
++repo/
++tmp/
+diff --git a/HANDOFF-S-F-WALLET-ROUTES.md b/HANDOFF-S-F-WALLET-ROUTES.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..06b0882d9e0d1a45a15297b209995f09410307f8
+--- /dev/null
++++ b/HANDOFF-S-F-WALLET-ROUTES.md
+@@ -0,0 +1,58 @@
++# Handoff for S (public RPC ingress) and F (host services): browser wallet and bundler routes
++
++Source: `work/rpc-wallet-dependency-20261023/repo`, branch `rpc-wallet-dependency`, commit `6ab298f19` on S's `349318a06`.
++Not integrated; root reviews it first. This is not a request for S to change scope: it lists the methods the new browser
++route sends to the endpoints S already serves.
++
++## 1. New browser → profile RPC traffic (only when the owner explicitly chooses "the network profile broadcasts")
++
++These are sent to each profile RPC, in the profile's order:
++- `eth_getTransactionCount [from, "pending"]`
++- `eth_maxPriorityFeePerGas []` (optional: without an answer the page uses 0.001 gwei)
++- `eth_call` to the ecrecover precompile `0x…0001` at an agreed `{blockHash}` (quorum)
++- **`eth_sendRawTransaction [signedType2Hex]`**: one endpoint at a time, the next only after a JSON-RPC error or no
++  answer.
++
++The existing reads stay as they are: `eth_estimateGas`, `eth_call`, `eth_getBlockByNumber`, `eth_getTransactionReceipt`.
++
++What the page expects back:
++- **Accepted:** `result` equal to keccak256 of the raw bytes. A JSON-RPC error whose message matches
++  `/already known|known transaction|already imported|already exists/i` is also accepted.
++- **Refused:** any other JSON-RPC error. The page shows the message verbatim and tries the next endpoint.
++- **Unknown:** an HTTP failure, non-JSON or a different hash. The page reports the outcome as unknown and does not resend.
++
++What ingress must allow for this route to work (S):
++- `eth_sendRawTransaction` from the browser origin, with CORS `POST` + `content-type`.
++- Forward it to the node, which forwards to the sequencer (base-reth runs with gossip disabled).
++- Do not rewrite or "fix up" the bytes; the hash is checked.
++- This is the only write method the browser sends to profile RPCs. Admit it as a specific method, not through a generic
++  allowlist. Rate-limit it per origin as S already does for reads.
++
++## 2. Bundler endpoints (owner-named, per account; NOT profile RPCs)
++
++The methods are `eth_maxPriorityFeePerGas`, `eth_estimateUserOperationGas` and `eth_sendUserOperation`, plus ERC-7677
++`pm_*` to the owner's paymaster URL. The target is EntryPoint v0.7 only. There is no Enclave default.
++
++A host role that wants to offer a bundler needs a real bundler service (`RECIPE-SELFHOSTED-BUNDLER.md`). F must not
++ship a forwarding proxy and call it a bundler. Forwarding `eth_sendUserOperation` to a third-party bundler only moves
++the dependency.
++
++## 3. Existing self-hosted pieces that already fit
++
++- **The credit page's relay route.** On `/credit/`, `relayTransport` → `/v1/credit-vault/submit` is served by
++  `network/host-services/credit-vault-submitter.mjs`. That is an existing host service, owner-selectable, and the
++  outcome is read from the chain (A owns its parity).
++- **The admin console migrator** broadcasts its own signed transactions through the profile's `baseRpc`, i.e. the same
++  `eth_sendRawTransaction` dependency as section 1.
++
++## 4. Not supplied by any self-hosted component
++
++- **MetaMask and other wallets without `eth_signTransaction`:** the broadcast always goes through the wallet's own RPC.
++  Neither the page nor a host can change that. The owner's choices are:
++  - set the wallet's Base RPC by hand (EIP-3085 is only an offer);
++  - use a signing-only wallet;
++  - use a passkey account with their own bundler.
++- **WalletConnect:** every signing request crosses the WalletConnect relay (`projectId`), an outside service. Its `rpcMap`
++  follows the profile.
++- **Passkeys:** they are bound to their RP domain. If the RP is `enclave.host`, Enclave decides whether they stay usable,
++  and the capability list now says so.
+diff --git a/RECIPE-SELFHOSTED-BUNDLER.md b/RECIPE-SELFHOSTED-BUNDLER.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..2bdd4b8f35e100f235f6fa4b98c6570c664e4fcc
+--- /dev/null
++++ b/RECIPE-SELFHOSTED-BUNDLER.md
+@@ -0,0 +1,103 @@
++# Self-hosted ERC-4337 bundler (and optional paymaster) for passkey accounts: prerequisites and launch recipe
++
++**Status: NOT STARTED.** No bundler or paymaster service exists in this tree or in any host role. Nothing here is
++deployed.
++
++What the dashboard already does: it lets the owner name their own bundlers and paymaster per account
++(`transport` in the account profile) and refuses everything else. See "Already supported" in
++`RESULT-WALLET-DEPENDENCY.md`.
++
++A URL field is not a bundler. This document lists what a real one needs.
++
++## What the page requires from a bundler (from source, `site/js/core/account-transport.js` and `passkey-account.js`)
++
++| Requirement | Exact value |
++| --- | --- |
++| Account | Safe v1.4.1, Safe4337Module v0.3.0, passkey signer v0.2.1 (`PROVIDERS["safe-passkey"]`, code hashes pinned at Base block 52,836,800) |
++| EntryPoint | **v0.7** `0x0000000071727De22E5E9d8BAf0edAc6f37da032`. The transport validator refuses any other EntryPoint, and v0.6 (`0x5FF137D4…`) is refused. |
++| Chain | Base mainnet, 8453 |
++| JSON-RPC methods called, and nothing else | `eth_maxPriorityFeePerGas` (capped at 2 gwei by the page), `eth_estimateUserOperationGas`, `eth_sendUserOperation`; the paymaster service gets ERC-7677 `pm_getPaymasterStubData` and `pm_getPaymasterData` |
++| Operation format | v0.7 unpacked RPC form: `factory`/`factoryData`, and split `paymaster*` fields |
++| Transport | HTTPS from the browser (`fetch`, `credentials: "omit"`, `redirect: "error"`), so CORS must allow `POST` + `content-type` from the dashboard origin. Loopback `http` is accepted only for a bundler on the owner's own machine. |
++| Not required | `eth_getUserOperationReceipt` and `eth_getUserOperationByHash`: the page never asks. The outcome is the EntryPoint's own `UserOperationEvent`, read through the profile's quorum RPCs. |
++
++## What the bundler process itself needs (the actual missing pieces)
++
++1. **A bundler implementation that supports EntryPoint v0.7 and OP-stack L1 data fees.**
++   - Implementation facts, **not re-verified in this session** (fetching the documentation was declined):
++     - Pimlico **Alto**, TypeScript, open source: supports v0.6/v0.7 (and later), with an OP-stack chain type for
++       pre-verification gas.
++     - Alchemy **Rundler**, Rust: supports v0.6/v0.7.
++   - Either is a separate service. Using one means a new dependency. This task authorized none, so neither was vendored
++     or run.
++   - The in-tree `test/helpers/local-bundler.mjs` is **test-only**: no ERC-7562 rules, fixed estimates, no mempool, no
++     L1 data-fee accounting. It must not be deployed.
++2. **A Base node RPC for the bundler** (S's Base holder: base v1.5.1 / base-reth). The bundler needs `eth_call`,
++   `eth_estimateGas`, the fee methods and `eth_sendRawTransaction`.
++   - **Safe mode** (ERC-7562 validation-rule tracing) also needs `debug_traceCall` with a tracer the bundler supports.
++     Whether the deployed base-reth build exposes the required tracer is **UNKNOWN** and must be probed on S's node.
++   - **Unsafe mode** (no tracing) is acceptable only for a **private** bundler that serves only its owner's accounts. The
++     risk falls on the executor: it may pay for bundles that revert. The page lowers that risk by simulating the exact
++     signed operation through `EntryPoint.handleOps` at an agreed block before sending.
++   - The bundler's RPC is node-local. It is not the browser profile's quorum, and it is S's ingress, not this page's.
++3. **An executor (submitter) EOA on Base, funded with ETH.**
++   - It fronts the gas of `handleOps` and is repaid in the same transaction by the EntryPoint (beneficiary = executor).
++     The repayment comes from the account's prefund (the account's ETH or EntryPoint deposit) or from the named
++     paymaster's deposit.
++   - Funding needed: at least one bundle's worst case, `(verificationGasLimit + callGasLimit + preVerificationGas
++     [+ paymaster limits]) × maxFeePerGas`, plus the executor's own transaction overhead. The page caps the limits at
++     3M + 10M + 1M (+ 1M + 1M) = 16M gas. Worked examples:
++     - About 0.00018 ETH at maxFee ≈ 0.011 gwei (a 0.005-gwei base fee doubled, plus a 0.001-gwei tip).
++     - About 0.032 ETH if the bundler quotes the page's 2-gwei tip cap.
++
++     Actual use is gas used × effective price, far below these limits.
++   - On Base, the L1 data fee is charged to the executor's transaction. It is recovered only if `preVerificationGas`
++     covers it, which is what the OP-stack mode of the bundler computes.
++   - **Funding it is a real spend.** It needs a human/root decision. Nothing here authorizes it.
++   - The key must be a hot key in the bundler host's custody. It never touches the page, and the page never sees it.
++4. **A submission route.**
++   - base-reth runs with transaction gossip disabled and forwards `eth_sendRawTransaction` to the Base sequencer. So a
++     self-hosted bundler still reaches the chain only through the sequencer. That is the protocol's own path, not a
++     public RPC provider.
++   - The censorship-resistant alternative is an L1 `OptimismPortal.depositTransaction` carrying the same `handleOps`
++     calldata from an L1 EOA (see `work/rpc-transaction-independence`). This is plausible and **untested**:
++     - EntryPoint v0.7 does not restrict its caller.
++     - The repayment is priced from the operation's own fee fields, not `tx.gasprice`.
++     - The L1 gas is a separate L1 spend.
++5. **Paymaster (optional; the account can pay in ETH itself).**
++   - A self-hosted ERC-7677 paymaster needs a paymaster **contract** deployed on Base with an EntryPoint deposit, plus
++     stake if the bundler enforces reputation, and a signing service.
++   - **That is a new contract deployment.** Excluded here; it needs a separate decision.
++   - The page already accepts any owner-named paymaster: only that address, and its deposit must cover the operation.
++
++## Launch recipe (for whoever is authorized to run it; each step needs root approval)
++
++1. **On S's Base node:**
++   - Confirm `eth_chainId` = `0x2105` and that it is synced.
++   - Probe `debug_traceCall` with the bundler's tracer. That result decides safe vs unsafe mode.
++2. **Build the chosen bundler from a pinned release, offline, reproducibly** (a new dependency: needs approval). Configure
++   it with:
++   - `entrypoints` = `0x0000000071727De22E5E9d8BAf0edAc6f37da032` only;
++   - chain = Base / OP-stack L1-fee mode;
++   - RPC = the local Base node;
++   - one executor key (host custody);
++   - its minimum executor balance set at or above the worst case above.
++3. **Expose only `/rpc` over HTTPS** on a name the owner controls (not only `*.enclave.host`: the page refuses a transport
++   whose bundlers are all Enclave-operated).
++   - CORS: `POST`, `content-type`, the dashboard origin(s).
++   - Method allowlist: exactly `eth_chainId`, `eth_supportedEntryPoints`, `eth_maxPriorityFeePerGas`,
++     `eth_estimateUserOperationGas`, `eth_sendUserOperation` (plus `eth_getUserOperationReceipt` if other clients need
++     it).
++   - Never expose debug or admin methods.
++4. **Fund the executor** (a spend: human decision).
++5. **Owner side, in the dashboard (Passkey account → Gas transport):**
++   - Name that URL, plus at least one other operator's bundler for failover. The page tries them in order, and moves on
++     only after a refusal or no answer.
++   - Choose "the account pays its own gas through your bundler".
++6. **Acceptance before calling it deployed:**
++   - one real operation on Base mainnet;
++   - its `UserOperationEvent` read through the profile;
++   - executor balance before and after (repaid);
++   - a refusal case (an underfunded account is refused before signing).
++
++   A fixture or anvil fork run does **not** prove mainnet inclusion.
+diff --git a/RESULT-WALLET-DEPENDENCY.md b/RESULT-WALLET-DEPENDENCY.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..903715145f196ddaab4b623ade9bddbf863ff130
+--- /dev/null
++++ b/RESULT-WALLET-DEPENDENCY.md
+@@ -0,0 +1,120 @@
++# RESULT: browser wallet and passkey/bundler dependencies under independent profiles (E, 2026-10-23)
++
++**Source.**
++- Location: `work/rpc-wallet-dependency-20261023/repo`, branch `rpc-wallet-dependency`.
++- One commit, **`6ab298f19`**, on S's immutable `349318a0600917bad8f391ad628fa0c7f134b3f6`.
++- Author and committer: SteveDeFacto.
++- Not integrated and not deployed. Root reviews it first and owns activation.
++
++**Earlier work preserved unchanged:** `rpc-transaction-independence` (`c08331e9`, `e917c526`, `9c5e0eef`).
++
++**What was read.** `work/effective-goal-requirements.txt`. There are no AGENTS.md or CLAUDE.md files in the tree.
++
++**What was not touched:** the A, B, F and S trees, contracts, wallet settings, SSH, live RPC, funds and packages.
++
++## 1. Trace: what each real flow depends on (current source, not the earlier NOTE)
++
++| Flow | Signing | Broadcast / submission | Fees and estimates | Receipt / outcome | External dependency left |
++| --- | --- | --- | --- | --- | --- |
++| EOA / MetaMask, `wallet.js sendTx` (every page and admin action: apps, deploy, grant, sessions, admin console, account-ui "connected wallet pays") | wallet | **wallet's own RPC** (`eth_sendTransaction`) | profile `baseRpc` (`eth_estimateGas`; `eth_call` if that fails) | profile `waitReceipt` | the wallet's Base RPC. The page cannot see or change it; EIP-3085 is only an offer, and the wallet decides. |
++| WalletConnect wallet | wallet app, over the **WalletConnect relay** (`projectId`) | the wallet's own RPC | profile | profile; `rpcMap` = the profile's first RPC | the WC relay, plus the wallet's RPC |
++| Passkey account, "the account pays its own gas" (`account-transport.js sendAsAccount`) | passkeys, under each passkey's RP domain | **owner-named bundlers only**, in order (`eth_sendUserOperation`); no default, no Enclave-only set, no public fallback | tip from the bundler (`eth_maxPriorityFeePerGas`, capped at 2 gwei); limits from `eth_estimateUserOperationGas`, raised by margins and floored by the profile's own `estimateGas`; base fee from an agreed block | EntryPoint `UserOperationEvent`, read through the profile quorum; never the bundler's word | **a real bundler service** (none exists); optionally an owner-named ERC-7677 paymaster |
++| Passkey account, "connected wallet pays" | passkeys (inside the calldata) | wallet (as EOA) | profile | profile | as EOA |
++| Passkey account, "Copy calldata for any submitter" | passkeys | anyone (including an L1 portal deposit) | n/a | n/a | the submitter |
++| `/credit/` page | passkey | `walletTransport` (wallet RPC) **or** owner-chosen `relayTransport` → `/v1/credit-vault/submit` | profile reader | chain reconcile | the relay route is supplied by the existing host service `network/host-services/credit-vault-submitter.mjs` (A owns parity) |
++| Admin console migrator | derived key in the page | **profile** `baseRpc eth_sendRawTransaction` (already) | profile | profile | none beyond the profile |
++
++**Public defaults in independent mode.** After the S closure, none remain on these paths. `fallbackRead` and
++WalletConnect use `mainnet.base.org` only when the profile is `off`, which is the existing hosted default. These tests
++refuse and record every non-loopback origin; none was attempted.
++
++## 2. What changed (smallest integration)
++
++### A. A new, explicit EOA route: "the network profile broadcasts; my wallet only signs"
++
++New file `site/js/core/profile-broadcast.js`, with hooks in `wallet.js`, `chain.js` and the popover.
++
++- **Default unchanged:** the wallet broadcasts. The route exists only in independent `on` mode, and only after the
++  owner's explicit click under **Broadcast** in the wallet menu.
++- **Sequence:**
++  1. `sendTx` measures gas through the profile.
++  2. Nonce (`pending`) and tip come from the profile, and the base fee from an agreed block.
++  3. The page asks the wallet for **`eth_signTransaction`**.
++  4. It strictly decodes the EIP-1559 bytes. They must equal the request exactly (chain, nonce, fees, gas, to, value,
++     data, no access list).
++  5. The signer is recovered by the **chain's ecrecover precompile at an agreed (quorum) block**, so no new crypto code
++     and no new package. It must be the connected address.
++  6. The page re-checks the profile tab guard.
++  7. It sends the bytes to the profile endpoints in order (`eth_sendRawTransaction`), moving on only after a refusal or
++     no answer.
++- **Outcomes:**
++  - accepted (the hash matches, or "already known");
++  - **refused** (every endpoint refused; it was sent nowhere else);
++  - **unknown** (an endpoint may have it; not resent).
++  - `waitReceipt` does not ask the wallet's RPC about a transaction the wallet never had.
++- **Wallets without `eth_signTransaction` (MetaMask is one)** are refused by name: "Nothing was signed or sent". The page
++  points the owner to the explicit "my wallet broadcasts" route. There is **no silent fallback**.
++- **No signing key** enters the page, no generic method allowlist, no new package. Admin actions use `sendTx` and work on
++  either route.
++
++### B. Truthful capability text
++
++- The passkey account's capability list said "No Enclave account, relay, RP, bundler or paymaster is involved" even when
++  the owner chose an `enclave.host` RP, bundler or paymaster service. It now names those, and keeps the old line
++  otherwise.
++- Two stale comments were corrected: "Nothing sends user ops yet", and "paymaster refused here". The truth: the Safe
++  path sends; a Coinbase transport is validated, but nothing sends one; a named paymaster is used under checks.
++- The popover also states that WalletConnect signing crosses the WalletConnect relay.
++
++### C. Already supported, proven through the actual path rather than duplicated
++
++Passkey bundler and paymaster selection: owner-only, ordered, no default, not all-Enclave, loopback or https, EntryPoint
++v0.7 only.
++
++**The missing component is a host service:** a real ERC-4337 bundler (and optionally a paymaster contract plus service).
++See `RECIPE-SELFHOSTED-BUNDLER.md`: EntryPoint v0.7 `0x0000000071727De22E5E9d8BAf0edAc6f37da032`, Safe 4337 module
++v0.3.0, a funded executor EOA, a Base node RPC (tracer support UNKNOWN), and the sequencer or L1-deposit route.
++
++## 3. Tests: provenance and results (all through `work/claude-test-queue.py`, unmodified)
++
++| Job | Cap | What | Result |
++| --- | --- | --- | --- |
++| `n1` (first) | 256 | the new `site-wallet-profile-broadcast` (6), the new `site-account-bundler-route` (4), `walletconnect-independent-rpc` (wrapper, 6 leaves), `site-independent-passkey-account` (8), `site-independent-account-transport` (9) | **25/28.** The 3 failures were all in my new bundler-route test: both loopback stand-ins on `127.0.0.1` violated the transport's distinct-hosts rule, and a stored gas choice leaked into the no-transport check. Kept in `logs/n1.out`. Peak 218 MiB. |
++| `n2` | 256 | `site-account-bundler-route` after the test fix (stand-ins on 127.0.0.1 / localhost; storage cleared) | **4/4**, peak 142 MiB |
++| `b1` | 1536 | `site-browser-rpc-closure` (10, including the e820 CONTROL) + `site-browser-rpc-routes` (Chromium rig; extended with the popover route choice, a signing-only broadcast through the profile, and its receipt) | **11/11**, peak 839 MiB |
++| `e1` | 256 | esbuild bundle of the dashboard graph (as `build-site.mjs`, without templates, tailwind or artifacts) | `profile-broadcast.js` in the graph; the new strings are in the chunks; the only warning comes from the existing `qr.js` |
++| `m1` | 512 | 4 mutants of `profile-broadcast.js` against `site-wallet-profile-broadcast` | **4/4 killed**: M1 no field check, M2 falling back to the wallet broadcast, M3 no signer check, M4 unknown reported as refused. The file was restored clean. Peak 195 MiB. |
++
++**Test provenance.**
++- The chain is a local **anvil** (`--chain-id 8453`), a test chain. The wallets are in-test EIP-1193 objects whose own
++  RPC is anvil, which signs for its unlocked dev account (a signing-only wallet), or which refuse `eth_signTransaction`
++  with EIP-1193 4200. The keys are anvil dev keys.
++- **The bundlers are scripted loopback stand-ins**: no ERC-4337 validation, no EntryPoint, and the outcome event is
++  scripted.
++- **Acceptance by anvil or by a fixture proves nothing about Base mainnet inclusion.**
++- The browser rig reuses S's Foundry subset outputs, copied from `browser-rpc-closure/repo`. Their SHA-256 values match
++  S's `forge1.out` (same contract sources, same commit).
++
++**Not run:**
++- `site-independent-account-first` and `site-independent-passkey-aa`: both fork Base from a public RPC.
++- A full `build-site.mjs`: it rewrites tracked files, and the e1 graph check stands in for it.
++- The 40-second drop check of `waitReceipt` for a profile-sent hash: its guard is a one-line Set lookup, covered by
++  reading the code and not by a test.
++
++**Process deviation (reported):** one ~1-second `node` import probe of `wallet.js` ran directly, outside the queue,
++before the tests were written. Everything else went through the queue.
++
++## 4. Supported / deployed / not started
++
++| Item | Status |
++| --- | --- |
++| EOA route "the profile broadcasts, the wallet signs only" | **source supported** (`6ab298f19`), tested on loopback/anvil and Chromium; **not deployed** |
++| MetaMask (no `eth_signTransaction`) broadcast independence | **not possible from the page**. The wallet's own RPC remains; the remedies are the owner's own wallet RPC setting, a signing-only wallet, or a passkey account with their own bundler |
++| WalletConnect signing without the WC relay | **not supported** (an outside relay; disclosed) |
++| Passkey account → owner's own bundlers / paymaster | **source supported** (pre-existing, re-proven over real HTTP); **no self-hosted bundler exists: NOT STARTED** |
++| Self-hosted bundler and paymaster service | **NOT STARTED**: recipe and prerequisites in `RECIPE-SELFHOSTED-BUNDLER.md`. Needs a new dependency (Alto or Rundler), a funded executor (spend), S's node tracer probe, and for a paymaster a new contract (excluded) |
++| Credit page relay route | supported by the existing host service `credit-vault-submitter` (deployment status per A/F, not verified here) |
++| Profile endpoints accepting `eth_sendRawTransaction` from browsers | S's ingress decision: `HANDOFF-S-F-WALLET-ROUTES.md` |
++
++Deliverables: this file, `RECIPE-SELFHOSTED-BUNDLER.md`, `HANDOFF-S-F-WALLET-ROUTES.md`, `exports/` (source-only export
++for D), `jobs/`, `logs/`.
+diff --git a/ROOT-BROADCAST-RETRY-REVIEW.txt b/ROOT-BROADCAST-RETRY-REVIEW.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec2762ebe86248e2a7da2d3dc483d685ee0af7da
+--- /dev/null
++++ b/ROOT-BROADCAST-RETRY-REVIEW.txt
+@@ -0,0 +1,5 @@
++Root review: signed-transaction retry semantics (2026-10-23)
++Reviewed committed source 6ab298f196d93b60499178275acf025f5b8658af, profile-broadcast.js and actual test/site-wallet-profile-broadcast.test.mjs.
++The sendViaProfile loop CONTINUES to the next configured endpoint after transport/non-JSON failures and mismatched hashes. It sends exactly the same signed bytes. This is a legitimate idempotent propagation strategy; root is NOT requesting its removal or alleging double execution. The same transaction hash/nonce cannot execute twice on one canonical chain.
++However HANDOFF-S-F-WALLET-ROUTES.md says Unknown is not resent, the function doc says never resent here, and the final error says it is not resent. Those statements conflict with the actual loop. Explain that identical signed bytes may be retried across the configured profile, with no new signature/replacement/nonce, and that after exhausting endpoints an unknown outcome must be checked before creating another transaction. Preserve no public fallback and explicit owner selection.
++Existing drop-raw/refuse-raw test at lines173ff verifies unknown after actual inclusion but does not assert both origins saw identical bytes in this case. Add a focused assertion/coverage of that actual timeout recovery behavior when doing the next necessary affected test run; do not rerun unchanged broad suites for documentation alone. If you intentionally change retry policy instead, justify the availability tradeoff and align source, tests and handoff. No edits to your active tree by root.
+diff --git a/ROOT-BUNDLER-IMPLEMENTATION-OWNER.txt b/ROOT-BUNDLER-IMPLEMENTATION-OWNER.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..9c19bb75ec02d4196ca1e5ff3c296fd1b5fef505
+--- /dev/null
++++ b/ROOT-BUNDLER-IMPLEMENTATION-OWNER.txt
+@@ -0,0 +1 @@
++P now owns actual self-hosted Alto service preparation/testing in NEW work/rpc-bundler-service-20261023, separate from your active browser routes. Root verified primary sources at https://docs.pimlico.io/references/bundler/self-host and official Alto package/options; see outputs/decentralization-audit/bundler-primary-source-review-20261023.json. Finish your scoped browser work and report actual endpoint/funding dependencies; no need to duplicate bundler implementation or touch P source. Safe-mode validation retained, no live deploy/funds/contracts. Your initial unverified-docs note can now reference primary sources with exact scope; actual pinned-backend tracer compatibility remains P's test.
+diff --git a/jobs/esbuild-check.mjs b/jobs/esbuild-check.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..d49abfb54fc5becfc76639b26bf7a4724a6133f0
+--- /dev/null
++++ b/jobs/esbuild-check.mjs
+@@ -0,0 +1,17 @@
++// The dashboard's module graph bundled exactly as scripts/build-site.mjs bundles it (esbuild, js/boot.js entry, splitting,
++// /vendor/* and https://* external), WITHOUT its template-inlining plugin, tailwind or contract artifacts: proves the new
++// module resolves and lands in the bundle. Output in ../tmp/esb (not the tree).
++import fs from "node:fs";
++import path from "node:path";
++import { createRequire } from "node:module";
++const REPO = path.resolve(process.argv[2]), OUT = path.resolve(process.argv[3]);
++const { build, stop } = createRequire(path.join(REPO, "package.json"))("esbuild");   // the tree's own esbuild
++fs.rmSync(OUT, { recursive: true, force: true });
++const r = await build({ entryPoints: [path.join(REPO, "site/js/boot.js")], bundle: true, splitting: true, format: "esm", target: ["es2022"], minify: true,
++  outdir: OUT, outbase: path.join(REPO, "site"), chunkNames: "js/chunks/[name]-[hash]", external: ["https://*", "/vendor/*"], metafile: true, logLevel: "warning" });
++const inputs = Object.keys(r.metafile.inputs);
++console.log("inputs", inputs.length, "profile-broadcast in graph:", inputs.some((i) => i.endsWith("site/js/core/profile-broadcast.js")));
++const files = []; const walk = (d) => { for (const f of fs.readdirSync(d)) { const p = path.join(d, f); fs.statSync(p).isDirectory() ? walk(p) : files.push(p); } }; walk(OUT);
++for (const s of ["eth_signTransaction", "eth_sendRawTransaction", "every endpoint of the network profile refused", "does not sign a transaction without broadcasting", "Enclave runs part of this account"])
++  console.log("chunks containing [" + s + "]:", files.filter((f) => f.endsWith(".js") && fs.readFileSync(f, "utf8").includes(s)).length);
++stop();
+diff --git a/jobs/esbuild-check.sh b/jobs/esbuild-check.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..dcd7da84e46341525794b072eb079b910009a3a0
+--- /dev/null
++++ b/jobs/esbuild-check.sh
+@@ -0,0 +1,5 @@
++#!/bin/bash
++set -euo pipefail
++cd "$(dirname "$0")/.."
++git -C repo log -1 --format='HEAD %H'; git -C repo status --short | head
++exec timeout -k 5 300 node jobs/esbuild-check.mjs repo tmp/esb
+diff --git a/jobs/mutants.py b/jobs/mutants.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..83487a3bb6942dab874799943e3d5abbd45a6e7b
+--- /dev/null
++++ b/jobs/mutants.py
+@@ -0,0 +1,26 @@
++# Mutation controls for profile-broadcast.js: each mutant must make test/site-wallet-profile-broadcast.test.mjs FAIL.
++# Applied in place one at a time; the file is restored from git after each (and on any exit).
++import subprocess, sys, os
++os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "repo"))
++F = "site/js/core/profile-broadcast.js"
++M = {
++  "M1-no-field-check": ('    if ((got[k] === null ? null : typeof got[k] === "bigint" ? got[k] : lower(got[k])) !== want[k])\n', '    if (false)\n'),
++  "M2-fallback-to-wallet-broadcast": ('      throw new BroadcastError("your wallet does not sign a transaction without broadcasting it itself', '      return provider.request({ method: "eth_sendTransaction", params: [request] }); throw new BroadcastError("your wallet does not sign a transaction without broadcasting it itself'),
++  "M3-no-signer-check": ('  if (!/^0x[0-9a-f]{64}$/.test(who || "") || "0x" + who.slice(26) !== lower(from))\n', '  if (false)\n'),
++  "M4-unknown-reported-as-refused": ('  if (unanswered){\n', '  if (false){\n'),
++}
++orig = open(F).read()
++killed = 0
++try:
++  for name, (a, b) in M.items():
++    assert orig.count(a) == 1, name
++    open(F, "w").write(orig.replace(a, b))
++    r = subprocess.run(["timeout", "-k", "5", "240", "node", "--test", "--test-force-exit", "test/site-wallet-profile-broadcast.test.mjs"], capture_output=True, text=True)
++    fails = [l for l in r.stdout.splitlines() if l.startswith("not ok")]
++    print(name, "rc", r.returncode, "KILLED" if r.returncode != 0 else "SURVIVED", *fails, sep="\n  ")
++    killed += r.returncode != 0
++finally:
++  open(F, "w").write(orig)
++print("killed", killed, "of", len(M))
++print("restored:", subprocess.run(["git", "diff", "--stat", F], capture_output=True, text=True).stdout or "clean")
++sys.exit(0 if killed == len(M) else 1)
+diff --git a/jobs/mutants.sh b/jobs/mutants.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..e9cd6eb50dae73904162fba156d578b44dae9cc7
+--- /dev/null
++++ b/jobs/mutants.sh
+@@ -0,0 +1,6 @@
++#!/bin/bash
++set -uo pipefail
++cd "$(dirname "$0")/.."
++export TMPDIR="$(pwd)/tmp" PATH="$HOME/.foundry/bin:$PATH"
++git -C repo log -1 --format='HEAD %H'
++exec python3 -u jobs/mutants.py
+diff --git a/jobs/node-tests.sh b/jobs/node-tests.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..f762d3a16e3a50069bd4015b2f3a91db56024ee4
+--- /dev/null
++++ b/jobs/node-tests.sh
+@@ -0,0 +1,9 @@
++#!/bin/bash
++# node --test over the named test files of this tree (TMPDIR on disk; whole-job wall clock bound inside)
++set -uo pipefail
++cd "$(dirname "$0")/../repo"
++export TMPDIR="$(cd .. && pwd)/tmp"
++export PATH="$HOME/.foundry/bin:$PATH"
++git log -1 --format='HEAD %H'; git status --short | head -40
++sha256sum site/js/core/{profile-broadcast,wallet,chain,passkey-account,account-providers,account-transport}.js "$@"
++exec timeout -k 10 "${JOB_SEC:-600}" node --test --test-force-exit --test-concurrency=1 "$@"
+diff --git a/jobs/q.sh b/jobs/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..3e272ae2802f11e18516bc45d5c0f8f81fb3e8a3
+--- /dev/null
++++ b/jobs/q.sh
+@@ -0,0 +1,9 @@
++#!/bin/bash
++# q.sh NAME MIB -- command...   retry the shared queue while it answers 98 (not started); write logs/NAME.rc at the end
++name=$1; mib=$2; shift 3
++cd "$(dirname "$0")/.." || exit 2
++for i in $(seq 1 240); do
++  python3 -u ../claude-test-queue.py --mib "$mib" --log logs/$name.guard.log -- "$@" > logs/$name.out 2>&1
++  rc=$?; [ $rc -ne 98 ] && break; sleep 30
++done
++echo $rc > logs/$name.rc
+diff --git a/logs/b1.guard.log b/logs/b1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e96bf3f66b0fd5ccb78ef37b419f2603602f4dcf
+--- /dev/null
++++ b/logs/b1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=839 minHostAvailableMiB=24816
+diff --git a/logs/b1.out b/logs/b1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..cb0a50ed03635704182e79fe1e56f2f487557b73
+--- /dev/null
++++ b/logs/b1.out
+@@ -0,0 +1,98 @@
++[queue] START available=25286MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
++HEAD 6ab298f196d93b60499178275acf025f5b8658af
++268c8a39180aa2171b09d6739dd8f3ccbafe0e8aa81acf44cb995be78fc98e7e  site/js/core/profile-broadcast.js
++d0e7482ac37703d45bf7c0ac3bcf9c3db51cab1806553e90d9ed2a01ddc4e835  site/js/core/wallet.js
++adc2bea3effe5e0b984e60683d74ebc1e7bdf0a110d55183daae1a4c30a24dee  site/js/core/chain.js
++f5a4f6a8930a705ea2366fe8c342b6cefacc0902de42e986200132196c2f8d27  site/js/core/passkey-account.js
++4e73e0a6cbb1fcc4c824d31f498ae267d05c413aa53e12d3ac28fd47caae4007  site/js/core/account-providers.js
++e632ace653e5e787bc871cb0eb4a1e61805fd9522d2fe183e3b49d3e3da2650f  site/js/core/account-transport.js
++394dc742b78a373995a61f59bb7d6ed7ff3b130752a6da315a8d064dda58f605  test/site-browser-rpc-closure.test.mjs
++8ee00cba5ba1617a2b2a3b7582905fdb779c1aa0afd7fc4ded3cfd12b8893409  test/site-browser-rpc-routes.test.mjs
++TAP version 13
++# Subtest: confirmed profile: every read, estimate and receipt uses only its RPCs; the wallet only broadcasts
++ok 1 - confirmed profile: every read, estimate and receipt uses only its RPCs; the wallet only broadcasts
++  ---
++  duration_ms: 204.898449
++  type: 'test'
++  ...
++# Subtest: one configured endpoint down: the reads fail over to the profile's other routes
++ok 2 - one configured endpoint down: the reads fail over to the profile's other routes
++  ---
++  duration_ms: 145.50747
++  type: 'test'
++  ...
++# Subtest: every configured endpoint down: refused by name, nothing sent, no hidden route
++ok 3 - every configured endpoint down: refused by name, nothing sent, no hidden route
++  ---
++  duration_ms: 7029.432037
++  type: 'test'
++  ...
++# Subtest: invalid profile: no origin and no wallet read, never a public default
++ok 4 - invalid profile: no origin and no wallet read, never a public default
++  ---
++  duration_ms: 127.518672
++  type: 'test'
++  ...
++# Subtest: unconfirmed profile: no origin and no wallet read, never a public default
++ok 5 - unconfirmed profile: no origin and no wallet read, never a public default
++  ---
++  duration_ms: 121.383889
++  type: 'test'
++  ...
++# Subtest: profile changed in another tab after load: reads and transactions refuse until reload; sign-out keeps its key
++ok 6 - profile changed in another tab after load: reads and transactions refuse until reload; sign-out keeps its key
++  ---
++  duration_ms: 132.307163
++  type: 'test'
++  ...
++# Subtest: hosted mode unchanged: wallet-first reads, the public default pool, and no independent session served
++ok 7 - hosted mode unchanged: wallet-first reads, the public default pool, and no independent session served
++  ---
++  duration_ms: 3532.573221
++  type: 'test'
++  ...
++# Subtest: a profile saved in another tab stops a hosted tab from sending
++ok 8 - a profile saved in another tab stops a hosted tab from sending
++  ---
++  duration_ms: 128.624913
++  type: 'test'
++  ...
++# Subtest: custody reads use every profile RPC with the profile's quorum (book-resolved vault)
++ok 9 - custody reads use every profile RPC with the profile's quorum (book-resolved vault)
++  ---
++  duration_ms: 1145.080223
++  type: 'test'
++  ...
++# old source failures:
++#   confirmed profile: balance read through the wallet's RPC
++#   confirmed profile: gas estimated through the wallet's RPC
++#   invalid profile: the wallet was still asked for a balance
++#   profile changed elsewhere: kept reading the old routes
++#   profile changed elsewhere: still sent a transaction
++#   hosted mode: served an independent session through its stored RPC
++#   custody: only the first three routes
++#   custody: agreement of 2 regardless of the profile's quorum
++# Subtest: CONTROL: e820e2405's site fails the same checks
++ok 10 - CONTROL: e820e2405's site fails the same checks
++  ---
++  duration_ms: 6971.893639
++  type: 'test'
++  ...
++# Subtest: browser chain consumers stay on the profile's routes; the wallet only signs and broadcasts
++ok 11 - browser chain consumers stay on the profile's routes; the wallet only signs and broadcasts
++  ---
++  duration_ms: 3360.326142
++  type: 'test'
++  ...
++1..11
++# tests 11
++# suites 0
++# pass 11
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 23650.343492
++[memory-guard] exit=0 peakTreeRssMiB=839 minHostAvailableMiB=24816
++[memory-guard] at peak: node:321 chrome-headless:146 chrome-headless:102 chrome-headless:91 node:59 chrome-headless:40 chrome-headless:40 anvil:35
++[queue] EXIT 0
+diff --git a/logs/b1.rc b/logs/b1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/b1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/e1.guard.log b/logs/e1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/logs/e1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/logs/e1.out b/logs/e1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..2688c6d541b0d25b73399c2d0e6d18fa8c857905
+--- /dev/null
++++ b/logs/e1.out
+@@ -0,0 +1,23 @@
++[queue] START available=25180MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++HEAD 6ab298f196d93b60499178275acf025f5b8658af
++▲ [WARNING] The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected [commonjs-variable-in-esm]
++
++    repo/site/js/lib/qr.js:2300:6:
++      2300 │       module.exports = factory();
++           ╵       ~~~~~~
++
++  This file is considered to be an ECMAScript module because of the "export" keyword here:
++
++    repo/site/js/lib/qr.js:2306:0:
++      2306 │ export function qrSvg(text, opts){
++           ╵ ~~~~~~
++
++inputs 137 profile-broadcast in graph: true
++chunks containing [eth_signTransaction]: 2
++chunks containing [eth_sendRawTransaction]: 3
++chunks containing [every endpoint of the network profile refused]: 1
++chunks containing [does not sign a transaction without broadcasting]: 1
++chunks containing [Enclave runs part of this account]: 1
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/e1.rc b/logs/e1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/e1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/m1.guard.log b/logs/m1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..fc28455a1a04d4dce22d9cd90acf6a0f33c3920c
+--- /dev/null
++++ b/logs/m1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=195 minHostAvailableMiB=25102
+diff --git a/logs/m1.out b/logs/m1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..2afce55c20a30067af9d86ac836490d96a325bed
+--- /dev/null
++++ b/logs/m1.out
+@@ -0,0 +1,27 @@
++[queue] START available=25161MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++HEAD 6ab298f196d93b60499178275acf025f5b8658af
++M1-no-field-check
++  rc
++  1
++  KILLED
++  not ok 4 - a signed transaction that is not exactly the request, or not from the connected address, is never broadcast
++M2-fallback-to-wallet-broadcast
++  rc
++  1
++  KILLED
++  not ok 3 - a wallet that cannot sign without broadcasting is refused by name: nothing is signed, broadcast, or handed to its own RPC
++M3-no-signer-check
++  rc
++  1
++  KILLED
++  not ok 4 - a signed transaction that is not exactly the request, or not from the connected address, is never broadcast
++M4-unknown-reported-as-refused
++  rc
++  1
++  KILLED
++  not ok 5 - every origin refusing: refused, sent nowhere else, the wallet never asked to broadcast; an origin that drops the reply: outcome unknown, and it did land
++killed 4 of 4
++restored: clean
++[memory-guard] exit=0 peakTreeRssMiB=195 minHostAvailableMiB=25102
++[memory-guard] at peak: node:90 node:55 anvil:32 python3:14 timeout:4
++[queue] EXIT 0
+diff --git a/logs/m1.rc b/logs/m1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/m1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/n1.guard.log b/logs/n1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..9a1a7151816ba819d4cf774d6f780618e8944e48
+--- /dev/null
++++ b/logs/n1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=218 minHostAvailableMiB=25147
+diff --git a/logs/n1.out b/logs/n1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..2fd4a0cb9eeebc54261e3eda27d79c0f7794b0c1
+--- /dev/null
++++ b/logs/n1.out
+@@ -0,0 +1,250 @@
++[queue] START available=25222MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++HEAD 349318a0600917bad8f391ad628fa0c7f134b3f6
++ M site/js/core/account-providers.js
++ M site/js/core/account-transport.js
++ M site/js/core/chain.js
++ M site/js/core/passkey-account.js
++ M site/js/core/wallet.js
++?? site/js/core/profile-broadcast.js
++?? test/site-account-bundler-route.test.mjs
++?? test/site-wallet-profile-broadcast.test.mjs
++268c8a39180aa2171b09d6739dd8f3ccbafe0e8aa81acf44cb995be78fc98e7e  site/js/core/profile-broadcast.js
++d0e7482ac37703d45bf7c0ac3bcf9c3db51cab1806553e90d9ed2a01ddc4e835  site/js/core/wallet.js
++adc2bea3effe5e0b984e60683d74ebc1e7bdf0a110d55183daae1a4c30a24dee  site/js/core/chain.js
++f5a4f6a8930a705ea2366fe8c342b6cefacc0902de42e986200132196c2f8d27  site/js/core/passkey-account.js
++4e73e0a6cbb1fcc4c824d31f498ae267d05c413aa53e12d3ac28fd47caae4007  site/js/core/account-providers.js
++e632ace653e5e787bc871cb0eb4a1e61805fd9522d2fe183e3b49d3e3da2650f  site/js/core/account-transport.js
++2370eef0b6ce2963df480db699c5e8ca7fd9d78c44852be5b5dcb47e59c342c8  test/site-wallet-profile-broadcast.test.mjs
++ef193b9ecbc19bf406fb2368f4ee4aa7c0927c3f98122e29947678da47c107c2  test/site-account-bundler-route.test.mjs
++26af82aae6b7afa66e83b4d451c1cdf44c2a152de7a52484eb46fe3483ba074f  test/walletconnect-independent-rpc.test.mjs
++e2ea013387812fa299a3187d6b034849d7ca02ad438698d0588dec9cd7d108c4  test/site-independent-passkey-account.test.mjs
++99e11e9556c8e2f73a18e6104629aaf4afa1f709c53e451ad08cd8c89db88d0c  test/site-independent-account-transport.test.mjs
++TAP version 13
++# Subtest: the owner's bundlers, in order: a refusal moves to the next; the outcome is the (fixture) EntryPoint event; nothing else is contacted
++not ok 1 - the owner's bundlers, in order: a refusal moves to the next; the outcome is the (fixture) EntryPoint event; nothing else is contacted
++  ---
++  duration_ms: 8.982146
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/test/site-account-bundler-route.test.mjs:94:1'
++  failureType: 'testCodeFailure'
++  error: 'bundler endpoints must be on distinct hosts'
++  code: 'ERR_TEST_FAILURE'
++  stack: |-
++    validateAccountTransport (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/site/js/core/account-providers.js:241:51)
++    Object.validateAccountProfile (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/site/js/core/passkey-account.js:182:29)
++    Module.sendAsAccount (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/site/js/core/account-transport.js:211:6)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/test/site-account-bundler-route.test.mjs:97:13)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
++  ...
++# Subtest: every bundler refusing: refused, nothing pending, each asked once; an unreachable bundler first: outcome unknown, kept pending, not resent
++not ok 2 - every bundler refusing: refused, nothing pending, each asked once; an unreachable bundler first: outcome unknown, kept pending, not resent
++  ---
++  duration_ms: 2.816337
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/test/site-account-bundler-route.test.mjs:107:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    The validation function is expected to return "true". Received false
++    
++    Caught error:
++    
++    Error: bundler endpoints must be on distinct hosts
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  stack: |-
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/test/site-account-bundler-route.test.mjs:110:3)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: no transport, no account route: no default bundler exists, and the wallet route is the only choice
++not ok 3 - no transport, no account route: no default bundler exists, and the wallet route is the only choice
++  ---
++  duration_ms: 0.497996
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/test/site-account-bundler-route.test.mjs:123:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly equal:
++    
++    null !== 'wallet'
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: 'wallet'
++  actual: ~
++  operator: 'strictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-wallet-dependency-20261023/repo/test/site-account-bundler-route.test.mjs:125:10)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
++    Test.postRun (node:internal/test_runner/test:1173:19)
++    Test.run (node:internal/test_runner/test:1101:12)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: capabilities name what Enclave runs when the owner chose it, instead of claiming independence
++ok 4 - capabilities name what Enclave runs when the owner chose it, instead of claiming independence
++  ---
++  duration_ms: 0.560765
++  type: 'test'
++  ...
++# Subtest: the owner chooses who pays: no silent default with a transport
++ok 5 - the owner chooses who pays: no silent default with a transport
++  ---
++  duration_ms: 3.103434
++  type: 'test'
++  ...
++# Subtest: an owner-chosen paymaster (ERC-7677): only that paymaster, its deposit must cover the gas, and its data is part of what the passkeys sign
++ok 6 - an owner-chosen paymaster (ERC-7677): only that paymaster, its deposit must cover the gas, and its data is part of what the passkeys sign
++  ---
++  duration_ms: 8.404031
++  type: 'test'
++  ...
++# Subtest: gas is not free: an account without enough ETH is refused before anything is signed, with the amount
++ok 7 - gas is not free: an account without enough ETH is refused before anything is signed, with the amount
++  ---
++  duration_ms: 1.811786
++  type: 'test'
++  ...
++# Subtest: the call and the signed operation are simulated first; either refusal stops everything
++ok 8 - the call and the signed operation are simulated first; either refusal stops everything
++  ---
++  duration_ms: 1.362249
++  type: 'test'
++  ...
++# Subtest: the outcome is the EntryPoint's own event: success, and a failed call reported as included-and-failed
++ok 9 - the outcome is the EntryPoint's own event: success, and a failed call reported as included-and-failed
++  ---
++  duration_ms: 2.33398
++  type: 'test'
++  ...
++# Subtest: an unknown outcome stays pending, blocks new operations without signing, and is never resent
++ok 10 - an unknown outcome stays pending, blocks new operations without signing, and is never resent
++  ---
++  duration_ms: 2.352421
++  type: 'test'
++  ...
++# Subtest: delivery: every bundler refusing means nothing is pending; an unreachable bundler is an unknown outcome
++ok 11 - delivery: every bundler refusing means nothing is pending; an unreachable bundler is an unknown outcome
++  ---
++  duration_ms: 1.690686
++  type: 'test'
++  ...
++# Subtest: creation: only with deploy, and only when the description creates exactly this address
++ok 12 - creation: only with deploy, and only when the description creates exactly this address
++  ---
++  duration_ms: 1.25584
++  type: 'test'
++  ...
++# Subtest: a bundler's call-gas estimate is never trusted alone: the account's own call, measured from the account, sets the floor
++ok 13 - a bundler's call-gas estimate is never trusted alone: the account's own call, measured from the account, sets the floor
++  ---
++  duration_ms: 1.665527
++  type: 'test'
++  ...
++# Subtest: the vendored aa.js is exactly a fresh build of the repository's viem/ox exports
++ok 14 - the vendored aa.js is exactly a fresh build of the repository's viem/ox exports
++  ---
++  duration_ms: 75.841915
++  type: 'test'
++  ...
++# Subtest: profile: exact fields, pinned verifiers only, distinct owners, threshold in range, a validated owner transport
++ok 15 - profile: exact fields, pinned verifiers only, distinct owners, threshold in range, a validated owner transport
++  ---
++  duration_ms: 2.061053
++  type: 'test'
++  ...
++# Subtest: capabilities say exactly what the owners can and cannot rely on - and never call one RP independence
++ok 16 - capabilities say exactly what the owners can and cannot rely on - and never call one RP independence
++  ---
++  duration_ms: 0.509936
++  type: 'test'
++  ...
++# Subtest: Safe signature bytes: ascending owners; contract signatures as {r: signer, s: offset, v: 0} + length || data; ECDSA verbatim
++ok 17 - Safe signature bytes: ascending owners; contract signatures as {r: signer, s: offset, v: 0} + length || data; ECDSA verbatim
++  ---
++  duration_ms: 0.449787
++  type: 'test'
++  ...
++# Subtest: the SafeMessage hash equals Safe v1.4.1's own construction from its literal constants (CompatibilityFallbackHandler)
++ok 18 - the SafeMessage hash equals Safe v1.4.1's own construction from its literal constants (CompatibilityFallbackHandler)
++  ---
++  duration_ms: 8.785828
++  type: 'test'
++  ...
++# Subtest: a passkey assertion becomes the signer's signature only if it is over exactly this challenge, with UP and UV
++ok 19 - a passkey assertion becomes the signer's signature only if it is over exactly this challenge, with UP and UV
++  ---
++  duration_ms: 1.524208
++  type: 'test'
++  ...
++# Subtest: user operations: only with the owner's transport; sent to the owner's bundlers in order, nothing else; paymaster fields split for v0.7
++ok 20 - user operations: only with the owner's transport; sent to the owner's bundlers in order, nothing else; paymaster fields split for v0.7
++  ---
++  duration_ms: 14.602309
++  type: 'test'
++  ...
++# Subtest: the account panel never submits silently: every prepared call is offered with a gas payer the owner picks, and a profile is saved only on an explicit click
++ok 21 - the account panel never submits silently: every prepared call is offered with a gas payer the owner picks, and a profile is saved only on an explicit click
++  ---
++  duration_ms: 0.463706
++  type: 'test'
++  ...
++# Subtest: the default route is unchanged: the wallet broadcasts through its own RPC (eth_sendTransaction)
++ok 22 - the default route is unchanged: the wallet broadcasts through its own RPC (eth_sendTransaction)
++  ---
++  duration_ms: 149.344719
++  type: 'test'
++  ...
++# Subtest: chosen profile route: the wallet only signs; a refusing origin, then the next origin broadcasts; the receipt comes through the profile
++ok 23 - chosen profile route: the wallet only signs; a refusing origin, then the next origin broadcasts; the receipt comes through the profile
++  ---
++  duration_ms: 63.828834
++  type: 'test'
++  ...
++# Subtest: a wallet that cannot sign without broadcasting is refused by name: nothing is signed, broadcast, or handed to its own RPC
++ok 24 - a wallet that cannot sign without broadcasting is refused by name: nothing is signed, broadcast, or handed to its own RPC
++  ---
++  duration_ms: 14.003264
++  type: 'test'
++  ...
++# Subtest: a signed transaction that is not exactly the request, or not from the connected address, is never broadcast
++ok 25 - a signed transaction that is not exactly the request, or not from the connected address, is never broadcast
++  ---
++  duration_ms: 35.792085
++  type: 'test'
++  ...
++# Subtest: every origin refusing: refused, sent nowhere else, the wallet never asked to broadcast; an origin that drops the reply: outcome unknown, and it did land
++ok 26 - every origin refusing: refused, sent nowhere else, the wallet never asked to broadcast; an origin that drops the reply: outcome unknown, and it did land
++  ---
++  duration_ms: 39.837412
++  type: 'test'
++  ...
++# Subtest: the strict decoder agrees with viem on real signed transactions and refuses malformed input
++ok 27 - the strict decoder agrees with viem on real signed transactions and refuses malformed input
++  ---
++  duration_ms: 7.814196
++  type: 'test'
++  ...
++# Subtest: WalletConnect RPC routing in the actual browser module
++ok 28 - WalletConnect RPC routing in the actual browser module
++  ---
++  duration_ms: 31.755898
++  type: 'test'
++  ...
++1..28
++# tests 28
++# suites 0
++# pass 25
++# fail 3
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 1294.462029
++[memory-guard] exit=1 peakTreeRssMiB=218 minHostAvailableMiB=25147
++[memory-guard] at peak: node:85 esbuild:68 node:61 timeout:4
++[queue] EXIT 1
+diff --git a/logs/n1.rc b/logs/n1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/n1.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/n2.guard.log b/logs/n2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..68e25ef7eef86f8c0235a2727a4c65963666218b
+--- /dev/null
++++ b/logs/n2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=142 minHostAvailableMiB=24624
+diff --git a/logs/n2.out b/logs/n2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..c24df081af5e3a3f7d84d1a972a6c2b0015e8ecd
+--- /dev/null
++++ b/logs/n2.out
+@@ -0,0 +1,54 @@
++[queue] START available=24677MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++HEAD 349318a0600917bad8f391ad628fa0c7f134b3f6
++ M site/js/core/account-providers.js
++ M site/js/core/account-transport.js
++ M site/js/core/chain.js
++ M site/js/core/passkey-account.js
++ M site/js/core/wallet.js
++?? site/js/core/profile-broadcast.js
++?? test/site-account-bundler-route.test.mjs
++?? test/site-wallet-profile-broadcast.test.mjs
++268c8a39180aa2171b09d6739dd8f3ccbafe0e8aa81acf44cb995be78fc98e7e  site/js/core/profile-broadcast.js
++d0e7482ac37703d45bf7c0ac3bcf9c3db51cab1806553e90d9ed2a01ddc4e835  site/js/core/wallet.js
++adc2bea3effe5e0b984e60683d74ebc1e7bdf0a110d55183daae1a4c30a24dee  site/js/core/chain.js
++f5a4f6a8930a705ea2366fe8c342b6cefacc0902de42e986200132196c2f8d27  site/js/core/passkey-account.js
++4e73e0a6cbb1fcc4c824d31f498ae267d05c413aa53e12d3ac28fd47caae4007  site/js/core/account-providers.js
++e632ace653e5e787bc871cb0eb4a1e61805fd9522d2fe183e3b49d3e3da2650f  site/js/core/account-transport.js
++c6407f71c3a5e26d05a93bd385e5f9b62a08f17d038dc74e83c152baccb5c899  test/site-account-bundler-route.test.mjs
++TAP version 13
++# Subtest: the owner's bundlers, in order: a refusal moves to the next; the outcome is the (fixture) EntryPoint event; nothing else is contacted
++ok 1 - the owner's bundlers, in order: a refusal moves to the next; the outcome is the (fixture) EntryPoint event; nothing else is contacted
++  ---
++  duration_ms: 41.201181
++  type: 'test'
++  ...
++# Subtest: every bundler refusing: refused, nothing pending, each asked once; an unreachable bundler first: outcome unknown, kept pending, not resent
++ok 2 - every bundler refusing: refused, nothing pending, each asked once; an unreachable bundler first: outcome unknown, kept pending, not resent
++  ---
++  duration_ms: 22.685024
++  type: 'test'
++  ...
++# Subtest: no transport, no account route: no default bundler exists, and the wallet route is the only choice
++ok 3 - no transport, no account route: no default bundler exists, and the wallet route is the only choice
++  ---
++  duration_ms: 0.389157
++  type: 'test'
++  ...
++# Subtest: capabilities name what Enclave runs when the owner chose it, instead of claiming independence
++ok 4 - capabilities name what Enclave runs when the owner chose it, instead of claiming independence
++  ---
++  duration_ms: 0.495756
++  type: 'test'
++  ...
++1..4
++# tests 4
++# suites 0
++# pass 4
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 285.610859
++[memory-guard] exit=0 peakTreeRssMiB=142 minHostAvailableMiB=24624
++[memory-guard] at peak: node:83 node:55 timeout:4
++[queue] EXIT 0
+diff --git a/logs/n2.rc b/logs/n2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/n2.rc
+@@ -0,0 +1 @@
++0

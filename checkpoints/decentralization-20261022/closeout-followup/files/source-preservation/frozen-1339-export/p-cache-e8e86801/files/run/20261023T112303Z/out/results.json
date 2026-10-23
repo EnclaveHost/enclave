@@ -1,0 +1,420 @@
+{
+ "holder.create": {
+  "rc": 0,
+  "err": "holder-storage: created (not assembled)"
+ },
+ "pair.create": {
+  "rc": 0,
+  "err": "holder-storage: created (not assembled)"
+ },
+ "probe.create": {
+  "rc": 0,
+  "err": "holder-storage: created (not assembled)"
+ },
+ "holder.assemble": {
+  "rc": 0,
+  "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder"
+ },
+ "A.loopsUnderMapping": {
+  "origin.img": [
+   {
+    "loop": "/dev/loop1",
+    "backing": "/usbtest/enclave-base-holder/origin.img",
+    "autoclear": "0",
+    "holders": [
+     "dm-1"
+    ],
+    "lsblkName": [
+     "loop1",
+     "enclave-base-holder"
+    ],
+    "lsblkMountpoints": [
+     "/srv/enclave-base-holder"
+    ]
+   }
+  ],
+  "cache-data.img": [
+   {
+    "loop": "/dev/loop2",
+    "backing": "/vmtest/enclave-base-holder-cache/cache-data.img",
+    "autoclear": "0",
+    "holders": [
+     "dm-1"
+    ],
+    "lsblkName": [
+     "loop2",
+     "enclave-base-holder"
+    ],
+    "lsblkMountpoints": [
+     "/srv/enclave-base-holder"
+    ]
+   }
+  ],
+  "cache-meta.img": [
+   {
+    "loop": "/dev/loop3",
+    "backing": "/vmtest/enclave-base-holder-cache/cache-meta.img",
+    "autoclear": "0",
+    "holders": [
+     "dm-1"
+    ],
+    "lsblkName": [
+     "loop3",
+     "enclave-base-holder"
+    ],
+    "lsblkMountpoints": [
+     "/srv/enclave-base-holder"
+    ]
+   }
+  ]
+ },
+ "holder.disassemble": {
+  "rc": 0,
+  "err": "holder-storage: disassembled"
+ },
+ "A.afterDisassemble": {
+  "loops": [
+   {
+    "name": "/dev/loop0",
+    "back-file": "/vmtest/vmtest2.img",
+    "back-ino": 13,
+    "maj:min": "7:0",
+    "autoclear": false
+   }
+  ],
+  "dm": [
+   "vmtest-crypt"
+  ],
+  "mounts": [
+   "/vmtest",
+   "/usbtest",
+   "/vmtest2"
+  ]
+ },
+ "B.held-by-foreign-mapping.composed": {
+  "rc": 2,
+  "err": "holder-storage: /dev/loop1 (/usbtest/enclave-base-holder/origin.img) is still mounted or held by another device: not detaching it (stopping)",
+  "before": {
+   "loop": "/dev/loop1",
+   "backing": "/usbtest/enclave-base-holder/origin.img",
+   "autoclear": "0",
+   "holders": [
+    "dm-1"
+   ],
+   "lsblkName": [
+    "loop1",
+    "foreign-hold"
+   ],
+   "lsblkMountpoints": []
+  },
+  "afterDisassemble": {
+   "loop": "/dev/loop1",
+   "backing": "/usbtest/enclave-base-holder/origin.img",
+   "autoclear": "0",
+   "holders": [
+    "dm-1"
+   ],
+   "lsblkName": [
+    "loop1",
+    "foreign-hold"
+   ],
+   "lsblkMountpoints": []
+  },
+  "loopStillBoundAfterUserGone": true
+ },
+ "B.held-by-foreign-mapping.old-control": {
+  "rc": 0,
+  "err": "holder-storage: disassembled",
+  "before": {
+   "loop": "/dev/loop1",
+   "backing": "/usbtest/enclave-base-holder/origin.img",
+   "autoclear": "0",
+   "holders": [
+    "dm-1"
+   ],
+   "lsblkName": [
+    "loop1",
+    "foreign-hold"
+   ],
+   "lsblkMountpoints": []
+  },
+  "afterDisassemble": {
+   "loop": "/dev/loop1",
+   "backing": "/usbtest/enclave-base-holder/origin.img",
+   "autoclear": "1",
+   "holders": [
+    "dm-1"
+   ],
+   "lsblkName": [
+    "loop1",
+    "foreign-hold"
+   ],
+   "lsblkMountpoints": []
+  },
+  "loopStillBoundAfterUserGone": false
+ },
+ "B.mounted-elsewhere.composed": {
+  "rc": 2,
+  "err": "holder-storage: /dev/loop1 (/usbtest/enclave-base-holder/origin.img) is still mounted or held by another device: not detaching it (stopping)",
+  "before": {
+   "loop": "/dev/loop1",
+   "backing": "/usbtest/enclave-base-holder/origin.img",
+   "autoclear": "0",
+   "holders": [],
+   "lsblkName": [
+    "loop1"
+   ],
+   "lsblkMountpoints": [
+    "/mnt-raw"
+   ]
+  },
+  "afterDisassemble": {
+   "loop": "/dev/loop1",
+   "backing": "/usbtest/enclave-base-holder/origin.img",
+   "autoclear": "0",
+   "holders": [],
+   "lsblkName": [
+    "loop1"
+   ],
+   "lsblkMountpoints": [
+    "/mnt-raw"
+   ]
+  },
+  "loopStillBoundAfterUserGone": true
+ },
+ "B.mounted-elsewhere.old-control": {
+  "rc": 0,
+  "err": "holder-storage: disassembled",
+  "before": {
+   "loop": "/dev/loop1",
+   "backing": "/usbtest/enclave-base-holder/origin.img",
+   "autoclear": "0",
+   "holders": [],
+   "lsblkName": [
+    "loop1"
+   ],
+   "lsblkMountpoints": [
+    "/mnt-raw"
+   ]
+  },
+  "afterDisassemble": {
+   "loop": "/dev/loop1",
+   "backing": "/usbtest/enclave-base-holder/origin.img",
+   "autoclear": "1",
+   "holders": [],
+   "lsblkName": [
+    "loop1"
+   ],
+   "lsblkMountpoints": [
+    "/mnt-raw"
+   ]
+  },
+  "loopStillBoundAfterUserGone": false
+ },
+ "C.noPriorLoop.composed": {
+  "rc": 0,
+  "originLoopsLeft": []
+ },
+ "C.noPriorLoop.old-control": {
+  "rc": 0,
+  "originLoopsLeft": [
+   "/dev/loop1"
+  ]
+ },
+ "C.preExistingLoop.composed": {
+  "rc": 0,
+  "kept": true,
+  "backing": "/usbtest/enclave-base-holder/origin.img",
+  "inodeSame": true
+ },
+ "D1.ownedAdoption": {
+  "rc": 0,
+  "err": "holder-storage: created (not assembled)"
+ },
+ "D2.unmarkedForeign": {
+  "tightMargin": {
+   "rc": 2,
+   "err": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+  },
+  "zeroMargin": {
+   "rc": 2,
+   "err": "refused\": \"/vmtest/enclave-l1-pair-cache/cache-meta.img exists without this reservation's ownership marker: refusing\"}\nholder-storage: NVMe cache budget reservation refused\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+  },
+  "foreignUnchanged": true,
+  "originCreated": false,
+  "loops": []
+ },
+ "D3.symlink": {
+  "short": {
+   "linkLength": 21,
+   "linkAllocatedBytes": 0,
+   "composed": {
+    "knifeEdgeMargin": {
+     "rc": 2,
+     "err": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+    },
+    "zeroMargin": {
+     "rc": 2,
+     "err": "{\"refused\": \"/vmtest/enclave-l1-pair-cache/cache-meta.img is not this reservation's regular file\"}\nholder-storage: NVMe cache budget allocation refused\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+    }
+   },
+   "mutant": {
+    "knifeEdgeMargin": {
+     "rc": 2,
+     "err": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+    },
+    "zeroMargin": {
+     "rc": 2,
+     "err": "{\"refused\": \"/vmtest/enclave-l1-pair-cache/cache-meta.img is not this reservation's regular file\"}\nholder-storage: NVMe cache budget allocation refused\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+    }
+   },
+   "stateAfter": {
+    "targetUnchanged": true,
+    "symlinkIntact": true,
+    "originCreated": false,
+    "loops": [],
+    "dataFileCreated": false
+   }
+  },
+  "long": {
+   "linkLength": 110,
+   "linkAllocatedBytes": 4096,
+   "composed": {
+    "knifeEdgeMargin": {
+     "rc": 2,
+     "err": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+    },
+    "zeroMargin": {
+     "rc": 2,
+     "err": "{\"refused\": \"/vmtest/enclave-l1-pair-cache/cache-meta.img is not this reservation's regular file\"}\nholder-storage: NVMe cache budget allocation refused\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+    }
+   },
+   "mutant": {
+    "knifeEdgeMargin": {
+     "rc": 2,
+     "err": "{\"refused\": \"/vmtest/enclave-l1-pair-cache/cache-meta.img is not this reservation's regular file\"}\nholder-storage: NVMe cache budget allocation refused\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+    },
+    "zeroMargin": {
+     "rc": 2,
+     "err": "{\"refused\": \"/vmtest/enclave-l1-pair-cache/cache-meta.img is not this reservation's regular file\"}\nholder-storage: NVMe cache budget allocation refused\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+    }
+   },
+   "stateAfter": {
+    "targetUnchanged": true,
+    "symlinkIntact": true,
+    "originCreated": false,
+    "loops": [],
+    "dataFileCreated": false
+   }
+  }
+ },
+ "pair.recreate": {
+  "rc": 0,
+  "err": "holder-storage: created (not assembled)"
+ },
+ "D4.otherFilesystem": {
+  "tightMargin": {
+   "rc": 2,
+   "err": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
+  },
+  "stateAfterRefusal": {
+   "filesUnchanged": true,
+   "originCreated": false,
+   "loops": []
+  },
+  "zeroMarginAdopts": {
+   "rc": 0,
+   "err": "holder-storage: created (not assembled)"
+  },
+  "devices": {
+   "/vmtest/probe-cache/cache-data.img": 64768,
+   "/vmtest2/probe-meta/cache-meta.img": 1792
+  }
+ },
+ "E1.sigtermSweep": {
+  "uninterruptedSec": 0.296,
+  "attempts": [
+   {
+    "delay": 0.044,
+    "rc": 143,
+    "originLeft": false,
+    "loopsLeft": [],
+    "err": "holder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted"
+   },
+   {
+    "delay": 0.089,
+    "rc": 143,
+    "originLeft": false,
+    "loopsLeft": [],
+    "err": "holder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted"
+   },
+   {
+    "delay": 0.133,
+    "rc": 143,
+    "originLeft": false,
+    "loopsLeft": [],
+    "err": "A_BYTES\" \"$CMETA=$CMETA_BYTES\"\nholder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted"
+   },
+   {
+    "delay": 0.178,
+    "rc": 143,
+    "originLeft": false,
+    "loopsLeft": [],
+    "err": "l \"$ORIGIN_BYTES\" -- \"$ORIGIN\"\nholder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted"
+   },
+   {
+    "delay": 0.222,
+    "rc": 143,
+    "originLeft": false,
+    "loopsLeft": [],
+    "err": "holder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted"
+   },
+   {
+    "delay": 0.266,
+    "rc": 143,
+    "originLeft": false,
+    "loopsLeft": [],
+    "err": "holder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted"
+   }
+  ]
+ },
+ "pair.final": {
+  "rc": 0,
+  "err": "holder-storage: created (not assembled)"
+ },
+ "E2.assemble": {
+  "rc": 0,
+  "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder"
+ },
+ "E2.dataAfterCacheLoss": {
+  "files": 4,
+  "mismatches": []
+ },
+ "E2.status": "0 327680 cache 8 7/4096 512 1/256 147 135 0 1 0 1 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -",
+ "E2.verifyCap": {
+  "rc": 0,
+  "err": ""
+ },
+ "F.holder.disassemble": {
+  "rc": 0,
+  "err": "holder-storage: disassembled"
+ },
+ "F.pair.disassemble": {
+  "rc": 0,
+  "err": "holder-storage: disassembled"
+ },
+ "F.probe.disassemble": {
+  "rc": 0,
+  "err": "holder-storage: disassembled"
+ },
+ "F.final": {
+  "clean": true,
+  "loops": [],
+  "dm": [
+   "No",
+   "devices",
+   "found"
+  ],
+  "mounts": []
+ }
+}

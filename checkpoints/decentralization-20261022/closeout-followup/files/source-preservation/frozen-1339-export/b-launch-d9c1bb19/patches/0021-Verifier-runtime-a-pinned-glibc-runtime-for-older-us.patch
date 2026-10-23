@@ -1,0 +1,283 @@
+From 66812187789d5417963fd37178ef39b6cdd8ebc0 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:11:12 -0700
+Subject: [PATCH 21/28] Verifier runtime: a pinned glibc runtime for older
+ userlands, and verify-in-place staging
+
+The Linux guest base (dist-sdshield-2857356cd) is Debian 12 with glibc 2.36; the pinned Helios
+cc962e2b needs GLIBC_2.39 and the helper 4fe0cd3b GLIBC_2.38, so neither starts there (probed in the
+extracted guest rootfs). Rebuilding them would need another toolchain, so the runtime can start those two
+through an exact glibc runtime instead: config glibcRuntime {dir, files, binaries}, accepted only when
+its four files (ld-linux, libc, libm, libgcc_s) equal a tested set in PINNED_GLIBC_RUNTIMES (the build
+host's Arch glibc 2.44 / gcc-libs 16.2.1). Helios runs as <loader> --library-path <dir> <helios>; the
+helper through a private 0500 wrapper in the run directory. The listener keeps its own digest check and
+the host glibc (it needs 2.34).
+
+binaryStaging 'verify-in-place' (default stays 'copy'): for a read-only measured image, where a second copy
+of ~230 MB would cost guest RAM, each file and every directory above it must be owned by root or the
+runtime user and writable by no one else; it is hashed and executed where it is, and leftover children
+are then reaped by recorded identity only. rpc-runtime-main check hashes the glibc files too.
+---
+ network/rpc-runtime-main.mjs |  10 +++-
+ network/rpc-runtime.mjs      | 107 ++++++++++++++++++++++++++++++-----
+ test/rpc-runtime.test.mjs    |  33 +++++++++++
+ 3 files changed, 134 insertions(+), 16 deletions(-)
+
+diff --git a/network/rpc-runtime-main.mjs b/network/rpc-runtime-main.mjs
+index aa294d71a75c0a1d79a3e890f803976ed6dd918f..b5c64b41c968e224630cb1c3133a69e4def9552b 100644
+--- a/network/rpc-runtime-main.mjs
++++ b/network/rpc-runtime-main.mjs
+@@ -9,6 +9,7 @@
+ // unset chainAuthority there (the legacy provider quorum), never a fallback inside this runtime.
+ import fs from 'node:fs';
+ import { createHash } from 'node:crypto';
++import path from 'node:path';
+ import { validateRuntimeConfig, runRpcRuntimeProcess, preflightTools, LABELS, CHAIN_ID } from './rpc-runtime.mjs';
+ 
+ const [cmd, file] = process.argv.slice(2);
+@@ -24,6 +25,12 @@ if (cmd === 'check') {
+     binaries[role] = { path: b.path, pinned: b.sha256, actual: digest, build: b.build, ok: digest === b.sha256 };
+     ok &&= digest === b.sha256;
+   }
++  if (config.glibcRuntime) for (const [n, want] of Object.entries(config.glibcRuntime.files)) {
++    const f = path.join(config.glibcRuntime.dir, n);
++    let digest; try { digest = createHash('sha256').update(fs.readFileSync(f)).digest('hex'); } catch (e) { digest = `unreadable (${e.code || e.message})`; }
++    binaries[`glibc ${n}`] = { path: f, pinned: want, actual: digest, build: config.glibcRuntime.build, ok: digest === want };
++    ok &&= digest === want;
++  }
+   let tools; try { tools = await preflightTools(config.hostTools, { needCurl: !!config.witnessArchive }); } catch (e) { tools = { error: String(e.message || e) }; ok = false; }
+   console.log(JSON.stringify({ ok, chainId: CHAIN_ID, unsafeSigner: config.chain.unsafeSigner, verifierUrl: `http://127.0.0.1:${config.verifier.port}/`,
+     order: ['stateDir kernel lock (flock, parent-held descriptor)', 'witness-check helper (offline)', 'root store (pushed signed heads only)', 'head relay 127.0.0.1:ephemeral',
+@@ -31,7 +38,8 @@ if (cmd === 'check') {
+       'gossip listener (native commitment) -> roots.offer -> relay.offer', 'first fresh verified head', 'Helios 127.0.0.1:' + config.verifier.port, 'ready'],
+     untrustedProofSources: config.proofSources.untrusted.length, witnessCache: 'none',
+     witnessArchive: config.witnessArchive ? { endpoint: config.witnessArchive.endpoint, bucket: config.witnessArchive.bucket, writes: config.witnessArchive.writes } : null,
+-    hostTools: { ...config.hostTools, probed: tools }, binaries, labels: LABELS }, null, 2));
++    hostTools: { ...config.hostTools, probed: tools }, binaryStaging: config.binaryStaging,
++    glibcRuntime: config.glibcRuntime ? { dir: config.glibcRuntime.dir, build: config.glibcRuntime.build, for: config.glibcRuntime.binaries } : null, binaries, labels: LABELS }, null, 2));
+   process.exit(ok ? 0 : 2);
+ }
+ await runRpcRuntimeProcess(raw);   // validated again inside, from the same raw document
+diff --git a/network/rpc-runtime.mjs b/network/rpc-runtime.mjs
+index 8632ddf6896ee2f01ad3f7b6641c12590ed0f21a..2c2de5b3b75b95233263b075a701397f0c40c580 100644
+--- a/network/rpc-runtime.mjs
++++ b/network/rpc-runtime.mjs
+@@ -76,6 +76,22 @@ export const PINNED_BUILDS = Object.freeze({
+   }),
+ });
+ const ROLES = Object.freeze(['listener', 'helios', 'witnessCheck']);
++/**
++ * Exact glibc runtimes a binary may be started under instead of the host's own (sha256 per file, by provenance). For a
++ * userland whose glibc is older than a pinned build needs (the Linux guest base is Debian 12, glibc 2.36; the pinned
++ * Helios needs GLIBC_2.39 and the helper GLIBC_2.38): the binary runs through this runtime's own loader with
++ * --library-path, so only the four files below (the binaries need nothing else) are taken from it. Adding one is a
++ * reviewed source change with test evidence, like PINNED_BUILDS.
++ */
++export const PINNED_GLIBC_RUNTIMES = Object.freeze({
++  'arch glibc 2.44+r50+g1848099f063e-1, gcc-libs 16.2.1+r23+gd564253eb6c8-1 (the build host of the pinned binaries)': Object.freeze({
++    'ld-linux-x86-64.so.2': 'f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757',
++    'libc.so.6': '02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524',
++    'libm.so.6': '965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d',
++    'libgcc_s.so.1': 'e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a',
++  }),
++});
++const GLIBC_FILES = Object.freeze(['ld-linux-x86-64.so.2', 'libc.so.6', 'libm.so.6', 'libgcc_s.so.1']);
+ const STAGED = Object.freeze({ listener: 'enclave-base-head-listener', helios: 'helios', witnessCheck: 'witness-check' });
+ const NO_HINT = Object.freeze(WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList'));
+ const ADDR = /^0x[0-9a-fA-F]{40}$/, SHA = /^[0-9a-f]{64}$/;
+@@ -126,7 +142,8 @@ const absPath = (where, v) => { if (typeof v !== 'string' || !path.isAbsolute(v)
+  * }
+  */
+ export function validateRuntimeConfig(raw, { acceptedBuilds = PINNED_BUILDS } = {}) {
+-  only('config', raw, ['format', 'chain', 'binaries', 'proofSources', 'verifier', 'stateDir', 'gossip', 'witnessCache', 'witnessArchive', 'hostTools', 'limits'],
++  only('config', raw, ['format', 'chain', 'binaries', 'proofSources', 'verifier', 'stateDir', 'gossip', 'witnessCache', 'witnessArchive', 'hostTools',
++    'glibcRuntime', 'binaryStaging', 'limits'],
+     ['format', 'chain', 'binaries', 'proofSources', 'verifier', 'stateDir']);
+   if (raw.format !== CONFIG_FORMAT) fail(`format must be ${CONFIG_FORMAT}${raw.format === 'enclave-rpc-runtime/v1' ? ' (v1 had an unbudgeted local cache and no archive; rewrite the config)' : ''}`);
+   only('chain', raw.chain, ['chainId', 'unsafeSigner'], ['chainId', 'unsafeSigner']);
+@@ -179,6 +196,19 @@ export function validateRuntimeConfig(raw, { acceptedBuilds = PINNED_BUILDS } =
+   const t = raw.hostTools ?? {};
+   only('hostTools', t, ['flock', 'curl']);
+   const hostTools = Object.freeze({ flock: absPath('hostTools.flock', t.flock ?? DEFAULT_TOOLS.flock), curl: absPath('hostTools.curl', t.curl ?? DEFAULT_TOOLS.curl) });
++  let glibcRuntime = null;
++  if (raw.glibcRuntime !== undefined && raw.glibcRuntime !== null) {
++    const r = raw.glibcRuntime;
++    only('glibcRuntime', r, ['dir', 'files', 'binaries'], ['dir', 'files', 'binaries']);
++    only('glibcRuntime.files', r.files, GLIBC_FILES, GLIBC_FILES);
++    const set = Object.entries(PINNED_GLIBC_RUNTIMES).find(([, f]) => GLIBC_FILES.every((n) => f[n] === r.files[n]));
++    if (!set) fail('glibcRuntime.files is not a tested glibc runtime of this runtime');
++    if (!Array.isArray(r.binaries) || !r.binaries.length || r.binaries.some((b) => !['helios', 'witnessCheck'].includes(b)) || new Set(r.binaries).size !== r.binaries.length)
++      fail('glibcRuntime.binaries: helios and/or witnessCheck (the listener is checked by its own digest and runs on the host glibc)');
++    glibcRuntime = Object.freeze({ dir: absPath('glibcRuntime.dir', r.dir), files: Object.freeze({ ...set[1] }), build: set[0], binaries: Object.freeze([...r.binaries]) });
++  }
++  if (raw.binaryStaging !== undefined && !['copy', 'verify-in-place'].includes(raw.binaryStaging)) fail('binaryStaging must be copy or verify-in-place');
++  const binaryStaging = raw.binaryStaging ?? 'copy';
+   const l = raw.limits ?? {};
+   only('limits', l, ['firstHeadTimeoutMs', 'heliosReadyTimeoutMs']);
+   const stateDir = absPath('stateDir', raw.stateDir);
+@@ -194,6 +224,8 @@ export function validateRuntimeConfig(raw, { acceptedBuilds = PINNED_BUILDS } =
+     witnessCache: null,
+     witnessArchive,
+     hostTools,
++    glibcRuntime,
++    binaryStaging,
+     limits: Object.freeze({ firstHeadTimeoutMs: int('limits.firstHeadTimeoutMs', l.firstHeadTimeoutMs, 5000, 900_000, 180_000),
+       heliosReadyTimeoutMs: int('limits.heliosReadyTimeoutMs', l.heliosReadyTimeoutMs, 5000, 600_000, 120_000) }),
+   });
+@@ -292,6 +324,19 @@ export async function preflightTools(tools, { needCurl }) {
+   return out;
+ }
+ 
++/** verify-in-place: the file and every directory above it are owned by root or this user and writable by nobody else. */
++function safeInPlace(what, file) {
++  const me = process.getuid();
++  let st; try { st = fs.lstatSync(file); } catch { fail(`${what}: ${file} cannot be read`); }
++  if (!st.isFile()) fail(`${what}: ${file} must be a regular file (not a symlink) to be verified in place`);
++  for (let p = file; ; p = path.dirname(p)) {
++    const s = fs.lstatSync(p);
++    if ((s.uid !== 0 && s.uid !== me) || (s.mode & 0o022)) fail(`${what}: ${p} must be owned by root or the runtime user and writable by no one else (verify-in-place)`);
++    if (s.isSymbolicLink()) fail(`${what}: ${p} is a symlink (verify-in-place needs a real path)`);
++    if (p === path.dirname(p)) break;
++  }
++}
++
+ /** S3 archive access: a regular, non-symlink, owner-only (0600) file of this user holding {accessKeyId, secretAccessKey}. */
+ function readArchiveAccess(file) {
+   let st; try { st = fs.lstatSync(file); } catch { fail(`witnessArchive.accessFile ${file} does not exist`); }
+@@ -387,7 +432,7 @@ export async function startRpcRuntime(rawConfig, { acceptedBuilds = PINNED_BUILD
+         if ((await signalOwned(id, 'SIGKILL')).length) state.reaped.recorded++;
+       }
+     }
+-    for (const pid of leftoverStaged(runsDir, null)) { try { process.kill(pid, 'SIGKILL'); state.reaped.staged++; } catch {} }
++    if (config.binaryStaging === 'copy') for (const pid of leftoverStaged(runsDir, null)) { try { process.kill(pid, 'SIGKILL'); state.reaped.staged++; } catch {} }
+     for (const name of fs.readdirSync(runsDir)) {
+       const dir = path.join(runsDir, name);
+       if (/^r\d+-[0-9a-f]{12}$/.test(name) && fs.existsSync(path.join(dir, 'OWNER'))) { fs.rmSync(dir, { recursive: true, force: true }); state.reaped.runDirs++; }
+@@ -395,25 +440,55 @@ export async function startRpcRuntime(rawConfig, { acceptedBuilds = PINNED_BUILD
+     fs.rmSync(childrenFile, { force: true });
+     if (state.reaped.recorded || state.reaped.staged) await sleep(200);   // let the kernel tear the reaped ones down
+ 
+-    // a fresh 0700 run directory; binaries are copied in, hashed THERE and executed from there
++    // a fresh 0700 run directory. 'copy': binaries are copied in, hashed THERE and executed from there (no check-then-swap
++    // window). 'verify-in-place' (a read-only measured image, where a second copy would cost guest RAM): each file and every
++    // directory above it must be owned by root or this user and writable by nobody else, then it is hashed and executed
++    // where it is; leftover children are then reaped by their recorded identities only.
+     const runDir = path.join(runsDir, `r${Date.now()}-${randomBytes(6).toString('hex')}`);
+     fs.mkdirSync(runDir, { mode: 0o700 });
+     stops.push(() => fs.rmSync(runDir, { recursive: true, force: true }));
+     fs.writeFileSync(path.join(runDir, 'OWNER'), `rpc-runtime pid=${process.pid}\n`, { flag: 'wx' });
+     fs.mkdirSync(path.join(runDir, 'bin'), { mode: 0o700 });
+-    const bin = {};
+-    for (const role of ROLES) {
+-      const b = config.binaries[role], dst = path.join(runDir, 'bin', STAGED[role]);
+-      try { fs.copyFileSync(b.path, dst, fs.constants.COPYFILE_EXCL); } catch (e) { fail(`binaries.${role}: ${b.path} cannot be read (${e.code || e.message})`); }
+-      fs.chmodSync(dst, 0o500);
++    const inPlace = config.binaryStaging === 'verify-in-place';
++    const place = (what, src, name, sha, mode) => {
++      if (inPlace) {
++        safeInPlace(what, src);
++        const digest = createHash('sha256').update(fs.readFileSync(src)).digest('hex');
++        if (digest !== sha) fail(`${what}: ${src} has sha256 ${digest}, not the pinned ${sha}`);
++        return src;
++      }
++      const dst = path.join(runDir, name);
++      try { fs.copyFileSync(src, dst, fs.constants.COPYFILE_EXCL); } catch (e) { fail(`${what}: ${src} cannot be read (${e.code || e.message})`); }
++      fs.chmodSync(dst, mode);
+       const digest = createHash('sha256').update(fs.readFileSync(dst)).digest('hex');
+-      if (digest !== b.sha256) fail(`binaries.${role}: ${b.path} has sha256 ${digest}, not the pinned ${b.sha256}`);
+-      bin[role] = dst;
++      if (digest !== sha) fail(`${what}: ${src} has sha256 ${digest}, not the pinned ${sha}`);
++      return dst;
++    };
++    const bin = {};
++    for (const role of ROLES) bin[role] = place(`binaries.${role}`, config.binaries[role].path, path.join('bin', STAGED[role]), config.binaries[role].sha256, 0o500);
++    // the pinned glibc runtime (optional): its loader starts the binaries that need it, with ONLY its directory searched
++    let glibc = null;
++    if (config.glibcRuntime) {
++      if (!inPlace) fs.mkdirSync(path.join(runDir, 'glibc'), { mode: 0o700 });
++      const files = {};
++      for (const n of GLIBC_FILES) files[n] = place(`glibcRuntime ${n}`, path.join(config.glibcRuntime.dir, n), path.join('glibc', n), config.glibcRuntime.files[n],
++        n === 'ld-linux-x86-64.so.2' ? 0o500 : 0o400);
++      glibc = { loader: files['ld-linux-x86-64.so.2'], dir: path.dirname(files['libc.so.6']), for: new Set(config.glibcRuntime.binaries) };
++      if (Object.values(files).some((f) => path.dirname(f) !== glibc.dir)) fail('glibcRuntime: its four files must be in one directory');
+     }
+-    log({ event: 'staged', runDir, binaries: Object.fromEntries(ROLES.map((r) => [r, config.binaries[r].sha256])) });
++    const viaGlibc = (role, args) => (glibc?.for.has(role) ? [glibc.loader, ['--library-path', glibc.dir, bin[role], ...args]] : [bin[role], args]);
++    log({ event: 'staged', runDir, staging: config.binaryStaging, binaries: Object.fromEntries(ROLES.map((r) => [r, config.binaries[r].sha256])),
++      glibcRuntime: config.glibcRuntime ? { build: config.glibcRuntime.build, for: config.glibcRuntime.binaries } : null });
+ 
+-    // 1. the helper: alive, and holding exactly our pins
+-    const checker = createWitnessChecker({ bin: bin.witnessCheck, chainId: CHAIN_ID, signer });
++    // 1. the helper: alive, and holding exactly our pins. Started through the pinned glibc runtime when configured: the
++    // helper client takes one executable, so a private 0500 wrapper in the run directory execs the loader with it.
++    let helperBin = bin.witnessCheck;
++    if (glibc?.for.has('witnessCheck')) {
++      const q = (x) => `'${String(x).replace(/'/g, `'\\''`)}'`;
++      helperBin = path.join(runDir, 'bin', 'witness-check.sh');
++      fs.writeFileSync(helperBin, `#!/bin/sh\nexec ${[glibc.loader, '--library-path', glibc.dir, bin.witnessCheck].map(q).join(' ')} "$@"\n`, { flag: 'wx', mode: 0o500 });
++    }
++    const checker = createWitnessChecker({ bin: helperBin, chainId: CHAIN_ID, signer });
+     stops.push(() => checker.close());
+     const v = await checker.check({ op: 'version' }).catch((e) => fail(`witness-check did not answer: ${e.message}`));
+     if (!v.ok || v.chainId !== CHAIN_ID || lower(v.signer) !== signer) fail('witness-check does not hold the pinned chain and signer');
+@@ -478,6 +553,7 @@ export async function startRpcRuntime(rawConfig, { acceptedBuilds = PINNED_BUILD
+         gossip: { running: g.running, session: g.session, counters: g.counters, lastExit: g.lastExit },
+         helios: helios ? { pid: helios.owned?.pid ?? null, exit: helios.exit } : null,
+         reaped: state.reaped,
++        binaries: { staging: config.binaryStaging, glibcRuntime: config.glibcRuntime ? { build: config.glibcRuntime.build, for: config.glibcRuntime.binaries } : null },
+       };
+     };
+     const writeStatus = () => { try { writeJsonAtomic(statusFile, status()); } catch {} };
+@@ -502,8 +578,9 @@ export async function startRpcRuntime(rawConfig, { acceptedBuilds = PINNED_BUILD
+     const home = path.join(runDir, 'helios-home');
+     fs.mkdirSync(path.join(home, '.helios'), { recursive: true, mode: 0o700 });
+     fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${signer}"\n`, { flag: 'wx', mode: 0o600 });
+-    const child = spawn(bin.helios, ['opstack', '--network', 'base', '--consensus-rpc', relayUrl, '--execution-rpc', gatewayUrl,
+-      '--rpc-bind-ip', '127.0.0.1', '--rpc-port', String(port)],
++    const [heliosExe, heliosArgs] = viaGlibc('helios', ['opstack', '--network', 'base', '--consensus-rpc', relayUrl, '--execution-rpc', gatewayUrl,
++      '--rpc-bind-ip', '127.0.0.1', '--rpc-port', String(port)]);
++    const child = spawn(heliosExe, heliosArgs,
+     { detached: true, stdio: ['ignore', 'ignore', 'pipe'], env: { HOME: home, PATH: '/usr/bin:/bin', RUST_LOG: 'warn' } });
+     const id = child.pid ? procIdentity(child.pid) : null;
+     helios = { child, owned: id && id.pgid === child.pid ? { pid: child.pid, pgid: id.pgid, startTime: id.startTime } : null, exit: null, stderrTail: '' };
+diff --git a/test/rpc-runtime.test.mjs b/test/rpc-runtime.test.mjs
+index 228af8bc65023d0a116f4da899311be40fde03dd..8808d0355c993bcc4ca8079b875a615d1a2eedf2 100644
+--- a/test/rpc-runtime.test.mjs
++++ b/test/rpc-runtime.test.mjs
+@@ -166,3 +166,36 @@ test('head fan-out: the root store binds first, then the relay; a refused root d
+   assert.equal(firstHead, 1, 'the first-head signal fires once');
+   assert.deepEqual({ offered: f.counters.offered, rootsBound: f.counters.rootsBound, rootsRefused: f.counters.rootsRefused, relayAccepted: f.counters.relayAccepted }, { offered: 4, rootsBound: 3, rootsRefused: 1, relayAccepted: 1 });
+ });
++
++test('glibc runtime: only a tested exact set, only for Helios and the helper; binary staging copy or verify-in-place', async () => {
++  const { PINNED_GLIBC_RUNTIMES } = await import('../network/rpc-runtime.mjs');
++  const [label, files] = Object.entries(PINNED_GLIBC_RUNTIMES)[0];
++  const g = { dir: '/opt/rpc-runtime/glibc', files: { ...files }, binaries: ['helios', 'witnessCheck'] };
++  const c = validateRuntimeConfig(base({ glibcRuntime: g, binaryStaging: 'verify-in-place' }));
++  assert.equal(c.glibcRuntime.build, label); assert.equal(c.binaryStaging, 'verify-in-place');
++  assert.equal(validateRuntimeConfig(base()).binaryStaging, 'copy', 'copy stays the default');
++  assert.equal(validateRuntimeConfig(base()).glibcRuntime, null);
++  bad({ glibcRuntime: { ...g, files: { ...files, 'libc.so.6': 'ab'.repeat(32) } } }, /not a tested glibc runtime/);
++  bad({ glibcRuntime: { ...g, binaries: ['listener'] } }, /helios and\/or witnessCheck/);
++  bad({ glibcRuntime: { ...g, binaries: [] } }, /helios and\/or witnessCheck/);
++  bad({ glibcRuntime: { ...g, files: { ...files, 'libpthread.so.0': 'ab'.repeat(32) } } }, /unknown field/);
++  bad({ glibcRuntime: { ...g, dir: 'glibc' } }, /absolute path/);
++  bad({ binaryStaging: 'symlink' }, /copy or verify-in-place/);
++});
++
++test('verify-in-place refuses a binary others could replace (group/other-writable file or directory), before anything starts', async () => {
++  const dir = path.join(TMP, 'inplace'); fs.mkdirSync(dir, { mode: 0o755 }); fs.chmodSync(dir, 0o755);
++  const fake = path.join(dir, 'listener'); fs.writeFileSync(fake, '#!/bin/sh\n', { mode: 0o555 }); fs.chmodSync(fake, 0o555);
++  const pin = createHash('sha256').update(fs.readFileSync(fake)).digest('hex');
++  const accepted = { ...PINNED_BUILDS, listener: { [pin]: 'test file' } };
++  const b = base().binaries;
++  const cfg = (stateDir) => base({ stateDir, binaryStaging: 'verify-in-place', binaries: { ...b, listener: { path: fake, sha256: pin } } });
++  fs.chmodSync(fake, 0o575);                                        // group-writable file
++  await assert.rejects(startRpcRuntime(cfg(path.join(TMP, 'ip1')), { acceptedBuilds: accepted }), /writable by no one else \(verify-in-place\)/);
++  fs.chmodSync(fake, 0o555); fs.chmodSync(dir, 0o775);              // group-writable directory above it
++  await assert.rejects(startRpcRuntime(cfg(path.join(TMP, 'ip2')), { acceptedBuilds: accepted }), /writable by no one else \(verify-in-place\)/);
++  fs.chmodSync(dir, 0o755);
++  // the positive in-place path (every parent owned by root or this user) runs in the guest chroot E2E; here, inside the test's
++  // user namespace, the host's real-root parents appear as the overflow uid and are refused too, as they should be
++  await lockFree(path.join(TMP, 'ip2'));
++});

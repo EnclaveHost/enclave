@@ -1,0 +1,160 @@
+From 4c059b997360483c743deca343c2e42b1b534eeb Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 05:28:19 -0700
+Subject: [PATCH 2/3] public-rpc: own-property lookups only (root allowlist
+ review); runner roles too
+
+Root reproduced that METHODS['constructor'|'toString'] and TX_KEYS['constructor']
+resolved to Object.prototype members, so an unsupported method or call field was
+accepted. METHODS, TX_KEYS and LIMITS now use Object.hasOwn (root's patch,
+work/root-public-rpc-allowlist-review-20261023, applied to the split files), and
+the runner's ROLES lookups the same (roleOf). Regression: constructor, toString,
+__proto__, hasOwnProperty, valueOf ... refused as methods (-32601, the node never
+asked), call fields (-32602), limits and roles.
+
+host-services-carriers: a failed stop records the exit (code, signal) and the
+daemon's output tail (root f1 review); the assertion itself is unchanged.
+---
+ network/host-services/runner.mjs     |  6 ++++--
+ network/public-rpc-config.mjs        |  3 ++-
+ network/public-rpc.mjs               |  5 +++--
+ test/host-services-carriers.test.mjs | 10 +++++++---
+ test/public-rpc.test.mjs             | 19 +++++++++++++++++++
+ 5 files changed, 35 insertions(+), 8 deletions(-)
+
+diff --git a/network/host-services/runner.mjs b/network/host-services/runner.mjs
+index f21a1bc3f516bd80272c23d3893e012f079aa8ab..058d9ae40dd6dbfdf13f64315844d48e54738048 100644
+--- a/network/host-services/runner.mjs
++++ b/network/host-services/runner.mjs
+@@ -50,10 +50,12 @@ import { keccak256, toBytes } from 'viem';
+ const sha = (b) => createHash('sha256').update(b).digest('hex');
+ const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
+ const fail = (m) => { throw new Error(`host services: ${m}`); };
++// a role named in configuration: an OWN entry of ROLES only (an inherited name such as constructor or toString is unknown)
++const roleOf = (name) => (typeof name === 'string' && Object.hasOwn(ROLES, name) ? ROLES[name] : null);
+ 
+ /** The reviewed package for `role`: its manifest must hash to `pin` (sha256:<hex>), its bundle to the manifest. */
+ export function loadPackage(packagesDir, role, pin) {
+-  if (!ROLES[role]) fail(`unknown role ${JSON.stringify(role)}`);
++  if (!roleOf(role)) fail(`unknown role ${JSON.stringify(role)}`);
+   if (!/^sha256:[0-9a-f]{64}$/.test(String(pin))) fail(`${role}: package must pin the reviewed manifest digest (sha256:<64 hex>)`);
+   const manifestFile = path.join(packagesDir, `${role}.package.json`);
+   const raw = fs.readFileSync(manifestFile);
+@@ -116,7 +118,7 @@ export function validateHostServicesConfig(cfg) {
+     if (!plain(s)) fail(`services[${i}] must be an object`);
+     if (s.memoryMiB !== undefined) fail(`services[${i}].memoryMiB is now heapMiB: it caps the V8 heap (--max-old-space-size), not the process's memory; set the process limit in the host's service manager`);
+     for (const k of Object.keys(s)) if (!['role', 'package', 'heapMiB', 'config'].includes(k)) fail(`services[${i}] has an unknown field ${JSON.stringify(k)}`);
+-    const role = ROLES[s.role];
++    const role = roleOf(s.role);
+     if (!role) fail(`services[${i}]: unknown role ${JSON.stringify(s.role)}`);
+     if (seen.has(s.role)) fail(`services[${i}]: ${s.role} twice`); seen.add(s.role);
+     const heapMiB = s.heapMiB ?? 256;
+diff --git a/network/public-rpc-config.mjs b/network/public-rpc-config.mjs
+index aba6c7526ec78a2c91467e2dd9d9ee7cedf33e7a..5a15a48b36abb7ea6cf9b396a5c320198dd48a6e 100644
+--- a/network/public-rpc-config.mjs
++++ b/network/public-rpc-config.mjs
+@@ -65,7 +65,8 @@ export function validatePublicRpcConfig(c) {
+   }
+   const limits = {};
+   if (c.limits !== undefined && !plain(c.limits)) fail('limits must be an object');
+-  for (const k of Object.keys(c.limits || {})) if (!LIMITS[k]) fail(`limits: unknown field ${JSON.stringify(k)}`);
++  // own properties only: an inherited name (constructor, toString, __proto__) is unknown, never a limit
++  for (const k of Object.keys(c.limits || {})) if (!Object.hasOwn(LIMITS, k)) fail(`limits: unknown field ${JSON.stringify(k)}`);
+   for (const [k, [lo, hi, def]] of Object.entries(LIMITS)) {
+     const v = (c.limits || {})[k] ?? def;
+     if (!Number.isInteger(v) || v < lo || v > hi) fail(`limits.${k}: ${lo} to ${hi}`);
+diff --git a/network/public-rpc.mjs b/network/public-rpc.mjs
+index 6fe7049544aaac25d8b11f209cc49d9cc26aee2d..998c9a4312248d3ec21d1fac8e5eab915dd9b5ff 100644
+--- a/network/public-rpc.mjs
++++ b/network/public-rpc.mjs
+@@ -48,7 +48,7 @@ const TX_KEYS = { from: addr, to: addr, gas: 'qty', gasPrice: 'qty', maxFeePerGa
+ function tx(v) {
+   if (!plain(v)) bad('the call must be a transaction object');
+   for (const [k, x] of Object.entries(v)) {
+-    const t = TX_KEYS[k];
++    const t = Object.hasOwn(TX_KEYS, k) ? TX_KEYS[k] : null;             // own properties only (root allowlist review)
+     if (!t) bad(`unsupported call field ${JSON.stringify(k).slice(0, 40)}`);
+     if (t === 'qty' ? !(typeof x === 'string' && QTY.test(x)) : t === 'hex' ? !(typeof x === 'string' && HEX.test(x)) : (t(x, k), false)) bad(`invalid ${k}`);
+   }
+@@ -178,7 +178,8 @@ export async function createPublicRpc(rawConfig, { fetch: backendFetch = globalT
+         return send(res, 200, rpcError(null, -32600, 'invalid JSON-RPC 2.0 request'), { origin: allowed });
+       const method = body.method, params = body.params === undefined ? [] : body.params;
+       if (FORBIDDEN.test(method)) return send(res, 200, rpcError(reqId, -32601, `${method.slice(0, 64)} is not offered by a public endpoint (no administration, debugging, signing, accounts, mempool or filters)`), { origin: allowed });
+-      const check = METHODS[method];
++      // own properties only: an inherited name (constructor, toString, __proto__) is not a method (root allowlist review)
++      const check = Object.hasOwn(METHODS, method) ? METHODS[method] : null;
+       if (!check) return send(res, 200, rpcError(reqId, -32601, `${method.slice(0, 64)} is not offered by this endpoint`), { origin: allowed });
+       if (method === 'eth_sendRawTransaction' && !cfg.rawTransactions)
+         return send(res, 200, rpcError(reqId, -32601, 'eth_sendRawTransaction is not offered: this operator has not stated a transaction propagation route for its node (nothing was submitted)'), { origin: allowed });
+diff --git a/test/host-services-carriers.test.mjs b/test/host-services-carriers.test.mjs
+index 050192a4cfc3fd29ef7644dbd48264b3374aef47..68803af26bdda4c31e3595eda25d66b0f787ffa0 100644
+--- a/test/host-services-carriers.test.mjs
++++ b/test/host-services-carriers.test.mjs
+@@ -55,6 +55,10 @@ test('shared helper: one carrier origin and base rule (policy-carriers re-export
+     assert.throws(() => hostServicesPolicyConfig(c), re, JSON.stringify(c));
+ });
+ 
++// a stop must exit 0; on a failure the exit (code, signal) and the daemon's output tail are the evidence (root f1 review:
++// tell a shutdown race from a fixture issue)
++const stoppedClean = async (d) => { const exit = await d.stop(); assert.equal(exit?.code, 0, 'stop: ' + JSON.stringify({ exit, out: String(d.out || '').slice(-3000) })); };
++
+ test('empty state, every fleet front refused: the first authenticated admit comes from an imported carrier', { timeout: 90_000 }, async (t) => {
+   const w = await world(t), d1 = await w.publish({ deny: [] }), importDir = tmpDir(t, 'policy-import-');
+   put(importDir, d1, w.document(d1));
+@@ -62,7 +66,7 @@ test('empty state, every fleet front refused: the first authenticated admit come
+   await d.until(/no apps: running this host's services only/); await d.until(STARTED);
+   assert.ok(fleetTried(rig).length >= 1, 'the production mirrors were tried, and refused at the socket');
+   noEnclaveLookups(rig);
+-  assert.ok((await d.stop())?.code === 0);
++  await stoppedClean(d);
+ });
+ 
+ test('missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart', { timeout: 120_000 }, async (t) => {
+@@ -83,7 +87,7 @@ test('missing, unanchored, substituted and wrongly signed carrier data never adm
+   }
+   put(importDir, d1, cur);                                         // the real one
+   await d.until(STARTED);
+-  assert.ok((await d.stop())?.code === 0); noEnclaveLookups(rig);
++  await stoppedClean(d); noEnclaveLookups(rig);
+ });
+ 
+ test('admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed', { timeout: 150_000 }, async (t) => {
+@@ -102,7 +106,7 @@ test('admin ban and allow arrive through the carrier; a missing updated document
+   w.anchor(d1);                                                                             // the admin re-anchors an OLDER document (still carried)
+   await sleep(5000);
+   assert.equal(count(d.out, STARTED), 2, 'an anchored rollback (sequence below the high-water) never admits');
+-  assert.ok((await d.stop())?.code === 0); noEnclaveLookups(rig);
++  await stoppedClean(d); noEnclaveLookups(rig);
+ });
+ 
+ test('first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit', { timeout: 120_000 }, async (t) => {
+diff --git a/test/public-rpc.test.mjs b/test/public-rpc.test.mjs
+index ca48d51c755d1248f7f53948eb453620491b3f38..047f04a4da476040fba6830d1aae96bb132993e1 100644
+--- a/test/public-rpc.test.mjs
++++ b/test/public-rpc.test.mjs
+@@ -171,6 +171,25 @@ test('refused without reaching the node: privileged and signing methods, unknown
+   assert.equal(r.fetchLog.length, count, 'refused methods never reach the node');
+ });
+ 
++test('inherited names are never methods, call fields, limits or roles (root allowlist review: own properties only)', { skip }, async () => {
++  const r = await role();
++  const before = r.fetchLog.length;
++  for (const m of ['constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf', '__defineGetter__', 'isPrototypeOf'])
++    assert.equal((await call(r, m, [])).body.error?.code, -32601, m);
++  assert.equal(r.fetchLog.length, before, 'an inherited name never reaches the node');
++  for (const f of ['constructor', 'toString', '__proto__', 'valueOf']) {
++    const body = `{"jsonrpc":"2.0","id":1,"method":"eth_call","params":[{"to":"${probe.address}","${f}":"0x"},"latest"]}`;
++    const res = await (await post(r, body)).json();
++    assert.match(res.error?.message || '', /unsupported call field/, f);
++  }
++  const ok = { port: 18191, bind: '127.0.0.1', hostId: HOST_ID, chainId: 8453, node: 'http://127.0.0.1:8545', allowedOrigins: ['https://dashboard.example'] };
++  for (const k of ['constructor', 'toString', 'hasOwnProperty']) assert.throws(() => validatePublicRpcConfig({ ...ok, limits: { [k]: 1 } }), /limits: unknown field/, k);
++  assert.throws(() => validatePublicRpcConfig({ ...ok, limits: JSON.parse('{"__proto__":{"maxBodyBytes":1}}') }), /limits: unknown field/);
++  for (const role of ['constructor', 'toString', '__proto__'])
++    assert.throws(() => validateHostServicesConfig({ format: 'enclave-host-services/v1', host: { endpoint: ENDPOINT }, platformHostPolicy: 'production', packagesDir: '/tmp/p', stateRoot: '/tmp/s',
++      services: [{ role, package: 'sha256:' + '0'.repeat(64), config: ok }] }), /unknown role/, role);
++});
++
+ test('CORS: the configured origins only, POST with content-type only, never credentials', { skip }, async () => {
+   const r = await role();
+   const pre = await fetch(r.url + '/', { method: 'OPTIONS', headers: { origin: PAGE, 'access-control-request-method': 'POST', 'access-control-request-headers': 'content-type' } });

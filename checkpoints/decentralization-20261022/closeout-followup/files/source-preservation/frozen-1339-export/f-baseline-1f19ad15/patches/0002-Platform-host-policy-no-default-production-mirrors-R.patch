@@ -1,0 +1,173 @@
+From c335c76cfe2b029d0db568c1e8ff2d46f4d32204 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 04:49:00 -0700
+Subject: [PATCH 2/4] Platform host policy: no default production mirrors (R2)
+
+PRODUCTION_MIRRORS = [] as installed: the four former fleet routes shared one infrastructure operator. A document reaches
+a gate through an operator-chosen mirror or a policy carrier. 4106c311 with only this line changed rebuilds the admission
+bundle to the installed 6bef372d byte-for-byte (D's reproduction target; job b1-admission).
+
+The four tests that used the default list as their fleet now name those routes explicitly (FLEET_MIRRORS) and assert the
+default is empty. The admission bundles are regenerated in the next commit (A's entry change), not here.
+---
+ network/platform-host-policy-config.mjs   | 12 ++++--------
+ test/host-service-verifier-roles.test.mjs |  8 ++++++--
+ test/host-services-carriers.test.mjs      |  7 +++++--
+ test/hosted-policy-cold-start.test.mjs    |  8 ++++++--
+ test/lease-relay-host-policy.test.mjs     |  8 ++++++--
+ 5 files changed, 27 insertions(+), 16 deletions(-)
+
+diff --git a/network/platform-host-policy-config.mjs b/network/platform-host-policy-config.mjs
+index 627be0427c0b1e17554766f19dab030bdb4cf924..14aa4bd44ada91531cd2a669602bc1b993cdf41d 100644
+--- a/network/platform-host-policy-config.mjs
++++ b/network/platform-host-policy-config.mjs
+@@ -16,14 +16,10 @@ const lc = (s) => String(s || "").toLowerCase();
+ export const PRODUCTION_BOOK = "0xab214342d5a490150a4a977063a2f88e21f80907";
+ export const PRODUCTION_HOST_OWNERSHIP = "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7";
+ // Public HTTPS transports verified on 2026-10-20; clients still verify the administrator signature and chain anchor.
+-// Publish a reviewed signed document to these routes BEFORE anchoring it. Extra operator-chosen mirrors are supported.
+-// These four regional endpoints share an infrastructure operator; they do not establish independent operation.
+-export const PRODUCTION_MIRRORS = Object.freeze([
+-  "https://134.199.235.187/platform-policy",
+-  "https://134.209.248.172/platform-policy",
+-  "https://165.245.191.129/platform-policy",
+-  "https://146.190.246.39/platform-policy",
+-]);
++// NO default mirror: the four former fleet routes shared one infrastructure operator, and the installed Windows admission
++// bundle (6bef372d) already names none. An anchored document reaches a gate through an operator-chosen mirror or a policy
++// CARRIER (an imported directory, a policy-mirror store, a peer, the service index); see network/policy-carriers.mjs.
++export const PRODUCTION_MIRRORS = Object.freeze([]);
+ // The policy's own read quorum (distinct public Base RPCs; majority 3 of 4), independent of a component's single RPC.
+ export const PRODUCTION_RPCS = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"]);
+ export const PRODUCTION_HOST_POLICY = Object.freeze({ chainId: 8453, book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP,
+diff --git a/test/host-service-verifier-roles.test.mjs b/test/host-service-verifier-roles.test.mjs
+index 066490e3ce2d9b1b52f1080889ad1190bfe2eed0..6a239ca55c6aac9c43f540a52eca0824e83ebfe3 100644
+--- a/test/host-service-verifier-roles.test.mjs
++++ b/test/host-service-verifier-roles.test.mjs
+@@ -41,6 +41,9 @@ const compileIndexInChild = () => JSON.parse(execFileSync(process.execPath, ['--
+   `import { compileServiceIndex } from ${JSON.stringify(pathToFileURL(path.join(REPO, 'scripts/network/service-index.mjs')).href)}; process.stdout.write(JSON.stringify(compileServiceIndex()));`],
+   { maxBuffer: 16 << 20, timeout: 180000 }).toString());
+ const DO = { addresses: ['134.199.235.187', '134.209.248.172', '165.245.191.129', '146.190.246.39'] };
++// the four FORMER fleet fronts, configured explicitly so the test still proves every such front is refused at the
++// transport; the shipped production default (network/platform-host-policy-config.mjs) names no mirror at all
++const FLEET_MIRRORS = DO.addresses.map((ip) => `https://${ip}/platform-policy`);
+ const pin = (role) => 'sha256:' + createHash('sha256').update(fs.readFileSync(path.join(PKG, `${role}.package.json`))).digest('hex');
+ const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, name + '.json'), 'utf8')); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
+ const tmp = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'hs-verifier-'));
+@@ -63,7 +66,7 @@ const wait = async (f, ms = 40000, what = 'condition') => { const end = Date.now
+ const up = (port) => fetch(`http://127.0.0.1:${port}/health`).then((r) => r.ok, () => false);
+ 
+ let rig, verifier, miner, index, indexPin, book, ownership, bookAbi, registryAddr, hosts = {}, docs = [];
+-const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...PRODUCTION_MIRRORS], activation: 'required' });
++const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...FLEET_MIRRORS], activation: 'required' });
+ async function sign(deny, signer = admin) {
+   const prev = docs.length ? docs[docs.length - 1].digest : Z32;
+   const p = { format: POLICY_FORMAT, chainId: 8453, book: book.toLowerCase(), registry: registryAddr.toLowerCase(), hostOwnership: ownership.toLowerCase(),
+@@ -163,7 +166,8 @@ test('every public provider down: the hosts start on the verifier alone; the rol
+   const sa = hosts.a.running.status();
+   assert.equal(sa.refusal, null); assert.equal(sa.platformHostPolicy.runtime.accepted.digest, docs[0].digest);
+   assert.match(String(sa.platformHostPolicy.runtime.chainAuthority), /local-verifier/);
+-  assert.ok(denied.some((u) => u.startsWith(PRODUCTION_MIRRORS[0])), 'the fleet mirrors were tried and refused');
++  assert.ok(denied.some((u) => u.startsWith(FLEET_MIRRORS[0])), 'the fleet mirrors were tried and refused');
++  assert.deepEqual([...PRODUCTION_MIRRORS], [], 'the shipped production default names no mirror');
+   await wait(() => netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy/${docs[0].digest}.json`).then((r) => r.ok), 30000, 'host A mirror holds the anchored document');
+   assert.ok(hosts.a.logs.some((l) => /chain reads: local-verifier \(unsafe tier, proof-backed, no provider fallback\)/.test(l)), 'the PACKAGED directory replica reads through the verifier\n' + hosts.a.logs.join('\n'));
+   assert.ok(verifier.state.calls.slice(before).some((c) => c.method === 'eth_call' && c.to === book.toLowerCase()), 'the gate read the book through the verifier');
+diff --git a/test/host-services-carriers.test.mjs b/test/host-services-carriers.test.mjs
+index 050192a4cfc3fd29ef7644dbd48264b3374aef47..ea6a6b7b6de6f5949717ea534db7f6188b1c7984 100644
+--- a/test/host-services-carriers.test.mjs
++++ b/test/host-services-carriers.test.mjs
+@@ -20,6 +20,9 @@ import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+ import { platformPolicyWorld, BOOK, OWNERSHIP } from './helpers/platform-policy-world.mjs';
+ import { hostRig, daemon, sleep, count, ENDPOINT, RUNNER, DO_FRONTS, HS } from './helpers/privacy-agent-rig.mjs';
+ import { PRODUCTION_MIRRORS } from '../network/platform-host-policy-config.mjs';
++// the four FORMER fleet fronts, configured explicitly so the test still proves every such front is refused at the
++// transport; the shipped production default (network/platform-host-policy-config.mjs) names no mirror at all
++const FLEET_MIRRORS = DO_FRONTS.map((ip) => `https://${ip}/platform-policy`);
+ import { policyTypedData } from '../network/platform-host-policy.mjs';
+ import { quorumSnapshot } from '../network/host-policy-runtime.mjs';
+ import { hostServicesPolicyConfig, hostPolicyGateEnv, CARRIER_MIRROR } from '../network/host-policy-gate-config.mjs';
+@@ -32,7 +35,7 @@ const STARTED = /host services: \{/, STOPPED = /host services stopped: platform
+ const FAST = { ENCLAVE_PLATFORM_HOST_POLICY_INTERVAL_SEC: '1', ENCLAVE_PLATFORM_HOST_POLICY_GRACE_SEC: '6' };
+ const world = (t) => platformPolicyWorld(t, { hosts: { [RUNNER]: { endpoint: ENDPOINT, operator: OPERATOR, owner: '0x' + '55'.repeat(20), active: true } } });
+ // the production-shaped policy for the fixture's book: its mirrors are the four fleet fronts (all refused here)
+-const block = (w, carriers) => ({ policy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [...PRODUCTION_MIRRORS] }, rpcs: w.rpcs, carriers });
++const block = (w, carriers) => ({ policy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [...FLEET_MIRRORS] }, rpcs: w.rpcs, carriers });
+ const tmpDir = (t, p) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), p)); t.after(() => fs.rmSync(d, { recursive: true, force: true })); return d; };
+ const put = (dir, name, body) => { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, `${name}.json`), JSON.stringify(body)); };
+ const ban = [{ kind: 'operator', value: OPERATOR, reason: 'abuse' }];
+@@ -183,7 +186,7 @@ function enrollRig(t, optIn) {
+ }
+ 
+ test('enrollment: the opt-in file carries hostServicesPolicy (a non-production book becomes eligible only through it); an invalid one writes nothing', async (t) => {
+-  const hsp = { policy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [...PRODUCTION_MIRRORS] }, rpcs: ['https://rpc-a.example', 'https://rpc-b.example'], carriers: { importDir: '/var/lib/enclave/policy-import' } };
++  const hsp = { policy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [...FLEET_MIRRORS] }, rpcs: ['https://rpc-a.example', 'https://rpc-b.example'], carriers: { importDir: '/var/lib/enclave/policy-import' } };
+   let w = enrollRig(t, { hostServices: HS });
+   assert.equal((await w.enroll.pass()).changed, false, 'the node\'s book is not the production one and no explicit policy: not eligible');
+   assert.ok(w.logs.some((l) => /the platform host policy is off for this config/.test(l)));
+diff --git a/test/hosted-policy-cold-start.test.mjs b/test/hosted-policy-cold-start.test.mjs
+index 753e8d325d9cd86ab25306f9dbc39aea03ca861d..b28cb8c2fcab1930e88dff50ae13f9ceedeb6d45 100644
+--- a/test/hosted-policy-cold-start.test.mjs
++++ b/test/hosted-policy-cold-start.test.mjs
+@@ -45,6 +45,9 @@ const compileIndexInChild = () => JSON.parse(execFileSync(process.execPath, ['--
+ const OUT = path.join(REPO, 'contracts/foundry/out');
+ const skip = haveTools() || (!fs.existsSync(path.join(PKG, 'policy-mirror.package.json')) ? 'needs the built packages (scripts/build-host-service-packages.mjs)' : false);
+ const DO = { name: 'digitalocean', addresses: ['134.199.235.187', '134.209.248.172', '165.245.191.129', '146.190.246.39'] };
++// the four FORMER fleet fronts, configured explicitly so the test still proves every such front is refused at the
++// transport; the shipped production default (network/platform-host-policy-config.mjs) names no mirror at all
++const FLEET_MIRRORS = DO.addresses.map((ip) => `https://${ip}/platform-policy`);
+ const pin = (role) => 'sha256:' + createHash('sha256').update(fs.readFileSync(path.join(PKG, `${role}.package.json`))).digest('hex');
+ const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, name + '.json'), 'utf8')); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
+ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-policy-'));
+@@ -70,7 +73,7 @@ const wait = async (f, ms = 30000, what = 'condition') => { const end = Date.now
+ const up = (port) => fetch(`http://127.0.0.1:${port}/health`).then((r) => r.ok, () => false);
+ 
+ let rig, index, indexPin, book, ownership, bookAbi, registryAddr, hosts = {}, docs = [];
+-const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...PRODUCTION_MIRRORS], activation: 'required' });
++const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...FLEET_MIRRORS], activation: 'required' });
+ 
+ async function sign(deny, signer = admin) {
+   const prev = docs.length ? docs[docs.length - 1].digest : Z32;
+@@ -137,7 +140,8 @@ test('fresh hosts with empty caches start under an ACTIVATED anchor with every f
+   const sa = hosts.a.running.status();
+   assert.equal(sa.refusal, null); assert.equal(sa.platformHostPolicy.serving, true, JSON.stringify(sa.platformHostPolicy));
+   assert.equal(sa.platformHostPolicy.runtime.accepted.digest, docs[0].digest); assert.equal(sa.platformHostPolicy.runtime.anchor, 'anchored');
+-  assert.ok(denied.some((u) => u.startsWith(PRODUCTION_MIRRORS[0])), 'the gate did try the fleet mirrors, and they were refused');
++  assert.ok(denied.some((u) => u.startsWith(FLEET_MIRRORS[0])), 'the gate did try the fleet mirrors, and they were refused');
++  assert.deepEqual([...PRODUCTION_MIRRORS], [], 'the shipped production default names no mirror');
+   const served = await wait(() => netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy/${docs[0].digest}.json`).then((r) => r.ok && r.json()), 20000, 'host A policy mirror serves the anchored document');
+   assert.equal(served.signature, docs[0].signature);
+   assert.equal((await netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy/latest.json`)).status, 404, 'no unanchored latest');
+diff --git a/test/lease-relay-host-policy.test.mjs b/test/lease-relay-host-policy.test.mjs
+index d981adf10e52dc885dc594fcafeb6ced9ede5d0c..552189f7eda7d435eddb044963e94eff3d754645 100644
+--- a/test/lease-relay-host-policy.test.mjs
++++ b/test/lease-relay-host-policy.test.mjs
+@@ -174,6 +174,9 @@ test("host.endpoint is the EXACT registered endpoint (the runner's rule): a path
+ // ---- 2. the real gate and carriers, cold, with the fleet down ---------------------------------------------------------
+ const skip = haveTools() || false;                                    // node:test skips on any non-false value, null included
+ const DO = ["134.199.235.187", "134.209.248.172", "165.245.191.129", "146.190.246.39"];
++// the four FORMER fleet fronts, configured explicitly so the test still proves every such front is refused at the
++// transport; the shipped production default (network/platform-host-policy-config.mjs) names no mirror at all
++const FLEET_MIRRORS = DO.map((ip) => `https://${ip}/platform-policy`);
+ const Z32 = "0x" + "00".repeat(32);
+ const KEY4 = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a";   // anvil #4
+ const admin = privateKeyToAccount(KEYS.deployer);                                       // the book's owner: the admin
+@@ -191,7 +194,7 @@ const netFetch = (url, opts) => {
+ };
+ const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, name + ".json"), "utf8")); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
+ let rig, book, bookAbi, ownership, registryAddr, docs = [], hosts = {};
+-const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...PRODUCTION_MIRRORS], activation: "required" });
++const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...FLEET_MIRRORS], activation: "required" });
+ async function sign(deny) {
+   const prev = docs.length ? docs[docs.length - 1].digest : Z32;
+   const p = { format: POLICY_FORMAT, chainId: 8453, book: book.toLowerCase(), registry: registryAddr.toLowerCase(), hostOwnership: ownership.toLowerCase(),
+@@ -247,7 +250,8 @@ test("REAL gate: a relay host cold-starts from an imported signed policy with ev
+   const s = a.running.status();
+   assert.equal(s.refusal, null); assert.equal(s.platformHostPolicy.serving, true, JSON.stringify(s.platformHostPolicy));
+   assert.equal(s.platformHostPolicy.runtime.accepted.digest, docs[0].digest); assert.equal(s.platformHostPolicy.runtime.anchor, "anchored");
+-  assert.ok(denied.some((u) => u.startsWith(PRODUCTION_MIRRORS[0])), "the gate tried the fleet mirrors, and they were refused");
++  assert.ok(denied.some((u) => u.startsWith(FLEET_MIRRORS[0])), "the gate tried the fleet mirrors, and they were refused");
++  assert.deepEqual([...PRODUCTION_MIRRORS], [], "the shipped production default names no mirror");
+ 
+   const c = await startRelayHost("c", { carriers: null });           // the production default alone: fleet mirrors only
+   await sleep(5000);

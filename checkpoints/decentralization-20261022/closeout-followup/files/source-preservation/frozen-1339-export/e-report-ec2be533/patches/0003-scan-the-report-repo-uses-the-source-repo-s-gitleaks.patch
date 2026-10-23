@@ -1,0 +1,140 @@
+From 5c4bf1f9b47fd8ae920df5025080fd79ba95adf2 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 05:18:43 -0700
+Subject: [PATCH 3/4] scan: the report repo uses the source repo's gitleaks
+ policy (first run kept: 1 finding = anvil dev key #2 in the exported test
+ patch)
+
+---
+ jobs/scan-detail.sh              |  5 +++++
+ jobs/scan.sh                     |  2 +-
+ logs/s1-first-default-config.out | 18 ++++++++++++++++++
+ logs/s1.guard.log                |  1 +
+ logs/s1.out                      | 18 ++++++++++++++++++
+ logs/s1.rc                       |  1 +
+ logs/s2.guard.log                |  1 +
+ logs/s2.out                      |  9 +++++++++
+ logs/s2.rc                       |  1 +
+ 9 files changed, 55 insertions(+), 1 deletion(-)
+ create mode 100755 jobs/scan-detail.sh
+ create mode 100644 logs/s1-first-default-config.out
+ create mode 100644 logs/s1.guard.log
+ create mode 100644 logs/s1.out
+ create mode 100644 logs/s1.rc
+ create mode 100644 logs/s2.guard.log
+ create mode 100644 logs/s2.out
+ create mode 100644 logs/s2.rc
+
+diff --git a/jobs/scan-detail.sh b/jobs/scan-detail.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..4e33ec7e514c35b49b45efd253f6ec8073e57ce2
+--- /dev/null
++++ b/jobs/scan-detail.sh
+@@ -0,0 +1,5 @@
++#!/bin/bash
++# which report-repo file gitleaks flags (redacted)
++set -uo pipefail
++cd "$(dirname "$0")/.."
++gitleaks git --no-banner --redact -v . 2>&1 | grep -E "RuleID|File|Commit|Line|Secret|Match" ; exit 0
+diff --git a/jobs/scan.sh b/jobs/scan.sh
+index 47ad9c8ada3e473104e6bd623c3040c94163f032..f13245997f0e8430867581ec9f6727a6afa6cddd 100755
+--- a/jobs/scan.sh
++++ b/jobs/scan.sh
+@@ -9,5 +9,5 @@ echo "source crypto scan rc=$rc"
+ gitleaks git --no-banner --log-opts="349318a06..HEAD" repo || rc=1
+ echo "== report repo"; git log --oneline
+ python3 repo/.githooks/scan-crypto-keys.py --range HEAD || rc=1
+-gitleaks git --no-banner . || rc=1
++gitleaks git --no-banner --config repo/.gitleaks.toml . || rc=1   # the source repo's own policy (allowlists anvil's public dev keys)
+ echo "scan rc=$rc"; exit $rc
+diff --git a/logs/s1-first-default-config.out b/logs/s1-first-default-config.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..b7a9d9515eb51ebaa86b6bb8bad249643e9a062d
+--- /dev/null
++++ b/logs/s1-first-default-config.out
+@@ -0,0 +1,18 @@
++[queue] START available=24949MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++== source 349318a06..HEAD
++dc2e5d740 Say what the profile broadcast retry does: the same signed bytes to the next endpoint, then nothing more
++6ab298f19 Let a connected wallet sign only and the network profile broadcast (explicit, independent mode)
++source crypto scan rc=0
++5:17AM INF 2 commits scanned.
++5:17AM INF scanned ~46292 bytes (46.29 KB) in 766ms
++5:17AM INF no leaks found
++== report repo
++f5d4592 Retry wording per root review, recipe cites root's primary sources (P owns Alto), n3 evidence, export at dc2e5d740
++f92006a RESULT, bundler recipe, S/F handoff, D export, jobs and logs for rpc-wallet-dependency 6ab298f19
++5:17AM INF 2 commits scanned.
++5:17AM INF scanned ~125033 bytes (125.03 KB) in 139ms
++5:17AM WRN leaks found: 1
++scan rc=1
++[memory-guard] exit=1 peakTreeRssMiB=73 minHostAvailableMiB=24842
++[memory-guard] at peak: gitleaks:67 bash:6
++[queue] EXIT 1
+diff --git a/logs/s1.guard.log b/logs/s1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..a11a446d4c6f0832df993936c62d7d458ec9d0b0
+--- /dev/null
++++ b/logs/s1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=73 minHostAvailableMiB=24842
+diff --git a/logs/s1.out b/logs/s1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..b7a9d9515eb51ebaa86b6bb8bad249643e9a062d
+--- /dev/null
++++ b/logs/s1.out
+@@ -0,0 +1,18 @@
++[queue] START available=24949MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++== source 349318a06..HEAD
++dc2e5d740 Say what the profile broadcast retry does: the same signed bytes to the next endpoint, then nothing more
++6ab298f19 Let a connected wallet sign only and the network profile broadcast (explicit, independent mode)
++source crypto scan rc=0
++5:17AM INF 2 commits scanned.
++5:17AM INF scanned ~46292 bytes (46.29 KB) in 766ms
++5:17AM INF no leaks found
++== report repo
++f5d4592 Retry wording per root review, recipe cites root's primary sources (P owns Alto), n3 evidence, export at dc2e5d740
++f92006a RESULT, bundler recipe, S/F handoff, D export, jobs and logs for rpc-wallet-dependency 6ab298f19
++5:17AM INF 2 commits scanned.
++5:17AM INF scanned ~125033 bytes (125.03 KB) in 139ms
++5:17AM WRN leaks found: 1
++scan rc=1
++[memory-guard] exit=1 peakTreeRssMiB=73 minHostAvailableMiB=24842
++[memory-guard] at peak: gitleaks:67 bash:6
++[queue] EXIT 1
+diff --git a/logs/s1.rc b/logs/s1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/s1.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/s2.guard.log b/logs/s2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..a91d4a9643393d487eadcbc7c634575e00b640c9
+--- /dev/null
++++ b/logs/s2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=25074
+diff --git a/logs/s2.out b/logs/s2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..5a56210f25ae7541fd21fa69ff2befc2c0e5f4b9
+--- /dev/null
++++ b/logs/s2.out
+@@ -0,0 +1,9 @@
++[queue] START available=25034MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++Secret:      [1;3;mREDACTED[0m
++RuleID:      generic-api-key
++File:        exports/patches/0001-Let-a-connected-wallet-sign-only-and-the-network-pro.patch
++Line:        654
++Commit:      f92006a01d65eff23c2e021bae6f9af5b8464eb1
++[memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=25074
++[memory-guard] at peak: gitleaks:48 bash:6 grep:4
++[queue] EXIT 0
+diff --git a/logs/s2.rc b/logs/s2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/s2.rc
+@@ -0,0 +1 @@
++0

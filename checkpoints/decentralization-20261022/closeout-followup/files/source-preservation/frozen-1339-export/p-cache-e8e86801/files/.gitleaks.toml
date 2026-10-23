@@ -1,0 +1,9 @@
+# Default gitleaks rules plus ONE exact allowlisted value: Sigma Prime's PUBLIC Lighthouse release-signing PGP key
+# fingerprint (stated in sigp/lighthouse release.yml:195, SECURITY.md and release notes; trust evidence, not a secret).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Sigma Prime public release-signing PGP fingerprint"
+# plus two receipt RESULT NAMES ({"key": "<result name>"} in receipts.jsonl), not credentials
+regexes = ['''^15E66D941F697E28F49381F426416DC3F30674B0$''', '''^D2\.unmarkedForeign$''', '''^E2\.verifyCap$''']

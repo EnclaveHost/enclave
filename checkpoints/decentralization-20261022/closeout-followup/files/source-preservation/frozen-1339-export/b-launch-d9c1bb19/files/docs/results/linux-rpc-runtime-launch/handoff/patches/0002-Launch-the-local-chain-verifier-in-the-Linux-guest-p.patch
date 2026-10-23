@@ -1,0 +1,976 @@
+From a4bcf90458a2cb43c7f712c9d926e8d142ba5d10 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:11:12 -0700
+Subject: [PATCH 2/7] Launch the local chain verifier in the Linux guest:
+ per-host opt-in, gsup service, image inputs
+
+metal/guest/chain-verifier.mjs is the one dependency-free checker of the host operator's opt-in
+(config chainVerifier: the administrator's sequencer pin, 1..16 explicit proof sources, a loopback port;
+no archive - the guest has no curl - and no local cache), shared by the launcher and the guest:
+  * metal/enclave-metal.mjs checks it and passes it through fw_cfg in its checked form; invalid refuses
+    the launch; a direct control guest refuses it (not launched there yet);
+  * gsup.mjs checks it again against the image's pinned runtime (/opt/rpc-runtime/IMAGE.json), starts
+    the runtime as its own supervised child BEFORE the supervisor, and gives the supervisor exactly
+    ENCLAVE_CHAIN_AUTHORITY=verifier and ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:<port>/, which no other
+    channel may supply. The supervisor is not held back: its verified readers (host wallet admission,
+    platform host policy gate) refuse until the verifier is ready or while no proof source answers;
+    adoption and serving start as before. Present but invalid or no runtime in the image: the verifier
+    authority at a URL nothing serves, so verified reads refuse - never the provider quorum. Absent:
+    no names, no runtime, unchanged.
+metal/chain-verifier-image.json pins what the image carries: the release listener 9ca75047, Helios
+cc962e2b and helper 4fe0cd3b (debug), the glibc runtime two of them run through, verify-in-place
+staging, and the state paths on the guest's tmpfs. metal/overlay-control-image.py installs the runtime's
+import closure, that record as IMAGE.json and the native files from --chain-verifier-dir, refused unless
+each digest is pinned (executables 0555, libraries 0444); without the inputs the image is recorded as
+not carrying them and an opt-in refuses in the guest.
+
+Tests: the checker, env boundary, real launcher (fake QEMU) and gsup wiring; the runtime config the
+guest builds is accepted by the runtime; the overlay's install/absent/mismatch cases; and an end-to-end
+run in the production base image's own userland (Debian 12, node v20, chroot) with gsup's sliced
+supervision, the pinned binaries through the glibc runtime and the supervisor's host admission bundle.
+---
+ metal/chain-verifier-image.json               |  31 ++
+ metal/enclave-metal.mjs                       |  12 +
+ metal/guest/chain-verifier.mjs                | 137 +++++++++
+ metal/guest/gsup.mjs                          |  17 +-
+ metal/overlay-control-image.py                |  77 ++++-
+ test/chain-verifier-guest.e2e.test.mjs        | 267 ++++++++++++++++++
+ test/chain-verifier-guest.test.mjs            | 147 ++++++++++
+ test/fixtures/gsup-chain-verifier-harness.mjs |  27 ++
+ test/fixtures/guest-launcher.mjs              |   7 +
+ test/metal-control-overlay.test.py            |  38 +++
+ 10 files changed, 752 insertions(+), 8 deletions(-)
+ create mode 100644 metal/chain-verifier-image.json
+ create mode 100644 metal/guest/chain-verifier.mjs
+ create mode 100644 test/chain-verifier-guest.e2e.test.mjs
+ create mode 100644 test/chain-verifier-guest.test.mjs
+ create mode 100644 test/fixtures/gsup-chain-verifier-harness.mjs
+ create mode 100644 test/fixtures/guest-launcher.mjs
+
+diff --git a/metal/chain-verifier-image.json b/metal/chain-verifier-image.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..b39e953bbe23912d5acb531eea62c4d9e44ece8d
+--- /dev/null
++++ b/metal/chain-verifier-image.json
+@@ -0,0 +1,31 @@
++{
++ "format": "enclave-chain-verifier-image/v1",
++ "entry": "/app/network/rpc-runtime-main.mjs",
++ "node": "/usr/local/bin/node",
++ "binaries": {
++  "listener": { "path": "/opt/rpc-runtime/enclave-base-head-listener", "sha256": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3" },
++  "helios": { "path": "/opt/rpc-runtime/helios", "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0" },
++  "witnessCheck": { "path": "/opt/rpc-runtime/witness-check", "sha256": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411" }
++ },
++ "glibcRuntime": {
++  "dir": "/opt/rpc-runtime/glibc",
++  "files": {
++   "ld-linux-x86-64.so.2": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757",
++   "libc.so.6": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524",
++   "libm.so.6": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
++   "libgcc_s.so.1": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a"
++  },
++  "binaries": ["helios", "witnessCheck"]
++ },
++ "binaryStaging": "verify-in-place",
++ "hostTools": { "flock": "/usr/bin/flock" },
++ "stateDir": "/mnt/ramdisk/enclave-chain-verifier/state",
++ "configDir": "/mnt/ramdisk/enclave-chain-verifier",
++ "provenance": {
++  "listener": "enclave-base-head-listener 5e178676 (base/base 5476069f), RELEASE profile, scripts/rpc-runtime/build-binaries.sh; needs GLIBC_2.34, runs on the guest's Debian 12 glibc 2.36",
++  "helios": "Helios enclave-base-evm eeffcc9 (CLI identical in function through ef320298), DEBUG profile (the release build exceeded the 1536 MiB build allocation); needs GLIBC_2.39, so it runs through glibcRuntime",
++  "witnessCheck": "witness-check ef320298, DEBUG profile; needs GLIBC_2.38, so it runs through glibcRuntime",
++  "glibcRuntime": "the build host's own runtime files, copied exactly: Arch glibc 2.44+r50+g1848099f063e-1 (ld-linux-x86-64.so.2, libc.so.6, libm.so.6) and gcc-libs 16.2.1+r23+gd564253eb6c8-1 (libgcc_s.so.1); used ONLY by the two binaries above, through their own loader with --library-path",
++  "guestBase": "dist-sdshield-2857356cd: Debian 12 (bookworm), glibc 2.36, node v20.20.2, util-linux flock 2.38.1, no curl"
++ }
++}
+diff --git a/metal/enclave-metal.mjs b/metal/enclave-metal.mjs
+index 3c75f143ecfba9c2ce0412b4709661773afa40d3..a48d5a2ebd6c910aa8672bb703cd7c55f9e2e21e 100644
+--- a/metal/enclave-metal.mjs
++++ b/metal/enclave-metal.mjs
+@@ -23,6 +23,7 @@ import { measureGflops } from './compute-measure.mjs';
+ import {prepareMetalHostPolicy} from './guest/host-policy.bundle.mjs';
+ import { leaseGasTransit } from './guest/lease-gas-conduit.bundle.mjs';
+ import { checkOwnerNomination } from './guest/owner-nomination.mjs';
++import { checkChainVerifier } from './guest/chain-verifier.mjs';
+ 
+ const HERE = path.dirname(fileURLToPath(import.meta.url));
+ function arg(name, dflt) { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : dflt; }
+@@ -253,6 +254,15 @@ if (DIRECT && cfg.platformPolicyCarriers !== undefined && cfg.platformPolicyCarr
+ const POLICY_CARRIERS = DIRECT || cfg.platformPolicyCarriers === undefined || cfg.platformPolicyCarriers === null ? null
+   : (await import('./guest/measured-control.mjs')).checkPolicyCarriers(cfg.platformPolicyCarriers, { publicUrl: String(cfg.publicUrl || '') });
+ if (POLICY_CARRIERS) console.log(`[enclave-metal] platform policy carriers: ${(await import('./guest/measured-control.mjs')).policyCarriersLaunchSummary(POLICY_CARRIERS)}`);
++// The host operator's explicit opt-in to the LOCAL chain verifier inside the guest (metal/guest/chain-verifier.mjs): the
++// administrator's sequencer pin, 1..16 explicit proof sources and its loopback port. Public, the host controller's own
++// config; checked here (written to fw_cfg in its checked form) and again in the guest against the image's pinned runtime.
++// Absent: nothing changes (the guest's readers keep the provider quorum). Invalid: REFUSES the launch. A direct control
++// guest does not launch the verifier (not in its bound config yet): a host-level setting refuses rather than being ignored.
++if (DIRECT && cfg.chainVerifier !== undefined && cfg.chainVerifier !== null)
++  throw new Error('control: "direct" does not launch the local chain verifier (relay mode only for now); remove chainVerifier');
++const CHAIN_VERIFIER = DIRECT || cfg.chainVerifier === undefined || cfg.chainVerifier === null ? null : checkChainVerifier(cfg.chainVerifier);
++if (CHAIN_VERIFIER) console.log(`[enclave-metal] local chain verifier: ${CHAIN_VERIFIER.proofSources.length} proof source(s), guest loopback port ${CHAIN_VERIFIER.port}`);
+ const cmdline = [
+   'console=ttyS0', 'root=/dev/ram0', 'rootfstype=ramfs', 'quiet',
+   `metal.mode=${MODE}`,
+@@ -281,6 +291,8 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: DIRECT ? DIRECT.config.i
+   ...(OWNER_NOMINATION ? { ownerNomination: OWNER_NOMINATION } : {}),
+   // the platform host policy carriers (POLICY_CARRIERS above): public, untrusted transport, checked again in the guest
+   ...(POLICY_CARRIERS ? { platformPolicyCarriers: POLICY_CARRIERS } : {}),
++  // the local chain verifier opt-in (CHAIN_VERIFIER above): public, checked again in the guest against the image's runtime
++  ...(CHAIN_VERIFIER ? { chainVerifier: CHAIN_VERIFIER } : {}),
+   // the referral code this machine was set up with (`enclave host init --referral`): attribution only; the guest agent
+   // says it when it attaches (x-metal-referral, relay/referrals.mjs). fw_cfg, so it never changes the measurement
+   referral: cfg.referral || '',
+diff --git a/metal/guest/chain-verifier.mjs b/metal/guest/chain-verifier.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..388653b39190485c92ff58212f5571226e7cef0f
+--- /dev/null
++++ b/metal/guest/chain-verifier.mjs
+@@ -0,0 +1,137 @@
++// The host operator's explicit opt-in to the LOCAL Base chain verifier inside this guest (network/rpc-runtime.mjs: native
++// gossip head -> verified roots -> proof-aware witness gateway -> Helios on 127.0.0.1), and what it changes: the
++// supervisor's verified readers (host wallet admission, the platform host policy gate: network/lease-reader.mjs
++// chainAuthorityFromEnv) read through that loopback endpoint instead of the provider quorum.
++// Dependency-free on purpose: the host launcher (metal/enclave-metal.mjs) and the guest (gsup.mjs) check the operator's
++// config with this ONE checker; the runtime checks its own config a third time.
++//
++//   { "format": "enclave-chain-verifier/v1",
++//     "unsafeSigner": "0x…",                       the administrator's pin of the Base sequencer key
++//     "proofSources": ["https://…", …],            1..16 EXPLICIT, untrusted state holders (every witness is verified)
++//     "port": 8546,                                the verifier's loopback port inside the guest
++//     "gossip"?: { "maxPeers", "discovery", "sessionSecs" }, "limits"?: { "firstHeadTimeoutMs", "heliosReadyTimeoutMs" } }
++//
++// Absent: nothing changes (the supervisor's names are not set; its readers keep the provider quorum, exactly as before).
++// Present and valid: gsup starts the runtime BEFORE the supervisor and gives the supervisor exactly two names
++// (ENCLAVE_CHAIN_AUTHORITY=verifier, ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:<port>/), which no other channel may supply.
++// Until the runtime is ready - and whenever its proof sources cannot supply a fresh witness - those readers REFUSE (their
++// callers hold or refuse work); booting is not verified readiness, and there is no provider fallback.
++// Present but invalid, or an image without the verifier: the supervisor still gets the verifier authority, at a loopback
++// URL nothing serves, so every verified read refuses; it never silently falls back to the provider quorum.
++// Not offered here: the S3/Sia witness archive (the guest base image has no curl with --aws-sigv4) and a local disk cache
++// (no reviewed budget kind); the runtime itself supports the archive where curl exists.
++import fs from 'node:fs';
++import path from 'node:path';
++
++export const CHAIN_VERIFIER_FORMAT = 'enclave-chain-verifier/v1';
++export const CHAIN_VERIFIER_IMAGE_FORMAT = 'enclave-chain-verifier-image/v1';
++export const CHAIN_VERIFIER_IMAGE_FILE = '/opt/rpc-runtime/IMAGE.json';
++export const CHAIN_AUTHORITY_NAMES = Object.freeze(['ENCLAVE_CHAIN_AUTHORITY', 'ENCLAVE_CHAIN_VERIFIER']);
++// the guest's own listeners (supervisor 8080, wasm manager 8091, RAD 8443, direct control 8444) and the host link ports
++export const GUEST_RESERVED_PORTS = Object.freeze([8080, 8091, 8443, 8444, 8095, 8096]);
++/** Where a configured-but-unusable verifier points: TCP discard, nothing in the guest serves it, every verified read refuses. */
++export const REFUSING_VERIFIER = 'http://127.0.0.1:9/';
++const KEYS = ['format', 'unsafeSigner', 'proofSources', 'port', 'gossip', 'limits'];
++const ADDR = /^0x[0-9a-fA-F]{40}$/;
++
++function bad(m) { throw new Error(`chainVerifier: ${m}`); }
++const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
++const int = (v, lo, hi, what) => { if (!Number.isSafeInteger(v) || v < lo || v > hi) bad(`${what} must be an integer ${lo}..${hi}`); return v; };
++
++/** -> the canonical, frozen setting (fixed key order), or throws. allowLoopbackHttp: tests only (loopback proof fixtures). */
++export function checkChainVerifier(raw, { allowLoopbackHttp = false } = {}) {
++  if (!plain(raw)) bad('must be an object');
++  if ('witnessArchive' in raw) bad('witnessArchive is not offered in the guest (its base image has no curl with --aws-sigv4); remove it');
++  if ('witnessCache' in raw) bad('witnessCache is not offered (no reviewed NVMe budget kind for a local witness cache)');
++  for (const k of Object.keys(raw)) if (!KEYS.includes(k)) bad(`unknown field ${k}`);
++  if (raw.format !== CHAIN_VERIFIER_FORMAT) bad(`format must be ${CHAIN_VERIFIER_FORMAT}`);
++  if (typeof raw.unsafeSigner !== 'string' || !ADDR.test(raw.unsafeSigner) || /^0x0{40}$/i.test(raw.unsafeSigner)) bad('unsafeSigner must be the pinned sequencer address');
++  if (!Array.isArray(raw.proofSources) || raw.proofSources.length < 1 || raw.proofSources.length > 16) bad('proofSources must list 1..16 explicit proof source URLs (fresh state needs one; there is no implicit provider)');
++  const seen = new Set();
++  const proofSources = raw.proofSources.map((u, i) => {
++    let x; try { x = new URL(u); } catch { bad(`proofSources[${i}] must be a URL`); }
++    const loop = x.protocol === 'http:' && allowLoopbackHttp && (x.hostname === '127.0.0.1' || x.hostname === '[::1]');
++    if ((x.protocol !== 'https:' && !loop) || x.username || x.password || x.search || x.hash) bad(`proofSources[${i}] must be https without credentials, query or fragment`);
++    if (seen.has(x.href)) bad(`proofSources[${i}] repeats a source`); seen.add(x.href);
++    return String(u);
++  });
++  const port = int(raw.port, 1024, 65535, 'port');
++  if (GUEST_RESERVED_PORTS.includes(port)) bad(`port ${port} is one of the guest's own ports`);
++  let gossip = null;
++  if (raw.gossip !== undefined && raw.gossip !== null) {
++    if (!plain(raw.gossip) || Object.keys(raw.gossip).some((k) => !['maxPeers', 'discovery', 'sessionSecs'].includes(k))) bad('gossip: { maxPeers?, discovery?, sessionSecs? }');
++    gossip = {};
++    if (raw.gossip.maxPeers !== undefined) gossip.maxPeers = int(raw.gossip.maxPeers, 1, 50, 'gossip.maxPeers');
++    if (raw.gossip.discovery !== undefined) { if (!['off', 'bounded'].includes(raw.gossip.discovery)) bad('gossip.discovery must be off or bounded'); gossip.discovery = raw.gossip.discovery; }
++    if (raw.gossip.sessionSecs !== undefined) gossip.sessionSecs = int(raw.gossip.sessionSecs, 60, 3600, 'gossip.sessionSecs');
++    gossip = Object.freeze(gossip);
++  }
++  let limits = null;
++  if (raw.limits !== undefined && raw.limits !== null) {
++    if (!plain(raw.limits) || Object.keys(raw.limits).some((k) => !['firstHeadTimeoutMs', 'heliosReadyTimeoutMs'].includes(k))) bad('limits: { firstHeadTimeoutMs?, heliosReadyTimeoutMs? }');
++    limits = {};
++    if (raw.limits.firstHeadTimeoutMs !== undefined) limits.firstHeadTimeoutMs = int(raw.limits.firstHeadTimeoutMs, 5000, 900000, 'limits.firstHeadTimeoutMs');
++    if (raw.limits.heliosReadyTimeoutMs !== undefined) limits.heliosReadyTimeoutMs = int(raw.limits.heliosReadyTimeoutMs, 5000, 600000, 'limits.heliosReadyTimeoutMs');
++    limits = Object.freeze(limits);
++  }
++  return Object.freeze({ format: CHAIN_VERIFIER_FORMAT, unsafeSigner: raw.unsafeSigner.toLowerCase(), proofSources: Object.freeze(proofSources), port,
++    ...(gossip ? { gossip } : {}), ...(limits ? { limits } : {}) });
++}
++
++/** The measured image's verifier record (/opt/rpc-runtime/IMAGE.json, installed by metal/overlay-control-image.py from the
++ *  committed metal/chain-verifier-image.json): entry, node, pinned binaries, glibc runtime, staging, state paths. */
++export function readVerifierImage(file = CHAIN_VERIFIER_IMAGE_FILE) {
++  let m; try { m = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
++  if (!plain(m) || m.format !== CHAIN_VERIFIER_IMAGE_FORMAT) return null;
++  for (const k of ['entry', 'node', 'stateDir', 'configDir']) if (typeof m[k] !== 'string' || !path.isAbsolute(m[k])) return null;
++  if (!plain(m.binaries) || !['listener', 'helios', 'witnessCheck'].every((r) => plain(m.binaries[r]) && path.isAbsolute(String(m.binaries[r].path)) && /^[0-9a-f]{64}$/.test(String(m.binaries[r].sha256)))) return null;
++  return m;
++}
++
++/** The runtime's own config (enclave-rpc-runtime/v2) for a checked setting on this image. */
++export function runtimeConfigFor(v, image) {
++  const pick = (r) => ({ path: image.binaries[r].path, sha256: image.binaries[r].sha256 });
++  return { format: 'enclave-rpc-runtime/v2', chain: { chainId: 8453, unsafeSigner: v.unsafeSigner },
++    binaries: { listener: pick('listener'), helios: pick('helios'), witnessCheck: pick('witnessCheck') },
++    proofSources: { untrusted: [...v.proofSources] }, verifier: { port: v.port }, stateDir: image.stateDir,
++    ...(v.gossip ? { gossip: { ...v.gossip } } : {}), witnessCache: null, witnessArchive: null,
++    hostTools: { ...(image.hostTools || {}) },
++    ...(image.glibcRuntime ? { glibcRuntime: image.glibcRuntime } : {}), ...(image.binaryStaging ? { binaryStaging: image.binaryStaging } : {}),
++    ...(v.limits ? { limits: { ...v.limits } } : {}) };
++}
++
++/**
++ * The legacy guest's view of fw_cfg `chainVerifier` (gsup.mjs).
++ * -> { configured, ok, url, message, runtimeConfig?, image?, argv(configFile)?, env? }
++ */
++export function guestChainVerifier(value, { imageFile = CHAIN_VERIFIER_IMAGE_FILE, image, allowLoopbackHttp = false } = {}) {
++  if (value === undefined || value === null) return { configured: false, ok: false, url: null, message: null };
++  let v;
++  try { v = checkChainVerifier(value, { allowLoopbackHttp }); }
++  catch (e) { return { configured: true, ok: false, url: REFUSING_VERIFIER, message: `chain verifier REFUSED (${e.message}): every verified chain read refuses; no provider fallback` }; }
++  const img = image ?? readVerifierImage(imageFile);
++  if (!img) return { configured: true, ok: false, url: REFUSING_VERIFIER, message: 'chain verifier REFUSED (this image carries no chain verifier runtime): every verified chain read refuses; no provider fallback' };
++  const url = `http://127.0.0.1:${v.port}/`;
++  return { configured: true, ok: true, url, verifier: v, image: img, runtimeConfig: runtimeConfigFor(v, img),
++    argv: (configFile) => [img.node, img.entry, 'run', configFile],
++    env: { PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', HOME: img.configDir },
++    message: `chain verifier configured: ${v.proofSources.length} proof source(s), loopback port ${v.port}, signer ${v.unsafeSigner}; `
++      + 'verified readers refuse until it is ready (unsafe-head tier, no finality)' };
++}
++
++/** Writes the runtime config (0700 directory, 0600 file) and returns its path. */
++export function writeChainVerifierConfig(cv) {
++  fs.mkdirSync(cv.image.configDir, { recursive: true, mode: 0o700 });
++  fs.chmodSync(cv.image.configDir, 0o700);
++  const file = path.join(cv.image.configDir, 'rpc-runtime.json'), tmp = `${file}.${process.pid}.tmp`;
++  fs.writeFileSync(tmp, JSON.stringify(cv.runtimeConfig, null, 1) + '\n', { mode: 0o600 });
++  fs.renameSync(tmp, file);
++  return file;
++}
++
++/** env with the two chain-authority names ONLY from this channel (any other source of them is dropped). */
++export function withChainVerifierEnv(env, cv) {
++  const out = Object.fromEntries(Object.entries(env).filter(([k]) => !CHAIN_AUTHORITY_NAMES.includes(k)));
++  if (!cv?.configured) return out;
++  return { ...out, ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: cv.ok ? cv.url : REFUSING_VERIFIER };
++}
+diff --git a/metal/guest/gsup.mjs b/metal/guest/gsup.mjs
+index c1f69a7d03fb3a6779741f8d727f84321f42d914..58682f901293a1de924b61bc8da435c4a081c7f4 100644
+--- a/metal/guest/gsup.mjs
++++ b/metal/guest/gsup.mjs
+@@ -19,6 +19,7 @@ import { prepareShieldedShm } from './shielded-shm.mjs';
+ import {installMetalHostPolicy} from './host-policy.bundle.mjs';
+ import { leaseGasGuest, withLeaseGasEnv } from './lease-gas-conduit.bundle.mjs';
+ import { guestOwnerNomination, withOwnerNominationEnv } from './owner-nomination.mjs';
++import { guestChainVerifier, withChainVerifierEnv, writeChainVerifierConfig } from './chain-verifier.mjs';
+ 
+ const log = (...a) => { try { fs.writeSync(1, `[gsup] ${a.join(' ')}\n`); } catch {} };
+ const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return d; } };
+@@ -502,6 +503,20 @@ const MC_LEGACY = CONTROL ? null : await import('./measured-control.mjs');
+ const POLICY_CARRIERS = CONTROL ? null : await MC_LEGACY.guestPolicyCarriers(fw.platformPolicyCarriers, { publicUrl: PUBLIC_URL });
+ if (POLICY_CARRIERS?.message) log(POLICY_CARRIERS.message);
+ 
++// --- chain verifier (opt-in; metal/guest/chain-verifier.mjs) -----------------------------------------------------------------
++// fw_cfg `chainVerifier`, from the host controller's own config (metal/enclave-metal.mjs checked it), checked again here
++// against THIS image's pinned verifier (/opt/rpc-runtime/IMAGE.json). Started BEFORE the supervisor, as its own supervised
++// child (restarted with backoff like the others; the runtime reaps its own orphans and holds a kernel lock on its state
++// directory). The supervisor is not held back for it: its verified readers refuse until the verifier is ready, so adoption
++// and serving of running apps start as before while new verified decisions wait. Absent: no runtime, no names, unchanged.
++const CHAIN_VERIFIER = CONTROL ? null : guestChainVerifier(fw.chainVerifier);
++if (CHAIN_VERIFIER?.message) log(CHAIN_VERIFIER.message);
++if (CHAIN_VERIFIER?.ok) {
++  try { start('chain-verifier', CHAIN_VERIFIER.argv(writeChainVerifierConfig(CHAIN_VERIFIER)), CHAIN_VERIFIER.env, { cwd: '/app' }); }
++  catch (e) { log(`chain verifier could not be started (${e.code || e.message}): every verified chain read refuses; no provider fallback`); }
++}
++// --- end chain verifier -----------------------------------------------------------------------------------------------------
++
+ // --- supervisor (base root) --------------------------------------------------
+ if (!CONTROL) {
+ const supEnv = {
+@@ -591,7 +606,7 @@ const supEnv = {
+   ADMIN_TOKEN,
+   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
+ };
+-start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], MC_LEGACY.withPolicyCarriersEnv(withOwnerNominationEnv(withLeaseGasEnv(supEnv, LEASE_GAS), OWNER_NOMINATION.nomination), POLICY_CARRIERS), { cwd: '/app' });
++start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], withChainVerifierEnv(MC_LEGACY.withPolicyCarriersEnv(withOwnerNominationEnv(withLeaseGasEnv(supEnv, LEASE_GAS), OWNER_NOMINATION.nomination), POLICY_CARRIERS), CHAIN_VERIFIER), { cwd: '/app' });
+ 
+ // --- metal-agent -------------------------------------------------------------
+ start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
+diff --git a/metal/overlay-control-image.py b/metal/overlay-control-image.py
+index e2b884e5578509487b6891a920789621d7a777e2..a7c41de85f684f26f36c0a7782194defe757058e 100644
+--- a/metal/overlay-control-image.py
++++ b/metal/overlay-control-image.py
+@@ -1,12 +1,19 @@
+ #!/usr/bin/env python3
+ """Stage a measured control runtime from committed files over a verified base image.
+-Usage: overlay-control-image.py [--control direct] BASE OUT COMMIT. Never modifies BASE or starts a VM.
++Usage: overlay-control-image.py [--control direct] [--chain-verifier-dir DIR] BASE OUT COMMIT. Never modifies BASE or starts a VM.
+ Preserves untouched cpio entries, adds missing directories, and records exact inputs.
+ --control direct makes the MEASURED independent control image (docs/network/measured-control-guest.md) over a verified
+ snp-guest-per-app base, as build-image.mjs --control direct does, keeping the base's kernel and modules: it installs the
+ committed platform API bundle with its sidecars and the hosted MCP bundle with its runtime files (each checked against its
+ committed bundle manifest; no file may replace another) and appends metal.control=direct to the measured cmdline. Without it
+ the output is exactly what this tool always produced.
++When the commit's gsup.mjs launches the local chain verifier (metal/guest/chain-verifier.mjs), the image also carries its
++runtime: network/rpc-runtime-main.mjs's whole import closure under /app, the committed pin record
++metal/chain-verifier-image.json as /opt/rpc-runtime/IMAGE.json, and the native files that record pins (the listener, Helios,
++the witness helper and the glibc runtime two of them run through), taken from --chain-verifier-dir by name and refused
++unless each one's sha256 is the pinned one. Without --chain-verifier-dir such a commit's image carries the JavaScript but
++no IMAGE.json and no native file (recorded as chainVerifier.installed false): an operator's opt-in then REFUSES in the guest
++(every verified read refuses), never runs an unpinned verifier and never falls back to providers.
+ """
+ import gzip, hashlib, io, json, posixpath, re, shutil, stat, subprocess, sys
+ from pathlib import Path
+@@ -30,7 +37,11 @@ GUEST_FILES = ['gsup.mjs', 'agent.mjs', 'host-policy.bundle.mjs', 'shielded.mjs'
+                'shielded-probe.mjs', 'shielded-shm.mjs']
+ # Guest modules a committed gsup.mjs may import: installed exactly when that commit's gsup imports them (its closure),
+ # so an overlay of an older commit is unchanged and a newer one never ships a gsup without its helper.
+-OPTIONAL_GUEST_FILES = ['measured-control.mjs', 'lease-gas-conduit.bundle.mjs', 'owner-nomination.mjs']
++OPTIONAL_GUEST_FILES = ['measured-control.mjs', 'lease-gas-conduit.bundle.mjs', 'owner-nomination.mjs', 'chain-verifier.mjs']
++# the chain verifier's runtime entry (its whole local import closure is installed with it) and its committed pin record
++CHAIN_VERIFIER_ROOTS = ['network/rpc-runtime-main.mjs']
++CHAIN_VERIFIER_PINS = 'metal/chain-verifier-image.json'
++
+ _MODES = {}
+ def committed(commit, repo, rel):
+     """The bytes the image installs for rel at commit, or None when absent. A git symlink (mode 120000) is followed
+@@ -265,7 +276,34 @@ def encode(name, fields, data=b''):
+     prefix = b'070701' + b''.join(f'{n:08x}'.encode() for n in fields) + nm
+     return prefix + b'\0' * (-len(prefix) % 4) + data + b'\0' * (-len(data) % 4)
+ 
+-def overlay(base, out, commit, repo, control=''):
++def chain_verifier_files(commit, repo, vdir):
++    """-> ({image path: bytes}, {image path: mode}, record) for the pinned native files; refuses any digest mismatch."""
++    pins_bytes = committed(commit, repo, CHAIN_VERIFIER_PINS)
++    if pins_bytes is None:
++        raise ValueError('the commit launches the chain verifier but has no '+CHAIN_VERIFIER_PINS)
++    pins = json.loads(pins_bytes)
++    if pins.get('format') != 'enclave-chain-verifier-image/v1':
++        raise ValueError(CHAIN_VERIFIER_PINS+' has an unknown format')
++    wanted = [(b['path'], b['sha256'], 0o100555) for b in pins['binaries'].values()]
++    g = pins.get('glibcRuntime')
++    if g:
++        for n, digest in g['files'].items():
++            wanted.append((g['dir'].rstrip('/')+'/'+n, digest, 0o100555 if n.startswith('ld-linux') else 0o100444))
++    files, modes, record = {}, {}, []
++    for target, digest, mode in wanted:
++        if not target.startswith('/opt/rpc-runtime/'):
++            raise ValueError('a pinned chain verifier file must live under /opt/rpc-runtime: '+target)
++        source = Path(vdir)/posixpath.basename(target)
++        data = source.read_bytes()
++        if sha(data) != digest:
++            raise ValueError('chain verifier input '+str(source)+' has sha256 '+sha(data)+', not the pinned '+digest)
++        files[target.lstrip('/')], modes[target.lstrip('/')] = data, mode
++        record.append({'path': target, 'sha256': digest, 'bytes': len(data), 'mode': oct(mode & 0o777)})
++    files['opt/rpc-runtime/IMAGE.json'] = pins_bytes
++    record.append({'path': '/opt/rpc-runtime/IMAGE.json', 'sha256': sha(pins_bytes), 'source': CHAIN_VERIFIER_PINS})
++    return files, modes, {'pins': CHAIN_VERIFIER_PINS, 'pinsSha256': sha(pins_bytes), 'files': record}
++
++def overlay(base, out, commit, repo, control='', chain_verifier_dir=None):
+     if control not in ('', 'direct'):
+         raise ValueError('--control must be direct')
+     if out.exists():
+@@ -285,6 +323,23 @@ def overlay(base, out, commit, repo, control=''):
+     commit = subprocess.check_output(['git', 'rev-parse', commit+'^{commit}'], cwd=repo, text=True).strip()
+     installed_app, packages = app_files(commit, repo)
+     paths = {**{'app/'+p: p for p in installed_app}, **{'opt/metal/'+p: 'metal/guest/'+p for p in guest_files(commit, repo)}}
++    native, modes, verifier_record = {}, {}, None
++    if 'opt/metal/chain-verifier.mjs' in paths:
++        def read(rel):
++            data = committed(commit, repo, rel)
++            return data.decode() if data is not None else None
++        rt_files, rt_packages = supervisor_closure(read, CHAIN_VERIFIER_ROOTS)
++        for p in rt_files:
++            paths.setdefault('app/'+p, p)
++        for n, subs in rt_packages.items():
++            packages[n] = sorted(set(packages.get(n, [])) | set(subs))
++        if chain_verifier_dir:
++            native, modes, verifier_record = chain_verifier_files(commit, repo, chain_verifier_dir)
++            verifier_record['installed'] = True
++        else:
++            verifier_record = {'installed': False, 'reason': 'no --chain-verifier-dir: JavaScript only; an opt-in refuses in the guest'}
++    elif chain_verifier_dir:
++        raise ValueError('--chain-verifier-dir given, but the commit\'s gsup.mjs does not launch the chain verifier')
+     if control:
+         if 'opt/metal/measured-control.mjs' not in paths:
+             raise ValueError('the commit\'s gsup.mjs runs no measured control (metal/guest/measured-control.mjs)')
+@@ -294,6 +349,10 @@ def overlay(base, out, commit, repo, control=''):
+         mcp_add, mcp_record = mcp_files(commit, repo, paths)
+         paths.update(mcp_add)
+     replacements = {k: committed(commit, repo, v) for k,v in paths.items()}
++    for k, v in native.items():
++        if k in replacements:
++            raise ValueError('a chain verifier file would replace a committed one: '+k)
++        replacements[k] = v
+     m.pop('expectedMeasurement', None)
+     m.pop('initramfs', None)
+     previous = m.pop('controlOverlay', None)
+@@ -301,7 +360,9 @@ def overlay(base, out, commit, repo, control=''):
+         m.setdefault('controlOverlayHistory', []).append(previous)
+     m['controlOverlay'] = {'baseInitramfsSha256': base_sha, 'commit': commit,
+         'builder': 'metal/overlay-control-image.py', 'builderSha256': file_sha(Path(__file__)),
+-        'files': [{'path': '/'+k, 'source': paths[k], 'sha256': sha(v)} for k,v in replacements.items()]}
++        'files': [{'path': '/'+k, 'source': paths.get(k, 'chain-verifier pin'), 'sha256': sha(v)} for k,v in replacements.items()]}
++    if verifier_record:
++        m['controlOverlay']['chainVerifier'] = verifier_record
+     if control:
+         # the same records build-image.mjs --control direct writes; the kernel and modules stay the base's (m['kernel'])
+         m['control'], m['platformApiBundle'], m['mcpBundle'], m['cmdlineTemplate'] = control, pa_record, mcp_record, cmdline[0]
+@@ -370,7 +431,7 @@ def overlay(base, out, commit, repo, control=''):
+                             if k in metadata:
+                                 continue
+                             maxino += 1
+-                            z.write(encode(prefix+k, [maxino, 0o100644, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0], v))
++                            z.write(encode(prefix+k, [maxino, modes.get(k, 0o100644), 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0], v))
+                     if key in replacements:
+                         body(f, fields[6])
+                         z.write(encode(name, fields, replacements[key]))
+@@ -391,15 +452,17 @@ def overlay(base, out, commit, repo, control=''):
+     return m
+ 
+ if __name__ == '__main__':
+-    args, control = sys.argv[1:], ''
++    args, control, verifier_dir = sys.argv[1:], '', None
+     if args[:1] == ['--control']:
+         control, args = (args[1] if len(args) > 1 else ''), args[2:]
+         if control != 'direct':
+             raise SystemExit('--control must be direct')
++    if args[:1] == ['--chain-verifier-dir']:
++        verifier_dir, args = (args[1] if len(args) > 1 else ''), args[2:]
+     if len(args) != 3:
+         raise SystemExit(__doc__)
+     try:
+-        result = overlay(Path(args[0]), Path(args[1]), args[2], Path(__file__).resolve().parent.parent, control)
++        result = overlay(Path(args[0]), Path(args[1]), args[2], Path(__file__).resolve().parent.parent, control, verifier_dir)
+         print(json.dumps(result['initramfs']))
+     except (ValueError, OSError, subprocess.CalledProcessError) as e:
+         raise SystemExit(str(e))
+diff --git a/test/chain-verifier-guest.e2e.test.mjs b/test/chain-verifier-guest.e2e.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..57c33a16d70bfa07999cea383924bf8edfba3708
+--- /dev/null
++++ b/test/chain-verifier-guest.e2e.test.mjs
+@@ -0,0 +1,267 @@
++// END-TO-END: the local chain verifier LAUNCHED THE LINUX GUEST WAY, in the guest's own userland:
++//   * the production base image's rootfs (Debian 12, glibc 2.36, node v20; extracted read-only as GUEST_ROOTFS), hard-link
++//     copied, with this commit's image files installed at their image paths: /opt/metal/{gsup,chain-verifier}.mjs, the
++//     runtime's import closure under /app/network, and /opt/rpc-runtime (the PINNED Helios cc962e2b and helper 4fe0cd3b, run
++//     through the pinned glibc runtime, verified in place; IMAGE.json);
++//   * gsup's REAL child supervision and chain-verifier block (test/fixtures/gsup-chain-verifier-harness.mjs, sliced from the
++//     installed gsup.mjs) under the guest's node, chroot'ed, /proc and /dev bind-mounted, sharing the test's loopback;
++//   * the supervisor's REAL consumer: host wallet admission from the shipped bundle (windows/node/host-admission.bundle.mjs,
++//     hostAdmissionFromEnv), given exactly the names gsup composed, on A's canonical reth --dev chain with real contracts.
++// TEST-ONLY, labelled: the listener's `listen` is the reth stand-in (its `commitment` is the REAL pinned release listener),
++// so the fixture image's IMAGE.json names that stand-in and a test entry that accepts its digest; proof sources are loopback
++// http proxies. SYNTHETIC head authority (a TEST sequencer key). Not an SNP guest, not a VM boot, not Base evidence.
++//   env: GUEST_ROOTFS, CHAIN_VERIFIER_INPUTS (flat pinned files), RIG_CHAIN_NODE=reth (+RIG_RETH_*, the -2935 genesis),
++//        TEST_TMP. Runs inside `unshare -r -n` (root in the user namespace: chroot and bind mounts).
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { spawn, spawnSync } from 'node:child_process';
++import { createHash } from 'node:crypto';
++import fs from 'node:fs';
++import path from 'node:path';
++import http from 'node:http';
++import { stringToHex, pad } from 'viem';
++import { privateKeyToAccount } from 'viem/accounts';
++import { startRig, haveTools, KEYS, freePort } from './helpers/cli-independent-rig.mjs';
++import { hostAdmissionPolicyHash } from '../network/host-admission-policy.mjs';
++import { CHAIN_VERIFIER_FORMAT, REFUSING_VERIFIER } from '../metal/guest/chain-verifier.mjs';
++
++const { GUEST_ROOTFS, CHAIN_VERIFIER_INPUTS } = process.env;
++const skip = haveTools() || (!GUEST_ROOTFS && 'GUEST_ROOTFS not set') || (!CHAIN_VERIFIER_INPUTS && 'CHAIN_VERIFIER_INPUTS not set')
++  || (process.env.RIG_CHAIN_NODE !== 'reth' && 'needs the canonical-trie rig (RIG_CHAIN_NODE=reth)');
++const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'guest-e2e-'));
++const R = path.join(TMP, 'guest-root');
++const SEQ_KEY = '0x' + '5e'.repeat(32), seqSigner = privateKeyToAccount(SEQ_KEY).address;
++const OUT = path.join(REPO, 'contracts/foundry/out');
++const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, `${name}.json`), 'utf8')); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
++const sha = (b) => createHash('sha256').update(b).digest('hex');
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const STATE = path.join(R, 'mnt/ramdisk/enclave-chain-verifier/state');
++let rig, book, bookAbi, leaseId, proxy, providers, own, ownAbi, port, guest, HA;
++const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
++async function until(pred, ms, what) {
++  const end = Date.now() + ms;
++  while (Date.now() < end) { try { if (await pred()) return; } catch {} await sleep(250); }
++  throw new Error(`timed out: ${what} | guest log: ${guest?.log().slice(-1500)}`);
++}
++async function rpc(url, method, params = []) {
++  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(10000) });
++  const j = await r.json(); if (j.error) throw new Error(j.error.message); return j.result;
++}
++const alive = (pid) => { try { return !/\) [ZX] /.test(fs.readFileSync(`/proc/${pid}/stat`, 'utf8')); } catch { return false; } };
++const cmdline = (pid) => { try { return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').filter(Boolean); } catch { return []; } };
++
++// ---- the guest fixture image -------------------------------------------------------------------------------------------
++function put(rel, bytes, mode) {           // a new inode (the rootfs copy is hard-linked to the read-only extraction)
++  const p = path.join(R, rel); fs.mkdirSync(path.dirname(p), { recursive: true });
++  fs.rmSync(p, { force: true }); fs.writeFileSync(p, bytes); fs.chmodSync(p, mode);
++}
++function closure(rel, seen = new Set()) {   // the runtime's local import closure (as the overlay tool installs it)
++  if (seen.has(rel)) return seen; seen.add(rel);
++  const text = fs.readFileSync(path.join(REPO, rel), 'utf8');
++  for (const m of text.matchAll(/(?:^|\n)\s*(?:import|export)\b[^'"\n]*?from\s*['"](\.\.?\/[^'"]+)['"]|import\(\s*['"](\.\.?\/[^'"]+)['"]\s*\)/g))
++    closure(path.posix.normalize(path.posix.join(path.posix.dirname(rel), m[1] || m[2])), seen);
++  return seen;
++}
++function buildGuestRoot() {
++  const r = spawnSync('cp', ['-al', GUEST_ROOTFS, R]); assert.equal(r.status, 0, String(r.stderr));
++  for (const d of ['mnt/ramdisk', 'tmp', 'proc', 'dev']) fs.mkdirSync(path.join(R, d), { recursive: true });
++  fs.chmodSync(path.join(R, 'tmp'), 0o1777);
++  put('opt/metal/gsup.mjs', fs.readFileSync(path.join(REPO, 'metal/guest/gsup.mjs')), 0o644);
++  put('opt/metal/chain-verifier.mjs', fs.readFileSync(path.join(REPO, 'metal/guest/chain-verifier.mjs')), 0o644);
++  for (const f of closure('network/rpc-runtime-main.mjs')) put(path.join('app', f), fs.readFileSync(path.join(REPO, f)), 0o644);
++  const pins = JSON.parse(fs.readFileSync(path.join(REPO, 'metal/chain-verifier-image.json'), 'utf8'));
++  for (const [role, b] of Object.entries(pins.binaries)) if (role !== 'listener') {
++    const bytes = fs.readFileSync(path.join(CHAIN_VERIFIER_INPUTS, path.basename(b.path))); assert.equal(sha(bytes), b.sha256, role);
++    put(b.path.slice(1), bytes, 0o555);
++  }
++  for (const [n, digest] of Object.entries(pins.glibcRuntime.files)) {
++    const bytes = fs.readFileSync(path.join(CHAIN_VERIFIER_INPUTS, n)); assert.equal(sha(bytes), digest, n);
++    put(path.join(pins.glibcRuntime.dir, n).slice(1), bytes, n.startsWith('ld-linux') ? 0o555 : 0o444);
++  }
++  // TEST-ONLY: the reth listener stand-in (its shebang points at the guest's node) and the real pinned listener it delegates to
++  const real = fs.readFileSync(path.join(CHAIN_VERIFIER_INPUTS, path.basename(pins.binaries.listener.path))); assert.equal(sha(real), pins.binaries.listener.sha256);
++  put('opt/rpc-runtime/real-listener', real, 0o555);
++  const standin = fs.readFileSync(path.join(REPO, 'test/fixtures/reth-gossip-listener.mjs'), 'utf8').replace(/^#!.*\n/, '#!/usr/local/bin/node\n');
++  put(pins.binaries.listener.path.slice(1), standin, 0o555);
++  for (const f of ['op-commitment.mjs', 'listener-start-record.json', 'rpc-runtime-launcher.mjs', 'guest-launcher.mjs', 'gsup-chain-verifier-harness.mjs'])
++    put(path.join('app/test/fixtures', f), fs.readFileSync(path.join(REPO, 'test/fixtures', f)), 0o644);
++  put('app/test/fixtures/control.json', '{}', 0o666);
++  put('app/test/fixtures/guest-launch-env.json', JSON.stringify({ LAUNCH_LISTENER_SHA256: sha(standin), LAUNCH_LISTENER_ENV: JSON.stringify({
++    REAL_LISTENER: '/opt/rpc-runtime/real-listener', FIXTURES_DIR: '/app/test/fixtures', RIG_RPC: rig.rpc, FEED_CONTROL: '/app/test/fixtures/control.json' }) }), 0o644);
++  put('opt/rpc-runtime/IMAGE.json', JSON.stringify({ ...pins, entry: '/app/test/fixtures/guest-launcher.mjs',
++    binaries: { ...pins.binaries, listener: { path: pins.binaries.listener.path, sha256: sha(standin) } }, provenance: { test: 'FIXTURE image: listener stand-in + test entry' } }), 0o644);
++  for (const d of ['opt', 'opt/rpc-runtime', 'opt/rpc-runtime/glibc']) fs.chmodSync(path.join(R, d), 0o755);
++}
++const setControl = (c) => { fs.rmSync(path.join(R, 'app/test/fixtures/control.json'), { force: true }); fs.writeFileSync(path.join(R, 'app/test/fixtures/control.json'), JSON.stringify(c)); };
++
++/** gsup (sliced) inside the guest userland; -> {p, log(), supEnv: Promise, pids() (chain-verifier starts in order)} */
++function startGuest(name, fw) {
++  put(`app/test/fixtures/fw-${name}.json`, JSON.stringify(fw), 0o644);
++  const p = spawn('unshare', ['-m', '--propagation', 'private', 'sh', '-c',
++    `mount --rbind /proc '${R}/proc' && mount --rbind /dev '${R}/dev' && exec chroot '${R}' /usr/local/bin/node /app/test/fixtures/gsup-chain-verifier-harness.mjs /app/test/fixtures/fw-${name}.json`],
++  { detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: { PATH: process.env.PATH } });
++  let out = '';
++  p.stdout.on('data', (d) => { out += d; }); p.stderr.on('data', (d) => { out += d; });
++  const exited = new Promise((r) => p.once('exit', (code, sig) => r({ code, sig })));
++  const supEnv = until(() => /^SUPENV /m.test(out), 30000, `${name}: SUPENV`).then(() => JSON.parse(out.match(/^SUPENV (.*)$/m)[1]));
++  const pids = () => [...out.matchAll(/started chain-verifier pid=(\d+)/g)].map((m) => Number(m[1]));
++  return { p, exited, supEnv, pids, log: () => out };
++}
++/** guest poweroff: every process of the fixture, whatever its process group */
++function powerOff(g) {
++  try { process.kill(-g.p.pid, 'SIGKILL'); } catch {}
++  for (const pid of fs.readdirSync('/proc').filter((x) => /^\d+$/.test(x)).map(Number))
++    if (cmdline(pid).some((a) => a.startsWith('/opt/rpc-runtime/') || a.startsWith('/app/test/fixtures/') || a.includes('/mnt/ramdisk/enclave-chain-verifier'))) { try { process.kill(pid, 'SIGKILL'); } catch {} }
++}
++const fixtureProcs = () => fs.readdirSync('/proc').filter((x) => /^\d+$/.test(x)).map(Number).filter((pid) => alive(pid)
++  && cmdline(pid).some((a) => a.startsWith('/opt/rpc-runtime/') || a.startsWith('/app/test/fixtures/') || a.includes('/mnt/ramdisk/enclave-chain-verifier')));
++
++// ---- the supervisor's consumer -----------------------------------------------------------------------------------------
++let policyDir, pinsFile;
++function admission(env) {
++  return HA.hostAdmissionFromEnv({ hostId: rig.runner, rpc: [providers.url], addressBook: book, env: { ...env,
++    ENCLAVE_HOST_OWNERSHIP: own.toLowerCase(), ENCLAVE_HOST_REGISTRY_PIN: rig.addresses.registry.toLowerCase(), ENCLAVE_HOST_CATALOG_PIN: rig.addresses.catalog.toLowerCase(),
++    ENCLAVE_HOST_POLICY_DIR: policyDir, ENCLAVE_HOST_ID: rig.runner, ENCLAVE_CONTRACT_PINS_FILE: pinsFile } });
++}
++const request = () => ({ deploymentId: leaseId, appRef: `catalog://${rig.appId}/1` });
++async function decide(env) { try { return await admission(env).decision(request()); } catch (e) { return { unknown: String(e.message) }; } }
++function startProxy() {
++  const st = { mode: 'ok' };
++  const srv = http.createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', async () => {
++    if (st.mode === 'down') { res.writeHead(503); return res.end(); }
++    try { res.end(JSON.stringify(await (await fetch(rig.rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: b })).json())); } catch { res.writeHead(502); res.end(); }
++  }); });
++  return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, st, url: `http://127.0.0.1:${srv.address().port}/` })));
++}
++function startProviders() {   // stand-in for the provider RPC quorum: it must never be asked once the verifier is chosen
++  const st = { hits: 0 };
++  const srv = http.createServer((q, res) => { st.hits++; res.writeHead(503); res.end(); });
++  return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, st, url: `http://127.0.0.1:${srv.address().port}/` })));
++}
++const waitTx = async (rc) => until(async () => BigInt(await rpc(`http://127.0.0.1:${port}/`, 'eth_blockNumber')) >= rc.blockNumber + 2n, 90000, 'verifier past the write');
++
++test.before(async () => {
++  if (skip) return;
++  rig = await startRig();
++  assert.notEqual(await rig.rpcCall('eth_getCode', ['0x0000F90827F1C53a10cb7A02335B175320002935', 'latest']), '0x', 'needs the EIP-2935 genesis');
++  const B = art('EnclaveAddressBook.sol', 'EnclaveAddressBook'); bookAbi = B.abi;
++  book = await rig.deploy(B);
++  await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'set', [stringToHex('deployments', { size: 32 }), rig.addresses.ledger]);
++  await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry]);
++  leaseId = rig.createdId(await rig.create(KEYS.owner));
++  const O = art('EnclaveHostOwnership.sol', 'EnclaveHostOwnership'); ownAbi = O.abi;
++  own = await rig.deploy(O, [rig.addresses.registry]);
++  await rig.write(rig.wc(KEYS.operator), own, ownAbi, 'proposeOwner', [rig.runner, rig.owner]);
++  await rig.write(rig.wc(KEYS.owner), own, ownAbi, 'acceptOwner', [rig.runner]);
++  policyDir = path.join(TMP, 'host-policy'); fs.mkdirSync(policyDir);
++  pinsFile = path.join(TMP, 'contract-pins.json');
++  fs.writeFileSync(pinsFile, JSON.stringify({ version: 1, chainId: 8453, contracts: { registry: rig.addresses.registry, deployments: rig.addresses.ledger, appCatalog: rig.addresses.catalog, proofOfTime: book } }));
++  proxy = await startProxy(); providers = await startProviders();
++  HA = await import(path.join(REPO, 'windows/node/host-admission.bundle.mjs'));
++  port = await freePort();
++  buildGuestRoot();
++});
++test.after(async () => {
++  if (guest) powerOff(guest);
++  proxy?.srv.close(); providers?.srv.close();
++  await rig?.stop();
++  fs.rmSync(TMP, { recursive: true, force: true });
++});
++const T = { skip, timeout: 400000 };
++const CONFIG = () => ({ format: CHAIN_VERIFIER_FORMAT, unsafeSigner: seqSigner.toLowerCase(), proofSources: [proxy.url], port, gossip: { discovery: 'off' },
++  limits: { firstHeadTimeoutMs: 300000 } });
++
++test('absent opt-in: legacy unchanged (no names, no verifier); invalid opt-in: the verifier authority at a refusing URL, never the providers', T, async () => {
++  const absent = startGuest('absent', { testSupervisorBase: { CHAIN_ID: '8453', ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:1/' } });
++  const e1 = await absent.supEnv;
++  assert.deepEqual(e1, { CHAIN_ID: '8453' }, 'no chain-authority name from any other channel; nothing added');
++  assert.deepEqual(absent.pids(), []);
++  powerOff(absent); await absent.exited;
++  const invalid = startGuest('invalid', { chainVerifier: { ...CONFIG(), port: 8080 } });
++  const e2 = await invalid.supEnv;
++  assert.deepEqual(e2, { ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: REFUSING_VERIFIER });
++  assert.match(invalid.log(), /chain verifier REFUSED .*guest's own ports.*no provider fallback/);
++  assert.deepEqual(invalid.pids(), [], 'nothing started');
++  const d = await decide(e2);
++  assert.ok(d.unknown && !d.refusal, `refused as unknown, never admitted: ${JSON.stringify(d)}`);
++  assert.equal(providers.st.hits, 0, 'the provider quorum was never asked');
++  powerOff(invalid); await invalid.exited;
++});
++
++test('cold start in the guest userland: the verifier starts before the supervisor names; readers refuse until it is ready and while no proof source answers', T, async () => {
++  proxy.st.mode = 'down'; setControl({ frozen: true });
++  guest = startGuest('main', { chainVerifier: CONFIG() });
++  const env = await guest.supEnv;
++  assert.deepEqual(env, { ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: `http://127.0.0.1:${port}/` });
++  await until(() => guest.pids().length === 1, 30000, 'chain-verifier started');
++  const runtimePid = guest.pids()[0];
++  assert.deepEqual(cmdline(runtimePid).slice(0, 3), ['/usr/local/bin/node', '/app/test/fixtures/guest-launcher.mjs', 'run']);
++  assert.ok(fs.readlinkSync(`/proc/${runtimePid}/exe`).endsWith('/usr/local/bin/node') && fs.readlinkSync(`/proc/${runtimePid}/exe`) !== process.execPath, 'the guest\'s own node');
++  assert.match(guest.log(), /chain verifier configured: 1 proof source\(s\)/);
++  // booting is not readiness: no verified decision yet, and no provider asked
++  await sleep(4000);
++  assert.equal(fs.existsSync(path.join(STATE, 'ready.json')), false);
++  let d = await decide(env);
++  assert.ok(d.unknown && !d.refusal, JSON.stringify(d));
++  setControl({});                                                         // heads flow; proof sources still down
++  await until(() => fs.existsSync(path.join(STATE, 'ready.json')), 300000, 'verifier ready');
++  assert.equal(Number(await rpc(env.ENCLAVE_CHAIN_VERIFIER, 'eth_chainId')), 8453);
++  const st = readJson(path.join(STATE, 'status.json'));
++  assert.equal(st.binaries.staging, 'verify-in-place');
++  assert.deepEqual(st.binaries.glibcRuntime.for, ['helios', 'witnessCheck']);
++  const helios = readJson(path.join(STATE, 'children.json')).find((c) => c.role === 'helios');
++  assert.deepEqual(cmdline(helios.pid).slice(0, 4), ['/opt/rpc-runtime/glibc/ld-linux-x86-64.so.2', '--library-path', '/opt/rpc-runtime/glibc', '/opt/rpc-runtime/helios'],
++    'Helios runs in place through the pinned glibc runtime (the guest glibc 2.36 cannot run it)');
++  d = await decide(env);
++  assert.ok(d.unknown && !d.refusal, `ready but no proof source answers: refused as unknown, not admitted (${JSON.stringify(d)})`);
++  proxy.st.mode = 'ok';
++  await until(async () => (await decide(env)).refusal === null, 60000, 'admitted once a proof source answers');
++  assert.equal(providers.st.hits, 0, 'no provider fallback at any point');
++});
++
++test('the supervisor consumer through the guest verifier follows the owner\'s policy and the admin\'s catalog moderation', T, async () => {
++  const env = await guest.supEnv;
++  const doc = { version: 1, chainId: 8453, ownershipContract: own.toLowerCase(), hostId: rig.runner, requireCatalogApproval: false, denyDeployments: [leaseId.toLowerCase()], denyAppRefs: [] };
++  const h = hostAdmissionPolicyHash(doc);
++  fs.writeFileSync(path.join(policyDir, `${h}.json`), JSON.stringify(doc));
++  await waitTx(await rig.write(rig.wc(KEYS.owner), own, ownAbi, 'setPolicy', [rig.runner, h]));
++  await until(async () => (await decide(env)).refusal === 'this host owner declines this deployment', 60000, 'owner decline');
++  await waitTx(await rig.write(rig.wc(KEYS.owner), own, ownAbi, 'setPolicy', [rig.runner, pad('0x', { size: 32 })]));
++  await until(async () => (await decide(env)).refusal === null, 60000, 'owner clears');
++  await waitTx(await rig.write(rig.wc(KEYS.deployer), rig.addresses.catalog, rig.A.catalog.abi, 'setActive', ['hello', false]));
++  await until(async () => /delisted/.test((await decide(env)).refusal || ''), 60000, 'admin delisting');
++  assert.equal(providers.st.hits, 0);
++});
++
++test('supervision: a SIGKILLed verifier is restarted by gsup and reaps its orphaned Helios; a SIGTERMed one stops cleanly and comes back', T, async () => {
++  const env = await guest.supEnv;
++  const [first] = guest.pids();
++  const oldHelios = readJson(path.join(STATE, 'children.json')).find((c) => c.role === 'helios');
++  const readyAt = readJson(path.join(STATE, 'ready.json')).readyAt;
++  process.kill(first, 'SIGKILL');
++  await until(() => guest.pids().length === 2, 30000, 'gsup restarted it');
++  assert.match(guest.log(), /chain-verifier exited code=null sig=SIGKILL; restarting/);
++  await until(() => (readJson(path.join(STATE, 'ready.json'))?.readyAt || 0) > readyAt, 300000, 'ready again after SIGKILL');
++  assert.equal(alive(oldHelios.pid), false, 'the orphaned Helios was reaped by its recorded identity');
++  assert.ok(readJson(path.join(STATE, 'status.json')).reaped.recorded >= 1);
++  assert.equal(Number(await rpc(env.ENCLAVE_CHAIN_VERIFIER, 'eth_chainId')), 8453);
++
++  const second = guest.pids()[1];
++  const kids = readJson(path.join(STATE, 'children.json'));
++  const readyAt2 = readJson(path.join(STATE, 'ready.json')).readyAt;
++  process.kill(second, 'SIGTERM');
++  await until(() => guest.pids().length === 3, 30000, 'gsup restarted it after SIGTERM');
++  assert.match(guest.log(), /chain-verifier exited code=0 sig=null; restarting/, 'SIGTERM: a clean exit 0');
++  for (const k of kids) assert.equal(alive(k.pid), false, `${k.role} stopped with its runtime`);
++  await until(() => (readJson(path.join(STATE, 'ready.json'))?.readyAt || 0) > readyAt2, 300000, 'ready again after SIGTERM');
++  assert.equal((await decide(env)).unknown, undefined, 'serving verified decisions again');
++  assert.equal(providers.st.hits, 0);
++});
++
++test('guest poweroff leaves no fixture process; the kernel lock file stays empty', T, async () => {
++  powerOff(guest); await guest.exited;
++  await until(() => fixtureProcs().length === 0, 15000, 'every fixture process gone');
++  assert.equal(fs.statSync(path.join(STATE, 'runtime.lock')).size, 0);
++  guest = null;
++});
+diff --git a/test/chain-verifier-guest.test.mjs b/test/chain-verifier-guest.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..01e170c8d5d6b5167544ce77b16caff5d1c374a9
+--- /dev/null
++++ b/test/chain-verifier-guest.test.mjs
+@@ -0,0 +1,147 @@
++// The local chain verifier's Linux guest launch (metal/guest/chain-verifier.mjs): the operator's opt-in, checked by the
++// REAL launcher (metal/enclave-metal.mjs, fake QEMU copying out the fw_cfg file) and again in the guest; the runtime config
++// it builds from the image's committed pin record is accepted by the runtime's own validator; the supervisor's two chain
++// authority names come only from it; absent leaves everything as before. Offline; no VM.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { spawn } from 'node:child_process';
++import { checkChainVerifier, guestChainVerifier, withChainVerifierEnv, runtimeConfigFor, readVerifierImage, writeChainVerifierConfig,
++  REFUSING_VERIFIER, CHAIN_VERIFIER_FORMAT, CHAIN_AUTHORITY_NAMES } from '../metal/guest/chain-verifier.mjs';
++import { validateRuntimeConfig } from '../network/rpc-runtime.mjs';
++
++const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
++const tmp = fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 'chain-verifier-guest-'));
++test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
++const SIGNER = '0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a';
++const OK = (over = {}) => ({ format: CHAIN_VERIFIER_FORMAT, unsafeSigner: SIGNER, proofSources: ['https://holder-a.example.net/', 'https://holder-b.example.net/'], port: 8546, ...over });
++const IMAGE_FILE = path.join(REPO, 'metal/chain-verifier-image.json');
++
++test('the setting: checked, canonical, bounded; archive, cache, reserved ports, credentials and implicit providers refused', () => {
++  const v = checkChainVerifier({ ...OK(), unsafeSigner: SIGNER.toUpperCase().replace('0X', '0x'), gossip: { maxPeers: 10, discovery: 'off' }, limits: { firstHeadTimeoutMs: 60000 } });
++  assert.deepEqual(Object.keys(v), ['format', 'unsafeSigner', 'proofSources', 'port', 'gossip', 'limits']);
++  assert.equal(v.unsafeSigner, SIGNER);
++  for (const [what, over, re] of [
++    ['no source', { proofSources: [] }, /1\.\.16 explicit proof source/],
++    ['plain http', { proofSources: ['http://holder.example.net/'] }, /https/],
++    ['credentials', { proofSources: ['https://u:p@holder.example.net/'] }, /without credentials/],
++    ['query', { proofSources: ['https://holder.example.net/?key=1'] }, /without credentials, query/],
++    ['repeat', { proofSources: ['https://a.example.net/', 'https://a.example.net/'] }, /repeats/],
++    ['supervisor port', { port: 8080 }, /guest's own ports/],
++    ['RAD port', { port: 8443 }, /guest's own ports/],
++    ['low port', { port: 80 }, /1024\.\.65535/],
++    ['zero signer', { unsafeSigner: '0x' + '0'.repeat(40) }, /unsafeSigner/],
++    ['format', { format: 'enclave-chain-verifier/v0' }, /format/],
++    ['archive', { witnessArchive: { kind: 's3' } }, /no curl/],
++    ['cache', { witnessCache: { kind: 'dir' } }, /no reviewed NVMe budget kind/],
++    ['unknown', { rpcs: ['https://x.example/'] }, /unknown field rpcs/],
++    ['gossip', { gossip: { maxPeers: 99 } }, /maxPeers/],
++  ]) assert.throws(() => checkChainVerifier(OK(over)), re, what);
++  assert.throws(() => checkChainVerifier(OK({ proofSources: ['http://127.0.0.1:9545/'] })), /https/, 'loopback http only with the test option');
++  assert.equal(checkChainVerifier(OK({ proofSources: ['http://127.0.0.1:9545/'] }), { allowLoopbackHttp: true }).proofSources[0], 'http://127.0.0.1:9545/');
++});
++
++test('the committed image pin record builds a runtime config the runtime itself accepts (v2, pinned builds, glibc runtime, in place)', () => {
++  const image = readVerifierImage(IMAGE_FILE);
++  assert.ok(image, 'metal/chain-verifier-image.json is a valid image record');
++  const cfg = runtimeConfigFor(checkChainVerifier(OK({ gossip: { discovery: 'bounded' } })), image);
++  const c = validateRuntimeConfig(cfg);
++  assert.equal(c.format, 'enclave-rpc-runtime/v2');
++  assert.equal(c.verifier.bind, '127.0.0.1'); assert.equal(c.verifier.port, 8546);
++  assert.equal(c.binaryStaging, 'verify-in-place');
++  assert.deepEqual([...c.glibcRuntime.binaries], ['helios', 'witnessCheck']);
++  assert.match(c.binaries.listener.build, /release profile/);
++  assert.match(c.binaries.witnessCheck.build, /ef320298/);
++  assert.equal(c.witnessArchive, null); assert.equal(c.witnessCache, null);
++  assert.deepEqual([...c.proofSources.untrusted], ['https://holder-a.example.net/', 'https://holder-b.example.net/']);
++  assert.equal(c.stateDir, '/mnt/ramdisk/enclave-chain-verifier/state');
++});
++
++test('the guest view and the supervisor names: absent unchanged; valid sets exactly two names; invalid or no image refuses', () => {
++  const flavor = { CHAIN_ID: '8453', ADDRESS_BOOK_ADDRESS: '0x' + '11'.repeat(20), ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:1234/' };
++  const image = readVerifierImage(IMAGE_FILE);
++  const absent = guestChainVerifier(undefined, { image });
++  assert.deepEqual(absent, { configured: false, ok: false, url: null, message: null });
++  const legacy = withChainVerifierEnv(flavor, absent);
++  for (const k of CHAIN_AUTHORITY_NAMES) assert.equal(k in legacy, false, `${k} never comes from another channel`);
++  assert.deepEqual(legacy, { CHAIN_ID: '8453', ADDRESS_BOOK_ADDRESS: flavor.ADDRESS_BOOK_ADDRESS });
++
++  const ok = guestChainVerifier(OK(), { image });
++  assert.equal(ok.ok, true);
++  assert.deepEqual(ok.argv('/x/rpc-runtime.json'), ['/usr/local/bin/node', '/app/network/rpc-runtime-main.mjs', 'run', '/x/rpc-runtime.json']);
++  const env = withChainVerifierEnv(flavor, ok);
++  assert.equal(env.ENCLAVE_CHAIN_AUTHORITY, 'verifier'); assert.equal(env.ENCLAVE_CHAIN_VERIFIER, 'http://127.0.0.1:8546/');
++  assert.match(ok.message, /refuse until it is ready/);
++
++  for (const [what, cv] of [['invalid', guestChainVerifier(OK({ port: 8080 }), { image })], ['no image', guestChainVerifier(OK(), { imageFile: path.join(tmp, 'absent.json') })]]) {
++    assert.equal(cv.configured, true, what); assert.equal(cv.ok, false, what);
++    assert.match(cv.message, /REFUSED .*every verified chain read refuses; no provider fallback/, what);
++    const e = withChainVerifierEnv(flavor, cv);
++    assert.equal(e.ENCLAVE_CHAIN_AUTHORITY, 'verifier', `${what}: still the verifier authority, never the provider quorum`);
++    assert.equal(e.ENCLAVE_CHAIN_VERIFIER, REFUSING_VERIFIER);
++  }
++  // the config file: private directory, owner-only file, exactly the runtime config
++  const cv = guestChainVerifier(OK(), { image: { ...image, configDir: path.join(tmp, 'cfg') } });
++  const file = writeChainVerifierConfig(cv);
++  assert.equal(fs.statSync(path.dirname(file)).mode & 0o777, 0o700); assert.equal(fs.statSync(file).mode & 0o777, 0o600);
++  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), cv.runtimeConfig);
++});
++
++test('gsup: the verifier starts before the supervisor, as a supervised child, and its names wrap the supervisor env last', () => {
++  const g = fs.readFileSync(path.join(REPO, 'metal/guest/gsup.mjs'), 'utf8');
++  assert.match(g, /import \{ guestChainVerifier, withChainVerifierEnv, writeChainVerifierConfig \} from '\.\/chain-verifier\.mjs';/);
++  const a = g.indexOf('// --- chain verifier (opt-in'), b = g.indexOf('// --- end chain verifier'), s = g.indexOf("start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], ");
++  assert.ok(a > 0 && b > a && s > b, 'the verifier block precedes the legacy supervisor start');
++  assert.match(g.slice(a, b), /const CHAIN_VERIFIER = CONTROL \? null : guestChainVerifier\(fw\.chainVerifier\);/);
++  assert.match(g.slice(a, b), /start\('chain-verifier', CHAIN_VERIFIER\.argv\(writeChainVerifierConfig\(CHAIN_VERIFIER\)\), CHAIN_VERIFIER\.env, \{ cwd: '\/app' \}\);/);
++  assert.match(g, /start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], withChainVerifierEnv\(MC_LEGACY\.withPolicyCarriersEnv\(/);
++  assert.match(g, /POLICY_CARRIERS\), CHAIN_VERIFIER\), \{ cwd: '\/app' \}\);/);
++});
++
++// ---- the REAL launcher (fake QEMU), as test/relay-policy-carriers.test.mjs drives it --------------------------------------
++const PUB = 'https://metal-test.example.net';
++function launch(cfgOver, { direct = null } = {}) {
++  const t = fs.mkdtempSync(path.join(tmp, 'launch-'));
++  fs.mkdirSync(path.join(t, 'dist')); fs.mkdirSync(path.join(t, 'tmp'));
++  fs.writeFileSync(path.join(t, 'dist', 'vmlinuz'), 'k'); fs.writeFileSync(path.join(t, 'dist', 'initramfs.cpio.gz'), 'i');
++  fs.writeFileSync(path.join(t, 'pair.key'), 'ab'.repeat(32) + '\n', { mode: 0o600 });
++  if (direct) fs.writeFileSync(path.join(t, 'direct.json'), JSON.stringify(direct));
++  fs.writeFileSync(path.join(t, 'fake-qemu'), ['#!/bin/sh', 'while [ $# -gt 0 ]; do',
++    '  if [ "$1" = -fw_cfg ]; then case "$2" in name=opt/org.enclave.metal,file=*) cp "${2#name=opt/org.enclave.metal,file=}" "$FAKE_QEMU_OUT.tmp" && mv "$FAKE_QEMU_OUT.tmp" "$FAKE_QEMU_OUT";; esac; fi',
++    '  shift', 'done', 'exec sleep 30'].join('\n') + '\n', { mode: 0o755 });
++  const cfg = { mode: 'snp', name: 'verifier-test', cpus: 1, memMiB: 512, measureGflops: false, dist: path.join(t, 'dist'), ovmf: path.join(t, 'ovmf.fd'),
++    qemu: path.join(t, 'fake-qemu'), relayUrl: 'wss://relay.example.test/v1/fleet-tunnel', publicUrl: PUB,
++    isolation: { backend: 'snp-guest-per-app', managerUrl: 'http://10.0.2.2:8095', dataAddr: '10.0.2.2:8096', pairingKeyFile: path.join(t, 'pair.key') },
++    ...(direct ? { control: 'direct', direct: path.join(t, 'direct.json'), relayUrl: undefined, hostfwd: [{ host: 18444, guest: 8444 }] } : {}), ...cfgOver };
++  for (const k of Object.keys(cfg)) if (cfg[k] === undefined) delete cfg[k];
++  fs.writeFileSync(path.join(t, 'config.json'), JSON.stringify(cfg));
++  const out = path.join(t, 'fwcfg.json');
++  const p = spawn(process.execPath, [path.join(REPO, 'metal/enclave-metal.mjs'), '--config', path.join(t, 'config.json')],
++    { env: { ...process.env, TMPDIR: path.join(t, 'tmp'), FAKE_QEMU_OUT: out }, stdio: ['ignore', 'pipe', 'pipe'] });
++  let log = ''; p.stdout.on('data', (d) => { log += d; }); p.stderr.on('data', (d) => { log += d; });
++  const exited = new Promise((r) => p.on('exit', (code) => r(code)));
++  return { out, p, exited, log: () => log };
++}
++async function launched(cfgOver = {}, o = {}) {
++  const run = launch(cfgOver, o);
++  try {
++    for (let i = 0; i < 200 && !fs.existsSync(run.out); i++) { if (run.p.exitCode !== null) break; await new Promise((r) => setTimeout(r, 50)); }
++    if (!fs.existsSync(run.out)) return { refused: true, code: await Promise.race([run.exited, new Promise((r) => setTimeout(() => r('running'), 3000))]), log: run.log() };
++    return { fw: JSON.parse(fs.readFileSync(run.out, 'utf8')), log: run.log() };
++  } finally { if (run.p.exitCode === null && run.p.signalCode === null) { run.p.kill('SIGTERM'); await run.exited; } }
++}
++
++test('the real launcher: the opt-in crosses fw_cfg in its checked form; invalid refuses the launch; absent stays absent', async () => {
++  const r = await launched({ chainVerifier: { ...OK(), unsafeSigner: SIGNER.toUpperCase().replace('0X', '0x') } });
++  assert.ok(!r.refused, r.log);
++  assert.deepEqual(r.fw.chainVerifier, JSON.parse(JSON.stringify(checkChainVerifier(OK()))));
++  assert.match(r.log, /local chain verifier: 2 proof source\(s\), guest loopback port 8546/);
++  for (const [what, over, re] of [['reserved port', { port: 8091 }, /guest's own ports/], ['no sources', { proofSources: [] }, /explicit proof source/],
++    ['archive', { witnessArchive: {} }, /no curl/]]) {
++    const x = await launched({ chainVerifier: OK(over) }); assert.equal(x.refused, true, what); assert.match(x.log, re, what);
++  }
++  const off = await launched({});
++  assert.ok(!off.refused, off.log); assert.equal('chainVerifier' in off.fw, false, 'absent: nothing crosses');
++});
+diff --git a/test/fixtures/gsup-chain-verifier-harness.mjs b/test/fixtures/gsup-chain-verifier-harness.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..77cedcdba75cf5ec66d536c677ee64cfc585d7d1
+--- /dev/null
++++ b/test/fixtures/gsup-chain-verifier-harness.mjs
+@@ -0,0 +1,27 @@
++// TEST-ONLY, runs INSIDE the guest userland fixture (chroot of the production base image's Debian 12 rootfs, its own
++// node v20): gsup's REAL child supervision (start()) and its REAL chain-verifier block, sliced from the image's installed
++// /opt/metal/gsup.mjs (gsup itself is PID 1 of a VM and reads fw_cfg/cmdline, so it cannot run whole here), with fw_cfg
++// replaced by a JSON file. Prints the supervisor environment gsup would compose for the chain-authority names
++// ("SUPENV {...}") and then keeps supervising its children, as gsup does.
++// The ONE deviation: proof sources here are loopback http proxies (an offline fixture), so the checker is called with
++// allowLoopbackHttp; a real guest accepts https sources only (and the launcher refuses anything else).
++//   node gsup-chain-verifier-harness.mjs <fw.json>
++import fs from 'node:fs';
++import vm from 'node:vm';
++import { spawn } from 'node:child_process';
++import * as CV from '/opt/metal/chain-verifier.mjs';
++
++const fw = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
++const src = fs.readFileSync('/opt/metal/gsup.mjs', 'utf8');
++const s1 = src.indexOf('// --- child management'), s2 = src.indexOf('// --- attested model volumes');
++const c1 = src.indexOf('// --- chain verifier (opt-in'), c2 = src.indexOf('// --- end chain verifier');
++if (!(s1 > 0 && s2 > s1 && c1 > s2 && c2 > c1)) throw new Error('gsup.mjs no longer has the sliced blocks');
++const log = (...a) => { try { fs.writeSync(1, `[gsup] ${a.join(' ')}\n`); } catch {} };
++const ctx = vm.createContext({ spawn, setTimeout, process, log, fw, CONTROL: '',
++  guestChainVerifier: (v) => CV.guestChainVerifier(v, { allowLoopbackHttp: true }),
++  withChainVerifierEnv: CV.withChainVerifierEnv, writeChainVerifierConfig: CV.writeChainVerifierConfig });
++vm.runInContext(src.slice(s1, s2) + src.slice(c1, c2) + '\nglobalThis.CHAIN_VERIFIER = CHAIN_VERIFIER;', ctx, { filename: '/opt/metal/gsup.mjs (sliced)' });
++// the legacy supervisor's names, exactly as gsup wraps its env last (the rest of supEnv is not under test here)
++const sup = CV.withChainVerifierEnv({ ...(fw.testSupervisorBase || {}) }, ctx.CHAIN_VERIFIER);
++fs.writeSync(1, 'SUPENV ' + JSON.stringify(sup) + '\n');
++setInterval(() => {}, 1 << 30);
+diff --git a/test/fixtures/guest-launcher.mjs b/test/fixtures/guest-launcher.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..860b4c240fff30f020699ce809f796a57c3a16a1
+--- /dev/null
++++ b/test/fixtures/guest-launcher.mjs
+@@ -0,0 +1,7 @@
++// TEST-ONLY entry of the guest fixture image (its IMAGE.json names this instead of /app/network/rpc-runtime-main.mjs): sets
++// the listener stand-in's environment from a file beside it (gsup gives the runtime only PATH and HOME), then runs the SAME
++// process entry through rpc-runtime-launcher.mjs, which accepts the stand-in's digest. Everything else is the image's.
++import fs from 'node:fs';
++Object.assign(process.env, JSON.parse(fs.readFileSync(new URL('./guest-launch-env.json', import.meta.url), 'utf8')));
++if (process.argv[2] === 'run') process.argv.splice(2, 1);     // gsup passes `run <config>`, as rpc-runtime-main.mjs takes it
++await import('./rpc-runtime-launcher.mjs');
+diff --git a/test/metal-control-overlay.test.py b/test/metal-control-overlay.test.py
+index abc6576e0450d5e8a321eecf545f20333331f008..ca7adf93fd561bbcafb692dfe05e7a68eb2136ac 100644
+--- a/test/metal-control-overlay.test.py
++++ b/test/metal-control-overlay.test.py
+@@ -263,4 +263,42 @@ class ControlOverlay(unittest.TestCase):
+             named=("'./"+f+"'") in gsup or any(("'./"+f+"'") in subprocess.check_output(['git','show',COMMIT+':metal/guest/'+g],cwd=REPO).decode() for g in files if g!=f)
+             self.assertEqual(f in files,named,f)
+ 
++
++import os, shutil
++VERIFIER_INPUTS=os.environ.get('CHAIN_VERIFIER_INPUTS')
++class ChainVerifierOverlay(ControlOverlay):
++    """The local chain verifier's image inputs (metal/chain-verifier-image.json): JavaScript closure always, native files only
++    from --chain-verifier-dir and only at their pinned digests, with executable/read-only modes."""
++    def pins(self):return json.loads(mod.committed(COMMIT,REPO,mod.CHAIN_VERIFIER_PINS))
++    def test_without_inputs_the_javascript_ships_and_the_native_runtime_is_recorded_absent(self):
++        self.base_image();out=self.root/'out';m=mod.overlay(self.base,out,COMMIT,REPO);after=self.read(out)
++        self.assertIn('opt/metal/chain-verifier.mjs',after)
++        for f in ['rpc-runtime-main.mjs','rpc-runtime.mjs','runtime-lock.mjs','witness-gateway.mjs','gossip-head-source.mjs']:
++            self.assertEqual(after['app/network/'+f][1],mod.committed(COMMIT,REPO,'network/'+f))
++        self.assertFalse(any(k.startswith('opt/rpc-runtime') for k in after),'no IMAGE.json, no native file')
++        self.assertEqual(m['controlOverlay']['chainVerifier']['installed'],False)
++    @unittest.skipUnless(VERIFIER_INPUTS,'CHAIN_VERIFIER_INPUTS not set')
++    def test_with_inputs_every_pinned_file_is_installed_with_its_mode_and_digest(self):
++        self.base_image();out=self.root/'out';m=mod.overlay(self.base,out,COMMIT,REPO,chain_verifier_dir=VERIFIER_INPUTS);after=self.read(out)
++        p=self.pins()
++        for b in p['binaries'].values():
++            f=after[b['path'].lstrip('/')];self.assertEqual(f[0][1],0o100555);self.assertEqual(mod.sha(f[1]),b['sha256']);self.assertEqual(f[0][2:4],[0,0])
++        for n,d in p['glibcRuntime']['files'].items():
++            f=after[(p['glibcRuntime']['dir']+'/'+n).lstrip('/')];self.assertEqual(mod.sha(f[1]),d)
++            self.assertEqual(f[0][1],0o100555 if n.startswith('ld-linux') else 0o100444)
++        self.assertEqual(after['opt/rpc-runtime/IMAGE.json'][1],mod.committed(COMMIT,REPO,mod.CHAIN_VERIFIER_PINS))
++        self.assertTrue(stat.S_ISDIR(after['opt/rpc-runtime/glibc'][0][1]))
++        rec=m['controlOverlay']['chainVerifier'];self.assertTrue(rec['installed']);self.assertEqual(rec['pinsSha256'],mod.sha(mod.committed(COMMIT,REPO,mod.CHAIN_VERIFIER_PINS)))
++        self.assertEqual(len(rec['files']),len(p['binaries'])+len(p['glibcRuntime']['files'])+1)
++    @unittest.skipUnless(VERIFIER_INPUTS,'CHAIN_VERIFIER_INPUTS not set')
++    def test_a_native_file_that_is_not_the_pinned_one_refuses_and_writes_nothing(self):
++        self.base_image();bad=self.root/'inputs';shutil.copytree(VERIFIER_INPUTS,bad)
++        os.chmod(bad/'witness-check',0o644);(bad/'witness-check').write_bytes((bad/'witness-check').read_bytes()+b'x')
++        out=self.root/'out'
++        with self.assertRaisesRegex(ValueError,'not the pinned'):mod.overlay(self.base,out,COMMIT,REPO,chain_verifier_dir=str(bad))
++        self.assertFalse(out.exists())
++# reuse ControlOverlay's fixtures without running its tests a second time
++for _n in [n for n in vars(ControlOverlay) if n.startswith('test_')]:
++    setattr(ChainVerifierOverlay, _n, None)
++
+ if __name__=='__main__':unittest.main()

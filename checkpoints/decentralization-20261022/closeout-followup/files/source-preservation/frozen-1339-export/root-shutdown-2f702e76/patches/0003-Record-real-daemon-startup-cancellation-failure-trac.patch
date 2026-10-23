@@ -1,0 +1,26 @@
+From 2f702e765fe5641e1852ac4caee9500015137047 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 06:32:08 -0700
+Subject: [PATCH 3/3] Record real daemon startup-cancellation failure trace
+
+---
+ daemon-confirmation.json | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+ create mode 100644 daemon-confirmation.json
+
+diff --git a/daemon-confirmation.json b/daemon-confirmation.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..4259223b403d14a86afb4f1d871dcc6d66af3296
+--- /dev/null
++++ b/daemon-confirmation.json
+@@ -0,0 +1,10 @@
++{
++  "at": "2026-10-23T13:32:08.407305+00:00",
++  "diagnostic": "S c3 candidate third run",
++  "sourceCommit": "4c059b997360483c743deca343c2e42b1b534eeb",
++  "productionSourceSha256": "5e56973dfd27bc76781ea2f70646803019044d56d7bd97988bcfe8cffca6f705",
++  "finding": "Actual child exited code1 signalnull after host-services STARTED and logged privacy agent stopped during startup; graceful stop is reported as failure.",
++  "scope": "Real privacy-agent daemon inside isolated Linux namespace with local fixture and refused fleet/public directories; not production/native Windows.",
++  "diagnosticExcerpt": "=== repo run 3\n[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo head 4c059b997360483c743deca343c2e42b1b534eeb dirty=1 untracked=1\n\u2716 empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (588.786514ms)\n\u2139 pass 20\n\u2139 fail 1\n\u2716 failing tests:\n\u2716 empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (588.786514ms)\n[job] exit=1\n  AssertionError [ERR_ASSERTION]: stop: {\"exit\":{\"code\":1,\"signal\":null},\"out\":\"13:28:00 [privacy] no apps: running this host's services only (they start once the platform host policy admits this host)\\n13:28:00 [privacy] control circuits: all public directories unavailable: fetch failed\\n13:28:00 [privacy] [host-policy] this host is ADMITTED: serving and taking work\\n13:28:00 [privacy] host services: {\\\"dir-onak4wucyrdwb6uib255buhkwaofrmhms5yjjhrqg27lhhqeikpq.app.alice-net.org\\\":{\\\"http\\\":18188,\\\"tls\\\":null}}\\n13:28:00 [privacy] host service circuits: all public directories unavailable: fetch failed\\nprivacy agent stopped during startup\\n\"}\n  \n  1 !== 0\n  \n=== baseline-14d1 run 3\n",
++  "fullLogSnapshotSha256": "a1ba22ff65f68a8078ee349a1987bfa706f553c15ed4a522d2598adb2cdf752d"
++}

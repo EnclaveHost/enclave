@@ -1,0 +1,23 @@
+[queue] START available=25180MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+HEAD 6ab298f196d93b60499178275acf025f5b8658af
+▲ [WARNING] The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected [commonjs-variable-in-esm]
+
+    repo/site/js/lib/qr.js:2300:6:
+      2300 │       module.exports = factory();
+           ╵       ~~~~~~
+
+  This file is considered to be an ECMAScript module because of the "export" keyword here:
+
+    repo/site/js/lib/qr.js:2306:0:
+      2306 │ export function qrSvg(text, opts){
+           ╵ ~~~~~~
+
+inputs 137 profile-broadcast in graph: true
+chunks containing [eth_signTransaction]: 2
+chunks containing [eth_sendRawTransaction]: 3
+chunks containing [every endpoint of the network profile refused]: 1
+chunks containing [does not sign a transaction without broadcasting]: 1
+chunks containing [Enclave runs part of this account]: 1
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

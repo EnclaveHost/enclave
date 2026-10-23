@@ -1,0 +1,44 @@
+{
+  "at": "2026-10-23T12:09:03.104723+00:00",
+  "status": "Root inspected actual subjob output and source; both workers remain active, no final package acceptance or deployment.",
+  "files": {
+    "storage_log": {
+      "path": "work/resume-after-checkpoint-20261022/storage-shard-recovery/logs/f3.out",
+      "sha256": "d0161235d6488f38cbec332dfba2c9c9b5e4342660357afd9108b6d7ea0da397"
+    },
+    "storage_source": {
+      "path": "work/resume-after-checkpoint-20261022/storage-shard-recovery/sia-s3/vendor/sia-sdk-rs/sia_storage/src/download.rs",
+      "sha256": "2856b3917b90e532c0047daa4e7989c8b4078741c54e9458da9f651ecc834a62"
+    },
+    "windows_log": {
+      "path": "work/resume-after-checkpoint-20261022/windows-final-baseline-compose/logs/j5-e2e.out",
+      "sha256": "de199c6d9ce8048449da8100dd2733826390a6c4bb6f00888cabc160fe0ff178"
+    }
+  },
+  "storage": {
+    "source_commit": "e99498e917c1d266c2f806c00992a3ff282808a0",
+    "result": "18 checks passed, queue exit0; old C2 traps at original slab index into filtered array, candidate preserves full slab topology and guards invalid/duplicate indices.",
+    "scope": "Real local indexd/PostgreSQL/RHP4 hosts and Wasm C2. Host unavailability induced by private indexer uptime filtering, fresh readers; not a physical network disconnection or production failure drill.",
+    "cases": [
+      "One of30 unusable: exact full and ranged reads, live component",
+      "15of30 unusable: parity-only recovery, exact three objects",
+      "21of30 unusable: GET body incomplete relative to Content-Length, failure signalled, process and health remain live",
+      "CAS enrollment and fence generation/event sequence preserved; expected same-generation ballot increments only"
+    ],
+    "remaining": "Worker final unit/regression/artifact report and production migration."
+  },
+  "windows": {
+    "candidate_commit": "30339303bedcb5cb9a6d8fe2e495f381f05d7c74",
+    "result": "6/6 tests, queue exit0, no skipped/cancelled",
+    "scope": "Linux-hosted Reth/Helios local test-chain fixture with helper overlays; not native Windows execution or mainnet sync.",
+    "cases": [
+      "Coherent state reads",
+      "Admin AddressBook migration and outsider refusal",
+      "Endpoint ownership",
+      "Live session authorization and owner termination",
+      "Missing/tampered/stale proofs refuse without BASE_RPCS fallback",
+      "Contract-wallet owner policy, admin migration and EOA behavior"
+    ],
+    "remaining": "Final composition/build verification and separately authorized native activation."
+  }
+}

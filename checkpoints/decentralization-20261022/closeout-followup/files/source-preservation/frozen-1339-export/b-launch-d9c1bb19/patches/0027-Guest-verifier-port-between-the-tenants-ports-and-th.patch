@@ -1,0 +1,198 @@
+From 673601e54f8fdcf2ea72d239c87d92b483ff231b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 03:57:33 -0700
+Subject: [PATCH 27/28] Guest verifier port between the tenants' ports and the
+ ephemeral range; document the guest opt-in
+
+The wasm manager starts before the verifier block in gsup, binds a tenant's declared port literally when it is free
+(PORT_MAX_DECL 49999) and otherwise takes an OS port from the ephemeral range init pins at 58000-65535. A verifier port
+in the tenants' range could be taken by a tenant while gsup restarts the verifier, which would then fail to bind until
+that app stopped (verified reads refuse meanwhile). The checker now takes only 50000..57999, which no tenant can hold.
+(The manager's bind audit polices tenant processes only, so the verifier's own listener is not policed.)
+
+docs/network/local-chain-verifier.md gains the guest section: the config member, the checks and refusals, the start
+order and names, what a consumer sees, copy staging and its RAM, rollback.
+---
+ docs/network/local-chain-verifier.md   | 40 ++++++++++++++++++++++++++
+ metal/guest/chain-verifier.mjs         | 10 +++++--
+ test/chain-verifier-guest.e2e.test.mjs | 14 +++++++--
+ test/chain-verifier-guest.test.mjs     | 12 ++++----
+ 4 files changed, 65 insertions(+), 11 deletions(-)
+
+diff --git a/docs/network/local-chain-verifier.md b/docs/network/local-chain-verifier.md
+index fd71e312c807054839e1252afb1b8c36fed2c3dc..819e541f473368fa7f3c6e5a7b4759d254893122 100644
+--- a/docs/network/local-chain-verifier.md
++++ b/docs/network/local-chain-verifier.md
+@@ -155,6 +155,46 @@ To roll back, unset `chainAuthority` (or `ENCLAVE_CHAIN_AUTHORITY`) on the consu
+ the legacy provider quorum, unchanged. Then stop the runtime. The runtime never falls back to provider agreement by
+ itself.
+ 
++## Inside the Linux metal guest (relay mode)
++
++A host operator opts in with a `chainVerifier` member in the host controller's `config.json`.
++`metal/guest/chain-verifier.mjs` is the one checker: the launcher checks the member, then the guest checks it again.
++
++```json
++"chainVerifier": { "format": "enclave-chain-verifier/v1", "unsafeSigner": "0x<the administrator's sequencer pin>",
++                   "proofSources": ["https://<explicit state holder>/"], "port": 50546 }
++```
++
++- **Fields:**
++  - 1..16 https proof sources;
++  - optional `gossip` / `limits`;
++  - `port` in **50000..57999**. That is above every tenant-declarable port and below the ephemeral range init pins, so
++    no tenant can hold it.
++- **Refused fields:**
++  - `witnessArchive` (the base has no curl with `--aws-sigv4`);
++  - `witnessCache`;
++  - anything unknown.
++- **Direct control guests** refuse the member for now.
++- **The launcher** passes the checked member through fw_cfg.
++- **gsup** builds the runtime config from the image's pin record (`/opt/rpc-runtime/IMAGE.json` =
++  `metal/chain-verifier-image.json`). It starts the runtime as its supervised child `chain-verifier` before the
++  supervisor, restarting it with backoff, and gives the supervisor exactly `ENCLAVE_CHAIN_AUTHORITY=verifier` and
++  `ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:<port>/`. No other channel may supply those names.
++- **Consumers:** the supervisor's verified readers (host wallet admission and the platform host policy gate) refuse
++  until the runtime is ready, and whenever no proof source can supply a fresh witness. Its other chain reads (claims and
++  lease records over `BASE_RPCS`) are unchanged.
++- **Failure states:**
++  - Present but invalid, or an image without the runtime (`metal/overlay-control-image.py` without
++    `--chain-verifier-dir`): the supervisor gets the verifier authority at a URL nothing serves, so verified reads
++    refuse. They never fall back to the provider quorum.
++  - Absent: nothing changes.
++- **Staging is `copy`:** the base image is owned by uid 1000, so verify-in-place cannot hold. Helios and the helper run
++  through the pinned glibc runtime, because the base has glibc 2.36.
++- **RAM:** an image with the runtime carries ~234 MB of native files in its ramfs, and a running verifier holds a second
++  ~234 MB copy on the `/mnt/ramdisk` tmpfs.
++
++Rollback: remove `chainVerifier` and relaunch the guest.
++
+ ## What it does not do
+ 
+ - **Finality:** heads are the sequencer-signed **unsafe** head. There is no L1-derived safe or finalized tier.
+diff --git a/metal/guest/chain-verifier.mjs b/metal/guest/chain-verifier.mjs
+index 388653b39190485c92ff58212f5571226e7cef0f..bf4954e3212a5dcd59c96841bb40e21a07ef2651 100644
+--- a/metal/guest/chain-verifier.mjs
++++ b/metal/guest/chain-verifier.mjs
+@@ -8,7 +8,7 @@
+ //   { "format": "enclave-chain-verifier/v1",
+ //     "unsafeSigner": "0x…",                       the administrator's pin of the Base sequencer key
+ //     "proofSources": ["https://…", …],            1..16 EXPLICIT, untrusted state holders (every witness is verified)
+-//     "port": 8546,                                the verifier's loopback port inside the guest
++//     "port": 50546,                               the verifier's loopback port inside the guest: 50000..57999
+ //     "gossip"?: { "maxPeers", "discovery", "sessionSecs" }, "limits"?: { "firstHeadTimeoutMs", "heliosReadyTimeoutMs" } }
+ //
+ // Absent: nothing changes (the supervisor's names are not set; its readers keep the provider quorum, exactly as before).
+@@ -29,6 +29,10 @@ export const CHAIN_VERIFIER_IMAGE_FILE = '/opt/rpc-runtime/IMAGE.json';
+ export const CHAIN_AUTHORITY_NAMES = Object.freeze(['ENCLAVE_CHAIN_AUTHORITY', 'ENCLAVE_CHAIN_VERIFIER']);
+ // the guest's own listeners (supervisor 8080, wasm manager 8091, RAD 8443, direct control 8444) and the host link ports
+ export const GUEST_RESERVED_PORTS = Object.freeze([8080, 8091, 8443, 8444, 8095, 8096]);
++// The verifier's port lies between the tenants' declarable ports (wasm_manager.py PORT_MAX_DECL 49999; a free declared
++// number is bound literally) and the kernel's ephemeral range (init pins 58000-65535; a tenant's OS-assigned port comes
++// from there): no tenant can hold it, even while gsup restarts the verifier after the wasm manager has started apps.
++export const VERIFIER_PORT_RANGE = Object.freeze([50000, 57999]);
+ /** Where a configured-but-unusable verifier points: TCP discard, nothing in the guest serves it, every verified read refuses. */
+ export const REFUSING_VERIFIER = 'http://127.0.0.1:9/';
+ const KEYS = ['format', 'unsafeSigner', 'proofSources', 'port', 'gossip', 'limits'];
+@@ -55,8 +59,8 @@ export function checkChainVerifier(raw, { allowLoopbackHttp = false } = {}) {
+     if (seen.has(x.href)) bad(`proofSources[${i}] repeats a source`); seen.add(x.href);
+     return String(u);
+   });
+-  const port = int(raw.port, 1024, 65535, 'port');
+-  if (GUEST_RESERVED_PORTS.includes(port)) bad(`port ${port} is one of the guest's own ports`);
++  if (GUEST_RESERVED_PORTS.includes(raw.port)) bad(`port ${raw.port} is one of the guest's own ports`);
++  const port = int(raw.port, ...VERIFIER_PORT_RANGE, 'port (between the tenants\' ports and the ephemeral range)');
+   let gossip = null;
+   if (raw.gossip !== undefined && raw.gossip !== null) {
+     if (!plain(raw.gossip) || Object.keys(raw.gossip).some((k) => !['maxPeers', 'discovery', 'sessionSecs'].includes(k))) bad('gossip: { maxPeers?, discovery?, sessionSecs? }');
+diff --git a/test/chain-verifier-guest.e2e.test.mjs b/test/chain-verifier-guest.e2e.test.mjs
+index df4c2db87788c2950e7ff8c2f2a762dfea5b06e6..210092fc56adc9e3645ebc02400f655cbf9ca416 100644
+--- a/test/chain-verifier-guest.e2e.test.mjs
++++ b/test/chain-verifier-guest.e2e.test.mjs
+@@ -23,9 +23,10 @@ import path from 'node:path';
+ import http from 'node:http';
+ import { stringToHex, pad } from 'viem';
+ import { privateKeyToAccount } from 'viem/accounts';
+-import { startRig, haveTools, KEYS, freePort } from './helpers/cli-independent-rig.mjs';
++import { startRig, haveTools, KEYS } from './helpers/cli-independent-rig.mjs';
+ import { hostAdmissionPolicyHash } from '../network/host-admission-policy.mjs';
+-import { CHAIN_VERIFIER_FORMAT, REFUSING_VERIFIER } from '../metal/guest/chain-verifier.mjs';
++import { CHAIN_VERIFIER_FORMAT, REFUSING_VERIFIER, VERIFIER_PORT_RANGE } from '../metal/guest/chain-verifier.mjs';
++import net from 'node:net';
+ 
+ const { GUEST_ROOTFS, CHAIN_VERIFIER_INPUTS } = process.env;
+ const skip = haveTools() || (!GUEST_ROOTFS && 'GUEST_ROOTFS not set') || (!CHAIN_VERIFIER_INPUTS && 'CHAIN_VERIFIER_INPUTS not set')
+@@ -145,6 +146,13 @@ function startProviders() {   // stand-in for the provider RPC quorum: it must n
+   const srv = http.createServer((q, res) => { st.hits++; res.writeHead(503); res.end(); });
+   return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, st, url: `http://127.0.0.1:${srv.address().port}/` })));
+ }
++async function freePortIn([lo, hi]) {      // a free loopback port in [lo, hi]
++  for (let i = 0; i < 200; i++) {
++    const p = lo + Math.floor(Math.random() * (hi - lo + 1));
++    if (await new Promise((r) => { const s = net.createServer(); s.once('error', () => r(false)); s.listen(p, '127.0.0.1', () => s.close(() => r(true))); })) return p;
++  }
++  throw new Error(`no free port in ${lo}..${hi}`);
++}
+ const waitTx = async (rc) => until(async () => BigInt(await rpc(`http://127.0.0.1:${port}/`, 'eth_blockNumber')) >= rc.blockNumber + 2n, 90000, 'verifier past the write');
+ 
+ test.before(async () => {
+@@ -167,7 +175,7 @@ test.before(async () => {
+     enclavePay: none, verificationFees: none, sessionVaultFactory: none, secretVaultV2: none } }));
+   proxy = await startProxy(); providers = await startProviders();
+   HA = await import(path.join(REPO, 'windows/node/host-admission.bundle.mjs'));
+-  port = await freePort();
++  port = await freePortIn(VERIFIER_PORT_RANGE);   // the guest checker takes only 50000..57999
+   buildGuestRoot();
+ });
+ test.after(async () => {
+diff --git a/test/chain-verifier-guest.test.mjs b/test/chain-verifier-guest.test.mjs
+index 2b742e82d30a99b1cb2ed86c4e7b3fb10304e6f8..2ee53d74efbbad0bdf310e4572c6439a6be2aa55 100644
+--- a/test/chain-verifier-guest.test.mjs
++++ b/test/chain-verifier-guest.test.mjs
+@@ -16,7 +16,7 @@ const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
+ const tmp = fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 'chain-verifier-guest-'));
+ test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+ const SIGNER = '0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a';
+-const OK = (over = {}) => ({ format: CHAIN_VERIFIER_FORMAT, unsafeSigner: SIGNER, proofSources: ['https://holder-a.example.net/', 'https://holder-b.example.net/'], port: 8546, ...over });
++const OK = (over = {}) => ({ format: CHAIN_VERIFIER_FORMAT, unsafeSigner: SIGNER, proofSources: ['https://holder-a.example.net/', 'https://holder-b.example.net/'], port: 50546, ...over });
+ const IMAGE_FILE = path.join(REPO, 'metal/chain-verifier-image.json');
+ 
+ test('the setting: checked, canonical, bounded; archive, cache, reserved ports, credentials and implicit providers refused', () => {
+@@ -31,7 +31,9 @@ test('the setting: checked, canonical, bounded; archive, cache, reserved ports,
+     ['repeat', { proofSources: ['https://a.example.net/', 'https://a.example.net/'] }, /repeats/],
+     ['supervisor port', { port: 8080 }, /guest's own ports/],
+     ['RAD port', { port: 8443 }, /guest's own ports/],
+-    ['low port', { port: 80 }, /1024\.\.65535/],
++    ['low port', { port: 80 }, /50000\.\.57999/],
++    ['a tenant-declarable port', { port: 49999 }, /50000\.\.57999/],
++    ['an ephemeral port', { port: 58000 }, /50000\.\.57999/],
+     ['zero signer', { unsafeSigner: '0x' + '0'.repeat(40) }, /unsafeSigner/],
+     ['format', { format: 'enclave-chain-verifier/v0' }, /format/],
+     ['archive', { witnessArchive: { kind: 's3' } }, /no curl/],
+@@ -49,7 +51,7 @@ test('the committed image pin record builds a runtime config the runtime itself
+   const cfg = runtimeConfigFor(checkChainVerifier(OK({ gossip: { discovery: 'bounded' } })), image);
+   const c = validateRuntimeConfig(cfg);
+   assert.equal(c.format, 'enclave-rpc-runtime/v2');
+-  assert.equal(c.verifier.bind, '127.0.0.1'); assert.equal(c.verifier.port, 8546);
++  assert.equal(c.verifier.bind, '127.0.0.1'); assert.equal(c.verifier.port, 50546);
+   assert.equal(c.binaryStaging, 'copy');
+   assert.deepEqual([...c.glibcRuntime.binaries], ['helios', 'witnessCheck']);
+   assert.match(c.binaries.listener.build, /release profile/);
+@@ -72,7 +74,7 @@ test('the guest view and the supervisor names: absent unchanged; valid sets exac
+   assert.equal(ok.ok, true);
+   assert.deepEqual(ok.argv('/x/rpc-runtime.json'), ['/usr/local/bin/node', '/app/network/rpc-runtime-main.mjs', 'run', '/x/rpc-runtime.json']);
+   const env = withChainVerifierEnv(flavor, ok);
+-  assert.equal(env.ENCLAVE_CHAIN_AUTHORITY, 'verifier'); assert.equal(env.ENCLAVE_CHAIN_VERIFIER, 'http://127.0.0.1:8546/');
++  assert.equal(env.ENCLAVE_CHAIN_AUTHORITY, 'verifier'); assert.equal(env.ENCLAVE_CHAIN_VERIFIER, 'http://127.0.0.1:50546/');
+   assert.match(ok.message, /refuse until it is ready/);
+ 
+   for (const [what, cv] of [['invalid', guestChainVerifier(OK({ port: 8080 }), { image })], ['no image', guestChainVerifier(OK(), { imageFile: path.join(tmp, 'absent.json') })]]) {
+@@ -141,7 +143,7 @@ test('the real launcher: the opt-in crosses fw_cfg in its checked form; invalid
+   const r = await launched({ chainVerifier: { ...OK(), unsafeSigner: SIGNER.toUpperCase().replace('0X', '0x') } });
+   assert.ok(!r.refused, r.log);
+   assert.deepEqual(r.fw.chainVerifier, JSON.parse(JSON.stringify(checkChainVerifier(OK()))));
+-  assert.match(r.log, /local chain verifier: 2 proof source\(s\), guest loopback port 8546/);
++  assert.match(r.log, /local chain verifier: 2 proof source\(s\), guest loopback port 50546/);
+   for (const [what, over, re] of [['reserved port', { port: 8091 }, /guest's own ports/], ['no sources', { proofSources: [] }, /explicit proof source/],
+     ['archive', { witnessArchive: {} }, /no curl/]]) {
+     const x = await launched({ chainVerifier: OK(over) }); assert.equal(x.refused, true, what); assert.match(x.log, re, what);

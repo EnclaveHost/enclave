@@ -1,0 +1,26 @@
+{
+ "composedTemplate": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+ "oldTemplate": "eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00",
+ "renderers": {
+  "s/holder.py": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
+  "p/l1pair.py": "a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d",
+  "budget.py": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24"
+ },
+ "files": {
+  "holder-storage.sh": "3e395749802f70d692e0d1f47ff45688d40b49ac68ebe9eeb396b7712850275d",
+  "pair-storage.sh": "218f4cdcd566f139f3bcfd0e8e7e64ec9ac4500fd80f59f8b1a78b807dd15159",
+  "probe-storage.sh": "9d5e4b8a74b8d490445e4dd30eeb707d027eda550d01334730dc3821c50db8f0",
+  "old-holder-storage.sh": "3ad5647f342c423e4733dd0c5f2a81e9e217c1777996b17ff5ef6cad1dabc8c2",
+  "mutant-credit-symlink.sh": "5dc9f947f5d9f0c3dfc6d99531880348c6825309f7e6809ca06edb27ccdba9df",
+  "holder.json": "029b1b2a04747afc6a49dc09c5f0de0f16e0f361a0abcafafb224e0025f4ebdc",
+  "pair.json": "c4a93b74970a2e08afd496958c231dd6177e544cfaec4b8afcda700942abcad9",
+  "probe.json": "ba7f66866daf3ceba10d1a4ef08c0c05e72f08a6071b368642dedf39624a20c9",
+  "ledger.json": "cbb319a2c0628b747d93f356ef05fc11daacfdb17022435055362bb366ac6686"
+ },
+ "ledgerShare": 113668096,
+ "reservations": {
+  "base-holder-dm-cache": 84115456,
+  "l1-pair-dm-cache": 16834560,
+  "probe-dm-cache": 12640256
+ }
+}

@@ -1,0 +1,53 @@
+From f3ba77035501150beb711dbda776e76919fd5977 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 04:23:14 -0700
+Subject: [PATCH 1/3] Verify prepared RAM activation commands fit Windows
+ encoded-command transport
+
+---
+ RESULT.md                    |  2 ++
+ encoded-size-check.guard.log |  1 +
+ encoded-size-check.json      | 16 ++++++++++++++++
+ 3 files changed, 19 insertions(+)
+ create mode 100644 encoded-size-check.guard.log
+ create mode 100644 encoded-size-check.json
+
+diff --git a/RESULT.md b/RESULT.md
+index f816d6c569d43cfd4759be1f2001bed7c126bc66..7d6a95abe03528aa8ff314b5cb64bb601359ab8e 100644
+--- a/RESULT.md
++++ b/RESULT.md
+@@ -15,3 +15,5 @@ First atomic write attempt failed because PowerShell converted a null backup arg
+ Activation procedure prepared (not executed): `activate.py` defaults to a no-contact dry run. After direct human restart release, execute individual `--execute --step` actions through the existing 256 MiB queue. It checks saved config hashes, exact scheduled task actions, physical headroom, successful preceding receipts, and old task/listener absence. Shield must expose poolMiB98304 before Node is started. It does not explicitly stop VMs, reboot, install code or edit config. Runtime/app health must still be verified afterward using status.py and endpoint checks. Only Python parsing and local dry-run generation have been verified; PowerShell/runtime behavior has not been executed or validated. Keep the ongoing experiment protected until the human replies.
+ 
+ Read-only verification at2026-10-23T11:07:35Z still reports node64GiB and manager65536MiB, both HTTP200, eight running tenant apps and eleven running VMs. No restart was executed; the human restart/experiment question remains unanswered. Receipt: status-current-check.json.
++
++Offline activation-command transport check: all four generated PowerShell steps, including the helper watchdog/hash header, fit the helper limit of 7,900 encoded characters (preflight7,116; stop5,672; start-Shield6,104; start-Node6,944). This verifies transport size only, not native syntax or behavior; no SSH or restart occurred. Exact source hashes are in encoded-size-check.json.
+diff --git a/encoded-size-check.guard.log b/encoded-size-check.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/encoded-size-check.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/encoded-size-check.json b/encoded-size-check.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..cb8e1dcbe7a7e658ac5a3fd916df065a75464c05
+--- /dev/null
++++ b/encoded-size-check.json
+@@ -0,0 +1,16 @@
++{
++  "at": "2026-10-23T11:23:14.863976+00:00",
++  "scope": "Offline generated-command length only; no SSH or PowerShell execution",
++  "activateSha256": "bbc4e7e7ce570c6a38b87b7730af784008da6b20c213eb9ea5df862fe3d05bf7",
++  "helperSha256": "c50aac8ec282fbbb37d3e7a438b4bbcd433c6d1b363ec947165a156a904a041f",
++  "helperMaximumEncodedCharacters": 7900,
++  "actualEncodedCharactersIncludingHelperHeader": {
++    "preflight": 7116,
++    "stop": 5672,
++    "start-shield": 6104,
++    "start-node": 6944
++  },
++  "exit": 0,
++  "nativeSyntaxAndBehavior": "not yet validated",
++  "restartApproval": "still pending"
++}

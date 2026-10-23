@@ -1,0 +1,432 @@
+{
+ "tree": "linux-rpc-runtime-launch",
+ "branch": "linux-rpc-runtime-launch",
+ "head": "673601e54f8fdcf2ea72d239c87d92b483ff231b",
+ "headTree": "ea4b9cac641e61b2b743972cfd1f579d01577699",
+ "base": "fad657bc5626166bde1bde4454ec4f73d23dde47",
+ "lineageHead": "5d2d2c3c9bf224f63d7a178dfd86a4a1c7ae7f5c",
+ "commitCount": 27,
+ "ownCommits": [
+  {
+   "id": "66812187789d5417963fd37178ef39b6cdd8ebc0",
+   "tree": "fa3685cfb3ddeb1eddf0f035753e88f42d9e70c4",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "committed": "2026-10-23T03:11:12-07:00",
+   "subject": "Verifier runtime: a pinned glibc runtime for older userlands, and verify-in-place staging"
+  },
+  {
+   "id": "a4bcf90458a2cb43c7f712c9d926e8d142ba5d10",
+   "tree": "2af06e5a0ef3152eaa939983e3388143e528bb19",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "committed": "2026-10-23T03:11:12-07:00",
+   "subject": "Launch the local chain verifier in the Linux guest: per-host opt-in, gsup service, image inputs"
+  },
+  {
+   "id": "92ca07783bd5b981a8c7cc2b94afca78310e553f",
+   "tree": "dd35509fe8f417dcff3569f6d2e2a4502ccb8171",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "committed": "2026-10-23T03:22:19-07:00",
+   "subject": "Rebuild the host-admission bundle for the composed lease reader"
+  },
+  {
+   "id": "60a4f969f6a3f02b1f9aa1a70457e2cb8ed2657d",
+   "tree": "8dd163910d89d05580af0488af5d0e42720f354d",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "committed": "2026-10-23T03:26:31-07:00",
+   "subject": "Image builder: carry gsup's chain-verifier.mjs; the wiring pins name the verifier wrapper"
+  },
+  {
+   "id": "722cf1b04ac4708bf66aeec4cf4c95f570610c11",
+   "tree": "b44104ef555af6a76d20227c731f966717d6298e",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "committed": "2026-10-23T03:50:39-07:00",
+   "subject": "Guest verifier tests: a complete contract pins fixture; refusals must be for a chain reason; pin the legacy start"
+  },
+  {
+   "id": "927e2acfb75486ce94f6e5942fe29df4a2f05dc4",
+   "tree": "5753f2b1db0b24ae700647a46ff908cf0f2d7959",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "committed": "2026-10-23T03:55:47-07:00",
+   "subject": "Guest image: copy staging; the base is owned by uid 1000, so verify-in-place cannot hold there"
+  },
+  {
+   "id": "673601e54f8fdcf2ea72d239c87d92b483ff231b",
+   "tree": "ea4b9cac641e61b2b743972cfd1f579d01577699",
+   "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+   "committed": "2026-10-23T03:57:33-07:00",
+   "subject": "Guest verifier port between the tenants' ports and the ephemeral range; document the guest opt-in"
+  }
+ ],
+ "files": {
+  "RESULT.md": {
+   "sha256": "0e8386d1bfb334dc47581f265e80308c3ab3e652f3460981c934baa87174945a",
+   "bytes": 17488
+  },
+  "RECIPE-IMAGE.md": {
+   "sha256": "1d05d1d5a943658d243328e9354f7dd15a3c2613aa7b822dff0cf01e7b16dc65",
+   "bytes": 7568
+  },
+  "handoff/HANDOFF-F.md": {
+   "sha256": "9bb2066b16a5b6cf15c9a8ef6266b01dce3669563a7f2ed67ea18f31a1c8037b",
+   "bytes": 3811
+  },
+  "handoff/PATCHES.sha256": {
+   "sha256": "f63022cfeb77dcc55e74d1cc8faa44e31d4986cd94f4a6bf60ceaba6a6dbb6e4",
+   "bytes": 910
+  },
+  "handoff/patches/0001-Verifier-runtime-a-pinned-glibc-runtime-for-older-us.patch": {
+   "sha256": "f8a612ed72f4270218e3d8c85ed0e89b5097d1ff8beb6e450d0f0475837c4b68",
+   "bytes": 21711
+  },
+  "handoff/patches/0002-Launch-the-local-chain-verifier-in-the-Linux-guest-p.patch": {
+   "sha256": "2eb5bf9e6c19cadb8def6cc8a9f0a186a1f3eefa786cf3acc9bb1a883b185d25",
+   "bytes": 74729
+  },
+  "handoff/patches/0003-Rebuild-the-host-admission-bundle-for-the-composed-l.patch": {
+   "sha256": "62f185a57894d19234ab6642aae39d580dae02cb101bcb8d7ce54d382d64aedc",
+   "bytes": 330047
+  },
+  "handoff/patches/0004-Image-builder-carry-gsup-s-chain-verifier.mjs-the-wi.patch": {
+   "sha256": "36077004cb1f084789b110b7bab46552988cf17b628cb6b083018296523c57fe",
+   "bytes": 11966
+  },
+  "handoff/patches/0005-Guest-verifier-tests-a-complete-contract-pins-fixtur.patch": {
+   "sha256": "bf36bea3c79a3a7f9800427f0f408193a42c33d74f5e4635e159f632e5369ebe",
+   "bytes": 8390
+  },
+  "handoff/patches/0006-Guest-image-copy-staging-the-base-is-owned-by-uid-10.patch": {
+   "sha256": "bc1ba7af1d7a0e4b1ed889536eb59b4f894489764436b315e2061bd13e001f28",
+   "bytes": 7373
+  },
+  "handoff/patches/0007-Guest-verifier-port-between-the-tenants-ports-and-th.patch": {
+   "sha256": "be48c10b7325910ef68c6182ac95a4e9bded81172375698fc20dbf8c360c11f7",
+   "bytes": 14217
+  },
+  "receipts/base-owners.json": {
+   "sha256": "091e0114844818bfc143fec55f8db5c4a4ce0a33d07e3bb34c47343db56be2b5",
+   "bytes": 12937
+  },
+  "receipts/image-inputs-673601e54f8f.json": {
+   "sha256": "5065cdc18c791b82ca3026459e78685420ab5938c2d2c4380cef03362803fca3",
+   "bytes": 17857
+  },
+  "receipts/image-inputs-722cf1b04ac4.json": {
+   "sha256": "17f8bfa6049aada6d1dddb88a73899182bf6f0bfef13d00de4bba479943da00a",
+   "bytes": 18239
+  },
+  "tools/base-inventory.py": {
+   "sha256": "23fb1d65dbd71b11142cbeb9f9e937ad98811dbfb3976c4126724b652380a255",
+   "bytes": 1478
+  },
+  "tools/base-inventory.sh": {
+   "sha256": "2e371e7a250fa8c0e804c31d77b42a4f26606472c8bfc6f92b796233ebc2fbc0",
+   "bytes": 288
+  },
+  "tools/base-owners.py": {
+   "sha256": "f8a4cd6001053c482194f12e52f5b6d21d226fa182aa99d54cff2f192397b2cd",
+   "bytes": 2790
+  },
+  "tools/base-owners.sh": {
+   "sha256": "d8be9a446cb42a262ff49b3160e5cb616e6d9b8684e9db817655f226873351fe",
+   "bytes": 209
+  },
+  "tools/bundles.sh": {
+   "sha256": "79fc761535fd3298e2ae96aa9bc90ec0a3c4edaf117664df357278b5c3f3a588",
+   "bytes": 1218
+  },
+  "tools/extract-rootfs.py": {
+   "sha256": "c1aaa61a5e512492bc36192c57d26de120594b717f52223ba4c11b5af9cbb6e4",
+   "bytes": 1665
+  },
+  "tools/extract-rootfs.sh": {
+   "sha256": "3ac7cbb9e96c86b149b014b9e8b4a0bd18f3bdf9f2f6c9306095e04ba43996f6",
+   "bytes": 1008
+  },
+  "tools/glibc-probe.sh": {
+   "sha256": "b7c2b984b46600584aff4795c46382c3dadc8f1b27951bba907db9334c35f8a4",
+   "bytes": 2337
+  },
+  "tools/image-inputs.py": {
+   "sha256": "40371e0d8251a20ed67753804494c5cdcf0e0c94d0a8eb759b2240e279fba8b0",
+   "bytes": 8388
+  },
+  "tools/image-inputs.sh": {
+   "sha256": "9b40a8ed543fb16be4cba476436c4bb50dbff96f0645871034006ce01e4d48fb",
+   "bytes": 461
+  },
+  "tools/inventory.py": {
+   "sha256": "2b972a701769aaa24dd97b6419a8eb61a7a95462049521efbfba725cdc867e01",
+   "bytes": 2076
+  },
+  "lineage/a/0001-Close-the-verified-LeaseReader-client-s-metadata-met.patch": {
+   "sha256": "fc427b78155a4ea8bbfc2188cee5e8c42548d1aaae9a00e913941ceb8836218d",
+   "bytes": 8246
+  },
+  "lineage/b/0001-Import-the-native-gossip-head-source-rpc-gossip-brid.patch": {
+   "sha256": "522f02ddd436af9efc2fafcc1920d4607cd964a1739f9907a0321de6aa1fc0d3",
+   "bytes": 356220
+  },
+  "lineage/b/0002-One-local-Base-verifier-runtime-gossip-head-roots-ga.patch": {
+   "sha256": "7f4f3ebbbd366716cb3fffd7549efd8ca7f7b8fd62ff960c9cdbe938d224edc5",
+   "bytes": 100641
+  },
+  "lineage/b/0003-Pinned-offline-build-closure-for-the-verifier-runtim.patch": {
+   "sha256": "01662397819646183b49f4eb148b3acea2e5e839d734b796e16a248d3bd81dd2",
+   "bytes": 27766
+  },
+  "lineage/b/0004-Deadline-test-accept-the-request-timeout-winning-the.patch": {
+   "sha256": "c453effc636c865b5771b742253a822bd48d3ee0404f0a945645adfc1dff8354",
+   "bytes": 2170
+  },
+  "lineage/b/0005-Compose-A-s-verifier-and-head-E2Es-with-the-proof-aw.patch": {
+   "sha256": "32f2ea05c9eaf87f5895df0e5ef87e7143e2c96afe21b154eced1614861cf1d4",
+   "bytes": 8030
+  },
+  "lineage/b/0006-Hold-the-RPC-runtime-state-lock-with-a-parent-owned-.patch": {
+   "sha256": "e5294b4aaf28e09f361bb578fdd47ed6f3e2beb2dcd8ef5b295310dee3eeb529",
+   "bytes": 9173
+  },
+  "lineage/b/0007-Integrate-the-kernel-lock-final-witness-helper-and-o.patch": {
+   "sha256": "f359150f38cd479c02330792764a40338b941cb5d1fad8e8c72634743cb06a0b",
+   "bytes": 85530
+  },
+  "lineage/b/0008-Compose-A-s-policy-and-Windows-verifier-E2Es-with-th.patch": {
+   "sha256": "9162415685c7a20a59113f4ed337f86431a2bbb3aee6e25b0b47d6eee4b47028",
+   "bytes": 12179
+  },
+  "lineage/msg-builder.txt": {
+   "sha256": "fb695b6642349e3eb96edfc4735abff04fe647e1d29b5229d6e91064c766ee30",
+   "bytes": 865
+  },
+  "lineage/msg-bundles.txt": {
+   "sha256": "d6707431d6cbebbbe450ae0ecaef1eb5304d8ef916a5c7340ef82a42ee10fa62",
+   "bytes": 829
+  },
+  "lineage/msg-copy.txt": {
+   "sha256": "947712720fc2e5743d7e9936ba4610524161592d15aea25c071a9c07e9ccc01a",
+   "bytes": 1211
+  },
+  "lineage/msg-guest-launch.txt": {
+   "sha256": "fd5ebaaaec7d9ab8fb55bf43f95d9da123fc91af488b220cb9e678c103324cf4",
+   "bytes": 2291
+  },
+  "lineage/msg-port.txt": {
+   "sha256": "c105dd53e0cda53eea9f0c7fd4b2201bfed890b1d6032225a454aa7a1e05f0fd",
+   "bytes": 870
+  },
+  "lineage/msg-runtime-glibc.txt": {
+   "sha256": "ef8265bee84cbdc664c167cf8d34c318712f838c857bcc7ea102b5df99e41a5c",
+   "bytes": 1244
+  },
+  "lineage/msg-testfix.txt": {
+   "sha256": "8f9eb6227033e7f7140c2270c49b97ced9b2738f2475efc9439836c088907c40",
+   "bytes": 797
+  },
+  "lineage/p/0001-Verify-block-hash-pinned-witnesses-in-the-gateway-pr.patch": {
+   "sha256": "a98b9287100977e062e79d925325cd477b04f7e42dc496145a74214b2a660fa7",
+   "bytes": 65068
+  },
+  "lineage/p/0002-Run-the-Helios-E2Es-through-the-verifying-witness-ga.patch": {
+   "sha256": "e2a6bb21eabba7de33e0d1db414115784eb4c08768709ed387e1a786bf64eae0",
+   "bytes": 9193
+  },
+  "lineage/p/0003-Recover-missed-state-roots-by-authenticated-ancestry.patch": {
+   "sha256": "b2eacfc2d3557249d9277dfbce544dfecaa505f27911ccfe9b76345d16776708",
+   "bytes": 19137
+  },
+  "lineage/p/0004-Test-ancestry-recovery-on-real-Base-headers-and-end-.patch": {
+   "sha256": "c6c42adb159a277075aeb9b80ae8f7d7cf560d5f0637718d699a13a4ec39aae9",
+   "bytes": 151627
+  },
+  "lineage/p/0005-Record-real-Base-history-proofs-under-a-strict-budge.patch": {
+   "sha256": "1ca563e160236773f3894d1d7513617043329bce3031c7ee29c6536fccddb349",
+   "bytes": 33980
+  },
+  "lineage/p/0006-Verify-eth_getBlockByHash-answers-with-failover-so-o.patch": {
+   "sha256": "1999287347f6040cc36fe763f2c250b58f44e8c84eb6bf5cb6cd17b013bd72dd",
+   "bytes": 30503
+  },
+  "lineage/p/0007-Bound-every-gateway-request-by-one-whole-operation-d.patch": {
+   "sha256": "5408401b7c0d774e2041b711549b99893d6c5f0c73eb8002f6af57429873cbf9",
+   "bytes": 68998
+  },
+  "lineage/p/0008-Optional-S3-Sia-S3-backend-for-the-witness-gateway-s.patch": {
+   "sha256": "158f04350d460bdd17f4879bbd3a15e0a38048ac4d8a6ecfd7d1129bbbf5746e",
+   "bytes": 49731
+  },
+  "lineage/p/0009-Compose-the-S3-witness-store-as-the-verifying-gatewa.patch": {
+   "sha256": "806bbb67ab9af256c5900145e0391831aa99e780f5583e68def195a6ab7a6a7a",
+   "bytes": 85992
+  },
+  "lineage/p/0010-Archive-verified-ancestry-headers-so-a-missed-root-r.patch": {
+   "sha256": "592f32bca373069317bc6059427a2a15d506a1c76feaa52559a6fe95ab6fe744",
+   "bytes": 38932
+  },
+  "lineage/p/0011-Compose-E-s-S3-archive-tier-with-whole-operation-dea.patch": {
+   "sha256": "67a72f51fb8c6ca001c46d46c1e9dae8edc75712935b7ee60780e0d16bbc2599",
+   "bytes": 34767
+  },
+  "chain-verifier-inputs/PINS.sha256": {
+   "sha256": "b626c16141cea3664956b11b367d5846152a227c9d2172a366f423b09185c667",
+   "bytes": 565
+  }
+ },
+ "jobs": {
+  "base-inv": {
+   "rc": "0",
+   "finished": "2026-10-23T09:46:43Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=140 minHostAvailableMiB=25470",
+   "out_sha256": "1f05c249f3d6f3113f31ca2c2d12d4e194c62a821aa99fa0ec8b8d77cce9a6c6"
+  },
+  "base-owners": {
+   "rc": "0",
+   "finished": "2026-10-23T10:54:00Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=33 minHostAvailableMiB=24852",
+   "out_sha256": "6297f62f523b1d6a9d4b2f250ccdd6db02c3f17000831da13e0d0e817f59ceac"
+  },
+  "bundles": {
+   "rc": "0",
+   "finished": "2026-10-23T10:20:55Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=274 minHostAvailableMiB=25188",
+   "out_sha256": "5245b21a29b675d73fb5a54e7165a2e676daa4509550a21ba07d03f1fd0ec34e"
+  },
+  "extract": {
+   "rc": "141",
+   "finished": "2026-10-23T09:47:54Z",
+   "guard": "[memory-guard] exit=141 peakTreeRssMiB=173 minHostAvailableMiB=25856",
+   "out_sha256": "9c94a25dd503d82a56210da7fe779c0ef1252db4110f6500dd779f18f5de8230"
+  },
+  "glibc-probe": {
+   "rc": "0",
+   "finished": "2026-10-23T09:49:28Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=14 minHostAvailableMiB=25876",
+   "out_sha256": "a717df15189399b6d98cb2a176b8ae60039c3c182764f966aa80caedcc088aed"
+  },
+  "glibc-probe2": {
+   "rc": "0",
+   "finished": "2026-10-23T09:49:33Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a",
+   "out_sha256": "2421093d34ba497afcdce68f0d0cd5db7ef2eb2bcb345b4719e09cae2a7590ce"
+  },
+  "guest-e2e": {
+   "rc": "1",
+   "finished": "2026-10-23T10:28:41Z",
+   "guard": "[memory-guard] exit=1 peakTreeRssMiB=972 minHostAvailableMiB=23286",
+   "out_sha256": "243fc5519f158e58b9a50cb0054229845209ee241b03476b18767af6d7964ed4"
+  },
+  "guest-e2e2": {
+   "rc": "0",
+   "finished": "2026-10-23T10:50:25Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=943 minHostAvailableMiB=24446",
+   "out_sha256": "3b9500481aeabace526b4a67ab49244829b7f3ac6f1c771a795afc29a7a66aef"
+  },
+  "guest-e2e3": {
+   "rc": "0",
+   "finished": "2026-10-23T11:38:17Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=913 minHostAvailableMiB=24295",
+   "out_sha256": "5bf1562d19557a33918a1ca00825edb685f93304c21b7e99b369532e0f849c80"
+  },
+  "image-inputs": {
+   "rc": "99",
+   "finished": "2026-10-23T10:48:00Z",
+   "guard": "[memory-guard] exit=SIGTERM peakTreeRssMiB=259 minHostAvailableMiB=24695 STOPPED: process tree RSS 259 MiB > 256 MiB",
+   "out_sha256": "4e1d7b9aaf518a713360fc2423196d9cbbe3aa24177ae30835aac522c240b60e"
+  },
+  "image-inputs2": {
+   "rc": "1",
+   "finished": "2026-10-23T10:52:52Z",
+   "guard": "[memory-guard] exit=1 peakTreeRssMiB=273 minHostAvailableMiB=24849",
+   "out_sha256": "d8a4d5724c1b15cbdf4695cb19d3f2425eaee96d28bddaccc7a43c029d4eb566"
+  },
+  "image-inputs3": {
+   "rc": "0",
+   "finished": "2026-10-23T11:38:21Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=273 minHostAvailableMiB=24647",
+   "out_sha256": "25065e8bf37bdabff84e01896e5eb713baaae62433575e5fc42a30531900c145"
+  },
+  "lineage": {
+   "rc": "0",
+   "finished": "2026-10-23T09:44:53Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=70 minHostAvailableMiB=25275",
+   "out_sha256": "e1bdaf44033a2a11116a362aa16adec9bf0ecd0557e4dc08128bb2397f1c455f"
+  },
+  "overlay-py": {
+   "rc": "0",
+   "finished": "2026-10-23T10:47:59Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=500 minHostAvailableMiB=24564",
+   "out_sha256": "82046e27a0e59ac50d93260148ceecd996389346f8fc1bd4353d109e70730dfc"
+  },
+  "overlay-py2": {
+   "rc": "0",
+   "finished": "2026-10-23T11:43:18Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=418 minHostAvailableMiB=25028",
+   "out_sha256": "75dc0fcbc08dbf17623f0924f85703051c69dd618e9bc804a572d58fdeb65ef9"
+  },
+  "regress-base": {
+   "rc": "1",
+   "finished": "2026-10-23T10:35:39Z",
+   "guard": "[memory-guard] exit=1 peakTreeRssMiB=659 minHostAvailableMiB=24978",
+   "out_sha256": "5f3177b8f4d1bbd97788f165619e77cb0a0569517891bf824cbbdadf3c000591"
+  },
+  "regress": {
+   "rc": "1",
+   "finished": "2026-10-23T10:24:44Z",
+   "guard": "[memory-guard] exit=1 peakTreeRssMiB=656 minHostAvailableMiB=24454",
+   "out_sha256": "d54a3aefde77bb87f467b018b33fb6c5359667793f6df907f2e8b66d1e2e8312"
+  },
+  "regress2": {
+   "rc": "1",
+   "finished": "2026-10-23T10:39:09Z",
+   "guard": "[memory-guard] exit=1 peakTreeRssMiB=656 minHostAvailableMiB=24327",
+   "out_sha256": "fdfe11fb5e57251b0abb9c814c529e27dad4371c0dd7ef68d5cfcf6eebcc6319"
+  },
+  "regress3": {
+   "rc": "1",
+   "finished": "2026-10-23T11:41:52Z",
+   "guard": "[memory-guard] exit=1 peakTreeRssMiB=657 minHostAvailableMiB=24478",
+   "out_sha256": "0dcef12784bf5ee1276ec9f08e95afba1ea3c6283918617025464c2a285f82ec"
+  },
+  "runtime-e2e": {
+   "rc": "1",
+   "finished": "2026-10-23T10:52:48Z",
+   "guard": "[memory-guard] exit=1 peakTreeRssMiB=553 minHostAvailableMiB=24770",
+   "out_sha256": "6b4498d086e9714064bd70910df5754fe178bbcc787a4e2662d308fd803d125f"
+  },
+  "runtime-e2e2": {
+   "rc": "0",
+   "finished": "2026-10-23T10:59:20Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=977 minHostAvailableMiB=24523",
+   "out_sha256": "ba0824d7a4a9572d0ffafd67395a85b43ee6d290f85fca26dbf302dcfb8835cf"
+  },
+  "scan": {
+   "rc": "0",
+   "finished": "2026-10-23T11:44:07Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=90 minHostAvailableMiB=24443",
+   "out_sha256": "763ffe06da2955a667266acd9e4530314250fbe5d79979d861ded7a9ba5c0fb8"
+  },
+  "unit-js": {
+   "rc": "1",
+   "finished": "2026-10-23T10:39:15Z",
+   "guard": "[memory-guard] exit=1 peakTreeRssMiB=216 minHostAvailableMiB=25301",
+   "out_sha256": "5bbcd91f0144792c10e48aafd627fc8da2863cb6aa1e933ba5534a2726f285b7"
+  },
+  "unit-js2": {
+   "rc": "0",
+   "finished": "2026-10-23T10:51:31Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=324 minHostAvailableMiB=24904",
+   "out_sha256": "1b2bb145d8f70e664fb8c8a191e70b0e6bf048373823f71a2c2a76d860067d45"
+  },
+  "unit-js3": {
+   "rc": "0",
+   "finished": "2026-10-23T11:36:05Z",
+   "guard": "[memory-guard] exit=0 peakTreeRssMiB=214 minHostAvailableMiB=24952",
+   "out_sha256": "55bdecfe956c0492f6c53ae6a30697aa329356172c60105cc9221309cdb9ecb8"
+  },
+  "unit-new": {
+   "rc": "143",
+   "finished": "2026-10-23T10:21:12Z",
+   "guard": null,
+   "out_sha256": "4e9f3082ac18101341fc234b1462e353b3e09d52635d8f76be24739454a9c8a1"
+  }
+ }
+}

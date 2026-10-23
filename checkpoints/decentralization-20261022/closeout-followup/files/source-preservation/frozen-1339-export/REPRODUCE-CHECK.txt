@@ -1,0 +1,79 @@
+s-role base rebuilt from f58e03ec4 + 13 stored patch(es) in 476c589bb: tree 77d12fb623d5466999ca0c70d6e8d0abfc282086 OK
+s-role 028623069: tree 0fbb9ee6369e49e05276b998b02e68f3765c0001 OK
+s-role 4c059b997: tree ffbf2d1e595a938ff4bd4eaa4b9ca9b5f0bad734 OK
+s-role 36919aafe: tree 29794c3e3d0156e1a7ddf59a01cd56d78907a7b9 OK
+s-report base rebuilt from empty + 0 stored patch(es) in 476c589bb: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+s-report 18e021ddd: tree cc2cd7e72b1d8ccdcc62669b14d40c51f6de661e OK
+s-report 493be895c: tree 8d6e70804d1197caf0b243209eb3ad975478c0ec OK
+s-report ba22dbf5d: tree fe5d243f9da696457292ca2fa4156c4097b2450e OK
+s-report 3a10456b1: tree af34643e1d6d98ccbc00e23e94bd3a21549cfe68 OK
+s-report 548b4e973: tree 4925505523ccc4207d6bf1d05889c4a6ad0bffe7 OK
+s-report bea9b760b: tree 4b231ceb850a37a3c5631ab8131261e0f2999ae4 OK
+b-launch base rebuilt from 493ee9ee0 + 23 stored patch(es) in 476c589bb: tree 5e2e43319e1041d45ee1ab313ddb7e48e4cdbfd1 OK
+b-launch b7f88a862: tree 10aad5002412d2765a5bd4eb0c602eb1ae4900cd OK
+b-launch 5936a2c6f: tree 7ab2a30c59991887fb9247887bf5683f24e618a7 OK
+b-launch a9a549f09: tree 8ccf798064ba3d975ab9032dcba1c9474ce342df OK
+b-launch e4cc8f5f0: tree 03cc27038cbe077ce28bc8f4550ece5fed5c47a9 OK
+b-launch 5acd00cb0: tree 00ffd7d9cac11f4a61f73f86ed1bc8b75a7309cb OK
+b-launch 94124c65c: tree 5e2d4216ecda0a0a6c056c46f769a67ebb89392f OK
+b-launch 93c43ef27: tree 1754353e8f1938ba8f5f5f7c5da681ea7cb182b3 OK
+b-launch 2b320b199: tree cf1583d60876247ea0ada8b8bbb7368b24ed3730 OK
+b-launch 22cb0df0a: tree 5fd86b91f408b5a2b1f2c3e2ea777b322a4d9efa OK
+b-launch 749dd6a16: tree 6a235040d854a3a8f52c29a889b7a09bd891518e OK
+b-launch eeb2f0aa9: tree 67c5f99e317da3b5dfd0313fe7df99ded8d068dc OK
+b-launch 1df51ebbd: tree f7c2a0983707437431221a5e6b08fa4d2ea304e2 OK
+b-launch 003929a66: tree 604dfdb77c030e3ea07445378773f43bbb3f3495 OK
+b-launch 832513764: tree 7b6e7ee16a01b0759ec7eabb82ad3eb33a802f21 OK
+b-launch 9bc652b62: tree ba6cb15de17266a0f07c95b683dbffde344e947b OK
+b-launch cbc51aa26: tree 5aa2f2d1016689907c9f43e5ea13735f9d324263 OK
+b-launch f41c36f2f: tree 84d5388c2c1adb1b4d1dfe89a842832818096a83 OK
+b-launch 14eea4ad2: tree b081280bd202513dcaca87335175b98fc94afcaa OK
+b-launch 6c01b134a: tree 6928499e7508fe7c63700a81e021e8f590d44e88 OK
+b-launch 5d2d2c3c9: tree c4d4e7326021d92f9eff065117dd4ae0ea2f28a7 OK
+b-launch 668121877: tree fa3685cfb3ddeb1eddf0f035753e88f42d9e70c4 OK
+b-launch a4bcf9045: tree 2af06e5a0ef3152eaa939983e3388143e528bb19 OK
+b-launch 92ca07783: tree dd35509fe8f417dcff3569f6d2e2a4502ccb8171 OK
+b-launch 60a4f969f: tree 8dd163910d89d05580af0488af5d0e42720f354d OK
+b-launch 722cf1b04: tree b44104ef555af6a76d20227c731f966717d6298e OK
+b-launch 927e2acfb: tree 5753f2b1db0b24ae700647a46ff908cf0f2d7959 OK
+b-launch 673601e54: tree ea4b9cac641e61b2b743972cfd1f579d01577699 OK
+b-launch d9c1bb195: tree b6afcf78368a1990995ebbee68188f9a29fee1ec OK
+f-baseline base rebuilt from f58e03ec4 + 13 stored patch(es) in 476c589bb: tree 77d12fb623d5466999ca0c70d6e8d0abfc282086 OK
+f-baseline 6fd9a787d: tree b552e36c88b14719d6d2fc73067ff2c25c08f387 OK
+f-baseline c335c76cf: tree 547ca37f6071812875e38a55f05a0f2824089c9d OK
+f-baseline 30339303b: tree da9c417befd7aab253e7902e65467b93c52c0af1 OK
+f-baseline 1f19ad15a: tree 0687115ba54d38d278650d5dd53bfa4ea7cffa39 OK
+e-wallet base rebuilt from dfe020abf + 15 stored patch(es) in 476c589bb: tree 516ab0e7f97df5cc5795c1c77a5885bb41dbd5cf OK
+e-wallet 6ab298f19: tree 67a6106cec41bc30dd91440fd75aa63c41f3a8e0 OK
+e-wallet dc2e5d740: tree 068a62f43c51691d816c61a529cd1d8f6ae74cde OK
+t-hdd base rebuilt from empty + 0 stored patch(es) in 476c589bb: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+t-hdd a9f0155c5: tree a5cb6fffd2a879e33e31a35b1919b18f99361af0 OK
+root-wallet-iface base rebuilt from empty + 0 stored patch(es) in 476c589bb: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-wallet-iface 66b67c359: tree c4d04f79ae405556d80acf9cd071557f7ef44e6f OK
+root-shutdown base rebuilt from empty + 0 stored patch(es) in 476c589bb: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-shutdown 56b68c075: tree 0cebd5633e1f48f866f5b9b898b2af568b392dab OK
+root-shutdown 904ad2676: tree 736a88e088a4b82e76b8dbd01cce7c6d75558d84 OK
+root-shutdown 2f702e765: tree c02d3e85d6dce37e7a0255e1672055c65c7b450b OK
+root-ram96b base rebuilt from empty + 3 stored patch(es) in 476c589bb: tree ff047d83f193da310414f5e2f5771fa1e625b904 OK
+root-ram96b f3ba77035: tree 1d328f1b74686c72c3e53b986316ed938e76a36a OK
+root-ram96b 237c78f28: tree 0b40b4fe7f58a0a60a861674ad18d038a8dec8f4 OK
+root-ram96b 2ed6ba611: tree 27b76e70f87c462909154eb6e83365a15df7d0bf OK
+p-cache base rebuilt from empty + 0 stored patch(es) in 476c589bb: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+p-cache 515a1ec96: tree 1829e87ea27b55af2f75f1405b7741aae2164fc5 OK
+p-cache 8a0b0fbe8: tree b4309aa37afa31fdf80095cfa5555318d9911a34 OK
+p-cache ddd259313: tree 450b9a74ded1ccdc3776b5cf082384753261ce5d OK
+p-cache fe95bd508: tree ac6902037996c67dba41c07201cfab492b1ba036 OK
+p-cache 18ccb2727: tree 0018095cfafebb43dcfbd9b28982f3b94f4befb4 OK
+p-cache e8e868012: tree 2f9ca354a1a948978d5e2e847b2d33a6c0b43ebf OK
+a-gaps base rebuilt from dfe020abf + 16 stored patch(es) in 476c589bb: tree 079caef6560a130194c1c37795c97aa33a2d988b OK
+a-gaps 40f2b0a95: tree 7d1744d76983853f5fe3d18f91af438fca69c334 OK
+a-gaps 554a251cb: excluded-paths-only commit, derived tree 7d1744d76983853f5fe3d18f91af438fca69c334 unchanged OK
+e-report base rebuilt from empty + 0 stored patch(es) in 476c589bb: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+e-report f92006a01: tree 12733952015be874576401ce1dc7a4f31c440d67 OK
+e-report f5d4592a4: tree 44761619dfe78a7602ae908d46b66dab28cb4635 OK
+e-report 5c4bf1f9b: tree 974e65f44a744297d907453c42e0ae0237e47da8 OK
+e-report ec2be533a: tree 6fcf09f2a26979f924ac14d317848f87288439f0 OK
+p-cache trees are the ORIGINAL trees minus ['run/20261023T112303Z/out/receipts.jsonl'] (head original 04782264f); exact originals NOT reproduced
+a-gaps trees are the ORIGINAL trees minus ['metal/guest/mcp-server.bundle.mjs', 'metal/guest/mcp-server.bundle.mjs.manifest.json'] (head original f34efc109); exact originals NOT reproduced
+e-report trees are the ORIGINAL trees minus ['exports/'] (head original 51eeb6c1e); exact originals NOT reproduced
+RESULT s-role reproduced: True, s-report reproduced: True, b-launch reproduced: True, f-baseline reproduced: True, e-wallet reproduced: True, t-hdd reproduced: True, root-wallet-iface reproduced: True, root-shutdown reproduced: True, root-ram96b reproduced: True, p-cache reproduced: True, a-gaps reproduced: True, e-report reproduced: True

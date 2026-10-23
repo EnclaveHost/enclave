@@ -1,0 +1,34 @@
+[queue] START available=25391MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[job] ssh/scp/sftp -> denial stubs (rc=97); anvil: /home/steven/.foundry/bin/anvil
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/repo head 14d1e4954cf7c9900d5d3e841a23f02de945c1b2 dirty=12 untracked=9
+cc071ecd5aa25cb68421df478268887fe63959acbb39aac388c4db1d9854cc23  network/public-rpc.mjs
+6c2f58692ea8980bdf0fddfd4225f109a978d05f053e25bc34431ea5bf87b870  network/public-rpc-hosts.mjs
+9511d74732c89c5a28fd6dd96015743de71a86193c2b5eb542355065da123633  network/host-services/roles.mjs
+da675a2cea07d91281a0e8a04d719142c7542322c7e0d8d70d19201bd7e4363f  network/host-services/runner.mjs
+d61bbeb60d3099ab9aa9bcb44d2070e1a6e313e553231426920dc3deb01fb906  network/host-service-names.mjs
+0dab1bc73232e019c5e699ffe8f43467a07c9be5b111affb8a831e03061754e5  network/host-service-transport.mjs
+e7ea534604b2dd9307f4c4d8919fcc22c2061438f33dfb68c3fef61f526c72cd  network/wg-provider/provider.mjs
+e78288e664a0892cc91c273b03ed098f7f50a1a1e26ae9763b08d29b8887e28b  test/public-rpc.test.mjs
+✔ configuration: the operator's own loopback node only, no secret, no remote verifier; the runner binds it to this host and never advertises it (8691.281901ms)
+✔ the browser's methods from the operator's node: EIP-1898 reads, reverts, estimates, history, receipts; only the node is fetched (71.262684ms)
+✔ raw transactions: refused unless the operator states a route; then the node's own answer, never a fabricated hash (533.055544ms)
+✔ refused without reaching the node: privileged and signing methods, unknown methods, batches, bad bodies, other paths and verbs (35.537113ms)
+✔ CORS: the configured origins only, POST with content-type only, never credentials (9.810356ms)
+✔ bounds and honesty: stalled, down, syncing, stale and oversized backends refuse in bounded time; in-flight and rate limits refuse at once (10460.00233ms)
+✔ the local verifier answers only its configured methods, never falls back to the node, and every answer names its source (17.949705ms)
+✔ two names of one host are one vote; two hosts are two (and say nothing about whether they share a node) (17.30379ms)
+✔ the PACKAGED role under the runner: reviewed bytes only, no inherited environment, stopped and restarted by the platform host policy gate (905.362649ms)
+✔ served methods are exactly the browser note's profile methods (plus the explicit raw submission) (0.299118ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 20919.353036
+[job] strict: skipped+cancelled=0
+[job] exit=0
+[memory-guard] exit=0 peakTreeRssMiB=553 minHostAvailableMiB=25021
+[memory-guard] at peak: reth:320 node:98 node:63 node:54 bash:6 timeout:4 tee:4 unshare:4
+[queue] EXIT 0

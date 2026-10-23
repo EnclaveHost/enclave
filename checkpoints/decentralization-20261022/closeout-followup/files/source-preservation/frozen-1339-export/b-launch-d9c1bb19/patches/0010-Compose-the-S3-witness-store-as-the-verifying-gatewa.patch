@@ -1,0 +1,1149 @@
+From 749dd6a16e8805d34be0e4a25ed61c805af32c60 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 21:04:54 -0700
+Subject: [PATCH 10/28] Compose the S3 witness store as the verifying gateway's
+ ARCHIVE tier
+
+On P's verifying gateway (bfbd649d) with the first S3 backend (b71c8261,
+cherry-picked as the parent commit):
+
+* witness-gateway: optional `archive` {candidates(w, {deadline}), put(w, result)}.
+  Read only after the local cache and every upstream failed, inside the
+  remaining request deadline; each candidate verified and quarantined like a
+  cache entry; only verified upstream answers are archived, and that put is
+  never awaited (a hung S3 in the existing awaited `cache` slot held a fresh
+  verified read 8043 ms with b71c8261, 2022 ms with this backend; 6 ms in the
+  archive slot). An archive needs proofs, like the cache.
+* s3-witness-cache v2: content-addressed create-only objects
+  <prefix>/<chain>/<blockHash>/<sha256(request)>/<sha256(canonical result)>.json
+  so a wrong first object cannot shadow a valid one; bounded ListObjectsV2
+  (max-keys = maxCandidates, maxListPages, maxListBytes, continuation token,
+  matching sia-s3), bounded fetches inside one read budget; the v1 single slot
+  is read last; put() returns at enqueue (bounded queue and in-flight writes),
+  idle()/close() reap curl. Writes stay off unless archive: true.
+* tests on a real MinIO with the real witness-check helper and 49 real Base
+  witnesses: bad-first/valid-second, poisoned legacy plus valid new, upstream
+  forged-first/honest-second, restart/archive-only replay, hung/missing S3,
+  timeout cleanup; Helios E2E replay from the archive (test-signed head).
+
+Conflict on P's 7b4dd692 (createWitnessGateway options and stats) resolved by keeping both:
+P's maxHeaderBytes and per-upstream headerOk/headerInvalid, and the archive option and counters.
+
+(cherry picked from commit 2778527853fdf2a42675eb8e613646727b7df509)
+(cherry picked from commit 6a058877438c1b3d434a9447259a7e4e32f45782)
+---
+ network/s3-witness-cache.mjs       | 152 ++++++++++++-----
+ network/witness-gateway.mjs        |  35 +++-
+ test/helios-s3-replay.e2e.test.mjs | 160 +++++++++---------
+ test/s3-witness-archive.test.mjs   | 198 ++++++++++++++++++++++
+ test/s3-witness-cache.test.mjs     | 256 +++++++++++++----------------
+ test/support/s3-test-env.mjs       |  46 ++++++
+ 6 files changed, 581 insertions(+), 266 deletions(-)
+ create mode 100644 test/s3-witness-archive.test.mjs
+ create mode 100644 test/support/s3-test-env.mjs
+
+diff --git a/network/s3-witness-cache.mjs b/network/s3-witness-cache.mjs
+index 5677bfc3cef1a11946002523e2cd5b4d21ae249a..546285fe36dd8dacf80368e6e147b8b75282bf89 100644
+--- a/network/s3-witness-cache.mjs
++++ b/network/s3-witness-cache.mjs
+@@ -1,21 +1,31 @@
+-// OPTIONAL immutable witness-cache backend on S3 (Sia-S3, or any S3 that supports conditional PUT) for
+-// network/witness-gateway.mjs: the same {get(w), put(w, result)} contract as dirWitnessCache, keyed by witnessKey().
++// OPTIONAL immutable witness ARCHIVE on S3 (Sia-S3, or any S3 with conditional PUT and ListObjectsV2) for
++// network/witness-gateway.mjs: the proof-aware candidate contract {candidates(w), put(w, result), get(w)}, keyed by
++// witnessKey(). Its answers are UNTRUSTED: the gateway verifies every candidate with the witness checker against an
++// authenticated state root before using it, and archives only answers it has verified.
+ //
+ // What it is: downstream EVIDENCE AVAILABILITY for block-hash-pinned witnesses (eth_getProof / eth_getCode at
+-// {blockHash}). What it is NOT: a consensus authority, a source of freshness, or a bootstrap dependency.
+-//   * The gateway consults get() only after every live upstream failed, and only for a block-hash-pinned request, so
+-//     a hit is availability for THAT block only. Helios re-verifies every returned witness against the signed head
+-//     (state root / code hash); a wrong, stale or tampered entry fails verification and is never an answer.
+-//   * Keys are chain-namespaced and pinned by block hash and request: <prefix>/<chainId>/<blockHash>/<sha256>.json,
+-//     and an entry is accepted only if its own format, chain id, block hash and full normalized request match exactly.
+-//     Anything else (tampered, oversized, truncated, slow, unreachable) is a miss, counted in stats, never an error that
+-//     could stall the gateway.
++// {blockHash}). What it is NOT: a consensus authority, a source of freshness, or a bootstrap dependency (with S3
++// unconfigured or down, every read is an empty candidate list and the gateway behaves as without it).
++//   * Content-addressed and create-only: one immutable object per distinct answer,
++//       <prefix>/<chainId>/<blockHash>/<sha256(request)>/<sha256(canonical result)>.json
++//     so a wrong first write (a lying source's answer from an older, unverifying writer, or a tampered bucket) can
++//     never shadow a valid answer for the same request: the valid one is another object. The single-slot layout of the
++//     first version (<…>/<sha256(request)>.json) is still read, as the LAST candidate.
++//   * An object is a candidate only if its envelope (format, chain id, block hash, full normalized request) matches
++//     exactly and its name is the hash of its result. Anything else (tampered, misnamed, oversized, truncated, slow,
++//     unreachable) is skipped and counted, never an error that could stall or fail the gateway.
++//   * Bounded reads: ListObjectsV2 pages of at most maxCandidates keys, at most maxListPages pages and maxListBytes per
++//     page, at most maxCandidates objects fetched, all inside one read budget (readBudgetMs, and the caller's
++//     deadline). ADVERSARIAL BUCKET OWNER: whoever can write the bucket can bury valid answers under more than
++//     maxCandidates junk objects (names are hashes, but junk can be ground to sort first) or delete them: an
++//     availability loss for those requests, never a wrong answer, because nothing here is trusted.
+ //   * Writes are OFF unless `archive: true`: an archived eth_getProof names the accounts and storage slots this node
+-//     read, at which block (PRIVACY). Writes are create-only (If-None-Match: *). A 412 compares the stored entry
+-//     with ours, and a different entry is never overwritten (a `conflicts` count shows two sources disagreed; the
+-//     first entry stays, and if it is wrong Helios rejects it: availability loss for that key, never a wrong answer).
+-//   * Writes never block reads: the gateway does not await put(); here puts queue (bounded) and run with a timeout,
+-//     dropping work beyond the bound. close() kills every in-flight request.
++//     read, at which block (PRIVACY). Even read-only, every lookup reveals to the S3 operator which request hash was
++//     asked and when (request hashes of guessable slots can be recognised): reads are metadata too.
++//     Writes are create-only (If-None-Match: *); a 412 re-reads the object and compares it exactly, and a different
++//     object under that content name is never overwritten (`conflicts`).
++//   * Writes never block reads or the caller: put() returns as soon as the write is queued (bounded queue, bounded
++//     in-flight writes, per-write timeout); idle() resolves when the queue has drained. close() kills every request.
+ // Signing and transport: curl's maintained AWS SigV4 implementation (`--aws-sigv4`, libcurl; checked against AWS's
+ // published signing-suite vectors and a real MinIO server in test/s3-witness-cache.test.mjs). The access key travels
+ // to curl as a config file on its standard input: never in argv or the environment, never in errors or stats. A
+@@ -86,10 +96,11 @@ export function s3Request({ method, url, region, credentials, headers = [], body
+  * endpoint: S3 base URL (https, or http on loopback). bucket, region. chainId: the gateway's chain (namespaces keys).
+  * credentials: {accessKeyId, secretAccessKey}, loaded by the caller from a 0600 file (never logged).
+  * archive: false (default) = read-only; true = also write witnesses (see PRIVACY above).
+- * -> { get(w), put(w, result), close(), stats(), privacy }
++ * -> { candidates(w, {deadline}), get(w), put(w, result), idle(), close(), stats(), privacy }
+  */
+ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix = 'enclave-witness', chainId, credentials, archive = false,
+-  timeoutMs = 4000, putTimeoutMs = 60000, maxObjectBytes = 4 << 20, maxInflightPuts = 2, maxQueuedPuts = 64, maxInflightGets = 8, curl = 'curl' } = {}) {
++  timeoutMs = 4000, readBudgetMs = 8000, putTimeoutMs = 60000, maxObjectBytes = 4 << 20, maxCandidates = 8, maxListPages = 2, maxListBytes = 256 << 10,
++  maxInflightPuts = 2, maxQueuedPuts = 64, maxInflightGets = 8, curl = 'curl' } = {}) {
+   const ep = rpcEndpoint(endpoint);  // throws RpcUrlError without echoing the URL
+   if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket || '')) throw new Error('invalid bucket name');
+   if (!/^[a-z0-9-]{1,32}$/.test(region)) throw new Error('invalid region');
+@@ -97,21 +108,25 @@ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix
+   if (!Number.isSafeInteger(chainId) || chainId <= 0) throw new Error('chainId required (keys are chain-namespaced)');
+   if (!credentials || !ACCESS_KEY.test(credentials.accessKeyId || '') || !SECRET.test(credentials.secretAccessKey || '')) throw new Error('invalid S3 credentials');
+   if (typeof archive !== 'boolean') throw new Error('archive must be true or false');
+-  for (const [n, v, lo, hi] of [['timeoutMs', timeoutMs, 200, 60000], ['putTimeoutMs', putTimeoutMs, 1000, 600000], ['maxObjectBytes', maxObjectBytes, 1024, 16 << 20],
++  for (const [n, v, lo, hi] of [['timeoutMs', timeoutMs, 200, 60000], ['readBudgetMs', readBudgetMs, 200, 300000], ['putTimeoutMs', putTimeoutMs, 1000, 600000],
++    ['maxObjectBytes', maxObjectBytes, 1024, 16 << 20], ['maxCandidates', maxCandidates, 1, 64], ['maxListPages', maxListPages, 1, 16], ['maxListBytes', maxListBytes, 4096, 4 << 20],
+     ['maxInflightPuts', maxInflightPuts, 1, 16], ['maxQueuedPuts', maxQueuedPuts, 0, 4096], ['maxInflightGets', maxInflightGets, 1, 64]])
+     if (!Number.isSafeInteger(v) || v < lo || v > hi) throw new Error(`invalid ${n}`);
+   const creds = { accessKeyId: credentials.accessKeyId, secretAccessKey: credentials.secretAccessKey };
+   const base = ep.url.origin + ep.url.pathname.replace(/\/+$/, '');
+   const children = new Set();
+   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 's3wc-'));  // 0700 (mkdtemp); request bodies only, removed on close
+-  const stats = { hits: 0, misses: 0, rejected: {}, errors: {}, puts: 0, putsExisting: 0, conflicts: 0, putsFailed: 0, putsDropped: 0, putsSkipped: 0 };
++  const stats = { lists: 0, candidates: 0, hits: 0, misses: 0, rejected: {}, errors: {}, puts: 0, putsExisting: 0, conflicts: 0, putsFailed: 0, putsDropped: 0, putsSkipped: 0 };
+   const bump = (o, k) => { o[k] = (o[k] || 0) + 1; };
+   let closed = false, gets = 0;
+   const waiting = [], queue = [];
+   let puts = 0;
+ 
+   const valid = (w) => w && KEY.test(w.key || '') && HASH.test(w.blockHash || '') && typeof w.norm === 'string';
+-  const objectUrl = (w) => `${base}/${bucket}/${prefix}/${chainId}/${w.blockHash}/${w.key}.json`;
++  const folder = (w) => `${prefix}/${chainId}/${w.blockHash}/${w.key}/`;            // content-addressed answers
++  const legacyKey = (w) => `${prefix}/${chainId}/${w.blockHash}/${w.key}.json`;       // version-1 single slot
++  const contentName = (result) => createHash('sha256').update(canonicalJson(result)).digest('hex');
++  const urlOf = (key) => `${base}/${bucket}/${key}`;
+   const entry = (w, result) => canonicalJson({ format: FORMAT, chainId, blockHash: w.blockHash, request: w.norm, result });
+   const req = (o) => s3Request({ region, credentials: creds, curl, children, scratch, ...o });
+ 
+@@ -139,60 +154,121 @@ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix
+   }
+   function release() { const next = waiting.shift(); if (next) next(); else gets--; }
+ 
+-  async function get(w) {
+-    if (closed || !valid(w)) return undefined;
++  const left = (deadline) => deadline - Date.now();
++  async function fetchEntry(w, key, deadline) {
++    const t = Math.min(timeoutMs, left(deadline));
++    if (t < 50) { bump(stats.errors, 'budget'); return undefined; }
+     if (!(await acquire())) { bump(stats.errors, 'busy'); return undefined; }
+     if (closed) { release(); return undefined; }
+     try {
+-      const r = await req({ method: 'GET', url: objectUrl(w), timeoutMs, maxBytes: maxObjectBytes });
++      const r = await req({ method: 'GET', url: urlOf(key), timeoutMs: t, maxBytes: maxObjectBytes });
+       if (r.status === 404) { stats.misses++; return undefined; }
+       if (r.status !== 200) { bump(stats.errors, 'http' + r.status); return undefined; }
+-      const [ok, v] = accept(w, r.body);
+-      if (!ok) { bump(stats.rejected, v); return undefined; }
+-      stats.hits++;
+-      return v;
++      return accept(w, r.body);
+     } catch (e) { bump(stats.errors, e.code || 'error'); return undefined; }
+     finally { release(); }
+   }
++  /** Up to maxCandidates content-addressed object keys for w, in listing (lexicographic) order; bounded pages. */
++  async function listKeys(w, deadline) {
++    const pfx = folder(w), keys = [];
++    const ok = new RegExp('^' + pfx.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[0-9a-f]{64}\\.json$');
++    let token = null;
++    for (let page = 0; page < maxListPages && keys.length < maxCandidates; page++) {
++      const t = Math.min(timeoutMs, left(deadline));
++      if (t < 50) { bump(stats.errors, 'budget'); break; }
++      const q = `list-type=2&max-keys=${maxCandidates}&prefix=${encodeURIComponent(pfx)}` + (token ? `&continuation-token=${encodeURIComponent(token)}` : '');
++      if (!(await acquire())) { bump(stats.errors, 'busy'); break; }
++      let r;
++      try { r = await req({ method: 'GET', url: `${base}/${bucket}?${q}`, timeoutMs: t, maxBytes: maxListBytes }); }
++      catch (e) { bump(stats.errors, 'list-' + (e.code || 'error')); break; }
++      finally { release(); }
++      stats.lists++;
++      if (r.status !== 200) { bump(stats.errors, 'list' + r.status); break; }
++      const xml = r.body.toString('utf8');
++      for (const m of xml.matchAll(/<Key>([^<]{1,512})<\/Key>/g)) {
++        if (ok.test(m[1])) { if (keys.length < maxCandidates) keys.push(m[1]); } else bump(stats.rejected, 'listed-name');
++      }
++      const more = /<IsTruncated>true<\/IsTruncated>/.test(xml), next = /<NextContinuationToken>([^<]{1,1024})<\/NextContinuationToken>/.exec(xml);
++      if (!more || !next) break;
++      token = next[1];
++    }
++    return keys;
++  }
++  /**
++   * Every stored answer for w that passes the envelope and content-address checks (UNVERIFIED: the gateway checks
++   * each against an authenticated root). Bounded by maxCandidates, listing bounds and one read budget; never throws.
++   */
++  async function candidates(w, { deadline = Date.now() + readBudgetMs } = {}) {
++    if (closed || !valid(w)) return [];
++    deadline = Math.min(deadline, Date.now() + readBudgetMs);
++    const out = [];
++    try {
++      for (const key of await listKeys(w, deadline)) {
++        const got = await fetchEntry(w, key, deadline);
++        if (!got) continue;
++        const [ok, v] = got;
++        if (!ok) { bump(stats.rejected, v); continue; }
++        if (contentName(v) !== key.slice(-69, -5)) { bump(stats.rejected, 'address'); continue; }   // name = hash of content
++        out.push(v);
++      }
++      if (out.length < maxCandidates) {
++        const got = await fetchEntry(w, legacyKey(w), deadline);
++        if (got) { if (got[0]) out.push(got[1]); else bump(stats.rejected, got[1]); }
++      }
++    } catch (e) { bump(stats.errors, e?.code || 'error'); }
++    stats.candidates += out.length;
++    if (out.length) stats.hits++; else stats.misses++;
++    return out;
++  }
++  /** Compatibility: the first candidate (unverified, like every read). */
++  async function get(w) { return (await candidates(w))[0]; }
+ 
+-  async function write(w, body) {
++  async function write(w, result, body) {
++    const key = folder(w) + contentName(result) + '.json';
+     const sha = createHash('sha256').update(body).digest('hex');
+-    const r = await req({ method: 'PUT', url: objectUrl(w), timeoutMs: putTimeoutMs, maxBytes: 64 << 10, body,
++    const r = await req({ method: 'PUT', url: urlOf(key), timeoutMs: putTimeoutMs, maxBytes: 64 << 10, body,
+       headers: ['If-None-Match: *', 'Content-Type: application/json', `x-amz-content-sha256: ${sha}`] });
+     if (r.status === 200) { stats.puts++; return; }
+     if (r.status !== 412) { stats.putsFailed++; bump(stats.errors, 'put' + r.status); return; }
+-    // create-only: something is already there. Equal entry = done; different entry = conflict, never overwritten.
+-    const g = await req({ method: 'GET', url: objectUrl(w), timeoutMs, maxBytes: maxObjectBytes });
++    // create-only: the content name exists. Equal bytes = done; different bytes = conflict, never overwritten.
++    const g = await req({ method: 'GET', url: urlOf(key), timeoutMs, maxBytes: maxObjectBytes });
+     if (g.status === 200 && g.body.equals(Buffer.from(body))) stats.putsExisting++;
+     else stats.conflicts++;
+   }
++  const idlers = [];
+   function pump() {
+     while (!closed && puts < maxInflightPuts && queue.length) {
+-      const [w, body, resolve] = queue.shift();
++      const [w, result, body] = queue.shift();
+       puts++;
+-      write(w, body).catch((e) => { stats.putsFailed++; bump(stats.errors, 'put-' + (e.code || 'error')); })
+-        .finally(() => { puts--; resolve(); pump(); });
++      write(w, result, body).catch((e) => { stats.putsFailed++; bump(stats.errors, 'put-' + (e.code || 'error')); })
++        .finally(() => { puts--; pump(); });
+     }
++    if (!puts && !queue.length) for (const r of idlers.splice(0)) r();
+   }
+-  /** Never throws, never blocks the caller beyond queueing; resolves when the write finished, failed or was dropped. */
++  /** Never throws and never waits for the write: queues it (bounded) and returns. Call only with VERIFIED answers. */
+   function put(w, result) {
+     if (!archive || closed) { stats.putsSkipped++; return Promise.resolve(); }
+     if (!valid(w) || result === undefined) { stats.putsSkipped++; return Promise.resolve(); }
+     const body = entry(w, result);
+     if (Buffer.byteLength(body) > maxObjectBytes) { stats.putsSkipped++; return Promise.resolve(); }
+     if (queue.length >= maxQueuedPuts) { stats.putsDropped++; return Promise.resolve(); }
+-    return new Promise((resolve) => { queue.push([w, body, resolve]); pump(); });
++    queue.push([w, result, body]);
++    pump();
++    return Promise.resolve();
+   }
++  /** Resolves when no write is queued or in flight (tests, orderly shutdown). */
++  function idle() { return !puts && !queue.length ? Promise.resolve() : new Promise((r) => idlers.push(r)); }
+   async function close() {
+     closed = true;
+-    for (const [, , resolve] of queue.splice(0)) { stats.putsDropped++; resolve(); }
++    stats.putsDropped += queue.splice(0).length;
+     const exits = [...children].map((p) => { p.kill('SIGKILL'); return p.exited; });
+     await Promise.race([Promise.all(exits), new Promise((r) => setTimeout(r, 2000))]);  // bounded: killed curls reaped
+     for (const waiter of waiting.splice(0)) waiter();  // they see `closed` and return a miss
++    for (const r of idlers.splice(0)) r();
+     fs.rmSync(scratch, { recursive: true, force: true });
+   }
+   return {
+-    get, put, close,
++    candidates, get, put, idle, close,
+     stats: () => structuredClone({ ...stats, inflight: { gets, puts, queued: queue.length, children: children.size } }),
+     privacy: archive ? 'ARCHIVE ON: requested accounts, storage slots and block hashes are written to the bucket' : 'read-only: nothing is written',
+   };
+diff --git a/network/witness-gateway.mjs b/network/witness-gateway.mjs
+index 6926a241bd996e598873b0f475214e8d48a61195..848d5c2bbef3e2b5b933fafb8215d90a753cde5a 100644
+--- a/network/witness-gateway.mjs
++++ b/network/witness-gateway.mjs
+@@ -23,6 +23,10 @@
+ //   * eth_getBlockByHash (Helios's historical path asks for a full block by hash) is verified too: the header must hash
+ //     to the requested hash, and a full-transaction body must pass Helios's OpStack::validate_block; a bad answer costs
+ //     its source the try. A hash-only answer is HEADER-verified only. Blocks are never cached or used as roots.
++//   * An optional ARCHIVE tier (a remote store such as Sia-S3: network/s3-witness-cache.mjs) is the last resort: it is
++//     read only after the local cache and every upstream failed, within the request's remaining deadline, and each
++//     candidate is verified and quarantined exactly like a cache entry. It receives only VERIFIED upstream answers,
++//     and those writes are never awaited, so a slow or hung remote store can neither delay nor fail a fresh read.
+ //   * Other methods (blocks by number, receipts, logs, fee data) keep ordered first-answer failover: Helios verifies
+ //     those against its signed head itself. A method allowlist keeps the gateway from being a general RPC proxy
+ //     (a16z/helios 2af9b418 core/src/execution/providers/rpc.rs, opstack evm, plus broadcast).
+@@ -151,6 +155,8 @@ function limiter(max, maxQueued) {
+  * proofs: {checker, roots} (network/witness-verify.mjs), REQUIRED when eth_getProof/eth_getCode are offered or a cache
+  * is given: there is no unverified witness mode. cache: optional {put(w, result), candidates(w)} (dirWitnessCache); a
+  * store with only {get, put} works, but a single-slot store can still be shadowed by a bad first write.
++ * archive: optional {candidates(w, {deadline}), put(w, result)} (s3WitnessCache): read only after the cache and every
++ * upstream failed, written only with verified answers and never awaited.
+  * Bounds: deadlineMs per request covers EVERYTHING the request does (queue wait for a slot, every upstream try and body
+  * read, root recovery, helper checks, the cache read); timeoutMs per try (cut to what is left of the deadline when the
+  * slot is granted; no try starts with less than minTryMs left); maxResponseBytes per answer (while reading);
+@@ -162,7 +168,7 @@ function limiter(max, maxQueued) {
+  * -> {handle(request) -> response, root(blockHash) -> binding | null, listen(port) -> url (127.0.0.1 only), close()
+  *    (terminal), settled(), stats()}
+  */
+-export function createWitnessGateway({ upstreams = [], cache = null, proofs = null, timeoutMs = 8000, deadlineMs = 30000, maxResponseBytes = 16 << 20,
++export function createWitnessGateway({ upstreams = [], cache = null, archive = null, proofs = null, timeoutMs = 8000, deadlineMs = 30000, maxResponseBytes = 16 << 20,
+   maxHeaderBytes = 1 << 20, maxInFlight = 8, maxQueued = 256, minTryMs = 25, cacheTimeoutMs = Math.min(1000, deadlineMs), maxCacheOps = 64, fetch = globalThis.fetch, methods = WITNESS_METHODS } = {}) {
+   if (!Array.isArray(methods) || methods.some((m) => !WITNESS_METHODS.includes(m))) throw new Error('methods must be a subset of WITNESS_METHODS');
+   if (!Array.isArray(upstreams) || upstreams.length > 16) throw new Error('0 to 16 upstreams');
+@@ -177,10 +183,11 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
+   if (!Number.isSafeInteger(minTryMs) || minTryMs < 1 || minTryMs > timeoutMs) throw new Error('invalid minTryMs');
+   if (!Number.isSafeInteger(cacheTimeoutMs) || cacheTimeoutMs < 10 || cacheTimeoutMs > deadlineMs) throw new Error('invalid cacheTimeoutMs');
+   if (!Number.isSafeInteger(maxCacheOps) || maxCacheOps < 1 || maxCacheOps > 1024) throw new Error('invalid maxCacheOps');
+-  if ((methods.some((m) => PINNED.has(m)) || cache) && !(proofs?.checker?.check && proofs?.roots?.rootFor))
++  if (archive && !(typeof archive.candidates === 'function' && typeof archive.put === 'function')) throw new Error('archive needs candidates(w) and put(w, result)');
++  if ((methods.some((m) => PINNED.has(m)) || cache || archive) && !(proofs?.checker?.check && proofs?.roots?.rootFor))
+     throw new Error('eth_getProof/eth_getCode and the witness cache need proofs: {checker, roots} (no unverified witness serving)');
+   const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0, invalid: 0, headerOk: 0, headerInvalid: 0, blockOk: 0, blockInvalid: 0, blockNull: 0 }])), cacheHits: 0, cachePuts: 0,
+-    cacheInvalid: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0, blocksFull: 0, blocksHeaderOnly: 0,
++    cacheInvalid: 0, archiveHits: 0, archiveInvalid: 0, archiveQueued: 0, archiveErrors: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0, blocksFull: 0, blocksHeaderOnly: 0,
+     deadlineExceeded: 0, queueFull: 0, cacheTimeouts: 0, cacheSkipped: 0, cachePutSkipped: 0, closedRefusals: 0 };
+   const slot = limiter(maxInFlight, maxQueued);
+   const life = new AbortController();                     // gateway lifetime: close() aborts every request and walk
+@@ -301,8 +308,30 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
+         if (!v.ok) { s.invalid++; reasons.push(`${rpcLabel(u)}: invalid witness (${String(v.error).slice(0, 80)})`); continue; }
+         s.ok++;
+         cacheWrite(w, j.result);
++        if (archive) {   // verified; NOT awaited: a slow or hung archive must not delay the fresh answer
++          stats.archiveQueued++;
++          try { Promise.resolve(archive.put(w, j.result)).catch(() => { stats.archiveErrors++; }); } catch { stats.archiveErrors++; }
++        }
+         return { result: j.result };
+       }
++      // last resort: the archive, inside the remaining deadline; every candidate verified like a cache entry
++      if (archive && op.deadline - Date.now() > 0) {
++        let found, timer;
++        try {
++          const list = await Promise.race([archive.candidates(w, { deadline: op.deadline }),
++            new Promise((r) => { timer = setTimeout(() => r([]), Math.max(0, op.deadline - Date.now())); })]);
++          found = Array.isArray(list) ? list : [];
++        } catch { stats.archiveErrors++; found = []; } finally { clearTimeout(timer); }
++        for (const c of found.slice(0, 64)) {
++          if (Date.now() >= op.deadline) break;
++          const tag = `${w.key}:${sha256(JSON.stringify(c))}`;
++          if (quarantine.has(tag)) continue;
++          const v = await verify(c);
++          if (v.ok) { stats.archiveHits++; return { result: c }; }
++          remember(quarantine, tag); stats.archiveInvalid++;
++        }
++        if (!found.length) reasons.push('archive: no candidate');
++      }
+     } catch (e) {
+       if (expired(op)) throw ended(op);
+       stats.verifierUnavailable++;
+diff --git a/test/helios-s3-replay.e2e.test.mjs b/test/helios-s3-replay.e2e.test.mjs
+index 3037f6f0b4b6b2d1b816fb82c96ad85c3075d77a..88cc9c7b1c89533e2bc7c93497ee0d080ffb6fc5 100644
+--- a/test/helios-s3-replay.e2e.test.mjs
++++ b/test/helios-s3-replay.e2e.test.mjs
+@@ -1,79 +1,80 @@
+-// END-TO-END (offline, `unshare -r -n`): REAL Base mainnet witnesses served to the REAL patched Helios (Base EVM) from
+-// a REAL S3 server (MinIO) through network/s3-witness-cache.mjs, with NO live upstream at all. The fixture is worker A's
+-// recorded block (rpc-priority/fixtures/base-calls-20261023T014412Z: providers' eth_call results at that block hash plus
+-// the 49 witnesses Helios fetched). Its witnesses are archived into S3 by the backend (create-only), then:
+-//   1. every recorded call is recomputed by Helios from S3-served witnesses and matches the providers byte for byte;
+-//   2. a forged entry (valid envelope, the address book's storage value replaced by another address) is REFUSED by
+-//      Helios, never returned: S3 is availability, Helios's proof check is the authority;
+-//   3. a missing entry fails closed.
+-// As in A's replay test, the head is the real block signed by a TEST key (Helios unsafe_signer override): this proves
+-// the cache path and Base execution on real state, not head authenticity or freshness.
+-//   env: HELIOS_BASE_BIN, BASE_FIXTURE_DIR (read only), MINIO_BIN, TEST_TMP
++// END-TO-END on the COMPOSED path (offline, `unshare -r -n`): the REAL patched Helios (Base EVM, eeffcc9) recomputes
++// REAL Base mainnet calls (fixture base-calls-20261023T014412Z, block 52965249) through P's VERIFYING gateway (witness-
++// check helper from Helios 1ec2c1a + root store) whose only witness source is the S3 ARCHIVE tier on a REAL S3 server
++// (MinIO), no upstream at all. The archive is filled ONLY through the gateway (an honest stub upstream, verified answers).
++//   1. cold replay: every recorded call matches the providers byte for byte;
++//   2. an attacker with bucket write access plants, for EVERY eth_getProof, a forgery whose content name sorts before
++//      the valid answer: the gateway checks and quarantines each, Helios still gets every witness and every answer;
++//   3. the address book's valid object is deleted, its forgery left: the call is refused, never answered.
++// The head is the real block signed by the fixture's TEST key (Helios unsafe_signer override): this proves the
++// archive path and Base execution on real state, not head authenticity or freshness.
++//   env: HELIOS_BASE_BIN, WITNESS_CHECK_BIN, BASE_FIXTURE_DIR (read only), MINIO_BIN, TEST_TMP
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import { spawn } from 'node:child_process';
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import http from 'node:http';
+-import net from 'node:net';
+-import { createHash, randomBytes } from 'node:crypto';
+-import { createWitnessGateway, WITNESS_METHODS } from '../network/witness-gateway.mjs';
+-import { s3WitnessCache, s3Request, canonicalJson } from '../network/s3-witness-cache.mjs';
++import { createHash } from 'node:crypto';
++import { createWitnessGateway, witnessKey, WITNESS_METHODS } from '../network/witness-gateway.mjs';
++import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
++import { s3WitnessCache, canonicalJson } from '../network/s3-witness-cache.mjs';
++import { startMinio, raw, envelope, freePort, sleep, testCredentials } from './support/s3-test-env.mjs';
+ 
+-const { HELIOS_BASE_BIN, BASE_FIXTURE_DIR, MINIO_BIN } = process.env;
++const { HELIOS_BASE_BIN, WITNESS_CHECK_BIN, BASE_FIXTURE_DIR } = process.env;
+ const fixture = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'fixture.json'), 'utf8'));
+ const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'helios-s3-'));
+-// test-only MinIO root, fresh per run (no credential literal in source)
+-const CREDS = { accessKeyId: 'enclavetest' + randomBytes(4).toString('hex'), secretAccessKey: randomBytes(18).toString('base64url').replace(/[-_]/g, 'A') };
++const CREDS = testCredentials();
+ const BOOK = '0xab214342d5a490150a4a977063a2f88e21f80907';
++const NO_HINT = WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList');
++const nameOf = (r) => createHash('sha256').update(canonicalJson(r)).digest('hex');
++const RECORDED = [];
++for (const f of fs.readdirSync(path.join(BASE_FIXTURE_DIR, 'cache', fixture.block.hash))) {
++  const e = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'cache', fixture.block.hash, f), 'utf8'));
++  const [method, params] = JSON.parse(e.request);
++  RECORDED.push({ method, params, result: e.result, w: witnessKey(method, params) });
++}
++const byKey = new Map(RECORDED.map((r) => [r.w.key, r]));
+ const children = new Set();
+-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+-const freePort = () => new Promise((r) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
+ async function rpc(url, method, params = []) {
+-  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(60000) });
++  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(90000) });
+   const j = await r.json();
+   if (j.error) throw Object.assign(new Error(j.error.message || JSON.stringify(j.error)), { rpc: j.error });
+   return j.result;
+ }
+-let endpoint, consensus, witnesses = [];
+-const objectUrl = (w) => `${endpoint}/witness/enclave-witness/8453/${w.blockHash}/${w.key}.json`;
+-const s3 = (o) => s3Request({ region: 'us-east-1', credentials: CREDS, timeoutMs: 10000, maxBytes: 8 << 20, ...o });
++let s3, consensus, checker;
++const objectKey = (w, r) => `enclave-witness/8453/${w.blockHash}/${w.key}/${nameOf(r)}.json`;
++const proofs = () => ({ checker, roots: createRootStore({ checker, consensusUrl: `http://127.0.0.1:${consensus.address().port}/` }) });
++const archiveOf = (o = {}) => s3WitnessCache({ endpoint: s3.endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, ...o });
+ 
+ test.before(async () => {
+-  const port = await freePort(), cport = await freePort();
+-  fs.mkdirSync(path.join(TMP, 'minio'));
+-  const m = spawn(MINIO_BIN, ['server', '--quiet', '--address', `127.0.0.1:${port}`, '--console-address', `127.0.0.1:${cport}`, path.join(TMP, 'minio')],
+-    { env: { PATH: process.env.PATH, HOME: TMP, MINIO_ROOT_USER: CREDS.accessKeyId, MINIO_ROOT_PASSWORD: CREDS.secretAccessKey, MINIO_BROWSER: 'off' }, stdio: 'ignore' });
+-  children.add(m);
+-  endpoint = `http://127.0.0.1:${port}`;
+-  for (let i = 0; i < 120; i++) { try { if ((await fetch(endpoint + '/minio/health/ready')).ok) break; } catch {} await sleep(250); }
+-  assert.equal((await s3({ method: 'PUT', url: `${endpoint}/witness` })).status, 200);
+-  // archive A's recorded witnesses through the backend (create-only): the fixture directory itself is only read
+-  const writer = s3WitnessCache({ endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, archive: true, maxQueuedPuts: 4096 });
+-  const root = path.join(BASE_FIXTURE_DIR, 'cache');
+-  for (const blockHash of fs.readdirSync(root)) for (const f of fs.readdirSync(path.join(root, blockHash))) {
+-    const e = JSON.parse(fs.readFileSync(path.join(root, blockHash, f), 'utf8'));
+-    assert.equal(e.format, 'enclave-witness-rpc/v1');
+-    const w = { key: f.slice(0, -5), blockHash: blockHash.toLowerCase(), norm: e.request };
+-    assert.equal(createHash('sha256').update(w.norm).digest('hex'), w.key, 'fixture key = sha256(request)');
+-    witnesses.push({ w, result: e.result, method: JSON.parse(e.request)[0], params: JSON.parse(e.request)[1] });
+-  }
+-  await Promise.all(witnesses.map(({ w, result }) => writer.put(w, result)));
+-  assert.equal(writer.stats().puts, witnesses.length, JSON.stringify(writer.stats()));
+-  await writer.close();
++  s3 = await startMinio({ dir: path.join(TMP, 'minio'), creds: CREDS });
+   consensus = http.createServer((q, res) => res.end(JSON.stringify(q.url === '/chain_id' ? 8453 : fixture.commitment)));
+   await new Promise((r) => consensus.listen(0, '127.0.0.1', r));
++  checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: fixture.testSequencerSigner });
++  // fill the archive ONLY through the verifying gateway, from an honest stub upstream
++  const up = http.createServer((q, res) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', () => { const j = JSON.parse(b); const r = byKey.get(witnessKey(j.method, j.params)?.key); res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, ...(r ? { result: r.result } : { error: { code: -32000, message: 'x' } }) })); }); });
++  await new Promise((r) => up.listen(0, '127.0.0.1', r));
++  const writer = archiveOf({ archive: true, maxQueuedPuts: 256 });
++  const g = createWitnessGateway({ upstreams: [`http://127.0.0.1:${up.address().port}/`], methods: NO_HINT, proofs: proofs(), archive: writer });
++  for (const r of [...RECORDED].sort((a, b) => (a.method === 'eth_getCode') - (b.method === 'eth_getCode'))) {
++    const out = await g.handle({ jsonrpc: '2.0', id: 1, method: r.method, params: r.params });
++    assert.deepEqual(out.result, r.result, r.method);
++  }
++  await writer.idle();
++  assert.equal(writer.stats().puts, RECORDED.length, JSON.stringify(writer.stats()));
++  await writer.close(); up.close();
+ });
+ test.after(async () => {
+   for (const p of [...children]) p.kill('SIGKILL');
+-  consensus?.close();
++  checker?.close(); consensus?.close(); s3?.stop();
+   fs.rmSync(TMP, { recursive: true, force: true });
+ });
+ 
+-// a fresh Helios each time (no in-process witness reuse), reading ONLY a read-only S3-backed gateway with no upstream
++// a fresh Helios each time, whose execution endpoint is a fresh composed gateway with NO upstream and a read-only archive
+ async function helios(tag) {
+-  const cache = s3WitnessCache({ endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS });   // read-only
+-  const gateway = createWitnessGateway({ upstreams: [], cache, methods: WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList') });
++  const archive = archiveOf();
++  const gateway = createWitnessGateway({ upstreams: [], methods: NO_HINT, proofs: proofs(), archive });
+   const gatewayUrl = await gateway.listen(0);
+   const home = path.join(TMP, 'home-' + tag); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
+   fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${fixture.testSequencerSigner}"\n`
+@@ -85,58 +86,45 @@ async function helios(tag) {
+   const url = `http://127.0.0.1:${port}/`;
+   const num = '0x' + fixture.block.number.toString(16);
+   for (let i = 0; i < 240; i++) { try { if ((await rpc(url, 'eth_getBlockByNumber', [num, false]))?.hash === fixture.block.hash) break; } catch {} await sleep(250); }
+-  const stop = async () => { p.kill('SIGKILL'); await gateway.close(); await cache.close(); };
+-  return { url, gateway, cache, stop };
++  const stop = async () => { p.kill('SIGKILL'); await gateway.close(); await archive.close(); };
++  return { url, gateway, archive, stop };
+ }
+ const T = { timeout: 300000 };
+ const AT = () => ({ blockHash: fixture.block.hash });
+ const replayable = () => fixture.calls.filter((c) => c.helios?.result !== undefined && c.helios.result === c.p1.result);
+ 
+-test('real Base calls recomputed by Helios from S3-served witnesses match the providers byte for byte', T, async (t) => {
+-  const h = await helios('ok');
++test('cold replay: real Base calls recomputed by Helios from verified S3-archived witnesses match the providers', T, async (t) => {
++  const h = await helios('cold');
+   t.after(h.stop);
+   const calls = replayable();
+   assert.ok(calls.length >= 4, `replayable calls: ${calls.length}`);
+-  for (const c of calls) {
+-    assert.equal(await rpc(h.url, 'eth_call', [c.tx, AT()]), c.p1.result, c.name);
+-    t.diagnostic(`${c.name}: ok`);
+-  }
+-  const s = h.cache.stats();
+-  assert.ok(s.hits > 0 && Object.keys(s.rejected).length === 0, JSON.stringify(s));
+-  assert.equal(h.gateway.stats().cacheHits, s.hits);
++  for (const c of calls) { assert.equal(await rpc(h.url, 'eth_call', [c.tx, AT()]), c.p1.result, c.name); t.diagnostic(`${c.name}: ok`); }
++  const s = h.gateway.stats();
++  assert.ok(s.archiveHits > 0 && s.archiveInvalid === 0 && s.unavailable === 0, JSON.stringify(s));
+ });
+ 
+-test('a forged S3 entry (the address book names another registry) is refused by Helios, never returned', T, async (t) => {
+-  const target = witnesses.find((x) => x.method === 'eth_getProof' && x.params[0].toLowerCase() === BOOK && x.params[1].length > 0);
+-  assert.ok(target, 'the address book storage witness is in the fixture');
+-  const forged = structuredClone(target.result);
+-  const real = forged.storageProof[0].value;
+-  forged.storageProof[0].value = '0x' + '1234'.repeat(10);                                        // another 20-byte address
+-  // the attacker has bucket write access: an unconditional overwrite with a perfectly valid envelope
+-  const body = canonicalJson({ format: 'enclave-witness-s3/v1', chainId: 8453, blockHash: target.w.blockHash, request: target.w.norm, result: forged });
+-  assert.equal((await s3({ method: 'PUT', url: objectUrl(target.w), body, headers: ['Content-Type: application/json'] })).status, 200);
+-  t.after(async () => {   // restore the true entry for later tests
+-    const ok = canonicalJson({ format: 'enclave-witness-s3/v1', chainId: 8453, blockHash: target.w.blockHash, request: target.w.norm, result: target.result });
+-    await s3({ method: 'PUT', url: objectUrl(target.w), body: ok, headers: ['Content-Type: application/json'] });
+-  });
++test('bad first, valid second: a forgery that sorts first for EVERY eth_getProof is quarantined; every call still matches', T, async (t) => {
++  let planted = 0;
++  for (const r of RECORDED.filter((x) => x.method === 'eth_getProof')) {
++    let f;
++    for (let i = 1n; ; i++) { f = structuredClone(r.result); f.balance = '0x' + (BigInt(r.result.balance) + i).toString(16); if (nameOf(f) < nameOf(r.result)) break; }
++    assert.equal((await raw(s3, CREDS, { method: 'PUT', key: objectKey(r.w, f), body: envelope(r.w, f) })).status, 200);
++    planted++;
++  }
+   const h = await helios('forged');
+   t.after(h.stop);
+-  const book = fixture.calls.find((c) => c.name.startsWith('EnclaveAddressBook.addr'));
+-  await assert.rejects(rpc(h.url, 'eth_call', [book.tx, AT()]), (e) => { t.diagnostic(`refused: ${e.message.slice(0, 160)}`); return true; });
+-  // and nothing else Helios answers is a wrong answer: every call either matches the providers or is refused
+-  for (const c of replayable()) {
+-    try { assert.equal(await rpc(h.url, 'eth_call', [c.tx, AT()]), c.p1.result, c.name); } catch (e) { if (e.code === 'ERR_ASSERTION') throw e; }
+-  }
+-  assert.ok(h.cache.stats().hits > 0);
+-  assert.notEqual(real, forged.storageProof[0].value);
++  for (const c of replayable()) assert.equal(await rpc(h.url, 'eth_call', [c.tx, AT()]), c.p1.result, c.name);
++  const s = h.gateway.stats();
++  assert.ok(s.archiveInvalid >= 1 && s.archiveHits > 0 && s.unavailable === 0, JSON.stringify(s));
++  t.diagnostic(`planted ${planted} first-sorting forgeries; quarantined ${s.archiveInvalid}, verified hits ${s.archiveHits}`);
+ });
+ 
+-test('a missing S3 entry fails closed: refused, never answered', T, async (t) => {
+-  const target = witnesses.find((x) => x.method === 'eth_getProof' && x.params[0].toLowerCase() === BOOK && x.params[1].length > 0);
+-  assert.equal((await s3({ method: 'DELETE', url: objectUrl(target.w) })).status, 204);
++test('the valid object deleted, its forgery left: the address-book call is refused, never answered', T, async (t) => {
++  const r = RECORDED.find((x) => x.method === 'eth_getProof' && x.params[0].toLowerCase() === BOOK && x.params[1].length > 0);
++  assert.equal((await raw(s3, CREDS, { method: 'DELETE', key: objectKey(r.w, r.result) })).status, 204);
+   const h = await helios('missing');
+   t.after(h.stop);
+   const book = fixture.calls.find((c) => c.name.startsWith('EnclaveAddressBook.addr'));
+-  await assert.rejects(rpc(h.url, 'eth_call', [book.tx, AT()]));
+-  assert.ok(h.cache.stats().misses >= 1, JSON.stringify(h.cache.stats()));
++  await assert.rejects(rpc(h.url, 'eth_call', [book.tx, AT()]), (e) => { t.diagnostic(`refused: ${e.message.slice(0, 140)}`); return true; });
++  assert.ok(h.gateway.stats().archiveInvalid >= 1);
+ });
+diff --git a/test/s3-witness-archive.test.mjs b/test/s3-witness-archive.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..4b0bc1d0ec6c523e2a07671bd2e31c4eec844992
+--- /dev/null
++++ b/test/s3-witness-archive.test.mjs
+@@ -0,0 +1,198 @@
++// The COMPOSED path, offline (`unshare -r -n`): P's verifying gateway (network/witness-gateway.mjs) with its REAL
++// native checker (witness-check, built from Helios 1ec2c1a) and root store, plus the S3 archive tier
++// (network/s3-witness-cache.mjs) on a REAL S3 server (MinIO), against REAL recorded Base mainnet witnesses
++// (block 52965249, fixture base-calls-20261023T014412Z). Upstream witness sources are local stubs, as in P's tests.
++// The head is signed by the fixture's TEST key (Helios unsafe_signer override in the fixture): this checks witness
++// verification and the archive's availability semantics, not head authenticity or freshness.
++//   env: WITNESS_CHECK_BIN, BASE_FIXTURE_DIR, MINIO_BIN, TEST_TMP
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import { createHash } from 'node:crypto';
++import { createWitnessGateway, dirWitnessCache, witnessKey, WITNESS_METHODS } from '../network/witness-gateway.mjs';
++import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
++import { s3WitnessCache, canonicalJson } from '../network/s3-witness-cache.mjs';
++import { startMinio, raw, listAll, envelope, fakeS3, freePort, sleep, testCredentials } from './support/s3-test-env.mjs';
++
++const { WITNESS_CHECK_BIN, BASE_FIXTURE_DIR } = process.env;
++const fixture = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'fixture.json'), 'utf8'));
++const HASH = fixture.block.hash;
++const RECORDED = new Map();
++for (const f of fs.readdirSync(path.join(BASE_FIXTURE_DIR, 'cache', HASH))) {
++  const e = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'cache', HASH, f), 'utf8'));
++  const [method, params] = JSON.parse(e.request);
++  RECORDED.set(witnessKey(method, params).key, { method, params, result: e.result });
++}
++const BOOK = '0xab214342d5a490150a4a977063a2f88e21f80907';
++const pick = (method, addr, nkeys) => [...RECORDED.values()].find((r) => r.method === method && r.params[0] === addr && (nkeys === undefined || r.params[1].length === nkeys));
++const PROOF = pick('eth_getProof', BOOK, 1), CODE = pick('eth_getCode', BOOK);
++const req = (r, id = 1) => ({ jsonrpc: '2.0', id, method: r.method, params: r.params });
++const NO_HINT = WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList');
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'archive-'));
++const CREDS = testCredentials();
++const nameOf = (r) => createHash('sha256').update(canonicalJson(r)).digest('hex');
++const folder = (w) => `enclave-witness/8453/${w.blockHash}/${w.key}/`;
++
++const servers = [];
++function upstream(answer) {
++  const seen = [];
++  const s = http.createServer((q, res) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', () => {
++    const j = JSON.parse(b); seen.push(j.method);
++    const out = answer(j); if (typeof out === 'function') return out(q, res);
++    res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, ...out }));
++  }); });
++  servers.push(s);
++  return new Promise((r) => s.listen(0, '127.0.0.1', () => r({ seen, url: `http://127.0.0.1:${s.address().port}/` })));
++}
++const honest = () => upstream((j) => { const r = RECORDED.get(witnessKey(j.method, j.params)?.key); return r ? { result: r.result } : { error: { code: -32000, message: 'not recorded' } }; });
++const forgedBalance = (r) => { const v = structuredClone(r); v.balance = '0x' + (BigInt(v.balance) + 1n).toString(16); return v; };
++const liar = () => upstream((j) => { const r = RECORDED.get(witnessKey(j.method, j.params)?.key); return r ? { result: j.method === 'eth_getProof' ? forgedBalance(r.result) : r.result + '00' } : { error: { code: -32000, message: 'x' } }; });
++/** a forged eth_getProof answer whose content name sorts BEFORE the valid one (ground by varying the forged balance) */
++function forgedFirst(valid) {
++  for (let i = 1n; ; i++) { const v = structuredClone(valid); v.balance = '0x' + (BigInt(valid.balance) + i).toString(16); if (nameOf(v) < nameOf(valid)) return v; }
++}
++
++let consensus, checker, s3;
++test.before(async () => {
++  consensus = http.createServer((q, res) => res.end(JSON.stringify(q.url === '/chain_id' ? 8453 : fixture.commitment)));
++  await new Promise((r) => consensus.listen(0, '127.0.0.1', r));
++  checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: fixture.testSequencerSigner });
++  s3 = await startMinio({ dir: path.join(TMP, 'minio'), creds: CREDS });
++});
++test.after(() => { checker?.close(); consensus?.close(); s3?.stop(); for (const s of servers) { s.closeAllConnections?.(); s.close(); } fs.rmSync(TMP, { recursive: true, force: true }); });
++const proofs = () => ({ checker, roots: createRootStore({ checker, consensusUrl: `http://127.0.0.1:${consensus.address().port}/` }) });
++const archiveOf = (o = {}) => s3WitnessCache({ endpoint: s3.endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, ...o });
++const gw = (ups, o = {}) => createWitnessGateway({ upstreams: ups.map((u) => u.url), methods: NO_HINT, proofs: proofs(), ...o });
++const T = { timeout: 120000 };
++
++test('upstream forged-first, honest-second: the honest answer is served and ONLY it is archived', T, async () => {
++  const [l, h] = [await liar(), await honest()];
++  const archive = archiveOf({ archive: true, prefix: 'a1' });
++  const g = gw([l, h], { archive });
++  for (const r of [PROOF, CODE]) assert.deepEqual((await g.handle(req(r))).result, r.result, r.method);
++  await archive.idle();
++  for (const r of [PROOF, CODE]) {
++    const w = witnessKey(r.method, r.params);
++    const keys = await listAll(s3, CREDS, `a1/8453/${w.blockHash}/${w.key}/`);
++    assert.deepEqual(keys, [`a1/8453/${w.blockHash}/${w.key}/${nameOf(r.result)}.json`], `${r.method}: exactly the verified answer`);
++  }
++  assert.equal(g.stats().archiveQueued, 2);
++  assert.ok(Object.values(g.stats().upstream)[0].invalid >= 2, 'the liar was judged invalid');
++});
++
++test('bad-first valid-second in S3: a forged candidate that sorts first is checked, quarantined and never masks the valid one', T, async () => {
++  const w = witnessKey(PROOF.method, PROOF.params);
++  const forged = forgedFirst(PROOF.result);
++  const pfx = `a2/8453/${w.blockHash}/${w.key}/`;
++  for (const v of [forged, PROOF.result]) assert.equal((await raw(s3, CREDS, { method: 'PUT', key: pfx + nameOf(v) + '.json', body: envelope(w, v) })).status, 200);
++  assert.ok(nameOf(forged) < nameOf(PROOF.result));
++  const g = gw([], { archive: archiveOf({ prefix: 'a2' }) });           // restart/cache-only: no upstream at all
++  assert.deepEqual((await g.handle(req(PROOF))).result, PROOF.result);
++  const st = g.stats();
++  assert.deepEqual([st.archiveInvalid, st.archiveHits], [1, 1], JSON.stringify(st));
++  // only the forgery: refused, never returned
++  const only = `a3/8453/${w.blockHash}/${w.key}/`;
++  await raw(s3, CREDS, { method: 'PUT', key: only + nameOf(forged) + '.json', body: envelope(w, forged) });
++  const refused = await gw([], { archive: archiveOf({ prefix: 'a3' }) }).handle(req(PROOF));
++  assert.equal(refused.result, undefined);
++  assert.match(refused.error.message, /no verifiable witness/);
++});
++
++test('a poisoned version-1 legacy object plus a valid new object: the valid one is served; legacy-only poison is refused', T, async () => {
++  const w = witnessKey(PROOF.method, PROOF.params);
++  // the first S3 backend's single-slot object holds a forged answer (an older, unverifying writer kept the first answer)
++  await raw(s3, CREDS, { method: 'PUT', key: `a4/8453/${w.blockHash}/${w.key}.json`, body: envelope(w, forgedBalance(PROOF.result)) });
++  const g0 = gw([], { archive: archiveOf({ prefix: 'a4' }) });
++  const out0 = await g0.handle(req(PROOF));
++  assert.equal(out0.result, undefined, 'legacy poison alone: refused');
++  assert.equal(g0.stats().archiveInvalid, 1);
++  // a verified writer adds the valid answer under its content name; the legacy slot no longer matters
++  const h = await honest();
++  const writer = archiveOf({ archive: true, prefix: 'a4' });
++  assert.deepEqual((await gw([h], { archive: writer }).handle(req(PROOF))).result, PROOF.result);
++  await writer.idle();
++  const g1 = gw([], { archive: archiveOf({ prefix: 'a4' }) });
++  assert.deepEqual((await g1.handle(req(PROOF))).result, PROOF.result);
++  assert.deepEqual([g1.stats().archiveHits, g1.stats().archiveInvalid], [1, 0], 'the content-addressed object is tried before the legacy slot');
++  assert.match((await raw(s3, CREDS, { method: 'GET', key: `a4/8453/${w.blockHash}/${w.key}.json` })).body.toString(), /balance/, 'the poisoned object was not overwritten or deleted');
++});
++
++test('restart replay: a cold gateway with no upstream serves every witness of the real block from S3, all verified', T, async () => {
++  const h = await honest();
++  const writer = archiveOf({ archive: true, prefix: 'a5', maxQueuedPuts: 256 });
++  const g = gw([h], { archive: writer });
++  const all = [...RECORDED.values()].sort((a, b) => (a.method === 'eth_getCode') - (b.method === 'eth_getCode'));   // proofs first
++  for (const r of all) assert.deepEqual((await g.handle(req(r))).result, r.result, r.method);
++  await writer.idle();
++  assert.equal(writer.stats().puts, RECORDED.size, JSON.stringify(writer.stats()));
++  // "restart": new checker client, new root store, new gateway, new archive client, no upstream
++  const cold = gw([], { archive: archiveOf({ prefix: 'a5' }) });
++  for (const r of all) assert.deepEqual((await cold.handle(req(r))).result, r.result, r.method);
++  assert.equal(cold.stats().archiveHits, RECORDED.size);
++  assert.equal(cold.stats().unavailable, 0);
++  // a request the archive never saw is refused, not answered
++  const absent = await cold.handle(req({ method: 'eth_getProof', params: [BOOK, ['0x' + '00'.repeat(31) + '07'], { blockHash: HASH }] }));
++  assert.match(absent.error.message, /no verifiable witness/);
++});
++
++test('slow, hung or unavailable S3 never delays or fails a fresh read; with no upstream it is a bounded refusal', T, async (t) => {
++  const h = await honest();
++  const hung = await fakeS3(() => {});                                       // accepts, never answers (list, get or put)
++  t.after(() => hung.close());
++  const deadPort = await freePort();
++  for (const [name, endpoint] of [['hung', hung.endpoint], ['unavailable', `http://127.0.0.1:${deadPort}`]]) {
++    const archive = s3WitnessCache({ endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, archive: true, timeoutMs: 1000, readBudgetMs: 1500, putTimeoutMs: 30000 });
++    const g = gw([h], { archive, timeoutMs: 1000, deadlineMs: 5000 });
++    for (const r of [PROOF, CODE]) {
++      const t0 = Date.now();
++      assert.deepEqual((await g.handle(req(r))).result, r.result, `${name} ${r.method}`);
++      assert.ok(Date.now() - t0 < 1500, `${name}: fresh read not held by the archive (${Date.now() - t0} ms)`);
++    }
++    const cold = gw([], { archive, deadlineMs: 2500, timeoutMs: 1000 });
++    const t1 = Date.now();
++    const out = await cold.handle(req(PROOF));
++    assert.equal(out.result, undefined, name);
++    assert.match(out.error.message, /no verifiable witness/, name);
++    assert.ok(Date.now() - t1 < 3500, `${name}: refusal within the deadline (${Date.now() - t1} ms)`);
++    await archive.close();
++    assert.equal(archive.stats().inflight.children, 0, `${name}: every S3 request reaped on close`);
++  }
++});
++
++test('audit with the REAL backend on a hung S3: in the CACHE slot (read before upstreams) it delays every fresh read; in the ARCHIVE slot it does not', T, async (t) => {
++  const hung = await fakeS3(() => {});                                       // accepts, never answers
++  t.after(() => hung.close());
++  const h = await honest();
++  const mk = () => s3WitnessCache({ endpoint: hung.endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, archive: true, timeoutMs: 1000, readBudgetMs: 1500 });
++  const asCache = mk(), asArchive = mk();
++  t.after(() => Promise.all([asCache.close(), asArchive.close()]));
++  const slow = gw([h], { cache: asCache, timeoutMs: 1000, deadlineMs: 10000 });
++  const t0 = Date.now();
++  assert.deepEqual((await slow.handle(req(PROOF))).result, PROOF.result);
++  const held = Date.now() - t0;
++  assert.ok(held >= 900, `cache slot: the remote read held the fresh answer ${held} ms`);
++  const fast = gw([h], { archive: asArchive, timeoutMs: 1000, deadlineMs: 10000 });
++  const t1 = Date.now();
++  assert.deepEqual((await fast.handle(req(PROOF))).result, PROOF.result);
++  const quick = Date.now() - t1;
++  assert.ok(quick < 500, `archive slot: not held (${quick} ms)`);
++  t.diagnostic(`cache slot ${held} ms; archive slot ${quick} ms (the awaited-put audit of the first backend: jobs/audit-b71c8261.sh)`);
++});
++
++test('the archive is only a last resort: a local cache hit or a healthy upstream never queries S3', T, async () => {
++  const dir = path.join(TMP, 'local'); fs.mkdirSync(dir);
++  const archive = archiveOf({ archive: true, prefix: 'a6' });
++  const h = await honest();
++  const g = gw([h], { cache: dirWitnessCache(dir), archive });
++  assert.deepEqual((await g.handle(req(PROOF))).result, PROOF.result);          // upstream answer (archived, not read)
++  assert.deepEqual((await g.handle(req(PROOF))).result, PROOF.result);          // local cache hit
++  await archive.idle();
++  assert.deepEqual([archive.stats().lists, archive.stats().puts], [0, 1], 'S3 read metadata only leaves the node during an upstream outage');
++});
++
++test('the archive requires the verifier: no proofs, no archive', () => {
++  assert.throws(() => createWitnessGateway({ upstreams: [], methods: ['eth_chainId'], archive: { candidates() {}, put() {} } }), /need proofs/);
++  assert.throws(() => createWitnessGateway({ upstreams: [], methods: ['eth_chainId'], archive: { get() {} } }), /candidates/);
++});
+diff --git a/test/s3-witness-cache.test.mjs b/test/s3-witness-cache.test.mjs
+index 0f6966c82a9058e53278120d790f4ac4dac4fdd5..666a174d1f2628bdf53f44c97ae2b753d6442ade 100644
+--- a/test/s3-witness-cache.test.mjs
++++ b/test/s3-witness-cache.test.mjs
+@@ -1,6 +1,7 @@
+-// network/s3-witness-cache.mjs, offline (run inside `unshare -r -n`): the maintained signer against AWS's published
+-// SigV4 vectors; a REAL S3 server (MinIO, MINIO_BIN) for interoperability, create-only and conflicts; a fault-injecting
+-// fake S3 for tampering, oversize, truncation, stalls, stuck uploads and cancellation; and the witness gateway with it.
++// network/s3-witness-cache.mjs (backend only), offline (run inside `unshare -r -n`): the maintained signer against
++// AWS's published SigV4 vectors; a REAL S3 server (MinIO, MINIO_BIN) for the content-addressed create-only layout,
++// bounded ListObjectsV2 pagination, legacy reads and tampering; a fault-injecting fake S3 for oversize, truncation,
++// stalls, stuck uploads and cancellation. The composed gateway is tested in s3-witness-archive.test.mjs.
+ //   env: MINIO_BIN (optional; MinIO tests skip without it), TEST_TMP (disk scratch dir)
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+@@ -10,13 +11,15 @@ import path from 'node:path';
+ import http from 'node:http';
+ import net from 'node:net';
+ import { randomBytes } from 'node:crypto';
++import { createHash } from 'node:crypto';
+ import { s3WitnessCache, s3Request, canonicalJson } from '../network/s3-witness-cache.mjs';
+-import { createWitnessGateway, witnessKey } from '../network/witness-gateway.mjs';
++import { witnessKey } from '../network/witness-gateway.mjs';
++import { startMinio as boot, raw, listAll, envelope, fakeS3 as fake, testCredentials } from './support/s3-test-env.mjs';
+ 
+ const { MINIO_BIN } = process.env;
+ const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 's3-cache-'));
+ // test-only MinIO root, fresh per run (no credential literal in source)
+-const CREDS = { accessKeyId: 'enclavetest' + randomBytes(4).toString('hex'), secretAccessKey: randomBytes(18).toString('base64url').replace(/[-_]/g, 'A') };
++const CREDS = testCredentials();
+ const BLOCK = '0x' + 'ab'.repeat(32);
+ const freePort = () => new Promise((r) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+@@ -74,177 +77,152 @@ test('construction refuses unsafe or ambiguous configuration without echoing sec
+ 
+ // ---- a real S3 server ----------------------------------------------------------------------------------------------
+ let minio = null;
+-function startMinio() { return (minio ??= bootMinio()); }
+-async function bootMinio() {
+-  const port = await freePort(), cport = await freePort(), dir = path.join(TMP, 'minio');
+-  fs.mkdirSync(dir);
+-  const p = spawn(MINIO_BIN, ['server', '--quiet', '--address', `127.0.0.1:${port}`, '--console-address', `127.0.0.1:${cport}`, dir],
+-    { env: { PATH: process.env.PATH, HOME: TMP, MINIO_ROOT_USER: CREDS.accessKeyId, MINIO_ROOT_PASSWORD: CREDS.secretAccessKey, MINIO_BROWSER: 'off' }, stdio: 'ignore' });
+-  children.push(p);
+-  const endpoint = `http://127.0.0.1:${port}`;
+-  for (let i = 0; i < 120; i++) { try { if ((await fetch(endpoint + '/minio/health/ready')).ok) break; } catch {} await sleep(250); }
+-  const mk = await s3Request({ method: 'PUT', url: `${endpoint}/witness`, region: 'us-east-1', credentials: CREDS, timeoutMs: 5000, maxBytes: 65536 });
+-  assert.equal(mk.status, 200, 'bucket created with a signed request');
+-  return { endpoint, p };
+-}
++const startMinio = () => (minio ??= boot({ dir: path.join(TMP, 'minio'), creds: CREDS }).then((m) => { children.push({ kill: m.stop }); return m; }));
+ const T = { skip: !MINIO_BIN && 'MINIO_BIN not set', timeout: 60000 };
++const cfg = (m, o = {}) => ({ endpoint: m.endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, ...o });
++const nameOf = (result) => createHash('sha256').update(canonicalJson(result)).digest('hex');
++const folder = (w) => `enclave-witness/8453/${w.blockHash}/${w.key}/`;
+ 
+-test('MinIO: read-only by default, then create-only writes, exact replay, conflict detection and chain namespaces', T, async () => {
+-  const { endpoint } = await startMinio();
+-  const cfg = { endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS };
+-  const w = pinned('0x' + '22'.repeat(20)), result = { address: '0x' + '22'.repeat(20), balance: '0x1', storageProof: [{ key: '0x0', value: '0x7', proof: ['0xaa'] }] };
+-  const ro = s3WitnessCache(cfg);
+-  await ro.put(w, result);
++test('MinIO: read-only by default; opt-in writes are content-addressed and create-only; a second answer is a second candidate', T, async () => {
++  const m = await startMinio();
++  const w = pinned('0x' + '22'.repeat(20));
++  const a = { address: '0x' + '22'.repeat(20), balance: '0x1', storageProof: [{ key: '0x0', value: '0x7', proof: ['0xaa'] }] }, b = { ...a, balance: '0x2' };
++  const ro = s3WitnessCache(cfg(m));
++  await ro.put(w, a); await ro.idle();
+   assert.equal(ro.stats().putsSkipped, 1, 'archive is opt-in: nothing written');
+-  assert.equal(await ro.get(w), undefined);
+-  assert.equal(ro.stats().misses, 1);
+-  const c = s3WitnessCache({ ...cfg, archive: true });
+-  await c.put(w, result);
+-  assert.equal(c.stats().puts, 1);
+-  assert.deepEqual(await c.get(w), result);
+-  await c.put(w, JSON.parse(JSON.stringify(result)));                // same entry again: idempotent
+-  assert.equal(c.stats().putsExisting, 1);
+-  await c.put(w, { ...result, balance: '0x2' });                     // a disagreeing source: never overwrites
++  assert.deepEqual(await ro.candidates(w), []);
++  const c = s3WitnessCache(cfg(m, { archive: true }));
++  await c.put(w, a); await c.put(w, JSON.parse(JSON.stringify(a))); await c.put(w, b); await c.idle();
++  assert.deepEqual([c.stats().puts, c.stats().putsExisting, c.stats().conflicts], [2, 1, 0], JSON.stringify(c.stats()));
++  assert.deepEqual((await listAll(m, CREDS, folder(w))).sort(), [nameOf(a), nameOf(b)].sort().map((n) => folder(w) + n + '.json'));
++  const got = await c.candidates(w);
++  assert.deepEqual(got.map(canonicalJson).sort(), [a, b].map(canonicalJson).sort(), 'both answers are candidates; the gateway decides');
++  assert.deepEqual((await raw(m, CREDS, { method: 'GET', key: folder(w) + nameOf(a) + '.json' })).body.toString(), envelope(w, a));
++  assert.deepEqual(await s3WitnessCache(cfg(m, { chainId: 84532 })).candidates(w), [], 'another chain never sees them');
++});
++
++test('MinIO: misnamed, mis-bound and tampered objects are skipped; a squatter on a content name is a conflict, never overwritten', T, async () => {
++  const m = await startMinio();
++  const w = pinned('0x' + '33'.repeat(20)), good = { v: 1 };
++  const c = s3WitnessCache(cfg(m, { archive: true }));
++  const put = (key, body) => raw(m, CREDS, { method: 'PUT', key, body, headers: ['Content-Type: application/json'] });
++  for (const [key, body] of [[folder(w) + '0'.repeat(64) + '.json', envelope(w, { v: 2 })],                 // name != hash of content
++    [folder(w) + nameOf({ v: 3 }) + '.json', envelope(w, { v: 3 }, { request: '["eth_getProof",[]]' })],          // another request
++    [folder(w) + nameOf({ v: 4 }) + '.json', envelope(w, { v: 4 }, { chainId: 1 })],                              // another chain
++    [folder(w) + nameOf({ v: 5 }) + '.json', '{"truncated'], [folder(w) + 'not-a-hash.json', envelope(w, { v: 6 })]]) assert.equal((await put(key, body)).status, 200);
++  assert.deepEqual(await c.candidates(w), []);
++  assert.deepEqual(c.stats().rejected, { address: 1, request: 1, chain: 1, malformed: 1, 'listed-name': 1 }, JSON.stringify(c.stats()));
++  // a squatter holds the content name of `good` with other bytes: our create-only write refuses to overwrite it
++  await put(folder(w) + nameOf(good) + '.json', envelope(w, { v: 99 }));
++  await c.put(w, good); await c.idle();
+   assert.equal(c.stats().conflicts, 1);
+-  assert.deepEqual(await c.get(w), result, 'the first entry stays');
+-  assert.equal(await s3WitnessCache({ ...cfg, chainId: 84532 }).get(w), undefined, 'another chain never sees it');
+-  const stored = await s3Request({ method: 'GET', url: `${endpoint}/witness/enclave-witness/8453/${w.blockHash}/${w.key}.json`, region: 'us-east-1', credentials: CREDS, timeoutMs: 5000, maxBytes: 1 << 20 });
+-  assert.equal(stored.body.toString(), canonicalJson({ format: 'enclave-witness-s3/v1', chainId: 8453, blockHash: w.blockHash, request: w.norm, result }));
++  assert.match((await raw(m, CREDS, { method: 'GET', key: folder(w) + nameOf(good) + '.json' })).body.toString(), /99/, 'never overwritten');
++  // wrong credentials are misses and failed writes, never throws
++  const bad = s3WitnessCache(cfg(m, { archive: true, credentials: { accessKeyId: CREDS.accessKeyId, secretAccessKey: testCredentials().secretAccessKey } }));
++  assert.deepEqual(await bad.candidates(w), []);
++  await bad.put(pinned('0x' + '34'.repeat(20)), good); await bad.idle();
++  assert.ok(bad.stats().errors.list403 >= 1 && bad.stats().putsFailed === 1, JSON.stringify(bad.stats()));
+ });
+ 
+-test('MinIO: wrong credentials and tampered envelopes are misses, never errors or answers', T, async () => {
+-  const { endpoint } = await startMinio();
+-  const cfg = { endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS };
+-  const w = pinned('0x' + '33'.repeat(20)), good = s3WitnessCache({ ...cfg, archive: true });
+-  await good.put(w, { v: 1 });
+-  const bad = s3WitnessCache({ ...cfg, archive: true, credentials: { accessKeyId: CREDS.accessKeyId, secretAccessKey: randomBytes(18).toString('base64url').replace(/[-_]/g, 'B') } });
+-  assert.equal(await bad.get(w), undefined);
+-  await bad.put(pinned('0x' + '34'.repeat(20)), { v: 1 });
+-  assert.ok(bad.stats().errors.http403 >= 1 && bad.stats().putsFailed === 1, JSON.stringify(bad.stats()));
+-  // an attacker with bucket write access overwrites the object (no If-None-Match)
+-  const url = `${endpoint}/witness/enclave-witness/8453/${w.blockHash}/${w.key}.json`;
+-  const env = (o) => canonicalJson({ format: 'enclave-witness-s3/v1', chainId: 8453, blockHash: w.blockHash, request: w.norm, result: { v: 1 }, ...o });
+-  for (const [body, why] of [[env({ request: '["eth_getProof",[]]' }), 'request'], [env({ chainId: 1 }), 'chain'], [env({ blockHash: '0x' + '00'.repeat(32) }), 'block'],
+-    [env({ format: 'other' }), 'format'], [env({ extra: 1 }), 'fields'], ['{"truncated', 'malformed']]) {
+-    const r = await s3Request({ method: 'PUT', url, region: 'us-east-1', credentials: CREDS, timeoutMs: 5000, maxBytes: 65536, body, headers: ['Content-Type: application/json'] });
+-    assert.equal(r.status, 200);
+-    const c = s3WitnessCache(cfg);
+-    assert.equal(await c.get(w), undefined, why);
+-    assert.equal(c.stats().rejected[why], 1, `${why}: ${JSON.stringify(c.stats())}`);
+-  }
++test('MinIO: the version-1 single-slot object is still read, last; listing is paginated and bounded', T, async () => {
++  const m = await startMinio();
++  const w = pinned('0x' + '35'.repeat(20)), legacy = { legacy: true };
++  assert.equal((await raw(m, CREDS, { method: 'PUT', key: `enclave-witness/8453/${w.blockHash}/${w.key}.json`, body: envelope(w, legacy) })).status, 200);
++  const c = s3WitnessCache(cfg(m, { archive: true, maxCandidates: 2, maxListPages: 3 }));
++  assert.deepEqual(await c.candidates(w), [legacy]);
++  const answers = [1, 2, 3, 4, 5].map((v) => ({ v }));
++  for (const a of answers) await c.put(w, a);
++  await c.idle();
++  const got = await c.candidates(w);
++  assert.equal(got.length, 2, 'at most maxCandidates, the legacy slot only when there is room');
++  const sorted = answers.map((a) => [nameOf(a), a]).sort(([x], [y]) => (x < y ? -1 : 1)).slice(0, 2).map(([, a]) => a);
++  assert.deepEqual(got, sorted, 'listing order (lexicographic content names)');
++  assert.equal(c.stats().lists, 2, 'one list page per call');
++  const wide = s3WitnessCache(cfg(m, { maxCandidates: 8, maxListPages: 3 }));
++  assert.equal((await wide.candidates(w)).length, 6, 'five answers, then the legacy slot');
+ });
+ 
+-test('MinIO: the secret never reaches curl argv or environment, stats or stored entries', T, async (t) => {
+-  const { endpoint } = await startMinio();
++test('MinIO: the secret never reaches curl argv or environment, stats or stored objects', T, async () => {
++  const m = await startMinio();
+   const rec = path.join(TMP, 'curl-recorder.sh'), log = path.join(TMP, 'curl-argv.log');
+   fs.writeFileSync(rec, `#!/bin/sh\nprintf '%s\\n' "$@" >> ${log}\nenv >> ${log}\nexec curl "$@"\n`, { mode: 0o700 });
+-  const upstreamKey = 'apikey-' + 'f'.repeat(24);
+-  const c = s3WitnessCache({ endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, archive: true, curl: rec });
++  const c = s3WitnessCache(cfg(m, { archive: true, curl: rec }));
+   const w = pinned('0x' + '44'.repeat(20));
+-  await c.put(w, { proof: ['0x01'] });
+-  assert.deepEqual(await c.get(w), { proof: ['0x01'] });
++  await c.put(w, { proof: ['0x01'] }); await c.idle();
++  assert.deepEqual(await c.candidates(w), [{ proof: ['0x01'] }]);
+   const seen = fs.readFileSync(log, 'utf8');
+   assert.ok(seen.includes('--aws-sigv4') && !seen.includes(CREDS.secretAccessKey), 'secret absent from argv and env');
+   assert.ok(!JSON.stringify(c.stats()).includes(CREDS.secretAccessKey));
+-  // the gateway stores only request and result: an upstream's API key (in its URL) is never archived
+-  const up = http.createServer((q, r) => { let b = ''; q.on('data', (d) => b += d); q.on('end', () => r.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { ok: 1 } }))); });
+-  await new Promise((r) => up.listen(0, '127.0.0.1', r));
+-  t.after(() => { up.close(); c.close(); });
+-  const gw = createWitnessGateway({ upstreams: [`http://127.0.0.1:${up.address().port}/v2/${upstreamKey}`], cache: c });
+-  const req = { jsonrpc: '2.0', id: 1, method: 'eth_getProof', params: ['0x' + '45'.repeat(20), [], { blockHash: BLOCK }] };
+-  assert.deepEqual((await gw.handle(req)).result, { ok: 1 });
+-  for (let i = 0; i < 40 && c.stats().puts < 2; i++) await sleep(100);
+-  const w2 = witnessKey(req.method, req.params);
+-  const body = (await s3Request({ method: 'GET', url: `${endpoint}/witness/enclave-witness/8453/${w2.blockHash}/${w2.key}.json`, region: 'us-east-1', credentials: CREDS, timeoutMs: 5000, maxBytes: 1 << 20 })).body.toString();
+-  assert.ok(body.includes('eth_getProof') && !body.includes(upstreamKey), body);
+-  up.close();
++  for (const k of await listAll(m, CREDS, 'enclave-witness/')) assert.ok(!(await raw(m, CREDS, { method: 'GET', key: k })).body.toString().includes(CREDS.secretAccessKey));
+ });
+ 
+ // ---- a fault-injecting fake S3 -------------------------------------------------------------------------------------
+-async function fakeS3(handler) {
+-  const s = http.createServer(handler);
+-  const sockets = new Set();
+-  s.on('connection', (k) => { sockets.add(k); k.on('close', () => sockets.delete(k)); });
+-  await new Promise((r) => s.listen(0, '127.0.0.1', r));
+-  return { endpoint: `http://127.0.0.1:${s.address().port}`, close: () => { for (const k of sockets) k.destroy(); s.close(); } };
+-}
+-
+-test('fake S3: oversize, truncated, stalled and failing responses are bounded misses', async (t) => {
+-  const w = pinned('0x' + '55'.repeat(20));
+-  const valid = canonicalJson({ format: 'enclave-witness-s3/v1', chainId: 8453, blockHash: w.blockHash, request: w.norm, result: 1 });
++test('fake S3: oversize, truncated, stalled and failing listings and objects are bounded empty results', async (t) => {
++  const w = pinned('0x' + '55'.repeat(20)), result = 1;
++  const key = `enclave-witness/8453/${w.blockHash}/${w.key}/${nameOf(result)}.json`;
++  const listing = `<ListBucketResult><IsTruncated>false</IsTruncated><Contents><Key>${key}</Key></Contents></ListBucketResult>`;
+   let mode;
+-  const f = await fakeS3((q, r) => {
+-    if (mode === 'big') return r.end('x'.repeat(5000));                                         // Content-Length above the bound
+-    if (mode === 'big-chunked') { r.writeHead(200); r.write('x'.repeat(3000)); return r.end('y'.repeat(3000)); }  // no length
+-    if (mode === 'truncated') { r.writeHead(200, { 'content-length': 1000 }); r.write(valid.slice(0, 10)); return setTimeout(() => r.socket.destroy(), 50); }
+-    if (mode === 'stall') return;                                                               // never answers
+-    if (mode === 'error') { r.writeHead(500); return r.end('no'); }
+-    r.end(valid);
++  const f = await fake((q, r) => {
++    const isList = q.url.includes('list-type=2'), isObject = q.url.endsWith(key);   // only the content-addressed object exists
++    if (!isList && !isObject) { r.writeHead(404); return r.end(); }
++    if (mode === 'ok') return r.end(isList ? listing : envelope(w, result));
++    if (isList && mode !== 'object-big' && mode !== 'object-truncated') {
++      if (mode === 'big') return r.end('x'.repeat(5000));
++      if (mode === 'stall') return;
++      if (mode === 'error') { r.writeHead(500); return r.end('no'); }
++    }
++    if (isList) return r.end(listing);
++    if (mode === 'object-big') { r.writeHead(200); r.write('x'.repeat(3000)); return r.end('y'.repeat(3000)); }   // no length
++    if (mode === 'object-truncated') { r.writeHead(200, { 'content-length': 1000 }); r.write('{"x'); return setTimeout(() => r.socket.destroy(), 50); }
++    r.writeHead(404); r.end();
+   });
+   t.after(() => f.close());
+-  const c = s3WitnessCache({ endpoint: f.endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, timeoutMs: 1000, maxObjectBytes: 4096 });
+-  mode = 'ok'; assert.equal(await c.get(w), 1);
+-  for (const [m, key] of [['big', 'oversize'], ['big-chunked', 'oversize'], ['truncated', 'curl'], ['stall', 'timeout'], ['error', 'http500']]) {
++  const c = s3WitnessCache({ endpoint: f.endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, timeoutMs: 1000, readBudgetMs: 2500, maxObjectBytes: 4096, maxListBytes: 4096 });
++  mode = 'ok'; assert.deepEqual(await c.candidates(w), [1]);
++  for (const [m, key2] of [['big', 'list-oversize'], ['stall', 'list-timeout'], ['error', 'list500'], ['object-big', 'oversize'], ['object-truncated', 'curl']]) {
+     mode = m;
+     const t0 = Date.now();
+-    assert.equal(await c.get(w), undefined, m);
++    assert.deepEqual(await c.candidates(w), [], m);
+     assert.ok(Date.now() - t0 < 3500, `${m} bounded in time (${Date.now() - t0} ms)`);
+-    assert.ok(c.stats().errors[key] >= 1, `${m}: ${JSON.stringify(c.stats().errors)}`);
++    assert.ok(c.stats().errors[key2] >= 1, `${m}: ${JSON.stringify(c.stats().errors)}`);
+   }
+   assert.equal(c.stats().inflight.children, 0, 'no curl left running');
+-  f.close();
++  await c.close();
+ });
+ 
+-test('fake S3: stuck uploads never delay a fresh read; the write queue is bounded; close() cancels everything', async (t) => {
+-  const f = await fakeS3(() => {});                                                             // accepts, never answers
++test('fake S3: writes return at once even when uploads hang; the queue is bounded; close() cancels everything', async (t) => {
++  const f = await fake(() => {});                                                               // accepts, never answers
++  t.after(() => f.close());
+   const c = s3WitnessCache({ endpoint: f.endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, archive: true,
+-    timeoutMs: 1000, putTimeoutMs: 30000, maxInflightPuts: 1, maxQueuedPuts: 2 });
+-  const up = http.createServer((q, r) => { q.resume(); q.on('end', () => r.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { fresh: true } }))); });
+-  await new Promise((r) => up.listen(0, '127.0.0.1', r));
+-  t.after(() => { c.close(); up.close(); f.close(); });
+-  const gw = createWitnessGateway({ upstreams: [`http://127.0.0.1:${up.address().port}/`], cache: c });
+-  for (let i = 0; i < 6; i++) {
+-    const t0 = Date.now();
+-    const out = await gw.handle({ jsonrpc: '2.0', id: i, method: 'eth_getProof', params: ['0x' + String(60 + i).repeat(20), [], { blockHash: BLOCK }] });
+-    assert.deepEqual(out.result, { fresh: true });
+-    assert.ok(Date.now() - t0 < 500, `fresh read ${i} not held by the stuck upload (${Date.now() - t0} ms)`);
+-  }
++    timeoutMs: 1000, readBudgetMs: 1500, putTimeoutMs: 30000, maxInflightPuts: 1, maxQueuedPuts: 2 });
++  const t0 = Date.now();
++  for (let i = 0; i < 6; i++) await c.put(pinned('0x' + String(60 + i).repeat(20)), { i });
++  assert.ok(Date.now() - t0 < 200, `six puts returned at once (${Date.now() - t0} ms)`);
+   await sleep(300);
+   const s = c.stats();
+-  assert.equal(s.inflight.puts, 1); assert.equal(s.inflight.queued, 2); assert.equal(s.putsDropped, 3, JSON.stringify(s));
+-  // reads share a bounded pool too: with one slot held by a stalled read, a second read gives up after its budget
+-  const c2 = s3WitnessCache({ endpoint: f.endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, timeoutMs: 800, maxInflightGets: 1 });
+-  const [a, b] = await Promise.all([c2.get(pinned('0x' + '77'.repeat(20))), c2.get(pinned('0x' + '78'.repeat(20)))]);
+-  assert.equal(a, undefined); assert.equal(b, undefined);
+-  assert.equal(c2.stats().errors.busy, 1);
+-  await c.close();
+-  assert.equal(c.stats().inflight.children, 0, 'close() killed the stuck curl');
++  assert.deepEqual([s.inflight.puts, s.inflight.queued, s.putsDropped], [1, 2, 3], JSON.stringify(s));
++  // reads share a bounded pool: with the one slot held by a stalled listing, a second read gives up within its budget
++  const c2 = s3WitnessCache({ endpoint: f.endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, timeoutMs: 800, readBudgetMs: 800, maxInflightGets: 1 });
++  const t1 = Date.now();
++  const [a, b] = await Promise.all([c2.candidates(pinned('0x' + '77'.repeat(20))), c2.candidates(pinned('0x' + '78'.repeat(20)))]);
++  assert.deepEqual([a, b], [[], []]);
++  assert.ok(Date.now() - t1 < 3000, `bounded (${Date.now() - t1} ms)`);
++  assert.equal(c2.stats().errors.busy, 1, JSON.stringify(c2.stats()));
++  await c.close(); await c2.close();
++  assert.equal(c.stats().inflight.children, 0, 'close() killed the stuck upload');
+   assert.equal(c.stats().inflight.queued, 0);
+-  assert.equal(await c.get(pinned('0x' + '79'.repeat(20))), undefined, 'a closed cache only misses');
+-  up.close(); f.close();
+-});
+-
+-test('gateway + MinIO: a cache hit only when every upstream fails, and never for an unpinned (fresh) request', T, async () => {
+-  const { endpoint } = await startMinio();
+-  const c = s3WitnessCache({ endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, archive: true });
+-  const params = ['0x' + '88'.repeat(20), ['0x1'], { blockHash: BLOCK }];
+-  await c.put(witnessKey('eth_getProof', params), { cached: true });
+-  const dead = `http://127.0.0.1:${await freePort()}/`;                                          // nothing listens
+-  const gw = createWitnessGateway({ upstreams: [dead], cache: c, timeoutMs: 500 });
+-  assert.deepEqual((await gw.handle({ jsonrpc: '2.0', id: 1, method: 'eth_getProof', params })).result, { cached: true });
+-  const fresh = await gw.handle({ jsonrpc: '2.0', id: 2, method: 'eth_getProof', params: [params[0], params[1], 'latest'] });
+-  assert.ok(fresh.error && !fresh.result, 'no witness for "latest" when every upstream fails');
+-  assert.equal(gw.stats().cacheHits, 1);
++  await c.idle();
++  assert.deepEqual(await c.candidates(pinned('0x' + '79'.repeat(20))), [], 'a closed archive is empty');
+ });
+ 
+ test('a hung transport process is killed by the outer bound, not only by curl --max-time', async () => {
+   const hung = path.join(TMP, 'hung-curl.sh');
+   fs.writeFileSync(hung, '#!/bin/sh\nexec sleep 60\n', { mode: 0o700 });              // ignores every curl option
+-  const c = s3WitnessCache({ endpoint: 'http://127.0.0.1:9', bucket: 'witness', chainId: 8453, credentials: CREDS, timeoutMs: 500, curl: hung });
++  const c = s3WitnessCache({ endpoint: 'http://127.0.0.1:9', bucket: 'witness', chainId: 8453, credentials: CREDS, timeoutMs: 500, readBudgetMs: 600, curl: hung });
+   const t0 = Date.now();
+-  assert.equal(await c.get(pinned('0x' + '99'.repeat(20))), undefined);
+-  assert.ok(Date.now() - t0 < 3000, `bounded (${Date.now() - t0} ms)`);
+-  assert.equal(c.stats().errors.timeout, 1);
++  assert.deepEqual(await c.candidates(pinned('0x' + '99'.repeat(20))), []);
++  assert.ok(Date.now() - t0 < 3500, `bounded (${Date.now() - t0} ms)`);
++  assert.ok(c.stats().errors['list-timeout'] === 1, JSON.stringify(c.stats().errors));
+   assert.equal(c.stats().inflight.children, 0);
+   await c.close();
+ });
+diff --git a/test/support/s3-test-env.mjs b/test/support/s3-test-env.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..067326133f44a263c11ebab5eb90f8035119e91d
+--- /dev/null
++++ b/test/support/s3-test-env.mjs
+@@ -0,0 +1,46 @@
++// Shared offline S3 test environment: a REAL S3 server (MinIO, $MINIO_BIN) on loopback with random per-run
++// credentials, and a fault-injecting fake S3. Test-only: nothing here is used by the gateway or the backend.
++import fs from 'node:fs';
++import path from 'node:path';
++import http from 'node:http';
++import net from 'node:net';
++import { spawn } from 'node:child_process';
++import { randomBytes } from 'node:crypto';
++import { s3Request, canonicalJson } from '../../network/s3-witness-cache.mjs';
++
++export const freePort = () => new Promise((r) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
++export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++/** Random per-run credentials (no credential literal in source); alphanumeric, as the backend requires. */
++export const testCredentials = () => ({ accessKeyId: 'enclavetest' + randomBytes(4).toString('hex'), secretAccessKey: randomBytes(18).toString('base64url').replace(/[-_]/g, 'A') });
++
++/** Start MinIO in `dir` with `creds`; create `bucket`. -> {endpoint, stop()} */
++export async function startMinio({ bin = process.env.MINIO_BIN, dir, creds, bucket = 'witness' }) {
++  const port = await freePort(), cport = await freePort();
++  fs.mkdirSync(dir, { recursive: true });
++  const p = spawn(bin, ['server', '--quiet', '--address', `127.0.0.1:${port}`, '--console-address', `127.0.0.1:${cport}`, dir],
++    { env: { PATH: process.env.PATH, HOME: path.dirname(dir), MINIO_ROOT_USER: creds.accessKeyId, MINIO_ROOT_PASSWORD: creds.secretAccessKey, MINIO_BROWSER: 'off' }, stdio: 'ignore' });
++  const endpoint = `http://127.0.0.1:${port}`;
++  for (let i = 0; i < 160; i++) { try { if ((await fetch(endpoint + '/minio/health/ready')).ok) break; } catch {} await sleep(250); }
++  const mk = await s3Request({ method: 'PUT', url: `${endpoint}/${bucket}`, region: 'us-east-1', credentials: creds, timeoutMs: 5000, maxBytes: 65536 });
++  if (mk.status !== 200) throw new Error('bucket not created: HTTP ' + mk.status);
++  return { endpoint, bucket, stop: () => p.kill('SIGKILL') };
++}
++
++/** A raw signed S3 request as a bucket writer (the tests' attacker or inspector). */
++export const raw = (s3, creds, o) => s3Request({ region: 'us-east-1', credentials: creds, timeoutMs: 10000, maxBytes: 8 << 20, ...o, url: `${s3.endpoint}/${s3.bucket}/${o.key ?? ''}${o.query ? '?' + o.query : ''}` });
++/** The object keys under a prefix (one page, up to 1000). */
++export async function listAll(s3, creds, prefix) {
++  const r = await raw(s3, creds, { method: 'GET', query: `list-type=2&max-keys=1000&prefix=${encodeURIComponent(prefix)}` });
++  return [...r.body.toString().matchAll(/<Key>([^<]+)<\/Key>/g)].map((m) => m[1]);
++}
++/** The v1 envelope the backend reads (format, chain id, block hash, request, result). */
++export const envelope = (w, result, over = {}) => canonicalJson({ format: 'enclave-witness-s3/v1', chainId: 8453, blockHash: w.blockHash, request: w.norm, result, ...over });
++
++/** A fake S3 driven by `handler(req, res)`. -> {endpoint, close()} */
++export async function fakeS3(handler) {
++  const s = http.createServer(handler);
++  const sockets = new Set();
++  s.on('connection', (k) => { sockets.add(k); k.on('close', () => sockets.delete(k)); });
++  await new Promise((r) => s.listen(0, '127.0.0.1', r));
++  return { endpoint: `http://127.0.0.1:${s.address().port}`, close: () => { for (const k of sockets) k.destroy(); s.close(); } };
++}

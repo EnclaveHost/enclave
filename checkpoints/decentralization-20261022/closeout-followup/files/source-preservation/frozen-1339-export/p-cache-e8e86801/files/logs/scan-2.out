@@ -1,0 +1,13 @@
+[queue] START available=25207MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+ddd2593 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> logs: scan-1
+8a0b0fb SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> RESULT: composed 32-line delta closed on the real 7.2.11 guest kernel (vm-1); old-template controls; symlink-mutant assessment; cleanup receipts
+515a1ec SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> cache-composed-kernel-delta: guest harness for the 32-line composed delta (S 92b7178 / P f8c999e, template cab32bbe) with old-template and symlink-mutant controls
+4:24AM INF 3 commits scanned.
+4:24AM INF scanned ~415088 bytes (415.09 KB) in 129ms
+4:24AM INF no leaks found
+4:24AM INF scanned ~120850 bytes (120.85 KB) in 18.9ms
+4:24AM INF no leaks found
+[scan] crypto=0 gitleaks-git=0 gitleaks-run=0
+[memory-guard] exit=0 peakTreeRssMiB=67 minHostAvailableMiB=25160
+[memory-guard] at peak: gitleaks:57 bash:6 timeout:4
+[queue] EXIT 0

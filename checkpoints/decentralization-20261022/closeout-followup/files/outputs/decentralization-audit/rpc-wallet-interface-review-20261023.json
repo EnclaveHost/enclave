@@ -1,0 +1,41 @@
+{
+  "at": "2026-10-23T12:29:00.857Z",
+  "scope": "Actual immutable proposed public-role HTTP server with scripted healthy-node responses. Only the three health methods reach the backend stub; requested nonce and fee methods do not. Interface mismatch proof, not full wallet integration or production observation.",
+  "results": [
+    {
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x2222222222222222222222222222222222222222",
+        "pending"
+      ],
+      "status": 200,
+      "body": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "code": -32602,
+          "message": "invalid params: block must be a hex number, latest, earliest, safe or finalized (pending is not served)"
+        }
+      }
+    },
+    {
+      "method": "eth_maxPriorityFeePerGas",
+      "params": [],
+      "status": 200,
+      "body": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {
+          "code": -32601,
+          "message": "eth_maxPriorityFeePerGas is not offered by this endpoint"
+        }
+      }
+    }
+  ],
+  "backendCalls": [
+    "eth_chainId",
+    "eth_syncing",
+    "eth_getBlockByNumber"
+  ],
+  "conclusion": "The pending nonce request required by profile-broadcast.js is refused before signing can begin. Fee tip method is also unsupported, but the wallet has an explicit fallback tip, so that alone is not fatal."
+}

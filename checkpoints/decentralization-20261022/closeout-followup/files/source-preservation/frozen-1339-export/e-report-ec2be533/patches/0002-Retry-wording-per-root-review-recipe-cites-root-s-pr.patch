@@ -1,0 +1,278 @@
+From f5d4592a4d12c46dfb315c24b36237fad1a8cbf6 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 05:17:54 -0700
+Subject: [PATCH 2/4] Retry wording per root review, recipe cites root's
+ primary sources (P owns Alto), n3 evidence, export at dc2e5d740
+
+---
+ HANDOFF-S-F-WALLET-ROUTES.md | 11 ++++---
+ RECIPE-SELFHOSTED-BUNDLER.md | 39 ++++++++++++++---------
+ RESULT-WALLET-DEPENDENCY.md  | 21 ++++++++-----
+ jobs/scan.sh                 | 13 ++++++++
+ logs/n3.guard.log            |  1 +
+ logs/n3.out                  | 60 ++++++++++++++++++++++++++++++++++++
+ logs/n3.rc                   |  1 +
+ 7 files changed, 120 insertions(+), 26 deletions(-)
+ create mode 100755 jobs/scan.sh
+ create mode 100644 logs/n3.guard.log
+ create mode 100644 logs/n3.out
+ create mode 100644 logs/n3.rc
+
+diff --git a/HANDOFF-S-F-WALLET-ROUTES.md b/HANDOFF-S-F-WALLET-ROUTES.md
+index 06b0882d9e0d1a45a15297b209995f09410307f8..5a05f5f072e20fcc591f608f71421848010a5be0 100644
+--- a/HANDOFF-S-F-WALLET-ROUTES.md
++++ b/HANDOFF-S-F-WALLET-ROUTES.md
+@@ -6,12 +6,12 @@ route sends to the endpoints S already serves.
+ 
+ ## 1. New browser → profile RPC traffic (only when the owner explicitly chooses "the network profile broadcasts")
+ 
+-These are sent to each profile RPC, in the profile's order:
++These go to the profile's RPCs (reads rotate as `baseRpc` does; the ecrecover call goes to the quorum):
+ - `eth_getTransactionCount [from, "pending"]`
+ - `eth_maxPriorityFeePerGas []` (optional: without an answer the page uses 0.001 gwei)
+ - `eth_call` to the ecrecover precompile `0x…0001` at an agreed `{blockHash}` (quorum)
+-- **`eth_sendRawTransaction [signedType2Hex]`**: one endpoint at a time, the next only after a JSON-RPC error or no
+-  answer.
++- **`eth_sendRawTransaction [signedType2Hex]`**: one endpoint at a time, in the profile's order. The same bytes go to the
++  next endpoint only after a JSON-RPC error, no answer or a different hash.
+ 
+ The existing reads stay as they are: `eth_estimateGas`, `eth_call`, `eth_getBlockByNumber`, `eth_getTransactionReceipt`.
+ 
+@@ -19,7 +19,10 @@ What the page expects back:
+ - **Accepted:** `result` equal to keccak256 of the raw bytes. A JSON-RPC error whose message matches
+   `/already known|known transaction|already imported|already exists/i` is also accepted.
+ - **Refused:** any other JSON-RPC error. The page shows the message verbatim and tries the next endpoint.
+-- **Unknown:** an HTTP failure, non-JSON or a different hash. The page reports the outcome as unknown and does not resend.
++- **Unknown:** an HTTP failure, non-JSON or a different hash. The page offers the **same signed bytes** to the next
++  endpoint. That is idempotent propagation: no new signature, nonce or replacement, and one hash that executes at most
++  once. After the last endpoint it sends nothing more, and reports the outcome as unknown. The owner must check the hash
++  before creating another transaction.
+ 
+ What ingress must allow for this route to work (S):
+ - `eth_sendRawTransaction` from the browser origin, with CORS `POST` + `content-type`.
+diff --git a/RECIPE-SELFHOSTED-BUNDLER.md b/RECIPE-SELFHOSTED-BUNDLER.md
+index 2bdd4b8f35e100f235f6fa4b98c6570c664e4fcc..34f7f89ab28e248271f105a73aa60002d5232739 100644
+--- a/RECIPE-SELFHOSTED-BUNDLER.md
++++ b/RECIPE-SELFHOSTED-BUNDLER.md
+@@ -1,7 +1,21 @@
+ # Self-hosted ERC-4337 bundler (and optional paymaster) for passkey accounts: prerequisites and launch recipe
+ 
+-**Status: NOT STARTED.** No bundler or paymaster service exists in this tree or in any host role. Nothing here is
+-deployed.
++**Status: NOT STARTED in this tree.** No bundler or paymaster service exists in this tree. Nothing here is deployed.
++
++**Ownership (root, `ROOT-BUNDLER-IMPLEMENTATION-OWNER.txt`).** P now owns the real self-hosted **Alto** service, in
++`work/rpc-bundler-service-20261023`. This document does not duplicate it. It states what the browser path requires, plus
++the endpoint and funding dependencies.
++
++**Primary sources.** Root verified them in
++`outputs/decentralization-audit/bundler-primary-source-review-20261023.json` (2026-10-23T11:44Z):
++- Pimlico's self-host docs (https://docs.pimlico.io/references/bundler/self-host): Alto supports local RPC configuration,
++  EntryPoint v0.7, an OP-stack chain mode, funded utility/executor wallets, and `debug_traceCall` for safe-mode
++  validation.
++- Alto's `src/cli/config/options.ts`: safe mode defaults to true. This is mutable `main`, not a release pin.
++- Rundler's README: v0.7 and Base support. Not needed here.
++
++**Root's decision:** one pinned Alto service with safe-mode validation; no provider or hosted-bundler fallback; no
++deployment or funds. Whether the pinned backend's tracer is compatible remains **P's test**.
+ 
+ What the dashboard already does: it lets the owner name their own bundlers and paymaster per account
+ (`transport` in the account profile) and refuses everything else. See "Already supported" in
+@@ -24,21 +38,16 @@ A URL field is not a bundler. This document lists what a real one needs.
+ ## What the bundler process itself needs (the actual missing pieces)
+ 
+ 1. **A bundler implementation that supports EntryPoint v0.7 and OP-stack L1 data fees.**
+-   - Implementation facts, **not re-verified in this session** (fetching the documentation was declined):
+-     - Pimlico **Alto**, TypeScript, open source: supports v0.6/v0.7 (and later), with an OP-stack chain type for
+-       pre-verification gas.
+-     - Alchemy **Rundler**, Rust: supports v0.6/v0.7.
+-   - Either is a separate service. Using one means a new dependency. This task authorized none, so neither was vendored
+-     or run.
++   - Alto, per the primary sources above. P is preparing it.
+    - The in-tree `test/helpers/local-bundler.mjs` is **test-only**: no ERC-7562 rules, fixed estimates, no mempool, no
+      L1 data-fee accounting. It must not be deployed.
+ 2. **A Base node RPC for the bundler** (S's Base holder: base v1.5.1 / base-reth). The bundler needs `eth_call`,
+    `eth_estimateGas`, the fee methods and `eth_sendRawTransaction`.
+-   - **Safe mode** (ERC-7562 validation-rule tracing) also needs `debug_traceCall` with a tracer the bundler supports.
+-     Whether the deployed base-reth build exposes the required tracer is **UNKNOWN** and must be probed on S's node.
+-   - **Unsafe mode** (no tracing) is acceptable only for a **private** bundler that serves only its owner's accounts. The
+-     risk falls on the executor: it may pay for bundles that revert. The page lowers that risk by simulating the exact
+-     signed operation through `EntryPoint.handleOps` at an agreed block before sending.
++   - **Safe mode** (ERC-7562 validation-rule tracing; Alto's default, and root's decision) also needs `debug_traceCall`
++     with the tracer Alto uses. Whether S's base-reth build provides it is **P's test**, not verified here.
++   - Unsafe mode is **not** the plan: root ruled to keep safe-mode validation.
++   - The page independently simulates the exact signed operation through `EntryPoint.handleOps` at an agreed block
++     before sending. That protects the owner; it does not replace the bundler's validation.
+    - The bundler's RPC is node-local. It is not the browser profile's quorum, and it is S's ingress, not this page's.
+ 3. **An executor (submitter) EOA on Base, funded with ETH.**
+    - It fronts the gas of `handleOps` and is repaid in the same transaction by the EntryPoint (beneficiary = executor).
+@@ -74,8 +83,8 @@ A URL field is not a bundler. This document lists what a real one needs.
+ 
+ 1. **On S's Base node:**
+    - Confirm `eth_chainId` = `0x2105` and that it is synced.
+-   - Probe `debug_traceCall` with the bundler's tracer. That result decides safe vs unsafe mode.
+-2. **Build the chosen bundler from a pinned release, offline, reproducibly** (a new dependency: needs approval). Configure
++   - Probe `debug_traceCall` with Alto's tracer (P's test). Safe mode is required.
++2. **Build Alto from a pinned release, offline, reproducibly** (P's scope; a new dependency that needs approval). Configure
+    it with:
+    - `entrypoints` = `0x0000000071727De22E5E9d8BAf0edAc6f37da032` only;
+    - chain = Base / OP-stack L1-fee mode;
+diff --git a/RESULT-WALLET-DEPENDENCY.md b/RESULT-WALLET-DEPENDENCY.md
+index 903715145f196ddaab4b623ade9bddbf863ff130..0710b1d577927259d8b46e5aa798370f6b56c944 100644
+--- a/RESULT-WALLET-DEPENDENCY.md
++++ b/RESULT-WALLET-DEPENDENCY.md
+@@ -2,10 +2,14 @@
+ 
+ **Source.**
+ - Location: `work/rpc-wallet-dependency-20261023/repo`, branch `rpc-wallet-dependency`.
+-- One commit, **`6ab298f19`**, on S's immutable `349318a0600917bad8f391ad628fa0c7f134b3f6`.
++- Two commits on S's immutable `349318a0600917bad8f391ad628fa0c7f134b3f6`: **`6ab298f19`** (the change) and
++  **`dc2e5d740`** (the retry wording and test, after root's review). Final head: `dc2e5d7402327bdd376cf3b90cfa23a551a37ba8`.
+ - Author and committer: SteveDeFacto.
+ - Not integrated and not deployed. Root reviews it first and owns activation.
+ 
++**Root inputs received during the run:** `ROOT-BROADCAST-RETRY-REVIEW.txt` (wording aligned; policy kept; test added)
++and `ROOT-BUNDLER-IMPLEMENTATION-OWNER.txt` (P owns Alto; the recipe now cites root's primary-source review).
++
+ **Earlier work preserved unchanged:** `rpc-transaction-independence` (`c08331e9`, `e917c526`, `9c5e0eef`).
+ 
+ **What was read.** `work/effective-goal-requirements.txt`. There are no AGENTS.md or CLAUDE.md files in the tree.
+@@ -45,12 +49,14 @@ New file `site/js/core/profile-broadcast.js`, with hooks in `wallet.js`, `chain.
+   5. The signer is recovered by the **chain's ecrecover precompile at an agreed (quorum) block**, so no new crypto code
+      and no new package. It must be the connected address.
+   6. The page re-checks the profile tab guard.
+-  7. It sends the bytes to the profile endpoints in order (`eth_sendRawTransaction`), moving on only after a refusal or
+-     no answer.
++  7. It sends the bytes to the profile endpoints in order (`eth_sendRawTransaction`). The same bytes move to the next
++     endpoint only after a refusal, no answer or a different hash.
+ - **Outcomes:**
+   - accepted (the hash matches, or "already known");
+   - **refused** (every endpoint refused; it was sent nowhere else);
+-  - **unknown** (an endpoint may have it; not resent).
++  - **unknown**: an endpoint may have it. The same signed bytes are offered to every remaining profile endpoint (no new
++    signature or nonce); after that nothing more is sent, and the owner checks the hash before creating another
++    transaction. Root review `ROOT-BROADCAST-RETRY-REVIEW.txt`: wording aligned, policy kept.
+   - `waitReceipt` does not ask the wallet's RPC about a transaction the wallet never had.
+ - **Wallets without `eth_signTransaction` (MetaMask is one)** are refused by name: "Nothing was signed or sent". The page
+   points the owner to the explicit "my wallet broadcasts" route. There is **no silent fallback**.
+@@ -83,7 +89,8 @@ v0.3.0, a funded executor EOA, a Base node RPC (tracer support UNKNOWN), and the
+ | `n2` | 256 | `site-account-bundler-route` after the test fix (stand-ins on 127.0.0.1 / localhost; storage cleared) | **4/4**, peak 142 MiB |
+ | `b1` | 1536 | `site-browser-rpc-closure` (10, including the e820 CONTROL) + `site-browser-rpc-routes` (Chromium rig; extended with the popover route choice, a signing-only broadcast through the profile, and its receipt) | **11/11**, peak 839 MiB |
+ | `e1` | 256 | esbuild bundle of the dashboard graph (as `build-site.mjs`, without templates, tailwind or artifacts) | `profile-broadcast.js` in the graph; the new strings are in the chunks; the only warning comes from the existing `qr.js` |
+-| `m1` | 512 | 4 mutants of `profile-broadcast.js` against `site-wallet-profile-broadcast` | **4/4 killed**: M1 no field check, M2 falling back to the wallet broadcast, M3 no signer check, M4 unknown reported as refused. The file was restored clean. Peak 195 MiB. |
++| `n3` | 256 | `site-wallet-profile-broadcast` after the retry-wording fix (`dc2e5d740`): asserts that the dropped-reply case sends identical bytes once to each origin, with one signature, and nothing more while waiting | **6/6**, peak 164 MiB |
++| `m1` | 512 | 4 mutants of `profile-broadcast.js` against `site-wallet-profile-broadcast` | **4/4 killed**: M1 no field check, M2 falling back to the wallet broadcast, M3 no signer check, M4 unknown reported as refused. The file was restored clean. Peak 195 MiB. Ran on `6ab298f19`; `dc2e5d740` changes only comments and the unknown-outcome text, not the mutated lines, so it was not rerun. |
+ 
+ **Test provenance.**
+ - The chain is a local **anvil** (`--chain-id 8453`), a test chain. The wallets are in-test EIP-1193 objects whose own
+@@ -112,9 +119,9 @@ before the tests were written. Everything else went through the queue.
+ | MetaMask (no `eth_signTransaction`) broadcast independence | **not possible from the page**. The wallet's own RPC remains; the remedies are the owner's own wallet RPC setting, a signing-only wallet, or a passkey account with their own bundler |
+ | WalletConnect signing without the WC relay | **not supported** (an outside relay; disclosed) |
+ | Passkey account → owner's own bundlers / paymaster | **source supported** (pre-existing, re-proven over real HTTP); **no self-hosted bundler exists: NOT STARTED** |
+-| Self-hosted bundler and paymaster service | **NOT STARTED**: recipe and prerequisites in `RECIPE-SELFHOSTED-BUNDLER.md`. Needs a new dependency (Alto or Rundler), a funded executor (spend), S's node tracer probe, and for a paymaster a new contract (excluded) |
++| Self-hosted bundler and paymaster service | **NOT STARTED here.** P owns a pinned Alto service with safe mode on (`work/rpc-bundler-service-20261023`). The browser-side prerequisites, endpoint and funding dependencies are in `RECIPE-SELFHOSTED-BUNDLER.md`: a funded executor (a spend), tracer compatibility (P's test), and for a paymaster a new contract (excluded) |
+ | Credit page relay route | supported by the existing host service `credit-vault-submitter` (deployment status per A/F, not verified here) |
+ | Profile endpoints accepting `eth_sendRawTransaction` from browsers | S's ingress decision: `HANDOFF-S-F-WALLET-ROUTES.md` |
+ 
+ Deliverables: this file, `RECIPE-SELFHOSTED-BUNDLER.md`, `HANDOFF-S-F-WALLET-ROUTES.md`, `exports/` (source-only export
+-for D), `jobs/`, `logs/`.
++for D, 349318a06..dc2e5d740), `jobs/`, `logs/`.
+diff --git a/jobs/scan.sh b/jobs/scan.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..47ad9c8ada3e473104e6bd623c3040c94163f032
+--- /dev/null
++++ b/jobs/scan.sh
+@@ -0,0 +1,13 @@
++#!/bin/bash
++# crypto-key scan (the source repo's own scanner) + gitleaks over the new source commit and the report repository
++set -uo pipefail
++cd "$(dirname "$0")/.."
++rc=0
++echo "== source 349318a06..HEAD"; git -C repo log --oneline 349318a06..HEAD
++(cd repo && python3 .githooks/scan-crypto-keys.py --range 349318a06..HEAD) || rc=1
++echo "source crypto scan rc=$rc"
++gitleaks git --no-banner --log-opts="349318a06..HEAD" repo || rc=1
++echo "== report repo"; git log --oneline
++python3 repo/.githooks/scan-crypto-keys.py --range HEAD || rc=1
++gitleaks git --no-banner . || rc=1
++echo "scan rc=$rc"; exit $rc
+diff --git a/logs/n3.guard.log b/logs/n3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..f7ca50bea13d895312741417964477523440fc42
+--- /dev/null
++++ b/logs/n3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=164 minHostAvailableMiB=24943
+diff --git a/logs/n3.out b/logs/n3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..f3a78787aa01d8beb19882d736f2fc3abf35897f
+--- /dev/null
++++ b/logs/n3.out
+@@ -0,0 +1,60 @@
++[queue] START available=25108MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++HEAD 6ab298f196d93b60499178275acf025f5b8658af
++ M site/js/core/profile-broadcast.js
++ M test/site-wallet-profile-broadcast.test.mjs
++14917fdabf2753126f2cf7b7fbd6ec3e489937e0f932270ea0300197ab9967be  site/js/core/profile-broadcast.js
++d0e7482ac37703d45bf7c0ac3bcf9c3db51cab1806553e90d9ed2a01ddc4e835  site/js/core/wallet.js
++adc2bea3effe5e0b984e60683d74ebc1e7bdf0a110d55183daae1a4c30a24dee  site/js/core/chain.js
++f5a4f6a8930a705ea2366fe8c342b6cefacc0902de42e986200132196c2f8d27  site/js/core/passkey-account.js
++4e73e0a6cbb1fcc4c824d31f498ae267d05c413aa53e12d3ac28fd47caae4007  site/js/core/account-providers.js
++e632ace653e5e787bc871cb0eb4a1e61805fd9522d2fe183e3b49d3e3da2650f  site/js/core/account-transport.js
++51b3d7d33bb4aab3260760a487519ef40d59d36294b7077831cab0a740ee3af9  test/site-wallet-profile-broadcast.test.mjs
++TAP version 13
++# Subtest: the default route is unchanged: the wallet broadcasts through its own RPC (eth_sendTransaction)
++ok 1 - the default route is unchanged: the wallet broadcasts through its own RPC (eth_sendTransaction)
++  ---
++  duration_ms: 173.955734
++  type: 'test'
++  ...
++# Subtest: chosen profile route: the wallet only signs; a refusing origin, then the next origin broadcasts; the receipt comes through the profile
++ok 2 - chosen profile route: the wallet only signs; a refusing origin, then the next origin broadcasts; the receipt comes through the profile
++  ---
++  duration_ms: 96.874122
++  type: 'test'
++  ...
++# Subtest: a wallet that cannot sign without broadcasting is refused by name: nothing is signed, broadcast, or handed to its own RPC
++ok 3 - a wallet that cannot sign without broadcasting is refused by name: nothing is signed, broadcast, or handed to its own RPC
++  ---
++  duration_ms: 20.826342
++  type: 'test'
++  ...
++# Subtest: a signed transaction that is not exactly the request, or not from the connected address, is never broadcast
++ok 4 - a signed transaction that is not exactly the request, or not from the connected address, is never broadcast
++  ---
++  duration_ms: 40.225953
++  type: 'test'
++  ...
++# Subtest: every origin refusing: refused, sent nowhere else, the wallet never asked to broadcast; an origin that drops the reply: outcome unknown, and it did land
++ok 5 - every origin refusing: refused, sent nowhere else, the wallet never asked to broadcast; an origin that drops the reply: outcome unknown, and it did land
++  ---
++  duration_ms: 52.385421
++  type: 'test'
++  ...
++# Subtest: the strict decoder agrees with viem on real signed transactions and refuses malformed input
++ok 6 - the strict decoder agrees with viem on real signed transactions and refuses malformed input
++  ---
++  duration_ms: 8.571295
++  type: 'test'
++  ...
++1..6
++# tests 6
++# suites 0
++# pass 6
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 681.791764
++[memory-guard] exit=0 peakTreeRssMiB=164 minHostAvailableMiB=24943
++[memory-guard] at peak: node:78 node:54 anvil:28 timeout:4
++[queue] EXIT 0
+diff --git a/logs/n3.rc b/logs/n3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/n3.rc
+@@ -0,0 +1 @@
++0

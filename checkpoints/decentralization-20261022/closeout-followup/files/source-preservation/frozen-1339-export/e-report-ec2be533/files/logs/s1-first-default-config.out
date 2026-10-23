@@ -1,0 +1,18 @@
+[queue] START available=24949MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+== source 349318a06..HEAD
+dc2e5d740 Say what the profile broadcast retry does: the same signed bytes to the next endpoint, then nothing more
+6ab298f19 Let a connected wallet sign only and the network profile broadcast (explicit, independent mode)
+source crypto scan rc=0
+5:17AM INF 2 commits scanned.
+5:17AM INF scanned ~46292 bytes (46.29 KB) in 766ms
+5:17AM INF no leaks found
+== report repo
+f5d4592 Retry wording per root review, recipe cites root's primary sources (P owns Alto), n3 evidence, export at dc2e5d740
+f92006a RESULT, bundler recipe, S/F handoff, D export, jobs and logs for rpc-wallet-dependency 6ab298f19
+5:17AM INF 2 commits scanned.
+5:17AM INF scanned ~125033 bytes (125.03 KB) in 139ms
+5:17AM WRN leaks found: 1
+scan rc=1
+[memory-guard] exit=1 peakTreeRssMiB=73 minHostAvailableMiB=24842
+[memory-guard] at peak: gitleaks:67 bash:6
+[queue] EXIT 1

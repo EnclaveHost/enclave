@@ -1,0 +1,262 @@
+From e4cc8f5f0fb3b4c49914b13ccfe8bdb754ac8640 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 20:24:44 -0700
+Subject: [PATCH 04/28] Recover missed state roots by authenticated ancestry;
+ let head sources push
+
+The witness gateway refused proofs for any block whose signed head its root store had not seen: a poll gap, a cold
+start, or a confirmed block older than the first head. Such roots are now recovered by authenticated ancestry.
+Recovery never takes a source's word for a hash or state root, never asks Helios, and never bypasses proof checks.
+
+* createRootStore:
+  - Bindings record how they were made: 'signed-head', or 'ancestor' (with boundTo = the child that authenticated it).
+  - rootFor(hash, {headers, deadline}): poll once, coalesced. Then fetch the requested header only to learn its
+    claimed number, and walk down from the nearest bound block above it, at most maxAncestry (256) links.
+  - Each parent header is checked by the helper: hash_slow equals the child's parent hash, one block lower, not later.
+    The walk binds every ancestor it passes.
+  - The requested hash is bound only if the walk reaches its child and that child names it as parent.
+  - Otherwise it refuses, and records why: no-bound-head, unavailable, too-deep, newer-than-every-bound-head,
+    not-an-ancestor, mismatched-link, deadline.
+  - Concurrent recoveries of one hash share one walk. Recovered roots are history for that block, never freshness.
+  - offer(commitment): a push interface (e.g. for the native gossip bridge). Pushed heads are verified independently;
+    addCommitment stays as an alias.
+* createWitnessGateway:
+  - headers(): the same untrusted upstreams in order (eth_getBlockByHash), each answer checked by the helper. A forged
+    header costs its source the try. Reads are bounded at maxHeaderBytes (1 MiB), and the request deadline and
+    in-flight limit apply.
+  - Per-upstream headerOk/headerInvalid stats.
+  - g.root(hash) exposes the authenticated binding.
+---
+ network/witness-gateway.mjs |  44 ++++++++++++---
+ network/witness-verify.mjs  | 103 ++++++++++++++++++++++++++++--------
+ 2 files changed, 118 insertions(+), 29 deletions(-)
+
+diff --git a/network/witness-gateway.mjs b/network/witness-gateway.mjs
+index 233045a384ad7b3113ce3e30fdeb0437d1ce2ad0..c10261d80266b9b7912b0824d790c616fd7aa06f 100644
+--- a/network/witness-gateway.mjs
++++ b/network/witness-gateway.mjs
+@@ -9,6 +9,11 @@
+ //     answer costs its source the try: the next source is asked. One lying source therefore cannot deny a witness
+ //     another source can prove, and nothing unverified is ever returned. Without an authenticated root for the block
+ //     (or with the verifier unavailable) the request is REFUSED; it is never passed through unchecked.
++//   * A block whose signed head the root store never saw (a poll gap, a cold start, an older confirmed block) is
++//     recovered by AUTHENTICATED ANCESTRY: untrusted headers from the same upstreams (eth_getBlockByHash), each bound by
++//     its recomputed hash to the parent hash of an already bound child, walking down from the nearest signed head
++//     (network/witness-verify.mjs createRootStore). A forged or tampered header costs its source the try. Missing or
++//     too-deep history is refused, and a recovered root is history for that block, never freshness.
+ //   * The witness cache is content-addressed and create-only: each verified answer is one immutable entry named by
+ //     the sha256 of its content, so a bad entry (an older unverified write, or a tampered or shared store such as a
+ //     Sia bucket) can never shadow a good one. Every cache read is re-verified before use, a failing entry is
+@@ -120,10 +125,10 @@ function limiter(max) {
+  * store with only {get, put} works, but a single-slot store can still be shadowed by a bad first write.
+  * Bounds: timeoutMs per try, deadlineMs per request (all tries and checks), maxResponseBytes per answer (while
+  * reading), maxInFlight upstream requests at once.
+- * -> {handle(request) -> response, listen(port) -> url (127.0.0.1 only), close(), stats()}
++ * -> {handle(request) -> response, root(blockHash) -> binding | null, listen(port) -> url (127.0.0.1 only), close(), stats()}
+  */
+ export function createWitnessGateway({ upstreams = [], cache = null, proofs = null, timeoutMs = 8000, deadlineMs = 30000, maxResponseBytes = 16 << 20,
+-  maxInFlight = 8, fetch = globalThis.fetch, methods = WITNESS_METHODS } = {}) {
++  maxHeaderBytes = 1 << 20, maxInFlight = 8, fetch = globalThis.fetch, methods = WITNESS_METHODS } = {}) {
+   if (!Array.isArray(methods) || methods.some((m) => !WITNESS_METHODS.includes(m))) throw new Error('methods must be a subset of WITNESS_METHODS');
+   if (!Array.isArray(upstreams) || upstreams.length > 16) throw new Error('0 to 16 upstreams');
+   const ids = upstreams.map((u) => rpcEndpoint(u).identity);
+@@ -132,9 +137,10 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
+   if (!Number.isSafeInteger(deadlineMs) || deadlineMs < timeoutMs || deadlineMs > 300000) throw new Error('invalid deadlineMs');
+   if (!Number.isSafeInteger(maxResponseBytes) || maxResponseBytes < 1024 || maxResponseBytes > 64 << 20) throw new Error('invalid maxResponseBytes');
+   if (!Number.isSafeInteger(maxInFlight) || maxInFlight < 1 || maxInFlight > 64) throw new Error('invalid maxInFlight');
++  if (!Number.isSafeInteger(maxHeaderBytes) || maxHeaderBytes < 1024 || maxHeaderBytes > maxResponseBytes) throw new Error('invalid maxHeaderBytes');
+   if ((methods.some((m) => PINNED.has(m)) || cache) && !(proofs?.checker?.check && proofs?.roots?.rootFor))
+     throw new Error('eth_getProof/eth_getCode and the witness cache need proofs: {checker, roots} (no unverified witness serving)');
+-  const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0, invalid: 0 }])), cacheHits: 0, cachePuts: 0,
++  const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0, invalid: 0, headerOk: 0, headerInvalid: 0 }])), cacheHits: 0, cachePuts: 0,
+     cacheInvalid: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0 };
+   const slot = limiter(maxInFlight);
+   const quarantine = new Set(), accounts = new Map();   // bounded: known-bad cache contents; recent verified account proofs
+@@ -143,17 +149,38 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
+   const err = (id, code, message) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } });
+   const ok = (id, result) => ({ jsonrpc: '2.0', id: id ?? null, result });
+ 
+-  async function ask(u, body, deadline) {
++  async function ask(u, body, deadline, maxBytes = maxResponseBytes) {
+     const left = deadline - Date.now();
+     if (left <= 0) throw new Error('request deadline exceeded');
+-    return slot(() => call(u, body, fetch, Math.max(1, Math.min(timeoutMs, left)), maxResponseBytes));
++    return slot(() => call(u, body, fetch, Math.max(1, Math.min(timeoutMs, left)), maxBytes));
++  }
++
++  /** An untrusted header for `hash` from the upstreams in order, checked by the helper (bound to `child` when given):
++   *  -> {head, header} | null. A header that does not hash to `hash` (or does not link) costs its source the try. */
++  async function headers(hash, child, deadline) {
++    const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBlockByHash', params: [hash, false] });
++    for (const u of upstreams) {
++      const s = stats.upstream[rpcLabel(u)];
++      let j;
++      try { j = await ask(u, body, deadline, maxHeaderBytes); } catch { s.failed++; continue; }
++      if (j.error || !j.result) { s.failed++; continue; }
++      const v = await proofs.checker.check({ op: 'header', header: j.result, expectHash: hash, child });
++      if (!v.ok) { s.headerInvalid++; continue; }
++      s.headerOk++;
++      return { head: v, header: j.result };
++    }
++    return null;
+   }
+ 
+   /** A verified answer for a block-hash-pinned witness request -> {result} | {error}. */
+   async function witness(method, params, deadline) {
+     const w = witnessKey(method, params);
+     if (!w) return { error: 'witness requests must be pinned by block hash', code: -32602 };
+-    const root = await proofs.roots.rootFor(w.blockHash);
++    let root;
++    try { root = await proofs.roots.rootFor(w.blockHash, { headers, deadline }); } catch (e) {
++      stats.verifierUnavailable++;
++      return { error: `witness verifier unavailable (${String(e?.message || e).slice(0, 80)}): refused` };
++    }
+     if (!root) { stats.unauthenticatedBlock++; return { error: `no authenticated state root for block ${w.blockHash}: refused, not passed through` }; }
+     const at = { blockHash: root.blockHash, stateRoot: root.stateRoot }, who = `${root.blockHash}:${String(params[0]).toLowerCase()}`;
+     let verify;
+@@ -244,5 +271,8 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
+     return `http://127.0.0.1:${server.address().port}/`;
+   }
+   async function close() { if (server) { server.closeAllConnections?.(); await new Promise((r) => server.close(() => r())); server = null; } }
+-  return { handle, listen, close, stats: () => structuredClone({ ...stats, quarantined: quarantine.size }) };
++  /** The authenticated (block hash -> state root) binding the gateway would verify witnesses against, recovering a
++   *  missed block by ancestry through the upstreams; null = refused. History for that block, never freshness. */
++  const root = (hash) => (proofs ? proofs.roots.rootFor(hash, { headers, deadline: Date.now() + deadlineMs }) : Promise.resolve(null));
++  return { handle, root, listen, close, stats: () => structuredClone({ ...stats, quarantined: quarantine.size }) };
+ }
+diff --git a/network/witness-verify.mjs b/network/witness-verify.mjs
+index 1cf4dbb7064a4f53fc77533051834e2b4f5d10b2..8b9850d490c607341441787dc8bbfeb943778838 100644
+--- a/network/witness-verify.mjs
++++ b/network/witness-verify.mjs
+@@ -88,31 +88,53 @@ export function createWitnessChecker({ bin, chainId, signer, timeoutMs = 10000,
+ }
+ 
+ /**
+- * checker: createWitnessChecker. consensusUrl: the consensus head API (https, or http on loopback). -> {rootFor(hash),
+- * addCommitment(commitment), refresh(), start(pollMs), stop(), stats()}. Keeps at most maxRoots bindings (oldest by
+- * insertion dropped). A block hash seen with two different state roots is never served (it cannot happen for a valid
+- * hash; if it does, the store refuses rather than choose).
++ * checker: createWitnessChecker. consensusUrl: the consensus head API (https, or http on loopback); optional when heads
++ * are pushed with offer(). -> {rootFor(hash, {headers, deadline}), offer(commitment), addCommitment (= offer),
++ * refresh(), start(pollMs), stop(), stats()}.
++ *
++ * Two ways a (block hash -> state root) binding enters the store, both verified by the helper:
++ *   * 'signed-head': a sequencer commitment (polled from consensusUrl, or pushed with offer() by a head source such as
++ *     the native gossip bridge) that recovers to the pinned signer.
++ *   * 'ancestor': an UNTRUSTED header (from `headers`, e.g. the gateway's execution upstreams) whose alloy hash_slow()
++ *     equals the parent hash of an already bound child, one block lower and not later (helper op `header`). Walking
++ *     down from the nearest bound descendant recovers a block the store never saw (a poll gap, a cold start, a
++ *     confirmed block older than the first head seen). A source's claim about a hash is never taken as is.
++ * rootFor(hash) without a binding: poll once (coalesced), then, given `headers(hash, child, deadline)` -> {head,
++ * header} | null, recover by ancestry: the requested header is fetched first only to learn its claimed number, the
++ * walk goes down from the nearest bound block above that number (at most maxAncestry links), and the requested hash is
++ * bound only if the walk arrives at its child and that child's parent hash IS the requested hash. Otherwise (unavailable
++ * history, too deep, newer than every bound head, a fork/orphan, a deadline) the answer is null: the caller refuses.
++ * A binding is history for that block, never freshness (Helios's own head checks decide what is fresh). Concurrent
++ * recoveries of one hash share one walk. At most maxRoots bindings (oldest first out). A hash seen with two different
++ * state roots is never served.
+  */
+-export function createRootStore({ checker, consensusUrl, fetch = globalThis.fetch, timeoutMs = 5000, maxRoots = 8192, maxCommitmentBytes = 8 << 20 } = {}) {
++export function createRootStore({ checker, consensusUrl, fetch = globalThis.fetch, timeoutMs = 5000, maxRoots = 8192, maxCommitmentBytes = 8 << 20,
++  maxAncestry = 256 } = {}) {
+   if (!checker?.check) throw new Error('checker required');
++  if (!Number.isSafeInteger(maxAncestry) || maxAncestry < 1 || maxAncestry > 8191) throw new Error('invalid maxAncestry');
+   const base = consensusUrl === undefined ? null : rpcEndpoint(consensusUrl).url.href.replace(/\/?$/, '/');
+-  const roots = new Map(), conflicted = new Set();
+-  const stats = { verified: 0, refused: 0, conflicts: 0, polls: 0, pollFailures: 0 };
++  const roots = new Map(), conflicted = new Set(), recovering = new Map();
++  const stats = { verified: 0, refused: 0, conflicts: 0, polls: 0, pollFailures: 0, ancestors: 0, ancestryRefused: {} };
+   let inflight = null, timer = null;
++  const lower = (x) => String(x).toLowerCase();
+ 
+-  async function addCommitment(commitment) {
+-    const r = await checker.check({ op: 'head', commitment });
+-    if (!r.ok) { stats.refused++; return null; }
+-    const hash = String(r.blockHash).toLowerCase(), stateRoot = String(r.stateRoot).toLowerCase();
+-    if (!HASH.test(hash) || !HASH.test(stateRoot)) { stats.refused++; return null; }
++  function bind(r, via, boundTo) {
++    const hash = lower(r.blockHash), stateRoot = lower(r.stateRoot), parentHash = lower(r.parentHash);
++    if (![hash, stateRoot, parentHash].every((x) => HASH.test(x)) || !Number.isSafeInteger(r.number) || !Number.isSafeInteger(r.timestamp)) return null;
+     const had = roots.get(hash);
+     if (had && had.stateRoot !== stateRoot) { conflicted.add(hash); stats.conflicts++; return null; }
+-    if (!had) {
+-      stats.verified++;
+-      roots.set(hash, { blockHash: hash, stateRoot, number: r.number, timestamp: r.timestamp });
+-      if (roots.size > maxRoots) roots.delete(roots.keys().next().value);
+-    }
+-    return roots.get(hash);
++    if (had) return had;
++    const entry = Object.freeze({ blockHash: hash, stateRoot, parentHash, number: r.number, timestamp: r.timestamp, via, ...(boundTo ? { boundTo } : {}) });
++    roots.set(hash, entry);
++    if (via === 'ancestor') stats.ancestors++; else stats.verified++;
++    if (roots.size > maxRoots) roots.delete(roots.keys().next().value);
++    return entry;
++  }
++  /** Push a sequencer commitment (verified independently here; the pusher is not trusted). */
++  async function offer(commitment) {
++    const r = await checker.check({ op: 'head', commitment });
++    if (!r.ok) { stats.refused++; return null; }
++    return bind(r, 'signed-head');
+   }
+   async function poll() {
+     if (!base) return null;
+@@ -121,18 +143,55 @@ export function createRootStore({ checker, consensusUrl, fetch = globalThis.fetc
+       const res = await fetch(base + 'latest', { redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(timeoutMs) });
+       if (!res.ok) throw new Error('HTTP ' + res.status);
+       const c = JSON.parse(await readBounded(res, maxCommitmentBytes));
+-      return c ? await addCommitment(c) : null;     // null: the source has no head to offer (e.g. stale)
++      return c ? await offer(c) : null;     // null: the source has no head to offer (e.g. stale)
+     } catch { stats.pollFailures++; return null; }
+   }
+   /** One coalesced poll of the head source. */
+   function refresh() { return (inflight ??= poll().finally(() => { inflight = null; })); }
+-  async function rootFor(blockHash) {
+-    const h = String(blockHash).toLowerCase();
++  const refuse = (why) => { stats.ancestryRefused[why] = (stats.ancestryRefused[why] || 0) + 1; return null; };
++  const child = (e) => ({ number: e.number, timestamp: e.timestamp, parentHash: e.parentHash });
++
++  async function recover(h, headers, deadline) {
++    if (!roots.size) return refuse('no-bound-head');       // nothing can anchor a walk: no source is asked
++    const guide = await headers(h, null, deadline);        // self-consistent header for h: only its NUMBER is used
++    if (!guide) return refuse('unavailable');
++    const n = guide.head.number;
++    let above = null;                                      // the nearest bound block above n
++    for (const e of roots.values()) if (e.number > n && (!above || e.number < above.number)) above = e;
++    if (!above) return refuse('newer-than-every-bound-head');
++    if (above.number - n > maxAncestry) return refuse('too-deep');
++    let cur = above;
++    while (cur.number > n + 1) {
++      if (Date.now() > deadline) return refuse('deadline');
++      let parent = roots.get(cur.parentHash);
++      if (!parent) {
++        const got = await headers(cur.parentHash, child(cur), deadline);
++        if (!got) return refuse('unavailable');
++        parent = bind(got.head, 'ancestor', cur.blockHash);
++        if (!parent) return refuse('conflict');
++      }
++      if (parent.number + 1 !== cur.number) return refuse('mismatched-link');
++      cur = parent;
++    }
++    if (cur.parentHash !== h) return refuse('not-an-ancestor');   // h is not on the bound chain (fork, orphan or a lie)
++    const r = await checker.check({ op: 'header', header: guide.header, expectHash: h, child: child(cur) });
++    if (!r.ok) return refuse('mismatched-link');
++    return bind(r, 'ancestor', cur.blockHash) ?? refuse('conflict');
++  }
++  /** The binding for a block hash, or null (the caller must refuse). See above for `headers` and `deadline`. */
++  async function rootFor(blockHash, { headers = null, deadline = Date.now() + 30000 } = {}) {
++    const h = lower(blockHash);
+     if (conflicted.has(h)) return null;
+     if (!roots.has(h)) await refresh();             // a head Helios just adopted may be newer than our last poll
++    if (!roots.has(h) && headers && HASH.test(h) && !conflicted.has(h)) {
++      let p = recovering.get(h);
++      if (!p) { p = recover(h, headers, deadline).finally(() => recovering.delete(h)); recovering.set(h, p); }
++      await p;
++    }
+     return conflicted.has(h) ? null : roots.get(h) || null;
+   }
+   function start(pollMs = 1000) { stop(); timer = setInterval(() => { refresh(); }, pollMs); timer.unref?.(); }
+   function stop() { if (timer) clearInterval(timer); timer = null; }
+-  return { rootFor, addCommitment, refresh, start, stop, stats: () => ({ ...stats, roots: roots.size, conflicted: conflicted.size }) };
++  return { rootFor, offer, addCommitment: offer, refresh, start, stop,
++    stats: () => ({ ...stats, ancestryRefused: { ...stats.ancestryRefused }, roots: roots.size, conflicted: conflicted.size, recovering: recovering.size }) };
+ }

@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-23T12:57:14.219319+00:00",
+  "sourceCommit": "4c059b997360483c743deca343c2e42b1b534eeb",
+  "sourceSha256": "5e56973dfd27bc76781ea2f70646803019044d56d7bd97988bcfe8cffca6f705",
+  "probe": "probe.mjs",
+  "queueExit": 0,
+  "peakMiB": 92,
+  "finding": "Actual PrivacyAgent.start rejects with privacy agent stopped during startup when close occurs during its last snapshot; close completes and no timers are created. runPrivacy rethrows startup errors and the CLI handler sets exitCode=1. Host-services STARTED is emitted before agent.start settles, so the test readiness marker does not rule out this phase.",
+  "scope": "Controlled production-method test, not an actual daemon reproduction; f1/f2 exit details still required before attributing those failures.",
+  "proposedFollowup": "S owner should cover deliberate cancellation at each startup await and verify cleanup plus correct exit semantics. Preserve genuine startup-error reporting and strict exit/cleanup assertions."
+}

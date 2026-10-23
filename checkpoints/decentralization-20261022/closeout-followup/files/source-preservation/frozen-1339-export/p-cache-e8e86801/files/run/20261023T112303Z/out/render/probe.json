@@ -1,0 +1,29 @@
+{
+ "serviceUser": "enclave-holder",
+ "datadir": "/srv/enclave-probe/data",
+ "storage": {
+  "layout": "loop-ext4-image",
+  "mountPoint": "/srv/enclave-probe",
+  "origin": {
+   "imagePath": "/usbtest/probe/origin.img",
+   "bytes": 16777216
+  },
+  "cache": {
+   "mechanism": "dm-cache",
+   "mode": "writethrough",
+   "policy": "smq",
+   "dataImagePath": "/vmtest/probe-cache/cache-data.img",
+   "dataBytes": 4194304,
+   "metadataImagePath": "/vmtest2/probe-meta/cache-meta.img",
+   "metadataBytes": 8388608,
+   "blockBytes": 262144,
+   "slackBytes": 57344
+  },
+  "nvmeBudget": {
+   "ledgerPath": "/etc/enclave-rpc-cache/nvme-cache-budget.json",
+   "reservationId": "probe-dm-cache"
+  },
+  "originFreeMarginBytes": 0,
+  "nvmeFreeMarginBytes": 0
+ }
+}

@@ -1,0 +1,71 @@
+{
+ "format": "enclave-rpc-nvme-cache-budget/v2",
+ "capBytes": 250000000000,
+ "targetBytes": 200000000000,
+ "hosts": [
+  {
+   "machineId": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
+   "label": "guest-fixture",
+   "shareBytes": 113668096
+  }
+ ],
+ "reservations": [
+  {
+   "id": "base-holder-dm-cache",
+   "host": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
+   "owner": "enclave-base-holder",
+   "kind": "preallocated-files",
+   "blockBytes": 4096,
+   "maxBytes": 84115456,
+   "slackBytes": 229376,
+   "files": [
+    {
+     "path": "/vmtest/enclave-base-holder-cache/cache-data.img",
+     "bytes": 67108864
+    },
+    {
+     "path": "/vmtest/enclave-base-holder-cache/cache-meta.img",
+     "bytes": 16777216
+    }
+   ]
+  },
+  {
+   "id": "l1-pair-dm-cache",
+   "host": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
+   "owner": "enclave-l1-pair",
+   "kind": "preallocated-files",
+   "blockBytes": 4096,
+   "maxBytes": 16834560,
+   "slackBytes": 57344,
+   "files": [
+    {
+     "path": "/vmtest/enclave-l1-pair-cache/cache-data.img",
+     "bytes": 8388608
+    },
+    {
+     "path": "/vmtest/enclave-l1-pair-cache/cache-meta.img",
+     "bytes": 8388608
+    }
+   ]
+  },
+  {
+   "id": "probe-dm-cache",
+   "host": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
+   "owner": "credit-probe",
+   "kind": "preallocated-files",
+   "blockBytes": 4096,
+   "maxBytes": 12640256,
+   "slackBytes": 57344,
+   "files": [
+    {
+     "path": "/vmtest/probe-cache/cache-data.img",
+     "bytes": 4194304
+    },
+    {
+     "path": "/vmtest2/probe-meta/cache-meta.img",
+     "bytes": 8388608
+    }
+   ]
+  }
+ ]
+}

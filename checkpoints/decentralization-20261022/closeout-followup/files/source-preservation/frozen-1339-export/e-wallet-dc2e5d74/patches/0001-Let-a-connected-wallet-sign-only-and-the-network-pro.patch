@@ -1,0 +1,824 @@
+From 6ab298f196d93b60499178275acf025f5b8658af Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 04:27:17 -0700
+Subject: [PATCH 1/2] Let a connected wallet sign only and the network profile
+ broadcast (explicit, independent mode)
+
+The default stays the wallet's own broadcast (eth_sendTransaction). On the owner's
+explicit choice under Broadcast, sendTx asks the wallet for eth_signTransaction,
+checks the signed EIP-1559 transaction is exactly the request and from the
+connected address (ecrecover at an agreed block), and sends the bytes to the
+profile's endpoints in order (eth_sendRawTransaction). A wallet without
+eth_signTransaction (MetaMask) is refused by name; nothing falls back to the
+wallet's RPC. waitReceipt does not ask the wallet about transactions it never had.
+
+Passkey accounts: the capability text names an Enclave-run RP, bundler or
+paymaster service the owner chose instead of claiming none; stale comments on
+user-op sending and paymasters corrected. Tests: the real sendTx path against
+loopback profile origins in front of anvil, the real bundler HTTP path against
+loopback stand-ins, and the browser rig popover choice.
+---
+ site/js/core/account-providers.js           |   6 +-
+ site/js/core/account-transport.js           |   6 +-
+ site/js/core/chain.js                       |   6 +-
+ site/js/core/passkey-account.js             |  10 +-
+ site/js/core/profile-broadcast.js           | 207 ++++++++++++++++++++
+ site/js/core/wallet.js                      |  40 +++-
+ test/site-account-bundler-route.test.mjs    | 142 ++++++++++++++
+ test/site-browser-rpc-routes.test.mjs       |  32 ++-
+ test/site-wallet-profile-broadcast.test.mjs | 193 ++++++++++++++++++
+ 9 files changed, 628 insertions(+), 14 deletions(-)
+ create mode 100644 site/js/core/profile-broadcast.js
+ create mode 100644 test/site-account-bundler-route.test.mjs
+ create mode 100644 test/site-wallet-profile-broadcast.test.mjs
+
+diff --git a/site/js/core/account-providers.js b/site/js/core/account-providers.js
+index fd686d7be61fd9669f6629e88ebb3d9066807037..94556e1c56880259946ed8c0b25e6273a88bd7b4 100644
+--- a/site/js/core/account-providers.js
++++ b/site/js/core/account-providers.js
+@@ -22,7 +22,9 @@
+      plain warnings that follow from it;
+    - validateAccountTransport: an owner-chosen ERC-4337 bundler/paymaster
+      set for a provider (HTTPS, distinct origins, the provider's
+-     EntryPoint, never only Enclave-operated). Nothing sends user ops yet.
++     EntryPoint, never only Enclave-operated). User operations are sent
++     only for the safe-passkey provider, by account-transport.js; a
++     Coinbase Smart Wallet transport is validated but nothing sends one.
+ 
+    Signatures stay the contracts' business: SessionVault asks the account
+    (ERC-1271) and USDC does the same for EIP-3009 deposits; owner-signature.js
+@@ -219,7 +221,7 @@ export async function identifyAccount(address, { reader = quorumReader() } = {})
+ }
+ 
+ /* ---- owner-chosen ERC-4337 transport (validated now; used when user operations are added) ---- */
+-const enclaveHost = (h) => h === "enclave.host" || h.endsWith(".enclave.host");
++export const enclaveHost = (h) => h === "enclave.host" || h.endsWith(".enclave.host");
+ // a bundler the owner runs on this computer (loopback) needs no certificate; anything else is https
+ const loopback = (h) => ["127.0.0.1", "localhost", "[::1]", "::1"].includes(String(h).toLowerCase());
+ export function validateAccountTransport(t){
+diff --git a/site/js/core/account-transport.js b/site/js/core/account-transport.js
+index 283413f12099f01bf4bdc7e588acbd6c2ce9956a..4a61b1444a61baab50ade5ab2d1ed68d7568bcb4 100644
+--- a/site/js/core/account-transport.js
++++ b/site/js/core/account-transport.js
+@@ -7,8 +7,10 @@
+    Gas is not free: the account pays the EntryPoint from its own ETH
+    (balance, or its EntryPoint deposit), and the bundler is paid out of
+    that. Before the first deployment the counterfactual address must
+-   already hold that ETH (sent from anywhere). A paymaster named in the
+-   transport is refused here rather than used unverified.
++   already hold that ETH (sent from anywhere). A paymaster the owner
++   names in the transport (ERC-7677) pays instead, from its own
++   EntryPoint deposit: only that paymaster is accepted in its answers,
++   and its deposit must cover the operation.
+ 
+    Every operation, in order:
+    1. an earlier operation whose outcome is unknown blocks new ones
+diff --git a/site/js/core/chain.js b/site/js/core/chain.js
+index f745a9f77ce5c6afbb0281b5aee7f9f5e92cab92..7a4392b11f72fed5fbe24252bd572f2e0019adc8 100644
+--- a/site/js/core/chain.js
++++ b/site/js/core/chain.js
+@@ -611,6 +611,10 @@ export async function catOwner(){ const r = await ethCall("0x" + CAT_SEL.owner);
+    version of this asked exactly that question and aborted healthy migrations
+    on the answer, while claiming nothing had been sent. Absence of evidence
+    from a node that never accepted the transaction is not evidence of absence. */
++// transactions the network profile's endpoints broadcast (profile-broadcast.js): the wallet never had them, so its RPC
++// is not asked whether it dropped them
++const PROFILE_SENT = new Set();
++export const noteProfileBroadcast = (hash) => { PROFILE_SENT.add(String(hash).toLowerCase()); };
+ export async function waitReceipt(hash, tries){
+   tries = tries || 45;
+   const DROP_AFTER = 20;            // ~40s: long enough that a live tx is in its own node's pool
+@@ -625,7 +629,7 @@ export async function waitReceipt(hash, tries){
+       lastErr = e;
+     }
+     if (rec){ if (hexBig(rec.status) === 0n) throw new EnclaveError("transaction reverted", 0); return rec; }
+-    if (!seen && i >= DROP_AFTER){
++    if (!seen && i >= DROP_AFTER && !PROFILE_SENT.has(String(hash).toLowerCase())){
+       // Ask the SUBMITTING provider. No provider (or an errored one) means we
+       // cannot know, and we keep waiting rather than guess.
+       let known = null;
+diff --git a/site/js/core/passkey-account.js b/site/js/core/passkey-account.js
+index 2c786b763067f4acbb4f09e6dcdc076dcb5acaff..15efebb075ee4b298cbbdad3e2133640eca9cd32 100644
+--- a/site/js/core/passkey-account.js
++++ b/site/js/core/passkey-account.js
+@@ -24,7 +24,7 @@
+    configured, calldata is offered for any submitter instead.
+    ============================================================ */
+ import { reader as quorumReader } from "./independent-chain.js";
+-import { PROVIDERS, validateAccountTransport } from "./account-providers.js";
++import { PROVIDERS, validateAccountTransport, enclaveHost } from "./account-providers.js";
+ 
+ const P = PROVIDERS["safe-passkey"];
+ const C = Object.fromEntries(Object.entries(P.contracts).map(([k, v]) => [k, v.address]));
+@@ -235,7 +235,13 @@ export function accountCapabilities(p){
+   if (sh) out.push("Passkey " + sh.label + " is the account's built-in signer: the account can create itself in its own first operation, with no wallet, once its address holds ETH for gas.");
+   out.push(p.transport ? "Gas: your own ERC-4337 transport (" + p.transport.bundlers.length + " bundler(s)" + (p.transport.paymaster ? ", paymaster " + p.transport.paymaster.address : ", no paymaster: the account pays in ETH") + ")."
+     : "Gas: no ERC-4337 transport chosen. Transactions are sent by a submitter you pick (your connected wallet, or anyone given the calldata).");
+-  out.push("No Enclave account, relay, RP, bundler or paymaster is involved.");
++  // what the owner chose may itself be Enclave's: name it rather than claim independence
++  const hostOf = (u) => new URL(u).hostname.toLowerCase();
++  const enc = [...rps.filter(enclaveHost).map((r) => "RP " + r),
++    ...(p.transport ? p.transport.bundlers.map(hostOf).filter(enclaveHost).map((h) => "bundler " + h) : []),
++    ...(p.transport && p.transport.paymaster && enclaveHost(hostOf(p.transport.paymaster.url)) ? ["paymaster service " + hostOf(p.transport.paymaster.url)] : [])];
++  out.push(enc.length ? "Enclave runs part of this account's path (" + enc.join(", ") + "): Enclave decides whether that part stays usable. No Enclave account or relay is involved."
++    : "No Enclave account, relay, RP, bundler or paymaster is involved.");
+   return out;
+ }
+ 
+diff --git a/site/js/core/profile-broadcast.js b/site/js/core/profile-broadcast.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..f7dd16832d6c3badead1506be893541e54ca8a79
+--- /dev/null
++++ b/site/js/core/profile-broadcast.js
+@@ -0,0 +1,207 @@
++/* ============================================================
++   Broadcast through the network profile (independent mode, on the
++   owner's explicit choice under Broadcast in the wallet menu).
++
++   By default a connected wallet both signs and broadcasts
++   (eth_sendTransaction): the transaction leaves through the RPC the
++   WALLET has set for Base, which this page can neither see nor
++   change (EIP-3085 wallet_addEthereumChain is only an offer). On
++   this route the wallet SIGNS ONLY (eth_signTransaction) and this
++   page hands the exact signed bytes to the profile's own endpoints
++   (eth_sendRawTransaction). Nothing else is contacted.
++
++   Many wallets cannot sign without broadcasting (MetaMask offers no
++   eth_signTransaction). They are refused with that reason, nothing is
++   signed or sent, and this route never falls back to the wallet's own
++   broadcast: the owner switches routes explicitly.
++
++   Before anything leaves the page:
++   1. the profile is still the one this tab confirmed;
++   2. nonce and fees come from the profile (the base fee from an
++      agreed block), the gas limit from the caller's measurement;
++   3. the signed transaction must be exactly what was asked (EIP-1559,
++      chain, nonce, to, value, data, gas, fees, no access list), and
++      its signer - recovered by the ecrecover precompile at an agreed
++      block - must be the connected address.
++   Endpoints are tried in the profile's order, the next only after a
++   refusal or no answer. The same signed bytes have one nonce and one
++   hash: they execute at most once. Acceptance is only that: the
++   receipt is read through the profile (chain.js waitReceipt).
++   ============================================================ */
++import { INDEPENDENT, APP_CATALOG_RPCS, BASE_CHAIN, assertProfileCurrent } from "./config.js";
++import { keccak256Bytes, bytesToHex, hexToBytes } from "./keccak.js";
++
++const ROUTE_KEY = "enclave_broadcast_route:v1";
++const ECRECOVER = "0x0000000000000000000000000000000000000001";
++const MAX_TIP = 2_000_000_000n;       // 2 gwei: never more than the account path pays (account-transport.js)
++const lower = (a) => String(a || "").toLowerCase();
++const ls = () => { try { return globalThis.localStorage || null; } catch { return null; } };
++
++export class BroadcastError extends Error {
++  constructor(message, { code = "refused", outcomeUnknown = false, hash = null } = {}){
++    super(message); this.name = "BroadcastError"; this.code = code; this.outcomeUnknown = outcomeUnknown; this.hash = hash;
++  }
++}
++
++let _deps = null;
++/** Tests only: stand-ins for the profile reads (chain.js baseRpc), the agreed reader and the receipt registry. */
++export function _setForTests(d){ _deps = d; }
++async function deps(){
++  if (_deps) return _deps;
++  const [C, IC] = await Promise.all([import("./chain.js"), import("./independent-chain.js")]);
++  return { read: C.baseRpc, reader: IC.reader(), noteSent: C.noteProfileBroadcast, rpcs: APP_CATALOG_RPCS, fetchImpl: (...a) => globalThis.fetch(...a) };
++}
++
++/* ---- the owner's choice ---- */
++/** "wallet" (the wallet broadcasts through its own RPC: the default, and the only route outside independent mode) or
++ *  "profile" (the wallet signs only; the profile's endpoints broadcast). */
++export function broadcastRoute(){
++  if (INDEPENDENT.state !== "on") return "wallet";
++  return (ls() && ls().getItem(ROUTE_KEY)) === "profile" ? "profile" : "wallet";
++}
++export function setBroadcastRoute(mode){
++  if (mode !== "wallet" && mode !== "profile") throw new BroadcastError("choose your wallet or the network profile");
++  if (mode === "profile" && INDEPENDENT.state !== "on") throw new BroadcastError("only a confirmed independent profile has its own broadcast endpoints");
++  if (mode === "profile" && !APP_CATALOG_RPCS.length) throw new BroadcastError("this network profile names no RPC endpoint");
++  ls().setItem(ROUTE_KEY, mode);
++}
++
++/* ---- RLP (strict: canonical lengths and integers, the whole input consumed) ---- */
++const bad = (why) => new BroadcastError("your wallet returned a transaction this page cannot read (" + why + "): nothing was sent", { code: "malformed" });
++function rlpLength(b, at, n){
++  if (n === 0 || at + n > b.length || b[at] === 0) throw bad("length");
++  let v = 0; for (let i = 0; i < n; i++) v = v * 256 + b[at + i];
++  if (v < 56) throw bad("length");
++  return v;
++}
++function rlpItem(b, at){
++  const p = b[at];
++  if (p === undefined) throw bad("truncated");
++  if (p < 0x80) return [b.subarray(at, at + 1), at + 1];
++  let start, len, list = p >= 0xc0;
++  const short = list ? p - 0xc0 : p - 0x80;
++  if (short <= 55){ start = at + 1; len = short; }
++  else { const n = short - 55; len = rlpLength(b, at + 1, n); start = at + 1 + n; }
++  const end = start + len;
++  if (end > b.length) throw bad("truncated");
++  if (!list){
++    if (len === 1 && b[start] < 0x80) throw bad("non-canonical byte");
++    return [b.subarray(start, end), end];
++  }
++  const items = [];
++  for (let i = start; i < end;){ const [x, next] = rlpItem(b, i); items.push(x); i = next; }
++  return [items, end];
++}
++function rlpEncode(x){
++  const head = (n, off) => {
++    if (n < 56) return [off + n];
++    const l = []; for (let v = n; v > 0; v = Math.floor(v / 256)) l.unshift(v % 256);
++    return [off + 55 + l.length, ...l];
++  };
++  if (Array.isArray(x)){
++    const parts = x.map(rlpEncode), n = parts.reduce((s, p) => s + p.length, 0), h = head(n, 0xc0);
++    const out = new Uint8Array(h.length + n);
++    out.set(h); let o = h.length;
++    for (const p of parts){ out.set(p, o); o += p.length; }
++    return out;
++  }
++  if (x.length === 1 && x[0] < 0x80) return x;
++  const h = head(x.length, 0x80), out = new Uint8Array(h.length + x.length);
++  out.set(h); out.set(x, h.length);
++  return out;
++}
++const int = (b, what) => {
++  if (!(b instanceof Uint8Array)) throw bad(what);
++  if (b.length && b[0] === 0) throw bad(what + " has a leading zero");
++  if (b.length > 32) throw bad(what);
++  return b.length ? BigInt(bytesToHex(b)) : 0n;
++};
++
++/** The signed EIP-1559 transaction's fields and the hash its signer signed. Anything else is refused. */
++export function decodeSigned(raw){
++  if (!/^0x02([0-9a-fA-F]{2})+$/.test(String(raw || ""))) throw bad("not a signed EIP-1559 transaction");
++  const b = hexToBytes(raw);
++  const [items, end] = rlpItem(b, 1);
++  if (end !== b.length || !Array.isArray(items) || items.length !== 12) throw bad("not a signed EIP-1559 transaction");
++  const [chainId, nonce, tip, maxFee, gas, to, value, data, access, yParity, r, s] = items;
++  if (!(to instanceof Uint8Array) || (to.length !== 0 && to.length !== 20) || !(data instanceof Uint8Array)) throw bad("recipient or data");
++  if (!Array.isArray(access)) throw bad("access list");
++  const v = int(yParity, "signature");
++  if (v > 1n) throw bad("signature");
++  return {
++    chainId: int(chainId, "chain"), nonce: int(nonce, "nonce"), maxPriorityFeePerGas: int(tip, "fee"), maxFeePerGas: int(maxFee, "fee"), gas: int(gas, "gas"),
++    to: to.length ? bytesToHex(to) : null, value: int(value, "value"), data: bytesToHex(data), accessList: access, yParity: Number(v),
++    r: int(r, "signature"), s: int(s, "signature"),
++    signingHash: bytesToHex(keccak256Bytes(new Uint8Array([0x02, ...rlpEncode(items.slice(0, 9))]))),
++    hash: bytesToHex(keccak256Bytes(b)),
++  };
++}
++
++const hex = (n) => "0x" + BigInt(n).toString(16);
++const word = (n) => BigInt(n).toString(16).padStart(64, "0");
++const UNSUPPORTED = /not supported|unsupported|does not exist|not available|not implemented|method not found|unknown method|request\(\) method/i;
++const KNOWN = /already known|known transaction|already imported|already exists/i;
++
++/**
++ * Sign with the connected wallet, broadcast through the profile. `tx` is sendTx's request ({from, to?, data, value, gas}).
++ * -> the transaction hash, once one of the profile's endpoints accepted it. Throws BroadcastError: "unsupported" (the wallet
++ * cannot sign only), "changed" (the wallet signed something else), "signer", "gas", "refused" (every endpoint refused:
++ * sent nowhere), "unknown" (an endpoint may have it: outcomeUnknown, never resent here). A wallet rejection is rethrown.
++ */
++export async function sendViaProfile(tx, { provider, from }){
++  if (broadcastRoute() !== "profile") throw new BroadcastError("broadcasting through the network profile is not chosen");
++  if (!provider || typeof provider.request !== "function") throw new BroadcastError("connect a wallet to sign", { code: "input" });
++  if (!tx.gas) throw new BroadcastError("the network profile's endpoints did not measure this transaction's gas, and this route sends only a measured limit: nothing was signed", { code: "gas" });
++  const D = await deps();
++  const snap = await D.reader.snapshot();
++  let tip = 1_000_000n;                   // 0.001 gwei when the profile quotes none: ample on Base (admin-console migrator)
++  try { tip = BigInt(await D.read("eth_maxPriorityFeePerGas", [])); } catch {}
++  if (tip > MAX_TIP) tip = MAX_TIP;
++  const nonce = BigInt(await D.read("eth_getTransactionCount", [from, "pending"]));
++  const want = { chainId: BigInt(BASE_CHAIN), nonce, maxPriorityFeePerGas: tip, maxFeePerGas: (snap.baseFeePerGas ?? 0n) * 2n + tip, gas: BigInt(tx.gas),
++    to: tx.to ? lower(tx.to) : null, value: BigInt(tx.value || 0), data: lower(tx.data || "0x") };
++  const request = { from, ...(want.to ? { to: want.to } : {}), data: want.data, value: hex(want.value), gas: hex(want.gas), nonce: hex(nonce),
++    maxFeePerGas: hex(want.maxFeePerGas), maxPriorityFeePerGas: hex(tip), chainId: hex(want.chainId), type: "0x2" };
++  let signed;
++  try { signed = await provider.request({ method: "eth_signTransaction", params: [request] }); }
++  catch (e){
++    if (e && (e.code === 4001 || e.code === "ACTION_REJECTED")) throw e;
++    const msg = String((e && e.message) || e).slice(0, 160);
++    if (e && (e.code === 4200 || e.code === -32601 || e.code === -32004 || UNSUPPORTED.test(msg)))
++      throw new BroadcastError("your wallet does not sign a transaction without broadcasting it itself (no eth_signTransaction; MetaMask is one of these). Nothing was signed or sent. To send it through your wallet's own RPC instead, choose \"my wallet broadcasts\" under Broadcast in the wallet menu.", { code: "unsupported" });
++    throw new BroadcastError("your wallet did not sign it (" + msg + "). Nothing was sent.", { code: "unsigned" });
++  }
++  const raw = typeof signed === "string" ? signed : signed && typeof signed.raw === "string" ? signed.raw : null;
++  const got = decodeSigned(raw);
++  for (const k of ["chainId", "nonce", "maxPriorityFeePerGas", "maxFeePerGas", "gas", "to", "value", "data"])
++    if ((got[k] === null ? null : typeof got[k] === "bigint" ? got[k] : lower(got[k])) !== want[k])
++      throw new BroadcastError("your wallet signed a different transaction (" + k + " changed): nothing was sent", { code: "changed" });
++  if (got.accessList.length) throw new BroadcastError("your wallet added an access list: nothing was sent", { code: "changed" });
++  // the signer, recovered by the chain's own ecrecover at an agreed block
++  const who = await D.reader.call(snap, ECRECOVER, got.signingHash + word(27 + got.yParity) + word(got.r) + word(got.s));
++  if (!/^0x[0-9a-f]{64}$/.test(who || "") || "0x" + who.slice(26) !== lower(from))
++    throw new BroadcastError("the transaction your wallet signed is not from " + from + ": nothing was sent", { code: "signer" });
++  // broadcast, in the profile's order
++  assertProfileCurrent();
++  const errors = [];
++  let unanswered = false;
++  for (const url of D.rpcs){
++    let j;
++    try {
++      const r = await D.fetchImpl(url, { method: "POST", headers: { "content-type": "application/json" }, credentials: "omit", redirect: "error", cache: "no-store",
++        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_sendRawTransaction", params: [lower(raw)] }), signal: AbortSignal.timeout(15000) });
++      j = await r.json();
++    } catch (e){ unanswered = true; errors.push(host(url) + ": no answer (" + String((e && e.message) || e).slice(0, 80) + ")"); continue; }
++    if (j && typeof j.result === "string" && lower(j.result) === got.hash){ D.noteSent(got.hash); return got.hash; }
++    if (j && j.error && KNOWN.test(String(j.error.message || ""))){ D.noteSent(got.hash); return got.hash; }
++    if (j && j.error){ errors.push(host(url) + ": " + String(j.error.message || "refused").slice(0, 160)); continue; }
++    unanswered = true; errors.push(host(url) + ": an answer that is not this transaction");
++  }
++  if (unanswered){
++    D.noteSent(got.hash);
++    throw new BroadcastError("the network profile's endpoints may have received it (" + errors.join("; ") + "). Its outcome is unknown: check " + got.hash
++      + " before sending anything else (nonce " + nonce + " executes at most once); it is not resent.", { code: "unknown", outcomeUnknown: true, hash: got.hash });
++  }
++  throw new BroadcastError("every endpoint of the network profile refused this transaction (" + errors.join("; ") + "). It was sent nowhere else, and your wallet was not asked to broadcast it.", { code: "refused", hash: got.hash });
++}
++const host = (u) => { try { return new URL(u).host; } catch { return String(u); } };
+diff --git a/site/js/core/wallet.js b/site/js/core/wallet.js
+index 1952056b0641cbb1c9df6cd77366ca863d937234..f9f4afe49b8663ae0ad221f69904758ddd350b7e 100644
+--- a/site/js/core/wallet.js
++++ b/site/js/core/wallet.js
+@@ -700,11 +700,17 @@ export async function renderWalletPop(){
+ /* Independent mode: reads, estimates and receipts here use only the profile's RPCs, but a transaction the WALLET
+    broadcasts goes through the RPC the wallet itself has for Base - the page can neither see nor change it. Say so,
+    name the profile's routes, and offer them through the one standard request (EIP-3085) on an explicit click; the
+-   wallet decides, and most keep their own RPC for a network they already know. */
++   wallet decides, and most keep their own RPC for a network they already know. The owner may instead choose the
++   profile's endpoints to broadcast, the wallet only signing (profile-broadcast.js) - for wallets that can. */
++const ROUTE_TEXT = { wallet: "your wallet’s own RPC", profile: "the network profile (your wallet signs only)" };
+ function broadcastRow(){
+   const https = addChainRpcs();
+-  return '<div class="wp-row"><span class="wp-k">Broadcast</span><span class="wp-v">your wallet’s own RPC <button class="wp-mini" id="wpRpc" type="button" aria-expanded="false">routes</button></span></div>' +
+-    '<div id="wpRpcBox" hidden><p class="wp-note">This page reads the chain only through the network profile’s RPCs. Transactions you sign are <b>broadcast by your wallet</b> through the RPC it has set for Base, which this page cannot change. To keep them on the profile’s routes too, set your wallet’s Base RPC to one of these:</p>' +
++  return '<div class="wp-row"><span class="wp-k">Broadcast</span><span class="wp-v"><span id="wpRoute">' + ROUTE_TEXT.wallet + '</span> <button class="wp-mini" id="wpRpc" type="button" aria-expanded="false">routes</button></span></div>' +
++    '<div id="wpRpcBox" hidden><fieldset class="wp-route"><legend class="wp-note">Who broadcasts what you sign</legend>' +
++    '<label class="wp-note"><input type="radio" name="wproute" value="wallet" id="wpRouteWallet" checked> my wallet, through the RPC it has set for Base (every wallet)</label><br>' +
++    '<label class="wp-note"><input type="radio" name="wproute" value="profile" id="wpRouteProfile"> this network profile’s endpoints; my wallet only signs (it must offer eth_signTransaction: MetaMask and many extension wallets do not)</label></fieldset>' +
++    (Enclave.provider && Enclave.provider._enclaveWc ? '<p class="wp-note">Your wallet is reached through WalletConnect: every signing request travels through the WalletConnect relay, an outside service, whichever route broadcasts.</p>' : '') +
++    '<p class="wp-note">This page reads the chain only through the network profile’s RPCs. With the first choice, transactions you sign are <b>broadcast by your wallet</b> through the RPC it has set for Base, which this page cannot change. To keep them on the profile’s routes too, set your wallet’s Base RPC to one of these:</p>' +
+     '<p class="wp-note">' + APP_CATALOG_RPCS.map((u) => "<code>" + esc(u) + "</code>").join("<br>") + '</p>' +
+     (https.length ? '<button class="wp-mini" id="wpRpcOffer" type="button">Offer ' + (https.length === 1 ? "it" : "them") + ' to the wallet</button>'
+       : '<p class="wp-note">Wallets accept only HTTPS RPCs, and this profile names none: set the wallet’s RPC by hand.</p>') +
+@@ -713,6 +719,22 @@ function broadcastRow(){
+ function wireBroadcastRow(){
+   const t = $("#wpRpc"), box = $("#wpRpcBox"); if (!t || !box) return;
+   t.addEventListener("click", () => { box.hidden = !box.hidden; t.setAttribute("aria-expanded", String(!box.hidden)); });
++  // the owner's choice of route, shown as it is stored (only on an explicit change)
++  import("./profile-broadcast.js").then((PB) => {
++    const show = () => { const m = PB.broadcastRoute(), r = $("#wpRoute"), w = $("#wpRouteWallet"), p = $("#wpRouteProfile");
++      if (r) r.textContent = ROUTE_TEXT[m]; if (w) w.checked = m === "wallet"; if (p) p.checked = m === "profile"; };
++    for (const id of ["#wpRouteWallet", "#wpRouteProfile"]){
++      const el = $(id); if (el) el.addEventListener("change", () => {
++        const st = $("#wpRpcSt");
++        try { PB.setBroadcastRoute(el.value); if (st) st.textContent = el.value === "profile"
++          ? "Your wallet will be asked only to sign; this page then sends the signed transaction to the profile’s endpoints. A wallet that cannot is refused, and nothing is sent."
++          : "Your wallet broadcasts what you sign, through its own RPC."; }
++        catch(e){ if (st) st.textContent = (e && e.message) || String(e); }
++        show();
++      });
++    }
++    show();
++  }, () => {});
+   const o = $("#wpRpcOffer"); if (!o) return;
+   o.addEventListener("click", async () => {
+     const st = $("#wpRpcSt");
+@@ -818,7 +840,7 @@ export async function sendTx(to, data, value, gasLimit){
+     if (use > MAX_TX_GAS) use = MAX_TX_GAS;     // never ask for more than the chain includes
+     tx.gas = "0x" + use.toString(16);
+     wcNudge();
+-    return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
++    return await submit(tx);
+   }
+   // Otherwise: estimate (provider first, public Base RPC as fallback; independent
+   // mode: the profile's RPCs only) and pad 25% so a wallet that trusts our limit
+@@ -853,5 +875,15 @@ export async function sendTx(to, data, value, gasLimit){
+     }
+   }
+   wcNudge();
++  return await submit(tx);
++}
++/* Who broadcasts: the wallet (eth_sendTransaction, through the RPC it has set for Base), or - independent mode, on the
++   owner's explicit choice under Broadcast - the network profile's own endpoints, the wallet signing only
++   (profile-broadcast.js). That route never falls back to the wallet's broadcast. */
++async function submit(tx){
++  if (INDEPENDENT.state === "on"){
++    const PB = await import("./profile-broadcast.js");
++    if (PB.broadcastRoute() === "profile") return await PB.sendViaProfile(tx, { provider: Enclave.provider, from: Enclave.address });
++  }
+   return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
+ }
+diff --git a/test/site-account-bundler-route.test.mjs b/test/site-account-bundler-route.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..c37fd200c48fabe97568a47fe1ab73c146411428
+--- /dev/null
++++ b/test/site-account-bundler-route.test.mjs
+@@ -0,0 +1,142 @@
++// A passkey account paying its own gas: the user operation's network path through the ACTUAL transport code
++// (account-transport.js sendAsAccount -> passkey-account.js bundlerRequest / sendUserOperation, over real HTTP) to the
++// owner's own bundlers - here loopback stand-ins that answer scripted JSON-RPC (a TEST fixture: no ERC-4337 validation,
++// no EntryPoint, no chain). The chain side is a scripted reader (as test/site-independent-account-transport.test.mjs),
++// so "included" below is the fixture's event, not inclusion anywhere. Pins: only the bundlers the owner named are
++// contacted, in the owner's order; a refusal moves to the next; every bundler refusing leaves nothing pending; an
++// unreachable bundler is an unknown outcome; nothing else is contacted (every other origin is refused and recorded).
++// The real EntryPoint v0.7 execution is test/site-independent-account-first.test.mjs (it forks Base: not run here).
++//   run: node --test test/site-account-bundler-route.test.mjs
++import test from "node:test";
++import assert from "node:assert/strict";
++import http from "node:http";
++import net from "node:net";
++import path from "node:path";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import * as viem from "viem";
++import { WebAuthnP256 } from "ox";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const mem = (m = new Map()) => ({ getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), m });
++globalThis.localStorage = mem(); globalThis.sessionStorage = mem(); globalThis.location = { hostname: "localhost" };
++const nativeFetch = globalThis.fetch, forbidden = [];
++globalThis.fetch = (url, opts) => {
++  const u = new URL(typeof url === "string" ? url : url.url);
++  if (!["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)){ forbidden.push(u.href); return Promise.reject(new TypeError("blocked: not this machine")); }
++  return nativeFetch(url, opts);
++};
++const core = (m) => import(pathToFileURL(path.join(ROOT, "site/js/core", m)).href);
++const PA = await core("passkey-account.js");
++const AP = await core("account-providers.js");
++const AT = await core("account-transport.js");
++PA._useLibForTests({ ...viem, WebAuthnP256 });
++
++const SAFE = "0x" + "5a".repeat(20), EP = AP.PROVIDERS["safe-passkey"].contracts.entryPoint.address;
++const SH = AP.PROVIDERS["safe-passkey"].contracts.webauthnSharedSigner.address;
++const pk = (rpId = "localhost") => ({ kind: "passkey", signer: SH, shared: true, x: "0x" + "aa".repeat(32), y: "0x" + "ab".repeat(32), verifiers: String(0x100n << 160n),
++  credentialId: Buffer.from("credential-aa").toString("base64url"), rpId, label: "laptop" });
++const UOHASH = "0x" + "4d".repeat(32);
++const EVENT = viem.keccak256(viem.toHex("UserOperationEvent(bytes32,address,address,uint256,bool,uint256,uint256)")).toLowerCase();
++const word = (v) => BigInt(v).toString(16).padStart(64, "0");
++const freePort = () => new Promise((ok) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
++
++// ---- loopback bundler stand-ins: "ok" accepts, "refuse" answers fees/estimates but refuses the operation ----
++const events = [], bundlers = [];
++// two loopback names, because the owner's bundlers must be on distinct hosts
++async function bundler(mode, host = "127.0.0.1"){
++  const b = { mode, calls: [], bodies: [] };
++  b.srv = http.createServer(async (req, res) => {
++    const body = await new Promise((ok) => { let s = ""; req.on("data", (c) => (s += c)); req.on("end", () => ok(s)); });
++    const q = JSON.parse(body); b.calls.push(q.method); b.bodies.push(q);
++    const reply = (x) => { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ jsonrpc: "2.0", id: q.id, ...x })); };
++    if (q.method === "eth_maxPriorityFeePerGas") return reply({ result: "0x64" });
++    if (q.method === "eth_estimateUserOperationGas") return reply({ result: { verificationGasLimit: "0x30d40", callGasLimit: "0x186a0", preVerificationGas: "0xc350" } });
++    if (q.method === "eth_sendUserOperation"){
++      if (b.mode === "refuse") return reply({ error: { code: -32602, message: "AA21 didn't pay prefund (fixture refusal)" } });
++      events.push(UOHASH); return reply({ result: UOHASH });
++    }
++    reply({ error: { code: -32601, message: "method not found" } });
++  });
++  const port = await freePort();
++  await new Promise((ok) => b.srv.listen(port, "127.0.0.1", ok));
++  b.url = `http://${host}:${port}/rpc`;
++  bundlers.push(b);
++  return b;
++}
++test.after(async () => { for (const b of bundlers){ b.srv.closeAllConnections?.(); await new Promise((ok) => b.srv.close(ok)); } globalThis.fetch = nativeFetch; });
++
++// ---- the scripted chain (a test reader: no endpoint) ----
++let nonce = 7n;
++const reader = {
++  snapshot: async () => ({ number: 100, hash: "0x" + "bb".repeat(32), timestamp: 1, baseFeePerGas: 1000n }),
++  code: async () => "0x60", balance: async () => 10n ** 18n,
++  call: async (snap, to, data, opts = {}) => {
++    if (opts.from) return "0x";
++    const sel = data.slice(0, 10);
++    if (sel === viem.toFunctionSelector("balanceOf(address)")) return "0x" + word(0);
++    if (sel === viem.toFunctionSelector("getNonce(address,uint192)")) return "0x" + word(nonce);
++    return "0x";
++  },
++  logs: async (snap, { topics }) => events.filter((h) => topics[0] === EVENT && topics[1] === h)
++    .map(() => ({ blockNumber: 101, data: "0x" + word(nonce) + word(1) + word(123) + word(456), transactionHash: "0x" + "77".repeat(32) })),
++};
++const testPA = {
++  ...PA,                                                     // bundlerRequest and sendUserOperation are the real ones
++  prepareUserOperation: async (p, a) => ({ userOp: { sender: SAFE, nonce, initCode: "0x", callData: "0x", accountGasLimits: "0x" + "00".repeat(32), preVerificationGas: 0n,
++    gasFees: "0x" + "00".repeat(32), paymasterAndData: "0x", signature: "0x" }, operationHash: "0x" + "0e".repeat(32), validAfter: 0, validUntil: 0, gas: a.gas, initCode: a.initCode }),
++  userOperationHash: async () => UOHASH,
++};
++AT._setForTests({ PA: testPA, reader, sleep: async () => {}, now: () => 0 });
++const profile = (urls) => ({ v: 1, provider: "safe-passkey", chainId: 8453, safe: SAFE, saltNonce: "1", threshold: 1,
++  transport: { provider: "safe-passkey", entryPoint: EP, bundlers: urls }, owners: [pk()] });
++const send = (p) => { AT.setGasChoice(p, "account"); return AT.sendAsAccount(p, { to: "0x" + "22".repeat(20), data: "0xabcd", what: "a test call" },
++  { approve: async () => "0x" + "51".repeat(80), timeoutMs: 1000 }); };
++
++test("the owner's bundlers, in order: a refusal moves to the next; the outcome is the (fixture) EntryPoint event; nothing else is contacted", async () => {
++  events.length = 0;
++  const a = await bundler("refuse"), b = await bundler("ok", "localhost");
++  const r = await send(profile([a.url, b.url]));
++  assert.equal(r.userOpHash, UOHASH);
++  assert.deepEqual(a.calls, ["eth_maxPriorityFeePerGas", "eth_estimateUserOperationGas", "eth_sendUserOperation"], "fees and the estimate from the first that answers");
++  assert.deepEqual(b.calls, ["eth_sendUserOperation"], "the same signed operation, only after the refusal");
++  assert.deepEqual(a.bodies.at(-1).params, b.bodies[0].params, "byte-identical operation to both");
++  assert.equal(b.bodies[0].params[1], EP, "EntryPoint v0.7 of the provider");
++  assert.equal(AT.pendingOf(SAFE), null);
++  assert.deepEqual(forbidden, []);
++});
++
++test("every bundler refusing: refused, nothing pending, each asked once; an unreachable bundler first: outcome unknown, kept pending, not resent", async () => {
++  events.length = 0;
++  const a = await bundler("refuse"), b = await bundler("refuse", "localhost");
++  await assert.rejects(send(profile([a.url, b.url])), (e) => e.code === "refused" && /Nothing is pending/.test(e.message) && /fixture refusal/.test(e.message));
++  assert.equal(AT.pendingOf(SAFE), null);
++  assert.equal(a.calls.filter((m) => m === "eth_sendUserOperation").length + b.calls.filter((m) => m === "eth_sendUserOperation").length, 2);
++
++  const dead = `http://127.0.0.1:${await freePort()}/rpc`, c = await bundler("refuse", "localhost");
++  await assert.rejects(send(profile([dead, c.url])), (e) => e.code === "unknown" && e.outcomeUnknown);
++  assert.equal(AT.pendingOf(SAFE).userOpHash, UOHASH, "kept pending");
++  await assert.rejects(send(profile([dead, c.url])), (e) => e.code === "pending", "the next operation is blocked, nothing is resent");
++  assert.equal(c.calls.filter((m) => m === "eth_sendUserOperation").length, 1);
++  AT.discardPending(profile([c.url]));
++  assert.deepEqual(forbidden, []);
++});
++
++test("no transport, no account route: no default bundler exists, and the wallet route is the only choice", () => {
++  localStorage.m.clear();
++  const p = { ...profile([]), transport: null };
++  assert.equal(AT.gasChoice(p), "wallet");
++  assert.throws(() => AT.setGasChoice(p, "account"), /name your own bundler first/);
++  assert.throws(() => AP.validateAccountTransport({ provider: "safe-passkey", entryPoint: EP, bundlers: ["https://bundler.enclave.host/rpc"] }), /Enclave-operated/);
++  assert.throws(() => AP.validateAccountTransport({ provider: "safe-passkey", entryPoint: EP, bundlers: ["http://bundler.example/rpc"] }), /plain https/);
++  assert.throws(() => AP.validateAccountTransport({ provider: "safe-passkey", entryPoint: "0x5ff137d4b0fdcd49dca30c7cf57e578a026d2789", bundlers: ["https://b.example"] }), /uses EntryPoint/);
++});
++
++test("capabilities name what Enclave runs when the owner chose it, instead of claiming independence", () => {
++  const caps = (over) => PA.accountCapabilities({ ...profile(["https://b.example/rpc"]), ...over }).join("\n");
++  assert.match(caps({}), /No Enclave account, relay, RP, bundler or paymaster is involved/);
++  const rp = caps({ owners: [pk("enclave.host")] });
++  assert.match(rp, /Enclave runs part of this account's path \(RP enclave\.host\)/); assert.doesNotMatch(rp, /No Enclave account, relay, RP/);
++  const both = caps({ owners: [pk("dash.enclave.host")], transport: { provider: "safe-passkey", entryPoint: EP, bundlers: ["https://b.example/rpc", "https://bundler.enclave.host/rpc"],
++    paymaster: { kind: "verifying", address: "0x" + "99".repeat(20), url: "https://pm.enclave.host/" } } });
++  assert.match(both, /RP dash\.enclave\.host, bundler bundler\.enclave\.host, paymaster service pm\.enclave\.host/);
++});
+diff --git a/test/site-browser-rpc-routes.test.mjs b/test/site-browser-rpc-routes.test.mjs
+index d0c023be784b3b8d6af948c794acb6afe44bf813..2da45ba580124e23a438fc9311b57aaf4ee54240 100644
+--- a/test/site-browser-rpc-routes.test.mjs
++++ b/test/site-browser-rpc-routes.test.mjs
+@@ -12,7 +12,7 @@ import { startRig, haveTools, walletScript } from "./helpers/independent-browser
+ const require = createRequire(new URL("../e2e/package.json", import.meta.url));
+ let chromium; try { ({ chromium } = require("playwright")); } catch {}
+ const skip = haveTools() || (!chromium && "needs Playwright (cd e2e && npm ci) and its Chromium");
+-const SIGN_OR_SEND = new Set(["eth_sendTransaction", "eth_signTypedData_v4", "personal_sign", "eth_getTransactionByHash"]);
++const SIGN_OR_SEND = new Set(["eth_sendTransaction", "eth_signTransaction", "eth_signTypedData_v4", "personal_sign", "eth_getTransactionByHash"]);
+ 
+ test("browser chain consumers stay on the profile's routes; the wallet only signs and broadcasts", { skip, timeout: 300000 }, async () => {
+   let rig, browser;
+@@ -73,6 +73,32 @@ test("browser chain consumers stay on the profile's routes; the wallet only sign
+     assert.equal(one.status, "0x1");
+     assert.deepEqual(walletRpc, ["eth_sendTransaction"], "the wallet was asked to broadcast, and for nothing else");
+ 
++    // the owner chooses the profile's endpoints to broadcast (the popover, an explicit click): the wallet only signs (anvil
++    // signs for its dev account: a signing-only wallet), the signed bytes go to the profile's origins, the receipt comes
++    // through them; then back to the wallet's own broadcast
++    rig.rpcModes[0] = "ok";
++    const openRoutes = async () => {
++      if (await page.isVisible("#wpRouteProfile")) return;
++      if (!(await page.isVisible("#wpRpc"))) await page.click("#walletBtn");
++      await page.waitForSelector("#walletPop:not([hidden]) #wpRpc"); await page.click("#wpRpc");
++    };
++    await openRoutes();
++    assert.equal(await page.textContent("#wpRoute"), "your wallet’s own RPC");
++    await page.click("#wpRouteProfile");
++    assert.equal(await page.textContent("#wpRoute"), "the network profile (your wallet signs only)");
++    assert.match(await page.textContent("#wpRpcSt"), /asked only to sign/);
++    const viaProfile = await page.evaluate(async ({ owner, usdc }) => {
++      const W = await import("/js/core/wallet.js"), C = await import("/js/core/chain.js");
++      const hash = await W.sendTx(usdc, "0x095ea7b3" + owner.slice(2).toLowerCase().padStart(64, "0") + "0".repeat(63) + "1", "0x0");
++      const rec = await C.waitReceipt(hash);
++      return { status: rec.status, from: rec.from.toLowerCase() };
++    }, { owner: rig.owner, usdc: rig.addresses.usdc });
++    assert.deepEqual(viaProfile, { status: "0x1", from: rig.owner.toLowerCase() });
++    assert.deepEqual(walletRpc, ["eth_sendTransaction", "eth_signTransaction"], "the wallet signed only: its RPC broadcast nothing");
++    await openRoutes();
++    await page.click("#wpRouteWallet");
++    assert.equal(await page.textContent("#wpRoute"), "your wallet’s own RPC");
++
+     // every origin down: refused by name, nothing broadcast, no fallback to the wallet's RPC
+     rig.rpcModes[0] = rig.rpcModes[1] = rig.rpcModes[2] = "down";
+     const all = await page.evaluate(async ({ owner, usdc }) => {
+@@ -82,7 +108,7 @@ test("browser chain consumers stay on the profile's routes; the wallet only sign
+     }, { owner: rig.owner, usdc: rig.addresses.usdc });
+     assert.notEqual(all.bal, "answered");
+     assert.match(all.send, /none of the network profile's RPC endpoints could check this transaction - nothing was sent/);
+-    assert.deepEqual(walletRpc, ["eth_sendTransaction"], "nothing more reached the wallet");
++    assert.deepEqual(walletRpc, ["eth_sendTransaction", "eth_signTransaction"], "nothing more reached the wallet");
+     rig.rpcModes[0] = rig.rpcModes[1] = rig.rpcModes[2] = "ok";
+ 
+     // the profile is replaced in a second tab: this tab stops reading and sending until it reloads
+@@ -96,7 +122,7 @@ test("browser chain consumers stay on the profile's routes; the wallet only sign
+     }, { owner: rig.owner, usdc: rig.addresses.usdc });
+     assert.match(stale.read, /network profile changed in another tab/);
+     assert.match(stale.send, /network profile changed in another tab/);
+-    assert.deepEqual(walletRpc, ["eth_sendTransaction"]);
++    assert.deepEqual(walletRpc, ["eth_sendTransaction", "eth_signTransaction"]);
+ 
+     for (const m of walletRpc) assert.ok(SIGN_OR_SEND.has(m), "the wallet's RPC was asked " + m);
+     assert.deepEqual(forbidden, [], "no public origin was attempted");
+diff --git a/test/site-wallet-profile-broadcast.test.mjs b/test/site-wallet-profile-broadcast.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..71e2f950773750ac7b09049e6ff9a3178987c565
+--- /dev/null
++++ b/test/site-wallet-profile-broadcast.test.mjs
+@@ -0,0 +1,193 @@
++// The connected wallet's broadcast route in independent mode, through the ACTUAL site modules (wallet.js sendTx ->
++// profile-broadcast.js -> chain.js waitReceipt, the real quorum reader) on Node: a confirmed profile whose two RPC origins
++// are loopback proxies in front of a local anvil (chain id 8453, a TEST chain: acceptance here says nothing about Base
++// mainnet inclusion). The "wallets" are in-test EIP-1193 objects whose own RPC is anvil itself, which signs for its
++// unlocked dev account #1 (eth_signTransaction) - a signing-only wallet - or one that offers no eth_signTransaction (as
++// MetaMask: EIP-1193 4200), one that alters what it signs, one that signs with another key. Every page fetch is recorded;
++// any origin that is not this machine is refused and recorded. Generated anvil keys only; no real wallet, no public network.
++//   run: node --test test/site-wallet-profile-broadcast.test.mjs     (needs Foundry's anvil)
++import test from "node:test";
++import assert from "node:assert/strict";
++import http from "node:http";
++import net from "node:net";
++import { spawn, execFileSync } from "node:child_process";
++import path from "node:path";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { privateKeyToAccount } from "viem/accounts";
++import { parseTransaction, serializeTransaction, keccak256, recoverTransactionAddress } from "viem";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const haveAnvil = (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); return true; } catch { return false; } })();
++const skip = !haveAnvil && "needs Foundry's anvil";
++const OWNER = "0x70997970c51812dc3a010c7d01b50e0d17dc79c8";                                      // anvil #1 (unlocked in anvil)
++const OTHER_KEY = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a";            // anvil #2
++const TO = "0x" + "be".repeat(20);
++const freePort = () => new Promise((ok) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
++const nativeFetch = globalThis.fetch;
++const mem = (m = new Map()) => ({ getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) });
++
++let anvil, anvilUrl, servers = [], W, C, PB, Enclave;
++const modes = ["ok", "ok"], seen = [[], []], forbidden = [], walletCalls = [], rawBodies = [];
++const anvilRpc = async (method, params = []) => {
++  const r = await nativeFetch(anvilUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
++  const j = await r.json(); if (j.error) { const e = new Error(j.error.message); e.code = j.error.code; throw e; } return j.result;
++};
++
++test.before(async () => {
++  if (skip) return;
++  const port = await freePort();
++  anvilUrl = `http://127.0.0.1:${port}`;
++  anvil = spawn("anvil", ["--port", String(port), "--chain-id", "8453", "--silent"], { stdio: "ignore" });
++  for (let i = 0; i < 100; i++) { try { await anvilRpc("eth_chainId"); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
++  // two JSON-RPC origins in front of the chain; per origin: ok | refuse-raw (a JSON-RPC refusal of eth_sendRawTransaction) |
++  // drop-raw (forwards the raw transaction, then drops the connection: the page cannot know)
++  const rpcs = [];
++  for (const i of [0, 1]){
++    const p = await freePort();
++    const srv = http.createServer(async (req, res) => {
++      const body = await new Promise((ok) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => ok(b)); });
++      const q = JSON.parse(body); seen[i].push(q.method);
++      if (q.method === "eth_sendRawTransaction") rawBodies.push(q.params[0]);
++      if (q.method === "eth_sendRawTransaction" && modes[i] === "refuse-raw"){
++        res.writeHead(200, { "content-type": "application/json" });
++        return res.end(JSON.stringify({ jsonrpc: "2.0", id: q.id, error: { code: -32003, message: "transaction rejected by this test origin" } }));
++      }
++      const r = await nativeFetch(anvilUrl, { method: "POST", headers: { "content-type": "application/json" }, body });
++      const text = await r.text();
++      if (q.method === "eth_sendRawTransaction" && modes[i] === "drop-raw") return req.socket.destroy();
++      res.writeHead(200, { "content-type": "application/json" }); res.end(text);
++    });
++    await new Promise((ok) => srv.listen(p, "127.0.0.1", ok));
++    servers.push(srv);
++    rpcs.push(i === 0 ? `http://127.0.0.1:${p}` : `http://localhost:${p}`);
++  }
++  const profile = { format: "enclave-browser-profile", version: 1, name: "loopback test network (anvil)", chainId: 8453, rpcs, quorum: 2, confirmations: 0, maxBlockAgeSeconds: 86400,
++    contractPins: { version: 1, chainId: 8453, contracts: { registry: "0x" + "11".repeat(20), deployments: "0x" + "22".repeat(20), appCatalog: "0x" + "33".repeat(20),
++      proofOfTime: "0x" + "44".repeat(20), enclavePay: "0x" + "00".repeat(20), verificationFees: "0x" + "00".repeat(20),
++      sessionVaultFactory: "0x" + "00".repeat(20), secretVaultV2: "0x" + "00".repeat(20) } }, usdc: "0x" + "66".repeat(20) };
++  const text = JSON.stringify(profile);
++  globalThis.localStorage = mem(new Map([["enclave_independent_profile", text]]));
++  globalThis.sessionStorage = mem(new Map([["enclave_independent_ack", text]]));
++  globalThis.location = { hostname: "localhost", origin: "http://localhost" };
++  // the page's network: this machine only
++  globalThis.fetch = (url, opts) => {
++    const u = new URL(typeof url === "string" ? url : url.url);
++    if (!["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)){ forbidden.push(u.href); return Promise.reject(new TypeError("blocked: not this machine")); }
++    return nativeFetch(url, opts);
++  };
++  const core = (m) => import(pathToFileURL(path.join(ROOT, "site/js/core", m)).href);
++  [W, C, PB, { Enclave }] = await Promise.all([core("wallet.js"), core("chain.js"), core("profile-broadcast.js"), core("api.js")]);
++  Enclave.address = OWNER;
++});
++test.after(async () => {
++  for (const s of servers) { s.closeAllConnections?.(); await new Promise((ok) => s.close(ok)); }
++  anvil?.kill("SIGKILL");
++  globalThis.fetch = nativeFetch;
++});
++
++/** An EIP-1193 wallet whose own RPC is anvil: `sign(request)` decides what eth_signTransaction returns. */
++function wallet(sign){
++  return { request: async ({ method, params }) => {
++    walletCalls.push(method);
++    if (method === "eth_signTransaction") return sign(params[0]);
++    if (method === "eth_sendTransaction") return anvilRpc("eth_sendTransaction", params);
++    if (method === "eth_chainId") return "0x2105";
++    if (method === "eth_accounts") return [OWNER];
++    throw Object.assign(new Error("unexpected wallet method " + method), { code: 4200 });
++  } };
++}
++const signOnly = wallet((req) => anvilRpc("eth_signTransaction", [req]));                     // anvil signs for its dev account
++const noSignOnly = wallet(() => { throw Object.assign(new Error("The method \"eth_signTransaction\" does not exist / is not available."), { code: 4200 }); });
++const tx = (req) => ({ type: "eip1559", chainId: 8453, nonce: Number(BigInt(req.nonce)), to: req.to, value: BigInt(req.value), data: req.data, gas: BigInt(req.gas),
++  maxFeePerGas: BigInt(req.maxFeePerGas), maxPriorityFeePerGas: BigInt(req.maxPriorityFeePerGas) });
++const otherKey = wallet((req) => privateKeyToAccount(OTHER_KEY).signTransaction(tx(req)));      // exact fields, another signer
++const altered = wallet(async (req) => {                                                        // the owner's key, a larger value
++  const raw = await anvilRpc("eth_signTransaction", [{ ...req, value: "0x2" }]);
++  return raw;
++});
++const raws = () => seen.flat().filter((m) => m === "eth_sendRawTransaction").length;
++const nonce = async () => Number(BigInt(await anvilRpc("eth_getTransactionCount", [OWNER, "latest"])));
++const reset = (m0 = "ok", m1 = "ok") => { modes[0] = m0; modes[1] = m1; seen[0].length = seen[1].length = 0; walletCalls.length = 0; rawBodies.length = 0; };
++
++test("the default route is unchanged: the wallet broadcasts through its own RPC (eth_sendTransaction)", { skip, timeout: 60000 }, async () => {
++  reset(); Enclave.provider = signOnly;
++  assert.equal(PB.broadcastRoute(), "wallet", "nothing chosen: the wallet route");
++  const hash = await W.sendTx(TO, "0x", "0x1");
++  assert.deepEqual(walletCalls, ["eth_sendTransaction"]);
++  assert.equal(raws(), 0, "the profile broadcast nothing");
++  assert.equal((await C.waitReceipt(hash)).status, "0x1");
++  assert.deepEqual(forbidden, []);
++});
++
++test("chosen profile route: the wallet only signs; a refusing origin, then the next origin broadcasts; the receipt comes through the profile", { skip, timeout: 60000 }, async () => {
++  reset("refuse-raw", "ok"); Enclave.provider = signOnly;
++  PB.setBroadcastRoute("profile");
++  assert.equal(PB.broadcastRoute(), "profile");
++  const before = await nonce();
++  const hash = await W.sendTx(TO, "0x", "0x1");
++  assert.deepEqual(walletCalls, ["eth_signTransaction"], "the wallet was asked to sign, and for nothing else");
++  assert.equal(seen[0].filter((m) => m === "eth_sendRawTransaction").length, 1, "the first origin was asked, and refused");
++  assert.equal(seen[1].filter((m) => m === "eth_sendRawTransaction").length, 1, "then the second, which accepted");
++  const rec = await C.waitReceipt(hash);
++  assert.equal(rec.status, "0x1");
++  assert.equal(rec.from.toLowerCase(), OWNER);
++  assert.equal(await nonce(), before + 1);
++  // both origins were handed the same bytes: the wallet's signature, from the owner, hashing to what sendTx returned
++  assert.equal(rawBodies.length, 2); assert.equal(rawBodies[0], rawBodies[1]);
++  assert.equal(keccak256(rawBodies[0]), hash);
++  assert.equal((await recoverTransactionAddress({ serializedTransaction: rawBodies[0] })).toLowerCase(), OWNER);
++  const p = parseTransaction(rawBodies[0]);
++  assert.deepEqual([p.chainId, p.to.toLowerCase(), p.value, p.type], [8453, TO, 1n, "eip1559"]);
++  assert.deepEqual(forbidden, []);
++});
++
++test("a wallet that cannot sign without broadcasting is refused by name: nothing is signed, broadcast, or handed to its own RPC", { skip, timeout: 60000 }, async () => {
++  reset(); Enclave.provider = noSignOnly;
++  const before = await nonce();
++  await assert.rejects(W.sendTx(TO, "0x", "0x1"), (e) => e.code === "unsupported" && /does not sign a transaction without broadcasting/.test(e.message) && /my wallet broadcasts/.test(e.message));
++  assert.deepEqual(walletCalls, ["eth_signTransaction"], "no fallback to eth_sendTransaction");
++  assert.equal(raws(), 0);
++  assert.equal(await nonce(), before);
++  assert.deepEqual(forbidden, []);
++});
++
++test("a signed transaction that is not exactly the request, or not from the connected address, is never broadcast", { skip, timeout: 60000 }, async () => {
++  for (const [w, re, code] of [[altered, /signed a different transaction \(value changed\)/, "changed"], [otherKey, /is not from/, "signer"]]){
++    reset(); Enclave.provider = w;
++    const before = await nonce();
++    await assert.rejects(W.sendTx(TO, "0x", "0x1"), (e) => e.code === code && re.test(e.message));
++    assert.equal(raws(), 0, code + ": nothing reached any origin");
++    assert.equal(await nonce(), before);
++  }
++  assert.deepEqual(forbidden, []);
++});
++
++test("every origin refusing: refused, sent nowhere else, the wallet never asked to broadcast; an origin that drops the reply: outcome unknown, and it did land", { skip, timeout: 90000 }, async () => {
++  reset("refuse-raw", "refuse-raw"); Enclave.provider = signOnly;
++  const before = await nonce();
++  await assert.rejects(W.sendTx(TO, "0x", "0x1"), (e) => e.code === "refused" && /every endpoint of the network profile refused/.test(e.message) && /transaction rejected by this test origin/.test(e.message));
++  assert.deepEqual(walletCalls, ["eth_signTransaction"]);
++  assert.equal(raws(), 2);
++  assert.equal(await nonce(), before, "not included");
++
++  reset("drop-raw", "refuse-raw");
++  let unknown;
++  await assert.rejects(W.sendTx(TO, "0x", "0x1"), (e) => (unknown = e).code === "unknown" && e.outcomeUnknown && /outcome is unknown/.test(e.message));
++  assert.deepEqual(walletCalls, ["eth_signTransaction"]);
++  assert.equal((await C.waitReceipt(unknown.hash)).status, "0x1", "the dropped reply hid an accepted transaction: 'unknown' was the truthful answer");
++  assert.equal(await nonce(), before + 1);
++  assert.deepEqual(forbidden, []);
++});
++
++test("the strict decoder agrees with viem on real signed transactions and refuses malformed input", { skip, timeout: 30000 }, async () => {
++  const acct = privateKeyToAccount(OTHER_KEY);
++  for (const t of [{ to: TO, value: 0n, data: "0x" }, { to: TO, value: 10n ** 18n, data: "0x" + "ab".repeat(300), nonce: 300 }, { to: null, value: 0n, data: "0x6000" }]){
++    const raw = await acct.signTransaction({ type: "eip1559", chainId: 8453, nonce: t.nonce ?? 0, gas: 21000n, maxFeePerGas: 3n * 10n ** 9n, maxPriorityFeePerGas: 10n ** 6n, ...t, to: t.to ?? undefined });
++    const d = PB.decodeSigned(raw), v = parseTransaction(raw);
++    assert.equal(d.hash, keccak256(raw));
++    assert.deepEqual([d.chainId, d.nonce, d.gas, d.value, d.to, d.data], [8453n, BigInt(v.nonce), v.gas, v.value ?? 0n, v.to ? v.to.toLowerCase() : null, v.data ?? "0x"]);
++    assert.equal(d.signingHash, keccak256(serializeTransaction({ ...v, r: undefined, s: undefined, v: undefined, yParity: undefined })));
++  }
++  for (const raw of ["0x01c0", "0x02c0", "0x02" + "c3808080", "0x02f8" + "00", "0x02e1" + "82002a".padEnd(64, "8")])
++    assert.throws(() => PB.decodeSigned(raw), (e) => e.code === "malformed");
++});

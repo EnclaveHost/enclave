@@ -1,0 +1,863 @@
+From 6fd9a787d332d94407f7ee6b03285e9e1a7e3155 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 04:49:00 -0700
+Subject: [PATCH 1/4] Windows challenge lifecycle: port the installed managed
+ front and replica supervision (R1)
+
+D's windows-upgrade-delta-review proved the installed cfb challenge sources exactly and recorded the merge proposals; this
+carries them onto 14d1e495 instead of 4106c311's pre-fix 32fecf5 lineage (D's regression R1).
+
+- network/challenge-replica-host.mjs: 3-way merge (ours = installed 9c3e4d10, base = 32fecf5, theirs = 14d1e495);
+  clean, byte-equal to D's receipts/proposals/challenge/challenge-replica-host.merged.mjs.
+- network/enclave-network-host.mjs: the installed source (2c1b84aa) - 14d1e495 still carried 32fecf5's.
+- network/challenge-front-declaration.mjs: the installed source (67e67a01), new to this lineage.
+- test/challenge-replica-host.test.mjs: the installed test f9918823 (also the clean 3-way result), replacing F's test #8
+  that asserted the pre-fix behaviour.
+- test/challenge-replica-supervise.test.mjs (1dbd849d), test/challenge-front-managed.test.mjs (a6918e69): installed.
+---
+ network/challenge-front-declaration.mjs   |  41 +++++
+ network/challenge-replica-host.mjs        | 189 ++++++++++++++++++---
+ network/enclave-network-host.mjs          |  22 +--
+ test/challenge-front-managed.test.mjs     | 171 +++++++++++++++++++
+ test/challenge-replica-host.test.mjs      |  24 ++-
+ test/challenge-replica-supervise.test.mjs | 196 ++++++++++++++++++++++
+ 6 files changed, 608 insertions(+), 35 deletions(-)
+ create mode 100644 network/challenge-front-declaration.mjs
+ create mode 100644 test/challenge-front-managed.test.mjs
+ create mode 100644 test/challenge-replica-supervise.test.mjs
+
+diff --git a/network/challenge-front-declaration.mjs b/network/challenge-front-declaration.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..0e81803efb96953d18845e2d99670edb360dea15
+--- /dev/null
++++ b/network/challenge-front-declaration.mjs
+@@ -0,0 +1,41 @@
++// The contract between an Enclave host's MANAGED challenge front (challenge-replica-host.mjs, run by the network runtime)
++// and the host's service-tls role (host-services/service-tls.mjs, run by the host-services runner): two processes, two
++// packages, one host (work/challenge-host-tls-20261021). The front writes a declaration file; service-tls fronts the
++// host-derived challenge name (host-service-names.mjs hostChallengeName) only while that declaration is valid for EXACTLY
++// its pinned expectation and the process on the loopback port proves it holds the declared key. Nothing here is an
++// authority: the platform host policy still admits the host on both sides, and every push is attested end to end.
++import { createHmac, timingSafeEqual } from 'node:crypto';
++
++export const FRONT_PROOF_PATH = '/.well-known/enclave-challenge-front';
++// Liveness is the HMAC proof service-tls asks for every 5 s (a dead or replaced front fails it at once), not the file's
++// age: the declaration is rewritten only on start/stop and every 20 min, so its trust check (an ACL read on Windows) runs
++// rarely. The validity bounds a stale serving file left by a crash; it never keeps a dead front fronted (no proof).
++export const DECLARATION_TTL_MS = 3_600_000;
++export const DECLARATION_EVERY_MS = 1_200_000;
++const HEX64 = /^[0-9a-f]{64}$/;
++
++/** HMAC-SHA256(proofKey, nonce): the front's answer to service-tls's proof request */
++export const frontProof = (key, nonce) => createHmac('sha256', Buffer.from(key, 'hex')).update('enclave-challenge-front/v1|' + nonce).digest('hex');
++export function proofMatches(key, nonce, proof) {
++  if (typeof proof !== 'string' || !HEX64.test(proof)) return false;
++  return timingSafeEqual(Buffer.from(frontProof(key, nonce), 'hex'), Buffer.from(proof, 'hex'));
++}
++
++/**
++ * -> null when `doc` is a serving declaration of exactly the expected front, else the reason (a string).
++ * expect: { hostId, name, origin, frontPort, release: { dnsSha256, runtimeBundleSha256 } } (service-tls's pinned config)
++ */
++export function frontDeclarationRefusal(doc, expect, now = Date.now()) {
++  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return 'not a declaration';
++  if (doc.version !== 1 || doc.kind !== 'enclave-challenge-front') return 'not an enclave-challenge-front v1 declaration';
++  if (doc.role !== 'app-zone-replica') return 'not an app-zone-replica front';
++  if (doc.hostId !== expect.hostId) return 'declared for another host';
++  if (doc.name !== expect.name || doc.origin !== `https://${expect.name}` || expect.origin !== doc.origin) return 'declared for another name';
++  if (doc.release?.dnsSha256 !== expect.release.dnsSha256 || doc.release?.runtimeBundleSha256 !== expect.release.runtimeBundleSha256) return 'a release other than the pinned one';
++  if (!Number.isSafeInteger(doc.issuedAt) || !Number.isSafeInteger(doc.expiresAt) || doc.expiresAt - doc.issuedAt > 2 * DECLARATION_TTL_MS || doc.issuedAt > now + 5000) return 'malformed validity';
++  if (doc.expiresAt <= now) return 'expired (the front stopped heartbeating)';
++  if (doc.state !== 'serving') return `the front is ${String(doc.state).slice(0, 20)}${doc.reason ? ` (${String(doc.reason).slice(0, 120)})` : ''}`;
++  if (doc.front !== `127.0.0.1:${expect.frontPort}`) return 'declared on another address or port than the pinned loopback front';
++  if (typeof doc.proofKey !== 'string' || !HEX64.test(doc.proofKey)) return 'no proof key';
++  return null;
++}
+diff --git a/network/challenge-replica-host.mjs b/network/challenge-replica-host.mjs
+index 1e8f061b47ea3464d30c15d853918dea33114a7d..2cda171636eb61ea70d68961101b5ef565d65b17 100644
+--- a/network/challenge-replica-host.mjs
++++ b/network/challenge-replica-host.mjs
+@@ -15,9 +15,17 @@
+ //   2. the release directory must hold exactly the pinned dns.mjs and network-runtime.bundle.mjs
+ //      (scripts/build-challenge-replica-release.mjs); a changed byte refuses the start;
+ //   3. the child gets ONLY the derived environment (never this host's environment, keys or wallet);
+-//   4. a minimal HTTPS front exposes only the push and Shield-session routes, with the replica's own body caps, and
+-//      strips credentials. TLS there is transport: every push is signed by the guest key and attested end to end, and a
+-//      host session is public evidence the replica verifies itself;
++//   4. a minimal front exposes only the push and Shield-session routes, with the replica's own body caps, and strips
++//      credentials. TLS there is transport: every push is signed by the guest key and attested end to end, and a host
++//      session is public evidence the replica verifies itself. Two front modes:
++//        - static (front.certFile/keyFile): this module terminates HTTPS from operator files (unchanged);
++//        - managed (front.managed, app-zone-replica only; work/challenge-host-tls-20261021): a PLAINTEXT front bound to
++//          loopback only, for this host's service-tls role, which terminates TLS for the host-derived name
++//          chal-<base32(registry id)>.<zone> (host-service-names.mjs) with the host's own certificate and pipes the bytes
++//          here. No key is copied. It answers only Host = that name, and it DECLARES itself (declarationFile: serving with a
++//          proof key, refreshed every 20 min, 1 h validity; stopped on halt/close; mode 0640, in a directory only
++//          SYSTEM/Administrators write and LOCAL SERVICE reads) so service-tls fronts exactly this admitted local front and
++//          closes when it stops or stops answering the key proof;
+ //   5. the EnclaveServiceIndex `dns` (kind 4) advertisement is DRAFTED as unsigned typed data, never published here.
+ // Trust that packaging cannot change: whoever answers DNS for a delegated zone can satisfy dns-01 for every name in it,
+ // so which hosts serve the platform app zone stays the zone owner's (Enclave admin's) delegation decision; an
+@@ -27,7 +35,11 @@ import net from 'node:net';
+ import path from 'node:path';
+ import http from 'node:http';
+ import https from 'node:https';
+-import {createHash} from 'node:crypto';
++import {createHash, randomBytes} from 'node:crypto';
++import {keccak256, toBytes} from 'viem';
++import {hostChallengeName} from './host-service-names.mjs';
++import {FRONT_PROOF_PATH, frontProof, DECLARATION_TTL_MS, DECLARATION_EVERY_MS} from './challenge-front-declaration.mjs';
++export {FRONT_PROOF_PATH, frontProof, DECLARATION_TTL_MS, DECLARATION_EVERY_MS};
+ import {spawn as spawnProcess} from 'node:child_process';
+ import {SERVICE_KINDS, validateAdInput, publishTypedData} from './service-index.mjs';
+ import {canonical as canonicalJson} from './route-record.mjs';
+@@ -100,9 +112,19 @@ export function challengeReplicaConfig(c) {
+   if (!nsNames.includes(nsName) || nsNames.length > 8 || new Set(nsNames).size !== nsNames.length) fail('ns.names must list 1 to 8 distinct names including ns.name');
+   only(c.listen, ['dns', 'api'], 'listen');
+   const listen = {dns: hostPort(c.listen.dns, 'listen.dns'), api: hostPort(c.listen.api, 'listen.api', {loopback: true})};
+-  only(c.front, ['listen', 'certFile', 'keyFile', 'origin'], 'front');
+-  const front = {listen: hostPort(c.front.listen, 'front.listen'), certFile: absFile(c.front.certFile, 'front.certFile'), keyFile: absFile(c.front.keyFile, 'front.keyFile'),
++  only(c.front, ['listen', 'certFile', 'keyFile', 'origin', 'managed'], 'front');
++  const managed = c.front.managed !== undefined;
++  let front;
++  if (!managed) front = {mode: 'static', listen: hostPort(c.front.listen, 'front.listen'), certFile: absFile(c.front.certFile, 'front.certFile'), keyFile: absFile(c.front.keyFile, 'front.keyFile'),
+     origin: httpsOrigin(c.front.origin, 'front.origin')};
++  else {
++    // managed: TLS belongs to this host's service-tls role (one host certificate, renewed there); this front is plaintext,
++    // so it may only ever bind loopback, and a static key pair beside it would be a second copy of a TLS identity
++    if (!replica) fail('front.managed: only the app-zone-replica has a host-derived challenge origin (an owner responder keeps its static front)');
++    if (c.front.certFile !== undefined || c.front.keyFile !== undefined) fail('front.managed conflicts with front.certFile/keyFile: the host\'s service-tls role holds the certificate (no static key copy)');
++    only(c.front.managed, ['zone', 'declarationFile'], 'front.managed');
++    front = {mode: 'managed', listen: hostPort(c.front.listen, 'front.listen', {loopback: true}), zone: c.front.managed.zone, declarationFile: absFile(c.front.managed.declarationFile, 'front.managed.declarationFile')};
++  }
+   let routeMap = null;
+   if (replica) {
+     let u; try { u = new URL(c.routeMap); } catch { fail('routeMap must be an http(s) URL'); }
+@@ -173,6 +195,16 @@ export function challengeReplicaConfig(c) {
+   }
+   const hostPolicy = {policy, endpoint, stateDir, mirrors, rpcs, carriers};
+   if (policy !== 'off') { try { const e = hostPolicyGateEnv(hostPolicy); resolveHostPolicyConfig({env: e.env, chainId: 8453}); } catch (e) { fail(`hostPolicy: ${e.message}`); } }
++  if (front.mode === 'managed') {
++    // the name is this host's: derived from its REGISTRY id = keccak256 of hostPolicy.endpoint exactly as registered (the
++    // runner; enclave-network-host refuses a different one). A managed front is never run without the platform host policy.
++    if (policy === 'off') fail('front.managed is refused with hostPolicy "off": a host-certified challenge origin is served only by an admitted host');
++    front.hostId = keccak256(toBytes(endpoint)).toLowerCase();
++    try { front.name = hostChallengeName(front.hostId, front.zone); } catch (e) { fail(`front.managed.zone: ${e.message}`); }
++    const derived = `https://${front.name}`;
++    if (c.front.origin !== undefined && httpsOrigin(c.front.origin, 'front.origin') !== derived) fail(`front.origin must be this host's derived challenge origin ${derived}`);
++    front.origin = derived;
++  }
+   return Object.freeze({role: c.role, release, zones, nsName, nsNames, listen, front, routeMap, snp, shield, chain, peers, upstream, hostPolicy});
+ }
+ 
+@@ -226,12 +258,29 @@ const FRONT_ROUTES = {
+   'owner-responder': [['/v1/txt', ['POST', 'DELETE'], 32768], ['/v1/shield-session/challenge', ['POST'], 796108],
+     ['/v1/shield-session/attest', ['POST'], 12591104], ['/health', ['GET'], 0]],
+ };
+-/** The HTTPS front: only the role's routes, bounded bodies, no credentials or cookies either way. -> {server, close} */
++/** The front: only the role's routes, bounded bodies, no credentials or cookies either way. -> {server, port, proof, close}
++ *  static: HTTPS from the operator's files on front.listen. managed: plaintext on LOOPBACK only (validated), Host must be
++ *  the host-derived challenge name, plus GET /.well-known/enclave-challenge-front (header x-enclave-front-nonce: 64 hex)
++ *  -> {proof: HMAC-SHA256(proofKey, nonce)}, so service-tls can tell this front from anything else bound to its port. */
+ export async function startReplicaFront(cfg, {log = () => {}} = {}) {
+   const routes = new Map(FRONT_ROUTES[cfg.role].map(([p, methods, cap]) => [p, {methods, cap}]));
+-  const server = https.createServer({cert: fs.readFileSync(cfg.front.certFile), key: fs.readFileSync(cfg.front.keyFile), minVersion: 'TLSv1.2'}, (req, res) => {
++  const managed = cfg.front.mode === 'managed';
++  if (managed && !['127.0.0.1', '::1'].includes(cfg.front.listen.ip)) fail('a managed (plaintext) front binds loopback only');
++  const proofKey = managed ? randomBytes(32).toString('hex') : null;
++  const handler = (req, res) => {
+     const send = (code, body) => { if (res.headersSent) return; res.writeHead(code, {'content-type': 'application/json', 'cache-control': 'no-store'}); res.end(JSON.stringify(body)); };
+     let u; try { u = new URL(req.url, 'https://front'); } catch { req.resume(); return send(400, {error: 'bad request'}); }
++    if (managed) {
++      // the bytes come through service-tls for exactly the host-derived name; anything else is not this origin
++      const host = String(req.headers.host || '').toLowerCase().replace(/:443$/, '');
++      if (host !== cfg.front.name) { req.resume(); return send(421, {error: 'misdirected request'}); }
++      if (u.pathname === FRONT_PROOF_PATH && !u.search) {
++        req.resume();
++        const nonce = req.headers['x-enclave-front-nonce'];
++        if (req.method !== 'GET' || typeof nonce !== 'string' || !/^[0-9a-f]{64}$/.test(nonce)) return send(400, {error: 'bad proof request'});
++        return send(200, {proof: frontProof(proofKey, nonce)});
++      }
++    }
+     const r = routes.get(u.pathname);
+     if (!r || u.search) { req.resume(); return send(404, {error: 'not_found'}); }
+     if (!r.methods.includes(req.method)) { req.resume(); return send(405, {error: 'method_not_allowed'}); }
+@@ -250,11 +299,33 @@ export async function startReplicaFront(cfg, {log = () => {}} = {}) {
+     let n = 0;
+     req.on('data', (d) => { n += d.length; if (n > r.cap) { up.destroy(); req.destroy(); send(413, {error: 'body_too_large'}); } });
+     req.pipe(up);
+-  });
++  };
++  const server = managed ? http.createServer(handler)
++    : https.createServer({cert: fs.readFileSync(cfg.front.certFile), key: fs.readFileSync(cfg.front.keyFile), minVersion: 'TLSv1.2'}, handler);
+   server.headersTimeout = 15_000; server.requestTimeout = 180_000;
+   await new Promise((ok, no) => { server.once('error', no); server.listen(cfg.front.listen.port, cfg.front.listen.ip, ok); });
+-  log(`challenge replica: https front on ${cfg.front.listen.ip}:${server.address().port} (${cfg.role})`);
+-  return {server, port: server.address().port, close: () => new Promise((ok) => { server.closeAllConnections?.(); server.close(() => ok()); })};
++  log(`challenge replica: ${managed ? `loopback front for service-tls (${cfg.front.name})` : 'https front'} on ${cfg.front.listen.ip}:${server.address().port} (${cfg.role})`);
++  return {server, port: server.address().port, proofKey,
++    close: () => new Promise((ok) => { server.closeAllConnections?.(); server.close(() => ok()); })};
++}
++
++// ---- the managed front's declaration (read by the host's service-tls role) ----------------------------------------------
++/** The declaration document for a managed front: serving (with its proof key) or stopped. */
++export function frontDeclaration(cfg, release, {state, port = null, proofKey = null, reason = null, now = Date.now()}) {
++  return {version: 1, kind: 'enclave-challenge-front', hostId: cfg.front.hostId, role: cfg.role, name: cfg.front.name, origin: cfg.front.origin,
++    release: {dnsSha256: release.dnsSha256, runtimeBundleSha256: release.runtimeBundleSha256}, state, pid: process.pid,
++    ...(state === 'serving' ? {front: `${cfg.front.listen.ip.includes(':') ? `[${cfg.front.listen.ip}]` : cfg.front.listen.ip}:${port}`, proofKey} : {reason: String(reason || 'stopped').slice(0, 200)}),
++    issuedAt: now, expiresAt: now + DECLARATION_TTL_MS};
++}
++/** temp + fsync + rename (+ directory fsync on POSIX); mode 0640: the service-tls reader needs read access, nobody write */
++export function writeDeclaration(file, doc, {fsx = fs, platform = process.platform} = {}) {
++  const dir = path.dirname(file), tmp = path.join(dir, `.${path.basename(file)}.tmp-${randomBytes(6).toString('hex')}`);
++  try {
++    const fd = fsx.openSync(tmp, 'wx', 0o640);
++    try { fsx.writeSync(fd, JSON.stringify(doc)); fsx.fsyncSync(fd); } finally { fsx.closeSync(fd); }
++    fsx.renameSync(tmp, file);
++  } catch (e) { try { fsx.unlinkSync(tmp); } catch { /* absent */ } throw e; }
++  if (platform !== 'win32') { const d = fsx.openSync(dir, 'r'); try { fsx.fsyncSync(d); } finally { fsx.closeSync(d); } }
+ }
+ 
+ /** The EnclaveServiceIndex kind-dns advertisement, as UNSIGNED typed data for the host operator's key. Never published here. */
+@@ -272,19 +343,32 @@ export function challengeReplicaAdDraft(cfg, {chainId, index, operator, slot, se
+  * the replica child with its derived environment (restarted with backoff when it exits) and, once its /health states the
+  * configured role and pins, the HTTPS front. A refusal (ban, allowlist miss, deregistration; sticky until the admin's
+  * admit) stops both; an admit starts them again. -> {health(), status(), pid(), close(), env, release}.
+- * Throws (leaving nothing running) when the release, the policy's first answer, or the first start is refused.
++ * Throws (leaving nothing running) when the release, the policy's first answer, or the first start is refused, or when
++ * `signal` aborts the start. Readiness waits readyMs, and keeps waiting while the replica's ledger label index grows
++ * (stallMs without growth ends it; maxReadyMs bounds it): the replica indexes at most 2048 ledger ids per 60-s sync, so a
++ * fixed deadline would starve a larger ledger forever. superviseChallengeReplica() below retries a refused start.
+  */
+ // extraCaFile and gate: CODE-LEVEL parameters for embedders and tests (a fixture RPC's test CA; an injected gate), like
+ // enclave-network-host.mjs ownerNameRoots; no configuration file can set them. Production RPCs and peers are verified
+ // against Node's public roots, and the gate is network/host-service-gate.mjs for hostPolicy.
+ export async function startChallengeReplica(cfg, {node = process.execPath, spawn = spawnProcess, fetch = globalThis.fetch, log = () => {}, readyMs = 60_000,
+-                                                  extraCaFile = null, gate = null, gateIntervalMs = 5000} = {}) {
++                                                  extraCaFile = null, gate = null, gateIntervalMs = 5000, declareEveryMs = DECLARATION_EVERY_MS,
++                                                  signal = null, stallMs = 180_000, maxReadyMs = 1_800_000} = {}) {
++  // cancellation: the caller's signal (a supervisor's close) or this handle's own close; a start in progress then stops
++  const stop = new AbortController(), cancelled = () => stop.signal.aborted || !!signal?.aborted;
+   const release = verifyReplicaRelease(cfg.release);
++  // managed front: what service-tls may front, declared; a write failure never serves (service-tls needs a valid one)
++  const declare = (state, why = null) => {
++    if (cfg.front.mode !== 'managed') return;
++    try { writeDeclaration(cfg.front.declarationFile, frontDeclaration(cfg, release, {state, port: front?.port, proofKey: front?.proofKey, reason: why})); }
++    catch (e) { log(`challenge replica: declaration ${state} not written (${e.code || e.message}); service-tls ${state === 'serving' ? 'does not front it' : 'closes on expiry or a failed proof'}`); }
++  };
+   const env = challengeReplicaEnv(cfg);
+   if (extraCaFile) env.NODE_EXTRA_CA_CERTS = extraCaFile;
+   // carriers: the integrated runner's own carrier fetch (it answers only CARRIER_MIRROR; everything else is `fetch`)
+   if (!gate) gate = await hostPolicyCarrierGate(cfg.hostPolicy, {endpoint: cfg.hostPolicy.endpoint, stateDir: cfg.hostPolicy.stateDir, fetch, log});
+   let child = null, closed = false, backoff = 1000, timer = null, lastExit = null, front = null, serving = false, stoppedFor = null;
++  declare('stopped', 'starting');
+   const run = () => {
+     if (closed || !serving) return;
+     child = spawn(node, [release.entry], {cwd: cfg.release.dir, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true});
+@@ -318,26 +402,48 @@ export async function startChallengeReplica(cfg, {node = process.execPath, spawn
+     const c = child; if (!c) return;
+     await new Promise((ok) => { const k = setTimeout(() => { try { c.kill('SIGKILL'); } catch {} ok(); }, 5000); c.once('exit', () => { clearTimeout(k); ok(); }); try { c.kill('SIGTERM'); } catch { clearTimeout(k); ok(); } });
+   };
+-  const halt = async (why) => { serving = false; stoppedFor = why; await front?.close(); front = null; await stopChild(); };
++  const halt = async (why) => { serving = false; stoppedFor = why; declare('stopped', why); await front?.close(); front = null; await stopChild(); };
+   // start: the child, then (once healthy) the front. Throws on no readiness, after stopping what it started.
+   const begin = async () => {
+     serving = true; stoppedFor = null; backoff = 1000; lastExit = null;
+     run();
+-    const deadline = Date.now() + readyMs;
++    const t0 = Date.now();
++    let deadline = t0 + Math.min(readyMs, maxReadyMs), indexed = -1, lastPolicyCheck = t0;
++    const admitted = async () => {
++      await gate.check().catch(() => {});
++      lastPolicyCheck = Date.now();
++      const refusal = gate.serviceRefusal();
++      if (cancelled() || refusal) { await halt(cancelled() ? 'cancelled' : refusal); fail(cancelled() ? 'start cancelled' : refusal); }
++    };
+     let ready = null, why = 'not answering';
+-    while (Date.now() < deadline && serving) {
+-      try { const h = await health(); if (h.ok) { ready = h; break; } why = 'health does not state the configured role, trusted judge, complete index and pinned profile'; }
+-      catch (e) { why = e.message; }
++    while (Date.now() < deadline && serving && !cancelled()) {
++      // Indexing may take minutes. Keep enforcing the same host policy throughout that wait.
++      if (Date.now() - lastPolicyCheck >= gateIntervalMs) await admitted();
++      try {
++        const h = await health(); if (h.ok) { ready = h; break; } why = 'health does not state the configured role, trusted judge, complete index and pinned profile';
++        // progress, not a fixed deadline: while the ledger label index grows the wait goes on (stallMs past the last growth,
++        // never beyond maxReadyMs); the declaration stays 'stopped' until the replica is genuinely ready
++        const n = Number(h.state?.appChallenge?.ledgerIndex?.size);
++        // The first health may already contain the first full batch. Give that batch a sync interval too,
++        // otherwise restarting after readyMs can repeatedly discard it before the second batch arrives.
++        if (Number.isSafeInteger(n) && n >= 0 && n > indexed) { deadline = Math.min(Math.max(deadline, Date.now() + stallMs), t0 + maxReadyMs); indexed = n; }
++      } catch (e) { why = e.message; }
+       if (!child && lastExit && backoff > 4000) break;   // it keeps exiting: a configuration the replica itself refuses
+       await new Promise((r) => setTimeout(r, 250));
+     }
+-    if (!ready) { await halt('not ready'); fail(`the replica did not become ready (${lastExit || why})`); }
++    if (cancelled()) { await halt('cancelled'); fail('start cancelled'); }
++    if (!ready) { await halt('not ready'); fail(`the replica did not become ready (${lastExit || why}${indexed >= 0 ? `; ledger index at ${indexed} ids` : ''})`); }
++    // An admit observed before indexing is not sufficient to open a front after indexing finishes.
++    await admitted();
+     backoff = 1000;
+-    try { front = await startReplicaFront(cfg, {log}); } catch (e) { await halt('front'); fail(`https front: ${e.message}`); }
++    try { front = await startReplicaFront(cfg, {log}); } catch (e) { await halt('front'); fail(`${cfg.front.mode === 'managed' ? 'loopback' : 'https'} front: ${e.message}`); }
++    if (cancelled()) { await halt('cancelled'); fail('start cancelled'); }
++    declare('serving');
+     log(`challenge replica serving: ${cfg.role}, release ${release.dnsSha256.slice(0, 12)}, ${cfg.snp ? 'SEV-SNP ' : ''}${cfg.shield ? 'Shield ' : ''}evidence`);
+   };
+   // the policy's first answer decides whether anything starts at all
+   await gate.check().catch(() => {});
++  if (cancelled()) fail('start cancelled');
+   const first = gate.serviceRefusal();
+   if (first) fail(`not started: ${first}`);
+   await begin();
+@@ -356,8 +462,49 @@ export async function startChallengeReplica(cfg, {node = process.execPath, spawn
+     })().finally(() => { ticking = null; });
+   }, gateIntervalMs);
+   tick.unref?.();
++  const beat = cfg.front.mode === 'managed' ? setInterval(() => { if (front && serving && !closed) declare('serving'); }, declareEveryMs) : null;
++  beat?.unref?.();
+   return {env, release, get frontPort() { return frontPort; }, health, pid: () => child?.pid ?? null,
+     // serving: healthy and the front is open; wanted: admitted and (re)starting or running
+     status: () => ({serving: front !== null, wanted: serving, stoppedFor, platformHostPolicy: gate.status?.() ?? null}),
+-    close: async () => { closed = true; clearInterval(tick); gate.stop?.(); await ticking; await halt('closed'); }};
++    close: async () => { closed = true; stop.abort(); clearInterval(tick); if (beat) clearInterval(beat); gate.stop?.(); await ticking; await halt('closed'); }};
++}
++
++/**
++ * The optional challenge service's lifecycle beside a host's network (enclave-network-host.mjs): startChallengeReplica
++ * retried after a refused or failed start (the release directory, the platform host policy's first answer, readiness),
++ * with capped exponential backoff, until it starts or close(). One start at a time (never a duplicate child, front or
++ * listener); after close() nothing starts again, and a start that completes after close() is closed at once and awaited.
++ * Once started, the running service handles refusal/re-admission and child restarts itself (startChallengeReplica).
++ * Static configuration is NOT retried here: challengeReplicaConfig judges it before anything binds.
++ * -> {handle (the running service or null), status(), close()}
++ */
++export function superviseChallengeReplica(cfg, {start = startChallengeReplica, log = () => {}, retryMs = 30_000, maxRetryMs = 900_000, ...startOpts} = {}) {
++  const ac = new AbortController();
++  let closed = false, handle = null, inflight = null, timer = null, delay = retryMs, attempts = 0, lastError = null, nextAt = null;
++  const attempt = () => {
++    timer = null; nextAt = null;
++    if (closed || inflight || handle) return;
++    attempts++;
++    inflight = Promise.resolve().then(() => { if (closed) throw new Error('closed'); return start(cfg, {...startOpts, log, signal: ac.signal}); }).then((h) => {
++      inflight = null;
++      if (closed) return h.close().catch(() => {});       // a late success after close(): closed, and close() awaits it
++      handle = h; lastError = null; delay = retryMs;
++      if (attempts > 1) log(`challenge replica started on attempt ${attempts}`);
++    }, (e) => {
++      inflight = null; lastError = String(e?.message || e);
++      if (closed) return;
++      log(`challenge replica not started (attempt ${attempts}; this host's network and every app's routes are unaffected): ${lastError}; next attempt in ${Math.round(delay / 1000)} s`);
++      nextAt = Date.now() + delay; timer = setTimeout(attempt, delay); timer.unref?.(); delay = Math.min(delay * 2, maxRetryMs);
++    });
++  };
++  attempt();
++  return {
++    get handle() { return handle; },
++    status: () => ({running: !!handle, starting: !!inflight, attempts, lastError, nextAttemptAt: nextAt, ...(handle ? {service: handle.status()} : {})}),
++    async close() {
++      closed = true; clearTimeout(timer); timer = null; ac.abort();
++      const p = inflight; if (p) await p.catch(() => {});
++      const h = handle; handle = null; if (h) await h.close();
++    }};
+ }
+diff --git a/network/enclave-network-host.mjs b/network/enclave-network-host.mjs
+index 11cccc89cf1148d713a0287324e6e2cf0a476583..c02bb1f1661231f88d09412d043bf901f00827cf 100644
+--- a/network/enclave-network-host.mjs
++++ b/network/enclave-network-host.mjs
+@@ -28,7 +28,7 @@ import fs from 'node:fs/promises';
+ import {DirectoryClient} from './directory-client.mjs';
+ import {validateNetworkAuthorities} from './network-authorities.mjs';
+ import {egressProbeUrls,probeEgressUrls} from './egress-probes.mjs';
+-import {challengeReplicaConfig,startChallengeReplica} from './challenge-replica-host.mjs';
++import {challengeReplicaConfig,superviseChallengeReplica} from './challenge-replica-host.mjs';
+ 
+ 
+ // cfg.enclaveNetwork.direct.probe -> the provider canary's configuration (provider-canary.mjs), checked before anything is
+@@ -58,7 +58,7 @@ export function hostEgressOffer(h){
+ // attestedKey(id) -> sha256 hex of the TLS key the host's CURRENT attested guest proof bound (or null): required for
+ // owner-committed custom names on direct hosting (c.direct.ownerNames), never consulted otherwise. ownerNameRoots is a
+ // code-level override of the public root store for embedders and tests; no configuration file can set it.
+-export async function createNetworkHost({config:c,account,runner,rpc,addressBook,authorityPins,leaseReader,providerReader=leaseReader,directory,authorize,forward,attestedKey=null,ownerNameRoots,fetch=globalThis.fetch,now=Date.now,log=()=>{}}){
++export async function createNetworkHost({config:c,account,runner,rpc,addressBook,authorityPins,leaseReader,providerReader=leaseReader,directory,authorize,forward,attestedKey=null,ownerNameRoots,fetch=globalThis.fetch,now=Date.now,log=()=>{},challengeOptions={}}){
+  if(!c||typeof c!=='object')throw new Error('Enclave network configuration required');
+  if(c.relay!==undefined){
+   const u=new URL(c.relay);
+@@ -73,6 +73,8 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
+  const probeUrls=egressProbeUrls(c.egressProbeUrls,rpc);
+  // the host's DNS/challenge service (challenge-replica-host.mjs), judged now - before anything binds - and started last
+  const challengeCfg=c.challengeReplica===undefined?null:challengeReplicaConfig(c.challengeReplica);
++ // a managed challenge front serves this host's own derived origin: its registry id must be this runner (challenge-host-tls)
++ if(challengeCfg?.front.mode==='managed'&&challengeCfg.front.hostId!==String(runner||'').toLowerCase())throw new Error('Enclave network: challengeReplica.front.managed: hostPolicy.endpoint is not this host\'s registry endpoint (keccak256 differs from the runner)');
+  const onNetwork=id=>c.apps==='all'||c.apps.includes(id);
+  const relay=async(p,init)=>{if(!c.relay)throw new Error('BYO requires an operator-local config directory or an explicit relay');const r=await fetch(new URL(p,c.relay),{...init,signal:AbortSignal.timeout(10000)});if(r.status===404)return null;const b=await r.json().catch(()=>null);if(!r.ok)throw new Error(`relay ${p.split('/').slice(0,4).join('/')}: ${b?.error||r.status}`);return b;};
+  const directories=new DirectoryClient({origins:c.directories||(c.relay?[c.relay]:[]),fetch});
+@@ -204,18 +206,18 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
+   }
+   direct={runtime:runtimeD,qualification:direct.qualification,envelope:direct.envelope};
+  }
+- // The challenge service starts after everything else; a refused start (release hash, configuration the replica itself
+- // refuses, no readiness) releases what direct hosting bound, as a failed canary does.
+- let challenge=null;
+- if(challengeCfg){
+-  try{challenge=await startChallengeReplica(challengeCfg,{log});}
+-  catch(e){await direct?.runtime?.close().catch(()=>{});throw e;}
+- }
++ // The OPTIONAL challenge service starts after everything else, under its own supervisor, and never decides whether this
++ // host's network starts: its static configuration was judged above (before anything binds); a refused or failed start
++ // (release directory, the platform host policy's first answer, readiness) is retried with capped backoff, in the
++ // background, until it starts or this host closes (work/g4-config-independent-review-20261021 revision2 B1).
++ // challengeOptions: CODE-LEVEL (tests and embedders), like ownerNameRoots; no configuration file can set it.
++ const challenge=challengeCfg?superviseChallengeReplica(challengeCfg,{log,...challengeOptions}):null;
+  // localRoutes: apps on this host reach each other's websites here (local-app-router.mjs); false turns it off
+  return {onNetwork,policyFor,providers,byoConfig,runtime,probeEgress,grants,direct,hostEgress,localRoutes:c.localRoutes!==false,
+   // releases what this host bound itself: the direct runtime's listeners, its canary and the challenge service (the circuit runtime and host
+   // egress keep their own lifecycles)
+   // (idempotent: the agent's shutdown and a failed start may both ask)
+-  challengeReplica:challenge,
++  get challengeReplica(){return challenge?.handle??null;},
++  challengeService:challenge?{status:()=>challenge.status()}:null,
+   close(){return closing||=Promise.all([direct?.runtime?.close(),challenge?.close()]);}};
+ }
+diff --git a/test/challenge-front-managed.test.mjs b/test/challenge-front-managed.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..4518f60152afc689f38623c23ddd41b22610d96d
+--- /dev/null
++++ b/test/challenge-front-managed.test.mjs
+@@ -0,0 +1,171 @@
++// The app-zone-replica's MANAGED front (network/challenge-replica-host.mjs front.managed; work/challenge-host-tls-20261021):
++// TLS belongs to the host's service-tls role, so this front is plaintext on loopback only, answers only the host-derived
++// challenge origin, proves its declared key, and declares serving/stopped with the host policy gate's decisions.
++// The service-tls side (real TLS, restrictions behind it, spoofed declarations) is in test/service-tls.test.mjs.
++//   node --test test/challenge-front-managed.test.mjs
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import net from 'node:net';
++import path from 'node:path';
++import http from 'node:http';
++import {EventEmitter} from 'node:events';
++import {createHash, randomBytes} from 'node:crypto';
++import {keccak256, toBytes} from 'viem';
++import {challengeReplicaConfig, startChallengeReplica, startReplicaFront, challengeReplicaAdDraft} from '../network/challenge-replica-host.mjs';
++import {frontProof, frontDeclarationRefusal, proofMatches, FRONT_PROOF_PATH, DECLARATION_TTL_MS} from '../network/challenge-front-declaration.mjs';
++import {hostChallengeName} from '../network/host-service-names.mjs';
++import {createNetworkHost} from '../network/enclave-network-host.mjs';
++import * as F from './app-zone-fixture.mjs';
++
++const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'challenge-managed-'));
++test.after(() => fs.rmSync(TMP, {recursive: true, force: true}));
++const H = (c) => c.repeat(64);
++const ENDPOINT = 'https://host-a.example.org', HOST_ID = keccak256(toBytes(ENDPOINT)).toLowerCase(), ZONE = 'app.enclave.host';
++const NAME = hostChallengeName(HOST_ID, ZONE);
++const sha = (b) => createHash('sha256').update(b).digest('hex');
++const freePort = () => new Promise((ok) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); });
++// the same shape as test/challenge-replica-host.test.mjs base(), with a managed front
++const base = (front = {listen: '127.0.0.1:18292', managed: {zone: ZONE, declarationFile: '/var/lib/enclave/network/challenge-front.json'}}) => ({
++  role: 'app-zone-replica', release: {dir: '/opt/enclave-challenge/releases/x', dnsSha256: H('a'), runtimeBundleSha256: H('b')},
++  zones: {app: ZONE, ip: 'ip.enclave.host'}, ns: {name: 'ns-a.enclave.host'}, listen: {dns: '127.0.0.1:18153', api: '127.0.0.1:8154'}, front,
++  routeMap: 'http://127.0.0.1:18188/v1/network/routes', chain: {rpcs: ['https://rpc-one.example', 'https://rpc-two.example'], pins: {...F.PINS}},
++  shield: {policyFile: '/etc/c/shield-app-policy.json', profileFile: '/etc/c/profile.json', profileDigest: 'sha256:' + H('e'), rpcs: ['https://rpc-one.example', 'https://rpc-two.example']},
++  hostPolicy: {policy: 'production', endpoint: ENDPOINT, stateDir: '/var/lib/enclave-challenge/host-policy'}});
++const fakeGate = () => { const g = {refusal: null, async check() {}, serviceRefusal: () => g.refusal, start() {}, stop() {}, status: () => ({fake: true, refusal: g.refusal})}; return g; };
++function get(port, target, headers = {}) {
++  return new Promise((ok, no) => {
++    const r = http.request({host: '127.0.0.1', port, path: target, method: headers.method || 'GET', agent: false, headers: {host: NAME, ...headers}}, (res) => {
++      let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => { let j = null; try { j = JSON.parse(b); } catch {} ok({status: res.statusCode, body: j}); }); });
++    r.on('error', no); r.end();
++  });
++}
++
++test('managed front configuration: the name is the host\'s own; loopback only; no static key; never with policy "off"; static stays as it was', () => {
++  const c = challengeReplicaConfig(base());
++  assert.equal(c.front.mode, 'managed'); assert.equal(c.front.hostId, HOST_ID, 'keccak256 of hostPolicy.endpoint exactly');
++  assert.equal(c.front.name, NAME); assert.equal(c.front.origin, `https://${NAME}`);
++  assert.deepEqual(c.front.listen, {ip: '127.0.0.1', port: 18292});
++  assert.equal(challengeReplicaConfig(base({...base().front, origin: `https://${NAME}`})).front.origin, `https://${NAME}`, 'the derived origin may be written');
++  const bad = {
++    'a public bind': [{...base().front, listen: '0.0.0.0:443'}, /loopback/],
++    'a LAN bind': [{...base().front, listen: '192.168.8.238:18292'}, /loopback/],
++    'a static key beside it': [{...base().front, certFile: '/etc/c/front.pem', keyFile: '/etc/c/front.key'}, /conflicts with front.certFile\/keyFile/],
++    'only a cert file': [{...base().front, certFile: '/etc/c/front.pem'}, /conflicts/],
++    'another origin': [{...base().front, origin: 'https://challenge-a.example.org'}, /derived challenge origin/],
++    'another host\'s origin': [{...base().front, origin: `https://${hostChallengeName('0x' + '11'.repeat(32), ZONE)}`}, /derived challenge origin/],
++    'an unknown field': [{...base().front, managed: {...base().front.managed, name: 'evil.example'}}, /unknown field/],
++    'a relative declaration': [{...base().front, managed: {...base().front.managed, declarationFile: 'decl.json'}}, /absolute/],
++    'a bad zone': [{...base().front, managed: {...base().front.managed, zone: 'Not A Zone'}}, /front.managed.zone/],
++  };
++  for (const [what, [front, re]] of Object.entries(bad)) assert.throws(() => challengeReplicaConfig(base(front)), re, what);
++  const off = base(); off.hostPolicy = {policy: 'off'};
++  assert.throws(() => challengeReplicaConfig(off), /refused with hostPolicy "off"/);
++  const owner = {...base(), role: 'owner-responder', zones: {challenge: 'acme.owner.example'}}; delete owner.routeMap; delete owner.chain;
++  assert.throws(() => challengeReplicaConfig(owner), /only the app-zone-replica/);
++  // the static front: exactly as before (plus its mode)
++  const st = challengeReplicaConfig(base({listen: '203.0.113.7:443', certFile: '/etc/c/front.pem', keyFile: '/etc/c/front.key', origin: 'https://challenge-a.example.org'}));
++  assert.deepEqual(st.front, {mode: 'static', listen: {ip: '203.0.113.7', port: 443}, certFile: '/etc/c/front.pem', keyFile: '/etc/c/front.key', origin: 'https://challenge-a.example.org'});
++  // the service-index draft advertises the derived origin (still an unsigned draft)
++  const d = challengeReplicaAdDraft(c, {chainId: 8453, index: '0x' + '9a'.repeat(20), operator: '0x' + '42'.repeat(20), slot: 0, sequence: 1, expiresAt: 1900000000, ttlSec: 86400});
++  assert.deepEqual(d.typedData.message.endpoints, [`https://${NAME}/`]);
++});
++
++test('the network host refuses a managed front whose endpoint is not this runner\'s', async () => {
++  const dir = fs.mkdtempSync(path.join(TMP, 'nethost-'));
++  const cfg = {relay: 'http://127.0.0.1:9', checkers: ['0x' + '22'.repeat(20)], apps: 'all', wgBinary: '/bin/true', nodeBinary: process.execPath, workerModule: '/bin/true'};
++  await assert.rejects(createNetworkHost({config: {...cfg, challengeReplica: base()}, runner: '0x' + '11'.repeat(32), directory: dir, authorize: () => true,
++    fetch: async () => new Response('{}', {status: 404})}), /front.managed: hostPolicy.endpoint is not this host's registry endpoint/);
++  // the right runner passes this check; the replica's START is then refused by the release check - logged, never fatal to
++  // the host's network (C3), and the managed front stays undeclared/stopped
++  const logs = [];
++  const h = await createNetworkHost({config: {...cfg, challengeReplica: base()}, runner: HOST_ID, directory: dir, authorize: () => true,
++    fetch: async () => new Response('{}', {status: 404}), log: (m) => logs.push(m)});
++  for (let i = 0; i < 100 && !logs.some((l) => l.includes('challenge replica not started')); i++) await new Promise((r) => setTimeout(r, 20));
++  assert.ok(logs.some((l) => /challenge replica not started .*release: dns\.mjs must be a regular file/.test(l)), logs.join('\n'));
++  assert.equal(h.challengeReplica, null); await h.close();
++});
++
++test('the declaration contract: refusal reasons, proof matching, bounded validity', () => {
++  const key = randomBytes(32).toString('hex'), nonce = randomBytes(32).toString('hex'), now = Date.now();
++  assert.ok(proofMatches(key, nonce, frontProof(key, nonce)));
++  assert.equal(proofMatches(key, nonce, frontProof(randomBytes(32).toString('hex'), nonce)), false);
++  for (const p of [null, '', 'zz', 'a'.repeat(63), 7]) assert.equal(proofMatches(key, nonce, p), false);
++  const expect = {hostId: HOST_ID, name: NAME, origin: `https://${NAME}`, frontPort: 18292, release: {dnsSha256: H('a'), runtimeBundleSha256: H('b')}};
++  const good = {version: 1, kind: 'enclave-challenge-front', hostId: HOST_ID, role: 'app-zone-replica', name: NAME, origin: `https://${NAME}`, release: expect.release,
++    state: 'serving', pid: 1, front: '127.0.0.1:18292', proofKey: key, issuedAt: now, expiresAt: now + DECLARATION_TTL_MS};
++  assert.equal(frontDeclarationRefusal(good, expect, now), null);
++  assert.match(frontDeclarationRefusal({...good, issuedAt: now + 60_000, expiresAt: now + 61_000}, expect, now), /malformed validity/, 'issued in the future');
++  assert.match(frontDeclarationRefusal({...good, state: 'stopped', reason: 'closed'}, expect, now), /stopped \(closed\)/);
++  assert.match(frontDeclarationRefusal({...good, front: '[::1]:18292'}, expect, now), /another address/, 'service-tls pipes to 127.0.0.1 only');
++  assert.match(frontDeclarationRefusal({...good, proofKey: undefined}, expect, now), /no proof key/);
++  assert.match(frontDeclarationRefusal([], expect, now), /not a declaration/);
++  assert.match(frontDeclarationRefusal({...good, version: 2}, expect, now), /v1/);
++});
++
++test('lifecycle: the front serves only while admitted and the replica is ready; it declares serving (heartbeat), stopped on refusal and close', async () => {
++  const dir = fs.mkdtempSync(path.join(TMP, 'release-'));
++  const dns = Buffer.from('export {};\n'), bundle = Buffer.from('export const x = 1;\n');
++  fs.writeFileSync(path.join(dir, 'dns.mjs'), dns, {mode: 0o444}); fs.writeFileSync(path.join(dir, 'network-runtime.bundle.mjs'), bundle, {mode: 0o444});
++  fs.writeFileSync(path.join(dir, 'dns.mjs.manifest.json'), JSON.stringify({sha256: sha(dns), runtimeBundleSha256: sha(bundle)}), {mode: 0o444});
++  const declDir = fs.mkdtempSync(path.join(TMP, 'decl-')), file = path.join(declDir, 'challenge-front.json');
++  const frontPort = await freePort(), apiPort = await freePort();   // nothing listens on apiPort: the stand-in has no API
++  const cfg = challengeReplicaConfig({...base({listen: `127.0.0.1:${frontPort}`, managed: {zone: ZONE, declarationFile: file}}), listen: {dns: '127.0.0.1:18153', api: `127.0.0.1:${apiPort}`},
++    release: {dir, dnsSha256: sha(dns), runtimeBundleSha256: sha(bundle)}});
++  // a stand-in replica process (no real child) whose /health states the configured role
++  const health = {readOnly: true, appChallenge: {mode: 'attested-lease', judgeMode: 'trusted', ledgerIndex: {complete: true}, shield: {hostExcluded: false, registry: {profileDigest: cfg.shield.profileDigest}}}};
++  const children = [];
++  const spawn = () => { const c = new EventEmitter(); c.pid = 4000 + children.length; c.kill = () => setImmediate(() => c.emit('exit', 0, 'SIGTERM')); children.push(c); return c; };
++  const gate = fakeGate(), logs = [];
++  const read = () => JSON.parse(fs.readFileSync(file, 'utf8'));
++  const h = await startChallengeReplica(cfg, {spawn, gate, fetch: async () => new Response(JSON.stringify(health)), log: (m) => logs.push(m), gateIntervalMs: 40, declareEveryMs: 60, readyMs: 5000});
++  try {
++    let d = read();
++    assert.equal(d.state, 'serving'); assert.equal(d.front, `127.0.0.1:${frontPort}`); assert.equal(d.hostId, HOST_ID); assert.equal(d.name, NAME); assert.equal(d.origin, `https://${NAME}`);
++    assert.deepEqual(d.release, {dnsSha256: sha(dns), runtimeBundleSha256: sha(bundle)}); assert.match(d.proofKey, /^[0-9a-f]{64}$/); assert.ok(d.expiresAt - d.issuedAt <= DECLARATION_TTL_MS);
++    const key1 = d.proofKey;
++    if (process.platform !== 'win32') assert.equal(fs.statSync(file).mode & 0o777, 0o640, 'readable by the service-tls reader, writable by nobody else');
++    // the proof: only the holder of the declared key can answer a fresh nonce; Host must be the challenge origin
++    const nonce = randomBytes(32).toString('hex');
++    const p = await get(frontPort, FRONT_PROOF_PATH, {'x-enclave-front-nonce': nonce});
++    assert.equal(p.status, 200); assert.ok(proofMatches(d.proofKey, nonce, p.body.proof));
++    assert.equal((await get(frontPort, FRONT_PROOF_PATH, {'x-enclave-front-nonce': 'x'})).status, 400);
++    assert.equal((await get(frontPort, FRONT_PROOF_PATH, {'x-enclave-front-nonce': nonce, host: 'evil.example.test'})).status, 421);
++    assert.equal((await get(frontPort, '/health', {host: `${NAME}:443`})).status, 502, 'Host with :443 accepted; the stand-in replica API is absent');
++    assert.equal((await get(frontPort, '/v1/txt')).status, 404); assert.equal((await get(frontPort, '/v1/app-challenge')).status, 405);
++    // heartbeat
++    const first = d.expiresAt; await new Promise((r) => setTimeout(r, 200)); d = read(); assert.ok(d.expiresAt > first, 'the heartbeat extends the declaration');
++    // the platform host policy refuses this host: stopped declared, the front closed
++    gate.refusal = 'banned by the platform';
++    for (let i = 0; i < 100 && read().state !== 'stopped'; i++) await new Promise((r) => setTimeout(r, 20));
++    d = read(); assert.equal(d.state, 'stopped'); assert.match(d.reason, /banned/); assert.equal(d.proofKey, undefined, 'a stopped declaration carries no key');
++    await assert.rejects(get(frontPort, '/health'), 'the front is closed');
++    await new Promise((r) => setTimeout(r, 150)); assert.equal(read().state, 'stopped', 'no heartbeat while stopped');
++    // admitted again: a new front, a new key
++    gate.refusal = null;
++    for (let i = 0; i < 100 && read().state !== 'serving'; i++) await new Promise((r) => setTimeout(r, 20));
++    const again = read(); assert.equal(again.state, 'serving'); assert.match(again.proofKey, /^[0-9a-f]{64}$/); assert.notEqual(again.proofKey, key1, 'a new key per front start');
++  } finally { await h.close(); }
++  const last = read(); assert.equal(last.state, 'stopped'); assert.equal(last.reason, 'closed');
++  await assert.rejects(get(frontPort, '/health'), 'closed');
++  assert.deepEqual(fs.readdirSync(declDir), ['challenge-front.json'], 'no temp files left');
++});
++
++test('a declaration that cannot be written is logged and never serves; a crafted public managed front is refused at start', async () => {
++  const dir = fs.mkdtempSync(path.join(TMP, 'release2-'));
++  const dns = Buffer.from('export {};\n'), bundle = Buffer.from('export const y = 2;\n');
++  fs.writeFileSync(path.join(dir, 'dns.mjs'), dns, {mode: 0o444}); fs.writeFileSync(path.join(dir, 'network-runtime.bundle.mjs'), bundle, {mode: 0o444});
++  fs.writeFileSync(path.join(dir, 'dns.mjs.manifest.json'), JSON.stringify({sha256: sha(dns), runtimeBundleSha256: sha(bundle)}), {mode: 0o444});
++  const file = path.join(TMP, 'absent-dir', 'challenge-front.json'), frontPort = await freePort();
++  const cfg = challengeReplicaConfig({...base({listen: `127.0.0.1:${frontPort}`, managed: {zone: ZONE, declarationFile: file}}), release: {dir, dnsSha256: sha(dns), runtimeBundleSha256: sha(bundle)}});
++  const health = {readOnly: true, appChallenge: {mode: 'attested-lease', judgeMode: 'trusted', ledgerIndex: {complete: true}, shield: {hostExcluded: false, registry: {profileDigest: cfg.shield.profileDigest}}}};
++  const spawn = () => { const c = new EventEmitter(); c.pid = 5000; c.kill = () => setImmediate(() => c.emit('exit', 0, 'SIGTERM')); return c; };
++  const logs = [];
++  const h = await startChallengeReplica(cfg, {spawn, gate: fakeGate(), fetch: async () => new Response(JSON.stringify(health)), log: (m) => logs.push(m), declareEveryMs: 1000});
++  try {
++    assert.ok(logs.some((l) => /declaration serving not written \(ENOENT\); service-tls does not front it/.test(l)), logs.join('\n'));
++    assert.equal(fs.existsSync(file), false);
++  } finally { await h.close(); }
++  await assert.rejects(startReplicaFront({...cfg, front: {...cfg.front, listen: {ip: '0.0.0.0', port: 0}}}), /binds loopback only/);
++});
+diff --git a/test/challenge-replica-host.test.mjs b/test/challenge-replica-host.test.mjs
+index 00e543180b4e957f9c4e68d1a813c7835e0050c8..b25743389ceefd419c08c2db2dce6298bf1e636c 100644
+--- a/test/challenge-replica-host.test.mjs
++++ b/test/challenge-replica-host.test.mjs
+@@ -144,7 +144,11 @@ test('a replica that cannot be spawned is retried with backoff, then refused as
+   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+ });
+ 
+-test('the REAL platform host policy gate: a fresh host without an authenticated admit starts nothing (production policy, no network)', {timeout: 120_000}, async () => {
++test('the REAL platform host policy gate: a fresh host without an authenticated admit starts nothing (production policy, no network)', {timeout: 120_000}, async (t) => {
++  // The injected fetch below covers policy mirrors; viem's RPC transport uses global fetch.
++  // Deny that transport too so this offline test cannot read the live production chain.
++  let blockedRpcReads = 0;
++  t.mock.method(globalThis, 'fetch', async () => { blockedRpcReads++; throw new Error('offline RPC fixture'); });
+   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'challenge-gate-'));
+   try {
+     const dns = Buffer.from('export {};\n'), bundle = Buffer.from('export const x = 1;\n');
+@@ -157,6 +161,7 @@ test('the REAL platform host policy gate: a fresh host without an authenticated
+     await assert.rejects(startChallengeReplica(cfg, {spawn: () => { spawns++; throw new Error('must not spawn'); }, fetch: async () => { throw new Error('offline'); }}),
+       /not started: platform host policy/);
+     assert.equal(spawns, 0, 'nothing ran before an authenticated admit');
++    assert.ok(blockedRpcReads > 0, 'the real RPC transport was exercised and denied');
+   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+ });
+ 
+@@ -178,7 +183,11 @@ test('host policy carriers (first host without the fleet): the integrated carrie
+   assert.throws(() => challengeReplicaConfig({...base(), hostPolicy: {policy: 'off', carriers: {importDir: '/x'}}}), /takes no endpoint, stateDir, mirrors, rpcs or carriers/);
+ });
+ 
+-test('the REAL gate with carriers, fresh offline host: still nothing starts, and the carrier origin is answered locally (never fetched)', {timeout: 120_000}, async () => {
++test('the REAL gate with carriers, fresh offline host: still nothing starts, and the carrier origin is answered locally (never fetched)', {timeout: 120_000}, async (t) => {
++  // The injected fetch below covers policy mirrors; viem's RPC transport uses global fetch.
++  // Deny that transport too so this offline test cannot read the live production chain.
++  let blockedRpcReads = 0;
++  t.mock.method(globalThis, 'fetch', async () => { blockedRpcReads++; throw new Error('offline RPC fixture'); });
+   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'challenge-carriers-'));
+   try {
+     const dns = Buffer.from('export {};\n'), bundle = Buffer.from('export const x = 1;\n');
+@@ -193,6 +202,7 @@ test('the REAL gate with carriers, fresh offline host: still nothing starts, and
+       fetch: async (u) => { asked.push(String(u?.url ?? u)); throw new Error('offline'); }}), /not started: platform host policy/);
+     assert.equal(spawns, 0);
+     assert.ok(!asked.some((u) => u.includes('policy-carriers.invalid')), 'the reserved carrier origin reached the network: ' + asked.join(' '));
++    assert.ok(blockedRpcReads > 0, 'the real RPC transport was exercised and denied');
+   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+ });
+ 
+@@ -202,8 +212,14 @@ test('the network host judges challengeReplica before anything binds', async ()
+     const cfg = {relay: 'http://127.0.0.1:9', checkers: ['0x' + '22'.repeat(20)], apps: 'all', wgBinary: '/bin/true', nodeBinary: process.execPath, workerModule: '/bin/true'};
+     await assert.rejects(createNetworkHost({config: {...cfg, challengeReplica: {...base(), certsApi: 'https://api.enclave.host'}}, directory: dir, authorize: () => true,
+       fetch: async () => new Response('{}', {status: 404})}), /challengeReplica: legacy central input/);
+-    await assert.rejects(createNetworkHost({config: {...cfg, challengeReplica: {...base(), release: {...base().release, dir: path.join(dir, 'missing')}}}, directory: dir,
+-      authorize: () => true, fetch: async () => new Response('{}', {status: 404})}), /release: dns.mjs must be a regular file/);
++    // a START failure (here: the release directory is gone, as after a full reinstall of Program Files) is logged and never
++    // takes the host's network down (work/g4-config-independent-review-20261021 C3)
++    const logs = [];
++    const h2 = await createNetworkHost({config: {...cfg, challengeReplica: {...base(), release: {...base().release, dir: path.join(dir, 'missing')}}}, directory: dir,
++      authorize: () => true, fetch: async () => new Response('{}', {status: 404}), log: (m) => logs.push(m)});
++    for (let i = 0; i < 100 && !logs.some((l) => l.includes('challenge replica not started')); i++) await new Promise((r) => setTimeout(r, 20));
++    assert.ok(logs.some((l) => /challenge replica not started .*release: dns\.mjs must be a regular file/.test(l)), logs.join('\n'));
++    assert.equal(h2.challengeReplica, null, 'nothing started'); await h2.close();
+     const host = await createNetworkHost({config: cfg, directory: dir, authorize: () => true, fetch: async () => new Response('{}', {status: 404})});
+     assert.equal(host.challengeReplica, null, 'absent: nothing started'); await host.close();
+   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+diff --git a/test/challenge-replica-supervise.test.mjs b/test/challenge-replica-supervise.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..d80ada4091b2b5f1adf2f46ed40cf274ab9d9687
+--- /dev/null
++++ b/test/challenge-replica-supervise.test.mjs
+@@ -0,0 +1,196 @@
++// revision2 B1 (work/g4-config-independent-review-20261021/revision2): the OPTIONAL challenge service never holds up or breaks
++// a host's network, recovers on its own once a transient dependency (release directory, platform host policy, readiness)
++// returns, never runs twice, never starts after close, and is never declared serving before it is genuinely ready.
++// Readiness follows ledger-index PROGRESS (a ledger above one sync's 2048 ids is not starved by a fixed deadline).
++//   node --test test/challenge-replica-supervise.test.mjs
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import net from 'node:net';
++import path from 'node:path';
++import {EventEmitter} from 'node:events';
++import {createHash} from 'node:crypto';
++import {keccak256, toBytes} from 'viem';
++import {challengeReplicaConfig, startChallengeReplica, superviseChallengeReplica} from '../network/challenge-replica-host.mjs';
++import {createNetworkHost} from '../network/enclave-network-host.mjs';
++import * as F from './app-zone-fixture.mjs';
++
++const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'challenge-supervise-'));
++test.after(() => fs.rmSync(TMP, {recursive: true, force: true}));
++const sha = (b) => createHash('sha256').update(b).digest('hex');
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const until = async (f, ms = 5000) => { for (const t = Date.now() + ms; Date.now() < t; await sleep(20)) if (await f()) return true; return false; };
++const freePort = () => new Promise((ok) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); });
++const ENDPOINT = 'https://host-a.example.org', HOST_ID = keccak256(toBytes(ENDPOINT)).toLowerCase(), ZONE = 'app.enclave.host';
++const DNS = Buffer.from('export {};\n'), BUNDLE = Buffer.from('export const x = 1;\n');
++function release(deliver = true) {
++  const dir = fs.mkdtempSync(path.join(TMP, 'release-'));
++  const put = () => { fs.writeFileSync(path.join(dir, 'dns.mjs'), DNS, {mode: 0o444}); fs.writeFileSync(path.join(dir, 'network-runtime.bundle.mjs'), BUNDLE, {mode: 0o444});
++    fs.writeFileSync(path.join(dir, 'dns.mjs.manifest.json'), JSON.stringify({sha256: sha(DNS), runtimeBundleSha256: sha(BUNDLE)}), {mode: 0o444}); };
++  if (deliver) put();
++  return {dir, put, pins: {dir, dnsSha256: sha(DNS), runtimeBundleSha256: sha(BUNDLE)}};
++}
++async function cfgFor(rel) {
++  const decl = path.join(fs.mkdtempSync(path.join(TMP, 'decl-')), 'challenge-front.json');
++  const c = challengeReplicaConfig({role: 'app-zone-replica', release: rel.pins, zones: {app: ZONE, ip: 'ip.enclave.host'}, ns: {name: 'ns-a.enclave.host'},
++    listen: {dns: '127.0.0.1:18153', api: `127.0.0.1:${await freePort()}`}, front: {listen: `127.0.0.1:${await freePort()}`, managed: {zone: ZONE, declarationFile: decl}},
++    routeMap: 'http://127.0.0.1:18188/v1/network/routes', chain: {rpcs: ['https://rpc-one.example', 'https://rpc-two.example'], pins: {...F.PINS}},
++    shield: {policyFile: '/etc/c/shield-app-policy.json', profileFile: '/etc/c/profile.json', profileDigest: 'sha256:' + 'e'.repeat(64), rpcs: ['https://rpc-one.example', 'https://rpc-two.example']},
++    hostPolicy: {policy: 'production', endpoint: ENDPOINT, stateDir: '/var/lib/enclave-challenge/host-policy'}});
++  return {cfg: c, decl, state: () => { try { return JSON.parse(fs.readFileSync(decl, 'utf8')).state; } catch { return 'absent'; } }};
++}
++const fakeGate = (refusal = null) => { const g = {refusal, async check() {}, serviceRefusal: () => g.refusal, start() {}, stop() {}, status: () => ({fake: true})}; return g; };
++// a stand-in replica: children counted alive until killed; /health from `ledger()` (size grows as the test says)
++function replicaStandIn(cfg, ledger) {
++  const kids = []; let alive = 0, maxAlive = 0;
++  const spawn = () => { const c = new EventEmitter(); c.pid = 5000 + kids.length; kids.push(c); alive++; maxAlive = Math.max(maxAlive, alive);
++    c.kill = () => { if (!c.dead) { c.dead = true; alive--; setImmediate(() => c.emit('exit', 0, 'SIGTERM')); } }; return c; };
++  const fetch = async () => { const l = ledger(); return new Response(JSON.stringify({readOnly: true, appChallenge: {mode: 'attested-lease', judgeMode: 'trusted',
++    ledgerIndex: {complete: l.complete, size: l.size}, shield: {hostExcluded: false, registry: {profileDigest: cfg.shield.profileDigest}}}})); };
++  return {spawn, fetch, kids, alive: () => alive, maxAlive: () => maxAlive};
++}
++
++test('readiness follows ledger-index progress: a ledger larger than one sync completes past readyMs; a stall or the cap still refuses', async () => {
++  const rel = release(), {cfg, state} = await cfgFor(rel);
++  // 5 "syncs" of 2048 ids, one every 120 ms; readyMs 300 alone would refuse at ~6144 (the poll is every 250 ms)
++  const t0 = Date.now(), grow = () => { const k = Math.min(5, 1 + Math.floor((Date.now() - t0) / 120)); return {size: k * 2048, complete: k === 5}; };
++  const s = replicaStandIn(cfg, grow), seen = [];
++  const h = await startChallengeReplica(cfg, {spawn: s.spawn, fetch: s.fetch, gate: fakeGate(), readyMs: 300, stallMs: 400, maxReadyMs: 5000,
++    log: (m) => seen.push(m), declareEveryMs: 60_000, gateIntervalMs: 60_000});
++  try {
++    assert.ok(Date.now() - t0 >= 450, 'it waited for completion beyond readyMs'); assert.equal(state(), 'serving');
++  } finally { await h.close(); }
++  assert.equal(state(), 'stopped'); assert.equal(s.alive(), 0);
++  // a stall (no growth, never complete): refused stallMs after the last growth, with the index position; nothing left running
++  const rel2 = release(), c2 = await cfgFor(rel2), s2 = replicaStandIn(c2.cfg, () => ({size: 4096, complete: false}));
++  const a = Date.now();
++  await assert.rejects(startChallengeReplica(c2.cfg, {spawn: s2.spawn, fetch: s2.fetch, gate: fakeGate(), readyMs: 300, stallMs: 400, maxReadyMs: 5000}),
++    /did not become ready .*ledger index at 4096 ids/);
++  assert.ok(Date.now() - a < 1500, 'no growth: bounded by the first batch stall window'); assert.equal(c2.state(), 'stopped'); assert.equal(s2.alive(), 0);
++  // growth forever, never complete: bounded by maxReadyMs
++  const rel3 = release(), c3 = await cfgFor(rel3); let n = 0; const s3 = replicaStandIn(c3.cfg, () => ({size: (n += 10), complete: false}));
++  const b = Date.now();
++  await assert.rejects(startChallengeReplica(c3.cfg, {spawn: s3.spawn, fetch: s3.fetch, gate: fakeGate(), readyMs: 300, stallMs: 300, maxReadyMs: 900}), /did not become ready/);
++  const took = Date.now() - b; assert.ok(took >= 850 && took < 2200, `capped by maxReadyMs (${took} ms)`); assert.equal(s3.alive(), 0);
++});
++
++test('supervised: a transient policy refusal and a missing release recover on their own; one child at a time; serving only once ready', async () => {
++  const rel = release(false), {cfg, state} = await cfgFor(rel);
++  const gate = fakeGate('platform host policy: no authenticated admit yet (chain quorum unavailable)');
++  const s = replicaStandIn(cfg, () => ({size: 9, complete: true})), logs = [];
++  const sup = superviseChallengeReplica(cfg, {spawn: s.spawn, fetch: s.fetch, gate, retryMs: 40, maxRetryMs: 80, readyMs: 2000, log: (m) => logs.push(m),
++    declareEveryMs: 60_000, gateIntervalMs: 60_000});
++  try {
++    assert.ok(await until(() => sup.status().attempts >= 2), 'retried while the release is missing');
++    assert.ok(logs.some((l) => /not started \(attempt 1; .*unaffected\): .*release: dns\.mjs must be a regular file/.test(l)), logs.join('\n'));
++    assert.equal(sup.handle, null); assert.notEqual(state(), 'serving'); assert.equal(s.kids.length, 0, 'nothing spawned before the release and the policy allow it');
++    rel.put();                                                      // the release is delivered again (e.g. after a reinstall)
++    assert.ok(await until(() => logs.some((l) => /not started .*platform host policy/.test(l))), 'next: the policy refusal, still retried');
++    assert.equal(s.kids.length, 0);
++    gate.refusal = null;                                            // the chain quorum is back: admitted
++    assert.ok(await until(() => sup.handle !== null), 'started after the dependencies returned: ' + logs.join(' | '));
++    assert.equal(state(), 'serving'); assert.ok(logs.some((l) => /started on attempt \d+/.test(l)));
++    const n = sup.status().attempts; await sleep(200);
++    assert.equal(sup.status().attempts, n, 'no attempt after the start'); assert.equal(s.maxAlive(), 1, 'never two children'); assert.equal(s.kids.length, 1);
++  } finally { await sup.close(); }
++  assert.equal(state(), 'stopped'); assert.equal(s.alive(), 0); assert.equal(sup.handle, null);
++  const k = s.kids.length; await sleep(200); assert.equal(s.kids.length, k, 'nothing starts after close');
++});
++
++test('supervised close: a start in progress is cancelled at once (not after its readiness bound); a late success is closed and awaited', async () => {
++  const rel = release(), {cfg, state} = await cfgFor(rel);
++  const s = replicaStandIn(cfg, () => ({size: 0, complete: false}));
++  const sup = superviseChallengeReplica(cfg, {spawn: s.spawn, fetch: s.fetch, gate: fakeGate(), readyMs: 60_000, stallMs: 60_000, retryMs: 40});
++  assert.ok(await until(() => s.kids.length === 1), 'a start is waiting for readiness');
++  const t = Date.now(); await sup.close();
++  assert.ok(Date.now() - t < 2000, `close did not wait for the 60 s readiness (${Date.now() - t} ms)`);
++  assert.equal(s.alive(), 0); assert.equal(state(), 'stopped'); assert.equal(sup.handle, null);
++  await sleep(150); assert.equal(s.kids.length, 1, 'no retry after close');
++  // a start that ignores cancellation and SUCCEEDS after close(): closed exactly once, and close() resolves only after that
++  let closes = 0, release1;
++  const late = {status: () => ({}), close: async () => { await sleep(50); closes++; }};
++  const sup2 = superviseChallengeReplica(cfg, {start: () => new Promise((r) => { release1 = () => r(late); }), retryMs: 40});
++  await sleep(10); assert.equal(typeof release1, 'function', 'the start is in flight');
++  const done = sup2.close(); let resolved = false; done.then(() => { resolved = true; });
++  await sleep(30); assert.equal(resolved, false, 'close awaits the start in flight'); release1();
++  await done; assert.equal(closes, 1, 'the late handle was closed'); assert.equal(sup2.handle, null);
++  // close() right after creation (before the deferred first start ran): nothing starts at all
++  let started = 0; const sup4 = superviseChallengeReplica(cfg, {start: async () => { started++; return late; }}); await sup4.close(); await sleep(30);
++  assert.equal(started, 0, 'no start after close');
++  // a supervisor never runs two starts at once, even if attempts pile up
++  let concurrent = 0, peak = 0, calls = 0;
++  const sup3 = superviseChallengeReplica(cfg, {start: async () => { calls++; concurrent++; peak = Math.max(peak, concurrent); await sleep(60); concurrent--; throw new Error('transient'); }, retryMs: 10, maxRetryMs: 10});
++  await sleep(400); await sup3.close();
++  assert.ok(calls >= 3, `retried (${calls})`); assert.equal(peak, 1, 'one start at a time');
++});
++
++test('the network host: an unavailable challenge service never delays or breaks the network; it starts once its release returns', async () => {
++  const dir = fs.mkdtempSync(path.join(TMP, 'nethost-'));
++  const rel = release(false), {cfg: c, state} = await cfgFor(rel);
++  const raw = {role: 'app-zone-replica', release: rel.pins, zones: {app: ZONE, ip: 'ip.enclave.host'}, ns: {name: 'ns-a.enclave.host'},
++    listen: {dns: '127.0.0.1:18153', api: `127.0.0.1:${c.listen.api.port}`}, front: {listen: `127.0.0.1:${c.front.listen.port}`, managed: {zone: ZONE, declarationFile: c.front.declarationFile}},
++    routeMap: 'http://127.0.0.1:18188/v1/network/routes', chain: {rpcs: ['https://rpc-one.example', 'https://rpc-two.example'], pins: {...F.PINS}},
++    shield: {policyFile: '/etc/c/shield-app-policy.json', profileFile: '/etc/c/profile.json', profileDigest: c.shield.profileDigest, rpcs: ['https://rpc-one.example', 'https://rpc-two.example']},
++    hostPolicy: {policy: 'production', endpoint: ENDPOINT, stateDir: '/var/lib/enclave-challenge/host-policy'}};
++  const base = {relay: 'http://127.0.0.1:9', checkers: ['0x' + '22'.repeat(20)], apps: 'all', wgBinary: '/bin/true', nodeBinary: process.execPath, workerModule: '/bin/true'};
++  const s = replicaStandIn(c, () => ({size: 1, complete: true})), logs = [];
++  const t = Date.now();
++  const host = await createNetworkHost({config: {...base, challengeReplica: raw}, runner: HOST_ID, directory: dir, authorize: () => true,
++    fetch: async () => new Response('{}', {status: 404}), log: (m) => logs.push(m),
++    challengeOptions: {spawn: s.spawn, fetch: s.fetch, gate: fakeGate(), retryMs: 40, maxRetryMs: 80, readyMs: 2000, declareEveryMs: 60_000, gateIntervalMs: 60_000}});
++  try {
++    assert.ok(Date.now() - t < 1500, 'the network host did not wait for the challenge service');
++    assert.equal(host.challengeReplica, null);
++    assert.ok(await until(() => logs.some((l) => /challenge replica not started \(attempt 1; this host's network and every app's routes are unaffected\)/.test(l))), logs.join('\n'));
++    rel.put();
++    assert.ok(await until(() => host.challengeReplica !== null), 'recovered without a privacy-agent restart: ' + logs.join(' | '));
++    assert.equal(state(), 'serving'); assert.equal(host.challengeService.status().running, true);
++  } finally { await host.close(); }
++  assert.equal(state(), 'stopped'); assert.equal(s.alive(), 0);
++  // static configuration is still judged before anything binds (fatal, as before)
++  await assert.rejects(createNetworkHost({config: {...base, challengeReplica: {...raw, certsApi: 'https://api.enclave.host'}}, runner: HOST_ID, directory: dir, authorize: () => true,
++    fetch: async () => new Response('{}', {status: 404})}), /legacy central input/);
++  await assert.rejects(createNetworkHost({config: {...base, challengeReplica: raw}, runner: '0x' + '11'.repeat(32), directory: dir, authorize: () => true,
++    fetch: async () => new Response('{}', {status: 404})}), /hostPolicy.endpoint is not this host's registry endpoint/);
++});
++
++test('root: the first indexed batch grants time for the next sync even when no zero-size health was observed', async (t) => {
++  const {cfg, state} = await cfgFor(release()); let reads = 0;
++  const s = replicaStandIn(cfg, () => ({size: ++reads * 2048, complete: reads >= 2}));
++  const h = await startChallengeReplica(cfg, {spawn: s.spawn, fetch: s.fetch, gate: fakeGate(), readyMs: 100, stallMs: 1000, maxReadyMs: 2000});
++  t.after(() => h.close());
++  assert.ok(reads >= 2); assert.equal(state(), 'serving');
++});
++
++test('root: a fresh host policy refusal at readiness prevents opening the challenge front', async (t) => {
++  const {cfg, state} = await cfgFor(release());
++  const s = replicaStandIn(cfg, () => ({size: 2048, complete: true}));
++  const gate = fakeGate(); let checks = 0;
++  gate.check = async () => { if (++checks >= 2) gate.refusal = 'platform host policy: banned'; };
++  const p = startChallengeReplica(cfg, {spawn: s.spawn, fetch: s.fetch, gate, readyMs: 1000})
++    .then((h) => { t.after(() => h.close()); return h; });
++  await assert.rejects(p, /banned/);
++  assert.equal(s.alive(), 0); assert.equal(state(), 'stopped');
++});
++
++test('root: cancellation while a ready health response is pending cannot open the challenge front', async (t) => {
++  const {cfg, state} = await cfgFor(release()); const ac = new AbortController();
++  const s = replicaStandIn(cfg, () => ({size: 2048, complete: true}));
++  const fetch = async (...args) => { const response = await s.fetch(...args); ac.abort(); return response; };
++  const p = startChallengeReplica(cfg, {spawn: s.spawn, fetch, gate: fakeGate(), signal: ac.signal, readyMs: 1000})
++    .then((h) => { t.after(() => h.close()); return h; });
++  await assert.rejects(p, /cancelled/);
++  assert.equal(s.alive(), 0); assert.equal(state(), 'stopped');
++});
++
++test('root: administrator refusal is enforced while indexing is still incomplete', async () => {
++  const {cfg, state} = await cfgFor(release()); let checks = 0;
++  const gate = fakeGate(); gate.check = async () => { if (++checks >= 2) gate.refusal = 'platform host policy: banned during indexing'; };
++  const s = replicaStandIn(cfg, () => ({size: 2048, complete: false}));
++  const before = Date.now();
++  await assert.rejects(startChallengeReplica(cfg, {spawn: s.spawn, fetch: s.fetch, gate, gateIntervalMs: 20,
++    readyMs: 2000, stallMs: 3000, maxReadyMs: 4000}), /banned during indexing/);
++  assert.ok(Date.now() - before < 1500, 'policy enforcement does not wait for index readiness');
++  assert.equal(s.alive(), 0); assert.equal(state(), 'stopped');
++});

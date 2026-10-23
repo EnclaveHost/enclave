@@ -1,0 +1,25 @@
+#!/bin/bash
+# Guest /init (throwaway QEMU/KVM guest booted from the host's installed kernel package). Root = tmpfs + the HOST /usr
+# read-only over 9p. /src = this repo (ro), /gin = the run's guest inputs (ro), /out = the run's output dir (rw).
+# The only network is a user-mode NIC with restrict=on whose sole path out is the test's guestfwd relay to the loopback export.
+export PATH=/usr/bin:/bin
+mount -t proc proc /proc; mount -t sysfs sys /sys; mount -t devtmpfs dev /dev
+for m in netfs 9pnet 9pnet_virtio 9p failover net_failover virtio_net; do insmod /mod/$m.ko || echo "init: insmod $m failed"; done
+R=/newroot; mkdir -p $R; mount -t tmpfs -o size=160m root $R
+mkdir -p $R/usr $R/src $R/gin $R/out $R/proc $R/sys $R/dev $R/run $R/tmp $R/etc $R/root $R/srv $R/mod $R/var/tmp
+for d in bin sbin; do ln -s usr/bin $R/$d; done; ln -s usr/lib $R/lib; ln -s usr/lib $R/lib64
+cp /mod/nbd.ko $R/mod/nbd.ko
+mount -t 9p -o trans=virtio,version=9p2000.L,ro,msize=262144 usr $R/usr
+mount -t 9p -o trans=virtio,version=9p2000.L,ro,msize=262144 src $R/src
+mount -t 9p -o trans=virtio,version=9p2000.L,ro,msize=262144 gin $R/gin
+mount -t 9p -o trans=virtio,version=9p2000.L,rw,msize=262144 out $R/out
+mount --move /proc $R/proc; mount --move /sys $R/sys; mount --move /dev $R/dev
+mount -t tmpfs -o size=8m run $R/run; mount -t tmpfs -o size=32m tmp $R/tmp
+printf 'root:x:0:0:root:/root:/bin/bash\nnobody:x:65534:65534::/:/usr/bin/nologin\n' > $R/etc/passwd
+printf 'root:x:0:\nnobody:x:65534:\n' > $R/etc/group
+ln -s /proc/self/mounts $R/etc/mtab
+chroot $R /usr/bin/python3 -u -I /src/test/guest/guest.py > $R/out/guest.log 2>&1
+echo "guest-exit rc=$?" | tee -a $R/out/guest.log
+sync
+echo o > $R/proc/sysrq-trigger
+sleep 30

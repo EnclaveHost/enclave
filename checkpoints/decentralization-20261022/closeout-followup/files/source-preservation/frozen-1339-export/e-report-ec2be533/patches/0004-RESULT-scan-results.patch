@@ -1,0 +1,79 @@
+From ec2be533a74a16e79cb5b58f6793bef1679b18a7 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 05:18:51 -0700
+Subject: [PATCH 4/4] RESULT: scan results
+
+---
+ RESULT-WALLET-DEPENDENCY.md |  7 +++++++
+ logs/s1.guard.log           |  1 +
+ logs/s1.out                 | 23 ++++++++++++-----------
+ logs/s1.rc                  |  2 +-
+ 4 files changed, 21 insertions(+), 12 deletions(-)
+
+diff --git a/RESULT-WALLET-DEPENDENCY.md b/RESULT-WALLET-DEPENDENCY.md
+index 0710b1d577927259d8b46e5aa798370f6b56c944..5b7959b4510951e717d8408194ddd6da31062141 100644
+--- a/RESULT-WALLET-DEPENDENCY.md
++++ b/RESULT-WALLET-DEPENDENCY.md
+@@ -102,6 +102,13 @@ v0.3.0, a funded executor EOA, a Base node RPC (tracer support UNKNOWN), and the
+ - The browser rig reuses S's Foundry subset outputs, copied from `browser-rpc-closure/repo`. Their SHA-256 values match
+   S's `forge1.out` (same contract sources, same commit).
+ 
++**Scans (`s1`, 256):**
++- Source `349318a06..dc2e5d740`: crypto-key scanner clean; gitleaks found no leaks.
++- Report repo: crypto-key scanner clean.
++- Report repo gitleaks: the first run used the default config and flagged 1 item, the public anvil dev key #2 in the
++  exported test patch (kept: `logs/s1-first-default-config.out`). The rerun used the source repo's own
++  `.gitleaks.toml`, which allowlists anvil's public keys: no leaks.
++
+ **Not run:**
+ - `site-independent-account-first` and `site-independent-passkey-aa`: both fork Base from a public RPC.
+ - A full `build-site.mjs`: it rewrites tracked files, and the e1 graph check stands in for it.
+diff --git a/logs/s1.guard.log b/logs/s1.guard.log
+index a11a446d4c6f0832df993936c62d7d458ec9d0b0..9dc8b46922a5ec62010175f0b5f6ce734196fded 100644
+--- a/logs/s1.guard.log
++++ b/logs/s1.guard.log
+@@ -1 +1,2 @@
+ [memory-guard] exit=1 peakTreeRssMiB=73 minHostAvailableMiB=24842
++[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=25038
+diff --git a/logs/s1.out b/logs/s1.out
+index b7a9d9515eb51ebaa86b6bb8bad249643e9a062d..751b3dbfe81b4f95c43b70b3c14b9cf107107fc2 100644
+--- a/logs/s1.out
++++ b/logs/s1.out
+@@ -1,18 +1,19 @@
+-[queue] START available=24949MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++[queue] START available=25027MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+ == source 349318a06..HEAD
+ dc2e5d740 Say what the profile broadcast retry does: the same signed bytes to the next endpoint, then nothing more
+ 6ab298f19 Let a connected wallet sign only and the network profile broadcast (explicit, independent mode)
+ source crypto scan rc=0
+-5:17AM INF 2 commits scanned.
+-5:17AM INF scanned ~46292 bytes (46.29 KB) in 766ms
+-5:17AM INF no leaks found
++5:18AM INF 2 commits scanned.
++5:18AM INF scanned ~46292 bytes (46.29 KB) in 132ms
++5:18AM INF no leaks found
+ == report repo
++5c4bf1f scan: the report repo uses the source repo's gitleaks policy (first run kept: 1 finding = anvil dev key #2 in the exported test patch)
+ f5d4592 Retry wording per root review, recipe cites root's primary sources (P owns Alto), n3 evidence, export at dc2e5d740
+ f92006a RESULT, bundler recipe, S/F handoff, D export, jobs and logs for rpc-wallet-dependency 6ab298f19
+-5:17AM INF 2 commits scanned.
+-5:17AM INF scanned ~125033 bytes (125.03 KB) in 139ms
+-5:17AM WRN leaks found: 1
+-scan rc=1
+-[memory-guard] exit=1 peakTreeRssMiB=73 minHostAvailableMiB=24842
+-[memory-guard] at peak: gitleaks:67 bash:6
+-[queue] EXIT 1
++5:18AM INF 3 commits scanned.
++5:18AM INF scanned ~127922 bytes (127.92 KB) in 161ms
++5:18AM INF no leaks found
++scan rc=0
++[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=25038
++[memory-guard] at peak: gitleaks:60 bash:6
++[queue] EXIT 0
+diff --git a/logs/s1.rc b/logs/s1.rc
+index d00491fd7e5bb6fa28c517a0bb32b8b506539d4d..573541ac9702dd3969c9bc859d2b91ec1f7e6e56 100644
+--- a/logs/s1.rc
++++ b/logs/s1.rc
+@@ -1 +1 @@
+-1
++0

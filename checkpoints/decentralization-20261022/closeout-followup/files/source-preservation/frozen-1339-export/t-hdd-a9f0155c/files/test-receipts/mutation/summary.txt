@@ -1,0 +1,10 @@
+CONTROL rc=0 failed=[]
+KILLED M1-no-authz: rc=1 failed=['proto-refused-wrong-dn-client-same-ca']
+KILLED M2-no-client-cert-verify: rc=1 failed=['proto-refused-rogue-ca-client', 'proto-refused-wrong-dn-client-same-ca', 'proto-refused-certless-client']
+KILLED M3-fstype-unchecked: rc=1 failed=['neg-fstype-mismatch']
+KILLED M4-device-unchecked: rc=1 failed=['neg-device-mismatch']
+KILLED M5-owned-by-pid-only: rc=1 failed=['lifecycle-forged-record-not-signalled', 'lifecycle-clear-stale-drops-record-only']
+KILLED M6-create-overwrites: rc=1 failed=['create-again-refused-existing-data-kept']
+KILLED M7-format-without-blank-check: rc=1 failed=['guest-results', "guest:['s04c-existing-data-is-never-formatted', 'done']"]
+KILLED M8-mount-over-nonempty: rc=1 failed=['guest-results', "guest:['s06b-bare-mountpoint-write-is-detected', 'guest-exception']"]
+RESULT PASS (0 problem(s))

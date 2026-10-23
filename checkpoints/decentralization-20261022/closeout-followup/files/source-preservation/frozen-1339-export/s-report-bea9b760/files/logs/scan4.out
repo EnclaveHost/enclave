@@ -1,0 +1,9 @@
+[queue] START available=24893MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+36919aafe host-services-cold-start: a failed stop records the exit (code, signal) and the daemon output tail
+4c059b997 public-rpc: own-property lookups only (root allowlist review); runner roles too
+028623069 Public RPC host role: a browser profile's RPC origin answered by the operator's own Base node
+source scan rc=0
+report scan rc=0
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

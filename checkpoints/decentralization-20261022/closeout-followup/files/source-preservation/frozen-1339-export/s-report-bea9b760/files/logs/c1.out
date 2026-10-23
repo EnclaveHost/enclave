@@ -1,0 +1,39 @@
+[queue] START available=25495MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+=== candidate carriers run 1
+✔ shared helper: one carrier origin and base rule (policy-carriers re-exports them); the block is explicit and validated (3.323734ms)
+✔ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (891.080997ms)
+✔ missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart (20456.722514ms)
+✔ admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed (21472.718737ms)
+✔ first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit (9663.511552ms)
+✔ this host's policy-mirror store (read from disk, the role need not run) and an independent peer's mirror carry the document (1055.336207ms)
+✔ a malformed policy block refuses an app-less agent before anything binds; with apps, it refuses host services only (3313.006546ms)
+✔ verifier seam: with one injected chain authority, neither the gate nor a carrier opens a raw RPC quorum of its own (196.230226ms)
+✔ enrollment: the opt-in file carries hostServicesPolicy (a non-production book becomes eligible only through it); an invalid one writes nothing (15.364241ms)
+ℹ pass 9
+ℹ fail 0
+[job] exit=0
+=== candidate carriers run 2
+✔ shared helper: one carrier origin and base rule (policy-carriers re-exports them); the block is explicit and validated (3.248295ms)
+✔ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (585.262851ms)
+✔ missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart (20459.33811ms)
+✔ admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed (21473.662453ms)
+✔ first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit (9670.186347ms)
+✔ this host's policy-mirror store (read from disk, the role need not run) and an independent peer's mirror carry the document (1165.932623ms)
+✔ a malformed policy block refuses an app-less agent before anything binds; with apps, it refuses host services only (3336.632885ms)
+✔ verifier seam: with one injected chain authority, neither the gate nor a carrier opens a raw RPC quorum of its own (197.568202ms)
+✔ enrollment: the opt-in file carries hostServicesPolicy (a non-production book becomes eligible only through it); an invalid one writes nothing (12.382214ms)
+ℹ pass 9
+ℹ fail 0
+[job] exit=0
+=== baseline 14d1e495
+[job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/public-rpc-host-role/baseline-14d1 head 14d1e4954cf7c9900d5d3e841a23f02de945c1b2 dirty=0 untracked=1
+✖ the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked (171.797468ms)
+ℹ tests 24
+ℹ pass 23
+ℹ fail 1
+✖ failing tests:
+✖ the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked (171.797468ms)
+[job] exit=1
+[memory-guard] exit=1 peakTreeRssMiB=552 minHostAvailableMiB=23772
+[memory-guard] at peak: node:300 node:94 node:52 anvil:42 anvil:29 bash:6 bash:6 bash:6
+[queue] EXIT 1

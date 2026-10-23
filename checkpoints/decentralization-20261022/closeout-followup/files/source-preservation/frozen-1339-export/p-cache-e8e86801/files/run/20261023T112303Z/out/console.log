@@ -1,0 +1,3 @@
+guest-exit phase=delta rc=0
+[   12.601469] sysrq: Power Off
+[   12.604887] reboot: Power down

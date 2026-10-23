@@ -1,0 +1,6 @@
+[queue] START available=25254MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+4:24AM INF scanned ~120850 bytes (120.85 KB) in 19.3ms
+4:24AM WRN leaks found: 2
+[memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=25185
+[memory-guard] at peak: gitleaks:58
+[queue] EXIT 0

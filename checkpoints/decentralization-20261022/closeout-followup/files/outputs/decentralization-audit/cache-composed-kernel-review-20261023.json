@@ -1,0 +1,29 @@
+{
+  "at": "2026-10-23T11:26:18.646029+00:00",
+  "commit": "e8e8680121cd4262104dc8b3af8ed846d196f82b",
+  "templateSha256": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+  "scope": "Composed storage delta in disposable networkless Linux7.2.11 guest; scaled owned disks, ext4/dm-crypt, no production or actual HDD transport",
+  "evidenceRead": [
+    "logs/vm-1.out",
+    "run/20261023T112303Z/out/results.json",
+    "RESULT.md"
+  ],
+  "queueExit": 0,
+  "peakRssMiB": 384,
+  "peakAllocationBytes": 134721536,
+  "checks": {
+    "heldOrMountedForeignLoops": "refused without autoclear; old source detached later",
+    "cacheLossOwnLoopCleanup": true,
+    "cacheLossExistingLoopPreserved": true,
+    "fsyncedDataMismatches": 0,
+    "signalCleanup": "6/6",
+    "guestCleanup": true,
+    "hostBeforeAfterUnchanged": true
+  },
+  "limits": [
+    "Production NucBox/Hyper-V disk path untested",
+    "USB RAID/NTFS/throughput/power loss untested",
+    "No real ledger/cache allocated",
+    "13/14 shell mutants killed; surviving symlink mutation changes transient allocations and refusal stage but preserves tested final state"
+  ]
+}

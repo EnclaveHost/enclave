@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "denied: scp (offline candidate)" >&2
+exit 97

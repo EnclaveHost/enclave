@@ -1,0 +1,4708 @@
+{
+ "format": "enclave-frozen-1339-export/v1",
+ "checkpointHeadAtExport": "476c589bb35abd10efd830863b042e8801c18ef0",
+ "batch": "1339 = the batch start 2026-10-23T13:39Z (date -u): an identifier, not a publication time",
+ "label": "SOURCE + OFFLINE TESTS ONLY; candidates, not production completion. Nothing here is merged into the normal tree, imaged, deployed or activated. Root-designated terminal heads since 476c589b: S public RPC role 36919aaf + report bea9b760 (proof source / pending nonce / TLS gaps open); A consumer gaps 554a251c (receipt/provenance work remains); B launch 673601e5 + result d9c1bb19 (launch only, not consumer closure); F baseline 30339303 + evidence 1f19ad15 (native/integration failures open); E wallet dc2e5d74 + report ec2be533 (cannot prove real MetaMask or Alto); T HDD transport a9f0155c (physical hardware untested); P cache kernel e8e86801; ROOT wallet interface 66b67c35, shutdown 2f702e76, RAM receipts 2ed6ba61 (configured 96 / active 64, no restart).",
+ "sides": {
+  "s-role": {
+   "repo": "work/public-rpc-host-role/repo",
+   "branch": "public-rpc-host-role",
+   "headReachableFromBranch": true,
+   "base": "14d1e4954cf7c9900d5d3e841a23f02de945c1b2",
+   "baseProvenance": "14d1e495 preserved in 476c589b (frozen-0931 f-rpc-closure head)",
+   "head": "36919aafe76c743272b323c8bca27871b5219ab9",
+   "headTree": "29794c3e3d0156e1a7ddf59a01cd56d78907a7b9",
+   "commits": [
+    {
+     "commit": "028623069a5bcacd51b2df3b3aa483c0f93b2957",
+     "parent": "14d1e4954cf7c9900d5d3e841a23f02de945c1b2",
+     "tree": "0fbb9ee6369e49e05276b998b02e68f3765c0001",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:55:52-07:00",
+     "subject": "Public RPC host role: a browser profile's RPC origin answered by the operator's own Base node",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "4c059b997360483c743deca343c2e42b1b534eeb",
+     "parent": "028623069a5bcacd51b2df3b3aa483c0f93b2957",
+     "tree": "ffbf2d1e595a938ff4bd4eaa4b9ca9b5f0bad734",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:28:19-07:00",
+     "subject": "public-rpc: own-property lookups only (root allowlist review); runner roles too",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "36919aafe76c743272b323c8bca27871b5219ab9",
+     "parent": "4c059b997360483c743deca343c2e42b1b534eeb",
+     "tree": "29794c3e3d0156e1a7ddf59a01cd56d78907a7b9",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T06:33:34-07:00",
+     "subject": "host-services-cold-start: a failed stop records the exit (code, signal) and the daemon output tail",
+     "emptyAfterExclusion": false
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "docs/network/public-rpc-role.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "872eaa88ce86877abb8337fce885115c2349ed1c",
+     "sha256": "b9960479eb524dee290ca0ed8b32f40d75632c57e182c2719cfa8f1ee2f996d4",
+     "bytes": 9036,
+     "baseBlob": null
+    },
+    {
+     "path": "network/host-service-names.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "e523e4222363efa53e6dd75086cde69e0e3db334",
+     "sha256": "d61bbeb60d3099ab9aa9bcb44d2070e1a6e313e553231426920dc3deb01fb906",
+     "bytes": 4543,
+     "baseBlob": "9368596eaae4fffb2fbb757d81939c027a31f29f"
+    },
+    {
+     "path": "network/host-service-transport.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "ccc7f04c7946acaa189e47f198c42f6d1dc72224",
+     "sha256": "0dab1bc73232e019c5e699ffe8f43467a07c9be5b111affb8a831e03061754e5",
+     "bytes": 17461,
+     "baseBlob": "35fd331cdf0f28e626b9348807c8fdea4a98207e"
+    },
+    {
+     "path": "network/host-services/roles.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "246ee541bb7fa1dc6ee7bcc687d16c3d63952e92",
+     "sha256": "cc409882aa8e0dedab9675766a3e1847f40e02298182580707446e8b890a6126",
+     "bytes": 21607,
+     "baseBlob": "c4ca6b6a0654fe1c1281bf87c8a97f7745e3cbf9"
+    },
+    {
+     "path": "network/host-services/runner.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "058d9ae40dd6dbfdf13f64315844d48e54738048",
+     "sha256": "777dddd71f3b03cb8481ed6a3a60020f88b855c49d05d1145e9a26818f109bb0",
+     "bytes": 28009,
+     "baseBlob": "2c34a4b30bbd746026547b45a2e7626536d83fa2"
+    },
+    {
+     "path": "network/host-services/stage-tool.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2258777e1996d6e541faafa795f9d0a383520b5b",
+     "sha256": "7e484bfb283a1bef73cff33b707f906dd9adaef3d1ea6c97408885193c05234e",
+     "bytes": 34844,
+     "baseBlob": "4eb40fdd1fd223852add011b84cfa6eb71981661"
+    },
+    {
+     "path": "network/public-rpc-config.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5a15a48b36abb7ea6cf9b396a5c320198dd48a6e",
+     "sha256": "a36e69ed700d558bac7dfefac2d7a809408bf31e2a10dec2df3214ef5380f352",
+     "bytes": 7023,
+     "baseBlob": null
+    },
+    {
+     "path": "network/public-rpc-hosts.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8f6ace150fc7c49d132023487fe9faa4b0bc2e9c",
+     "sha256": "6c2f58692ea8980bdf0fddfd4225f109a978d05f053e25bc34431ea5bf87b870",
+     "bytes": 1992,
+     "baseBlob": null
+    },
+    {
+     "path": "network/public-rpc.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "998c9a4312248d3ec21d1fac8e5eab915dd9b5ff",
+     "sha256": "b31428d95139f35da5042847cde5a31d4a4d686030a8d83b1fdcb03ea2fdcc71",
+     "bytes": 20002,
+     "baseBlob": null
+    },
+    {
+     "path": "network/wg-circuit-runtime.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "4fcffc1fdec335097060066bac31c8125f92e6fa",
+     "sha256": "4333ab6d5306a8afbe9fe05bf71c2e0e1b0ef6920487f7c53e63c9d71ecddda1",
+     "bytes": 22208,
+     "baseBlob": "a3064b188df52ff163dc96cb9d98ea745b208dc8"
+    },
+    {
+     "path": "network/wg-grants.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "80b672bd772c8defbd318dad4a03954678ecce3a",
+     "sha256": "af9844e51709cf4f8862187b1fa0d2b2eebe9f18d30ffecf7c9b0b2b40ae89a0",
+     "bytes": 4606,
+     "baseBlob": "724def4d185b559a402dbe531ed88a82e6c35abf"
+    },
+    {
+     "path": "network/wg-provider/host-services-config.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f8d4c7e2c6c7a3db1d639810e7c1bdd02349e3a1",
+     "sha256": "53c7a4d34ac8999e5b50941bddb9704932681d34fc634cf1ae4a0daf42e670d7",
+     "bytes": 6137,
+     "baseBlob": "cbeb6c5adc0440f5dcba92947f727f78d830a2b9"
+    },
+    {
+     "path": "network/wg-provider/provider.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "769cd68c1ca1d1227cec5c67395fa2698549d0c8",
+     "sha256": "e7ea534604b2dd9307f4c4d8919fcc22c2061438f33dfb68c3fef61f526c72cd",
+     "bytes": 32048,
+     "baseBlob": "73634e704ecae72c20b82bbdd5d90f707f8cd759"
+    },
+    {
+     "path": "scripts/network/browser-profile.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "ea6e021a7ddf61078b9ac4b4b8588de517d5d7c2",
+     "sha256": "903e20f1a55576b50cee6c15dada81d0cb223d99734d632509a8c41bf6827ce1",
+     "bytes": 19930,
+     "baseBlob": "4c571ffc9a57a88098031803f58a17f943b37822"
+    },
+    {
+     "path": "test/fixtures/reth-dev-8453-genesis.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0475dc0b2447c5d5a3a3453b8bbb4e410895f72a",
+     "sha256": "cc045d9d317d08dc6971e923b3939365acdfd58d5484c65afc1f5e450ee5b5af",
+     "bytes": 3050,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helpers/reth-dev.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "727947b4797254bb3f9b6787216e278a2135411e",
+     "sha256": "4f58511cb65366a0a2965680b359a5ec79561769e2d73b48e6648e9d96e312f4",
+     "bytes": 2731,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helpers/rpc-probe-contract.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e7da511b024d9285d97892fd5140175528aea8d1",
+     "sha256": "f97ddd47270030d78c0f26099b1f703139b8e27e4a60aae541c9a2dbdaf7dc4f",
+     "bytes": 1422,
+     "baseBlob": null
+    },
+    {
+     "path": "test/host-service-lifecycle.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "c2463c15ad381fc505825060a19f43e17714837f",
+     "sha256": "d54779e75f8a13d0e87945414f88bc78428dd54a3412513fdb9ce56cf2603935",
+     "bytes": 29590,
+     "baseBlob": "fb26f34840f951a1961ecc4bb6f0fa9477057874"
+    },
+    {
+     "path": "test/host-service-verifier-roles.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f6a7bf759ca45159cba0879b26f7cf1dc204aaa8",
+     "sha256": "06a314237cef914e35cea66d16e7551d4de11694da1e024aa9b8674127e4b843",
+     "bytes": 23329,
+     "baseBlob": "066490e3ce2d9b1b52f1080889ad1190bfe2eed0"
+    },
+    {
+     "path": "test/host-services-carriers.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "68803af26bdda4c31e3595eda25d66b0f787ffa0",
+     "sha256": "936e8ce15f5250b07cc9c4387e8f3e5f3af9222e4e3d39451e8f2a30da4c52d1",
+     "bytes": 18428,
+     "baseBlob": "050192a4cfc3fd29ef7644dbd48264b3374aef47"
+    },
+    {
+     "path": "test/host-services-cold-start.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "6c2238c4becfd99b5c25d6f940d97ba11a79bb0f",
+     "sha256": "0d1cc2dcac6b9272f7f5eb03e35f7f356c8c023580820606bdb59a66587cfeca",
+     "bytes": 29083,
+     "baseBlob": "2e7d1851daaefc44cd234221807a0c9dfab4477e"
+    },
+    {
+     "path": "test/public-rpc-browser.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f0d977101e43224c2a3a7b3966a217876a6bb515",
+     "sha256": "ade803450776ebf1c40ff684beba7568d1a63aa9a79b8d5e0c15c13a3bd7e54d",
+     "bytes": 12200,
+     "baseBlob": null
+    },
+    {
+     "path": "test/public-rpc.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "047f04a4da476040fba6830d1aae96bb132993e1",
+     "sha256": "d67c9b10db0b8fea1224782c5727f00fa35e98e7f0a108ac3353e74405119251",
+     "bytes": 27442,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "s-role-36919aaf/patches/0001-Public-RPC-host-role-a-browser-profile-s-RPC-origin-.patch",
+     "sha256": "89f3d523c87564ef99fba8d5c1ce86418fb5e9aee7bbee2cb13b851409464c84"
+    },
+    {
+     "file": "s-role-36919aaf/patches/0002-public-rpc-own-property-lookups-only-root-allowlist-.patch",
+     "sha256": "7925e515c23f2e15d909fb326924a2af5e2ab9de37a08b14054fd59f4d7fdee7"
+    },
+    {
+     "file": "s-role-36919aaf/patches/0003-host-services-cold-start-a-failed-stop-records-the-e.patch",
+     "sha256": "758ed1475840fe26ce9c31028c35cf91654d18c4f5c2420a4f0c5f5033773609"
+    }
+   ],
+   "untrackedBuildOutputs": {
+    "dir": "work/public-rpc-host-role/repo/network/host-services/packages",
+    "files": {
+     "bootstrap-replica.mjs": "1e45e75f1f4a7d2b74ebac22f0e292d76323c9a11bf80203a20d289c9577f467",
+     "bootstrap-replica.package.json": "7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc",
+     "credit-vault-submitter.mjs": "2a4de6d5b166c25aa9f7ac9cde1f9b2e05620eebc7d65266e6588ecffca6091b",
+     "credit-vault-submitter.package.json": "a22cd7a8fc6f7d85fea6edbd7f8e9deb36dc1b55507e3bb396e9bc6a368eb0e6",
+     "directory-replica.mjs": "45dc23218fd88a4e7bfd025f192aca176bf875554b4e61270d256e121998e971",
+     "directory-replica.package.json": "e9cff3283064bcf2bb765a4c741af384eed2adc14a30bff959c58df8032be2d8",
+     "policy-mirror.mjs": "74878623094a0d2692ac2d2bb36b1b461a3cb3c6a9bdd90393e3ebb62667f9a4",
+     "policy-mirror.package.json": "2b5a85468d720d4904f282bc6ff84bcf9ff33e46738172cc32d444ae6e4bacbe",
+     "public-rpc.mjs": "aaca601bbb87aa1e4f39fd2062e541d8659cacd7c16ba998a5694e1b05307e6e",
+     "public-rpc.package.json": "300cdc81a4961763b2b0e8c84023f6238448e3fad02cea247af72d3354e57530",
+     "route-dns.mjs": "06293c9331a2e76c9a8f27bb31611e3425ba4feb52deee950b6c93392e02df23",
+     "route-dns.package.json": "e265478277853d4c3e9fc09337b7b366f4a332cbda31e8b5b10ce674f3970d9c"
+    },
+    "recipe": "node scripts/build-host-service-packages.mjs in the s-role tree (S report repo jobs/build-packages.sh); S RESULT-PUBLIC-RPC-ROLE.md pins public-rpc.package.json 300cdc81",
+    "note": "observed local untracked files at export time, NOT archived and NOT re-built by D"
+   }
+  },
+  "s-report": {
+   "repo": "work/public-rpc-host-role",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (S public RPC report repo)",
+   "head": "bea9b760b70df03012fb218942fe9098441ca47c",
+   "headTree": "4b231ceb850a37a3c5631ab8131261e0f2999ae4",
+   "commits": [
+    {
+     "commit": "18e021ddd4657bacd89b48e96d5738e20f14d21a",
+     "parent": "",
+     "tree": "cc2cd7e72b1d8ccdcc62669b14d40c51f6de661e",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:26:38-07:00",
+     "subject": "RESULT-PUBLIC-RPC-ROLE: source 02862306 on F 14d1e495, tests (reth, Chromium, real gate), classified failures, integration note",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "493be895c2d7b2c9a27741fe65258eb06f35d8b1",
+     "parent": "18e021ddd4657bacd89b48e96d5738e20f14d21a",
+     "tree": "8d6e70804d1197caf0b243209eb3ad975478c0ec",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:26:48-07:00",
+     "subject": "Report scan evidence (scan-crypto-keys over 18e021d: rc 0)",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "ba22dbf5dbcd0501c4ba7e76a8d025958f7fd67b",
+     "parent": "493be895c2d7b2c9a27741fe65258eb06f35d8b1",
+     "tree": "fe5d243f9da696457292ca2fa4156c4097b2450e",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T06:34:32-07:00",
+     "subject": "RESULT-PUBLIC-RPC-ROLE round 2: allowlist fix 4c059b99 (pin 300cdc81), f2/c3 evidence, stop-race classification, root notes acknowledged",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "3a10456b11d60c6a81decddfb99779ad1e5f7a38",
+     "parent": "ba22dbf5dbcd0501c4ba7e76a8d025958f7fd67b",
+     "tree": "af34643e1d6d98ccbc00e23e94bd3a21549cfe68",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T06:34:53-07:00",
+     "subject": "Report scan evidence (source 14d1e495..36919aaf and report ba22dbf: rc 0)",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "548b4e973e7a99a43ce04d9cee5402986403c256",
+     "parent": "3a10456b11d60c6a81decddfb99779ad1e5f7a38",
+     "tree": "4925505523ccc4207d6bf1d05889c4a6ad0bffe7",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T06:35:22-07:00",
+     "subject": "RESULT-PUBLIC-RPC-ROLE: acknowledge root c2/shutdown/cancellation-owner/wallet-interface notes; pending nonce and fee quote listed as the next scope",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "bea9b760b70df03012fb218942fe9098441ca47c",
+     "parent": "548b4e973e7a99a43ce04d9cee5402986403c256",
+     "tree": "4b231ceb850a37a3c5631ab8131261e0f2999ae4",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T06:35:22-07:00",
+     "subject": "Report scan evidence (scan4: rc 0)",
+     "emptyAfterExclusion": false
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5ee5bf06f8616e97dd9b04280162b25d804ede5a",
+     "sha256": "a915b5e3b01dfaf9ff700d29433dc565f76afeebff72f57162e01815f9d36dd0",
+     "bytes": 26,
+     "baseBlob": null
+    },
+    {
+     "path": "NOTE-PUBLIC-RPC-ROLE-INTEGRATION.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2d9cedb11d91c67b91b6c140a2f4ade7b870038b",
+     "sha256": "57bf4be87c00ad411ae4882022322fd5a88dd9de4b38a20a5afb849a809521ad",
+     "bytes": 4869,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT-PUBLIC-RPC-ROLE.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4c028ea86e928e7eb5fb3a2e7b6be7df07c7488e",
+     "sha256": "ca7044fbecec655ebde4d9b951484fb06a7cc845c433996bbede0f5c269ddf7b",
+     "bytes": 21294,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/build-and-test.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "838db82a1de682d80ef612b2eff08b44b01ffe14",
+     "sha256": "3de287d3f7024278831abc26632ddc31f36a5a3e39b2c345eb1991a1beb80863",
+     "bytes": 649,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/build-packages.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "e06b42882de0a3f98b2507414e09c5b86847bc02",
+     "sha256": "ecceab79f38cbb7446dc16bf9f7e4f150960724e5e871af55b62d16ee78b6025",
+     "bytes": 503,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/classify.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "14a3817b1514e7e6f8c5bd886e2a8e01ef0c32ee",
+     "sha256": "6a467af73eb289d26c720f21619ac26883f66354b1de645b930e1f8fa3d5681b",
+     "bytes": 599,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/classify2.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "604d24141e4f199432f6fa320cd69429586e7ffc",
+     "sha256": "768335539b3e783d3220daa0924f8d96a8c1ae4ed5b269ae1c6d9261f2e275ca",
+     "bytes": 680,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/final.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "32d66084235f81941ff5b01a1b3f12214bdf2ab9",
+     "sha256": "e6572096ccca7ebf6e1a631fb669ad4ef28ce5013c6879cdb450828a84ea8953",
+     "bytes": 375,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/job.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "a9ec894a5a60c134e2f1e6ba9dcfecbb14834ac8",
+     "sha256": "aab308727f5cf691588dfd59aea911cbab154bf86c7b02f1038aaf74ad3d5d73",
+     "bytes": 1839,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "9042c651cfbb15f5f394c4455cc520c73df61fbf",
+     "sha256": "92157f748324cc16678cdd3d9da2285a258aa7ca0110d40ea913970bf521514c",
+     "bytes": 370,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/scan-all.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "b546972bbccb77090cd1e9f67a87aebdae9a3176",
+     "sha256": "95222d0971dd962dff319f63d837a23a9f2d1bc25268dc6c8d5d3af7cc2a0d38",
+     "bytes": 404,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/scan-report.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "a142c22494c7364eb1c70f5f54aa71337345e7dd",
+     "sha256": "461192f0fbd7a232d8c873c323e2cec4a9e5c4e4cf53e8f6b0115a4fc83742ca",
+     "bytes": 234,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/c1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3c92ef32ced5d8db4733797048b514d2f30be2f3",
+     "sha256": "82646b1503dd4795636dabd762164149a0c5780ff494ad5e97596d24c1efffbe",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/c1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5f19e68a4e2fa4fb65b25f058da60957ff2b3b67",
+     "sha256": "e4656adfab4faccaa489324fec49970200029325852775c98d50dc4317468160",
+     "bytes": 3387,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/c1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/c2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "781db3503de5a3782b2542db0afa47c6702a9aac",
+     "sha256": "778e4a2acbc99980d9140472367663b1abaa8734944743d443ec74fd76424eb5",
+     "bytes": 2632,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/c2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fba7ed526e434d8e4d615d8c9eca14f252c8a0f4",
+     "sha256": "9d9b18720961e9b4689fd763b85e7b6f36160ccd3a8a1c9ddc5103bb0f66c396",
+     "bytes": 4,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/c3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "008f2ed74896c54684a8eec640980979b3f0e58e",
+     "sha256": "fd8ab58265e6f2ebe139ce588da9ac213e07b0ef28d15712056c97f27a8370ea",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/c3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "429eb221c6aa76456812818ec3b384c7420e991d",
+     "sha256": "e90b35f4961bd128c1a89d12e7b2416d17e38ae3db46e8f66f0497eb2d48d851",
+     "bytes": 2462,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/c3.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/f1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "feed8b458cc537f9e7bdba698f9f9a7560963535",
+     "sha256": "c8201b986b652e227c5b04991700fe63e728ba44d84c049fb6225ede69dc6814",
+     "bytes": 68,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/f1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "191afd19bf4d5714c9a20d7598799678b931d354",
+     "sha256": "1609526957e1c241addaf3b03499cf476b38c356651a06a7a6f77f5dedbf9c3f",
+     "bytes": 29715,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/f1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/f2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "882f2cb43ad57c42840bc371aed729278216683a",
+     "sha256": "c00693982490b09b6ae914315a6d70a156e2134e1c1d9501e255b2c1ebcbca8b",
+     "bytes": 68,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/f2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f2b771be414875b28abf5e0ddad83c9377c1c418",
+     "sha256": "cb64e1379343012d40004af5825ed332a12ca57c5615f9cbd583bc6cba23d477",
+     "bytes": 14501,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/f2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/g1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a5b15bb32ecad670a954939881938d017f055f18",
+     "sha256": "dba68fef487b92f08241252828efbbba2b22a8a652434534fe37138235c3a0ee",
+     "bytes": 68,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/g1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3004973d892245aff80d90ed7fcfa2f52680cf29",
+     "sha256": "6e09045edd4450a561143135ea836b0f67cce0e70c46fbd4732c82356838cb0e",
+     "bytes": 15919,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/g1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7f8f011eb73d6043d2e6db9d2c101195ae2801f2",
+     "sha256": "10159baf262b43a92d95db59dae1f72c645127301661e0a3ce4e38b295a97c58",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/g2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6706876cba4a9b4786b317a091d8b31cc432e320",
+     "sha256": "ffd76de20b9d1d5aa13175bea08005494876b8041c755a6fecd2c78c9f102ab4",
+     "bytes": 68,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/g2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "94138dc622578224be96298ead49eac8eb69f6ec",
+     "sha256": "82dc2ea6041127dc7c270419849d8ec2a2d7d7973174bb6d3cc5c0f0fb5e0c34",
+     "bytes": 9472,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/g2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7f8f011eb73d6043d2e6db9d2c101195ae2801f2",
+     "sha256": "10159baf262b43a92d95db59dae1f72c645127301661e0a3ce4e38b295a97c58",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/l1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d170bd9edb93d46ab4f2969ed14cf909d19594e9",
+     "sha256": "266800edf048f4df4fc5a61bf3ef9ebd4acc8963a7457782ce545b3ca6138dd5",
+     "bytes": 117,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/l1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7abb5506af5f83df0da11bb584f4fe1e8bbecf71",
+     "sha256": "2106024d2c1ebfa8eb17777380e894abe606a9b6f6f393f74b182c41777f1786",
+     "bytes": 2004,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/l1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3ad5abd03aea89f7de126c4861363e4f64355973",
+     "sha256": "7e332bcee418f7d700927c946d36341f0651d6d90997b58d3d5441dec96b2e74",
+     "bytes": 3,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/pk1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2b36364a63c021564d50aa82b935738505fe8b6b",
+     "sha256": "43ef37875829a94ee465a43901a09660e8b894bbddd2d69ae5fd3535bf8957df",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/pk1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ab39586137713029947b856deff27cd5cd92d914",
+     "sha256": "b0055beedf62613bb505dbbef1a6d6be8e73f87130fe9030afbabe0728a84958",
+     "bytes": 1518,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/pk1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/r1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "63be5341aa13e65860165a2a00c1702ba5d6198b",
+     "sha256": "d4a33c1371217b32cf696603aec578ec635f224f226e2b6c3a01ee7479ce9c96",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/r1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0e9daa305d491e25a0436f64aa193fe915834e46",
+     "sha256": "b12878df0f490680c73727e981ed8afa1cba0ab3439164423b9ddcfbca5214b4",
+     "bytes": 4708,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/r1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7f8f011eb73d6043d2e6db9d2c101195ae2801f2",
+     "sha256": "10159baf262b43a92d95db59dae1f72c645127301661e0a3ce4e38b295a97c58",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/r2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8df91fe552c1b510fcc10f940aa4c3e15cefe0cb",
+     "sha256": "c7d868ed70e703a022b291ad9d4367612b8a41ef3fefbbc8f68e7a22d19a6648",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/r2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "65319f06c682136c4130918dd8c8b6764eaa95bb",
+     "sha256": "63365646d3ca0a8a9bb0f5a25b13fd41d0c0024a6ea37f2e4b74ea439e5b35fa",
+     "bytes": 2814,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/r2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9e012f5b55f05b7499033fcb0da654dc6977f751",
+     "sha256": "f5a7b239abc5d821f725a2fd7bf99b85fcade6e0a6fa898b7d7c49661ff47fe1",
+     "bytes": 364,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "27c2ee2d1b1c225985457f5ebbd209a5548f8f94",
+     "sha256": "ec53ec82d0155750cbf0702717ad71fd1e643ffdb3677074cc22a74afc7309e7",
+     "bytes": 548,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan3.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan4.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan4.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "47769d426853bea6fe2717523262ab1635819dd3",
+     "sha256": "4f6d5fba3352dfc104e961b17e532f10ab5655f72c5beed0bcf1e04f97e6c929",
+     "bytes": 548,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan4.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "stubs/go",
+     "status": "A",
+     "mode": "100755",
+     "blob": "faa5ca537562646548e2e78f366ddc644ff95748",
+     "sha256": "047712625432060f2684bf78662dc3acc6808544534e45b3ec8bc993a1933cc4",
+     "bytes": 78,
+     "baseBlob": null
+    },
+    {
+     "path": "stubs/scp",
+     "status": "A",
+     "mode": "100755",
+     "blob": "b5945047294bc464a03312247c9d5f69d8c999b1",
+     "sha256": "987c961116f6676862b5d64e8c289843131274b24fe31a17e35cc3abadbcd4b6",
+     "bytes": 61,
+     "baseBlob": null
+    },
+    {
+     "path": "stubs/sftp",
+     "status": "A",
+     "mode": "100755",
+     "blob": "71f61ddcea99966d3012ee95d98d65e41103a752",
+     "sha256": "883cedf5e5e409426b146bcff3864ca4d7c6877f6a990226896d44e338713dee",
+     "bytes": 62,
+     "baseBlob": null
+    },
+    {
+     "path": "stubs/ssh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "f66e2e241bf3a398c6a4487d314a0f535bd361b0",
+     "sha256": "f127668e2d906219c752180e1eced465778e47a7c2f7031495caf9a0384a180c",
+     "bytes": 61,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "s-report-bea9b760/patches/0001-RESULT-PUBLIC-RPC-ROLE-source-02862306-on-F-14d1e495.patch",
+     "sha256": "3f7566f5aef3d56afeacebb3edeffb32d93fc5d9830607764a34cda3ff596a74"
+    },
+    {
+     "file": "s-report-bea9b760/patches/0002-Report-scan-evidence-scan-crypto-keys-over-18e021d-r.patch",
+     "sha256": "5805d5679cd7763632b5e6b276bca61d6d0d50d37982f2e2a7f309ee332d6267"
+    },
+    {
+     "file": "s-report-bea9b760/patches/0003-RESULT-PUBLIC-RPC-ROLE-round-2-allowlist-fix-4c059b9.patch",
+     "sha256": "fbbe5887a82d79f78204841d1e735be738b34074d7126196cc6acce14eccc531"
+    },
+    {
+     "file": "s-report-bea9b760/patches/0004-Report-scan-evidence-source-14d1e495.36919aaf-and-re.patch",
+     "sha256": "9c5321f334ede519c0bed9d90b85749edbf5b350c92f873ab23fe08b12554d23"
+    },
+    {
+     "file": "s-report-bea9b760/patches/0005-RESULT-PUBLIC-RPC-ROLE-acknowledge-root-c2-shutdown-.patch",
+     "sha256": "817f55a998bd3375ecb856f84031900e6d8c0a1165e3cb43be7fceabeb1caa06"
+    },
+    {
+     "file": "s-report-bea9b760/patches/0006-Report-scan-evidence-scan4-rc-0.patch",
+     "sha256": "65f2c876cf85ef4a4340005409e6df863a587b615a4e7ffc9b93b2a24304f347"
+    }
+   ]
+  },
+  "b-launch": {
+   "repo": "work/resume-after-checkpoint-20261022/linux-rpc-runtime-launch/repo",
+   "branch": "linux-rpc-runtime-launch-result",
+   "headReachableFromBranch": true,
+   "base": "fad657bc5626166bde1bde4454ec4f73d23dde47",
+   "baseProvenance": "fad657bc preserved in 476c589b (frozen-0745 d-linux-carrier)",
+   "head": "d9c1bb195c9fa78de23f9d0ba7cc6fca4e7f19a1",
+   "headTree": "b6afcf78368a1990995ebbee68188f9a29fee1ec",
+   "commits": [
+    {
+     "commit": "b7f88a86289a7d85783ad0284d34ba58e2a820d8",
+     "parent": "fad657bc5626166bde1bde4454ec4f73d23dde47",
+     "tree": "10aad5002412d2765a5bd4eb0c602eb1ae4900cd",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T22:48:33-07:00",
+     "subject": "Close the verified LeaseReader client's metadata methods with its operation",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "5936a2c6f931532c02f2fd04ff29822554c4118d",
+     "parent": "b7f88a86289a7d85783ad0284d34ba58e2a820d8",
+     "tree": "7ab2a30c59991887fb9247887bf5683f24e618a7",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T19:45:16-07:00",
+     "subject": "Verify block-hash-pinned witnesses in the gateway: proof-aware failover and a poisoning-resistant cache",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "a9a549f096696066eb9728e943d850771526bbdc",
+     "parent": "5936a2c6f931532c02f2fd04ff29822554c4118d",
+     "tree": "8ccf798064ba3d975ab9032dcba1c9474ce342df",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T19:45:16-07:00",
+     "subject": "Run the Helios E2Es through the verifying witness gateway",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "e4cc8f5f0fb3b4c49914b13ccfe8bdb754ac8640",
+     "parent": "a9a549f096696066eb9728e943d850771526bbdc",
+     "tree": "03cc27038cbe077ce28bc8f4550ece5fed5c47a9",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:24:44-07:00",
+     "subject": "Recover missed state roots by authenticated ancestry; let head sources push",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "5acd00cb088c2475df3099ab4eec1051f2c96192",
+     "parent": "e4cc8f5f0fb3b4c49914b13ccfe8bdb754ac8640",
+     "tree": "00ffd7d9cac11f4a61f73f86ed1bc8b75a7309cb",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:24:44-07:00",
+     "subject": "Test ancestry recovery on real Base headers and end to end with Helios",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "94124c65c5c32a5410f535d4585a6833460ae06f",
+     "parent": "5acd00cb088c2475df3099ab4eec1051f2c96192",
+     "tree": "5e2d4216ecda0a0a6c056c46f769a67ebb89392f",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T21:04:43-07:00",
+     "subject": "Record real Base history proofs under a strict budget; test the real composition at a missed real block",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "93c43ef273e48fc91ee39463e1acb09742f314ad",
+     "parent": "94124c65c5c32a5410f535d4585a6833460ae06f",
+     "tree": "1754353e8f1938ba8f5f5f7c5da681ea7cb182b3",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T21:43:40-07:00",
+     "subject": "Verify eth_getBlockByHash answers with failover so one faulty RPC cannot wedge historical calls",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "2b320b199b40d1d5903f6d4641d322f24ee80b3c",
+     "parent": "93c43ef273e48fc91ee39463e1acb09742f314ad",
+     "tree": "cf1583d60876247ea0ada8b8bbb7368b24ed3730",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T22:13:51-07:00",
+     "subject": "Bound every gateway request by one whole-operation deadline; make close terminal across gateway, roots and helper",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "22cb0df0aa61e85a41b31bc7e06d907fe751d18d",
+     "parent": "2b320b199b40d1d5903f6d4641d322f24ee80b3c",
+     "tree": "5fd86b91f408b5a2b1f2c3e2ea777b322a4d9efa",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:05:22-07:00",
+     "subject": "Optional S3 (Sia-S3) backend for the witness gateway's immutable cache",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "749dd6a16e8805d34be0e4a25ed61c805af32c60",
+     "parent": "22cb0df0aa61e85a41b31bc7e06d907fe751d18d",
+     "tree": "6a235040d854a3a8f52c29a889b7a09bd891518e",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T21:04:54-07:00",
+     "subject": "Compose the S3 witness store as the verifying gateway's ARCHIVE tier",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "eeb2f0aa9d9c6d869f4d922ef9a7553d461e27f4",
+     "parent": "749dd6a16e8805d34be0e4a25ed61c805af32c60",
+     "tree": "67c5f99e317da3b5dfd0313fe7df99ded8d068dc",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T21:50:38-07:00",
+     "subject": "Archive verified ancestry headers so a missed root recovers with every upstream down",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "1df51ebbde7a8289f42314adce96b36323b3575e",
+     "parent": "eeb2f0aa9d9c6d869f4d922ef9a7553d461e27f4",
+     "tree": "f7c2a0983707437431221a5e6b08fa4d2ea304e2",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T22:56:42-07:00",
+     "subject": "Compose E's S3 archive tier with whole-operation deadlines: per-request abort into S3, aggregate cache bounds, cache byte budget",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "003929a66de9c5d37e995676a9860094ae87bf0a",
+     "parent": "1df51ebbde7a8289f42314adce96b36323b3575e",
+     "tree": "604dfdb77c030e3ea07445378773f43bbb3f3495",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T21:04:15-07:00",
+     "subject": "Import the native gossip head source (rpc-gossip-bridge d2f9e0c)",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "832513764df3a59f152fcf06c91022aa66ed7fb8",
+     "parent": "003929a66de9c5d37e995676a9860094ae87bf0a",
+     "tree": "7b6e7ee16a01b0759ec7eabb82ad3eb33a802f21",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T22:42:54-07:00",
+     "subject": "One local Base verifier runtime: gossip head -> roots -> gateway -> Helios",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "9bc652b622df8558fc93ba3f6aac2f45923fce31",
+     "parent": "832513764df3a59f152fcf06c91022aa66ed7fb8",
+     "tree": "ba6cb15de17266a0f07c95b683dbffde344e947b",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T23:38:31-07:00",
+     "subject": "Pinned offline build closure for the verifier runtime's binaries; document it",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "cbc51aa26abe8e903e49b054eb7693b4f5c5b574",
+     "parent": "9bc652b622df8558fc93ba3f6aac2f45923fce31",
+     "tree": "5aa2f2d1016689907c9f43e5ea13735f9d324263",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:04:34-07:00",
+     "subject": "Deadline test: accept the request timeout winning the race with the operation deadline",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "f41c36f2f48cae8070345650037012d80e05449e",
+     "parent": "cbc51aa26abe8e903e49b054eb7693b4f5c5b574",
+     "tree": "84d5388c2c1adb1b4d1dfe89a842832818096a83",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T00:48:13-07:00",
+     "subject": "Compose A's verifier and head E2Es with the proof-aware gateway",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "14eea4ad2527644a78851dd9640240bf050c9f36",
+     "parent": "f41c36f2f48cae8070345650037012d80e05449e",
+     "tree": "b081280bd202513dcaca87335175b98fc94afcaa",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T22:34:22-07:00",
+     "subject": "Hold the RPC runtime state lock with a parent-owned kernel descriptor",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "6c01b134a1d70445d28de9e7ac0e67f928e8291b",
+     "parent": "14eea4ad2527644a78851dd9640240bf050c9f36",
+     "tree": "6928499e7508fe7c63700a81e021e8f590d44e88",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T02:08:38-07:00",
+     "subject": "Integrate the kernel lock, final witness helper and optional S3 archive into the verifier runtime",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "5d2d2c3c9bf224f63d7a178dfd86a4a1c7ae7f5c",
+     "parent": "6c01b134a1d70445d28de9e7ac0e67f928e8291b",
+     "tree": "c4d4e7326021d92f9eff065117dd4ae0ea2f28a7",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T02:08:38-07:00",
+     "subject": "Compose A's policy and Windows verifier E2Es with the proof-aware gateway",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "66812187789d5417963fd37178ef39b6cdd8ebc0",
+     "parent": "5d2d2c3c9bf224f63d7a178dfd86a4a1c7ae7f5c",
+     "tree": "fa3685cfb3ddeb1eddf0f035753e88f42d9e70c4",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T03:11:12-07:00",
+     "subject": "Verifier runtime: a pinned glibc runtime for older userlands, and verify-in-place staging",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "a4bcf90458a2cb43c7f712c9d926e8d142ba5d10",
+     "parent": "66812187789d5417963fd37178ef39b6cdd8ebc0",
+     "tree": "2af06e5a0ef3152eaa939983e3388143e528bb19",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T03:11:12-07:00",
+     "subject": "Launch the local chain verifier in the Linux guest: per-host opt-in, gsup service, image inputs",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "92ca07783bd5b981a8c7cc2b94afca78310e553f",
+     "parent": "a4bcf90458a2cb43c7f712c9d926e8d142ba5d10",
+     "tree": "dd35509fe8f417dcff3569f6d2e2a4502ccb8171",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T03:22:19-07:00",
+     "subject": "Rebuild the host-admission bundle for the composed lease reader",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "60a4f969f6a3f02b1f9aa1a70457e2cb8ed2657d",
+     "parent": "92ca07783bd5b981a8c7cc2b94afca78310e553f",
+     "tree": "8dd163910d89d05580af0488af5d0e42720f354d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T03:26:31-07:00",
+     "subject": "Image builder: carry gsup's chain-verifier.mjs; the wiring pins name the verifier wrapper",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "722cf1b04ac4708bf66aeec4cf4c95f570610c11",
+     "parent": "60a4f969f6a3f02b1f9aa1a70457e2cb8ed2657d",
+     "tree": "b44104ef555af6a76d20227c731f966717d6298e",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T03:50:39-07:00",
+     "subject": "Guest verifier tests: a complete contract pins fixture; refusals must be for a chain reason; pin the legacy start",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "927e2acfb75486ce94f6e5942fe29df4a2f05dc4",
+     "parent": "722cf1b04ac4708bf66aeec4cf4c95f570610c11",
+     "tree": "5753f2b1db0b24ae700647a46ff908cf0f2d7959",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T03:55:47-07:00",
+     "subject": "Guest image: copy staging; the base is owned by uid 1000, so verify-in-place cannot hold there",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "673601e54f8fdcf2ea72d239c87d92b483ff231b",
+     "parent": "927e2acfb75486ce94f6e5942fe29df4a2f05dc4",
+     "tree": "ea4b9cac641e61b2b743972cfd1f579d01577699",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T03:57:33-07:00",
+     "subject": "Guest verifier port between the tenants' ports and the ephemeral range; document the guest opt-in",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "d9c1bb195c9fa78de23f9d0ba7cc6fca4e7f19a1",
+     "parent": "673601e54f8fdcf2ea72d239c87d92b483ff231b",
+     "tree": "b6afcf78368a1990995ebbee68188f9a29fee1ec",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:44:21-07:00",
+     "subject": "linux-rpc-runtime-launch: result, image recipe, inventory, F handoff and the time-correction receipt",
+     "emptyAfterExclusion": false
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "docs/network/local-chain-verifier.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "819e541f473368fa7f3c6e5a7b4759d254893122",
+     "sha256": "0aa236c80014e3d92b94439730bfb00eb6bbd8d77b11e9197bc0f70a34432423",
+     "bytes": 14297,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/INVENTORY.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "04ab89ebbdcc09060869efd90e0e2bbab81c2265",
+     "sha256": "675010d9b79d7989b56dda38477143e9146386192628f71754bb52820adfc41e",
+     "bytes": 17575,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/RECIPE-IMAGE.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8edd4d1c7a55d03a0d611afb98ba3fb2b850678b",
+     "sha256": "1d05d1d5a943658d243328e9354f7dd15a3c2613aa7b822dff0cf01e7b16dc65",
+     "bytes": 7568,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "89d13bc72a5242accbd39adb5cf651abb0beabd0",
+     "sha256": "0e8386d1bfb334dc47581f265e80308c3ab3e652f3460981c934baa87174945a",
+     "bytes": 17488,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/handoff/HANDOFF-F.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "806734c2e165ae9aec556e7abe29e9b27eabef0e",
+     "sha256": "9bb2066b16a5b6cf15c9a8ef6266b01dce3669563a7f2ed67ea18f31a1c8037b",
+     "bytes": 3811,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/handoff/PATCHES.sha256",
+     "status": "A",
+     "mode": "100644",
+     "blob": "867e2c765e74eb5e57a34fee9e98141a304368fa",
+     "sha256": "f63022cfeb77dcc55e74d1cc8faa44e31d4986cd94f4a6bf60ceaba6a6dbb6e4",
+     "bytes": 910,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/handoff/patches/0001-Verifier-runtime-a-pinned-glibc-runtime-for-older-us.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "58b96b0790710e72b99fb6f3f7b7a861e8af3ae1",
+     "sha256": "f8a612ed72f4270218e3d8c85ed0e89b5097d1ff8beb6e450d0f0475837c4b68",
+     "bytes": 21711,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/handoff/patches/0002-Launch-the-local-chain-verifier-in-the-Linux-guest-p.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f2d1f8f88d8fba27b55cf168d12717df7307eb75",
+     "sha256": "2eb5bf9e6c19cadb8def6cc8a9f0a186a1f3eefa786cf3acc9bb1a883b185d25",
+     "bytes": 74729,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/handoff/patches/0003-Rebuild-the-host-admission-bundle-for-the-composed-l.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6288b7573a8f3302dd2e569dab2248840d8be416",
+     "sha256": "62f185a57894d19234ab6642aae39d580dae02cb101bcb8d7ce54d382d64aedc",
+     "bytes": 330047,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/handoff/patches/0004-Image-builder-carry-gsup-s-chain-verifier.mjs-the-wi.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "29893f37ac916aaee4ac411578928e3814518016",
+     "sha256": "36077004cb1f084789b110b7bab46552988cf17b628cb6b083018296523c57fe",
+     "bytes": 11966,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/handoff/patches/0005-Guest-verifier-tests-a-complete-contract-pins-fixtur.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3a23e42b5863960576f0bf32b0c15cc8f47c918f",
+     "sha256": "bf36bea3c79a3a7f9800427f0f408193a42c33d74f5e4635e159f632e5369ebe",
+     "bytes": 8390,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/handoff/patches/0006-Guest-image-copy-staging-the-base-is-owned-by-uid-10.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "289073e4a15f12a1bfe6b1fbd9e309092c76295e",
+     "sha256": "bc1ba7af1d7a0e4b1ed889536eb59b4f894489764436b315e2061bd13e001f28",
+     "bytes": 7373,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/handoff/patches/0007-Guest-verifier-port-between-the-tenants-ports-and-th.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "34d4c38a6380db407e5257e7061f00c1c6548795",
+     "sha256": "be48c10b7325910ef68c6182ac95a4e9bded81172375698fc20dbf8c360c11f7",
+     "bytes": 14217,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/receipts/RECEIPT-TIME-CORRECTION-20261023.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "abd57c3b29579e5619eef77a6e9bcc69fcf8d4dc",
+     "sha256": "2c077f3fb4e43852aef40680ee2324668277dfa9cc2d0b5d9ec423c90e71116f",
+     "bytes": 1845,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/receipts/base-owners.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "71d828345ccbab8d2031e7d64ba261b23bfda4d9",
+     "sha256": "091e0114844818bfc143fec55f8db5c4a4ce0a33d07e3bb34c47343db56be2b5",
+     "bytes": 12937,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/receipts/image-inputs-673601e54f8f.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "36a82e608eeffd992c81d3c0b3ff55b4632c577f",
+     "sha256": "5065cdc18c791b82ca3026459e78685420ab5938c2d2c4380cef03362803fca3",
+     "bytes": 17857,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/results/linux-rpc-runtime-launch/receipts/image-inputs-722cf1b04ac4.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "29afcfb8213dcaae8198b092874c71975d5f09e8",
+     "sha256": "17f8bfa6049aada6d1dddb88a73899182bf6f0bfef13d00de4bba479943da00a",
+     "bytes": 18239,
+     "baseBlob": null
+    },
+    {
+     "path": "metal/build-image.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "eeab71ec28467a0a78ecd96e9193f61dfec3df43",
+     "sha256": "0feca533617ed3fc68b115fb1de92b78638d1b25b2fc18ead63754df820ac320",
+     "bytes": 53395,
+     "baseBlob": "51a334366cefdfb290719ef1678c1e4017cd8df7"
+    },
+    {
+     "path": "metal/chain-verifier-image.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ba48eac7e70fb7cb68777a8501360cb6d7103e26",
+     "sha256": "23ac96adb0c6728ab48627e45b150845ef93690f73dba70da60ab6cf79dea964",
+     "bytes": 2534,
+     "baseBlob": null
+    },
+    {
+     "path": "metal/enclave-metal.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "a48d5a2ebd6c910aa8672bb703cd7c55f9e2e21e",
+     "sha256": "a1258020bd05a3f6834b355468b1074f729a916c7816db6e6767ffe3f150010a",
+     "bytes": 53552,
+     "baseBlob": "3c75f143ecfba9c2ce0412b4709661773afa40d3"
+    },
+    {
+     "path": "metal/guest/chain-verifier.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bf4954e3212a5dcd59c96841bb40e21a07ef2651",
+     "sha256": "f32962b0f53c44b03b6148e8726b137b766f9105b4aba23e484f948c09586946",
+     "bytes": 11406,
+     "baseBlob": null
+    },
+    {
+     "path": "metal/guest/gsup.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "58682f901293a1de924b61bc8da435c4a081c7f4",
+     "sha256": "05402733e0abbaafdd26920e7612bfbf30f31f5a798de1d3efd411547790a1d9",
+     "bytes": 54988,
+     "baseBlob": "c1f69a7d03fb3a6779741f8d727f84321f42d914"
+    },
+    {
+     "path": "metal/overlay-control-image.py",
+     "status": "M",
+     "mode": "100644",
+     "blob": "a7c41de85f684f26f36c0a7782194defe757058e",
+     "sha256": "10db3d3d43a8319ede07d67b47d7fcd8434e0a94a7e411ff2c2ddc4e18d3c31e",
+     "bytes": 27803,
+     "baseBlob": "e2b884e5578509487b6891a920789621d7a777e2"
+    },
+    {
+     "path": "network/gossip-head-source.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0662853601e1d6f6b1286ae28f5248dcad7cbf92",
+     "sha256": "150a06f8b474d74c6542244290f3696d76aab65ac33c70f989a0d0781aa2eb0a",
+     "bytes": 24388,
+     "baseBlob": null
+    },
+    {
+     "path": "network/lease-reader.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d77dbf772ca34798b439313df4affe91acc89411",
+     "sha256": "a7c23474df4ef8a307c9c7b63f27c7bda2af02fc7c9786cc424545ebfa133d9c",
+     "bytes": 48671,
+     "baseBlob": "92d7126ad7780bcc18a8b932adecdcc747b8f630"
+    },
+    {
+     "path": "network/rpc-runtime-main.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b5c64b41c968e224630cb1c3133a69e4def9552b",
+     "sha256": "2ac0134df8a232708ed3c94cc97254af0b10d7ec5da2a887e84ef3af2b9b8337",
+     "bytes": 3752,
+     "baseBlob": null
+    },
+    {
+     "path": "network/rpc-runtime.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2c2de5b3b75b95233263b075a701397f0c40c580",
+     "sha256": "4f3b4a42b9adcc743cd66bc31e9b9af91493c3eae676833a6481775cfd929312",
+     "bytes": 48095,
+     "baseBlob": null
+    },
+    {
+     "path": "network/runtime-lock.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "76b1e6361f00eec31481df27265fd6f191dbefb1",
+     "sha256": "256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a",
+     "bytes": 3035,
+     "baseBlob": null
+    },
+    {
+     "path": "network/s3-witness-cache.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a72aaecf7d10ac71c507cb9f764661a1fbec7809",
+     "sha256": "fa87083a2a6bb1bd2458cbb0c37bd8446a6f2c1af5d6531046be0281b048dd40",
+     "bytes": 20217,
+     "baseBlob": null
+    },
+    {
+     "path": "network/witness-gateway.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f6a18de33ce7e0e79454004c8c6b0aa7fbfa7ce0",
+     "sha256": "7209ef5beea5cf2f1afa471bf9d7b49babfdbb5877de63d9ee5159420d1389cb",
+     "bytes": 36651,
+     "baseBlob": "82bf203b1ae7e19501ed0071038ccc674194a162"
+    },
+    {
+     "path": "network/witness-verify.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a8c0edec5a86c9127a9ec69957c8762f635fcc51",
+     "sha256": "729496b0e85475b7ca9b2dd6d8a25e365e798230be745e42de14b54edb81fd4b",
+     "bytes": 17169,
+     "baseBlob": null
+    },
+    {
+     "path": "scripts/rpc-runtime/build-binaries.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "6133b22a9b3a3e807589c71b5ab60e3d28d47425",
+     "sha256": "d5bb17e80614c05480ee057e62e7b0739228857fc1b3b29fea09189d9a33e8bb",
+     "bytes": 6135,
+     "baseBlob": null
+    },
+    {
+     "path": "scripts/rpc-runtime/cargo-home-from-lock.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ecd0ce041f314c7787e9baaa5d28793cc58c3a93",
+     "sha256": "1d6495e25437d502545473ab81034336bddf0e5ef6243c652e63f71ca686988c",
+     "bytes": 4902,
+     "baseBlob": null
+    },
+    {
+     "path": "scripts/rpc-runtime/closure.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "899cb4a5653e6b5a4c636ef6e359c86849ff50fb",
+     "sha256": "92ff59d118002d921f213f476bd07b6ce344af96a300564ea77181703206fef4",
+     "bytes": 5050,
+     "baseBlob": null
+    },
+    {
+     "path": "test/chain-verifier-guest.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "210092fc56adc9e3645ebc02400f655cbf9ca416",
+     "sha256": "8da1d06130f69a2fad4f50fa2c0aeb8e4d602fb1c376e404230585ecdb7c6de3",
+     "bytes": 22622,
+     "baseBlob": null
+    },
+    {
+     "path": "test/chain-verifier-guest.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2ee53d74efbbad0bdf310e4572c6439a6be2aa55",
+     "sha256": "df18fb7f4242e3227a45117336351c78098ba66198e9faff9bfe400794856f62",
+     "bytes": 12261,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/SOURCE.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0cbe3d6ec5a80b937139df3d8814192919dad309",
+     "sha256": "e7c307a102d121ae622df22fa80f2e5a8c9c000eae0fc3a64548b064c1630b9d",
+     "bytes": 952,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-header-value-trim/context.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0468d80074cb592e77c1d4bdfe088933e1028efc",
+     "sha256": "5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1",
+     "bytes": 318,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-header-value-trim/header-signed-request.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6331d16d5e40bdac24248b0c1732698d4672bcd5",
+     "sha256": "5a08e8c4caa69eb8521e06ebe0eaa62d4d93ecaa78fd13b83dc8eadede437784",
+     "bytes": 337,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-header-value-trim/request.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ad1ea986773b32b50453c4fbc51d15dfe70e5149",
+     "sha256": "3ca569dba28e15df4200ca1619c6909645ad0259f6121827e099c46c66e9dc87",
+     "bytes": 85,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-vanilla/context.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0468d80074cb592e77c1d4bdfe088933e1028efc",
+     "sha256": "5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1",
+     "bytes": 318,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-vanilla/header-signed-request.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "36b86e79ee9490c24a7902fc1142790f0364fd31",
+     "sha256": "f94281f97a281169827bbd016b1454eec132260d77c505405c558b7d21a177bc",
+     "bytes": 272,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-vanilla/request.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e659c3be2c30123d75effb8e95c1c05927139a55",
+     "sha256": "9b87a0709187548ccac04f6d06a8cba1fc85273003efcda670e9f3ca1ad63e4f",
+     "bytes": 42,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/base-header-52965249.synthetic.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6d344fa61cc74e2e651fd8e80e249ae8cbba7c20",
+     "sha256": "13b67f65dd20d0b73fc2d73f8625c2d7af271077773fc158b69d7f738a084d8e",
+     "bytes": 3250,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/base-headers-52965055-52965106.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "602ed1df58625d2f5b4fe101387a9e287f4356a9",
+     "sha256": "11be29552f4c3426affd03161b0d39f5ff508f8cc1827b591d135f58a9ca1236",
+     "bytes": 116973,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/base-mainnet-52965074.head.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d09c5f1ca9b521f18c872606bf11cbf50b53304a",
+     "sha256": "14fc7bb54d479e4dc2b2bb921bcf9c888403422906582e501b200535b10a0ca2",
+     "bytes": 805,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/base-mainnet-52965074.v4.snappy.hex",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8c59c6b5b7a4ce536847b8e0cddf9bc5d3ae128c",
+     "sha256": "b06394b42f810c93c30104492775d14f955b1a9120fe31b0fb57bb788af45015",
+     "bytes": 78909,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/base-mainnet-52965075.head.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "749b91b708e0f6a119f11df9a14b625f2f7c1001",
+     "sha256": "915453065b5d390f018490f6d7ffd1ced7dcdd58be2943237195a964ea31e0d9",
+     "bytes": 804,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/base-mainnet-52965075.v4.snappy.hex",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a68ea295df4d853e77a7e04432fc313fea40129c",
+     "sha256": "e55130dc6f67e67cad3e033c1ab29b4be4e0eb5ed4ad29bc4f5d7107e80251b5",
+     "bytes": 114451,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/base-mainnet-52965076.head.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b395886d3a835b0f3e9515c46ec57ca6c1cba2d7",
+     "sha256": "62f4b8b4e08834ca3708e9b128da05801614868fc184d01d3b1fafb383eda389",
+     "bytes": 804,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/base-mainnet-52965076.v4.snappy.hex",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d217642791cccd89699e6cbf5e55a6dd5f0ee25a",
+     "sha256": "02beaa24c8cc9e7ab7b68fb01dbc3e76bd737af2190c318f528482a9a6da7590",
+     "bytes": 106479,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/base-real-history-52965080/attempt-1.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "991923f3d487685e8ec9fb49dab56dbd48f2b4ad",
+     "sha256": "1f601a366d0b317596c83256a339996fb78b3f3790a8936dec5aeae831c21ad6",
+     "bytes": 2515,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/base-real-history-52965080/recording.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3ca8045823818e649aa4589d6cc840283c8a712a",
+     "sha256": "ebcb5eb7bdda5720d145ff3f8d364ea5ea442d7cfc4e69db7b1f2d2d1b79161f",
+     "bytes": 2583,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/derive-base-headers.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "842b8c6984ecd6f6018ccc7df782b688a1304a68",
+     "sha256": "b98d22a4163e68d56e8171055279d2c786157acf0df504d7e7c9cc3e3ab35390",
+     "bytes": 6327,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/derive-reth-genesis-2935.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "41920b555ffbffad68ced2c860d9ab235cb8ccf6",
+     "sha256": "c935888aa8d16d72cd5a688c05270e8a62146d6f73ced60cb151f0db0155fea8",
+     "bytes": 1696,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/fake-listener.mjs",
+     "status": "A",
+     "mode": "100755",
+     "blob": "b5b42bb6c02853c2a8ed492ee806b130a77a9368",
+     "sha256": "c89d85c609872530a0538196e00edf0efa4e9a4f39aee1ebe3770409c4498deb",
+     "bytes": 3526,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/gsup-chain-verifier-harness.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "77cedcdba75cf5ec66d536c677ee64cfc585d7d1",
+     "sha256": "a242567a7e0907c9e603aafc61faf2e453c16dda2049f5367d7debf7ed510dce",
+     "bytes": 2227,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/guest-launcher.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "860b4c240fff30f020699ce809f796a57c3a16a1",
+     "sha256": "e4c7ef7e282ad9ec4d8c9eb45b6c9b1b70ed23bfee691b70d168ba9074101415",
+     "bytes": 684,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/listener-start-record.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cb1000b7437f59732fb8dea602e1f4082897dc3a",
+     "sha256": "b80d909fe8ae5a13418c66d269832f00a621009af045812f968520df2a458fec",
+     "bytes": 742,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/record-real-history.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5f02ac99751719c0f6a7be0a6f4c009d15bd6f21",
+     "sha256": "c5d2c48de25cf982a9929922a6a3210be6ae478a56c1b34bfa084c94de28e332",
+     "bytes": 12367,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/replay-listener.mjs",
+     "status": "A",
+     "mode": "100755",
+     "blob": "df1fbe0b02be0d2bd807dabaf2cd8f7260481c29",
+     "sha256": "080b78845d73613e7ec1fbebd1e817e9a1a0cfeb62ff89ef3cb4b12d44df23eb",
+     "bytes": 1763,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/reth-dev-8453-genesis-2935.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6925ffce41f624b4d22c1a0824a88df9f6c06b3a",
+     "sha256": "99138899e98faa27cdd28c21423d3ae55c36c36b50eb1334c102a1ab937ee319",
+     "bytes": 3328,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/reth-gossip-listener.mjs",
+     "status": "A",
+     "mode": "100755",
+     "blob": "5bf98ce0bb701327eff9921f17b8eede02693813",
+     "sha256": "f4047dcfbfad0322f44f39552778157bb4984213b1e8283dbbd4eabee8c2aeb2",
+     "bytes": 5053,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/rpc-runtime-launcher.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "536a7b1b3b03e4b25deb76f0df26debd8ee0b88f",
+     "sha256": "e9004bfeac6bc7490d0c7f611bf7a8b19b84f66b2e0c5070ceb2157e66769101",
+     "bytes": 982,
+     "baseBlob": null
+    },
+    {
+     "path": "test/gossip-head-source.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "100e5aefeccd9a41cfba6ad3bbacecf48d55b45c",
+     "sha256": "e0ce8a2d5b19fedc03e4ff1bd1d7479ed1f28a197f308da92d23a24c5a5565d4",
+     "bytes": 19991,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-base-head.e2e.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "b1d81d6df80c112e5101352251d22a41a1285f6b",
+     "sha256": "7765b225c4d121fbf4800dd5c430220b1e426e77b32b44de18db042f21f84d17",
+     "bytes": 6527,
+     "baseBlob": "c197b4cfbe742c88afcc6b1c7ee960d257ab4a5c"
+    },
+    {
+     "path": "test/helios-base-replay.e2e.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "bc81a6fa11551a4ba56cf02843035152471f746d",
+     "sha256": "7622f806ce636ba7fc8cddd8f799a1877d4aad6b65380292890d75273d787323",
+     "bytes": 7961,
+     "baseBlob": "a87d9381a0ff34aa3878b3281fa7257bf3e07d72"
+    },
+    {
+     "path": "test/helios-block-failover.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "33745cdb01f3fbf7fb4e37949da370cb4fc3525b",
+     "sha256": "c581e6b5502d3654f17f02f8ffee5286f7fd2af7d7c6680eb04dfce231322b65",
+     "bytes": 8320,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-real-history.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "db3349a8161120da3b0fce9672c8331d81045a71",
+     "sha256": "13371af742c761c7b6f01d07c77942bf7682e80b73af3fb8d6d021bda65f81e6",
+     "bytes": 12873,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-s3-replay.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "773679e7288cff5fdb2ce359491e1f147240e78a",
+     "sha256": "93f4f9c5595daaef3e9853a9a443193fee26ee25b7cff14c7b99892a9de8b67b",
+     "bytes": 13526,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-witness-failover.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e7361c549e11ccf2bc0f75ba82f3f44181283c39",
+     "sha256": "869556bfd8c795f9cecccc08554db3fb9840748f2d6da460b529594c423536f0",
+     "bytes": 14195,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-witness.e2e.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f868841c416e1ef6836ca460efb8b366ccdbc377",
+     "sha256": "ee3d144c5c60049e46fe66f6f54638dce3af737aeb997a0c9be3e49464c636a2",
+     "bytes": 17826,
+     "baseBlob": "fa753d192a03abec45c4accbd5832ea61c9be696"
+    },
+    {
+     "path": "test/lease-reader-terminal-snapshot.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9c971b67b952434b2c2b1e8c0542c9764f8d7987",
+     "sha256": "a1ac97ee1511dc43c38c2ffd9ef24ac505d98eaccfe88aa2d4fcfadc2f9bb445",
+     "bytes": 3861,
+     "baseBlob": null
+    },
+    {
+     "path": "test/lease-reader-verifier-deadline.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "b4e449662548bcce884899aec1aa52a10f7bd0cd",
+     "sha256": "c09098d10e184592d446008eb1d83aa921ab601ecbbb3143dbc730a9a20c833f",
+     "bytes": 11996,
+     "baseBlob": "4c92a00b80b60e7a3f542d52f9c6a741b6edca2c"
+    },
+    {
+     "path": "test/lease-reader-verifier.e2e.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "7bbce0ffad4f6e2a825c44540de35040f1d3be53",
+     "sha256": "0f4dad94eefcc3f7656c39c62a9f236fd852ef177b17bb03d6d0e68f9dba8cd9",
+     "bytes": 17667,
+     "baseBlob": "a21ec016919ff3a6f3a7fca609c15f21b8640412"
+    },
+    {
+     "path": "test/lock-child.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "52ab26d87b1d4a6d264be562c6fdce3061a6a8e4",
+     "sha256": "3ca6ae66fb5599ac70c30278c2027a0ef0ec7265a45a9afb96f9c205fda7bcfc",
+     "bytes": 418,
+     "baseBlob": null
+    },
+    {
+     "path": "test/metal-control-overlay.test.py",
+     "status": "M",
+     "mode": "100644",
+     "blob": "ca7adf93fd561bbcafb692dfe05e7a68eb2136ac",
+     "sha256": "c94f3a56d70d892faf799c91c84b86c91ba2defef0d71eb594306fd503cbf8cb",
+     "bytes": 26959,
+     "baseBlob": "abc6576e0450d5e8a321eecf545f20333331f008"
+    },
+    {
+     "path": "test/metal-lease-gas-conduit.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "ebe81f408afcec4840aeec3e852dcbef5dda79d2",
+     "sha256": "d07acce3f46830c35d89252727bcbc4049bc7912d560db659e0ce2cac58ae12a",
+     "bytes": 25172,
+     "baseBlob": "d616f4ffc3552d6014cb3e62d34036f99db17229"
+    },
+    {
+     "path": "test/metal-measured-control.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "001b48ce1df15a0217fa5ebbeb581181a140234a",
+     "sha256": "c08f55d3a25e532c1e197dfb33f4a4cb22bc00f971c8a674b1eb999e965f99db",
+     "bytes": 33256,
+     "baseBlob": "e9a1d56a3ee3c6c1f0d05ac32089e86824bc6415"
+    },
+    {
+     "path": "test/owner-nomination-config.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "0897c4cb596275aebb7bfccf579d9346ad113e17",
+     "sha256": "5247b5e378eecd24ba7d6494a9a0affe28cbd137e922eebe414a140ce18f07d4",
+     "bytes": 14661,
+     "baseBlob": "8078dd3994d3312f788336f6d241af32f8f6c431"
+    },
+    {
+     "path": "test/policy-verifier.e2e.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "cf0c3e78d71e77887c22ac6bcb1ab96ade74bce7",
+     "sha256": "063e0cb49e75b62083d3e74b2a8031ca7c742745be92b6662daae2cec0ee5d9d",
+     "bytes": 21734,
+     "baseBlob": "29ff602b68238d10b6123896592dabbbfd3a4949"
+    },
+    {
+     "path": "test/relay-policy-carriers.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "0bf141397d17783e2e7032babf0d7c8bb3d3dc01",
+     "sha256": "6d1855443f6e62ccaf763bfa1a51aeeb9eec6ebbc5af2dbf6429e018905ed5ad",
+     "bytes": 30760,
+     "baseBlob": "a9946cbb83175d1246e3c71cc7539e949a49e69c"
+    },
+    {
+     "path": "test/rpc-runtime-base-heads.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f04ba5461e2a3a4c86ace03490933e24a7911cf9",
+     "sha256": "37c3cb64ba86efe7174fd84d7731aae3605e14aacb67aab5d3d13fda89dccdd3",
+     "bytes": 7164,
+     "baseBlob": null
+    },
+    {
+     "path": "test/rpc-runtime.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "eac488598f5952b5ff210d13556e65a297dc7fac",
+     "sha256": "4e0d67d59d9544a001c3e79476d80ac49c023e7170557d7459c246f1e1039867",
+     "bytes": 39528,
+     "baseBlob": null
+    },
+    {
+     "path": "test/rpc-runtime.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8808d0355c993bcc4ca8079b875a615d1a2eedf2",
+     "sha256": "bdc93bbad2737a95f4bdb6024df963c3c374b4b2d317cb01f5aa28479a9d04e8",
+     "bytes": 15570,
+     "baseBlob": null
+    },
+    {
+     "path": "test/runtime-lock.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3a0c9c39419f274ac67c5a59ecce17efdb0dcddd",
+     "sha256": "52932b0df53dd5aaa277584cab6e1fa58c21a4ecd5773f7495738bec3f0f834b",
+     "bytes": 4445,
+     "baseBlob": null
+    },
+    {
+     "path": "test/s3-witness-archive.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4b0bc1d0ec6c523e2a07671bd2e31c4eec844992",
+     "sha256": "c2b586a01612ec8b68e992a38adfe6e40899e3f172ea85f35cfe4fb856bda611",
+     "bytes": 13710,
+     "baseBlob": null
+    },
+    {
+     "path": "test/s3-witness-cache.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "666a174d1f2628bdf53f44c97ae2b753d6442ade",
+     "sha256": "ebb5402b68377427cbd376ab2c8356bd10257c0f767800cc3dcd90cc7e42ec3b",
+     "bytes": 16267,
+     "baseBlob": null
+    },
+    {
+     "path": "test/s3-witness-history.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cd10210cccd369e7a381c77d1f80a1f5599a7f73",
+     "sha256": "b0be67850799622fb2619257ab6c1854a9483b34767a4ec809309908053a9abb",
+     "bytes": 17616,
+     "baseBlob": null
+    },
+    {
+     "path": "test/support/s3-test-env.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c0cec7901de9a06c0cac6d1172c2c0c3e5a27dd5",
+     "sha256": "cba2119a5d754075b76cd6fe9411544599851b6c2aa6ee8729e8c79e00de52e6",
+     "bytes": 3630,
+     "baseBlob": null
+    },
+    {
+     "path": "test/witness-ancestry.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d1efb257ec30de246c14e6b06e2c1b31e7394e8e",
+     "sha256": "df24cf53a1f2a8292bebaca74a549120fd371ace04ffa55a02c03a421b8dd8b2",
+     "bytes": 12698,
+     "baseBlob": null
+    },
+    {
+     "path": "test/witness-archive-deadline.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8bd43b34071eb0a0130a4265df7bdec343e2cdbd",
+     "sha256": "bcbff3d2fa519e458653f916ecda3522f2404e719b4305316b1f90c68f408b42",
+     "bytes": 14814,
+     "baseBlob": null
+    },
+    {
+     "path": "test/witness-blocks.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cd29bb3f46f5eb3be30509d993957dfb23435d74",
+     "sha256": "b674f3fb3182315fb8eee85d08934efe3aaad32f821ecd7ddd05f5edc23c4aa7",
+     "bytes": 9861,
+     "baseBlob": null
+    },
+    {
+     "path": "test/witness-deadline.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fb4a0f0ce57bc58d63172aee4b0acf74d7de6e3a",
+     "sha256": "17d9c2bd21db155f19bf1fa19751c5b58dfd127a3929b470496aa5497d70ccb7",
+     "bytes": 18206,
+     "baseBlob": null
+    },
+    {
+     "path": "test/witness-failover.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1c60a401a47dd65c6b7a0d328a73124de57bb58c",
+     "sha256": "8dea1d8c9feda753552e61d3c3048c5e4702f982e0889e21d6304567d020f187",
+     "bytes": 16701,
+     "baseBlob": null
+    },
+    {
+     "path": "test/witness-gateway.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "0f7be1bea277b36dc8cb9ccf82a4ffa957a3f9be",
+     "sha256": "f0930fbc510d60e8fef967a811df8c33b92b3dd9347e07018ab90c8321c4870e",
+     "bytes": 5915,
+     "baseBlob": "b994da1f2e147b27c813002235fa82617827fa77"
+    },
+    {
+     "path": "windows/node/host-admission.bundle.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "6b9f135695df799844595f63ebda6bbf6b512cef",
+     "sha256": "efaf6fdb3f647bde1bcbe3421569c84a3be15cb46ca0e7de6a1f8f30c1c7fd24",
+     "bytes": 402503,
+     "baseBlob": "37311dbdfd190ab83f73fbffc47460ad28cb755d"
+    }
+   ],
+   "patches": [
+    {
+     "file": "b-launch-d9c1bb19/patches/0001-Close-the-verified-LeaseReader-client-s-metadata-met.patch",
+     "sha256": "04823df92b7ce534569e87b93af67e5af0e9fdb87744a1120efdd35c8d6ec0da"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0002-Verify-block-hash-pinned-witnesses-in-the-gateway-pr.patch",
+     "sha256": "476b4266a8b2dc24ca197ec825bb7a2109dce12430768607371ebd3525c3cb87"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0003-Run-the-Helios-E2Es-through-the-verifying-witness-ga.patch",
+     "sha256": "aa5ebe784673307ddc2fb6951bd5c2aaaac560ddf8bb0c8e7f568b500ecba62a"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0004-Recover-missed-state-roots-by-authenticated-ancestry.patch",
+     "sha256": "8d66ca1c130f71693221a102d163ca106dbc73fd773959d73529244d037a3727"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0005-Test-ancestry-recovery-on-real-Base-headers-and-end-.patch",
+     "sha256": "5cee3c833fab6d6ffd5ef1f4dae5c56b973b8188881067ccf6b5c335e81588bb"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0006-Record-real-Base-history-proofs-under-a-strict-budge.patch",
+     "sha256": "fb8f580f0ac60c6b8a8dc540d74218d75bb47aa5c4dbff98eb3d6b31be8d2c42"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0007-Verify-eth_getBlockByHash-answers-with-failover-so-o.patch",
+     "sha256": "25f2cf29455405d060fd418f289032700ccfa8fa53f088eb3cd44f20a94bd3b3"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0008-Bound-every-gateway-request-by-one-whole-operation-d.patch",
+     "sha256": "7151aeb257321dc895197d01b26be1e8397a434f75fb039c66096fe3e11a9574"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0009-Optional-S3-Sia-S3-backend-for-the-witness-gateway-s.patch",
+     "sha256": "086b7705311e9b7bbb89ba702e15fda4ac5f55e8c6cb9058e157826e0c9e948c"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0010-Compose-the-S3-witness-store-as-the-verifying-gatewa.patch",
+     "sha256": "9d4473be729072cb292af8deeb7112c3d26eb901d57024ebfef8830db7ba80c5"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0011-Archive-verified-ancestry-headers-so-a-missed-root-r.patch",
+     "sha256": "9bec913eeacbcea6ec1dce4541d04eb2974c691d9a8da8d793775056b8f3f065"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0012-Compose-E-s-S3-archive-tier-with-whole-operation-dea.patch",
+     "sha256": "21942df001d17c9a469a5f4019119980ab576e699d591f7fa6ab62f37b966203"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0013-Import-the-native-gossip-head-source-rpc-gossip-brid.patch",
+     "sha256": "bde8b7d25d0f18376b72d92a36859d8548e512dc169f5516982e06e8a73be203"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0014-One-local-Base-verifier-runtime-gossip-head-roots-ga.patch",
+     "sha256": "f573f1c47a9acb6a454aa424438e619bb1cf197ea0f154565bcc859d5aaf464a"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0015-Pinned-offline-build-closure-for-the-verifier-runtim.patch",
+     "sha256": "b1a5b02194937e3cc4af1f900b5f60adf1587081e50738df2f248dd284105c81"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0016-Deadline-test-accept-the-request-timeout-winning-the.patch",
+     "sha256": "0cd35b96b1a61be7d6af0c7e208801bbba0f6da1cde0b7aceee8801263993925"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0017-Compose-A-s-verifier-and-head-E2Es-with-the-proof-aw.patch",
+     "sha256": "06d386b8cfb8019ac7d72d4310037b3b7499a068c75b413af3cc789e7ef1b81f"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0018-Hold-the-RPC-runtime-state-lock-with-a-parent-owned-.patch",
+     "sha256": "a946202802a7eed5eea4933d13f5c80864a5e9b9fb75afd0a12baea731a23b21"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0019-Integrate-the-kernel-lock-final-witness-helper-and-o.patch",
+     "sha256": "f67b466e9e15768632856a8ddbc453151c4461f46fe6f89cfd1715ad0767d3f2"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0020-Compose-A-s-policy-and-Windows-verifier-E2Es-with-th.patch",
+     "sha256": "80c348869b935a7c1ca2fd1ab5268fa148f1261e12b4519f8aec2374c2539d99"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0021-Verifier-runtime-a-pinned-glibc-runtime-for-older-us.patch",
+     "sha256": "12fc818c38f70f1957f94ec03854e462430ad8f9cee7fae8ed410971f20ef605"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0022-Launch-the-local-chain-verifier-in-the-Linux-guest-p.patch",
+     "sha256": "a14c058081ce8fd2bd9bd9ca23e63c52638cba4b52526b5d72570566cc485e09"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0023-Rebuild-the-host-admission-bundle-for-the-composed-l.patch",
+     "sha256": "928d58135fd830fdac3147a8f7445215eb38ddd5e2f32308767f46582fefe1b2"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0024-Image-builder-carry-gsup-s-chain-verifier.mjs-the-wi.patch",
+     "sha256": "c92af8967ce1121d2230ad99ae3adec656d876c04a19916e85879dd32cd9bdc9"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0025-Guest-verifier-tests-a-complete-contract-pins-fixtur.patch",
+     "sha256": "e701ccd76d2131ff9351c33cedd5e2b141d4d917c8c4306244d10a7831e65c44"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0026-Guest-image-copy-staging-the-base-is-owned-by-uid-10.patch",
+     "sha256": "0fedceed3b356de2f5abff1dc187d764bc24d8796c599e2d32bce5585dfc382f"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0027-Guest-verifier-port-between-the-tenants-ports-and-th.patch",
+     "sha256": "9fa5207b6be34234d113d885611f150245fd896fc93d67d76cd59418ba52ff6f"
+    },
+    {
+     "file": "b-launch-d9c1bb19/patches/0028-linux-rpc-runtime-launch-result-image-recipe-invento.patch",
+     "sha256": "6c833c7c0c5cec34e986807c80e77222f8cc0a31824c568a42daa8868b9b992d"
+    }
+   ],
+   "sourceBranch": {
+    "branch": "linux-rpc-runtime-launch",
+    "head": "673601e54f8fdcf2ea72d239c87d92b483ff231b",
+    "tree": "ea4b9cac641e61b2b743972cfd1f579d01577699"
+   }
+  },
+  "f-baseline": {
+   "repo": "work/resume-after-checkpoint-20261022/windows-final-baseline-compose/candidate",
+   "branch": "final/windows-baseline",
+   "headReachableFromBranch": true,
+   "base": "14d1e4954cf7c9900d5d3e841a23f02de945c1b2",
+   "baseProvenance": "14d1e495 preserved in 476c589b (frozen-0931 f-rpc-closure head)",
+   "head": "1f19ad15aaa6200e1882d148f2b43b7c25fc7058",
+   "headTree": "0687115ba54d38d278650d5dd53bfa4ea7cffa39",
+   "commits": [
+    {
+     "commit": "6fd9a787d332d94407f7ee6b03285e9e1a7e3155",
+     "parent": "14d1e4954cf7c9900d5d3e841a23f02de945c1b2",
+     "tree": "b552e36c88b14719d6d2fc73067ff2c25c08f387",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:49:00-07:00",
+     "subject": "Windows challenge lifecycle: port the installed managed front and replica supervision (R1)",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "c335c76cfe2b029d0db568c1e8ff2d46f4d32204",
+     "parent": "6fd9a787d332d94407f7ee6b03285e9e1a7e3155",
+     "tree": "547ca37f6071812875e38a55f05a0f2824089c9d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:49:00-07:00",
+     "subject": "Platform host policy: no default production mirrors (R2)",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "30339303bedcb5cb9a6d8fe2e495f381f05d7c74",
+     "parent": "c335c76cfe2b029d0db568c1e8ff2d46f4d32204",
+     "tree": "da9c417befd7aab253e7902e65467b93c52c0af1",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:49:00-07:00",
+     "subject": "Windows node: carry A's verifier consumers (df8fbafae) and ERC-1271 owner fix (c3a61fd1a)",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "1f19ad15aaa6200e1882d148f2b43b7c25fc7058",
+     "parent": "30339303bedcb5cb9a6d8fe2e495f381f05d7c74",
+     "tree": "0687115ba54d38d278650d5dd53bfa4ea7cffa39",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:18:41-07:00",
+     "subject": "RESULT: Windows final baseline compose (R1/R2 closed, A consumers), pins, tests and activation delta",
+     "emptyAfterExclusion": false
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "checkpoints/windows-final-baseline-compose-20261023/RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "33ae5e9d63206d98ee59242bb48ebfa16248c866",
+     "sha256": "e09928807843f126741892db71a26f00285f36cf04a77ff8cea3e62f857eedfe",
+     "bytes": 14894,
+     "baseBlob": null
+    },
+    {
+     "path": "checkpoints/windows-final-baseline-compose-20261023/artifacts-js-final.sha256",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3cc68e5dc389c49d0becfa5fee34a5a86ea0fe62",
+     "sha256": "7304c41d77359c9281ba1427375fb6876998b53d6e2d5826eb8ca11795b8a397",
+     "bytes": 2042,
+     "baseBlob": null
+    },
+    {
+     "path": "checkpoints/windows-final-baseline-compose-20261023/node-deploy-files.sha256",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ec0cbcb934c78fdd88a8d693a685857688ae1b12",
+     "sha256": "30caa54c35f77a2092950da437d5c26a86fff0b1937050f578246e207753c49a",
+     "bytes": 8508,
+     "baseBlob": null
+    },
+    {
+     "path": "metal/guest/host-policy.bundle.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "cce27c7697a80b13056d6544eb4eabae74913af7",
+     "sha256": "e65cc948e6fee59d8115da1cae5a194765736f546ab72f5fc6642c222c33921e",
+     "bytes": 35337,
+     "baseBlob": "1fbac163d2d4c18ed1ea51ce9292f37681fcab57"
+    },
+    {
+     "path": "network/challenge-front-declaration.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0e81803efb96953d18845e2d99670edb360dea15",
+     "sha256": "67e67a016ef49e979b35cd2b70e94da58b69fc53884f7b2e2ae3ebeb88511e7f",
+     "bytes": 3448,
+     "baseBlob": null
+    },
+    {
+     "path": "network/challenge-replica-host.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2cda171636eb61ea70d68961101b5ef565d65b17",
+     "sha256": "93bc81fda381e0d775f72453f32027d3a1ae7d1d3ef62bb04a50d238c4c813c8",
+     "bytes": 41167,
+     "baseBlob": "1e8f061b47ea3464d30c15d853918dea33114a7d"
+    },
+    {
+     "path": "network/enclave-network-host.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "b18461b61a881bda03040a58996669924728eb34",
+     "sha256": "886349c13e90fb9cf90d30508f748ac9b8ae08d918ff29095ca3ce1b45f72e26",
+     "bytes": 19618,
+     "baseBlob": "11cccc89cf1148d713a0287324e6e2cf0a476583"
+    },
+    {
+     "path": "network/host-admission-node.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ccbf1fb1f17536442390ed5f5b2125291fffbca9",
+     "sha256": "1ca122d4e148a9c0add5b6ad35759ec5df3a3c9c573ae9a2eebf19c00c8b80af",
+     "bytes": 1106,
+     "baseBlob": null
+    },
+    {
+     "path": "network/host-service-gate-carriers.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "128903936c14be20e314f5365251cfeed1871c91",
+     "sha256": "053923fcdae3e68b4ff362b2d5681a2b95b3573674d46eaa92c650340bf8b00c",
+     "bytes": 7198,
+     "baseBlob": null
+    },
+    {
+     "path": "network/platform-host-policy-config.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "14aa4bd44ada91531cd2a669602bc1b993cdf41d",
+     "sha256": "a7c1d8bf55ba2031b93622861a12a0638e38eb97c5f1c631127835d609e0078e",
+     "bytes": 6893,
+     "baseBlob": "627be0427c0b1e17554766f19dab030bdb4cf924"
+    },
+    {
+     "path": "network/verified-read-client.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ff6632f8942681ca820167796382831535bf8fe6",
+     "sha256": "20848a55a245e2a849775243ffee1ad8f64e7917bd73cee555b25d394b7152a3",
+     "bytes": 4744,
+     "baseBlob": null
+    },
+    {
+     "path": "scripts/build-host-admission.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "6481ccbe0b634706da5fc1c845096677c4334531",
+     "sha256": "aafa8d5471e6675357afb9d777d459f5544bfa2e10334c067c15674c1f9296fb",
+     "bytes": 904,
+     "baseBlob": "92b53a79c6231831bb50d8815a6d3e02dae73292"
+    },
+    {
+     "path": "test/challenge-front-managed.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4518f60152afc689f38623c23ddd41b22610d96d",
+     "sha256": "a6918e69788524ff6635149e3800faf4fe263102c4c0db829a3eb9e237c441cb",
+     "bytes": 16146,
+     "baseBlob": null
+    },
+    {
+     "path": "test/challenge-replica-host.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "b25743389ceefd419c08c2db2dce6298bf1e636c",
+     "sha256": "f9918823d2e75599cb2bfe91dad345acd32a309398eb0988c622eb0b98864c91",
+     "bytes": 30023,
+     "baseBlob": "00e543180b4e957f9c4e68d1a813c7835e0050c8"
+    },
+    {
+     "path": "test/challenge-replica-supervise.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d80ada4091b2b5f1adf2f46ed40cf274ab9d9687",
+     "sha256": "1dbd849d6d3f15a2e599695fc3210a8f38578c3e74b86ac05e4e43f8aa2cf068",
+     "bytes": 16705,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helpers/windows-chain-driver.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9046ed081dce84b6ba3493eb598c1ecfb5ed21aa",
+     "sha256": "617334ec1de6fb638bbb5886bb24885348ec0d32b006fb0a27ac416f6875da21",
+     "bytes": 3322,
+     "baseBlob": null
+    },
+    {
+     "path": "test/host-service-verifier-roles.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "6a239ca55c6aac9c43f540a52eca0824e83ebfe3",
+     "sha256": "492864c06b0ed58618e5611263bdf5bd10ab5df195617d93f60c830e040a80df",
+     "bytes": 22230,
+     "baseBlob": "066490e3ce2d9b1b52f1080889ad1190bfe2eed0"
+    },
+    {
+     "path": "test/host-services-carriers.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "ea6a6b7b6de6f5949717ea534db7f6188b1c7984",
+     "sha256": "46918388348c2ccdfaa657f847e54f20928226365218520f67960615ba7f2d16",
+     "bytes": 18432,
+     "baseBlob": "050192a4cfc3fd29ef7644dbd48264b3374aef47"
+    },
+    {
+     "path": "test/hosted-policy-cold-start.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "b28cb8c2fcab1930e88dff50ae13f9ceedeb6d45",
+     "sha256": "6c5def6ff62e6d6700dc9d57f77e9dfcf6417081e2a963e2636a6eecb752fea2",
+     "bytes": 25313,
+     "baseBlob": "753e8d325d9cd86ab25306f9dbc39aea03ca861d"
+    },
+    {
+     "path": "test/lease-relay-host-policy.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "552189f7eda7d435eddb044963e94eff3d754645",
+     "sha256": "134895af9a0871a2618612fa32454612f6222558d21f1ff4fe0c5cb3f165143e",
+     "bytes": 24566,
+     "baseBlob": "d981adf10e52dc885dc594fcafeb6ced9ede5d0c"
+    },
+    {
+     "path": "test/network-owner-verifier.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8dcb97e7f4cac209e697dd57d6c2c69506ae722d",
+     "sha256": "9a353d8027371ebaa33b96c19f166200269a80f8402ffde421c3dfb6e2252219",
+     "bytes": 4700,
+     "baseBlob": null
+    },
+    {
+     "path": "test/node-policy-carriers.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a7af27895e091fe68684c5007238a9c41264a8dc",
+     "sha256": "0e2ae5909e43129e2ac120cda4f4d3a3b4ceebe2cc7f66a90bd8e7cf13566a80",
+     "bytes": 22891,
+     "baseBlob": null
+    },
+    {
+     "path": "test/windows-chain-authority.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f3060231f8d0a2cca000516b0f5eab3ce0f50f9a",
+     "sha256": "12312925e728d7b4e3e53a0719e58b975710b996e97f36831a8c98b754a33f08",
+     "bytes": 16634,
+     "baseBlob": null
+    },
+    {
+     "path": "test/windows-verifier.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9c7417d2d93c13503e2118c3210cc41ae1699129",
+     "sha256": "1739e9e165418f67bd8d1ebfb35dbf39f3825ccbe94e5d061ccf45980f775a89",
+     "bytes": 19267,
+     "baseBlob": null
+    },
+    {
+     "path": "windows/node/agent.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "e4d1baa118fa1f7255f7bea51725a32035e68db1",
+     "sha256": "5305be6a546c70c13cf6dafbc0ba9983948833c22d7352080ce1e6b61f9e2a98",
+     "bytes": 94002,
+     "baseBlob": "8304e1fdb7c947872af71eadfcee160b2b2bf821"
+    },
+    {
+     "path": "windows/node/chain-reader.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "94da6e629db04e8e2c36d6ac1d0c31735dfefcc6",
+     "sha256": "907fd1c8c9f62b773d95ccc16988440663fd9552725a72aca4bc4281adf8ebf2",
+     "bytes": 1668,
+     "baseBlob": null
+    },
+    {
+     "path": "windows/node/chain.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "897c08e17decf87f3b483e0a3f43a6f4925c0ee0",
+     "sha256": "c31399b828bd4ebbd4b3ec1b720005a0c170fdaa3880e840eaa0b444e1096689",
+     "bytes": 64722,
+     "baseBlob": "3c99299703a32daf18d8fc78ef8d53327bb2c07e"
+    },
+    {
+     "path": "windows/node/host-admission.bundle.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "39e501ff2337c1ee9e87a85b8e957c623ac8373c",
+     "sha256": "c987a877b7ae96f4abe54348973be7e833691e2f3bb3d1f8add1ba4bab6d6453",
+     "bytes": 404040,
+     "baseBlob": "5127ccdd62b7c91c41f4ba402e0b2e126c64c2e0"
+    },
+    {
+     "path": "windows/node/host-identity.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "279538acc27ef7e74040aacf51fe802be17df928",
+     "sha256": "827b30d36bc4a4baf0963b057164f12f5e73165fb3f35cf2ceba201412e93467",
+     "bytes": 24092,
+     "baseBlob": "30545b7f3e30772e177d2ec971630ed8c3c18707"
+    },
+    {
+     "path": "windows/node/host-onchain.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "46892046b33d061ea8777eb6ca31e0c74f120dbe",
+     "sha256": "522a7a200f292618e47504afd56e0b988fdd5c2a84e7201940d5769ad7bc3874",
+     "bytes": 11951,
+     "baseBlob": "e05ea8fa39382682e764bec11711442d9ab079ab"
+    },
+    {
+     "path": "windows/node/host.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "3cdf8f29e82dc4a826f532dabb4724986b83cca8",
+     "sha256": "16e466e84d56c1b65debe691021041947349350041d243706cd0a8e2c45741f2",
+     "bytes": 306970,
+     "baseBlob": "eb8ceda7d2a9c33bcebd76375a720a09c381ebf8"
+    },
+    {
+     "path": "windows/node/network-enroll.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "5f5a8fc5dd80dbcdbdacfed1592670211416edb1",
+     "sha256": "4e2f5e9169495918ead96b878265b0df4538f91f26eb4e40d972d6704a64fbf1",
+     "bytes": 24376,
+     "baseBlob": "424a8a1c9fc262c8db6c69ad227d442464738e00"
+    },
+    {
+     "path": "windows/node/node-config.example.cmd",
+     "status": "M",
+     "mode": "100644",
+     "blob": "93eaa1add6212f002f412a379395be10dcd9c178",
+     "sha256": "4e4dc79e16eb823daaca876e972dde00dcb0f79d1c0a42fa3fb5290f1b9ee16f",
+     "bytes": 2275,
+     "baseBlob": "de0772ff6a1788818d7a43c3247139d043e98c4a"
+    },
+    {
+     "path": "windows/node/session-api-auth.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "703222fc5c50995fb7e4a72fcc358b1f16fed73e",
+     "sha256": "48cf482cef24519045b398a26885a34ba1bb9a8d32cc66d731a0b2d9ed012929",
+     "bytes": 25270,
+     "baseBlob": "479d3858afe89b2950835629cebe8c36869e5c4d"
+    }
+   ],
+   "patches": [
+    {
+     "file": "f-baseline-1f19ad15/patches/0001-Windows-challenge-lifecycle-port-the-installed-manag.patch",
+     "sha256": "80a6f2f22bf395f7a5d6ecd3c125a291f409b3f48a677af2be1814daa670829b"
+    },
+    {
+     "file": "f-baseline-1f19ad15/patches/0002-Platform-host-policy-no-default-production-mirrors-R.patch",
+     "sha256": "16f6c6ba64e073e0e7dc9afd2a4cb854e96a83c801ee026450d7b57722a5063b"
+    },
+    {
+     "file": "f-baseline-1f19ad15/patches/0003-Windows-node-carry-A-s-verifier-consumers-df8fbafae-.patch",
+     "sha256": "51f9646112e1089af65c0f7cb96346ba68d28d36f8148424fab457a5b6764ecc"
+    },
+    {
+     "file": "f-baseline-1f19ad15/patches/0004-RESULT-Windows-final-baseline-compose-R1-R2-closed-A.patch",
+     "sha256": "ebbdaad31c5b333178ea40be8ea0807f1f6f6476111237887b267e6f57bc3958"
+    }
+   ]
+  },
+  "e-wallet": {
+   "repo": "work/rpc-wallet-dependency-20261023/repo",
+   "branch": "rpc-wallet-dependency",
+   "headReachableFromBranch": true,
+   "base": "349318a0600917bad8f391ad628fa0c7f134b3f6",
+   "baseProvenance": "349318a0 preserved in 476c589b (frozen-0931 s-browser head)",
+   "head": "dc2e5d7402327bdd376cf3b90cfa23a551a37ba8",
+   "headTree": "068a62f43c51691d816c61a529cd1d8f6ae74cde",
+   "commits": [
+    {
+     "commit": "6ab298f196d93b60499178275acf025f5b8658af",
+     "parent": "349318a0600917bad8f391ad628fa0c7f134b3f6",
+     "tree": "67a6106cec41bc30dd91440fd75aa63c41f3a8e0",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:27:17-07:00",
+     "subject": "Let a connected wallet sign only and the network profile broadcast (explicit, independent mode)",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "dc2e5d7402327bdd376cf3b90cfa23a551a37ba8",
+     "parent": "6ab298f196d93b60499178275acf025f5b8658af",
+     "tree": "068a62f43c51691d816c61a529cd1d8f6ae74cde",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:17:27-07:00",
+     "subject": "Say what the profile broadcast retry does: the same signed bytes to the next endpoint, then nothing more",
+     "emptyAfterExclusion": false
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "site/js/core/account-providers.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "94556e1c56880259946ed8c0b25e6273a88bd7b4",
+     "sha256": "4e73e0a6cbb1fcc4c824d31f498ae267d05c413aa53e12d3ac28fd47caae4007",
+     "bytes": 20805,
+     "baseBlob": "fd686d7be61fd9669f6629e88ebb3d9066807037"
+    },
+    {
+     "path": "site/js/core/account-transport.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "4a61b1444a61baab50ade5ab2d1ed68d7568bcb4",
+     "sha256": "e632ace653e5e787bc871cb0eb4a1e61805fd9522d2fe183e3b49d3e3da2650f",
+     "bytes": 20834,
+     "baseBlob": "283413f12099f01bf4bdc7e588acbd6c2ce9956a"
+    },
+    {
+     "path": "site/js/core/chain.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "7a4392b11f72fed5fbe24252bd572f2e0019adc8",
+     "sha256": "adc2bea3effe5e0b984e60683d74ebc1e7bdf0a110d55183daae1a4c30a24dee",
+     "bytes": 41822,
+     "baseBlob": "f745a9f77ce5c6afbb0281b5aee7f9f5e92cab92"
+    },
+    {
+     "path": "site/js/core/passkey-account.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "15efebb075ee4b298cbbdad3e2133640eca9cd32",
+     "sha256": "f5a4f6a8930a705ea2366fe8c342b6cefacc0902de42e986200132196c2f8d27",
+     "bytes": 38388,
+     "baseBlob": "2c786b763067f4acbb4f09e6dcdc076dcb5acaff"
+    },
+    {
+     "path": "site/js/core/profile-broadcast.js",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bf4c641947b17547d0188e9d619fb4b27716ff55",
+     "sha256": "14917fdabf2753126f2cf7b7fbd6ec3e489937e0f932270ea0300197ab9967be",
+     "bytes": 13530,
+     "baseBlob": null
+    },
+    {
+     "path": "site/js/core/wallet.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f9f4afe49b8663ae0ad221f69904758ddd350b7e",
+     "sha256": "d0e7482ac37703d45bf7c0ac3bcf9c3db51cab1806553e90d9ed2a01ddc4e835",
+     "bytes": 53801,
+     "baseBlob": "1952056b0641cbb1c9df6cd77366ca863d937234"
+    },
+    {
+     "path": "test/site-account-bundler-route.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c37fd200c48fabe97568a47fe1ab73c146411428",
+     "sha256": "c6407f71c3a5e26d05a93bd385e5f9b62a08f17d038dc74e83c152baccb5c899",
+     "bytes": 10413,
+     "baseBlob": null
+    },
+    {
+     "path": "test/site-browser-rpc-routes.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2da45ba580124e23a438fc9311b57aaf4ee54240",
+     "sha256": "8ee00cba5ba1617a2b2a3b7582905fdb779c1aa0afd7fc4ded3cfd12b8893409",
+     "bytes": 9485,
+     "baseBlob": "d0c023be784b3b8d6af948c794acb6afe44bf813"
+    },
+    {
+     "path": "test/site-wallet-profile-broadcast.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a92980d175c31fcb5d9c69be3b94f8258862980a",
+     "sha256": "51b3d7d33bb4aab3260760a487519ef40d59d36294b7077831cab0a740ee3af9",
+     "bytes": 14333,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "e-wallet-dc2e5d74/patches/0001-Let-a-connected-wallet-sign-only-and-the-network-pro.patch",
+     "sha256": "aca85bb5ecbdd6eab3469ea5fe3ee78d384e1d3280dd9bc3ef94e9a664fa3c44"
+    },
+    {
+     "file": "e-wallet-dc2e5d74/patches/0002-Say-what-the-profile-broadcast-retry-does-the-same-s.patch",
+     "sha256": "10ceed702fcc920649003a5fb23520bb60b19b30a320db0014b6d2444d8b0c96"
+    }
+   ]
+  },
+  "t-hdd": {
+   "repo": "work/rpc-hdd-transport-20261023/repo",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (T repo)",
+   "head": "a9f0155c55d9284bd38b7bfc3a8015c2d01fb17d",
+   "headTree": "a5cb6fffd2a879e33e31a35b1919b18f99361af0",
+   "commits": [
+    {
+     "commit": "a9f0155c55d9284bd38b7bfc3a8015c2d01fb17d",
+     "parent": "",
+     "tree": "a5cb6fffd2a879e33e31a35b1919b18f99361af0",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:10:55-07:00",
+     "subject": "RPC durable-HDD transport: mutual-TLS qemu-nbd export/attach tooling, templates, real KVM integration test, receipts",
+     "emptyAfterExclusion": false
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "76f33f2b59484d92a5d417246bc66ff337c442f9",
+     "sha256": "68ccc180330572063f5bdc07812b02cce1015bdaf513eddf379d8ef1395e7488",
+     "bytes": 35,
+     "baseBlob": null
+    },
+    {
+     "path": "DEPENDENCIES.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5d9f3b97c920d67c469fa734799780f763e54511",
+     "sha256": "13da43e20ce260461749cb6297b45279859c589c300fd7bae4104179b69ce316",
+     "bytes": 3022,
+     "baseBlob": null
+    },
+    {
+     "path": "HANDOFF.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "11d0fe084efec219e37e9e550327cf61e6ebcad9",
+     "sha256": "71e81e445f2ce9f3d541ced55495c8ec50ed213312b127e6d82e04749598aac8",
+     "bytes": 4593,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "afb63cf71edebadf0a32121dbba5282532e6f86a",
+     "sha256": "9a42a9535442dcd012745f08957968bdd6d5c7eba7a2687b58b38c66a01b0fee",
+     "bytes": 9874,
+     "baseBlob": null
+    },
+    {
+     "path": "templates/attach-base.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d33ecff1f95f4c9f3475bad9ffe28cdb989560a6",
+     "sha256": "5a208327a286bf43e6a5f50a98efd85ca8a5c95626555fc0c938a9130b399c1a",
+     "bytes": 814,
+     "baseBlob": null
+    },
+    {
+     "path": "templates/attach-l1.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a5d1ccbf8f51fc4dee2013ec2f633baca28a439a",
+     "sha256": "6eed74a4f33f7f01141faa3c8cacc3805d063be56cdd1ed4059d4a49443d1df5",
+     "bytes": 798,
+     "baseBlob": null
+    },
+    {
+     "path": "templates/enclave-rpc-hdd-attach@.service",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b468fbcfa7b49c3a0a17446534c233cefcad8187",
+     "sha256": "0a684ed2ac02260b83fed6608a3327eecd7fe236661da25fcc2369397972875b",
+     "bytes": 1359,
+     "baseBlob": null
+    },
+    {
+     "path": "templates/enclave-rpc-hdd-export@.service",
+     "status": "A",
+     "mode": "100644",
+     "blob": "44b4ba111577f1fb45072521b10ce87763a723db",
+     "sha256": "f5735bda0e41b7429718b3bfbe7d3e2156d22d5bde77e38e5decaf3936be58f0",
+     "bytes": 1216,
+     "baseBlob": null
+    },
+    {
+     "path": "templates/enclave-rpc-hdd.nft",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d454a4ea17d91351b08dbf114047799efacb752c",
+     "sha256": "6a17e85524bd89cab79a165dcbd9dd5d73899c1d965e34e719942beecad20a60",
+     "bytes": 594,
+     "baseBlob": null
+    },
+    {
+     "path": "templates/export-base.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f0b719b4fb8ea3890bcebce27e16f273d42b1363",
+     "sha256": "e456b2155b82256e507662886903ce0699ed59cd5e989b3b9ffd7d43fa672147",
+     "bytes": 722,
+     "baseBlob": null
+    },
+    {
+     "path": "templates/export-l1.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "494f7943f013a521bcb96c778360f19634bb4303",
+     "sha256": "04be1483f7cc6c053c7b1c4eaddd1164569f78e3e2cd192371ced507011c3265",
+     "bytes": 710,
+     "baseBlob": null
+    },
+    {
+     "path": "test-receipts/earlier-run-1-failures.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "35d0b2e7b0384a1f355fb020d48b4744fe576c15",
+     "sha256": "8f6cd008409d40a0889b8f506e4db8ff3f7770856a0e7330568317537a273f69",
+     "bytes": 1956,
+     "baseBlob": null
+    },
+    {
+     "path": "test-receipts/earlier-run-2-failures.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "66a712d461acc2252d31ec83391ad9a526c86cc7",
+     "sha256": "64cbbf3af9f00abac73275b64d6be0ebc80230b54ec51e8acb085a30cecd1cb7",
+     "bytes": 937,
+     "baseBlob": null
+    },
+    {
+     "path": "test-receipts/earlier-run-3-failures.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "84224bba3eca0e45ec9f7177ea0d6857d804fdc6",
+     "sha256": "ca99c9054d8ba00f029059f433f4d50333fdeeeca9782b34b07dc77017307804",
+     "bytes": 636,
+     "baseBlob": null
+    },
+    {
+     "path": "test-receipts/mutation/queue.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "19973f125233701dffbc2fc15b258d44b5ad90fa",
+     "sha256": "8ebbfa853f357cbe0a768dff882b59f8d44bde82ef5528772778d9f45f41b4e9",
+     "bytes": 718,
+     "baseBlob": null
+    },
+    {
+     "path": "test-receipts/mutation/summary.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "460e4fdea0a5928c59339d62690e952465fb2f78",
+     "sha256": "46fbd9e02d9217dd273531d17ccaaf3dd3f7875ee3218c1010eff6d2d8e1de54",
+     "bytes": 875,
+     "baseBlob": null
+    },
+    {
+     "path": "test-receipts/nft-check.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "02975e1a9d09498a2e847123cd13cfa64e6ee507",
+     "sha256": "4e03a8bcc02967182d2a491f659c1da3cb87149690b77b0183b336cdd11c9119",
+     "bytes": 10,
+     "baseBlob": null
+    },
+    {
+     "path": "test-receipts/run4/guest.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4a376dab433125786caeef71c894afb895e321fd",
+     "sha256": "7718060d60c5e645f92bee44fa705564f3b4dc6be364d97e2694618c9f8c4e60",
+     "bytes": 10226,
+     "baseBlob": null
+    },
+    {
+     "path": "test-receipts/run4/host-results.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8ed31fd1ee23f502a9a28649878febe717989bda",
+     "sha256": "2363cd76e887df3949e88a97be7f94743a126b711312a727e7b6edc418d8502f",
+     "bytes": 13443,
+     "baseBlob": null
+    },
+    {
+     "path": "test-receipts/run4/queue.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6daa95f588e77d150d73e4d04e2b23e46f901124",
+     "sha256": "6a47fe9eac1abd499001a686bc92c11f485be47a13d2d70ca7019a154e8a6ff3",
+     "bytes": 808,
+     "baseBlob": null
+    },
+    {
+     "path": "test-receipts/run4/results.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f7876bfdc864ddafa55fdb90af0d34ce4d27bb89",
+     "sha256": "3fc8fd6de4bd2c08498054a2b0a1e957c0fdfd05194cf49f3f20498d5784f901",
+     "bytes": 10744,
+     "baseBlob": null
+    },
+    {
+     "path": "test-receipts/run4/run.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "73a9001a8a29e1c53288598648590f8e7f366e3b",
+     "sha256": "b604d20253f0f02de2f55291b989450100f87b3f6c7df52b34ceae05b10bcc6b",
+     "bytes": 12935,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fwd_relay.py",
+     "status": "A",
+     "mode": "100755",
+     "blob": "4931ca4bebe70ce3fdaae6e9ea76722e08786b68",
+     "sha256": "1f01898aeb154aed83c6285e2b0addbe2cfe5fa06a6dea51d0752db938628002",
+     "bytes": 935,
+     "baseBlob": null
+    },
+    {
+     "path": "test/guest/build-initramfs.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "61dd04c0d1727c5d47631578abe6fb4fee0c9d82",
+     "sha256": "c2f32b75cf269cc2edf84ce9de392e7ec6cc10cddeb88abb3c026face05c91a7",
+     "bytes": 1233,
+     "baseBlob": null
+    },
+    {
+     "path": "test/guest/guest.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "dd8be0a8800719f9c0e33f54db3a183d88eaf0e5",
+     "sha256": "04bcfcb68c1c5df11181f9e25b312143bcab35acc2f389ac1a23537ac105cca7",
+     "bytes": 8967,
+     "baseBlob": null
+    },
+    {
+     "path": "test/guest/init",
+     "status": "A",
+     "mode": "100755",
+     "blob": "4d3f661fd953f9002e6be93bcbb95b9977041aab",
+     "sha256": "78904edf8316694e4be74c918615c61e3e6ad8954608482665062e36e602f45c",
+     "bytes": 1715,
+     "baseBlob": null
+    },
+    {
+     "path": "test/host_test.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "76fc5d72953600930f25c979fe432d00819b0da3",
+     "sha256": "f4c216892566a86d691bd04c05293fe6351c29074789130dbffd15355dd5eba5",
+     "bytes": 23483,
+     "baseBlob": null
+    },
+    {
+     "path": "test/run.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "c7bd06b952b2b1946b32f8866dc98473b48b50fb",
+     "sha256": "0247e0df076a244baea89a89ab68404fe3e154ee80ca4345699064e9e06e9cff",
+     "bytes": 1428,
+     "baseBlob": null
+    },
+    {
+     "path": "transport/common.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9fc83b112c5760bcaa1afd831d6cff1eac3b7ba1",
+     "sha256": "08da1ed0cd0dc6de11fe379c81aeae57986bfe9892627b5e5e9f6a4c991a4861",
+     "bytes": 10937,
+     "baseBlob": null
+    },
+    {
+     "path": "transport/hddattach.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8cabc6c452e0ba4e118755ca16de2a3014da5c73",
+     "sha256": "1242933e6a7427952e0201336e35bcbe4fd277effd80c7a5c31121fdd959d69d",
+     "bytes": 16578,
+     "baseBlob": null
+    },
+    {
+     "path": "transport/hddexport.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d1b37d2f8f65c8b502f9550c9f9654815a8ac821",
+     "sha256": "c7f8e3d14803feba8a17f506f696afd9a04b6d92d192675d185fd69624ad7e9f",
+     "bytes": 16490,
+     "baseBlob": null
+    },
+    {
+     "path": "transport/pki.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b33c3536dcfbea1e2c4cacd740a95720b11a96cc",
+     "sha256": "cd60ee7de15bfe8127f8f630198f62470f4d6fbee1e6b87fb7ef73fac0cdc0de",
+     "bytes": 6803,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "t-hdd-a9f0155c/patches/0001-RPC-durable-HDD-transport-mutual-TLS-qemu-nbd-export.patch",
+     "sha256": "6c839208bf7a3cd330603d5b786d9feb6308a38cbe3cc2c492dcbbde7786bc9f"
+    }
+   ]
+  },
+  "root-wallet-iface": {
+   "repo": "work/root-rpc-wallet-interface-review-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (ROOT repo)",
+   "head": "66b67c359b49783131b298a9221fbcfb26e51a6a",
+   "headTree": "c4d04f79ae405556d80acf9cd071557f7ef44e6f",
+   "commits": [
+    {
+     "commit": "66b67c359b49783131b298a9221fbcfb26e51a6a",
+     "parent": "",
+     "tree": "c4d04f79ae405556d80acf9cd071557f7ef44e6f",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:29:21-07:00",
+     "subject": "Demonstrate public RPC rejection of wallet pending nonce requests",
+     "emptyAfterExclusion": false
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "PINS.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "412d86b1f73460183e62b2a314d3f4950b4f92e6",
+     "sha256": "fa8560b1c640f817476f08786249912e466a9715ec7eaf740f1faa8563b0addf",
+     "bytes": 427,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "310ecb9f4abcf8df5611733fafd4e56ae5d06c67",
+     "sha256": "2cc1151dfc264437efd4f4f58736755e3705f07e3e768faf57be5effe208ba66",
+     "bytes": 1374,
+     "baseBlob": null
+    },
+    {
+     "path": "frozen/public-rpc-config.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "aba6c7526ec78a2c91467e2dd9d9ee7cedf33e7a",
+     "sha256": "8db917dfcf9c48699b732fbb62c91fdf0779828d64c17e94fba4fa249b95d919",
+     "bytes": 6903,
+     "baseBlob": null
+    },
+    {
+     "path": "frozen/public-rpc.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6fe7049544aaac25d8b11f209cc49d9cc26aee2d",
+     "sha256": "fe31bcdc2f49c6ef2c2c7bcec64e4d1f7b23d87984b6e8450ed4374cd5e82fbe",
+     "bytes": 19745,
+     "baseBlob": null
+    },
+    {
+     "path": "frozen/rpc-identity.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b3c3edd18a24bd9b573545aafb7f953a19c783b8",
+     "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+     "bytes": 5636,
+     "baseBlob": null
+    },
+    {
+     "path": "probe-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "probe.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d66a239c7c881d3a9f39e8a35a2403360d00af30",
+     "sha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "probe.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0d8f0afbdfd8fdbf8c42b406bb8d1f1acaab4832",
+     "sha256": "c556d459574858a425911482e2c6c6095e63d546ce10f532b01b7b9db412b1d7",
+     "bytes": 2229,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "root-wallet-iface-66b67c35/patches/0001-Demonstrate-public-RPC-rejection-of-wallet-pending-n.patch",
+     "sha256": "3606d9112e1ab53c14f71c40fbf44a59d40391d428036a23cc48f046051de84d"
+    }
+   ]
+  },
+  "root-shutdown": {
+   "repo": "work/root-rpc-shutdown-review-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (ROOT repo)",
+   "head": "2f702e765fe5641e1852ac4caee9500015137047",
+   "headTree": "c02d3e85d6dce37e7a0255e1672055c65c7b450b",
+   "commits": [
+    {
+     "commit": "56b68c075a93fff519b8a43e4447cda48ca0ec6d",
+     "parent": "",
+     "tree": "0cebd5633e1f48f866f5b9b898b2af568b392dab",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:57:14-07:00",
+     "subject": "Reproduce cancellation during privacy-agent startup snapshot",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "904ad2676ca774bfabf9530c4e8cf92316a6ed5e",
+     "parent": "56b68c075a93fff519b8a43e4447cda48ca0ec6d",
+     "tree": "736a88e088a4b82e76b8dbd01cce7c6d75558d84",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T06:03:53-07:00",
+     "subject": "Record scoped cancellation of invalid shutdown diagnostic batch",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "2f702e765fe5641e1852ac4caee9500015137047",
+     "parent": "904ad2676ca774bfabf9530c4e8cf92316a6ed5e",
+     "tree": "c02d3e85d6dce37e7a0255e1672055c65c7b450b",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T06:32:08-07:00",
+     "subject": "Record real daemon startup-cancellation failure trace",
+     "emptyAfterExclusion": false
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "c2-cancellation.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f57b77d32976773281e256d7a5a209a5f9c44a01",
+     "sha256": "c001e7bd89eb88d2d56f7334eaebf5a71c2f9eee24b1e73bc5b33a418f451ae7",
+     "bytes": 723,
+     "baseBlob": null
+    },
+    {
+     "path": "daemon-confirmation.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4259223b403d14a86afb4f1d871dcc6d66af3296",
+     "sha256": "b661406df0c99ed44db4741df2e2be73b830351372a111548f53c12d9520c8b3",
+     "bytes": 1906,
+     "baseBlob": null
+    },
+    {
+     "path": "privacy-agent.reviewed.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d0c88522af681eec84dc8561e7b294e7c54f05e7",
+     "sha256": "5e56973dfd27bc76781ea2f70646803019044d56d7bd97988bcfe8cffca6f705",
+     "bytes": 36457,
+     "baseBlob": null
+    },
+    {
+     "path": "probe.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "81282a5ec12f15c865867333978c0c172ad16659",
+     "sha256": "5b6ec7439c3be8c2bc2d0e511f7a0ac27cf3b366781d39ba3faa7b9e8cbcac30",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "probe.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fb1ac057fd969b2d0dd45cff4d4596a7fbb00d0b",
+     "sha256": "1ce7fb3f3114b91840aacc0ca453912e28c8df0d68a2e8b46e7d021f7c879fbb",
+     "bytes": 1954,
+     "baseBlob": null
+    },
+    {
+     "path": "result.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f01b8ad5799b3ec9bbaf82d23c157936bdf58337",
+     "sha256": "22d4fecdc1f8ae1e6d4c864ac7bb642b2f84d8e285576afc05768ecae82e4192",
+     "bytes": 995,
+     "baseBlob": null
+    },
+    {
+     "path": "stop-invalid-c2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "root-shutdown-2f702e76/patches/0001-Reproduce-cancellation-during-privacy-agent-startup-.patch",
+     "sha256": "83b46da389a00fe4b8aae4bc1772a69e9c0da759f1a0207a0382693b391acd01"
+    },
+    {
+     "file": "root-shutdown-2f702e76/patches/0002-Record-scoped-cancellation-of-invalid-shutdown-diagn.patch",
+     "sha256": "ac4cf55b3c00a7a03685a2e8c3f14f7f2bbd94a9f4bba894e1073483ede4edd1"
+    },
+    {
+     "file": "root-shutdown-2f702e76/patches/0003-Record-real-daemon-startup-cancellation-failure-trac.patch",
+     "sha256": "a441cdd6df6731da67546c90f94ddbbac9efbfc63b425906d56f84d3ec0889ca"
+    }
+   ]
+  },
+  "root-ram96b": {
+   "repo": "work/nucbox-ram96-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "dd7e7af849e641be10e61e92be266e9ecea93722",
+   "baseProvenance": "dd7e7af8 preserved in 476c589b (frozen-1118 root-ram96)",
+   "head": "2ed6ba6115c4db7d49e2ce0fce78dbdd0d786c46",
+   "headTree": "27b76e70f87c462909154eb6e83365a15df7d0bf",
+   "commits": [
+    {
+     "commit": "f3ba77035501150beb711dbda776e76919fd5977",
+     "parent": "dd7e7af849e641be10e61e92be266e9ecea93722",
+     "tree": "1d328f1b74686c72c3e53b986316ed938e76a36a",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:23:14-07:00",
+     "subject": "Verify prepared RAM activation commands fit Windows encoded-command transport",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "237c78f28525c180061a25eb47670702dd14f9c4",
+     "parent": "f3ba77035501150beb711dbda776e76919fd5977",
+     "tree": "0b40b4fe7f58a0a60a861674ad18d038a8dec8f4",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:01:19-07:00",
+     "subject": "Record RAM activation still pending with healthy NucBox services",
+     "emptyAfterExclusion": false
+    },
+    {
+     "commit": "2ed6ba6115c4db7d49e2ce0fce78dbdd0d786c46",
+     "parent": "237c78f28525c180061a25eb47670702dd14f9c4",
+     "tree": "27b76e70f87c462909154eb6e83365a15df7d0bf",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:55:19-07:00",
+     "subject": "Record current RAM allocation and healthy services before activation",
+     "emptyAfterExclusion": false
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "RESULT.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "7d6a95abe03528aa8ff314b5cb64bb601359ab8e",
+     "sha256": "98e3ab5882b450e0ce00d84a6f3098674d640df4942c1816aa4737014852f374",
+     "bytes": 3248,
+     "baseBlob": "f816d6c569d43cfd4759be1f2001bed7c126bc66"
+    },
+    {
+     "path": "encoded-size-check.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "encoded-size-check.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cb8e1dcbe7a7e658ac5a3fd916df065a75464c05",
+     "sha256": "339ef8a3dd3c26407a2e6454fd6abf10a3d629c38dd7df6ed5370380f8670e6c",
+     "bytes": 595,
+     "baseBlob": null
+    },
+    {
+     "path": "status-ram-request-latest.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7036c8d041f8547d84d89347ff9c2dcfb9337657",
+     "sha256": "d2a2fa4bff5a9d2b89b7b22859c12360b712af1fd7819bfe81658ab62fe4f19d",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "status-ram-request-latest.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6fa7aa6530e8993111888666f16780c77fb55b13",
+     "sha256": "27d8121326c0a3e7a305cbecf2b4af1bbc14ed690d75b2c88fed017db237f526",
+     "bytes": 2651,
+     "baseBlob": null
+    },
+    {
+     "path": "status-user-request-check.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7214fe8beb378221551b2038b1c75bd72c1e01f6",
+     "sha256": "1811ece7d4beec629174e8e77cdd5b4fb05cebacaf7cfbb3a689465ab042459a",
+     "bytes": 2632,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "root-ram96b-2ed6ba61/patches/0001-Verify-prepared-RAM-activation-commands-fit-Windows-.patch",
+     "sha256": "947336c24a63bafb941cefcfe72c5a9e2382649cb6b3bc677138a6dd35fd9d9e"
+    },
+    {
+     "file": "root-ram96b-2ed6ba61/patches/0002-Record-RAM-activation-still-pending-with-healthy-Nuc.patch",
+     "sha256": "620354cb02d7f6e28b060aef57f9a0833859690fbd60225a949fd2c101a97cdc"
+    },
+    {
+     "file": "root-ram96b-2ed6ba61/patches/0003-Record-current-RAM-allocation-and-healthy-services-b.patch",
+     "sha256": "acb2f50d91b18e09378ebdcbb49adc9f7a2acc241bf1e7feb6f948680213750e"
+    }
+   ]
+  }
+ },
+ "derivatives": {
+  "p-cache": {
+   "repo": "work/cache-composed-kernel-delta-20261023",
+   "branch": "main",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (P cache-composed-kernel-delta repo); SOURCE-ONLY DERIVATIVE (one evidence log omitted)",
+   "head": "e8e8680121cd4262104dc8b3af8ed846d196f82b",
+   "headTree": "2f9ca354a1a948978d5e2e847b2d33a6c0b43ebf",
+   "commits": [
+    {
+     "commit": "515a1ec9616459e60a55657b3035c6281a487af8",
+     "parent": "",
+     "tree": "1829e87ea27b55af2f75f1405b7741aae2164fc5",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:22:53-07:00",
+     "subject": "cache-composed-kernel-delta: guest harness for the 32-line composed delta (S 92b7178 / P f8c999e, template cab32bbe) with old-template and symlink-mutant controls",
+     "emptyAfterExclusion": false,
+     "originalTree": "1829e87ea27b55af2f75f1405b7741aae2164fc5"
+    },
+    {
+     "commit": "8a0b0fbe8c884af33fc34ebe710ced390bbdf831",
+     "parent": "515a1ec9616459e60a55657b3035c6281a487af8",
+     "tree": "b4309aa37afa31fdf80095cfa5555318d9911a34",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:24:16-07:00",
+     "subject": "RESULT: composed 32-line delta closed on the real 7.2.11 guest kernel (vm-1); old-template controls; symlink-mutant assessment; cleanup receipts",
+     "emptyAfterExclusion": false,
+     "originalTree": "f901bc8d865700eac9debf01514a06316c017479"
+    },
+    {
+     "commit": "ddd2593133fa8191956fd7bf5194af2c9ba0ee21",
+     "parent": "8a0b0fbe8c884af33fc34ebe710ced390bbdf831",
+     "tree": "450b9a74ded1ccdc3776b5cf082384753261ce5d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:24:17-07:00",
+     "subject": "logs: scan-1",
+     "emptyAfterExclusion": false,
+     "originalTree": "438eb62b3bdecbeefa5a55183edbe04db0feffa7"
+    },
+    {
+     "commit": "fe95bd508c9b3aec84e4c958e954e7dc52ad1ee3",
+     "parent": "ddd2593133fa8191956fd7bf5194af2c9ba0ee21",
+     "tree": "ac6902037996c67dba41c07201cfab492b1ba036",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:24:37-07:00",
+     "subject": "scan: allowlist two receipt result names (gitleaks generic-api-key false positives); scan-2 clean",
+     "emptyAfterExclusion": false,
+     "originalTree": "420bd1214d26a8fd9774b6e867825d44ac48bc66"
+    },
+    {
+     "commit": "18ccb27277e0f1e0c7d0e10d5cd333bcd31b6ceb",
+     "parent": "fe95bd508c9b3aec84e4c958e954e7dc52ad1ee3",
+     "tree": "0018095cfafebb43dcfbd9b28982f3b94f4befb4",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:24:48-07:00",
+     "subject": "RESULT: scan disclosure; logs",
+     "emptyAfterExclusion": false,
+     "originalTree": "c76857038e2f5fe45b0a4cd05d7eeaf3f622bf9a"
+    },
+    {
+     "commit": "e8e8680121cd4262104dc8b3af8ed846d196f82b",
+     "parent": "18ccb27277e0f1e0c7d0e10d5cd333bcd31b6ceb",
+     "tree": "2f9ca354a1a948978d5e2e847b2d33a6c0b43ebf",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:25:46-07:00",
+     "subject": "Clarify transient allocations and tested scope of surviving cache mutation",
+     "emptyAfterExclusion": false,
+     "originalTree": "04782264fc42c09ac96fc61ea4913bd0527bc7e2"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6d3cf88f65b3dc2a1d2bc1d1097f66eaccad82b2",
+     "sha256": "3e0881639102521aa61d01406397e592a5ecd0b13061b0caf958dd6e6defbaaf",
+     "bytes": 99,
+     "baseBlob": null
+    },
+    {
+     "path": ".gitleaks.toml",
+     "status": "A",
+     "mode": "100644",
+     "blob": "28165781357b167846c4369325183ac59211b518",
+     "sha256": "256229b763da95074f7abd34018b4295993804aefb83254285536414cc8cc4aa",
+     "bytes": 549,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "768f791e4fd6d0a8c328900721809cced167219c",
+     "sha256": "be341a019aa14804c29769086ec051dcf312c0d5e47c0bfe9940462a0f4d3fd3",
+     "bytes": 8908,
+     "baseBlob": null
+    },
+    {
+     "path": "harness/build-initramfs.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "f75bfb8455b4e23725a72949bdb40a48b73b5c01",
+     "sha256": "b782359466ddab90fffe3acee7ed6e2e8865b17ea34a0ce03bf25ff584d09a94",
+     "bytes": 1073,
+     "baseBlob": null
+    },
+    {
+     "path": "harness/guest.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8a66eebe645c6ae2a97afd7c87d7cfd45b577938",
+     "sha256": "b1ceb531e0c335f74cf8182b18df94081998ccfa624466621d396ce5c3b91302",
+     "bytes": 16824,
+     "baseBlob": null
+    },
+    {
+     "path": "harness/init",
+     "status": "A",
+     "mode": "100755",
+     "blob": "9e52699520c2a8f84f89d35392448978dc2904d3",
+     "sha256": "ac4ed6cf42cd75962c988e65727de4526d4b38f1b55883112c911b28882e1fe7",
+     "bytes": 2022,
+     "baseBlob": null
+    },
+    {
+     "path": "harness/render.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "83bc3ad0aa0d59eea665e844ff0bd6db496032a3",
+     "sha256": "937ab5bdc249e43f3b32409cef95421b4f82d9fc3c7af9377d95e42a3d6b1699",
+     "bytes": 6333,
+     "baseBlob": null
+    },
+    {
+     "path": "harness/run.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "dd9c176b7dd11077c4b60612c52fdc2dc9c17493",
+     "sha256": "0d75a9e7363efc7a62955cd43c28e291efecc9dcafd2639cb9ff7fe87ff072c8",
+     "bytes": 3027,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "3e272ae2802f11e18516bc45d5c0f8f81fb3e8a3",
+     "sha256": "70c9c8adc6e2a4f2c7db38831b1e08add2708c295446151988acbd7d9f03ae23",
+     "bytes": 397,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/scan.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "a422e6d1b09e14fc4616a027752d78b18104bbe5",
+     "sha256": "155ff3bcc52ee703f63eda934eb722f5dca5100d060f853e1ea7b7035be2cf00",
+     "bytes": 685,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/gl-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "409e57d38d3aa28345c9b6aa1a62e5bbd7ccf3eb",
+     "sha256": "b8bdf0ebbad6af5d80c5433c56ae6ca02011136b5373c9e6d3363fb6dbadf7b0",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/gl-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "74eebaa8e58dc7a93057951b085dad891dd4e8e2",
+     "sha256": "4c19d83f38340fe0554f03616a4f3062baa63a1978ad22d0283086dd5d0a1cbb",
+     "bytes": 306,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/gl-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/render-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/render-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c1b0cec4af4681bd1501283081b9a7f5cf02122d",
+     "sha256": "a677eced89d0de04e67e4c919ef702f5b8479f16e37b3af9fbf7e99afe7729fa",
+     "bytes": 1621,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/render-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0c5c3838091d52a51ffdfbdba13e4d38ff1a3830",
+     "sha256": "4dfb23fc8d70de09379017765f8e7c54cfea3e836cd6367eb2aedcd4926607e2",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0a095967eb2e0ba7cd92bf733d1563add7e38ae8",
+     "sha256": "2139e4a6608a73568205d832778b77520f883184b8b0204d930f0ea012b126ed",
+     "bytes": 925,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "340c5e49425b95394198468ae57829bdb3b0bb3a",
+     "sha256": "afda6927e72333a82aafa215641cd7c1d7fb462b2aed54b9ffbaf33435bb2cee",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2ad1473593f403b72279de85b642720feea0f103",
+     "sha256": "0f3f1bd70dd6956bfbd087687463cbaf92cdbdac406350231a4bffb98dd91a10",
+     "bytes": 1007,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/vm-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7021ff5131628b3625eed948c2f9987a4a13fb0c",
+     "sha256": "d7b2b774a3cbcd6f1aa347567b1e6e5133d3f52bb239b4e9c008c8666628a5dd",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/vm-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "48f67ebca267d6285bf3d8640d15698b723467b8",
+     "sha256": "633b7f75f395758a5e0378f630ce5f2652df83d0865653f59cb813335cc24fac",
+     "bytes": 2297,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/vm-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/console.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7e1e8e3d79f6be34695728d295febb27d3b291f3",
+     "sha256": "7f51790c4b7a9e6796d01b351f3380a3caf7d6fd2054ab75f3a2ca117675b870",
+     "bytes": 97,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/disk-identity-after.jsonl",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bc7a3778c3312174f2afaa574dc3672c9f1d4535",
+     "sha256": "c33d69b202f6c8e3ea8dd6deb592f06c711fd7d4cbdbe7de222c8815cc8866d0",
+     "bytes": 387,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/disk-identity-before.jsonl",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a1817babf6826658ba1f58990acabaab7b79b460",
+     "sha256": "95ed193a308d4e1a4f032acb42e83ee7cc923c6762bb4ac5d7e35e2c51a48adb",
+     "bytes": 377,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/guest-delta.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d0e45efb7200bea1ef5e0112b6a2f0f626ed334c",
+     "sha256": "57e36b446b7ab25f02c02bd941c48a4434b45380d665fe907d6897baafed786e",
+     "bytes": 28,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/host-identity-after.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9bfabc0086595a5b7a6600f9585403fe0b6fc4c3",
+     "sha256": "7769de84ed92aa33d5b9559647e0315439e771724d8bc1ba4c09bed399a04066",
+     "bytes": 236,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/host-identity-before.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5858bc7ed958cc7bf814bd0fa0522a6baa1936e5",
+     "sha256": "93f26d9b9c5b48be1e7e4814e50d03dd4bc6afb08fb4c8132a171b2cf4c8570d",
+     "bytes": 237,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/render.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7860d405f3e492e5869a9bd41d97c0e9bfda10d8",
+     "sha256": "ded6e4638fe1d2997f36c91c8ff3b22b2cfccd144838e5d676aef2076bc845e9",
+     "bytes": 1410,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/render/holder-storage.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "e39ffb0d54c2ae028acb961c6418d9b2d7c389d8",
+     "sha256": "3e395749802f70d692e0d1f47ff45688d40b49ac68ebe9eeb396b7712850275d",
+     "bytes": 11862,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/render/holder.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8734f37967d7cf5c9a13f0a27be7f1572633b56a",
+     "sha256": "029b1b2a04747afc6a49dc09c5f0de0f16e0f361a0abcafafb224e0025f4ebdc",
+     "bytes": 810,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/render/ledger.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "344ad269a084184c61a2161e36f352cd63a036dd",
+     "sha256": "cbb319a2c0628b747d93f356ef05fc11daacfdb17022435055362bb366ac6686",
+     "bytes": 1548,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/render/mutant-credit-symlink.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "82b89b0223104a26f10f11eaee6edad6eb3d2968",
+     "sha256": "5dc9f947f5d9f0c3dfc6d99531880348c6825309f7e6809ca06edb27ccdba9df",
+     "bytes": 11810,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/render/old-holder-storage.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "27e1e18744481f03bbfed1f64d9173f38377ae4b",
+     "sha256": "3ad5647f342c423e4733dd0c5f2a81e9e217c1777996b17ff5ef6cad1dabc8c2",
+     "bytes": 9873,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/render/pair-storage.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "387a9190139071f2faa4eec119eaf1f837dd5022",
+     "sha256": "218f4cdcd566f139f3bcfd0e8e7e64ec9ac4500fd80f59f8b1a78b807dd15159",
+     "bytes": 11827,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/render/pair.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "25267298fd8aa34d895eb5f25b6eb4a26292df55",
+     "sha256": "c4a93b74970a2e08afd496958c231dd6177e544cfaec4b8afcda700942abcad9",
+     "bytes": 778,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/render/probe-storage.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "243bb09160a2c79f6b2be932ba4426f1c31a90ff",
+     "sha256": "9d5e4b8a74b8d490445e4dd30eeb707d027eda550d01334730dc3821c50db8f0",
+     "bytes": 11799,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/render/probe.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3bbb99d7b54f865f3999d3bcd6b585f18a778d18",
+     "sha256": "ba7f66866daf3ceba10d1a4ef08c0c05e72f08a6071b368642dedf39624a20c9",
+     "bytes": 746,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/render/seam.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7860d405f3e492e5869a9bd41d97c0e9bfda10d8",
+     "sha256": "ded6e4638fe1d2997f36c91c8ff3b22b2cfccd144838e5d676aef2076bc845e9",
+     "bytes": 1410,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/results.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "69c6c3761fe7c4da4e03c94774efd8219b8bad02",
+     "sha256": "dca1b91f16c90ff23b4a0e2720da1ef4585669e1a4473db7606533daeeb7e23a",
+     "bytes": 10820,
+     "baseBlob": null
+    },
+    {
+     "path": "run/20261023T112303Z/out/source-pins.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f5a244ebea04b84813f726943393d17ed20b2c33",
+     "sha256": "60d0722c0e9356872b0e9472825964e7312cec6b923d99c331b57eef75ccee98",
+     "bytes": 473,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/p/PINS.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "41939d9596199e11af3cc92dcaef0dc0709bad50",
+     "sha256": "f26b94a8af333c67bc51f4ea4111ca231a8e5f3a0bf6ba22079731ef9ee70890",
+     "bytes": 4749,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/p/l1pair.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ae3a35990e97bfa1e950c3bdd551265876e72e6f",
+     "sha256": "a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d",
+     "bytes": 50031,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/p/vendor/VENDOR.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e52b1cc7a89fbe26753b62a9bae4722583734328",
+     "sha256": "b0f09d70763b800284045bf92aa2e8132166406136ea5f3670592467a2fa5be6",
+     "bytes": 1243,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/p/vendor/holder/BINARY.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "27f38b272cc3a3fdd7a6c7d96782a325f72ddff6",
+     "sha256": "b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00",
+     "bytes": 1517,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/p/vendor/holder/FLAGS.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2bc0dd287975394be453e5ef45cb5bafffba4d4a",
+     "sha256": "7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59",
+     "bytes": 6336,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/p/vendor/holder/RUNBOOK-CACHE.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a02915a2b612f0c660ed7cd8a6a1174d4b45eddc",
+     "sha256": "c599d997e740f2863f3ea5cb186526845c180b65033dea8563a04b1264991238",
+     "bytes": 5663,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/p/vendor/holder/budget.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6e00797a9e1cf337432f659f1bbc2529fd509979",
+     "sha256": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24",
+     "bytes": 23859,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/p/vendor/holder/holder-storage.sh.in",
+     "status": "A",
+     "mode": "100644",
+     "blob": "259e3f8125d0f2d9d9f772818809bf72ee267831",
+     "sha256": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+     "bytes": 11284,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/p/vendor/holder/holder.example.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2c5847969d3ff40ca472164ee8001ff792d55b37",
+     "sha256": "8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a",
+     "bytes": 1861,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/p/vendor/holder/holder.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7e3417a9f29b2be19a28480eca592166b7d12ced",
+     "sha256": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
+     "bytes": 41908,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/s-old/holder-storage.sh.in",
+     "status": "A",
+     "mode": "100644",
+     "blob": "46e1533d6c2efc75a573194507af0fec98bd1b64",
+     "sha256": "eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00",
+     "bytes": 9295,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/s/BINARY.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "27f38b272cc3a3fdd7a6c7d96782a325f72ddff6",
+     "sha256": "b05bb8d877d50b5f0928ddf060d759dee0aa08f5603b21221d801fbdf8521d00",
+     "bytes": 1517,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/s/FLAGS.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2bc0dd287975394be453e5ef45cb5bafffba4d4a",
+     "sha256": "7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59",
+     "bytes": 6336,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/s/RUNBOOK-CACHE.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a02915a2b612f0c660ed7cd8a6a1174d4b45eddc",
+     "sha256": "c599d997e740f2863f3ea5cb186526845c180b65033dea8563a04b1264991238",
+     "bytes": 5663,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/s/budget.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6e00797a9e1cf337432f659f1bbc2529fd509979",
+     "sha256": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24",
+     "bytes": 23859,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/s/holder-storage.sh.in",
+     "status": "A",
+     "mode": "100644",
+     "blob": "259e3f8125d0f2d9d9f772818809bf72ee267831",
+     "sha256": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
+     "bytes": 11284,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/s/holder.example.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2c5847969d3ff40ca472164ee8001ff792d55b37",
+     "sha256": "8f6922c55f463b4ecefa450e9940ce381de6303e57bb9ec4990c346d1cfe835a",
+     "bytes": 1861,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/s/holder.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7e3417a9f29b2be19a28480eca592166b7d12ced",
+     "sha256": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
+     "bytes": 41908,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "p-cache-e8e86801/patches/0001-cache-composed-kernel-delta-guest-harness-for-the-32.patch",
+     "sha256": "851f6aead00dba6c738461c85e0377a1854ec92cf60b74d5f893d33b41005198"
+    },
+    {
+     "file": "p-cache-e8e86801/patches/0002-RESULT-composed-32-line-delta-closed-on-the-real-7.2.patch",
+     "sha256": "fc7b714e01ce3823e2170103b4e12177711e900f2c0380753895c204e001b6f6"
+    },
+    {
+     "file": "p-cache-e8e86801/patches/0003-logs-scan-1.patch",
+     "sha256": "f207cfd66d5e55fa862f1fe9b56c3fbc04e5200ea927c54a9bc7ee6b98ffb858"
+    },
+    {
+     "file": "p-cache-e8e86801/patches/0004-scan-allowlist-two-receipt-result-names-gitleaks-gen.patch",
+     "sha256": "53f4df5429681b257bd4dab708b2b7b9cfae8146385ce1d70cf121d7175d439d"
+    },
+    {
+     "file": "p-cache-e8e86801/patches/0005-RESULT-scan-disclosure-logs.patch",
+     "sha256": "fc687a8b736d6401ce57b06ae071b85a0b5250a8b33a41ac1e930c725ad0ae28"
+    },
+    {
+     "file": "p-cache-e8e86801/patches/0006-Clarify-transient-allocations-and-tested-scope-of-su.patch",
+     "sha256": "bbaa2e8520f97872e560100ea13b590d2020f98a52a8e7239e58ac84005fff3e"
+    }
+   ],
+   "originalHeadTree": "04782264fc42c09ac96fc61ea4913bd0527bc7e2",
+   "omittedAtHead": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "df1326ed0f5f427a0281309ef6ba3fce69af534d",
+     "bytes": "44322",
+     "path": "run/20261023T112303Z/out/receipts.jsonl",
+     "sha256": "5c249f675680d4dedffd1f82d467801422b6b0e686b1b604a4548f5f11ac4b4d"
+    }
+   ],
+   "excluded": [
+    "run/20261023T112303Z/out/receipts.jsonl"
+   ],
+   "label": "SOURCE-ONLY DERIVATIVE: P evidence log run/20261023T112303Z/out/receipts.jsonl omitted (two result lines trip the unchanged gitleaks generic-api-key rule on a JSON \"key\" field; P kept it in its own repository, blob/sha256 in omittedAtHead). Everything else is exact"
+  },
+  "a-gaps": {
+   "repo": "work/resume-after-checkpoint-20261022/rpc-priority/repo",
+   "branch": "rpc-priority",
+   "headReachableFromBranch": true,
+   "base": "e32dd607b55b9c6afd605482a4bc31c9d30528d6",
+   "baseProvenance": "e32dd607 preserved EXACTLY in 476c589b (frozen-0931 a-parity head)",
+   "head": "554a251cbe14aa7ba8af4c160d9a8b9793e4071a",
+   "headTree": "7d1744d76983853f5fe3d18f91af438fca69c334",
+   "commits": [
+    {
+     "commit": "40f2b0a958744f1c9d624ac2bcbe4723accb04f2",
+     "parent": "e32dd607b55b9c6afd605482a4bc31c9d30528d6",
+     "tree": "7d1744d76983853f5fe3d18f91af438fca69c334",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T04:46:55-07:00",
+     "subject": "Close custody, MCP secrets, credit-vault and external-signer gaps under the local verifier",
+     "emptyAfterExclusion": false,
+     "originalTree": "7d1744d76983853f5fe3d18f91af438fca69c334"
+    },
+    {
+     "commit": "554a251cbe14aa7ba8af4c160d9a8b9793e4071a",
+     "parent": "40f2b0a958744f1c9d624ac2bcbe4723accb04f2",
+     "tree": "7d1744d76983853f5fe3d18f91af438fca69c334",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:01:06-07:00",
+     "subject": "Rebuild the hosted MCP guest bundle from the current sources",
+     "emptyAfterExclusion": true,
+     "originalTree": "f34efc109fc51f7212770a58b0f9636b1f892fe7"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "cli/credit-vault.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "1d45a7eea9013b6344658dc8b22bd494393ddef2",
+     "sha256": "85295827ca1a49467f6ce01ef4481e2130158257bfd9751747e706218b6a978a",
+     "bytes": 29900,
+     "baseBlob": "9fd509e8dd729b5beb4e97532315372505d3c404"
+    },
+    {
+     "path": "cli/custody-independent.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "3f09c211c26e88ff932c41afbafe472e5d193b8d",
+     "sha256": "27b97e9ff188fa35bb229c1599d6a4db5ee402698071c9466cb789676cc2ceac",
+     "bytes": 33410,
+     "baseBlob": "a437d58472f7a856299839e70571835bb8d3addd"
+    },
+    {
+     "path": "cli/enclave.mjs",
+     "status": "M",
+     "mode": "100755",
+     "blob": "575b4bad77927b5508756243a168d0067b71ddf2",
+     "sha256": "425d68233bc44cdd81a6a66ce24cee28c22610370abcc530882585289054f006",
+     "bytes": 424143,
+     "baseBlob": "e7b691ee0b3a6cf81ea61dfab6c70be4951325b2"
+    },
+    {
+     "path": "cli/independent-signer.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "6cd93377afd0fc8a45755e5d4ecfe83705c9ac12",
+     "sha256": "aebf6d0e4a57082940118a0cd963ae066e37c68dff2b35107398ee9eb93b467e",
+     "bytes": 49809,
+     "baseBlob": "26743293d0fe853138859a3cf22052c7eab23cc2"
+    },
+    {
+     "path": "cli/independent.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "356832c6ce8f58cf245f182dd094fc8a2000b5b4",
+     "sha256": "dbaa5b023966d66359039558abcd50b75b024b66d97932c023476f5151d1bc38",
+     "bytes": 51629,
+     "baseBlob": "de07c285511d8bb6c87cb15cc169774d90b7ac0e"
+    },
+    {
+     "path": "cli/lease-gas.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f59b9dd72bba96839d1b370ac39f0f8ebb620381",
+     "sha256": "5c7733a56248c17268d100bbcee2076522c6123890fb60c336be50720e57414b",
+     "bytes": 29146,
+     "baseBlob": "7381267f6e7ac26c4e159f031527808eb381bbd7"
+    },
+    {
+     "path": "mcp/independent-secrets.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "1034e57424d1697a40a262caed5dcb70c0e7b4c6",
+     "sha256": "add15d55c54738696380e4fb1a002a6f39fdb1937643d84cbbbcf72ffa46e2e3",
+     "bytes": 28458,
+     "baseBlob": "236ef9b3aa65a163df8e53e7115425ecfa87496f"
+    },
+    {
+     "path": "network/verified-chain.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "258ea3f14e2373de8f02fa3180296318fb489e06",
+     "sha256": "77cee3864569109bea50178a50be57948ead7e1486e54043ee1dc4237f84e875",
+     "bytes": 16795,
+     "baseBlob": "42e5f4ddd10520c1e965192e952413803cb0c31e"
+    },
+    {
+     "path": "test/consumer-closure.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "648da3a8800fbdd528496d335784aea3af6dd507",
+     "sha256": "21fba15085dfeb6e3c1c378bba227919f308598ef651e387aac23aa53cb83cb8",
+     "bytes": 47541,
+     "baseBlob": null
+    },
+    {
+     "path": "test/consumer-closure.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "28e96728865e948f6fbe77e0d1a9c11cb3881768",
+     "sha256": "9dab97a5658f31cb85e42c65fb926a5a59b59a948750a751bd5372d308459cd1",
+     "bytes": 10817,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "a-gaps-554a251c/patches/0001-Close-custody-MCP-secrets-credit-vault-and-external-.patch",
+     "sha256": "9a317c46f737fcd624d5f2872ebafdf3bfa9e23ce9c8fb013c43d5392b7c41bd"
+    }
+   ],
+   "originalHeadTree": "f34efc109fc51f7212770a58b0f9636b1f892fe7",
+   "omittedAtHead": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "bf9d83388f2c874bb78d5177cb77d200017529ee",
+     "bytes": "5052898",
+     "path": "metal/guest/mcp-server.bundle.mjs",
+     "sha256": "ae7088a7daf19934d29ea5bd35220da0a2b108f8695dab279d689f99ae67c468"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "13c8bc57e8d866ba031872551f41ea2b166a882a",
+     "bytes": "391701",
+     "path": "metal/guest/mcp-server.bundle.mjs.manifest.json",
+     "sha256": "3ab7f346ac0d829480a71931c81a0b161bb2c31496039f61104e2fc2daac01b8"
+    }
+   ],
+   "excluded": [
+    "metal/guest/mcp-server.bundle.mjs",
+    "metal/guest/mcp-server.bundle.mjs.manifest.json"
+   ],
+   "omittedRecipe": {
+    "path": "metal/guest/mcp-server.bundle.mjs",
+    "gitBlob": "bf9d83388f2c874bb78d5177cb77d200017529ee",
+    "sha256": "ae7088a7daf19934d29ea5bd35220da0a2b108f8695dab279d689f99ae67c468",
+    "bytes": 5052898,
+    "why": "a COMPILED esbuild bundle (not authored source) of 5,052,898 B, above the capture's 5 MB per-file bound",
+    "restore": "node scripts/build-mcp-guest-bundle.mjs in the a-gaps tree with its package-lock node_modules; the committed manifest metal/guest/mcp-server.bundle.mjs.manifest.json (exported) pins 2974 input sha256s and the bundle sha256 ae7088a7",
+    "manifest": "omitted too (gitleaks false positive on name/hash pairs); restore it byte-exactly from convertedManifest first",
+    "validated": "frozen-1339-a-bundle-check-4: a throwaway clone of 554a251c at the same depth as A's repo, carrying A's own node_modules LINKS (., relay, sdk/sessions; the build uses preserveSymlinks); build-mcp-guest-bundle.mjs --check rc 0. Attempts 1-3 failed (dangling link; real copies differ; sdk/sessions missing: 434 inputs)"
+   },
+   "convertedManifest": {
+    "path": "metal/guest/mcp-server.bundle.mjs.manifest.json",
+    "files": [
+     {
+      "file": "a-gaps-554a251c/converted/mcp-server.bundle.mjs.manifest.inputs.sha256sums",
+      "sha256": "1c3e879d767b7afb0d7bd788cf1865be62fad1f027279e1015b067579743b13e"
+     },
+     {
+      "file": "a-gaps-554a251c/converted/mcp-server.bundle.mjs.manifest.meta.json",
+      "sha256": "b62aa6c6eb233d49f88865d5057073eed35191240374fb6bd62ede0090e06778"
+     }
+    ],
+    "rebuild": "json.dumps({k: meta[k] for k in ['bundle', 'entry', 'bundleEntry', 'sha256', 'bytes', 'inputs', 'runtimeFiles']} with inputs = dict((p, h) for each line 'h  p' in order), indent=2) + '\\n' (Python) == the committed manifest (asserted)"
+   },
+   "label": "SOURCE-ONLY DERIVATIVE on the EXACT e32dd607: patches omit the compiled MCP bundle, so derived trees hold it at e32dd607's bytes; exact original trees (head f34efc10) need the validated rebuild (omittedRecipe)"
+  },
+  "e-report": {
+   "repo": "work/rpc-wallet-dependency-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (E wallet report repo); SOURCE-ONLY DERIVATIVE (exports/ omitted)",
+   "head": "ec2be533a74a16e79cb5b58f6793bef1679b18a7",
+   "headTree": "6fcf09f2a26979f924ac14d317848f87288439f0",
+   "commits": [
+    {
+     "commit": "f92006a01d65eff23c2e021bae6f9af5b8464eb1",
+     "parent": "",
+     "tree": "12733952015be874576401ce1dc7a4f31c440d67",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:15:55-07:00",
+     "subject": "RESULT, bundler recipe, S/F handoff, D export, jobs and logs for rpc-wallet-dependency 6ab298f19",
+     "emptyAfterExclusion": false,
+     "originalTree": "4fbe2d9bc7bb5355b436b6f3fb1d2e97d73e8d2b"
+    },
+    {
+     "commit": "f5d4592a4d12c46dfb315c24b36237fad1a8cbf6",
+     "parent": "f92006a01d65eff23c2e021bae6f9af5b8464eb1",
+     "tree": "44761619dfe78a7602ae908d46b66dab28cb4635",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:17:54-07:00",
+     "subject": "Retry wording per root review, recipe cites root's primary sources (P owns Alto), n3 evidence, export at dc2e5d740",
+     "emptyAfterExclusion": false,
+     "originalTree": "3804e3fa9d78ec838d06ea7e6341684fa743318b"
+    },
+    {
+     "commit": "5c4bf1f9b47fd8ae920df5025080fd79ba95adf2",
+     "parent": "f5d4592a4d12c46dfb315c24b36237fad1a8cbf6",
+     "tree": "974e65f44a744297d907453c42e0ae0237e47da8",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:18:43-07:00",
+     "subject": "scan: the report repo uses the source repo's gitleaks policy (first run kept: 1 finding = anvil dev key #2 in the exported test patch)",
+     "emptyAfterExclusion": false,
+     "originalTree": "d6a845e5e70b5888a46313c6f7b91cc594fbabc8"
+    },
+    {
+     "commit": "ec2be533a74a16e79cb5b58f6793bef1679b18a7",
+     "parent": "5c4bf1f9b47fd8ae920df5025080fd79ba95adf2",
+     "tree": "6fcf09f2a26979f924ac14d317848f87288439f0",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T05:18:51-07:00",
+     "subject": "RESULT: scan results",
+     "emptyAfterExclusion": false,
+     "originalTree": "51eeb6c1e0bec073af2f4dfaa23cef49a1cf0eb7"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ce3719c9ed72c931a8c0d86b265bf25bfe24b93f",
+     "sha256": "a34c01e60f0565776db491cc05fc637a9b4b9f3a08546de6bfad93a25cdacee2",
+     "bytes": 11,
+     "baseBlob": null
+    },
+    {
+     "path": "HANDOFF-S-F-WALLET-ROUTES.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5a05f5f072e20fcc591f608f71421848010a5be0",
+     "sha256": "6b97e477af1a4e836770b4ba879185b1cd7950a9ca2891bb6eeb647645bfe6ef",
+     "bytes": 4098,
+     "baseBlob": null
+    },
+    {
+     "path": "RECIPE-SELFHOSTED-BUNDLER.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "34f7f89ab28e248271f105a73aa60002d5232739",
+     "sha256": "5a5fd507b553df07d95955fe9d7c7fa45daaba60415d9ef396b2e56cf967e69a",
+     "bytes": 8336,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT-WALLET-DEPENDENCY.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5b7959b4510951e717d8408194ddd6da31062141",
+     "sha256": "93616e0fbc3f5177bf7b79ac56b18911fad601ef391573de3ee139dc11e3792b",
+     "bytes": 12037,
+     "baseBlob": null
+    },
+    {
+     "path": "ROOT-BROADCAST-RETRY-REVIEW.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ec2762ebe86248e2a7da2d3dc483d685ee0af7da",
+     "sha256": "f5074fc99e3a898e188829cc2c73d8c466678e972f2d63838c7050368aa12308",
+     "bytes": 1549,
+     "baseBlob": null
+    },
+    {
+     "path": "ROOT-BUNDLER-IMPLEMENTATION-OWNER.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9c19bb75ec02d4196ca1e5ff3c296fd1b5fef505",
+     "sha256": "7b31b68695022dc1648c1adcc9eb07297b9374e950278df0668b2956de840adf",
+     "bytes": 702,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/esbuild-check.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d49abfb54fc5becfc76639b26bf7a4724a6133f0",
+     "sha256": "e61e300babca8a7c6da42b71dcc2c85b8decf153a966927fb0eb6dc47956634b",
+     "bytes": 1704,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/esbuild-check.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "dcd7da84e46341525794b072eb079b910009a3a0",
+     "sha256": "67ff870180f0617f925055b523bd4f536661a54375703238bddec9372991039f",
+     "bytes": 190,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/mutants.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "83487a3bb6942dab874799943e3d5abbd45a6e7b",
+     "sha256": "611ed2bb9bcc34203a09cdc4ccc00c06f98e7e3cedc79ab535ec349a1ad2d8d5",
+     "bytes": 1819,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/mutants.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "e9cd6eb50dae73904162fba156d578b44dae9cc7",
+     "sha256": "a374b12b4d3a8610dc9305c03669f598fe8675a494ed8959a7b6867db04d5d52",
+     "bytes": 182,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/node-tests.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "f762d3a16e3a50069bd4015b2f3a91db56024ee4",
+     "sha256": "9e1b2caa42cd2db153e2ddabdf3dbbc1fb2b8163d114c620126f7c7c0934c1fe",
+     "bytes": 508,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "3e272ae2802f11e18516bc45d5c0f8f81fb3e8a3",
+     "sha256": "70c9c8adc6e2a4f2c7db38831b1e08add2708c295446151988acbd7d9f03ae23",
+     "bytes": 397,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/scan-detail.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "4e33ec7e514c35b49b45efd253f6ec8073e57ce2",
+     "sha256": "9c60ecf03478dd111fd4a8c091f0ccd37f323adfe2ad75941da2874eaf116c71",
+     "bytes": 206,
+     "baseBlob": null
+    },
+    {
+     "path": "jobs/scan.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "f13245997f0e8430867581ec9f6727a6afa6cddd",
+     "sha256": "6bc56c18277588dc1f44e4a55bb1c8092828509f98b008854fe75409b45a54cb",
+     "bytes": 699,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/b1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e96bf3f66b0fd5ccb78ef37b419f2603602f4dcf",
+     "sha256": "8ae6918f439a69dbd00e4e201233dd64a83a2c8dc9f324660cd4525cfaecf1e2",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/b1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cb0a50ed03635704182e79fe1e56f2f487557b73",
+     "sha256": "ca469c0f8acefe88ab21e43ddb49d1516d5124164c9142bf155566e64ba48e8d",
+     "bytes": 4366,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/b1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/e1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/e1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2688c6d541b0d25b73399c2d0e6d18fa8c857905",
+     "sha256": "2b2a9d64224b35b06cd70451ccde47b8f4c07f642094534abb38b9b08e28a293",
+     "bytes": 1059,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/e1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/m1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fc28455a1a04d4dce22d9cd90acf6a0f33c3920c",
+     "sha256": "bf03f1c1aa7e8f2f19ec56b8b8054ba8084e072c0b794a119499ad24b2adb7ed",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/m1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2afce55c20a30067af9d86ac836490d96a325bed",
+     "sha256": "0fbf53128c6576912814adca771d49bbffeca94e97a9d932b0b8ab61fd3dc4dd",
+     "bytes": 1041,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/m1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/n1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9a1a7151816ba819d4cf774d6f780618e8944e48",
+     "sha256": "693a99707056d974dce268a59fb6fcd6f09518705dd3c49dfaf455d2ae42f1c9",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/n1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2fd4a0cb9eeebc54261e3eda27d79c0f7794b0c1",
+     "sha256": "7c81a333377e8e65acbf056840e58d6fcbe349e11a92969fd50c766282660129",
+     "bytes": 12866,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/n1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/n2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "68e25ef7eef86f8c0235a2727a4c65963666218b",
+     "sha256": "9f16a0e26968714caec98f3e8d2783f2de475c83f111b79a47660b4781f7e90a",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/n2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c24df081af5e3a3f7d84d1a972a6c2b0015e8ecd",
+     "sha256": "8def86efa50027e5e63fff01c72c6ce86f63acd0b1efdc7d24e24236b5a19956",
+     "bytes": 2585,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/n2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/n3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f7ca50bea13d895312741417964477523440fc42",
+     "sha256": "ead8b8a076fc6323187859a9d4a7af0a50c0edc3766f05c1ed0ea3ef87302abc",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/n3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f3a78787aa01d8beb19882d736f2fc3abf35897f",
+     "sha256": "6e869a2c72da0b128dff65c8d43a67de77499c4177fc80b4314e12cd6ff812d0",
+     "bytes": 3015,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/n3.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/s1-first-default-config.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b7a9d9515eb51ebaa86b6bb8bad249643e9a062d",
+     "sha256": "fd0b4c9a1f22715f8975d7cc04f1de4a99210590485a243ba8f592f827777b29",
+     "bytes": 974,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/s1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9dc8b46922a5ec62010175f0b5f6ce734196fded",
+     "sha256": "de53e6b06fcacf553ae9b9b9f0bdb7ec6aeda020efae573f5b435b53622842bc",
+     "bytes": 132,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/s1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "751b3dbfe81b4f95c43b70b3c14b9cf107107fc2",
+     "sha256": "8c83fcaa56a0a613e431d82a0e5a4c4c7cc9a5c276f61a048a375e75f672b070",
+     "bytes": 1117,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/s1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/s2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a91d4a9643393d487eadcbc7c634575e00b640c9",
+     "sha256": "68e8d5077fe1997047e165139f17b933d670d42606762cf7d0ab3f9bbd0e3121",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/s2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5a56210f25ae7541fd21fa69ff2befc2c0e5f4b9",
+     "sha256": "5d4d9abfb6f98a1060cd46d56d3a3d52d0c0cc65fc81c0367efe22091b2722bb",
+     "bytes": 465,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/s2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "e-report-ec2be533/patches/0001-RESULT-bundler-recipe-S-F-handoff-D-export-jobs-and-.patch",
+     "sha256": "5db53707aedec05e3e662292be68ea15a2863500ea1d68bbb033d09e96ed527a"
+    },
+    {
+     "file": "e-report-ec2be533/patches/0002-Retry-wording-per-root-review-recipe-cites-root-s-pr.patch",
+     "sha256": "edb22d713f4cae9792b35dfa8e8de14d75c7dc3d8e8b57cec8af7fcc073f19e2"
+    },
+    {
+     "file": "e-report-ec2be533/patches/0003-scan-the-report-repo-uses-the-source-repo-s-gitleaks.patch",
+     "sha256": "098ec650825c4009b485fbc2cd8a7e647d97b1307c382d4d68a160ec458f8ecb"
+    },
+    {
+     "file": "e-report-ec2be533/patches/0004-RESULT-scan-results.patch",
+     "sha256": "7b4305cc58df5bc03d8ac33540e4c030ba51e7c5e6bcbf7eba53436862597807"
+    }
+   ],
+   "originalHeadTree": "51eeb6c1e0bec073af2f4dfaa23cef49a1cf0eb7",
+   "omittedAtHead": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "206cfe0b8b1c0e1dc39e7bcc2cd48313019ae4ac",
+     "bytes": "1043",
+     "path": "exports/NOTE-FOR-D.txt",
+     "sha256": "4ef169bcdaa5f63e582d7058ed3dc5e08b3a2eab41ac2e20976e5e40b8ec75e1"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "0ce7d6c08e8616ced81d581e4f8e99367baa41f6",
+     "bytes": "460",
+     "path": "exports/SHA256SUMS",
+     "sha256": "3cc81501dcbc47bc3cd189581a0d4bbc19134325cf21f5e67f51cdbc200640bf"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "e80d4d79015d4c6896f073826503df81820f71c6",
+     "bytes": "57187",
+     "path": "exports/patches/0001-Let-a-connected-wallet-sign-only-and-the-network-pro.patch",
+     "sha256": "a24ed5ca6097db3a23398cb86d8f44f54c8e51f15024bda0231cd60bc910c87f"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "66ece80aeb5698220c66cacb5c2c2aaceaa31cec",
+     "bytes": "5993",
+     "path": "exports/patches/0002-Say-what-the-profile-broadcast-retry-does-the-same-s.patch",
+     "sha256": "d78722c0068b6e85d9c81dc586a1188d2cc7c081d2d00a83dfc51b0c0bf0b16d"
+    },
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "da9c438c01b8059a3fc8e929c5bb05498e90e99b",
+     "bytes": "19417",
+     "path": "exports/rpc-wallet-dependency-dc2e5d7.bundle",
+     "sha256": "a5fe3a6540c05bac15bdadf6156a39858981b5f31850add7301ac0503838cc63"
+    }
+   ],
+   "excluded": [
+    "exports/"
+   ],
+   "label": "SOURCE-ONLY DERIVATIVE: E report repo minus exports/ (E's own git bundle - binary - and patches duplicating the e-wallet Git objects; recorded in omittedAtHead). Fixture keys stay excluded as in E's own export"
+  }
+ },
+ "lowercaseRewrittenLiteral": {},
+ "frozenSources": {
+  "source-preservation/RESULT-frozen-1118-checkpoint.md": "d96885e542e2cd080538fc9e90b5a7a41ab16c422e29093640949d02023cfd58",
+  "source-preservation/frozen-1339-a-bundle-check-4.sh": "5d2316aff668883eadc351ac36f0aa150a8e6f1b89356131454b022bd7a042f5",
+  "source-preservation/frozen-1339-a-bundle-check-4.out": "1df157fbeefad29818bfc2c52c3c91b1be872fa8d4bedf4f1db8b3ec49a57c72",
+  "source-preservation/snapshots-1339/ROOT-PENDING-LATEST.snapshot-1339.txt": "0bc590ebe96ac01f2f78518c0c16d3005d250677fd7c7a609280d63264ea5df0",
+  "source-preservation/snapshots-1339/effective-goal-requirements.snapshot-1339.txt": "df793be5d3e251c3e777b21e94d71cf368c08e327a81ad3433dfd375945fb246"
+ },
+ "rootEvidence": {
+  "source-preservation/ROOT-A-CONSUMER-GAPS-FINAL.txt": "600d5269cb64a05e5717f575665a6f7e53081aef769d711d0081a940082f6350",
+  "source-preservation/ROOT-B-LAUNCH-FINAL.txt": "a1454027044827ab50e9a88751e67b42ebf861aee6a629503425427f4dd3dca7",
+  "source-preservation/ROOT-E-WALLET-FINAL.txt": "d76f21c17ad1661b265a6415b8ca7366c52ee18f435010450efe5d0af1f2a816",
+  "source-preservation/ROOT-F-BASELINE-FINAL.txt": "ad9cd7faab881d7fcb4872e0bff520405fe606f12a0db4421be5f12f20600cfb",
+  "source-preservation/ROOT-T-HDD-TRANSPORT-FINAL.txt": "1e2848057cee3647d9aa1db59bd24f894b5a0f9f304056dd08aef060bd9d0023",
+  "../../outputs/decentralization-audit/checkpoint-476-verified-20261023.json": "7393c8e85646392315b9faac50f46a2ebad7464b43e17a9d2efbfcbd5b4fbc36",
+  "../../outputs/decentralization-audit/checkpoint-remote-recheck-20261023.json": "7393c8e85646392315b9faac50f46a2ebad7464b43e17a9d2efbfcbd5b4fbc36",
+  "../../outputs/decentralization-audit/cache-composed-kernel-review-20261023.json": "844f679e2d3f654c3d91e1c9cd4ddc323f1eb1ad5de8f941721456f164f6cdc7",
+  "../../outputs/decentralization-audit/consumer-test-failure-review-20261023.json": "070fffca00440be91a8e6055217f3dbc22be4032d556ab2b866728708ee931aa",
+  "../../outputs/decentralization-audit/integration-subjob-review-20261023.json": "374c50e5ffc21140cebeb360504eb93759f5eee6c14de0f6045cb00edec8b83b",
+  "../../outputs/decentralization-audit/bundler-primary-source-review-20261023.json": "46d5176f9aae99e2ed31b8a09392fb04e0bb169e62b1b9560561ce0ccd851897",
+  "../../outputs/decentralization-audit/wallet-broadcast-retry-review-20261023.json": "554505ec96db3878b670d7fa30ac211b35c9627016fcbffdc3e00afc6541a6d7",
+  "../../outputs/decentralization-audit/storage-windows-subjob-review-20261023.json": "e52f8e8a6553aba5d099cccb089594bd6af9cab3c761aad69137e233511b9ba9",
+  "../../outputs/decentralization-audit/hdd-transport-mutation-review-20261023.json": "9b33d95d2f3bf846e4b4aca75f0f707467f21438670352f1fd7ca60f9bd33489",
+  "../../outputs/decentralization-audit/rpc-wallet-interface-review-20261023.json": "2cc1151dfc264437efd4f4f58736755e3705f07e3e768faf57be5effe208ba66",
+  "../../outputs/decentralization-audit/rpc-shutdown-review-20261023.json": "22d4fecdc1f8ae1e6d4c864ac7bb642b2f84d8e285576afc05768ecae82e4192",
+  "../../outputs/decentralization-audit/rpc-shutdown-diagnostic-cancellation-20261023.json": "c001e7bd89eb88d2d56f7334eaebf5a71c2f9eee24b1e73bc5b33a418f451ae7",
+  "../../outputs/decentralization-audit/rpc-shutdown-daemon-confirmation-20261023.json": "b661406df0c99ed44db4741df2e2be73b830351372a111548f53c12d9520c8b3"
+ },
+ "evidenceVsSource": "Committed logs, receipts, run outputs and RESULT files inside these repositories are EVIDENCE; the rest is source. frozen-0931 published E evidence/capture/*.json (public-chain bytecode captures): retained unchanged as EVIDENCE per root (useful for reproduction)",
+ "notPreserved": [
+  "A metal/guest/mcp-server.bundle.mjs at 554a251c (compiled, >5 MB; validated rebuild recipe) and E report exports/ (git bundle + duplicate patches)",
+  "S untracked network/host-services/packages/ (hashes + recipe recorded, not archived)",
+  "untracked/ignored files in every repo (configs, readiness, private logs, clones, binaries, test keys)",
+  "A RESULT-CONSUMER-GAPS.md / jobs outputs in the ACTIVE rpc-priority directory (root: commits only)",
+  "outputs/decentralization-audit/windows-integration-j1-review-20261023.json and F ROOT-J1 notes (F active; capture after terminal)",
+  "ACTIVE successor trees: S public-rpc-consumer-interface, A receipt integration, B linux-rpc-consumer-closure, F windows-final-runtime-integration, E rpc-wallet-production-build, T rpc-hdd-storage-compose, P rpc-bundler-service, M startup-cancellation fix",
+  "root notes inside active worker directories (ROOT-REMAINING-PROVIDER-READS, ROOT-R2-RESULT-REVIEW, ROOT-J3D-FAILURE-REVIEW, ROOT-BROADCAST-RETRY-REVIEW)"
+ ]
+}

@@ -1,0 +1,92 @@
+{
+ "format": "enclave-l1-pair-pins/v1",
+ "network": "mainnet",
+ "execution": {
+  "client": "reth",
+  "release": "v2.8.0",
+  "commit": "05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915",
+  "publishedAt": "2026-10-20T19:34:03Z",
+  "asset": "reth-v2.8.0-x86_64-unknown-linux-gnu.tar.gz",
+  "assetUrl": "https://github.com/paradigmxyz/reth/releases/download/v2.8.0/reth-v2.8.0-x86_64-unknown-linux-gnu.tar.gz",
+  "tarballSha256": "809bfe0f071b509980d7f9178603edd2f7432356d50ae5af256cb62213c10ed8",
+  "ascSha256": "7ca371e10986418c55d247c292ddef59d7e582d379b76b820e12dc18944657d5",
+  "pgpFingerprint": "50FB 7CC5 5B2E 8AFA 59FE 03B7 AA5E D56A 7FBF 253E",
+  "binarySha256": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250",
+  "versionLines": [
+   "Reth Version: 2.8.0",
+   "Commit SHA: 05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915"
+  ],
+  "staged": "already present (not downloaded by this work): work/resume-after-checkpoint-20261022/rpc-priority/vendor-inspect/reth-v2.8.0 (tarball sha256 = GitHub asset digest; binary 8cdd1f35)",
+  "flagsEvidence": "executed offline: the binary's own `node --help` (evidence/reth-help-*/node-help.txt)",
+  "signatureVerified": false
+ },
+ "consensus": {
+  "client": "lighthouse",
+  "release": "v8.3.2",
+  "commit": "a376defa30470923556d91bdeb15a802e297f31f",
+  "publishedAt": "2026-10-23T00:41:38Z",
+  "asset": "lighthouse-v8.3.2-x86_64-unknown-linux-gnu.tar.gz",
+  "assetUrl": "https://github.com/sigp/lighthouse/releases/download/v8.3.2/lighthouse-v8.3.2-x86_64-unknown-linux-gnu.tar.gz",
+  "tarballSha256": "ea914e932462d6a93ad78c21377d70f995e05ac224248be0b58c2f4d6740439a",
+  "ascSha256": "4c4ce3267acd03ad6925c23894351d937806f59d07556ee00d439fdb975bcb97",
+  "pgpFingerprint": "15E66D941F697E28F49381F426416DC3F30674B0",
+  "binarySha256": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96",
+  "versionPrefix": "Lighthouse v8.3.2",
+  "glibcMin": "2.34",
+  "staged": "downloaded 2026-10-23 under root authorization into bin-staging/ (task workspace, gitignored): tarball sha256 = GitHub asset digest; archive = exactly one regular file `lighthouse` 0755; extracted without tar paths (jobs/verify-lighthouse.sh)",
+  "flagsEvidence": "executed offline: the binary's own `beacon_node --help` (evidence/lighthouse-help-*); equals pinned help_bn.md except the build-feature DB backend lists (redb, mdbx)",
+  "signatureVerified": true,
+  "binarySize": 105018160,
+  "versionLines": [
+   "Lighthouse v8.3.2"
+  ],
+  "signature": "gpg VALIDSIG by PRIMARY key 15E66D941F697E28F49381F426416DC3F30674B0 (sig 2026-10-22, throwaway keyring holding only that primary + its encryption subkey, fetched by fingerprint from keys.openpgp.org and keyserver.ubuntu.com). Fingerprint authority: sigp/lighthouse @ a376defa .github/workflows/release.yml:195 and SECURITY.md:10, and the v8.3.2 release body (all one trust root: the sigp GitHub repository/account). No web-of-trust path; gpg reports [unknown] validity."
+ },
+ "mainnet": {
+  "elChainIdHex": "0x1",
+  "elGenesisHash": "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
+  "clGenesisTime": 1606824023,
+  "clGenesisValidatorsRoot": "0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95",
+  "clGenesisSource": "lighthouse a376defa built_in_network_configs/mainnet/genesis.ssz.zip (git blob 28405c78), bytes 0..48 parsed",
+  "depositChainId": "1",
+  "secondsPerSlot": 12,
+  "slotsPerEpoch": 32,
+  "fuluForkEpoch": 411392,
+  "gloasForkEpoch": "not scheduled on mainnet (18446744073709551615 in lighthouse a376defa mainnet/config.yaml)",
+  "minEpochsForDataColumnSidecarsRequests": 4096,
+  "maxBlobsPerBlock": 21,
+  "numberOfCustodyGroups": 128
+ },
+ "base": {
+  "release": "v1.5.1",
+  "source": "base/base 5476069f (vendored read-only at rpc-priority/vendor-inspect/base-v1.5.1)",
+  "l1ChainId": 1,
+  "seqWindowSize": 3600,
+  "channelTimeout": 300,
+  "graniteChannelTimeout": 50,
+  "l1ExecutionMethods": [
+   "eth_chainId",
+   "eth_blockNumber",
+   "eth_getBlockByNumber",
+   "eth_getBlockByHash",
+   "eth_getBlockReceipts",
+   "eth_getLogs",
+   "eth_getStorageAt",
+   "eth_call"
+  ],
+  "l1BlockTags": [
+   "latest",
+   "finalized"
+  ],
+  "beaconPaths": [
+   "/eth/v1/config/spec",
+   "/eth/v1/beacon/genesis",
+   "/eth/v1/beacon/blobs/{slot}?versioned_hashes=..."
+  ]
+ },
+ "retention": {
+  "blobWindowSlots": 131072,
+  "minReceiptsBlocks": 140000,
+  "why": "Base re-derives from its safe head's L1 origin: eth_getBlockReceipts/eth_getLogs and blobs are needed from (safe origin - seqWindowSize) on. reth --full keeps receipts for only 10,064 blocks (~33.5 h); blobs exist on L1 P2P for 4096 epochs = 131,072 slots (~18.2 d). 140,000 = 131,072 + 3,600 + margin, so receipts never expire before the blobs they are paired with."
+ }
+}

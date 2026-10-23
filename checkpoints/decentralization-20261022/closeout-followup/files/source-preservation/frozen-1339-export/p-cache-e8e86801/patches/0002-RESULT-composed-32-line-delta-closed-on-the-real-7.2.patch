@@ -1,0 +1,2087 @@
+From 8a0b0fbe8c884af33fc34ebe710ced390bbdf831 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 04:24:16 -0700
+Subject: [PATCH 2/6] RESULT: composed 32-line delta closed on the real 7.2.11
+ guest kernel (vm-1); old-template controls; symlink-mutant assessment;
+ cleanup receipts
+
+---
+ RESULT.md                                     | 141 ++++++
+ jobs/scan.sh                                  |   9 +
+ logs/vm-1.guard.log                           |   1 +
+ logs/vm-1.out                                 |  22 +
+ logs/vm-1.rc                                  |   1 +
+ run/20261023T112303Z/out/console.log          |   3 +
+ .../out/disk-identity-after.jsonl             |   2 +
+ .../out/disk-identity-before.jsonl            |   2 +
+ run/20261023T112303Z/out/guest-delta.log      |   1 +
+ .../out/host-identity-after.json              |   1 +
+ .../out/host-identity-before.json             |   1 +
+ run/20261023T112303Z/out/render.log           |  26 ++
+ .../out/render/holder-storage.sh              | 218 +++++++++
+ run/20261023T112303Z/out/render/holder.json   |  29 ++
+ run/20261023T112303Z/out/render/ledger.json   |  71 +++
+ .../out/render/mutant-credit-symlink.sh       | 218 +++++++++
+ .../out/render/old-holder-storage.sh          | 193 ++++++++
+ .../out/render/pair-storage.sh                | 218 +++++++++
+ run/20261023T112303Z/out/render/pair.json     |  29 ++
+ .../out/render/probe-storage.sh               | 218 +++++++++
+ run/20261023T112303Z/out/render/probe.json    |  29 ++
+ run/20261023T112303Z/out/render/seam.json     |  26 ++
+ run/20261023T112303Z/out/results.json         | 420 ++++++++++++++++++
+ run/20261023T112303Z/out/source-pins.txt      |   5 +
+ 24 files changed, 1884 insertions(+)
+ create mode 100644 RESULT.md
+ create mode 100755 jobs/scan.sh
+ create mode 100644 logs/vm-1.guard.log
+ create mode 100644 logs/vm-1.out
+ create mode 100644 logs/vm-1.rc
+ create mode 100644 run/20261023T112303Z/out/console.log
+ create mode 100644 run/20261023T112303Z/out/disk-identity-after.jsonl
+ create mode 100644 run/20261023T112303Z/out/disk-identity-before.jsonl
+ create mode 100644 run/20261023T112303Z/out/guest-delta.log
+ create mode 100644 run/20261023T112303Z/out/host-identity-after.json
+ create mode 100644 run/20261023T112303Z/out/host-identity-before.json
+ create mode 100644 run/20261023T112303Z/out/render.log
+ create mode 100755 run/20261023T112303Z/out/render/holder-storage.sh
+ create mode 100644 run/20261023T112303Z/out/render/holder.json
+ create mode 100644 run/20261023T112303Z/out/render/ledger.json
+ create mode 100755 run/20261023T112303Z/out/render/mutant-credit-symlink.sh
+ create mode 100755 run/20261023T112303Z/out/render/old-holder-storage.sh
+ create mode 100755 run/20261023T112303Z/out/render/pair-storage.sh
+ create mode 100644 run/20261023T112303Z/out/render/pair.json
+ create mode 100755 run/20261023T112303Z/out/render/probe-storage.sh
+ create mode 100644 run/20261023T112303Z/out/render/probe.json
+ create mode 100644 run/20261023T112303Z/out/render/seam.json
+ create mode 100644 run/20261023T112303Z/out/results.json
+ create mode 100644 run/20261023T112303Z/out/source-pins.txt
+
+diff --git a/RESULT.md b/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..088534b8b445ee01dfa7bee3d1576cf7843a1629
+--- /dev/null
++++ b/RESULT.md
+@@ -0,0 +1,141 @@
++# Kernel gate for the composed 32-line storage delta (RESULT, 2026-10-23)
++
++**Status: CLOSED for the delta, at guest scale.** The composed template **`cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222`**
++(S `92b71784`, vendored byte-identically in P `f8c999ed`) ran on the REAL 7.2.11 kernel (installed package) in a
++networkless throwaway QEMU/KVM guest. **No bug was found, so there is no source change and no P re-vendor.**
++
++**Not done:**
++- no host loop, dm or mount change; no host module load; host kernel 7.2.8 untouched;
++- no real ledger, no production cache, no SSH, no push.
++
++**Prior source and evidence untouched:** `cache-native-boundary-20261023`, `rpc-storage-final-compose`, and S's and P's
++trees.
++
++## 1. Exactly what ran
++
++- **Renders:** `harness/render.py`, run on the host, used:
++  - S's own `holder.storage_script()` (S `92b7178`) for `holder-storage.sh` and `probe-storage.sh`;
++  - P's own `l1pair.storage_script()` (P `f8c999e`) for `pair-storage.sh`.
++
++  It asserted that both vendored templates are `cab32bbe…` and that the renders' bodies equal the template. Render
++  shas are in `run/<ts>/out/render/seam.json`.
++- **Labelled controls, not production:**
++  - `old-holder-storage.sh`: the pre-fix template `eb6a209d` with the **identical** constants block;
++  - `mutant-credit-symlink.sh`: the composed pair render with the `[ ! -L "$1" ]` guard removed (S mutant
++    `sh:credit-symlink`).
++- **Seam**, as in cache-native-boundary:
++  - **Sizes:** origin 160 / 32 / 16 MiB; cache data 64 / 8 / 4 MiB; metadata 16 / 8 / 8 MiB.
++  - **Free margins:** 0. The credit cases substitute ONLY the `NVME_FREE_MARGIN='0'` constant line at run time, with
++    every other byte unchanged.
++  - **Guest paths:**
++    - `/usbtest`: ext4 on the rotational test disk, in place of NTFS `/mnt/usb`;
++    - `/vmtest`: ext4 on dm-crypt (LUKS2, fixture key) on the non-rotational disk, as for `/vm`;
++    - `/vmtest2`: a second non-rotational ext4 on a test-owned loop, used only for the other-filesystem case.
++  - **Ledger:** a fixture at the canonical path in the guest's tmpfs `/etc`, host share exactly full (113,668,096 B).
++  - **Production bounds:** validator minima untouched.
++- **Source pins of this run** (`run/20261023T112303Z/out/source-pins.txt`): `guest.py` `b1ceb531…`, `render.py` `937ab5bd…`.
++
++## 2. Results (run vm-1, `run/20261023T112303Z/`; every exit code in `out/receipts.jsonl`)
++
++**A. Real lsblk/losetup facts the new checks rely on.** Under the live `enclave-base-holder` mapping, each of the three
++holder loops shows:
++- `/sys/.../holders = [dm-1]`;
++- `lsblk -nro NAME` = `[loopN, enclave-base-holder]` (holders ARE listed as children, so the count is > 1);
++- MOUNTPOINTS lists the mapping's mount;
++- `autoclear 0`.
++
++After `disassemble`: no holder loops and no mapping.
++
++**B. `disassemble` never detaches an active loop.**
++
++| Case | Composed | OLD-template control |
++|---|---|---|
++| origin loop held by a foreign mapping | **exit 2** "still mounted or held …: not detaching it (stopping)". `autoclear` stays **0**; the loop stays bound after the foreign user is gone | exit **0** "disassembled", but the kernel set **`autoclear=1`**: the loop vanished once the foreign mapping was removed |
++| origin loop mounted elsewhere (`/mnt-raw`, ro) | **exit 2**, `autoclear 0`, still bound after umount | exit **0**, **`autoclear=1`**, gone after umount |
++
++**C. `cache-loss` detaches only what it attached.**
++
++| Case | Composed | OLD control |
++|---|---|---|
++| no origin loop before | exit 0, **no loop left** | exit 0, **leaves `/dev/loop1`** |
++| an origin loop existed before | exit 0, **the same loop kept** (same backing file and inode) | — |
++
++**D. Free-space credit**, on real ext4 on dm-crypt with block size 4096:
++- **D1, owned complete cache files:** origin removed, margin so a full 16 MiB re-allocation would not fit. **exit 0**:
++  adopted.
++- **D2, unmarked foreign file at the CMETA path:**
++  - tight margin → **exit 2** "not enough NVMe free space" (no credit);
++  - zero margin → **exit 2** from budget admit, "exists without this reservation's ownership marker".
++  - In both cases the foreign file is unchanged, and no origin and no loop are created.
++- **D3, a symlinked cache path with a forged "own" marker** (the mutant assessment, §3): composed **exit 2** in every
++  case. With zero margin, budget **allocate** refuses: "is not this reservation's regular file". State preserved.
++- **D4, metadata on ANOTHER filesystem** (`/vmtest2`, st_dev 1792, vs `/vmtest` 64768):
++  - margin set so that crediting both files would pass → **exit 2** "not enough NVMe free space", because only the
++    same-filesystem CDATA is credited;
++  - files unchanged, no origin, no loop;
++  - zero margin → exit 0 (adoption).
++
++**E. Retained composition checks:**
++- **E1, SIGTERM to the process group** during a fresh composed `create` (uninterrupted 0.296 s): **6 of 6 attempts →
++  exit 143**, origin removed, no loop left.
++- **E2, fsynced data survives:** 4 × 4 MiB fsynced files survived `disassemble`, uncached origin access (case B), and
++  `cache-loss` (×3) + `assemble`: **0 mismatches**. Status: writethrough, 0 dirty, no `needs_check`. `verify-cap` exit 0.
++
++**F. Cleanup:**
++- **Guest:** every script `disassemble` exit 0. The test's own loops were detached only after re-checking backing file
++  and inode. umount, `cryptsetup close` → **no loops, no dm devices, no test mounts**.
++- **Host before/after:** identical — no loops; dm `control cryptroot cryptvm`; the same block devices; mountinfo hash
++  `df9e600d…`; 0 QEMU processes.
++- **Removed:** the disk images, fixture key and initramfs.
++- **Allocation:** `du` of the test directory peaked at **134,721,536 B ≤ 512 MiB**. Disks actually allocated
++  52.7 MB + 72.3 MB (sparse; apparent 256 + 208 MiB). Queue peak RSS 384 MiB.
++
++## 3. The surviving `sh:credit-symlink` mutant, assessed on the real kernel
++
++**What it does:** the mutant removes the `[ ! -L "$1" ]` guard, so a symlinked cache path is credited
++`stat -c %b` × 512 of the **link itself**.
++
++**Measured** (ext4, 4 KiB):
++- a short (fast, 21-char) symlink allocates **0 B**;
++- a long (slow, 110-char) symlink allocates **4,096 B**.
++
++The ≤ 4 KiB assumption holds for the supported fixture.
++
++**Behaviour:**
++
++| Case | Outcome |
++|---|---|
++| Short symlink | mutant ≡ composed in both margins |
++| Long symlink, margin inside that 4 KiB window | the mutant passes the free-space preflight where composed refuses. `budget.py allocate` then refuses ("is not this reservation's regular file"), and the unwind removes the transient origin and loop |
++| Final state, every case | identical and preserved: target unchanged, symlink intact, no origin, no loop, no data file |
++
++**Conclusion:** the guard is redundant defence in depth. Without it, at most a 4 KiB preflight difference changes
++*which* refusal is reported; nothing is ever allocated, and no state is lost. No focused test was added, because it
++would distinguish no meaningful behavioural risk.
++
++**Mutant score, stated plainly:** S's shell mutants remain **13/14 killed**, with this one equivalent survivor. That
++is not a claim that every negative control is killed.
++
++## 4. Remaining gates (unchanged by this run)
++
++- **Not proven by this guest:**
++  - real NucBox placement: Windows/Hyper-V host, Linux VM, its real virtual disks and flush semantics;
++  - where the durable HDD origin lives (the 33 TB HDD is on the desktop);
++  - a real USB RAID or NTFS origin;
++  - throughput;
++  - a physical power cut;
++  - the host's running kernel 7.2.8;
++  - full-size caches;
++  - the real shared ledger.
++- **Owners:** the `nucbox-rpc-placement` worker owns placement and memory. Root owns ledger creation and activation;
++  D owns the source checkpoint.
++
++## 5. Files
++
++- `harness/`: `render.py`, `guest.py`, `run.sh`, `init`, `build-initramfs.sh`.
++- `vendor/`: S `92b7178` and P `f8c999e` (read via `git show`); the old template from S `bcd3d9c`.
++- `run/20261023T112303Z/out/`:
++  - `results.json`, `receipts.jsonl`, `console.log`, `guest-delta.log`;
++  - host and disk identity files;
++  - `render/` (incl. `seam.json`), `source-pins.txt`.
++- `logs/`: render-1, vm-1, scan.
+diff --git a/jobs/scan.sh b/jobs/scan.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..a422e6d1b09e14fc4616a027752d78b18104bbe5
+--- /dev/null
++++ b/jobs/scan.sh
+@@ -0,0 +1,9 @@
++#!/bin/bash
++set -uo pipefail
++C=$(cd "$(dirname "$0")/.." && pwd); cd "$C"
++SCAN=/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-cache-deadline-compose/repo/.githooks/scan-crypto-keys.py
++git log --format='%h %an <%ae> %s' --all
++timeout -k 5 300 python3 "$SCAN" --range --all; s=$?
++timeout -k 5 300 /home/steven/.local/bin/gitleaks git . --config .gitleaks.toml --log-opts="--all" --no-banner --redact --exit-code 1; g=$?
++timeout -k 5 300 /home/steven/.local/bin/gitleaks dir run --config .gitleaks.toml --no-banner --redact --exit-code 1; d=$?
++echo "[scan] crypto=$s gitleaks-git=$g gitleaks-run=$d"; [ $s -eq 0 ] && [ $g -eq 0 ] && [ $d -eq 0 ]
+diff --git a/logs/vm-1.guard.log b/logs/vm-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..7021ff5131628b3625eed948c2f9987a4a13fb0c
+--- /dev/null
++++ b/logs/vm-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=384 minHostAvailableMiB=24949
+diff --git a/logs/vm-1.out b/logs/vm-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..48f67ebca267d6285bf3d8640d15698b723467b8
+--- /dev/null
++++ b/logs/vm-1.out
+@@ -0,0 +1,22 @@
++[queue] START available=25262MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
++{"tag": "before", "loops": "", "dm": "control cryptroot cryptvm ", "block": "dm-0 dm-1 nvme0n1 nvme1n1 sda ", "mountinfoSha256": "df9e600de35769fa9381f254b80f2914cd892f9983f770b52ef0e88aab145d30", "qemu": "0", "testAllocBytes": 1155072}
++alloc[start]=1159168 cap=536870912
++cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222  vendor/s/holder-storage.sh.in
++cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222  vendor/p/vendor/holder/holder-storage.sh.in
++eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00  vendor/s-old/holder-storage.sh.in
++b1ceb531e0c335f74cf8182b18df94081998ccfa624466621d396ce5c3b91302  harness/guest.py
++937ab5bdc249e43f3b32409cef95421b4f82d9fc3c7af9377d95e42a3d6b1699  harness/render.py
++-rw-r--r-- 1 steven steven 8431778 Oct 23 04:23 /home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/initramfs.cpio.gz
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/hdd.img", "inode": 238201243, "apparent": 268435456, "allocated512": 0}
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/nvme.img", "inode": 238201244, "apparent": 218103808, "allocated512": 0}
++alloc[after-setup]=9687040 cap=536870912
++qemu rc=0
++alloc[after-boot]=134721536 cap=536870912
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/hdd.img", "inode": 238201243, "apparent": 268435456, "allocated512": 102880}
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/nvme.img", "inode": 238201244, "apparent": 218103808, "allocated512": 141192}
++guest-exit phase=delta rc=0
++{"tag": "after", "loops": "", "dm": "control cryptroot cryptvm ", "block": "dm-0 dm-1 nvme0n1 nvme1n1 sda ", "mountinfoSha256": "df9e600de35769fa9381f254b80f2914cd892f9983f770b52ef0e88aab145d30", "qemu": "0", "testAllocBytes": 1323008}
++leftover qemu: 0
++[memory-guard] exit=0 peakTreeRssMiB=384 minHostAvailableMiB=24949
++[memory-guard] at peak: qemu-system-x86:374 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/vm-1.rc b/logs/vm-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/vm-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/run/20261023T112303Z/out/console.log b/run/20261023T112303Z/out/console.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..7e1e8e3d79f6be34695728d295febb27d3b291f3
+--- /dev/null
++++ b/run/20261023T112303Z/out/console.log
+@@ -0,0 +1,3 @@
++guest-exit phase=delta rc=0
++[   12.601469] sysrq: Power Off
++[   12.604887] reboot: Power down
+diff --git a/run/20261023T112303Z/out/disk-identity-after.jsonl b/run/20261023T112303Z/out/disk-identity-after.jsonl
+new file mode 100644
+index 0000000000000000000000000000000000000000..bc7a3778c3312174f2afaa574dc3672c9f1d4535
+--- /dev/null
++++ b/run/20261023T112303Z/out/disk-identity-after.jsonl
+@@ -0,0 +1,2 @@
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/hdd.img", "inode": 238201243, "apparent": 268435456, "allocated512": 102880}
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/nvme.img", "inode": 238201244, "apparent": 218103808, "allocated512": 141192}
+diff --git a/run/20261023T112303Z/out/disk-identity-before.jsonl b/run/20261023T112303Z/out/disk-identity-before.jsonl
+new file mode 100644
+index 0000000000000000000000000000000000000000..a1817babf6826658ba1f58990acabaab7b79b460
+--- /dev/null
++++ b/run/20261023T112303Z/out/disk-identity-before.jsonl
+@@ -0,0 +1,2 @@
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/hdd.img", "inode": 238201243, "apparent": 268435456, "allocated512": 0}
++{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/cache-composed-kernel-delta-20261023/run/20261023T112303Z/nvme.img", "inode": 238201244, "apparent": 218103808, "allocated512": 0}
+diff --git a/run/20261023T112303Z/out/guest-delta.log b/run/20261023T112303Z/out/guest-delta.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d0e45efb7200bea1ef5e0112b6a2f0f626ed334c
+--- /dev/null
++++ b/run/20261023T112303Z/out/guest-delta.log
+@@ -0,0 +1 @@
++guest-exit phase=delta rc=0
+diff --git a/run/20261023T112303Z/out/host-identity-after.json b/run/20261023T112303Z/out/host-identity-after.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..9bfabc0086595a5b7a6600f9585403fe0b6fc4c3
+--- /dev/null
++++ b/run/20261023T112303Z/out/host-identity-after.json
+@@ -0,0 +1 @@
++{"tag": "after", "loops": "", "dm": "control cryptroot cryptvm ", "block": "dm-0 dm-1 nvme0n1 nvme1n1 sda ", "mountinfoSha256": "df9e600de35769fa9381f254b80f2914cd892f9983f770b52ef0e88aab145d30", "qemu": "0", "testAllocBytes": 1323008}
+diff --git a/run/20261023T112303Z/out/host-identity-before.json b/run/20261023T112303Z/out/host-identity-before.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..5858bc7ed958cc7bf814bd0fa0522a6baa1936e5
+--- /dev/null
++++ b/run/20261023T112303Z/out/host-identity-before.json
+@@ -0,0 +1 @@
++{"tag": "before", "loops": "", "dm": "control cryptroot cryptvm ", "block": "dm-0 dm-1 nvme0n1 nvme1n1 sda ", "mountinfoSha256": "df9e600de35769fa9381f254b80f2914cd892f9983f770b52ef0e88aab145d30", "qemu": "0", "testAllocBytes": 1155072}
+diff --git a/run/20261023T112303Z/out/render.log b/run/20261023T112303Z/out/render.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..7860d405f3e492e5869a9bd41d97c0e9bfda10d8
+--- /dev/null
++++ b/run/20261023T112303Z/out/render.log
+@@ -0,0 +1,26 @@
++{
++ "composedTemplate": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
++ "oldTemplate": "eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00",
++ "renderers": {
++  "s/holder.py": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
++  "p/l1pair.py": "a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d",
++  "budget.py": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24"
++ },
++ "files": {
++  "holder-storage.sh": "3e395749802f70d692e0d1f47ff45688d40b49ac68ebe9eeb396b7712850275d",
++  "pair-storage.sh": "218f4cdcd566f139f3bcfd0e8e7e64ec9ac4500fd80f59f8b1a78b807dd15159",
++  "probe-storage.sh": "9d5e4b8a74b8d490445e4dd30eeb707d027eda550d01334730dc3821c50db8f0",
++  "old-holder-storage.sh": "3ad5647f342c423e4733dd0c5f2a81e9e217c1777996b17ff5ef6cad1dabc8c2",
++  "mutant-credit-symlink.sh": "5dc9f947f5d9f0c3dfc6d99531880348c6825309f7e6809ca06edb27ccdba9df",
++  "holder.json": "029b1b2a04747afc6a49dc09c5f0de0f16e0f361a0abcafafb224e0025f4ebdc",
++  "pair.json": "c4a93b74970a2e08afd496958c231dd6177e544cfaec4b8afcda700942abcad9",
++  "probe.json": "ba7f66866daf3ceba10d1a4ef08c0c05e72f08a6071b368642dedf39624a20c9",
++  "ledger.json": "cbb319a2c0628b747d93f356ef05fc11daacfdb17022435055362bb366ac6686"
++ },
++ "ledgerShare": 113668096,
++ "reservations": {
++  "base-holder-dm-cache": 84115456,
++  "l1-pair-dm-cache": 16834560,
++  "probe-dm-cache": 12640256
++ }
++}
+diff --git a/run/20261023T112303Z/out/render/holder-storage.sh b/run/20261023T112303Z/out/render/holder-storage.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..e39ffb0d54c2ae028acb961c6418d9b2d7c389d8
+--- /dev/null
++++ b/run/20261023T112303Z/out/render/holder-storage.sh
+@@ -0,0 +1,218 @@
++#!/bin/bash
++# Enclave Base holder storage (rendered by holder.py from holder-storage.sh.in; ROOT ONLY; review before use).
++# Durable data: ONE new ext4 filesystem inside ONE new image file on the HDD (ORIGIN). Optional cache: dm-cache in
++# WRITETHROUGH mode (smq) on two new fixed-size image files on NVMe (CDATA, CMETA). Existing filesystems, partitions and
++# mappings are never formatted, changed, adopted or removed unless they are provably this holder's own.
++#   create        once, with root's approval: preflight EVERYTHING, then allocate; unwinds only what it created
++#   assemble      at boot: attach and map (or adopt an IDENTICAL existing mapping), mount; unwinds only what it did
++#   disassemble   at stop: unmount, unmap, detach; stops at the first failure (never detaches under a live user)
++#   verify-cap    the shared NVMe cache budget ledger (budget.py verify): this host's reservations charged at their
++#                 declared MAXIMA within its fixed share of the 250,000,000,000-byte cap, every present file exactly
++#                 bounded and owned, this reservation's files present; exit 3 otherwise
++#   cache-loss    holder stopped: unmap, INVALIDATE the cache metadata first, then a read-only check of the origin. Any
++#                 later assemble starts from an empty cache. A cache is never reattached after uncached origin access.
++set -euo pipefail
++umask 077
++MECHANISM='dm-cache'
++ORIGIN='/usbtest/enclave-base-holder/origin.img'
++ORIGIN_BYTES='167772160'
++ORIGIN_FREE_MARGIN='0'
++MNT='/srv/enclave-base-holder'
++DATADIR='/srv/enclave-base-holder/data'
++OWNER='enclave-holder'
++NAME='enclave-base-holder'
++PY='/usr/bin/python3'
++BUDGET_TOOL='/src/vendor/s/budget.py'
++LEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'
++RESERVATION='base-holder-dm-cache'
++CDATA='/vmtest/enclave-base-holder-cache/cache-data.img'
++CDATA_BYTES='67108864'
++CMETA='/vmtest/enclave-base-holder-cache/cache-meta.img'
++CMETA_BYTES='16777216'
++BLOCK_SECTORS='512'
++NVME_FREE_MARGIN='0'
++log() { echo "holder-storage: $*" >&2; }
++die() { log "$*"; exit 2; }
++rot() { lsblk -nso ROTA "$(findmnt -no SOURCE --target "$(dirname "$1")")" | tail -1 | tr -d ' '; }
++avail() { df --output=avail -B1 "$(dirname "$1")" | tail -1 | tr -d ' '; }
++mm() { lsblk -dno MAJ:MIN "$1" | tr -d ' '; }
++loopof() { losetup -j "$1" -O NAME -n | head -1; }          # the loop bound to exactly this backing file, if any
++CREATED=(); ATTACHED=(); MAPPED=; MOUNTED=
++unwind() {
++  local rc=$?
++  [ "$rc" -eq 0 ] && return 0
++  trap - EXIT
++  set +e
++  # Ownership alone is not enough: a failed teardown leaves its dependencies live.
++  # Preserve the remaining devices/files for recovery and the original failure code.
++  if [ -n "$MOUNTED" ] && ! umount "$MNT"; then
++    log "cleanup stopped: cannot unmount $MNT; mapping, loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  if [ -n "$MAPPED" ] && ! dmsetup remove "$NAME"; then
++    log "cleanup stopped: cannot remove mapping $NAME; loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  for l in "${ATTACHED[@]}"; do
++    if ! losetup -d "$l"; then
++      log "cleanup stopped: cannot detach $l; remaining loops and images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  for f in "${CREATED[@]}"; do
++    if ! rm -f -- "$f"; then
++      log "cleanup stopped: cannot remove $f; remaining images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  log "failed (rc=$rc): undid only what this run created/attached/mapped/mounted"
++  exit "$rc"
++}
++trap unwind EXIT
++# a signal (systemd stop, Ctrl-C, hangup) takes the same unwind path as an error: without these, bash dies on SIGTERM
++# WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel, vm-2/vm-3)
++trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
++attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
++  local l; l=$(loopof "$1")
++  if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
++  printf -v "$2" '%s' "$l"
++}
++expected_table() { echo "0 $(blockdev --getsz "$O") cache $(mm "$M") $(mm "$D") $(mm "$O") $BLOCK_SECTORS 1 writethrough smq 0"; }
++cached() { [ "$MECHANISM" = dm-cache ]; }
++holder_dev() {   # the device the mount must come from; sets DEV
++  if cached; then DEV=/dev/mapper/$NAME; else DEV=$O; fi
++}
++own_mapping() {  # 0 = absent, 1 = present AND identical to ours; anything else refuses
++  dmsetup info "$NAME" >/dev/null 2>&1 || return 0
++  local have want; have=$(dmsetup table "$NAME"); want=$(expected_table)
++  [ "$have" = "$want" ] || die "mapping $NAME exists but is not this holder's (have: $have; want: $want); leaving it untouched"
++  return 1
++}
++
++case "${1:-}" in
++create)
++  # 1. preflight every resource BEFORE allocating anything
++  test ! -e "$ORIGIN" || die "$ORIGIN exists: refusing to overwrite or reuse"
++  for f in "$ORIGIN" ${CDATA:+"$CDATA"} ${CMETA:+"$CMETA"}; do
++    test -d "$(dirname "$f")" || die "$(dirname "$f") does not exist"
++  done
++  [ "$(rot "$ORIGIN")" = 1 ] || die "origin must be on a rotational (HDD) device"
++  [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
++  if cached; then
++    for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
++    # A re-run after an interrupted create ADOPTS this reservation's owned cache files (budget admit/allocate), so only
++    # their not-yet-allocated part needs free space. Credit ONLY a regular file (no symlink) that carries an ownership
++    # marker and lives on the SAME filesystem as the CDATA directory measured here; anything else is credited 0. The
++    # budget admit below still refuses a file whose marker is not this reservation's.
++    credit() {   # credit FILE DECLARED_BYTES -> allocated bytes to subtract (<= DECLARED_BYTES)
++      local a
++      if [ -f "$1" ] && [ ! -L "$1" ] && [ -f "$1.enclave-budget-owner" ] && [ ! -L "$1.enclave-budget-owner" ] \
++         && [ "$(stat -c %d -- "$1")" = "$(stat -c %d -- "$(dirname "$CDATA")")" ]; then
++        a=$(( $(stat -c %b -- "$1") * 512 )); [ "$a" -le "$2" ] || a=$2; echo "$a"
++      else
++        echo 0
++      fi
++    }
++    need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(credit "$CDATA" "$CDATA_BYTES") - $(credit "$CMETA" "$CMETA_BYTES") ))
++    [ "$(avail "$CDATA")" -ge "$need" ] || die "not enough NVMe free space for the cache plus margin"
++    # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
++    # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
++    "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
++      || die "NVMe cache budget reservation refused"
++  fi
++  # 2. allocate, tracking ownership for unwind
++  CREATED+=("$ORIGIN"); fallocate -l "$ORIGIN_BYTES" -- "$ORIGIN"
++  attach "$ORIGIN" O
++  mkfs.ext4 -q -L enclave-holder -E lazy_itable_init=0,lazy_journal_init=0 "$O"   # NEW filesystem in the NEW image
++  if cached; then
++    ALLOC=$("$PY" -I "$BUDGET_TOOL" allocate "$LEDGER" "$RESERVATION") || die "NVMe cache budget allocation refused"
++    while read -r w p; do [ "$w" = created ] && CREATED+=("$p"); done <<< "$ALLOC"
++    dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none   # zeroed: dm-cache formats an empty cache
++  fi
++  losetup -d "$O"; ATTACHED=()
++  CREATED=()
++  log "created (not assembled)"
++  ;;
++assemble)
++  modprobe loop
++  test -f "$ORIGIN" || die "origin image missing"
++  if cached; then modprobe dm-cache; modprobe dm-cache-smq; test -f "$CDATA" && test -f "$CMETA" || die "cache images missing"; fi
++  attach "$ORIGIN" O
++  if cached; then
++    "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION" >/dev/null || die "NVMe cache budget verification failed"
++    attach "$CDATA" D; attach "$CMETA" M
++    if own_mapping; then
++      [ -z "$(lsblk -nro MOUNTPOINTS "$O" | tr -d '[:space:]')" ] || die "origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)"
++      dmsetup create "$NAME" --table "$(expected_table)"; MAPPED=1
++    fi
++    dmsetup status "$NAME" | grep -qw writethrough || die "mapping $NAME is not writethrough"
++  fi
++  holder_dev
++  mkdir -p "$MNT"
++  if findmnt -n "$MNT" >/dev/null; then
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++  else
++    mount -o noatime,nodev,nosuid "$DEV" "$MNT"; MOUNTED=1
++  fi
++  chown "$OWNER:$OWNER" "$MNT"; chmod 0700 "$MNT"
++  for d in "$DATADIR" "$MNT/tmp"; do mkdir -p "$d"; chown "$OWNER:$OWNER" "$d"; chmod 0700 "$d"; done
++  ATTACHED=(); MAPPED=; MOUNTED=
++  log "assembled: $DEV on $MNT"
++  ;;
++disassemble)
++  trap - EXIT
++  # Validate the complete ownership chain BEFORE the first destructive action.
++  # A configured path alone does not identify the filesystem mounted there.
++  O=$(loopof "$ORIGIN")
++  DEV=; REMOVE_MAPPING=
++  if cached && dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$O" ] && [ -n "$D" ] && [ -n "$M" ] || die "mapping $NAME exists but its loops are not ours: leaving it"
++    [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    DEV=/dev/mapper/$NAME; REMOVE_MAPPING=1
++  elif ! cached; then
++    DEV=$O
++  fi
++  if findmnt -n "$MNT" >/dev/null; then
++    [ -n "$DEV" ] || die "$MNT is mounted but this holder's device is absent: leaving it"
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++    umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"
++  fi
++  if [ -n "$REMOVE_MAPPING" ]; then
++    dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
++  fi
++  for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
++    l=$(loopof "$f"); [ -n "$l" ] || continue
++    # a loop still mounted anywhere or held by another device (lsblk lists holders as children) is ACTIVE: losetup -d
++    # would only defer the detach (autoclear) under its user, so stop instead and leave it
++    [ -z "$(lsblk -nro MOUNTPOINTS "$l" | tr -d '[:space:]')" ] && [ "$(lsblk -nro NAME "$l" | wc -l)" -le 1 ] \
++      || die "$l ($f) is still mounted or held by another device: not detaching it (stopping)"
++    losetup -d "$l" || die "detach of $l ($f) failed"
++  done
++  log "disassembled"
++  ;;
++verify-cap)
++  trap - EXIT
++  if cached; then exec "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION"; fi
++  echo '{"cache": "none", "nvmeBytes": 0}'
++  ;;
++cache-loss)
++  cached || die "no cache configured"
++  ! findmnt -n "$MNT" >/dev/null || die "$MNT is mounted: stop the holder and run disassemble first"
++  O=$(loopof "$ORIGIN"); [ -n "$O" ] || attach "$ORIGIN" O
++  if dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$D" ] && [ -n "$M" ] && [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    dmsetup remove "$NAME" || die "dmsetup remove failed"
++  fi
++  # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
++  dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
++  e2fsck -fn "$O"
++  # leave the system as found: detach only the origin loop THIS run attached for the check; a loop that existed before
++  # (e.g. left by an earlier assemble or held by something else) is not ours to remove here
++  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done
++  ATTACHED=()
++  log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
++  ;;
++*) echo "usage: $0 create|assemble|disassemble|verify-cap|cache-loss" >&2; trap - EXIT; exit 64;;
++esac
+diff --git a/run/20261023T112303Z/out/render/holder.json b/run/20261023T112303Z/out/render/holder.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..8734f37967d7cf5c9a13f0a27be7f1572633b56a
+--- /dev/null
++++ b/run/20261023T112303Z/out/render/holder.json
+@@ -0,0 +1,29 @@
++{
++ "serviceUser": "enclave-holder",
++ "datadir": "/srv/enclave-base-holder/data",
++ "storage": {
++  "layout": "loop-ext4-image",
++  "mountPoint": "/srv/enclave-base-holder",
++  "origin": {
++   "imagePath": "/usbtest/enclave-base-holder/origin.img",
++   "bytes": 167772160
++  },
++  "cache": {
++   "mechanism": "dm-cache",
++   "mode": "writethrough",
++   "policy": "smq",
++   "dataImagePath": "/vmtest/enclave-base-holder-cache/cache-data.img",
++   "dataBytes": 67108864,
++   "metadataImagePath": "/vmtest/enclave-base-holder-cache/cache-meta.img",
++   "metadataBytes": 16777216,
++   "blockBytes": 262144,
++   "slackBytes": 229376
++  },
++  "nvmeBudget": {
++   "ledgerPath": "/etc/enclave-rpc-cache/nvme-cache-budget.json",
++   "reservationId": "base-holder-dm-cache"
++  },
++  "originFreeMarginBytes": 0,
++  "nvmeFreeMarginBytes": 0
++ }
++}
+diff --git a/run/20261023T112303Z/out/render/ledger.json b/run/20261023T112303Z/out/render/ledger.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..344ad269a084184c61a2161e36f352cd63a036dd
+--- /dev/null
++++ b/run/20261023T112303Z/out/render/ledger.json
+@@ -0,0 +1,71 @@
++{
++ "format": "enclave-rpc-nvme-cache-budget/v2",
++ "capBytes": 250000000000,
++ "targetBytes": 200000000000,
++ "hosts": [
++  {
++   "machineId": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
++   "label": "guest-fixture",
++   "shareBytes": 113668096
++  }
++ ],
++ "reservations": [
++  {
++   "id": "base-holder-dm-cache",
++   "host": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
++   "owner": "enclave-base-holder",
++   "kind": "preallocated-files",
++   "blockBytes": 4096,
++   "maxBytes": 84115456,
++   "slackBytes": 229376,
++   "files": [
++    {
++     "path": "/vmtest/enclave-base-holder-cache/cache-data.img",
++     "bytes": 67108864
++    },
++    {
++     "path": "/vmtest/enclave-base-holder-cache/cache-meta.img",
++     "bytes": 16777216
++    }
++   ]
++  },
++  {
++   "id": "l1-pair-dm-cache",
++   "host": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
++   "owner": "enclave-l1-pair",
++   "kind": "preallocated-files",
++   "blockBytes": 4096,
++   "maxBytes": 16834560,
++   "slackBytes": 57344,
++   "files": [
++    {
++     "path": "/vmtest/enclave-l1-pair-cache/cache-data.img",
++     "bytes": 8388608
++    },
++    {
++     "path": "/vmtest/enclave-l1-pair-cache/cache-meta.img",
++     "bytes": 8388608
++    }
++   ]
++  },
++  {
++   "id": "probe-dm-cache",
++   "host": "0e0f0e0f0e0f0e0f0e0f0e0f0e0f0e0f",
++   "owner": "credit-probe",
++   "kind": "preallocated-files",
++   "blockBytes": 4096,
++   "maxBytes": 12640256,
++   "slackBytes": 57344,
++   "files": [
++    {
++     "path": "/vmtest/probe-cache/cache-data.img",
++     "bytes": 4194304
++    },
++    {
++     "path": "/vmtest2/probe-meta/cache-meta.img",
++     "bytes": 8388608
++    }
++   ]
++  }
++ ]
++}
+diff --git a/run/20261023T112303Z/out/render/mutant-credit-symlink.sh b/run/20261023T112303Z/out/render/mutant-credit-symlink.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..82b89b0223104a26f10f11eaee6edad6eb3d2968
+--- /dev/null
++++ b/run/20261023T112303Z/out/render/mutant-credit-symlink.sh
+@@ -0,0 +1,218 @@
++#!/bin/bash
++# Enclave Base holder storage (rendered by holder.py from holder-storage.sh.in; ROOT ONLY; review before use).
++# Durable data: ONE new ext4 filesystem inside ONE new image file on the HDD (ORIGIN). Optional cache: dm-cache in
++# WRITETHROUGH mode (smq) on two new fixed-size image files on NVMe (CDATA, CMETA). Existing filesystems, partitions and
++# mappings are never formatted, changed, adopted or removed unless they are provably this holder's own.
++#   create        once, with root's approval: preflight EVERYTHING, then allocate; unwinds only what it created
++#   assemble      at boot: attach and map (or adopt an IDENTICAL existing mapping), mount; unwinds only what it did
++#   disassemble   at stop: unmount, unmap, detach; stops at the first failure (never detaches under a live user)
++#   verify-cap    the shared NVMe cache budget ledger (budget.py verify): this host's reservations charged at their
++#                 declared MAXIMA within its fixed share of the 250,000,000,000-byte cap, every present file exactly
++#                 bounded and owned, this reservation's files present; exit 3 otherwise
++#   cache-loss    holder stopped: unmap, INVALIDATE the cache metadata first, then a read-only check of the origin. Any
++#                 later assemble starts from an empty cache. A cache is never reattached after uncached origin access.
++set -euo pipefail
++umask 077
++MECHANISM='dm-cache'
++ORIGIN='/usbtest/enclave-l1-pair/origin.img'
++ORIGIN_BYTES='33554432'
++ORIGIN_FREE_MARGIN='0'
++MNT='/srv/enclave-l1-pair'
++DATADIR='/srv/enclave-l1-pair/data'
++OWNER='enclave-l1'
++NAME='enclave-l1-pair'
++PY='/usr/bin/python3'
++BUDGET_TOOL='/src/vendor/s/budget.py'
++LEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'
++RESERVATION='l1-pair-dm-cache'
++CDATA='/vmtest/enclave-l1-pair-cache/cache-data.img'
++CDATA_BYTES='8388608'
++CMETA='/vmtest/enclave-l1-pair-cache/cache-meta.img'
++CMETA_BYTES='8388608'
++BLOCK_SECTORS='512'
++NVME_FREE_MARGIN='0'
++log() { echo "holder-storage: $*" >&2; }
++die() { log "$*"; exit 2; }
++rot() { lsblk -nso ROTA "$(findmnt -no SOURCE --target "$(dirname "$1")")" | tail -1 | tr -d ' '; }
++avail() { df --output=avail -B1 "$(dirname "$1")" | tail -1 | tr -d ' '; }
++mm() { lsblk -dno MAJ:MIN "$1" | tr -d ' '; }
++loopof() { losetup -j "$1" -O NAME -n | head -1; }          # the loop bound to exactly this backing file, if any
++CREATED=(); ATTACHED=(); MAPPED=; MOUNTED=
++unwind() {
++  local rc=$?
++  [ "$rc" -eq 0 ] && return 0
++  trap - EXIT
++  set +e
++  # Ownership alone is not enough: a failed teardown leaves its dependencies live.
++  # Preserve the remaining devices/files for recovery and the original failure code.
++  if [ -n "$MOUNTED" ] && ! umount "$MNT"; then
++    log "cleanup stopped: cannot unmount $MNT; mapping, loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  if [ -n "$MAPPED" ] && ! dmsetup remove "$NAME"; then
++    log "cleanup stopped: cannot remove mapping $NAME; loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  for l in "${ATTACHED[@]}"; do
++    if ! losetup -d "$l"; then
++      log "cleanup stopped: cannot detach $l; remaining loops and images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  for f in "${CREATED[@]}"; do
++    if ! rm -f -- "$f"; then
++      log "cleanup stopped: cannot remove $f; remaining images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  log "failed (rc=$rc): undid only what this run created/attached/mapped/mounted"
++  exit "$rc"
++}
++trap unwind EXIT
++# a signal (systemd stop, Ctrl-C, hangup) takes the same unwind path as an error: without these, bash dies on SIGTERM
++# WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel, vm-2/vm-3)
++trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
++attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
++  local l; l=$(loopof "$1")
++  if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
++  printf -v "$2" '%s' "$l"
++}
++expected_table() { echo "0 $(blockdev --getsz "$O") cache $(mm "$M") $(mm "$D") $(mm "$O") $BLOCK_SECTORS 1 writethrough smq 0"; }
++cached() { [ "$MECHANISM" = dm-cache ]; }
++holder_dev() {   # the device the mount must come from; sets DEV
++  if cached; then DEV=/dev/mapper/$NAME; else DEV=$O; fi
++}
++own_mapping() {  # 0 = absent, 1 = present AND identical to ours; anything else refuses
++  dmsetup info "$NAME" >/dev/null 2>&1 || return 0
++  local have want; have=$(dmsetup table "$NAME"); want=$(expected_table)
++  [ "$have" = "$want" ] || die "mapping $NAME exists but is not this holder's (have: $have; want: $want); leaving it untouched"
++  return 1
++}
++
++case "${1:-}" in
++create)
++  # 1. preflight every resource BEFORE allocating anything
++  test ! -e "$ORIGIN" || die "$ORIGIN exists: refusing to overwrite or reuse"
++  for f in "$ORIGIN" ${CDATA:+"$CDATA"} ${CMETA:+"$CMETA"}; do
++    test -d "$(dirname "$f")" || die "$(dirname "$f") does not exist"
++  done
++  [ "$(rot "$ORIGIN")" = 1 ] || die "origin must be on a rotational (HDD) device"
++  [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
++  if cached; then
++    for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
++    # A re-run after an interrupted create ADOPTS this reservation's owned cache files (budget admit/allocate), so only
++    # their not-yet-allocated part needs free space. Credit ONLY a regular file (no symlink) that carries an ownership
++    # marker and lives on the SAME filesystem as the CDATA directory measured here; anything else is credited 0. The
++    # budget admit below still refuses a file whose marker is not this reservation's.
++    credit() {   # credit FILE DECLARED_BYTES -> allocated bytes to subtract (<= DECLARED_BYTES)
++      local a
++      if [ -f "$1" ] && [ -f "$1.enclave-budget-owner" ] && [ ! -L "$1.enclave-budget-owner" ] \
++         && [ "$(stat -c %d -- "$1")" = "$(stat -c %d -- "$(dirname "$CDATA")")" ]; then
++        a=$(( $(stat -c %b -- "$1") * 512 )); [ "$a" -le "$2" ] || a=$2; echo "$a"
++      else
++        echo 0
++      fi
++    }
++    need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(credit "$CDATA" "$CDATA_BYTES") - $(credit "$CMETA" "$CMETA_BYTES") ))
++    [ "$(avail "$CDATA")" -ge "$need" ] || die "not enough NVMe free space for the cache plus margin"
++    # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
++    # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
++    "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
++      || die "NVMe cache budget reservation refused"
++  fi
++  # 2. allocate, tracking ownership for unwind
++  CREATED+=("$ORIGIN"); fallocate -l "$ORIGIN_BYTES" -- "$ORIGIN"
++  attach "$ORIGIN" O
++  mkfs.ext4 -q -L enclave-holder -E lazy_itable_init=0,lazy_journal_init=0 "$O"   # NEW filesystem in the NEW image
++  if cached; then
++    ALLOC=$("$PY" -I "$BUDGET_TOOL" allocate "$LEDGER" "$RESERVATION") || die "NVMe cache budget allocation refused"
++    while read -r w p; do [ "$w" = created ] && CREATED+=("$p"); done <<< "$ALLOC"
++    dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none   # zeroed: dm-cache formats an empty cache
++  fi
++  losetup -d "$O"; ATTACHED=()
++  CREATED=()
++  log "created (not assembled)"
++  ;;
++assemble)
++  modprobe loop
++  test -f "$ORIGIN" || die "origin image missing"
++  if cached; then modprobe dm-cache; modprobe dm-cache-smq; test -f "$CDATA" && test -f "$CMETA" || die "cache images missing"; fi
++  attach "$ORIGIN" O
++  if cached; then
++    "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION" >/dev/null || die "NVMe cache budget verification failed"
++    attach "$CDATA" D; attach "$CMETA" M
++    if own_mapping; then
++      [ -z "$(lsblk -nro MOUNTPOINTS "$O" | tr -d '[:space:]')" ] || die "origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)"
++      dmsetup create "$NAME" --table "$(expected_table)"; MAPPED=1
++    fi
++    dmsetup status "$NAME" | grep -qw writethrough || die "mapping $NAME is not writethrough"
++  fi
++  holder_dev
++  mkdir -p "$MNT"
++  if findmnt -n "$MNT" >/dev/null; then
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++  else
++    mount -o noatime,nodev,nosuid "$DEV" "$MNT"; MOUNTED=1
++  fi
++  chown "$OWNER:$OWNER" "$MNT"; chmod 0700 "$MNT"
++  for d in "$DATADIR" "$MNT/tmp"; do mkdir -p "$d"; chown "$OWNER:$OWNER" "$d"; chmod 0700 "$d"; done
++  ATTACHED=(); MAPPED=; MOUNTED=
++  log "assembled: $DEV on $MNT"
++  ;;
++disassemble)
++  trap - EXIT
++  # Validate the complete ownership chain BEFORE the first destructive action.
++  # A configured path alone does not identify the filesystem mounted there.
++  O=$(loopof "$ORIGIN")
++  DEV=; REMOVE_MAPPING=
++  if cached && dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$O" ] && [ -n "$D" ] && [ -n "$M" ] || die "mapping $NAME exists but its loops are not ours: leaving it"
++    [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    DEV=/dev/mapper/$NAME; REMOVE_MAPPING=1
++  elif ! cached; then
++    DEV=$O
++  fi
++  if findmnt -n "$MNT" >/dev/null; then
++    [ -n "$DEV" ] || die "$MNT is mounted but this holder's device is absent: leaving it"
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++    umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"
++  fi
++  if [ -n "$REMOVE_MAPPING" ]; then
++    dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
++  fi
++  for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
++    l=$(loopof "$f"); [ -n "$l" ] || continue
++    # a loop still mounted anywhere or held by another device (lsblk lists holders as children) is ACTIVE: losetup -d
++    # would only defer the detach (autoclear) under its user, so stop instead and leave it
++    [ -z "$(lsblk -nro MOUNTPOINTS "$l" | tr -d '[:space:]')" ] && [ "$(lsblk -nro NAME "$l" | wc -l)" -le 1 ] \
++      || die "$l ($f) is still mounted or held by another device: not detaching it (stopping)"
++    losetup -d "$l" || die "detach of $l ($f) failed"
++  done
++  log "disassembled"
++  ;;
++verify-cap)
++  trap - EXIT
++  if cached; then exec "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION"; fi
++  echo '{"cache": "none", "nvmeBytes": 0}'
++  ;;
++cache-loss)
++  cached || die "no cache configured"
++  ! findmnt -n "$MNT" >/dev/null || die "$MNT is mounted: stop the holder and run disassemble first"
++  O=$(loopof "$ORIGIN"); [ -n "$O" ] || attach "$ORIGIN" O
++  if dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$D" ] && [ -n "$M" ] && [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    dmsetup remove "$NAME" || die "dmsetup remove failed"
++  fi
++  # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
++  dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
++  e2fsck -fn "$O"
++  # leave the system as found: detach only the origin loop THIS run attached for the check; a loop that existed before
++  # (e.g. left by an earlier assemble or held by something else) is not ours to remove here
++  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done
++  ATTACHED=()
++  log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
++  ;;
++*) echo "usage: $0 create|assemble|disassemble|verify-cap|cache-loss" >&2; trap - EXIT; exit 64;;
++esac
+diff --git a/run/20261023T112303Z/out/render/old-holder-storage.sh b/run/20261023T112303Z/out/render/old-holder-storage.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..27e1e18744481f03bbfed1f64d9173f38377ae4b
+--- /dev/null
++++ b/run/20261023T112303Z/out/render/old-holder-storage.sh
+@@ -0,0 +1,193 @@
++#!/bin/bash
++# Enclave Base holder storage (rendered by holder.py from holder-storage.sh.in; ROOT ONLY; review before use).
++# Durable data: ONE new ext4 filesystem inside ONE new image file on the HDD (ORIGIN). Optional cache: dm-cache in
++# WRITETHROUGH mode (smq) on two new fixed-size image files on NVMe (CDATA, CMETA). Existing filesystems, partitions and
++# mappings are never formatted, changed, adopted or removed unless they are provably this holder's own.
++#   create        once, with root's approval: preflight EVERYTHING, then allocate; unwinds only what it created
++#   assemble      at boot: attach and map (or adopt an IDENTICAL existing mapping), mount; unwinds only what it did
++#   disassemble   at stop: unmount, unmap, detach; stops at the first failure (never detaches under a live user)
++#   verify-cap    the shared NVMe cache budget ledger (budget.py verify): this host's reservations charged at their
++#                 declared MAXIMA within its fixed share of the 250,000,000,000-byte cap, every present file exactly
++#                 bounded and owned, this reservation's files present; exit 3 otherwise
++#   cache-loss    holder stopped: unmap, INVALIDATE the cache metadata first, then a read-only check of the origin. Any
++#                 later assemble starts from an empty cache. A cache is never reattached after uncached origin access.
++set -euo pipefail
++umask 077
++MECHANISM='dm-cache'
++ORIGIN='/usbtest/enclave-base-holder/origin.img'
++ORIGIN_BYTES='167772160'
++ORIGIN_FREE_MARGIN='0'
++MNT='/srv/enclave-base-holder'
++DATADIR='/srv/enclave-base-holder/data'
++OWNER='enclave-holder'
++NAME='enclave-base-holder'
++PY='/usr/bin/python3'
++BUDGET_TOOL='/src/vendor/s/budget.py'
++LEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'
++RESERVATION='base-holder-dm-cache'
++CDATA='/vmtest/enclave-base-holder-cache/cache-data.img'
++CDATA_BYTES='67108864'
++CMETA='/vmtest/enclave-base-holder-cache/cache-meta.img'
++CMETA_BYTES='16777216'
++BLOCK_SECTORS='512'
++NVME_FREE_MARGIN='0'
++log() { echo "holder-storage: $*" >&2; }
++die() { log "$*"; exit 2; }
++rot() { lsblk -nso ROTA "$(findmnt -no SOURCE --target "$(dirname "$1")")" | tail -1 | tr -d ' '; }
++avail() { df --output=avail -B1 "$(dirname "$1")" | tail -1 | tr -d ' '; }
++mm() { lsblk -dno MAJ:MIN "$1" | tr -d ' '; }
++loopof() { losetup -j "$1" -O NAME -n | head -1; }          # the loop bound to exactly this backing file, if any
++CREATED=(); ATTACHED=(); MAPPED=; MOUNTED=
++unwind() {
++  local rc=$?
++  [ "$rc" -eq 0 ] && return 0
++  trap - EXIT
++  set +e
++  # Ownership alone is not enough: a failed teardown leaves its dependencies live.
++  # Preserve the remaining devices/files for recovery and the original failure code.
++  if [ -n "$MOUNTED" ] && ! umount "$MNT"; then
++    log "cleanup stopped: cannot unmount $MNT; mapping, loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  if [ -n "$MAPPED" ] && ! dmsetup remove "$NAME"; then
++    log "cleanup stopped: cannot remove mapping $NAME; loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  for l in "${ATTACHED[@]}"; do
++    if ! losetup -d "$l"; then
++      log "cleanup stopped: cannot detach $l; remaining loops and images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  for f in "${CREATED[@]}"; do
++    if ! rm -f -- "$f"; then
++      log "cleanup stopped: cannot remove $f; remaining images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  log "failed (rc=$rc): undid only what this run created/attached/mapped/mounted"
++  exit "$rc"
++}
++trap unwind EXIT
++attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
++  local l; l=$(loopof "$1")
++  if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
++  printf -v "$2" '%s' "$l"
++}
++expected_table() { echo "0 $(blockdev --getsz "$O") cache $(mm "$M") $(mm "$D") $(mm "$O") $BLOCK_SECTORS 1 writethrough smq 0"; }
++cached() { [ "$MECHANISM" = dm-cache ]; }
++holder_dev() {   # the device the mount must come from; sets DEV
++  if cached; then DEV=/dev/mapper/$NAME; else DEV=$O; fi
++}
++own_mapping() {  # 0 = absent, 1 = present AND identical to ours; anything else refuses
++  dmsetup info "$NAME" >/dev/null 2>&1 || return 0
++  local have want; have=$(dmsetup table "$NAME"); want=$(expected_table)
++  [ "$have" = "$want" ] || die "mapping $NAME exists but is not this holder's (have: $have; want: $want); leaving it untouched"
++  return 1
++}
++
++case "${1:-}" in
++create)
++  # 1. preflight every resource BEFORE allocating anything
++  test ! -e "$ORIGIN" || die "$ORIGIN exists: refusing to overwrite or reuse"
++  for f in "$ORIGIN" ${CDATA:+"$CDATA"} ${CMETA:+"$CMETA"}; do
++    test -d "$(dirname "$f")" || die "$(dirname "$f") does not exist"
++  done
++  [ "$(rot "$ORIGIN")" = 1 ] || die "origin must be on a rotational (HDD) device"
++  [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
++  if cached; then
++    for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
++    [ "$(avail "$CDATA")" -ge $(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN )) ] || die "not enough NVMe free space for the cache plus margin"
++    # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
++    # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
++    "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
++      || die "NVMe cache budget reservation refused"
++  fi
++  # 2. allocate, tracking ownership for unwind
++  CREATED+=("$ORIGIN"); fallocate -l "$ORIGIN_BYTES" -- "$ORIGIN"
++  attach "$ORIGIN" O
++  mkfs.ext4 -q -L enclave-holder -E lazy_itable_init=0,lazy_journal_init=0 "$O"   # NEW filesystem in the NEW image
++  if cached; then
++    ALLOC=$("$PY" -I "$BUDGET_TOOL" allocate "$LEDGER" "$RESERVATION") || die "NVMe cache budget allocation refused"
++    while read -r w p; do [ "$w" = created ] && CREATED+=("$p"); done <<< "$ALLOC"
++    dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none   # zeroed: dm-cache formats an empty cache
++  fi
++  losetup -d "$O"; ATTACHED=()
++  CREATED=()
++  log "created (not assembled)"
++  ;;
++assemble)
++  modprobe loop
++  test -f "$ORIGIN" || die "origin image missing"
++  if cached; then modprobe dm-cache; modprobe dm-cache-smq; test -f "$CDATA" && test -f "$CMETA" || die "cache images missing"; fi
++  attach "$ORIGIN" O
++  if cached; then
++    "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION" >/dev/null || die "NVMe cache budget verification failed"
++    attach "$CDATA" D; attach "$CMETA" M
++    if own_mapping; then
++      [ -z "$(lsblk -nro MOUNTPOINTS "$O" | tr -d '[:space:]')" ] || die "origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)"
++      dmsetup create "$NAME" --table "$(expected_table)"; MAPPED=1
++    fi
++    dmsetup status "$NAME" | grep -qw writethrough || die "mapping $NAME is not writethrough"
++  fi
++  holder_dev
++  mkdir -p "$MNT"
++  if findmnt -n "$MNT" >/dev/null; then
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++  else
++    mount -o noatime,nodev,nosuid "$DEV" "$MNT"; MOUNTED=1
++  fi
++  chown "$OWNER:$OWNER" "$MNT"; chmod 0700 "$MNT"
++  for d in "$DATADIR" "$MNT/tmp"; do mkdir -p "$d"; chown "$OWNER:$OWNER" "$d"; chmod 0700 "$d"; done
++  ATTACHED=(); MAPPED=; MOUNTED=
++  log "assembled: $DEV on $MNT"
++  ;;
++disassemble)
++  trap - EXIT
++  # Validate the complete ownership chain BEFORE the first destructive action.
++  # A configured path alone does not identify the filesystem mounted there.
++  O=$(loopof "$ORIGIN")
++  DEV=; REMOVE_MAPPING=
++  if cached && dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$O" ] && [ -n "$D" ] && [ -n "$M" ] || die "mapping $NAME exists but its loops are not ours: leaving it"
++    [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    DEV=/dev/mapper/$NAME; REMOVE_MAPPING=1
++  elif ! cached; then
++    DEV=$O
++  fi
++  if findmnt -n "$MNT" >/dev/null; then
++    [ -n "$DEV" ] || die "$MNT is mounted but this holder's device is absent: leaving it"
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++    umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"
++  fi
++  if [ -n "$REMOVE_MAPPING" ]; then
++    dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
++  fi
++  for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
++    l=$(loopof "$f"); [ -z "$l" ] || losetup -d "$l" || die "detach of $l ($f) failed"
++  done
++  log "disassembled"
++  ;;
++verify-cap)
++  trap - EXIT
++  if cached; then exec "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION"; fi
++  echo '{"cache": "none", "nvmeBytes": 0}'
++  ;;
++cache-loss)
++  cached || die "no cache configured"
++  ! findmnt -n "$MNT" >/dev/null || die "$MNT is mounted: stop the holder and run disassemble first"
++  O=$(loopof "$ORIGIN"); [ -n "$O" ] || attach "$ORIGIN" O
++  if dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$D" ] && [ -n "$M" ] && [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    dmsetup remove "$NAME" || die "dmsetup remove failed"
++  fi
++  # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
++  dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
++  e2fsck -fn "$O"
++  ATTACHED=()
++  log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
++  ;;
++*) echo "usage: $0 create|assemble|disassemble|verify-cap|cache-loss" >&2; trap - EXIT; exit 64;;
++esac
+diff --git a/run/20261023T112303Z/out/render/pair-storage.sh b/run/20261023T112303Z/out/render/pair-storage.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..387a9190139071f2faa4eec119eaf1f837dd5022
+--- /dev/null
++++ b/run/20261023T112303Z/out/render/pair-storage.sh
+@@ -0,0 +1,218 @@
++#!/bin/bash
++# Enclave Base holder storage (rendered by holder.py from holder-storage.sh.in; ROOT ONLY; review before use).
++# Durable data: ONE new ext4 filesystem inside ONE new image file on the HDD (ORIGIN). Optional cache: dm-cache in
++# WRITETHROUGH mode (smq) on two new fixed-size image files on NVMe (CDATA, CMETA). Existing filesystems, partitions and
++# mappings are never formatted, changed, adopted or removed unless they are provably this holder's own.
++#   create        once, with root's approval: preflight EVERYTHING, then allocate; unwinds only what it created
++#   assemble      at boot: attach and map (or adopt an IDENTICAL existing mapping), mount; unwinds only what it did
++#   disassemble   at stop: unmount, unmap, detach; stops at the first failure (never detaches under a live user)
++#   verify-cap    the shared NVMe cache budget ledger (budget.py verify): this host's reservations charged at their
++#                 declared MAXIMA within its fixed share of the 250,000,000,000-byte cap, every present file exactly
++#                 bounded and owned, this reservation's files present; exit 3 otherwise
++#   cache-loss    holder stopped: unmap, INVALIDATE the cache metadata first, then a read-only check of the origin. Any
++#                 later assemble starts from an empty cache. A cache is never reattached after uncached origin access.
++set -euo pipefail
++umask 077
++MECHANISM='dm-cache'
++ORIGIN='/usbtest/enclave-l1-pair/origin.img'
++ORIGIN_BYTES='33554432'
++ORIGIN_FREE_MARGIN='0'
++MNT='/srv/enclave-l1-pair'
++DATADIR='/srv/enclave-l1-pair/data'
++OWNER='enclave-l1'
++NAME='enclave-l1-pair'
++PY='/usr/bin/python3'
++BUDGET_TOOL='/src/vendor/s/budget.py'
++LEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'
++RESERVATION='l1-pair-dm-cache'
++CDATA='/vmtest/enclave-l1-pair-cache/cache-data.img'
++CDATA_BYTES='8388608'
++CMETA='/vmtest/enclave-l1-pair-cache/cache-meta.img'
++CMETA_BYTES='8388608'
++BLOCK_SECTORS='512'
++NVME_FREE_MARGIN='0'
++log() { echo "holder-storage: $*" >&2; }
++die() { log "$*"; exit 2; }
++rot() { lsblk -nso ROTA "$(findmnt -no SOURCE --target "$(dirname "$1")")" | tail -1 | tr -d ' '; }
++avail() { df --output=avail -B1 "$(dirname "$1")" | tail -1 | tr -d ' '; }
++mm() { lsblk -dno MAJ:MIN "$1" | tr -d ' '; }
++loopof() { losetup -j "$1" -O NAME -n | head -1; }          # the loop bound to exactly this backing file, if any
++CREATED=(); ATTACHED=(); MAPPED=; MOUNTED=
++unwind() {
++  local rc=$?
++  [ "$rc" -eq 0 ] && return 0
++  trap - EXIT
++  set +e
++  # Ownership alone is not enough: a failed teardown leaves its dependencies live.
++  # Preserve the remaining devices/files for recovery and the original failure code.
++  if [ -n "$MOUNTED" ] && ! umount "$MNT"; then
++    log "cleanup stopped: cannot unmount $MNT; mapping, loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  if [ -n "$MAPPED" ] && ! dmsetup remove "$NAME"; then
++    log "cleanup stopped: cannot remove mapping $NAME; loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  for l in "${ATTACHED[@]}"; do
++    if ! losetup -d "$l"; then
++      log "cleanup stopped: cannot detach $l; remaining loops and images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  for f in "${CREATED[@]}"; do
++    if ! rm -f -- "$f"; then
++      log "cleanup stopped: cannot remove $f; remaining images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  log "failed (rc=$rc): undid only what this run created/attached/mapped/mounted"
++  exit "$rc"
++}
++trap unwind EXIT
++# a signal (systemd stop, Ctrl-C, hangup) takes the same unwind path as an error: without these, bash dies on SIGTERM
++# WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel, vm-2/vm-3)
++trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
++attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
++  local l; l=$(loopof "$1")
++  if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
++  printf -v "$2" '%s' "$l"
++}
++expected_table() { echo "0 $(blockdev --getsz "$O") cache $(mm "$M") $(mm "$D") $(mm "$O") $BLOCK_SECTORS 1 writethrough smq 0"; }
++cached() { [ "$MECHANISM" = dm-cache ]; }
++holder_dev() {   # the device the mount must come from; sets DEV
++  if cached; then DEV=/dev/mapper/$NAME; else DEV=$O; fi
++}
++own_mapping() {  # 0 = absent, 1 = present AND identical to ours; anything else refuses
++  dmsetup info "$NAME" >/dev/null 2>&1 || return 0
++  local have want; have=$(dmsetup table "$NAME"); want=$(expected_table)
++  [ "$have" = "$want" ] || die "mapping $NAME exists but is not this holder's (have: $have; want: $want); leaving it untouched"
++  return 1
++}
++
++case "${1:-}" in
++create)
++  # 1. preflight every resource BEFORE allocating anything
++  test ! -e "$ORIGIN" || die "$ORIGIN exists: refusing to overwrite or reuse"
++  for f in "$ORIGIN" ${CDATA:+"$CDATA"} ${CMETA:+"$CMETA"}; do
++    test -d "$(dirname "$f")" || die "$(dirname "$f") does not exist"
++  done
++  [ "$(rot "$ORIGIN")" = 1 ] || die "origin must be on a rotational (HDD) device"
++  [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
++  if cached; then
++    for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
++    # A re-run after an interrupted create ADOPTS this reservation's owned cache files (budget admit/allocate), so only
++    # their not-yet-allocated part needs free space. Credit ONLY a regular file (no symlink) that carries an ownership
++    # marker and lives on the SAME filesystem as the CDATA directory measured here; anything else is credited 0. The
++    # budget admit below still refuses a file whose marker is not this reservation's.
++    credit() {   # credit FILE DECLARED_BYTES -> allocated bytes to subtract (<= DECLARED_BYTES)
++      local a
++      if [ -f "$1" ] && [ ! -L "$1" ] && [ -f "$1.enclave-budget-owner" ] && [ ! -L "$1.enclave-budget-owner" ] \
++         && [ "$(stat -c %d -- "$1")" = "$(stat -c %d -- "$(dirname "$CDATA")")" ]; then
++        a=$(( $(stat -c %b -- "$1") * 512 )); [ "$a" -le "$2" ] || a=$2; echo "$a"
++      else
++        echo 0
++      fi
++    }
++    need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(credit "$CDATA" "$CDATA_BYTES") - $(credit "$CMETA" "$CMETA_BYTES") ))
++    [ "$(avail "$CDATA")" -ge "$need" ] || die "not enough NVMe free space for the cache plus margin"
++    # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
++    # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
++    "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
++      || die "NVMe cache budget reservation refused"
++  fi
++  # 2. allocate, tracking ownership for unwind
++  CREATED+=("$ORIGIN"); fallocate -l "$ORIGIN_BYTES" -- "$ORIGIN"
++  attach "$ORIGIN" O
++  mkfs.ext4 -q -L enclave-holder -E lazy_itable_init=0,lazy_journal_init=0 "$O"   # NEW filesystem in the NEW image
++  if cached; then
++    ALLOC=$("$PY" -I "$BUDGET_TOOL" allocate "$LEDGER" "$RESERVATION") || die "NVMe cache budget allocation refused"
++    while read -r w p; do [ "$w" = created ] && CREATED+=("$p"); done <<< "$ALLOC"
++    dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none   # zeroed: dm-cache formats an empty cache
++  fi
++  losetup -d "$O"; ATTACHED=()
++  CREATED=()
++  log "created (not assembled)"
++  ;;
++assemble)
++  modprobe loop
++  test -f "$ORIGIN" || die "origin image missing"
++  if cached; then modprobe dm-cache; modprobe dm-cache-smq; test -f "$CDATA" && test -f "$CMETA" || die "cache images missing"; fi
++  attach "$ORIGIN" O
++  if cached; then
++    "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION" >/dev/null || die "NVMe cache budget verification failed"
++    attach "$CDATA" D; attach "$CMETA" M
++    if own_mapping; then
++      [ -z "$(lsblk -nro MOUNTPOINTS "$O" | tr -d '[:space:]')" ] || die "origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)"
++      dmsetup create "$NAME" --table "$(expected_table)"; MAPPED=1
++    fi
++    dmsetup status "$NAME" | grep -qw writethrough || die "mapping $NAME is not writethrough"
++  fi
++  holder_dev
++  mkdir -p "$MNT"
++  if findmnt -n "$MNT" >/dev/null; then
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++  else
++    mount -o noatime,nodev,nosuid "$DEV" "$MNT"; MOUNTED=1
++  fi
++  chown "$OWNER:$OWNER" "$MNT"; chmod 0700 "$MNT"
++  for d in "$DATADIR" "$MNT/tmp"; do mkdir -p "$d"; chown "$OWNER:$OWNER" "$d"; chmod 0700 "$d"; done
++  ATTACHED=(); MAPPED=; MOUNTED=
++  log "assembled: $DEV on $MNT"
++  ;;
++disassemble)
++  trap - EXIT
++  # Validate the complete ownership chain BEFORE the first destructive action.
++  # A configured path alone does not identify the filesystem mounted there.
++  O=$(loopof "$ORIGIN")
++  DEV=; REMOVE_MAPPING=
++  if cached && dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$O" ] && [ -n "$D" ] && [ -n "$M" ] || die "mapping $NAME exists but its loops are not ours: leaving it"
++    [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    DEV=/dev/mapper/$NAME; REMOVE_MAPPING=1
++  elif ! cached; then
++    DEV=$O
++  fi
++  if findmnt -n "$MNT" >/dev/null; then
++    [ -n "$DEV" ] || die "$MNT is mounted but this holder's device is absent: leaving it"
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++    umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"
++  fi
++  if [ -n "$REMOVE_MAPPING" ]; then
++    dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
++  fi
++  for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
++    l=$(loopof "$f"); [ -n "$l" ] || continue
++    # a loop still mounted anywhere or held by another device (lsblk lists holders as children) is ACTIVE: losetup -d
++    # would only defer the detach (autoclear) under its user, so stop instead and leave it
++    [ -z "$(lsblk -nro MOUNTPOINTS "$l" | tr -d '[:space:]')" ] && [ "$(lsblk -nro NAME "$l" | wc -l)" -le 1 ] \
++      || die "$l ($f) is still mounted or held by another device: not detaching it (stopping)"
++    losetup -d "$l" || die "detach of $l ($f) failed"
++  done
++  log "disassembled"
++  ;;
++verify-cap)
++  trap - EXIT
++  if cached; then exec "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION"; fi
++  echo '{"cache": "none", "nvmeBytes": 0}'
++  ;;
++cache-loss)
++  cached || die "no cache configured"
++  ! findmnt -n "$MNT" >/dev/null || die "$MNT is mounted: stop the holder and run disassemble first"
++  O=$(loopof "$ORIGIN"); [ -n "$O" ] || attach "$ORIGIN" O
++  if dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$D" ] && [ -n "$M" ] && [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    dmsetup remove "$NAME" || die "dmsetup remove failed"
++  fi
++  # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
++  dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
++  e2fsck -fn "$O"
++  # leave the system as found: detach only the origin loop THIS run attached for the check; a loop that existed before
++  # (e.g. left by an earlier assemble or held by something else) is not ours to remove here
++  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done
++  ATTACHED=()
++  log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
++  ;;
++*) echo "usage: $0 create|assemble|disassemble|verify-cap|cache-loss" >&2; trap - EXIT; exit 64;;
++esac
+diff --git a/run/20261023T112303Z/out/render/pair.json b/run/20261023T112303Z/out/render/pair.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..25267298fd8aa34d895eb5f25b6eb4a26292df55
+--- /dev/null
++++ b/run/20261023T112303Z/out/render/pair.json
+@@ -0,0 +1,29 @@
++{
++ "serviceUser": "enclave-l1",
++ "datadir": "/srv/enclave-l1-pair/data",
++ "storage": {
++  "layout": "loop-ext4-image",
++  "mountPoint": "/srv/enclave-l1-pair",
++  "origin": {
++   "imagePath": "/usbtest/enclave-l1-pair/origin.img",
++   "bytes": 33554432
++  },
++  "cache": {
++   "mechanism": "dm-cache",
++   "mode": "writethrough",
++   "policy": "smq",
++   "dataImagePath": "/vmtest/enclave-l1-pair-cache/cache-data.img",
++   "dataBytes": 8388608,
++   "metadataImagePath": "/vmtest/enclave-l1-pair-cache/cache-meta.img",
++   "metadataBytes": 8388608,
++   "blockBytes": 262144,
++   "slackBytes": 57344
++  },
++  "nvmeBudget": {
++   "ledgerPath": "/etc/enclave-rpc-cache/nvme-cache-budget.json",
++   "reservationId": "l1-pair-dm-cache"
++  },
++  "originFreeMarginBytes": 0,
++  "nvmeFreeMarginBytes": 0
++ }
++}
+diff --git a/run/20261023T112303Z/out/render/probe-storage.sh b/run/20261023T112303Z/out/render/probe-storage.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..243bb09160a2c79f6b2be932ba4426f1c31a90ff
+--- /dev/null
++++ b/run/20261023T112303Z/out/render/probe-storage.sh
+@@ -0,0 +1,218 @@
++#!/bin/bash
++# Enclave Base holder storage (rendered by holder.py from holder-storage.sh.in; ROOT ONLY; review before use).
++# Durable data: ONE new ext4 filesystem inside ONE new image file on the HDD (ORIGIN). Optional cache: dm-cache in
++# WRITETHROUGH mode (smq) on two new fixed-size image files on NVMe (CDATA, CMETA). Existing filesystems, partitions and
++# mappings are never formatted, changed, adopted or removed unless they are provably this holder's own.
++#   create        once, with root's approval: preflight EVERYTHING, then allocate; unwinds only what it created
++#   assemble      at boot: attach and map (or adopt an IDENTICAL existing mapping), mount; unwinds only what it did
++#   disassemble   at stop: unmount, unmap, detach; stops at the first failure (never detaches under a live user)
++#   verify-cap    the shared NVMe cache budget ledger (budget.py verify): this host's reservations charged at their
++#                 declared MAXIMA within its fixed share of the 250,000,000,000-byte cap, every present file exactly
++#                 bounded and owned, this reservation's files present; exit 3 otherwise
++#   cache-loss    holder stopped: unmap, INVALIDATE the cache metadata first, then a read-only check of the origin. Any
++#                 later assemble starts from an empty cache. A cache is never reattached after uncached origin access.
++set -euo pipefail
++umask 077
++MECHANISM='dm-cache'
++ORIGIN='/usbtest/probe/origin.img'
++ORIGIN_BYTES='16777216'
++ORIGIN_FREE_MARGIN='0'
++MNT='/srv/enclave-probe'
++DATADIR='/srv/enclave-probe/data'
++OWNER='enclave-holder'
++NAME='enclave-base-holder'
++PY='/usr/bin/python3'
++BUDGET_TOOL='/src/vendor/s/budget.py'
++LEDGER='/etc/enclave-rpc-cache/nvme-cache-budget.json'
++RESERVATION='probe-dm-cache'
++CDATA='/vmtest/probe-cache/cache-data.img'
++CDATA_BYTES='4194304'
++CMETA='/vmtest2/probe-meta/cache-meta.img'
++CMETA_BYTES='8388608'
++BLOCK_SECTORS='512'
++NVME_FREE_MARGIN='0'
++log() { echo "holder-storage: $*" >&2; }
++die() { log "$*"; exit 2; }
++rot() { lsblk -nso ROTA "$(findmnt -no SOURCE --target "$(dirname "$1")")" | tail -1 | tr -d ' '; }
++avail() { df --output=avail -B1 "$(dirname "$1")" | tail -1 | tr -d ' '; }
++mm() { lsblk -dno MAJ:MIN "$1" | tr -d ' '; }
++loopof() { losetup -j "$1" -O NAME -n | head -1; }          # the loop bound to exactly this backing file, if any
++CREATED=(); ATTACHED=(); MAPPED=; MOUNTED=
++unwind() {
++  local rc=$?
++  [ "$rc" -eq 0 ] && return 0
++  trap - EXIT
++  set +e
++  # Ownership alone is not enough: a failed teardown leaves its dependencies live.
++  # Preserve the remaining devices/files for recovery and the original failure code.
++  if [ -n "$MOUNTED" ] && ! umount "$MNT"; then
++    log "cleanup stopped: cannot unmount $MNT; mapping, loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  if [ -n "$MAPPED" ] && ! dmsetup remove "$NAME"; then
++    log "cleanup stopped: cannot remove mapping $NAME; loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  for l in "${ATTACHED[@]}"; do
++    if ! losetup -d "$l"; then
++      log "cleanup stopped: cannot detach $l; remaining loops and images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  for f in "${CREATED[@]}"; do
++    if ! rm -f -- "$f"; then
++      log "cleanup stopped: cannot remove $f; remaining images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  log "failed (rc=$rc): undid only what this run created/attached/mapped/mounted"
++  exit "$rc"
++}
++trap unwind EXIT
++# a signal (systemd stop, Ctrl-C, hangup) takes the same unwind path as an error: without these, bash dies on SIGTERM
++# WITHOUT running the EXIT trap and leaves this run's image and loop behind (measured on a real kernel, vm-2/vm-3)
++trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
++attach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one
++  local l; l=$(loopof "$1")
++  if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi
++  printf -v "$2" '%s' "$l"
++}
++expected_table() { echo "0 $(blockdev --getsz "$O") cache $(mm "$M") $(mm "$D") $(mm "$O") $BLOCK_SECTORS 1 writethrough smq 0"; }
++cached() { [ "$MECHANISM" = dm-cache ]; }
++holder_dev() {   # the device the mount must come from; sets DEV
++  if cached; then DEV=/dev/mapper/$NAME; else DEV=$O; fi
++}
++own_mapping() {  # 0 = absent, 1 = present AND identical to ours; anything else refuses
++  dmsetup info "$NAME" >/dev/null 2>&1 || return 0
++  local have want; have=$(dmsetup table "$NAME"); want=$(expected_table)
++  [ "$have" = "$want" ] || die "mapping $NAME exists but is not this holder's (have: $have; want: $want); leaving it untouched"
++  return 1
++}
++
++case "${1:-}" in
++create)
++  # 1. preflight every resource BEFORE allocating anything
++  test ! -e "$ORIGIN" || die "$ORIGIN exists: refusing to overwrite or reuse"
++  for f in "$ORIGIN" ${CDATA:+"$CDATA"} ${CMETA:+"$CMETA"}; do
++    test -d "$(dirname "$f")" || die "$(dirname "$f") does not exist"
++  done
++  [ "$(rot "$ORIGIN")" = 1 ] || die "origin must be on a rotational (HDD) device"
++  [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"
++  if cached; then
++    for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done
++    # A re-run after an interrupted create ADOPTS this reservation's owned cache files (budget admit/allocate), so only
++    # their not-yet-allocated part needs free space. Credit ONLY a regular file (no symlink) that carries an ownership
++    # marker and lives on the SAME filesystem as the CDATA directory measured here; anything else is credited 0. The
++    # budget admit below still refuses a file whose marker is not this reservation's.
++    credit() {   # credit FILE DECLARED_BYTES -> allocated bytes to subtract (<= DECLARED_BYTES)
++      local a
++      if [ -f "$1" ] && [ ! -L "$1" ] && [ -f "$1.enclave-budget-owner" ] && [ ! -L "$1.enclave-budget-owner" ] \
++         && [ "$(stat -c %d -- "$1")" = "$(stat -c %d -- "$(dirname "$CDATA")")" ]; then
++        a=$(( $(stat -c %b -- "$1") * 512 )); [ "$a" -le "$2" ] || a=$2; echo "$a"
++      else
++        echo 0
++      fi
++    }
++    need=$(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN - $(credit "$CDATA" "$CDATA_BYTES") - $(credit "$CMETA" "$CMETA_BYTES") ))
++    [ "$(avail "$CDATA")" -ge "$need" ] || die "not enough NVMe free space for the cache plus margin"
++    # the ledger reservation must exist for THIS host and name exactly these files and sizes; present cache files must
++    # be this reservation's own (an interrupted earlier create is adopted, never granted twice)
++    "$PY" -I "$BUDGET_TOOL" admit "$LEDGER" "$RESERVATION" "$CDATA=$CDATA_BYTES" "$CMETA=$CMETA_BYTES" \
++      || die "NVMe cache budget reservation refused"
++  fi
++  # 2. allocate, tracking ownership for unwind
++  CREATED+=("$ORIGIN"); fallocate -l "$ORIGIN_BYTES" -- "$ORIGIN"
++  attach "$ORIGIN" O
++  mkfs.ext4 -q -L enclave-holder -E lazy_itable_init=0,lazy_journal_init=0 "$O"   # NEW filesystem in the NEW image
++  if cached; then
++    ALLOC=$("$PY" -I "$BUDGET_TOOL" allocate "$LEDGER" "$RESERVATION") || die "NVMe cache budget allocation refused"
++    while read -r w p; do [ "$w" = created ] && CREATED+=("$p"); done <<< "$ALLOC"
++    dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none   # zeroed: dm-cache formats an empty cache
++  fi
++  losetup -d "$O"; ATTACHED=()
++  CREATED=()
++  log "created (not assembled)"
++  ;;
++assemble)
++  modprobe loop
++  test -f "$ORIGIN" || die "origin image missing"
++  if cached; then modprobe dm-cache; modprobe dm-cache-smq; test -f "$CDATA" && test -f "$CMETA" || die "cache images missing"; fi
++  attach "$ORIGIN" O
++  if cached; then
++    "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION" >/dev/null || die "NVMe cache budget verification failed"
++    attach "$CDATA" D; attach "$CMETA" M
++    if own_mapping; then
++      [ -z "$(lsblk -nro MOUNTPOINTS "$O" | tr -d '[:space:]')" ] || die "origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)"
++      dmsetup create "$NAME" --table "$(expected_table)"; MAPPED=1
++    fi
++    dmsetup status "$NAME" | grep -qw writethrough || die "mapping $NAME is not writethrough"
++  fi
++  holder_dev
++  mkdir -p "$MNT"
++  if findmnt -n "$MNT" >/dev/null; then
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++  else
++    mount -o noatime,nodev,nosuid "$DEV" "$MNT"; MOUNTED=1
++  fi
++  chown "$OWNER:$OWNER" "$MNT"; chmod 0700 "$MNT"
++  for d in "$DATADIR" "$MNT/tmp"; do mkdir -p "$d"; chown "$OWNER:$OWNER" "$d"; chmod 0700 "$d"; done
++  ATTACHED=(); MAPPED=; MOUNTED=
++  log "assembled: $DEV on $MNT"
++  ;;
++disassemble)
++  trap - EXIT
++  # Validate the complete ownership chain BEFORE the first destructive action.
++  # A configured path alone does not identify the filesystem mounted there.
++  O=$(loopof "$ORIGIN")
++  DEV=; REMOVE_MAPPING=
++  if cached && dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$O" ] && [ -n "$D" ] && [ -n "$M" ] || die "mapping $NAME exists but its loops are not ours: leaving it"
++    [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    DEV=/dev/mapper/$NAME; REMOVE_MAPPING=1
++  elif ! cached; then
++    DEV=$O
++  fi
++  if findmnt -n "$MNT" >/dev/null; then
++    [ -n "$DEV" ] || die "$MNT is mounted but this holder's device is absent: leaving it"
++    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d ' ')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"
++    umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"
++  fi
++  if [ -n "$REMOVE_MAPPING" ]; then
++    dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"
++  fi
++  for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do
++    l=$(loopof "$f"); [ -n "$l" ] || continue
++    # a loop still mounted anywhere or held by another device (lsblk lists holders as children) is ACTIVE: losetup -d
++    # would only defer the detach (autoclear) under its user, so stop instead and leave it
++    [ -z "$(lsblk -nro MOUNTPOINTS "$l" | tr -d '[:space:]')" ] && [ "$(lsblk -nro NAME "$l" | wc -l)" -le 1 ] \
++      || die "$l ($f) is still mounted or held by another device: not detaching it (stopping)"
++    losetup -d "$l" || die "detach of $l ($f) failed"
++  done
++  log "disassembled"
++  ;;
++verify-cap)
++  trap - EXIT
++  if cached; then exec "$PY" -I "$BUDGET_TOOL" verify "$LEDGER" "$RESERVATION"; fi
++  echo '{"cache": "none", "nvmeBytes": 0}'
++  ;;
++cache-loss)
++  cached || die "no cache configured"
++  ! findmnt -n "$MNT" >/dev/null || die "$MNT is mounted: stop the holder and run disassemble first"
++  O=$(loopof "$ORIGIN"); [ -n "$O" ] || attach "$ORIGIN" O
++  if dmsetup info "$NAME" >/dev/null 2>&1; then
++    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")
++    [ -n "$D" ] && [ -n "$M" ] && [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder's: leaving it"
++    dmsetup remove "$NAME" || die "dmsetup remove failed"
++  fi
++  # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost
++  dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none
++  e2fsck -fn "$O"
++  # leave the system as found: detach only the origin loop THIS run attached for the check; a loop that existed before
++  # (e.g. left by an earlier assemble or held by something else) is not ours to remove here
++  for l in "${ATTACHED[@]}"; do losetup -d "$l" || die "detach of $l failed"; done
++  ATTACHED=()
++  log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"
++  ;;
++*) echo "usage: $0 create|assemble|disassemble|verify-cap|cache-loss" >&2; trap - EXIT; exit 64;;
++esac
+diff --git a/run/20261023T112303Z/out/render/probe.json b/run/20261023T112303Z/out/render/probe.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..3bbb99d7b54f865f3999d3bcd6b585f18a778d18
+--- /dev/null
++++ b/run/20261023T112303Z/out/render/probe.json
+@@ -0,0 +1,29 @@
++{
++ "serviceUser": "enclave-holder",
++ "datadir": "/srv/enclave-probe/data",
++ "storage": {
++  "layout": "loop-ext4-image",
++  "mountPoint": "/srv/enclave-probe",
++  "origin": {
++   "imagePath": "/usbtest/probe/origin.img",
++   "bytes": 16777216
++  },
++  "cache": {
++   "mechanism": "dm-cache",
++   "mode": "writethrough",
++   "policy": "smq",
++   "dataImagePath": "/vmtest/probe-cache/cache-data.img",
++   "dataBytes": 4194304,
++   "metadataImagePath": "/vmtest2/probe-meta/cache-meta.img",
++   "metadataBytes": 8388608,
++   "blockBytes": 262144,
++   "slackBytes": 57344
++  },
++  "nvmeBudget": {
++   "ledgerPath": "/etc/enclave-rpc-cache/nvme-cache-budget.json",
++   "reservationId": "probe-dm-cache"
++  },
++  "originFreeMarginBytes": 0,
++  "nvmeFreeMarginBytes": 0
++ }
++}
+diff --git a/run/20261023T112303Z/out/render/seam.json b/run/20261023T112303Z/out/render/seam.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..7860d405f3e492e5869a9bd41d97c0e9bfda10d8
+--- /dev/null
++++ b/run/20261023T112303Z/out/render/seam.json
+@@ -0,0 +1,26 @@
++{
++ "composedTemplate": "cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222",
++ "oldTemplate": "eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00",
++ "renderers": {
++  "s/holder.py": "c73a435116e2bd70ec0bfcf2717ed8eb7292be2a7d5b9b1cb3b71a3adbad9a42",
++  "p/l1pair.py": "a25bd4ea620e8c8193fe409add6aa80569fce1a76a4ce4ed151bbf15f4a3299d",
++  "budget.py": "529e155f74e9bc63e1bb3a3b18dda34baa79c09d016103f11c0e02b21216ad24"
++ },
++ "files": {
++  "holder-storage.sh": "3e395749802f70d692e0d1f47ff45688d40b49ac68ebe9eeb396b7712850275d",
++  "pair-storage.sh": "218f4cdcd566f139f3bcfd0e8e7e64ec9ac4500fd80f59f8b1a78b807dd15159",
++  "probe-storage.sh": "9d5e4b8a74b8d490445e4dd30eeb707d027eda550d01334730dc3821c50db8f0",
++  "old-holder-storage.sh": "3ad5647f342c423e4733dd0c5f2a81e9e217c1777996b17ff5ef6cad1dabc8c2",
++  "mutant-credit-symlink.sh": "5dc9f947f5d9f0c3dfc6d99531880348c6825309f7e6809ca06edb27ccdba9df",
++  "holder.json": "029b1b2a04747afc6a49dc09c5f0de0f16e0f361a0abcafafb224e0025f4ebdc",
++  "pair.json": "c4a93b74970a2e08afd496958c231dd6177e544cfaec4b8afcda700942abcad9",
++  "probe.json": "ba7f66866daf3ceba10d1a4ef08c0c05e72f08a6071b368642dedf39624a20c9",
++  "ledger.json": "cbb319a2c0628b747d93f356ef05fc11daacfdb17022435055362bb366ac6686"
++ },
++ "ledgerShare": 113668096,
++ "reservations": {
++  "base-holder-dm-cache": 84115456,
++  "l1-pair-dm-cache": 16834560,
++  "probe-dm-cache": 12640256
++ }
++}
+diff --git a/run/20261023T112303Z/out/results.json b/run/20261023T112303Z/out/results.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..69c6c3761fe7c4da4e03c94774efd8219b8bad02
+--- /dev/null
++++ b/run/20261023T112303Z/out/results.json
+@@ -0,0 +1,420 @@
++{
++ "holder.create": {
++  "rc": 0,
++  "err": "holder-storage: created (not assembled)"
++ },
++ "pair.create": {
++  "rc": 0,
++  "err": "holder-storage: created (not assembled)"
++ },
++ "probe.create": {
++  "rc": 0,
++  "err": "holder-storage: created (not assembled)"
++ },
++ "holder.assemble": {
++  "rc": 0,
++  "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder"
++ },
++ "A.loopsUnderMapping": {
++  "origin.img": [
++   {
++    "loop": "/dev/loop1",
++    "backing": "/usbtest/enclave-base-holder/origin.img",
++    "autoclear": "0",
++    "holders": [
++     "dm-1"
++    ],
++    "lsblkName": [
++     "loop1",
++     "enclave-base-holder"
++    ],
++    "lsblkMountpoints": [
++     "/srv/enclave-base-holder"
++    ]
++   }
++  ],
++  "cache-data.img": [
++   {
++    "loop": "/dev/loop2",
++    "backing": "/vmtest/enclave-base-holder-cache/cache-data.img",
++    "autoclear": "0",
++    "holders": [
++     "dm-1"
++    ],
++    "lsblkName": [
++     "loop2",
++     "enclave-base-holder"
++    ],
++    "lsblkMountpoints": [
++     "/srv/enclave-base-holder"
++    ]
++   }
++  ],
++  "cache-meta.img": [
++   {
++    "loop": "/dev/loop3",
++    "backing": "/vmtest/enclave-base-holder-cache/cache-meta.img",
++    "autoclear": "0",
++    "holders": [
++     "dm-1"
++    ],
++    "lsblkName": [
++     "loop3",
++     "enclave-base-holder"
++    ],
++    "lsblkMountpoints": [
++     "/srv/enclave-base-holder"
++    ]
++   }
++  ]
++ },
++ "holder.disassemble": {
++  "rc": 0,
++  "err": "holder-storage: disassembled"
++ },
++ "A.afterDisassemble": {
++  "loops": [
++   {
++    "name": "/dev/loop0",
++    "back-file": "/vmtest/vmtest2.img",
++    "back-ino": 13,
++    "maj:min": "7:0",
++    "autoclear": false
++   }
++  ],
++  "dm": [
++   "vmtest-crypt"
++  ],
++  "mounts": [
++   "/vmtest",
++   "/usbtest",
++   "/vmtest2"
++  ]
++ },
++ "B.held-by-foreign-mapping.composed": {
++  "rc": 2,
++  "err": "holder-storage: /dev/loop1 (/usbtest/enclave-base-holder/origin.img) is still mounted or held by another device: not detaching it (stopping)",
++  "before": {
++   "loop": "/dev/loop1",
++   "backing": "/usbtest/enclave-base-holder/origin.img",
++   "autoclear": "0",
++   "holders": [
++    "dm-1"
++   ],
++   "lsblkName": [
++    "loop1",
++    "foreign-hold"
++   ],
++   "lsblkMountpoints": []
++  },
++  "afterDisassemble": {
++   "loop": "/dev/loop1",
++   "backing": "/usbtest/enclave-base-holder/origin.img",
++   "autoclear": "0",
++   "holders": [
++    "dm-1"
++   ],
++   "lsblkName": [
++    "loop1",
++    "foreign-hold"
++   ],
++   "lsblkMountpoints": []
++  },
++  "loopStillBoundAfterUserGone": true
++ },
++ "B.held-by-foreign-mapping.old-control": {
++  "rc": 0,
++  "err": "holder-storage: disassembled",
++  "before": {
++   "loop": "/dev/loop1",
++   "backing": "/usbtest/enclave-base-holder/origin.img",
++   "autoclear": "0",
++   "holders": [
++    "dm-1"
++   ],
++   "lsblkName": [
++    "loop1",
++    "foreign-hold"
++   ],
++   "lsblkMountpoints": []
++  },
++  "afterDisassemble": {
++   "loop": "/dev/loop1",
++   "backing": "/usbtest/enclave-base-holder/origin.img",
++   "autoclear": "1",
++   "holders": [
++    "dm-1"
++   ],
++   "lsblkName": [
++    "loop1",
++    "foreign-hold"
++   ],
++   "lsblkMountpoints": []
++  },
++  "loopStillBoundAfterUserGone": false
++ },
++ "B.mounted-elsewhere.composed": {
++  "rc": 2,
++  "err": "holder-storage: /dev/loop1 (/usbtest/enclave-base-holder/origin.img) is still mounted or held by another device: not detaching it (stopping)",
++  "before": {
++   "loop": "/dev/loop1",
++   "backing": "/usbtest/enclave-base-holder/origin.img",
++   "autoclear": "0",
++   "holders": [],
++   "lsblkName": [
++    "loop1"
++   ],
++   "lsblkMountpoints": [
++    "/mnt-raw"
++   ]
++  },
++  "afterDisassemble": {
++   "loop": "/dev/loop1",
++   "backing": "/usbtest/enclave-base-holder/origin.img",
++   "autoclear": "0",
++   "holders": [],
++   "lsblkName": [
++    "loop1"
++   ],
++   "lsblkMountpoints": [
++    "/mnt-raw"
++   ]
++  },
++  "loopStillBoundAfterUserGone": true
++ },
++ "B.mounted-elsewhere.old-control": {
++  "rc": 0,
++  "err": "holder-storage: disassembled",
++  "before": {
++   "loop": "/dev/loop1",
++   "backing": "/usbtest/enclave-base-holder/origin.img",
++   "autoclear": "0",
++   "holders": [],
++   "lsblkName": [
++    "loop1"
++   ],
++   "lsblkMountpoints": [
++    "/mnt-raw"
++   ]
++  },
++  "afterDisassemble": {
++   "loop": "/dev/loop1",
++   "backing": "/usbtest/enclave-base-holder/origin.img",
++   "autoclear": "1",
++   "holders": [],
++   "lsblkName": [
++    "loop1"
++   ],
++   "lsblkMountpoints": [
++    "/mnt-raw"
++   ]
++  },
++  "loopStillBoundAfterUserGone": false
++ },
++ "C.noPriorLoop.composed": {
++  "rc": 0,
++  "originLoopsLeft": []
++ },
++ "C.noPriorLoop.old-control": {
++  "rc": 0,
++  "originLoopsLeft": [
++   "/dev/loop1"
++  ]
++ },
++ "C.preExistingLoop.composed": {
++  "rc": 0,
++  "kept": true,
++  "backing": "/usbtest/enclave-base-holder/origin.img",
++  "inodeSame": true
++ },
++ "D1.ownedAdoption": {
++  "rc": 0,
++  "err": "holder-storage: created (not assembled)"
++ },
++ "D2.unmarkedForeign": {
++  "tightMargin": {
++   "rc": 2,
++   "err": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
++  },
++  "zeroMargin": {
++   "rc": 2,
++   "err": "refused\": \"/vmtest/enclave-l1-pair-cache/cache-meta.img exists without this reservation's ownership marker: refusing\"}\nholder-storage: NVMe cache budget reservation refused\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
++  },
++  "foreignUnchanged": true,
++  "originCreated": false,
++  "loops": []
++ },
++ "D3.symlink": {
++  "short": {
++   "linkLength": 21,
++   "linkAllocatedBytes": 0,
++   "composed": {
++    "knifeEdgeMargin": {
++     "rc": 2,
++     "err": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
++    },
++    "zeroMargin": {
++     "rc": 2,
++     "err": "{\"refused\": \"/vmtest/enclave-l1-pair-cache/cache-meta.img is not this reservation's regular file\"}\nholder-storage: NVMe cache budget allocation refused\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
++    }
++   },
++   "mutant": {
++    "knifeEdgeMargin": {
++     "rc": 2,
++     "err": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
++    },
++    "zeroMargin": {
++     "rc": 2,
++     "err": "{\"refused\": \"/vmtest/enclave-l1-pair-cache/cache-meta.img is not this reservation's regular file\"}\nholder-storage: NVMe cache budget allocation refused\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
++    }
++   },
++   "stateAfter": {
++    "targetUnchanged": true,
++    "symlinkIntact": true,
++    "originCreated": false,
++    "loops": [],
++    "dataFileCreated": false
++   }
++  },
++  "long": {
++   "linkLength": 110,
++   "linkAllocatedBytes": 4096,
++   "composed": {
++    "knifeEdgeMargin": {
++     "rc": 2,
++     "err": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
++    },
++    "zeroMargin": {
++     "rc": 2,
++     "err": "{\"refused\": \"/vmtest/enclave-l1-pair-cache/cache-meta.img is not this reservation's regular file\"}\nholder-storage: NVMe cache budget allocation refused\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
++    }
++   },
++   "mutant": {
++    "knifeEdgeMargin": {
++     "rc": 2,
++     "err": "{\"refused\": \"/vmtest/enclave-l1-pair-cache/cache-meta.img is not this reservation's regular file\"}\nholder-storage: NVMe cache budget allocation refused\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
++    },
++    "zeroMargin": {
++     "rc": 2,
++     "err": "{\"refused\": \"/vmtest/enclave-l1-pair-cache/cache-meta.img is not this reservation's regular file\"}\nholder-storage: NVMe cache budget allocation refused\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
++    }
++   },
++   "stateAfter": {
++    "targetUnchanged": true,
++    "symlinkIntact": true,
++    "originCreated": false,
++    "loops": [],
++    "dataFileCreated": false
++   }
++  }
++ },
++ "pair.recreate": {
++  "rc": 0,
++  "err": "holder-storage: created (not assembled)"
++ },
++ "D4.otherFilesystem": {
++  "tightMargin": {
++   "rc": 2,
++   "err": "holder-storage: not enough NVMe free space for the cache plus margin\nholder-storage: failed (rc=2): undid only what this run created/attached/mapped/mounted"
++  },
++  "stateAfterRefusal": {
++   "filesUnchanged": true,
++   "originCreated": false,
++   "loops": []
++  },
++  "zeroMarginAdopts": {
++   "rc": 0,
++   "err": "holder-storage: created (not assembled)"
++  },
++  "devices": {
++   "/vmtest/probe-cache/cache-data.img": 64768,
++   "/vmtest2/probe-meta/cache-meta.img": 1792
++  }
++ },
++ "E1.sigtermSweep": {
++  "uninterruptedSec": 0.296,
++  "attempts": [
++   {
++    "delay": 0.044,
++    "rc": 143,
++    "originLeft": false,
++    "loopsLeft": [],
++    "err": "holder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted"
++   },
++   {
++    "delay": 0.089,
++    "rc": 143,
++    "originLeft": false,
++    "loopsLeft": [],
++    "err": "holder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted"
++   },
++   {
++    "delay": 0.133,
++    "rc": 143,
++    "originLeft": false,
++    "loopsLeft": [],
++    "err": "A_BYTES\" \"$CMETA=$CMETA_BYTES\"\nholder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted"
++   },
++   {
++    "delay": 0.178,
++    "rc": 143,
++    "originLeft": false,
++    "loopsLeft": [],
++    "err": "l \"$ORIGIN_BYTES\" -- \"$ORIGIN\"\nholder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted"
++   },
++   {
++    "delay": 0.222,
++    "rc": 143,
++    "originLeft": false,
++    "loopsLeft": [],
++    "err": "holder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted"
++   },
++   {
++    "delay": 0.266,
++    "rc": 143,
++    "originLeft": false,
++    "loopsLeft": [],
++    "err": "holder-storage: failed (rc=143): undid only what this run created/attached/mapped/mounted"
++   }
++  ]
++ },
++ "pair.final": {
++  "rc": 0,
++  "err": "holder-storage: created (not assembled)"
++ },
++ "E2.assemble": {
++  "rc": 0,
++  "err": "holder-storage: assembled: /dev/mapper/enclave-base-holder on /srv/enclave-base-holder"
++ },
++ "E2.dataAfterCacheLoss": {
++  "files": 4,
++  "mismatches": []
++ },
++ "E2.status": "0 327680 cache 8 7/4096 512 1/256 147 135 0 1 0 1 0 1 writethrough 2 migration_threshold 2048 smq 0 rw -",
++ "E2.verifyCap": {
++  "rc": 0,
++  "err": ""
++ },
++ "F.holder.disassemble": {
++  "rc": 0,
++  "err": "holder-storage: disassembled"
++ },
++ "F.pair.disassemble": {
++  "rc": 0,
++  "err": "holder-storage: disassembled"
++ },
++ "F.probe.disassemble": {
++  "rc": 0,
++  "err": "holder-storage: disassembled"
++ },
++ "F.final": {
++  "clean": true,
++  "loops": [],
++  "dm": [
++   "No",
++   "devices",
++   "found"
++  ],
++  "mounts": []
++ }
++}
+\ No newline at end of file
+diff --git a/run/20261023T112303Z/out/source-pins.txt b/run/20261023T112303Z/out/source-pins.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..f5a244ebea04b84813f726943393d17ed20b2c33
+--- /dev/null
++++ b/run/20261023T112303Z/out/source-pins.txt
+@@ -0,0 +1,5 @@
++cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222  vendor/s/holder-storage.sh.in
++cab32bbe9967d56e75366ee573ff0cf4173ba66080e6b5fc58bc8c857ca8f222  vendor/p/vendor/holder/holder-storage.sh.in
++eb6a209d020703185090645cfcdc74390b242e31250ea49d625db246cecaeb00  vendor/s-old/holder-storage.sh.in
++b1ceb531e0c335f74cf8182b18df94081998ccfa624466621d396ce5c3b91302  harness/guest.py
++937ab5bdc249e43f3b32409cef95421b4f82d9fc3c7af9377d95e42a3d6b1699  harness/render.py

@@ -1,0 +1,9 @@
+{
+  "source_commit": "028623069a5bcacd51b2df3b3aa483c0f93b2957",
+  "files": {
+    "public-rpc.mjs": "fe31bcdc2f49c6ef2c2c7bcec64e4d1f7b23d87984b6e8450ed4374cd5e82fbe",
+    "public-rpc-config.mjs": "8db917dfcf9c48699b732fbb62c91fdf0779828d64c17e94fba4fa249b95d919",
+    "rpc-identity.mjs": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57"
+  },
+  "consumer_commit": "dc2e5d7402327bdd376cf3b90cfa23a551a37ba8"
+}

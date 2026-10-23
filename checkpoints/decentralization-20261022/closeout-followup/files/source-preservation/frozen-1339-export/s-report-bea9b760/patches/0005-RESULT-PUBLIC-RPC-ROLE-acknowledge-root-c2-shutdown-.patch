@@ -1,0 +1,47 @@
+From 548b4e973e7a99a43ce04d9cee5402986403c256 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 06:35:22 -0700
+Subject: [PATCH 5/6] RESULT-PUBLIC-RPC-ROLE: acknowledge root
+ c2/shutdown/cancellation-owner/wallet-interface notes; pending nonce and fee
+ quote listed as the next scope
+
+---
+ RESULT-PUBLIC-RPC-ROLE.md | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/RESULT-PUBLIC-RPC-ROLE.md b/RESULT-PUBLIC-RPC-ROLE.md
+index 3ba8dfcb27ebfe2e83afaf1cc29b91bcdf7caa75..4c028ea86e928e7eb5fb3a2e7b6be7df07c7488e 100644
+--- a/RESULT-PUBLIC-RPC-ROLE.md
++++ b/RESULT-PUBLIC-RPC-ROLE.md
+@@ -211,6 +211,8 @@ changed); real MetaMask; a real Helios verifier.
+   Base non-sequencer node with gossip off (and the S holder's excluded sequencer route) does not propagate.
+   L1-deposit/forced inclusion belongs to E and P.
+ - **Receipts and lookups** for transactions sent elsewhere depend on the operator's node seeing their inclusion.
++- **Pending nonce and fee quote** (`eth_getTransactionCount` at `pending`, `eth_maxPriorityFeePerGas`) are not served yet. E's
++  wallet broadcast needs the nonce; root has queued it as the next scope.
+ - **Proof-backed answers** cover only the verifier's methods. Logs, receipts, estimates and tx lookups are node answers
+   and are labelled `node`.
+ 
+@@ -239,6 +241,22 @@ changed); real MetaMask; a real Helios verifier.
+   - The 250 GB NVMe cache cap and HDD durable state are unchanged.
+   - Nothing here measured NucBox capacity, and nothing touched it.
+ 
++- **`ROOT-C2-HARNESS-FAILURE.txt`.** Root is correct: in `c2` my diagnostic helper landed inside the daemon's generated
++  preload source and broke every daemon test on both trees. Root cancelled that batch, and its failed logs are kept. The
++  helper sits in the outer test scope in `c3` and in the committed `36919aaf`.
++- **`ROOT-SHUTDOWN-PHASE-REVIEW.txt`, `ROOT-ACTUAL-CANCELLATION-CONFIRMED.txt` and `ROOT-CANCELLATION-FIX-OWNER.txt`.**
++  The `c3` capture (exit code 1, signal null, "privacy agent stopped during startup" after ADMITTED and STARTED)
++  confirms root's controlled finding on the real daemon. The deterministic cancellation fix and its tests are **M's**
++  (work/privacy-startup-cancellation-20261023, on base `4c059b99`). Nothing is duplicated here; the exit-0 assertions are
++  unchanged.
++- **`ROOT-WALLET-INTERFACE-REVIEW.txt` (NOT done here; this is the next scoped integration).**
++  - `eth_getTransactionCount(addr, "pending")` is refused (-32602 "pending is not served"), and E's profile broadcast
++    needs it before signing.
++  - `eth_maxPriorityFeePerGas` is refused (-32601); E has a fallback tip.
++  - The next round should add a bounded pending nonce from the operator's own node, labelled UNVERIFIED mempool state
++    (not a general `pending` allowance), and possibly a strictly validated fee quote. It should be proved with the built
++    wallet route through the packaged role, keeping the own-property guards and closing the proof/header gap above.
++
+ ## 7. Notes delivered
+ 
+ - `NOTE-PUBLIC-RPC-ROLE-INTEGRATION.md`: changed files, who bundles what, and what F, B and root would carry. It is also
