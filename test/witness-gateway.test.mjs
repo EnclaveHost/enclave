@@ -1,12 +1,12 @@
-// network/witness-gateway.mjs: allowlist, ordered failover, block-hash-pinned cache (create-only, outage fallback only),
-// broadcast fan-out and refusal when every upstream is down. Upstreams are local stubs.
+// network/witness-gateway.mjs: allowlist, ordered failover for the methods Helios verifies itself, broadcast fan-out and
+// refusal when every upstream is down. Upstreams are local stubs. Verified witnesses (eth_getProof/eth_getCode) and the
+// cache need the real verifier: test/witness-failover.test.mjs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { createWitnessGateway, dirWitnessCache, witnessKey } from '../network/witness-gateway.mjs';
+import { createWitnessGateway, witnessKey, WITNESS_METHODS, VERIFIED_METHODS } from '../network/witness-gateway.mjs';
+
+const PLAIN = WITNESS_METHODS.filter((m) => !VERIFIED_METHODS.includes(m));
 
 const H = '0x' + 'ab'.repeat(32);
 function stub(answer) {
@@ -20,7 +20,6 @@ function stub(answer) {
   return new Promise((r) => s.listen(0, '127.0.0.1', () => r({ s, seen, url: `http://127.0.0.1:${s.address().port}/` })));
 }
 const req = (method, params, id = 1) => ({ jsonrpc: '2.0', id, method, params });
-const tmp = () => fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 'wg-'));
 
 test('only block-hash-pinned proof and code requests are cache keys', () => {
   assert.ok(witnessKey('eth_getProof', ['0x' + '01'.repeat(20), [], { blockHash: H }]));
@@ -38,7 +37,7 @@ test('only block-hash-pinned proof and code requests are cache keys', () => {
 test('methods outside the witness allowlist are refused without touching an upstream', async (t) => {
   const up = await stub(() => ({ result: '0x1' }));
   t.after(() => up.s.close());
-  const g = createWitnessGateway({ upstreams: [up.url] });
+  const g = createWitnessGateway({ upstreams: [up.url], methods: PLAIN });
   for (const m of ['eth_accounts', 'eth_sign', 'debug_traceTransaction', 'admin_peers', 'eth_call', 'personal_unlockAccount'])
     assert.equal((await g.handle(req(m, []))).error.code, -32601, m);
   assert.deepEqual(up.seen, []);
@@ -48,38 +47,22 @@ test('methods outside the witness allowlist are refused without touching an upst
 test('upstreams are tried in order; a failed or erroring one costs a try, not the answer', async (t) => {
   const a = await stub(() => 500), b = await stub(() => ({ error: { code: -32000, message: 'missing trie node' } })), c = await stub(() => ({ result: '0x2105' }));
   t.after(() => { a.s.close(); b.s.close(); c.s.close(); });
-  const g = createWitnessGateway({ upstreams: [a.url, b.url, c.url] });
+  const g = createWitnessGateway({ upstreams: [a.url, b.url, c.url], methods: PLAIN });
   assert.equal((await g.handle(req('eth_chainId', []))).result, '0x2105');
   const st = g.stats();
   assert.deepEqual(Object.values(st.upstream).map((x) => [x.ok, x.failed]), [[0, 1], [0, 1], [1, 0]]);
 });
 
-test('pinned witnesses are cached create-only and served from the cache only when every upstream fails', async (t) => {
-  const dir = tmp(); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  let value = '0xproof-1', up = await stub((j) => ({ result: j.method === 'eth_getProof' ? { v: value } : '0x1' }));
-  const cache = dirWitnessCache(dir);
-  const g = createWitnessGateway({ upstreams: [up.url], cache });
-  const p = req('eth_getProof', ['0x' + '01'.repeat(20), ['0x0'], { blockHash: H }]);
-  assert.deepEqual((await g.handle(p)).result, { v: '0xproof-1' });
-  await new Promise((r) => setTimeout(r, 50));
-  value = '0xproof-2';                                  // upstream answers differently: upstream wins while it is up
-  assert.deepEqual((await g.handle(p)).result, { v: '0xproof-2' });
-  await new Promise((r) => setTimeout(r, 50));
-  up.s.close();                                         // every upstream down
-  assert.deepEqual((await g.handle(p)).result, { v: '0xproof-1' }, 'create-only: the first entry stands');
-  assert.equal(g.stats().cacheHits, 1);
-  // a request at a block NUMBER is never cached, so it is simply unavailable now
-  assert.match((await g.handle(req('eth_getProof', ['0x' + '01'.repeat(20), ['0x0'], 'latest']))).error.message, /no witness source answered/);
-  // an entry whose recorded request differs (a misfiled or tampered file) is a miss
-  const w = witnessKey(p.method, p.params);
-  const f = path.join(dir, w.blockHash, w.key + '.json');
-  fs.writeFileSync(f, JSON.stringify({ format: 'enclave-witness-rpc/v1', request: '["eth_getProof",[]]', result: { v: 'evil' } }));
-  assert.match((await g.handle(p)).error.message, /no witness source answered/);
+test('witness methods and a cache are refused without a verifier: there is no unverified witness mode', () => {
+  assert.throws(() => createWitnessGateway({ upstreams: [] }), /need proofs/);
+  assert.throws(() => createWitnessGateway({ upstreams: [], methods: ['eth_getCode'] }), /need proofs/);
+  assert.throws(() => createWitnessGateway({ upstreams: [], methods: PLAIN, cache: { get: async () => undefined, put: async () => {} } }), /need proofs/);
+  assert.ok(createWitnessGateway({ upstreams: [], methods: PLAIN }));
 });
 
 test('a transaction goes to every upstream; with every upstream down nothing is sent and the caller is told', async (t) => {
   const a = await stub(() => ({ result: '0x' + 'cd'.repeat(32) })), b = await stub(() => ({ result: '0x' + 'cd'.repeat(32) }));
-  const g = createWitnessGateway({ upstreams: [a.url, b.url] });
+  const g = createWitnessGateway({ upstreams: [a.url, b.url], methods: PLAIN });
   assert.equal((await g.handle(req('eth_sendRawTransaction', ['0x02']))).result, '0x' + 'cd'.repeat(32));
   assert.deepEqual([a.seen, b.seen], [['eth_sendRawTransaction'], ['eth_sendRawTransaction']]);
   a.s.close(); b.s.close();
@@ -89,7 +72,7 @@ test('a transaction goes to every upstream; with every upstream down nothing is 
 
 test('the HTTP endpoint is loopback-only, bounds bodies and answers batches', async (t) => {
   const up = await stub(() => ({ result: '0x2105' }));
-  const g = createWitnessGateway({ upstreams: [up.url] });
+  const g = createWitnessGateway({ upstreams: [up.url], methods: PLAIN });
   const url = await g.listen(0);
   t.after(async () => { await g.close(); up.s.close(); });
   assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/$/);
